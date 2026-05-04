@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-05-04 — Phase 6 of ts-for-gir integration: TypeDoc stubs removed (`typedoc`, `@ts-for-gir/generator-html-doc`, `@ts-for-gir/generator-json` no longer aliased in the GJS bundle). `esbuild-plugin-gjsify`'s `onLoad` hook now rewrites `import.meta.url` in every `node_modules` file to the build-time-known original file URL, and `@gjsify/module` `createRequire` now walks all ancestor `node_modules` directories (matching Node.js resolution order). `ts-for-gir json` and `ts-for-gir doc` work natively on GJS. Node: 249/249 green, GJS: 209/209 green (+10 Phase 6 tests each).
+> Last updated: 2026-05-04 — Phase 6b + Phase 8 of ts-for-gir integration: (1) `esbuild-plugin-gjsify` `onLoad` hooks upgraded to runtime-relative `import.meta.url` rewriting (ESM/CJS split — CJS files get absolute `__dirname`/`__filename` literals to avoid making esbuild treat them as ESM); (2) Phase 6b adds `generator-typedoc.spec.ts` — `JsonDefinitionGenerator` programmatic tests (3 tests, GJS + Node); HTML tests Node-only (WASM limit); (3) Phase 8 adds `language-server.spec.ts` — `@ts-for-gir/language-server` API surface + `validateTypeScript`/`getIdentifierType`/`expectIdentifierType` with pure-TS inputs (21 tests, Node-only). Node: 276/276 green. GJS: 212/212 green, 3 ignored.
 
 ## Summary
 
@@ -544,7 +544,7 @@ Sequential call cap: N ≤ 4 to stay under the residual deferred-GC window from 
 
 ### ts-for-gir (`tests/integration/ts-for-gir/`)
 
-Phases 1–6: validates [`@gi.ts/parser`](https://github.com/gjsify/ts-for-gir/tree/main/packages/parser), [`@ts-for-gir/lib`](https://github.com/gjsify/ts-for-gir/tree/main/packages/lib), [`@ts-for-gir/generator-typescript`](https://github.com/gjsify/ts-for-gir/tree/main/packages/generator-typescript), [`@ts-for-gir/generator-json`](https://github.com/gjsify/ts-for-gir/tree/main/packages/generator-json), [`@ts-for-gir/generator-html-doc`](https://github.com/gjsify/ts-for-gir/tree/main/packages/generator-html-doc), and [`@ts-for-gir/cli`](https://github.com/gjsify/ts-for-gir/tree/main/packages/cli) — all at v4.0.0-rc.9. **Node: 249/249 green. GJS: 209/209 green.** `glob`, `ejs`, `lodash`, `colorette`, `cosmiconfig`, `yargs`, `typedoc` all work on GJS/Node via `@gjsify/*` polyfills. Phase 6 removed the TypeDoc stubs — `ts-for-gir json` and `ts-for-gir doc` work natively on GJS.
+Phases 1–8 (partial): validates [`@gi.ts/parser`](https://github.com/gjsify/ts-for-gir/tree/main/packages/parser), [`@ts-for-gir/lib`](https://github.com/gjsify/ts-for-gir/tree/main/packages/lib), [`@ts-for-gir/generator-typescript`](https://github.com/gjsify/ts-for-gir/tree/main/packages/generator-typescript), [`@ts-for-gir/generator-json`](https://github.com/gjsify/ts-for-gir/tree/main/packages/generator-json), [`@ts-for-gir/generator-html-doc`](https://github.com/gjsify/ts-for-gir/tree/main/packages/generator-html-doc), [`@ts-for-gir/cli`](https://github.com/gjsify/ts-for-gir/tree/main/packages/cli), and [`@ts-for-gir/language-server`](https://github.com/gjsify/ts-for-gir/tree/main/packages/language-server) — all at v4.0.0-rc.9. **Node: 276/276 green. GJS: 212/212 green (3 ignored — Node-only tests).** `glob`, `ejs`, `lodash`, `colorette`, `cosmiconfig`, `yargs`, `typedoc` all work on GJS/Node via `@gjsify/*` polyfills. Phase 6 removed the TypeDoc stubs — `ts-for-gir json` and `ts-for-gir doc` work natively on GJS.
 
 | Suite | Node | GJS | Exercises |
 |---|---|---|---|
@@ -554,6 +554,9 @@ Phases 1–6: validates [`@gi.ts/parser`](https://github.com/gjsify/ts-for-gir/t
 | parser.spec.ts (inline edge cases) | ✅ (3) | ✅ (3) | Empty `<repository>`, namespace without classes, round-trip of inline class+method |
 | lib.spec.ts | ✅ (51) | ✅ (51) | `TypeExpression` class hierarchy: `TypeIdentifier`/`ModuleTypeIdentifier`, `NativeType`, `OrType`/`BinaryType`/`TupleType`, `FunctionType`, `PromiseType`, `NullableType`, `ArrayType`, `ClosureType`, `GenericType`; primitive constants (`VoidType`, `StringType`, `NumberType`, `AnyType`, `NullType`, `NeverType`, `UnknownType`, `ThisType`, `ObjectType`, `Uint8ArrayType`, `AnyFunctionType`, `BigintOrNumberType`); `equals()` semantics (set vs. positional); `unwrap()`/`deepUnwrap()` on wrapper types |
 | generator.spec.ts | ✅ (18) | ✅ (18) | `DependencyManager.get()` resolves from real tmpdir GIR via `glob`; `GirModule.load()` + `parse()` + `initTransitiveDependencies()`; `ModuleGenerator.generateModule()` produces a `GeneratedModule` with `name`/`version`/`members`; record/function/enum/constant members are present; `generateModule()` is idempotent; `allowMissingDeps` handles GObject stub dep |
+| generator-typedoc.spec.ts (JSON) | ✅ (3) | ✅ (3) | Phase 6b: `JsonDefinitionGenerator` lifecycle (`start`→`generate`→`finish`); generates `Foo-1.0.json`; JSON is parseable + has `name` field; JSON contains `Greeter` symbol. Uses TypeDocPipeline (`typescript` npm pkg + TypeDoc). |
+| generator-typedoc.spec.ts (HTML) | ✅ (2) | ⬜ (Node-only) | Phase 6b: `HtmlDocGenerator` lifecycle; generates `Foo-1.0/index.html`; TypeDoc places class pages in `classes/Foo.Greeter.html`. Node-only: TypeDoc's shiki highlighter requires WASM Promise APIs not available in GJS/SM 128. |
+| language-server.spec.ts | ✅ (21) | ⬜ (Node-only) | Phase 8: `@ts-for-gir/language-server` API surface (4 exports callable); `validateTypeScript` with pure TS (valid code passes, type error fails, union + generic types); `getIdentifierType` inference + missing-identifier error; `expectIdentifierType` for string/number/boolean/array. Node-only: TypeScript compiler uses `typescript` CJS pkg which requires `__dirname` for `lib.*.d.ts` resolution. |
 | cli.spec.ts (Node bundle, run from Node) | ✅ (7) | (skip) | Spawns `node dist/cli.node.mjs <args>`: `--version` returns the `--define`-injected `4.0.0-rc.8`; `--help` lists every command from yargs's command tree; yargs `.strict()` rejects unknown commands; `list --help` + `list -g <dir>` via `glob` + colorette; Phase 6: `json --help` + `doc --help` (TypeDoc commands now fully bundled on GJS, stubs removed) |
 | cli.spec.ts (GJS bundle, run from Node) | ✅ (7) | ✅ (7) | Same 7 assertions, spawned as `gjs -m dist/cli.gjs.mjs <args>` with the prebuild dirs on `LD_LIBRARY_PATH`/`GI_TYPELIB_PATH`. Validates the TypeDoc-unbundled GJS bundle end-to-end on SpiderMonkey 128. |
 | cli.spec.ts (GJS bundle, run from GJS) | (skip) | ✅ (7) | Same 7 assertions, spawned as `gjs -m dist/cli.gjs.mjs <args>` from a GJS parent. Phase 5: `ensureMainLoop()` in `@gjsify/child_process.spawn()`. Phase 6: TypeDoc commands (`json --help`, `doc --help`) verified. |
@@ -622,21 +625,24 @@ Keep the catch-all for **new** consumers that genuinely want "give me the full N
 
 **Priority: High — strategic goal: `ts-for-gir` runs unmodified on GJS.**
 
-Phases 1–5 landed:
+Phases landed:
 - ✅ **Phase 1:** `@gi.ts/parser` — GIR XML parser + `fast-xml-parser`. Node 18/18, GJS 18/18.
 - ✅ **Phase 2:** `@ts-for-gir/lib` — `TypeExpression` class hierarchy, primitive constants, `equals()` / `unwrap()` semantics. Node 51/51, GJS 51/51.
-- ✅ **Phase 3:** Generator pipeline — `DependencyManager` → `GirModule.load/parse` → `ModuleGenerator.generateModule()`. Exercises `glob`, `ejs`, `lodash`, `colorette` on GJS. Node 18/18, GJS 18/18.
-- ✅ **Phase 4a:** Non-interactive CLI on Node — bundled `@ts-for-gir/cli` runs `--version`, `--help`, and `list -g <dir>` end-to-end. Node 5/5. Surfaced `util.styleText` / `util.stripVTControlCharacters` gaps in `@gjsify/util`, the missing `__filename`/`__dirname` shim in the Node ESM bundle target, and the lack of `--define`/`--external`/`--alias` flags on `gjsify build` — all fixed at the source.
-- ✅ **Phase 4b:** Non-interactive CLI on GJS — same `cli.entry.ts`, plus per-test stubs for the bundle-hostile deps (typedoc, prettier, @inquirer/*, generator-{html-doc,json}). cli.spec.ts spawns BOTH bundles from Node (10 tests total).
-- ✅ **Phase 4b cleanup (root-cause fix):** `@gjsify/process.exit()` is now async-safe on GJS — schedules `imports.system.exit` via `GLib.idle_add(PRIORITY_DEFAULT)` from a fresh main-loop iteration, with `ensureMainLoop()` registered first so the source dispatches even when no other component has called it. `cli.entry.ts` consequently dropped its inline `GLib.MainLoop` bootstrap, `GjsImports` types, and `shutdown(code)` helper — same yargs setup (`.exitProcess(false) + .fail(false) + parseAsync`) but with plain `process.exit(0)` / `process.exit(1)` calls. Pattern lifted into the polyfill so any consumer calling `process.exit()` from a microtask continuation works on both runtimes without GJS-specific code.
-- ✅ **Phase 5:** Fixed `@gjsify/child_process` GJS-from-GJS subprocess deadlock. Root cause: `spawn()`, `_exec()`, and `execFile()` registered GLib async callbacks (`wait_async` / `communicate_utf8_async`) without calling `ensureMainLoop()` first. Without a running GLib main loop the callbacks never dispatched — same pattern as `http.Server.listen()` / `net.Server.listen()` / `dgram.Socket.bind()` which all call `ensureMainLoop()`. Fix: add `ensureMainLoop()` to all three async paths. cli.spec.ts GJS-skip guard removed; GJS bundle tests now run from both Node and GJS parents. Node 229/229, GJS 174/174.
+- ✅ **Phase 3:** Generator pipeline — `DependencyManager` → `GirModule.load/parse` → `ModuleGenerator.generateModule()`. `glob`, `ejs`, `lodash`, `colorette` on GJS. Node 18/18, GJS 18/18.
+- ✅ **Phase 4a:** Non-interactive CLI on Node — bundled `@ts-for-gir/cli` runs `--version`, `--help`, `list -g`. Node 5/5.
+- ✅ **Phase 4b:** Non-interactive CLI on GJS — `cli.entry.ts` + stubs for bundle-hostile deps. BOTH bundles spawned from Node. 10 tests.
+- ✅ **Phase 4b cleanup:** `@gjsify/process.exit()` async-safe on GJS via `GLib.idle_add`.
+- ✅ **Phase 5:** Fixed `@gjsify/child_process` GJS subprocess deadlock — `ensureMainLoop()` added to all async paths. Node 229/229, GJS 174/174.
+- ✅ **Phase 6:** TypeDoc stubs removed — `esbuild-plugin-gjsify` `onLoad` hooks upgraded to runtime-relative `import.meta.url` rewriting (ESM: `new URL(relPath, import.meta.url).href`; CJS: absolute string literals). `ts-for-gir json` and `ts-for-gir doc` work natively on GJS. Also extended `node.ts` onLoad filter to TypeScript source extensions.
+- ✅ **Phase 6b:** `generator-typedoc.spec.ts` — `JsonDefinitionGenerator` (3 tests, GJS + Node); `HtmlDocGenerator` (2 tests, Node-only: shiki requires WebAssembly Promise APIs unavailable in SM 128).
+- ✅ **Phase 8 (partial):** `language-server.spec.ts` — `@ts-for-gir/language-server` API + `validateTypeScript`/`getIdentifierType`/`expectIdentifierType` with pure-TS inputs (21 tests, Node-only). GLib-specific GVariant type-inference port deferred (requires pre-generated ambient declarations).
 
-Remaining phases (low priority — core use case is complete):
+Remaining work:
 
-- **Phase 6 — `gjsify run` runtime npm-package resolution.** Without it, `--external` cannot be used on GJS bundles (esbuild leaves bare `import 'pkg'` literally; GJS has no node_modules resolver). GJS 1.88 / SM 140 does not expose JS-level module loader hooks — a C-level GJS patch would be required. The current `--alias` stubs cover all practical non-interactive use cases and are the correct long-term approach for packages that genuinely cannot run on GJS (typedoc, inquirer).
-- **Phase 8 — Language-server vitest port** (`refs/ts-for-gir/tests/language-server-validation/src/gvariant-validation.test.ts`). Blocked on the `typescript` package running on GJS.
+- **Phase 6 / gjsify run:** Runtime npm-package resolution for GJS bundles (GJS has no node_modules resolver, would need C-level patch).
+- **Phase 8 / GVariant type-inference:** Full port of `gvariant-validation.test.ts`. Requires `@girs` ambient declarations resolvable by the TypeScript compiler. See Open TODOs.
 
-`refs/ts-for-gir/` submodule is pinned at the ts-for-gir commit corresponding to `@gi.ts/parser@4.0.0-rc.8`; bump the submodule alongside the published-package version when porting future phases.
+`refs/ts-for-gir/` submodule is pinned at the ts-for-gir commit corresponding to `@gi.ts/parser@4.0.0-rc.9`; bump the submodule alongside the published-package version when porting future phases.
 
 ### ~~Browser Testing Infrastructure for DOM Packages~~✓
 
