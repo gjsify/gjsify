@@ -100,9 +100,11 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
     }
   });
 
-  it('gjsify check --json resolves gwebgl via CLI fallback (not in project deps)', () => {
-    // The project only has @gjsify/cli — @gjsify/webgl is NOT a direct dep.
-    // checkNpmPackage must fall back to the CLI's own node_modules.
+  it('gjsify check --json skips gwebgl when project does not use @gjsify/webgl', () => {
+    // After the showcase-decoupling refactor (Phase D), the CLI no longer
+    // transitively depends on @gjsify/webgl through showcase example packages.
+    // `gjsify check` correctly skips the gwebgl check for projects that don't
+    // use @gjsify/webgl — needsWebgl is decided per-project, not per-CLI.
     const out = execFileSync('npx', ['gjsify', 'check', '--json'], {
       cwd: projectDir,
       encoding: 'utf-8',
@@ -111,9 +113,8 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
     });
     const result = JSON.parse(out);
     const gwebgl = result.deps.find(d => d.id === 'gwebgl');
-    assert.ok(gwebgl, 'gwebgl check should be present in results');
-    assert.strictEqual(gwebgl.found, true,
-      'gwebgl should be found via CLI fallback when not in project deps');
+    assert.strictEqual(gwebgl, undefined,
+      'gwebgl should be skipped when project does not depend on @gjsify/webgl');
   });
 
   it('gjsify check --json resolves gwebgl from project deps (primary path)', () => {
