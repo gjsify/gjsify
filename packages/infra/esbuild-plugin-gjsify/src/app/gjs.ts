@@ -15,6 +15,45 @@ import type { PluginOptions } from '../types/plugin-options.js';
 
 const _shimDir = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Minimal synchronous process stub injected as a GJS bundle banner.
+ *
+ * Some npm packages (glob, path-scurry, readable-stream, …) access
+ * `globalThis.process.platform` at their top-level during lazy __esm
+ * initialisation — BEFORE any `import`-triggered side effects fire.
+ * A banner runs before everything, including esbuild helpers and all
+ * bundled module code, making it the only reliable injection point for
+ * a synchronous global that must exist from byte 1 of execution.
+ *
+ * Only installed if process is absent; the full @gjsify/process
+ * implementation (with EventEmitter, real streams, etc.) is wired up
+ * later via --globals auto (which injects @gjsify/node-globals/register/process).
+ */
+const GJS_PROCESS_STUB = [
+    'if(typeof globalThis.process==="undefined"){',
+    'const _s=imports.system,_G=imports.gi.GLib;',
+    'globalThis.process={',
+    'platform:"linux",arch:"x64",version:"v20.0.0",',
+    'env:new Proxy({},{',
+    'get(_,p){return typeof p==="string"?(_G.getenv(p)??undefined):undefined},',
+    'set(_,p,v){if(typeof p==="string")_G.setenv(p,String(v),true);return true},',
+    'has(_,p){return typeof p==="string"&&_G.getenv(p)!==null},',
+    'deleteProperty(_,p){if(typeof p==="string")_G.unsetenv(p);return true},',
+    'ownKeys(){return _G.listenv()??[]},',
+    'getOwnPropertyDescriptor(_,p){const v=_G.getenv(p);return v!==null?{value:v,writable:true,enumerable:true,configurable:true}:undefined}',
+    '}),',
+    'argv:_s?.programArgs?["gjs",_s.programInvocationName||"",..._s.programArgs]:["gjs"],',
+    'versions:{},config:{},',
+    'cwd(){return _G.get_current_dir()||"/"},',
+    'exit(c){_s.exit(c??0)},',
+    'stderr:{write(s){printerr(s)}},stdout:{write(s){print(s)}},stdin:null,',
+    'exitCode:undefined,',
+    'nextTick(fn,...a){Promise.resolve().then(()=>fn(...a))},',
+    'hrtime(t){return t?[0,0]:[0,0]},',
+    '};',
+    '}',
+].join('');
+
 export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
     // User-supplied externals (`gjsify build --external <name>`) merge in so
@@ -74,21 +113,35 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         },
     };
 
-    // Inject the console shim for GJS builds (default: enabled).
-    // The shim replaces all `console` references in the bundle with print()/printerr()-based
+    // Capture user inject (from .gjsifyrc.js `esbuild.inject`) before merge() overwrites it.
+    const userInject: string[] = Array.isArray(build.initialOptions.inject)
+        ? build.initialOptions.inject as string[]
+        : build.initialOptions.inject
+        ? [build.initialOptions.inject as string]
+        : [];
+
+    // The shim replaces all `console` references with print()/printerr()-based
     // implementations that bypass GLib.log_structured() — no prefix, ANSI codes work.
     if (pluginOptions.consoleShim !== false) {
         // Resolve relative to the compiled shims/ directory next to this file
-        esbuildOptions.inject = [resolve(_shimDir, '../shims/console-gjs.js')];
+        esbuildOptions.inject = [resolve(_shimDir, '../shims/console-gjs.js'), ...userInject];
+    } else if (userInject.length > 0) {
+        esbuildOptions.inject = [...userInject];
     }
 
-    // Append pre-computed globals stub (from --globals CLI flag) if present.
     if (pluginOptions.autoGlobalsInject) {
         esbuildOptions.inject = [
             ...(esbuildOptions.inject ?? []),
             pluginOptions.autoGlobalsInject,
         ];
     }
+
+    // Prepend the synchronous process stub banner so globalThis.process exists
+    // before any bundled module code runs. Combines with any user-supplied banner.
+    const userBannerJs = typeof (build.initialOptions.banner as Record<string, string> | undefined)?.js === 'string'
+        ? (build.initialOptions.banner as Record<string, string>).js
+        : '';
+    esbuildOptions.banner = { js: GJS_PROCESS_STUB + (userBannerJs ? '\n' + userBannerJs : '') };
 
     // random-access-file's 'browser' field maps to a throwing stub; force the fs-backed Node entry.
     build.onResolve({ filter: /^random-access-file$/ }, async (args) => {

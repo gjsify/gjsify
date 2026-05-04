@@ -68,7 +68,7 @@ export const deepkitPlugin = (options: DeepkitPluginOptions = {}): Plugin => {
   return {
     name: 'deepkit',
     setup(build) {
-      options.reflection = options.reflection === undefined ? true : options.reflection;
+      options.reflection = options.reflection ?? false;
 
       if (!options.reflection) {
         return;

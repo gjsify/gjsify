@@ -2151,6 +2151,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/e2e-terminal-native@workspace:tests/e2e/terminal-native":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/e2e-terminal-native@workspace:tests/e2e/terminal-native"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/process": "workspace:^"
+    "@gjsify/terminal-native": "workspace:^"
+    "@gjsify/tty": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/empty@workspace:packages/infra/empty":
   version: 0.0.0-use.local
   resolution: "@gjsify/empty@workspace:packages/infra/empty"
@@ -3050,6 +3062,20 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/example-node-cli-node-interactive@workspace:examples/node/cli-node-interactive":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-node-interactive@workspace:examples/node/cli-node-interactive"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@inquirer/prompts": "npm:^8.4.2"
+    "@types/node": "npm:^25.6.0"
+    "@types/yargs": "npm:^17.0.35"
+    typescript: "npm:^6.0.3"
+    yargs: "npm:^18.0.0"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/example-node-cli-node-os@workspace:examples/node/cli-node-os":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-node-cli-node-os@workspace:examples/node/cli-node-os"
@@ -3069,6 +3095,18 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/path": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/example-node-cli-node-process@workspace:examples/node/cli-node-process":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/example-node-cli-node-process@workspace:examples/node/cli-node-process"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/terminal-native": "workspace:^"
     "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.3"
   languageName: unknown
@@ -3721,6 +3759,7 @@ __metadata:
   dependencies:
     "@gjsify/cli": "workspace:^"
     "@gjsify/events": "workspace:^"
+    "@gjsify/terminal-native": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -3929,6 +3968,19 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/terminal-native@workspace:^, @gjsify/terminal-native@workspace:packages/node/terminal-native":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/terminal-native@workspace:packages/node/terminal-native"
+  dependencies:
+    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@gjsify/cli": "workspace:^"
+    "@ts-for-gir/cli": "npm:^4.0.0-rc.9"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/test-dom-excalibur@workspace:tests/dom/excalibur":
   version: 0.0.0-use.local
   resolution: "@gjsify/test-dom-excalibur@workspace:tests/dom/excalibur"
@@ -3991,6 +4043,7 @@ __metadata:
     "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/stream": "workspace:^"
+    "@gjsify/terminal-native": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.3"

@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased] — 2026-05-02
+
+### Features
+
+* **terminal-native:** new optional Vala prebuild `@gjsify/terminal-native` with real Linux terminal syscalls (Posix.isatty, ioctl TIOCGWINSZ, termios raw mode, SIGWINCH ResizeWatcher). Loaded via synchronous `imports.gi.GjsifyTerminal` try/catch — no crash when typelib not installed.
+* **tty:** `isatty()` now uses `Posix.isatty()` via terminal-native (GLib fallback). `getWindowSize()`/`columns`/`rows` use `ioctl TIOCGWINSZ` (env/default fallback). `setRawMode()` uses `tcgetattr/tcsetattr` (no-op fallback).
+* **process:** `stdin`, `stdout`, `stderr` replaced with `ProcessReadStream`/`ProcessWriteStream` (isTTY, setRawMode, columns, rows). SIGWINCH wired to stdout/stderr `'resize'` event via `ResizeWatcher`.
+* **e2e/terminal-native:** new E2E test suite `tests/e2e/terminal-native/` — 16/16 green (with + without native core module).
+
 ## [0.2.0](https://github.com/gjsify/gjsify/compare/v0.1.15...v0.2.0) (2026-05-01)
 
 ### Features

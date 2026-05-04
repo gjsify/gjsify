@@ -9,5 +9,5 @@ build({
     format: 'esm',
     platform: "node",
     external: ['@deepkit/type'],
-    plugins: [deepkitPlugin()],
+    plugins: [deepkitPlugin({ reflection: true })],
 });

@@ -19891,6 +19891,30 @@ import { fileURLToPath as fileURLToPath3 } from "url";
 import { dirname, resolve as resolve2 } from "path";
 import { readFile } from "fs/promises";
 var _shimDir = dirname(fileURLToPath3(import.meta.url));
+var GJS_PROCESS_STUB = [
+  'if(typeof globalThis.process==="undefined"){',
+  "const _s=imports.system,_G=imports.gi.GLib;",
+  "globalThis.process={",
+  'platform:"linux",arch:"x64",version:"v20.0.0",',
+  "env:new Proxy({},{",
+  'get(_,p){return typeof p==="string"?(_G.getenv(p)??undefined):undefined},',
+  'set(_,p,v){if(typeof p==="string")_G.setenv(p,String(v),true);return true},',
+  'has(_,p){return typeof p==="string"&&_G.getenv(p)!==null},',
+  'deleteProperty(_,p){if(typeof p==="string")_G.unsetenv(p);return true},',
+  "ownKeys(){return _G.listenv()??[]},",
+  "getOwnPropertyDescriptor(_,p){const v=_G.getenv(p);return v!==null?{value:v,writable:true,enumerable:true,configurable:true}:undefined}",
+  "}),",
+  'argv:_s?.programArgs?["gjs",_s.programInvocationName||"",..._s.programArgs]:["gjs"],',
+  "versions:{},config:{},",
+  'cwd(){return _G.get_current_dir()||"/"},',
+  "exit(c){_s.exit(c??0)},",
+  "stderr:{write(s){printerr(s)}},stdout:{write(s){print(s)}},stdin:null,",
+  "exitCode:undefined,",
+  "nextTick(fn,...a){Promise.resolve().then(()=>fn(...a))},",
+  "hrtime(t){return t?[0,0]:[0,0]},",
+  "};",
+  "}"
+].join("");
 var setupForGjs = async (build2, pluginOptions) => {
   const userExternal = build2.initialOptions.external ?? [];
   const external = ["gi://*", "cairo", "gettext", "system", ...userExternal];
@@ -19944,8 +19968,11 @@ var setupForGjs = async (build2, pluginOptions) => {
       "process.env.READABLE_STREAM": '"disable"'
     }
   };
+  const userInject = Array.isArray(build2.initialOptions.inject) ? build2.initialOptions.inject : build2.initialOptions.inject ? [build2.initialOptions.inject] : [];
   if (pluginOptions.consoleShim !== false) {
-    esbuildOptions.inject = [resolve2(_shimDir, "../shims/console-gjs.js")];
+    esbuildOptions.inject = [resolve2(_shimDir, "../shims/console-gjs.js"), ...userInject];
+  } else if (userInject.length > 0) {
+    esbuildOptions.inject = [...userInject];
   }
   if (pluginOptions.autoGlobalsInject) {
     esbuildOptions.inject = [
@@ -19953,6 +19980,8 @@ var setupForGjs = async (build2, pluginOptions) => {
       pluginOptions.autoGlobalsInject
     ];
   }
+  const userBannerJs = typeof build2.initialOptions.banner?.js === "string" ? build2.initialOptions.banner.js : "";
+  esbuildOptions.banner = { js: GJS_PROCESS_STUB + (userBannerJs ? "\n" + userBannerJs : "") };
   build2.onResolve({ filter: /^random-access-file$/ }, async (args) => {
     const result = await build2.resolve("random-access-file/index.js", {
       kind: args.kind,

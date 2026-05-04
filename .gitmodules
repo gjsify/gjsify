@@ -191,3 +191,12 @@
 [submodule "refs/ts-for-gir"]
 	path = refs/ts-for-gir
 	url = git@github.com:gjsify/ts-for-gir.git
+[submodule "refs/pnpm"]
+	path = refs/pnpm
+	url = git@github.com:pnpm/pnpm.git
+[submodule "refs/npm-cli"]
+	path = refs/npm-cli
+	url = https://github.com/npm/cli
+[submodule "refs/yarn"]
+	path = refs/yarn
+	url = git@github.com:yarnpkg/berry.git

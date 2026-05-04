@@ -46,7 +46,7 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0
 | path | — | Full | POSIX + Win32 |
 | perf_hooks | — | Full | performance (Web API / GLib fallback) |
 | polyfills | — | Meta | `@gjsify/node-polyfills` — umbrella dep-only package pulling every Node polyfill. Used by `create-app` templates + CLI scaffolds. No runtime code |
-| process | GLib | Full | extends EventEmitter, env, cwd, platform, nextTick (batched GLib-idle delivery to keep GTK input responsive) |
+| process | GLib, GjsifyTerminal | Full | extends EventEmitter, env, cwd, platform, nextTick (batched GLib-idle delivery to keep GTK input responsive); stdin/stdout/stderr as ProcessReadStream/ProcessWriteStream (isTTY, setRawMode, columns/rows via @gjsify/terminal-native when installed, env/GLib fallback); SIGWINCH→stdout/stderr 'resize' event |
 | querystring | — | Full | parse/stringify |
 | readline | — | Full | Interface, createInterface, question, prompt, async iterator |
 | sqlite | Gda 6.0 | Partial | node:sqlite — DatabaseSync, StatementSync via `gi://Gda?version=6.0` (libgda SQLite provider). URL + Uint8Array path args, param binding, typed readers, error codes |
@@ -55,7 +55,8 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0
 | sys | — | Full | Deprecated alias for util |
 | timers | — | Full | setTimeout/setInterval/setImmediate + promises (GLib-source-safe: replaces setTimeout/setInterval with `GLib.timeout_add` to avoid SM-GC race on GLib.Source BoxedInstances) |
 | tls | Gio | Partial | TLSSocket via Gio.TlsClientConnection |
-| tty | — | Full | ReadStream/WriteStream, ANSI escapes |
+| terminal-native | GjsifyTerminal (Vala) | Full | **Optional native Vala prebuild.** `GjsifyTerminal.Terminal`: `is_tty(fd)→bool` (Posix.isatty), `get_size(fd)→{rows,cols}` (ioctl TIOCGWINSZ), `set_raw_mode(fd,enable)→bool` (termios). `GjsifyTerminal.ResizeWatcher`: `resized(rows,cols)` signal on SIGWINCH. Loaded via synchronous `imports.gi.GjsifyTerminal` with try/catch — safe when typelib not installed. Ships as `.so`+`.typelib` prebuild in `prebuilds/linux-x86_64/`. TS wrapper: `nativeTerminal`, `hasNativeTerminal()`. Consumed by `@gjsify/tty` + `@gjsify/process` for native terminal support when installed |
+| tty | GjsifyTerminal | Full | ReadStream/WriteStream, ANSI escapes; isatty via Posix.isatty or GLib fallback; getWindowSize via ioctl TIOCGWINSZ or env/default; setRawMode via termios — all through @gjsify/terminal-native optional native bridge |
 | url | GLib | Full | URL (with static `URL.createObjectURL` / `URL.revokeObjectURL` over `Blob._tmpPath` + `file://`), URLSearchParams via GLib.Uri |
 | util | — | Full | inspect, format, promisify, types |
 | v8 | — | Stub | getHeapStatistics, serialize/deserialize (JSON) |
@@ -146,6 +147,10 @@ Dispatch: W3C UIEvents. Coords: GTK widget-relative → DOM offsetX/Y/clientX/Y.
 Targets: **GJS** `--app gjs` (`assert`→`@gjsify/assert`, externals `gi://*`+`cairo`+`system`+`gettext`, `firefox128`) | **Node** `--app node` (`@gjsify/process`→`process`, `node24`) | **Browser** `--app browser` (`esnext`)
 
 Key files: `packages/infra/esbuild-plugin-gjsify/src/app/{gjs,node,browser}.ts` | `.../utils/scan-globals.ts` | `packages/infra/resolve-npm/lib/{index,globals-map}.mjs`
+
+**Deepkit** (`@gjsify/esbuild-plugin-deepkit`): TypeScript runtime reflection via `@deepkit/type-compiler`. Default: `reflection: false` (opt-in). Set `typescript.reflection: true` in `.gjsifyrc.js` to enable. Keep disabled unless the project explicitly uses Deepkit runtime types — it transforms TypeScript `extends` method definitions into invalid `function extends()` syntax that breaks the parser.
+
+**GJS target process bootstrap** (`packages/infra/esbuild-plugin-gjsify/src/app/gjs.ts`): The GJS target always injects a minimal synchronous `globalThis.process` stub via esbuild `banner`. This runs before any bundled module code — including esbuild helpers. Required because packages like `glob` and `path-scurry` access `globalThis.process.platform` at top-level during `__esm` lazy init, before any import-triggered side effect can fire. The full `@gjsify/process` implementation is wired up afterwards by `--globals auto`. User banners from `.gjsifyrc.js` are appended after the process stub.
 
 **Blueprint** (`@gjsify/esbuild-plugin-blueprint`): `.blp` → XML string via `blueprint-compiler`. GJS+browser. `import T from './window.blp'` → string. Types: add `@gjsify/esbuild-plugin-blueprint/types` to tsconfig.
 
@@ -250,7 +255,7 @@ yarn build:test:{gjs,node} | yarn test:{gjs,node}
 `@girs/glib-2.0`(ByteArray,Checksum,DateTime,Regex,URI,env,MainLoop) | `@girs/gobject-2.0`(signals,properties) | `@girs/gio-2.0`(File,streams,Socket,TLS,DBus) | `@girs/giounix-2.0`(Unix FDs) | `@girs/soup-3.0`(HTTP,WebSocket,cookies) | `@girs/gda-6.0`(SQLite) | `@girs/gst-1.0`+`@girs/gstapp-1.0`+`@girs/gstwebrtc-1.0`+`@girs/gstsdp-1.0`(media pipelines, WebRTC) | `@girs/manette-0.2`(gamepads) | `@girs/webkit-6.0`(iframe, WebView) | `@girs/gjs`(runtime)
 
 ```
-Node→GNOME: fs→Gio.File{,I/O}Stream | Buffer→GLib.Bytes/ByteArray/Uint8Array | net.Socket→Gio.Socket{Connection,Client} | http→Soup.{Session,Server} | crypto→GLib.{Checksum,Hmac} | process.env→GLib.{g,s}etenv() | url.URL→GLib.Uri | sqlite→Gda.Connection(SQLite provider)
+Node→GNOME: fs→Gio.File{,I/O}Stream | Buffer→GLib.Bytes/ByteArray/Uint8Array | net.Socket→Gio.Socket{Connection,Client} | http→Soup.{Session,Server} | crypto→GLib.{Checksum,Hmac} | process.env→GLib.{g,s}etenv() | url.URL→GLib.Uri | sqlite→Gda.Connection(SQLite provider) | tty.isatty/process.stdin.setRawMode/stdout.columns→GjsifyTerminal.Terminal(Posix.isatty+ioctl TIOCGWINSZ+termios, optional Vala prebuild)
 Web→GNOME: fetch→Soup.Session | WebSocket→Soup.WebsocketConnection | XMLHttpRequest→Soup.Session+GLib(temp files) | Streams→Gio.{In,Out}putStream | Compression→Gio.ZlibCompressor | SubtleCrypto→GLib.Checksum+Hmac | localStorage→Gio.File/GLib.KeyFile | ImageBitmap→GdkPixbuf.Pixbuf | EventSource→Soup.Session(SSE) | Gamepad→Manette.{Monitor,Device} | WebRTC→Gst.webrtcbin+GstSDP+@gjsify/webrtc-native(Vala signal bridges) | getUserMedia→GStreamer pipewiresrc/pulsesrc/v4l2src
 DOM→GNOME: Canvas2D→Cairo+PangoCairo | WebGL→Gtk.GLArea+libepoxy(via gwebgl Vala) | HTMLVideoElement→Gtk.Picture+gtk4paintablesink | HTMLIFrameElement→WebKit.WebView
 ```

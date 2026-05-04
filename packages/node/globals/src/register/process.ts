@@ -28,11 +28,11 @@ if (!('global' in globalThis)) {
   });
 }
 
-if (!('process' in globalThis)) {
-  Object.defineProperty(globalThis, 'process', {
-    value: process,
-    enumerable: false,
-    writable: true,
-    configurable: true,
-  });
-}
+// Always overwrite — the GJS banner stub is a temporary early bootstrap that must
+// be replaced by the full @gjsify/process implementation once the bundle loads.
+Object.defineProperty(globalThis, 'process', {
+  value: process,
+  enumerable: false,
+  writable: true,
+  configurable: true,
+});

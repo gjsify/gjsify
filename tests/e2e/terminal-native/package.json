@@ -1,0 +1,21 @@
+{
+    "name": "@gjsify/e2e-terminal-native",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "gjsify build src/probe.ts --app gjs --outfile dist/probe.gjs.mjs",
+        "test": "yarn build && node run.mjs",
+        "test:without": "yarn build && SKIP_NATIVE=1 node run.mjs",
+        "test:with": "yarn build && node run.mjs"
+    },
+    "dependencies": {
+        "@gjsify/process": "workspace:^",
+        "@gjsify/terminal-native": "workspace:^",
+        "@gjsify/tty": "workspace:^"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@types/node": "^25.6.0"
+    }
+}

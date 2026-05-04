@@ -3,6 +3,9 @@
 
 import { EventEmitter } from '@gjsify/events';
 import { ensureMainLoop, quitMainLoop } from '@gjsify/utils';
+import { nativeTerminal } from '@gjsify/terminal-native';
+
+const _encoder = new TextEncoder();
 
 type ProcessPlatform = NodeJS.Platform;
 type ProcessArch = NodeJS.Architecture;
@@ -29,7 +32,6 @@ function getGjsGlobal(): GjsGlobalThis {
   return globalThis as unknown as GjsGlobalThis;
 }
 
-// Detect GJS version from imports.system.version (integer: MAJOR*10000 + MINOR*100 + PATCH)
 function detectGjsVersion(): string | undefined {
   try {
     const system = getGjsGlobal().imports?.system;
@@ -44,7 +46,6 @@ function detectGjsVersion(): string | undefined {
   return undefined;
 }
 
-// Detect Node.js version from native process
 function detectNodeVersion(): string | undefined {
   if (typeof globalThis.process?.versions?.node === 'string') {
     return globalThis.process.versions.node;
@@ -52,7 +53,6 @@ function detectNodeVersion(): string | undefined {
   return undefined;
 }
 
-// Detect version and versions object dynamically
 function detectVersionInfo(): { version: string; versions: Record<string, string>; title: string } {
   const nodeVersion = detectNodeVersion();
 
@@ -79,7 +79,6 @@ function detectVersionInfo(): { version: string; versions: Record<string, string
   };
 }
 
-// Detect parent process ID
 function detectPpid(): number {
   if (typeof globalThis.process?.ppid === 'number') {
     return globalThis.process.ppid;
@@ -98,22 +97,19 @@ function detectPpid(): number {
   return 0;
 }
 
-// Detect platform
 function detectPlatform(): ProcessPlatform {
   try {
     const GLib = getGjsGlobal().imports?.gi?.GLib;
     if (GLib) {
       const osInfo = GLib.get_os_info('ID');
-      if (osInfo) return 'linux'; // GLib is primarily Linux
+      if (osInfo) return 'linux';
     }
   } catch { /* ignore */ }
 
-  // Check if running in GJS
   if (typeof getGjsGlobal().imports?.system !== 'undefined') {
-    return 'linux'; // GJS is primarily Linux
+    return 'linux';
   }
 
-  // Fallback: check Node.js process
   if (typeof globalThis.process?.platform === 'string') {
     return globalThis.process.platform as ProcessPlatform;
   }
@@ -121,21 +117,10 @@ function detectPlatform(): ProcessPlatform {
   return 'linux';
 }
 
-// Detect architecture
 function detectArch(): ProcessArch {
   if (typeof globalThis.process?.arch === 'string') {
     return globalThis.process.arch as ProcessArch;
   }
-
-  // Try to detect via GJS system module
-  try {
-    const system = getGjsGlobal().imports?.system;
-    if (system?.programInvocationName) {
-      // On GJS we can't easily determine arch without system calls
-      // Default to x64 for now — could use GLib.spawn to check `uname -m`
-    }
-  } catch { /* ignore */ }
-
   return 'x64';
 }
 
@@ -243,7 +228,273 @@ function getPid(): number {
 
 const startTime = Date.now();
 
-// Use GLib.get_monotonic_time() for hrtime if available
+function getGioNamespace(): any {
+  const _gi: Record<string, unknown> | undefined = (globalThis as any).imports?.gi;
+  if (!_gi) return null;
+  let gio: any = null;
+  try { gio = (_gi as any)['GioUnix']; } catch { /* try Gio */ }
+  if (!gio) { try { gio = (_gi as any)['Gio']; } catch { /* absent */ } }
+  return gio;
+}
+
+class ProcessWriteStream extends EventEmitter {
+  readonly fd: number;
+  // Required by Stream.pipe(): without this, pipe skips dest.write() entirely.
+  writable = true;
+  private _outGio: any = null;
+
+  constructor(fd: number) {
+    super();
+    this.fd = fd;
+    const gio = getGioNamespace();
+    if (gio) {
+      const Cls = gio.UnixOutputStream ?? gio.OutputStream;
+      if (Cls) { try { this._outGio = Cls.new(this.fd, false); } catch { /* fallback */ } }
+    }
+  }
+
+  write(data: string | Uint8Array): boolean {
+    if (this._outGio) {
+      try {
+        const bytes = typeof data === 'string' ? _encoder.encode(data) : data;
+        this._outGio.write_all(bytes, null);
+        return true;
+      } catch { /* fall through to console fallback */ }
+    }
+    // Fallback: console adds a trailing newline which breaks terminal UI,
+    // but is acceptable when Gio streams are unavailable.
+    if (this.fd === 2) {
+      console.error(data);
+    } else {
+      console.log(data);
+    }
+    return true;
+  }
+
+  get isTTY(): boolean {
+    if (nativeTerminal) return nativeTerminal.Terminal.is_tty(this.fd);
+    try {
+      const GLib = getGjsGlobal().imports?.gi?.GLib;
+      if (GLib) return !!(GLib as any).log_writer_supports_color(this.fd);
+    } catch { /* ignore */ }
+    return false;
+  }
+
+  get columns(): number {
+    if (nativeTerminal) {
+      const [ok, , cols] = nativeTerminal.Terminal.get_size(this.fd);
+      if (ok && cols > 0) return cols;
+    }
+    try {
+      const GLib = getGjsGlobal().imports?.gi?.GLib;
+      if (GLib) {
+        const c = parseInt((GLib as any).getenv('COLUMNS') ?? '0', 10);
+        if (c > 0) return c;
+      }
+    } catch { /* ignore */ }
+    return 80;
+  }
+
+  // stdout/stderr must never be closed — the process owns the fds.
+  // pipe() calls end() when its source emits 'end' (e.g. MuteStream); no-op here.
+  end(): void {}
+  destroy(): void {}
+
+  get rows(): number {
+    if (nativeTerminal) {
+      const [ok, rows] = nativeTerminal.Terminal.get_size(this.fd);
+      if (ok && rows > 0) return rows;
+    }
+    try {
+      const GLib = getGjsGlobal().imports?.gi?.GLib;
+      if (GLib) {
+        const r = parseInt((GLib as any).getenv('LINES') ?? '0', 10);
+        if (r > 0) return r;
+      }
+    } catch { /* ignore */ }
+    return 24;
+  }
+}
+
+class ProcessReadStream extends EventEmitter {
+  readonly fd: number;
+  isRaw = false;
+  // Do NOT expose `readableFlowing` as an instance property: @inquirer/core uses
+  // `'readableFlowing' in input` to defer startCycle() via setImmediate. In GJS,
+  // setImmediate fires as a microtask — the property must stay absent so
+  // @inquirer/core calls startCycle() synchronously on its own schedule.
+
+  private _gio: any = null;
+  private _stdinGio: any = null;
+  private _reading = false;
+  private _flowing = false;
+  private _sttyCleanupRegistered = false;
+  private _mainLoopHeld = false;
+  // True while a read_bytes_async is in-flight. Prevents a second concurrent
+  // read from starting when pause()+resume() fires between GLib iterations.
+  private _pendingRead = false;
+
+  constructor(fd: number) {
+    super();
+    this.fd = fd;
+    // GioUnix.InputStream (GJS ≥ 1.88) supersedes Gio.UnixInputStream; fall back to Gio.
+    this._gio = getGioNamespace();
+  }
+
+  get isTTY(): boolean {
+    if (nativeTerminal) return nativeTerminal.Terminal.is_tty(this.fd);
+    return false;
+  }
+
+  setRawMode(mode: boolean): this {
+    if (nativeTerminal) {
+      const ok = nativeTerminal.Terminal.set_raw_mode(this.fd, mode);
+      if (ok) {
+        this.isRaw = mode;
+        return this;
+      }
+      // set_raw_mode returned false — fd may not be a TTY (e.g. piped stdin).
+      // Fall through to stty fallback.
+    }
+    // Fallback: spawn `stty raw -echo` / `stty sane` with stdin inherited so it
+    // sees the real terminal and the setting persists in the kernel tty driver.
+    // Only works when fd 0 is actually a TTY.
+    this._setRawModeViaStty(mode);
+    this.isRaw = mode;
+    return this;
+  }
+
+  private _setRawModeViaStty(mode: boolean): void {
+    try {
+      const _gi: any = (globalThis as any).imports?.gi;
+      const Gio = _gi?.Gio ?? _gi?.['Gio'];
+      if (!Gio) return;
+      // G_SUBPROCESS_FLAGS_STDIN_INHERIT = 1 << 1 = 2
+      // Makes stty inherit our fd 0 (the real TTY) so tcsetattr targets the same tty.
+      const STDIN_INHERIT = Gio.SubprocessFlags?.STDIN_INHERIT ?? 2;
+      // Match the termios settings from GjsifyTerminal's set_raw_mode:
+      //   c_lflag &= ~(ICANON | ECHO)  →  -icanon -echo
+      //   c_iflag &= ~ICRNL            →  -icrnl
+      //   VMIN=1, VTIME=0              →  min 1 time 0
+      const argv = mode
+        ? ['stty', '-icanon', '-echo', '-icrnl', 'min', '1', 'time', '0']
+        : ['stty', 'icanon', 'echo', 'icrnl'];
+      const launcher = new Gio.SubprocessLauncher({ flags: STDIN_INHERIT });
+      const proc = launcher.spawnv(argv);
+      proc.wait(null);
+
+      // Register a one-time exit handler to restore cooked mode when the process
+      // exits — without this the shell inherits raw mode and becomes unusable.
+      if (mode && !this._sttyCleanupRegistered) {
+        this._sttyCleanupRegistered = true;
+        const proc_ = (globalThis as any).process;
+        if (proc_?.once && typeof proc_.once === 'function') {
+          proc_.once('exit', () => this._setRawModeViaStty(false));
+        }
+      }
+    } catch { /* stty not available or not a TTY */ }
+  }
+
+  setEncoding(_enc: string): this { return this; }
+
+  resume(): this {
+    this._flowing = true;
+    if (this._gio && this.fd === 0 && !this._reading) {
+      this._startReading();
+    }
+    return this;
+  }
+
+  pause(): this {
+    this._flowing = false;
+    this._reading = false;
+    if (this._mainLoopHeld) {
+      this._mainLoopHeld = false;
+      // Defer the quit via GLib idle so microtask continuations run first.
+      // If the next prompt's Interface calls resume() before this idle fires,
+      // it sets _mainLoopHeld = true again and the quit is skipped.
+      // This mirrors Node.js libuv unref: pausing stdin allows the event loop
+      // to drain when no more prompts follow, but not between sequential prompts.
+      const _gi: any = (globalThis as any).imports?.gi;
+      const GLib = _gi?.GLib ?? _gi?.['GLib'];
+      if (GLib?.idle_add) {
+        GLib.idle_add(300 /* PRIORITY_LOW */, () => {
+          if (!this._mainLoopHeld) quitMainLoop();
+          return false; // SOURCE_REMOVE
+        });
+      } else {
+        quitMainLoop();
+      }
+    }
+    return this;
+  }
+
+  read(): null { return null; }
+
+  private _startReading(): void {
+    if (!this._gio || this._reading) return;
+
+    // If a read_bytes_async is already in-flight from the previous loop cycle
+    // (queued before pause() set _reading = false), don't start a second
+    // concurrent read on the same fd. Just re-enable _reading so the pending
+    // callback continues the loop when it fires.
+    if (this._pendingRead) {
+      this._reading = true;
+      if (!this._mainLoopHeld) { this._mainLoopHeld = true; ensureMainLoop(); }
+      return;
+    }
+
+    this._reading = true;
+    // Keep the GLib main loop alive while waiting for stdin — same as
+    // http.Server.listen() does for network sockets. Without this, gjs -m
+    // exits as soon as module evaluation completes even though read_bytes_async
+    // is pending, because GJS only stays alive when runAsync() registered a hook.
+    if (!this._mainLoopHeld) { this._mainLoopHeld = true; ensureMainLoop(); }
+
+    if (!this._stdinGio) {
+      // GioUnix: class is `InputStream`. Gio: concrete class is `UnixInputStream`;
+      // `InputStream` is abstract. The ?? chain picks the right one for each namespace.
+      const Cls = (this._gio as any).UnixInputStream ?? (this._gio as any).InputStream;
+      if (!Cls) { this._reading = false; return; }
+      try {
+        this._stdinGio = Cls.new(this.fd, false);
+      } catch {
+        this._reading = false;
+        return;
+      }
+    }
+
+    const loop = () => {
+      if (!this._reading) { this._pendingRead = false; return; }
+      this._pendingRead = true;
+      (this._stdinGio as any).read_bytes_async(
+        4096,
+        0,
+        null,
+        (src: any, res: any) => {
+          this._pendingRead = false;
+          try {
+            const bytes = (src as any).read_bytes_finish(res);
+            const data: Uint8Array | null = bytes?.get_data?.() ?? null;
+            if (data && data.byteLength > 0) {
+              this.emit('data', Buffer.from(data));
+            } else if (data !== null && data.byteLength === 0) {
+              this._reading = false;
+              this.emit('end');
+              return;
+            }
+          } catch {
+            this._reading = false;
+            return;
+          }
+          if (this._reading) loop();
+        },
+      );
+    };
+    loop();
+  }
+}
+
 function getMonotonicTime(): bigint {
   try {
     const GLib = getGjsGlobal().imports?.gi?.GLib;
@@ -252,7 +503,6 @@ function getMonotonicTime(): bigint {
       return BigInt(GLib.get_monotonic_time()) * 1000n;
     }
   } catch { /* ignore */ }
-  // Fallback: performance.now() if available
   if (typeof performance?.now === 'function') {
     return BigInt(Math.round(performance.now() * 1e6));
   }
@@ -403,7 +653,6 @@ class Process extends EventEmitter {
   }
 
   nextTick(callback: Function, ...args: unknown[]): void {
-    // Use microtask (fires before GLib I/O callbacks) to match Node.js process.nextTick semantics.
     // GTK interleaving is handled at the stream level (@gjsify/utils nextTick → GLib.idle_add).
     if (typeof queueMicrotask === 'function') {
       queueMicrotask(() => callback(...args));
@@ -435,7 +684,6 @@ class Process extends EventEmitter {
   }
 
   memoryUsage(): { rss: number; heapTotal: number; heapUsed: number; external: number; arrayBuffers: number } {
-    // On GJS, try reading from /proc/self/status
     try {
       const GLib = getGjsGlobal().imports?.gi?.GLib;
       if (GLib) {
@@ -469,12 +717,11 @@ class Process extends EventEmitter {
     return { user: 0, system: 0 };
   }
 
-  // Stub: stdout/stderr/stdin — these need stream to be implemented fully
   // Note: Cannot check globalThis.process.stdout here — on GJS globalThis.process
   // IS this instance, so that would cause infinite recursion.
-  readonly stdout: { write: (data: string) => boolean; fd: number } = { write: (data: string) => { console.log(data); return true; }, fd: 1 };
-  readonly stderr: { write: (data: string) => boolean; fd: number } = { write: (data: string) => { console.error(data); return true; }, fd: 2 };
-  readonly stdin: { fd: number } = { fd: 0 };
+  readonly stdout = new ProcessWriteStream(1);
+  readonly stderr = new ProcessWriteStream(2);
+  readonly stdin = new ProcessReadStream(0);
 
   abort(): void {
     this.exit(1);
@@ -491,13 +738,25 @@ class Process extends EventEmitter {
   }
 }
 
-// Add hrtime.bigint
 (Process.prototype.hrtime as unknown as Record<string, () => bigint>).bigint = function(): bigint {
   return getMonotonicTime() - hrtimeBase;
 };
 
-// Create singleton process instance
 const process = new Process();
+
+// Wire SIGWINCH → process.stdout.emit('resize') when native terminal is available.
+// Runs only on GJS (nativeTerminal is null on Node.js).
+if (nativeTerminal) {
+  try {
+    const watcher = new nativeTerminal.ResizeWatcher();
+    watcher.connect('resized', (_obj: any, _rows: number, _cols: number) => {
+      // Re-emit on both streams; consumers (chalk, inquirer) listen on stdout.
+      process.stdout.emit('resize');
+      process.stderr.emit('resize');
+    });
+    watcher.start();
+  } catch { /* ignore if ResizeWatcher instantiation fails */ }
+}
 
 // Re-export everything
 export const platform = process.platform;
