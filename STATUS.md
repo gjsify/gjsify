@@ -606,6 +606,52 @@ Fixtures (`tests/integration/ts-for-gir/girs/`) are gjsify's own Vala-generated 
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
+### `@gjsify/webassembly` — polyfill the Promise-based WebAssembly APIs
+
+**Priority: Medium — unblocks ts-for-gir `doc` on GJS + any future consumer using WASM-backed libs (shiki/oniguruma, esbuild-wasm, sql.js, …).**
+
+**Verified on GJS 1.88.0 / SpiderMonkey 140:**
+- `WebAssembly` exists as a global object ✓
+- `new WebAssembly.Module(buffer)` works (synchronous compile) ✓
+- `new WebAssembly.Instance(module, imports)` works (synchronous instantiate) ✓
+- `WebAssembly.{compile,compileStreaming,instantiate,instantiateStreaming,validate}` exist as `function` typeof but throw `Error: WebAssembly Promise APIs not supported in this runtime.` at first call ✗
+
+Since the synchronous constructors work, the Promise-based APIs are trivially polyfillable in JS:
+
+```ts
+// new packages/web/webassembly/src/register/promise.ts
+WebAssembly.compile = (buf) => {
+    try { return Promise.resolve(new WebAssembly.Module(buf)); }
+    catch (e) { return Promise.reject(e); }
+};
+WebAssembly.instantiate = (bufOrMod, imports) => {
+    try {
+        const isModule = bufOrMod instanceof WebAssembly.Module;
+        const module = isModule ? bufOrMod : new WebAssembly.Module(bufOrMod);
+        const instance = new WebAssembly.Instance(module, imports);
+        // Spec: Buffer input → { module, instance }; Module input → Instance
+        return Promise.resolve(isModule ? instance : { module, instance });
+    } catch (e) { return Promise.reject(e); }
+};
+WebAssembly.validate = (buf) => {
+    try { new WebAssembly.Module(buf); return true; }
+    catch { return false; }
+};
+// compileStreaming / instantiateStreaming: feed Response.arrayBuffer() into above
+```
+
+Steps:
+1. New package `packages/web/webassembly/` with `src/register/promise.ts` (above)
+2. Add to `GJS_GLOBALS_MAP` so `--globals auto` injects it whenever
+   `WebAssembly.compile` etc. appear in the bundle
+3. Validate via `tests/integration/ts-for-gir/` — once shipped, drop the
+   bail in `ts-for-gir/packages/cli/src/commands/doc.ts` and verify
+   the GJS bundle generates HTML docs end-to-end (the JSON pipeline
+   already runs natively via Phase 6 on v0.3.4).
+
+Once landed, remove the `WebAssembly Promise APIs` "Upstream GJS Patch
+Candidate" entry — this is a gjsify-side fix.
+
 ### Bugs surfaced by ts-for-gir GJS-bundle integration (gjsify v0.3.4 → v0.3.5)
 
 External consumers of `gjsify build` (e.g. `gjsify/ts-for-gir` PR #378) hit
