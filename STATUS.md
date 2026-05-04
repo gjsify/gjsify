@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-05-04 — Phases 6b + 8 of ts-for-gir integration. Runtime-relative `import.meta.url` rewriting (ESM) + absolute `__dirname`/`__filename` literals (CJS) factored into shared `utils/rewrite-node-modules-paths.ts` (deduplicated across GJS + Node app targets). Phase 6b: `generator-typedoc.spec.ts` (3 JSON tests cross-platform; 2 HTML tests Node-only — TypeDoc shiki needs WebAssembly). Phase 8 partial: `language-server.spec.ts` (21 pure-TS tests, Node-only — `typescript` CJS pkg). Node: 276/276 ✓. GJS: 212/212 ✓ (3 ignored).
+> Last updated: 2026-05-04 — Phases 6b + 8 of ts-for-gir integration. Runtime-relative `import.meta.url` rewriting (ESM) + absolute `__dirname`/`__filename` literals (CJS) factored into shared `utils/rewrite-node-modules-paths.ts` (deduplicated across GJS + Node app targets). Phase 6b: `generator-typedoc.spec.ts` (3 JSON tests cross-platform; 2 HTML tests Node-only — TypeDoc shiki needs WebAssembly). Phase 8 partial: `language-server.spec.ts` (21 pure-TS tests, Node-only — `typescript` CJS pkg). Node: 276/276 ✓. GJS: 212/212 ✓ (3 ignored). v0.3.4 published; downstream `gjsify/ts-for-gir` PR #378 surfaced 3 v0.3.5 follow-ups (PnP zip read, two-hop relay, shebang config) — see Open TODOs.
 
 ## Summary
 
@@ -605,6 +605,53 @@ Fixtures (`tests/integration/ts-for-gir/girs/`) are gjsify's own Vala-generated 
 ## Open TODOs
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
+
+### Bugs surfaced by ts-for-gir GJS-bundle integration (gjsify v0.3.4 → v0.3.5)
+
+External consumers of `gjsify build` (e.g. `gjsify/ts-for-gir` PR #378) hit
+three bugs in v0.3.4 that currently force workarounds. All three are fixable
+in `packages/infra/{cli,esbuild-plugin-gjsify}/` and should land in v0.3.5.
+
+**Priority: High — they block clean external use of `gjsify build`.**
+
+1. **`rewrite-node-modules-paths.ts` cannot read PnP zip-cached files.**
+   The `onLoad` hook does `await readFile(args.path, 'utf8')`, which throws
+   on Yarn PnP virtual paths like `pnp:/.../typescript-zip.zip/...`. esbuild
+   then loads the file via the PnP plugin's reader but our `__dirname` /
+   `__filename` injection never runs, so bundled `typescript.js` crashes
+   at runtime with `ReferenceError: __filename is not defined`.
+   Workaround in ts-for-gir: `nodeLinker: node-modules` to flatten the
+   zip cache.
+   Proper fix: detect PnP/zip paths and either skip them (with a warning)
+   or read content via PnP's API instead of `fs.readFile`.
+
+2. **`getPnpPlugin()` two-hop relay misses some `@gjsify/*` packages.**
+   The relay through `@gjsify/node-polyfills` / `@gjsify/web-polyfills`
+   is supposed to make every `@gjsify/<pkg>/register/*` path declared
+   transitively resolvable from a consumer that only has `@gjsify/cli`
+   as a direct dep. In practice, ts-for-gir had to declare every
+   register-target package directly (`@gjsify/buffer`, `node-globals`,
+   `web-globals`, `abort-controller`, `compression-streams`, `dom-events`,
+   `dom-exception`, `web-streams`, `webcrypto`, plus the source-aliased
+   `@gjsify/{fs,path,url,util,module,os,zlib,child_process}`).
+   Either the relay's `pnpApi.resolveRequest()` returns `null` for
+   sub-path imports (`@gjsify/foo/register/bar`), or the issuer file
+   path doesn't reach a PnP-declared context.
+   Proper fix: trace why the relay's resolveRequest returns null and
+   either fix the issuer path or fall back to walking the whole
+   PnP-declared dep graph.
+
+3. **`shebang: true` in `.gjsifyrc.js` is overridden by CLI default.**
+   `commands/build.ts` declares `--shebang` with `default: false`;
+   yargs always sets `cliArgs.shebang = false` when the flag is absent.
+   `config.ts` then overwrites the config-file value via
+   `if (cliArgs.shebang !== undefined) configData.shebang = cliArgs.shebang`.
+   Net effect: `shebang: true` from `.gjsifyrc.js` is ignored unless the
+   user also passes `--shebang` on the command line.
+   Workaround: pass `--shebang` explicitly.
+   Proper fix: drop the yargs `default: false` so the CLI value is
+   `undefined` when the user didn't pass it, OR change the merge logic
+   to compare against the default before overriding.
 
 ### Split `@gjsify/node-globals/register` into topic-specific packages
 
