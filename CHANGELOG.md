@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.4](https://github.com/gjsify/gjsify/compare/v0.3.3...v0.3.4) (2026-05-04)
+
+### Features
+
+* **ts-for-gir Phase 6/6b/8:** portable import.meta.url + TypeDoc + language-server tests ([624f0cf](https://github.com/gjsify/gjsify/commit/624f0cf8a6dd283157f00c5ff7f6a430cc49c407))
+
 ## [Unreleased] — 2026-05-04
 
 ### Features

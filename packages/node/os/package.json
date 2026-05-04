@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/os",
-    "version": "0.3.3",
+    "version": "0.3.4",
     "description": "Node.js os module for Gjs",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
