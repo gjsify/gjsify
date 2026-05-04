@@ -11,6 +11,7 @@ import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 
 const GJS_SHEBANG = "#!/usr/bin/env -S gjs -m\n";
 
@@ -31,23 +32,36 @@ function findPnpRoot(dir: string): string | null {
  * modules from zip archives without manual extraction.
  *
  * Custom onResolve: when the project's PnP context throws
- * UNDECLARED_DEPENDENCY (package is a transitive dep but not listed in the
- * issuer's direct deps), retry the resolution from gjsify's own package
- * context via `pnpapi.resolveRequest()`. gjsify has @gjsify/node-polyfills
- * and @gjsify/web-polyfills as direct deps, so all injected globals packages
- * (e.g. @gjsify/node-globals) are accessible from there. For bare specifiers
- * that the gjsify alias plugin maps (e.g. `abort-controller`), fall through
- * to let that plugin handle the resolution.
+ * UNDECLARED_DEPENDENCY, retry via a two-hop relay:
+ *   1. @gjsify/cli context (direct dep of the project using gjsify build)
+ *   2. @gjsify/node-polyfills context (direct dep of @gjsify/cli, has all
+ *      node polyfills as direct deps including @gjsify/node-globals)
+ *   3. @gjsify/web-polyfills context (direct dep of @gjsify/cli, has all
+ *      web polyfills as direct deps including @gjsify/fetch, @gjsify/abort-controller)
+ * For bare specifiers that the gjsify alias plugin maps (e.g. `abort-controller`),
+ * fall through so that plugin can handle the transformation first.
  */
 async function getPnpPlugin(): Promise<Plugin | null> {
 	if (!findPnpRoot(process.cwd())) return null;
 	try {
 		const { pnpPlugin } = await import("@yarnpkg/esbuild-plugin-pnp");
 
-		// gjsify's own file path — used as issuer for fallback PnP resolution.
-		// @gjsify/cli has @gjsify/node-polyfills + @gjsify/web-polyfills as direct
-		// deps, so all injected globals packages resolve from this context.
+		// gjsify's own file path — @gjsify/cli has node-polyfills + web-polyfills
+		// as direct deps, so we can resolve them as relay issuers from here.
 		const gjsifyIssuer = fileURLToPath(import.meta.url);
+
+		// Two-hop relay: node-polyfills and web-polyfills have all individual
+		// @gjsify/* packages as direct deps. Resolving from their paths allows
+		// PnP to reach e.g. @gjsify/node-globals (dep of node-polyfills).
+		const requireFromGjsify = createRequire(gjsifyIssuer);
+		const relayIssuers: string[] = [];
+		for (const pkg of ["@gjsify/node-polyfills", "@gjsify/web-polyfills"]) {
+			try {
+				relayIssuers.push(requireFromGjsify.resolve(pkg));
+			} catch {
+				// polyfills package not in dep tree — relay won't cover it
+			}
+		}
 
 		// pnpapi is a virtual module injected by Yarn PnP at runtime.
 		type PnpApi = {
@@ -72,18 +86,27 @@ async function getPnpPlugin(): Promise<Plugin | null> {
 					(error as { pnpCode?: string } | null)?.pnpCode ===
 					"UNDECLARED_DEPENDENCY"
 				) {
-					// Retry from gjsify's context — covers @gjsify/* inject paths.
 					if (pnpApi !== null) {
+						// Try @gjsify/cli context first (covers @gjsify/* that are
+						// direct deps of cli's own deps — unlikely but fast check).
 						try {
 							const rp = pnpApi.resolveRequest(args.path, gjsifyIssuer);
-							if (rp !== null) {
+							if (rp !== null)
 								return { namespace: "pnp", path: rp, watchFiles };
-							}
-						} catch {
-							// Falls through; bare aliases (abort-controller etc.) are
-							// handled by the gjsify alias plugin after this returns null.
+						} catch {}
+						// Two-hop relay: resolve from node-polyfills / web-polyfills context
+						// which have the individual @gjsify/* packages as direct deps.
+						for (const relayIssuer of relayIssuers) {
+							try {
+								const rp = pnpApi.resolveRequest(args.path, relayIssuer);
+								if (rp !== null)
+									return { namespace: "pnp", path: rp, watchFiles };
+							} catch {}
 						}
 					}
+					// Fall through — bare aliases (abort-controller, fetch/register/*)
+					// are handled by the gjsify alias plugin after this returns null,
+					// then the re-resolved @gjsify/* path goes through this hook again.
 					return null;
 				}
 				return {
