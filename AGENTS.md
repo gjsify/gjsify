@@ -2,7 +2,7 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0.3.2, ESM-only, GNOME libs. Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (19 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra.
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0.3.3, ESM-only, GNOME libs. Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (19 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra.
 
 ## Governance — non-negotiable
 
@@ -483,7 +483,7 @@ Scripts: `yarn test:integration[:node|:gjs]`. NOT part of `yarn test` — opt-in
 
 ## Package convention
 
-`packages/node/<name>/` → `@gjsify/<name>`, v0.3.2, `"type":"module"` | exports `./lib/esm/index.js` + `./lib/esm/register.js` (if globals) | `sideEffects:["./lib/esm/register.js"]` pinned to register-only | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`; devDep `@gjsify/unit`; workspace deps `workspace:^`
+`packages/node/<name>/` → `@gjsify/<name>`, v0.3.3, `"type":"module"` | exports `./lib/esm/index.js` + `./lib/esm/register.js` (if globals) | `sideEffects:["./lib/esm/register.js"]` pinned to register-only | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`; devDep `@gjsify/unit`; workspace deps `workspace:^`
 
 Layout: `src/index.ts` (pure named exports) | `src/register.ts` (side-effect globals) | `src/*.spec.ts` | `src/test.mts` (entry, imports `@gjsify/node-globals/register` + feature-specific `<pkg>/register`). Full rules: Tree-shakeable Globals section.
 

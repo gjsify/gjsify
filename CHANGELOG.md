@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.3](https://github.com/gjsify/gjsify/compare/v0.3.2...v0.3.3) (2026-05-04)
+
+### Bug Fixes
+
+* **cli:** fall through on UNDECLARED_DEPENDENCY in Yarn PnP onResolve ([6c3b712](https://github.com/gjsify/gjsify/commit/6c3b7121ad256ea1e536f6030c8fb272ff7587a2))
+
 ## [0.3.2](https://github.com/gjsify/gjsify/compare/v0.3.1...v0.3.2) (2026-05-04)
 
 ### Features

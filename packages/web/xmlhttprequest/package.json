@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/xmlhttprequest",
-    "version": "0.3.2",
+    "version": "0.3.3",
     "description": "XMLHttpRequest and URL.createObjectURL/revokeObjectURL for GJS — backed by @gjsify/fetch and GLib",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",

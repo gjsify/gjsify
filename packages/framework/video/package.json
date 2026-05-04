@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/video",
-    "version": "0.3.2",
+    "version": "0.3.3",
     "description": "VideoBridge — GTK container for HTMLVideoElement backed by GStreamer gtk4paintablesink",
     "type": "module",
     "module": "lib/esm/index.js",

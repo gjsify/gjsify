@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/dom-elements",
-    "version": "0.3.2",
+    "version": "0.3.3",
     "description": "DOM element hierarchy (Node, Element, HTMLElement, HTMLImageElement) for GJS",
     "type": "module",
     "module": "lib/esm/index.js",
