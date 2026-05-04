@@ -3226,15 +3226,15 @@ var require_pattern = __commonJS({
     exports.removeDuplicateSlashes = removeDuplicateSlashes;
     function partitionAbsoluteAndRelative(patterns) {
       const absolute = [];
-      const relative = [];
+      const relative3 = [];
       for (const pattern of patterns) {
         if (isAbsolute(pattern)) {
           absolute.push(pattern);
         } else {
-          relative.push(pattern);
+          relative3.push(pattern);
         }
       }
-      return [absolute, relative];
+      return [absolute, relative3];
     }
     exports.partitionAbsoluteAndRelative = partitionAbsoluteAndRelative;
     function isAbsolute(pattern) {
@@ -4282,26 +4282,26 @@ var require_queue = __commonJS({
       queue.drained = drained;
       return queue;
       function push(value) {
-        var p = new Promise(function(resolve3, reject) {
+        var p = new Promise(function(resolve4, reject) {
           pushCb(value, function(err, result) {
             if (err) {
               reject(err);
               return;
             }
-            resolve3(result);
+            resolve4(result);
           });
         });
         p.catch(noop3);
         return p;
       }
       function unshift(value) {
-        var p = new Promise(function(resolve3, reject) {
+        var p = new Promise(function(resolve4, reject) {
           unshiftCb(value, function(err, result) {
             if (err) {
               reject(err);
               return;
             }
-            resolve3(result);
+            resolve4(result);
           });
         });
         p.catch(noop3);
@@ -4309,15 +4309,15 @@ var require_queue = __commonJS({
       }
       function drained() {
         if (queue.idle()) {
-          return new Promise(function(resolve3) {
-            resolve3();
+          return new Promise(function(resolve4) {
+            resolve4();
           });
         }
         var previousDrain = queue.drain;
-        var p = new Promise(function(resolve3) {
+        var p = new Promise(function(resolve4) {
           queue.drain = function() {
             previousDrain();
-            resolve3();
+            resolve4();
           };
         });
         return p;
@@ -4800,9 +4800,9 @@ var require_stream3 = __commonJS({
         });
       }
       _getStat(filepath) {
-        return new Promise((resolve3, reject) => {
+        return new Promise((resolve4, reject) => {
           this._stat(filepath, this._fsStatSettings, (error, stats) => {
-            return error === null ? resolve3(stats) : reject(error);
+            return error === null ? resolve4(stats) : reject(error);
           });
         });
       }
@@ -4826,10 +4826,10 @@ var require_async5 = __commonJS({
         this._readerStream = new stream_1.default(this._settings);
       }
       dynamic(root, options) {
-        return new Promise((resolve3, reject) => {
+        return new Promise((resolve4, reject) => {
           this._walkAsync(root, options, (error, entries) => {
             if (error === null) {
-              resolve3(entries);
+              resolve4(entries);
             } else {
               reject(error);
             }
@@ -4839,10 +4839,10 @@ var require_async5 = __commonJS({
       async static(patterns, options) {
         const entries = [];
         const stream = this._readerStream.static(patterns, options);
-        return new Promise((resolve3, reject) => {
+        return new Promise((resolve4, reject) => {
           stream.once("error", reject);
           stream.on("data", (entry) => entries.push(entry));
-          stream.once("end", () => resolve3(entries));
+          stream.once("end", () => resolve4(entries));
         });
       }
     };
@@ -5593,12 +5593,12 @@ var require_isexe = __commonJS({
         if (typeof Promise !== "function") {
           throw new TypeError("callback not provided");
         }
-        return new Promise(function(resolve3, reject) {
+        return new Promise(function(resolve4, reject) {
           isexe(path6, options || {}, function(er, is) {
             if (er) {
               reject(er);
             } else {
-              resolve3(is);
+              resolve4(is);
             }
           });
         });
@@ -5664,27 +5664,27 @@ var require_which = __commonJS({
         opt = {};
       const { pathEnv, pathExt, pathExtExe } = getPathInfo(cmd, opt);
       const found = [];
-      const step = (i2) => new Promise((resolve3, reject) => {
+      const step = (i2) => new Promise((resolve4, reject) => {
         if (i2 === pathEnv.length)
-          return opt.all && found.length ? resolve3(found) : reject(getNotFoundError(cmd));
+          return opt.all && found.length ? resolve4(found) : reject(getNotFoundError(cmd));
         const ppRaw = pathEnv[i2];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
         const pCmd = path6.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
-        resolve3(subStep(p, i2, 0));
+        resolve4(subStep(p, i2, 0));
       });
-      const subStep = (p, i2, ii) => new Promise((resolve3, reject) => {
+      const subStep = (p, i2, ii) => new Promise((resolve4, reject) => {
         if (ii === pathExt.length)
-          return resolve3(step(i2 + 1));
+          return resolve4(step(i2 + 1));
         const ext = pathExt[ii];
         isexe(p + ext, { pathExt: pathExtExe }, (er, is) => {
           if (!er && is) {
             if (opt.all)
               found.push(p + ext);
             else
-              return resolve3(p + ext);
+              return resolve4(p + ext);
           }
-          return resolve3(subStep(p, i2, ii + 1));
+          return resolve4(subStep(p, i2, ii + 1));
         });
       });
       return cb ? step(0).then((res) => cb(null, res), cb) : step(0);
@@ -14479,8 +14479,8 @@ var disconnect = (anyProcess) => {
 // ../../../node_modules/execa/lib/utils/deferred.js
 var createDeferred = () => {
   const methods = {};
-  const promise = new Promise((resolve3, reject) => {
-    Object.assign(methods, { resolve: resolve3, reject });
+  const promise = new Promise((resolve4, reject) => {
+    Object.assign(methods, { resolve: resolve4, reject });
   });
   return Object.assign(promise, methods);
 };
@@ -19122,11 +19122,11 @@ var addConcurrentStream = (concurrentStreams, stream, waitName) => {
   const promises = weakMap.get(stream);
   const promise = createDeferred();
   promises.push(promise);
-  const resolve3 = promise.resolve.bind(promise);
-  return { resolve: resolve3, promises };
+  const resolve4 = promise.resolve.bind(promise);
+  return { resolve: resolve4, promises };
 };
-var waitForConcurrentStreams = async ({ resolve: resolve3, promises }, subprocess) => {
-  resolve3();
+var waitForConcurrentStreams = async ({ resolve: resolve4, promises }, subprocess) => {
+  resolve4();
   const [isSubprocessExit] = await Promise.race([
     Promise.allSettled([true, subprocess]),
     Promise.all([false, ...promises])
@@ -19887,8 +19887,8 @@ function registerToCommonJSPatch(build2) {
 }
 
 // src/app/gjs.ts
-import { fileURLToPath as fileURLToPath3, pathToFileURL } from "url";
-import { dirname, resolve as resolve2 } from "path";
+import { fileURLToPath as fileURLToPath3 } from "url";
+import { dirname, join as join2, relative, resolve as resolve2 } from "path";
 import { readFile } from "fs/promises";
 var _shimDir = dirname(fileURLToPath3(import.meta.url));
 var GJS_PROCESS_STUB = [
@@ -20000,18 +20000,25 @@ var setupForGjs = async (build2, pluginOptions) => {
     const dir = dirname(args.path);
     let contents = src;
     if (hasMetaUrl) {
-      const originalUrl = pathToFileURL(args.path).href;
-      contents = contents.replace(/\bimport\.meta\.url\b/g, JSON.stringify(originalUrl));
-    }
-    const dirnameDecl = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/.test(src);
-    const filenameDecl = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/.test(src);
-    const injectDirname = hasDirnameUse && !dirnameDecl;
-    const injectFilename = hasFilenameUse && !filenameDecl;
-    if (injectDirname || injectFilename) {
+      const outFile = build2.initialOptions.outfile ?? join2(build2.initialOptions.outdir ?? ".", "bundle.mjs");
+      const bundleDir = dirname(resolve2(outFile));
+      const relPath = relative(bundleDir, args.path);
+      const relDir = relative(bundleDir, dir) || ".";
+      const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
+      contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
+      const dirnameDecl = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/.test(src);
+      const filenameDecl = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/.test(src);
       const lines = [];
-      if (injectDirname) lines.push(`var __dirname = ${JSON.stringify(dir)};`);
-      if (injectFilename) lines.push(`var __filename = ${JSON.stringify(args.path)};`);
-      contents = lines.join("\n") + "\n" + contents;
+      if (hasDirnameUse && !dirnameDecl) lines.push(`var __dirname = new URL(${JSON.stringify(relDir + "/")}, import.meta.url).pathname.replace(/\\/$/, "");`);
+      if (hasFilenameUse && !filenameDecl) lines.push(`var __filename = ${runtimeFileUrl}.pathname;`);
+      if (lines.length > 0) contents = lines.join("\n") + "\n" + contents;
+    } else {
+      const dirnameDecl = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/.test(src);
+      const filenameDecl = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/.test(src);
+      const lines = [];
+      if (hasDirnameUse && !dirnameDecl) lines.push(`var __dirname = ${JSON.stringify(dir)};`);
+      if (hasFilenameUse && !filenameDecl) lines.push(`var __filename = ${JSON.stringify(args.path)};`);
+      if (lines.length > 0) contents = lines.join("\n") + "\n" + contents;
     }
     const ext = args.path.split(".").pop() ?? "js";
     const loader = ["ts", "mts", "cts", "tsx"].includes(ext) ? "ts" : "js";
@@ -20033,7 +20040,7 @@ var setupForGjs = async (build2, pluginOptions) => {
 
 // src/app/node.ts
 import * as deepkitPlugin5 from "@gjsify/esbuild-plugin-deepkit";
-import { dirname as dirname2 } from "node:path";
+import { dirname as dirname2, join as join3, relative as relative2, resolve as resolve3 } from "node:path";
 import { readFile as readFile2 } from "node:fs/promises";
 var setupForNode = async (build2, pluginOptions) => {
   const userExternal = build2.initialOptions.external ?? [];
@@ -20094,15 +20101,39 @@ var setupForNode = async (build2, pluginOptions) => {
       window: "globalThis"
     }
   };
-  build2.onLoad({ filter: /\.(js|cjs)$/ }, async (args) => {
+  build2.onLoad({ filter: /\.(m?js|cjs|[cm]?tsx?)$/ }, async (args) => {
     if (!args.path.includes("node_modules")) return void 0;
     const src = await readFile2(args.path, "utf8");
-    if (!src.includes("__dirname") && !src.includes("__filename")) return void 0;
+    const hasMetaUrl = src.includes("import.meta.url");
+    const hasDirname = src.includes("__dirname");
+    const hasFilename = src.includes("__filename");
+    if (!hasMetaUrl && !hasDirname && !hasFilename) return void 0;
     const dir = dirname2(args.path);
-    const preamble = `var __dirname = ${JSON.stringify(dir)};
-var __filename = ${JSON.stringify(args.path)};
-`;
-    return { contents: preamble + src, loader: "js", resolveDir: dir };
+    let contents = src;
+    if (hasMetaUrl) {
+      const outFile = build2.initialOptions.outfile ?? join3(build2.initialOptions.outdir ?? ".", "bundle.mjs");
+      const bundleDir = dirname2(resolve3(outFile));
+      const relPath = relative2(bundleDir, args.path);
+      const relDir = relative2(bundleDir, dir) || ".";
+      const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
+      contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
+      const dirnameDecl = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/.test(src);
+      const filenameDecl = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/.test(src);
+      const lines = [];
+      if (hasDirname && !dirnameDecl) lines.push(`var __dirname = new URL(${JSON.stringify(relDir + "/")}, import.meta.url).pathname.replace(/\\/$/, "");`);
+      if (hasFilename && !filenameDecl) lines.push(`var __filename = ${runtimeFileUrl}.pathname;`);
+      if (lines.length > 0) contents = lines.join("\n") + "\n" + contents;
+    } else {
+      const dirnameDecl = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/.test(src);
+      const filenameDecl = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/.test(src);
+      const lines = [];
+      if (hasDirname && !dirnameDecl) lines.push(`var __dirname = ${JSON.stringify(dir)};`);
+      if (hasFilename && !filenameDecl) lines.push(`var __filename = ${JSON.stringify(args.path)};`);
+      if (lines.length > 0) contents = lines.join("\n") + "\n" + contents;
+    }
+    const ext = args.path.split(".").pop() ?? "js";
+    const loader = ["ts", "mts", "cts", "tsx"].includes(ext) ? "ts" : "js";
+    return { contents, loader, resolveDir: dir };
   });
   merge(build2.initialOptions, esbuildOptions);
   build2.initialOptions.entryPoints = await globToEntryPoints(build2.initialOptions.entryPoints, pluginOptions.exclude);
