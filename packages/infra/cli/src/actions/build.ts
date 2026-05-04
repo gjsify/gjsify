@@ -8,6 +8,7 @@ import {
 	detectAutoGlobals,
 } from "@gjsify/esbuild-plugin-gjsify/globals";
 import { dirname, extname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 
@@ -29,27 +30,60 @@ function findPnpRoot(dir: string): string | null {
  * @yarnpkg/esbuild-plugin-pnp plugin so esbuild can resolve
  * modules from zip archives without manual extraction.
  *
- * Custom onResolve: fall through on UNDECLARED_DEPENDENCY errors so the
- * gjsify alias plugin can handle bare specifiers (e.g. `abort-controller`)
- * that PnP can't resolve from the inject file's issuer context but that
- * gjsify maps to `@gjsify/*` packages the project DOES have available.
+ * Custom onResolve: when the project's PnP context throws
+ * UNDECLARED_DEPENDENCY (package is a transitive dep but not listed in the
+ * issuer's direct deps), retry the resolution from gjsify's own package
+ * context via `pnpapi.resolveRequest()`. gjsify has @gjsify/node-polyfills
+ * and @gjsify/web-polyfills as direct deps, so all injected globals packages
+ * (e.g. @gjsify/node-globals) are accessible from there. For bare specifiers
+ * that the gjsify alias plugin maps (e.g. `abort-controller`), fall through
+ * to let that plugin handle the resolution.
  */
 async function getPnpPlugin(): Promise<Plugin | null> {
 	if (!findPnpRoot(process.cwd())) return null;
 	try {
 		const { pnpPlugin } = await import("@yarnpkg/esbuild-plugin-pnp");
+
+		// gjsify's own file path — used as issuer for fallback PnP resolution.
+		// @gjsify/cli has @gjsify/node-polyfills + @gjsify/web-polyfills as direct
+		// deps, so all injected globals packages resolve from this context.
+		const gjsifyIssuer = fileURLToPath(import.meta.url);
+
+		// pnpapi is a virtual module injected by Yarn PnP at runtime.
+		type PnpApi = {
+			resolveRequest: (req: string, issuer: string) => string | null;
+		};
+		let pnpApi: PnpApi | null = null;
+		try {
+			// pnpapi has no npm package — it is a virtual module injected by Yarn PnP
+			// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+			// @ts-expect-error
+			pnpApi = (await import("pnpapi")) as PnpApi;
+		} catch {
+			// Not in a PnP runtime (shouldn't happen since findPnpRoot passed)
+		}
+
 		return pnpPlugin({
-			onResolve: async (_args, { resolvedPath, error, watchFiles }) => {
+			onResolve: async (args, { resolvedPath, error, watchFiles }) => {
 				if (resolvedPath !== null) {
 					return { namespace: "pnp", path: resolvedPath, watchFiles };
 				}
-				// UNDECLARED_DEPENDENCY: package exists transitively but isn't
-				// in the issuer's direct deps. Fall through so the gjsify alias
-				// plugin can resolve it (e.g. bare → @gjsify/* mappings).
 				if (
 					(error as { pnpCode?: string } | null)?.pnpCode ===
 					"UNDECLARED_DEPENDENCY"
 				) {
+					// Retry from gjsify's context — covers @gjsify/* inject paths.
+					if (pnpApi !== null) {
+						try {
+							const rp = pnpApi.resolveRequest(args.path, gjsifyIssuer);
+							if (rp !== null) {
+								return { namespace: "pnp", path: rp, watchFiles };
+							}
+						} catch {
+							// Falls through; bare aliases (abort-controller etc.) are
+							// handled by the gjsify alias plugin after this returns null.
+						}
+					}
 					return null;
 				}
 				return {
