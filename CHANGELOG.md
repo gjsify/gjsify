@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.1](https://github.com/gjsify/gjsify/compare/v0.3.0...v0.3.1) (2026-05-04)
+
+### Bug Fixes
+
+* **esbuild-plugin-gjsify:** preserve caller plugins in detectAutoGlobals analysis passes ([33ccd48](https://github.com/gjsify/gjsify/commit/33ccd48aa2943e6bb1d43c97fb53eccd9d909ec2))
+
 ## [0.3.0](https://github.com/gjsify/gjsify/compare/v0.2.0...v0.3.0) (2026-05-04)
 
 ### Features
