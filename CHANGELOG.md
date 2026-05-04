@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.0](https://github.com/gjsify/gjsify/compare/v0.2.0...v0.3.0) (2026-05-04)
+
+### Features
+
+* **terminal-native:** optional Vala prebuild for real Linux terminal syscalls ([#60](https://github.com/gjsify/gjsify/issues/60)) ([d58a20a](https://github.com/gjsify/gjsify/commit/d58a20a95c7eb095e718cf23a2843f8d475816d6))
+
 ## [Unreleased] — 2026-05-02
 
 ### Features
