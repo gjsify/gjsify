@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased] — 2026-05-04
+
+### Features
+
+* **esbuild-plugin-gjsify:** rewrite `import.meta.url` in node_modules to build-time-known file URLs (Rollup CJS-polyfill pattern), enabling TypeDoc's eager filesystem reads to resolve via gjsify's GLib-backed `fs` polyfill at runtime
+* **module:** `createRequire` walks all ancestor `node_modules` directories (matches Node.js resolution algorithm), fixing packages in a parent `node_modules` being unreachable when a closer `node_modules` exists but doesn't contain the requested package
+* **ts-for-gir Phase 6:** TypeDoc stubs removed — `ts-for-gir json` and `ts-for-gir doc` work natively on GJS; 10 new tests (json/doc `--help` on Node + GJS, both run-from-Node and run-from-GJS); Node: 249/249, GJS: 209/209
+
+---
+
 ## [0.3.3](https://github.com/gjsify/gjsify/compare/v0.3.2...v0.3.3) (2026-05-04)
 
 ### Bug Fixes

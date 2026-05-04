@@ -14,14 +14,13 @@ const __filename = fileURLToPath(import.meta.url);
 const SUITE_ROOT = resolve(dirname(__filename), '..');
 const STUBS = join(SUITE_ROOT, 'src', 'stubs');
 
-// Cut the dependency tree at the highest level we can to keep the bundle
-// small. `@ts-for-gir/generator-{html-doc,json}` are stubbed because each
-// pulls in the heavy `typedoc` (+ `@ts-for-gir/typedoc-theme`) tree, and the
-// CLI only uses one named export from each.
+// Stub interactive prompt libraries only — they rely on eager dynamic-import
+// enumeration that bloats GJS bundles. TypeDoc and its generators now bundle
+// correctly: gjsify's onLoad hook rewrites import.meta.url in each TypeDoc
+// module to the build-time-known original file URL so that all relative FS
+// path calculations (package.json, locales, static assets) resolve at runtime
+// into node_modules, where gjsify's GLib-backed fs polyfill handles the I/O.
 const aliases = [
-  `@ts-for-gir/generator-html-doc=${join(STUBS, 'generator-html-doc.ts')}`,
-  `@ts-for-gir/generator-json=${join(STUBS, 'generator-json.ts')}`,
-  `typedoc=${join(STUBS, 'typedoc.ts')}`,
   `@inquirer/prompts=${join(STUBS, 'inquirer-prompts.ts')}`,
   `inquirer=${join(STUBS, 'inquirer-prompts.ts')}`,
 ].join(',');

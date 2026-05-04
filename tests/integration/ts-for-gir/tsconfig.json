@@ -14,11 +14,10 @@
         "src/parser.spec.ts",
         "src/lib.spec.ts",
         "src/generator.spec.ts",
+        "src/generator-typedoc.spec.ts",
+        "src/language-server.spec.ts",
         "src/cli.spec.ts",
         "src/cli.entry.ts",
-        "src/stubs/typedoc.ts",
-        "src/stubs/inquirer-prompts.ts",
-        "src/stubs/generator-html-doc.ts",
-        "src/stubs/generator-json.ts"
+        "src/stubs/inquirer-prompts.ts"
     ]
 }

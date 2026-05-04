@@ -8,8 +8,10 @@ import {
 	detectAutoGlobals,
 } from "@gjsify/esbuild-plugin-gjsify/globals";
 import { dirname, extname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 
 const GJS_SHEBANG = "#!/usr/bin/env -S gjs -m\n";
 
@@ -29,27 +31,82 @@ function findPnpRoot(dir: string): string | null {
  * @yarnpkg/esbuild-plugin-pnp plugin so esbuild can resolve
  * modules from zip archives without manual extraction.
  *
- * Custom onResolve: fall through on UNDECLARED_DEPENDENCY errors so the
- * gjsify alias plugin can handle bare specifiers (e.g. `abort-controller`)
- * that PnP can't resolve from the inject file's issuer context but that
- * gjsify maps to `@gjsify/*` packages the project DOES have available.
+ * Custom onResolve: when the project's PnP context throws
+ * UNDECLARED_DEPENDENCY, retry via a two-hop relay:
+ *   1. @gjsify/cli context (direct dep of the project using gjsify build)
+ *   2. @gjsify/node-polyfills context (direct dep of @gjsify/cli, has all
+ *      node polyfills as direct deps including @gjsify/node-globals)
+ *   3. @gjsify/web-polyfills context (direct dep of @gjsify/cli, has all
+ *      web polyfills as direct deps including @gjsify/fetch, @gjsify/abort-controller)
+ * For bare specifiers that the gjsify alias plugin maps (e.g. `abort-controller`),
+ * fall through so that plugin can handle the transformation first.
  */
 async function getPnpPlugin(): Promise<Plugin | null> {
 	if (!findPnpRoot(process.cwd())) return null;
 	try {
 		const { pnpPlugin } = await import("@yarnpkg/esbuild-plugin-pnp");
+
+		// gjsify's own file path — @gjsify/cli has node-polyfills + web-polyfills
+		// as direct deps, so we can resolve them as relay issuers from here.
+		const gjsifyIssuer = fileURLToPath(import.meta.url);
+
+		// Two-hop relay: node-polyfills and web-polyfills have all individual
+		// @gjsify/* packages as direct deps. Resolving from their paths allows
+		// PnP to reach e.g. @gjsify/node-globals (dep of node-polyfills).
+		const requireFromGjsify = createRequire(gjsifyIssuer);
+		const relayIssuers: string[] = [];
+		for (const pkg of ["@gjsify/node-polyfills", "@gjsify/web-polyfills"]) {
+			try {
+				relayIssuers.push(requireFromGjsify.resolve(pkg));
+			} catch {
+				// polyfills package not in dep tree — relay won't cover it
+			}
+		}
+
+		// pnpapi is a virtual module injected by Yarn PnP at runtime.
+		type PnpApi = {
+			resolveRequest: (req: string, issuer: string) => string | null;
+		};
+		let pnpApi: PnpApi | null = null;
+		try {
+			// pnpapi has no npm package — it is a virtual module injected by Yarn PnP
+			// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+			// @ts-expect-error
+			pnpApi = (await import("pnpapi")) as PnpApi;
+		} catch {
+			// Not in a PnP runtime (shouldn't happen since findPnpRoot passed)
+		}
+
 		return pnpPlugin({
-			onResolve: async (_args, { resolvedPath, error, watchFiles }) => {
+			onResolve: async (args, { resolvedPath, error, watchFiles }) => {
 				if (resolvedPath !== null) {
 					return { namespace: "pnp", path: resolvedPath, watchFiles };
 				}
-				// UNDECLARED_DEPENDENCY: package exists transitively but isn't
-				// in the issuer's direct deps. Fall through so the gjsify alias
-				// plugin can resolve it (e.g. bare → @gjsify/* mappings).
 				if (
 					(error as { pnpCode?: string } | null)?.pnpCode ===
 					"UNDECLARED_DEPENDENCY"
 				) {
+					if (pnpApi !== null) {
+						// Try @gjsify/cli context first (covers @gjsify/* that are
+						// direct deps of cli's own deps — unlikely but fast check).
+						try {
+							const rp = pnpApi.resolveRequest(args.path, gjsifyIssuer);
+							if (rp !== null)
+								return { namespace: "pnp", path: rp, watchFiles };
+						} catch {}
+						// Two-hop relay: resolve from node-polyfills / web-polyfills context
+						// which have the individual @gjsify/* packages as direct deps.
+						for (const relayIssuer of relayIssuers) {
+							try {
+								const rp = pnpApi.resolveRequest(args.path, relayIssuer);
+								if (rp !== null)
+									return { namespace: "pnp", path: rp, watchFiles };
+							} catch {}
+						}
+					}
+					// Fall through — bare aliases (abort-controller, fetch/register/*)
+					// are handled by the gjsify alias plugin after this returns null,
+					// then the re-resolved @gjsify/* path goes through this hook again.
 					return null;
 				}
 				return {

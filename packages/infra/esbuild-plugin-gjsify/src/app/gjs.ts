@@ -5,9 +5,9 @@ import * as deepkitPlugin from '@gjsify/esbuild-plugin-deepkit';
 import { merge } from "../utils/merge.js";
 import { getAliasesForGjs, globToEntryPoints } from "../utils/index.js";
 import { registerToCommonJSPatch } from "../utils/patch-to-common-js.js";
+import { registerNodeModulesPathRewrite } from "../utils/rewrite-node-modules-paths.js";
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
-import { readFile } from 'fs/promises';
 
 // Types
 import type { PluginBuild, BuildOptions } from "esbuild";
@@ -153,17 +153,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         return { path: result.path };
     });
 
-    // Inject __dirname/__filename as compile-time constants for CJS node_modules (platform:'neutral' omits them).
-    build.onLoad({ filter: /\.(js|cjs)$/ }, async (args) => {
-        if (!args.path.includes('node_modules')) return undefined;
-        const src = await readFile(args.path, 'utf8');
-        if (!src.includes('__dirname') && !src.includes('__filename')) return undefined;
-        const dir = dirname(args.path);
-        const preamble =
-            `var __dirname = ${JSON.stringify(dir)};\n` +
-            `var __filename = ${JSON.stringify(args.path)};\n`;
-        return { contents: preamble + src, loader: 'js', resolveDir: dir };
-    });
+    registerNodeModulesPathRewrite(build);
 
     merge(build.initialOptions, esbuildOptions);
 
