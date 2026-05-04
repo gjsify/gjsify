@@ -6,39 +6,13 @@ export { STATUS_CODES, METHODS } from './constants.js';
 export { IncomingMessage } from './incoming-message.js';
 export { OutgoingMessage, Server, ServerResponse } from './server.js';
 export { ClientRequest } from './client-request.js';
+export { validateHeaderName, validateHeaderValue } from './validators.js';
+import { validateHeaderName, validateHeaderValue } from './validators.js';
 import { IncomingMessage } from './incoming-message.js';
 import { OutgoingMessage, Server, ServerResponse } from './server.js';
 import { ClientRequest } from './client-request.js';
 import type { ClientRequestOptions } from './client-request.js';
 import { URL } from 'node:url';
-
-/**
- * Performs the low-level validations on the provided `name` that are done when `res.setHeader(name, value)` is called.
- * @since v14.3.0
- */
-export function validateHeaderName(name: string) {
-  if (typeof name !== 'string' || !/^[\^`\-\w!#$%&'*+.|~]+$/.test(name)) {
-    const error = new TypeError(`Header name must be a valid HTTP token ["${name}"]`);
-    Object.defineProperty(error, 'code', { value: 'ERR_INVALID_HTTP_TOKEN' });
-    throw error;
-  }
-}
-
-/**
- * Performs the low-level validations on the provided `value` that are done when `res.setHeader(name, value)` is called.
- */
-export function validateHeaderValue(name: string, value: any) {
-  if (value === undefined) {
-    const error = new TypeError(`Header "${name}" value must not be undefined`);
-    Object.defineProperty(error, 'code', { value: 'ERR_HTTP_INVALID_HEADER_VALUE' });
-    throw error;
-  }
-  if (typeof value === 'string' && /[^\t\u0020-\u007E\u0080-\u00FF]/.test(value)) {
-    const error = new TypeError(`Invalid character in header content ["${name}"]`);
-    Object.defineProperty(error, 'code', { value: 'ERR_INVALID_CHAR' });
-    throw error;
-  }
-}
 
 export interface AgentOptions {
   keepAlive?: boolean;

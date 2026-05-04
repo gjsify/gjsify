@@ -1,12 +1,39 @@
 import type { ConfigData } from '../types/index.js';
 import type { App } from '@gjsify/esbuild-plugin-gjsify';
-import { build, BuildOptions, BuildResult } from 'esbuild';
+import { build, BuildOptions, BuildResult, Plugin } from 'esbuild';
 import { gjsifyPlugin } from '@gjsify/esbuild-plugin-gjsify';
 import { resolveGlobalsList, writeRegisterInjectFile, detectAutoGlobals } from '@gjsify/esbuild-plugin-gjsify/globals';
-import { dirname, extname } from 'node:path';
+import { dirname, extname, join } from 'node:path';
 import { chmod, readFile, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 
-const GJS_SHEBANG = '#!/usr/bin/env -S gjs -m\n';
+const GJS_SHEBANG = "#!/usr/bin/env -S gjs -m\n";
+
+/** Walk up from dir until .pnp.cjs is found; return its directory or null. */
+function findPnpRoot(dir: string): string | null {
+    let current = dir;
+    while (true) {
+        if (existsSync(join(current, ".pnp.cjs"))) return current;
+        const parent = dirname(current);
+        if (parent === current) return null;
+        current = parent;
+    }
+}
+
+/**
+ * If the current project uses Yarn PnP, return the official
+ * @yarnpkg/esbuild-plugin-pnp plugin so esbuild can resolve
+ * modules from zip archives without manual extraction.
+ */
+async function getPnpPlugin(): Promise<Plugin | null> {
+    if (!findPnpRoot(process.cwd())) return null;
+    try {
+        const { pnpPlugin } = await import("@yarnpkg/esbuild-plugin-pnp");
+        return pnpPlugin();
+    } catch {
+        return null;
+    }
+}
 
 export class BuildAction {
     constructor(readonly configData: ConfigData = {}) {
@@ -30,50 +57,61 @@ export class BuildAction {
         const moduleOutdir = library?.module ? dirname(library.module) : undefined;
         const mainOutdir = library?.main ? dirname(library.main) : undefined;
 
-        const moduleOutExt = library.module ? extname(library.module) : '.js';
-        const mainOutExt = library.main ? extname(library.main) : '.js';
+        const moduleOutExt = library.module ? extname(library.module) : ".js";
+        const mainOutExt = library.main ? extname(library.main) : ".js";
 
-        const multipleBuilds = moduleOutdir && mainOutdir && (moduleOutdir !== mainOutdir);
+        const multipleBuilds = moduleOutdir && mainOutdir && moduleOutdir !== mainOutdir;
+
+        const pnpPlugin = await getPnpPlugin();
+        const pnpPlugins: Plugin[] = pnpPlugin ? [pnpPlugin] : [];
 
         const results: BuildResult[] = [];
-    
-        if(multipleBuilds) {
 
-            const moduleFormat = moduleOutdir.includes('/cjs') || moduleOutExt === '.cjs' ? 'cjs' : 'esm';
-            results.push(await build({
-                ...this.getEsBuildDefaults(),
-                ...esbuild,
-                format: moduleFormat,
-                outdir: moduleOutdir,
-                plugins: [
-                    gjsifyPlugin({debug: verbose, library: moduleFormat, exclude, reflection: typescript?.reflection, jsExtension: moduleOutExt}),
-                ]
-            }));
-    
-            const mainFormat = mainOutdir.includes('/cjs') || mainOutExt === '.cjs' ? 'cjs' : 'esm';
-            results.push(await build({
-                ...this.getEsBuildDefaults(),
-                ...esbuild,
-                format: moduleFormat,
-                outdir: mainOutdir,
-                plugins: [
-                    gjsifyPlugin({debug: verbose, library: mainFormat, exclude, reflection: typescript?.reflection, jsExtension: mainOutdir})
-                ]
-            }));
+        if (multipleBuilds) {
+            const moduleFormat = moduleOutdir.includes("/cjs") || moduleOutExt === ".cjs" ? "cjs" : "esm";
+            results.push(
+                await build({
+                    ...this.getEsBuildDefaults(),
+                    ...esbuild,
+                    format: moduleFormat,
+                    outdir: moduleOutdir,
+                    plugins: [
+                        ...pnpPlugins,
+                        gjsifyPlugin({ debug: verbose, library: moduleFormat, exclude, reflection: typescript?.reflection, jsExtension: moduleOutExt }),
+                    ],
+                }),
+            );
+
+            const mainFormat = mainOutdir.includes("/cjs") || mainOutExt === ".cjs" ? "cjs" : "esm";
+            results.push(
+                await build({
+                    ...this.getEsBuildDefaults(),
+                    ...esbuild,
+                    format: moduleFormat,
+                    outdir: mainOutdir,
+                    plugins: [
+                        ...pnpPlugins,
+                        gjsifyPlugin({ debug: verbose, library: mainFormat, exclude, reflection: typescript?.reflection, jsExtension: mainOutdir }),
+                    ],
+                }),
+            );
         } else {
             const outfilePath = esbuild?.outfile || library?.module || library?.main;
-            const outExt = outfilePath ? extname(outfilePath) : '.js';
+            const outExt = outfilePath ? extname(outfilePath) : ".js";
             const outdir = esbuild?.outdir || (outfilePath ? dirname(outfilePath) : undefined);
-            const format: 'esm' | 'cjs' = (esbuild?.format as 'esm' | 'cjs') ?? (outdir?.includes('/cjs') || outExt === '.cjs' ? 'cjs' : 'esm');
-            results.push(await build({
-                ...this.getEsBuildDefaults(),
-                ...esbuild,
-                format,
-                outdir,
-                plugins: [
-                    gjsifyPlugin({debug: verbose, library: format, exclude, reflection: typescript?.reflection, jsExtension: outExt})
-                ]
-            }));
+            const format: "esm" | "cjs" = (esbuild?.format as "esm" | "cjs") ?? (outdir?.includes("/cjs") || outExt === ".cjs" ? "cjs" : "esm");
+            results.push(
+                await build({
+                    ...this.getEsBuildDefaults(),
+                    ...esbuild,
+                    format,
+                    outdir,
+                    plugins: [
+                        ...pnpPlugins,
+                        gjsifyPlugin({ debug: verbose, library: format, exclude, reflection: typescript?.reflection, jsExtension: outExt }),
+                    ],
+                }),
+            );
         }
         return results;
     }
@@ -147,15 +185,14 @@ export class BuildAction {
     }
 
     /** Application mode */
-    async buildApp(app: App = 'gjs') {
+    async buildApp(app: App = "gjs") {
+        const { verbose, esbuild, typescript, exclude, library: pgk, aliases, excludeGlobals } = this.configData;
 
-        const { verbose, esbuild, typescript, exclude, library: pgk, aliases } = this.configData;
-
-        const format: 'esm' | 'cjs' = (esbuild?.format as 'esm' | 'cjs') ?? (esbuild?.outfile?.endsWith('.cjs') ? 'cjs' : 'esm');
+        const format: "esm" | "cjs" = (esbuild?.format as "esm" | "cjs") ?? (esbuild?.outfile?.endsWith(".cjs") ? "cjs" : "esm");
 
         // Set default outfile if no outdir is set
-        if(esbuild && !esbuild?.outfile && !esbuild?.outdir && (pgk?.main || pgk?.module)) {
-            esbuild.outfile = esbuild?.format === 'cjs' ? pgk.main || pgk.module : pgk.module || pgk.main;
+        if (esbuild && !esbuild?.outfile && !esbuild?.outdir && (pgk?.main || pgk?.module)) {
+            esbuild.outfile = esbuild?.format === "cjs" ? pgk.main || pgk.module : pgk.module || pgk.main;
         }
 
         const { consoleShim, globals } = this.configData;
@@ -172,16 +209,19 @@ export class BuildAction {
 
         const { autoMode, extras } = this.parseGlobalsValue(globals);
 
+        const pnpPlugin = await getPnpPlugin();
+        const pnpPlugins: Plugin[] = pnpPlugin ? [pnpPlugin] : [];
+
         // --- Auto mode (with optional extras): iterative multi-pass build ---
         // The extras token is used for cases where the detector cannot
         // statically see a global (e.g. Excalibur indirects globalThis via
         // BrowserComponent.nativeComponent). Common pattern: --globals auto,dom
-        if (app === 'gjs' && autoMode) {
+        if (app === "gjs" && autoMode) {
             const { injectPath } = await detectAutoGlobals(
-                { ...this.getEsBuildDefaults(), ...esbuild, format },
+                { ...this.getEsBuildDefaults(), ...esbuild, format, plugins: pnpPlugins },
                 pluginOpts,
                 verbose,
-                { extraGlobalsList: extras },
+                { extraGlobalsList: extras, excludeGlobals },
             );
 
             const result = await build({
@@ -189,6 +229,7 @@ export class BuildAction {
                 ...esbuild,
                 format,
                 plugins: [
+                    ...pnpPlugins,
                     gjsifyPlugin({
                         ...pluginOpts,
                         autoGlobalsInject: injectPath,
@@ -196,7 +237,7 @@ export class BuildAction {
                 ],
             });
 
-            if (app === 'gjs' && this.configData.shebang) {
+            if (app === "gjs" && this.configData.shebang) {
                 await this.applyShebang(esbuild?.outfile, verbose);
             }
 
@@ -204,23 +245,22 @@ export class BuildAction {
         }
 
         // --- Explicit list (no `auto` token) or none mode ---
-        const autoGlobalsInject = extras
-            ? await this.resolveGlobalsInject(app, extras, verbose)
-            : undefined;
+        const autoGlobalsInject = extras ? await this.resolveGlobalsInject(app, extras, verbose) : undefined;
 
         const result = await build({
             ...this.getEsBuildDefaults(),
             ...esbuild,
             format,
             plugins: [
+                ...pnpPlugins,
                 gjsifyPlugin({
                     ...pluginOpts,
                     autoGlobalsInject,
                 }),
-            ]
+            ],
         });
 
-        if (app === 'gjs' && this.configData.shebang) {
+        if (app === "gjs" && this.configData.shebang) {
             await this.applyShebang(esbuild?.outfile, verbose);
         }
 

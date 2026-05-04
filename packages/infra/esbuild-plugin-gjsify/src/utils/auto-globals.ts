@@ -36,6 +36,21 @@ function setsEqual(a: Set<string>, b: Set<string>): boolean {
     return true;
 }
 
+async function applyExcludeGlobals(
+    detected: Set<string>,
+    currentInject: string | undefined,
+    extraRegisterPaths: Set<string>,
+    excludeGlobals: string[] | undefined,
+): Promise<AutoGlobalsResult> {
+    if (!excludeGlobals?.length) return { detected, injectPath: currentInject };
+
+    for (const id of excludeGlobals) detected.delete(id);
+    const filtered = detectedToRegisterPaths(detected);
+    for (const p of extraRegisterPaths) filtered.add(p);
+    const injectPath = filtered.size > 0 ? (await writeRegisterInjectFile(filtered)) ?? undefined : undefined;
+    return { detected, injectPath };
+}
+
 function detectedToRegisterPaths(detected: Set<string>): Set<string> {
     const paths = new Set<string>();
     for (const name of detected) {
@@ -54,6 +69,15 @@ export interface DetectAutoGlobalsOptions {
      * indirection (e.g. Excalibur's `BrowserComponent.nativeComponent.matchMedia`).
      */
     extraGlobalsList?: string;
+    /**
+     * Identifiers to remove from the auto-detected set before writing the
+     * inject stub. Useful for globals that appear as false positives from
+     * dead browser-compat code in npm dependencies whose polyfills require
+     * unavailable native libraries.
+     * Example: `["fetch", "Headers", "Request", "Response", "XMLHttpRequest"]`
+     * excludes the HTTP polyfill stack (which needs gi://GjsifyHttpSoupBridge).
+     */
+    excludeGlobals?: string[];
 }
 
 /**
@@ -134,7 +158,7 @@ export async function detectAutoGlobals(
                     `[gjsify] --globals auto: converged after ${iteration - 1} iteration(s), ${detected.size} global(s)${sorted.length ? ': ' + sorted.join(', ') : ''}${extras}`,
                 );
             }
-            return { detected, injectPath: currentInject };
+            return applyExcludeGlobals(detected, currentInject, extraRegisterPaths, options.excludeGlobals);
         }
 
         detected = newDetected;
@@ -161,5 +185,5 @@ export async function detectAutoGlobals(
             `[gjsify] --globals auto: hit max iterations (${MAX_ITERATIONS}), using last detected set`,
         );
     }
-    return { detected, injectPath: currentInject };
+    return applyExcludeGlobals(detected, currentInject, extraRegisterPaths, options.excludeGlobals);
 }

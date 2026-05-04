@@ -120,6 +120,11 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 default: [] as string[],
                 coerce: (arg: string[]) => arg.flatMap((v) => v.split(',').map((s) => s.trim()).filter(Boolean)),
             })
+            .option('exclude-globals', {
+                description: "Comma-separated global identifiers to remove from auto-detection results. Use for false positives from dead browser-compat code whose polyfills require unavailable native libraries (e.g. --exclude-globals fetch,XMLHttpRequest).",
+                type: 'string',
+                normalize: true,
+            })
     },
     handler: async (args) => {
         const config = new Config();

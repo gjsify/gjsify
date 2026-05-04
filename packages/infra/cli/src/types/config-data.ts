@@ -28,4 +28,11 @@ export interface ConfigData {
      * Comes from `gjsify build --alias FROM=TO`.
      */
     aliases?: Record<string, string>;
+    /**
+     * Global identifiers to remove from the auto-detected set before writing
+     * the inject stub. Useful for false positives from dead browser-compat
+     * code in npm dependencies whose polyfills require unavailable native libs.
+     * Example: `["fetch", "XMLHttpRequest"]` excludes the HTTP polyfill stack.
+     */
+    excludeGlobals?: string[];
 }

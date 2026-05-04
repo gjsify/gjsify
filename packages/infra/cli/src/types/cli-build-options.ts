@@ -90,4 +90,11 @@ export interface CliBuildOptions {
    * scenario never executes). Layered on top of the built-in alias map.
    */
   alias?: string[];
+  /**
+   * Comma-separated global identifiers to remove from the auto-detected set.
+   * Useful for false positives from dead browser-compat code in npm deps
+   * whose polyfills require unavailable native libraries.
+   * Example: `--exclude-globals fetch,XMLHttpRequest`
+   */
+  excludeGlobals?: string[];
 }
