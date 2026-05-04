@@ -4,7 +4,7 @@
 // Modifications: Standalone implementation using internal Map, libsoup integration
 
 import Soup from '@girs/soup-3.0';
-import { validateHeaderName, validateHeaderValue } from '@gjsify/http';
+import { validateHeaderName, validateHeaderValue } from '@gjsify/http/validators';
 
 const _headers = Symbol('Headers.headers');
 

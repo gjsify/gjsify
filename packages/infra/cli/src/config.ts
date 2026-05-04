@@ -84,6 +84,13 @@ export class Config {
         if (cliArgs.consoleShim !== undefined) configData.consoleShim = cliArgs.consoleShim;
         if (cliArgs.globals !== undefined) configData.globals = cliArgs.globals;
         if (cliArgs.shebang !== undefined) configData.shebang = cliArgs.shebang;
+        if (cliArgs.excludeGlobals) {
+            const raw = Array.isArray(cliArgs.excludeGlobals)
+                ? cliArgs.excludeGlobals.join(',')
+                : String(cliArgs.excludeGlobals);
+            const ids = raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+            if (ids.length) configData.excludeGlobals = [...(configData.excludeGlobals ?? []), ...ids];
+        }
 
         merge(configData.library ??= {}, pkg, configData.library);
         merge(configData.typescript ??= {}, tsConfig, configData.typescript);

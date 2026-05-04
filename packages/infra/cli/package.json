@@ -32,6 +32,7 @@
         "@gjsify/example-node-express-webserver": "workspace:^",
         "@gjsify/node-polyfills": "workspace:^",
         "@gjsify/web-polyfills": "workspace:^",
+        "@yarnpkg/esbuild-plugin-pnp": "^3.0.0-rc.15",
         "cosmiconfig": "^9.0.1",
         "esbuild": "^0.28.0",
         "get-tsconfig": "^4.14.0",

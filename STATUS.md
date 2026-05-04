@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> Last updated: 2026-05-02 — Three build infrastructure fixes: (1) `@gjsify/esbuild-plugin-deepkit` now defaults `reflection` to `false` instead of `true` (prevents `function extends()` invalid-JS in TypeScript codebases that use method named `extends`); (2) `@gjsify/esbuild-plugin-gjsify` GJS target now captures and merges user-supplied `inject` arrays instead of discarding them; (3) GJS target injects a synchronous `process` stub via esbuild `banner` so packages that access `globalThis.process.platform` at top-level (e.g. glob, path-scurry) no longer crash before any module init fires — the full `@gjsify/process` implementation is still wired up afterwards via `--globals auto`.
+> Last updated: 2026-05-04 — Three build infrastructure additions: (1) `@gjsify/cli` auto-detects Yarn PnP (`.pnp.cjs`) and injects `@yarnpkg/esbuild-plugin-pnp` so esbuild can resolve packages from zip archives without manual extraction; (2) `detectAutoGlobals` now accepts `excludeGlobals` to filter false-positive globals before writing the inject stub; (3) `@gjsify/http/validators` subpath extracted so `@gjsify/fetch` no longer transitively depends on `gi://GjsifyHttpSoupBridge` — fetch now only needs `gi://Soup`.
 
 ## Summary
 

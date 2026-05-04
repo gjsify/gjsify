@@ -9,6 +9,10 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
+        },
+        "./validators": {
+            "types": "./lib/types/validators.d.ts",
+            "default": "./lib/esm/validators.js"
         }
     },
     "scripts": {

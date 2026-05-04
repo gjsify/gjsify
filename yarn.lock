@@ -1955,6 +1955,7 @@ __metadata:
     "@gjsify/node-polyfills": "workspace:^"
     "@gjsify/web-polyfills": "workspace:^"
     "@types/yargs": "npm:^17.0.35"
+    "@yarnpkg/esbuild-plugin-pnp": "npm:^3.0.0-rc.15"
     cosmiconfig: "npm:^9.0.1"
     esbuild: "npm:^0.28.0"
     get-tsconfig: "npm:^4.14.0"
@@ -7420,6 +7421,17 @@ __metadata:
     freelist: "npm:^1.0.3"
     http-parser-js: "npm:^0.4.3"
   checksum: 10/5146d87f2d730e4f6e5a3a89e04be980038a24352dc0b6edc373bf52d1c12c3199e3d25cef4cc3073cc43edcc37f657c93d1a645fc88184bbf86608dfa95de70
+  languageName: node
+  linkType: hard
+
+"@yarnpkg/esbuild-plugin-pnp@npm:^3.0.0-rc.15":
+  version: 3.0.0-rc.15
+  resolution: "@yarnpkg/esbuild-plugin-pnp@npm:3.0.0-rc.15"
+  dependencies:
+    tslib: "npm:^2.4.0"
+  peerDependencies:
+    esbuild: ">=0.10.0"
+  checksum: 10/454f521088c1fa24fda51f83ca4a50ba6e3bd147e5dee8c899e6bf24a7196186532c3abb18480e83395708ffb7238c9cac5b82595c3985ce93593b5afbd0a9f0
   languageName: node
   linkType: hard
 
