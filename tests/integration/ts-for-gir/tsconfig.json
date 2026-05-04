@@ -14,6 +14,7 @@
         "src/parser.spec.ts",
         "src/lib.spec.ts",
         "src/generator.spec.ts",
+        "src/generator-typedoc.spec.ts",
         "src/cli.spec.ts",
         "src/cli.entry.ts",
         "src/stubs/inquirer-prompts.ts"
