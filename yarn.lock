@@ -1948,7 +1948,10 @@ __metadata:
     "@gjsify/create-app": "workspace:^"
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
     "@gjsify/node-polyfills": "workspace:^"
+    "@gjsify/npm-registry": "workspace:^"
     "@gjsify/resolve-npm": "workspace:^"
+    "@gjsify/semver": "workspace:^"
+    "@gjsify/tar": "workspace:^"
     "@gjsify/web-polyfills": "workspace:^"
     "@types/yargs": "npm:^17.0.35"
     "@yarnpkg/esbuild-plugin-pnp": "npm:^3.0.0-rc.15"
@@ -3719,7 +3722,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/npm-registry@workspace:packages/infra/npm-registry":
+"@gjsify/npm-registry@workspace:^, @gjsify/npm-registry@workspace:packages/infra/npm-registry":
   version: 0.0.0-use.local
   resolution: "@gjsify/npm-registry@workspace:packages/infra/npm-registry"
   dependencies:
@@ -3820,7 +3823,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/semver@workspace:packages/infra/semver":
+"@gjsify/semver@workspace:^, @gjsify/semver@workspace:packages/infra/semver":
   version: 0.0.0-use.local
   resolution: "@gjsify/semver@workspace:packages/infra/semver"
   dependencies:
@@ -3882,7 +3885,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/tar@workspace:packages/infra/tar":
+"@gjsify/tar@workspace:^, @gjsify/tar@workspace:packages/infra/tar":
   version: 0.0.0-use.local
   resolution: "@gjsify/tar@workspace:packages/infra/tar"
   dependencies:

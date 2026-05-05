@@ -30,9 +30,8 @@ const DEFAULT_BACKEND = process.env.GJSIFY_INSTALL_BACKEND ?? 'npm';
 
 export async function installPackages(opts: InstallOptions): Promise<void> {
     if (DEFAULT_BACKEND === 'native') {
-        throw new Error(
-            'GJSIFY_INSTALL_BACKEND=native is reserved for the Phase 4 GJS-native resolver — not yet implemented.',
-        );
+        const { installPackagesNative } = await import('./install-backend-native.js');
+        return installPackagesNative(opts);
     }
     return installViaNpm(opts);
 }
