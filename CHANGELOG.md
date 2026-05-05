@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.8](https://github.com/gjsify/gjsify/compare/v0.3.7...v0.3.8) (2026-05-05)
+
+### Features
+
+* native install backend + dlx polish (no Node/npm at runtime) ([#69](https://github.com/gjsify/gjsify/issues/69)) ([c9ac876](https://github.com/gjsify/gjsify/commit/c9ac876a2f687ce95d50a0eff371c97676879eb8))
+
 ## [0.3.7](https://github.com/gjsify/gjsify/compare/v0.3.6...v0.3.7) (2026-05-05)
 
 ### Bug Fixes

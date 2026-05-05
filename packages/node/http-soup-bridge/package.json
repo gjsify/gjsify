@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/http-soup-bridge",
-    "version": "0.3.7",
+    "version": "0.3.8",
     "description": "Vala-based main-thread bridge for libsoup HTTP server. Marshals SoupServer + SoupServerMessage signals onto the GLib main context and keeps every libsoup boxed type (MessageBody, MessageHeaders, the message's GMainContext ref, the HTTP1 IO GSource) on the C side, so SpiderMonkey GC has no chance to race a libsoup-side cleanup. Used by @gjsify/http to keep MCP/SSE/long-poll workloads stable on GJS.",
     "type": "module",
     "main": "lib/esm/index.js",

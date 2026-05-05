@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/ws",
-    "version": "0.3.7",
+    "version": "0.3.8",
     "description": "Drop-in replacement for the `ws` npm package on Gjs — wraps globalThis.WebSocket (Soup.WebsocketConnection) and Soup.Server for the WebSocketServer side",
     "type": "module",
     "module": "lib/esm/index.js",
