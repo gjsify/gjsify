@@ -1,11 +1,24 @@
 import { readFile } from 'fs/promises';
-import * as DkType from '@deepkit/type-compiler';
 import { inspect } from 'util';
 import { Utf8ArrayToStr } from './utils.js';
 
 import type { Plugin, OnLoadArgs, OnLoadResult, OnLoadOptions } from 'esbuild';
 
-const loader = new DkType.DeepkitLoader();
+// `@deepkit/type-compiler` is loaded lazily — its transitive dep
+// `@marcj/ts-clone-node` does `require("typescript")` without declaring TS
+// as a peer, so eagerly importing this module from a Yarn-PnP consumer that
+// doesn't list `typescript` itself fails with `UNDECLARED_DEPENDENCY` even
+// when `reflection: false` (the default). Defer until the user opts in.
+type DkLoader = { transform: (contents: string, path: string) => string };
+let cachedLoader: Promise<DkLoader> | null = null;
+async function getLoader(): Promise<DkLoader> {
+  if (cachedLoader) return cachedLoader;
+  cachedLoader = (async () => {
+    const DkType: typeof import('@deepkit/type-compiler') = await import('@deepkit/type-compiler');
+    return new DkType.DeepkitLoader() as DkLoader;
+  })();
+  return cachedLoader;
+}
 
 export interface DeepkitPluginOptions {
   reflection?: boolean;
@@ -24,7 +37,7 @@ const deepkitPluginOnLoadOptions: OnLoadOptions = { filter: /\.(m|c)?tsx?$/, nam
  * @param result 
  * @returns 
  */
-export const transformExtern = (options: DeepkitPluginOptions, args: Partial<OnLoadArgs> & { path: string; }, result: OnLoadResult): OnLoadResult | null => {
+export const transformExtern = async (options: DeepkitPluginOptions, args: Partial<OnLoadArgs> & { path: string; }, result: OnLoadResult): Promise<OnLoadResult | null> => {
   if(!options.reflection || !result.contents || !deepkitPluginOnLoadOptions.filter.test(args.path) || args.pluginData?.isReflected) {
     return result;
   }
@@ -32,6 +45,7 @@ export const transformExtern = (options: DeepkitPluginOptions, args: Partial<OnL
   const path = args.namespace + ':' + args.path;
 
   try {
+    const loader = await getLoader();
     const contentStr = typeof result.contents === 'string' ? result.contents : Utf8ArrayToStr(result.contents);
     result.contents = loader.transform(contentStr, path);
     result.pluginData = result.pluginData || {};
@@ -55,12 +69,13 @@ const onLoad = async (args: OnLoadArgs): Promise<OnLoadResult | null | undefined
       return { contents, loader: 'ts', pluginData: { isReflected: true } };
     }
 
+    const loader = await getLoader();
     contents = loader.transform(contents, args.path);
   } catch (error) {
     printDiagnostics({ file: args.path, error });
     return null;
   }
-  
+
   return { contents, loader: 'ts', pluginData: { isReflected: true } };
 }
 
