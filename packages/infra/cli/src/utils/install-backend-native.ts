@@ -47,6 +47,25 @@ interface ResolvedNode {
     bin?: string | Record<string, string>;
 }
 
+const LOCKFILE_NAME = "gjsify-lock.json";
+const LOCKFILE_VERSION = 1;
+
+interface LockfileEntry {
+    version: string;
+    resolved: string;
+    integrity?: string;
+    dependencies?: Record<string, string>;
+    bin?: string | Record<string, string>;
+}
+
+interface Lockfile {
+    lockfileVersion: number;
+    /** Top-level specs used to seed this lockfile (preserves user intent). */
+    requested: string[];
+    /** Pinned packages keyed by name. */
+    packages: Record<string, LockfileEntry>;
+}
+
 export async function installPackagesNative(opts: InstallOptions): Promise<void> {
     if (opts.specs.length === 0) {
         throw new Error("installPackagesNative: empty specs list");
@@ -54,10 +73,40 @@ export async function installPackagesNative(opts: InstallOptions): Promise<void>
 
     fs.mkdirSync(opts.prefix, { recursive: true });
     const npmrc = await loadNpmrc(opts);
-
     const log = makeLogger(opts.verbose ?? false);
-    log("install: resolving %d top-level spec(s) → %s", opts.specs.length, opts.prefix);
 
+    const lockfilePath = path.join(opts.prefix, LOCKFILE_NAME);
+    const existingLock = readLockfile(lockfilePath);
+
+    let nodes: ResolvedNode[];
+    if (existingLock && (opts.frozen || lockfileMatchesRequest(existingLock, opts.specs))) {
+        log("install: using lockfile (%d package(s))", Object.keys(existingLock.packages).length);
+        nodes = lockfileToNodes(existingLock);
+    } else {
+        if (opts.frozen) {
+            throw new Error(
+                `install: --frozen requested but ${lockfilePath} is missing or stale (specs differ)`,
+            );
+        }
+        log("install: resolving %d top-level spec(s) → %s", opts.specs.length, opts.prefix);
+        nodes = await resolveDeps(opts.specs, npmrc, log);
+        if (opts.lockfile) {
+            writeLockfile(lockfilePath, opts.specs, nodes);
+            log("install: wrote %s (%d entries)", LOCKFILE_NAME, nodes.length);
+        }
+    }
+
+    log("install: downloading %d tarball(s)", nodes.length);
+    await downloadAndExtractAll(nodes, opts.prefix, npmrc, log);
+    await linkBins(nodes, opts.prefix, log);
+    log("install: done");
+}
+
+async function resolveDeps(
+    specs: string[],
+    npmrc: NpmrcConfig,
+    log: Logger,
+): Promise<ResolvedNode[]> {
     const packumentCache = new Map<string, Promise<Packument>>();
     const fetchPkg = (name: string): Promise<Packument> => {
         const cached = packumentCache.get(name);
@@ -68,13 +117,13 @@ export async function installPackagesNative(opts: InstallOptions): Promise<void>
     };
 
     const resolved = new Map<string, ResolvedNode>();
-    const queue: ParsedSpec[] = opts.specs.map(parseSpec);
+    const queue: ParsedSpec[] = specs.map(parseSpec);
 
     while (queue.length > 0) {
         const spec = queue.shift() as ParsedSpec;
         if (resolved.has(spec.name)) {
-            // Single-version-per-name policy (npm v6 semantics — good enough
-            // for v1; v7+ duplication lands with the lockfile in Phase 4).
+            // Single-version-per-name policy (npm v6 semantics). Phase 4 v2
+            // (when peer-dep validation lands) revisits this for duplication.
             continue;
         }
         const packument = await fetchPkg(spec.name);
@@ -101,22 +150,66 @@ export async function installPackagesNative(opts: InstallOptions): Promise<void>
         log("resolve: %s@%s ← %s", spec.name, version, spec.range);
 
         for (const [depName, depRange] of Object.entries(node.dependencies)) {
-            if (!resolved.has(depName)) {
-                queue.push({ name: depName, range: depRange });
-            }
+            if (!resolved.has(depName)) queue.push({ name: depName, range: depRange });
         }
-        // Optional deps: queue them, but tolerate failures during install.
         for (const [depName, depRange] of Object.entries(node.optionalDependencies)) {
-            if (!resolved.has(depName)) {
-                queue.push({ name: depName, range: depRange });
-            }
+            if (!resolved.has(depName)) queue.push({ name: depName, range: depRange });
         }
     }
+    return Array.from(resolved.values());
+}
 
-    log("install: %d package(s) resolved, downloading tarballs", resolved.size);
-    await downloadAndExtractAll(Array.from(resolved.values()), opts.prefix, npmrc, log);
-    await linkBins(Array.from(resolved.values()), opts.prefix, log);
-    log("install: done");
+function readLockfile(lockfilePath: string): Lockfile | null {
+    if (!fs.existsSync(lockfilePath)) return null;
+    try {
+        const parsed = JSON.parse(fs.readFileSync(lockfilePath, "utf-8")) as Lockfile;
+        if (parsed.lockfileVersion !== LOCKFILE_VERSION) return null;
+        if (!parsed.packages || typeof parsed.packages !== "object") return null;
+        return parsed;
+    } catch {
+        return null;
+    }
+}
+
+function writeLockfile(lockfilePath: string, specs: string[], nodes: ResolvedNode[]): void {
+    const packages: Record<string, LockfileEntry> = {};
+    // Sort for deterministic output (diff-friendly).
+    const sorted = [...nodes].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const node of sorted) {
+        packages[node.name] = {
+            version: node.version,
+            resolved: node.tarballUrl,
+            integrity: node.integrity,
+            dependencies:
+                Object.keys(node.dependencies).length > 0 ? node.dependencies : undefined,
+            bin: node.bin,
+        };
+    }
+    const lockfile: Lockfile = {
+        lockfileVersion: LOCKFILE_VERSION,
+        requested: [...specs],
+        packages,
+    };
+    fs.writeFileSync(lockfilePath, JSON.stringify(lockfile, null, 2) + "\n");
+}
+
+function lockfileToNodes(lockfile: Lockfile): ResolvedNode[] {
+    return Object.entries(lockfile.packages).map(([name, entry]) => ({
+        name,
+        version: entry.version,
+        tarballUrl: entry.resolved,
+        integrity: entry.integrity,
+        dependencies: entry.dependencies ?? {},
+        optionalDependencies: {},
+        bin: entry.bin,
+    }));
+}
+
+function lockfileMatchesRequest(lockfile: Lockfile, specs: string[]): boolean {
+    if (lockfile.requested.length !== specs.length) return false;
+    const a = [...lockfile.requested].sort();
+    const b = [...specs].sort();
+    return a.every((v, i) => v === b[i]);
 }
 
 function parseSpec(raw: string): ParsedSpec {

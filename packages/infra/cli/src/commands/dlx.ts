@@ -30,6 +30,8 @@ interface DlxOptions {
     binOrArg?: string;
     extraArgs?: string[];
     'cache-max-age': number;
+    reinstall: boolean;
+    frozen: boolean;
     verbose: boolean;
     registry?: string;
 }
@@ -62,6 +64,18 @@ export const dlxCommand: Command<any, DlxOptions> = {
                 type: 'number',
                 default: 60 * 24 * 7,
             })
+            .option('reinstall', {
+                description:
+                    'Bypass the cache for this run (alias for --cache-max-age=0).',
+                type: 'boolean',
+                default: false,
+            })
+            .option('frozen', {
+                description:
+                    'Use the project-local gjsify-lock.json verbatim — fail if missing or stale (no resolver pass).',
+                type: 'boolean',
+                default: false,
+            })
             .option('verbose', {
                 description: 'Verbose logging (passes --loglevel verbose to npm).',
                 type: 'boolean',
@@ -74,10 +88,12 @@ export const dlxCommand: Command<any, DlxOptions> = {
     handler: async (args) => {
         const parsed = parseSpec(args.spec);
 
+        const cacheMaxAge = args.reinstall ? 0 : args['cache-max-age'];
         const { pkgDir, cachedPkgName } = await ensurePkgDir(parsed, {
             verbose: args.verbose,
             registry: args.registry,
-            cacheMaxAge: args['cache-max-age'],
+            cacheMaxAge,
+            frozen: args.frozen,
         });
 
         // Bin / args disambiguation:
@@ -106,6 +122,7 @@ interface EnsureOpts {
     verbose: boolean;
     registry?: string;
     cacheMaxAge: number;
+    frozen: boolean;
 }
 
 async function ensurePkgDir(
@@ -133,6 +150,11 @@ async function ensurePkgDir(
         specs: [parsed.spec],
         verbose: opts.verbose,
         registry: opts.registry,
+        // Cache-prepare dirs are scoped per cache key, so writing a lockfile
+        // there gives us reproducibility for repeated `gjsify dlx <pkg>` calls
+        // and lets `--frozen` short-circuit the resolver entirely.
+        lockfile: true,
+        frozen: opts.frozen,
     });
 
     const liveTarget = symlinkSwap(cacheDir, prepareDir);

@@ -649,7 +649,14 @@ Goal of [.claude/plan-native-install-dlx.md](.claude/plan-native-install-dlx.md)
 - ✅ **Default flipped to native.** `install-backend.ts` defaults to `GJSIFY_INSTALL_BACKEND=native`; `npm` remains as a fallback. `gjsify dlx` no longer spawns Node/npm at runtime.
 - ✅ **E2E coverage.** `tests/e2e/native-install/run.mjs` spins up an in-process HTTP "registry" serving a synthetic root → middle → leaf dep graph with sha512 SRI, drives `installPackagesNative()` via a child harness, asserts the full layout. Async spawn keeps the in-process server's accept loop responsive (a synchronous `spawnSync` would deadlock the same event loop). Wired into `yarn test:e2e` and the dedicated `yarn test:e2e:native-install`.
 
-Phase 4 follow-up still pending (not blocking native install): lockfile (`gjsify-lock.json`), `--backend=npm|native` flag for `gjsify install`, optional lifecycle scripts behind an allowlist, peerDependencies validation. Tracked in [.claude/plan-native-install-dlx.md](.claude/plan-native-install-dlx.md) Phase 4.
+Phase 4 — lockfile + dlx polish:
+
+- ✅ **`gjsify-lock.json`.** Native backend writes a deterministic lockfile (sorted by name) when `lockfile: true` is passed: `lockfileVersion`, `requested` (top-level specs), `packages` (`{version, resolved, integrity, dependencies, bin}`). On next install, the resolver pass is skipped — downloads use the pinned tarball URL + sha512. Lockfile-aware path is on by default in `gjsify dlx` (cache-prepare dirs are scoped per cache key, so the lockfile makes repeated runs reproducible).
+- ✅ **`gjsify dlx --frozen`.** Errors out when the lockfile is missing or stale — e.g. for CI runs that demand reproducible script execution.
+- ✅ **`gjsify dlx --reinstall`.** Discoverable alias for `--cache-max-age=0` (bypasses the cache for the current run).
+- 🔲 **Lifecycle scripts (security-deferred).** `preinstall`/`install`/`postinstall` remain skipped. Will land behind an explicit `--allow-scripts <pkg-allowlist>` flag, modeled on pnpm's `onlyBuiltDependencies` (deferred from Phase 4 plan: defense against arbitrary code execution from transitive deps).
+- 🔲 **peerDependencies validation.** Currently a warning placeholder; implementation depends on multi-version-per-name resolution (npm v7+ semantics).
+- 🔲 **`gjsify install <pkg>` user-facing CLI.** Today still spawns `npm install` so the package.json/save-flag flow keeps working. Native-backend route through `gjsify install` (without save-flags) is a small follow-up: just add a `--backend=native|npm` flag to `commands/install.ts`.
 
 ### Split `@gjsify/node-globals/register` into topic-specific packages
 

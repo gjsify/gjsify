@@ -162,16 +162,27 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
 
   it('installs root + transitive deps into a flat node_modules', async () => {
     const cliPkgPath = new URL('../../../packages/infra/cli/src/utils/install-backend-native.ts', import.meta.url);
-    // The TS module re-exports installPackagesNative — we drive it directly
-    // via a child Node process that imports it through tsx (used by yarn start).
-    // Simpler: spawn a tiny harness inline via `node --import` with TS-strip.
+    // The TS module exports installPackagesNative — we drive it directly via a
+    // child Node process that imports it through Node's --experimental-strip-types.
     const harness = `
       const { installPackagesNative } = await import(${JSON.stringify(cliPkgPath.href)});
+      // First install: writes gjsify-lock.json. Verifies it lands on disk.
       await installPackagesNative({
         prefix: ${JSON.stringify(prefix)},
         specs: ['root@^0.1.0'],
         registry: ${JSON.stringify(registryUrl)},
         verbose: false,
+        lockfile: true,
+      });
+      // Second install: --frozen, with the registry URL set to a black-hole
+      // port so any resolver call would fail. Lockfile must short-circuit it.
+      await installPackagesNative({
+        prefix: ${JSON.stringify(prefix)},
+        specs: ['root@^0.1.0'],
+        registry: 'http://127.0.0.1:1/',
+        verbose: false,
+        lockfile: true,
+        frozen: true,
       });
       console.log('OK');
     `;
@@ -191,6 +202,16 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
         throw new Error(`harness failed (status=${out.status})\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}`);
       }
       assert.match(out.stdout, /OK/, `harness did not report OK: ${out.stdout}`);
+      // Lockfile must exist and pin the synthetic graph.
+      const lockPath = join(prefix, 'gjsify-lock.json');
+      assert.ok(existsSync(lockPath), `expected ${lockPath} to be written`);
+      const lock = JSON.parse(readFileSync(lockPath, 'utf-8'));
+      assert.equal(lock.lockfileVersion, 1);
+      assert.deepEqual(lock.requested, ['root@^0.1.0']);
+      for (const name of ['root', 'middle', 'leaf']) {
+        assert.ok(lock.packages[name], `lockfile missing pin for ${name}`);
+        assert.match(lock.packages[name].integrity, /^sha512-/);
+      }
     } finally {
       try { rmSync(harnessFile, { force: true }); } catch { /* best effort */ }
     }

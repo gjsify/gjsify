@@ -26,6 +26,14 @@ export interface InstallOptions {
     verbose?: boolean;
     /** Optional registry override (writes a temp `.npmrc` in prefix). */
     registry?: string;
+    /**
+     * Native backend only: write `<prefix>/gjsify-lock.json` after a successful
+     * resolve. When the file exists on next call AND `frozen: true`, the
+     * resolver is skipped and downloads use the pinned tarball URL + integrity.
+     */
+    lockfile?: boolean;
+    /** Use `<prefix>/gjsify-lock.json` as the source of truth — fail if missing. */
+    frozen?: boolean;
 }
 
 const DEFAULT_BACKEND = process.env.GJSIFY_INSTALL_BACKEND ?? 'native';
