@@ -221,6 +221,57 @@ Unknown identifiers are silently ignored. If a `ReferenceError: X is not defined
 
 </details>
 
+## `gjsify dlx`
+
+Run the GJS bundle of an npm-published package without persisting it in your project. Pattern follows `npx` / `yarn dlx` / `pnpm dlx`, but `dlx` here is strictly a **GJS-bundle runner**: it always invokes `gjs -m <bundle>` after resolving the package's GJS entry. Packages without a GJS entry fail loudly.
+
+```bash
+gjsify dlx @gjsify/example-dom-canvas2d-fireworks
+gjsify dlx @scope/pkg@1.2.3                    # version-pinned
+gjsify dlx @scope/pkg my-bin -- --opt value    # pick a bin from gjsify.bin, forward args
+gjsify dlx ./local/path                        # local dir (no install, no cache)
+```
+
+| Option | Description |
+|---|---|
+| `<spec>` | Package spec (`name`, `name@version`, `@scope/name@spec`, or local path). |
+| `[binOrArg]` | Bin name when `gjsify.bin` has multiple entries; otherwise treated as the first arg forwarded to the bundle. |
+| `[extraArgs..]` | Extra args forwarded to `gjs -m <bundle>`. |
+| `--cache-max-age <minutes>` | Cache TTL. Defaults to 7 days. Use `0` to bypass cache. |
+| `--registry <url>` | npm registry override (writes a temp `.npmrc` in the cache dir). |
+| `--verbose` | Pass `--loglevel verbose` to npm. |
+
+Cache layout: `$XDG_CACHE_HOME/gjsify/dlx/<sha256>/`. Cache-key is sha-256 over the sorted package specs and registries. Atomic symlink swap on first install means parallel `dlx` invocations of the same spec are safe.
+
+### `package.json` `gjsify` field
+
+`dlx` (and the future `gjsify install` / `gjsify showcase`) read the package's GJS entry from a top-level `gjsify` object:
+
+```jsonc
+{
+  "name": "@gjsify/example-dom-canvas2d-fireworks",
+  "main": "dist/node.js",        // optional Node entry
+  "exports": { "./browser": "..." },
+  "gjsify": {
+    "main": "dist/gjs.js",       // GJS entry — used by `gjsify dlx <pkg>`
+    "bin": {                     // optional: multiple GJS entries
+      "fireworks": "dist/gjs.js"
+    },
+    "prebuilds": "prebuilds"     // existing convention for native prebuilds
+  }
+}
+```
+
+Resolution order:
+
+1. user-supplied bin name + `gjsify.bin[name]` → that path
+2. single-entry `gjsify.bin` → the only path (auto-pick)
+3. `gjsify.main` → that path
+4. **fallback:** top-level `package.json#main` → that path (advisory warning to add `gjsify.main`)
+5. otherwise: hard-fail with a fix hint
+
+Multi-bin packages without a chosen bin fail with `dlx: package "X" defines multiple GJS bins — pass one of: a, b`.
+
 ## `gjsify run`
 
 Run a built GJS bundle. Automatically sets `LD_LIBRARY_PATH` and `GI_TYPELIB_PATH` for native prebuilds.

@@ -11,6 +11,7 @@ import {
     createCommand as create,
     gresourceCommand as gresource,
     gettextCommand as gettext,
+    dlxCommand as dlx,
 } from './commands/index.js'
 import { APP_NAME } from './constants.js'
 
@@ -20,6 +21,7 @@ void yargs(hideBin(process.argv))
     .command(create.command, create.description, create.builder, create.handler)
     .command(build.command, build.description, build.builder, build.handler)
     .command(run.command, run.description, run.builder, run.handler)
+    .command(dlx.command, dlx.description, dlx.builder, dlx.handler)
     .command(info.command, info.description, info.builder, info.handler)
     .command(check.command, check.description, check.builder, check.handler)
     .command(showcase.command, showcase.description, showcase.builder, showcase.handler)
