@@ -1,0 +1,24 @@
+{
+    "compilerOptions": {
+        "module": "ESNext",
+        "target": "ESNext",
+        "moduleResolution": "bundler",
+        "experimentalDecorators": true,
+        "emitDeclarationOnly": true,
+        "declaration": true,
+        "allowImportingTsExtensions": true,
+        "outDir": "lib",
+        "rootDir": "src",
+        "declarationDir": "lib/types",
+        "composite": true,
+        "skipLibCheck": true,
+        "strict": true,
+        "lib": ["ESNext", "DOM"]
+    },
+    "include": [
+        "src/**/*.ts"
+    ],
+    "exclude": [
+        "src/test.mts"
+    ]
+}

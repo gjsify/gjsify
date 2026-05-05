@@ -3719,6 +3719,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/npm-registry@workspace:packages/infra/npm-registry":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/npm-registry@workspace:packages/infra/npm-registry"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/os@workspace:^, @gjsify/os@workspace:packages/node/os":
   version: 0.0.0-use.local
   resolution: "@gjsify/os@workspace:packages/node/os"

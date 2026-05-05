@@ -1,0 +1,41 @@
+{
+    "name": "@gjsify/npm-registry",
+    "version": "0.3.7",
+    "description": "npm registry client for the gjsify install backend — packuments, tarballs, .npmrc auth (Node + GJS)",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "main": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "scripts": {
+        "clear": "rm -rf lib tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",
+        "check": "tsc --noEmit",
+        "build": "yarn build:gjsify && yarn build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.mts'",
+        "build:types": "tsc",
+        "build:test": "yarn build:test:gjs && yarn build:test:node",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "yarn build:gjsify && yarn build:test && yarn test:node && yarn test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "test:node": "node test.node.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "node",
+        "npm",
+        "registry",
+        "install"
+    ],
+    "license": "MIT",
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "typescript": "^6.0.3"
+    }
+}
