@@ -4186,6 +4186,7 @@ __metadata:
     "@gjsify/gamepad": "workspace:^"
     "@gjsify/web-globals": "workspace:^"
     "@gjsify/web-streams": "workspace:^"
+    "@gjsify/webassembly": "workspace:^"
     "@gjsify/webaudio": "workspace:^"
     "@gjsify/webcrypto": "workspace:^"
     "@gjsify/websocket": "workspace:^"
@@ -4201,6 +4202,17 @@ __metadata:
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
+    "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/webassembly@workspace:^, @gjsify/webassembly@workspace:packages/web/webassembly":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/webassembly@workspace:packages/web/webassembly"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.3"
   languageName: unknown

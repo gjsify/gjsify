@@ -95,10 +95,9 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 default: 'auto'
             })
             .option('shebang', {
-                description: "Prepend a `#!/usr/bin/env -S gjs -m` shebang to the output and mark it executable (chmod 755). Only applies to GJS app builds with a single --outfile.",
+                description: "Prepend a `#!/usr/bin/env -S gjs -m` shebang to the output and mark it executable (chmod 755). Only applies to GJS app builds with a single --outfile. Default: false (use --shebang to enable, or set `shebang: true` in `.gjsifyrc.js`).",
                 type: 'boolean',
-                normalize: true,
-                default: false
+                normalize: true
             })
             .option('external', {
                 description: "Module names that should NOT be bundled. Repeat the flag or pass a comma-separated list (e.g. --external typedoc,prettier). Globs are forwarded to esbuild as-is. See https://esbuild.github.io/api/#external",

@@ -198,6 +198,12 @@ Any identifier below can appear in `--globals` (or be detected automatically). G
 | `MediaStream`, `MediaStreamTrack`, `RTCTrackEvent` | `@gjsify/webrtc/register/media` |
 | `MediaDevices` (`navigator.mediaDevices`) | `@gjsify/webrtc/register/media-devices` |
 
+**WebAssembly Promise APIs**
+
+| Identifier(s) | Register subpath |
+|---|---|
+| `WebAssembly` (`WebAssembly.compile`, `WebAssembly.instantiate`, `WebAssembly.validate`, `WebAssembly.compileStreaming`, `WebAssembly.instantiateStreaming`) | `webassembly/register/promise` |
+
 **DOM / browser-compat (GJS/GTK only)**
 
 | Identifier(s) | Register subpath |

@@ -6211,7 +6211,13 @@ var ALIASES_WEB_FOR_GJS = {
   "webrtc/register/data-channel": "@gjsify/webrtc/register/data-channel",
   "webrtc/register/error": "@gjsify/webrtc/register/error",
   "webrtc/register/media": "@gjsify/webrtc/register/media",
-  "webrtc/register/media-devices": "@gjsify/webrtc/register/media-devices"
+  "webrtc/register/media-devices": "@gjsify/webrtc/register/media-devices",
+  // WebAssembly Promise APIs polyfill — wraps the synchronous Module/Instance
+  // constructors so WebAssembly.{compile,instantiate,validate,...} resolve
+  // instead of throwing the SpiderMonkey 128 stub error.
+  "webassembly": "@gjsify/webassembly",
+  "webassembly/register": "@gjsify/webassembly/register",
+  "webassembly/register/promise": "@gjsify/webassembly/register/promise"
 };
 var ALIASES_GENERAL_FOR_NODE = {
   "@gjsify/node-globals": "@gjsify/empty",
@@ -6326,7 +6332,15 @@ var ALIASES_WEB_FOR_NODE = {
   "@gjsify/webrtc/register/data-channel": "@gjsify/empty",
   "@gjsify/webrtc/register/error": "@gjsify/empty",
   "@gjsify/webrtc/register/media": "@gjsify/empty",
-  "@gjsify/webrtc/register/media-devices": "@gjsify/empty"
+  "@gjsify/webrtc/register/media-devices": "@gjsify/empty",
+  // WebAssembly Promise APIs — native on Node (no polyfill needed); the
+  // bare `webassembly` specifier maps to /globals so consumers can import
+  // typed helpers without dragging the polyfill into the bundle.
+  "webassembly": "@gjsify/webassembly/globals",
+  "webassembly/register": "@gjsify/empty",
+  "webassembly/register/promise": "@gjsify/empty",
+  "@gjsify/webassembly/register": "@gjsify/empty",
+  "@gjsify/webassembly/register/promise": "@gjsify/empty"
 };
 
 // src/utils/alias.ts
@@ -13480,7 +13494,12 @@ function getBundleDir(build) {
 }
 async function loadAndRewrite(args, build) {
   if (!args.path.includes("node_modules")) return void 0;
-  const src = await readFile(args.path, "utf8");
+  let src;
+  try {
+    src = await readFile(args.path, "utf8");
+  } catch (err) {
+    return void 0;
+  }
   const hasMetaUrl = src.includes("import.meta.url");
   const hasDirname = src.includes("__dirname");
   const hasFilename = src.includes("__filename");
@@ -13512,7 +13531,9 @@ async function loadAndRewrite(args, build) {
   return { contents, loader, resolveDir: dir };
 }
 function registerNodeModulesPathRewrite(build) {
-  build.onLoad({ filter: /\.(m?js|cjs|[cm]?tsx?)$/ }, (args) => loadAndRewrite(args, build));
+  const filter = /\.(m?js|cjs|[cm]?tsx?)$/;
+  build.onLoad({ filter }, (args) => loadAndRewrite(args, build));
+  build.onLoad({ filter, namespace: "pnp" }, (args) => loadAndRewrite(args, build));
 }
 
 // src/app/gjs.ts

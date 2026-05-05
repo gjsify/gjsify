@@ -32,6 +32,15 @@ const METHOD_MARKERS: Record<string, string> = {
     'navigator.getGamepads': 'GamepadEvent',
     // WebRTC — navigator.mediaDevices is patched on by @gjsify/webrtc/register/media-devices
     'navigator.mediaDevices': 'MediaDevices',
+    // WebAssembly Promise APIs — the runtime stubs throw at first call, so
+    // any reference to these methods needs the `@gjsify/webassembly` polyfill.
+    // The register entry replaces the stubs with wrappers around the working
+    // synchronous `new WebAssembly.{Module,Instance}` constructors.
+    'WebAssembly.compile':              'WebAssembly',
+    'WebAssembly.compileStreaming':     'WebAssembly',
+    'WebAssembly.instantiate':          'WebAssembly',
+    'WebAssembly.instantiateStreaming': 'WebAssembly',
+    'WebAssembly.validate':             'WebAssembly',
     // Note: URL.createObjectURL / URL.revokeObjectURL don't need markers —
     // they are first-class static methods on @gjsify/url's URL class, so the
     // free `URL` identifier (detected directly, maps to

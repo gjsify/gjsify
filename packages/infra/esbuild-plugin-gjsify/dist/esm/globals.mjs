@@ -6050,6 +6050,7 @@ var GJS_GLOBALS_GROUPS = {
     "FocusEvent",
     "EventSource",
     "WebSocket",
+    "WebAssembly",
     "DOMException",
     "performance",
     "PerformanceObserver",
@@ -6157,6 +6158,13 @@ var GJS_GLOBALS_MAP = {
   // MessageEvent is shared with dom-events in practice — whichever register
   // runs first installs it; both guard with typeof === 'undefined'.
   WebSocket: "websocket/register",
+  // --- WebAssembly Promise APIs ------------------------------------------
+  // Reach via marker (see METHOD_MARKERS in detect-free-globals.ts):
+  // bare `WebAssembly.compile(...)` / `.instantiate(...)` etc. trigger
+  // injection of the Promise polyfill. The synchronous `new WebAssembly.{Module,Instance}`
+  // path also free-references `WebAssembly` and ends up here, but the
+  // register module is a no-op when the natives already work.
+  WebAssembly: "webassembly/register/promise",
   // --- Performance -------------------------------------------------------
   performance: "@gjsify/web-globals/register/performance",
   PerformanceObserver: "@gjsify/web-globals/register/performance",
@@ -12238,7 +12246,16 @@ var METHOD_MARKERS = {
   // Gamepad API — navigator.getGamepads is patched on by @gjsify/gamepad/register
   "navigator.getGamepads": "GamepadEvent",
   // WebRTC — navigator.mediaDevices is patched on by @gjsify/webrtc/register/media-devices
-  "navigator.mediaDevices": "MediaDevices"
+  "navigator.mediaDevices": "MediaDevices",
+  // WebAssembly Promise APIs — the runtime stubs throw at first call, so
+  // any reference to these methods needs the `@gjsify/webassembly` polyfill.
+  // The register entry replaces the stubs with wrappers around the working
+  // synchronous `new WebAssembly.{Module,Instance}` constructors.
+  "WebAssembly.compile": "WebAssembly",
+  "WebAssembly.compileStreaming": "WebAssembly",
+  "WebAssembly.instantiate": "WebAssembly",
+  "WebAssembly.instantiateStreaming": "WebAssembly",
+  "WebAssembly.validate": "WebAssembly"
   // Note: URL.createObjectURL / URL.revokeObjectURL don't need markers —
   // they are first-class static methods on @gjsify/url's URL class, so the
   // free `URL` identifier (detected directly, maps to
@@ -12714,7 +12731,13 @@ var ALIASES_WEB_FOR_GJS = {
   "webrtc/register/data-channel": "@gjsify/webrtc/register/data-channel",
   "webrtc/register/error": "@gjsify/webrtc/register/error",
   "webrtc/register/media": "@gjsify/webrtc/register/media",
-  "webrtc/register/media-devices": "@gjsify/webrtc/register/media-devices"
+  "webrtc/register/media-devices": "@gjsify/webrtc/register/media-devices",
+  // WebAssembly Promise APIs polyfill — wraps the synchronous Module/Instance
+  // constructors so WebAssembly.{compile,instantiate,validate,...} resolve
+  // instead of throwing the SpiderMonkey 128 stub error.
+  "webassembly": "@gjsify/webassembly",
+  "webassembly/register": "@gjsify/webassembly/register",
+  "webassembly/register/promise": "@gjsify/webassembly/register/promise"
 };
 var ALIASES_GENERAL_FOR_NODE = {
   "@gjsify/node-globals": "@gjsify/empty",
@@ -12829,7 +12852,15 @@ var ALIASES_WEB_FOR_NODE = {
   "@gjsify/webrtc/register/data-channel": "@gjsify/empty",
   "@gjsify/webrtc/register/error": "@gjsify/empty",
   "@gjsify/webrtc/register/media": "@gjsify/empty",
-  "@gjsify/webrtc/register/media-devices": "@gjsify/empty"
+  "@gjsify/webrtc/register/media-devices": "@gjsify/empty",
+  // WebAssembly Promise APIs — native on Node (no polyfill needed); the
+  // bare `webassembly` specifier maps to /globals so consumers can import
+  // typed helpers without dragging the polyfill into the bundle.
+  "webassembly": "@gjsify/webassembly/globals",
+  "webassembly/register": "@gjsify/empty",
+  "webassembly/register/promise": "@gjsify/empty",
+  "@gjsify/webassembly/register": "@gjsify/empty",
+  "@gjsify/webassembly/register/promise": "@gjsify/empty"
 };
 
 // src/utils/alias.ts
@@ -19897,7 +19928,12 @@ function getBundleDir(build2) {
 }
 async function loadAndRewrite(args, build2) {
   if (!args.path.includes("node_modules")) return void 0;
-  const src = await readFile(args.path, "utf8");
+  let src;
+  try {
+    src = await readFile(args.path, "utf8");
+  } catch (err) {
+    return void 0;
+  }
   const hasMetaUrl = src.includes("import.meta.url");
   const hasDirname = src.includes("__dirname");
   const hasFilename = src.includes("__filename");
@@ -19929,7 +19965,9 @@ async function loadAndRewrite(args, build2) {
   return { contents, loader, resolveDir: dir };
 }
 function registerNodeModulesPathRewrite(build2) {
-  build2.onLoad({ filter: /\.(m?js|cjs|[cm]?tsx?)$/ }, (args) => loadAndRewrite(args, build2));
+  const filter = /\.(m?js|cjs|[cm]?tsx?)$/;
+  build2.onLoad({ filter }, (args) => loadAndRewrite(args, build2));
+  build2.onLoad({ filter, namespace: "pnp" }, (args) => loadAndRewrite(args, build2));
 }
 
 // src/app/gjs.ts

@@ -22,6 +22,7 @@
         "@gjsify/gamepad": "workspace:^",
         "@gjsify/web-globals": "workspace:^",
         "@gjsify/web-streams": "workspace:^",
+        "@gjsify/webassembly": "workspace:^",
         "@gjsify/webaudio": "workspace:^",
         "@gjsify/webcrypto": "workspace:^",
         "@gjsify/websocket": "workspace:^",
