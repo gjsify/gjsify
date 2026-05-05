@@ -3882,6 +3882,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/tar@workspace:packages/infra/tar":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/tar@workspace:packages/infra/tar"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/template-adw-canvas2d@workspace:templates/adw-canvas2d":
   version: 0.0.0-use.local
   resolution: "@gjsify/template-adw-canvas2d@workspace:templates/adw-canvas2d"
