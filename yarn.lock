@@ -3810,6 +3810,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/semver@workspace:packages/infra/semver":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/semver@workspace:packages/infra/semver"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/sqlite@workspace:^, @gjsify/sqlite@workspace:packages/node/sqlite":
   version: 0.0.0-use.local
   resolution: "@gjsify/sqlite@workspace:packages/node/sqlite"
