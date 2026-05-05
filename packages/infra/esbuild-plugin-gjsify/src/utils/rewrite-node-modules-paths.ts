@@ -35,6 +35,11 @@ export const REWRITE_FILTER = /\.(m?js|cjs|[cm]?tsx?)$/;
 const DIRNAME_DECL_RE = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/;
 const FILENAME_DECL_RE = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/;
 
+// Module-scope flag: emit the PnP-zip-path runtime-portability warning at
+// most once per build, otherwise every transitive file inside the same zip
+// floods the terminal.
+let zipPathWarningEmitted = false;
+
 /** True when the rewriter wants to look at this path — node_modules + supported ext. */
 export function shouldRewrite(path: string): boolean {
     return path.includes('node_modules') && REWRITE_FILTER.test(path);
@@ -78,6 +83,24 @@ export function rewriteContents(
 
     if (hasMetaUrl) {
         const relPath = relative(bundleDir, args.path);
+        if (relPath.includes('.zip/') && !zipPathWarningEmitted) {
+            // Rewriting `import.meta.url` inside a Yarn-PnP virtual-zip path
+            // produces a relative URL that resolves to a `.zip/...` filename
+            // at runtime — that path doesn't physically exist outside the
+            // PnP runtime, so any `readFileSync(import.meta.url-relative)`
+            // crashes with ENOENT. Warn once per build so users notice the
+            // hazard. Mitigation today: build under
+            // `nodeLinker: node-modules`. Real fix is upstream rewriter work
+            // to inline zip-resident reads.
+            zipPathWarningEmitted = true;
+            console.warn(
+                `[gjsify] rewriter: bundling code from inside a PnP virtual zip ` +
+                `(${relPath}). import.meta.url-relative paths in this file won't ` +
+                `resolve at runtime. Switch to "nodeLinker: node-modules" or unplug ` +
+                `the offending package(s) until the rewriter learns to inline zip-` +
+                `resident reads.`,
+            );
+        }
         const relDir = relative(bundleDir, dir) || '.';
         const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
         contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
