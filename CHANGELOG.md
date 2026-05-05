@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.7](https://github.com/gjsify/gjsify/compare/v0.3.6...v0.3.7) (2026-05-05)
+
+### Bug Fixes
+
+* **cli,esbuild-plugin-gjsify,resolve-npm:** rewriter composes into pnp onLoad (v0.3.7) ([#68](https://github.com/gjsify/gjsify/issues/68)) ([00f3dc9](https://github.com/gjsify/gjsify/commit/00f3dc95b0c2c4a7cabaa502a948ab73b641ef7a)), closes [#378](https://github.com/gjsify/gjsify/issues/378)
+
 ## [Unreleased] — 2026-05-05 — v0.3.7 PnP-rewriter onLoad ordering fix
 
 ### Bug Fixes
