@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/utils",
-    "version": "0.3.4",
+    "version": "0.3.5",
     "description": "Utils module for gjsify",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",

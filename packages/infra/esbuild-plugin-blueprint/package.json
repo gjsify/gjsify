@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/esbuild-plugin-blueprint",
-    "version": "0.3.4",
+    "version": "0.3.5",
     "description": "esbuild plugin for compiling GNOME Blueprint (.blp) files to XML",
     "type": "module",
     "main": "dist/esm/index.mjs",

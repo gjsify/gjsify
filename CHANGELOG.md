@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.5](https://github.com/gjsify/gjsify/compare/v0.3.4...v0.3.5) (2026-05-05)
+
+### Features
+
+* **cli:** gjsify dlx — GJS-bundle runner for npm-published packages ([#65](https://github.com/gjsify/gjsify/issues/65)) ([0e31170](https://github.com/gjsify/gjsify/commit/0e3117071cce83b7095d2ddb7ec51eee9e7a6eee)), closes [package.json#main](https://github.com/gjsify/package.json/issues/main)
+
 ## [Unreleased] — Phase A bug fixes for v0.3.5
 
 ### Bug Fixes

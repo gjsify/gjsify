@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/webassembly",
-    "version": "0.3.4",
+    "version": "0.3.5",
     "description": "WebAssembly Promise-API polyfill for GJS — wraps the synchronous Module/Instance constructors that work in SpiderMonkey 128+.",
     "type": "module",
     "module": "lib/esm/index.js",

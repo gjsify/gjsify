@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/zlib",
-    "version": "0.3.4",
+    "version": "0.3.5",
     "description": "Node.js zlib module for Gjs",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
