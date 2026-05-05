@@ -20216,6 +20216,7 @@ function detectedToRegisterPaths(detected) {
 }
 async function detectAutoGlobals(esbuildUserOptions, pluginOptions, verbose, options = {}) {
   const extraRegisterPaths = options.extraGlobalsList ? resolveGlobalsList(options.extraGlobalsList) : /* @__PURE__ */ new Set();
+  const excludeSet = new Set(options.excludeGlobals ?? []);
   let detected = /* @__PURE__ */ new Set();
   let currentInject = void 0;
   if (extraRegisterPaths.size > 0) {
@@ -20245,6 +20246,9 @@ async function detectAutoGlobals(esbuildUserOptions, pluginOptions, verbose, opt
       return { detected: /* @__PURE__ */ new Set(), injectPath: currentInject };
     }
     const newDetected = detectFreeGlobals(bundledCode);
+    if (excludeSet.size > 0) {
+      for (const id of excludeSet) newDetected.delete(id);
+    }
     if (setsEqual(detected, newDetected)) {
       if (verbose) {
         const sorted = [...detected].sort();
