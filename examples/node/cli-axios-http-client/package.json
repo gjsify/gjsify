@@ -1,7 +1,7 @@
 {
     "name": "@gjsify/example-node-cli-axios-http-client",
     "description": "axios HTTP client demo for Node.js and GJS — starts a local server and makes GET/POST/error/timeout/concurrent requests",
-    "version": "0.3.5",
+    "version": "0.3.6",
     "type": "module",
     "engines": {
         "node": ">=22.12.0"

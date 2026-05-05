@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.6](https://github.com/gjsify/gjsify/compare/v0.3.5...v0.3.6) (2026-05-05)
+
+### Bug Fixes
+
+* **cli,plugin-gjsify,plugin-deepkit:** PnP external-consumer relay actually works (v0.3.6) ([#67](https://github.com/gjsify/gjsify/issues/67)) ([edcc9a1](https://github.com/gjsify/gjsify/commit/edcc9a110b90e4ca1119a78fb19bbf09979334b7)), closes [#378](https://github.com/gjsify/gjsify/issues/378)
+
 ## [Unreleased] — 2026-05-05 — v0.3.6 PnP-external-consumer fixes
 
 ### Bug Fixes

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/http",
-    "version": "0.3.5",
+    "version": "0.3.6",
     "description": "Node.js http module for Gjs",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
