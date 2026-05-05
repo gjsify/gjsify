@@ -6413,6 +6413,7 @@ import { readFile } from "node:fs/promises";
 var REWRITE_FILTER = /\.(m?js|cjs|[cm]?tsx?)$/;
 var DIRNAME_DECL_RE = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/;
 var FILENAME_DECL_RE = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/;
+var zipPathWarningEmitted = false;
 function shouldRewrite(path6) {
   return path6.includes("node_modules") && REWRITE_FILTER.test(path6);
 }
@@ -6433,6 +6434,12 @@ function rewriteContents(args, src, bundleDir) {
   let contents = src;
   if (hasMetaUrl) {
     const relPath = relative(bundleDir, args.path);
+    if (relPath.includes(".zip/") && !zipPathWarningEmitted) {
+      zipPathWarningEmitted = true;
+      console.warn(
+        `[gjsify] rewriter: bundling code from inside a PnP virtual zip (${relPath}). import.meta.url-relative paths in this file won't resolve at runtime. Switch to "nodeLinker: node-modules" or unplug the offending package(s) until the rewriter learns to inline zip-resident reads.`
+      );
+    }
     const relDir = relative(bundleDir, dir) || ".";
     const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
     contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);

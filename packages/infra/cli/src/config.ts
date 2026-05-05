@@ -1,5 +1,24 @@
 import { APP_NAME } from  './constants.js';
 import { cosmiconfig, type Options as LoadOptions } from 'cosmiconfig';
+
+/** Default cosmiconfig search places for a given module name (matches cosmiconfig defaults). */
+function defaultSearchPlaces(name: string): string[] {
+    return [
+        'package.json',
+        `.${name}rc`,
+        `.${name}rc.json`,
+        `.${name}rc.yaml`,
+        `.${name}rc.yml`,
+        `.${name}rc.js`,
+        `.${name}rc.ts`,
+        `.${name}rc.mjs`,
+        `.${name}rc.cjs`,
+        `${name}.config.js`,
+        `${name}.config.ts`,
+        `${name}.config.mjs`,
+        `${name}.config.cjs`,
+    ];
+}
 import { readPackageJSON, resolvePackageJSON } from 'pkg-types';
 import { getTsconfig } from 'get-tsconfig';
 
@@ -40,20 +59,48 @@ export class Config {
     }
 
     /** Loads gjsify config file, e.g `.gjsifyrc.js` */
-    private async load(searchFrom?: string) {        
-        let configFile = await cosmiconfig(APP_NAME, this.loadOptions).search(searchFrom) as CosmiconfigResult<ConfigData> | null;
+    private async load(searchFrom?: string) {
+        // cosmiconfig's default first-match-wins behaviour silently drops one
+        // source when both `package.json#gjsify` and an explicit config file
+        // (`.gjsifyrc.js`, `gjsify.config.mjs`, ...) are present. Project hits
+        // this footgun: adding `gjsify.bin` to package.json (so `gjsify dlx`
+        // resolves the GJS bundle) silently disables `.gjsifyrc.js`. We
+        // explicitly load both sources and merge — package.json is the lower
+        // layer, the explicit file wins on key collisions.
+        //
+        // Run two searches:
+        //   1. Default (includes package.json) — for projects that only use
+        //      package.json#gjsify and no separate file.
+        //   2. Explicit-file only (package.json excluded) — to find the
+        //      `.gjsifyrc.*` / `gjsify.config.*` regardless of whether
+        //      package.json#gjsify exists.
+        const fileExplorer = cosmiconfig(APP_NAME, {
+            ...this.loadOptions,
+            searchPlaces: (this.loadOptions.searchPlaces ?? defaultSearchPlaces(APP_NAME))
+                .filter((p) => p !== 'package.json'),
+        });
+        const fileResult = await fileExplorer.search(searchFrom) as CosmiconfigResult<ConfigData> | null;
 
-        configFile ||= {
-            config: {},
-            filepath: '',
-            isEmpty: true,
+        const merged: ConfigData = {};
+        try {
+            const pkg = await this.readPackageJSON(searchFrom) as { gjsify?: ConfigData };
+            if (isPlainObject(pkg?.gjsify)) merge(merged, pkg.gjsify);
+        } catch {
+            // Missing or unreadable package.json — skip.
+        }
+        if (fileResult?.config && isPlainObject(fileResult.config)) {
+            merge(merged, fileResult.config);
         }
 
-        configFile.config ||= {};
-        configFile.config.esbuild ||= {};
-        configFile.config.library ||= {};
-        configFile.config.typescript ||= {};
-        return configFile;
+        merged.esbuild ||= {};
+        merged.library ||= {};
+        merged.typescript ||= {};
+
+        return {
+            config: merged,
+            filepath: fileResult?.filepath ?? '',
+            isEmpty: !fileResult && Object.keys(merged).length === 3, // only the three default-empty objects
+        };
     }
 
     /** Loads package.json of the current project */

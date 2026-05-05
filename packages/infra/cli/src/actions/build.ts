@@ -15,6 +15,19 @@ import { chmod, readFile, writeFile } from "node:fs/promises";
 const GJS_SHEBANG = "#!/usr/bin/env -S gjs -m\n";
 
 /**
+ * `true` when `path` points at a location that's unsafe to use as a build
+ * outfile (would overwrite source). Currently catches:
+ *   - any TypeScript extension (`.ts`, `.tsx`, `.mts`, `.cts`, `.mtsx`, `.ctsx`)
+ *   - paths that live under a `src/` segment (relative or absolute)
+ */
+function isUnsafeDefaultOutput(path: string): boolean {
+	if (/\.[cm]?tsx?$/i.test(path)) return true;
+	const norm = path.replace(/\\/g, "/");
+	if (/(?:^|\/)src\//.test(norm)) return true;
+	return false;
+}
+
+/**
  * Resolve the gjsify-flavoured PnP plugin. Anchors the relay on this file's
  * URL so transitive `@gjsify/*` polyfills (reached via @gjsify/cli's deps on
  * @gjsify/{node,web}-polyfills) are resolvable for external consumers without
@@ -253,10 +266,23 @@ export class BuildAction {
 			!esbuild?.outdir &&
 			(pgk?.main || pgk?.module)
 		) {
-			esbuild.outfile =
+			const candidate =
 				esbuild?.format === "cjs"
 					? pgk.main || pgk.module
 					: pgk.module || pgk.main;
+			if (candidate && isUnsafeDefaultOutput(candidate)) {
+				// `package.json#main`/`module` commonly points at a TypeScript
+				// source (e.g. `src/index.ts` for TS-direct workflows). Falling
+				// back to that value would have esbuild OVERWRITE the source.
+				// Surface a clear error and require an explicit outfile/outdir
+				// instead of silently destroying the user's code.
+				throw new Error(
+					`gjsify build: refusing to default --outfile to ${candidate} ` +
+					`(would overwrite a TypeScript source file). Pass --outfile/--outdir ` +
+					`explicitly, or set "gjsify.esbuild.outfile" in package.json.`,
+				);
+			}
+			esbuild.outfile = candidate;
 		}
 
 		const { consoleShim, globals } = this.configData;
