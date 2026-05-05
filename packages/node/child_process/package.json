@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/child_process",
-    "version": "0.3.8",
+    "version": "0.3.9",
     "description": "Node.js child_process module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/npm-registry",
-    "version": "0.3.8",
+    "version": "0.3.9",
     "description": "npm registry client for the gjsify install backend — packuments, tarballs, .npmrc auth (Node + GJS)",
     "type": "module",
     "module": "lib/esm/index.js",

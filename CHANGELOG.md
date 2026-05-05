@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.9](https://github.com/gjsify/gjsify/compare/v0.3.8...v0.3.9) (2026-05-05)
+
+### Bug Fixes
+
+* **cli,esbuild-plugin-gjsify:** merge config sources, outfile safety, PnP-zip warning ([#70](https://github.com/gjsify/gjsify/issues/70)) ([684cbe4](https://github.com/gjsify/gjsify/commit/684cbe4aea2062bed59568edaecff6237d9dd1ec)), closes [#378](https://github.com/gjsify/gjsify/issues/378) [#378](https://github.com/gjsify/gjsify/issues/378)
+
 ## [0.3.8](https://github.com/gjsify/gjsify/compare/v0.3.7...v0.3.8) (2026-05-05)
 
 ### Features

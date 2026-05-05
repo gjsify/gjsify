@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/adwaita-icons",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "description": "Adwaita symbolic icons as importable SVG strings for browser targets",
   "type": "module",
   "main": "index.ts",

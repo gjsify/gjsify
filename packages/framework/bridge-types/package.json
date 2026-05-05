@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/bridge-types",
-    "version": "0.3.8",
+    "version": "0.3.9",
     "description": "Shared interfaces and environment classes for GTK-DOM bridge containers",
     "type": "module",
     "module": "lib/esm/index.js",
