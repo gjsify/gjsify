@@ -200,3 +200,9 @@
 [submodule "refs/yarn"]
 	path = refs/yarn
 	url = git@github.com:yarnpkg/berry.git
+[submodule "refs/rolldown"]
+	path = refs/rolldown
+	url = https://github.com/rolldown/rolldown
+[submodule "refs/vite"]
+	path = refs/vite
+	url = git@github.com:vitejs/vite.git

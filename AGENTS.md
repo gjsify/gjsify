@@ -292,6 +292,8 @@ IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning for re
 |`refs/webkit/` — WebKit engine; reference for `@gjsify/iframe` (WebKit.WebView) + DOM spec behavior
 |`refs/epiphany/` — GNOME Web; real-world embedder of WebKit.WebView, pattern for browser-hosting GTK apps
 |`refs/node-canvas/` — node-canvas (Cairo-backed Canvas 2D) — reference for `@gjsify/canvas2d-core` Cairo idioms
+|`refs/libsoup/` — Soup 3 source (C). Authoritative for HTTP/1.1+HTTP/2+WebSocket semantics backing `@gjsify/{fetch,xmlhttprequest,http,http2,websocket,eventsource,ws}`. Read when GI wrappers behave unexpectedly — the C source is ground truth
+|`refs/axios/` — axios HTTP client (TS). XHR + http(s) adapters. Reference for typical npm-consumer expectations against `@gjsify/xmlhttprequest` and request/response semantics
 
 ### WebSocket & networking
 |`refs/ws/` **npm `ws` canonical** — reference for `@gjsify/ws` wrapper semantics + Autobahn driver (`test/autobahn.js`)
@@ -326,6 +328,19 @@ IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning for re
 
 ### Build/tooling
 `refs/astro/`(website ref) | `refs/deepkit/`(type compiler) | `refs/gjsify-vite/`(`examples/gtk/three-geometry-shapes/refs/gjsify-vite/`, Vite plugins for GJS) | `refs/ts-for-gir/` — ts-for-gir source — primary reference for the `@gjsify/integration-ts-for-gir` suite (Phase 1: `@gi.ts/parser`; later phases: `@ts-for-gir/lib`, generators, CLI). Strategic goal: `ts-for-gir` runs unmodified on GJS.
+
+### Bundlers — module resolution & bundling
+Inspiration sources for `gjsify build` engine, plugin pipeline, and resolver. Tracked migration path in STATUS.md (esbuild → Vite plugin track → Rolldown 1.0).
+|`refs/esbuild/` — current bundler engine. Go source — `internal/{resolver,bundler,linker}/`, `pkg/api/`. Reference for our 8 esbuild plugins under `packages/infra/esbuild-plugin-*/`
+|`refs/vite/` — Vite source (TS) — `packages/vite/src/node/{plugins,server,build}/`. Plugin API + dev-server + HMR reference for the future Vite-plugin track and `examples/gtk/three-geometry-shapes/refs/gjsify-vite/`
+|`refs/rolldown/` — Rust-based Rollup-compatible bundler powering Vite ≥ 7. Reference for the long-term `gjsify build` engine swap. Source: `crates/rolldown*/`, JS API: `packages/rolldown/`
+
+### Package managers — install & dlx
+Inspiration sources for the future `gjsify install` and `gjsify dlx` commands (see project-memory: package-manager resolution + `require.resolve` semantics for GJS).
+|`refs/bun/` — Bun's package manager (Zig) + `bun install`/`bunx`. Source: `src/install/`, `src/bunfig.zig`. Also doubles as Node test ref (see Node.js section)
+|`refs/npm-cli/` — canonical npm CLI. Resolver semantics (lockfile v3, peer-dep resolution), `npm exec`/`npx` behaviour. Source: `workspaces/{arborist,libnpmexec}/`, `lib/commands/`
+|`refs/pnpm/` — content-addressable store + symlink-farm node_modules layout, hard-link dedup. Reference for efficient on-disk layouts. Source: `pnpm/` (Rust + TS workspace)
+|`refs/yarn/` — Yarn Berry (PnP, zero-installs). Source: `packages/yarnpkg-{core,pnp,fslib}/`. Reference for resolver/linker plugin architecture and PnP runtime
 
 ## npm packages — reimplement in TS
 
