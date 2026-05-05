@@ -72,10 +72,16 @@ async function getPnpPlugin(): Promise<Plugin | null> {
 		};
 		let pnpApi: PnpApi | null = null;
 		try {
-			// pnpapi has no npm package — it is a virtual module injected by Yarn PnP
+			// pnpapi has no npm package — it is a virtual CJS module injected by
+			// Yarn PnP. `await import()` of a CJS module yields the ESM namespace
+			// `{ default, "module.exports" }`, NOT the exports object — so
+			// `mod.resolveRequest` is `undefined`. Unwrap `.default` (the CJS
+			// exports) before use, falling back to the namespace itself for ESM
+			// builds of pnpapi (none today, but defensive).
 			// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 			// @ts-expect-error
-			pnpApi = (await import("pnpapi")) as PnpApi;
+			const mod = await import("pnpapi");
+			pnpApi = ((mod as { default?: PnpApi }).default ?? mod) as PnpApi;
 		} catch {
 			// Not in a PnP runtime (shouldn't happen since findPnpRoot passed)
 		}

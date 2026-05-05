@@ -96,3 +96,76 @@ export function setupProject(projectDir, pkg, tarballsDir, tarballMap) {
   });
   console.log('  npm install done');
 }
+
+/**
+ * Build a Yarn `resolutions` map redirecting all @gjsify/* requests to local tarballs.
+ * Used together with `nodeLinker: pnp` to simulate an external npm-installed consumer.
+ */
+export function buildYarnResolutions(tarballsDir, tarballMap) {
+  const resolutions = {};
+  for (const [name, filename] of Object.entries(tarballMap)) {
+    resolutions[name] = `file:${join(tarballsDir, filename)}`;
+  }
+  return resolutions;
+}
+
+/**
+ * Write a Yarn-PnP-flavoured project, install deps, and return the project dir.
+ *
+ * Distinct from setupProject (which uses npm + node-modules linker): this
+ * exercises the gjsify CLI under Yarn 4 with `nodeLinker: pnp`, the same
+ * setup external consumers like ts-for-gir use. It validates that the
+ * two-hop PnP relay in @gjsify/cli's build action resolves transitive
+ * @gjsify/* polyfills (fs, path, child_process, ...) without each one
+ * needing to be a direct devDep.
+ *
+ * Requires `yarn` (>= 4) on PATH. The test skips itself if yarn is missing.
+ */
+export function setupProjectYarnPnp(projectDir, pkg, tarballsDir, tarballMap) {
+  // Patch direct @gjsify/* deps to tarball file: refs.
+  for (const field of ['dependencies', 'devDependencies']) {
+    if (!pkg[field]) continue;
+    for (const name of Object.keys(pkg[field])) {
+      const ref = toFileRef(name, tarballsDir, tarballMap);
+      if (ref) pkg[field][name] = ref;
+    }
+  }
+
+  // Yarn `resolutions` is the PnP equivalent of npm `overrides` — pins every
+  // transitive @gjsify/* (e.g. @gjsify/fs reached through @gjsify/node-polyfills)
+  // to the same local tarball, so the test validates relay behavior, not registry
+  // version skew.
+  pkg.resolutions = buildYarnResolutions(tarballsDir, tarballMap);
+  pkg.packageManager = 'yarn@4.14.1';
+
+  writeFileSync(join(projectDir, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
+  writeFileSync(
+    join(projectDir, '.yarnrc.yml'),
+    [
+      'nodeLinker: pnp',
+      'enableScripts: false',
+      'enableGlobalCache: false',
+      'enableTelemetry: false',
+      '',
+    ].join('\n'),
+  );
+
+  console.log('  running yarn install (PnP)...');
+  execFileSync('yarn', ['install', '--no-immutable'], {
+    cwd: projectDir,
+    stdio: 'pipe',
+    timeout: 5 * 60 * 1000,
+    env: { ...process.env, YARN_ENABLE_HARDENED_MODE: '0' },
+  });
+  console.log('  yarn install done');
+}
+
+/** True when the given executable is on PATH. */
+export function hasCommand(cmd) {
+  try {
+    execFileSync('which', [cmd], { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}

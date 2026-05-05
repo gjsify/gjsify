@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased] — 2026-05-05 — v0.3.6 PnP-external-consumer fixes
+
+### Bug Fixes
+
+* **cli:** unwrap `await import("pnpapi")` ESM namespace before use. The dynamic import returns `{ default, "module.exports" }` for CJS modules — so `pnpApi.resolveRequest(...)` was `undefined` and every two-hop relay attempt threw a `TypeError` that the surrounding `catch {}` swallowed. The relay shipped in v0.3.5 looked correct in source but was a silent no-op in production. Fix: `(mod as { default?: PnpApi }).default ?? mod` in `packages/infra/cli/src/actions/build.ts`.
+* **esbuild-plugin-gjsify:** declare `esbuild` as `peerDependencies` so external Yarn-PnP consumers no longer hit `UNDECLARED_DEPENDENCY: esbuild` on the very first build. Previously esbuild was reachable only via gjsify's own root-`.yarnrc.yml` `packageExtensions` workaround — invisible to npm-installed consumers.
+* **esbuild-plugin-deepkit:** lazy-import `@deepkit/type-compiler` (and lazy-instantiate `DeepkitLoader`) so consumers with `reflection: false` (the default) never resolve the deepkit module. Eager-loading transitively required `typescript` from `@marcj/ts-clone-node` (which doesn't declare TS as a peer), failing PnP consumers with `UNDECLARED_DEPENDENCY: typescript` even when reflection was opt-in disabled. `transformExtern` is now async; no internal callers, so the API change is non-breaking in practice.
+
+### Tests
+
+* **e2e:** new `tests/e2e/cli-only-pnp/run.mjs` (4/4 ✓) — Yarn-PnP variant of `cli-only/`. Installs only `@gjsify/cli` + `@gjsify/empty` from packed tarballs under `nodeLinker: pnp`, builds scripts importing `node:fs` / `node:path` / `node:child_process` / `node:events`, asserts the relay resolves all four through `@gjsify/node-polyfills`. Reverting any of the three fixes above causes the test to fail with the original error message — this is the regression-detector that should have caught the v0.3.5 ship. Wired into `package.json#test:e2e`. New helper `setupProjectYarnPnp()` + `hasCommand()` in `tests/e2e/helpers.mjs`.
+
 ## [0.3.5](https://github.com/gjsify/gjsify/compare/v0.3.4...v0.3.5) (2026-05-05)
 
 ### Features

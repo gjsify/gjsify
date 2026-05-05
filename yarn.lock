@@ -2204,6 +2204,8 @@ __metadata:
     "@types/node": "npm:^25.6.0"
     esbuild: "npm:^0.28.0"
     typescript: "npm:^6.0.3"
+  peerDependencies:
+    esbuild: "*"
   languageName: unknown
   linkType: soft
 
@@ -2222,6 +2224,8 @@ __metadata:
     esbuild: "npm:^0.28.0"
     fast-glob: "npm:^3.3.3"
     typescript: "npm:^6.0.3"
+  peerDependencies:
+    esbuild: "*"
   languageName: unknown
   linkType: soft
 
