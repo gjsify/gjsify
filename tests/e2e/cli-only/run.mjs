@@ -476,4 +476,75 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
     assert.ok(exited, 'no-entry package should hard-fail');
     assert.match(stderr, /no GJS entry|gjsify\.main/i, 'error message should hint at gjsify.main');
   });
+
+  // -- Phase D: gjsify install --------------------------------------------
+  // The install command shells out to `npm install`. The tarballMap-based
+  // overrides set up by `setupProject` ensure every `@gjsify/*` resolves to
+  // a local tarball, so adding @gjsify/* deps is offline. For third-party
+  // packages we use `picocolors` — zero-dep, ~5KB, available on the public
+  // registry that npm is already configured to reach.
+
+  it('gjsify install --help renders', () => {
+    const out = execFileSync('npx', ['gjsify', 'install', '--help'], {
+      cwd: projectDir,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 30 * 1000,
+    });
+    assert.match(out, /gjsify install/, 'usage banner missing');
+    assert.match(out, /save-dev/, '--save-dev option missing');
+  });
+
+  it('gjsify install (no args) runs npm install + post-checks', () => {
+    // Fresh project so we can observe the install round-trip end-to-end.
+    const installProjectDir = join(tmpDir, 'install-noargs-project');
+    mkdirSync(installProjectDir, { recursive: true });
+    setupProject(installProjectDir, {
+      name: 'test-install-noargs',
+      version: '0.1.0',
+      type: 'module',
+      private: true,
+      dependencies: {
+        '@gjsify/cli': '^0.1.0',
+      },
+    }, tarballsDir, tarballMap);
+
+    // setupProject already ran `npm install` once. Re-run via `gjsify install`
+    // — same code path, just with our post-checks at the end.
+    const result = execFileSync('npx', ['gjsify', 'install'], {
+      cwd: installProjectDir,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 5 * 60 * 1000,
+    });
+    // Post-check banner is what differentiates `gjsify install` from raw `npm install`.
+    assert.match(result, /gjsify post-install checks/i, 'post-check banner missing');
+  });
+
+  it('gjsify install <pkg> adds the package via npm + writes it to package.json', () => {
+    const installProjectDir = join(tmpDir, 'install-add-project');
+    mkdirSync(installProjectDir, { recursive: true });
+    setupProject(installProjectDir, {
+      name: 'test-install-add',
+      version: '0.1.0',
+      type: 'module',
+      private: true,
+      dependencies: {
+        '@gjsify/cli': '^0.1.0',
+      },
+    }, tarballsDir, tarballMap);
+
+    execFileSync('npx', ['gjsify', 'install', 'picocolors@^1.1.1'], {
+      cwd: installProjectDir,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 5 * 60 * 1000,
+    });
+
+    const pkg = JSON.parse(readFileSync(join(installProjectDir, 'package.json'), 'utf-8'));
+    assert.ok(pkg.dependencies?.picocolors, 'picocolors should be added to dependencies');
+    assert.ok(
+      existsSync(join(installProjectDir, 'node_modules', 'picocolors', 'package.json')),
+      'picocolors should be installed in node_modules',
+    );
+  });
 });
