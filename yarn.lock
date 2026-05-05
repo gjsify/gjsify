@@ -1948,7 +1948,10 @@ __metadata:
     "@gjsify/create-app": "workspace:^"
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
     "@gjsify/node-polyfills": "workspace:^"
+    "@gjsify/npm-registry": "workspace:^"
     "@gjsify/resolve-npm": "workspace:^"
+    "@gjsify/semver": "workspace:^"
+    "@gjsify/tar": "workspace:^"
     "@gjsify/web-polyfills": "workspace:^"
     "@types/yargs": "npm:^17.0.35"
     "@yarnpkg/esbuild-plugin-pnp": "npm:^3.0.0-rc.15"
@@ -3719,6 +3722,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/npm-registry@workspace:^, @gjsify/npm-registry@workspace:packages/infra/npm-registry":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/npm-registry@workspace:packages/infra/npm-registry"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/os@workspace:^, @gjsify/os@workspace:packages/node/os":
   version: 0.0.0-use.local
   resolution: "@gjsify/os@workspace:packages/node/os"
@@ -3810,6 +3823,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/semver@workspace:^, @gjsify/semver@workspace:packages/infra/semver":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/semver@workspace:packages/infra/semver"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/sqlite@workspace:^, @gjsify/sqlite@workspace:packages/node/sqlite":
   version: 0.0.0-use.local
   resolution: "@gjsify/sqlite@workspace:packages/node/sqlite"
@@ -3858,6 +3881,16 @@ __metadata:
     "@gjsify/unit": "workspace:^"
     "@gjsify/util": "workspace:^"
     "@types/node": "npm:^25.6.0"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
+"@gjsify/tar@workspace:^, @gjsify/tar@workspace:packages/infra/tar":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/tar@workspace:packages/infra/tar"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     typescript: "npm:^6.0.3"
   languageName: unknown
   linkType: soft

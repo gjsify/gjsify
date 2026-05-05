@@ -1,12 +1,14 @@
-// Install backend abstraction — Phase-4 seam.
+// Install backend abstraction.
 //
-// Today: spawns `npm install --no-package-lock --no-audit --no-fund --prefix <dir> <specs...>`.
-// Future (Phase 4): a GJS-native resolver replaces this without changing
-// the public signature, switched via `GJSIFY_INSTALL_BACKEND=native|npm`.
+// Default: native backend (resolves packuments via @gjsify/npm-registry,
+// extracts tarballs via @gjsify/tar — no Node, no npm required at runtime).
+// Fallback: `npm install --no-package-lock --no-audit --no-fund --prefix <dir> <specs...>`,
+// for parity with the legacy code path. Switched via
+// `GJSIFY_INSTALL_BACKEND=native|npm`.
 //
-// Why npm and not pnpm/yarn? npm ships with Node so users already have it.
-// Adding a yarn/pnpm dep would defeat the purpose of `gjsify dlx` (which
-// itself is meant to ship binary-free GJS apps).
+// `gjsify dlx` uses this seam — installing under a cache prefix, with no
+// package.json update to the user's project. The native backend matches that
+// workflow without ever shelling out to Node.
 //
 // `--no-package-lock` keeps the cache prepare dir hermetic; the cache key
 // already covers reproducibility. `--no-audit --no-fund` cuts ~5s off cold runs.
@@ -24,17 +26,24 @@ export interface InstallOptions {
     verbose?: boolean;
     /** Optional registry override (writes a temp `.npmrc` in prefix). */
     registry?: string;
+    /**
+     * Native backend only: write `<prefix>/gjsify-lock.json` after a successful
+     * resolve. When the file exists on next call AND `frozen: true`, the
+     * resolver is skipped and downloads use the pinned tarball URL + integrity.
+     */
+    lockfile?: boolean;
+    /** Use `<prefix>/gjsify-lock.json` as the source of truth — fail if missing. */
+    frozen?: boolean;
 }
 
-const DEFAULT_BACKEND = process.env.GJSIFY_INSTALL_BACKEND ?? 'npm';
+const DEFAULT_BACKEND = process.env.GJSIFY_INSTALL_BACKEND ?? 'native';
 
 export async function installPackages(opts: InstallOptions): Promise<void> {
-    if (DEFAULT_BACKEND === 'native') {
-        throw new Error(
-            'GJSIFY_INSTALL_BACKEND=native is reserved for the Phase 4 GJS-native resolver — not yet implemented.',
-        );
+    if (DEFAULT_BACKEND === 'npm') {
+        return installViaNpm(opts);
     }
-    return installViaNpm(opts);
+    const { installPackagesNative } = await import('./install-backend-native.js');
+    return installPackagesNative(opts);
 }
 
 async function installViaNpm({ prefix, specs, verbose, registry }: InstallOptions): Promise<void> {
