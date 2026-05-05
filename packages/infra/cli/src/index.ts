@@ -12,6 +12,7 @@ import {
     gresourceCommand as gresource,
     gettextCommand as gettext,
     dlxCommand as dlx,
+    installCommand as install,
 } from './commands/index.js'
 import { APP_NAME } from './constants.js'
 
@@ -19,6 +20,7 @@ void yargs(hideBin(process.argv))
     .scriptName(APP_NAME)
     .strict()
     .command(create.command, create.description, create.builder, create.handler)
+    .command(install.command, install.description, install.builder, install.handler)
     .command(build.command, build.description, build.builder, build.handler)
     .command(run.command, run.description, run.builder, run.handler)
     .command(dlx.command, dlx.description, dlx.builder, dlx.handler)

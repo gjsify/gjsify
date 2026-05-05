@@ -159,8 +159,13 @@ const PACKAGE_DEPS: Record<string, string[]> = {
     '@gjsify/canvas2d':      ['gdk-pixbuf', 'pango', 'pangocairo', 'cairo'],
     '@gjsify/canvas2d-core': ['gdk-pixbuf', 'pango', 'pangocairo', 'cairo'],
     '@gjsify/dom-elements':  ['gdk-pixbuf'],
-    // @gjsify/webgl, @gjsify/event-bridge only need gtk4/gdk which are
-    // already in the required set, so they don't need optional entries.
+    // @gjsify/webgl needs the gwebgl npm package (Vala prebuild) — handled
+    // as a special-case checkNpmPackage rather than checkPkgConfig in
+    // runOptionalChecks. Mapping it here so its presence in the project's
+    // dep tree triggers the check.
+    '@gjsify/webgl':         ['gwebgl'],
+    // @gjsify/event-bridge only needs gtk4/gdk which are already in the
+    // required set, so it doesn't need an optional entry.
 };
 
 /** Walk up from cwd looking for the nearest package.json. */
@@ -322,10 +327,16 @@ function runOptionalChecks(needed: Set<string> | null, cwd: string): DepCheck[] 
         results.push(checkPkgConfig(dep.id, dep.name, dep.pkgName, 'optional', requiredBy));
     }
 
-    // gwebgl npm package — special case (not a pkg-config lib).
-    // Always reported (the npm package is bundled with the CLI), but marked
-    // optional because only @gjsify/webgl users need it.
-    results.push(checkGwebgl(cwd));
+    // gwebgl npm package — special case (not a pkg-config lib). Only checked
+    // when the project directly or transitively depends on @gjsify/webgl —
+    // since the CLI tarball no longer ships any showcase example packages,
+    // gwebgl is not part of the CLI's own dep tree, so reporting it for every
+    // project would always be `found: false`. `needed === null` means "check
+    // everything" (no project context).
+    const hasWebglDep = needed === null || needed.has('gwebgl');
+    if (hasWebglDep) {
+        results.push(checkGwebgl(cwd));
+    }
 
     return results;
 }

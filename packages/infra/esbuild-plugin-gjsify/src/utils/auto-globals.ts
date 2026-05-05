@@ -106,6 +106,8 @@ export async function detectAutoGlobals(
         ? resolveGlobalsList(options.extraGlobalsList)
         : new Set<string>();
 
+    const excludeSet = new Set(options.excludeGlobals ?? []);
+
     let detected = new Set<string>();
     let currentInject: string | undefined = undefined;
 
@@ -146,6 +148,18 @@ export async function detectAutoGlobals(
         }
 
         const newDetected = detectFreeGlobals(bundledCode);
+
+        // Apply excludeGlobals BEFORE writing the next iteration's inject file.
+        // If we didn't filter here, an excluded identifier would still appear
+        // in the inject `import` list of every analysis pass — and if the
+        // corresponding `@gjsify/<pkg>/register/<feature>` module is not in
+        // the project's resolvable dep tree, the analysis build itself fails
+        // (e.g. a Node-only Express server triggers `typeof document` guards
+        // → detector picks up `document` → inject imports
+        // `@gjsify/dom-elements/register/document` → resolution fails).
+        if (excludeSet.size > 0) {
+            for (const id of excludeSet) newDetected.delete(id);
+        }
 
         // Fixpoint check: if the set didn't grow, we're done.
         // (Detection is monotonic — once a global is needed, more code

@@ -1,9 +1,13 @@
-// Dynamic discovery of installed showcase packages (@gjsify/example-*).
-// Scans the CLI's own package.json dependencies at runtime.
+// Static discovery of showcase packages from `showcases.json`.
+//
+// Earlier versions read showcases from the CLI's own `package.json#dependencies`
+// — every showcase had to be a direct CLI dependency. That made the CLI tarball
+// blow up with each new showcase and required a CLI rebuild to publish a new
+// one. Static manifest decouples both: the CLI reads the manifest at runtime,
+// `gjsify showcase <name>` delegates to `gjsify dlx <package>`.
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 export interface ShowcaseInfo {
@@ -13,68 +17,53 @@ export interface ShowcaseInfo {
     packageName: string;
     /** Category: "dom" or "node" */
     category: string;
-    /** Description from showcase's package.json */
+    /** Description for the list view */
     description: string;
-    /** Absolute path to the GJS bundle (resolved from "main" field) */
-    bundlePath: string;
+    /** Whether the showcase needs the gwebgl native prebuild. */
+    needsWebgl: boolean;
 }
 
-const EXAMPLE_PREFIX = '@gjsify/example-';
+interface ManifestEntry {
+    name: string;
+    package: string;
+    category: string;
+    description?: string;
+    needsWebgl?: boolean;
+}
 
-/** Extract short name and category from package name. */
-function parseShowcaseName(packageName: string): { name: string; category: string } | null {
-    // @gjsify/example-dom-three-postprocessing-pixel → category=dom, name=three-postprocessing-pixel
-    const suffix = packageName.slice(EXAMPLE_PREFIX.length);
-    const dashIdx = suffix.indexOf('-');
-    if (dashIdx === -1) return null;
-    return {
-        category: suffix.slice(0, dashIdx),
-        name: suffix.slice(dashIdx + 1),
-    };
+interface Manifest {
+    showcases: ManifestEntry[];
+}
+
+function manifestPath(): string {
+    // `showcases.json` lives at the package root: ../../showcases.json from lib/utils/.
+    return join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'showcases.json');
 }
 
 /**
- * Discover all installed showcase packages by scanning the CLI's own dependencies.
- * Returns showcases sorted by category then name.
+ * Read the curated showcase list from `showcases.json`. Returns showcases
+ * sorted by category then name. An empty list (or missing manifest) yields
+ * an empty array — `gjsify showcase` then prints the empty-state message.
  */
 export function discoverShowcases(): ShowcaseInfo[] {
-    const require = createRequire(import.meta.url);
-    const cliPkgPath = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'package.json');
-    let cliPkg: Record<string, unknown>;
+    const path = manifestPath();
+    if (!existsSync(path)) return [];
+
+    let manifest: Manifest;
     try {
-        cliPkg = JSON.parse(readFileSync(cliPkgPath, 'utf-8')) as Record<string, unknown>;
+        manifest = JSON.parse(readFileSync(path, 'utf-8')) as Manifest;
     } catch {
         return [];
     }
+    if (!Array.isArray(manifest.showcases)) return [];
 
-    const deps = cliPkg['dependencies'] as Record<string, string> | undefined;
-    if (!deps) return [];
-
-    const showcases: ShowcaseInfo[] = [];
-
-    for (const packageName of Object.keys(deps)) {
-        if (!packageName.startsWith(EXAMPLE_PREFIX)) continue;
-
-        const parsed = parseShowcaseName(packageName);
-        if (!parsed) continue;
-
-        try {
-            const pkgJsonPath = require.resolve(`${packageName}/package.json`);
-            const pkg = JSON.parse(readFileSync(pkgJsonPath, 'utf-8')) as Record<string, unknown>;
-            const main = pkg['main'] as string | undefined;
-            if (!main) continue;
-
-            showcases.push({
-                name: parsed.name,
-                packageName,
-                category: parsed.category,
-                description: (pkg['description'] as string) ?? '',
-                bundlePath: join(dirname(pkgJsonPath), main),
-            });
-        } catch {
-            // Package listed as dep but not resolvable — skip silently
-        }
-    }
+    const showcases: ShowcaseInfo[] = manifest.showcases.map((e) => ({
+        name: e.name,
+        packageName: e.package,
+        category: e.category,
+        description: e.description ?? '',
+        needsWebgl: Boolean(e.needsWebgl),
+    }));
 
     showcases.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
     return showcases;
@@ -82,5 +71,5 @@ export function discoverShowcases(): ShowcaseInfo[] {
 
 /** Find a single showcase by short name. */
 export function findShowcase(name: string): ShowcaseInfo | undefined {
-    return discoverShowcases().find(e => e.name === name);
+    return discoverShowcases().find((e) => e.name === name);
 }

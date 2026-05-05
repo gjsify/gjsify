@@ -1947,11 +1947,6 @@ __metadata:
   dependencies:
     "@gjsify/create-app": "workspace:^"
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
-    "@gjsify/example-dom-canvas2d-fireworks": "workspace:^"
-    "@gjsify/example-dom-excalibur-jelly-jumper": "workspace:^"
-    "@gjsify/example-dom-three-geometry-teapot": "workspace:^"
-    "@gjsify/example-dom-three-postprocessing-pixel": "workspace:^"
-    "@gjsify/example-node-express-webserver": "workspace:^"
     "@gjsify/node-polyfills": "workspace:^"
     "@gjsify/web-polyfills": "workspace:^"
     "@types/yargs": "npm:^17.0.35"
@@ -3189,7 +3184,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/example-node-express-webserver@workspace:^, @gjsify/example-node-express-webserver@workspace:showcases/node/express-webserver":
+"@gjsify/example-node-express-webserver@workspace:showcases/node/express-webserver":
   version: 0.0.0-use.local
   resolution: "@gjsify/example-node-express-webserver@workspace:showcases/node/express-webserver"
   dependencies:

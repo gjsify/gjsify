@@ -1,7 +1,13 @@
 import type { Command } from '../types/index.js';
 import { discoverShowcases, findShowcase } from '../utils/discover-showcases.js';
-import { runMinimalChecks, checkGwebgl, detectPackageManager, buildInstallCommand } from '../utils/check-system-deps.js';
-import { runGjsBundle } from '../utils/run-gjs.js';
+import {
+    runMinimalChecks,
+    checkGwebgl,
+    detectPackageManager,
+    buildInstallCommand,
+} from '../utils/check-system-deps.js';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 interface ShowcaseOptions {
     name?: string;
@@ -11,9 +17,9 @@ interface ShowcaseOptions {
 
 export const showcaseCommand: Command<any, ShowcaseOptions> = {
     command: 'showcase [name]',
-    description: 'List or run built-in gjsify showcase applications.',
-    builder: (yargs) => {
-        return yargs
+    description: 'List or run curated gjsify showcase applications.',
+    builder: (yargs) =>
+        yargs
             .positional('name', {
                 description: 'Showcase name to run (omit to list all)',
                 type: 'string',
@@ -27,8 +33,7 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
                 description: 'List available showcases',
                 type: 'boolean',
                 default: false,
-            });
-    },
+            }),
     handler: async (args) => {
         // List mode: no name given, or --list flag
         if (!args.name || args.list) {
@@ -40,11 +45,10 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
             }
 
             if (showcases.length === 0) {
-                console.log('No showcases found. Showcase packages may not be installed.');
+                console.log('No showcases found. The CLI ships a curated list in `showcases.json`; if it is missing the CLI install is incomplete.');
                 return;
             }
 
-            // Group by category
             const grouped = new Map<string, typeof showcases>();
             for (const sc of showcases) {
                 const list = grouped.get(sc.category) ?? [];
@@ -55,7 +59,7 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
             console.log('Available gjsify showcases:\n');
             for (const [category, list] of grouped) {
                 console.log(`  ${category.toUpperCase()}:`);
-                const maxNameLen = Math.max(...list.map(e => e.name.length));
+                const maxNameLen = Math.max(...list.map((e) => e.name.length));
                 for (const sc of list) {
                     const pad = ' '.repeat(maxNameLen - sc.name.length + 2);
                     const desc = sc.description ? `${pad}${sc.description}` : '';
@@ -68,7 +72,6 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
             return;
         }
 
-        // Run mode: find the showcase
         const showcase = findShowcase(args.name);
         if (!showcase) {
             console.error(`Unknown showcase: "${args.name}"`);
@@ -76,16 +79,14 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
             process.exit(1);
         }
 
-        // System dependency check before running — only check what this showcase needs.
-        // All showcases need GJS; WebGL showcases additionally need gwebgl prebuilds.
+        // System dependency check before delegating — only what this showcase needs.
         const results = runMinimalChecks();
-        const needsWebgl = showcase.packageName.includes('webgl') || showcase.packageName.includes('three');
-        if (needsWebgl) {
+        if (showcase.needsWebgl) {
             results.push(checkGwebgl(process.cwd()));
         }
-        // Hard-fail only on missing REQUIRED deps (gjs, gwebgl is required if needsWebgl).
-        // For showcase, gwebgl is treated as required because the bundle won't run without it.
-        const missingHard = results.filter(r => !r.found && (r.severity === 'required' || r.id === 'gwebgl'));
+        const missingHard = results.filter(
+            (r) => !r.found && (r.severity === 'required' || r.id === 'gwebgl'),
+        );
         if (missingHard.length > 0) {
             console.error('Missing system dependencies:\n');
             for (const dep of missingHard) {
@@ -99,8 +100,26 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
             process.exit(1);
         }
 
-        // Run the showcase via shared GJS runner
-        console.log(`Running showcase: ${showcase.name}\n`);
-        await runGjsBundle(showcase.bundlePath);
+        // Delegate to `gjsify dlx <package>` — same npm-cache, same atomic
+        // symlink-swap, same `gjsify.main` resolution. Re-spawning the CLI
+        // keeps the dlx logic in one place.
+        console.log(`Running showcase: ${showcase.name} (via gjsify dlx)\n`);
+        const cliBin = fileURLToPath(new URL('../index.js', import.meta.url));
+        const child = spawn(process.execPath, [cliBin, 'dlx', showcase.packageName], {
+            stdio: 'inherit',
+        });
+        await new Promise<void>((resolvePromise, reject) => {
+            child.on('close', (code) => {
+                if (code !== 0) {
+                    reject(new Error(`gjsify dlx exited with code ${code}`));
+                } else {
+                    resolvePromise();
+                }
+            });
+            child.on('error', reject);
+        }).catch((err) => {
+            console.error(err.message);
+            process.exit(1);
+        });
     },
 };

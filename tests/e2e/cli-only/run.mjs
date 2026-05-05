@@ -100,9 +100,11 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
     }
   });
 
-  it('gjsify check --json resolves gwebgl via CLI fallback (not in project deps)', () => {
-    // The project only has @gjsify/cli — @gjsify/webgl is NOT a direct dep.
-    // checkNpmPackage must fall back to the CLI's own node_modules.
+  it('gjsify check --json skips gwebgl when project does not use @gjsify/webgl', () => {
+    // After the showcase-decoupling refactor (Phase D), the CLI no longer
+    // transitively depends on @gjsify/webgl through showcase example packages.
+    // `gjsify check` correctly skips the gwebgl check for projects that don't
+    // use @gjsify/webgl — needsWebgl is decided per-project, not per-CLI.
     const out = execFileSync('npx', ['gjsify', 'check', '--json'], {
       cwd: projectDir,
       encoding: 'utf-8',
@@ -111,9 +113,8 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
     });
     const result = JSON.parse(out);
     const gwebgl = result.deps.find(d => d.id === 'gwebgl');
-    assert.ok(gwebgl, 'gwebgl check should be present in results');
-    assert.strictEqual(gwebgl.found, true,
-      'gwebgl should be found via CLI fallback when not in project deps');
+    assert.strictEqual(gwebgl, undefined,
+      'gwebgl should be skipped when project does not depend on @gjsify/webgl');
   });
 
   it('gjsify check --json resolves gwebgl from project deps (primary path)', () => {
@@ -275,5 +276,275 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
 
     const moSize = statSync(moFile).size;
     assert.ok(moSize > 0, 'compiled .mo file should be non-empty');
+  });
+
+  // -- Phase C: gjsify dlx (local-path mode) -------------------------------
+  // Registry mode (`gjsify dlx <name>`) hits the npm registry and is unsuitable
+  // for offline CI. Local-path mode covers entry resolution + `gjs -m` dispatch
+  // without any network, and is the same code path the registry mode falls into
+  // after `npm install --prefix <cache>` succeeds.
+
+  it('gjsify dlx --help renders without invoking the runner', () => {
+    const out = execFileSync('npx', ['gjsify', 'dlx', '--help'], {
+      cwd: projectDir,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 30 * 1000,
+    });
+    assert.match(out, /gjsify dlx <spec>/, 'usage banner missing');
+    assert.match(out, /--cache-max-age/, '--cache-max-age option missing');
+  });
+
+  it('gjsify dlx <local-path> resolves gjsify.main and runs the bundle on gjs',
+    { skip: !hasCommand('gjs') && 'gjs not installed' },
+    () => {
+      // Tiny standalone GJS bundle: prints a sentinel string and exits.
+      // GJS-native `print()` writes to fd1 directly — `console.log()` would go
+      // through GLib's logging facility (stderr-prefixed `Gjs-Console-Message`).
+      const dlxPkgDir = join(tmpDir, 'dlx-fixture-with-main');
+      mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
+      writeFileSync(join(dlxPkgDir, 'package.json'),
+        JSON.stringify({
+          name: 'dlx-fixture-with-main',
+          version: '0.0.0',
+          private: true,
+          type: 'module',
+          gjsify: { main: 'dist/entry.js' },
+        }, null, 2),
+      );
+      writeFileSync(join(dlxPkgDir, 'dist', 'entry.js'),
+        "print('DLX_OK_MAIN');\n",
+      );
+
+      const out = execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir], {
+        cwd: projectDir,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 30 * 1000,
+      });
+      assert.match(out, /DLX_OK_MAIN/, 'bundle stdout missing the sentinel string');
+    });
+
+  it('gjsify dlx <local-path> bin auto-pick resolves a single-entry gjsify.bin',
+    { skip: !hasCommand('gjs') && 'gjs not installed' },
+    () => {
+      const dlxPkgDir = join(tmpDir, 'dlx-fixture-single-bin');
+      mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
+      writeFileSync(join(dlxPkgDir, 'package.json'),
+        JSON.stringify({
+          name: 'dlx-fixture-single-bin',
+          version: '0.0.0',
+          private: true,
+          type: 'module',
+          gjsify: { bin: { 'demo-only': 'dist/only.js' } },
+        }, null, 2),
+      );
+      writeFileSync(join(dlxPkgDir, 'dist', 'only.js'),
+        "print('DLX_OK_SINGLE_BIN');\n",
+      );
+
+      const out = execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir], {
+        cwd: projectDir,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 30 * 1000,
+      });
+      assert.match(out, /DLX_OK_SINGLE_BIN/, 'single-bin auto-pick failed');
+    });
+
+  it('gjsify dlx <local-path> <bin-name> selects from multi-entry gjsify.bin',
+    { skip: !hasCommand('gjs') && 'gjs not installed' },
+    () => {
+      const dlxPkgDir = join(tmpDir, 'dlx-fixture-multi-bin');
+      mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
+      writeFileSync(join(dlxPkgDir, 'package.json'),
+        JSON.stringify({
+          name: 'dlx-fixture-multi-bin',
+          version: '0.0.0',
+          private: true,
+          type: 'module',
+          gjsify: { bin: { 'demo-a': 'dist/a.js', 'demo-b': 'dist/b.js' } },
+        }, null, 2),
+      );
+      writeFileSync(join(dlxPkgDir, 'dist', 'a.js'), "print('DLX_OK_A');\n");
+      writeFileSync(join(dlxPkgDir, 'dist', 'b.js'), "print('DLX_OK_B');\n");
+
+      const outA = execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir, 'demo-a'], {
+        cwd: projectDir,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 30 * 1000,
+      });
+      assert.match(outA, /DLX_OK_A/, 'demo-a not selected');
+      assert.doesNotMatch(outA, /DLX_OK_B/, 'demo-b unexpectedly ran');
+
+      const outB = execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir, 'demo-b'], {
+        cwd: projectDir,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 30 * 1000,
+      });
+      assert.match(outB, /DLX_OK_B/, 'demo-b not selected');
+    });
+
+  it('gjsify dlx <local-path> hard-fails on multi-bin without a chosen name', () => {
+    const dlxPkgDir = join(tmpDir, 'dlx-fixture-multi-bin-noname');
+    mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
+    writeFileSync(join(dlxPkgDir, 'package.json'),
+      JSON.stringify({
+        name: 'dlx-fixture-multi-bin-noname',
+        version: '0.0.0',
+        private: true,
+        type: 'module',
+        gjsify: { bin: { 'demo-a': 'dist/a.js', 'demo-b': 'dist/b.js' } },
+      }, null, 2),
+    );
+    writeFileSync(join(dlxPkgDir, 'dist', 'a.js'), "console.log('a');\n");
+    writeFileSync(join(dlxPkgDir, 'dist', 'b.js'), "console.log('b');\n");
+
+    let stderr = '';
+    let exited = false;
+    try {
+      execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir], {
+        cwd: projectDir,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 30 * 1000,
+      });
+    } catch (err) {
+      exited = true;
+      stderr = String(err.stderr ?? '');
+    }
+    assert.ok(exited, 'multi-bin without name should hard-fail');
+    assert.match(stderr, /multiple GJS bins|pass one of/i, 'error message should explain the bin list');
+  });
+
+  it('gjsify dlx <local-path> falls back to package.json#main with a warning',
+    { skip: !hasCommand('gjs') && 'gjs not installed' },
+    () => {
+      const dlxPkgDir = join(tmpDir, 'dlx-fixture-fallback-main');
+      mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
+      writeFileSync(join(dlxPkgDir, 'package.json'),
+        JSON.stringify({
+          name: 'dlx-fixture-fallback-main',
+          version: '0.0.0',
+          private: true,
+          type: 'module',
+          main: 'dist/legacy.js',
+          // No `gjsify` field — exercise backwards-compat path.
+        }, null, 2),
+      );
+      writeFileSync(join(dlxPkgDir, 'dist', 'legacy.js'),
+        "print('DLX_OK_FALLBACK');\n",
+      );
+
+      const result = execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir], {
+        cwd: projectDir,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 30 * 1000,
+      });
+      assert.match(result, /DLX_OK_FALLBACK/, 'fallback bundle did not run');
+    });
+
+  it('gjsify dlx <local-path> hard-fails when package has no GJS entry', () => {
+    const dlxPkgDir = join(tmpDir, 'dlx-fixture-no-entry');
+    mkdirSync(dlxPkgDir, { recursive: true });
+    writeFileSync(join(dlxPkgDir, 'package.json'),
+      JSON.stringify({
+        name: 'dlx-fixture-no-entry',
+        version: '0.0.0',
+        private: true,
+        type: 'module',
+        // No `main`, no `gjsify`.
+      }, null, 2),
+    );
+
+    let stderr = '';
+    let exited = false;
+    try {
+      execFileSync('npx', ['gjsify', 'dlx', dlxPkgDir], {
+        cwd: projectDir,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 30 * 1000,
+      });
+    } catch (err) {
+      exited = true;
+      stderr = String(err.stderr ?? '');
+    }
+    assert.ok(exited, 'no-entry package should hard-fail');
+    assert.match(stderr, /no GJS entry|gjsify\.main/i, 'error message should hint at gjsify.main');
+  });
+
+  // -- Phase D: gjsify install --------------------------------------------
+  // The install command shells out to `npm install`. The tarballMap-based
+  // overrides set up by `setupProject` ensure every `@gjsify/*` resolves to
+  // a local tarball, so adding @gjsify/* deps is offline. For third-party
+  // packages we use `picocolors` — zero-dep, ~5KB, available on the public
+  // registry that npm is already configured to reach.
+
+  it('gjsify install --help renders', () => {
+    const out = execFileSync('npx', ['gjsify', 'install', '--help'], {
+      cwd: projectDir,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 30 * 1000,
+    });
+    assert.match(out, /gjsify install/, 'usage banner missing');
+    assert.match(out, /save-dev/, '--save-dev option missing');
+  });
+
+  it('gjsify install (no args) runs npm install + post-checks', () => {
+    // Fresh project so we can observe the install round-trip end-to-end.
+    const installProjectDir = join(tmpDir, 'install-noargs-project');
+    mkdirSync(installProjectDir, { recursive: true });
+    setupProject(installProjectDir, {
+      name: 'test-install-noargs',
+      version: '0.1.0',
+      type: 'module',
+      private: true,
+      dependencies: {
+        '@gjsify/cli': '^0.1.0',
+      },
+    }, tarballsDir, tarballMap);
+
+    // setupProject already ran `npm install` once. Re-run via `gjsify install`
+    // — same code path, just with our post-checks at the end.
+    const result = execFileSync('npx', ['gjsify', 'install'], {
+      cwd: installProjectDir,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 5 * 60 * 1000,
+    });
+    // Post-check banner is what differentiates `gjsify install` from raw `npm install`.
+    assert.match(result, /gjsify post-install checks/i, 'post-check banner missing');
+  });
+
+  it('gjsify install <pkg> adds the package via npm + writes it to package.json', () => {
+    const installProjectDir = join(tmpDir, 'install-add-project');
+    mkdirSync(installProjectDir, { recursive: true });
+    setupProject(installProjectDir, {
+      name: 'test-install-add',
+      version: '0.1.0',
+      type: 'module',
+      private: true,
+      dependencies: {
+        '@gjsify/cli': '^0.1.0',
+      },
+    }, tarballsDir, tarballMap);
+
+    execFileSync('npx', ['gjsify', 'install', 'picocolors@^1.1.1'], {
+      cwd: installProjectDir,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 5 * 60 * 1000,
+    });
+
+    const pkg = JSON.parse(readFileSync(join(installProjectDir, 'package.json'), 'utf-8'));
+    assert.ok(pkg.dependencies?.picocolors, 'picocolors should be added to dependencies');
+    assert.ok(
+      existsSync(join(installProjectDir, 'node_modules', 'picocolors', 'package.json')),
+      'picocolors should be installed in node_modules',
+    );
   });
 });
