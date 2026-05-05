@@ -12,7 +12,7 @@ import {
     PackageNotFoundError,
     IntegrityError,
     type NpmrcConfig,
-} from "./index.ts";
+} from "./index.js";
 
 const sampleNpmrc = `
 # default registry override

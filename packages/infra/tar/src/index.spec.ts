@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 
-import { parseTar, extractTarball, gunzip, BLOCK_SIZE, type TarEntry } from "./index.ts";
+import { parseTar, extractTarball, gunzip, BLOCK_SIZE, type TarEntry } from "./index.js";
 
 interface BuildTarEntry {
     name: string;

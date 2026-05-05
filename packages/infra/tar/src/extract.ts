@@ -4,7 +4,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { type TarEntry, parseTar } from "./parser.ts";
+import { type TarEntry, parseTar } from "./parser.js";
 
 export interface ExtractOptions {
     /**

@@ -4,5 +4,5 @@ export {
     TarParseError,
     type TarEntry,
     type TarEntryType,
-} from "./parser.ts";
-export { extractTarball, gunzip, type ExtractOptions, type ExtractResult } from "./extract.ts";
+} from "./parser.js";
+export { extractTarball, gunzip, type ExtractOptions, type ExtractResult } from "./extract.js";

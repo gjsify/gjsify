@@ -9,7 +9,7 @@ import {
     maxSatisfying,
     minSatisfying,
     validRange,
-} from "./index.ts";
+} from "./index.js";
 
 export default async () => {
     await describe("@gjsify/semver — SemVer", async () => {
