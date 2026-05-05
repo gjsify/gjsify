@@ -9,6 +9,13 @@ import type { Plugin, OnLoadArgs, OnLoadResult, OnLoadOptions } from 'esbuild';
 // as a peer, so eagerly importing this module from a Yarn-PnP consumer that
 // doesn't list `typescript` itself fails with `UNDECLARED_DEPENDENCY` even
 // when `reflection: false` (the default). Defer until the user opts in.
+//
+// `await import()` of @deepkit/type-compiler returns the package's ESM build
+// (its package.json `exports['.'].default` points at `dist/esm/index.js`),
+// so `DkType.DeepkitLoader` resolves directly. For CJS-only virtual modules
+// (e.g. `pnpapi`), `await import()` instead yields `{ default, "module.exports" }`
+// and named accesses are `undefined`. See `@gjsify/resolve-npm/pnp-relay`
+// for that unwrap pattern.
 type DkLoader = { transform: (contents: string, path: string) => string };
 let cachedLoader: Promise<DkLoader> | null = null;
 async function getLoader(): Promise<DkLoader> {

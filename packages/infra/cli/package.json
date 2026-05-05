@@ -26,6 +26,7 @@
         "@gjsify/create-app": "workspace:^",
         "@gjsify/esbuild-plugin-gjsify": "workspace:^",
         "@gjsify/node-polyfills": "workspace:^",
+        "@gjsify/resolve-npm": "workspace:^",
         "@gjsify/web-polyfills": "workspace:^",
         "@yarnpkg/esbuild-plugin-pnp": "^3.0.0-rc.15",
         "cosmiconfig": "^9.0.1",

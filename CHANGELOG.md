@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased] — 2026-05-05 — v0.3.7 PnP-rewriter onLoad ordering fix
+
+### Bug Fixes
+
+* **cli, esbuild-plugin-gjsify, resolve-npm:** the `__filename`/`__dirname` rewriter for CJS code in `node_modules` is now composed INTO the `@yarnpkg/esbuild-plugin-pnp` plugin's `onLoad`, not registered as a parallel `namespace: "pnp"` `onLoad`. Esbuild stops at the first matching `onLoad` and the pnp plugin (registered first) always wins, so the parallel registration never fired — bundles under `nodeLinker: pnp` shipped with no `__filename` injection and crashed at module load with `ReferenceError: __filename is not defined` (typescript.js's `swapCase(__filename)` was the canonical reproducer).
+* **esbuild-plugin-gjsify:** export `rewriteContents` and `getBundleDir` from `@gjsify/esbuild-plugin-gjsify` so the rewriter can be invoked on already-loaded contents from inside another plugin's `onLoad`. The `pnp` namespace `build.onLoad` registration in `registerNodeModulesPathRewrite` was removed — it was dead code.
+
+### Features
+
+* **resolve-npm:** new `@gjsify/resolve-npm/pnp-relay` subpath. Exports `getPnpPlugin({ transformContentsFactory, issuerUrl })` — the gjsify-flavoured PnP plugin previously buried inside `@gjsify/cli`. The factory pattern lets callers wire a per-build content transformer (e.g. the `__filename` rewriter) directly into the pnp `onLoad`. `issuerUrl` anchors the relay on the caller's installation so transitive `@gjsify/*` polyfills resolve through whoever called `getPnpPlugin`. `@gjsify/cli`'s `actions/build.ts` now delegates to this helper.
+
+### Tests
+
+* **e2e:** added a `__filename` injection regression to `tests/e2e/cli-only-pnp/run.mjs` (5/5 ✓). Bundles a minimal CJS module from a `node_modules`-named fixtures directory that uses `__filename`, runs the bundle under `gjs`, and asserts `__filename` resolves to the fixture path. Reverting the rewriter composition (or returning `undefined` from `transformContents`) makes the test fail with the original error message.
+
+### Internal
+
+* **packages/infra/cli:** add `@gjsify/resolve-npm` as a direct dep (was previously only reached transitively via `@gjsify/esbuild-plugin-gjsify`'s re-export).
+* **esbuild-plugin-deepkit:** comment now explicitly distinguishes the dual-format ESM path (`@deepkit/type-compiler`'s `default` export) from the CJS-virtual case (`pnpapi`) — pointer to `pnp-relay.mjs` for the `.default ?? mod` unwrap pattern.
+
 ## [0.3.6](https://github.com/gjsify/gjsify/compare/v0.3.5...v0.3.6) (2026-05-05)
 
 ### Bug Fixes

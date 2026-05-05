@@ -12,6 +12,10 @@
             "default": "./lib/index.mjs"
         },
         "./globals-map": "./lib/globals-map.mjs",
+        "./pnp-relay": {
+            "types": "./lib/pnp-relay.d.ts",
+            "default": "./lib/pnp-relay.mjs"
+        },
         "./package.json": "./package.json"
     },
     "scripts": {
@@ -25,5 +29,8 @@
         "node",
         "npm",
         "alias"
-    ]
+    ],
+    "dependencies": {
+        "@yarnpkg/esbuild-plugin-pnp": "^3.0.0-rc.15"
+    }
 }
