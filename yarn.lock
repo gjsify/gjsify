@@ -1948,6 +1948,7 @@ __metadata:
     "@gjsify/create-app": "workspace:^"
     "@gjsify/esbuild-plugin-gjsify": "workspace:^"
     "@gjsify/node-polyfills": "workspace:^"
+    "@gjsify/resolve-npm": "workspace:^"
     "@gjsify/web-polyfills": "workspace:^"
     "@types/yargs": "npm:^17.0.35"
     "@yarnpkg/esbuild-plugin-pnp": "npm:^3.0.0-rc.15"
@@ -3794,6 +3795,8 @@ __metadata:
 "@gjsify/resolve-npm@workspace:^, @gjsify/resolve-npm@workspace:packages/infra/resolve-npm":
   version: 0.0.0-use.local
   resolution: "@gjsify/resolve-npm@workspace:packages/infra/resolve-npm"
+  dependencies:
+    "@yarnpkg/esbuild-plugin-pnp": "npm:^3.0.0-rc.15"
   languageName: unknown
   linkType: soft
 

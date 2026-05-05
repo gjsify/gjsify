@@ -31,28 +31,40 @@ import type { OnLoadArgs, OnLoadResult, PluginBuild } from 'esbuild';
 // a second declaration causes a duplicate-binding error.  After import.meta.url
 // is rewritten, those self-declarations resolve to the correct path automatically.
 
+export const REWRITE_FILTER = /\.(m?js|cjs|[cm]?tsx?)$/;
 const DIRNAME_DECL_RE = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/;
 const FILENAME_DECL_RE = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/;
 
-function getBundleDir(build: PluginBuild): string {
+/** True when the rewriter wants to look at this path — node_modules + supported ext. */
+export function shouldRewrite(path: string): boolean {
+    return path.includes('node_modules') && REWRITE_FILTER.test(path);
+}
+
+/** Compute the directory where the build's outfile/outdir lives. */
+export function getBundleDir(build: PluginBuild): string {
     const outFile = build.initialOptions.outfile
         ?? join(build.initialOptions.outdir ?? '.', 'bundle.mjs');
     return dirname(resolve(outFile));
 }
 
-async function loadAndRewrite(args: OnLoadArgs, build: PluginBuild): Promise<OnLoadResult | undefined> {
-    if (!args.path.includes('node_modules')) return undefined;
-    let src: string;
-    try {
-        src = await readFile(args.path, 'utf8');
-    } catch (err) {
-        // Yarn PnP virtual paths (e.g. `pnp:/.../typescript-zip.zip/...` or
-        // unhydrated `.zip/...` cache paths) are not readable via Node's
-        // native fs. Fall through so the @yarnpkg/esbuild-plugin-pnp's own
-        // onLoad (which knows how to read zip-cached files) handles them.
-        // Without this guard the plugin chain aborts the whole build.
-        return undefined;
-    }
+/**
+ * Pure rewriter: takes the source contents of a node_modules file and returns
+ * a rewritten OnLoadResult, or `undefined` when the file doesn't reference any
+ * of the patterns we rewrite. Caller is responsible for reading the file via
+ * a runtime that understands its namespace (regular fs, PnP zip-aware fs, ...).
+ *
+ * Centralised so both:
+ *   - the gjsify plugin's `onLoad` for the `file` namespace, and
+ *   - the @yarnpkg/esbuild-plugin-pnp custom `onLoad` for the `pnp` namespace
+ * apply the same transformation, regardless of which loader read the bytes.
+ */
+export function rewriteContents(
+    args: { path: string },
+    src: string,
+    bundleDir: string,
+): OnLoadResult | undefined {
+    if (!shouldRewrite(args.path)) return undefined;
+
     const hasMetaUrl = src.includes('import.meta.url');
     const hasDirname = src.includes('__dirname');
     const hasFilename = src.includes('__filename');
@@ -65,7 +77,6 @@ async function loadAndRewrite(args: OnLoadArgs, build: PluginBuild): Promise<OnL
     let contents = src;
 
     if (hasMetaUrl) {
-        const bundleDir = getBundleDir(build);
         const relPath = relative(bundleDir, args.path);
         const relDir = relative(bundleDir, dir) || '.';
         const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
@@ -87,14 +98,28 @@ async function loadAndRewrite(args: OnLoadArgs, build: PluginBuild): Promise<OnL
     return { contents, loader, resolveDir: dir };
 }
 
+async function loadAndRewrite(args: OnLoadArgs, build: PluginBuild): Promise<OnLoadResult | undefined> {
+    if (!args.path.includes('node_modules')) return undefined;
+    let src: string;
+    try {
+        src = await readFile(args.path, 'utf8');
+    } catch {
+        // Some Yarn PnP virtual paths are not readable via Node's native fs in
+        // every runtime context. Fall through so the @yarnpkg/esbuild-plugin-pnp's
+        // own onLoad (or the wrapped one composed in @gjsify/resolve-npm/pnp-relay)
+        // handles them.
+        return undefined;
+    }
+    return rewriteContents(args, src, getBundleDir(build));
+}
+
 export function registerNodeModulesPathRewrite(build: PluginBuild): void {
-    const filter = /\.(m?js|cjs|[cm]?tsx?)$/;
     // Default "file" namespace covers regular node_modules + workspace files.
-    build.onLoad({ filter }, (args) => loadAndRewrite(args, build));
-    // "pnp" namespace covers zip-cached packages resolved by
-    // @yarnpkg/esbuild-plugin-pnp. Without this, ESM packages in PnP zips
-    // skip our `import.meta.url` rewrite, and CJS packages skip the
-    // `__dirname` / `__filename` injection — leading to runtime
-    // ReferenceError in the bundle (e.g. typescript.js).
-    build.onLoad({ filter, namespace: "pnp" }, (args) => loadAndRewrite(args, build));
+    // The "pnp" namespace is intentionally NOT registered here — esbuild's
+    // first-matching-onLoad rule means @yarnpkg/esbuild-plugin-pnp's own
+    // onLoad always wins (it's registered before this plugin to provide
+    // zip-aware reads). Callers that need PnP rewriting compose
+    // `rewriteContents` into the pnpPlugin's `onLoad` callback directly —
+    // see `@gjsify/resolve-npm/pnp-relay`.
+    build.onLoad({ filter: REWRITE_FILTER }, (args) => loadAndRewrite(args, build));
 }

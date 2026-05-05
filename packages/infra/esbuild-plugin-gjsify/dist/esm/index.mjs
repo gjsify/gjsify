@@ -6407,6 +6407,64 @@ var getJsExtensions = (allowExt) => {
   return extensions;
 };
 
+// src/utils/rewrite-node-modules-paths.ts
+import { dirname, join, relative, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+var REWRITE_FILTER = /\.(m?js|cjs|[cm]?tsx?)$/;
+var DIRNAME_DECL_RE = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/;
+var FILENAME_DECL_RE = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/;
+function shouldRewrite(path6) {
+  return path6.includes("node_modules") && REWRITE_FILTER.test(path6);
+}
+function getBundleDir(build) {
+  const outFile = build.initialOptions.outfile ?? join(build.initialOptions.outdir ?? ".", "bundle.mjs");
+  return dirname(resolve(outFile));
+}
+function rewriteContents(args, src, bundleDir) {
+  if (!shouldRewrite(args.path)) return void 0;
+  const hasMetaUrl = src.includes("import.meta.url");
+  const hasDirname = src.includes("__dirname");
+  const hasFilename = src.includes("__filename");
+  if (!hasMetaUrl && !hasDirname && !hasFilename) return void 0;
+  const dir = dirname(args.path);
+  const dirnameDeclared = DIRNAME_DECL_RE.test(src);
+  const filenameDeclared = FILENAME_DECL_RE.test(src);
+  const preamble = [];
+  let contents = src;
+  if (hasMetaUrl) {
+    const relPath = relative(bundleDir, args.path);
+    const relDir = relative(bundleDir, dir) || ".";
+    const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
+    contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
+    if (hasDirname && !dirnameDeclared) {
+      preamble.push(`var __dirname = new URL(${JSON.stringify(relDir + "/")}, import.meta.url).pathname.replace(/\\/$/, "");`);
+    }
+    if (hasFilename && !filenameDeclared) {
+      preamble.push(`var __filename = ${runtimeFileUrl}.pathname;`);
+    }
+  } else {
+    if (hasDirname && !dirnameDeclared) preamble.push(`var __dirname = ${JSON.stringify(dir)};`);
+    if (hasFilename && !filenameDeclared) preamble.push(`var __filename = ${JSON.stringify(args.path)};`);
+  }
+  if (preamble.length > 0) contents = preamble.join("\n") + "\n" + contents;
+  const ext = args.path.split(".").pop() ?? "js";
+  const loader = ["ts", "mts", "cts", "tsx"].includes(ext) ? "ts" : "js";
+  return { contents, loader, resolveDir: dir };
+}
+async function loadAndRewrite(args, build) {
+  if (!args.path.includes("node_modules")) return void 0;
+  let src;
+  try {
+    src = await readFile(args.path, "utf8");
+  } catch {
+    return void 0;
+  }
+  return rewriteContents(args, src, getBundleDir(build));
+}
+function registerNodeModulesPathRewrite(build) {
+  build.onLoad({ filter: REWRITE_FILTER }, (args) => loadAndRewrite(args, build));
+}
+
 // ../esbuild-plugin-alias/dist/esm/index.mjs
 import { existsSync } from "fs";
 import { realpath } from "fs/promises";
@@ -13309,7 +13367,7 @@ var {
 } = getIpcExport();
 
 // ../esbuild-plugin-blueprint/dist/esm/index.mjs
-import { resolve } from "path";
+import { resolve as resolve2 } from "path";
 function blueprintPlugin() {
   return {
     name: "blueprint",
@@ -13322,7 +13380,7 @@ function blueprintPlugin() {
         };
       });
       build.onLoad({ filter: /\.blp$/, namespace: "blueprint" }, async (args) => {
-        const fullPath = resolve(args.pluginData.resolveDir, args.path);
+        const fullPath = resolve2(args.pluginData.resolveDir, args.path);
         const { stdout } = await execa("blueprint-compiler", ["compile", fullPath]);
         return {
           contents: `export default ${JSON.stringify(stdout)};`,
@@ -13481,59 +13539,6 @@ function registerToCommonJSPatch(build) {
     } catch {
     }
   });
-}
-
-// src/utils/rewrite-node-modules-paths.ts
-import { dirname, join, relative, resolve as resolve2 } from "node:path";
-import { readFile } from "node:fs/promises";
-var DIRNAME_DECL_RE = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/;
-var FILENAME_DECL_RE = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/;
-function getBundleDir(build) {
-  const outFile = build.initialOptions.outfile ?? join(build.initialOptions.outdir ?? ".", "bundle.mjs");
-  return dirname(resolve2(outFile));
-}
-async function loadAndRewrite(args, build) {
-  if (!args.path.includes("node_modules")) return void 0;
-  let src;
-  try {
-    src = await readFile(args.path, "utf8");
-  } catch (err) {
-    return void 0;
-  }
-  const hasMetaUrl = src.includes("import.meta.url");
-  const hasDirname = src.includes("__dirname");
-  const hasFilename = src.includes("__filename");
-  if (!hasMetaUrl && !hasDirname && !hasFilename) return void 0;
-  const dir = dirname(args.path);
-  const dirnameDeclared = DIRNAME_DECL_RE.test(src);
-  const filenameDeclared = FILENAME_DECL_RE.test(src);
-  const preamble = [];
-  let contents = src;
-  if (hasMetaUrl) {
-    const bundleDir = getBundleDir(build);
-    const relPath = relative(bundleDir, args.path);
-    const relDir = relative(bundleDir, dir) || ".";
-    const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
-    contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
-    if (hasDirname && !dirnameDeclared) {
-      preamble.push(`var __dirname = new URL(${JSON.stringify(relDir + "/")}, import.meta.url).pathname.replace(/\\/$/, "");`);
-    }
-    if (hasFilename && !filenameDeclared) {
-      preamble.push(`var __filename = ${runtimeFileUrl}.pathname;`);
-    }
-  } else {
-    if (hasDirname && !dirnameDeclared) preamble.push(`var __dirname = ${JSON.stringify(dir)};`);
-    if (hasFilename && !filenameDeclared) preamble.push(`var __filename = ${JSON.stringify(args.path)};`);
-  }
-  if (preamble.length > 0) contents = preamble.join("\n") + "\n" + contents;
-  const ext = args.path.split(".").pop() ?? "js";
-  const loader = ["ts", "mts", "cts", "tsx"].includes(ext) ? "ts" : "js";
-  return { contents, loader, resolveDir: dir };
-}
-function registerNodeModulesPathRewrite(build) {
-  const filter = /\.(m?js|cjs|[cm]?tsx?)$/;
-  build.onLoad({ filter }, (args) => loadAndRewrite(args, build));
-  build.onLoad({ filter, namespace: "pnp" }, (args) => loadAndRewrite(args, build));
 }
 
 // src/app/gjs.ts
@@ -13767,15 +13772,20 @@ export {
   ALIASES_WEB_FOR_NODE,
   EXTERNALS_NODE,
   EXTERNALS_NPM,
+  REWRITE_FILTER,
   index_default as default,
   externalNPM,
   externalNode,
   getAliasesForGjs,
   getAliasesForNode,
+  getBundleDir,
   getJsExtensions,
   gjsifyPlugin,
   globToEntryPoints,
-  setNodeAliasPrefix
+  registerNodeModulesPathRewrite,
+  rewriteContents,
+  setNodeAliasPrefix,
+  shouldRewrite
 };
 /*! Bundled license information:
 

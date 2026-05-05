@@ -7,127 +7,32 @@ import {
 	writeRegisterInjectFile,
 	detectAutoGlobals,
 } from "@gjsify/esbuild-plugin-gjsify/globals";
-import { dirname, extname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { getBundleDir, rewriteContents } from "@gjsify/esbuild-plugin-gjsify";
+import { getPnpPlugin } from "@gjsify/resolve-npm/pnp-relay";
+import { dirname, extname } from "node:path";
 import { chmod, readFile, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { createRequire } from "node:module";
 
 const GJS_SHEBANG = "#!/usr/bin/env -S gjs -m\n";
 
-/** Walk up from dir until .pnp.cjs is found; return its directory or null. */
-function findPnpRoot(dir: string): string | null {
-	let current = dir;
-	while (true) {
-		if (existsSync(join(current, ".pnp.cjs"))) return current;
-		const parent = dirname(current);
-		if (parent === current) return null;
-		current = parent;
-	}
-}
-
 /**
- * If the current project uses Yarn PnP, return the official
- * @yarnpkg/esbuild-plugin-pnp plugin so esbuild can resolve
- * modules from zip archives without manual extraction.
+ * Resolve the gjsify-flavoured PnP plugin. Anchors the relay on this file's
+ * URL so transitive `@gjsify/*` polyfills (reached via @gjsify/cli's deps on
+ * @gjsify/{node,web}-polyfills) are resolvable for external consumers without
+ * each one having to be a direct devDep.
  *
- * Custom onResolve: when the project's PnP context throws
- * UNDECLARED_DEPENDENCY, retry via a two-hop relay:
- *   1. @gjsify/cli context (direct dep of the project using gjsify build)
- *   2. @gjsify/node-polyfills context (direct dep of @gjsify/cli, has all
- *      node polyfills as direct deps including @gjsify/node-globals)
- *   3. @gjsify/web-polyfills context (direct dep of @gjsify/cli, has all
- *      web polyfills as direct deps including @gjsify/fetch, @gjsify/abort-controller)
- * For bare specifiers that the gjsify alias plugin maps (e.g. `abort-controller`),
- * fall through so that plugin can handle the transformation first.
+ * Wires the @gjsify/esbuild-plugin-gjsify rewriter (`__filename`/`__dirname`
+ * injection for CJS code in node_modules) into the pnp plugin's onLoad —
+ * esbuild stops at the first matching onLoad, so the rewriter MUST run from
+ * inside the pnp plugin's onLoad rather than as a separate registration.
  */
-async function getPnpPlugin(): Promise<Plugin | null> {
-	if (!findPnpRoot(process.cwd())) return null;
-	try {
-		const { pnpPlugin } = await import("@yarnpkg/esbuild-plugin-pnp");
-
-		// gjsify's own file path — @gjsify/cli has node-polyfills + web-polyfills
-		// as direct deps, so we can resolve them as relay issuers from here.
-		const gjsifyIssuer = fileURLToPath(import.meta.url);
-
-		// Two-hop relay: node-polyfills and web-polyfills have all individual
-		// @gjsify/* packages as direct deps. Resolving from their package.json
-		// paths allows PnP to use them as issuers — sub-path imports
-		// (`@gjsify/foo/register/bar`) then resolve through the polyfill's
-		// dep graph. Resolve to package.json (always present, exports-agnostic)
-		// rather than main/module (the polyfills meta packages have no main).
-		const requireFromGjsify = createRequire(gjsifyIssuer);
-		const relayIssuers: string[] = [];
-		for (const pkg of ["@gjsify/node-polyfills", "@gjsify/web-polyfills"]) {
-			try {
-				relayIssuers.push(requireFromGjsify.resolve(`${pkg}/package.json`));
-			} catch {
-				// polyfills package not in dep tree — relay won't cover it
-			}
-		}
-
-		// pnpapi is a virtual module injected by Yarn PnP at runtime.
-		type PnpApi = {
-			resolveRequest: (req: string, issuer: string) => string | null;
-		};
-		let pnpApi: PnpApi | null = null;
-		try {
-			// pnpapi has no npm package — it is a virtual CJS module injected by
-			// Yarn PnP. `await import()` of a CJS module yields the ESM namespace
-			// `{ default, "module.exports" }`, NOT the exports object — so
-			// `mod.resolveRequest` is `undefined`. Unwrap `.default` (the CJS
-			// exports) before use, falling back to the namespace itself for ESM
-			// builds of pnpapi (none today, but defensive).
-			// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-			// @ts-expect-error
-			const mod = await import("pnpapi");
-			pnpApi = ((mod as { default?: PnpApi }).default ?? mod) as PnpApi;
-		} catch {
-			// Not in a PnP runtime (shouldn't happen since findPnpRoot passed)
-		}
-
-		return pnpPlugin({
-			onResolve: async (args, { resolvedPath, error, watchFiles }) => {
-				if (resolvedPath !== null) {
-					return { namespace: "pnp", path: resolvedPath, watchFiles };
-				}
-				if (
-					(error as { pnpCode?: string } | null)?.pnpCode ===
-					"UNDECLARED_DEPENDENCY"
-				) {
-					if (pnpApi !== null) {
-						// Try @gjsify/cli context first (covers @gjsify/* that are
-						// direct deps of cli's own deps — unlikely but fast check).
-						try {
-							const rp = pnpApi.resolveRequest(args.path, gjsifyIssuer);
-							if (rp !== null)
-								return { namespace: "pnp", path: rp, watchFiles };
-						} catch {}
-						// Two-hop relay: resolve from node-polyfills / web-polyfills context
-						// which have the individual @gjsify/* packages as direct deps.
-						for (const relayIssuer of relayIssuers) {
-							try {
-								const rp = pnpApi.resolveRequest(args.path, relayIssuer);
-								if (rp !== null)
-									return { namespace: "pnp", path: rp, watchFiles };
-							} catch {}
-						}
-					}
-					// Fall through — bare aliases (abort-controller, fetch/register/*)
-					// are handled by the gjsify alias plugin after this returns null,
-					// then the re-resolved @gjsify/* path goes through this hook again.
-					return null;
-				}
-				return {
-					external: true,
-					errors: error ? [{ text: error.message }] : [],
-					watchFiles,
-				};
-			},
-		});
-	} catch {
-		return null;
-	}
+async function buildPnpPlugin(): Promise<Plugin | null> {
+	return getPnpPlugin({
+		issuerUrl: import.meta.url,
+		transformContentsFactory: (build) => {
+			const bundleDir = getBundleDir(build);
+			return (args, contents) => rewriteContents(args, contents, bundleDir);
+		},
+	});
 }
 
 export class BuildAction {
@@ -156,7 +61,7 @@ export class BuildAction {
 		const multipleBuilds =
 			moduleOutdir && mainOutdir && moduleOutdir !== mainOutdir;
 
-		const pnpPlugin = await getPnpPlugin();
+		const pnpPlugin = await buildPnpPlugin();
 		const pnpPlugins: Plugin[] = pnpPlugin ? [pnpPlugin] : [];
 
 		const results: BuildResult[] = [];
@@ -368,7 +273,7 @@ export class BuildAction {
 
 		const { autoMode, extras } = this.parseGlobalsValue(globals);
 
-		const pnpPlugin = await getPnpPlugin();
+		const pnpPlugin = await buildPnpPlugin();
 		const pnpPlugins: Plugin[] = pnpPlugin ? [pnpPlugin] : [];
 
 		// --- Auto mode (with optional extras): iterative multi-pass build ---
