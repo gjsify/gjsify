@@ -3841,7 +3841,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/rolldown-plugin-deepkit@workspace:packages/infra/rolldown-plugin-deepkit":
+"@gjsify/rolldown-plugin-deepkit@workspace:^, @gjsify/rolldown-plugin-deepkit@workspace:packages/infra/rolldown-plugin-deepkit":
   version: 0.0.0-use.local
   resolution: "@gjsify/rolldown-plugin-deepkit@workspace:packages/infra/rolldown-plugin-deepkit"
   dependencies:
@@ -3861,7 +3861,18 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/rolldown-plugin-gjsify@workspace:packages/infra/rolldown-plugin-gjsify"
   dependencies:
+    "@gjsify/console": "workspace:^"
+    "@gjsify/resolve-npm": "workspace:^"
+    "@gjsify/rolldown-plugin-deepkit": "workspace:^"
+    "@gjsify/rolldown-plugin-pnp": "workspace:^"
+    "@gjsify/vite-plugin-blueprint": "workspace:^"
+    "@rollup/plugin-alias": "npm:^5.1.1"
+    "@rollup/pluginutils": "npm:^5.1.4"
     "@types/node": "npm:^25.6.0"
+    acorn: "npm:^8.14.0"
+    acorn-walk: "npm:^8.3.4"
+    fast-glob: "npm:^3.3.3"
+    lightningcss: "npm:^1.32.0"
     rolldown: "npm:^1.0.0-rc.18"
     typescript: "npm:^6.0.3"
   peerDependencies:
@@ -3872,7 +3883,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/rolldown-plugin-pnp@workspace:packages/infra/rolldown-plugin-pnp":
+"@gjsify/rolldown-plugin-pnp@workspace:^, @gjsify/rolldown-plugin-pnp@workspace:packages/infra/rolldown-plugin-pnp":
   version: 0.0.0-use.local
   resolution: "@gjsify/rolldown-plugin-pnp@workspace:packages/infra/rolldown-plugin-pnp"
   dependencies:
@@ -4245,7 +4256,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/vite-plugin-blueprint@workspace:packages/infra/vite-plugin-blueprint":
+"@gjsify/vite-plugin-blueprint@workspace:^, @gjsify/vite-plugin-blueprint@workspace:packages/infra/vite-plugin-blueprint":
   version: 0.0.0-use.local
   resolution: "@gjsify/vite-plugin-blueprint@workspace:packages/infra/vite-plugin-blueprint"
   dependencies:
@@ -6753,7 +6764,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rollup/pluginutils@npm:^5.1.0, @rollup/pluginutils@npm:^5.3.0":
+"@rollup/plugin-alias@npm:^5.1.1":
+  version: 5.1.1
+  resolution: "@rollup/plugin-alias@npm:5.1.1"
+  peerDependencies:
+    rollup: ^1.20.0||^2.0.0||^3.0.0||^4.0.0
+  peerDependenciesMeta:
+    rollup:
+      optional: true
+  checksum: 10/1f1ab178aa2726c81e2ae1709f73b3688491f14655b97c54d43bea35ac3f783f8855d701d1e5eac234e3ffe89fef56ce975726b036a97049fefa9b514686e55c
+  languageName: node
+  linkType: hard
+
+"@rollup/pluginutils@npm:^5.1.0, @rollup/pluginutils@npm:^5.1.4, @rollup/pluginutils@npm:^5.3.0":
   version: 5.3.0
   resolution: "@rollup/pluginutils@npm:5.3.0"
   dependencies:
@@ -7958,7 +7981,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"acorn-walk@npm:^8.1.1, acorn-walk@npm:^8.3.5":
+"acorn-walk@npm:^8.1.1, acorn-walk@npm:^8.3.4, acorn-walk@npm:^8.3.5":
   version: 8.3.5
   resolution: "acorn-walk@npm:8.3.5"
   dependencies:
@@ -7976,7 +7999,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"acorn@npm:^8.0.0, acorn@npm:^8.11.0, acorn@npm:^8.16.0, acorn@npm:^8.4.1":
+"acorn@npm:^8.0.0, acorn@npm:^8.11.0, acorn@npm:^8.14.0, acorn@npm:^8.16.0, acorn@npm:^8.4.1":
   version: 8.16.0
   resolution: "acorn@npm:8.16.0"
   bin:

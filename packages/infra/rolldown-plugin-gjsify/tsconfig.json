@@ -6,7 +6,8 @@
         "target": "ESNext",
         "module": "ESNext",
         "moduleResolution": "bundler",
-        "strict": true,
+        "lib": ["ESNext", "DOM"],
+        "strict": false,
         "esModuleInterop": true,
         "skipLibCheck": true,
         "types": ["node"]

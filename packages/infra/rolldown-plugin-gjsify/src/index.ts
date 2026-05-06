@@ -1,10 +1,10 @@
-// Skeleton — implementation lands in a follow-up commit.
-// See plan: /home/jumplink/.claude/plans/ich-m-chte-gjsify-vollst-ndig-replicated-wind.md
+// Public re-exports for `@gjsify/rolldown-plugin-gjsify`.
+//
+// The orchestrator (`gjsifyPlugin`) and platform-specific factories
+// (`gjsifyForGjs`, `gjsifyForNode`, `gjsifyForBrowser`) land in a follow-up
+// commit on this branch. This file currently exports the bundler-agnostic
+// type and utility surface so consumers can already depend on us.
 
-export interface GjsifyPluginOptions {
-    app?: 'gjs' | 'node' | 'browser';
-}
-
-export function gjsifyPlugin(_options: GjsifyPluginOptions = {}): unknown {
-    throw new Error('@gjsify/rolldown-plugin-gjsify: not implemented yet');
-}
+export * from './types/index.js';
+export * from './utils/index.js';
+export * from '@gjsify/resolve-npm';
