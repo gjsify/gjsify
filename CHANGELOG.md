@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.10](https://github.com/gjsify/gjsify/compare/v0.3.9...v0.3.10) (2026-05-06)
+
+### Features
+
+* **esbuild-plugin-gjsify:** inline static readFileSync at build time ([#74](https://github.com/gjsify/gjsify/issues/74)) ([784ac8c](https://github.com/gjsify/gjsify/commit/784ac8c54a7f520909b66d049595575a3749e334)), closes [#72](https://github.com/gjsify/gjsify/issues/72)
+
 ## [0.3.9](https://github.com/gjsify/gjsify/compare/v0.3.8...v0.3.9) (2026-05-05)
 
 ### Bug Fixes
