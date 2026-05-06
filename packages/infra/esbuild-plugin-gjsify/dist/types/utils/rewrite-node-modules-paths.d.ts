@@ -14,6 +14,14 @@ export declare function getBundleDir(build: PluginBuild): string;
  *   - the gjsify plugin's `onLoad` for the `file` namespace, and
  *   - the @yarnpkg/esbuild-plugin-pnp custom `onLoad` for the `pnp` namespace
  * apply the same transformation, regardless of which loader read the bytes.
+ *
+ * Pipeline:
+ *   1. inline static FS reads (build-time evaluation of `readFileSync(new
+ *      URL(<lit>, import.meta.url), "utf8")` and friends)
+ *   2. classify the remaining import.meta.url / __dirname / __filename uses
+ *      and inject a per-file preamble
+ *   3. rewrite import.meta.url tokens (only in the regular esm-relative case;
+ *      zip-resident files keep their bare import.meta.url)
  */
 export declare function rewriteContents(args: {
     path: string;
