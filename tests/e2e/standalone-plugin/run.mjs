@@ -1,6 +1,6 @@
-// E2E test for standalone @gjsify/esbuild-plugin-gjsify usage.
-// Simulates a user writing their own esbuild config with the plugin.
-// The user installs esbuild + the plugin + @gjsify/node-polyfills.
+// E2E test for standalone `@gjsify/rolldown-plugin-gjsify` usage.
+// Simulates a user writing their own Rolldown config with the orchestrator.
+// The user installs rolldown + the plugin + @gjsify/node-polyfills.
 // Requires: yarn build (monorepo must be built first)
 
 import { describe, it, before, after } from 'node:test';
@@ -15,7 +15,7 @@ import {
   setupProject,
 } from '../helpers.mjs';
 
-describe('standalone esbuild-plugin E2E', { timeout: 10 * 60 * 1000 }, () => {
+describe('standalone rolldown-plugin E2E', { timeout: 10 * 60 * 1000 }, () => {
   let tmpDir;
   let tarballsDir;
   let tarballMap;
@@ -30,16 +30,25 @@ describe('standalone esbuild-plugin E2E', { timeout: 10 * 60 * 1000 }, () => {
     projectDir = join(tmpDir, 'plugin-project');
     mkdirSync(join(projectDir, 'src'), { recursive: true });
 
-    // Custom esbuild config using the plugin directly
-    writeFileSync(join(projectDir, 'esbuild.config.mjs'),
-      "import { build } from 'esbuild';\n" +
-      "import { gjsifyPlugin } from '@gjsify/esbuild-plugin-gjsify';\n" +
+    // Custom Rolldown config using the orchestrator plugin directly.
+    // Mirrors what `gjsify build` does internally — the orchestrator
+    // returns `{ options, plugins }` which the user composes with
+    // `rolldown(...)` + `.write()` + `.close()`.
+    writeFileSync(join(projectDir, 'rolldown.config.mjs'),
+      "import { rolldown } from 'rolldown';\n" +
+      "import { gjsifyPlugin } from '@gjsify/rolldown-plugin-gjsify';\n" +
       "\n" +
-      "await build({\n" +
-      "    entryPoints: ['src/index.ts'],\n" +
-      "    outfile: 'dist/index.js',\n" +
-      "    plugins: [gjsifyPlugin({ app: 'gjs' })],\n" +
-      "});\n"
+      "const cfg = await gjsifyPlugin(\n" +
+      "    { input: 'src/index.ts', output: { file: 'dist/index.js' } },\n" +
+      "    { app: 'gjs' },\n" +
+      ");\n" +
+      "\n" +
+      "const build = await rolldown({ ...cfg.options, plugins: cfg.plugins });\n" +
+      "try {\n" +
+      "    await build.write(cfg.options.output ?? {});\n" +
+      "} finally {\n" +
+      "    await build.close();\n" +
+      "}\n"
     );
 
     // Source file with console + Node.js imports
@@ -48,15 +57,15 @@ describe('standalone esbuild-plugin E2E', { timeout: 10 * 60 * 1000 }, () => {
       "console.log(path.join('hello', 'world'));\n"
     );
 
-    // Install esbuild + plugin + polyfills (no CLI!)
+    // Install rolldown + plugin + polyfills (no CLI!)
     setupProject(projectDir, {
       name: 'test-standalone-plugin',
       version: '0.1.0',
       type: 'module',
       private: true,
       dependencies: {
-        'esbuild': '^0.27.4',
-        '@gjsify/esbuild-plugin-gjsify': '^0.1.0',
+        'rolldown': '^1.0.0-rc.18',
+        '@gjsify/rolldown-plugin-gjsify': '^0.1.0',
         '@gjsify/node-polyfills': '^0.1.0',
       },
     }, tarballsDir, tarballMap);
@@ -67,7 +76,7 @@ describe('standalone esbuild-plugin E2E', { timeout: 10 * 60 * 1000 }, () => {
   });
 
   it('builds with standalone plugin + polyfills installed', () => {
-    execSync('node esbuild.config.mjs', {
+    execSync('node rolldown.config.mjs', {
       cwd: projectDir,
       stdio: 'pipe',
       timeout: 60 * 1000,
