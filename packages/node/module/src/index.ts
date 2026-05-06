@@ -6,6 +6,7 @@ import '@girs/gjs';
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { resolve as resolvePath, readJSON } from '@gjsify/utils';
+import { findPnpManifest, loadPnpManifest, resolveBareViaPnp } from './pnp.js';
 
 export const builtinModules = [
   'assert',
@@ -136,6 +137,23 @@ function fileUrlToPath(filenameOrURL: string | URL): string {
 }
 
 /**
+ * Try resolving a bare specifier through a Yarn PnP manifest (`.pnp.cjs`)
+ * sitting above `callerDir`. Returns null when no manifest is found, or when
+ * PnP can't resolve the request (e.g. the dep isn't listed in the caller
+ * package's `packageDependencies`). Callers fall back to the node_modules walk.
+ */
+function resolveBareViaPnpFromCaller(id: string, callerDir: string): Gio.File | null {
+  const pnpPath = findPnpManifest(callerDir);
+  if (!pnpPath) return null;
+  const manifest = loadPnpManifest(pnpPath);
+  if (!manifest) return null;
+  const resolved = resolveBareViaPnp(manifest, id, callerDir);
+  if (!resolved) return null;
+  const file = Gio.File.new_for_path(resolved);
+  return file.query_exists(null) ? file : null;
+}
+
+/**
  * Resolve a bare package specifier by walking ALL ancestor node_modules dirs.
  * Mirrors Node.js module resolution: try nearest node_modules first, then each
  * ancestor — so a package in a parent node_modules is found even when a closer
@@ -171,8 +189,11 @@ function resolveModulePath(id: string, callerDir: string): string {
   } else if (id.startsWith('.')) {
     file = resolvePath(callerDir, id);
   } else {
-    // Bare specifier: walk all ancestor node_modules (Node.js resolution algorithm)
-    file = resolveInNodeModules(id, callerDir);
+    // Bare specifier: try Yarn PnP first (for PnP-built workspaces where no
+    // node_modules/ tree exists on disk), then fall back to the standard
+    // node_modules walk.
+    const pnpFile = resolveBareViaPnpFromCaller(id, callerDir);
+    file = pnpFile ?? resolveInNodeModules(id, callerDir);
   }
 
   // Extension fallback for absolute/relative paths (bare specifiers handled in resolveInNodeModules)
