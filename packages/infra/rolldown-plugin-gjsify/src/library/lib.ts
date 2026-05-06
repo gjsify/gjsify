@@ -39,14 +39,31 @@ export const setupLib = async (input: LibFactoryInput): Promise<LibBuildConfig> 
     const exclude = input.pluginOptions.exclude ?? [];
     const entryPoints = await globToEntryPoints(input.input, exclude);
 
+    // Derive `preserveModulesRoot` from the common ancestor of every
+    // resolved entry. Workspaces use various roots (`src/`, `src/ts/`,
+    // `lib/`); without stripping the right one, Rolldown emits paths
+    // like `lib/esm/<root>/<file>.js` instead of `lib/esm/<file>.js`,
+    // which doesn't match the package.json `exports` map.
+    const preserveModulesRoot = computeCommonRoot(entryPoints);
+
     const aliasMap = {
         ...(input.pluginOptions.aliases ?? {}),
         ...(input.userAliases ?? {}),
     };
 
+    // Library mode keeps all third-party / workspace imports as-is so the
+    // emitted package re-exports its dep tree by reference. Rolldown's
+    // default behaviour would inline workspace packages into the output
+    // directory; we mark anything not starting with `./` or `/` as external.
+    const external = (id: string): boolean => {
+        if (id.startsWith('./') || id.startsWith('../') || id.startsWith('/')) return false;
+        return true;
+    };
+
     const options: RolldownOptions = {
         input: entryPoints,
         platform: 'neutral',
+        external,
         resolve: {
             mainFields: format === 'esm' ? ['module', 'main'] : ['main'],
             conditionNames: format === 'esm' ? ['module', 'import'] : ['require'],
@@ -58,6 +75,10 @@ export const setupLib = async (input: LibFactoryInput): Promise<LibBuildConfig> 
             // Library mode = preserve module structure (multi-file output,
             // imports resolved but not bundled).
             preserveModules: true,
+            // Strip the source root from the emitted paths. Without this,
+            // Rolldown keeps the full project-relative path. The root is
+            // computed from the common ancestor of resolved entries.
+            preserveModulesRoot,
             minify: false,
             sourcemap: false,
         },
@@ -77,6 +98,40 @@ export const setupLib = async (input: LibFactoryInput): Promise<LibBuildConfig> 
 
     return { options, plugins };
 };
+
+/**
+ * Compute the common-ancestor directory of a set of entry paths so
+ * Rolldown's `preserveModulesRoot` strips the right prefix from emitted
+ * file paths. Falls back to `'src'` when there are no entries or the
+ * entries don't share a meaningful prefix.
+ */
+function computeCommonRoot(
+    entries: ReturnType<typeof globToEntryPoints> extends Promise<infer T> ? T : never,
+): string {
+    const paths: string[] = entries === undefined
+        ? []
+        : typeof entries === 'string'
+            ? [entries]
+            : Array.isArray(entries)
+                ? entries
+                : Object.values(entries);
+    if (paths.length === 0) return 'src';
+
+    const split = paths.map((p) => p.split('/').filter(Boolean));
+    const head = split[0];
+    let i = 0;
+    for (; i < head.length; i++) {
+        const seg = head[i];
+        if (!split.every((parts) => parts[i] === seg)) break;
+    }
+    if (i === 0) return 'src';
+    // Drop the basename if the common prefix points at a single file.
+    const commonParts = head.slice(0, i);
+    // Heuristic: treat the prefix as a directory when at least one path
+    // has more segments after it.
+    const hasMoreAfter = split.some((parts) => parts.length > i);
+    return hasMoreAfter ? commonParts.join('/') : commonParts.slice(0, -1).join('/') || 'src';
+}
 
 function flattenAliases(map: Record<string, string>): Record<string, string> {
     const out: Record<string, string> = {};
