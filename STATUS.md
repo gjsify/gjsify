@@ -1,6 +1,6 @@
 # gjsify — Project Status
 
-> **Current state (v0.3.13, 2026-05-06):** the gjsify build pipeline produces a single self-contained GJS bundle from arbitrary npm-published packages. `@gjsify/esbuild-plugin-gjsify` rewrites `import.meta.url` / `__dirname` / `__filename` for both regular `node_modules` and Yarn-PnP zip-resident files, and inlines statically-resolvable `readFileSync(new URL(<lit>, import.meta.url), "utf8")` / `readdirSync(URL)` / `existsSync(URL)` / `JSON.parse(readFileSync(...))` compositions at build time. `@gjsify/module`'s `createRequire` is PnP-aware — `require.resolve("<pkg>/package.json")` works in PnP-built bundles. `@gjsify/cli` ships a native install backend (`@gjsify/semver` + `@gjsify/npm-registry` + `@gjsify/tar`) so `gjsify dlx` and `gjsify install` no longer require Node or npm at runtime. First real-world consumer: ts-for-gir's GJS bundle ([gjsify/ts-for-gir#378](https://github.com/gjsify/ts-for-gir/pull/378)) runs unmodified npm packages (TypeScript compiler, TypeDoc, shiki, yargs, ejs, ~100 transitive zip-resident deps) on `gjs -m` with zero ts-for-gir-side workarounds. End-to-end coverage: 9 e2e suites green (`create-app`, `cli-only`, `cli-only-pnp`, `standalone-plugin`, `native-install`, `cli-config`, `inline-static-reads`, `library-multi-build`, `terminal-native`). Pillar tests: Node 291/291, GJS 227/227 (3 ignored). The full v0.3.x history lives in [Release timeline](#release-timeline) below; per-release detail in [`CHANGELOG.md`](./CHANGELOG.md).
+> **Current state (v0.4.0-pre, 2026-05-06):** the gjsify build pipeline produces a single self-contained GJS bundle from arbitrary npm-published packages. **The bundler engine has been migrated from esbuild to Rolldown** (Vite 8's production bundler) — same CLI surface (`gjsify build --app gjs|node|browser --globals auto …`), Rollup-shaped plugins under the hood that also run under Vite for the sister GJS apps. `@gjsify/rolldown-plugin-gjsify` rewrites `import.meta.url` / `__dirname` / `__filename` for both regular `node_modules` and Yarn-PnP zip-resident files, and inlines statically-resolvable `readFileSync(new URL(<lit>, import.meta.url), "utf8")` / `readdirSync(URL)` / `existsSync(URL)` / `JSON.parse(readFileSync(...))` compositions at build time. `--globals auto` retains its iterative multi-pass "after tree-shaking" detection (bundler-agnostic; engine swap preserves the load-bearing invariant). `@gjsify/module`'s `createRequire` is PnP-aware — `require.resolve("<pkg>/package.json")` works in PnP-built bundles. `@gjsify/cli` ships a native install backend (`@gjsify/semver` + `@gjsify/npm-registry` + `@gjsify/tar`) so `gjsify dlx` and `gjsify install` no longer require Node or npm at runtime. First real-world consumer: ts-for-gir's GJS bundle ([gjsify/ts-for-gir#378](https://github.com/gjsify/ts-for-gir/pull/378)) runs unmodified npm packages (TypeScript compiler, TypeDoc, shiki, yargs, ejs, ~100 transitive zip-resident deps) on `gjs -m` with zero ts-for-gir-side workarounds. End-to-end coverage: 9 e2e suites green (`create-app`, `cli-only`, `cli-only-pnp`, `standalone-plugin`, `native-install`, `cli-config`, `inline-static-reads`, `library-multi-build`, `terminal-native`). Pillar tests: Node 291/291, GJS 227/227 (3 ignored). The full v0.3.x history lives in [Release timeline](#release-timeline) below; per-release detail in [`CHANGELOG.md`](./CHANGELOG.md).
 
 ## Release timeline
 
@@ -302,13 +302,12 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 | Package | Function | Status |
 |---------|----------|--------|
-| **@gjsify/cli** | `gjsify build` CLI | Full |
-| **esbuild-plugin-gjsify** | Platform orchestration (GJS/Node/Browser) | Full |
-| **esbuild-plugin-alias** | Module alias resolution | Full |
-| **esbuild-plugin-transform-ext** | Normalize import extensions | Full |
-| **esbuild-plugin-deepkit** | Deepkit type reflection | Full |
-| **esbuild-plugin-blueprint** | Compile `.blp` files via blueprint-compiler→XML | Full |
-| **esbuild-plugin-css** | Bundle `.css` imports (resolve `@import` from node_modules) → JS string | Full |
+| **@gjsify/cli** | `gjsify build` CLI (Rolldown engine) | Full |
+| **rolldown-plugin-gjsify** | Platform orchestration (GJS/Node/Browser/library) | Full |
+| **rolldown-plugin-deepkit** | Deepkit type reflection (`transform`, lazy) | Full |
+| **rolldown-plugin-pnp** | Yarn PnP resolver + relay through polyfill meta-pkgs | Full |
+| **vite-plugin-blueprint** | Compile `.blp` files via blueprint-compiler→XML (Vite/Rollup/Rolldown) | Full |
+| **vite-plugin-gettext** | xgettext/msgfmt/po2json pipeline (Vite/Rollup/Rolldown) | Full |
 | **resolve-npm** | Central alias registry (60+ mappings) | Full |
 | **empty** | Stub module for platform exclusion | Full |
 
@@ -376,6 +375,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ### Completed
 
+- ~~**Bundler migration: esbuild → Rolldown**~~✓ — Engine swap. CLI flag surface preserved (`gjsify build --app gjs|node|browser --globals auto`, `--define`, `--external`, `--alias`, `--shebang`, `--reflection`, `--minify`, `--library`, `--outfile`, `--outdir`, `--format`, `--log-level`, `--console-shim`, `--exclude`, `--exclude-globals`, `--verbose`). Six esbuild-plugin packages → 5 Rollup-shaped plugins (`@gjsify/{rolldown-plugin-gjsify, rolldown-plugin-deepkit, rolldown-plugin-pnp, vite-plugin-blueprint, vite-plugin-gettext}`) that also run under Vite for sister GJS apps. `--globals auto` retains its iterative multi-pass "after tree-shaking" detection (bundler-agnostic, load-bearing per AGENTS.md). One-release deprecation shim maps `.gjsifyrc.js#esbuild` → `.gjsifyrc.js#bundler`. ~46k LoC net deletion (6 plugin packages + 3 obsolete examples + `@yarnpkg/esbuild-plugin-pnp` dep + the `pnp-relay.mjs` workaround). Custom rewriter side-effects now declarative (virtual-entry wrapper for `--app gjs` console-shim + auto-globals injection; `renderChunk(order:'post')` for the GJS process stub; `transform(code, id)` for `import.meta.url` / `__dirname` / `__filename` rewrite — independent from PnP loader, no more first-onLoad-wins folklore). Rolldown-specific deltas: CSS-as-string via `load` hook (Rolldown removed experimental CSS bundling); `inlineDynamicImports: true` for app builds; per-chunk acorn parsing in auto-globals (concatenation broke on duplicate top-level declarations).
 - ~~**`esbuild-plugin-deepkit` reflection default**~~✓ — Changed default from `true` to `false`; opt-in per build. Prevents `function extends()` invalid-JS in TypeScript codebases with methods named `extends`.
 - ~~**`esbuild-plugin-gjsify` GJS target: user inject preservation**~~✓ — Plugin now captures user-supplied `inject` arrays from `.gjsifyrc.js` and merges them alongside the console shim and auto-globals inject instead of discarding them.
 - ~~**`esbuild-plugin-gjsify` GJS target: synchronous process stub banner**~~✓ — Plugin injects a minimal synchronous `globalThis.process` stub via esbuild `banner` (before any module code). Fixes npm packages that access `process.platform` at top-level (glob, path-scurry, readable-stream). The full `@gjsify/process` is still wired up via `--globals auto` for consumers that need the complete API.
@@ -765,48 +765,6 @@ Today's partial-implementation covers DatabaseSync/StatementSync against Node 24
 **Priority: Medium — Phase 2–4 have all landed.**
 
 Promote [examples/dom/webrtc-loopback](examples/dom/webrtc-loopback) to `showcases/dom/webrtc-loopback/` — Media Phase 2/3 and Stats Phase 4 are now complete, making a polished showcase viable. The showcase should demonstrate both data-channel (loopback) and media paths (getUserMedia audio). Four additional private examples exist (`webrtc-dtmf`, `webrtc-states`, `webrtc-trickle-ice`, `webrtc-video`) that could be folded in or referenced. Follow the standard showcase rules: publish as `@gjsify/example-dom-webrtc-loopback`, export `./browser` entry, add as dep in `packages/infra/cli/package.json`.
-
-### Bundler migration — Vite 8 / Rolldown long-term goal
-
-**Priority: Strategic / Long-term — no immediate action; track here so it doesn't get lost.**
-
-The Rollup/Rolldown plugin API is structurally a better fit for what `packages/infra/esbuild-plugin-gjsify/` actually does than esbuild's hooks. Today's load-bearing mechanisms work _around_ esbuild rather than _with_ it:
-
-- **Auto-globals iterative multi-pass** (`utils/auto-globals.ts` + `utils/detect-free-globals.ts`) re-builds N times because esbuild has no native equivalent to Rollup's `@rollup/plugin-inject` (acorn-based identifier→import injection) — it would collapse to one declarative pass.
-- **`__toCommonJS` output patching** (`app/gjs.ts` `onEnd`) only exists because esbuild emits that wrapper for ESM+neutral; Rolldown does not.
-- **Per-file `import.meta.url` rewrite** (`utils/rewrite-node-modules-paths.ts`) routes the original path through `pluginData` because esbuild's `onLoad` does not pass `id` natively; Rollup's `transform(code, id)` does.
-- **Banner ordering** for the synchronous `globalThis.process` stub is sequenced manually; Vite's `enforce: 'pre'/'post'` is declarative.
-- **CSS lowering** (`@gjsify/esbuild-plugin-css` with `target: firefox60` for GTK4 nesting flatten) is hand-rolled; Lightning CSS via Vite is more capable. easy6502 already uses this combo at [easy6502/packages/app-gnome/vite.config.js](../easy6502/packages/app-gnome/vite.config.js).
-
-**Where the win actually lives:**
-
-1. **Plugin API ergonomics** — porting the 8 esbuild plugins removes ~50% of the workaround code (iterative loops, output-shape patches, manual banner sequencing).
-2. **Convergence with consumers** — sister projects already build GJS apps with Vite 8 + `@gjsify/vite-plugin-blueprint` / `@gjsify/vite-plugin-gettext` ([easy6502/packages/app-gnome/](../easy6502/packages/app-gnome/), [pixel-rpg/map-editor/packages/gjs/](../pixel-rpg/map-editor/packages/gjs/)). Right now gjsify-CLI = esbuild while the apps it serves = Vite. Single-stack would ease maintenance + plugin reuse.
-3. **Dev-server / HMR** — entirely new capability for website, playgrounds, examples and (long-term) GJS-side hot-reload. esbuild has no equivalent. Astro reference at `refs/astro/` shows the pattern. Existing groundwork in `examples/gtk/three-geometry-shapes/refs/gjsify-vite/`.
-4. **Code-splitting + dynamic imports** — Rolldown does proper splitting; relevant once `@gjsify/integration-ts-for-gir` style bundles grow.
-5. **Source-map fidelity through chained transforms** — Rollup keeps the chain; relevant for Deepkit + Blueprint + auto-globals stacked transforms.
-
-**Why not now:**
-
-- Rolldown is `1.0.0-rc.18` (April 2026). Output-shape stability is a hard prerequisite for the GJS-specific output post-processing.
-- Yarn-PnP `onResolve` fallthrough, `mainFields`/`conditions` precedence (the `bitfield`/`require` condition fix), and the synchronous-process-stub banner are all portable but each needs explicit Rolldown equivalent + parity test.
-- Engine speed: esbuild remains faster on cold builds. Marginal but real.
-
-**Two-track migration path:**
-
-1. **Now → near-term: build `@gjsify/vite-plugin-gjsify` (consumer-side first).** Ports the platform orchestration of `esbuild-plugin-gjsify` (GJS / Node / Browser targets, externals, `--globals auto`, alias map) to a Rollup-style plugin running inside Vite. Validates all GJS-specific transforms under Rolldown output _without_ touching the gjsify-CLI engine. Companion plugins (`vite-plugin-blueprint`, `vite-plugin-gettext`) already exist and are field-tested in `easy6502`/`pixel-rpg`. Migrate `vite-plugin-blueprint` from `@gjsify/vite-plugin-blueprint` (currently external) into `packages/infra/vite-plugin-blueprint/` so blueprint + alias + transform-ext + css + deepkit all live as a coherent Vite-plugin family alongside the esbuild family.
-2. **When (a) Rolldown 1.0 stable lands AND (b) the Vite-plugin track has parity for the five load-bearing mechanisms above: cut `gjsify build` engine to Rolldown.** The CLI keeps its public surface (`--app gjs|node|browser`, `--globals auto`, `--define`, `--external`, `--alias`); only the underlying bundler swaps. By that point the Rolldown port is routine, not wagering.
-
-**Acceptance criteria for engine-cut readiness:**
-
-- All five load-bearing mechanisms have proven Rolldown equivalents in the consumer-side track.
-- Full integration suite (`webtorrent`, `socket.io`, `streamx`, `autobahn`, `axios`, `mcp-typescript-sdk`, `mcp-inspector-cli`, `ts-for-gir`) passes on Rolldown engine — no regressions.
-- All showcases build + run identically on both engines for at least one release cycle (parallel CI).
-
-**Out-of-scope in this entry:**
-
-- Replacing `esbuild-plugin-deepkit` is independent — `@deepkit/type-compiler` integrates with TypeScript program directly; either plugin host wraps the same compiler. Migrate alongside, not as a blocker.
-- The `gjsify install` future command (separate Open-TODO context) is bundler-agnostic.
 
 ---
 

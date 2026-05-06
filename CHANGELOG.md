@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0-pre](https://github.com/gjsify/gjsify/compare/v0.3.13...v0.4.0-pre) (2026-05-06)
+
+### ⚠ BREAKING CHANGES
+
+* **bundler:** the build engine has been swapped from esbuild to **Rolldown** (Vite 8's production bundler). The CLI flag surface is preserved exactly (`gjsify build --app gjs|node|browser --globals auto …`), but `.gjsifyrc.js`'s `esbuild?: BuildOptions` field is renamed to `bundler?: RolldownOptions`. Setting the old `esbuild` field still works for one release (deprecation warning + key remap); drop in 0.5.0. The 6 esbuild-plugin packages are deleted — replaced by `@gjsify/{rolldown-plugin-gjsify, rolldown-plugin-deepkit, rolldown-plugin-pnp, vite-plugin-blueprint, vite-plugin-gettext}`. The new plugins are Rollup-shaped, so the same packages run under both `gjsify build` and Vite (sister GJS apps).
+
+### Features
+
+* **bundler:** migrate from esbuild to Rolldown ([#82](https://github.com/gjsify/gjsify/issues/82), [#83](https://github.com/gjsify/gjsify/issues/83)). `--globals auto` retains its iterative multi-pass "after tree-shaking" detection (bundler-agnostic invariant per AGENTS.md). Architectural cleanup: `__toCommonJS` patcher deleted (Rolldown emits real ESM); transform-ext plugin deleted (Rolldown library mode emits resolved imports natively); banner ordering declarative via `renderChunk(order: 'post')`; PnP rewriter and PnP loader become independent plugins (no more first-onLoad-wins workaround); CSS-as-string via `load` hook (Rolldown removed experimental CSS bundling).
+
 ## [0.3.13](https://github.com/gjsify/gjsify/compare/v0.3.12...v0.3.13) (2026-05-06)
 
 ### Features
