@@ -17,5 +17,5 @@ export declare function getBundleDir(build: PluginBuild): string;
  */
 export declare function rewriteContents(args: {
     path: string;
-}, src: string, bundleDir: string): OnLoadResult | undefined;
+}, srcInput: string, bundleDir: string): OnLoadResult | undefined;
 export declare function registerNodeModulesPathRewrite(build: PluginBuild): void;

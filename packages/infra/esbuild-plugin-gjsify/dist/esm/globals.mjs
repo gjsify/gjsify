@@ -3180,8 +3180,8 @@ var require_pattern = __commonJS({
     }
     exports.endsWithSlashGlobStar = endsWithSlashGlobStar;
     function isAffectDepthOfReadingPattern(pattern) {
-      const basename = path6.basename(pattern);
-      return endsWithSlashGlobStar(pattern) || isStaticPattern(basename);
+      const basename2 = path6.basename(pattern);
+      return endsWithSlashGlobStar(pattern) || isStaticPattern(basename2);
     }
     exports.isAffectDepthOfReadingPattern = isAffectDepthOfReadingPattern;
     function expandPatternsWithBraceExpansion(patterns) {
@@ -3226,15 +3226,15 @@ var require_pattern = __commonJS({
     exports.removeDuplicateSlashes = removeDuplicateSlashes;
     function partitionAbsoluteAndRelative(patterns) {
       const absolute = [];
-      const relative2 = [];
+      const relative3 = [];
       for (const pattern of patterns) {
         if (isAbsolute(pattern)) {
           absolute.push(pattern);
         } else {
-          relative2.push(pattern);
+          relative3.push(pattern);
         }
       }
-      return [absolute, relative2];
+      return [absolute, relative3];
     }
     exports.partitionAbsoluteAndRelative = partitionAbsoluteAndRelative;
     function isAbsolute(pattern) {
@@ -3655,11 +3655,11 @@ var require_out = __commonJS({
       async.read(path6, getSettings(optionsOrSettingsOrCallback), callback);
     }
     exports.stat = stat;
-    function statSync2(path6, optionsOrSettings) {
+    function statSync3(path6, optionsOrSettings) {
       const settings = getSettings(optionsOrSettings);
       return sync.read(path6, settings);
     }
-    exports.statSync = statSync2;
+    exports.statSync = statSync3;
     function getSettings(settingsOrOptions = {}) {
       if (settingsOrOptions instanceof settings_1.default) {
         return settingsOrOptions;
@@ -4282,26 +4282,26 @@ var require_queue = __commonJS({
       queue.drained = drained;
       return queue;
       function push(value) {
-        var p = new Promise(function(resolve4, reject) {
+        var p = new Promise(function(resolve5, reject) {
           pushCb(value, function(err, result) {
             if (err) {
               reject(err);
               return;
             }
-            resolve4(result);
+            resolve5(result);
           });
         });
         p.catch(noop3);
         return p;
       }
       function unshift(value) {
-        var p = new Promise(function(resolve4, reject) {
+        var p = new Promise(function(resolve5, reject) {
           unshiftCb(value, function(err, result) {
             if (err) {
               reject(err);
               return;
             }
-            resolve4(result);
+            resolve5(result);
           });
         });
         p.catch(noop3);
@@ -4309,15 +4309,15 @@ var require_queue = __commonJS({
       }
       function drained() {
         if (queue.idle()) {
-          return new Promise(function(resolve4) {
-            resolve4();
+          return new Promise(function(resolve5) {
+            resolve5();
           });
         }
         var previousDrain = queue.drain;
-        var p = new Promise(function(resolve4) {
+        var p = new Promise(function(resolve5) {
           queue.drain = function() {
             previousDrain();
-            resolve4();
+            resolve5();
           };
         });
         return p;
@@ -4800,9 +4800,9 @@ var require_stream3 = __commonJS({
         });
       }
       _getStat(filepath) {
-        return new Promise((resolve4, reject) => {
+        return new Promise((resolve5, reject) => {
           this._stat(filepath, this._fsStatSettings, (error, stats) => {
-            return error === null ? resolve4(stats) : reject(error);
+            return error === null ? resolve5(stats) : reject(error);
           });
         });
       }
@@ -4826,10 +4826,10 @@ var require_async5 = __commonJS({
         this._readerStream = new stream_1.default(this._settings);
       }
       dynamic(root, options) {
-        return new Promise((resolve4, reject) => {
+        return new Promise((resolve5, reject) => {
           this._walkAsync(root, options, (error, entries) => {
             if (error === null) {
-              resolve4(entries);
+              resolve5(entries);
             } else {
               reject(error);
             }
@@ -4839,10 +4839,10 @@ var require_async5 = __commonJS({
       async static(patterns, options) {
         const entries = [];
         const stream = this._readerStream.static(patterns, options);
-        return new Promise((resolve4, reject) => {
+        return new Promise((resolve5, reject) => {
           stream.once("error", reject);
           stream.on("data", (entry) => entries.push(entry));
-          stream.once("end", () => resolve4(entries));
+          stream.once("end", () => resolve5(entries));
         });
       }
     };
@@ -5593,12 +5593,12 @@ var require_isexe = __commonJS({
         if (typeof Promise !== "function") {
           throw new TypeError("callback not provided");
         }
-        return new Promise(function(resolve4, reject) {
+        return new Promise(function(resolve5, reject) {
           isexe(path6, options || {}, function(er, is) {
             if (er) {
               reject(er);
             } else {
-              resolve4(is);
+              resolve5(is);
             }
           });
         });
@@ -5664,27 +5664,27 @@ var require_which = __commonJS({
         opt = {};
       const { pathEnv, pathExt, pathExtExe } = getPathInfo(cmd, opt);
       const found = [];
-      const step = (i2) => new Promise((resolve4, reject) => {
+      const step = (i2) => new Promise((resolve5, reject) => {
         if (i2 === pathEnv.length)
-          return opt.all && found.length ? resolve4(found) : reject(getNotFoundError(cmd));
+          return opt.all && found.length ? resolve5(found) : reject(getNotFoundError(cmd));
         const ppRaw = pathEnv[i2];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
         const pCmd = path6.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
-        resolve4(subStep(p, i2, 0));
+        resolve5(subStep(p, i2, 0));
       });
-      const subStep = (p, i2, ii) => new Promise((resolve4, reject) => {
+      const subStep = (p, i2, ii) => new Promise((resolve5, reject) => {
         if (ii === pathExt.length)
-          return resolve4(step(i2 + 1));
+          return resolve5(step(i2 + 1));
         const ext = pathExt[ii];
         isexe(p + ext, { pathExt: pathExtExe }, (er, is) => {
           if (!er && is) {
             if (opt.all)
               found.push(p + ext);
             else
-              return resolve4(p + ext);
+              return resolve5(p + ext);
           }
-          return resolve4(subStep(p, i2, ii + 1));
+          return resolve5(subStep(p, i2, ii + 1));
         });
       });
       return cb ? step(0).then((res) => cb(null, res), cb) : step(0);
@@ -12928,8 +12928,348 @@ var getJsExtensions = (allowExt) => {
 };
 
 // src/utils/rewrite-node-modules-paths.ts
-import { dirname, join as join2, relative, resolve } from "node:path";
+import { dirname as dirname2, join as join3, relative as relative2, resolve as resolve2 } from "node:path";
 import { readFile } from "node:fs/promises";
+
+// src/utils/inline-static-reads.ts
+import { dirname, join as join2, resolve, basename, relative, extname } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { existsSync as existsSync2, readFileSync, readdirSync, statSync } from "node:fs";
+function inlineStaticReads(src, sourceFilePath) {
+  if (!src.includes("readFileSync") && !src.includes("readdirSync") && !src.includes("existsSync")) {
+    return { contents: src, inlined: 0 };
+  }
+  let ast;
+  try {
+    ast = parse3(src, {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      allowAwaitOutsideFunction: true,
+      allowReturnOutsideFunction: true,
+      allowImportExportEverywhere: true
+    });
+  } catch {
+    return { contents: src, inlined: 0 };
+  }
+  const ctx = {
+    sourceUrl: pathToFileURL(sourceFilePath).href
+  };
+  const edits = [];
+  simple(ast, {
+    CallExpression(node) {
+      const edit = tryInlineCall(node, ctx, src);
+      if (edit) edits.push(edit);
+    }
+  });
+  if (edits.length === 0) return { contents: src, inlined: 0 };
+  const outermost = [];
+  edits.sort((a2, b) => a2.start - b.start || b.end - a2.end);
+  for (const e of edits) {
+    const last = outermost[outermost.length - 1];
+    if (last && e.start >= last.start && e.end <= last.end) continue;
+    outermost.push(e);
+  }
+  outermost.sort((a2, b) => b.start - a2.start);
+  let out = src;
+  for (const e of outermost) {
+    out = out.slice(0, e.start) + e.replacement + out.slice(e.end);
+  }
+  return { contents: out, inlined: outermost.length };
+}
+function tryInlineCall(node, ctx, src) {
+  const callee = node.callee;
+  if (callee.type === "MemberExpression" && !callee.computed && callee.object.type === "Identifier" && callee.object.name === "JSON" && callee.property.type === "Identifier" && callee.property.name === "parse" && node.arguments.length >= 1 && node.arguments[0].type === "CallExpression") {
+    const inner = node.arguments[0];
+    const innerEdit = tryInlineReadFile(
+      inner,
+      ctx,
+      /*forceTextEncoding*/
+      true
+    );
+    if (innerEdit !== void 0) {
+      try {
+        const parsed = JSON.parse(JSON.parse(innerEdit));
+        return {
+          start: node.start,
+          end: node.end,
+          replacement: jsLiteral(parsed)
+        };
+      } catch {
+      }
+    }
+  }
+  const calleeName = identifierName(callee);
+  if (calleeName === "readFileSync") {
+    const replacement = tryInlineReadFile(
+      node,
+      ctx,
+      /*forceTextEncoding*/
+      false
+    );
+    if (replacement !== void 0) {
+      return { start: node.start, end: node.end, replacement };
+    }
+  }
+  if (calleeName === "readdirSync") {
+    const path6 = evalPathExpr(node.arguments[0], ctx);
+    if (path6 && existsSyncSafe(path6) && isDirectorySafe(path6)) {
+      try {
+        const names = readdirSync(path6);
+        return {
+          start: node.start,
+          end: node.end,
+          replacement: jsLiteral(names)
+        };
+      } catch {
+      }
+    }
+  }
+  if (calleeName === "existsSync") {
+    const path6 = evalPathExpr(node.arguments[0], ctx);
+    if (path6 !== void 0) {
+      return {
+        start: node.start,
+        end: node.end,
+        replacement: existsSyncSafe(path6) ? "true" : "false"
+      };
+    }
+  }
+  return void 0;
+}
+function tryInlineReadFile(node, ctx, forceTextEncoding) {
+  if (node.arguments.length < 1) return void 0;
+  const path6 = evalPathExpr(node.arguments[0], ctx);
+  if (!path6) return void 0;
+  if (!existsSyncSafe(path6) || isDirectorySafe(path6)) return void 0;
+  let encoding;
+  if (forceTextEncoding) {
+    encoding = "utf8";
+  } else if (node.arguments.length >= 2) {
+    encoding = evalEncodingExpr(node.arguments[1]);
+    if (encoding === void 0) return void 0;
+  }
+  try {
+    if (encoding) {
+      const text = readFileSync(path6, encoding);
+      return jsStringLiteral(text);
+    } else {
+      const bytes = readFileSync(path6);
+      return `new Uint8Array([${Array.from(bytes).join(",")}])`;
+    }
+  } catch {
+    return void 0;
+  }
+}
+function evalPathExpr(node, ctx) {
+  const v = evalExpr(node, ctx);
+  if (v instanceof URL) {
+    if (v.protocol === "file:") return fileURLToPath(v);
+    return void 0;
+  }
+  if (typeof v !== "string") return void 0;
+  if (v.startsWith("file://")) return fileURLToPath(v);
+  if (v.startsWith("/")) return v;
+  return void 0;
+}
+function evalExpr(node, ctx) {
+  if (!node) return void 0;
+  switch (node.type) {
+    case "Literal":
+      if (typeof node.value === "string") {
+        return node.value;
+      }
+      return void 0;
+    case "TemplateLiteral": {
+      const tl = node;
+      if (tl.expressions.length > 0) return void 0;
+      return tl.quasis.map((q) => q.value.cooked ?? "").join("");
+    }
+    case "BinaryExpression": {
+      const be = node;
+      if (be.operator !== "+") return void 0;
+      const l = evalExpr(be.left, ctx);
+      const r = evalExpr(be.right, ctx);
+      if (typeof l !== "string" || typeof r !== "string") return void 0;
+      return l + r;
+    }
+    case "Identifier": {
+      const id = node;
+      if (id.name === "__dirname") return fileURLToPath(new URL(".", ctx.sourceUrl));
+      if (id.name === "__filename") return fileURLToPath(ctx.sourceUrl);
+      return void 0;
+    }
+    case "MemberExpression": {
+      const me = node;
+      if (me.object.type === "MetaProperty" && me.object.meta.name === "import" && me.object.property.name === "meta" && me.property.type === "Identifier" && me.property.name === "url") {
+        return ctx.sourceUrl;
+      }
+      if (!me.computed && me.property.type === "Identifier") {
+        const obj = evalExpr(me.object, ctx);
+        const prop = me.property.name;
+        if (obj instanceof URL) {
+          if (prop === "href") return obj.href;
+          if (prop === "pathname") return obj.pathname;
+        }
+        if (typeof obj === "string") {
+          if (prop === "href") return obj;
+          if (prop === "pathname") {
+            try {
+              return new URL(obj).pathname;
+            } catch {
+              return void 0;
+            }
+          }
+        }
+      }
+      return void 0;
+    }
+    case "NewExpression": {
+      const ne = node;
+      const calleeName = identifierName(ne.callee);
+      if (calleeName === "URL") {
+        if (ne.arguments.length === 0) return void 0;
+        const first = evalExpr(ne.arguments[0], ctx);
+        if (typeof first !== "string") return void 0;
+        if (ne.arguments.length === 1) {
+          try {
+            return new URL(first);
+          } catch {
+            return void 0;
+          }
+        }
+        const base2 = evalExpr(ne.arguments[1], ctx);
+        const baseStr = base2 instanceof URL ? base2.href : typeof base2 === "string" ? base2 : void 0;
+        if (!baseStr) return void 0;
+        try {
+          return new URL(first, baseStr);
+        } catch {
+          return void 0;
+        }
+      }
+      return void 0;
+    }
+    case "CallExpression": {
+      const ce = node;
+      const name = identifierName(ce.callee);
+      if (name === "fileURLToPath") {
+        const arg = evalExpr(ce.arguments[0], ctx);
+        const url = arg instanceof URL ? arg.href : typeof arg === "string" ? arg : void 0;
+        if (!url) return void 0;
+        try {
+          return fileURLToPath(url);
+        } catch {
+          return void 0;
+        }
+      }
+      if (name === "pathToFileURL") {
+        const arg = evalExpr(ce.arguments[0], ctx);
+        if (typeof arg !== "string") return void 0;
+        try {
+          return pathToFileURL(arg);
+        } catch {
+          return void 0;
+        }
+      }
+      if (name === "join" || name === "resolve") {
+        const args = [];
+        for (const a2 of ce.arguments) {
+          const v = evalExpr(a2, ctx);
+          if (typeof v !== "string") return void 0;
+          args.push(v);
+        }
+        return name === "join" ? join2(...args) : resolve(...args);
+      }
+      if (name === "dirname" || name === "basename" || name === "extname") {
+        const v = evalExpr(ce.arguments[0], ctx);
+        if (typeof v !== "string") return void 0;
+        if (name === "dirname") return dirname(v);
+        if (name === "basename") {
+          const ext = ce.arguments.length >= 2 ? evalExpr(ce.arguments[1], ctx) : void 0;
+          return basename(v, typeof ext === "string" ? ext : void 0);
+        }
+        if (name === "extname") return extname(v);
+      }
+      if (name === "relative") {
+        const a2 = evalExpr(ce.arguments[0], ctx);
+        const b = evalExpr(ce.arguments[1], ctx);
+        if (typeof a2 !== "string" || typeof b !== "string") return void 0;
+        return relative(a2, b);
+      }
+      return void 0;
+    }
+  }
+  return void 0;
+}
+function evalEncodingExpr(node) {
+  if (!node) return void 0;
+  if (node.type === "Literal") {
+    const v = node.value;
+    if (typeof v === "string") return canonicalEncoding(v);
+    return void 0;
+  }
+  if (node.type === "ObjectExpression") {
+    for (const p of node.properties) {
+      if (p.type !== "Property" || p.computed) continue;
+      const key = p.key.type === "Identifier" ? p.key.name : p.key.type === "Literal" ? String(p.key.value) : void 0;
+      if (key !== "encoding") continue;
+      if (p.value.type === "Literal" && typeof p.value.value === "string") {
+        return canonicalEncoding(p.value.value);
+      }
+      return void 0;
+    }
+  }
+  return void 0;
+}
+function canonicalEncoding(v) {
+  const lc = v.toLowerCase();
+  if (lc === "utf8" || lc === "utf-8") return "utf8";
+  if (lc === "ascii") return "ascii";
+  if (lc === "latin1" || lc === "binary") return "latin1";
+  return void 0;
+}
+function identifierName(node) {
+  if (!node) return void 0;
+  if (node.type === "Identifier") return node.name;
+  if (node.type === "MemberExpression" && !node.computed) {
+    const me = node;
+    if (me.property.type === "Identifier") return me.property.name;
+  }
+  return void 0;
+}
+function jsLiteral(v) {
+  if (typeof v === "string") return jsStringLiteral(v);
+  if (typeof v === "number") return Number.isFinite(v) ? String(v) : "null";
+  if (typeof v === "boolean") return v ? "true" : "false";
+  if (v === null) return "null";
+  if (Array.isArray(v)) return "[" + v.map(jsLiteral).join(",") + "]";
+  if (typeof v === "object") {
+    const parts = [];
+    for (const [k, val] of Object.entries(v)) {
+      parts.push(`${jsStringLiteral(k)}:${jsLiteral(val)}`);
+    }
+    return "{" + parts.join(",") + "}";
+  }
+  return "undefined";
+}
+function jsStringLiteral(s) {
+  return JSON.stringify(s);
+}
+function existsSyncSafe(path6) {
+  try {
+    return existsSync2(path6);
+  } catch {
+    return false;
+  }
+}
+function isDirectorySafe(path6) {
+  try {
+    return statSync(path6).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+// src/utils/rewrite-node-modules-paths.ts
 var REWRITE_FILTER = /\.(m?js|cjs|[cm]?tsx?)$/;
 var DIRNAME_DECL_RE = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/;
 var FILENAME_DECL_RE = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/;
@@ -12938,29 +13278,38 @@ function shouldRewrite(path6) {
   return path6.includes("node_modules") && REWRITE_FILTER.test(path6);
 }
 function getBundleDir(build2) {
-  const outFile = build2.initialOptions.outfile ?? join2(build2.initialOptions.outdir ?? ".", "bundle.mjs");
-  return dirname(resolve(outFile));
+  const outFile = build2.initialOptions.outfile ?? join3(build2.initialOptions.outdir ?? ".", "bundle.mjs");
+  return dirname2(resolve2(outFile));
 }
-function rewriteContents(args, src, bundleDir) {
+function rewriteContents(args, srcInput, bundleDir) {
   if (!shouldRewrite(args.path)) return void 0;
+  const inlined = inlineStaticReads(srcInput, args.path);
+  let src = inlined.contents;
   const hasMetaUrl = src.includes("import.meta.url");
   const hasDirname = src.includes("__dirname");
   const hasFilename = src.includes("__filename");
-  if (!hasMetaUrl && !hasDirname && !hasFilename) return void 0;
-  const dir = dirname(args.path);
+  if (!hasMetaUrl && !hasDirname && !hasFilename) {
+    if (inlined.inlined > 0) {
+      const ext2 = args.path.split(".").pop() ?? "js";
+      const loader2 = ["ts", "mts", "cts", "tsx"].includes(ext2) ? "ts" : "js";
+      return { contents: src, loader: loader2, resolveDir: dirname2(args.path) };
+    }
+    return void 0;
+  }
+  const dir = dirname2(args.path);
   const dirnameDeclared = DIRNAME_DECL_RE.test(src);
   const filenameDeclared = FILENAME_DECL_RE.test(src);
   const preamble = [];
   let contents = src;
   if (hasMetaUrl) {
-    const relPath = relative(bundleDir, args.path);
+    const relPath = relative2(bundleDir, args.path);
     if (relPath.includes(".zip/") && !zipPathWarningEmitted) {
       zipPathWarningEmitted = true;
       console.warn(
         `[gjsify] rewriter: bundling code from inside a PnP virtual zip (${relPath}). import.meta.url-relative paths in this file won't resolve at runtime. Switch to "nodeLinker: node-modules" or unplug the offending package(s) until the rewriter learns to inline zip-resident reads.`
       );
     }
-    const relDir = relative(bundleDir, dir) || ".";
+    const relDir = relative2(bundleDir, dir) || ".";
     const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
     contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
     if (hasDirname && !dirnameDeclared) {
@@ -13037,7 +13386,7 @@ function isPlainObject2(value) {
 }
 
 // ../../../node_modules/execa/lib/arguments/file-url.js
-import { fileURLToPath } from "node:url";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
 var safeNormalizeFileUrl = (file, name) => {
   const fileString = normalizeFileUrl(normalizeDenoExecPath(file));
   if (typeof fileString !== "string") {
@@ -13047,7 +13396,7 @@ var safeNormalizeFileUrl = (file, name) => {
 };
 var normalizeDenoExecPath = (file) => isDenoExecPath(file) ? file.toString() : file;
 var isDenoExecPath = (file) => typeof file !== "string" && file && Object.getPrototypeOf(file) === String.prototype;
-var normalizeFileUrl = (file) => file instanceof URL ? fileURLToPath(file) : file;
+var normalizeFileUrl = (file) => file instanceof URL ? fileURLToPath2(file) : file;
 
 // ../../../node_modules/execa/lib/methods/parameters.js
 var normalizeParameters = (rawFile, rawArguments = [], rawOptions = {}) => {
@@ -13895,10 +14244,10 @@ function pathKey(options = {}) {
 import { promisify } from "node:util";
 import { execFile as execFileCallback, execFileSync as execFileSyncOriginal } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
 var execFileOriginal = promisify(execFileCallback);
 function toPath(urlOrPath) {
-  return urlOrPath instanceof URL ? fileURLToPath2(urlOrPath) : urlOrPath;
+  return urlOrPath instanceof URL ? fileURLToPath3(urlOrPath) : urlOrPath;
 }
 function traversePathUp(startPath) {
   return {
@@ -14575,8 +14924,8 @@ var disconnect = (anyProcess) => {
 // ../../../node_modules/execa/lib/utils/deferred.js
 var createDeferred = () => {
   const methods = {};
-  const promise = new Promise((resolve4, reject) => {
-    Object.assign(methods, { resolve: resolve4, reject });
+  const promise = new Promise((resolve5, reject) => {
+    Object.assign(methods, { resolve: resolve5, reject });
   });
   return Object.assign(promise, methods);
 };
@@ -15216,7 +15565,7 @@ var ENCODING_ALIASES = {
 var serializeEncoding = (encoding) => typeof encoding === "string" ? `"${encoding}"` : String(encoding);
 
 // ../../../node_modules/execa/lib/arguments/cwd.js
-import { statSync } from "node:fs";
+import { statSync as statSync2 } from "node:fs";
 import path4 from "node:path";
 import process5 from "node:process";
 var normalizeCwd = (cwd = getDefaultCwd()) => {
@@ -15238,7 +15587,7 @@ var fixCwdError = (originalMessage, cwd) => {
   }
   let cwdStat;
   try {
-    cwdStat = statSync(cwd);
+    cwdStat = statSync2(cwd);
   } catch (error) {
     return `The "cwd" option is invalid: ${cwd}.
 ${error.message}
@@ -16243,7 +16592,7 @@ var handleResult = (result, verboseInfo, { reject }) => {
 };
 
 // ../../../node_modules/execa/lib/stdio/handle-sync.js
-import { readFileSync as readFileSync2 } from "node:fs";
+import { readFileSync as readFileSync3 } from "node:fs";
 
 // ../../../node_modules/execa/lib/stdio/type.js
 var getStdioItemType = (value, optionName) => {
@@ -16573,7 +16922,7 @@ var normalizeStdioSync = (stdioArray, buffer, verboseInfo) => stdioArray.map((st
 var isOutputPipeOnly = (stdioOption) => stdioOption === "pipe" || Array.isArray(stdioOption) && stdioOption.every((item) => item === "pipe");
 
 // ../../../node_modules/execa/lib/stdio/native.js
-import { readFileSync } from "node:fs";
+import { readFileSync as readFileSync2 } from "node:fs";
 import tty2 from "node:tty";
 var handleNativeStream = ({ stdioItem, stdioItem: { type }, isStdioArray, fdNumber, direction, isSync }) => {
   if (!isStdioArray || type !== "native") {
@@ -16607,7 +16956,7 @@ var getTargetFd = ({ value, optionName, fdNumber, direction }) => {
   if (tty2.isatty(targetFdNumber)) {
     throw new TypeError(`The \`${optionName}: ${serializeOptionValue(value)}\` option is invalid: it cannot be a TTY with synchronous methods.`);
   }
-  return { type: "uint8Array", value: bufferToUint8Array(readFileSync(targetFdNumber)), optionName };
+  return { type: "uint8Array", value: bufferToUint8Array(readFileSync2(targetFdNumber)), optionName };
 };
 var getTargetFdNumber = (value, fdNumber) => {
   if (value === "inherit") {
@@ -16940,8 +17289,8 @@ var addProperties = {
 var addPropertiesSync = {
   input: {
     ...addProperties,
-    fileUrl: ({ value }) => ({ contents: [bufferToUint8Array(readFileSync2(value))] }),
-    filePath: ({ value: { file } }) => ({ contents: [bufferToUint8Array(readFileSync2(file))] }),
+    fileUrl: ({ value }) => ({ contents: [bufferToUint8Array(readFileSync3(value))] }),
+    filePath: ({ value: { file } }) => ({ contents: [bufferToUint8Array(readFileSync3(file))] }),
     fileNumber: forbiddenIfSync,
     iterable: ({ value }) => ({ contents: [...value] }),
     string: ({ value }) => ({ contents: [value] }),
@@ -19218,11 +19567,11 @@ var addConcurrentStream = (concurrentStreams, stream, waitName) => {
   const promises = weakMap.get(stream);
   const promise = createDeferred();
   promises.push(promise);
-  const resolve4 = promise.resolve.bind(promise);
-  return { resolve: resolve4, promises };
+  const resolve5 = promise.resolve.bind(promise);
+  return { resolve: resolve5, promises };
 };
-var waitForConcurrentStreams = async ({ resolve: resolve4, promises }, subprocess) => {
-  resolve4();
+var waitForConcurrentStreams = async ({ resolve: resolve5, promises }, subprocess) => {
+  resolve5();
   const [isSubprocessExit] = await Promise.race([
     Promise.allSettled([true, subprocess]),
     Promise.all([false, ...promises])
@@ -19808,7 +20157,7 @@ var {
 } = getIpcExport();
 
 // ../esbuild-plugin-blueprint/dist/esm/index.mjs
-import { resolve as resolve2 } from "path";
+import { resolve as resolve3 } from "path";
 function blueprintPlugin() {
   return {
     name: "blueprint",
@@ -19821,7 +20170,7 @@ function blueprintPlugin() {
         };
       });
       build2.onLoad({ filter: /\.blp$/, namespace: "blueprint" }, async (args) => {
-        const fullPath = resolve2(args.pluginData.resolveDir, args.path);
+        const fullPath = resolve3(args.pluginData.resolveDir, args.path);
         const { stdout } = await execa("blueprint-compiler", ["compile", fullPath]);
         return {
           contents: `export default ${JSON.stringify(stdout)};`,
@@ -19954,14 +20303,14 @@ var setupForBrowser = async (build2, pluginOptions) => {
 import * as deepkitPlugin3 from "@gjsify/esbuild-plugin-deepkit";
 
 // src/utils/patch-to-common-js.ts
-import { readFileSync as readFileSync3, writeFileSync as writeFileSync2 } from "fs";
+import { readFileSync as readFileSync4, writeFileSync as writeFileSync2 } from "fs";
 function registerToCommonJSPatch(build2) {
   build2.onEnd((result) => {
     if (result.errors.length > 0) return;
     const outfile = build2.initialOptions.outfile;
     if (!outfile) return;
     try {
-      let content = readFileSync3(outfile, "utf-8");
+      let content = readFileSync4(outfile, "utf-8");
       const toCommonJSPattern = /var __toCommonJS = \(mod\d?\) => __copyProps\(__defProp\(\{\}, "__esModule", \{ value: true \}\), mod\d?\);/;
       if (toCommonJSPattern.test(content)) {
         content = content.replace(
@@ -19983,9 +20332,9 @@ function registerToCommonJSPatch(build2) {
 }
 
 // src/app/gjs.ts
-import { fileURLToPath as fileURLToPath3 } from "url";
-import { dirname as dirname2, resolve as resolve3 } from "path";
-var _shimDir = dirname2(fileURLToPath3(import.meta.url));
+import { fileURLToPath as fileURLToPath4 } from "url";
+import { dirname as dirname3, resolve as resolve4 } from "path";
+var _shimDir = dirname3(fileURLToPath4(import.meta.url));
 var GJS_PROCESS_STUB = [
   'if(typeof globalThis.process==="undefined"){',
   "const _s=imports.system,_G=imports.gi.GLib;",
@@ -20065,7 +20414,7 @@ var setupForGjs = async (build2, pluginOptions) => {
   };
   const userInject = Array.isArray(build2.initialOptions.inject) ? build2.initialOptions.inject : build2.initialOptions.inject ? [build2.initialOptions.inject] : [];
   if (pluginOptions.consoleShim !== false) {
-    esbuildOptions.inject = [resolve3(_shimDir, "../shims/console-gjs.js"), ...userInject];
+    esbuildOptions.inject = [resolve4(_shimDir, "../shims/console-gjs.js"), ...userInject];
   } else if (userInject.length > 0) {
     esbuildOptions.inject = [...userInject];
   }

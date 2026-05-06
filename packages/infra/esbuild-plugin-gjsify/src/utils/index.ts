@@ -8,3 +8,4 @@ export {
     shouldRewrite,
     registerNodeModulesPathRewrite,
 } from './rewrite-node-modules-paths.js';
+export { inlineStaticReads } from './inline-static-reads.js';
