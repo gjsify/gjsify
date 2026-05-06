@@ -617,9 +617,23 @@ Fixtures (`tests/integration/ts-for-gir/girs/`) are gjsify's own Vala-generated 
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
-### High priority — rewriter must inline zip-resident static reads (PnP)
+### Medium priority — `@gjsify/module` PnP-aware createRequire
 
-Surfaced by [#70](https://github.com/gjsify/gjsify/pull/70). When the GJS-bundle target processes a workspace under `nodeLinker: pnp`, `@gjsify/esbuild-plugin-gjsify`'s `import.meta.url` rewriter resolves URLs relative to the bundle's outdir using the file's source path. For files read out of Yarn's PnP zip cache that path is `.yarn/__virtual__/<pkg>.zip/...` (or `.yarn/cache/<pkg>.zip/...`) — paths that only exist inside the PnP runtime. Any bundled `readFileSync(new URL("./x", import.meta.url))` then crashes with ENOENT under GJS. Cross-tested with ts-for-gir PR #378 (May 2026): typedoc, yargs, mini-shiki, @inquirer/* all hit this; ~100 transitive deps reach the bundle through zips, so per-package `dependenciesMeta.unplugged` is not viable. PR #70 added a build-time warning so the regression is visible — the proper fix is to teach the rewriter to detect static `readFileSync(new URL(<literal>, import.meta.url))` patterns in zip-resident files, read the bytes through esbuild's PnP-aware `onLoad`, and emit them as a sibling asset (or inline as `Uint8Array` literal). Until that lands, ts-for-gir's `.yarnrc.yml` documents the workaround (`nodeLinker: node-modules`).
+Surfaced by [ts-for-gir#378](https://github.com/gjsify/ts-for-gir/pull/378) (May 2026). `@gjsify/module`'s `createRequire` walks `node_modules/` directories upward to resolve bare specifiers — the standard Node algorithm. Under Yarn PnP there's no `node_modules/` tree on disk, so the resolver fails for any package that's only addressable through `.pnp.cjs`'s virtual map.
+
+This forces ts-for-gir to embed its 43 EJS templates into the GJS bundle as a build-time map (`packages/cli/src/generated/templates-bundle.ts`, ~50 KB) so the runtime doesn't need to resolve `@ts-for-gir/templates`. Without the embed, `TemplateEngine.resolveTemplateDirectory()` throws `Cannot find module "@ts-for-gir/templates/package.json"` when the bundle runs from a PnP-built environment. The embed is dead weight for `gjsify dlx` consumption (which uses the native flat-`node_modules/` install backend) but unavoidable as a fallback.
+
+Proposed approach:
+1. At `createRequire(<importerUrl>)` time, walk up from the importer's directory looking for either `node_modules/<id>/...` (current behaviour) OR a `.pnp.cjs` file at the workspace root.
+2. When `.pnp.cjs` is found, read its `findPackageLocator(importerPath)` + `getPackageInformation(locator).packageDependencies` data via a **GJS-runnable parser** (the file is a self-contained CJS module producing a serialised resolution table — we don't need to execute its JS, just read the embedded data structure).
+3. Resolve the request against that table and return the package directory under `.yarn/cache/<pkg>.zip/...` if the package is zip-resident, or the unplugged location.
+4. For zip-resident packages, the read path needs to compose with the existing zip support in `@gjsify/esbuild-plugin-gjsify` — the package directory is virtual.
+
+Once this lands, ts-for-gir can drop the templates pre-bundle (`scripts/bundle-templates.ts`, `src/generated/templates-bundle.ts`, the `bundle-templates` and `prepack` scripts) and shrink the bundle by ~50 KB. The same change unblocks any consumer that wants `require.resolve()` to work in a PnP-built bundle.
+
+### Completed in v0.3.10 — rewriter inlines zip-resident static reads
+
+Implemented in [#74](https://github.com/gjsify/gjsify/pull/74). Replaces the earlier asset-extraction approach (closed [#73](https://github.com/gjsify/gjsify/pull/73)) with build-time inlining: `readFileSync(new URL(<lit>, import.meta.url), "utf8")` and `readdirSync(URL)` and `JSON.parse(readFileSync(...))` compositions are evaluated at build time and replaced with literal contents. Bundles become truly self-contained for these patterns — no companion directory, no opt-in flag. v0.3.11 added complementary fixes: shebang hoist in the banner, zip-resident `createRequire(URL)` stub, skip `import.meta.url` URL rewrite inside zips. Cross-tested against ts-for-gir's bundle: builds directly under Yarn PnP without the `nodeLinker: node-modules` workaround.
 
 ### Completed (Phase A — gjsify v0.3.12)
 
