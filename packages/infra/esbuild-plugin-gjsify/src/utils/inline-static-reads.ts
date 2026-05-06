@@ -212,6 +212,43 @@ function tryInlineCall(
         }
     }
 
+
+    // `createRequire(<URL>)` from `node:module` returns a CJS-style require.
+    // In a bundled GJS executable, the deps that the runtime require would
+    // resolve are already inlined by esbuild, so the require() function is
+    // typically dead code. The createRequire CALL itself runs at module init,
+    // and Node's implementation rejects the rewritten URLs we produce when
+    // they don't point at an existing file (yargs-parser's `createRequire(
+    // import.meta.url)` blows up because the rewritten URL refers to a Yarn
+    // PnP zip path that doesn't exist outside the PnP runtime).
+    //
+    // Replace the call with a stub function: assignment succeeds, the bundle
+    // boots, and any actual `require()` invocation produces a clear error
+    // instead of an obscure URL-validation crash. Only fires when the URL
+    // argument can be statically resolved AND points at a non-existent file
+    // — the common case is exactly the broken one.
+    if (calleeName === 'createRequire') {
+        const path = evalPathExpr(node.arguments[0], ctx);
+        // Stub the call when:
+        //  - the resolved path doesn't exist on disk (build site), OR
+        //  - the path contains a `.zip/` segment (Yarn PnP virtual zip,
+        //    where Node's PnP hooks make `existsSync` return true at build
+        //    time but the path doesn't exist under GJS at runtime).
+        const isZip = path !== undefined && path.includes('.zip/');
+        if (path !== undefined && (isZip || !existsSyncSafe(path))) {
+            return {
+                start: node.start,
+                end: node.end,
+                replacement:
+                    `(() => { ` +
+                    `const _r = (id) => { throw new Error("[gjsify] createRequire stub: '" + id + "' was not bundled (anchor path: " + ${jsStringLiteral(path)} + ")"); }; ` +
+                    `_r.resolve = _r; _r.cache = {}; _r.extensions = {}; _r.main = void 0; ` +
+                    `return _r; ` +
+                    `})()`,
+            };
+        }
+    }
+
     return undefined;
 }
 

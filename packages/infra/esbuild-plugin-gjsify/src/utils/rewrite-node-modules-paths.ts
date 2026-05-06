@@ -37,10 +37,6 @@ export const REWRITE_FILTER = /\.(m?js|cjs|[cm]?tsx?)$/;
 const DIRNAME_DECL_RE = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/;
 const FILENAME_DECL_RE = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/;
 
-// Module-scope flag: emit the PnP-zip-path runtime-portability warning at
-// most once per build, otherwise every transitive file inside the same zip
-// floods the terminal.
-let zipPathWarningEmitted = false;
 
 /** True when the rewriter wants to look at this path — node_modules + supported ext. */
 export function shouldRewrite(path: string): boolean {
@@ -104,32 +100,38 @@ export function rewriteContents(
 
     if (hasMetaUrl) {
         const relPath = relative(bundleDir, args.path);
-        if (relPath.includes('.zip/') && !zipPathWarningEmitted) {
-            // Rewriting `import.meta.url` inside a Yarn-PnP virtual-zip path
-            // produces a relative URL that resolves to a `.zip/...` filename
-            // at runtime — that path doesn't physically exist outside the
-            // PnP runtime, so any `readFileSync(import.meta.url-relative)`
-            // crashes with ENOENT. Warn once per build so users notice the
-            // hazard. Mitigation today: build under
-            // `nodeLinker: node-modules`. Real fix is upstream rewriter work
-            // to inline zip-resident reads.
-            zipPathWarningEmitted = true;
-            console.warn(
-                `[gjsify] rewriter: bundling code from inside a PnP virtual zip ` +
-                `(${relPath}). import.meta.url-relative paths in this file won't ` +
-                `resolve at runtime. Switch to "nodeLinker: node-modules" or unplug ` +
-                `the offending package(s) until the rewriter learns to inline zip-` +
-                `resident reads.`,
-            );
-        }
-        const relDir = relative(bundleDir, dir) || '.';
-        const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
-        contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
-        if (hasDirname && !dirnameDeclared) {
-            preamble.push(`var __dirname = new URL(${JSON.stringify(relDir + '/')}, import.meta.url).pathname.replace(/\\/$/, "");`);
-        }
-        if (hasFilename && !filenameDeclared) {
-            preamble.push(`var __filename = ${runtimeFileUrl}.pathname;`);
+        const isZipResident = relPath.includes('.zip/');
+        if (isZipResident) {
+            // Source file lives inside a Yarn-PnP virtual zip. We can't
+            // produce a useful build-time-relative URL for it (the .zip/...
+            // path doesn't physically exist outside the PnP runtime). The
+            // static-read inliner above has already replaced every read
+            // we know how to evaluate at build time. Anything left that
+            // touches `import.meta.url` is dynamic — leave the bare token
+            // so it resolves at runtime to the bundle's own URL. That
+            // gives downstream code (e.g. yargs's mainFilename heuristic
+            // walking the path string for a `node_modules` segment) a
+            // valid file:// URL to work with, even if it doesn't reflect
+            // the original module's location.
+            //
+            // __dirname / __filename: derive them from the bundle's URL,
+            // not the source's relative path, for the same reason.
+            if (hasDirname && !dirnameDeclared) {
+                preamble.push(`var __dirname = new URL(".", import.meta.url).pathname.replace(/\\/$/, "");`);
+            }
+            if (hasFilename && !filenameDeclared) {
+                preamble.push(`var __filename = new URL(import.meta.url).pathname;`);
+            }
+        } else {
+            const relDir = relative(bundleDir, dir) || '.';
+            const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
+            contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
+            if (hasDirname && !dirnameDeclared) {
+                preamble.push(`var __dirname = new URL(${JSON.stringify(relDir + '/')}, import.meta.url).pathname.replace(/\\/$/, "");`);
+            }
+            if (hasFilename && !filenameDeclared) {
+                preamble.push(`var __filename = ${runtimeFileUrl}.pathname;`);
+            }
         }
     } else {
         if (hasDirname && !dirnameDeclared) preamble.push(`var __dirname = ${JSON.stringify(dir)};`);
