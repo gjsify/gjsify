@@ -9,12 +9,7 @@
 // `@gjsify/console` lib to be pre-built (build-order coupling) — the
 // `@ts-expect-error` keeps us decoupled.
 // @ts-ignore — resolved by Rolldown at user-build time, not by tsc here.
-import {
-    log, info, debug, warn, error, dir, dirxml, table,
-    time, timeEnd, timeLog, trace, assert, clear,
-    count, countReset, group, groupCollapsed, groupEnd,
-    profile, profileEnd, timeStamp,
-} from '@gjsify/console';
+import { log, info, debug, warn, error, dir, dirxml, table, time, timeEnd, timeLog, trace, assert, clear, count, countReset, group, groupCollapsed, groupEnd, profile, profileEnd, timeStamp } from '@gjsify/console';
 
 export let console = {
     log, info, debug, warn, error, dir, dirxml, table,
