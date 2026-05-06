@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.13](https://github.com/gjsify/gjsify/compare/v0.3.12...v0.3.13) (2026-05-06)
+
+### Features
+
+* **module:** PnP-aware createRequire for Yarn-PnP workspaces ([#79](https://github.com/gjsify/gjsify/issues/79)) ([0dabb85](https://github.com/gjsify/gjsify/commit/0dabb8590d852be4a71c473b123cff707dfbd7ab))
+
 ## [0.3.12](https://github.com/gjsify/gjsify/compare/v0.3.11...v0.3.12) (2026-05-06)
 
 ### Bug Fixes
