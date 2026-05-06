@@ -109,7 +109,7 @@ export class BuildAction {
 				await build({
 					...this.getEsBuildDefaults(),
 					...esbuild,
-					format: moduleFormat,
+					format: mainFormat,
 					outdir: mainOutdir,
 					plugins: [
 						...pnpPlugins,
@@ -118,7 +118,7 @@ export class BuildAction {
 							library: mainFormat,
 							exclude,
 							reflection: typescript?.reflection,
-							jsExtension: mainOutdir,
+							jsExtension: mainOutExt,
 						}),
 					],
 				}),

@@ -9,7 +9,13 @@ import type { PluginOptions } from '../types/plugin-options.js';
 
 export const setupLib = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
-    const format = pluginOptions.format || 'esm';
+    // Derive output format from `library: 'esm' | 'cjs'` when the caller
+    // didn't pass `format` explicitly. The library type and the emitted
+    // module format are inseparable: a CJS-library build that emits ESM
+    // (or vice versa) is broken by definition. `BuildAction.buildLibrary`
+    // sets `library` per pass but doesn't repeat itself by also setting
+    // `format`; this default keeps that contract working.
+    const format = pluginOptions.format || pluginOptions.library || 'esm';
 
     pluginOptions.aliases ||= {};
     pluginOptions.exclude ||= [];

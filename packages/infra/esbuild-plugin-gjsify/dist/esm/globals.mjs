@@ -13371,7 +13371,7 @@ function registerNodeModulesPathRewrite(build2) {
 
 // src/lib/lib.ts
 var setupLib = async (build2, pluginOptions) => {
-  const format2 = pluginOptions.format || "esm";
+  const format2 = pluginOptions.format || pluginOptions.library || "esm";
   pluginOptions.aliases ||= {};
   pluginOptions.exclude ||= [];
   const esbuildOptions = {

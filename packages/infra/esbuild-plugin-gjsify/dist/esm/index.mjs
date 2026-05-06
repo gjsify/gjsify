@@ -12912,7 +12912,7 @@ function isPlainObject(val) {
 
 // src/lib/lib.ts
 var setupLib = async (build, pluginOptions) => {
-  const format2 = pluginOptions.format || "esm";
+  const format2 = pluginOptions.format || pluginOptions.library || "esm";
   pluginOptions.aliases ||= {};
   pluginOptions.exclude ||= [];
   const esbuildOptions = {
