@@ -7,4 +7,9 @@ export {
     rewriteContents,
     shouldRewrite,
     registerNodeModulesPathRewrite,
+    createAssetRegistry,
+    getOrCreateAssetRegistry,
+    findNodeModulesPackageRoot,
+    extractRegisteredAssets,
+    type AssetRegistry,
 } from './rewrite-node-modules-paths.js';

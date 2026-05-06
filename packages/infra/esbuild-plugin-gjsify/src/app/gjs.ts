@@ -153,7 +153,7 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
         return { path: result.path };
     });
 
-    registerNodeModulesPathRewrite(build);
+    registerNodeModulesPathRewrite(build, { extractAssets: pluginOptions.extractNodeModulesAssets });
 
     merge(build.initialOptions, esbuildOptions);
 

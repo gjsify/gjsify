@@ -39,4 +39,16 @@ export interface PluginOptions extends DeepkitPluginOptions {
      * `--app gjs`.
      */
     autoGlobalsInject?: string;
+    /**
+     * When `true`, copy each `node_modules/<pkg>/` directory whose files the
+     * `import.meta.url` rewriter touched to `<bundleDir>/_node_modules/<pkg>/`,
+     * and rewrite the URLs to point at those copies. Makes the bundle portable
+     * across machines and layouts (Yarn-PnP cache, `gjsify dlx` cache, manual
+     * tarball extracts) at the cost of a sibling directory next to the bundle.
+     *
+     * Off by default — local-dev builds keep the original source-relative
+     * paths so a re-run of the bundle reflects local edits without a re-copy.
+     * Recommended for production-distribution bundles.
+     */
+    extractNodeModulesAssets?: boolean;
 }

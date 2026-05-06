@@ -131,6 +131,7 @@ export class Config {
         if (cliArgs.consoleShim !== undefined) configData.consoleShim = cliArgs.consoleShim;
         if (cliArgs.globals !== undefined) configData.globals = cliArgs.globals;
         if (cliArgs.shebang !== undefined) configData.shebang = cliArgs.shebang;
+        if (cliArgs.extractNodeModulesAssets !== undefined) configData.extractNodeModulesAssets = cliArgs.extractNodeModulesAssets;
         if (cliArgs.excludeGlobals) {
             const raw = Array.isArray(cliArgs.excludeGlobals)
                 ? cliArgs.excludeGlobals.join(',')

@@ -7,7 +7,7 @@ import {
 	writeRegisterInjectFile,
 	detectAutoGlobals,
 } from "@gjsify/esbuild-plugin-gjsify/globals";
-import { getBundleDir, rewriteContents } from "@gjsify/esbuild-plugin-gjsify";
+import { getBundleDir, getOrCreateAssetRegistry, rewriteContents } from "@gjsify/esbuild-plugin-gjsify";
 import { getPnpPlugin } from "@gjsify/resolve-npm/pnp-relay";
 import { dirname, extname } from "node:path";
 import { chmod, readFile, writeFile } from "node:fs/promises";
@@ -38,12 +38,20 @@ function isUnsafeDefaultOutput(path: string): boolean {
  * esbuild stops at the first matching onLoad, so the rewriter MUST run from
  * inside the pnp plugin's onLoad rather than as a separate registration.
  */
-async function buildPnpPlugin(): Promise<Plugin | null> {
+async function buildPnpPlugin(extractAssets?: boolean): Promise<Plugin | null> {
 	return getPnpPlugin({
 		issuerUrl: import.meta.url,
 		transformContentsFactory: (build) => {
 			const bundleDir = getBundleDir(build);
-			return (args, contents) => rewriteContents(args, contents, bundleDir);
+			// Share the per-build asset registry with the gjsify plugin's
+			// file-namespace rewriter. `extractAssets: true` ensures the
+			// registry exists; if the gjsify plugin hasn't initialised it
+			// yet, this call creates it. The build.onEnd copy hook is
+			// owned by the gjsify plugin (via registerNodeModulesPathRewrite).
+			return (args, contents) => {
+				const registry = getOrCreateAssetRegistry(build, { extractAssets });
+				return rewriteContents(args, contents, bundleDir, registry);
+			};
 		},
 	});
 }
@@ -74,7 +82,7 @@ export class BuildAction {
 		const multipleBuilds =
 			moduleOutdir && mainOutdir && moduleOutdir !== mainOutdir;
 
-		const pnpPlugin = await buildPnpPlugin();
+		const pnpPlugin = await buildPnpPlugin(this.configData.extractNodeModulesAssets);
 		const pnpPlugins: Plugin[] = pnpPlugin ? [pnpPlugin] : [];
 
 		const results: BuildResult[] = [];
@@ -285,7 +293,7 @@ export class BuildAction {
 			esbuild.outfile = candidate;
 		}
 
-		const { consoleShim, globals } = this.configData;
+		const { consoleShim, globals, extractNodeModulesAssets } = this.configData;
 
 		const pluginOpts = {
 			debug: verbose,
@@ -294,12 +302,13 @@ export class BuildAction {
 			exclude,
 			reflection: typescript?.reflection,
 			consoleShim,
+			extractNodeModulesAssets,
 			...(aliases ? { aliases } : {}),
 		};
 
 		const { autoMode, extras } = this.parseGlobalsValue(globals);
 
-		const pnpPlugin = await buildPnpPlugin();
+		const pnpPlugin = await buildPnpPlugin(extractNodeModulesAssets);
 		const pnpPlugins: Plugin[] = pnpPlugin ? [pnpPlugin] : [];
 
 		// --- Auto mode (with optional extras): iterative multi-pass build ---

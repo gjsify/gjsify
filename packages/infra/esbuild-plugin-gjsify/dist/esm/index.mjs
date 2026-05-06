@@ -5933,19 +5933,19 @@ var require_enoent = __commonJS({
         spawnargs: original.args
       });
     }
-    function hookChildProcess(cp, parsed) {
+    function hookChildProcess(cp2, parsed) {
       if (!isWin) {
         return;
       }
-      const originalEmit = cp.emit;
-      cp.emit = function(name, arg1) {
+      const originalEmit = cp2.emit;
+      cp2.emit = function(name, arg1) {
         if (name === "exit") {
           const err = verifyENOENT(arg1, parsed);
           if (err) {
-            return originalEmit.call(cp, "error", err);
+            return originalEmit.call(cp2, "error", err);
           }
         }
-        return originalEmit.apply(cp, arguments);
+        return originalEmit.apply(cp2, arguments);
       };
     }
     function verifyENOENT(status, parsed) {
@@ -5973,18 +5973,18 @@ var require_enoent = __commonJS({
 var require_cross_spawn = __commonJS({
   "../../../node_modules/cross-spawn/index.js"(exports, module) {
     "use strict";
-    var cp = __require("child_process");
+    var cp2 = __require("child_process");
     var parse = require_parse3();
     var enoent = require_enoent();
     function spawn2(command, args, options) {
       const parsed = parse(command, args, options);
-      const spawned = cp.spawn(parsed.command, parsed.args, parsed.options);
+      const spawned = cp2.spawn(parsed.command, parsed.args, parsed.options);
       enoent.hookChildProcess(spawned, parsed);
       return spawned;
     }
     function spawnSync2(command, args, options) {
       const parsed = parse(command, args, options);
-      const result = cp.spawnSync(parsed.command, parsed.args, parsed.options);
+      const result = cp2.spawnSync(parsed.command, parsed.args, parsed.options);
       result.error = result.error || enoent.verifyENOENTSync(result.status, parsed);
       return result;
     }
@@ -6408,8 +6408,9 @@ var getJsExtensions = (allowExt) => {
 };
 
 // src/utils/rewrite-node-modules-paths.ts
-import { dirname, join, relative, resolve } from "node:path";
-import { readFile } from "node:fs/promises";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { readFile, cp, mkdir } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
 var REWRITE_FILTER = /\.(m?js|cjs|[cm]?tsx?)$/;
 var DIRNAME_DECL_RE = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/;
 var FILENAME_DECL_RE = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/;
@@ -6421,7 +6422,62 @@ function getBundleDir(build) {
   const outFile = build.initialOptions.outfile ?? join(build.initialOptions.outdir ?? ".", "bundle.mjs");
   return dirname(resolve(outFile));
 }
-function rewriteContents(args, src, bundleDir) {
+var buildRegistries = /* @__PURE__ */ new WeakMap();
+function getOrCreateAssetRegistry(build, options = {}) {
+  if (!options.extractAssets) return buildRegistries.get(build);
+  let registry = buildRegistries.get(build);
+  if (!registry) {
+    registry = createAssetRegistry();
+    buildRegistries.set(build, registry);
+  }
+  return registry;
+}
+function createAssetRegistry() {
+  const map = /* @__PURE__ */ new Map();
+  const usedIds = /* @__PURE__ */ new Set();
+  return {
+    register(pkgRoot) {
+      const cached = map.get(pkgRoot);
+      if (cached !== void 0) return { safeId: cached };
+      const baseName = readPackageName(pkgRoot) ?? pkgRoot.split(sep).filter(Boolean).pop() ?? "pkg";
+      const baseSafe = baseName.replace(/[^a-zA-Z0-9._-]/g, "-").replace(/^-+|-+$/g, "") || "pkg";
+      let safeId = baseSafe;
+      let suffix = 2;
+      while (usedIds.has(safeId)) {
+        safeId = `${baseSafe}-${suffix++}`;
+      }
+      map.set(pkgRoot, safeId);
+      usedIds.add(safeId);
+      return { safeId };
+    },
+    entries() {
+      return map.entries();
+    }
+  };
+}
+function findNodeModulesPackageRoot(filePath) {
+  const norm = filePath.replace(/\\/g, "/");
+  const lastNm = norm.lastIndexOf("/node_modules/");
+  if (lastNm < 0) return void 0;
+  const afterNm = norm.slice(lastNm + "/node_modules/".length);
+  const segments = afterNm.split("/");
+  if (segments.length === 0) return void 0;
+  const head = segments[0];
+  const pkgSegs = head.startsWith("@") ? segments.slice(0, 2) : segments.slice(0, 1);
+  if (head.startsWith("@") && segments.length < 2) return void 0;
+  const pkgRoot = norm.slice(0, lastNm + "/node_modules/".length) + pkgSegs.join("/");
+  if (!existsSync(join(pkgRoot, "package.json"))) return void 0;
+  return pkgRoot;
+}
+function readPackageName(pkgRoot) {
+  try {
+    const pkg = JSON.parse(readFileSync(join(pkgRoot, "package.json"), "utf8"));
+    if (typeof pkg?.name === "string" && pkg.name.length > 0) return pkg.name;
+  } catch {
+  }
+  return void 0;
+}
+function rewriteContents(args, src, bundleDir, assetRegistry) {
   if (!shouldRewrite(args.path)) return void 0;
   const hasMetaUrl = src.includes("import.meta.url");
   const hasDirname = src.includes("__dirname");
@@ -6433,21 +6489,36 @@ function rewriteContents(args, src, bundleDir) {
   const preamble = [];
   let contents = src;
   if (hasMetaUrl) {
-    const relPath = relative(bundleDir, args.path);
-    if (relPath.includes(".zip/") && !zipPathWarningEmitted) {
-      zipPathWarningEmitted = true;
-      console.warn(
-        `[gjsify] rewriter: bundling code from inside a PnP virtual zip (${relPath}). import.meta.url-relative paths in this file won't resolve at runtime. Switch to "nodeLinker: node-modules" or unplug the offending package(s) until the rewriter learns to inline zip-resident reads.`
-      );
+    let fileUrl;
+    let dirUrl;
+    let isZip = false;
+    const pkgRoot = assetRegistry ? findNodeModulesPackageRoot(args.path) : void 0;
+    if (assetRegistry && pkgRoot) {
+      const { safeId } = assetRegistry.register(pkgRoot);
+      const relFromPkg = relative(pkgRoot, args.path).replace(/\\/g, "/");
+      const fileAsset = `./_node_modules/${safeId}/${relFromPkg}`;
+      const dirAsset = `./_node_modules/${safeId}/${relFromPkg.split("/").slice(0, -1).join("/")}`.replace(/\/$/, "") || `./_node_modules/${safeId}`;
+      fileUrl = `new URL(${JSON.stringify(fileAsset)}, import.meta.url)`;
+      dirUrl = `new URL(${JSON.stringify(dirAsset + "/")}, import.meta.url)`;
+    } else {
+      const relPath = relative(bundleDir, args.path);
+      const relDir = relative(bundleDir, dir) || ".";
+      isZip = relPath.includes(".zip/");
+      if (isZip && !zipPathWarningEmitted) {
+        zipPathWarningEmitted = true;
+        console.warn(
+          `[gjsify] rewriter: bundling code from inside a PnP virtual zip (${relPath}). import.meta.url-relative paths in this file won't resolve at runtime. Switch to "nodeLinker: node-modules" or unplug the offending package(s) until the rewriter learns to inline zip-resident reads.`
+        );
+      }
+      fileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
+      dirUrl = `new URL(${JSON.stringify(relDir + "/")}, import.meta.url)`;
     }
-    const relDir = relative(bundleDir, dir) || ".";
-    const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
-    contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
+    contents = contents.replace(/\bimport\.meta\.url\b/g, `${fileUrl}.href`);
     if (hasDirname && !dirnameDeclared) {
-      preamble.push(`var __dirname = new URL(${JSON.stringify(relDir + "/")}, import.meta.url).pathname.replace(/\\/$/, "");`);
+      preamble.push(`var __dirname = ${dirUrl}.pathname.replace(/\\/$/, "");`);
     }
     if (hasFilename && !filenameDeclared) {
-      preamble.push(`var __filename = ${runtimeFileUrl}.pathname;`);
+      preamble.push(`var __filename = ${fileUrl}.pathname;`);
     }
   } else {
     if (hasDirname && !dirnameDeclared) preamble.push(`var __dirname = ${JSON.stringify(dir)};`);
@@ -6458,7 +6529,7 @@ function rewriteContents(args, src, bundleDir) {
   const loader = ["ts", "mts", "cts", "tsx"].includes(ext) ? "ts" : "js";
   return { contents, loader, resolveDir: dir };
 }
-async function loadAndRewrite(args, build) {
+async function loadAndRewrite(args, build, assetRegistry) {
   if (!args.path.includes("node_modules")) return void 0;
   let src;
   try {
@@ -6466,14 +6537,36 @@ async function loadAndRewrite(args, build) {
   } catch {
     return void 0;
   }
-  return rewriteContents(args, src, getBundleDir(build));
+  return rewriteContents(args, src, getBundleDir(build), assetRegistry);
 }
-function registerNodeModulesPathRewrite(build) {
-  build.onLoad({ filter: REWRITE_FILTER }, (args) => loadAndRewrite(args, build));
+async function extractRegisteredAssets(bundleDir, registry) {
+  const targets = [];
+  for (const [pkgRoot, safeId] of registry.entries()) {
+    if (!existsSync(pkgRoot)) continue;
+    const dest = join(bundleDir, "_node_modules", safeId);
+    targets.push((async () => {
+      await mkdir(dirname(dest), { recursive: true });
+      await cp(pkgRoot, dest, { recursive: true, force: true, dereference: true });
+    })());
+  }
+  await Promise.all(targets);
 }
+function registerNodeModulesPathRewrite(build, options = {}) {
+  const registry = getOrCreateAssetRegistry(build, options);
+  build.onLoad({ filter: REWRITE_FILTER }, (args) => loadAndRewrite(args, build, registry));
+  if (registry && !buildEndHooked.has(build)) {
+    buildEndHooked.add(build);
+    const bundleDir = getBundleDir(build);
+    build.onEnd(async () => {
+      await extractRegisteredAssets(bundleDir, registry);
+    });
+  }
+  return registry;
+}
+var buildEndHooked = /* @__PURE__ */ new WeakSet();
 
 // ../esbuild-plugin-alias/dist/esm/index.mjs
-import { existsSync } from "fs";
+import { existsSync as existsSync2 } from "fs";
 import { realpath } from "fs/promises";
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -6520,7 +6613,7 @@ var aliasPlugin = (aliasObj) => {
             namespace = resolvedAlias.namespace;
           }
         }
-        if (existsSync(resolvedAliasPath)) {
+        if (existsSync2(resolvedAliasPath)) {
           resolvedAliasPath = await realpath(resolvedAliasPath);
         }
         return {
@@ -9809,7 +9902,7 @@ var handleResult = (result, verboseInfo, { reject }) => {
 };
 
 // ../../../node_modules/execa/lib/stdio/handle-sync.js
-import { readFileSync as readFileSync2 } from "node:fs";
+import { readFileSync as readFileSync3 } from "node:fs";
 
 // ../../../node_modules/execa/lib/stdio/type.js
 var getStdioItemType = (value, optionName) => {
@@ -10139,7 +10232,7 @@ var normalizeStdioSync = (stdioArray, buffer, verboseInfo) => stdioArray.map((st
 var isOutputPipeOnly = (stdioOption) => stdioOption === "pipe" || Array.isArray(stdioOption) && stdioOption.every((item) => item === "pipe");
 
 // ../../../node_modules/execa/lib/stdio/native.js
-import { readFileSync } from "node:fs";
+import { readFileSync as readFileSync2 } from "node:fs";
 import tty2 from "node:tty";
 var handleNativeStream = ({ stdioItem, stdioItem: { type }, isStdioArray, fdNumber, direction, isSync }) => {
   if (!isStdioArray || type !== "native") {
@@ -10173,7 +10266,7 @@ var getTargetFd = ({ value, optionName, fdNumber, direction }) => {
   if (tty2.isatty(targetFdNumber)) {
     throw new TypeError(`The \`${optionName}: ${serializeOptionValue(value)}\` option is invalid: it cannot be a TTY with synchronous methods.`);
   }
-  return { type: "uint8Array", value: bufferToUint8Array(readFileSync(targetFdNumber)), optionName };
+  return { type: "uint8Array", value: bufferToUint8Array(readFileSync2(targetFdNumber)), optionName };
 };
 var getTargetFdNumber = (value, fdNumber) => {
   if (value === "inherit") {
@@ -10506,8 +10599,8 @@ var addProperties = {
 var addPropertiesSync = {
   input: {
     ...addProperties,
-    fileUrl: ({ value }) => ({ contents: [bufferToUint8Array(readFileSync2(value))] }),
-    filePath: ({ value: { file } }) => ({ contents: [bufferToUint8Array(readFileSync2(file))] }),
+    fileUrl: ({ value }) => ({ contents: [bufferToUint8Array(readFileSync3(value))] }),
+    filePath: ({ value: { file } }) => ({ contents: [bufferToUint8Array(readFileSync3(file))] }),
     fileNumber: forbiddenIfSync,
     iterable: ({ value }) => ({ contents: [...value] }),
     string: ({ value }) => ({ contents: [value] }),
@@ -13520,14 +13613,14 @@ var setupForBrowser = async (build, pluginOptions) => {
 import * as deepkitPlugin3 from "@gjsify/esbuild-plugin-deepkit";
 
 // src/utils/patch-to-common-js.ts
-import { readFileSync as readFileSync3, writeFileSync as writeFileSync2 } from "fs";
+import { readFileSync as readFileSync4, writeFileSync as writeFileSync2 } from "fs";
 function registerToCommonJSPatch(build) {
   build.onEnd((result) => {
     if (result.errors.length > 0) return;
     const outfile = build.initialOptions.outfile;
     if (!outfile) return;
     try {
-      let content = readFileSync3(outfile, "utf-8");
+      let content = readFileSync4(outfile, "utf-8");
       const toCommonJSPattern = /var __toCommonJS = \(mod\d?\) => __copyProps\(__defProp\(\{\}, "__esModule", \{ value: true \}\), mod\d?\);/;
       if (toCommonJSPattern.test(content)) {
         content = content.replace(
@@ -13651,7 +13744,7 @@ var setupForGjs = async (build, pluginOptions) => {
     if (result.errors.length > 0) return void 0;
     return { path: result.path };
   });
-  registerNodeModulesPathRewrite(build);
+  registerNodeModulesPathRewrite(build, { extractAssets: pluginOptions.extractNodeModulesAssets });
   merge(build.initialOptions, esbuildOptions);
   build.initialOptions.entryPoints = await globToEntryPoints(build.initialOptions.entryPoints, pluginOptions.exclude);
   const aliases = { ...getAliasesForGjs({ external }), ...pluginOptions.aliases };
@@ -13727,7 +13820,7 @@ var setupForNode = async (build, pluginOptions) => {
       window: "globalThis"
     }
   };
-  registerNodeModulesPathRewrite(build);
+  registerNodeModulesPathRewrite(build, { extractAssets: pluginOptions.extractNodeModulesAssets });
   merge(build.initialOptions, esbuildOptions);
   build.initialOptions.entryPoints = await globToEntryPoints(build.initialOptions.entryPoints, pluginOptions.exclude);
   const aliases = { ...getAliasesForNode({ external }), ...pluginOptions.aliases };
@@ -13780,13 +13873,17 @@ export {
   EXTERNALS_NODE,
   EXTERNALS_NPM,
   REWRITE_FILTER,
+  createAssetRegistry,
   index_default as default,
   externalNPM,
   externalNode,
+  extractRegisteredAssets,
+  findNodeModulesPackageRoot,
   getAliasesForGjs,
   getAliasesForNode,
   getBundleDir,
   getJsExtensions,
+  getOrCreateAssetRegistry,
   gjsifyPlugin,
   globToEntryPoints,
   registerNodeModulesPathRewrite,

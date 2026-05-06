@@ -607,46 +607,28 @@ Fixtures (`tests/integration/ts-for-gir/girs/`) are gjsify's own Vala-generated 
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
-### High priority — rewriter asset extraction for portable distribution
+### Completed — rewriter asset extraction (`extractNodeModulesAssets`)
 
-Two related problems share the same root cause; one fix solves both:
+Implemented in [#72](https://github.com/gjsify/gjsify/pull/72) (replaces the design-only doc that was on the same branch). Adds an opt-in build mode:
 
-1. **`nodeLinker: pnp`** — surfaced by [#70](https://github.com/gjsify/gjsify/pull/70). Under PnP the rewriter emits paths into `.yarn/__virtual__/<pkg>.zip/...` that only exist inside the PnP runtime. Bundled `readFileSync(new URL("./x", import.meta.url))` then crashes with ENOENT. PR #70 added a build-time warning; ts-for-gir keeps `nodeLinker: node-modules` as a documented workaround.
-2. **dlx / cross-machine portability** — independent of PnP. The rewriter writes paths relative to where each source file *lived at build time* (typically `bin/ → ../../node_modules/typedoc/...`). When the bundle is shipped via `npm publish` and consumed via `gjsify dlx`, those paths point at locations the dlx cache layout doesn't match. Same root cause; same fix.
+- `gjsify.extractNodeModulesAssets: true` in `package.json#gjsify`, or
+- `gjsify build … --extract-node-modules-assets`, or
+- `extractNodeModulesAssets: true` in `.gjsifyrc.*` / plugin options.
 
-**Verified the dlx case crashes** (May 2026, by extracting a packed ts-for-gir tarball and running `gjs -m bin/ts-for-gir-gjs --version`):
-```
-ENOENT: …/node_modules/typedoc/package.json — read '/node_modules/typedoc/package.json'
-```
+When on, `@gjsify/esbuild-plugin-gjsify`'s rewriter:
+1. Detects each `node_modules/<pkg>/` whose files it touches (file-namespace + the PnP-relay's `transformContents` callback share one per-build registry via `WeakMap<PluginBuild, AssetRegistry>`).
+2. Rewrites `import.meta.url` to `new URL("./_node_modules/<safe-id>/<rel>", import.meta.url)` instead of the legacy source-relative URL.
+3. Copies each registered package root into `<bundleDir>/_node_modules/<safe-id>/` at `build.onEnd`. `cp({ recursive: true, dereference: true, force: true })` so symlinked workspace deps + repeat builds work.
 
-**Patterns found in real bundles** (typedoc + yargs + mini-shiki via ts-for-gir):
-- `readFileSync(join(fileURLToPath(new URL(<literal>, import.meta.url).href), "../../package.json"), "utf8")` (typedoc reading its own version)
-- `readdirSync(join(<URL>, "../locales"))` (typedoc i18n)
-- `dirname(fileURLToPath(<URL>))` as anchor for arbitrary downstream relative reads (mini-shiki themes, typedoc templates)
-- `createRequire(<URL>)` (yargs-parser CJS escape hatch)
+Verified end-to-end against ts-for-gir's bundle: 5.5 MB companion directory (typedoc + mini-shiki + yargs + yargs-parser), bundle runs from any path including deeply-nested dlx-cache-style layouts.
 
-**Recommended approach — asset extraction, opt-in via build config:**
+New e2e suite `tests/e2e/portable-bundle/` (2/2 ✓) covers the default-mode behaviour AND the portable mode (move + nested-dir runs). Wired into root `package.json#test:e2e`.
 
-1. New `gjsify.esbuild.extractNodeModulesAssets: true` (or CLI `--extract-assets`) — opt-in. Off by default for local-dev builds; on for distributable bundles.
-2. Track each rewritten file's package root (walk up to nearest `package.json` inside `node_modules/`), assign a stable safe id.
-3. Rewriter emits `new URL("./_node_modules/<safe-id>/<rel-from-pkg-root>", import.meta.url)` instead of the original-source-relative URL.
-4. `build.onEnd` recursively copies each unique package root into `<bundleDir>/_node_modules/<safe-id>/`.
-5. PnP path: read package contents via `@yarnpkg/fslib` ZipFS exposed through the pnp plugin's runtime; emit identically. Symlinked workspace deps: dereference once (use realpath of the package root, then copy).
+PnP zip-resident packages are still surfaced via the legacy `[gjsify] rewriter:` warning — `extractRegisteredAssets` quietly skips package roots that don't exist on the real filesystem (zip-resident roots), so PnP+extraction is a no-op for those packages today. Real PnP-zip support is a smaller follow-up: read the package via `@yarnpkg/fslib` ZipFS and write the bytes through during the same copy phase. Not blocking ts-for-gir or any current consumer.
 
-**Edge cases to handle:**
-- Same package referenced from multiple files → register once, copy once (use a `Map<pkgRoot, safeId>`).
-- Dependencies of dependencies in nested `node_modules/` (npm v3+ flat layout doesn't usually nest, but yarn-pnp + npm-workspaces sometimes do) → walk to the nearest `package.json`, not the topmost.
-- Scoped packages (`@gjsify/foo`) → safe id like `gjsify-foo`. Make collision-resistant by adding a short hash of the resolved package version.
-- `package.json#exports` conditional fields → asset extraction must NOT change the resolved file inside the bundle (esbuild already resolved imports); we only mirror the on-disk file the rewriter touched.
-- Asset extraction must respect `package.json#files` / `.npmignore` so we don't bundle test fixtures, source maps the package author excluded, etc. → walk the package and run an allowlist of what the rewriter actually referenced, plus always `package.json` and any directory hierarchy that's accessed by the bundle.
+### Open — PnP-zip-resident package extraction (smaller follow-up)
 
-**Cost:** bundle becomes a single JS file plus a sibling `_node_modules/` directory. For ts-for-gir today the directory would be ~30–50 MB (typedoc + mini-shiki + yargs + …). Acceptable — the bundle was already 23 MB and the dlx model accepts companion files.
-
-**Test plan:**
-- New e2e suite `tests/e2e/portable-bundle/` that builds a small bundle that reads its own `package.json` via `import.meta.url`, packs the result, extracts to a fresh location, and runs `gjs -m`. Failing assertions: ENOENT, missing files, wrong path resolution.
-- ts-for-gir cross-test under both `nodeLinker: pnp` and `nodeLinker: node-modules` — both should produce a working bundle when `extractNodeModulesAssets: true`.
-
-Until this lands: `nodeLinker: node-modules` documented in ts-for-gir; dlx/distribution constrained to consumers who unpack into a layout matching the build host's relative paths.
+Asset extraction handles every package whose root exists on the real filesystem. PnP zip-resident packages (`.yarn/cache/<pkg>.zip`, `.yarn/__virtual__/<pkg>.zip/...`) are still surfaced via the legacy `[gjsify] rewriter:` warning — `extractRegisteredAssets` quietly skips package roots that don't exist on disk. Real fix: read those packages via `@yarnpkg/fslib` ZipFS (exposed through the pnp plugin's runtime) and write the bytes through during the same copy phase. Not blocking ts-for-gir or any current consumer because `nodeLinker: node-modules` + `extractNodeModulesAssets: true` already produces a portable bundle.
 
 ### Completed (Phase A — gjsify v0.3.9)
 

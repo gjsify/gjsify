@@ -124,6 +124,11 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 type: 'string',
                 normalize: true,
             })
+            .option('extract-node-modules-assets', {
+                description: "Copy every touched `node_modules/<pkg>/` directory next to the bundle as `<bundleDir>/_node_modules/<safe-id>/` and rewrite `import.meta.url` relative paths to point at the copies. Makes the bundle portable across machines and layouts (`gjsify dlx` cache, manual tarball extracts, Yarn-PnP node-modules linker). Off by default; recommended for distribution bundles. Equivalent to setting `gjsify.esbuild.extractNodeModulesAssets: true` in package.json.",
+                type: 'boolean',
+                normalize: true,
+            })
     },
     handler: async (args) => {
         const config = new Config();

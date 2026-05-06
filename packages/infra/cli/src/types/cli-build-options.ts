@@ -97,4 +97,14 @@ export interface CliBuildOptions {
    * Example: `--exclude-globals fetch,XMLHttpRequest`
    */
   excludeGlobals?: string[];
+  /**
+   * Copy each touched `node_modules/<pkg>/` directory next to the bundle as
+   * `<bundleDir>/_node_modules/<safe-id>/` and rewrite `import.meta.url`
+   * relative paths to point at the copies. Makes the bundle portable across
+   * machines and layouts (`gjsify dlx` cache, manual tarball extracts,
+   * Yarn-PnP node-modules linker).
+   *
+   * Off by default. Recommended for distribution bundles.
+   */
+  extractNodeModulesAssets?: boolean;
 }

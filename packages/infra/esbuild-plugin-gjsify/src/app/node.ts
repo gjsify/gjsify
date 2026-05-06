@@ -79,7 +79,7 @@ export const setupForNode = async (build: PluginBuild, pluginOptions: PluginOpti
         }
     };
 
-    registerNodeModulesPathRewrite(build);
+    registerNodeModulesPathRewrite(build, { extractAssets: pluginOptions.extractNodeModulesAssets });
 
     merge(build.initialOptions, esbuildOptions);
 

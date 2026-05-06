@@ -35,4 +35,18 @@ export interface ConfigData {
      * Example: `["fetch", "XMLHttpRequest"]` excludes the HTTP polyfill stack.
      */
     excludeGlobals?: string[];
+    /**
+     * When `true`, the rewriter copies every `node_modules/<pkg>/` directory
+     * it touches to `<bundleDir>/_node_modules/<safe-id>/` and rewrites the
+     * `import.meta.url`-relative paths in the bundle to point at the copies.
+     * The bundle plus the sibling `_node_modules/` directory is then portable
+     * across machines and layouts (`gjsify dlx` cache, manual tarball
+     * extracts, Yarn-PnP node-modules linker).
+     *
+     * Off by default. Set to `true` for distribution bundles. Local-dev
+     * builds typically don't need this — the source-relative paths resolve
+     * back to the live `node_modules/`, so re-runs reflect dependency edits
+     * without a copy step.
+     */
+    extractNodeModulesAssets?: boolean;
 }
