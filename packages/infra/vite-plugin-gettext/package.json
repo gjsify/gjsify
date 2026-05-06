@@ -1,0 +1,53 @@
+{
+    "name": "@gjsify/vite-plugin-gettext",
+    "version": "0.3.13",
+    "description": "Gettext PO/MO/JSON pipeline for Vite / Rollup / Rolldown — extract via xgettext, compile via msgfmt, JSON for browser targets.",
+    "type": "module",
+    "main": "lib/index.js",
+    "module": "lib/index.js",
+    "types": "lib/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/index.d.ts",
+            "default": "./lib/index.js"
+        }
+    },
+    "scripts": {
+        "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build": "tsc"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/vite-plugin-gettext#readme",
+    "keywords": [
+        "vite",
+        "rollup",
+        "rolldown",
+        "gettext",
+        "i18n",
+        "gnome"
+    ],
+    "license": "MIT",
+    "peerDependencies": {
+        "rolldown": "^1.0.0-rc.18",
+        "vite": "^8.0.0"
+    },
+    "peerDependenciesMeta": {
+        "rolldown": {
+            "optional": true
+        },
+        "vite": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@types/node": "^25.6.0",
+        "typescript": "^6.0.3"
+    }
+}
