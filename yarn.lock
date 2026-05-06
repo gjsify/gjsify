@@ -3566,12 +3566,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/rolldown-plugin-gjsify@workspace:packages/infra/rolldown-plugin-gjsify"
   dependencies:
-    "@gjsify/console": "workspace:^"
     "@gjsify/resolve-npm": "workspace:^"
     "@gjsify/rolldown-plugin-deepkit": "workspace:^"
     "@gjsify/rolldown-plugin-pnp": "workspace:^"
     "@gjsify/vite-plugin-blueprint": "workspace:^"
-    "@rollup/plugin-alias": "npm:^5.1.1"
     "@rollup/pluginutils": "npm:^5.1.4"
     "@types/node": "npm:^25.6.0"
     acorn: "npm:^8.14.0"
@@ -6466,18 +6464,6 @@ __metadata:
   version: 1.0.0-rc.18
   resolution: "@rolldown/pluginutils@npm:1.0.0-rc.18"
   checksum: 10/9dc298defd9615e55c7b57caca78e5f160d6a8dffbf823c990082421a59b7e6413daf113b81d93d9ef8db3d7608816a3117748e9b2f8d16e0964fe2c520d342e
-  languageName: node
-  linkType: hard
-
-"@rollup/plugin-alias@npm:^5.1.1":
-  version: 5.1.1
-  resolution: "@rollup/plugin-alias@npm:5.1.1"
-  peerDependencies:
-    rollup: ^1.20.0||^2.0.0||^3.0.0||^4.0.0
-  peerDependenciesMeta:
-    rollup:
-      optional: true
-  checksum: 10/1f1ab178aa2726c81e2ae1709f73b3688491f14655b97c54d43bea35ac3f783f8855d701d1e5eac234e3ffe89fef56ce975726b036a97049fefa9b514686e55c
   languageName: node
   linkType: hard
 
