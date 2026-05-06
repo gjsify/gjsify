@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.11](https://github.com/gjsify/gjsify/compare/v0.3.10...v0.3.11) (2026-05-06)
+
+### Bug Fixes
+
+* **esbuild-plugin-gjsify:** hoist shebang, stub zip-only createRequire, skip zip URL rewrite ([#75](https://github.com/gjsify/gjsify/issues/75)) ([a8b7e08](https://github.com/gjsify/gjsify/commit/a8b7e0898ea383b744dda1df07dfab869c26aa49))
+
 ## [0.3.10](https://github.com/gjsify/gjsify/compare/v0.3.9...v0.3.10) (2026-05-06)
 
 ### Features
