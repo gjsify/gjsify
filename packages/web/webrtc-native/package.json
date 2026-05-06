@@ -29,7 +29,7 @@
         "build": "yarn build:gjsify && yarn build:types",
         "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
         "build:meson": "yarn init:meson && meson compile -C build",
-        "build:types": "tsc",
+        "build:types": "tsc -b --force",
         "build:prebuilds": "yarn build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifywebrtc.so build/GjsifyWebrtc-0.1.typelib prebuilds/linux-x86_64/"
     },
     "keywords": [
