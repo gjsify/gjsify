@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 
 import type { OnLoadArgs, OnLoadResult, PluginBuild } from 'esbuild';
 
+import { inlineStaticReads } from './inline-static-reads.js';
+
 // Rewrite node_modules files that use:
 //   - import.meta.url  (ESM packages that locate their own resources via FS path)
 //   - __dirname / __filename  (CJS packages; esbuild platform:'neutral' omits them,
@@ -65,15 +67,34 @@ export function getBundleDir(build: PluginBuild): string {
  */
 export function rewriteContents(
     args: { path: string },
-    src: string,
+    srcInput: string,
     bundleDir: string,
 ): OnLoadResult | undefined {
     if (!shouldRewrite(args.path)) return undefined;
 
+    // First pass: inline statically-resolvable filesystem reads
+    // (`readFileSync(new URL(<lit>, import.meta.url), "utf8")` and friends)
+    // so the bundle becomes self-contained for those patterns. Calls that
+    // can't be statically resolved fall through to the legacy
+    // `import.meta.url` rewrite below — which keeps the build-time relative
+    // path that works at the build site but fails when the bundle is moved.
+    const inlined = inlineStaticReads(srcInput, args.path);
+    let src = inlined.contents;
+
     const hasMetaUrl = src.includes('import.meta.url');
     const hasDirname = src.includes('__dirname');
     const hasFilename = src.includes('__filename');
-    if (!hasMetaUrl && !hasDirname && !hasFilename) return undefined;
+    if (!hasMetaUrl && !hasDirname && !hasFilename) {
+        // Inlining may have removed every `import.meta.url`/__dirname use;
+        // when that happens, return the inlined source as-is so esbuild
+        // sees the new contents.
+        if (inlined.inlined > 0) {
+            const ext = args.path.split('.').pop() ?? 'js';
+            const loader = ['ts', 'mts', 'cts', 'tsx'].includes(ext) ? 'ts' : 'js';
+            return { contents: src, loader, resolveDir: dirname(args.path) };
+        }
+        return undefined;
+    }
 
     const dir = dirname(args.path);
     const dirnameDeclared = DIRNAME_DECL_RE.test(src);
