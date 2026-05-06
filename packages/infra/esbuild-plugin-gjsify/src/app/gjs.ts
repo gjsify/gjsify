@@ -54,6 +54,33 @@ const GJS_PROCESS_STUB = [
     '}',
 ].join('');
 
+/**
+ * Compose the GJS process stub with the user-supplied banner so the result
+ * is valid syntax for `gjs -m`. Specifically: a leading `#!shebang` line in
+ * the user banner is hoisted to byte 0 of the output. Any `#` character
+ * that appears anywhere except byte 0 is a fatal SyntaxError under
+ * SpiderMonkey 128+ — putting our process stub before the user's shebang
+ * would break the bundle.
+ *
+ * Output shape:
+ *   [#!shebang\n][<process-stub>\n<rest-of-user-banner>]
+ *
+ * Either side of the bracket may be empty; the result is always
+ * concatenated without leading whitespace.
+ */
+function composeBanner(stub: string, userBanner: string): string {
+    if (!userBanner) return stub;
+    // Match a leading shebang line (`#!...\n`). Pick it off so it stays at
+    // byte 0; everything after it is regular JS that comes after the stub.
+    const shebangMatch = userBanner.match(/^#![^\n]*\n/);
+    if (!shebangMatch) {
+        return stub + '\n' + userBanner;
+    }
+    const shebang = shebangMatch[0];
+    const rest = userBanner.slice(shebang.length);
+    return shebang + stub + (rest ? '\n' + rest : '');
+}
+
 export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptions) => {
 
     // User-supplied externals (`gjsify build --external <name>`) merge in so
@@ -137,11 +164,16 @@ export const setupForGjs = async (build: PluginBuild, pluginOptions: PluginOptio
     }
 
     // Prepend the synchronous process stub banner so globalThis.process exists
-    // before any bundled module code runs. Combines with any user-supplied banner.
+    // before any bundled module code runs. Combines with any user-supplied
+    // banner. A leading `#!` shebang line in the user banner is hoisted to
+    // byte 0 of the output — shebangs are only valid at the absolute start
+    // of a file (gjs's JS parser, like SpiderMonkey, hard-fails on a `#`
+    // appearing anywhere else). The order is therefore:
+    //   #!shebang\n<process-stub>\n<rest of user banner>\n<bundle code>
     const userBannerJs = typeof (build.initialOptions.banner as Record<string, string> | undefined)?.js === 'string'
         ? (build.initialOptions.banner as Record<string, string>).js
         : '';
-    esbuildOptions.banner = { js: GJS_PROCESS_STUB + (userBannerJs ? '\n' + userBannerJs : '') };
+    esbuildOptions.banner = { js: composeBanner(GJS_PROCESS_STUB, userBannerJs) };
 
     // random-access-file's 'browser' field maps to a throwing stub; force the fs-backed Node entry.
     build.onResolve({ filter: /^random-access-file$/ }, async (args) => {

@@ -12489,6 +12489,17 @@ function tryInlineCall(node, ctx, src) {
       };
     }
   }
+  if (calleeName === "createRequire") {
+    const path6 = evalPathExpr(node.arguments[0], ctx);
+    const isZip = path6 !== void 0 && path6.includes(".zip/");
+    if (path6 !== void 0 && (isZip || !existsSyncSafe(path6))) {
+      return {
+        start: node.start,
+        end: node.end,
+        replacement: `(() => { const _r = (id) => { throw new Error("[gjsify] createRequire stub: '" + id + "' was not bundled (anchor path: " + ${jsStringLiteral(path6)} + ")"); }; _r.resolve = _r; _r.cache = {}; _r.extensions = {}; _r.main = void 0; return _r; })()`
+      };
+    }
+  }
   return void 0;
 }
 function tryInlineReadFile(node, ctx, forceTextEncoding) {
@@ -12728,7 +12739,6 @@ function isDirectorySafe(path6) {
 var REWRITE_FILTER = /\.(m?js|cjs|[cm]?tsx?)$/;
 var DIRNAME_DECL_RE = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/;
 var FILENAME_DECL_RE = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/;
-var zipPathWarningEmitted = false;
 function shouldRewrite(path6) {
   return path6.includes("node_modules") && REWRITE_FILTER.test(path6);
 }
@@ -12758,20 +12768,24 @@ function rewriteContents(args, srcInput, bundleDir) {
   let contents = src;
   if (hasMetaUrl) {
     const relPath = relative2(bundleDir, args.path);
-    if (relPath.includes(".zip/") && !zipPathWarningEmitted) {
-      zipPathWarningEmitted = true;
-      console.warn(
-        `[gjsify] rewriter: bundling code from inside a PnP virtual zip (${relPath}). import.meta.url-relative paths in this file won't resolve at runtime. Switch to "nodeLinker: node-modules" or unplug the offending package(s) until the rewriter learns to inline zip-resident reads.`
-      );
-    }
-    const relDir = relative2(bundleDir, dir) || ".";
-    const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
-    contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
-    if (hasDirname && !dirnameDeclared) {
-      preamble.push(`var __dirname = new URL(${JSON.stringify(relDir + "/")}, import.meta.url).pathname.replace(/\\/$/, "");`);
-    }
-    if (hasFilename && !filenameDeclared) {
-      preamble.push(`var __filename = ${runtimeFileUrl}.pathname;`);
+    const isZipResident = relPath.includes(".zip/");
+    if (isZipResident) {
+      if (hasDirname && !dirnameDeclared) {
+        preamble.push(`var __dirname = new URL(".", import.meta.url).pathname.replace(/\\/$/, "");`);
+      }
+      if (hasFilename && !filenameDeclared) {
+        preamble.push(`var __filename = new URL(import.meta.url).pathname;`);
+      }
+    } else {
+      const relDir = relative2(bundleDir, dir) || ".";
+      const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
+      contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
+      if (hasDirname && !dirnameDeclared) {
+        preamble.push(`var __dirname = new URL(${JSON.stringify(relDir + "/")}, import.meta.url).pathname.replace(/\\/$/, "");`);
+      }
+      if (hasFilename && !filenameDeclared) {
+        preamble.push(`var __filename = ${runtimeFileUrl}.pathname;`);
+      }
     }
   } else {
     if (hasDirname && !dirnameDeclared) preamble.push(`var __dirname = ${JSON.stringify(dir)};`);
@@ -19900,6 +19914,16 @@ var GJS_PROCESS_STUB = [
   "};",
   "}"
 ].join("");
+function composeBanner(stub, userBanner) {
+  if (!userBanner) return stub;
+  const shebangMatch = userBanner.match(/^#![^\n]*\n/);
+  if (!shebangMatch) {
+    return stub + "\n" + userBanner;
+  }
+  const shebang = shebangMatch[0];
+  const rest = userBanner.slice(shebang.length);
+  return shebang + stub + (rest ? "\n" + rest : "");
+}
 var setupForGjs = async (build, pluginOptions) => {
   const userExternal = build.initialOptions.external ?? [];
   const external = ["gi://*", "cairo", "gettext", "system", ...userExternal];
@@ -19966,7 +19990,7 @@ var setupForGjs = async (build, pluginOptions) => {
     ];
   }
   const userBannerJs = typeof build.initialOptions.banner?.js === "string" ? build.initialOptions.banner.js : "";
-  esbuildOptions.banner = { js: GJS_PROCESS_STUB + (userBannerJs ? "\n" + userBannerJs : "") };
+  esbuildOptions.banner = { js: composeBanner(GJS_PROCESS_STUB, userBannerJs) };
   build.onResolve({ filter: /^random-access-file$/ }, async (args) => {
     const result = await build.resolve("random-access-file/index.js", {
       kind: args.kind,
