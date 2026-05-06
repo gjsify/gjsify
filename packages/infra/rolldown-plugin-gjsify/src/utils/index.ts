@@ -1,4 +1,5 @@
 export * from './alias.js';
+export * from './entry-points.js';
 export * from './extension.js';
 export * from './merge.js';
 export { detectFreeGlobals } from './detect-free-globals.js';
