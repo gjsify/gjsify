@@ -11,6 +11,7 @@
 // lowering. Library output stays maximally portable.
 
 import { aliasPlugin } from '../plugins/alias.js';
+import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 
 import type { PluginOptions } from '../types/plugin-options.js';
@@ -65,6 +66,13 @@ export const setupLib = async (input: LibFactoryInput): Promise<LibBuildConfig> 
 
     const plugins: RolldownPluginOption[] = [
         aliasPlugin({ entries: flattenAliases(aliasMap) }),
+        // Rolldown removed experimental CSS bundling — `.css` files would
+        // error at the bundler level. Library-mode packages that bundle
+        // CSS as a string (e.g. `@gjsify/adwaita-fonts/index.css`) need
+        // the same `load` hook the app factories install. The result is a
+        // tiny JS module re-exporting the CSS source, which preserveModules
+        // emits 1:1.
+        cssAsStringPlugin(),
     ];
 
     return { options, plugins };
