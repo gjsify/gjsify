@@ -48,6 +48,13 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Guides',
+          items: [
+            { slug: 'guides/dlx-packaging' },
+            { slug: 'guides/self-executing-package' },
+          ],
+        },
+        {
           label: 'Packages',
           items: [
             { slug: 'packages/overview' },
