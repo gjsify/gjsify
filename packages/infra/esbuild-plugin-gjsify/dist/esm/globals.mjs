@@ -20349,30 +20349,7 @@ function registerToCommonJSPatch(build2) {
 import { fileURLToPath as fileURLToPath4 } from "url";
 import { dirname as dirname3, resolve as resolve4 } from "path";
 var _shimDir = dirname3(fileURLToPath4(import.meta.url));
-var GJS_PROCESS_STUB = [
-  'if(typeof globalThis.process==="undefined"){',
-  "const _s=imports.system,_G=imports.gi.GLib;",
-  "globalThis.process={",
-  'platform:"linux",arch:"x64",version:"v20.0.0",',
-  "env:new Proxy({},{",
-  'get(_,p){return typeof p==="string"?(_G.getenv(p)??undefined):undefined},',
-  'set(_,p,v){if(typeof p==="string")_G.setenv(p,String(v),true);return true},',
-  'has(_,p){return typeof p==="string"&&_G.getenv(p)!==null},',
-  'deleteProperty(_,p){if(typeof p==="string")_G.unsetenv(p);return true},',
-  "ownKeys(){return _G.listenv()??[]},",
-  "getOwnPropertyDescriptor(_,p){const v=_G.getenv(p);return v!==null?{value:v,writable:true,enumerable:true,configurable:true}:undefined}",
-  "}),",
-  'argv:_s?.programArgs?["gjs",_s.programInvocationName||"",..._s.programArgs]:["gjs"],',
-  "versions:{},config:{},",
-  'cwd(){return _G.get_current_dir()||"/"},',
-  "exit(c){_s.exit(c??0)},",
-  "stderr:{write(s){printerr(s)}},stdout:{write(s){print(s)}},stdin:null,",
-  "exitCode:undefined,",
-  "nextTick(fn,...a){Promise.resolve().then(()=>fn(...a))},",
-  "hrtime(t){return t?[0,0]:[0,0]},",
-  "};",
-  "}"
-].join("");
+var GJS_PROCESS_STUB = 'if(typeof globalThis.process==="undefined"){const _s=imports.system,_G=imports.gi.GLib;globalThis.process={platform:"linux",arch:"x64",version:"v20.0.0",env:new Proxy({},{get(_,p){return typeof p==="string"?(_G.getenv(p)??undefined):undefined},set(_,p,v){if(typeof p==="string")_G.setenv(p,String(v),true);return true},has(_,p){return typeof p==="string"&&_G.getenv(p)!==null},deleteProperty(_,p){if(typeof p==="string")_G.unsetenv(p);return true},ownKeys(){return _G.listenv()??[]},getOwnPropertyDescriptor(_,p){const v=_G.getenv(p);return v!==null?{value:v,writable:true,enumerable:true,configurable:true}:undefined}}),argv:_s?.programArgs?["gjs",_s.programInvocationName||"",..._s.programArgs]:["gjs"],versions:{},config:{},cwd(){return _G.get_current_dir()||"/"},exit(c){_s.exit(c??0)},stderr:{write(s){printerr(s)}},stdout:{write(s){print(s)}},stdin:null,exitCode:undefined,nextTick(fn,...a){Promise.resolve().then(()=>fn(...a))},hrtime(t){return t?[0,0]:[0,0]},};}';
 function composeBanner(stub, userBanner) {
   if (!userBanner) return stub;
   const shebangMatch = userBanner.match(/^#![^\n]*\n/);
