@@ -1,13 +1,10 @@
 // Public re-exports for `@gjsify/rolldown-plugin-gjsify`.
-//
-// The orchestrator (`gjsifyPlugin`) and platform-specific factories
-// (`gjsifyForGjs`, `gjsifyForNode`, `gjsifyForBrowser`) land in a follow-up
-// commit on this branch. This file currently exports the bundler-agnostic
-// type, utility, and Rolldown-plugin surface so consumers can already
-// depend on us.
 
 export * from './types/index.js';
 export * from './utils/index.js';
+export * from './app/index.js';
+export * from './lib/index.js';
+
 export {
     REWRITE_FILTER,
     getBundleDirFromOutput,
@@ -19,4 +16,17 @@ export type {
     NodeModulesPathRewriteOptions,
     RewriteResult,
 } from './plugins/rewrite-node-modules-paths.js';
+
+export { processStubPlugin, GJS_PROCESS_STUB, composeBanner } from './plugins/process-stub.js';
+export type { ProcessStubPluginOptions } from './plugins/process-stub.js';
+export { cssAsStringPlugin } from './plugins/css-as-string.js';
+export { shebangPlugin, GJS_SHEBANG } from './plugins/shebang.js';
+export type { ShebangPluginOptions } from './plugins/shebang.js';
+export { gjsImportsEmptyPlugin } from './plugins/gjs-imports-empty.js';
+
+export * from './plugin.js';
+import { gjsifyPlugin } from './plugin.js';
+export { gjsifyPlugin };
+export default gjsifyPlugin;
+
 export * from '@gjsify/resolve-npm';
