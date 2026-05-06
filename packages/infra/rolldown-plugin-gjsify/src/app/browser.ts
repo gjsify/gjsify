@@ -6,8 +6,8 @@
 // for `process` and `assert` keep `@gjsify/unit`'s top-level imports
 // resolvable in a browser bundle.
 
-import alias from '@rollup/plugin-alias';
-import type { Plugin, RolldownOptions, RolldownPluginOption } from 'rolldown';
+import { aliasPlugin } from '../plugins/alias.js';
+import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
@@ -75,13 +75,14 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
             format: 'esm',
             minify: false,
             sourcemap: false,
+            inlineDynamicImports: true,
         },
         treeshake: true,
     };
 
     const plugins: RolldownPluginOption[] = [
         gjsImportsEmptyPlugin(),
-        alias({ entries: flattenAliases(aliasMap) }) as unknown as Plugin,
+        aliasPlugin({ entries: flattenAliases(aliasMap) }),
         blueprintPlugin() as RolldownPluginOption,
         deepkitPlugin({ reflection: input.pluginOptions.reflection }),
         cssAsStringPlugin(),

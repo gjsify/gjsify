@@ -11,8 +11,8 @@
 
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import alias from '@rollup/plugin-alias';
-import type { Plugin, RolldownOptions, RolldownPluginOption } from 'rolldown';
+import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
+import { aliasPlugin } from '../plugins/alias.js';
 
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
@@ -75,14 +75,23 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         ? resolve(_shimDir, '../shims/console-gjs.js')
         : null;
 
-    // Auto-globals inject path is appended as an additional entry (not as
-    // Rolldown's `transform.inject`, which is the source-AST per-identifier
-    // rewrite forbidden by the auto-globals invariant).
-    const extraEntries: string[] = [];
-    if (consoleShimPath) extraEntries.push(consoleShimPath);
-    if (input.pluginOptions.autoGlobalsInject) extraEntries.push(input.pluginOptions.autoGlobalsInject);
+    // Side-effect-only files we need to land in the bundle alongside the
+    // user's entry: the console shim and (when present) the auto-globals
+    // inject stub. We can't use Rolldown's `transform.inject` (source-AST
+    // rewrite, forbidden by the auto-globals invariant) and we can't add
+    // them as additional `input` entries because Rolldown then either emits
+    // multiple chunks (incompatible with `--outfile`) or rejects
+    // `codeSplitting: false` for multi-input builds.
+    //
+    // Instead we wrap the user entry in a virtual module that side-effect-
+    // imports each shim then re-exports the entry. One real entry, all the
+    // bytes land in one bundle.
+    const sideEffectImports: string[] = [];
+    if (consoleShimPath) sideEffectImports.push(consoleShimPath);
+    if (input.pluginOptions.autoGlobalsInject) sideEffectImports.push(input.pluginOptions.autoGlobalsInject);
 
-    const finalInput = appendExtraEntries(entryPoints, extraEntries);
+    const virtualEntries = wrapInputWithSideEffects(entryPoints, sideEffectImports);
+    const finalInput = virtualEntries.input;
 
     const options: RolldownOptions = {
         input: finalInput,
@@ -112,6 +121,10 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
             format,
             minify: false,
             sourcemap: false,
+            // App builds emit a single bundle file. Disable code-splitting
+            // and inline dynamic imports so the entire program lands in
+            // one chunk that matches `gjsify build --outfile foo.js`.
+            inlineDynamicImports: true,
         },
         treeshake: true,
     };
@@ -119,15 +132,18 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     const bundleDir = getBundleDirFromOutput(input.output);
 
     const plugins: RolldownPluginOption[] = [
+        // Virtual-entry plugin runs FIRST so its resolveId/load match the
+        // synthetic input ids that `wrapInputWithSideEffects` produces.
+        ...(virtualEntries.plugin ? [virtualEntries.plugin] : []),
         // random-access-file's 'browser' field maps to a throwing stub; force
-        // the fs-backed Node entry. Implemented via @rollup/plugin-alias as a
-        // direct entry-table override.
-        alias({
+        // the fs-backed Node entry. Implemented via the gjsify alias plugin
+        // as a direct entry-table override.
+        aliasPlugin({
             entries: {
                 'random-access-file': 'random-access-file/index.js',
                 ...flattenAliases(aliasMap),
             },
-        }) as unknown as Plugin,
+        }),
         blueprintPlugin() as RolldownPluginOption,
         deepkitPlugin({ reflection: input.pluginOptions.reflection }),
         cssAsStringPlugin(),
@@ -139,19 +155,78 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     return { options, plugins };
 };
 
-function appendExtraEntries(
+interface VirtualEntriesResult {
+    input: RolldownOptions['input'];
+    plugin: RolldownPluginOption | null;
+}
+
+/**
+ * If there are side-effect imports to land alongside the user's entry,
+ * wrap each entry in a virtual module that imports them first then
+ * re-exports the entry. Returns the rewritten `input` plus the resolveId/load
+ * plugin that resolves the virtual ids.
+ *
+ * Single-input case: `'src/index.ts'` → `'\0gjsify-entry:src/index.ts'`.
+ * Array-input case: each element gets the same wrapper id.
+ * Record-input case: values get wrapped, keys preserved.
+ *
+ * `\0`-prefixed ids are Rollup's convention for synthetic modules — Rolldown
+ * recognises and treats them as not-from-disk, skipping the default loader.
+ */
+function wrapInputWithSideEffects(
     input: RolldownOptions['input'],
-    extras: string[],
-): RolldownOptions['input'] {
-    if (extras.length === 0) return input;
-    if (input === undefined) return [...extras];
-    if (typeof input === 'string') return [input, ...extras];
-    if (Array.isArray(input)) return [...input, ...extras];
-    const merged: Record<string, string> = { ...input };
-    extras.forEach((p, i) => {
-        merged[`__gjsify_extra_${i}`] = p;
-    });
-    return merged;
+    sideEffects: string[],
+): VirtualEntriesResult {
+    if (sideEffects.length === 0 || input === undefined) {
+        return { input, plugin: null };
+    }
+
+    const userEntries = new Map<string, string>(); // virtualId → realPath
+    const PREFIX = '\0gjsify-entry:';
+
+    function wrap(realPath: string): string {
+        const id = PREFIX + realPath;
+        userEntries.set(id, realPath);
+        return id;
+    }
+
+    let wrappedInput: RolldownOptions['input'];
+    if (typeof input === 'string') {
+        wrappedInput = wrap(input);
+    } else if (Array.isArray(input)) {
+        wrappedInput = input.map(wrap);
+    } else {
+        const out: Record<string, string> = {};
+        for (const [name, path] of Object.entries(input)) {
+            out[name] = wrap(path);
+        }
+        wrappedInput = out;
+    }
+
+    const sideEffectImports = sideEffects
+        .map((p) => `import ${JSON.stringify(p)};`)
+        .join('\n');
+
+    const plugin: RolldownPluginOption = {
+        name: 'gjsify-virtual-entry',
+        resolveId(source) {
+            if (source.startsWith(PREFIX)) return source;
+            return null;
+        },
+        load(id) {
+            if (!id.startsWith(PREFIX)) return null;
+            const realPath = userEntries.get(id);
+            if (!realPath) return null;
+            // Side-effect imports first, then re-export the user entry's
+            // public bindings.
+            return {
+                code: `${sideEffectImports}\nexport * from ${JSON.stringify(realPath)};\n`,
+                moduleSideEffects: true,
+            };
+        },
+    };
+
+    return { input: wrappedInput, plugin };
 }
 
 /**

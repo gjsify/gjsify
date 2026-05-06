@@ -187,26 +187,33 @@ export async function detectAutoGlobals(
             logLevel: 'silent',
         });
 
-        let bundledCode = '';
+        const chunkCodes: string[] = [];
         try {
             const result = await build.generate({
                 format: analysisOptions.format ?? 'esm',
                 minify: false,
                 sourcemap: false,
             });
-            bundledCode = result.output
-                .filter((entry): entry is OutputChunk => entry.type === 'chunk')
-                .map((chunk) => chunk.code)
-                .join('\n');
+            for (const entry of result.output) {
+                if (entry.type === 'chunk') chunkCodes.push((entry as OutputChunk).code);
+            }
         } finally {
             await build.close();
         }
 
-        if (!bundledCode) {
+        if (chunkCodes.length === 0) {
             return { detected: new Set(), injectPath: currentInject };
         }
 
-        const newDetected = detectFreeGlobals(bundledCode);
+        // Parse each chunk independently and union the detected sets.
+        // Rolldown emits one chunk per entry — concatenating them would
+        // produce a syntactically invalid combined program (duplicate
+        // top-level declarations: `File`, `Buffer`, …) that acorn can't
+        // parse. Per-chunk parsing keeps each chunk's lexical scope intact.
+        const newDetected = new Set<string>();
+        for (const code of chunkCodes) {
+            for (const id of detectFreeGlobals(code)) newDetected.add(id);
+        }
 
         // Apply excludeGlobals BEFORE writing the next iteration's inject file.
         // Otherwise an excluded identifier would still appear in the inject

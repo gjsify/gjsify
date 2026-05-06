@@ -5,8 +5,8 @@
 // translates to Rolldown's `output.banner` directly — Rolldown itself does
 // not synthesise a `require()` shim for ESM consumers of bundled CJS code.
 
-import alias from '@rollup/plugin-alias';
-import type { Plugin, RolldownOptions, RolldownPluginOption } from 'rolldown';
+import { aliasPlugin } from '../plugins/alias.js';
+import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
 import { EXTERNALS_NODE } from '@gjsify/resolve-npm';
@@ -92,12 +92,13 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
             minify: false,
             sourcemap: false,
             banner,
+            inlineDynamicImports: true,
         },
         treeshake: true,
     };
 
     const plugins: RolldownPluginOption[] = [
-        alias({ entries: flattenAliases(aliasMap) }) as unknown as Plugin,
+        aliasPlugin({ entries: flattenAliases(aliasMap) }),
         deepkitPlugin({ reflection: input.pluginOptions.reflection }),
         cssAsStringPlugin(),
         nodeModulesPathRewritePlugin({ bundleDir }),

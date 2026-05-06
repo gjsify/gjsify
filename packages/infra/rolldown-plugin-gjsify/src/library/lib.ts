@@ -10,8 +10,8 @@
 // build --app gjs|node|browser`) re-bundle and apply their own target
 // lowering. Library output stays maximally portable.
 
-import alias from '@rollup/plugin-alias';
-import type { Plugin, RolldownOptions, RolldownPluginOption } from 'rolldown';
+import { aliasPlugin } from '../plugins/alias.js';
+import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 
 import type { PluginOptions } from '../types/plugin-options.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
@@ -64,7 +64,7 @@ export const setupLib = async (input: LibFactoryInput): Promise<LibBuildConfig> 
     };
 
     const plugins: RolldownPluginOption[] = [
-        alias({ entries: flattenAliases(aliasMap) }) as unknown as Plugin,
+        aliasPlugin({ entries: flattenAliases(aliasMap) }),
     ];
 
     return { options, plugins };
