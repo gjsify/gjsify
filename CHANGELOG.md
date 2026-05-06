@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.12](https://github.com/gjsify/gjsify/compare/v0.3.11...v0.3.12) (2026-05-06)
+
+### Bug Fixes
+
+* **cli,esbuild-plugin-gjsify:** library multi-build emitted ESM into the CJS outdir ([#77](https://github.com/gjsify/gjsify/issues/77)) ([bd7b98d](https://github.com/gjsify/gjsify/commit/bd7b98d8d3dbb1e5f29722bd75380cc911ec8f16)), closes [package.json#main](https://github.com/gjsify/package.json/issues/main)
+
 ## [0.3.11](https://github.com/gjsify/gjsify/compare/v0.3.10...v0.3.11) (2026-05-06)
 
 ### Bug Fixes
