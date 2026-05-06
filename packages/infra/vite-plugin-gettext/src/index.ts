@@ -1,22 +1,11 @@
-// Skeleton — implementation lands in commit 2 (port from external gjsify/vite repo).
-
-export interface GettextPluginOptions {
-    poDirectory?: string;
-    outputDirectory?: string;
-    domain?: string;
-    format?: 'mo' | 'json' | 'xml';
-    templateFile?: string;
-    filename?: string;
-}
-
-export function xgettextPlugin(_options: GettextPluginOptions = {}): unknown {
-    throw new Error('@gjsify/vite-plugin-gettext: xgettextPlugin not implemented yet');
-}
-
-export function msgfmtPlugin(_options: GettextPluginOptions = {}): unknown {
-    throw new Error('@gjsify/vite-plugin-gettext: msgfmtPlugin not implemented yet');
-}
-
-export function po2jsonPlugin(_options: GettextPluginOptions = {}): unknown {
-    throw new Error('@gjsify/vite-plugin-gettext: po2jsonPlugin not implemented yet');
-}
+export { gettextPlugin } from "./gettext.js";
+export { msgfmtPlugin } from "./msgfmt.js";
+export { xgettextPlugin } from "./xgettext.js";
+export { po2jsonPlugin } from "./po2json.js";
+export type {
+  GettextPluginOptions,
+  MsgfmtPluginOptions,
+  MsgfmtFormat,
+  XGettextPluginOptions,
+} from "./types.js";
+export * from "./utils.js";

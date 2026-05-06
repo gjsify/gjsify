@@ -38,6 +38,10 @@
         "gnome"
     ],
     "license": "MIT",
+    "dependencies": {
+        "execa": "^9.6.0",
+        "minify-xml": "^4.5.2"
+    },
     "peerDependencies": {
         "rolldown": "^1.0.0-rc.18",
         "vite": "^8.0.0"
@@ -52,6 +56,7 @@
     },
     "devDependencies": {
         "@types/node": "^25.6.0",
-        "typescript": "^6.0.3"
+        "typescript": "^6.0.3",
+        "vite": "^8.0.0"
     }
 }
