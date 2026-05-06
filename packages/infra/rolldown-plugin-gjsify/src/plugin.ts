@@ -14,7 +14,7 @@
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 import type { PluginOptions } from './types/plugin-options.js';
 import { setupForGjs, setupForNode, setupForBrowser } from './app/index.js';
-import { setupLib } from './lib/index.js';
+import { setupLib } from './library/index.js';
 
 export interface GjsifyConfig {
     options: RolldownOptions;
