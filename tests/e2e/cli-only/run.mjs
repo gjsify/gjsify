@@ -13,17 +13,8 @@ import {
   createTestEnvironment,
   cleanupTestEnvironment,
   setupProject,
+  hasCommand,
 } from '../helpers.mjs';
-
-/** Returns true when `cmd` is resolvable on the current PATH. */
-function hasCommand(cmd) {
-  try {
-    execFileSync('which', [cmd], { stdio: 'pipe' });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, () => {
   let tmpDir;

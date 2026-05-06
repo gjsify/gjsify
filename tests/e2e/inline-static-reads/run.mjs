@@ -21,16 +21,8 @@ import {
   createTestEnvironment,
   cleanupTestEnvironment,
   setupProject,
+  hasCommand,
 } from '../helpers.mjs';
-
-function hasCommand(cmd) {
-  try {
-    execFileSync('which', [cmd], { stdio: 'pipe' });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Drop a tiny `node_modules/@fixture/reads-via-url` package that exercises

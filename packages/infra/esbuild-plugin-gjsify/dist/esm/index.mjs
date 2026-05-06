@@ -12746,55 +12746,69 @@ function getBundleDir(build) {
   const outFile = build.initialOptions.outfile ?? join2(build.initialOptions.outdir ?? ".", "bundle.mjs");
   return dirname2(resolve2(outFile));
 }
+function loaderForPath(path6) {
+  const ext = path6.split(".").pop() ?? "js";
+  return ["ts", "mts", "cts", "tsx"].includes(ext) ? "ts" : "js";
+}
+function buildDirFilenamePreamble(args) {
+  const lines = [];
+  if (args.needDirname && !args.dirnameDeclared) {
+    if (args.kind === "esm-zip") {
+      lines.push(`var __dirname = new URL(".", import.meta.url).pathname.replace(/\\/$/, "");`);
+    } else if (args.kind === "esm-relative") {
+      lines.push(`var __dirname = new URL(${JSON.stringify(args.relDirWithSlash)}, import.meta.url).pathname.replace(/\\/$/, "");`);
+    } else {
+      lines.push(`var __dirname = ${JSON.stringify(args.sourceDir)};`);
+    }
+  }
+  if (args.needFilename && !args.filenameDeclared) {
+    if (args.kind === "esm-zip") {
+      lines.push(`var __filename = new URL(import.meta.url).pathname;`);
+    } else if (args.kind === "esm-relative") {
+      lines.push(`var __filename = new URL(${JSON.stringify(args.relPath)}, import.meta.url).pathname;`);
+    } else {
+      lines.push(`var __filename = ${JSON.stringify(args.sourcePath)};`);
+    }
+  }
+  return lines;
+}
 function rewriteContents(args, srcInput, bundleDir) {
   if (!shouldRewrite(args.path)) return void 0;
   const inlined = inlineStaticReads(srcInput, args.path);
-  let src = inlined.contents;
+  const src = inlined.contents;
   const hasMetaUrl = src.includes("import.meta.url");
   const hasDirname = src.includes("__dirname");
   const hasFilename = src.includes("__filename");
   if (!hasMetaUrl && !hasDirname && !hasFilename) {
-    if (inlined.inlined > 0) {
-      const ext2 = args.path.split(".").pop() ?? "js";
-      const loader2 = ["ts", "mts", "cts", "tsx"].includes(ext2) ? "ts" : "js";
-      return { contents: src, loader: loader2, resolveDir: dirname2(args.path) };
-    }
-    return void 0;
+    if (inlined.inlined === 0) return void 0;
+    return {
+      contents: src,
+      loader: loaderForPath(args.path),
+      resolveDir: dirname2(args.path)
+    };
   }
   const dir = dirname2(args.path);
-  const dirnameDeclared = DIRNAME_DECL_RE.test(src);
-  const filenameDeclared = FILENAME_DECL_RE.test(src);
-  const preamble = [];
+  const relPath = hasMetaUrl ? relative2(bundleDir, args.path) : "";
+  const isZipResident = hasMetaUrl && relPath.includes(".zip/");
+  const kind = !hasMetaUrl ? "cjs-absolute" : isZipResident ? "esm-zip" : "esm-relative";
+  const preamble = buildDirFilenamePreamble({
+    needDirname: hasDirname,
+    needFilename: hasFilename,
+    dirnameDeclared: DIRNAME_DECL_RE.test(src),
+    filenameDeclared: FILENAME_DECL_RE.test(src),
+    kind,
+    sourcePath: args.path,
+    sourceDir: dir,
+    relPath,
+    relDirWithSlash: (relative2(bundleDir, dir) || ".") + "/"
+  });
   let contents = src;
-  if (hasMetaUrl) {
-    const relPath = relative2(bundleDir, args.path);
-    const isZipResident = relPath.includes(".zip/");
-    if (isZipResident) {
-      if (hasDirname && !dirnameDeclared) {
-        preamble.push(`var __dirname = new URL(".", import.meta.url).pathname.replace(/\\/$/, "");`);
-      }
-      if (hasFilename && !filenameDeclared) {
-        preamble.push(`var __filename = new URL(import.meta.url).pathname;`);
-      }
-    } else {
-      const relDir = relative2(bundleDir, dir) || ".";
-      const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
-      contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
-      if (hasDirname && !dirnameDeclared) {
-        preamble.push(`var __dirname = new URL(${JSON.stringify(relDir + "/")}, import.meta.url).pathname.replace(/\\/$/, "");`);
-      }
-      if (hasFilename && !filenameDeclared) {
-        preamble.push(`var __filename = ${runtimeFileUrl}.pathname;`);
-      }
-    }
-  } else {
-    if (hasDirname && !dirnameDeclared) preamble.push(`var __dirname = ${JSON.stringify(dir)};`);
-    if (hasFilename && !filenameDeclared) preamble.push(`var __filename = ${JSON.stringify(args.path)};`);
+  if (kind === "esm-relative") {
+    const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
+    contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
   }
   if (preamble.length > 0) contents = preamble.join("\n") + "\n" + contents;
-  const ext = args.path.split(".").pop() ?? "js";
-  const loader = ["ts", "mts", "cts", "tsx"].includes(ext) ? "ts" : "js";
-  return { contents, loader, resolveDir: dir };
+  return { contents, loader: loaderForPath(args.path), resolveDir: dir };
 }
 async function loadAndRewrite(args, build) {
   if (!args.path.includes("node_modules")) return void 0;
@@ -19890,30 +19904,7 @@ function registerToCommonJSPatch(build) {
 import { fileURLToPath as fileURLToPath4 } from "url";
 import { dirname as dirname3, resolve as resolve4 } from "path";
 var _shimDir = dirname3(fileURLToPath4(import.meta.url));
-var GJS_PROCESS_STUB = [
-  'if(typeof globalThis.process==="undefined"){',
-  "const _s=imports.system,_G=imports.gi.GLib;",
-  "globalThis.process={",
-  'platform:"linux",arch:"x64",version:"v20.0.0",',
-  "env:new Proxy({},{",
-  'get(_,p){return typeof p==="string"?(_G.getenv(p)??undefined):undefined},',
-  'set(_,p,v){if(typeof p==="string")_G.setenv(p,String(v),true);return true},',
-  'has(_,p){return typeof p==="string"&&_G.getenv(p)!==null},',
-  'deleteProperty(_,p){if(typeof p==="string")_G.unsetenv(p);return true},',
-  "ownKeys(){return _G.listenv()??[]},",
-  "getOwnPropertyDescriptor(_,p){const v=_G.getenv(p);return v!==null?{value:v,writable:true,enumerable:true,configurable:true}:undefined}",
-  "}),",
-  'argv:_s?.programArgs?["gjs",_s.programInvocationName||"",..._s.programArgs]:["gjs"],',
-  "versions:{},config:{},",
-  'cwd(){return _G.get_current_dir()||"/"},',
-  "exit(c){_s.exit(c??0)},",
-  "stderr:{write(s){printerr(s)}},stdout:{write(s){print(s)}},stdin:null,",
-  "exitCode:undefined,",
-  "nextTick(fn,...a){Promise.resolve().then(()=>fn(...a))},",
-  "hrtime(t){return t?[0,0]:[0,0]},",
-  "};",
-  "}"
-].join("");
+var GJS_PROCESS_STUB = 'if(typeof globalThis.process==="undefined"){const _s=imports.system,_G=imports.gi.GLib;globalThis.process={platform:"linux",arch:"x64",version:"v20.0.0",env:new Proxy({},{get(_,p){return typeof p==="string"?(_G.getenv(p)??undefined):undefined},set(_,p,v){if(typeof p==="string")_G.setenv(p,String(v),true);return true},has(_,p){return typeof p==="string"&&_G.getenv(p)!==null},deleteProperty(_,p){if(typeof p==="string")_G.unsetenv(p);return true},ownKeys(){return _G.listenv()??[]},getOwnPropertyDescriptor(_,p){const v=_G.getenv(p);return v!==null?{value:v,writable:true,enumerable:true,configurable:true}:undefined}}),argv:_s?.programArgs?["gjs",_s.programInvocationName||"",..._s.programArgs]:["gjs"],versions:{},config:{},cwd(){return _G.get_current_dir()||"/"},exit(c){_s.exit(c??0)},stderr:{write(s){printerr(s)}},stdout:{write(s){print(s)}},stdin:null,exitCode:undefined,nextTick(fn,...a){Promise.resolve().then(()=>fn(...a))},hrtime(t){return t?[0,0]:[0,0]},};}';
 function composeBanner(stub, userBanner) {
   if (!userBanner) return stub;
   const shebangMatch = userBanner.match(/^#![^\n]*\n/);

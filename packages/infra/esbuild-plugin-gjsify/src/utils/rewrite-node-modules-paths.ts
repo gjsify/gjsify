@@ -50,6 +50,72 @@ export function getBundleDir(build: PluginBuild): string {
     return dirname(resolve(outFile));
 }
 
+/** Pick esbuild's loader from a file path. TS extensions parse as TS. */
+function loaderForPath(path: string): 'ts' | 'js' {
+    const ext = path.split('.').pop() ?? 'js';
+    return ['ts', 'mts', 'cts', 'tsx'].includes(ext) ? 'ts' : 'js';
+}
+
+/**
+ * Compute the `var __dirname` / `var __filename` preamble for a file based on
+ * how its `import.meta.url` resolves at runtime:
+ *
+ *   - regular node_modules path (`relPath` does NOT contain `.zip/`):
+ *       __dirname / __filename derived from a relative URL whose base is the
+ *       bundle's `import.meta.url`.
+ *
+ *   - Yarn-PnP zip-resident path (`relPath` contains `.zip/`):
+ *       the original source path doesn't physically exist outside the PnP
+ *       runtime, so we can't emit a useful relative URL for it. Derive
+ *       __dirname / __filename from the bundle's own URL instead. Downstream
+ *       heuristics (e.g. yargs walking the path string for a `node_modules`
+ *       segment) get a valid file:// URL to inspect.
+ *
+ *   - source has no `import.meta.url` at all (CJS):
+ *       inject absolute string literals for the source path.
+ *
+ * `dirnameDeclared` / `filenameDeclared` cover packages that already declare
+ * `var __dirname = dirname(fileURLToPath(import.meta.url))` themselves —
+ * we'd produce a duplicate-binding error otherwise.
+ */
+function buildDirFilenamePreamble(args: {
+    needDirname: boolean;
+    needFilename: boolean;
+    dirnameDeclared: boolean;
+    filenameDeclared: boolean;
+    /** kind of rewrite: 'esm-relative' | 'esm-zip' | 'cjs-absolute' */
+    kind: 'esm-relative' | 'esm-zip' | 'cjs-absolute';
+    /** path of the source file (only used for cjs-absolute) */
+    sourcePath: string;
+    /** dir of the source file (only used for cjs-absolute) */
+    sourceDir: string;
+    /** rel from bundleDir to sourceDir + trailing '/' (only used for esm-relative) */
+    relDirWithSlash: string;
+    /** rel from bundleDir to sourcePath (only used for esm-relative) */
+    relPath: string;
+}): string[] {
+    const lines: string[] = [];
+    if (args.needDirname && !args.dirnameDeclared) {
+        if (args.kind === 'esm-zip') {
+            lines.push(`var __dirname = new URL(".", import.meta.url).pathname.replace(/\\/$/, "");`);
+        } else if (args.kind === 'esm-relative') {
+            lines.push(`var __dirname = new URL(${JSON.stringify(args.relDirWithSlash)}, import.meta.url).pathname.replace(/\\/$/, "");`);
+        } else {
+            lines.push(`var __dirname = ${JSON.stringify(args.sourceDir)};`);
+        }
+    }
+    if (args.needFilename && !args.filenameDeclared) {
+        if (args.kind === 'esm-zip') {
+            lines.push(`var __filename = new URL(import.meta.url).pathname;`);
+        } else if (args.kind === 'esm-relative') {
+            lines.push(`var __filename = new URL(${JSON.stringify(args.relPath)}, import.meta.url).pathname;`);
+        } else {
+            lines.push(`var __filename = ${JSON.stringify(args.sourcePath)};`);
+        }
+    }
+    return lines;
+}
+
 /**
  * Pure rewriter: takes the source contents of a node_modules file and returns
  * a rewritten OnLoadResult, or `undefined` when the file doesn't reference any
@@ -60,6 +126,14 @@ export function getBundleDir(build: PluginBuild): string {
  *   - the gjsify plugin's `onLoad` for the `file` namespace, and
  *   - the @yarnpkg/esbuild-plugin-pnp custom `onLoad` for the `pnp` namespace
  * apply the same transformation, regardless of which loader read the bytes.
+ *
+ * Pipeline:
+ *   1. inline static FS reads (build-time evaluation of `readFileSync(new
+ *      URL(<lit>, import.meta.url), "utf8")` and friends)
+ *   2. classify the remaining import.meta.url / __dirname / __filename uses
+ *      and inject a per-file preamble
+ *   3. rewrite import.meta.url tokens (only in the regular esm-relative case;
+ *      zip-resident files keep their bare import.meta.url)
  */
 export function rewriteContents(
     args: { path: string },
@@ -68,80 +142,59 @@ export function rewriteContents(
 ): OnLoadResult | undefined {
     if (!shouldRewrite(args.path)) return undefined;
 
-    // First pass: inline statically-resolvable filesystem reads
-    // (`readFileSync(new URL(<lit>, import.meta.url), "utf8")` and friends)
-    // so the bundle becomes self-contained for those patterns. Calls that
-    // can't be statically resolved fall through to the legacy
-    // `import.meta.url` rewrite below — which keeps the build-time relative
-    // path that works at the build site but fails when the bundle is moved.
+    // Step 1: inline statically-resolvable filesystem reads. These become
+    // literal contents in the bundle — self-contained, no runtime FS access
+    // needed. Calls that can't be statically resolved fall through to the
+    // legacy import.meta.url rewrite in step 3.
     const inlined = inlineStaticReads(srcInput, args.path);
-    let src = inlined.contents;
+    const src = inlined.contents;
 
     const hasMetaUrl = src.includes('import.meta.url');
     const hasDirname = src.includes('__dirname');
     const hasFilename = src.includes('__filename');
+
+    // Nothing left to rewrite after step 1: either return the inlined source
+    // (so esbuild sees the new contents) or skip entirely.
     if (!hasMetaUrl && !hasDirname && !hasFilename) {
-        // Inlining may have removed every `import.meta.url`/__dirname use;
-        // when that happens, return the inlined source as-is so esbuild
-        // sees the new contents.
-        if (inlined.inlined > 0) {
-            const ext = args.path.split('.').pop() ?? 'js';
-            const loader = ['ts', 'mts', 'cts', 'tsx'].includes(ext) ? 'ts' : 'js';
-            return { contents: src, loader, resolveDir: dirname(args.path) };
-        }
-        return undefined;
+        if (inlined.inlined === 0) return undefined;
+        return {
+            contents: src,
+            loader: loaderForPath(args.path),
+            resolveDir: dirname(args.path),
+        };
     }
 
+    // Step 2: classify the rewrite kind and build a __dirname/__filename
+    // preamble that matches.
     const dir = dirname(args.path);
-    const dirnameDeclared = DIRNAME_DECL_RE.test(src);
-    const filenameDeclared = FILENAME_DECL_RE.test(src);
-    const preamble: string[] = [];
-    let contents = src;
+    const relPath = hasMetaUrl ? relative(bundleDir, args.path) : '';
+    const isZipResident = hasMetaUrl && relPath.includes('.zip/');
+    const kind: 'esm-relative' | 'esm-zip' | 'cjs-absolute' =
+        !hasMetaUrl ? 'cjs-absolute' : isZipResident ? 'esm-zip' : 'esm-relative';
 
-    if (hasMetaUrl) {
-        const relPath = relative(bundleDir, args.path);
-        const isZipResident = relPath.includes('.zip/');
-        if (isZipResident) {
-            // Source file lives inside a Yarn-PnP virtual zip. We can't
-            // produce a useful build-time-relative URL for it (the .zip/...
-            // path doesn't physically exist outside the PnP runtime). The
-            // static-read inliner above has already replaced every read
-            // we know how to evaluate at build time. Anything left that
-            // touches `import.meta.url` is dynamic — leave the bare token
-            // so it resolves at runtime to the bundle's own URL. That
-            // gives downstream code (e.g. yargs's mainFilename heuristic
-            // walking the path string for a `node_modules` segment) a
-            // valid file:// URL to work with, even if it doesn't reflect
-            // the original module's location.
-            //
-            // __dirname / __filename: derive them from the bundle's URL,
-            // not the source's relative path, for the same reason.
-            if (hasDirname && !dirnameDeclared) {
-                preamble.push(`var __dirname = new URL(".", import.meta.url).pathname.replace(/\\/$/, "");`);
-            }
-            if (hasFilename && !filenameDeclared) {
-                preamble.push(`var __filename = new URL(import.meta.url).pathname;`);
-            }
-        } else {
-            const relDir = relative(bundleDir, dir) || '.';
-            const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
-            contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
-            if (hasDirname && !dirnameDeclared) {
-                preamble.push(`var __dirname = new URL(${JSON.stringify(relDir + '/')}, import.meta.url).pathname.replace(/\\/$/, "");`);
-            }
-            if (hasFilename && !filenameDeclared) {
-                preamble.push(`var __filename = ${runtimeFileUrl}.pathname;`);
-            }
-        }
-    } else {
-        if (hasDirname && !dirnameDeclared) preamble.push(`var __dirname = ${JSON.stringify(dir)};`);
-        if (hasFilename && !filenameDeclared) preamble.push(`var __filename = ${JSON.stringify(args.path)};`);
+    const preamble = buildDirFilenamePreamble({
+        needDirname: hasDirname,
+        needFilename: hasFilename,
+        dirnameDeclared: DIRNAME_DECL_RE.test(src),
+        filenameDeclared: FILENAME_DECL_RE.test(src),
+        kind,
+        sourcePath: args.path,
+        sourceDir: dir,
+        relPath,
+        relDirWithSlash: (relative(bundleDir, dir) || '.') + '/',
+    });
+
+    // Step 3: rewrite `import.meta.url` to a bundle-relative URL — only for
+    // regular node_modules files. Zip-resident files keep the bare token so
+    // it resolves at runtime to the bundle's own URL.
+    let contents = src;
+    if (kind === 'esm-relative') {
+        const runtimeFileUrl = `new URL(${JSON.stringify(relPath)}, import.meta.url)`;
+        contents = contents.replace(/\bimport\.meta\.url\b/g, `${runtimeFileUrl}.href`);
     }
     if (preamble.length > 0) contents = preamble.join('\n') + '\n' + contents;
 
-    const ext = args.path.split('.').pop() ?? 'js';
-    const loader = ['ts', 'mts', 'cts', 'tsx'].includes(ext) ? 'ts' : 'js';
-    return { contents, loader, resolveDir: dir };
+    return { contents, loader: loaderForPath(args.path), resolveDir: dir };
 }
 
 async function loadAndRewrite(args: OnLoadArgs, build: PluginBuild): Promise<OnLoadResult | undefined> {
