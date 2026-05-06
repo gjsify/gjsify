@@ -7,5 +7,5 @@
 
 export { resolveGlobalsList, writeRegisterInjectFile } from './utils/scan-globals.js';
 export { detectFreeGlobals } from './utils/detect-free-globals.js';
-// `detectAutoGlobals` lands in the auto-globals port commit — re-exported
-// here to keep the public surface stable across the migration.
+export { detectAutoGlobals } from './utils/auto-globals.js';
+export type { AutoGlobalsResult, DetectAutoGlobalsOptions, AnalysisOptions } from './utils/auto-globals.js';
