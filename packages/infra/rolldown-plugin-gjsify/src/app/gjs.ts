@@ -209,18 +209,22 @@ function wrapInputWithSideEffects(
 
     const plugin: RolldownPluginOption = {
         name: 'gjsify-virtual-entry',
-        resolveId(source) {
+        async resolveId(source, importer) {
             if (source.startsWith(PREFIX)) return source;
             return null;
         },
-        load(id) {
+        async load(id) {
             if (!id.startsWith(PREFIX)) return null;
             const realPath = userEntries.get(id);
             if (!realPath) return null;
-            // Side-effect imports first, then re-export the user entry's
-            // public bindings.
+            // Resolve the user-provided entry path through the full
+            // resolver chain so the re-export targets a real on-disk
+            // module — otherwise Rolldown treats `src/foo.ts` as a bare
+            // specifier and emits it as an external import.
+            const resolved = await this.resolve(realPath, undefined, { skipSelf: true });
+            const target = resolved?.id ?? realPath;
             return {
-                code: `${sideEffectImports}\nexport * from ${JSON.stringify(realPath)};\n`,
+                code: `${sideEffectImports}\nexport * from ${JSON.stringify(target)};\n`,
                 moduleSideEffects: true,
             };
         },
