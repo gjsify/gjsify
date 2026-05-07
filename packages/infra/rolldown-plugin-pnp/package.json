@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/rolldown-plugin-pnp",
-    "version": "0.3.13",
+    "version": "0.3.14",
     "description": "Yarn PnP resolver plugin for Rolldown / Rollup / Vite",
     "type": "module",
     "main": "lib/index.js",

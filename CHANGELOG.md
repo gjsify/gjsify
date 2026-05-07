@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.14](https://github.com/gjsify/gjsify/compare/v0.3.13...v0.3.14) (2026-05-07)
+
+### Features
+
+* **bundler:** migrate from esbuild to Rolldown ([#81](https://github.com/gjsify/gjsify/issues/81)) ([b9bc7a7](https://github.com/gjsify/gjsify/commit/b9bc7a71f4072e40ec8b003df1eb387e105678df)), closes [#PR](https://github.com/gjsify/gjsify/issues/PR)
+* **cli:** swap engine from esbuild to Rolldown ([#83](https://github.com/gjsify/gjsify/issues/83)) ([7c3b08e](https://github.com/gjsify/gjsify/commit/7c3b08e9f2f46b870ce744fe6b7fb0a1b61e04c6))
+* **rolldown-plugin-gjsify:** orchestrator package ([#82](https://github.com/gjsify/gjsify/issues/82)) ([2f5d660](https://github.com/gjsify/gjsify/commit/2f5d660674d94a6758288f37e650e98abd3224e7))
+
+### Bug Fixes
+
+* **rolldown-plugin-gjsify:** codeSplitting: false instead of inlineDynamicImports ([5985c7a](https://github.com/gjsify/gjsify/commit/5985c7aa6a580c1cab90310b9d9d9903a6194100))
+
 ## [0.4.0-pre](https://github.com/gjsify/gjsify/compare/v0.3.13...v0.4.0-pre) (2026-05-06)
 
 ### ⚠ BREAKING CHANGES

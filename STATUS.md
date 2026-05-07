@@ -4,7 +4,7 @@
 
 ## Release timeline
 
-- **v0.3.13** — `@gjsify/module` PnP-aware `createRequire`. Parses `.pnp.cjs`'s `RAW_RUNTIME_STATE` directly (no Yarn-manifest execution), so `require.resolve("<pkg>/package.json")` works in PnP-built bundles for the first time. Removed the last reason ts-for-gir had to embed its EJS templates at build time.
+- **v0.3.14** — `@gjsify/module` PnP-aware `createRequire`. Parses `.pnp.cjs`'s `RAW_RUNTIME_STATE` directly (no Yarn-manifest execution), so `require.resolve("<pkg>/package.json")` works in PnP-built bundles for the first time. Removed the last reason ts-for-gir had to embed its EJS templates at build time.
 - **v0.3.12** — `cli,esbuild-plugin-gjsify` library multi-build fix: `format`/`jsExtension` were being passed the wrong sibling outdir/extension, so the ESM and CJS halves of a `--library` build collided in the CJS directory. New e2e suite: `library-multi-build/`.
 - **v0.3.11** — Three rewriter fixes that let PnP-built bundles run portably without `nodeLinker: node-modules`: (1) banner-shebang hoist keeps `#!/usr/bin/env -S gjs -m` at byte 0 even when esbuild's own banner runs first; (2) `createRequire(<URL>)` of zip-resident anchors becomes a thrown-on-use stub (esbuild has already inlined every dep — the createRequire result is dead code in our bundles); (3) `import.meta.url` URL rewrite is skipped for source files inside Yarn-PnP virtual zips so the bare token resolves to the bundle's own URL at runtime.
 - **v0.3.10** — Static-read inliner: build-time evaluation of `readFileSync` / `readdirSync` / `existsSync` / `JSON.parse(readFileSync(...))` against `import.meta.url`-relative URLs, replaces calls with literal contents → bundle is portable to any directory. New e2e suite: `inline-static-reads/` (1/1).
@@ -640,7 +640,7 @@ Surfaced while validating ts-for-gir PR #378 against v0.3.5 — the relay shippe
 - ✅ **`@gjsify/esbuild-plugin-deepkit` eager-loaded `@deepkit/type-compiler`.** The plugin's `import * as DkType from '@deepkit/type-compiler'` and module-top-level `new DkType.DeepkitLoader()` ran even when `reflection: false` (the default). Deepkit's transitive `@marcj/ts-clone-node` does `require("typescript")` without declaring TS as a peer → consumers under PnP saw `UNDECLARED_DEPENDENCY: typescript` even when they never opted into reflection. Fix: lazy-import + lazy-instantiate the loader behind `getLoader()`. The deepkit module is now never resolved unless the consumer sets `typescript.reflection: true`. `transformExtern` is now async (no internal callers; safe).
 - ✅ **External-consumer regression test.** Added `tests/e2e/cli-only-pnp/run.mjs` — a Yarn-PnP variant of `cli-only/`. Installs only `@gjsify/cli` + `@gjsify/empty` from packed tarballs, builds scripts importing `node:fs` / `node:path` / `node:child_process` / `node:events`, and asserts the relay resolves all four through `@gjsify/node-polyfills`. Reverting any one of the three fixes above causes the test to fail with the original error message — this is the test that should have caught the v0.3.5 regression. Wired into `package.json#test:e2e`. New helper `setupProjectYarnPnp()` in `tests/e2e/helpers.mjs`.
 
-Once v0.3.6 is on npm and ts-for-gir PR #378 bumps to it, the granular `@gjsify/*` devDeps + `nodeLinker: node-modules` + `packageExtensions` workarounds in `ts-for-gir/.yarnrc.yml` and `ts-for-gir/packages/cli/package.json` can finally be deleted — that was always the goal of Phase B. (Status as of v0.3.13: this is now done — see [gjsify/ts-for-gir#378](https://github.com/gjsify/ts-for-gir/pull/378).)
+Once v0.3.6 is on npm and ts-for-gir PR #378 bumps to it, the granular `@gjsify/*` devDeps + `nodeLinker: node-modules` + `packageExtensions` workarounds in `ts-for-gir/.yarnrc.yml` and `ts-for-gir/packages/cli/package.json` can finally be deleted — that was always the goal of Phase B. (Status as of v0.3.14: this is now done — see [gjsify/ts-for-gir#378](https://github.com/gjsify/ts-for-gir/pull/378).)
 
 Remove the `WebAssembly Promise APIs` "Upstream GJS Patch Candidate" entry once that follow-up is also shipped.
 
@@ -675,7 +675,7 @@ Phase 4 — lockfile + dlx polish:
 - 🔲 **peerDependencies validation.** Currently a warning placeholder; implementation depends on multi-version-per-name resolution (npm v7+ semantics).
 - 🔲 **`gjsify install <pkg>` user-facing CLI.** Today still spawns `npm install` so the package.json/save-flag flow keeps working. Native-backend route through `gjsify install` (without save-flags) is a small follow-up: just add a `--backend=native|npm` flag to `commands/install.ts`.
 
-### Completed (Phase B.2 — gjsify v0.3.13 — `@gjsify/module` PnP-aware `createRequire`)
+### Completed (Phase B.2 — gjsify v0.3.14 — `@gjsify/module` PnP-aware `createRequire`)
 
 Surfaced when ts-for-gir's GJS bundle could not drop its build-time `EMBEDDED_TEMPLATES` map: `require.resolve("@ts-for-gir/templates/package.json")` always failed under Yarn PnP because `@gjsify/module`'s resolver only walked `node_modules/`, which doesn't exist on disk in a PnP workspace. The embed (~50 KB of EJS shipped inside the bundle) was the workaround.
 
