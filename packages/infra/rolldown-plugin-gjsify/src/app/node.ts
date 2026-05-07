@@ -38,13 +38,22 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     // node-datachannel is a native C++ addon that cannot be bundled — its
     // `require('../build/Release/node_datachannel.node')` must resolve at
     // runtime against the real node_modules tree.
-    const external = [
+    //
+    // Note: Rolldown's `external` array does NOT support glob patterns the
+    // way esbuild's did (`gi://*`, `@girs/*`). We use a function predicate
+    // instead so the gi:// URI scheme and the @girs/ namespace are matched
+    // by prefix.
+    const exactExternal = [
         ...EXTERNALS_NODE as string[],
-        'gi://*',
-        '@girs/*',
         'node-datachannel',
         ...userExternal,
     ];
+    const external = (id: string): boolean => {
+        if (id.startsWith('gi://')) return true;
+        if (id.startsWith('@girs/')) return true;
+        if (exactExternal.includes(id)) return true;
+        return false;
+    };
     const format = input.pluginOptions.format ?? 'esm';
 
     const exclude = input.pluginOptions.exclude ?? [];
