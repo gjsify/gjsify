@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — Flatpak-toolchain PR1 (2026-05-07)
+
+### Features
+
+* **cli:** add `gjsify gsettings <schemadir>` subcommand. Wraps `glib-compile-schemas` mirroring the existing `gresource` / `gettext` shape (`--strict`, `--targetdir`, `--verbose`, ENOENT hint). Lets package.json drop the npm-script-driven `glib-compile-schemas …` invocation.
+* **cli:** add `defineFromPackageJson` and `defineFromEnv` config keys. Both resolve at config-load time and merge JSON-stringified values into `bundler.transform.define`. Replaces the wrapper-script pattern (`spawnSync('gjsify', ['build', '--define', '__VERSION__=' + JSON.stringify(pkg.version)])`) used by external consumers like `@ts-for-gir/cli` to inject build-time constants. `defineFromEnv` supports a `default` key; missing without default → identifier replaced with the literal `undefined` so consumer code can guard with `typeof X === 'undefined'`.
+* **cli:** add `loaders: Record<string, 'text'>` config key. Currently only `'text'` is implemented (file content becomes a JS string default export). Replaces the legacy esbuild `loader: { '.ui': 'text', '.asm': 'text' }` shorthand. Implementation parallels `cssAsStringPlugin` — new `textLoaderPlugin` re-exported from `@gjsify/rolldown-plugin-gjsify`.
+* **cli:** allow `bundler.plugins` entries to be specified by package name. New `BundlerPluginByName` shape (`{ name: string; export?: string; options?: unknown }`) is resolved via `createRequire(<projectDir>/package.json).resolve(name)` and instantiated with `options`. Lets `package.json#gjsify` describe the full plugin chain (e.g. `@gjsify/vite-plugin-blueprint` + `@gjsify/vite-plugin-gettext`) without dropping to a JS-form config file.
+* **cli/rolldown-plugin-gjsify:** widen `shebang` config to `boolean | string`. String form supports `${env:NAME}` and `${env:NAME:-default}` placeholders against `process.env`; auto-prefixes `#!` when missing. New helpers `expandEnvTemplate` and `resolveShebangLine` re-exported from `@gjsify/rolldown-plugin-gjsify`. Required for Flatpak-driven builds where Meson exports `GJS_CONSOLE=/usr/bin/gjs-console`.
+
+### Tests
+
+* Add five e2e suites: `tests/e2e/{gsettings,define-from-pkg,text-loader,plugins-by-name,shebang-string}/`. Each wired into the chained `test:e2e` script and as a granular `test:e2e:<name>` script.
+
 ## [0.3.14](https://github.com/gjsify/gjsify/compare/v0.3.13...v0.3.14) (2026-05-07)
 
 ### Features

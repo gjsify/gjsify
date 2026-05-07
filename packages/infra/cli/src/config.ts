@@ -45,6 +45,22 @@ function isPlainObject(val: unknown): val is Record<string, any> {
     return typeof val === 'object' && val !== null && !Array.isArray(val) && Object.getPrototypeOf(val) === Object.prototype;
 }
 
+/**
+ * Read a dotted path (`a.b.c`) from a plain object. Returns `undefined` for
+ * any missing segment. Intentionally narrow — only used for surfacing
+ * `package.json` fields into compile-time defines, not for arbitrary deep
+ * traversal.
+ */
+function readDottedPath(obj: Record<string, unknown>, path: string): unknown {
+    if (!path.includes('.')) return obj[path];
+    let cursor: unknown = obj;
+    for (const segment of path.split('.')) {
+        if (cursor === null || cursor === undefined || typeof cursor !== 'object') return undefined;
+        cursor = (cursor as Record<string, unknown>)[segment];
+    }
+    return cursor;
+}
+
 import type { CliBuildOptions, ConfigData, CosmiconfigResult, ConfigDataTypescript, ConfigDataLibrary} from './types/index.js';
 import type { ArgumentsCamelCase } from 'yargs';
 
@@ -168,6 +184,39 @@ export class Config {
             configData.aliases = { ...(configData.aliases ?? {}), ...aliasMap };
         }
 
+        // Resolve `defineFromPackageJson` / `defineFromEnv` into raw
+        // KEY=<JSON-stringified value> entries that get merged into the
+        // bundler's `transform.define` map below. Both produce JS expressions
+        // (the value side of a Rolldown define is substituted at the call
+        // site, not stringified again) — so a missing env variable resolves
+        // to the literal `undefined`, letting consumer code use
+        // `typeof X === 'undefined'` or `X ?? fallback` guards.
+        const fromPkgDefines: Record<string, string> = {};
+        if (configData.defineFromPackageJson) {
+            for (const [name, spec] of Object.entries(configData.defineFromPackageJson)) {
+                if (!spec || typeof spec.field !== 'string' || !spec.field) {
+                    throw new Error(
+                        `gjsify config: defineFromPackageJson["${name}"] is missing a "field" string`,
+                    );
+                }
+                const value = readDottedPath(pkg as Record<string, unknown>, spec.field);
+                fromPkgDefines[name] = value === undefined ? 'undefined' : JSON.stringify(value);
+            }
+        }
+        const fromEnvDefines: Record<string, string> = {};
+        if (configData.defineFromEnv) {
+            for (const [name, spec] of Object.entries(configData.defineFromEnv)) {
+                if (!spec || typeof spec.env !== 'string' || !spec.env) {
+                    throw new Error(
+                        `gjsify config: defineFromEnv["${name}"] is missing an "env" string`,
+                    );
+                }
+                const raw = process.env[spec.env];
+                const value = raw !== undefined ? raw : spec.default;
+                fromEnvDefines[name] = value === undefined ? 'undefined' : JSON.stringify(value);
+            }
+        }
+
         // Merge CLI flags into the Rolldown-shape `bundler` field. Mappings:
         //   --entry-points  → bundler.input
         //   --outfile       → bundler.output.file
@@ -211,8 +260,15 @@ export class Config {
             const userExternal = Array.isArray(bundler.external) ? bundler.external : [];
             bundler.external = [...userExternal, ...cliArgs.external];
         }
-        if (Object.keys(defineMap).length) {
-            transform.define = { ...(transform.define ?? {}), ...defineMap };
+        if (Object.keys(defineMap).length || Object.keys(fromPkgDefines).length || Object.keys(fromEnvDefines).length) {
+            // CLI --define wins over package.json/env (manual overrides during
+            // debugging beat declarative config).
+            transform.define = {
+                ...(transform.define ?? {}),
+                ...fromPkgDefines,
+                ...fromEnvDefines,
+                ...defineMap,
+            };
         }
 
         if(configData.verbose) console.debug("configData", configData);

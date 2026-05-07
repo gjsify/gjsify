@@ -2,7 +2,8 @@ import type { ConfigData, BundlerOptions } from "../types/index.js";
 import type { App, PluginOptions } from "@gjsify/rolldown-plugin-gjsify";
 import type { RolldownOutput, RolldownPluginOption } from "rolldown";
 import { rolldown } from "rolldown";
-import { gjsifyPlugin } from "@gjsify/rolldown-plugin-gjsify";
+import { gjsifyPlugin, textLoaderPlugin, resolveShebangLine } from "@gjsify/rolldown-plugin-gjsify";
+import { resolveUserPlugins } from "../utils/resolve-plugin-by-name.js";
 import {
     resolveGlobalsList,
     writeRegisterInjectFile,
@@ -13,7 +14,7 @@ import { dirname, extname } from "node:path";
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import { normalizeBundlerOptions, mergeBundlerOptions } from "../utils/normalize-bundler-options.js";
 
-const GJS_SHEBANG = "#!/usr/bin/env -S gjs -m\n";
+const DEFAULT_GJS_SHEBANG = "#!/usr/bin/env -S gjs -m";
 
 /**
  * `true` when `path` points at a location that's unsafe to use as a build
@@ -190,8 +191,12 @@ export class BuildAction {
     }
 
     /**
-     * Post-processing: prepend GJS shebang and mark the output file executable.
-     * Only runs for GJS app builds with a resolvable single outfile.
+     * Post-processing: prepend the resolved shebang line and mark the
+     * output executable. Only runs for GJS app builds with a single outfile.
+     * The shebang plugin in `@gjsify/rolldown-plugin-gjsify` already injects
+     * during bundling — this hook is the safety net for anything that
+     * bypassed the plugin (e.g. user-supplied banners that out-ordered it),
+     * plus the chmod.
      */
     private async applyShebang(
         outfile: string | undefined,
@@ -205,6 +210,8 @@ export class BuildAction {
             return;
         }
 
+        const line = resolveShebangLine(this.configData.shebang) ?? DEFAULT_GJS_SHEBANG;
+
         const content = await readFile(outfile, "utf-8");
         if (content.startsWith("#!")) {
             if (verbose)
@@ -212,12 +219,12 @@ export class BuildAction {
                     `[gjsify] --shebang skipped: ${outfile} already starts with a shebang`,
                 );
         } else {
-            await writeFile(outfile, GJS_SHEBANG + content);
+            await writeFile(outfile, line + "\n" + content);
         }
         await chmod(outfile, 0o755);
         if (verbose)
             console.debug(
-                `[gjsify] --shebang: wrote shebang + chmod 0o755 to ${outfile}`,
+                `[gjsify] --shebang: wrote ${line} + chmod 0o755 to ${outfile}`,
             );
     }
 
@@ -283,6 +290,26 @@ export class BuildAction {
         const pnp = await buildPnpPlugin();
         const pnpPlugins: RolldownPluginOption[] = pnp ? [pnp] : [];
 
+        // User-supplied text loaders need to be available during BOTH the
+        // auto-globals pre-build (`detectAutoGlobals`) and the final build —
+        // otherwise Rolldown's parser hits unknown extensions like `.ui` /
+        // `.asm` during the pre-build, fails to parse them as JS/JSX, and
+        // the auto-globals iteration aborts before the final plugin chain is
+        // ever assembled. Build the user-plugin chain once, up front, and
+        // pass it into both passes.
+        const userTextLoader = textLoaderPlugin({ loaders: this.configData.loaders });
+        const userPlugins: RolldownPluginOption[] = userTextLoader ? [userTextLoader] : [];
+
+        // User-supplied bundler.plugins (mix of plugin objects + by-name
+        // entries) — resolved from the project's node_modules. Same
+        // ordering rationale as the text loader: must be present during
+        // auto-globals pre-build to avoid claiming the same files via
+        // Rolldown's default classifier.
+        if (userBundler.plugins?.length) {
+            const resolved = await resolveUserPlugins(userBundler.plugins, process.cwd());
+            userPlugins.push(...resolved);
+        }
+
         // --- Auto mode (with optional extras): iterative multi-pass build ---
         if (app === "gjs" && autoMode) {
             const gjsifyPluginFactory = async (opts: PluginOptions) => {
@@ -303,7 +330,7 @@ export class BuildAction {
             const { injectPath } = await detectAutoGlobals(
                 {
                     input: userBundler.input,
-                    plugins: pnpPlugins,
+                    plugins: [...pnpPlugins, ...userPlugins],
                     external: userBundler.external,
                     transform: userBundler.transform,
                     format,
@@ -337,9 +364,15 @@ export class BuildAction {
         );
 
         const merged = mergeBundlerOptions(cfg.options as BundlerOptions, userBundler);
+
         const finalOpts: BundlerOptions = {
             ...merged,
-            plugins: [...pnpPlugins, ...cfg.plugins],
+            // Drop user-config plugins from `merged` — they survived
+            // mergeBundlerOptions via spread but have already been resolved
+            // and appended into `userPlugins` above. Re-emitting the raw
+            // entries (which may include `BundlerPluginByName` shapes
+            // Rolldown doesn't understand) would crash the build.
+            plugins: [...pnpPlugins, ...userPlugins, ...cfg.plugins],
         };
 
         const build = await rolldown(finalOpts);

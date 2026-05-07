@@ -11,6 +11,7 @@ import {
     createCommand as create,
     gresourceCommand as gresource,
     gettextCommand as gettext,
+    gsettingsCommand as gsettings,
     dlxCommand as dlx,
     installCommand as install,
 } from './commands/index.js'
@@ -29,5 +30,6 @@ void yargs(hideBin(process.argv))
     .command(showcase.command, showcase.description, showcase.builder, showcase.handler)
     .command(gresource.command, gresource.description, gresource.builder, gresource.handler)
     .command(gettext.command, gettext.description, gettext.builder, gettext.handler)
+    .command(gsettings.command, gsettings.description, gsettings.builder, gsettings.handler)
     .demandCommand(1)
     .help().argv
