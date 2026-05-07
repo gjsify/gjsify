@@ -84,19 +84,13 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         ? resolve(_shimDir, '../shims/console-gjs.js')
         : null;
 
-    // Side-effect-only files we need to land in the bundle alongside the
-    // user's entry: the console shim and (when present) the auto-globals
-    // inject stub. We can't use Rolldown's `transform.inject` (source-AST
-    // rewrite, forbidden by the auto-globals invariant) and we can't add
-    // them as additional `input` entries because Rolldown then either emits
-    // multiple chunks (incompatible with `--outfile`) or rejects
-    // `codeSplitting: false` for multi-input builds.
-    //
-    // Instead we wrap the user entry in a virtual module that side-effect-
-    // imports each shim then re-exports the entry. One real entry, all the
-    // bytes land in one bundle.
+    // The auto-globals inject stub (when present) is side-effect-imported
+    // via a virtual entry — its register modules write to globalThis, so
+    // the import chain matters but no name binding does. We can't use
+    // Rolldown's `inject` for this because the auto-globals invariant
+    // forbids source-AST rewrites for global identifiers (false positives
+    // from isomorphic guards / bracket access — see AGENTS.md).
     const sideEffectImports: string[] = [];
-    if (consoleShimPath) sideEffectImports.push(consoleShimPath);
     if (input.pluginOptions.autoGlobalsInject) sideEffectImports.push(input.pluginOptions.autoGlobalsInject);
 
     const virtualEntries = wrapInputWithSideEffects(entryPoints, sideEffectImports);
@@ -124,6 +118,15 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
                 window: 'globalThis',
                 'process.env.READABLE_STREAM': '"disable"',
             },
+            // Console shim: rewrite bare `console` references to a named
+            // import from our shim module. We use Rolldown's `inject`
+            // (Oxc-driven, lives under `transform`) because:
+            //   1. `globalThis.console` is non-configurable on SpiderMonkey
+            //      128 so a register-style global write throws.
+            //   2. We're replacing console unconditionally — there's no
+            //      tree-shake-aware detection concern that motivated the
+            //      auto-globals invariant.
+            ...(consoleShimPath ? { inject: { console: [consoleShimPath, 'console'] } } : {}),
         },
         output: {
             ...input.output,
