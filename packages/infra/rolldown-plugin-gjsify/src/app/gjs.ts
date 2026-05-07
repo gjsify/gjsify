@@ -26,7 +26,7 @@ import {
 } from '../plugins/rewrite-node-modules-paths.js';
 import { processStubPlugin } from '../plugins/process-stub.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
-import { shebangPlugin, GJS_SHEBANG } from '../plugins/shebang.js';
+import { shebangPlugin, resolveShebangLine } from '../plugins/shebang.js';
 
 const _shimDir = dirname(fileURLToPath(import.meta.url));
 
@@ -47,8 +47,13 @@ export interface GjsFactoryInput {
     userBanner?: string;
     /** User-supplied resolve.alias overrides. */
     userAliases?: Record<string, string>;
-    /** Whether to prepend the `#!/usr/bin/env -S gjs -m` shebang. */
-    shebang?: boolean;
+    /**
+     * Shebang to prepend to the output bundle.
+     *   `true`  → default `#!/usr/bin/env -S gjs -m`
+     *   `false` → no shebang
+     *   `"…"`   → custom line, supports `${env:NAME[:-default]}` placeholders
+     */
+    shebang?: boolean | string;
     /** Plugin options forwarded to sub-plugins (deepkit, css, …). */
     pluginOptions: PluginOptions;
 }
@@ -163,7 +168,12 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         cssAsStringPlugin(),
         nodeModulesPathRewritePlugin({ bundleDir }),
         processStubPlugin({ userBanner: input.userBanner }),
-        shebangPlugin({ enabled: input.shebang === true, line: GJS_SHEBANG }),
+        // resolveShebangLine returns null when disabled (false/undefined) and
+        // the resolved line otherwise — also handles `${env:…}` expansion.
+        (() => {
+            const line = resolveShebangLine(input.shebang);
+            return shebangPlugin({ enabled: line !== null, line: line ?? undefined });
+        })(),
     ];
 
     return { options, plugins };

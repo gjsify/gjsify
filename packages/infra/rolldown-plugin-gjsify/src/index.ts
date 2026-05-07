@@ -20,7 +20,9 @@ export type {
 export { processStubPlugin, GJS_PROCESS_STUB, composeBanner } from './plugins/process-stub.js';
 export type { ProcessStubPluginOptions } from './plugins/process-stub.js';
 export { cssAsStringPlugin } from './plugins/css-as-string.js';
-export { shebangPlugin, GJS_SHEBANG } from './plugins/shebang.js';
+export { textLoaderPlugin } from './plugins/text-loader.js';
+export type { TextLoaderPluginOptions } from './plugins/text-loader.js';
+export { shebangPlugin, GJS_SHEBANG, expandEnvTemplate, resolveShebangLine } from './plugins/shebang.js';
 export type { ShebangPluginOptions } from './plugins/shebang.js';
 export { gjsImportsEmptyPlugin } from './plugins/gjs-imports-empty.js';
 

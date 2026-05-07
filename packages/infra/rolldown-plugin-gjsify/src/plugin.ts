@@ -27,8 +27,13 @@ export interface GjsifyPluginInput {
     userExternal?: string[];
     userBanner?: string;
     userAliases?: Record<string, string>;
-    /** Whether to prepend `#!/usr/bin/env -S gjs -m` to the GJS bundle. */
-    shebang?: boolean;
+    /**
+     * Shebang to prepend to the GJS bundle.
+     *   `true`  → default `#!/usr/bin/env -S gjs -m`
+     *   `false` → no shebang
+     *   `"…"`   → custom line, supports `${env:NAME[:-default]}` placeholders
+     */
+    shebang?: boolean | string;
 }
 
 /**
