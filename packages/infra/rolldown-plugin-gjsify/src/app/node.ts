@@ -67,14 +67,15 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
 
     const bundleDir = getBundleDirFromOutput(input.output);
 
-    // ESM output of bundled CJS code still needs `require()` (Rolldown emits
-    // calls to it for external Node builtins). Node ESM has no `require`
-    // natively, so we synthesize one via `module.createRequire`. This banner
-    // is harmless on CJS output (the line is parsed and discarded if the
-    // file is required as CJS).
-    const banner = format === 'esm'
-        ? "import { createRequire as __gjsifyCreateRequire } from 'module';\nconst require = __gjsifyCreateRequire(import.meta.url);"
-        : undefined;
+    // Rolldown's CJS interop wraps bundled CJS via `__commonJSMin` and
+    // routes external Node-builtin `require()` through `__require` —
+    // both injected internally. Unlike esbuild we therefore don't need a
+    // top-of-bundle `const require = createRequire(...)` shim. Keeping
+    // one collides with bundled CJS sources that declare their own
+    // `const require = createRequire(...)` (e.g. yargs's ESM platform
+    // shim) — `SyntaxError: Identifier 'require' has already been
+    // declared`.
+    const banner: string | undefined = undefined;
 
     const options: RolldownOptions = {
         input: entryPoints,
