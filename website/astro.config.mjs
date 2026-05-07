@@ -52,6 +52,7 @@ export default defineConfig({
           items: [
             { slug: 'guides/dlx-packaging' },
             { slug: 'guides/self-executing-package' },
+            { slug: 'guides/flatpak-cli-tool' },
           ],
         },
         {
