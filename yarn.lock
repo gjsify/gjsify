@@ -1088,7 +1088,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/adw-1@npm:^1.10.0-4.0.0-rc.9":
+"@girs/adw-1@npm:1.10.0-4.0.0-rc.9":
   version: 1.10.0-4.0.0-rc.9
   resolution: "@girs/adw-1@npm:1.10.0-4.0.0-rc.9"
   dependencies:
@@ -1143,7 +1143,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gda-6.0@npm:^6.0.0-4.0.0-rc.9":
+"@girs/gda-6.0@npm:6.0.0-4.0.0-rc.9":
   version: 6.0.0-4.0.0-rc.9
   resolution: "@girs/gda-6.0@npm:6.0.0-4.0.0-rc.9"
   dependencies:
@@ -1157,7 +1157,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gdk-4.0@npm:4.0.0-4.0.0-rc.9, @girs/gdk-4.0@npm:^4.0.0-4.0.0-rc.9":
+"@girs/gdk-4.0@npm:4.0.0-4.0.0-rc.9":
   version: 4.0.0-4.0.0-rc.9
   resolution: "@girs/gdk-4.0@npm:4.0.0-4.0.0-rc.9"
   dependencies:
@@ -1176,7 +1176,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gdkpixbuf-2.0@npm:2.0.0-4.0.0-rc.9, @girs/gdkpixbuf-2.0@npm:^2.0.0-4.0.0-rc.9":
+"@girs/gdkpixbuf-2.0@npm:2.0.0-4.0.0-rc.9":
   version: 2.0.0-4.0.0-rc.9
   resolution: "@girs/gdkpixbuf-2.0@npm:2.0.0-4.0.0-rc.9"
   dependencies:
@@ -1201,7 +1201,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gio-2.0@npm:2.88.0-4.0.0-rc.9, @girs/gio-2.0@npm:^2.88.0-4.0.0-rc.9":
+"@girs/gio-2.0@npm:2.88.0-4.0.0-rc.9":
   version: 2.88.0-4.0.0-rc.9
   resolution: "@girs/gio-2.0@npm:2.88.0-4.0.0-rc.9"
   dependencies:
@@ -1213,7 +1213,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/giounix-2.0@npm:^2.0.0-4.0.0-rc.9":
+"@girs/giounix-2.0@npm:2.0.0-4.0.0-rc.9":
   version: 2.0.0-4.0.0-rc.9
   resolution: "@girs/giounix-2.0@npm:2.0.0-4.0.0-rc.9"
   dependencies:
@@ -1238,7 +1238,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gjs@npm:4.0.0-rc.9, @girs/gjs@npm:^4.0.0-rc.9":
+"@girs/gjs@npm:4.0.0-rc.9":
   version: 4.0.0-rc.9
   resolution: "@girs/gjs@npm:4.0.0-rc.9"
   dependencies:
@@ -1250,7 +1250,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gjsifywebrtc-0.1@npm:^0.1.0-4.0.0-rc.5":
+"@girs/gjsifywebrtc-0.1@npm:0.1.0-4.0.0-rc.5":
   version: 0.1.0-4.0.0-rc.5
   resolution: "@girs/gjsifywebrtc-0.1@npm:0.1.0-4.0.0-rc.5"
   dependencies:
@@ -1275,7 +1275,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/glib-2.0@npm:2.88.0-4.0.0-rc.9, @girs/glib-2.0@npm:^2.88.0-4.0.0-rc.9":
+"@girs/glib-2.0@npm:2.88.0-4.0.0-rc.9":
   version: 2.88.0-4.0.0-rc.9
   resolution: "@girs/glib-2.0@npm:2.88.0-4.0.0-rc.9"
   dependencies:
@@ -1317,7 +1317,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gobject-2.0@npm:2.88.0-4.0.0-rc.9, @girs/gobject-2.0@npm:^2.88.0-4.0.0-rc.9":
+"@girs/gobject-2.0@npm:2.88.0-4.0.0-rc.9":
   version: 2.88.0-4.0.0-rc.9
   resolution: "@girs/gobject-2.0@npm:2.88.0-4.0.0-rc.9"
   dependencies:
@@ -1371,7 +1371,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gst-1.0@npm:1.28.1-4.0.0-rc.9, @girs/gst-1.0@npm:^1.28.1-4.0.0-rc.9":
+"@girs/gst-1.0@npm:1.28.1-4.0.0-rc.9":
   version: 1.28.1-4.0.0-rc.9
   resolution: "@girs/gst-1.0@npm:1.28.1-4.0.0-rc.9"
   dependencies:
@@ -1383,7 +1383,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gstapp-1.0@npm:^1.0.0-4.0.0-rc.9":
+"@girs/gstapp-1.0@npm:1.0.0-4.0.0-rc.9":
   version: 1.0.0-4.0.0-rc.9
   resolution: "@girs/gstapp-1.0@npm:1.0.0-4.0.0-rc.9"
   dependencies:
@@ -1397,7 +1397,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gstaudio-1.0@npm:^1.0.0-4.0.0-rc.9":
+"@girs/gstaudio-1.0@npm:1.0.0-4.0.0-rc.9":
   version: 1.0.0-4.0.0-rc.9
   resolution: "@girs/gstaudio-1.0@npm:1.0.0-4.0.0-rc.9"
   dependencies:
@@ -1411,7 +1411,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gstbase-1.0@npm:1.0.0-4.0.0-rc.9, @girs/gstbase-1.0@npm:^1.0.0-4.0.0-rc.9":
+"@girs/gstbase-1.0@npm:1.0.0-4.0.0-rc.9":
   version: 1.0.0-4.0.0-rc.9
   resolution: "@girs/gstbase-1.0@npm:1.0.0-4.0.0-rc.9"
   dependencies:
@@ -1437,7 +1437,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gstsdp-1.0@npm:1.0.0-4.0.0-rc.9, @girs/gstsdp-1.0@npm:^1.0.0-4.0.0-rc.9":
+"@girs/gstsdp-1.0@npm:1.0.0-4.0.0-rc.9":
   version: 1.0.0-4.0.0-rc.9
   resolution: "@girs/gstsdp-1.0@npm:1.0.0-4.0.0-rc.9"
   dependencies:
@@ -1464,7 +1464,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gstwebrtc-1.0@npm:^1.0.0-4.0.0-rc.9":
+"@girs/gstwebrtc-1.0@npm:1.0.0-4.0.0-rc.9":
   version: 1.0.0-4.0.0-rc.9
   resolution: "@girs/gstwebrtc-1.0@npm:1.0.0-4.0.0-rc.9"
   dependencies:
@@ -1478,7 +1478,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gtk-4.0@npm:4.23.0-4.0.0-rc.9, @girs/gtk-4.0@npm:^4.23.0-4.0.0-rc.9":
+"@girs/gtk-4.0@npm:4.23.0-4.0.0-rc.9":
   version: 4.23.0-4.0.0-rc.9
   resolution: "@girs/gtk-4.0@npm:4.23.0-4.0.0-rc.9"
   dependencies:
@@ -1511,7 +1511,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/gwebgl-0.1@npm:^0.1.0-4.0.0-rc.5":
+"@girs/gwebgl-0.1@npm:0.1.0-4.0.0-rc.5":
   version: 0.1.0-4.0.0-rc.5
   resolution: "@girs/gwebgl-0.1@npm:0.1.0-4.0.0-rc.5"
   dependencies:
@@ -1555,7 +1555,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/manette-0.2@npm:^0.2.13-4.0.0-rc.9":
+"@girs/manette-0.2@npm:0.2.13-4.0.0-rc.9":
   version: 0.2.13-4.0.0-rc.9
   resolution: "@girs/manette-0.2@npm:0.2.13-4.0.0-rc.9"
   dependencies:
@@ -1569,7 +1569,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/pango-1.0@npm:1.57.1-4.0.0-rc.9, @girs/pango-1.0@npm:^1.57.1-4.0.0-rc.9":
+"@girs/pango-1.0@npm:1.57.1-4.0.0-rc.9":
   version: 1.57.1-4.0.0-rc.9
   resolution: "@girs/pango-1.0@npm:1.57.1-4.0.0-rc.9"
   dependencies:
@@ -1585,7 +1585,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/pangocairo-1.0@npm:1.0.0-4.0.0-rc.9, @girs/pangocairo-1.0@npm:^1.0.0-4.0.0-rc.9":
+"@girs/pangocairo-1.0@npm:1.0.0-4.0.0-rc.9":
   version: 1.0.0-4.0.0-rc.9
   resolution: "@girs/pangocairo-1.0@npm:1.0.0-4.0.0-rc.9"
   dependencies:
@@ -1602,7 +1602,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@girs/soup-3.0@npm:3.6.6-4.0.0-rc.9, @girs/soup-3.0@npm:^3.6.6-4.0.0-rc.9":
+"@girs/soup-3.0@npm:3.6.6-4.0.0-rc.9":
   version: 3.6.6-4.0.0-rc.9
   resolution: "@girs/soup-3.0@npm:3.6.6-4.0.0-rc.9"
   dependencies:
@@ -1706,10 +1706,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/bridge-types@workspace:packages/framework/bridge-types"
   dependencies:
-    "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gdk-4.0": "npm:4.0.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-elements": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
@@ -1734,13 +1734,13 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/canvas2d-core@workspace:packages/dom/canvas2d-core"
   dependencies:
-    "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-rc.9"
-    "@girs/gdkpixbuf-2.0": "npm:^2.0.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/pango-1.0": "npm:^1.57.1-4.0.0-rc.9"
-    "@girs/pangocairo-1.0": "npm:^1.0.0-4.0.0-rc.9"
+    "@girs/gdk-4.0": "npm:4.0.0-4.0.0-rc.9"
+    "@girs/gdkpixbuf-2.0": "npm:2.0.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/pango-1.0": "npm:1.57.1-4.0.0-rc.9"
+    "@girs/pangocairo-1.0": "npm:1.0.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -1752,14 +1752,14 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/canvas2d@workspace:packages/framework/canvas2d"
   dependencies:
-    "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-rc.9"
-    "@girs/gdkpixbuf-2.0": "npm:^2.0.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
-    "@girs/pango-1.0": "npm:^1.57.1-4.0.0-rc.9"
-    "@girs/pangocairo-1.0": "npm:^1.0.0-4.0.0-rc.9"
+    "@girs/gdk-4.0": "npm:4.0.0-4.0.0-rc.9"
+    "@girs/gdkpixbuf-2.0": "npm:2.0.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
+    "@girs/pango-1.0": "npm:1.57.1-4.0.0-rc.9"
+    "@girs/pangocairo-1.0": "npm:1.0.0-4.0.0-rc.9"
     "@gjsify/canvas2d-core": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-elements": "workspace:^"
@@ -1775,8 +1775,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/child_process@workspace:packages/node/child_process"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/events": "workspace:^"
@@ -1878,7 +1878,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/crypto@workspace:packages/node/crypto"
   dependencies:
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/stream": "workspace:^"
@@ -1894,8 +1894,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/dgram@workspace:packages/node/dgram"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/events": "workspace:^"
@@ -1921,8 +1921,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/dns@workspace:packages/node/dns"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/net": "workspace:^"
     "@gjsify/unit": "workspace:^"
@@ -1936,10 +1936,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/dom-elements@workspace:packages/dom/dom-elements"
   dependencies:
-    "@girs/gdkpixbuf-2.0": "npm:^2.0.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gst-1.0": "npm:^1.28.1-4.0.0-rc.9"
+    "@girs/gdkpixbuf-2.0": "npm:2.0.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gst-1.0": "npm:1.28.1-4.0.0-rc.9"
     "@gjsify/abort-controller": "workspace:^"
     "@gjsify/canvas2d-core": "workspace:^"
     "@gjsify/cli": "workspace:^"
@@ -2019,10 +2019,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/event-bridge@workspace:packages/framework/event-bridge"
   dependencies:
-    "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gdk-4.0": "npm:4.0.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
     "@gjsify/unit": "workspace:^"
@@ -2060,9 +2060,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-canvas2d-confetti@workspace:examples/dom/canvas2d-confetti"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/canvas2d": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -2075,11 +2075,11 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-canvas2d-fireworks@workspace:showcases/dom/canvas2d-fireworks"
   dependencies:
-    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.9"
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/adw-1": "npm:1.10.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/adwaita-web": "workspace:^"
     "@gjsify/canvas2d": "workspace:^"
     "@gjsify/cli": "workspace:^"
@@ -2093,9 +2093,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-canvas2d-text@workspace:examples/dom/canvas2d-text"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/canvas2d": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -2109,12 +2109,12 @@ __metadata:
   resolution: "@gjsify/example-dom-excalibur-jelly-jumper@workspace:showcases/dom/excalibur-jelly-jumper"
   dependencies:
     "@excaliburjs/plugin-tiled": "npm:0.32.0"
-    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.9"
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/adw-1": "npm:1.10.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/adwaita-icons": "workspace:^"
     "@gjsify/adwaita-web": "workspace:^"
     "@gjsify/canvas2d": "workspace:^"
@@ -2131,10 +2131,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-gamepad-snes@workspace:examples/dom/gamepad-snes"
   dependencies:
-    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.9"
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/adw-1": "npm:1.10.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/canvas2d": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -2147,9 +2147,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-iframe-basic@workspace:examples/dom/iframe-basic"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/iframe": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -2161,9 +2161,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-three-extrude-shapes@workspace:examples/dom/three-extrude-shapes"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -2178,9 +2178,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-three-geometry-cube@workspace:examples/dom/three-geometry-cube"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -2195,9 +2195,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-three-geometry-shapes@workspace:examples/dom/three-geometry-shapes"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -2212,11 +2212,11 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-three-geometry-teapot@workspace:showcases/dom/three-geometry-teapot"
   dependencies:
-    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.9"
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/adw-1": "npm:1.10.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/adwaita-web": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
@@ -2232,11 +2232,11 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-three-loader-ldraw@workspace:examples/dom/three-loader-ldraw"
   dependencies:
-    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.9"
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/adw-1": "npm:1.10.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/adwaita-web": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
@@ -2252,9 +2252,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-three-morphtargets@workspace:examples/dom/three-morphtargets"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -2269,9 +2269,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-three-multiple-rendertargets@workspace:examples/dom/three-multiple-rendertargets"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -2286,11 +2286,11 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-three-postprocessing-pixel@workspace:showcases/dom/three-postprocessing-pixel"
   dependencies:
-    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.9"
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/adw-1": "npm:1.10.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/adwaita-web": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
@@ -2306,10 +2306,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-video-player@workspace:examples/dom/video-player"
   dependencies:
-    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/adw-1": "npm:1.10.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -2323,9 +2323,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webgl-demo-fade@workspace:examples/dom/webgl-demo-fade"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -2338,9 +2338,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webgl-tutorial-01@workspace:examples/dom/webgl-tutorial-01"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -2352,9 +2352,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webgl-tutorial-02@workspace:examples/dom/webgl-tutorial-02"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
@@ -2369,9 +2369,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webgl-tutorial-03@workspace:examples/dom/webgl-tutorial-03"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
@@ -2386,9 +2386,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webgl-tutorial-04@workspace:examples/dom/webgl-tutorial-04"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
@@ -2403,9 +2403,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webgl-tutorial-05@workspace:examples/dom/webgl-tutorial-05"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
@@ -2420,9 +2420,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webgl-tutorial-06@workspace:examples/dom/webgl-tutorial-06"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
@@ -2437,9 +2437,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webgl-tutorial-07@workspace:examples/dom/webgl-tutorial-07"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/webgl": "workspace:^"
     "@types/gl-matrix": "npm:^3.2.0"
@@ -2454,8 +2454,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webrtc-dtmf@workspace:examples/dom/webrtc-dtmf"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -2469,8 +2469,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webrtc-loopback@workspace:examples/dom/webrtc-loopback"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -2485,10 +2485,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webrtc-states@workspace:examples/dom/webrtc-states"
   dependencies:
-    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/adw-1": "npm:1.10.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -2503,8 +2503,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webrtc-trickle-ice@workspace:examples/dom/webrtc-trickle-ice"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -2518,10 +2518,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webrtc-video@workspace:examples/dom/webrtc-video"
   dependencies:
-    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/adw-1": "npm:1.10.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -2537,8 +2537,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webtorrent-download@workspace:examples/dom/webtorrent-download"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -2554,10 +2554,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webtorrent-player@workspace:examples/dom/webtorrent-player"
   dependencies:
-    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/adw-1": "npm:1.10.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -2575,8 +2575,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webtorrent-seed@workspace:examples/dom/webtorrent-seed"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -2592,8 +2592,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-dom-webtorrent-stream@workspace:examples/dom/webtorrent-stream"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -2717,8 +2717,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-node-cli-gio-cat@workspace:examples/node/cli-gio-cat"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     typescript: "npm:^6.0.3"
   languageName: unknown
@@ -2945,10 +2945,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/example-node-gtk-http-dashboard@workspace:examples/node/gtk-http-dashboard"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -3077,10 +3077,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/fetch@workspace:packages/web/fetch"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/soup-3.0": "npm:^3.6.6-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/soup-3.0": "npm:3.6.6-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/formdata": "workspace:^"
     "@gjsify/http": "workspace:^"
@@ -3107,8 +3107,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/fs@workspace:packages/node/fs"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/events": "workspace:^"
@@ -3125,9 +3125,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/gamepad@workspace:packages/web/gamepad"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/manette-0.2": "npm:^0.2.13-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/manette-0.2": "npm:0.2.13-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
     "@gjsify/unit": "workspace:^"
@@ -3140,11 +3140,11 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/http-soup-bridge@workspace:packages/node/http-soup-bridge"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/soup-3.0": "npm:^3.6.6-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/soup-3.0": "npm:3.6.6-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@ts-for-gir/cli": "npm:^4.0.0-rc.9"
     "@types/node": "npm:^25.6.0"
@@ -3156,10 +3156,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/http2@workspace:packages/node/http2"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/soup-3.0": "npm:^3.6.6-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/soup-3.0": "npm:3.6.6-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/events": "workspace:^"
     "@gjsify/unit": "workspace:^"
@@ -3173,9 +3173,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/http@workspace:packages/node/http"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/soup-3.0": "npm:^3.6.6-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/soup-3.0": "npm:3.6.6-4.0.0-rc.9"
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/events": "workspace:^"
@@ -3207,8 +3207,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/iframe@workspace:packages/framework/iframe"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@girs/javascriptcore-6.0": "npm:2.52.1-4.0.0-rc.9"
     "@girs/webkit-6.0": "npm:2.52.1-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
@@ -3235,7 +3235,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-autobahn@workspace:tests/integration/autobahn"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -3250,7 +3250,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-axios@workspace:tests/integration/axios"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -3279,7 +3279,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-mcp-typescript-sdk@workspace:tests/integration/mcp-typescript-sdk"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -3295,7 +3295,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-socket.io@workspace:tests/integration/socket.io"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -3311,7 +3311,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-streamx@workspace:tests/integration/streamx"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -3328,7 +3328,7 @@ __metadata:
   resolution: "@gjsify/integration-ts-for-gir@workspace:tests/integration/ts-for-gir"
   dependencies:
     "@gi.ts/parser": "npm:^4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/runtime": "workspace:^"
     "@gjsify/unit": "workspace:^"
@@ -3347,7 +3347,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-webtorrent@workspace:tests/integration/webtorrent"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -3366,9 +3366,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/module@workspace:packages/node/module"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
@@ -3381,8 +3381,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/net@workspace:packages/node/net"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/events": "workspace:^"
@@ -3398,7 +3398,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/node-globals@workspace:packages/node/globals"
   dependencies:
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/process": "workspace:^"
@@ -3471,8 +3471,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/os@workspace:packages/node/os"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
@@ -3625,9 +3625,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/sqlite@workspace:packages/node/sqlite"
   dependencies:
-    "@girs/gda-6.0": "npm:^6.0.0-4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gda-6.0": "npm:6.0.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -3687,11 +3687,11 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/template-adw-canvas2d@workspace:templates/adw-canvas2d"
   dependencies:
-    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.9"
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/adw-1": "npm:1.10.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/canvas2d": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/vite-plugin-blueprint": "workspace:^"
@@ -3704,11 +3704,11 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/template-adw-game@workspace:templates/adw-game"
   dependencies:
-    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.9"
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/adw-1": "npm:1.10.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/canvas2d": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/vite-plugin-blueprint": "workspace:^"
@@ -3723,11 +3723,11 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/template-adw-webgl@workspace:templates/adw-webgl"
   dependencies:
-    "@girs/adw-1": "npm:^1.10.0-4.0.0-rc.9"
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/adw-1": "npm:1.10.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/vite-plugin-blueprint": "workspace:^"
     "@gjsify/webgl": "workspace:^"
@@ -3756,9 +3756,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/template-gtk-minimal@workspace:templates/gtk-minimal"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.3"
@@ -3797,8 +3797,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/terminal-native@workspace:packages/node/terminal-native"
   dependencies:
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@ts-for-gir/cli": "npm:^4.0.0-rc.9"
     "@types/node": "npm:^25.6.0"
@@ -3810,9 +3810,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/test-dom-excalibur@workspace:tests/dom/excalibur"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/canvas2d": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-elements": "workspace:^"
@@ -3850,8 +3850,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/tls@workspace:packages/node/tls"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/net": "workspace:^"
     "@gjsify/unit": "workspace:^"
@@ -3865,7 +3865,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/tty@workspace:packages/node/tty"
   dependencies:
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/stream": "workspace:^"
     "@gjsify/terminal-native": "workspace:^"
@@ -3879,8 +3879,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/unit@workspace:packages/gjs/unit"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/assert": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/process": "workspace:^"
@@ -3894,7 +3894,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/url@workspace:packages/node/url"
   dependencies:
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -3918,10 +3918,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/utils@workspace:packages/gjs/utils"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/giounix-2.0": "npm:^2.0.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/giounix-2.0": "npm:2.0.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     typescript: "npm:^6.0.3"
   languageName: unknown
@@ -3942,12 +3942,12 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/video@workspace:packages/framework/video"
   dependencies:
-    "@girs/gdk-4.0": "npm:^4.0.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gst-1.0": "npm:^1.28.1-4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
+    "@girs/gdk-4.0": "npm:4.0.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gst-1.0": "npm:1.28.1-4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
     "@gjsify/bridge-types": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-elements": "workspace:^"
@@ -4087,12 +4087,12 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/webaudio@workspace:packages/web/webaudio"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gst-1.0": "npm:^1.28.1-4.0.0-rc.9"
-    "@girs/gstapp-1.0": "npm:^1.0.0-4.0.0-rc.9"
-    "@girs/gstaudio-1.0": "npm:^1.0.0-4.0.0-rc.9"
-    "@girs/gstbase-1.0": "npm:^1.0.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gst-1.0": "npm:1.28.1-4.0.0-rc.9"
+    "@girs/gstapp-1.0": "npm:1.0.0-4.0.0-rc.9"
+    "@girs/gstaudio-1.0": "npm:1.0.0-4.0.0-rc.9"
+    "@girs/gstbase-1.0": "npm:1.0.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
     "@gjsify/unit": "workspace:^"
@@ -4117,9 +4117,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/webgl@workspace:packages/framework/webgl"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gtk-4.0": "npm:^4.23.0-4.0.0-rc.9"
-    "@girs/gwebgl-0.1": "npm:^0.1.0-4.0.0-rc.5"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gtk-4.0": "npm:4.23.0-4.0.0-rc.9"
+    "@girs/gwebgl-0.1": "npm:0.1.0-4.0.0-rc.5"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-elements": "workspace:^"
     "@gjsify/event-bridge": "workspace:^"
@@ -4137,12 +4137,12 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/webrtc-native@workspace:packages/web/webrtc-native"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/gjsifywebrtc-0.1": "npm:^0.1.0-4.0.0-rc.5"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gst-1.0": "npm:^1.28.1-4.0.0-rc.9"
-    "@girs/gstwebrtc-1.0": "npm:^1.0.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/gjsifywebrtc-0.1": "npm:0.1.0-4.0.0-rc.5"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gst-1.0": "npm:1.28.1-4.0.0-rc.9"
+    "@girs/gstwebrtc-1.0": "npm:1.0.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@types/node": "npm:^25.6.0"
     typescript: "npm:^6.0.3"
@@ -4153,12 +4153,12 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/webrtc@workspace:packages/web/webrtc"
   dependencies:
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gobject-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gst-1.0": "npm:^1.28.1-4.0.0-rc.9"
-    "@girs/gstsdp-1.0": "npm:^1.0.0-4.0.0-rc.9"
-    "@girs/gstwebrtc-1.0": "npm:^1.0.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gst-1.0": "npm:1.28.1-4.0.0-rc.9"
+    "@girs/gstsdp-1.0": "npm:1.0.0-4.0.0-rc.9"
+    "@girs/gstwebrtc-1.0": "npm:1.0.0-4.0.0-rc.9"
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
@@ -4194,10 +4194,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/websocket@workspace:packages/web/websocket"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/soup-3.0": "npm:^3.6.6-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/soup-3.0": "npm:3.6.6-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/dom-events": "workspace:^"
     "@gjsify/unit": "workspace:^"
@@ -4221,8 +4221,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/worker_threads@workspace:packages/node/worker_threads"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/events": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
@@ -4236,9 +4236,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/ws@workspace:packages/node/ws"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/soup-3.0": "npm:^3.6.6-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/soup-3.0": "npm:3.6.6-4.0.0-rc.9"
     "@gjsify/buffer": "workspace:^"
     "@gjsify/cli": "workspace:^"
     "@gjsify/crypto": "workspace:^"
@@ -4255,9 +4255,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/xmlhttprequest@workspace:packages/web/xmlhttprequest"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/gjs": "npm:^4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/gjs": "npm:4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/fetch": "workspace:^"
     "@types/node": "npm:^25.6.0"
@@ -4269,8 +4269,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/zlib@workspace:packages/node/zlib"
   dependencies:
-    "@girs/gio-2.0": "npm:^2.88.0-4.0.0-rc.9"
-    "@girs/glib-2.0": "npm:^2.88.0-4.0.0-rc.9"
+    "@girs/gio-2.0": "npm:2.88.0-4.0.0-rc.9"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.9"
     "@gjsify/cli": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@types/node": "npm:^25.6.0"

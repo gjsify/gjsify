@@ -46,8 +46,8 @@
         "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=./prebuilds/linux-x86_64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyTerminal-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true"
     },
     "dependencies": {
-        "@girs/glib-2.0": "^2.88.0-4.0.0-rc.9",
-        "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.9"
+        "@girs/glib-2.0": "2.88.0-4.0.0-rc.9",
+        "@girs/gobject-2.0": "2.88.0-4.0.0-rc.9"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",

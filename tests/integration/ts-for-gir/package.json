@@ -21,7 +21,7 @@
     },
     "devDependencies": {
         "@gi.ts/parser": "^4.0.0-rc.9",
-        "@girs/gjs": "^4.0.0-rc.9",
+        "@girs/gjs": "4.0.0-rc.9",
         "@gjsify/cli": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
