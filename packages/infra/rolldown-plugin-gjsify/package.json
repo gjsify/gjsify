@@ -10,6 +10,13 @@
         ".": {
             "types": "./lib/index.d.ts",
             "default": "./lib/index.js"
+        },
+        "./globals": {
+            "types": "./lib/globals.d.ts",
+            "default": "./lib/globals.js"
+        },
+        "./shims/console-gjs": {
+            "default": "./lib/shims/console-gjs.js"
         }
     },
     "scripts": {
@@ -34,6 +41,19 @@
         "gjsify"
     ],
     "license": "MIT",
+    "dependencies": {
+        "@gjsify/console": "workspace:^",
+        "@gjsify/resolve-npm": "workspace:^",
+        "@gjsify/rolldown-plugin-deepkit": "workspace:^",
+        "@gjsify/rolldown-plugin-pnp": "workspace:^",
+        "@gjsify/vite-plugin-blueprint": "workspace:^",
+        "@rollup/plugin-alias": "^5.1.1",
+        "@rollup/pluginutils": "^5.1.4",
+        "acorn": "^8.14.0",
+        "acorn-walk": "^8.3.4",
+        "fast-glob": "^3.3.3",
+        "lightningcss": "^1.32.0"
+    },
     "peerDependencies": {
         "rolldown": "^1.0.0-rc.18"
     },
