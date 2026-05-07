@@ -150,27 +150,26 @@ function describeForBundle(bundle: RuntimeBundle): () => Promise<void> {
 
       // Regression: cosmiconfig's ESM `.js` loader does dynamic `import(filepath)`
       // on an absolute path. Node tolerates that as a non-spec extension; GJS /
-      // SpiderMonkey rejects it with "Module not found: <abs-path>". The fix in
-      // ts-for-gir's config-loader converts via pathToFileURL. Without it, the
-      // GJS bundle exits 1 and never lists modules.
+      // SpiderMonkey rejects it with "Module not found: <abs-path>". Fix in
+      // ts-for-gir's config-loader (gjsify/ts-for-gir#385) converts via
+      // pathToFileURL — shipped in @ts-for-gir/cli@4.0.0-rc.13.
       //
-      // Skipped on the GJS bundle until @ts-for-gir/cli ≥ rc.13 lands the fix from
-      // gjsify/ts-for-gir#385 and is consumed via this workspace's npm range.
-      // Track in STATUS.md → Open TODOs and remove the gate when the bump lands.
-      const itMaybe = bundle.label === 'GJS bundle' ? it.skip : it;
-      await itMaybe('list --configName loads an ESM rc via cosmiconfig (file:// dynamic import)', async () => {
-        const r = await runCli(bundle, ['list', '--configName', '.ts-for-girrc-fixture.js']);
+      // Pass `-g GIRS_DIR` so the search is bounded to our fixtures (CLI override
+      // suppresses the system-default girDirectories list). The rc still loads
+      // and its `ignore: ['Gwebgl-0.1']` entry must filter the listing — that
+      // is what proves the dynamic import path actually executed.
+      await it('list --configName loads an ESM rc via cosmiconfig (file:// dynamic import)', async () => {
+        const r = await runCli(bundle, ['list', '-g', GIRS_DIR, '--configName', '.ts-for-girrc-fixture.js']);
         // GJS rejects absolute paths in dynamic import() per spec; the loader
-        // must convert via pathToFileURL. Without it, GJS throws here.
+        // must convert via pathToFileURL. Without it, GJS threw here.
         expect(r.stderr).not.toContain('Module not found');
         expect(r.code).toBe(0);
-        // girDirectories from the rc was applied (resolved relative to the rc's dir).
         expect(r.stdout).toContain('Search for gir files in:');
         expect(r.stdout).toContain(GIRS_DIR);
-        // Modules drove off the rc-supplied dir — proves the rc actually loaded.
+        // The two non-ignored fixtures are still listed.
         expect(r.stdout).toContain('GjsifyHttpSoupBridge-1.0');
         expect(r.stdout).toContain('GjsifyWebrtc-0.1');
-        // ignore: ['Gwebgl-0.1'] from the rc — must not surface in the listing.
+        // rc.ignore: ['Gwebgl-0.1'] must take effect — proves the rc actually loaded.
         expect(r.stdout).not.toContain('Gwebgl-0.1');
       }, { timeout: CLI_TEST_TIMEOUT_MS });
     });
