@@ -174,6 +174,34 @@ function describeForBundle(bundle: RuntimeBundle): () => Promise<void> {
       }, { timeout: CLI_TEST_TIMEOUT_MS });
     });
 
+    // Phase 9b: `create` short-circuits on the GJS bundle. The single-file binary
+    // shipped via install.js / @gjsify/cli does not include `dist-templates/`,
+    // so the create command's `findTemplatesRoot()` would otherwise throw a
+    // confusing "Could not locate templates directory" error. Upstream guard +
+    // build-time `__GJS_BUNDLE__=true` define (gjsify/ts-for-gir#386) make it
+    // print the actionable "use Node.js" message instead. The same define is
+    // mirrored in this suite's `scripts/build-cli-gjs.mjs` so the integration
+    // bundle behaves identically to the released one.
+    //
+    // Skipped on the Node bundle: there `create` actually works (templates
+    // resolve through node_modules) and is exercised by interactive E2E flows
+    // outside this regression suite.
+    await describe(`@ts-for-gir/cli create (Phase 9b — short-circuit on ${bundle.label})`, async () => {
+
+      const itGjsOnly = bundle.label === 'GJS bundle' ? it : it.skip;
+      await itGjsOnly('prints the "not yet supported in the GJS bundle" message and does not scaffold', async () => {
+        const r = await runCli(bundle, ['create', 'gjsify-create-test-noop']);
+        // Build-time `__GJS_BUNDLE__=true` define makes the handler return
+        // early with a `process.stderr.write(...)` to this exact message.
+        expect(r.stderr).toContain('not yet supported in the GJS bundle');
+        expect(r.stderr).toContain('npx @ts-for-gir/cli create');
+        // Must NOT fall through to findTemplatesRoot() — that's the user-
+        // reported confusing failure mode the define was added to suppress.
+        expect(r.stderr).not.toContain('Could not locate templates directory');
+        expect(r.stdout).not.toContain('Could not locate templates directory');
+      }, { timeout: CLI_TEST_TIMEOUT_MS });
+    });
+
     // Phase 6: TypeDoc generators — json + doc commands no longer stubbed on GJS.
     // The import.meta.url rewrite in esbuild-plugin-gjsify makes TypeDoc's eager
     // filesystem reads (package.json, locales, static assets) resolve into

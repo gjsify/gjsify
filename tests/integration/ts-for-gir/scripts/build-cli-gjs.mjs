@@ -25,12 +25,20 @@ const aliases = [
   `inquirer=${join(STUBS, 'inquirer-prompts.ts')}`,
 ].join(',');
 
+// __GJS_BUNDLE__=true mirrors upstream `@ts-for-gir/cli`'s build-gjs.mjs
+// (gjsify/ts-for-gir#386). The flag trips a short-circuit guard in commands
+// that aren't yet supported on the GJS bundle (currently only `create`,
+// which depends on `dist-templates/` shipping alongside the binary —
+// install.js downloads the single binary asset only). Without the define
+// the guard's `typeof !== "undefined"` check is dead code and the user
+// sees a confusing "Could not locate templates directory" error.
 const args = [
   'build',
   'src/cli.entry.ts',
   '--app', 'gjs',
   '--outfile', 'dist/cli.gjs.mjs',
   '--define', '__TS_FOR_GIR_VERSION__="4.0.0-rc.8"',
+  '--define', '__GJS_BUNDLE__=true',
   '--alias', aliases,
 ];
 
