@@ -55,7 +55,16 @@ export interface GjsFactoryInput {
 
 export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfig> => {
     const userExternal = input.userExternal ?? [];
-    const external = ['gi://*', 'cairo', 'gettext', 'system', ...userExternal];
+    // Rolldown's `external` array does not support glob patterns the way
+    // esbuild's did (`gi://*`). We use a function predicate so any
+    // `gi://Foo?version=…` URI matches by prefix and the GJS-built-in
+    // string specifiers stay externalised by name.
+    const exactExternal = ['cairo', 'gettext', 'system', ...userExternal];
+    const external = (id: string): boolean => {
+        if (id.startsWith('gi://')) return true;
+        if (exactExternal.includes(id)) return true;
+        return false;
+    };
     const format = input.pluginOptions.format ?? 'esm';
 
     const exclude = input.pluginOptions.exclude ?? [];
