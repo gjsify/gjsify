@@ -106,6 +106,19 @@ export default async () => {
             expect(satisfies("1.2.3", "<=1.2.3")).toBe(true);
         });
 
+        await it("primitives with whitespace between operator and version", async () => {
+            // node-semver / npm registry accept both `>=1.2` and `>= 1.2`. The
+            // spaced form appears in real packuments (e.g. safer-buffer's peer
+            // range `>= 2.1.2 < 3.0.0`).
+            expect(satisfies("1.2.3", ">= 1.0.0 < 2.0.0")).toBe(true);
+            expect(satisfies("2.0.0", ">= 1.0.0 < 2.0.0")).toBe(false);
+            expect(satisfies("2.1.2", ">= 2.1.2 < 3.0.0")).toBe(true);
+            expect(satisfies("2.9.9", ">= 2.1.2 < 3.0.0")).toBe(true);
+            expect(satisfies("3.0.0", ">= 2.1.2 < 3.0.0")).toBe(false);
+            expect(satisfies("1.2.3", "= 1.2.3")).toBe(true);
+            expect(new Range(">= 2.1.2 < 3.0.0").test("2.5.0")).toBe(true);
+        });
+
         await it("primitives on partial RHS", async () => {
             expect(satisfies("2.0.0", ">1")).toBe(true);
             expect(satisfies("1.5.0", ">1")).toBe(false);
