@@ -215,7 +215,13 @@ function parseRangePart(part: string): Comparator[] {
     }
     const hyphen = trimmed.match(/^\s*(\S+)\s+-\s+(\S+)\s*$/);
     if (hyphen) return hyphenRange(hyphen[1], hyphen[2]);
-    const tokens = trimmed.split(/\s+/);
+    // Glue any standalone operator to the version that follows. node-semver
+    // (and the npm registry) accept both `>=1.2` and `>= 1.2`; without this
+    // normalization the second form tokenizes into `[">=", "1.2"]` and
+    // `parseSimple(">=")` then fails. Real-world packuments use the spaced
+    // form, e.g. `safer-buffer`'s peer-dep range `">= 2.1.2 < 3.0.0"`.
+    const glued = trimmed.replace(/(<=|>=|<|>|=)\s+(?=\S)/g, "$1");
+    const tokens = glued.split(/\s+/);
     const out: Comparator[] = [];
     for (const tok of tokens) out.push(...parseSimple(tok));
     return out;

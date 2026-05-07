@@ -1,17 +1,25 @@
-// `gjsify install [pkg...]` — thin npm wrapper with gjsify-aware post-checks.
-//
-// The actual install is delegated to `npm install` in the user's project root
-// (no `--prefix` rewrite, unlike `gjsify dlx`). After install completes we run
-// `runMinimalChecks()` so missing system deps (gjs, gtk4, libsoup, ...) surface
-// immediately, and report any installed `@gjsify/*` packages that ship native
-// prebuilds so users know they can use `gjsify run` to wire `LD_LIBRARY_PATH` /
-// `GI_TYPELIB_PATH` automatically.
+// `gjsify install [pkg...]` — install packages with gjsify-aware post-checks.
 //
 // Modes:
 //   gjsify install                    → project install (npm install)
-//   gjsify install <pkg> [<pkg>...]   → add package(s) (npm install <pkg>...)
+//   gjsify install <pkg> [<pkg>...]   → add package(s) to project (npm install <pkg>...)
+//   gjsify install -g <pkg> [...]     → user-global install (XDG, GJS-runnable bin)
+//
+// Project mode delegates to `npm install` in cwd and runs `runMinimalChecks()`
+// + `detectNativePackages()` to surface missing system deps and `@gjsify/*`
+// packages with native prebuilds.
+//
+// Global mode is the GJS equivalent of `npm i -g`: extracts the package tree
+// into `${XDG_DATA_HOME}/gjsify/global/node_modules/<pkg>/` via the native
+// install backend (no Node/npm required at runtime), then symlinks the bins
+// declared by `gjsify.bin` (preferred) or `bin` (fallback) into
+// `~/.local/bin/`. Subsequent commands invoked by name resolve to the
+// extracted package, so package-relative assets like `@ts-for-gir/cli`'s
+// `dist-templates/` are found by ordinary `__dirname/..` resolution — no
+// embedded asset stores, no separate release tarballs.
 
 import { spawn } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
 import type { Command } from '../types/index.js';
 import {
     buildInstallCommand,
@@ -19,9 +27,17 @@ import {
     runMinimalChecks,
 } from '../utils/check-system-deps.js';
 import { detectNativePackages } from '../utils/detect-native-packages.js';
+import { installPackages } from '../utils/install-backend.js';
+import {
+    binDirOnPath,
+    defaultGlobalLayout,
+    linkGlobalBins,
+    specToPackageName,
+} from '../utils/install-global.js';
 
 interface InstallOptions {
     packages?: string[];
+    global?: boolean;
     'save-dev'?: boolean;
     'save-peer'?: boolean;
     'save-optional'?: boolean;
@@ -31,7 +47,7 @@ interface InstallOptions {
 export const installCommand: Command<any, InstallOptions> = {
     command: 'install [packages..]',
     description:
-        'Install npm dependencies in the current project, then run gjsify-aware post-checks.',
+        'Install npm dependencies in the current project (or globally with -g), then run gjsify-aware post-checks.',
     builder: (yargs) =>
         yargs
             .positional('packages', {
@@ -39,15 +55,40 @@ export const installCommand: Command<any, InstallOptions> = {
                 type: 'string',
                 array: true,
             })
+            .option('global', {
+                description:
+                    'Install into the user-global XDG location and symlink bins into ~/.local/bin.',
+                type: 'boolean',
+                alias: 'g',
+                default: false,
+            })
             .option('save-dev', { type: 'boolean', alias: 'D' })
             .option('save-peer', { type: 'boolean' })
             .option('save-optional', { type: 'boolean', alias: 'O' })
             .option('verbose', {
-                description: 'Verbose npm logging.',
+                description: 'Verbose install logging.',
                 type: 'boolean',
                 default: false,
             }),
     handler: async (args) => {
+        if (args.global) {
+            if (!args.packages || args.packages.length === 0) {
+                console.error(
+                    'gjsify install --global requires at least one <pkg> argument.',
+                );
+                process.exit(1);
+            }
+            for (const flag of ['save-dev', 'save-peer', 'save-optional'] as const) {
+                if (args[flag]) {
+                    console.warn(
+                        `gjsify install --global ignores --${flag}: global installs do not modify a project package.json.`,
+                    );
+                }
+            }
+            await installGlobalAndLink(args.packages, { verbose: args.verbose });
+            return;
+        }
+
         const npmArgs = ['install'];
         if (args['save-dev']) npmArgs.push('--save-dev');
         if (args['save-peer']) npmArgs.push('--save-peer');
@@ -81,6 +122,44 @@ async function spawnNpm(npmArgs: string[]): Promise<void> {
         console.error(err.message);
         process.exit(1);
     });
+}
+
+async function installGlobalAndLink(
+    specs: string[],
+    opts: { verbose: boolean },
+): Promise<void> {
+    const layout = defaultGlobalLayout();
+    mkdirSync(layout.prefix, { recursive: true });
+
+    console.log(`gjsify install --global  → ${layout.prefix}`);
+    console.log(`                  bins → ${layout.binDir}`);
+
+    await installPackages({
+        prefix: layout.prefix,
+        specs,
+        verbose: opts.verbose,
+    });
+
+    const packageNames = specs.map(specToPackageName);
+    const created = linkGlobalBins(packageNames, layout);
+
+    if (created.length === 0) {
+        console.warn(
+            '\nNo bins declared (neither `gjsify.bin` nor `bin` in package.json) — nothing was symlinked.',
+        );
+    } else {
+        console.log(`\nLinked ${created.length} bin(s):`);
+        for (const e of created) {
+            console.log(`  • ${e.link}  →  ${e.target}`);
+        }
+    }
+
+    if (created.length > 0 && !binDirOnPath(layout.binDir)) {
+        console.warn(
+            `\nNote: ${layout.binDir} is not on your PATH.\n` +
+                `Add it to your shell rc file:\n  export PATH="${layout.binDir}:$PATH"`,
+        );
+    }
 }
 
 async function runPostInstallChecks(): Promise<void> {
