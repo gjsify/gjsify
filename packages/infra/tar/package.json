@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/tar",
-    "version": "0.3.14",
+    "version": "0.3.15",
     "description": "Streaming .tar / .tar.gz reader for the gjsify install backend (Node + GJS)",
     "type": "module",
     "module": "lib/esm/index.js",

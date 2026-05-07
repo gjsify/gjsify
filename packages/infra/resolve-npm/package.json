@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/resolve-npm",
-    "version": "0.3.14",
+    "version": "0.3.15",
     "description": "Resolve NPM package aliases",
     "type": "module",
     "main": "lib/index.mjs",

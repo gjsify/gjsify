@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/node-globals",
-    "version": "0.3.14",
+    "version": "0.3.15",
     "description": "Node.js globals module for Gjs",
     "keywords": [
         "gjs",

@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.3.15](https://github.com/gjsify/gjsify/compare/v0.3.14...v0.3.15) (2026-05-07)
+
+### ⚠ BREAKING CHANGES
+
+* drops support for GJS 1.84 / SpiderMonkey 128
+(Fedora 42). Minimum supported runtime is now GJS 1.86 / SM 140.
+Rolldown JS target moves from firefox128 to firefox140, exposing
+SM140-only features (Iterator helpers, Error.captureStackTrace
+native, import...with{type:"json"}, Temporal preview, …) to user
+bundles. CI matrix drops Fedora 42 (kept: Fedora 43/44).
+
+Updated docs (README, AGENTS.md, STATUS.md, getting-started,
+development-setup, how-it-works, cli-reference, architecture,
+dlx-packaging) and inline comments to reflect the new baseline.
+The 4-arg GLib.timeout_add workaround in @gjsify/node-globals
+loses its Fedora-42 rationale but stays — the typing-vs-runtime
+divergence still spams warnings on 1.86+.
+
+### Features
+
+* bump minimum runtime to GJS 1.86 / SpiderMonkey 140 ([#85](https://github.com/gjsify/gjsify/issues/85)) ([bd68ae0](https://github.com/gjsify/gjsify/commit/bd68ae0ec1b636ec2681649749b87b096a12d9bb))
+* **cli:** add Flatpak-toolchain bundler primitives (PR1/6) ([328f5fb](https://github.com/gjsify/gjsify/commit/328f5fb330cd3fbb8922ac9bc759e62c61000365))
+* **cli:** gjsify flatpak {init,build,deps,ci} subcommands (PR2/6) ([bbd9d74](https://github.com/gjsify/gjsify/commit/bbd9d74617622b5a5883ec2a86110837b623df81))
+* **cli:** gjsify install -g <pkg> — XDG-style global install with sh launchers ([feee903](https://github.com/gjsify/gjsify/commit/feee903b42b5e7807f7764017e2cb6f31da94c32))
+
 ## Unreleased — Flatpak-toolchain PR2 (2026-05-07)
 
 ### Features
