@@ -134,9 +134,11 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
             minify: false,
             sourcemap: false,
             // App builds emit a single bundle file. Disable code-splitting
-            // and inline dynamic imports so the entire program lands in
-            // one chunk that matches `gjsify build --outfile foo.js`.
-            inlineDynamicImports: true,
+            // so dynamic imports get inlined and the entire program lands
+            // in one chunk that matches `gjsify build --outfile foo.js`.
+            // (`codeSplitting: false` replaces the deprecated
+            // `inlineDynamicImports: true` in Rolldown ≥ 1.0-rc.18.)
+            codeSplitting: false,
         },
         treeshake: true,
     };

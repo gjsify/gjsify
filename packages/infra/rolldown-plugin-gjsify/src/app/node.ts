@@ -102,7 +102,9 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
             minify: false,
             sourcemap: false,
             banner,
-            inlineDynamicImports: true,
+            // Single-bundle output. `codeSplitting: false` replaces the
+            // deprecated `inlineDynamicImports: true`.
+            codeSplitting: false,
         },
         treeshake: true,
     };
