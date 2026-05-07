@@ -18,8 +18,9 @@ export default defineConfig({
         baseURL: `http://localhost:${PORT}`,
         trace: 'on-first-retry',
     },
-    // Firefox is the primary browser: GJS and Firefox both use SpiderMonkey (SM128),
-    // so these tests directly validate the same engine behavior as GJS.
+    // Firefox is the primary browser: GJS and Firefox both use SpiderMonkey (SM140
+    // for GJS 1.86+; Firefox tracks the latest), so these tests directly validate
+    // the same engine behavior as GJS.
     projects: [
         {
             name: 'firefox',

@@ -81,7 +81,7 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0
 | eventsource | Soup 3.0 | EventSource (SSE) |
 | websocket | Soup 3.0 | WebSocket, MessageEvent, CloseEvent. NUL-byte-safe text frames (send via `send_message(TEXT, GLib.Bytes)` — Soup's `send_text` truncates at `\0`). RFC 6455 fuzz-validated via Autobahn |
 | webstorage | Gio | localStorage, sessionStorage |
-| webassembly | — | Promise-API polyfill — `compile`, `compileStreaming`, `instantiate`, `instantiateStreaming`, `validate` wrap SpiderMonkey 128's working synchronous `new WebAssembly.{Module,Instance}` constructors. Granular `/register/promise` subpath. Auto-injected by `--globals auto` via new `WebAssembly.<method>` METHOD_MARKERS. |
+| webassembly | — | Promise-API polyfill — `compile`, `compileStreaming`, `instantiate`, `instantiateStreaming`, `validate` wrap SpiderMonkey's working synchronous `new WebAssembly.{Module,Instance}` constructors. Granular `/register/promise` subpath. Auto-injected by `--globals auto` via new `WebAssembly.<method>` METHOD_MARKERS. |
 | webaudio | Gst 1.0, GstApp 1.0 | AudioContext(decodeAudioData via GStreamer decodebin), AudioBufferSourceNode(appsrc→volume→autoaudiosink), GainNode(AudioParam+setTargetAtTime), AudioBuffer(PCM Float32), HTMLAudioElement(canPlayType+playbin). Phase 1 |
 | webrtc | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | Full W3C WebRTC — RTCPeerConnection, RTCDataChannel (string+binary), RTCRtpSender/Receiver/Transceiver, MediaStream, MediaStreamTrack, getUserMedia (pipewiresrc/pulsesrc/v4l2src fallback chain), RTCDTMFSender, RTCCertificate, RTCStatsReport, RTCIceCandidate, RTCSessionDescription. Tee-multiplexer for shared-source fan-out (VideoBridge preview ↔ PC sender). Backed by `@gjsify/webrtc-native` |
 | webrtc-native | Gst 1.0, GstWebRTC 1.0 | **Vala/GObject prebuild.** Three main-thread signal bridges: `WebrtcbinBridge` (wraps `on-negotiation-needed`/`on-ice-candidate`/`on-data-channel` + `notify::*-state`), `DataChannelBridge` (wraps GstWebRTCDataChannel's `on-open`/`on-close`/`on-error`/`on-message-string`/`on-message-data`/`on-buffered-amount-low` + `notify::ready-state`), `PromiseBridge` (wraps `Gst.Promise.new_with_change_func`). Captures signals on C side, re-emits via `GLib.Idle.add()` on the GLib main context — makes webrtcbin's streaming-thread callbacks safe to handle from JS. Ships as `.so` + `.typelib` prebuild for linux-{x86_64,aarch64} |
@@ -145,7 +145,7 @@ Dispatch: W3C UIEvents. Coords: GTK widget-relative → DOM offsetX/Y/clientX/Y.
 
 ## Build — Rolldown, platform plugins
 
-Targets: **GJS** `--app gjs` (`assert`→`@gjsify/assert`, externals `gi://*`+`cairo`+`system`+`gettext`, `firefox128`) | **Node** `--app node` (`@gjsify/process`→`process`, `node24`) | **Browser** `--app browser` (`esnext`)
+Targets: **GJS** `--app gjs` (`assert`→`@gjsify/assert`, externals `gi://*`+`cairo`+`system`+`gettext`, `firefox140`) | **Node** `--app node` (`@gjsify/process`→`process`, `node24`) | **Browser** `--app browser` (`esnext`)
 
 Engine: **Rolldown** (Vite 8's production bundler). The orchestrator returns a `{ options, plugins }` config bundle that the CLI composes into `rolldown(...)` + `.write()`. Same `gjsify build --app …` surface as before; Rollup-shaped plugins under the hood that also run under Vite for sister GJS apps.
 
@@ -605,19 +605,17 @@ Every impl → A or B. Every ported test → C. Original: `// <Module> for GJS �
 
 ## Constraints
 
-Target: GJS 1.86.0 / SpiderMonkey 128 (ES2024) / esbuild `firefox128` | ESM-only | GNOME libs + standard JS only | Tests pass on both Node + GJS | Do NOT modify `refs/`
+Target: GJS 1.86.0 / SpiderMonkey 140 (ES2024) / Rolldown `firefox140` | ESM-only | GNOME libs + standard JS only | Tests pass on both Node + GJS | Do NOT modify `refs/`
 
 ## JS Feature Availability
 
-### SM128 (GJS 1.84–1.86, current) — ES2024
+### SM140 (GJS 1.86+, current) — ES2024 + extras
 
-**Available:** Object/Map.groupBy | Promise.withResolvers | Set methods(intersection,union,difference,symmetricDifference,isSubsetOf,isSupersetOf,isDisjointFrom) | Array.fromAsync | structuredClone | SharedArrayBuffer | Intl.Segmenter | globalThis | ??/?. | ??=/||=/&&= | top-level await | private/static fields | WeakRef | FinalizationRegistry
+Minimum supported runtime is **GJS 1.86 / SpiderMonkey 140** (Fedora 43+). SM128 (GJS 1.84) is no longer supported.
 
-**NOT available:** Error.captureStackTrace (polyfill: `packages/gjs/utils/src/error.ts`) | Error.stackTraceLimit (typeof guard) | queueMicrotask (use `Promise.resolve().then()`) | Float16Array, Math.f16round() | Iterator helpers | Uint8Array.{fromBase64,toBase64,fromHex,toHex} | RegExp.escape() | Promise.try() | JSON.rawJSON/isRawJSON | Intl.DurationFormat | Math.sumPrecise | Atomics.pause | Error.isError | Temporal | `import...with{type:"json"}`
+**Available:** Object/Map.groupBy | Promise.withResolvers | Set methods(intersection,union,difference,symmetricDifference,isSubsetOf,isSupersetOf,isDisjointFrom) | Array.fromAsync | structuredClone | SharedArrayBuffer | Intl.Segmenter | globalThis | ??/?. | ??=/||=/&&= | top-level await | private/static fields | WeakRef | FinalizationRegistry | **Error.captureStackTrace native** | **Iterator helpers** | **`import...with{type:"json"}`** | **Temporal** (preview) | Float16Array, Math.f16round() | Uint8Array.{fromBase64,toBase64,fromHex,toHex} | RegExp.escape() | Promise.try() | JSON.rawJSON/isRawJSON | Intl.DurationFormat | Math.sumPrecise | Atomics.pause | Error.isError
 
-### SM140 (GJS 1.85.2+/1.87+, upcoming)
-
-All SM128-missing features become available. Notable: Error.captureStackTrace native (drop polyfill) | Temporal | Iterator helpers | `import...with{type:"json"}`
+Polyfills inherited from the SM128 era still load on SM140 (idempotent, no-op when native exists). They will be retired package by package as native SM140 paths are validated.
 
 ## Writing agent context files
 

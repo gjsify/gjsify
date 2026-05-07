@@ -3,7 +3,7 @@
 // Reference: WebAssembly JS API (https://webassembly.github.io/spec/js-api/)
 // Reimplemented for GJS using SpiderMonkey 128+'s synchronous WebAssembly.{Module,Instance}.
 //
-// SpiderMonkey 128 (GJS 1.86) ships:
+// SpiderMonkey 140 (GJS 1.86) ships:
 //   - WebAssembly global object                 ✓
 //   - new WebAssembly.Module(buffer)            ✓ synchronous compile
 //   - new WebAssembly.Instance(module, imports) ✓ synchronous instantiate

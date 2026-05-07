@@ -192,9 +192,9 @@ Every test runs on both Node.js and GJS. Node.js validates test correctness; GJS
 
 ## Target Environment
 
-- GJS 1.84+ (SpiderMonkey 128 / ES2024)
+- GJS 1.86+ (SpiderMonkey 140 / ES2024)
 - Node.js 24.x (for test validation)
-- Rolldown target: `firefox128`
+- Rolldown target: `firefox140`
 - ESM-only, TypeScript 6.x
 
 ## License

@@ -12,10 +12,11 @@
 
 * **rolldown-plugin-gjsify:** codeSplitting: false instead of inlineDynamicImports ([5985c7a](https://github.com/gjsify/gjsify/commit/5985c7aa6a580c1cab90310b9d9d9903a6194100))
 
-## [0.4.0-pre](https://github.com/gjsify/gjsify/compare/v0.3.13...v0.4.0-pre) (2026-05-06)
+## [0.4.0-pre](https://github.com/gjsify/gjsify/compare/v0.3.13...v0.4.0-pre) (2026-05-07)
 
 ### ⚠ BREAKING CHANGES
 
+* **runtime:** minimum supported runtime is now **GJS 1.86 / SpiderMonkey 140** (Fedora 43+). GJS 1.84 / SpiderMonkey 128 (Fedora 42) is no longer tested or supported. The Rolldown JS target moves from `firefox128` to `firefox140` so SM140-only language features (Iterator helpers, `Error.captureStackTrace` native, `import...with{type:"json"}`, Temporal preview, …) are emitted unchanged. Consumer projects pinning `firefox128` in `.gjsifyrc.js` should bump to `firefox140`. CI matrix dropped Fedora 42; Fedora 43 (GJS 1.86) and Fedora 44 (GJS 1.88) remain.
 * **bundler:** the build engine has been swapped from esbuild to **Rolldown** (Vite 8's production bundler). The CLI flag surface is preserved exactly (`gjsify build --app gjs|node|browser --globals auto …`), but `.gjsifyrc.js`'s `esbuild?: BuildOptions` field is renamed to `bundler?: RolldownOptions`. Setting the old `esbuild` field still works for one release (deprecation warning + key remap); drop in 0.5.0. The 6 esbuild-plugin packages are deleted — replaced by `@gjsify/{rolldown-plugin-gjsify, rolldown-plugin-deepkit, rolldown-plugin-pnp, vite-plugin-blueprint, vite-plugin-gettext}`. The new plugins are Rollup-shaped, so the same packages run under both `gjsify build` and Vite (sister GJS apps).
 
 ### Features

@@ -64,9 +64,7 @@ class GjsifyTimeout {
         // introspection wraps it as 3-arg `(priority, interval, function)`
         // (notify is auto-managed). Passing an explicit `null` triggers
         // `Too many arguments to function GLib.timeout_add: expected 3,
-        // got 4` warnings on every scheduled tick — quiet on GJS 1.86+,
-        // but spammed by GJS 1.84 (Fedora 42), where the warning hot path
-        // slows the test runner enough to push 5-second timeouts over.
+        // got 4` warnings on every scheduled tick under GJS 1.86+.
         // Drop the `null` (cast away the typing-vs-runtime divergence).
         const timeoutAdd = GLib.timeout_add.bind(GLib) as unknown as (
             priority: number,

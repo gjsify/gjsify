@@ -1,5 +1,5 @@
 // Node.js perf_hooks module for GJS
-// Wraps the Web Performance API available in SpiderMonkey 128
+// Wraps the Web Performance API available in SpiderMonkey 140
 // Reference: Node.js lib/perf_hooks.js
 
 // Entry types for the GLib-based performance shim

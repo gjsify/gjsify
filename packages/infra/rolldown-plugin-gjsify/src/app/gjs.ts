@@ -2,7 +2,7 @@
 //
 // Mirrors the esbuild predecessor's `setupForGjs` exactly in terms of the
 // effective build behaviour: same externals, same alias map, same target
-// (firefox128 for JS, firefox60 for CSS), same console-shim injection,
+// (firefox140 for JS, firefox60 for CSS), same console-shim injection,
 // same process-stub banner, same `random-access-file` fs-backed-fallback.
 //
 // Returns a partial `RolldownOptions` template plus the plugin array the
@@ -111,8 +111,8 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
             conditionNames: format === 'esm' ? ['browser', 'import'] : ['browser', 'require', 'import'],
         },
         transform: {
-            // Compile target: GJS 1.86 / SpiderMonkey 128 ≈ firefox128.
-            target: 'firefox128',
+            // Compile target: GJS 1.86 / SpiderMonkey 140 ≈ firefox140.
+            target: 'firefox140',
             define: {
                 global: 'globalThis',
                 window: 'globalThis',
