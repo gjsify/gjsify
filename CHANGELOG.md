@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.4.0-pre](https://github.com/gjsify/gjsify/compare/v0.3.13...v0.4.0-pre) (2026-05-06)
+
+### ⚠ BREAKING CHANGES
+
+* **bundler:** the build engine has been swapped from esbuild to **Rolldown** (Vite 8's production bundler). The CLI flag surface is preserved exactly (`gjsify build --app gjs|node|browser --globals auto …`), but `.gjsifyrc.js`'s `esbuild?: BuildOptions` field is renamed to `bundler?: RolldownOptions`. Setting the old `esbuild` field still works for one release (deprecation warning + key remap); drop in 0.5.0. The 6 esbuild-plugin packages are deleted — replaced by `@gjsify/{rolldown-plugin-gjsify, rolldown-plugin-deepkit, rolldown-plugin-pnp, vite-plugin-blueprint, vite-plugin-gettext}`. The new plugins are Rollup-shaped, so the same packages run under both `gjsify build` and Vite (sister GJS apps).
+
+### Features
+
+* **bundler:** migrate from esbuild to Rolldown ([#82](https://github.com/gjsify/gjsify/issues/82), [#83](https://github.com/gjsify/gjsify/issues/83)). `--globals auto` retains its iterative multi-pass "after tree-shaking" detection (bundler-agnostic invariant per AGENTS.md). Architectural cleanup: `__toCommonJS` patcher deleted (Rolldown emits real ESM); transform-ext plugin deleted (Rolldown library mode emits resolved imports natively); banner ordering declarative via `renderChunk(order: 'post')`; PnP rewriter and PnP loader become independent plugins (no more first-onLoad-wins workaround); CSS-as-string via `load` hook (Rolldown removed experimental CSS bundling).
+
+### Bug Fixes (Rolldown migration follow-ups)
+
+* **rolldown-plugin-gjsify:** `external` accepts string/RegExp/function but not glob patterns — replaced `'gi://*'` / `'@girs/*'` array entries with a `(id) => id.startsWith(…)` predicate so URI-scheme externals stay external in both `--app gjs` and `--app node` builds.
+* **rolldown-plugin-gjsify:** console shim now uses `transform.inject` (Oxc-based, `Rolldown` equivalent of esbuild's `inject`) instead of a virtual-entry side-effect import. `globalThis.console` is non-configurable on SpiderMonkey 128 so a register-style global write throws; the side-effect-import shim never bound the named `console` export into user scope, leaving `console.log(…)` going through GLib's logger and `Gjs-Console-Message:` prefix.
+* **rolldown-plugin-gjsify:** library mode externalises non-relative imports (workspace deps + `@girs/*` + `gi://*`) and derives `preserveModulesRoot` from the common ancestor of resolved entries — fixes `lib/esm/<srcRoot>/file.js` paths breaking the package.json `main` field for packages with `rootDir: "src/ts"`.
+* **rolldown-plugin-gjsify:** virtual-entry `load` hook resolves the user-entry path through `this.resolve()` before re-exporting — bare-string paths like `src/index.ts` were treated as external specifiers and surfaced at runtime as `ImportError: Module not found: src/index.ts`.
+* **rolldown-plugin-gjsify:** drop the top-of-bundle `createRequire` banner from Node ESM output. Rolldown handles bundled-CJS interop internally via `__commonJSMin` + `__require`; the banner collided with sources that declare their own `const require = createRequire(...)` (yargs's ESM platform shim) producing `SyntaxError: Identifier 'require' has already been declared`.
+* **rolldown-plugin-pnp:** short-circuit `gi://` URIs before `pnpApi.resolveRequest` — `@girs/*` packages don't list `gi:` as a dep so PnP throws `UNDECLARED_DEPENDENCY` for every gi:// import. Returns `{ id, external: true }` instead.
+* **cli:** preserve `bundler.input` when merging the legacy `esbuild` config field. The orchestrator-side merge helper strips `input`/`external` (correct when the orchestrator is the override source) but `normalizeBundlerOptions` was applying that helper to two user-config arguments — losing the entry points populated from the CLI's `entryPoints` positional args.
+* **net:** add explicit `type` modifier to `SocketConnectOptions` / `ListenOptions` re-exports. Rolldown errors out with `[MISSING_EXPORT]` where esbuild silently dropped type-only exports.
+* **webrtc-native:** `build:types` now uses `tsc -b --force`. TypeScript 6 with `composite: true + emitDeclarationOnly: true` skips emit when every import is treated as opaque (the package's only import is `gi://GjsifyWebrtc?version=0.1`, which TS skips as an absolute URI), leaving downstream `tsc` consumers without `lib/types/` to import from.
+* **deps:** pin `@girs/*` versions to exact (drop carets). `@girs/gtk-4.0@4.23.0-4.0.0-rc.10` was published with peerDeps on rc.10 packages that never landed on npm; caret ranges let the resolver pick the broken version and every `npm install` in the e2e tests failed with `ETARGET No matching version found for @girs/libxml2-2.0@2.0.0-4.0.0-rc.10`. Pinning until upstream rc.10 is fully published.
+
 ## [0.3.13](https://github.com/gjsify/gjsify/compare/v0.3.12...v0.3.13) (2026-05-06)
 
 ### Features

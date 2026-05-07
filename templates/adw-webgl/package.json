@@ -11,13 +11,13 @@
         "dev": "gjsify build src/index.ts --outfile dist/index.js && gjsify run dist/index.js"
     },
     "devDependencies": {
-        "@girs/adw-1": "^1.10.0-4.0.0-rc.9",
-        "@girs/gio-2.0": "^2.88.0-4.0.0-rc.9",
-        "@girs/gjs": "^4.0.0-rc.9",
-        "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.9",
-        "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.9",
+        "@girs/adw-1": "1.10.0-4.0.0-rc.9",
+        "@girs/gio-2.0": "2.88.0-4.0.0-rc.9",
+        "@girs/gjs": "4.0.0-rc.9",
+        "@girs/gobject-2.0": "2.88.0-4.0.0-rc.9",
+        "@girs/gtk-4.0": "4.23.0-4.0.0-rc.9",
         "@gjsify/cli": "workspace:^",
-        "@gjsify/esbuild-plugin-blueprint": "workspace:^",
+        "@gjsify/vite-plugin-blueprint": "workspace:^",
         "@types/node": "^25.6.0",
         "@types/three": "^0.184.0",
         "typescript": "^6.0.3"

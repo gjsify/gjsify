@@ -5,8 +5,8 @@
 // translates to Rolldown's `output.banner` directly — Rolldown itself does
 // not synthesise a `require()` shim for ESM consumers of bundled CJS code.
 
-import alias from '@rollup/plugin-alias';
-import type { Plugin, RolldownOptions, RolldownPluginOption } from 'rolldown';
+import { aliasPlugin } from '../plugins/alias.js';
+import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
 import { EXTERNALS_NODE } from '@gjsify/resolve-npm';
@@ -38,13 +38,22 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     // node-datachannel is a native C++ addon that cannot be bundled — its
     // `require('../build/Release/node_datachannel.node')` must resolve at
     // runtime against the real node_modules tree.
-    const external = [
+    //
+    // Note: Rolldown's `external` array does NOT support glob patterns the
+    // way esbuild's did (`gi://*`, `@girs/*`). We use a function predicate
+    // instead so the gi:// URI scheme and the @girs/ namespace are matched
+    // by prefix.
+    const exactExternal = [
         ...EXTERNALS_NODE as string[],
-        'gi://*',
-        '@girs/*',
         'node-datachannel',
         ...userExternal,
     ];
+    const external = (id: string): boolean => {
+        if (id.startsWith('gi://')) return true;
+        if (id.startsWith('@girs/')) return true;
+        if (exactExternal.includes(id)) return true;
+        return false;
+    };
     const format = input.pluginOptions.format ?? 'esm';
 
     const exclude = input.pluginOptions.exclude ?? [];
@@ -58,14 +67,15 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
 
     const bundleDir = getBundleDirFromOutput(input.output);
 
-    // ESM output of bundled CJS code still needs `require()` (Rolldown emits
-    // calls to it for external Node builtins). Node ESM has no `require`
-    // natively, so we synthesize one via `module.createRequire`. This banner
-    // is harmless on CJS output (the line is parsed and discarded if the
-    // file is required as CJS).
-    const banner = format === 'esm'
-        ? "import { createRequire as __gjsifyCreateRequire } from 'module';\nconst require = __gjsifyCreateRequire(import.meta.url);"
-        : undefined;
+    // Rolldown's CJS interop wraps bundled CJS via `__commonJSMin` and
+    // routes external Node-builtin `require()` through `__require` —
+    // both injected internally. Unlike esbuild we therefore don't need a
+    // top-of-bundle `const require = createRequire(...)` shim. Keeping
+    // one collides with bundled CJS sources that declare their own
+    // `const require = createRequire(...)` (e.g. yargs's ESM platform
+    // shim) — `SyntaxError: Identifier 'require' has already been
+    // declared`.
+    const banner: string | undefined = undefined;
 
     const options: RolldownOptions = {
         input: entryPoints,
@@ -92,12 +102,13 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
             minify: false,
             sourcemap: false,
             banner,
+            inlineDynamicImports: true,
         },
         treeshake: true,
     };
 
     const plugins: RolldownPluginOption[] = [
-        alias({ entries: flattenAliases(aliasMap) }) as unknown as Plugin,
+        aliasPlugin({ entries: flattenAliases(aliasMap) }),
         deepkitPlugin({ reflection: input.pluginOptions.reflection }),
         cssAsStringPlugin(),
         nodeModulesPathRewritePlugin({ bundleDir }),

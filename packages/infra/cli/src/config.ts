@@ -92,7 +92,7 @@ export class Config {
             merge(merged, fileResult.config);
         }
 
-        merged.esbuild ||= {};
+        merged.bundler ||= {};
         merged.library ||= {};
         merged.typescript ||= {};
 
@@ -168,16 +168,52 @@ export class Config {
             configData.aliases = { ...(configData.aliases ?? {}), ...aliasMap };
         }
 
-        merge(configData.esbuild ??= {}, {
-            format: cliArgs.format,
-            minify: cliArgs.minify,
-            entryPoints: cliArgs.entryPoints,
-            outfile: cliArgs.outfile,
-            outdir: cliArgs.outdir,
-            logLevel: cliArgs.logLevel || 'warning',
-            ...(cliArgs.external?.length ? { external: cliArgs.external } : {}),
-            ...(Object.keys(defineMap).length ? { define: defineMap } : {}),
-        });
+        // Merge CLI flags into the Rolldown-shape `bundler` field. Mappings:
+        //   --entry-points  → bundler.input
+        //   --outfile       → bundler.output.file
+        //   --outdir        → bundler.output.dir
+        //   --format        → bundler.output.format
+        //   --minify        → bundler.output.minify
+        //   --log-level     → bundler.logLevel
+        //   --external      → bundler.external
+        //   --define        → bundler.transform.define
+        const bundler = (configData.bundler ??= {});
+        const output = (bundler.output ??= {});
+        const transform = (bundler.transform ??= {});
+
+        if (cliArgs.entryPoints?.length) bundler.input = cliArgs.entryPoints;
+        if (cliArgs.outfile !== undefined) output.file = cliArgs.outfile;
+        if (cliArgs.outdir !== undefined) output.dir = cliArgs.outdir;
+        if (cliArgs.format !== undefined) output.format = cliArgs.format as 'esm' | 'cjs' | 'iife';
+        if (cliArgs.minify !== undefined) output.minify = cliArgs.minify;
+        if (cliArgs.logLevel) {
+            // Map esbuild log levels to Rolldown's narrower set:
+            //   esbuild   → rolldown
+            //   silent    → silent
+            //   error     → warn   (rolldown has no error-only)
+            //   warning   → warn
+            //   info      → info
+            //   debug     → debug
+            //   verbose   → debug  (rolldown has no verbose)
+            const map: Record<string, 'silent' | 'warn' | 'info' | 'debug'> = {
+                silent: 'silent',
+                error: 'warn',
+                warning: 'warn',
+                warn: 'warn',
+                info: 'info',
+                debug: 'debug',
+                verbose: 'debug',
+            };
+            const level = map[cliArgs.logLevel] ?? 'warn';
+            bundler.logLevel = level;
+        }
+        if (cliArgs.external?.length) {
+            const userExternal = Array.isArray(bundler.external) ? bundler.external : [];
+            bundler.external = [...userExternal, ...cliArgs.external];
+        }
+        if (Object.keys(defineMap).length) {
+            transform.define = { ...(transform.define ?? {}), ...defineMap };
+        }
 
         if(configData.verbose) console.debug("configData", configData);
 

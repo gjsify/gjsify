@@ -30,7 +30,7 @@
     "clear:examples": "yarn workspaces foreach -v -A -p --include '@gjsify/example-*' run clear",
     "npm:publish": "yarn run build && yarn run build:examples && yarn workspaces foreach -v --all --no-private --exclude '@girs/*' npm publish --tolerate-republish --tag latest --access public",
     "build": "yarn run build:infra && yarn workspaces foreach --topological -p --no-private --all --exclude '@girs/*' --exclude '@gjsify/example-*' --exclude '@gjsify/website' run build",
-    "build:infra": "yarn workspace @gjsify/esbuild-plugin-alias run build && yarn workspace @gjsify/esbuild-plugin-deepkit run build && yarn workspace @gjsify/esbuild-plugin-transform-ext run build && yarn workspace @gjsify/esbuild-plugin-blueprint run build && yarn workspace @gjsify/esbuild-plugin-css run build && yarn workspace @gjsify/esbuild-plugin-gjsify run build && yarn workspace @gjsify/create-app run build && yarn workspace @gjsify/semver run build:types && yarn workspace @gjsify/npm-registry run build:types && yarn workspace @gjsify/tar run build:types && yarn workspace @gjsify/cli run build && yarn workspace @gjsify/utils run build && yarn workspace @gjsify/events run build && yarn workspace @gjsify/terminal-native run build && yarn workspace @gjsify/process run build && yarn workspace @gjsify/assert run build && yarn workspace @gjsify/unit run build",
+    "build:infra": "yarn workspace @gjsify/vite-plugin-blueprint run build && yarn workspace @gjsify/vite-plugin-gettext run build && yarn workspace @gjsify/rolldown-plugin-pnp run build && yarn workspace @gjsify/rolldown-plugin-deepkit run build && yarn workspace @gjsify/rolldown-plugin-gjsify run build && yarn workspace @gjsify/create-app run build && yarn workspace @gjsify/semver run build:types && yarn workspace @gjsify/npm-registry run build:types && yarn workspace @gjsify/tar run build:types && yarn workspace @gjsify/cli run build && yarn workspace @gjsify/utils run build && yarn workspace @gjsify/events run build && yarn workspace @gjsify/terminal-native run build && yarn workspace @gjsify/process run build && yarn workspace @gjsify/assert run build && yarn workspace @gjsify/unit run build",
     "build:examples": "yarn workspaces foreach -ptv -A --include '@gjsify/example-*' run build",
     "docs:dev": "yarn workspace @gjsify/website start",
     "docs:build": "yarn workspace @gjsify/website build",
@@ -50,7 +50,7 @@
     "typescript": "^6.0.3"
   },
   "resolutions": {
-    "@gjsify/esbuild-plugin-deepkit": "workspace:^"
+    "@gjsify/rolldown-plugin-deepkit": "workspace:^"
   },
   "packageManager": "yarn@4.14.1",
   "workspaces": [

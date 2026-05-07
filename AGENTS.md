@@ -143,28 +143,32 @@ Dispatch: W3C UIEvents. Coords: GTK widget-relative → DOM offsetX/Y/clientX/Y.
 
 `HTMLCanvasElement.registerContextFactory` — `@gjsify/canvas2d` registers `'2d'`→CanvasRenderingContext2D(Cairo); `@gjsify/webgl` registers `'webgl'`/`'webgl2'` via subclass override + fallthrough.
 
-## Build — esbuild, platform plugins
+## Build — Rolldown, platform plugins
 
 Targets: **GJS** `--app gjs` (`assert`→`@gjsify/assert`, externals `gi://*`+`cairo`+`system`+`gettext`, `firefox128`) | **Node** `--app node` (`@gjsify/process`→`process`, `node24`) | **Browser** `--app browser` (`esnext`)
 
-Key files: `packages/infra/esbuild-plugin-gjsify/src/app/{gjs,node,browser}.ts` | `.../utils/scan-globals.ts` | `packages/infra/resolve-npm/lib/{index,globals-map}.mjs`
+Engine: **Rolldown** (Vite 8's production bundler). The orchestrator returns a `{ options, plugins }` config bundle that the CLI composes into `rolldown(...)` + `.write()`. Same `gjsify build --app …` surface as before; Rollup-shaped plugins under the hood that also run under Vite for sister GJS apps.
 
-**Deepkit** (`@gjsify/esbuild-plugin-deepkit`): TypeScript runtime reflection via `@deepkit/type-compiler`. Default: `reflection: false` (opt-in). Set `typescript.reflection: true` in `.gjsifyrc.js` to enable. Keep disabled unless the project explicitly uses Deepkit runtime types — it transforms TypeScript `extends` method definitions into invalid `function extends()` syntax that breaks the parser.
+Key files: `packages/infra/rolldown-plugin-gjsify/src/app/{gjs,node,browser}.ts` | `.../utils/scan-globals.ts` | `.../utils/auto-globals.ts` | `packages/infra/resolve-npm/lib/{index,globals-map}.mjs`
 
-**GJS target process bootstrap** (`packages/infra/esbuild-plugin-gjsify/src/app/gjs.ts`): The GJS target always injects a minimal synchronous `globalThis.process` stub via esbuild `banner`. This runs before any bundled module code — including esbuild helpers. Required because packages like `glob` and `path-scurry` access `globalThis.process.platform` at top-level during `__esm` lazy init, before any import-triggered side effect can fire. The full `@gjsify/process` implementation is wired up afterwards by `--globals auto`. User banners from `.gjsifyrc.js` are appended after the process stub.
+**Deepkit** (`@gjsify/rolldown-plugin-deepkit`): TypeScript runtime reflection via `@deepkit/type-compiler`. Default: `reflection: false` (opt-in). Set `typescript.reflection: true` in `.gjsifyrc.js` to enable. Hook: `transform(code, id)` with `order: 'pre'`. Keep disabled unless the project explicitly uses Deepkit runtime types — it transforms TypeScript `extends` method definitions into invalid `function extends()` syntax that breaks the parser.
 
-**Blueprint** (`@gjsify/esbuild-plugin-blueprint`): `.blp` → XML string via `blueprint-compiler`. GJS+browser. `import T from './window.blp'` → string. Types: add `@gjsify/esbuild-plugin-blueprint/types` to tsconfig.
+**GJS target process bootstrap** (`packages/infra/rolldown-plugin-gjsify/src/plugins/process-stub.ts`): The GJS target always prepends a minimal synchronous `globalThis.process` stub via a `renderChunk(order:'post')` hook. This runs before any bundled module code. Required because packages like `glob` and `path-scurry` access `globalThis.process.platform` at top-level during `__esm` lazy init, before any import-triggered side effect can fire. The full `@gjsify/process` implementation is wired up afterwards by `--globals auto`. User banners from `.gjsifyrc.js` are composed after the process stub; a leading `#!shebang` is hoisted to byte 0 (SpiderMonkey 128+ rejects `#` anywhere else).
 
-**CSS** (`@gjsify/esbuild-plugin-css`): bundles `.css` imports, resolves `@import` from workspace+node_modules via esbuild (honors `package.json#exports`). Required for GTK `Gtk.CssProvider.load_from_string(applicationStyle)` — otherwise `@import`s survive into bundled string, GTK CSS parser fails on node_modules paths. All targets. `import css from './app.css'` → string. Config: `PluginOptions.css` forwards `{minify,target}`. **GTK4 CSS lowering:** GJS target defaults `css.target=['firefox60']` → flattens CSS Nesting (`.p{&:hover{}}` → `.p:hover{}`); preserves `var()`, `calc()`, `:is()`, `:where()`, `:not()`. Override via `gjsify.config.js`. Browser/node inherit parent target.
+**Blueprint** (`@gjsify/vite-plugin-blueprint`): `.blp` → XML string via `blueprint-compiler`. GJS+browser. `import T from './window.blp'` → string. Types: add `@gjsify/vite-plugin-blueprint/types` to tsconfig. Same plugin runs under Vite (sister apps) and Rolldown (CLI).
+
+**CSS** (`@gjsify/rolldown-plugin-gjsify/plugins/css-as-string`): `.css` → JS string default export via a `load` hook (filter `/\.css$/`). Rolldown removed its experimental CSS bundling, so this plugin reads the file with `fs.readFile` and emits `export default ${JSON.stringify(css)}` — bypassing Rolldown's CSS classification entirely. All targets. `import css from './app.css'` → string for `Gtk.CssProvider.load_from_string()`. **CSS `@import` resolution**: not handled at this layer — run a preprocessor (sass / postcss / lightningcss CLI) ahead of `gjsify build` so the input is flat. **GTK4 CSS lowering**: pre-process with lightningcss `targets: { firefox: 60 << 16 }` if needed.
+
+**App-build single-file invariant**: `--app gjs|node|browser` produces ONE bundle file. The orchestrator wraps the user's entry in a `\0gjsify-entry:<path>` virtual module that side-effect-imports the console shim + `--globals auto` inject stub then re-exports the entry. Combined with `output.inlineDynamicImports: true` this keeps everything in one chunk for `--outfile`. Library mode (`--library esm|cjs`) preserves modules (multi-file output, imports kept as-is).
 
 ### `--globals` modes (GJS)
 
-|**auto (default)**: iterative multi-pass build — each pass bundles in-memory (unminified, no disk I/O), acorn parses output for free identifiers (`Buffer`) + host-object member exprs (`{globalThis,global,window,self}.Buffer`) matching `GJS_GLOBALS_MAP`. Repeats until stable (2–3 iters, capped 5) — injecting register modules pulls in NEW code that may reference more globals. Final build uses converged set. Analyses **bundled output after tree-shaking** — avoids source-scan false positives. Passes MUST NOT minify (minifier aliases `globalThis` → short var, defeats MemberExpression detection).
+|**auto (default)**: iterative multi-pass build — each pass bundles in-memory via `rolldown(...).generate()` (unminified, no disk I/O), acorn parses each chunk for free identifiers (`Buffer`) + host-object member exprs (`{globalThis,global,window,self}.Buffer`) matching `GJS_GLOBALS_MAP`. Per-chunk parsing (Rolldown emits one chunk per entry; concatenation would produce duplicate top-level declarations that acorn rejects) → detected sets unioned. Repeats until stable (2–3 iters, capped 5) — injecting register modules pulls in NEW code that may reference more globals. Final build uses converged set. Analyses **bundled output after tree-shaking** — avoids source-scan false positives. Passes MUST NOT minify (minifier aliases `globalThis` → short var, defeats MemberExpression detection).
 |**auto,\<extras\>**: auto + safety net for value-flow indirection detector can't follow (e.g. Excalibur stores `globalThis` in `BrowserComponent.nativeComponent`, then calls `nativeComponent.matchMedia()`). Forms: `auto,dom` / `auto,FontFace,matchMedia` / `auto,dom,fetch`. Extras seeded into pass 1.
 |**explicit list** `fetch,Buffer,...` or group aliases `node`/`web`/`dom`: no auto-detect.
 |**none**: disables injection.
 
-Key files: `.../utils/detect-free-globals.ts` (acorn AST) | `.../auto-globals.ts` (orchestrator) | `.../scan-globals.ts` (explicit) | `packages/infra/resolve-npm/lib/globals-map.mjs`.
+Key files: `packages/infra/rolldown-plugin-gjsify/src/utils/detect-free-globals.ts` (acorn AST) | `.../auto-globals.ts` (orchestrator) | `.../scan-globals.ts` (explicit) | `packages/infra/resolve-npm/lib/globals-map.mjs`.
 
 ### GLib MainLoop
 

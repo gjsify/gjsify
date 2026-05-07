@@ -62,7 +62,7 @@ The explicit `process.exit(0)` is the most-common gotcha. Any module you import 
   },
   "gjsify": {
     "shebang": true,
-    "esbuild": {
+    "bundler": {
       "outfile": "bin/my-tool"
     },
     "bin": {
@@ -86,7 +86,7 @@ yarn build
 
 ## 3. Bake in the version (optional)
 
-If you need a `--version` command that reflects the bundled package's version, pass it through esbuild's `--define`. ts-for-gir does this with a 5-line wrapper:
+If you need a `--version` command that reflects the bundled package's version, pass it through the bundler's `--define`. ts-for-gir does this with a 5-line wrapper:
 
 ```js
 // scripts/build-gjs.mjs
@@ -298,7 +298,7 @@ Make sure the `bin/my-tool` file is in the published tarball (`"files": ["bin"]`
 | Bundle is 80 MB | Large dep included unnecessarily (e.g. typedoc, full TS compiler) | `--external typedoc` or `--alias typedoc=@gjsify/empty` for code paths the runtime never reaches |
 | `--version` prints `0.0.0` or undefined | Forgot the `--define` step | Add the `build-gjs.mjs` wrapper from step 3 |
 | `EACCES` running the bundle | Build forgot to chmod | Use `gjsify.shebang: true` (or `--shebang`) |
-| `gjsify build: refusing to default --outfile to src/start.ts` | `package.json#main` is `src/start.ts` and you didn't set an explicit outfile | Set `gjsify.esbuild.outfile` (this is the safety check that prevents source overwrites) |
+| `gjsify build: refusing to default --outfile to src/start.ts` | `package.json#main` is `src/start.ts` and you didn't set an explicit outfile | Set `gjsify.bundler.output.file` (this is the safety check that prevents source overwrites) |
 
 ## Reference implementation
 

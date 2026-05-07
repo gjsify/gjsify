@@ -42,12 +42,10 @@
     ],
     "license": "MIT",
     "dependencies": {
-        "@gjsify/console": "workspace:^",
         "@gjsify/resolve-npm": "workspace:^",
         "@gjsify/rolldown-plugin-deepkit": "workspace:^",
         "@gjsify/rolldown-plugin-pnp": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^",
-        "@rollup/plugin-alias": "^5.1.1",
         "@rollup/pluginutils": "^5.1.4",
         "acorn": "^8.14.0",
         "acorn-walk": "^8.3.4",

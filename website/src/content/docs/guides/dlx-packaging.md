@@ -116,13 +116,13 @@ The CLI auto-detects the host architecture and exports the matching directory.
 
 ### `--outfile` must NOT point at a TypeScript source
 
-`gjsify build` refuses to default the output to `package.json#main`/`module` when those resolve to a `.ts`/`.tsx` path or anything under `src/`. Always set `gjsify.esbuild.outfile` (or pass `--outfile` explicitly) when `main` is your source file:
+`gjsify build` refuses to default the output to `package.json#main`/`module` when those resolve to a `.ts`/`.tsx` path or anything under `src/`. Always set `gjsify.bundler.output.file` (or pass `--outfile` explicitly) when `main` is your source file:
 
 ```jsonc
 {
   "main": "src/index.ts",        // dev path, no build step
   "gjsify": {
-    "esbuild": { "outfile": "dist/gjs.js" },
+    "bundler": { "output": { "file": "dist/gjs.js" } },
     "bin":     { "my-pkg": "dist/gjs.js" }
   }
 }
@@ -132,7 +132,7 @@ Without this, you'd get an error like `gjsify build: refusing to default --outfi
 
 ### `package.json#gjsify` and `.gjsifyrc.*` are merged
 
-You can split the config across both — `package.json#gjsify` stays minimal (`bin`, `main`, `prebuilds`) and `.gjsifyrc.js` carries esbuild options. Both files are read; on key collisions the explicit file wins. There's no first-match-wins anymore.
+You can split the config across both — `package.json#gjsify` stays minimal (`bin`, `main`, `prebuilds`) and `.gjsifyrc.js` carries bundler options. Both files are read; on key collisions the explicit file wins. There's no first-match-wins anymore.
 
 ```jsonc
 // package.json
@@ -146,9 +146,9 @@ You can split the config across both — `package.json#gjsify` stays minimal (`b
 ```js
 // .gjsifyrc.js
 export default {
-  esbuild: {
-    outfile: 'dist/gjs.js',
-    target: 'firefox128',
+  bundler: {
+    output: { file: 'dist/gjs.js' },
+    transform: { target: 'firefox128' },
   },
 };
 ```

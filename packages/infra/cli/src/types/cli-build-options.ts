@@ -1,4 +1,4 @@
-import type { App } from '@gjsify/esbuild-plugin-gjsify';
+import type { App } from '@gjsify/rolldown-plugin-gjsify';
 
 export interface CliBuildOptions {
   /**

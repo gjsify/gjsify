@@ -7,7 +7,7 @@ GJSify lets you write code against familiar Node.js and Web APIs while running n
 
 ## Automatic module aliasing
 
-When you run `gjsify build --app gjs`, the esbuild plugin rewrites every Node.js and Web API import to its `@gjsify/*` equivalent before bundling:
+When you run `gjsify build --app gjs`, the Rolldown plugin rewrites every Node.js and Web API import to its `@gjsify/*` equivalent before bundling:
 
 ```typescript
 // You write:
@@ -18,7 +18,7 @@ const ws = new WebSocket('wss://echo.example.com')
 ```
 
 ```typescript
-// The esbuild plugin effectively resolves to:
+// The Rolldown plugin effectively resolves to:
 import { readFileSync } from '@gjsify/fs'       // → Gio.File
 import { createServer } from '@gjsify/http'     // → Soup.Server
 // fetch    → Soup.Session   (via @gjsify/fetch)
@@ -72,9 +72,9 @@ Earlier design iterations tried to scan your source tree (and transitive npm dep
 
 - **Isomorphic npm packages** reference `document` or `window` behind `typeof document !== 'undefined'` feature-detection guards — a source-level scan cannot tell the difference between guarded compat code and real DOM use.
 - **Dynamic imports** (`import(expr)`), bracket-notation global access (`globalThis['fetch']`) and runtime code-string execution can't be statically analysed at all.
-- **Tree-shaking interactions**: files that esbuild loaded for analysis but then tree-shook away would still contribute false-positive injections.
+- **Tree-shaking interactions**: files that Rolldown loaded for analysis but then tree-shook away would still contribute false-positive injections.
 
-Analysing the **already-bundled, tree-shaken** output sidesteps every one of these problems — if a global identifier survives esbuild's dead-code elimination, it is genuinely reachable. False positives drop to zero, and the detection cost is just one extra esbuild pass per iteration.
+Analysing the **already-bundled, tree-shaken** output sidesteps every one of these problems — if a global identifier survives Rolldown's dead-code elimination, it is genuinely reachable. False positives drop to zero, and the detection cost is just one extra Rolldown pass per iteration.
 
 ### When auto can't see a global: `--globals auto,<extras>`
 

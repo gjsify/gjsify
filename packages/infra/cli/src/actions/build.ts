@@ -1,16 +1,17 @@
-import type { ConfigData } from "../types/index.js";
-import type { App } from "@gjsify/esbuild-plugin-gjsify";
-import { build, BuildOptions, BuildResult, Plugin } from "esbuild";
-import { gjsifyPlugin } from "@gjsify/esbuild-plugin-gjsify";
+import type { ConfigData, BundlerOptions } from "../types/index.js";
+import type { App, PluginOptions } from "@gjsify/rolldown-plugin-gjsify";
+import type { RolldownOutput, RolldownPluginOption } from "rolldown";
+import { rolldown } from "rolldown";
+import { gjsifyPlugin } from "@gjsify/rolldown-plugin-gjsify";
 import {
-	resolveGlobalsList,
-	writeRegisterInjectFile,
-	detectAutoGlobals,
-} from "@gjsify/esbuild-plugin-gjsify/globals";
-import { getBundleDir, rewriteContents } from "@gjsify/esbuild-plugin-gjsify";
-import { getPnpPlugin } from "@gjsify/resolve-npm/pnp-relay";
+    resolveGlobalsList,
+    writeRegisterInjectFile,
+    detectAutoGlobals,
+} from "@gjsify/rolldown-plugin-gjsify/globals";
+import { pnpPlugin } from "@gjsify/rolldown-plugin-pnp";
 import { dirname, extname } from "node:path";
 import { chmod, readFile, writeFile } from "node:fs/promises";
+import { normalizeBundlerOptions, mergeBundlerOptions } from "../utils/normalize-bundler-options.js";
 
 const GJS_SHEBANG = "#!/usr/bin/env -S gjs -m\n";
 
@@ -21,10 +22,10 @@ const GJS_SHEBANG = "#!/usr/bin/env -S gjs -m\n";
  *   - paths that live under a `src/` segment (relative or absolute)
  */
 function isUnsafeDefaultOutput(path: string): boolean {
-	if (/\.[cm]?tsx?$/i.test(path)) return true;
-	const norm = path.replace(/\\/g, "/");
-	if (/(?:^|\/)src\//.test(norm)) return true;
-	return false;
+    if (/\.[cm]?tsx?$/i.test(path)) return true;
+    const norm = path.replace(/\\/g, "/");
+    if (/(?:^|\/)src\//.test(norm)) return true;
+    return false;
 }
 
 /**
@@ -33,345 +34,365 @@ function isUnsafeDefaultOutput(path: string): boolean {
  * @gjsify/{node,web}-polyfills) are resolvable for external consumers without
  * each one having to be a direct devDep.
  *
- * Wires the @gjsify/esbuild-plugin-gjsify rewriter (`__filename`/`__dirname`
- * injection for CJS code in node_modules) into the pnp plugin's onLoad —
- * esbuild stops at the first matching onLoad, so the rewriter MUST run from
- * inside the pnp plugin's onLoad rather than as a separate registration.
+ * The path rewriter (`__filename`/`__dirname` + `import.meta.url` injection
+ * for node_modules code) is registered separately by the orchestrator —
+ * Rolldown's transform hooks all run sequentially, no shared `onLoad` race.
  */
-async function buildPnpPlugin(): Promise<Plugin | null> {
-	return getPnpPlugin({
-		issuerUrl: import.meta.url,
-		transformContentsFactory: (build) => {
-			const bundleDir = getBundleDir(build);
-			return (args, contents) => rewriteContents(args, contents, bundleDir);
-		},
-	});
+async function buildPnpPlugin(): Promise<RolldownPluginOption | null> {
+    return pnpPlugin({ issuerUrl: import.meta.url });
 }
 
 export class BuildAction {
-	constructor(readonly configData: ConfigData = {}) {}
+    constructor(readonly configData: ConfigData = {}) {}
 
-	getEsBuildDefaults() {
-		const defaults: BuildOptions = {
-			allowOverwrite: true,
-		};
-		return defaults;
-	}
+    /** Library mode */
+    async buildLibrary(): Promise<RolldownOutput[]> {
+        const { verbose, library, typescript, exclude, aliases } = this.configData;
+        const lib = library ?? {};
+        const userBundler = normalizeBundlerOptions(this.configData);
 
-	/** Library mode */
-	async buildLibrary() {
-		let { verbose, library, esbuild, typescript, exclude } = this.configData;
-		library ||= {};
-		esbuild ||= {};
-		typescript ||= {};
+        const moduleOutdir = lib.module ? dirname(lib.module) : undefined;
+        const mainOutdir = lib.main ? dirname(lib.main) : undefined;
 
-		const moduleOutdir = library?.module ? dirname(library.module) : undefined;
-		const mainOutdir = library?.main ? dirname(library.main) : undefined;
+        const moduleOutExt = lib.module ? extname(lib.module) : ".js";
+        const mainOutExt = lib.main ? extname(lib.main) : ".js";
 
-		const moduleOutExt = library.module ? extname(library.module) : ".js";
-		const mainOutExt = library.main ? extname(library.main) : ".js";
+        const multipleBuilds =
+            moduleOutdir && mainOutdir && moduleOutdir !== mainOutdir;
 
-		const multipleBuilds =
-			moduleOutdir && mainOutdir && moduleOutdir !== mainOutdir;
+        const pnp = await buildPnpPlugin();
+        const pnpPlugins: RolldownPluginOption[] = pnp ? [pnp] : [];
 
-		const pnpPlugin = await buildPnpPlugin();
-		const pnpPlugins: Plugin[] = pnpPlugin ? [pnpPlugin] : [];
+        const results: RolldownOutput[] = [];
 
-		const results: BuildResult[] = [];
+        if (multipleBuilds) {
+            const moduleFormat: "esm" | "cjs" =
+                moduleOutdir.includes("/cjs") || moduleOutExt === ".cjs"
+                    ? "cjs"
+                    : "esm";
+            results.push(
+                await runOneLibraryBuild({
+                    pluginOpts: {
+                        debug: verbose,
+                        library: moduleFormat,
+                        exclude,
+                        reflection: typescript?.reflection,
+                        jsExtension: moduleOutExt,
+                    },
+                    userBundler,
+                    output: { dir: moduleOutdir },
+                    userAliases: aliases,
+                    pnpPlugins,
+                }),
+            );
 
-		if (multipleBuilds) {
-			const moduleFormat =
-				moduleOutdir.includes("/cjs") || moduleOutExt === ".cjs"
-					? "cjs"
-					: "esm";
-			results.push(
-				await build({
-					...this.getEsBuildDefaults(),
-					...esbuild,
-					format: moduleFormat,
-					outdir: moduleOutdir,
-					plugins: [
-						...pnpPlugins,
-						gjsifyPlugin({
-							debug: verbose,
-							library: moduleFormat,
-							exclude,
-							reflection: typescript?.reflection,
-							jsExtension: moduleOutExt,
-						}),
-					],
-				}),
-			);
+            const mainFormat: "esm" | "cjs" =
+                mainOutdir.includes("/cjs") || mainOutExt === ".cjs" ? "cjs" : "esm";
+            results.push(
+                await runOneLibraryBuild({
+                    pluginOpts: {
+                        debug: verbose,
+                        library: mainFormat,
+                        exclude,
+                        reflection: typescript?.reflection,
+                        jsExtension: mainOutExt,
+                    },
+                    userBundler,
+                    output: { dir: mainOutdir },
+                    userAliases: aliases,
+                    pnpPlugins,
+                }),
+            );
+        } else {
+            const outfilePath =
+                userBundler.output?.file ?? lib.module ?? lib.main;
+            const outExt = outfilePath ? extname(outfilePath) : ".js";
+            const outdir =
+                userBundler.output?.dir ?? (outfilePath ? dirname(outfilePath) : undefined);
+            const format: "esm" | "cjs" =
+                (userBundler.output?.format as "esm" | "cjs" | undefined) ??
+                (outdir?.includes("/cjs") || outExt === ".cjs" ? "cjs" : "esm");
+            results.push(
+                await runOneLibraryBuild({
+                    pluginOpts: {
+                        debug: verbose,
+                        library: format,
+                        exclude,
+                        reflection: typescript?.reflection,
+                        jsExtension: outExt,
+                    },
+                    userBundler,
+                    output: { dir: outdir },
+                    userAliases: aliases,
+                    pnpPlugins,
+                }),
+            );
+        }
+        return results;
+    }
 
-			const mainFormat =
-				mainOutdir.includes("/cjs") || mainOutExt === ".cjs" ? "cjs" : "esm";
-			results.push(
-				await build({
-					...this.getEsBuildDefaults(),
-					...esbuild,
-					format: mainFormat,
-					outdir: mainOutdir,
-					plugins: [
-						...pnpPlugins,
-						gjsifyPlugin({
-							debug: verbose,
-							library: mainFormat,
-							exclude,
-							reflection: typescript?.reflection,
-							jsExtension: mainOutExt,
-						}),
-					],
-				}),
-			);
-		} else {
-			const outfilePath = esbuild?.outfile || library?.module || library?.main;
-			const outExt = outfilePath ? extname(outfilePath) : ".js";
-			const outdir =
-				esbuild?.outdir || (outfilePath ? dirname(outfilePath) : undefined);
-			const format: "esm" | "cjs" =
-				(esbuild?.format as "esm" | "cjs") ??
-				(outdir?.includes("/cjs") || outExt === ".cjs" ? "cjs" : "esm");
-			results.push(
-				await build({
-					...this.getEsBuildDefaults(),
-					...esbuild,
-					format,
-					outdir,
-					plugins: [
-						...pnpPlugins,
-						gjsifyPlugin({
-							debug: verbose,
-							library: format,
-							exclude,
-							reflection: typescript?.reflection,
-							jsExtension: outExt,
-						}),
-					],
-				}),
-			);
-		}
-		return results;
-	}
+    /**
+     * Parse the `--globals` value into { autoMode, extras }.
+     * - `auto`             → { autoMode: true, extras: '' }
+     * - `auto,dom`         → { autoMode: true, extras: 'dom' }
+     * - `auto,dom,fetch`   → { autoMode: true, extras: 'dom,fetch' }
+     * - `dom,fetch`        → { autoMode: false, extras: 'dom,fetch' }
+     * - `none` / ``        → { autoMode: false, extras: '' }
+     * - `undefined`        → { autoMode: true, extras: '' }  (default)
+     */
+    private parseGlobalsValue(value: string | undefined): {
+        autoMode: boolean;
+        extras: string;
+    } {
+        if (value === undefined) return { autoMode: true, extras: "" };
+        if (value === "none" || value === "")
+            return { autoMode: false, extras: "" };
 
-	/**
-	 * Parse the `--globals` value into { autoMode, extras }.
-	 * - `auto`             → { autoMode: true, extras: '' }
-	 * - `auto,dom`         → { autoMode: true, extras: 'dom' }
-	 * - `auto,dom,fetch`   → { autoMode: true, extras: 'dom,fetch' }
-	 * - `dom,fetch`        → { autoMode: false, extras: 'dom,fetch' }
-	 * - `none` / ``        → { autoMode: false, extras: '' }
-	 * - `undefined`        → { autoMode: true, extras: '' }  (default)
-	 */
-	private parseGlobalsValue(value: string | undefined): {
-		autoMode: boolean;
-		extras: string;
-	} {
-		if (value === undefined) return { autoMode: true, extras: "" };
-		if (value === "none" || value === "")
-			return { autoMode: false, extras: "" };
+        const tokens = value
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean);
+        const hasAuto = tokens.includes("auto");
+        const extras = tokens.filter((t) => t !== "auto").join(",");
 
-		const tokens = value
-			.split(",")
-			.map((t) => t.trim())
-			.filter(Boolean);
-		const hasAuto = tokens.includes("auto");
-		const extras = tokens.filter((t) => t !== "auto").join(",");
+        return { autoMode: hasAuto, extras };
+    }
 
-		return { autoMode: hasAuto, extras };
-	}
+    /**
+     * Resolve the `--globals` CLI list into a pre-computed inject stub path
+     * that the orchestrator appends to its input list. Only runs for
+     * `--app gjs` — Node and browser builds rely on native globals.
+     *
+     * Used only for the explicit-only path (no `auto` token in the value).
+     * The auto path is handled in `buildApp` via the iterative multi-pass build.
+     */
+    private async resolveGlobalsInject(
+        app: App,
+        globals: string,
+        verbose: boolean | undefined,
+    ): Promise<string | undefined> {
+        if (app !== "gjs") return undefined;
+        if (!globals) return undefined;
 
-	/**
-	 * Resolve the `--globals` CLI list into a pre-computed inject stub path
-	 * that the esbuild plugin will append to its `inject` list. Only runs
-	 * for `--app gjs` — Node and browser builds rely on native globals.
-	 *
-	 * Used only for the explicit-only path (no `auto` token in the value).
-	 * The auto path is handled in `buildApp` via the two-pass build.
-	 */
-	private async resolveGlobalsInject(
-		app: App,
-		globals: string,
-		verbose: boolean | undefined,
-	): Promise<string | undefined> {
-		if (app !== "gjs") return undefined;
-		if (!globals) return undefined;
+        const registerPaths = resolveGlobalsList(globals);
+        if (registerPaths.size === 0) return undefined;
 
-		const registerPaths = resolveGlobalsList(globals);
-		if (registerPaths.size === 0) return undefined;
+        const injectPath = await writeRegisterInjectFile(
+            registerPaths,
+            process.cwd(),
+        );
+        if (verbose && injectPath) {
+            console.debug(
+                `[gjsify] globals: injected ${registerPaths.size} register module(s) from --globals ${globals}`,
+            );
+        }
+        return injectPath ?? undefined;
+    }
 
-		const injectPath = await writeRegisterInjectFile(
-			registerPaths,
-			process.cwd(),
-		);
-		if (verbose && injectPath) {
-			console.debug(
-				`[gjsify] globals: injected ${registerPaths.size} register module(s) from --globals ${globals}`,
-			);
-		}
-		return injectPath ?? undefined;
-	}
+    /**
+     * Post-processing: prepend GJS shebang and mark the output file executable.
+     * Only runs for GJS app builds with a resolvable single outfile.
+     */
+    private async applyShebang(
+        outfile: string | undefined,
+        verbose: boolean | undefined,
+    ): Promise<void> {
+        if (!outfile) {
+            if (verbose)
+                console.warn(
+                    "[gjsify] --shebang skipped: no single outfile (use --outfile for GJS executables)",
+                );
+            return;
+        }
 
-	/**
-	 * Post-processing: prepend GJS shebang and mark the output file executable.
-	 * Only runs for GJS app builds with a resolvable single outfile.
-	 */
-	private async applyShebang(
-		outfile: string | undefined,
-		verbose: boolean | undefined,
-	): Promise<void> {
-		if (!outfile) {
-			if (verbose)
-				console.warn(
-					"[gjsify] --shebang skipped: no single outfile (use --outfile for GJS executables)",
-				);
-			return;
-		}
+        const content = await readFile(outfile, "utf-8");
+        if (content.startsWith("#!")) {
+            if (verbose)
+                console.debug(
+                    `[gjsify] --shebang skipped: ${outfile} already starts with a shebang`,
+                );
+        } else {
+            await writeFile(outfile, GJS_SHEBANG + content);
+        }
+        await chmod(outfile, 0o755);
+        if (verbose)
+            console.debug(
+                `[gjsify] --shebang: wrote shebang + chmod 0o755 to ${outfile}`,
+            );
+    }
 
-		const content = await readFile(outfile, "utf-8");
-		if (content.startsWith("#!")) {
-			if (verbose)
-				console.debug(
-					`[gjsify] --shebang skipped: ${outfile} already starts with a shebang`,
-				);
-		} else {
-			await writeFile(outfile, GJS_SHEBANG + content);
-		}
-		await chmod(outfile, 0o755);
-		if (verbose)
-			console.debug(
-				`[gjsify] --shebang: wrote shebang + chmod 0o755 to ${outfile}`,
-			);
-	}
+    /** Application mode */
+    async buildApp(app: App = "gjs"): Promise<RolldownOutput[]> {
+        const {
+            verbose,
+            typescript,
+            exclude,
+            library: pkg,
+            aliases,
+            excludeGlobals,
+        } = this.configData;
 
-	/** Application mode */
-	async buildApp(app: App = "gjs") {
-		const {
-			verbose,
-			esbuild,
-			typescript,
-			exclude,
-			library: pgk,
-			aliases,
-			excludeGlobals,
-		} = this.configData;
+        const userBundler = normalizeBundlerOptions(this.configData);
 
-		const format: "esm" | "cjs" =
-			(esbuild?.format as "esm" | "cjs") ??
-			(esbuild?.outfile?.endsWith(".cjs") ? "cjs" : "esm");
+        const formatRaw =
+            (userBundler.output?.format as "esm" | "cjs" | "iife" | undefined) ??
+            (userBundler.output?.file?.endsWith(".cjs") ? "cjs" : "esm");
+        // The orchestrator only handles esm/cjs (iife is not a GJS / Node /
+        // browser-bundle target we support). Coerce.
+        const format: "esm" | "cjs" = formatRaw === "iife" ? "esm" : formatRaw;
 
-		// Set default outfile if no outdir is set
-		if (
-			esbuild &&
-			!esbuild?.outfile &&
-			!esbuild?.outdir &&
-			(pgk?.main || pgk?.module)
-		) {
-			const candidate =
-				esbuild?.format === "cjs"
-					? pgk.main || pgk.module
-					: pgk.module || pgk.main;
-			if (candidate && isUnsafeDefaultOutput(candidate)) {
-				// `package.json#main`/`module` commonly points at a TypeScript
-				// source (e.g. `src/index.ts` for TS-direct workflows). Falling
-				// back to that value would have esbuild OVERWRITE the source.
-				// Surface a clear error and require an explicit outfile/outdir
-				// instead of silently destroying the user's code.
-				throw new Error(
-					`gjsify build: refusing to default --outfile to ${candidate} ` +
-					`(would overwrite a TypeScript source file). Pass --outfile/--outdir ` +
-					`explicitly, or set "gjsify.esbuild.outfile" in package.json.`,
-				);
-			}
-			esbuild.outfile = candidate;
-		}
+        // Set default outfile if no outdir is set
+        let outfile = userBundler.output?.file;
+        let outdir = userBundler.output?.dir;
+        if (!outfile && !outdir && (pkg?.main || pkg?.module)) {
+            const candidate =
+                format === "cjs"
+                    ? pkg.main ?? pkg.module
+                    : pkg.module ?? pkg.main;
+            if (candidate && isUnsafeDefaultOutput(candidate)) {
+                throw new Error(
+                    `gjsify build: refusing to default --outfile to ${candidate} ` +
+                        `(would overwrite a TypeScript source file). Pass --outfile/--outdir ` +
+                        `explicitly, or set "gjsify.bundler.output.file" in package.json.`,
+                );
+            }
+            outfile = candidate;
+        }
 
-		const { consoleShim, globals } = this.configData;
+        const { consoleShim, globals } = this.configData;
 
-		const pluginOpts = {
-			debug: verbose,
-			app,
-			format,
-			exclude,
-			reflection: typescript?.reflection,
-			consoleShim,
-			...(aliases ? { aliases } : {}),
-		};
+        const userExternal = Array.isArray(userBundler.external)
+            ? (userBundler.external as string[])
+            : undefined;
+        const userBanner = typeof userBundler.output?.banner === "string"
+            ? (userBundler.output.banner as string)
+            : undefined;
 
-		const { autoMode, extras } = this.parseGlobalsValue(globals);
+        const pluginOpts: PluginOptions = {
+            debug: verbose,
+            app,
+            format,
+            exclude,
+            reflection: typescript?.reflection,
+            consoleShim,
+            ...(aliases ? { aliases } : {}),
+        };
 
-		const pnpPlugin = await buildPnpPlugin();
-		const pnpPlugins: Plugin[] = pnpPlugin ? [pnpPlugin] : [];
+        const { autoMode, extras } = this.parseGlobalsValue(globals);
 
-		// --- Auto mode (with optional extras): iterative multi-pass build ---
-		// The extras token is used for cases where the detector cannot
-		// statically see a global (e.g. Excalibur indirects globalThis via
-		// BrowserComponent.nativeComponent). Common pattern: --globals auto,dom
-		if (app === "gjs" && autoMode) {
-			const { injectPath } = await detectAutoGlobals(
-				{
-					...this.getEsBuildDefaults(),
-					...esbuild,
-					format,
-					plugins: pnpPlugins,
-				},
-				pluginOpts,
-				verbose,
-				{ extraGlobalsList: extras, excludeGlobals },
-			);
+        const pnp = await buildPnpPlugin();
+        const pnpPlugins: RolldownPluginOption[] = pnp ? [pnp] : [];
 
-			const result = await build({
-				...this.getEsBuildDefaults(),
-				...esbuild,
-				format,
-				plugins: [
-					...pnpPlugins,
-					gjsifyPlugin({
-						...pluginOpts,
-						autoGlobalsInject: injectPath,
-					}),
-				],
-			});
+        // --- Auto mode (with optional extras): iterative multi-pass build ---
+        if (app === "gjs" && autoMode) {
+            const gjsifyPluginFactory = async (opts: PluginOptions) => {
+                const cfg = await gjsifyPlugin(
+                    {
+                        input: userBundler.input,
+                        output: { file: outfile, dir: outdir },
+                        userExternal,
+                        userBanner,
+                        userAliases: aliases,
+                        shebang: this.configData.shebang,
+                    },
+                    opts,
+                );
+                return cfg.plugins;
+            };
 
-			if (app === "gjs" && this.configData.shebang) {
-				await this.applyShebang(esbuild?.outfile, verbose);
-			}
+            const { injectPath } = await detectAutoGlobals(
+                {
+                    input: userBundler.input,
+                    plugins: pnpPlugins,
+                    external: userBundler.external,
+                    transform: userBundler.transform,
+                    format,
+                },
+                pluginOpts,
+                gjsifyPluginFactory,
+                verbose,
+                { extraGlobalsList: extras, excludeGlobals },
+            );
 
-			return [result];
-		}
+            pluginOpts.autoGlobalsInject = injectPath;
+        } else if (extras) {
+            pluginOpts.autoGlobalsInject = await this.resolveGlobalsInject(
+                app,
+                extras,
+                verbose,
+            );
+        }
 
-		// --- Explicit list (no `auto` token) or none mode ---
-		const autoGlobalsInject = extras
-			? await this.resolveGlobalsInject(app, extras, verbose)
-			: undefined;
+        // Final build: orchestrator → rolldown → write
+        const cfg = await gjsifyPlugin(
+            {
+                input: userBundler.input,
+                output: { file: outfile, dir: outdir },
+                userExternal,
+                userBanner,
+                userAliases: aliases,
+                shebang: this.configData.shebang,
+            },
+            pluginOpts,
+        );
 
-		const result = await build({
-			...this.getEsBuildDefaults(),
-			...esbuild,
-			format,
-			plugins: [
-				...pnpPlugins,
-				gjsifyPlugin({
-					...pluginOpts,
-					autoGlobalsInject,
-				}),
-			],
-		});
+        const merged = mergeBundlerOptions(cfg.options as BundlerOptions, userBundler);
+        const finalOpts: BundlerOptions = {
+            ...merged,
+            plugins: [...pnpPlugins, ...cfg.plugins],
+        };
 
-		if (app === "gjs" && this.configData.shebang) {
-			await this.applyShebang(esbuild?.outfile, verbose);
-		}
+        const build = await rolldown(finalOpts);
+        let writeResult: RolldownOutput;
+        try {
+            writeResult = await build.write(finalOpts.output ?? {});
+        } finally {
+            await build.close();
+        }
 
-		return [result];
-	}
+        if (app === "gjs" && this.configData.shebang) {
+            await this.applyShebang(outfile, verbose);
+        }
 
-	async start(buildType: { library?: boolean; app?: App } = { app: "gjs" }) {
-		const results: BuildResult[] = [];
-		if (buildType.library) {
-			results.push(...(await this.buildLibrary()));
-		} else {
-			results.push(...(await this.buildApp(buildType.app)));
-		}
+        return [writeResult];
+    }
 
-		return results;
-	}
+    async start(buildType: { library?: boolean; app?: App } = { app: "gjs" }) {
+        if (buildType.library) {
+            return await this.buildLibrary();
+        }
+        return await this.buildApp(buildType.app);
+    }
+}
+
+interface OneLibraryBuildArgs {
+    pluginOpts: PluginOptions;
+    userBundler: BundlerOptions;
+    output: { file?: string; dir?: string };
+    userAliases?: Record<string, string>;
+    pnpPlugins: RolldownPluginOption[];
+}
+
+async function runOneLibraryBuild(args: OneLibraryBuildArgs): Promise<RolldownOutput> {
+    const cfg = await gjsifyPlugin(
+        {
+            input: args.userBundler.input,
+            output: args.output,
+            userAliases: args.userAliases,
+        },
+        args.pluginOpts,
+    );
+
+    const merged = mergeBundlerOptions(cfg.options as BundlerOptions, args.userBundler);
+    const finalOpts: BundlerOptions = {
+        ...merged,
+        plugins: [...args.pnpPlugins, ...cfg.plugins],
+    };
+
+    const build = await rolldown(finalOpts);
+    try {
+        return await build.write(finalOpts.output ?? {});
+    } finally {
+        await build.close();
+    }
 }

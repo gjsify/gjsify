@@ -103,6 +103,11 @@ export async function pnpPlugin(opts: PnpPluginOptions = {}): Promise<Plugin | n
             async handler(source, importer) {
                 // Skip relative / absolute paths — let Rolldown handle them.
                 if (source.startsWith('.') || source.startsWith('/')) return null;
+                // GJS gi:// imports are externalised by the orchestrator's
+                // `external` predicate; we must not run them through PnP
+                // (which would error with `UNDECLARED_DEPENDENCY` because
+                // `@girs/*` packages don't list `gi:` as a dep).
+                if (source.startsWith('gi://')) return { id: source, external: true };
                 if (!importer) return null;
 
                 // Importer may be a file URL string or an absolute path.
