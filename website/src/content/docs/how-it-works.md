@@ -32,7 +32,7 @@ Two things follow from this:
 - **You do not install `@gjsify/*` packages yourself.** The GJSify CLI pulls them in on demand and the plugin resolves the aliases during the build.
 - **The bare specifier `import fs from 'node:fs'` is the canonical form.** No GJSify-specific imports leak into your source code, so the same file can be type-checked with `@types/node` and shipped to GJS or Node.js depending on the `--app` target.
 
-The GJS build targets `firefox128` (SpiderMonkey 128, shipped with GJS 1.86) and externalises `gi://*`, `cairo`, `system` and `gettext` — those are resolved by the GJS runtime itself.
+The GJS build targets `firefox140` (SpiderMonkey 140, shipped with GJS 1.86) and externalises `gi://*`, `cairo`, `system` and `gettext` — those are resolved by the GJS runtime itself.
 
 ## Automatic globals detection via `--globals auto`
 

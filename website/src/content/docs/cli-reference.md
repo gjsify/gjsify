@@ -55,7 +55,7 @@ npx @gjsify/cli build src/index.ts --outfile dist/index.js
 | `--define` | `KEY=VALUE`[] | `[]` | Bundler `define` pass-through. VALUE is a JS expression — string literals must be JSON-quoted (`--define VERSION='"1.2.3"'`). Repeatable. Merged with built-in defines like `global: 'globalThis'`. |
 | `--alias` | `FROM=TO`[] | `[]` | Layered on top of the built-in alias map. Useful for stubbing heavy deps (`--alias typedoc=@gjsify/empty`). Repeatable. |
 
-For `--app gjs`, the target is `firefox128` (SpiderMonkey 128) and `gi://*`, `cairo`, `system` and `gettext` are externalised. For `--app node`, the target is `node24`.
+For `--app gjs`, the target is `firefox140` (SpiderMonkey 140) and `gi://*`, `cairo`, `system` and `gettext` are externalised. For `--app node`, the target is `node24`.
 
 </details>
 

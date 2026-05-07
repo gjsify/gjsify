@@ -148,7 +148,7 @@ You can split the config across both — `package.json#gjsify` stays minimal (`b
 export default {
   bundler: {
     output: { file: 'dist/gjs.js' },
-    transform: { target: 'firefox128' },
+    transform: { target: 'firefox140' },
   },
 };
 ```

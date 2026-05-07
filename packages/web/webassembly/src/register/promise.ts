@@ -1,7 +1,7 @@
 // Side-effect module: replace GJS's stub WebAssembly Promise APIs with
 // polyfills wrapping the synchronous constructors.
 //
-// SpiderMonkey 128 (GJS 1.86) exposes WebAssembly.{compile,compileStreaming,
+// SpiderMonkey 140 (GJS 1.86) exposes WebAssembly.{compile,compileStreaming,
 // instantiate,instantiateStreaming,validate} as `function` typeof values
 // that throw `Error: WebAssembly Promise APIs not supported in this runtime.`
 // at first call. The synchronous constructors `new WebAssembly.Module(buffer)`

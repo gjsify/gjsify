@@ -25,7 +25,7 @@ gjsify/
 
 GJSify uses **Rolldown** (Vite 8's production bundler) with platform-specific plugins to produce different bundles from the same source:
 
-- **GJS build** (`gjsify build --app gjs`): Aliases `node:*` and Web API imports to `@gjsify/*`, externalises `gi://*`, `cairo`, `system` and `gettext`. Target: `firefox128`.
+- **GJS build** (`gjsify build --app gjs`): Aliases `node:*` and Web API imports to `@gjsify/*`, externalises `gi://*`, `cairo`, `system` and `gettext`. Target: `firefox140`.
 - **Node build** (`gjsify build --app node`): Aliases `@gjsify/process` → `process` and maps aliased Web packages to their Node equivalents. Target: `node24`.
 - **Browser build** (`gjsify build --app browser`): Standard browser target. Target: `esnext`.
 

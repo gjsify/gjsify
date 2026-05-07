@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-ts-for-gir",
-    "description": "Integration tests: ts-for-gir packages on GJS and Node. Phase 1 covers @gi.ts/parser against gjsify's own Vala-generated GIR fixtures (validates fast-xml-parser on SpiderMonkey 128).",
+    "description": "Integration tests: ts-for-gir packages on GJS and Node. Phase 1 covers @gi.ts/parser against gjsify's own Vala-generated GIR fixtures (validates fast-xml-parser on SpiderMonkey 140).",
     "type": "module",
     "private": true,
     "engines": {

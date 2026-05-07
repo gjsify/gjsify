@@ -19,7 +19,7 @@ That's it — a GTK 4 window running your TypeScript, natively on Linux.
 
 You need a few system packages:
 
-- **GJS** 1.84+ — the GNOME JavaScript runtime
+- **GJS** 1.86+ — the GNOME JavaScript runtime (SpiderMonkey 140)
 - **GTK 4** — the UI toolkit
 - **Node.js** 24+ — build time only (for `npm`/`npx`)
 - **libsoup3** — HTTP, WebSocket and `fetch` at runtime

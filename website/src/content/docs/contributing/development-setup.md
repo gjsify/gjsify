@@ -7,7 +7,7 @@ This page is for **contributors** working on the GJSify monorepo itself. If you 
 
 ## Prerequisites
 
-- **GJS** 1.84+ (GNOME 46+)
+- **GJS** 1.86+ (GNOME 49+)
 - **Node.js** 24+
 - **Yarn** 4.x (via Corepack)
 - GNOME development libraries: `glib2-devel`, `gobject-introspection-devel`, `gtk4-devel`, `libsoup3-devel`, `vala`, `blueprint-compiler`

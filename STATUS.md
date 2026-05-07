@@ -17,7 +17,7 @@
 
 ## Summary
 
-gjsify implements Node.js, Web Standard, and DOM APIs for GJS (GNOME JavaScript / SpiderMonkey 128).
+gjsify implements Node.js, Web Standard, and DOM APIs for GJS (GNOME JavaScript / SpiderMonkey 140).
 The project comprises **43 Node.js packages** (+1 meta), **19 Web API packages** (+1 meta), **8 DOM/bridge packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
 
 | Category | Total | Full | Partial | Stub |
@@ -33,7 +33,7 @@ The project comprises **43 Node.js packages** (+1 meta), **19 Web API packages**
 | Build/Infra Tools | 9 | 9 | — | — |
 | Integration test suites | 4 | 4 (webtorrent, socket.io, streamx, autobahn) | — | — |
 
-**Test coverage:** 10,570+ test cases in 112+ spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 42/43). Integration suites (`yarn test:integration`) are opt-in and exercise curated upstream tests from webtorrent / socket.io / streamx, plus the Autobahn fuzzingserver for RFC 6455 compliance.
+**Test coverage:** 10,570+ test cases in 112+ spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 43/44 — minimum supported runtime: GJS 1.86 / SpiderMonkey 140). Integration suites (`yarn test:integration`) are opt-in and exercise curated upstream tests from webtorrent / socket.io / streamx, plus the Autobahn fuzzingserver for RFC 6455 compliance.
 
 ---
 
@@ -135,7 +135,7 @@ All 20 packages have real implementations (plus 1 meta). New in this cycle: `@gj
 | **webrtc** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | 302 (4 specs) | **Phase 1–4 — Data Channel + Media + Stats & Advanced.** RTCPeerConnection (offer/answer, ICE trickle, STUN/TURN config, addTransceiver, addTrack, removeTrack, getStats, restartIce, setConfiguration), RTCDataChannel (string + binary send/receive, bufferedAmount, binaryType), RTCRtpSender (track, getParameters/setParameters, replaceTrack, getCapabilities, getStats delegation), RTCRtpReceiver (track with muted→unmuted via ReceiverBridge, jitterBufferTarget, getStats delegation), RTCRtpTransceiver (mid, direction, stop, setCodecPreferences), MediaStream, MediaStreamTrack (GStreamer source integration, enabled→valve), getUserMedia (pipewiresrc/pulsesrc/v4l2src fallback), MediaDevices, **RTCDTMFSender** (spec-compliant tone/duration/gap, `tonechange` event), **RTCCertificate** (generateCertificate, W3C expiry), **RTCDtlsTransport / RTCIceTransport / RTCSctpTransport** (thin proxies), **RTCStatsReport** (GstStructure → W3C camelCase conversion via `gst-stats-parser.ts`). Outgoing pipeline: source→valve→convert→encode(opus/vp8)→payloader→capsfilter→webrtcbin. End-to-end bidirectional audio verified. Registers via `@gjsify/webrtc/register` (granular subpaths) — `--globals auto` picks them up. Requires GStreamer ≥ 1.20 with gst-plugins-bad + libnice-gstreamer. |
 | **webrtc-native** | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | — | Vala/GObject library consumed by `@gjsify/webrtc`. Exposes three main-thread signal bridges: `WebrtcbinBridge` (wraps webrtcbin's `on-negotiation-needed` / `on-ice-candidate` / `on-data-channel` + `notify::*-state`), `DataChannelBridge` (wraps GstWebRTCDataChannel's `on-open` / `on-close` / `on-error` / `on-message-string` / `on-message-data` / `on-buffered-amount-low` + `notify::ready-state`), `PromiseBridge` (wraps `Gst.Promise.new_with_change_func`). Each bridge connects on the C side (never invokes JS on the streaming thread) and re-emits via `GLib.Idle.add()` on the main context. Ships as prebuilt `.so` + `.typelib` in `prebuilds/linux-{x86_64,aarch64,ppc64,s390x,riscv64}/`; CI (`.github/workflows/prebuilds.yml`) rebuilds on Vala source changes (native runners for x86_64/aarch64; QEMU via `uraimo/run-on-arch-action` for ppc64/s390x/riscv64). |
 | **webstorage** | — | 41 | Storage, localStorage, sessionStorage (W3C Web Storage) |
-| **webassembly** | — | 15 | WebAssembly Promise-API polyfill — `compile`, `compileStreaming`, `instantiate`, `instantiateStreaming`, `validate` wrap SpiderMonkey 128's working synchronous `new WebAssembly.Module(buffer)` / `new WebAssembly.Instance(module, imports)` constructors. Granular `/register/promise` subpath. Auto-injected by `--globals auto` whenever the bundle references `WebAssembly.<method>` (via new `METHOD_MARKERS` in `detect-free-globals.ts`). |
+| **webassembly** | — | 15 | WebAssembly Promise-API polyfill — `compile`, `compileStreaming`, `instantiate`, `instantiateStreaming`, `validate` wrap SpiderMonkey's working synchronous `new WebAssembly.Module(buffer)` / `new WebAssembly.Instance(module, imports)` constructors. Granular `/register/promise` subpath. Auto-injected by `--globals auto` whenever the bundle references `WebAssembly.<method>` (via new `METHOD_MARKERS` in `detect-free-globals.ts`). |
 
 ### WebRTC Status
 

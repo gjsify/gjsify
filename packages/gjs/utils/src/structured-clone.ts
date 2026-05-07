@@ -1,7 +1,7 @@
 // structuredClone polyfill for GJS
 // Reference: HTML Living Standard §2.7.1 StructuredSerializeInternal
 // Reference: refs/deno/ext/web/02_structured_clone.js, refs/ungap-structured-clone/
-// Reimplemented for GJS using standard JavaScript (SpiderMonkey 128)
+// Reimplemented for GJS using standard JavaScript (SpiderMonkey 140)
 
 const { toString } = Object.prototype;
 
