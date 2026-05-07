@@ -23,7 +23,28 @@ export function normalizeBundlerOptions(configData: ConfigData): BundlerOptions 
     }
 
     const fromEsbuild = legacyEsbuildToRolldown(configData.esbuild);
-    return mergeBundlerOptions(fromEsbuild, fromBundler);
+    // Plain user-config merge — we deliberately do NOT call
+    // `mergeBundlerOptions` here, because that function strips `input` and
+    // `external` from its overrides arg (it assumes the *orchestrator* is
+    // the override source and the user the base). Here both inputs are
+    // user-provided config and `input` must survive the merge.
+    const out: BundlerOptions = { ...fromEsbuild, ...fromBundler };
+    if (fromEsbuild.output || fromBundler.output) {
+        out.output = { ...(fromEsbuild.output ?? {}), ...(fromBundler.output ?? {}) };
+    }
+    if (fromEsbuild.transform || fromBundler.transform) {
+        out.transform = { ...(fromEsbuild.transform ?? {}), ...(fromBundler.transform ?? {}) };
+        if (fromEsbuild.transform?.define || fromBundler.transform?.define) {
+            out.transform.define = {
+                ...(fromEsbuild.transform?.define ?? {}),
+                ...(fromBundler.transform?.define ?? {}),
+            };
+        }
+    }
+    if (fromEsbuild.resolve || fromBundler.resolve) {
+        out.resolve = { ...(fromEsbuild.resolve ?? {}), ...(fromBundler.resolve ?? {}) };
+    }
+    return out;
 }
 
 /** Map the supported subset of esbuild BuildOptions into RolldownOptions. */
