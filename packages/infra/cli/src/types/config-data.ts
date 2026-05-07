@@ -176,4 +176,50 @@ export interface ConfigData {
      * `text-loader` plugin prepended to the bundler's plugin chain.
      */
     loaders?: Record<string, 'text'>;
+    /**
+     * Flatpak-related configuration consumed by `gjsify flatpak <sub>`.
+     * Lives in its own top-level namespace so the bundler config doesn't
+     * accumulate concerns and `flatpak init` / `flatpak ci` can read defaults
+     * declaratively. CLI flags override these values.
+     */
+    flatpak?: ConfigDataFlatpak;
+}
+
+/**
+ * Flatpak-toolchain config consumed by the `gjsify flatpak` subcommand
+ * group. All fields optional — sensible defaults apply when missing.
+ */
+export interface ConfigDataFlatpak {
+    /** Reverse-DNS app id, e.g. `eu.jumplink.Learn6502`. Defaults to `package.json#name` if it looks like a reverse-DNS id. */
+    appId?: string;
+    /**
+     * Runtime family. Default `'gnome'` — needed at runtime by GJS bundles
+     * for GLib/GObject/GIO. `'freedesktop'` is only suitable for non-gjsify
+     * CLI tools (no GJS interpreter ships in the Freedesktop runtime).
+     */
+    runtime?: 'gnome' | 'freedesktop';
+    /** Runtime/SDK version, e.g. `'50'` for GNOME or `'24.08'` for Freedesktop. */
+    runtimeVersion?: string;
+    /** Extra SDK extensions, e.g. `['org.freedesktop.Sdk.Extension.node24']` for build-time `yarn install`. */
+    sdkExtensions?: string[];
+    /** Path components prepended to PATH inside the build sandbox. */
+    appendPath?: string[];
+    /** The binary name to run (`/app/bin/<command>`). Defaults to `appId`. */
+    command?: string;
+    /** Finish-args (capabilities). Default depends on `runtime` + `--cli-only`. */
+    finishArgs?: string[];
+    /** Extra Flatpak modules prepended before the app's own meson/simple module (e.g. `blueprint-compiler` build). */
+    extraModules?: unknown[];
+    /** Cleanup glob patterns applied to the final manifest, e.g. `['/include', '/lib/pkgconfig']`. */
+    cleanup?: string[];
+    /** Source-of-truth lockfile for `gjsify flatpak deps` — `yarn.lock` or `package-lock.json`. */
+    lockfile?: string;
+    /**
+     * GitHub-Actions container image override for `gjsify flatpak ci`.
+     * Default derived from runtime + runtimeVersion:
+     *   gnome+50 → `ghcr.io/flathub-infra/flatpak-github-actions:gnome-50`
+     */
+    ciContainer?: string;
+    /** Branches the generated workflow triggers on. Default `['main']`. */
+    ciBranches?: string[];
 }

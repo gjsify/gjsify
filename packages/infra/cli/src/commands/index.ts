@@ -7,5 +7,6 @@ export * from './create.js';
 export * from './gresource.js';
 export * from './gettext.js';
 export * from './gsettings.js';
+export { flatpakCommand } from './flatpak/index.js';
 export * from './dlx.js';
 export * from './install.js';

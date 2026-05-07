@@ -12,6 +12,7 @@ import {
     gresourceCommand as gresource,
     gettextCommand as gettext,
     gsettingsCommand as gsettings,
+    flatpakCommand as flatpak,
     dlxCommand as dlx,
     installCommand as install,
 } from './commands/index.js'
@@ -31,5 +32,6 @@ void yargs(hideBin(process.argv))
     .command(gresource.command, gresource.description, gresource.builder, gresource.handler)
     .command(gettext.command, gettext.description, gettext.builder, gettext.handler)
     .command(gsettings.command, gsettings.description, gsettings.builder, gsettings.handler)
+    .command(flatpak.command, flatpak.description, flatpak.builder, flatpak.handler)
     .demandCommand(1)
     .help().argv

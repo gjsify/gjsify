@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — Flatpak-toolchain PR2 (2026-05-07)
+
+### Features
+
+* **cli:** add `gjsify flatpak <subcommand>` group with four subcommands: `init`, `build`, `deps`, `ci`. Consolidates the Flatpak workflow that was previously spread across hand-written `<app-id>.json` manifests and project-local `build-flatpak.sh` shell scripts. Designed to ship both GUI apps (default) and headless CLI tools (`gjsify flatpak init --cli-only`) — both keep `org.gnome.Platform` runtime since GJS bundles need GLib/GIO at runtime, only finish-args change.
+* **cli:** new `gjsify.flatpak` config namespace (`ConfigDataFlatpak` interface) — `appId`, `runtime` (`gnome` or `freedesktop`), `runtimeVersion`, `sdkExtensions`, `appendPath`, `command`, `finishArgs`, `extraModules`, `cleanup`, `lockfile`, `ciContainer`, `ciBranches`. Read by `init` and `ci` subcommands as defaults; CLI flags override.
+* **cli/flatpak init:** generates `<app-id>.json`. SDK-Extension paths auto-derive into `build-options.append-path` (e.g. `org.freedesktop.Sdk.Extension.node24` → `/usr/lib/sdk/node24/bin`). Refuses to overwrite without `--force`.
+* **cli/flatpak build:** wraps `flatpak-builder` with `--force-clean`, `--sandbox`, `--delete-build-dirs` defaults. Composable post-build steps: `--install`, `--repo`, `--bundle <out.flatpak>` (routes through `flatpak build-bundle`), `--tarball <out.tar.gz>`. Auto-detects the manifest by scanning cwd for the first `*.json` whose top-level shape has `id` + `runtime` + `modules`.
+* **cli/flatpak deps:** wraps `flatpak-node-generator`. Auto-detects `yarn.lock` vs `package-lock.json` from filename; passes `--xdg-layout` by default. ENOENT hint points at `pipx install flatpak-node-generator`.
+* **cli/flatpak ci:** scaffolds `.github/workflows/flatpak.yml` matching the `flatpak/flatpak-github-actions/flatpak-builder@v6` shape. Container image derived from `gjsify.flatpak.runtime` + `runtimeVersion`. Idempotent without `--force` — re-running with byte-identical content is a no-op.
+
+### Tests
+
+* Add `tests/e2e/flatpak/run.mjs` (7 tests). Stubs `flatpak-builder`, `flatpak-node-generator`, and `flatpak` on PATH so the suite exercises the full CLI surface without requiring the real tools (which need a privileged container). Verifies init manifest shape (GUI + CLI flavours), refuse-overwrite, ci YAML rendering, ci idempotency, deps invocation shape, build invocation shape.
+
 ## Unreleased — Flatpak-toolchain PR1 (2026-05-07)
 
 ### Features
