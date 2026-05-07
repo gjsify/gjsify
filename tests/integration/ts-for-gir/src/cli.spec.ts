@@ -147,6 +147,32 @@ function describeForBundle(bundle: RuntimeBundle): () => Promise<void> {
         expect(r.stdout).toContain('GjsifyHttpSoupBridge-1.0');
         expect(r.stdout).toContain(`${GIRS_DIR}/GjsifyHttpSoupBridge-1.0.gir`);
       }, { timeout: CLI_TEST_TIMEOUT_MS });
+
+      // Regression: cosmiconfig's ESM `.js` loader does dynamic `import(filepath)`
+      // on an absolute path. Node tolerates that as a non-spec extension; GJS /
+      // SpiderMonkey rejects it with "Module not found: <abs-path>". The fix in
+      // ts-for-gir's config-loader converts via pathToFileURL. Without it, the
+      // GJS bundle exits 1 and never lists modules.
+      //
+      // Skipped on the GJS bundle until @ts-for-gir/cli ≥ rc.13 lands the fix from
+      // gjsify/ts-for-gir#385 and is consumed via this workspace's npm range.
+      // Track in STATUS.md → Open TODOs and remove the gate when the bump lands.
+      const itMaybe = bundle.label === 'GJS bundle' ? it.skip : it;
+      await itMaybe('list --configName loads an ESM rc via cosmiconfig (file:// dynamic import)', async () => {
+        const r = await runCli(bundle, ['list', '--configName', '.ts-for-girrc-fixture.js']);
+        // GJS rejects absolute paths in dynamic import() per spec; the loader
+        // must convert via pathToFileURL. Without it, GJS throws here.
+        expect(r.stderr).not.toContain('Module not found');
+        expect(r.code).toBe(0);
+        // girDirectories from the rc was applied (resolved relative to the rc's dir).
+        expect(r.stdout).toContain('Search for gir files in:');
+        expect(r.stdout).toContain(GIRS_DIR);
+        // Modules drove off the rc-supplied dir — proves the rc actually loaded.
+        expect(r.stdout).toContain('GjsifyHttpSoupBridge-1.0');
+        expect(r.stdout).toContain('GjsifyWebrtc-0.1');
+        // ignore: ['Gwebgl-0.1'] from the rc — must not surface in the listing.
+        expect(r.stdout).not.toContain('Gwebgl-0.1');
+      }, { timeout: CLI_TEST_TIMEOUT_MS });
     });
 
     // Phase 6: TypeDoc generators — json + doc commands no longer stubbed on GJS.
