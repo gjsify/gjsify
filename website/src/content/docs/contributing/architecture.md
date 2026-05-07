@@ -14,7 +14,7 @@ gjsify/
 │   ├── web/         # Web API implementations
 │   ├── dom/         # DOM & graphics (Canvas2D, WebGL, event bridge)
 │   ├── gjs/         # GJS runtime utilities, types, test framework
-│   └── infra/       # CLI, esbuild plugins, build tools
+│   └── infra/       # CLI, Rolldown / Vite plugins, build tools
 ├── showcases/       # Curated, published example applications
 ├── examples/        # Private dev/test examples
 ├── refs/            # Read-only reference submodules (Node.js, Deno, etc.)
@@ -23,13 +23,13 @@ gjsify/
 
 ## Build System
 
-GJSify uses **esbuild** with platform-specific plugins to produce different bundles from the same source:
+GJSify uses **Rolldown** (Vite 8's production bundler) with platform-specific plugins to produce different bundles from the same source:
 
 - **GJS build** (`gjsify build --app gjs`): Aliases `node:*` and Web API imports to `@gjsify/*`, externalises `gi://*`, `cairo`, `system` and `gettext`. Target: `firefox128`.
 - **Node build** (`gjsify build --app node`): Aliases `@gjsify/process` → `process` and maps aliased Web packages to their Node equivalents. Target: `node24`.
 - **Browser build** (`gjsify build --app browser`): Standard browser target. Target: `esnext`.
 
-The alias table lives in `packages/infra/resolve-npm/lib/index.mjs`; the esbuild plugins live in `packages/infra/esbuild-plugin-gjsify/`.
+The alias table lives in `packages/infra/resolve-npm/lib/index.mjs`; the Rolldown plugins live in `packages/infra/rolldown-plugin-gjsify/`.
 
 ## GNOME Library Mapping
 

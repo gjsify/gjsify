@@ -82,7 +82,7 @@ npm run dev     # build + run in one step
 
 ## Using Node.js and Web APIs
 
-Write standard Node.js and Web API code — the esbuild plugin handles everything:
+Write standard Node.js and Web API code — the Rolldown plugin handles everything:
 
 1. **Auto aliasing** — `import { readFileSync } from 'node:fs'` rewrites to `@gjsify/fs` (backed by Gio)
 2. **Auto globals** — `fetch`, `Buffer`, `process`, `URL` etc. are detected and injected automatically

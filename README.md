@@ -13,7 +13,7 @@ Use Node.js APIs, Web APIs, and DOM interfaces in GNOME desktop applications. gj
 - **8 DOM / bridge packages** — Canvas2D (Cairo), Canvas2D-core (headless), WebGL (OpenGL ES), DOM elements, event bridge, iframes (WebKit), video (gtk4paintablesink), bridge-types
 - **3 Adwaita packages for browser targets** — Web Components, Adwaita Sans fonts, symbolic icons
 - **4 integration test suites** — webtorrent, socket.io, streamx, Autobahn RFC 6455 fuzzing
-- **ESM-only**, TypeScript-first, esbuild-based build system
+- **ESM-only**, TypeScript-first, Rolldown-based build system
 - Native GNOME library bindings: `Gio` for I/O, `Soup 3.0` for HTTP, `GLib` for crypto/process, `Cairo` for 2D, `GTK 4` for UI, `GStreamer` for media + WebRTC, `libgda` for SQLite, `Manette` for gamepads, `WebKit` for iframes
 - Every unit test runs on both Node.js and GJS
 
@@ -150,7 +150,7 @@ packages/
   web/        # 19 Web API packages (fetch, XHR, WebSocket, WebRTC, WebAudio, …) + web-polyfills meta
   dom/        # 8 DOM / bridge packages (canvas2d-core, canvas2d, webgl, dom-elements, event-bridge, iframe, video, bridge-types)
   gjs/        # GJS utilities, types, test framework (@gjsify/unit)
-  infra/      # Build tools, esbuild plugins, CLI, create-app
+  infra/      # Build tools, Rolldown / Vite plugins, CLI, create-app
 examples/
   dom/        # DOM-pillar examples (WebGL tutorials, WebRTC, WebTorrent, three.js, canvas2d, video, iframe, gamepad)
   node/       # Node-pillar examples (Express, Hono, Koa, socket.io, SSE chat, WS chat, Deepkit, CLI tools)
@@ -194,7 +194,7 @@ Every test runs on both Node.js and GJS. Node.js validates test correctness; GJS
 
 - GJS 1.84+ (SpiderMonkey 128 / ES2024)
 - Node.js 24.x (for test validation)
-- esbuild target: `firefox128`
+- Rolldown target: `firefox128`
 - ESM-only, TypeScript 6.x
 
 ## License

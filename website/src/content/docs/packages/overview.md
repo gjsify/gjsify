@@ -26,4 +26,4 @@ All packages are published to npm under the `@gjsify` scope:
 yarn add @gjsify/fs @gjsify/http @gjsify/fetch
 ```
 
-In most cases, you don't install packages directly — the GJSify esbuild plugin automatically aliases Node.js and Web API imports to their `@gjsify/*` counterparts during the GJS build.
+In most cases, you don't install packages directly — the GJSify Rolldown plugin automatically aliases Node.js and Web API imports to their `@gjsify/*` counterparts during the GJS build.

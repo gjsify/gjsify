@@ -23,7 +23,7 @@ Generates `src/index.ts`, a `package.json` with `build`/`start`/`dev` scripts, a
 
 ## `gjsify build`
 
-Compile and bundle with [esbuild](https://esbuild.github.io/). Automatically aliases Node.js and Web API imports to `@gjsify/*` equivalents for GJS.
+Compile and bundle with [Rolldown](https://rolldown.rs/) (Vite 8's production bundler). Automatically aliases Node.js and Web API imports to `@gjsify/*` equivalents for GJS.
 
 ```bash
 npx @gjsify/cli build src/index.ts --outfile dist/index.js
@@ -50,9 +50,9 @@ npx @gjsify/cli build src/index.ts --outfile dist/index.js
 | `--reflection`, `-r` | bool | `false` | Enable TypeScript runtime types via Deepkit |
 | `--console-shim` | bool | `true` | Inject the GJS console shim. Disable with `--no-console-shim` |
 | `--exclude` | glob[] | `[]` | Glob patterns to exclude from entry points and aliases |
-| `--log-level` | `silent` \| `error` \| `warning` \| `info` \| `debug` \| `verbose` | `warning` | esbuild log level |
+| `--log-level` | `silent` \| `error` \| `warning` \| `info` \| `debug` \| `verbose` | `warning` | Bundler log level |
 | `--external` | name[] | `[]` | Module specifiers that should NOT be bundled — they remain as runtime imports. Repeatable; comma-separated values are split. Merged with the platform's built-in externals. |
-| `--define` | `KEY=VALUE`[] | `[]` | esbuild `--define` pass-through. VALUE is a JS expression — string literals must be JSON-quoted (`--define VERSION='"1.2.3"'`). Repeatable. Merged with built-in defines like `global: 'globalThis'`. |
+| `--define` | `KEY=VALUE`[] | `[]` | Bundler `define` pass-through. VALUE is a JS expression — string literals must be JSON-quoted (`--define VERSION='"1.2.3"'`). Repeatable. Merged with built-in defines like `global: 'globalThis'`. |
 | `--alias` | `FROM=TO`[] | `[]` | Layered on top of the built-in alias map. Useful for stubbing heavy deps (`--alias typedoc=@gjsify/empty`). Repeatable. |
 
 For `--app gjs`, the target is `firefox128` (SpiderMonkey 128) and `gi://*`, `cairo`, `system` and `gettext` are externalised. For `--app node`, the target is `node24`.

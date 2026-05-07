@@ -42,7 +42,7 @@ description: Web platform APIs implemented for GJS using native GNOME libraries
 
 ## Usage
 
-Web APIs are available as bare specifiers in GJS builds. The esbuild plugin handles the aliasing automatically:
+Web APIs are available as bare specifiers in GJS builds. The Rolldown plugin handles the aliasing automatically:
 
 ```typescript
 // This works in GJS — Soup.Session under the hood
