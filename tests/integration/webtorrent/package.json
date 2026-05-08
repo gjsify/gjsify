@@ -19,12 +19,12 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.0-rc.9",
+        "@girs/gjs": "4.0.0-rc.14",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.6.0",
+        "@types/node": "^25.6.2",
         "bittorrent-protocol": "^5.0.0",
         "parse-torrent": "^11.0.19",
         "randombytes": "^2.1.0",
