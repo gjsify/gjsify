@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/diagnostics_channel",
-    "version": "0.3.19",
+    "version": "0.3.20",
     "description": "Node.js diagnostics_channel module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",
