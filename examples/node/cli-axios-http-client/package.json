@@ -20,8 +20,8 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
-        "@types/node": "^25.6.0",
-        "axios": "^1.15.2",
+        "@types/node": "^25.6.2",
+        "axios": "^1.16.0",
         "typescript": "^6.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",

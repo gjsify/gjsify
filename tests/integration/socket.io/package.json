@@ -17,12 +17,12 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.0-rc.9",
+        "@girs/gjs": "4.0.0-rc.14",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.6.0",
+        "@types/node": "^25.6.2",
         "socket.io": "^4.8.3",
         "socket.io-client": "^4.8.3",
         "typescript": "^6.0.3"
