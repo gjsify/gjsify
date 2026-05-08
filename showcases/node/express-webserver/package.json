@@ -20,6 +20,9 @@
     "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
     "build:public": "mkdir -p dist/public && cp -r src/public/* dist/public/"
   },
+  "dependencies": {
+    "@gjsify/http-soup-bridge": "workspace:^"
+  },
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
     "@gjsify/node-globals": "workspace:^",

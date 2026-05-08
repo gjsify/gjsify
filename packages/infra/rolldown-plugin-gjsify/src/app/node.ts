@@ -99,7 +99,6 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         output: {
             ...input.output,
             format,
-            minify: false,
             sourcemap: false,
             banner,
             // Single-bundle output. `codeSplitting: false` replaces the

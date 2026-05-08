@@ -101,9 +101,13 @@ describe('Inline static reads E2E', { timeout: 10 * 60 * 1000 }, () => {
     const outDir = join(projectDir, 'dist');
     mkdirSync(outDir, { recursive: true });
     const bundlePath = join(outDir, 'app.js');
+    // --no-minify: this test asserts inlined fixture content via substring
+    // matches against object-literal property names. With the default-on
+    // minifier those names get mangled and the asserts can't survive.
     execFileSync('npx', ['gjsify', 'build', 'src/app.ts',
       '--app', 'node',
       '--outfile', bundlePath,
+      '--no-minify',
     ], { cwd: projectDir, stdio: 'pipe', timeout: 60 * 1000 });
 
     assert.ok(existsSync(bundlePath), 'bundle missing');

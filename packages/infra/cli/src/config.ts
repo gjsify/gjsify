@@ -234,7 +234,11 @@ export class Config {
         if (cliArgs.outfile !== undefined) output.file = cliArgs.outfile;
         if (cliArgs.outdir !== undefined) output.dir = cliArgs.outdir;
         if (cliArgs.format !== undefined) output.format = cliArgs.format as 'esm' | 'cjs' | 'iife';
+        // CLI flag wins over config; if neither is set, minify by default.
+        // Pretty-printed output is opt-in via `--no-minify` or
+        // `bundler.output.minify: false` in the config.
         if (cliArgs.minify !== undefined) output.minify = cliArgs.minify;
+        if (output.minify === undefined) output.minify = true;
         if (cliArgs.logLevel) {
             // Map esbuild log levels to Rolldown's narrower set:
             //   esbuild   → rolldown

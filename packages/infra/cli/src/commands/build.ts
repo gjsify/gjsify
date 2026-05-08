@@ -45,10 +45,10 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 normalize: true,
             })
             .option('minify', {
-                description: "When enabled, the generated code will be minified instead of pretty-printed",
+                description: "Minify the bundled output. Defaults to true; use --no-minify to emit pretty-printed code (e.g. for debugging or readable bundle review).",
                 type: 'boolean',
                 normalize: true,
-                default: false
+                defaultDescription: 'true',
             })
             .option('library', {
                 description: "Use this if you want to build a library for Gjsify",
