@@ -13,6 +13,13 @@
 //   - exact string match (no prefix-aware semantics needed at this layer)
 //   - `node:<name>` specifiers map to the same target as `<name>`
 //     (handled in the alias-builder helpers, not here).
+//
+// `extraOptions.kind` is forwarded to `this.resolve()` so package.json
+// `exports` conditions ("import" / "require") match the original call site.
+// Without this, a CJS `require('stream')` in a bundled npm package would
+// resolve through the "import" condition (Rolldown's default), bypassing the
+// `cjs-compat.cjs` shim that unwraps named-export ESM modules to their
+// constructor — breaking `util.inherits(Child, Stream)` patterns.
 
 import type { Plugin } from 'rolldown';
 
@@ -28,7 +35,7 @@ export function aliasPlugin(options: AliasPluginOptions): Plugin {
         name: 'gjsify-alias',
         resolveId: {
             order: 'pre' as const,
-            async handler(source, importer) {
+            async handler(source, importer, extraOptions) {
                 if (!Object.prototype.hasOwnProperty.call(entries, source)) {
                     return null;
                 }
@@ -39,6 +46,7 @@ export function aliasPlugin(options: AliasPluginOptions): Plugin {
 
                 const resolved = await this.resolve(target, importer, {
                     skipSelf: true,
+                    kind: extraOptions?.kind,
                 });
                 if (resolved !== null) {
                     return resolved;
