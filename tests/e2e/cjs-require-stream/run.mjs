@@ -37,8 +37,21 @@ import {
   createTestEnvironment,
   cleanupTestEnvironment,
   setupProject,
-  hasCommand,
 } from '../helpers.mjs';
+
+/**
+ * Probe gjs directly via spawnSync rather than `which gjs` — minimal
+ * Fedora containers used by CI don't always ship `which`, but they do
+ * ship gjs (the test target). Returns true iff `gjs --version` exits 0.
+ */
+function gjsAvailable() {
+  try {
+    const r = spawnSync('gjs', ['--version'], { stdio: 'pipe', timeout: 5_000 });
+    return r.status === 0;
+  } catch {
+    return false;
+  }
+}
 
 describe('CJS `require("stream")` + util.inherits regression', { timeout: 10 * 60 * 1000 }, () => {
   let tmpDir;
@@ -111,7 +124,7 @@ describe('CJS `require("stream")` + util.inherits regression', { timeout: 10 * 6
   });
 
   it('does not throw "superCtor.prototype" TypeError under gjs', () => {
-    if (!hasCommand('gjs')) {
+    if (!gjsAvailable()) {
       // Surface the missing dependency in the test report rather than
       // silently skipping — this suite's purpose is to lock down a
       // GJS-runtime regression, so a CI without gjs is a configuration
