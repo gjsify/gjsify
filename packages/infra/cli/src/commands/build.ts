@@ -8,11 +8,20 @@ export const buildCommand: Command<any, CliBuildOptions> = {
     builder: (yargs) => {
         return yargs
             .option('entry-points', {
-                description: "The entry points you want to bundle",
+                description: "The entry points you want to bundle. Defaults to bundler.input from package.json#gjsify or .gjsifyrc.js, falling back to src/index.ts when neither is set.",
                 array: true,
                 type: 'string',
                 normalize: true,
-                default: ['src/index.ts'],
+                // No yargs `default` here on purpose. A yargs default value
+                // is indistinguishable from "user passed the flag" in the
+                // parsed args (cliArgs.entryPoints?.length is truthy either
+                // way), so the merge step in config.ts would unconditionally
+                // overwrite `bundler.input` declared in package.json#gjsify —
+                // silently ignoring `gjsify.bundler.input: "src/start.ts"`
+                // and producing a bundle from the wrong entry point. The
+                // fallback to src/index.ts is applied in config.ts AFTER
+                // merging with the cosmiconfig data.
+                defaultDescription: "src/index.ts (fallback)",
                 coerce: (arg: string[]) => {
                     // Removes duplicates
                     return [...new Set(arg)];
