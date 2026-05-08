@@ -243,8 +243,23 @@ export class Config {
         // CLI flag wins over config; if neither is set, minify by default.
         // Pretty-printed output is opt-in via `--no-minify` or
         // `bundler.output.minify: false` in the config.
+        //
+        // When minify is enabled (boolean true) we expand it to a MinifyOptions
+        // object that PRESERVES function and class .name properties. Rolldown's
+        // default mangler renames every top-level class to short identifiers
+        // (`e`, `t`, ...), which collapses Function.name → 'e' for many
+        // distinct classes. Libraries like Excalibur key runtime data
+        // structures off `c.name` (e.g. `Query.createId` hashes
+        // `c_${component.name}` to dedupe ECS queries), so once class names
+        // collide every query with N components is treated as identical and
+        // the wrong filter wins. Keeping the .name property only costs a few
+        // bytes per class but keeps name-driven library code working
+        // (Excalibur ECS, deepkit reflection, error stacks, etc.).
         if (cliArgs.minify !== undefined) output.minify = cliArgs.minify;
         if (output.minify === undefined) output.minify = true;
+        if (output.minify === true) {
+            output.minify = { mangle: { keepNames: { function: true, class: true } } };
+        }
         if (cliArgs.logLevel) {
             // Map esbuild log levels to Rolldown's narrower set:
             //   esbuild   → rolldown
