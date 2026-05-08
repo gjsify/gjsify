@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.18](https://github.com/gjsify/gjsify/compare/v0.3.17...v0.3.18) (2026-05-08)
+
+### Bug Fixes
+
+* **cli:** drop @gjsify/webgl pre-flight from gjsify showcase ([#96](https://github.com/gjsify/gjsify/issues/96)) ([d501bf7](https://github.com/gjsify/gjsify/commit/d501bf7532cabeaf6cd93e317bc8a24976bdd6d1))
+
 ## [0.3.17](https://github.com/gjsify/gjsify/compare/v0.3.16...v0.3.17) (2026-05-08)
 
 ### Features

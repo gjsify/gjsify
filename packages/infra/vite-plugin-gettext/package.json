@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/vite-plugin-gettext",
-    "version": "0.3.17",
+    "version": "0.3.18",
     "description": "Gettext PO/MO/JSON pipeline for Vite / Rollup / Rolldown — extract via xgettext, compile via msgfmt, JSON for browser targets.",
     "type": "module",
     "main": "lib/index.js",
