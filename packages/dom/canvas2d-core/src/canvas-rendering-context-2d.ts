@@ -831,7 +831,20 @@ export class CanvasRenderingContext2D {
         // rectangle is a no-op (and MUST NOT throw). Without this guard,
         // `scale(dw / sw, dh / sh)` produces 0 or Infinity which Cairo
         // rejects with "invalid matrix (not invertible)".
-        if (sw === 0 || sh === 0 || dw === 0 || dh === 0) {
+        //
+        // Non-finite (NaN / Infinity / -Infinity) inputs reach us when the
+        // caller derives a dimension from a not-yet-resized canvas (e.g.
+        // Excalibur's logo overlay computes `Math.min(logoWidth, n * 0.75)`
+        // before the engine's pixelRatio / canvas size are known). Treat
+        // them the same as 0: spec-correct, and avoids cascading Cairo
+        // matrix failures that abort frames mid-paint.
+        if (
+            !Number.isFinite(sx) || !Number.isFinite(sy) ||
+            !Number.isFinite(sw) || !Number.isFinite(sh) ||
+            !Number.isFinite(dx) || !Number.isFinite(dy) ||
+            !Number.isFinite(dw) || !Number.isFinite(dh) ||
+            sw === 0 || sh === 0 || dw === 0 || dh === 0
+        ) {
             return;
         }
 
@@ -894,13 +907,21 @@ export class CanvasRenderingContext2D {
 
         // HTMLCanvasElement with a 2D context
         if (typeof image?.getContext === 'function') {
+            const w = image.width;
+            const h = image.height;
+            // Reject non-positive / non-finite dimensions before they reach
+            // GdkPixbuf — `pixbuf_get_from_surface` logs a GLib-CRITICAL on
+            // `width > 0 && height > 0` assertion failure for NaN/0 inputs.
+            if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+                return null;
+            }
             const ctx2d = image.getContext('2d');
             if (ctx2d && typeof ctx2d._getSurface === 'function') {
                 const surface = ctx2d._getSurface() as Cairo.ImageSurface;
                 surface.flush();
-                const pixbuf = Gdk.pixbuf_get_from_surface(surface, 0, 0, image.width, image.height);
+                const pixbuf = Gdk.pixbuf_get_from_surface(surface, 0, 0, w, h);
                 if (pixbuf) {
-                    return { pixbuf, imgWidth: image.width, imgHeight: image.height };
+                    return { pixbuf, imgWidth: w, imgHeight: h };
                 }
             }
         }

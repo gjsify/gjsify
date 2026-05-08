@@ -206,6 +206,53 @@ export default async () => {
                 dst.drawImage(src, 5, 5, 10, 0);
                 assertPixel(dst, 10, 10, 0, 0, 255, 255);
             });
+
+            // Regression: Excalibur's Loader.onDraw computes its overlay
+            // dimensions from `engine.canvasWidth / engine.pixelRatio`. When
+            // the engine fixture isn't fully wired (jelly-jumper Canvas 2D
+            // fallback path before the camera target binds), pixelRatio
+            // can be 0, propagating Infinity into the dy / dh slots. The
+            // older guard only matched literal 0; the new guard rejects
+            // any non-finite coordinate so Cairo never sees a non-invertible
+            // matrix. Without this fix the showcase fataled mid-frame and
+            // Excalibur's clock stopped, leaving the background unrendered.
+            await it('drawImage with Infinity destination y is a no-op', async () => {
+                const src = createTestImage(10, 10, (c) => {
+                    c.fillStyle = 'red';
+                    c.fillRect(0, 0, 10, 10);
+                });
+                const dst = makeCtx(20, 20);
+                dst.fillStyle = 'blue';
+                dst.fillRect(0, 0, 20, 20);
+                // 9-arg form with Infinity in dy — must not throw and must
+                // leave the destination untouched.
+                dst.drawImage(src, 0, 0, 10, 10, 0, Infinity, 10, 10);
+                assertPixel(dst, 10, 10, 0, 0, 255, 255);
+            });
+
+            await it('drawImage with NaN destination height is a no-op', async () => {
+                const src = createTestImage(10, 10, (c) => {
+                    c.fillStyle = 'red';
+                    c.fillRect(0, 0, 10, 10);
+                });
+                const dst = makeCtx(20, 20);
+                dst.fillStyle = 'blue';
+                dst.fillRect(0, 0, 20, 20);
+                dst.drawImage(src, 0, 0, 10, 10, 5, 5, 10, NaN);
+                assertPixel(dst, 10, 10, 0, 0, 255, 255);
+            });
+
+            await it('drawImage with -Infinity source width is a no-op', async () => {
+                const src = createTestImage(10, 10, (c) => {
+                    c.fillStyle = 'red';
+                    c.fillRect(0, 0, 10, 10);
+                });
+                const dst = makeCtx(20, 20);
+                dst.fillStyle = 'blue';
+                dst.fillRect(0, 0, 20, 20);
+                dst.drawImage(src, 0, 0, -Infinity, 10, 5, 5, 10, 10);
+                assertPixel(dst, 10, 10, 0, 0, 255, 255);
+            });
         });
 
         await describe('drawImage — imageSmoothingEnabled pixel-art lock', async () => {
