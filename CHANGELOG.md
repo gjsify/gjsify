@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.21](https://github.com/gjsify/gjsify/compare/v0.3.20...v0.3.21) (2026-05-08)
+
+### Bug Fixes
+
+* **rolldown,canvas2d-core:** require kind + non-finite drawImage args ([#99](https://github.com/gjsify/gjsify/issues/99)) ([cc79e2e](https://github.com/gjsify/gjsify/commit/cc79e2e72aa50f3a25b6a16f04699503963664b3)), closes [#94](https://github.com/gjsify/gjsify/issues/94)
+
 ## [0.3.20](https://github.com/gjsify/gjsify/compare/v0.3.19...v0.3.20) (2026-05-08)
 
 ## [0.3.19](https://github.com/gjsify/gjsify/compare/v0.3.18...v0.3.19) (2026-05-08)
