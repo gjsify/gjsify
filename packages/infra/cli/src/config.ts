@@ -231,6 +231,12 @@ export class Config {
         const transform = (bundler.transform ??= {});
 
         if (cliArgs.entryPoints?.length) bundler.input = cliArgs.entryPoints;
+        // Fallback when neither the CLI flag nor the cosmiconfig data set an
+        // entry point. Applied here (post-merge) rather than as a yargs
+        // `default:` because yargs defaults are indistinguishable from
+        // user-set values, and would silently overwrite `bundler.input`
+        // declared in package.json#gjsify.
+        if (!bundler.input) bundler.input = ['src/index.ts'];
         if (cliArgs.outfile !== undefined) output.file = cliArgs.outfile;
         if (cliArgs.outdir !== undefined) output.dir = cliArgs.outdir;
         if (cliArgs.format !== undefined) output.format = cliArgs.format as 'esm' | 'cjs' | 'iife';
