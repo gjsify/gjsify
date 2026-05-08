@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.16](https://github.com/gjsify/gjsify/compare/v0.3.15...v0.3.16) (2026-05-08)
+
+### Features
+
+* **rolldown-plugin-gjsify:** bundle [@imports](https://github.com/imports) + flatten nesting in css-as-string ([6ea0b46](https://github.com/gjsify/gjsify/commit/6ea0b460ed567be07c4d18c3bf352b908ca039af))
+
 ## Unreleased — CSS bundling + GTK4 nesting flatten (2026-05-08)
 
 ### Features

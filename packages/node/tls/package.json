@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/tls",
-    "version": "0.3.15",
+    "version": "0.3.16",
     "description": "Node.js tls module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",
