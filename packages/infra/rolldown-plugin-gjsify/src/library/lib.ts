@@ -79,7 +79,6 @@ export const setupLib = async (input: LibFactoryInput): Promise<LibBuildConfig> 
             // Rolldown keeps the full project-relative path. The root is
             // computed from the common ancestor of resolved entries.
             preserveModulesRoot,
-            minify: false,
             sourcemap: false,
         },
         treeshake: false,

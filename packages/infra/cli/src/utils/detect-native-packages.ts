@@ -1,11 +1,18 @@
 // Utility to find npm packages with gjsify native prebuilds.
 // Packages declare: "gjsify": { "prebuilds": "<dir>" } in their package.json.
 // The CLI uses this to auto-set LD_LIBRARY_PATH / GI_TYPELIB_PATH before running gjs.
+//
+// One algorithm — `detectNativePackages(startDir)` — walks up from `startDir`
+// and exhaustively scans every `node_modules` it finds. Used by:
+//   * `gjsify run`, `gjsify info`, `gjsify install` — startDir = process.cwd()
+//   * `runGjsBundle()` — startDir = dirname(bundlePath), so DLX-cache layouts
+//     (`~/.cache/gjsify/dlx/<sha>/.../node_modules/<pkg>/dist/bundle.js`) get
+//     their full transitive prebuild set picked up automatically. The
+//     transitive walk is what makes `gjsify showcase` / `gjsify dlx` work
+//     for packages whose Vala typelibs live in *indirect* deps.
 
 import { readdirSync, existsSync, readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { dirname, join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { join, resolve } from 'node:path';
 
 export interface NativePackage {
     /** npm package name, e.g. "@gjsify/webgl" */
@@ -127,76 +134,6 @@ export function detectNativePackages(startDir: string): NativePackage[] {
     }
 
     return merged;
-}
-
-/** Walk up from dir to find the nearest package.json. */
-function findNearestPackageJson(startDir: string): string | null {
-    let dir = resolve(startDir);
-    while (true) {
-        const candidate = join(dir, 'package.json');
-        if (existsSync(candidate)) return candidate;
-        const parent = resolve(dir, '..');
-        if (parent === dir) return null;
-        dir = parent;
-    }
-}
-
-/**
- * Resolve native packages using Node.js module resolution from a given file path.
- * Reads the nearest package.json to discover dependencies, then checks each
- * for gjsify native prebuilds metadata.
- *
- * Also checks the **nearest package.json itself** — a workspace package may
- * have its own prebuilds (e.g. `@gjsify/webgl` running its own test) and
- * never list itself in dependencies.
- *
- * This complements detectNativePackages() (filesystem walk from CWD) by using
- * require.resolve() — which handles hoisting, workspaces, and nested node_modules.
- */
-export function resolveNativePackages(fromFilePath: string): NativePackage[] {
-    const arch = nodeArchToLinuxArch(process.arch);
-    const results: NativePackage[] = [];
-
-    try {
-        const req = createRequire(pathToFileURL(fromFilePath).href);
-
-        // Find the nearest package.json to get the dependency list
-        const nearestPkgJson = findNearestPackageJson(dirname(resolve(fromFilePath)));
-        if (!nearestPkgJson) return results;
-
-        const pkg = readPackageJson(nearestPkgJson);
-        if (!pkg) return results;
-
-        // Check the nearest package itself (e.g. @gjsify/webgl running its own
-        // test bundle — webgl never lists itself in dependencies)
-        const ownName = typeof pkg['name'] === 'string' ? pkg['name'] as string : '';
-        if (ownName) {
-            const ownNative = checkPackage(dirname(nearestPkgJson), ownName, arch);
-            if (ownNative) results.push(ownNative);
-        }
-
-        const deps = pkg['dependencies'] as Record<string, string> | undefined;
-        if (!deps) return results;
-
-        for (const depName of Object.keys(deps)) {
-            try {
-                // Resolve the package's main entry, then walk up to find its package.json.
-                // We cannot use require.resolve(name + '/package.json') because packages
-                // with an "exports" field may not expose ./package.json as a subpath.
-                const entryPath = req.resolve(depName);
-                const depPkgJson = findNearestPackageJson(dirname(entryPath));
-                if (!depPkgJson) continue;
-                const native = checkPackage(dirname(depPkgJson), depName, arch);
-                if (native) results.push(native);
-            } catch {
-                // Dependency not resolvable — skip
-            }
-        }
-    } catch {
-        // Resolution failed — return empty
-    }
-
-    return results;
 }
 
 /**

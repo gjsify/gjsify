@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased — dlx native-prebuild fix + minify-default + showcase shape (2026-05-08)
+
+### ⚠ BREAKING CHANGES
+
+* **cli:** `gjsify build` minifies by default (`--minify`'s default flipped from `false` to `true`). Opt-out: pass `--no-minify` on the CLI or set `bundler.output.minify: false` in `package.json#gjsify`. The four app/library orchestrators (`app/{gjs,browser,node}.ts`, `library/lib.ts`) no longer hard-code `minify: false` after the user-output spread, so `bundler.output.minify` from user config now actually takes effect (it was silently overridden before).
+
+### Bug Fixes
+
+* **cli:** `gjsify dlx` / `gjsify run` now also walks the bundle's own `node_modules` tree to detect native gjsify prebuilds (`@gjsify/<vala-bridge>/prebuilds/linux-<arch>/`). Previously the fallback detector (`resolveNativePackages`) only iterated the bundle's package.json#dependencies — direct deps only — so transitive Vala typelibs (e.g. `@gjsify/http-soup-bridge` pulled in by `@gjsify/http`) were missed and `gjsify showcase express-webserver` crashed with `Typelib file for namespace 'GjsifyHttpSoupBridge' not found`. The two overlapping detectors collapse into a single algorithm: `detectNativePackages(startDir)` walks up from a startpoint and exhaustively scans every `node_modules` it finds. `runGjsBundle()` calls it with both `process.cwd()` and `dirname(bundlePath)`, deduping by package name (CWD shadows bundle).
+* **showcases/express-webserver:** declare `@gjsify/http-soup-bridge` as a runtime `dependencies` entry. It was previously only available transitively via `@gjsify/node-globals` at *build time*, so `npm install` of the published showcase tarball never shipped the typelib. The detection fix above plus this shape fix together make `gjsify showcase express-webserver` work after a clean dlx install.
+
+### Refactors
+
+* **cli:** drop `resolveNativePackages` + `findNearestPackageJson` from `utils/detect-native-packages.ts` (transitive-blind). One algorithm, two startpoints — see above.
+* **cli:** extract `computeNativeEnvForBundle(bundlePath, cwd)` from `runGjsBundle` as a pure function — returns the `{ env, envPrefix }` it would inject into `gjs`. Lets the e2e tests assert the env without spawning gjs.
+
+### Tests
+
+* New e2e suite `dlx-native-prebuilds/` (2 tests): synthetic consumer with `@gjsify/http-soup-bridge` installed in node_modules + a bundle in a nested package dir, asserts that `computeNativeEnvForBundle` populates `GI_TYPELIB_PATH` / `LD_LIBRARY_PATH` from the bundle-side walk alone (CWD has no node_modules — the regression case).
+* `tests/e2e/inline-static-reads/run.mjs`: added `--no-minify` since the test asserts inlined fixture content via property-name substring matches that the default-on minifier would mangle.
+
 ## [0.3.16](https://github.com/gjsify/gjsify/compare/v0.3.15...v0.3.16) (2026-05-08)
 
 ### Features

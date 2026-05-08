@@ -136,7 +136,6 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         output: {
             ...input.output,
             format,
-            minify: false,
             sourcemap: false,
             // App builds emit a single bundle file. Disable code-splitting
             // so dynamic imports get inlined and the entire program lands

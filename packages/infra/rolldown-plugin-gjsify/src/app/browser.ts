@@ -73,7 +73,6 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
         output: {
             ...input.output,
             format: 'esm',
-            minify: false,
             sourcemap: false,
             // Single-bundle output. `codeSplitting: false` replaces the
             // deprecated `inlineDynamicImports: true`.
