@@ -7,6 +7,17 @@ import {
 } from '../utils/check-system-deps.js';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
+
+function readCliVersion(): string | undefined {
+    try {
+        const pkgUrl = new URL('../../package.json', import.meta.url);
+        const pkg = JSON.parse(readFileSync(pkgUrl, 'utf8')) as { version?: unknown };
+        return typeof pkg.version === 'string' ? pkg.version : undefined;
+    } catch {
+        return undefined;
+    }
+}
 
 interface ShowcaseOptions {
     name?: string;
@@ -102,12 +113,23 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
             process.exit(1);
         }
 
-        // Delegate to `gjsify dlx <package>` — same npm-cache, same atomic
-        // symlink-swap, same `gjsify.main` resolution. Re-spawning the CLI
-        // keeps the dlx logic in one place.
-        console.log(`Running showcase: ${showcase.name} (via gjsify dlx)\n`);
+        // Delegate to `gjsify dlx <package>@<cli-version>` — same npm-cache,
+        // same atomic symlink-swap, same `gjsify.main` resolution. Re-spawning
+        // the CLI keeps the dlx logic in one place.
+        //
+        // Pinning to the CLI's own version is load-bearing: showcases ship in
+        // lockstep with the CLI, so users running `npx @gjsify/cli@X showcase
+        // <name>` expect the matching `@gjsify/example-*@X`. Without the pin,
+        // dlx caches the first resolved-latest on disk; subsequent CLI
+        // releases leave that cache untouched until the 7-day TTL expires,
+        // and the user gets a stale showcase that may be missing deps the
+        // newer CLI assumes (the `@gjsify/http-soup-bridge` regression
+        // reported against `@gjsify/cli@0.3.17`).
+        const cliVersion = readCliVersion();
+        const dlxSpec = cliVersion ? `${showcase.packageName}@${cliVersion}` : showcase.packageName;
+        console.log(`Running showcase: ${showcase.name} (via gjsify dlx ${dlxSpec})\n`);
         const cliBin = fileURLToPath(new URL('../index.js', import.meta.url));
-        const child = spawn(process.execPath, [cliBin, 'dlx', showcase.packageName], {
+        const child = spawn(process.execPath, [cliBin, 'dlx', dlxSpec], {
             stdio: 'inherit',
         });
         await new Promise<void>((resolvePromise, reject) => {
