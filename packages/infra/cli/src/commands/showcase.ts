@@ -2,7 +2,6 @@ import type { Command } from '../types/index.js';
 import { discoverShowcases, findShowcase } from '../utils/discover-showcases.js';
 import {
     runMinimalChecks,
-    checkGwebgl,
     detectPackageManager,
     buildInstallCommand,
 } from '../utils/check-system-deps.js';
@@ -79,13 +78,16 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
             process.exit(1);
         }
 
-        // System dependency check before delegating — only what this showcase needs.
+        // System dependency check before delegating — only system libs (gjs,
+        // gtk4, …). The showcase's npm deps (incl. `@gjsify/webgl` with the
+        // gwebgl Vala prebuild) are fetched by `gjsify dlx` into the npm
+        // cache, and `runGjsBundle()` picks the prebuild up from the bundle
+        // dir via `detectNativePackages()`. Pre-flight-checking npm deps
+        // here would fail for `npx @gjsify/cli showcase` (no project
+        // node_modules, CLI doesn't dep on the showcase libs).
         const results = runMinimalChecks();
-        if (showcase.needsWebgl) {
-            results.push(checkGwebgl(process.cwd()));
-        }
         const missingHard = results.filter(
-            (r) => !r.found && (r.severity === 'required' || r.id === 'gwebgl'),
+            (r) => !r.found && r.severity === 'required',
         );
         if (missingHard.length > 0) {
             console.error('Missing system dependencies:\n');
