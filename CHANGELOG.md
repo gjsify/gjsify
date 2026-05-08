@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — CSS bundling + GTK4 nesting flatten (2026-05-08)
+
+### Features
+
+* **rolldown-plugin-gjsify:** `cssAsStringPlugin` resolves `@import` and lowers nesting/modern syntax via lightningcss `bundleAsync`. `--app gjs` passes `targets: { firefox: 60 << 16 }` so authored CSS lands as the flat-selector subset GTK4's CSS engine accepts. Drops the previous "run a preprocessor ahead of `gjsify build`" caveat for the common GJS app case.
+
+### Tests
+
+* New e2e suite `css-bundling/` (1 test): asserts `@import`s are inlined and `&`-nesting flattens to compound selectors in the bundled string.
+
 ## [0.3.15](https://github.com/gjsify/gjsify/compare/v0.3.14...v0.3.15) (2026-05-07)
 
 ### ⚠ BREAKING CHANGES

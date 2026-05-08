@@ -165,7 +165,11 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         }),
         blueprintPlugin() as RolldownPluginOption,
         deepkitPlugin({ reflection: input.pluginOptions.reflection }),
-        cssAsStringPlugin(),
+        // GTK4's CSS engine is much older than browser engines — its
+        // parser predates nesting + many modern selectors. Targeting
+        // `firefox: 60 << 16` makes lightningcss flatten the source
+        // into the subset GTK4 understands.
+        cssAsStringPlugin({ targets: { firefox: 60 << 16 } }),
         nodeModulesPathRewritePlugin({ bundleDir }),
         processStubPlugin({ userBanner: input.userBanner }),
         // resolveShebangLine returns null when disabled (false/undefined) and
