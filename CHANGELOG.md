@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.19](https://github.com/gjsify/gjsify/compare/v0.3.18...v0.3.19) (2026-05-08)
+
+### Bug Fixes
+
+* **cli:** pin gjsify showcase dlx spec to CLI version ([#97](https://github.com/gjsify/gjsify/issues/97)) ([1b7697d](https://github.com/gjsify/gjsify/commit/1b7697d8f44682d67470cd08f22620f00085ba25)), closes [#94](https://github.com/gjsify/gjsify/issues/94)
+
 ## [0.3.18](https://github.com/gjsify/gjsify/compare/v0.3.17...v0.3.18) (2026-05-08)
 
 ### Bug Fixes

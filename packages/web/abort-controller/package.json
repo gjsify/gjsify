@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/abort-controller",
-    "version": "0.3.18",
+    "version": "0.3.19",
     "description": "Web AbortController module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",
