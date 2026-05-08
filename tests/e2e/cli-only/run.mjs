@@ -150,6 +150,68 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
     assert.ok(examples.length > 0, 'should have at least one example');
   });
 
+  // Regression: `gjsify showcase <name>` used to pre-flight-check
+  // `@gjsify/webgl` from `process.cwd()` / CLI's own `node_modules` and
+  // erroneously fail with "Missing system dependencies: gwebgl" under
+  // `npx @gjsify/cli` invocations (no project node_modules, CLI doesn't
+  // dep on @gjsify/webgl). The check was checking something `gjsify dlx`
+  // was about to install — leftover from when the CLI tarball bundled
+  // showcase packages. Now removed; the command delegates to dlx
+  // unconditionally for system-lib-passing showcases.
+  it('gjsify showcase <name> does not pre-flight-check npm deps', () => {
+    let combined = '';
+    try {
+      combined = execFileSync('npx', ['gjsify', 'showcase', 'three-postprocessing-pixel'], {
+        cwd: projectDir,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 15 * 1000,
+      });
+    } catch (err) {
+      combined = `${err.stdout ?? ''}${err.stderr ?? ''}`;
+    }
+    if (combined.includes('Unknown showcase')) return;
+    assert.ok(
+      !combined.includes('Missing system dependencies'),
+      `Showcase command should not pre-flight-check npm deps; got:\n${combined}`,
+    );
+  });
+
+  // Regression: stale `gjsify dlx` cache. Without the version pin, dlx
+  // caches whatever version it first resolved and serves it for 7 days
+  // (default TTL), even after the user upgrades the CLI. Pinning to the
+  // CLI's own version makes the cache key change every release, so each
+  // CLI version always runs its matching showcase tarball — fixes the
+  // `@gjsify/example-node-express-webserver@0.3.16` cache-hit served to
+  // `@gjsify/cli@0.3.17` users that was missing the `@gjsify/http-soup-bridge`
+  // runtime dep PR #94 added.
+  it('gjsify showcase <name> pins the dlx spec to the CLI\'s own version', () => {
+    const cliPkgJson = execFileSync(
+      'node',
+      ['-p', 'JSON.stringify(require("@gjsify/cli/package.json"))'],
+      { cwd: projectDir, encoding: 'utf-8' },
+    );
+    const cliVersion = JSON.parse(cliPkgJson).version;
+
+    let combined = '';
+    try {
+      combined = execFileSync('npx', ['gjsify', 'showcase', 'express-webserver'], {
+        cwd: projectDir,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 15 * 1000,
+      });
+    } catch (err) {
+      combined = `${err.stdout ?? ''}${err.stderr ?? ''}`;
+    }
+    if (combined.includes('Unknown showcase')) return;
+    const expected = `via gjsify dlx @gjsify/example-node-express-webserver@${cliVersion}`;
+    assert.ok(
+      combined.includes(expected),
+      `Expected "${expected}" in showcase output:\n${combined}`,
+    );
+  });
+
   // -- PR #18: gjsify build --shebang -------------------------------------
   it('gjsify build --shebang prepends GJS shebang and sets +x', () => {
     writeFileSync(join(projectDir, 'src', 'shebang-app.ts'),
