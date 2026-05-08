@@ -19,15 +19,18 @@
 //
 // Strategy: build a minimal app that mirrors the failing pattern
 // (`require('stream')` from a CJS module + `util.inherits` from the
-// resulting constructor), then run the bundle under `gjs -m` (when
-// available) and assert it doesn't throw the regression's TypeError.
-// Without `gjs` installed we still validate the bundle was produced
-// and the cjs-compat shim's signature ended up in the output.
+// resulting constructor), then run the bundle under `gjs -m` and assert
+// it doesn't throw the regression's TypeError.
+//
+// Build with `--no-minify` so the runtime probe's marker string survives
+// to stdout (the default minifier mangles bare identifiers but not
+// string literals — `--no-minify` is belt-and-suspenders to keep a
+// readable bundle for failure-mode debugging).
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -98,7 +101,7 @@ describe('CJS `require("stream")` + util.inherits regression', { timeout: 10 * 6
 
   it('builds a CJS module that does `util.inherits(Child, require("stream"))`', () => {
     execFileSync('npx', ['gjsify', 'build', '--app', 'gjs', 'src/index.ts',
-      '--outfile', 'dist/bundle.js'], {
+      '--outfile', 'dist/bundle.js', '--no-minify'], {
       cwd: projectDir,
       stdio: 'pipe',
       timeout: 90 * 1000,
@@ -107,7 +110,14 @@ describe('CJS `require("stream")` + util.inherits regression', { timeout: 10 * 6
     assert.ok(existsSync(bundlePath), 'dist/bundle.js missing');
   });
 
-  it('does not throw "superCtor.prototype" TypeError under gjs', { skip: !hasCommand('gjs') }, () => {
+  it('does not throw "superCtor.prototype" TypeError under gjs', () => {
+    if (!hasCommand('gjs')) {
+      // Surface the missing dependency in the test report rather than
+      // silently skipping — this suite's purpose is to lock down a
+      // GJS-runtime regression, so a CI without gjs is a configuration
+      // bug, not a clean skip.
+      assert.fail('gjs not on PATH; this regression test requires the gjs runtime.');
+    }
     const result = spawnSync('gjs', ['-m', bundlePath], {
       encoding: 'utf8',
       timeout: 30 * 1000,
@@ -125,19 +135,5 @@ describe('CJS `require("stream")` + util.inherits regression', { timeout: 10 * 6
     );
     assert.strictEqual(result.status, 0,
       'gjs exited non-zero. Combined output:\n' + combined);
-  });
-
-  it('bundle resolves `require("stream")` through @gjsify/stream/cjs-compat.cjs', () => {
-    // Independent signal for environments without gjs: the cjs-compat
-    // shim's distinctive `mod.default || mod` guard appears verbatim in
-    // the bundle when (and only when) the alias plugin honoured the
-    // require condition. Rolldown's CJS module wrapper preserves the
-    // shim contents 1:1, so a substring match is sufficient.
-    const code = readFileSync(bundlePath, 'utf8');
-    assert.match(
-      code,
-      /mod\.default\s*\|\|\s*mod/,
-      'bundle does not contain the cjs-compat shim signature; alias plugin likely resolved `stream` via the import condition.',
-    );
   });
 });
