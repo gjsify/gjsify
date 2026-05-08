@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/web-streams",
-    "version": "0.3.16",
+    "version": "0.3.17",
     "description": "WHATWG Streams API (ReadableStream, WritableStream, TransformStream) for GJS",
     "type": "module",
     "module": "lib/esm/index.js",

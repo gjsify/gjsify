@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.17](https://github.com/gjsify/gjsify/compare/v0.3.16...v0.3.17) (2026-05-08)
+
+### Features
+
+* gjsify dlx native-prebuild fix + minify-default + showcase shape ([#94](https://github.com/gjsify/gjsify/issues/94)) ([6c167c2](https://github.com/gjsify/gjsify/commit/6c167c2064bd1a95f2072357648a24ab74b5611a))
+
+### Bug Fixes
+
+* **cli:** gjsify build honours bundler.input from package.json[#gjsify](https://github.com/gjsify/gjsify/issues/gjsify) ([3a8cd93](https://github.com/gjsify/gjsify/commit/3a8cd9348b441496c456d9e0b8239dda9aca18c9))
+
 ## Unreleased — dlx native-prebuild fix + minify-default + showcase shape (2026-05-08)
 
 ### ⚠ BREAKING CHANGES
