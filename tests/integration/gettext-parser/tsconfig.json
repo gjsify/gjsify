@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/parse-po.spec.ts",
+        "src/parse-mo.spec.ts",
+        "src/compile-po.spec.ts",
+        "src/compile-mo.spec.ts",
+        "src/plural-forms.spec.ts"
+    ]
+}
