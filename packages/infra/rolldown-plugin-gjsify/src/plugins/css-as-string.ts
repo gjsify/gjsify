@@ -79,6 +79,23 @@ async function pickBundler(): Promise<Bundler> {
     return native ?? loadNpmBundler();
 }
 
+// Local mirror of the @gjsify/lightningcss-native surface we touch. We
+// can't rely on the published types here because the package is an
+// OPTIONAL peer dep — under Node it's not installed, so `import type`
+// from it would break tsc on every Node consumer. Local interface
+// keeps the type narrow + decouples the plugin's typecheck from
+// whether the prebuild package is installed.
+interface NativeLightningcssSurface {
+    hasNativeLightningcss(): boolean;
+    bundle(input: {
+        filename: string;
+        targets?: string;
+        minify?: boolean;
+        sourceMap?: boolean;
+        errorRecovery?: boolean;
+    }): { code: Uint8Array; map?: Uint8Array };
+}
+
 async function tryLoadNativeBundler(): Promise<Bundler | null> {
     // The native bridge only exists under GJS — `imports.gi` marker. Skip
     // the dynamic import entirely on Node so it doesn't even register as a
@@ -87,7 +104,11 @@ async function tryLoadNativeBundler(): Promise<Bundler | null> {
     if (!isGjs) return null;
 
     try {
-        const mod = await import('@gjsify/lightningcss-native');
+        // Indirect specifier so tsc + Rolldown don't try to resolve the
+        // optional peer dep at build time. Resolution happens only at
+        // runtime under GJS (where the prebuild is installed).
+        const specifier = '@gjsify/lightningcss-native';
+        const mod = (await import(/* @vite-ignore */ specifier)) as NativeLightningcssSurface;
         if (!mod.hasNativeLightningcss()) return null;
         return async (filename, targets) => {
             // The native shim accepts a browserslist string; the npm
