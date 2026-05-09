@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/fixtures.ts",
+        "src/pkg-types-read.spec.ts",
+        "src/pkg-types-write.spec.ts",
+        "src/get-tsconfig-basic.spec.ts",
+        "src/get-tsconfig-extends.spec.ts",
+        "src/get-tsconfig-paths.spec.ts"
+    ]
+}

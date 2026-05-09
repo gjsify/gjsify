@@ -681,6 +681,22 @@ Fixtures generated at prebuild time by `scripts/setup-fixtures.mjs` — a determ
 1. **`@gjsify/fs` `readdirSync(withFileTypes: true)` now reports symlinks correctly.** [packages/node/fs/src/sync.ts](packages/node/fs/src/sync.ts) `readdirSync` was opening the directory enumerator with `Gio.FileQueryInfoFlags.NONE`, which follows symlinks when reading `standard::type`. Result: every symlink dirent reported the *target's* type (so `Dirent.isSymbolicLink()` returned `false` even for symlinks). `@nodelib/fs.scandir` (used by fast-glob) relies on the dirent type to short-circuit a follow-up `lstat`, so `followSymbolicLinks: false` had no effect on GJS — symlink entries got walked anyway. Fixed by switching the enumerator to `Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS` and threading the entry's `info.get_file_type()` into the `Dirent` constructor (it already mapped `Gio.FileType.SYMBOLIC_LINK` → `_isSymbolicLink = true`).
 2. **`makeCallable` now auto-constructs on no-`new` invocation.** [packages/gjs/utils/src/callable.ts](packages/gjs/utils/src/callable.ts) `apply` trap previously always tried to transplant a fresh instance's properties onto `thisArg`. When the wrapped class was called as a plain function (`PassThrough(opts)` from `merge2`, used inside fast-glob), `thisArg` was `undefined` (strict mode) → `Object.defineProperty(undefined, …)` crashed with "undefined is not a non-null object". Fixed: when `thisArg == null` or `thisArg === globalThis`, treat the call as a constructor call and return `Reflect.construct(target, args, target)`. Mirrors Node's stream constructors' explicit `if (!(this instanceof Cls)) return new Cls(...)` legacy guard. Regression tests added to [packages/node/stream/src/callable.spec.ts](packages/node/stream/src/callable.spec.ts) (`makeCallable: no-new invocation` describe block, 4 cases — `PassThrough`, `Readable`, `Writable`, plus an end-to-end pipe-through-no-new-instance check).
 
+### pkg-types + get-tsconfig (`tests/integration/pkg-types/`)
+
+Phase D-1 Workstream U — combined suite for the two TypeScript-config readers used by `@gjsify/cli`'s config loader (`pkg-types` reads `package.json` + `tsconfig.json`, `get-tsconfig` resolves `extends` chains and `paths` aliases). **Node: 88/88 green. GJS: 88/88 green, 0 skips.** No `@gjsify/*` fixes required — both packages are pure JS over `node:fs` + `node:path` + JSON, and the suite passed first try on both runtimes after correcting three test assertions to match actual library semantics (relative paths returned as `'./<value>'` after normalization; non-aliased specifiers fall back to baseUrl-relative resolution rather than `[]`).
+
+Fixtures generated at prebuild time by `scripts/setup-fixtures.mjs` — two TypeScript projects (`proj1` with single-level `extends` + path aliases; `proj2` with a 2-level `extends` chain `tsconfig.json` → `configs/tsconfig.strict.json` → `configs/tsconfig.shared.json`), plus write-target scratch dirs for the round-trip tests.
+
+| Suite | Node | GJS | Exercises |
+|---|---|---|---|
+| pkg-types-read.spec.ts | ✅ (16) | ✅ (16) | `readPackageJSON`, `readTSConfig`, `findFile` / `findNearestFile` walking up the tree, `definePackageJSON` / `defineTSConfig` identity helpers, missing-file ENOENT path |
+| pkg-types-write.spec.ts | ✅ (4) | ✅ (4) | `writePackageJSON` + `writeTSConfig` round-trip, overwrite, deeply-nested objects/arrays |
+| get-tsconfig-basic.spec.ts | ✅ (9) | ✅ (9) | `getTsconfig` from project root + walking up from a nested dir, null when no tsconfig found, `parseTsconfig` by absolute path + base-config-without-extends, `findTsconfig` |
+| get-tsconfig-extends.spec.ts | ✅ (5) | ✅ (5) | Single `./relative` extends inlining, 2-level chain (`a → b → c`), `parseTsconfig`-vs-`getTsconfig` parity on the chain leaf, child-wins-over-parent for overlapping fields |
+| get-tsconfig-paths.spec.ts | ✅ (4) | ✅ (4) | `createPathsMatcher` returns a function, `@app/*` + `@nested/*` alias resolution to `src/*`, baseUrl-based fallback for non-aliased specifiers |
+
+Clears two more of the 11 Phase D-1 npm runtime-deps that the future GJS-hosted `@gjsify/cli` build needs. The `@gjsify/fs` URL-path + readdir paths shipped in earlier streams (webtorrent, fast-glob) covered everything `pkg-types`/`get-tsconfig` exercise — no new pillar gaps surfaced.
+
 ## Open TODOs
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.

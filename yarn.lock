@@ -3308,6 +3308,22 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/integration-pkg-types@workspace:tests/integration/pkg-types":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/integration-pkg-types@workspace:tests/integration/pkg-types"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.14"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.6.2"
+    get-tsconfig: "npm:^4.14.0"
+    pkg-types: "npm:^2.3.1"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/integration-socket.io@workspace:tests/integration/socket.io":
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-socket.io@workspace:tests/integration/socket.io"
