@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/parse-basic.spec.ts",
+        "src/parse-strict.spec.ts",
+        "src/walk-basic.spec.ts",
+        "src/walk-recursive.spec.ts",
+        "src/error-positions.spec.ts"
+    ]
+}

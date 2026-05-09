@@ -649,6 +649,20 @@ Phase D-1 Workstream O — validates the yargs v18 ESM CLI parser used by `@gjsi
 
 Yargs's transitive deps (cliui, escalade, get-caller-file, string-width, y18n, yargs-parser) all bundle and run on GJS without intervention — this clears one of the 11 npm runtime-deps that the future GJS-hosted `@gjsify/cli` build needs.
 
+### acorn + acorn-walk (`tests/integration/acorn/`)
+
+Phase D-1 Workstream P — pure-JS ECMAScript parser + AST visitor used by `@gjsify/rolldown-plugin-gjsify`'s `auto-globals` detector. **Node: 127/127 green. GJS: 127/127 green, 0 skips.** No `@gjsify/*` fixes required; the suite passed first try on both runtimes — a clean canary that the SpiderMonkey 140 / `@gjsify/*` core JS path runs the parser path used by the `--globals auto` builder.
+
+| Suite | Node | GJS | Exercises |
+|---|---|---|---|
+| parse-basic.spec.ts | ✅ (11) | ✅ (11) | Empty program, literals, arrow + destructuring + rest, classes (static, private, getters), async/await + for-await-of, optional chaining, nullish coalescing, logical assignment, tagged templates, named/default imports, `parseExpressionAt`, `Parser.parse`, `tokenizer` iterator |
+| parse-strict.spec.ts | ✅ (10) | ✅ (10) | `module` sourceType strict-mode propagation, `with` rejection, top-level await, octal-literal rules, duplicate-export detection, `locations` (1-based line / 0-based column), `export … as`, dynamic `import()`, import attributes (`with { type: "json" }`) at `ecmaVersion: 'latest'` |
+| walk-basic.spec.ts | ✅ (6) | ✅ (6) | `simple` walker per-type counts, threaded state, `ancestor` chain, `full` walker type-tag stream, `findNodeAt` by range, `findNodeAround` innermost match |
+| walk-recursive.spec.ts | ✅ (5) | ✅ (5) | Recursive walker controlled descent, `base` fallback for unhandled types, `make()` composing on top of `base`, default `base` walker shape, shared mutable state for result collection |
+| error-positions.spec.ts | ✅ (6) | ✅ (6) | `SyntaxError` `pos`/`loc.line`/`loc.column`, `(line:col)` message suffix, multi-line line numbers, unterminated string column, reserved-word misuse in module mode, plain `Error` subclass + stack-trace shape |
+
+Acorn + acorn-walk both bundle as ESM through Rolldown's `import` condition and execute on GJS without `@gjsify/*` polyfill changes — confirms the SpiderMonkey 140 ES2024 surface (private class fields, top-level await, optional chaining, logical assignment, dynamic `import()`, import attributes, tagged templates) used by the parser is intact under `firefox140` lowering. Clears two more of the 11 Phase D-1 npm runtime-deps that the future GJS-hosted `@gjsify/cli` build needs.
+
 ## Open TODOs
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
