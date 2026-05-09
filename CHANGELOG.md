@@ -4,6 +4,46 @@
 
 ### Refactoring
 
+* **webgl (2026-05-09):** split the 4164-line
+  `packages/framework/webgl/src/ts/webgl-context-base.ts` — the largest file in
+  the repo — into focused composition modules under
+  `packages/framework/webgl/src/ts/context/` (Workstream D). New layout —
+  `state.ts` (enable/disable/blend/stencil/clear + error stack),
+  `buffer-binding.ts` (bindBuffer/bufferData/bufferSubData),
+  `texture-management.ts` (bindTexture, texImage2D/texSubImage2D, pixelStorei +
+  texture-unit tracker), `framebuffer.ts`
+  (bindFramebuffer/framebufferTexture2D/renderbufferStorage + completeness
+  pre-check), `shader-program.ts` (compileShader/linkProgram/useProgram + every
+  uniform setter), `drawing.ts` (drawArrays/drawElements, viewport/scissor,
+  vertex attribs). Each module declares a typed `*Methods` interface
+  (declaration-merged into `WebGLContextBase`) plus an
+  `install*Methods(proto)` registration function — the base file calls
+  `installAllContextMethods(WebGLContextBase.prototype)` after the class is
+  fully declared, which sidesteps the circular-import trap that prototype-merge
+  mixins would otherwise hit when split modules import `WebGLContextBase` for
+  runtime use. The base file is now ≈590 lines, owning fields, abstract `_gl`,
+  the constructor, `_init`, `getParameter` (whose 200-line switch is the only
+  large method that stays), `getExtension`, `getSupportedExtensions`, and the
+  foundational `_check{Owns,Valid,Wrapper}` helpers reused by every split
+  module. Public surface unchanged — `WebGLRenderingContext` and
+  `WebGL2RenderingContext` (and every external consumer, including the
+  Three.js post-processing showcase) work without modification. `as any`
+  reduced from 74 to 44 occurrences across `packages/framework/webgl/src/`:
+  `webgl-context-base.ts` went 2 → 0, `webgl2-rendering-context.ts` went 29 → 1
+  (a doc comment that mentions the term). Remaining 44 are intentional —
+  conformance spec files use `(gl as any).method(badArg)` to drive negative
+  tests, `webgl-bridge.ts` writes globalThis for runtime bootstrap, and a
+  handful of `_native` / `_ctx` accesses in `webgl1.spec.ts` reach into impl
+  internals not exposed on the DOM `WebGLRenderingContext` interface.
+  Replaced six bare `// TODO`/`// FIXME` comments in the original file with
+  structured `STATUS.md "Open TODOs": …` comments next to the affected code
+  paths and corresponding entries under the new "Low priority — WebGL deferred
+  items (Workstream D)" section in STATUS.md (drawingBufferColorSpace
+  colorimetry plumbing, multi-FBO texture/renderbuffer detach,
+  MAX_RENDERBUFFER_SIZE JS-side caching, optional headless drawing-buffer
+  pre-allocation). All 860 GJS WebGL tests pass; the Three.js post-processing
+  showcase rebuilds clean.
+
 * **stream:** split the 1676-line `packages/node/stream/src/index.ts` into
   per-class modules (Workstream E). New layout — `stream-base.ts` (`Stream_`),
   `readable.ts`, `writable.ts`, `duplex.ts`, `transform.ts`, `passthrough.ts`,
