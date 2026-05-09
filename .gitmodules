@@ -206,3 +206,6 @@
 [submodule "refs/vite"]
 	path = refs/vite
 	url = git@github.com:vitejs/vite.git
+[submodule "refs/lightningcss"]
+	path = refs/lightningcss
+	url = git@github.com:parcel-bundler/lightningcss.git
