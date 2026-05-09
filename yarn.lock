@@ -3107,6 +3107,20 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/http2-native@workspace:^, @gjsify/http2-native@workspace:packages/node/http2-native":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/http2-native@workspace:packages/node/http2-native"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.14"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.14"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.14"
+    "@gjsify/cli": "workspace:^"
+    "@ts-for-gir/cli": "npm:^4.0.0-rc.14"
+    "@types/node": "npm:^25.6.2"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/http2@workspace:^, @gjsify/http2@workspace:packages/node/http2":
   version: 0.0.0-use.local
   resolution: "@gjsify/http2@workspace:packages/node/http2"
@@ -3117,6 +3131,7 @@ __metadata:
     "@girs/soup-3.0": "npm:3.6.6-4.0.0-rc.14"
     "@gjsify/cli": "workspace:^"
     "@gjsify/events": "workspace:^"
+    "@gjsify/http2-native": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/utils": "workspace:^"
     "@types/node": "npm:^25.6.2"
