@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/basic.spec.ts",
+        "src/options.spec.ts",
+        "src/edge-cases.spec.ts"
+    ]
+}

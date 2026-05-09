@@ -599,6 +599,34 @@
   deps the future GJS-hosted `@gjsify/cli` build needs (tracked in
   STATUS.md "Integration Test Coverage → @rollup/pluginutils").
 
+* **integration-minify-xml (2026-05-09):** Phase D-1 Workstream X —
+  new `tests/integration/minify-xml/` suite
+  (`@gjsify/integration-minify-xml`, private). 3 spec files / 32
+  cases covering [`minify-xml@^4`](https://github.com/kristian/minify-xml)
+  — the pure-JS XML compressor consumed by
+  `@gjsify/vite-plugin-blueprint` to compress the XML output emitted
+  by `blueprint-compiler` for `.blp` Blueprint sources. Suites:
+  `basic` (comment removal, inter-tag whitespace removal, in-tag
+  whitespace collapse, empty-element collapse, CDATA + prolog
+  preservation), `options` (`removeComments`, `collapseEmptyElements`,
+  `removeWhitespaceBetweenTags`, `collapseWhitespaceInTags`,
+  `xml:space="preserve"`, `trimWhitespaceFromTexts`,
+  `collapseWhitespaceInTexts`, `ignoreCData`, `removeUnusedNamespaces`),
+  `edge-cases` (100-deep nesting, single-quoted attrs, `>` inside
+  attr values, XML entities, processing instructions, mixed content,
+  Blueprint-style GTK XML resource, idempotency, unicode CJK + emoji
+  + Cyrillic, CDATA containing XML-like markup, empty/self-closing-
+  only). Total: **63/63 green on Node, 63/63 green on GJS, 0 skips.**
+  No `@gjsify/*` fixes required — `minify-xml` is built entirely on
+  `String.prototype.replace` + heavy lookbehind/lookahead `RegExp`s,
+  and SpiderMonkey 140's RegExp engine matches V8 behavior exactly
+  for every pattern the minifier exercises (including the lookbehind-
+  anchored `tagPattern` chain that's the heart of the algorithm).
+  Clears the last of the 11 Phase D-1 npm runtime-deps the future
+  GJS-hosted `@gjsify/cli` build needs (excluding the Rust blockers
+  `rolldown` / `lightningcss` that fall through to D-2 research).
+  Tracked in STATUS.md "Integration Test Coverage → minify-xml".
+
 ## [0.3.21](https://github.com/gjsify/gjsify/compare/v0.3.20...v0.3.21) (2026-05-08)
 
 ### Bug Fixes
