@@ -14,11 +14,35 @@ import { WebGLVertexArrayObject } from './webgl-vertex-array-object.js';
 import { WebGLUniformLocation } from './webgl-uniform-location.js';
 import { WebGLActiveInfo } from './webgl-active-info.js';
 import { WebGLProgram as OurWebGLProgram } from './webgl-program.js';
+import { WebGLBuffer as OurWebGLBuffer } from './webgl-buffer.js';
 import { WebGLTexture } from './webgl-texture.js';
 import { WebGLRenderbuffer } from './webgl-renderbuffer.js';
 import { WebGLFramebuffer } from './webgl-framebuffer.js';
 import { Uint8ArrayToVariant, arrayToUint8Array, vertexCount, convertPixels, extractImageData, checkObject, premultiplyAlpha } from './utils.js';
 import { warnNotImplemented } from '@gjsify/utils';
+
+/** Internal debug counters attached to the context instance — opt-in via `globalThis.__GJSIFY_DEBUG_GL = true`. */
+interface DebugCounters {
+    __drawInstCount?: number;
+    __blitCount?: number;
+}
+
+/**
+ * `clearBuffer{fv,iv,uiv,fi}` only ship in newer Vala bindings of `Gwebgl.WebGL2RenderingContext`.
+ * The static GIR types may not include them yet; we feature-detect at runtime, so accept
+ * "either present or absent" without falling back to `as any`.
+ */
+interface OptionalClearBufferNative {
+    clearBufferfv?(buffer: GLenum, drawbuffer: GLint, values: number[]): void;
+    clearBufferiv?(buffer: GLenum, drawbuffer: GLint, values: number[]): void;
+    clearBufferuiv?(buffer: GLenum, drawbuffer: GLint, values: number[]): void;
+    clearBufferfi?(buffer: GLenum, drawbuffer: GLint, depth: number, stencil: number): void;
+}
+
+/** Read the global debug flag without leaking `any` into call sites. */
+function debugGlEnabled(): boolean {
+    return (globalThis as { __GJSIFY_DEBUG_GL?: boolean }).__GJSIFY_DEBUG_GL === true;
+}
 
 export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2RenderingContext {
 
@@ -178,11 +202,11 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             target === 0x8F37 /* COPY_WRITE_BUFFER */;
         if (isWebGL2Target) {
             // Bypass WebGL1 validation that only accepts ARRAY_BUFFER/ELEMENT_ARRAY_BUFFER.
-            const id = buffer ? (buffer as any)._ | 0 : 0;
+            const id = buffer ? (buffer as unknown as OurWebGLBuffer)._ | 0 : 0;
             this._gl.bindBuffer(target, id);
             return;
         }
-        super.bindBuffer(target, buffer as any);
+        super.bindBuffer(target, buffer as unknown as OurWebGLBuffer);
     }
 
     /**
@@ -259,13 +283,16 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             if (typeof dataOrSize === 'number') {
                 if (dataOrSize >= 0) this._gl.bufferDataSizeOnly(target, dataOrSize, remappedUsage);
             } else if (dataOrSize !== null && typeof dataOrSize === 'object') {
-                const u8Data = arrayToUint8Array(dataOrSize as any);
+                const u8Data = arrayToUint8Array(dataOrSize as Uint8Array | DataView | ArrayBuffer);
                 this._gl.bufferData(target, Uint8ArrayToVariant(u8Data), remappedUsage);
             }
             return;
         }
 
-        super.bufferData(target, dataOrSize as any, remappedUsage);
+        // Both overloads of `super.bufferData` exist on the prototype; we know
+        // either branch (size:number / data:BufferSource) is valid, so dispatch through
+        // the size overload — TS demands one signature.
+        super.bufferData(target, dataOrSize as BufferSource, remappedUsage);
     }
 
     /** WebGL2 adds UNIFORM_BUFFER, TRANSFORM_FEEDBACK_BUFFER, COPY_READ/WRITE targets. */
@@ -277,7 +304,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         if (isWebGL2Target) {
             if (offset < 0) { this.setError(this.INVALID_VALUE); return; }
             if (!data) { this.setError(this.INVALID_VALUE); return; }
-            const u8Data = arrayToUint8Array(data as any);
+            const u8Data = arrayToUint8Array(data as Uint8Array | DataView | ArrayBuffer);
             this._gl.bufferSubData(target, offset, Uint8ArrayToVariant(u8Data));
             return;
         }
@@ -288,12 +315,13 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     override bindTexture(target: GLenum, texture: WebGLTexture | null): void {
         if (target === 0x806F /* TEXTURE_3D */ || target === 0x8C1A /* TEXTURE_2D_ARRAY */) {
             // Bypass WebGL1 _validTextureTarget check and call native directly.
-            const id = texture ? (texture as any)._ | 0 : 0;
+            const ourTex = texture as unknown as WebGLTexture | null;
+            const id = ourTex ? ourTex._ | 0 : 0;
             this._gl.bindTexture(target, id);
-            if (texture) (texture as any)._binding = target;
+            if (ourTex) ourTex._binding = target;
             return;
         }
-        super.bindTexture(target, texture);
+        super.bindTexture(target, texture as unknown as WebGLTexture | null);
     }
 
     /** WebGL2 adds TEXTURE_3D/TEXTURE_2D_ARRAY targets and many new pnames. */
@@ -604,11 +632,11 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     // ─── Indexed Buffer Binding ───────────────────────────────────────────
 
     bindBufferBase(target: GLenum, index: GLuint, buffer: WebGLBuffer | null): void {
-        this._native2.bindBufferBase(target, index, buffer ? (buffer as any)._ : 0);
+        this._native2.bindBufferBase(target, index, buffer ? (buffer as unknown as OurWebGLBuffer)._ : 0);
     }
 
     bindBufferRange(target: GLenum, index: GLuint, buffer: WebGLBuffer | null, offset: GLintptr, size: GLsizeiptr): void {
-        this._native2.bindBufferRange(target, index, buffer ? (buffer as any)._ : 0, offset, size);
+        this._native2.bindBufferRange(target, index, buffer ? (buffer as unknown as OurWebGLBuffer)._ : 0, offset, size);
     }
 
     copyBufferSubData(readTarget: GLenum, writeTarget: GLenum, readOffset: GLintptr, writeOffset: GLintptr, size: GLsizeiptr): void {
@@ -618,7 +646,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     getBufferSubData(target: GLenum, srcByteOffset: GLintptr, dstBuffer: ArrayBufferView, dstOffset?: GLuint, length?: GLuint): void {
         const byteLength = length !== undefined ? length : dstBuffer.byteLength - (dstOffset ?? 0);
         const data = this._native2.getBufferSubData(target, srcByteOffset, byteLength);
-        const dst = new Uint8Array(dstBuffer.buffer, dstBuffer.byteOffset + (dstOffset ?? 0) * (dstBuffer instanceof Uint8Array ? 1 : (dstBuffer as any).BYTES_PER_ELEMENT ?? 1));
+        const dst = new Uint8Array(dstBuffer.buffer, dstBuffer.byteOffset + (dstOffset ?? 0) * (dstBuffer instanceof Uint8Array ? 1 : (dstBuffer as { BYTES_PER_ELEMENT?: number }).BYTES_PER_ELEMENT ?? 1));
         dst.set(data.subarray(0, dst.byteLength));
     }
 
@@ -830,7 +858,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     }
 
     framebufferTextureLayer(target: GLenum, attachment: GLenum, texture: WebGLTexture | null, level: GLint, layer: GLint): void {
-        this._native2.framebufferTextureLayer(target, attachment, texture ? (texture as any)._ : 0, level, layer);
+        this._native2.framebufferTextureLayer(target, attachment, texture ? (texture as unknown as WebGLTexture)._ : 0, level, layer);
     }
 
     // ─── Instancing & Advanced Draw ───────────────────────────────────────
@@ -843,9 +871,10 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         if (!this._framebufferOk()) return;
         if (count === 0 || instanceCount === 0) return;
         if (!this._checkVertexAttribState((count + first - 1) >>> 0)) return;
-        if ((globalThis as any).__GJSIFY_DEBUG_GL) {
-            const n = (this as any).__drawInstCount = ((this as any).__drawInstCount | 0) + 1;
-            if (n <= 5 || n % 100 === 0) console.log(`[WebGL] drawArraysInstanced #${n} count=${rc} instances=${instanceCount} fbo=${(this._activeFramebuffer as any)?._ ?? '_gtkFbo'}`);
+        if (debugGlEnabled()) {
+            const dbg = this as DebugCounters;
+            const n = dbg.__drawInstCount = (dbg.__drawInstCount | 0) + 1;
+            if (n <= 5 || n % 100 === 0) console.log(`[WebGL] drawArraysInstanced #${n} count=${rc} instances=${instanceCount} fbo=${this._activeFramebuffer?._ ?? '_gtkFbo'}`);
         }
         this._native2.drawArraysInstanced(mode, first, rc, instanceCount);
     }
@@ -937,16 +966,17 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     }
 
     blitFramebuffer(srcX0: GLint, srcY0: GLint, srcX1: GLint, srcY1: GLint, dstX0: GLint, dstY0: GLint, dstX1: GLint, dstY1: GLint, mask: GLbitfield, filter: GLenum): void {
-        if ((globalThis as any).__GJSIFY_DEBUG_GL) {
+        if (debugGlEnabled()) {
             // Check GL error before blit to isolate issues
             const errBefore = this._gl.getError();
             if (errBefore !== 0) console.log(`[WebGL] blitFramebuffer PRE-ERROR 0x${errBefore.toString(16)}`);
         }
         this._native2.blitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
-        if ((globalThis as any).__GJSIFY_DEBUG_GL) {
+        if (debugGlEnabled()) {
             const err = this._gl.getError();
-            const n = (this as any).__blitCount = ((this as any).__blitCount | 0) + 1;
-            if (n <= 5) console.log(`[WebGL] blitFramebuffer #${n} src=(${srcX0},${srcY0},${srcX1},${srcY1}) readFbo=${(this._activeReadFramebuffer as any)?._  ?? '_gtkFbo'} err=${err === 0 ? 'OK' : '0x' + err.toString(16)}`);
+            const dbg = this as DebugCounters;
+            const n = dbg.__blitCount = (dbg.__blitCount | 0) + 1;
+            if (n <= 5) console.log(`[WebGL] blitFramebuffer #${n} src=(${srcX0},${srcY0},${srcX1},${srcY1}) readFbo=${this._activeReadFramebuffer?._ ?? '_gtkFbo'} err=${err === 0 ? 'OK' : '0x' + err.toString(16)}`);
         }
     }
 
@@ -964,7 +994,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     //   DEPTH_STENCIL = 0x84F9
 
     clearBufferfv(buffer: GLenum, drawbuffer: GLint, values: Float32List, _srcOffset?: GLuint): void {
-        const n2 = this._native2 as any;
+        const n2 = this._native2 as Gwebgl.WebGL2RenderingContext & OptionalClearBufferNative;
         if (typeof n2.clearBufferfv === 'function') {
             n2.clearBufferfv(buffer, drawbuffer, Array.from(values) as number[]);
             return;
@@ -984,7 +1014,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     }
 
     clearBufferiv(buffer: GLenum, drawbuffer: GLint, values: Int32List, _srcOffset?: GLuint): void {
-        const n2 = this._native2 as any;
+        const n2 = this._native2 as Gwebgl.WebGL2RenderingContext & OptionalClearBufferNative;
         if (typeof n2.clearBufferiv === 'function') {
             n2.clearBufferiv(buffer, drawbuffer, Array.from(values) as number[]);
             return;
@@ -1000,7 +1030,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     }
 
     clearBufferuiv(buffer: GLenum, drawbuffer: GLint, values: Uint32List, _srcOffset?: GLuint): void {
-        const n2 = this._native2 as any;
+        const n2 = this._native2 as Gwebgl.WebGL2RenderingContext & OptionalClearBufferNative;
         if (typeof n2.clearBufferuiv === 'function') {
             n2.clearBufferuiv(buffer, drawbuffer, Array.from(values) as number[]);
             return;
@@ -1011,7 +1041,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     }
 
     clearBufferfi(buffer: GLenum, drawbuffer: GLint, depth: GLfloat, stencil: GLint): void {
-        const n2 = this._native2 as any;
+        const n2 = this._native2 as Gwebgl.WebGL2RenderingContext & OptionalClearBufferNative;
         if (typeof n2.clearBufferfi === 'function') {
             n2.clearBufferfi(buffer, drawbuffer, depth, stencil);
             return;
@@ -1046,7 +1076,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             this.setError(this.INVALID_ENUM);
             return;
         }
-        const renderbuffer = (this as any)._activeRenderbuffer as WebGLRenderbuffer | null;
+        const renderbuffer = this._activeRenderbuffer;
         if (!renderbuffer) {
             this.setError(this.INVALID_OPERATION);
             return;
@@ -1152,14 +1182,19 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     // ─── getUniform — WebGL2 uint type support ────────────────────────────
 
     /** WebGL1 getUniform falls to default:null for UNSIGNED_INT types. Handle them here. */
-    override getUniform(program: WebGLProgram, location: WebGLUniformLocation): any {
-        const type = (location as any)?._activeInfo?.type;
+    override getUniform(program: WebGLProgram, location: WebGLUniformLocation): unknown {
+        const type = location?._activeInfo?.type;
         const UINT = 0x1405, UVEC2 = 0x8DC6, UVEC3 = 0x8DC7, UVEC4 = 0x8DC8;
         const isUintType = type === UINT || type === UVEC2 || type === UVEC3 || type === UVEC4;
-        if (!isUintType) return super.getUniform(program as any, location);
+        const ourProgram = program as unknown as OurWebGLProgram;
+        if (!isUintType) return super.getUniform(ourProgram, location);
         // Use getUniformiv (glGetUniformiv converts uint→int, exact for values < 2^31)
         if (!program || !location) return null;
-        const data = (this._gl as any).getUniformi((program as any)._ | 0, (location as any)._ | 0);
+        // `getUniformi` is exposed by the WebGL2 native binding; the WebGL1 GIR shape
+        // (Gwebgl.WebGLRenderingContextBase) doesn't list it, so widen the cast through
+        // the WebGL2 native handle instead of `any`.
+        const data = (this._native2 as Gwebgl.WebGL2RenderingContext & { getUniformi(p: number, l: number): number[] | null })
+            .getUniformi(ourProgram._ | 0, location._ | 0);
         if (!data) return null;
         if (type === UINT) return data[0] >>> 0;
         if (type === UVEC2) return new Uint32Array([data[0] >>> 0, data[1] >>> 0]);
@@ -1293,7 +1328,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             this.setError(this.INVALID_ENUM);
             return;
         }
-        const renderbuffer = (this as any)._activeRenderbuffer as WebGLRenderbuffer | null;
+        const renderbuffer = this._activeRenderbuffer;
         if (!renderbuffer) {
             this.setError(this.INVALID_OPERATION);
             return;
@@ -1312,7 +1347,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         renderbuffer._height = height;
         renderbuffer._format = internalFormat;
 
-        const activeFramebuffer = (this as any)._activeFramebuffer;
+        const activeFramebuffer = this._activeFramebuffer;
         if (activeFramebuffer) {
             const attachments = this._getAttachments();
             let needsUpdate = false;
@@ -1375,7 +1410,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         // _native.readPixels returns the data written by glReadPixels
         // (GLib.Variant is a copy so glReadPixels writes into the Vala-side buffer;
         //  the return value is the only way to get the data back)
-        const src = (result && (result as any).length > 0) ? result as Uint8Array : pixelData;
+        const src: Uint8Array = (result && result.length > 0) ? result : pixelData;
         if (pixels instanceof Uint8Array) {
             pixels.set(src);
         } else if (pixels instanceof Float32Array) {
