@@ -9,7 +9,31 @@
 
 import { SubtleCrypto } from './subtle.js';
 import { CryptoKey } from './crypto-key.js';
-export type { CryptoKeyPair, KeyUsage, KeyAlgorithm, KeyType } from './crypto-key.js';
+export type {
+  CryptoKeyPair,
+  KeyUsage,
+  KeyAlgorithm,
+  KeyType,
+  AesKeyAlgorithm,
+  HmacKeyAlgorithm,
+  EcKeyAlgorithm,
+  RsaHashedKeyAlgorithm,
+  AesKeyGenParams,
+  HmacKeyGenParams,
+  EcKeyGenParams,
+  HmacImportParams,
+  EcKeyImportParams,
+  AesCbcParams,
+  AesCtrParams,
+  AesGcmParams,
+  RsaOaepParams,
+  EcdsaParams,
+  RsaPssParams,
+  Pbkdf2Params,
+  HkdfParams,
+  EcdhKeyDeriveParams,
+  AlgorithmIdentifier,
+} from './crypto-key.js';
 
 // Save reference to native crypto BEFORE any overwriting to avoid recursion
 const _nativeCrypto = typeof globalThis.crypto !== 'undefined' ? globalThis.crypto : null;

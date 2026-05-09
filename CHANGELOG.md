@@ -121,6 +121,72 @@
 
 ### Refactoring
 
+* **http (2026-05-09):** type-safety pass on
+  `packages/node/http/src/index.spec.ts` (Workstream K). `as any`
+  reduced from 50 → 0 (one comment-only mention of the term remains in
+  the file header explaining the strategy). Same hybrid pattern as
+  Workstream G (`@gjsify/http2`): the spec is cross-platform and runs
+  in both the Node and GJS test bundles, so the runtime source stays
+  `import http from 'node:http'` — a direct
+  `import { … } from '@gjsify/http'` would drag `gi://Soup/Gio/GLib`
+  into the Node bundle and crash it at load. Impl-private symbols
+  (`OutgoingMessage`, `IncomingMessage`, `Agent`, `validateHeaderName`,
+  `validateHeaderValue`, `setMaxIdleHTTPParsers`) come in via
+  `import type { … } from '@gjsify/http'` (stripped at compile time)
+  and are exposed through a single `gjsHttp = http as unknown as
+  Omit<typeof http, …> & { … }` boundary cast at the top of the file.
+  Replacements: `(http as any).OutgoingMessage`/`setMaxIdleHTTPParsers`/
+  `validateHeaderName`/`validateHeaderValue` → `gjsHttp.<name>`;
+  `new (http.IncomingMessage as any)(null)` (15×) →
+  `new gjsHttp.IncomingMessage(null)` (constructor typed as
+  `(socket?: unknown) => IncomingMessage` to model the GJS impl's
+  zero-arg constructor); `(agent as any).protocol`/`maxFreeSockets`/
+  `keepAliveMsecs`/`keepAlive` → bare property access on
+  `new gjsHttp.Agent()`; `(http.globalAgent as any).protocol` →
+  `gjsHttp.globalAgent.protocol`; `(res as any).appendHeader`/
+  `writeContinue`/`flushHeaders` → bare method calls (these are
+  already in `@types/node`'s `ServerResponse`, so the casts were dead
+  weight). One `100 as any` (negative-test for `validateHeaderName`)
+  tightened to `100 as unknown as string`. Two `catch (error: any)`
+  blocks reduced to bare `catch (error)`. No new exports from
+  `@gjsify/http` were needed — every symbol was already exported. All
+  1040 Node tests + 1038 GJS tests green (unchanged baseline). Pure
+  type-safety; no runtime change. Hygiene check: `dist/test.node.mjs`
+  contains zero `gi://` imports.
+
+* **webcrypto (2026-05-09):** type-safety pass on
+  `packages/web/webcrypto/src/index.spec.ts` (Workstream M). `as any`
+  reduced from 26 → 0. Pattern-(a) algorithm narrowings — `(key.algorithm
+  as any).length` / `.hash.name` / `.namedCurve` (19 occurrences) — now
+  use the impl-side `AesKeyAlgorithm` / `HmacKeyAlgorithm` /
+  `EcKeyAlgorithm` interfaces, type-only-imported from `@gjsify/webcrypto`
+  (Rule 2b — the spec is cross-platform and runs in the Node bundle, so a
+  runtime `import { … } from '@gjsify/webcrypto'` would drag GJS-only
+  `@girs/*` code in via `subtle.ts`'s `import('crypto')` path; type-only
+  imports are erased at compile time). Three `getRandomValues(<invalid>
+  as any)` casts on `Float32Array` / `Float64Array` / `DataView` retyped
+  to `as unknown as ArrayBufferView<ArrayBuffer>` (preserves the
+  intentional invalid-input test). Two `KeyUsage[]` casts (`['encrypt']
+  as any` for HMAC, `['sign'] as any` for AES) tightened to `as unknown
+  as KeyUsage[]`. The five remaining `as any`s on first arguments to
+  `generateKey({ name: 'CHACHA20' } as any, …)` / `{ name: 'AES-CBC',
+  length: 100 } as any` / `'pkcs8' as any` were dead weight — the public
+  signatures (`AlgorithmIdentifier = string | { name: string; [key:
+  string]: unknown }`, `format: 'raw' | 'jwk' | 'pkcs8' | 'spki'`)
+  already accept these shapes, so the casts were stripped entirely. New
+  type-only re-exports from `packages/web/webcrypto/src/index.ts`:
+  `AesKeyAlgorithm`, `HmacKeyAlgorithm`, `EcKeyAlgorithm`,
+  `RsaHashedKeyAlgorithm`, plus the full set of algorithm-parameter
+  interfaces (`AesKeyGenParams`, `HmacKeyGenParams`, `EcKeyGenParams`,
+  `HmacImportParams`, `EcKeyImportParams`, `AesCbcParams`, `AesCtrParams`,
+  `AesGcmParams`, `RsaOaepParams`, `EcdsaParams`, `RsaPssParams`,
+  `Pbkdf2Params`, `HkdfParams`, `EcdhKeyDeriveParams`,
+  `AlgorithmIdentifier`) — these were already declared in `crypto-key.ts`
+  but only `KeyAlgorithm` / `KeyUsage` / `KeyType` / `CryptoKeyPair` were
+  re-exported from the package root. All 486 tests green on Node, all
+  GJS tests green (unchanged baseline). Pure type-safety; no runtime
+  change.
+
 * **readline (2026-05-09):** type-safety pass on
   `packages/node/readline/src/index.ts` (Workstream L). `as any`
   reduced from 26 → 0 in production source. New internal-only
