@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, on } from '@gjsify/unit';
 
-import { WebGL2RenderingContext as OurWebGL2RenderingContext, WebGLBridge } from '@gjsify/webgl';
+import { WebGL2RenderingContext as OurWebGL2RenderingContext, WebGLBridge, HTMLCanvasElement as OurHTMLCanvasElement, OESTextureHalfFloat } from '@gjsify/webgl';
 import { makeProgram, drawTriangle, readPixel, pixelClose,
          makeTestFBO, destroyTestFBO, makeTestFBOWithDepth,
          makeTestFBOFloat, makeTestFBOWithDepthTexture,
@@ -29,7 +29,10 @@ export default async () => {
 		glArea = new WebGLBridge();
 		glArea.onReady((c, _g) => {
 			// Ask the canvas for a WebGL2 context instead of the default WebGL1
-			gl2 = (c as any).getContext('webgl2') as WebGL2RenderingContext;
+			// `c` is typed as DOM `globalThis.HTMLCanvasElement` by the bridge callback,
+			// but at runtime it is our GTK-backed `OurHTMLCanvasElement`. Reach the
+			// concrete getContext('webgl2') overload via the impl class.
+			gl2 = (c as unknown as OurHTMLCanvasElement).getContext('webgl2') as WebGL2RenderingContext;
 			readyLoop.quit();
 		});
 
@@ -678,9 +681,9 @@ export default async () => {
 			});
 
 			await it('OES_texture_half_float exposes HALF_FLOAT_OES constant', async () => {
-				const ext = gl2.getExtension('OES_texture_half_float') as any;
+				const ext = gl2.getExtension('OES_texture_half_float') as unknown as OESTextureHalfFloat | null;
 				expect(ext).toBeTruthy();
-				expect(ext.HALF_FLOAT_OES).toBe(0x8D61);
+				expect(ext!.HALF_FLOAT_OES).toBe(0x8D61);
 			});
 		});
 

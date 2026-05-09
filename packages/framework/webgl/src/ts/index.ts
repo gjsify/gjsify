@@ -31,3 +31,17 @@ export * from './webgl-texture-unit.js';
 export * from './webgl-texture.js';
 export * from './webgl-uniform-location.js';
 export * from './webgl-vertex-attribute.js';
+
+// Extensions — exposed so consumers (and *.spec.ts) can use the concrete
+// extension class as a type instead of `as any` casts on getExtension() results.
+export * from './extensions/ext-blend-minmax.js';
+export * from './extensions/ext-color-buffer-float.js';
+export * from './extensions/ext-color-buffer-half-float.js';
+export * from './extensions/ext-texture-filter-anisotropic.js';
+export * from './extensions/oes-element-index-unit.js';
+export * from './extensions/oes-standard-derivatives.js';
+export * from './extensions/oes-texture-float-linear.js';
+export * from './extensions/oes-texture-float.js';
+export * from './extensions/oes-texture-half-float.js';
+export * from './extensions/stackgl-destroy-context.js';
+export * from './extensions/stackgl-resize-drawing-buffer.js';
