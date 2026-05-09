@@ -90,6 +90,13 @@ export interface SpawnOptions {
   shell?: string | boolean;
   timeout?: number;
   killSignal?: string | number;
+  /**
+   * Allows aborting the child process via an `AbortController`. When the
+   * signal fires, the child is killed with `killSignal` (default `SIGTERM`)
+   * and an `error` event with `name: 'AbortError'` is emitted.
+   * Reference: https://nodejs.org/api/child_process.html#child_processspawncommand-args-options
+   */
+  signal?: AbortSignal;
 }
 
 export interface SpawnSyncResult {
@@ -403,6 +410,33 @@ export function spawn(command: string, args?: string[], options?: SpawnOptions):
     const stderrPipe = proc.get_stderr_pipe();
     if (stderrPipe) child.stderr = new GioInputStreamReadable(stderrPipe);
 
+    // AbortSignal wiring — the documented Node behavior is to kill the
+    // child on abort (with `killSignal` if provided) and emit an `error`
+    // event whose `name` is `'AbortError'`. We register `{ once: true }`
+    // because the listener is no longer interesting after either abort
+    // OR child-exit, and we explicitly remove it from the exit handler so
+    // a late abort never fires after the child is already gone.
+    const abortSignal = options?.signal;
+    let onAbort: (() => void) | null = null;
+    const emitAbortError = () => {
+      const killSig = options?.killSignal ?? 'SIGTERM';
+      child.kill(killSig);
+      const err = new Error('The operation was aborted');
+      err.name = 'AbortError';
+      child.emit('error', err);
+    };
+    if (abortSignal) {
+      if (abortSignal.aborted) {
+        // Already aborted before spawn returned — kill + emit AbortError on
+        // the next microtask so subscribers attached after `spawn()` returns
+        // still receive the event (matches Node's documented behaviour).
+        queueMicrotask(emitAbortError);
+      } else {
+        onAbort = emitAbortError;
+        abortSignal.addEventListener('abort', onAbort, { once: true });
+      }
+    }
+
     ensureMainLoop();
     proc.wait_async(null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
       try {
@@ -411,6 +445,9 @@ export function spawn(command: string, args?: string[], options?: SpawnOptions):
         const signal = proc.get_if_signaled() ? 'SIGTERM' : null;
         child.exitCode = exitStatus;
         child.signalCode = signal;
+        if (abortSignal && onAbort) {
+          abortSignal.removeEventListener('abort', onAbort);
+        }
         child.emit('exit', exitStatus, signal);
         child.emit('close', exitStatus, signal);
       } catch (err: unknown) {
