@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/declarations.d.ts",
+        "src/parser.spec.ts",
+        "src/options.spec.ts",
+        "src/commands.spec.ts",
+        "src/help.spec.ts",
+        "src/esm.spec.ts"
+    ]
+}
