@@ -91,7 +91,7 @@ export default async () => {
       const compressed = await new Promise<Buffer>((resolve, reject) => {
         gzip(input, (err, result) => {
           if (err) reject(err);
-          else resolve(result as unknown as Buffer);
+          else resolve(result);
         });
       });
       expect(compressed.length > 0).toBeTruthy();
@@ -100,7 +100,7 @@ export default async () => {
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
         gunzip(compressed, (err, result) => {
           if (err) reject(err);
-          else resolve(result as unknown as Buffer);
+          else resolve(result);
         });
       });
       expect(new TextDecoder().decode(decompressed)).toBe('Hello, World!');
@@ -109,10 +109,10 @@ export default async () => {
     await it('should handle Unicode content', async () => {
       const input = Buffer.from('Héllo Wörld! 日本語テスト 🎉');
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        gzip(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gzip(input, (err, result) => err ? reject(err) : resolve(result));
       });
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(new TextDecoder().decode(decompressed)).toBe('Héllo Wörld! 日本語テスト 🎉');
     });
@@ -125,13 +125,13 @@ export default async () => {
       const input = Buffer.from(str);
 
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        gzip(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gzip(input, (err, result) => err ? reject(err) : resolve(result));
       });
       // Compressed should be smaller than input for repetitive data
       expect(compressed.length).toBeLessThan(input.length);
 
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(new TextDecoder().decode(decompressed)).toBe(str);
     });
@@ -139,10 +139,10 @@ export default async () => {
     await it('should handle string input directly', async () => {
       const input = 'String input test';
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        gzip(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gzip(input, (err, result) => err ? reject(err) : resolve(result));
       });
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(new TextDecoder().decode(decompressed)).toBe('String input test');
     });
@@ -153,12 +153,12 @@ export default async () => {
     await it('should compress and decompress', async () => {
       const input = Buffer.from('Deflate test data');
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        deflate(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        deflate(input, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(compressed.length > 0).toBeTruthy();
 
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        inflate(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        inflate(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(new TextDecoder().decode(decompressed)).toBe('Deflate test data');
     });
@@ -166,10 +166,10 @@ export default async () => {
     await it('should produce different output than gzip for same input', async () => {
       const input = Buffer.from('Compare formats');
       const gzipped = await new Promise<Buffer>((resolve, reject) => {
-        gzip(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gzip(input, (err, result) => err ? reject(err) : resolve(result));
       });
       const deflated = await new Promise<Buffer>((resolve, reject) => {
-        deflate(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        deflate(input, (err, result) => err ? reject(err) : resolve(result));
       });
       // Gzip has a header, so typically longer than deflate for small data
       expect(gzipped.length !== deflated.length).toBeTruthy();
@@ -181,12 +181,12 @@ export default async () => {
     await it('should compress and decompress', async () => {
       const input = Buffer.from('Raw deflate data');
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        deflateRaw(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        deflateRaw(input, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(compressed.length > 0).toBeTruthy();
 
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        inflateRaw(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        inflateRaw(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(new TextDecoder().decode(decompressed)).toBe('Raw deflate data');
     });
@@ -194,10 +194,10 @@ export default async () => {
     await it('should produce smaller output than deflate (no zlib header)', async () => {
       const input = Buffer.from('Compare raw vs zlib wrapped');
       const deflated = await new Promise<Buffer>((resolve, reject) => {
-        deflate(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        deflate(input, (err, result) => err ? reject(err) : resolve(result));
       });
       const rawDeflated = await new Promise<Buffer>((resolve, reject) => {
-        deflateRaw(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        deflateRaw(input, (err, result) => err ? reject(err) : resolve(result));
       });
       // Raw should be slightly smaller (no 2-byte header + 4-byte checksum)
       expect(rawDeflated.length).toBeLessThan(deflated.length);
@@ -209,10 +209,10 @@ export default async () => {
     await it('should handle empty buffer with gzip', async () => {
       const input = Buffer.alloc(0);
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        gzip(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gzip(input, (err, result) => err ? reject(err) : resolve(result));
       });
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(decompressed.length).toBe(0);
     });
@@ -220,10 +220,10 @@ export default async () => {
     await it('should handle empty buffer with deflate', async () => {
       const input = Buffer.alloc(0);
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        deflate(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        deflate(input, (err, result) => err ? reject(err) : resolve(result));
       });
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        inflate(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        inflate(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(decompressed.length).toBe(0);
     });
@@ -231,10 +231,10 @@ export default async () => {
     await it('should handle empty buffer with deflateRaw', async () => {
       const input = Buffer.alloc(0);
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        deflateRaw(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        deflateRaw(input, (err, result) => err ? reject(err) : resolve(result));
       });
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        inflateRaw(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        inflateRaw(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(decompressed.length).toBe(0);
     });
@@ -247,10 +247,10 @@ export default async () => {
       for (let i = 0; i < 256; i++) input[i] = i;
 
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        gzip(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gzip(input, (err, result) => err ? reject(err) : resolve(result));
       });
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(decompressed.length).toBe(256);
       for (let i = 0; i < 256; i++) {
@@ -264,10 +264,10 @@ export default async () => {
     await it('should accept options as second parameter for gzip', async () => {
       const input = Buffer.from('options test');
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        gzip(input, {}, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gzip(input, {}, (err, result) => err ? reject(err) : resolve(result));
       });
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(new TextDecoder().decode(decompressed)).toBe('options test');
     });
@@ -275,10 +275,10 @@ export default async () => {
     await it('should accept options as second parameter for deflate', async () => {
       const input = Buffer.from('options test deflate');
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        deflate(input, {}, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        deflate(input, {}, (err, result) => err ? reject(err) : resolve(result));
       });
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        inflate(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        inflate(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(new TextDecoder().decode(decompressed)).toBe('options test deflate');
     });
@@ -289,7 +289,7 @@ export default async () => {
     await it('should fail to inflate gzipped data', async () => {
       const input = Buffer.from('gzip data');
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        gzip(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gzip(input, (err, result) => err ? reject(err) : resolve(result));
       });
       // Try to inflate (zlib format) data that was gzipped
       const error = await new Promise<Error | null>((resolve) => {
@@ -301,7 +301,7 @@ export default async () => {
     await it('should fail to gunzip deflated data', async () => {
       const input = Buffer.from('deflate data');
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        deflate(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        deflate(input, (err, result) => err ? reject(err) : resolve(result));
       });
       // Try to gunzip data that was deflated (zlib format)
       const error = await new Promise<Error | null>((resolve) => {
@@ -324,7 +324,7 @@ export default async () => {
     await it('should produce output starting with gzip magic bytes', async () => {
       const input = Buffer.from('magic bytes test');
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        gzip(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gzip(input, (err, result) => err ? reject(err) : resolve(result));
       });
       // Gzip magic number: 0x1f 0x8b
       expect(compressed[0]).toBe(0x1f);
@@ -337,17 +337,17 @@ export default async () => {
     await it('should handle compressing already-compressed data', async () => {
       const input = Buffer.from('double compress');
       const first = await new Promise<Buffer>((resolve, reject) => {
-        gzip(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gzip(input, (err, result) => err ? reject(err) : resolve(result));
       });
       const second = await new Promise<Buffer>((resolve, reject) => {
-        gzip(first, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gzip(first, (err, result) => err ? reject(err) : resolve(result));
       });
       // Decompress twice
       const firstDecomp = await new Promise<Buffer>((resolve, reject) => {
-        gunzip(second, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gunzip(second, (err, result) => err ? reject(err) : resolve(result));
       });
       const finalDecomp = await new Promise<Buffer>((resolve, reject) => {
-        gunzip(firstDecomp, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gunzip(firstDecomp, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(new TextDecoder().decode(finalDecomp)).toBe('double compress');
     });
@@ -387,14 +387,14 @@ export default async () => {
   // --- Sync functions should accept string input ---
   await describe('zlib: sync functions with string input', async () => {
     await it('gzipSync should accept string input', async () => {
-      const compressed = gzipSync('string input gzip' as any);
+      const compressed = gzipSync('string input gzip');
       expect(compressed.length).toBeGreaterThan(0);
       const decompressed = gunzipSync(compressed);
       expect(new TextDecoder().decode(decompressed)).toBe('string input gzip');
     });
 
     await it('deflateSync should accept string input', async () => {
-      const compressed = deflateSync('string input deflate' as any);
+      const compressed = deflateSync('string input deflate');
       expect(compressed.length).toBeGreaterThan(0);
       const decompressed = inflateSync(compressed);
       expect(new TextDecoder().decode(decompressed)).toBe('string input deflate');
@@ -548,11 +548,11 @@ export default async () => {
       expect(input.length).toBeGreaterThan(100000);
 
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        gzip(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gzip(input, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(compressed.length).toBeLessThan(input.length);
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(new TextDecoder().decode(decompressed)).toBe(str);
     });
@@ -565,10 +565,10 @@ export default async () => {
     await it('should round-trip Unicode content', async () => {
       const input = Buffer.from('Héllo Wörld! 日本語テスト 🎉 deflateRaw');
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        deflateRaw(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        deflateRaw(input, (err, result) => err ? reject(err) : resolve(result));
       });
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        inflateRaw(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        inflateRaw(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(new TextDecoder().decode(decompressed)).toBe('Héllo Wörld! 日本語テスト 🎉 deflateRaw');
     });
@@ -586,7 +586,7 @@ export default async () => {
     });
 
     await it('should handle string input with deflateRawSync', async () => {
-      const compressed = deflateRawSync('raw string input' as any);
+      const compressed = deflateRawSync('raw string input');
       const decompressed = inflateRawSync(compressed);
       expect(new TextDecoder().decode(decompressed)).toBe('raw string input');
     });
@@ -596,11 +596,11 @@ export default async () => {
       const input = Buffer.from(repeated);
 
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        deflateRaw(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        deflateRaw(input, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(compressed.length).toBeLessThan(input.length);
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        inflateRaw(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        inflateRaw(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(new TextDecoder().decode(decompressed)).toBe(repeated);
     });
@@ -608,10 +608,10 @@ export default async () => {
     await it('should accept options as second parameter', async () => {
       const input = Buffer.from('options test raw');
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        deflateRaw(input, {}, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        deflateRaw(input, {}, (err, result) => err ? reject(err) : resolve(result));
       });
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        inflateRaw(compressed, {}, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        inflateRaw(compressed, {}, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(new TextDecoder().decode(decompressed)).toBe('options test raw');
     });
@@ -767,24 +767,24 @@ export default async () => {
     await it('should accept Uint8Array input for gzip', async () => {
       const input = new TextEncoder().encode('Uint8Array gzip test');
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        gzip(input, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gzip(input, (err, result) => err ? reject(err) : resolve(result));
       });
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(new TextDecoder().decode(decompressed)).toBe('Uint8Array gzip test');
     });
 
     await it('should accept Uint8Array input for deflateSync', async () => {
       const input = new TextEncoder().encode('Uint8Array deflate sync');
-      const compressed = deflateSync(input as any);
+      const compressed = deflateSync(input);
       const decompressed = inflateSync(compressed);
       expect(new TextDecoder().decode(decompressed)).toBe('Uint8Array deflate sync');
     });
 
     await it('should accept Uint8Array input for deflateRawSync', async () => {
       const input = new TextEncoder().encode('Uint8Array raw sync');
-      const compressed = deflateRawSync(input as any);
+      const compressed = deflateRawSync(input);
       const decompressed = inflateRawSync(compressed);
       expect(new TextDecoder().decode(decompressed)).toBe('Uint8Array raw sync');
     });
@@ -817,21 +817,21 @@ export default async () => {
   await describe('zlib: sync convenience round-trip with repeated data', async () => {
     await it('gzipSync/gunzipSync with repeated string', async () => {
       const expectStr = 'blah'.repeat(8);
-      const compressed = gzipSync(expectStr as any);
+      const compressed = gzipSync(expectStr);
       const decompressed = gunzipSync(compressed);
       expect(new TextDecoder().decode(decompressed)).toBe(expectStr);
     });
 
     await it('deflateSync/inflateSync with repeated string', async () => {
       const expectStr = 'blah'.repeat(8);
-      const compressed = deflateSync(expectStr as any);
+      const compressed = deflateSync(expectStr);
       const decompressed = inflateSync(compressed);
       expect(new TextDecoder().decode(decompressed)).toBe(expectStr);
     });
 
     await it('deflateRawSync/inflateRawSync with repeated string', async () => {
       const expectStr = 'blah'.repeat(8);
-      const compressed = deflateRawSync(expectStr as any);
+      const compressed = deflateRawSync(expectStr);
       const decompressed = inflateRawSync(compressed);
       expect(new TextDecoder().decode(decompressed)).toBe(expectStr);
     });
@@ -853,10 +853,10 @@ export default async () => {
                           'ed ac sem sit amet arcu malesuada fermentum. Nunc sed. ';
 
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        deflate(inputString, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        deflate(inputString, (err, result) => err ? reject(err) : resolve(result));
       });
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        inflate(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        inflate(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(new TextDecoder().decode(decompressed)).toBe(inputString);
     });
@@ -873,10 +873,10 @@ export default async () => {
                           'ed ac sem sit amet arcu malesuada fermentum. Nunc sed. ';
 
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        gzip(inputString, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gzip(inputString, (err, result) => err ? reject(err) : resolve(result));
       });
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result as unknown as Buffer));
+        gunzip(compressed, (err, result) => err ? reject(err) : resolve(result));
       });
       expect(new TextDecoder().decode(decompressed)).toBe(inputString);
     });
@@ -943,7 +943,7 @@ export default async () => {
   await describe('zlib: truncated compressed data', async () => {
     await it('should error on truncated gzip data (sync)', async () => {
       const original = 'This is data that will be truncated after compression';
-      const compressed = gzipSync(original as any);
+      const compressed = gzipSync(original);
       const truncated = compressed.slice(0, Math.floor(compressed.length / 2));
       let threw = false;
       try {
@@ -956,7 +956,7 @@ export default async () => {
 
     await it('should error on truncated deflate data (sync)', async () => {
       const original = 'This is data that will be truncated after deflation';
-      const compressed = deflateSync(original as any);
+      const compressed = deflateSync(original);
       const truncated = compressed.slice(0, Math.floor(compressed.length / 2));
       let threw = false;
       try {
@@ -969,7 +969,7 @@ export default async () => {
 
     await it('should error on truncated deflateRaw data (sync)', async () => {
       const original = 'This is data that will be truncated after raw deflation';
-      const compressed = deflateRawSync(original as any);
+      const compressed = deflateRawSync(original);
       const truncated = compressed.slice(0, Math.floor(compressed.length / 2));
       let threw = false;
       try {
@@ -982,7 +982,7 @@ export default async () => {
 
     await it('should error on truncated gzip data (async)', async () => {
       const original = 'Async truncation test data for gzip compression';
-      const compressed = gzipSync(original as any);
+      const compressed = gzipSync(original);
       const truncated = compressed.slice(0, Math.floor(compressed.length / 2));
       const error = await new Promise<Error | null>((resolve) => {
         gunzip(truncated, (err) => resolve(err));
@@ -992,7 +992,7 @@ export default async () => {
 
     await it('should error on truncated deflate data (async)', async () => {
       const original = 'Async truncation test data for deflate compression';
-      const compressed = deflateSync(original as any);
+      const compressed = deflateSync(original);
       const truncated = compressed.slice(0, Math.floor(compressed.length / 2));
       const error = await new Promise<Error | null>((resolve) => {
         inflate(truncated, (err) => resolve(err));
@@ -1008,8 +1008,8 @@ export default async () => {
     await it('gunzipSync should decompress concatenated gzip members', async () => {
       const abc = 'abc';
       const def = 'def';
-      const abcEncoded = gzipSync(abc as any);
-      const defEncoded = gzipSync(def as any);
+      const abcEncoded = gzipSync(abc);
+      const defEncoded = gzipSync(def);
 
       const concatenated = Buffer.concat([abcEncoded, defEncoded]);
       const result = gunzipSync(concatenated);
@@ -1019,12 +1019,12 @@ export default async () => {
     await it('gunzip async should decompress concatenated gzip members', async () => {
       const abc = 'abc';
       const def = 'def';
-      const abcEncoded = gzipSync(abc as any);
-      const defEncoded = gzipSync(def as any);
+      const abcEncoded = gzipSync(abc);
+      const defEncoded = gzipSync(def);
 
       const concatenated = Buffer.concat([abcEncoded, defEncoded]);
       const result = await new Promise<Buffer>((resolve, reject) => {
-        gunzip(concatenated, (err, data) => err ? reject(err) : resolve(data as unknown as Buffer));
+        gunzip(concatenated, (err, data) => err ? reject(err) : resolve(data));
       });
       expect(new TextDecoder().decode(result)).toBe('abcdef');
     });
@@ -1033,19 +1033,19 @@ export default async () => {
   // --- Sync functions with empty string ---
   await describe('zlib: sync with empty string', async () => {
     await it('gzipSync should handle empty string', async () => {
-      const compressed = gzipSync('' as any);
+      const compressed = gzipSync('');
       const decompressed = gunzipSync(compressed);
       expect(decompressed.length).toBe(0);
     });
 
     await it('deflateSync should handle empty string', async () => {
-      const compressed = deflateSync('' as any);
+      const compressed = deflateSync('');
       const decompressed = inflateSync(compressed);
       expect(decompressed.length).toBe(0);
     });
 
     await it('deflateRawSync should handle empty string', async () => {
-      const compressed = deflateRawSync('' as any);
+      const compressed = deflateRawSync('');
       const decompressed = inflateRawSync(compressed);
       expect(decompressed.length).toBe(0);
     });
@@ -1104,7 +1104,7 @@ export default async () => {
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
         inflateRaw(compressed, (err, data) => {
           if (err) reject(err);
-          else resolve(data as unknown as Buffer);
+          else resolve(data);
         });
       });
       expect(new TextDecoder().decode(decompressed)).toBe('async inflateRaw round-trip');
@@ -1117,7 +1117,7 @@ export default async () => {
       const input = Buffer.from('mixed sync async gzip');
       const compressed = gzipSync(input);
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        gunzip(compressed, (err, data) => err ? reject(err) : resolve(data as unknown as Buffer));
+        gunzip(compressed, (err, data) => err ? reject(err) : resolve(data));
       });
       expect(new TextDecoder().decode(decompressed)).toBe('mixed sync async gzip');
     });
@@ -1125,7 +1125,7 @@ export default async () => {
     await it('should decompress sync what was compressed async (deflate)', async () => {
       const input = Buffer.from('mixed async sync deflate');
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        deflate(input, (err, data) => err ? reject(err) : resolve(data as unknown as Buffer));
+        deflate(input, (err, data) => err ? reject(err) : resolve(data));
       });
       const decompressed = inflateSync(compressed);
       expect(new TextDecoder().decode(decompressed)).toBe('mixed async sync deflate');
@@ -1134,7 +1134,7 @@ export default async () => {
     await it('should decompress sync what was compressed async (deflateRaw)', async () => {
       const input = Buffer.from('mixed async sync raw');
       const compressed = await new Promise<Buffer>((resolve, reject) => {
-        deflateRaw(input, (err, data) => err ? reject(err) : resolve(data as unknown as Buffer));
+        deflateRaw(input, (err, data) => err ? reject(err) : resolve(data));
       });
       const decompressed = inflateRawSync(compressed);
       expect(new TextDecoder().decode(decompressed)).toBe('mixed async sync raw');
@@ -1144,7 +1144,7 @@ export default async () => {
       const input = Buffer.from('mixed sync async raw');
       const compressed = deflateRawSync(input);
       const decompressed = await new Promise<Buffer>((resolve, reject) => {
-        inflateRaw(compressed, (err, data) => err ? reject(err) : resolve(data as unknown as Buffer));
+        inflateRaw(compressed, (err, data) => err ? reject(err) : resolve(data));
       });
       expect(new TextDecoder().decode(decompressed)).toBe('mixed sync async raw');
     });

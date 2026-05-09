@@ -121,7 +121,28 @@
 
 ### Refactoring
 
-<<<<<<< HEAD
+* **zlib (2026-05-09):** type-safety pass on
+  `packages/node/zlib/src/index.spec.ts` (Workstream J). `as any`
+  reduced from 20 → 0. All 20 occurrences were `gzipSync(str as
+  any)` / `deflateSync(str as any)` / `deflateRawSync(str as any)`
+  workarounds for an outdated reading of `@types/node` — the current
+  `InputType = string | ArrayBuffer | NodeJS.ArrayBufferView` already
+  accepts `string`, so the casts were dead weight obscuring the
+  actually-typed call. Same survey also stripped 55 redundant `as
+  unknown as Buffer` launderings on `Promise<Buffer>` resolves —
+  `CompressCallback`'s `result: NonSharedBuffer` is already
+  assignable to `Buffer` via Node's class hierarchy. Hybrid type-only
+  `@gjsify/zlib` import was evaluated and rejected: this spec is
+  cross-platform (loads on both Node and GJS test bundles via
+  `index.spec.ts`), and the `as any` casts were not impl-private
+  narrowing — purely incorrect casts. Net diff: 75 unsafe casts
+  removed, zero added; spec reads as straight-line typed code. All
+  53324 tests green on both Node and GJS (unchanged baseline). Node
+  bundle hygiene confirmed: no new `gi://` references introduced
+  (the single pre-existing `@girs/gjs` import comes from
+  `@gjsify/unit`'s GJS code path and is unaffected).
+
+
 * **canvas2d-core (2026-05-09):** type-safety pass on
   `packages/dom/canvas2d-core/src/canvas-rendering-context-2d.ts` (Workstream H).
   `as any` reduced from 34 → 0 in `canvas-rendering-context-2d.ts`, and from 35
