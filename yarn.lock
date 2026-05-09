@@ -3267,6 +3267,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/lightningcss-wasm@workspace:packages/infra/lightningcss-wasm":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/lightningcss-wasm@workspace:packages/infra/lightningcss-wasm"
+  dependencies:
+    "@gjsify/fs": "workspace:^"
+    "@gjsify/webcrypto": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/module@workspace:^, @gjsify/module@workspace:packages/node/module":
   version: 0.0.0-use.local
   resolution: "@gjsify/module@workspace:packages/node/module"

@@ -23,7 +23,27 @@
 
 ### Features
 
-* **lightningcss-native POC (2026-05-09):** Phase D-2 Workstream — first
+* **lightningcss-wasm POC (2026-05-09):** Phase D-2 WASM track —
+  WebAssembly bridging POC, companion to the FFI track shipped earlier
+  the same day. Adds `@gjsify/lightningcss-wasm` under
+  `packages/infra/lightningcss-wasm/`: vendors `lightningcss-wasm@1.32.0`'s
+  NAPI-on-WASM bundle (`wasm/lightningcss_node.wasm`, 15.8 MiB) + the
+  `napi-wasm@1.1.3` runtime (`src/napi-wasm.mjs`) + asyncify async
+  helper (`src/async.mjs`). Pure-JS loader (`src/index.mjs`) instantiates
+  the WASM via SpiderMonkey 140's synchronous
+  `new WebAssembly.{Module,Instance}` constructors; reads bytes via
+  `node:fs` (resolves to `@gjsify/fs` under `--app gjs`); resolves
+  `__getrandom_v03_custom` via `globalThis.crypto.getRandomValues`
+  (`@gjsify/webcrypto/register` under `--app gjs`). **No WASI shim
+  required** — napi-wasm is a pure-JS NAPI host, no
+  `wasi_snapshot_preview1` imports. Smoke tested under stock `gjs -m`:
+  cold transform of a 90-byte fixture in 0.81 ms (nesting flatten +
+  minify against `firefox >= 60`), source-map JSON output, parse-error
+  → throw with NUL-byte-safe message. Decision matrix vs the native
+  track (PR #135): native is 3-5× faster on transforms and ~960×
+  faster cold init; both produce byte-identical output — WASM stays
+  in tree as fallback for unsupported architectures.
+* **lightningcss-native POC (2026-05-09):** Phase D-2 FFI track — first
   bridging POC for the Rust-crate runtime blockers. Adds
   `@gjsify/lightningcss-native` under `packages/infra/lightningcss-native/`:
   a Vala+Rust cdylib that exposes a single
@@ -41,8 +61,7 @@
   GJS 1.88: nesting flatten for `firefox >= 60` query, minify
   (`.x{color:red;margin:0}`), source-map JSON output, parse-error →
   `GError` with NUL-byte safety. Prebuilds for linux-x86_64 only (CI
-  multi-arch + integration spec deferred to the decision-matrix
-  follow-up against the lightningcss-wasm POC).
+  multi-arch deferred).
 * **Phase D-2 audit + lightningcss submodule (2026-05-09):** new
   `docs/poc/wasi-imports.md` documents the WASM/WASI host-import
   surface for both rolldown's `wasm32-wasi-threads` binding and
