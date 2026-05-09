@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/create-filter.spec.ts",
+        "src/data-to-esm.spec.ts",
+        "src/make-legal-identifier.spec.ts",
+        "src/attach-scopes.spec.ts",
+        "src/extract-assigned-names.spec.ts"
+    ]
+}

@@ -697,6 +697,22 @@ Fixtures generated at prebuild time by `scripts/setup-fixtures.mjs` — two Type
 
 Clears two more of the 11 Phase D-1 npm runtime-deps that the future GJS-hosted `@gjsify/cli` build needs. The `@gjsify/fs` URL-path + readdir paths shipped in earlier streams (webtorrent, fast-glob) covered everything `pkg-types`/`get-tsconfig` exercise — no new pillar gaps surfaced.
 
+### @rollup/pluginutils (`tests/integration/rollup-pluginutils/`)
+
+Phase D-1 Workstream V — validates the helper toolkit consumed by `@gjsify/rolldown-plugin-gjsify` itself. **Node: 138/138 green. GJS: 138/138 green, 0 skips.** No `@gjsify/*` fixes required — `@rollup/pluginutils@^5` is pure JS over `node:path` + the picomatch glob library and runs unmodified on SpiderMonkey 140.
+
+The published `@rollup/pluginutils` tarball strips its own `test/` directory (the package.json `files` filter excludes everything outside `dist/`), so the spec files are derived from `pluginutils`'s [documented public API](https://github.com/rollup/plugins/tree/master/packages/pluginutils) rather than ported verbatim.
+
+| Suite | Node | GJS | Exercises |
+|---|---|---|---|
+| create-filter.spec.ts | ✅ (15) | ✅ (15) | `createFilter` glob/RegExp include + exclude, RegExp instances, mixed RegExp/glob arrays, exclude precedence, empty patterns, `**`-prefix patterns, `cwd` resolution |
+| data-to-esm.spec.ts | ✅ (12) | ✅ (12) | `dataToEsm` named exports + default wrapper, `preferConst`, `compact`, `objectShorthand`, illegal-key fallback, top-level array/primitive default-only, Date/RegExp/BigInt/NaN/Infinity/-0 serialization, U+2028/U+2029 escaping, custom indent |
+| make-legal-identifier.spec.ts | ✅ (8) | ✅ (8) | Identity for valid identifiers, kebab→camel, illegal-char → `_`, leading-digit prefix, reserved-word + global prefix, empty fallback, non-ASCII replacement |
+| attach-scopes.spec.ts | ✅ (9) | ✅ (9) | Root `Scope` registration, `FunctionDeclaration`/`ClassDeclaration` binding, function param scope, let/const block-scope vs var, catch-clause scope, `FunctionExpression` name, custom `propertyName`, ancestor lookups, for-loop initializer scope |
+| extract-assigned-names.spec.ts | ✅ (10) | ✅ (10) | `Identifier`, `ObjectPattern` (incl. renames + rest), `ArrayPattern` (incl. holes + RestElement), `AssignmentPattern` defaults, deeply-nested patterns, `MemberExpression` returns `[]` |
+
+Clears another of the 11 Phase D-1 npm runtime-deps the future GJS-hosted `@gjsify/cli` build needs. The picomatch transitive dep used by `createFilter` also bundles + runs cleanly on GJS — additional indirect coverage that `@gjsify/path` + the SpiderMonkey 140 RegExp surface match Node's behavior for the heavy regex paths inside `picomatch`.
+
 ## Open TODOs
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.

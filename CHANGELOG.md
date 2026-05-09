@@ -577,6 +577,28 @@
   (tracked in STATUS.md "Integration Test Coverage → pkg-types +
   get-tsconfig").
 
+* **integration-rollup-pluginutils (2026-05-09):** Phase D-1 Workstream V
+  — new `tests/integration/rollup-pluginutils/` suite
+  (`@gjsify/integration-rollup-pluginutils`, private). 5 spec files /
+  54 cases covering [`@rollup/pluginutils@^5`](https://github.com/rollup/plugins/tree/master/packages/pluginutils)
+  — the helper toolkit consumed by `@gjsify/rolldown-plugin-gjsify`
+  itself: `createFilter` (include/exclude with globs, RegExp,
+  mixed arrays, `cwd` resolution), `dataToEsm` (named exports +
+  default wrapper, `preferConst`, `compact`, `objectShorthand`,
+  Date/RegExp/BigInt/NaN/Infinity/-0/U+2028/U+2029 serialization),
+  `makeLegalIdentifier` (kebab→camel, illegal-char `_`-replace,
+  reserved/global prefix), `attachScopes` (function/class/catch/
+  block/for-init scope handling, ancestor lookups), and
+  `extractAssignedNames` (Identifier, ObjectPattern incl. renames +
+  rest, ArrayPattern incl. holes + RestElement, AssignmentPattern
+  defaults, MemberExpression `[]` fallback). Total: **138/138 green
+  on Node, 138/138 green on GJS, 0 skips.** No `@gjsify/*` fixes
+  required — pure JS over `node:path` + the picomatch glob library;
+  picomatch's heavy RegExp surface also runs unmodified on
+  SpiderMonkey 140. Clears another of the 11 Phase D-1 npm runtime-
+  deps the future GJS-hosted `@gjsify/cli` build needs (tracked in
+  STATUS.md "Integration Test Coverage → @rollup/pluginutils").
+
 ## [0.3.21](https://github.com/gjsify/gjsify/compare/v0.3.20...v0.3.21) (2026-05-08)
 
 ### Bug Fixes
