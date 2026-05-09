@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/fixtures.ts",
+        "src/basic-patterns.spec.ts",
+        "src/glob-vs-stream.spec.ts",
+        "src/cwd-and-absolute.spec.ts",
+        "src/dot-and-hidden.spec.ts",
+        "src/symlinks.spec.ts"
+    ]
+}
