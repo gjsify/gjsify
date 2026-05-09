@@ -537,4 +537,56 @@ export default async () => {
       expect(() => util.stripVTControlCharacters(42 as unknown as string)).toThrow();
     });
   });
+
+  await describe('util.aborted', async () => {
+    await it('exports a function', async () => {
+      expect(typeof util.aborted).toBe('function');
+    });
+
+    await it('resolves immediately when the signal is already aborted', async () => {
+      const ctrl = new AbortController();
+      ctrl.abort();
+      const start = Date.now();
+      await util.aborted(ctrl.signal, {});
+      expect(Date.now() - start).toBeLessThan(50);
+    });
+
+    await it('resolves once the signal aborts later', async () => {
+      const ctrl = new AbortController();
+      const promise = util.aborted(ctrl.signal, {});
+      let resolved = false;
+      promise.then(() => { resolved = true; });
+      await new Promise<void>((r) => globalThis.setTimeout(r, 10));
+      expect(resolved).toBe(false);
+      ctrl.abort();
+      await new Promise<void>((r) => globalThis.setTimeout(r, 10));
+      expect(resolved).toBe(true);
+    });
+
+    await it('returns a rejected Promise when signal is not an AbortSignal', async () => {
+      // Node returns a *rejected Promise* (not a sync throw) on bad signal.
+      let caught: unknown = null;
+      try { await util.aborted(null as unknown as AbortSignal, {}); } catch (e) { caught = e; }
+      expect(caught).toBeTruthy();
+      expect((caught as Error).name).toBe('TypeError');
+
+      caught = null;
+      try { await util.aborted({} as AbortSignal, {}); } catch (e) { caught = e; }
+      expect(caught).toBeTruthy();
+      expect((caught as Error).name).toBe('TypeError');
+    });
+
+    await it('returns a rejected Promise when resource is not a non-null object', async () => {
+      const ctrl = new AbortController();
+      let caught: unknown = null;
+      try { await util.aborted(ctrl.signal, null as unknown as object); } catch (e) { caught = e; }
+      expect(caught).toBeTruthy();
+      expect((caught as Error).name).toBe('TypeError');
+
+      caught = null;
+      try { await util.aborted(ctrl.signal, 'not-an-object' as unknown as object); } catch (e) { caught = e; }
+      expect(caught).toBeTruthy();
+      expect((caught as Error).name).toBe('TypeError');
+    });
+  });
 };
