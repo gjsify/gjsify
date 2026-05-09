@@ -8,12 +8,20 @@
 // Reference: refs/node-gst-webrtc/src/webrtc/RTCRtpSender.ts (ISC)
 // Reference: W3C WebRTC spec § 5.2
 
+import type GstNs from 'gi://Gst?version=1.0';
 import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 
 import { Gst } from './gst-init.js';
 import { getRtpCapabilities } from './rtp-capabilities.js';
 import { RTCDTMFSender } from './rtc-dtmf-sender.js';
 import { TeeMultiplexer } from './tee-multiplexer.js';
+import {
+    asValveElement,
+    asRtpPayloaderElement,
+    asCapsFilterElement,
+    asVp8EncElement,
+    type ValveElement,
+} from './internal/gst-types.js';
 import type { RTCStatsReport } from './rtc-stats-report.js';
 import type { RTCDtlsTransport } from './rtc-dtls-transport.js';
 import type { MediaStreamTrack } from './media-stream-track.js';
@@ -84,14 +92,14 @@ export class RTCRtpSender {
     private _lastParams: RTCRtpSendParameters | null = null;
 
     /** @internal GStreamer pipeline references (set by RTCPeerConnection) */
-    private _pipeline: any = null;
-    private _webrtcbin: any = null;
+    private _pipeline: GstNs.Pipeline | null = null;
+    private _webrtcbin: GstNs.Element | null = null;
     private _mlineIndex: number = -1;
-    private _elements: any[] = [];
-    private _valve: any = null;
+    private _elements: GstNs.Element[] = [];
+    private _valve: ValveElement | null = null;
     _linked = false;
     /** @internal — tee src pad if this sender uses a shared source */
-    private _teeSrcPad: any = null;
+    private _teeSrcPad: GstNs.Pad | null = null;
     /** @internal — stats callback set by RTCPeerConnection */
     _getStatsForTrack: ((track: MediaStreamTrack) => Promise<RTCStatsReport>) | null = null;
     /** @internal — set by RTCPeerConnection */
@@ -103,9 +111,13 @@ export class RTCRtpSender {
     /** @internal — back-reference for DTMF stopped/direction checks */
     _transceiver: { stopped: boolean; currentDirection: string | null } | null = null;
     /** @internal — callback to notify RTCPeerConnection when pipeline changes (cross-pipeline fix) */
-    _onPipelineChanged: ((newPipeline: any) => void) | null = null;
+    _onPipelineChanged: ((newPipeline: GstNs.Pipeline) => void) | null = null;
 
-    constructor(gstSender: GstWebRTC.WebRTCRTPSender | null, pipeline?: any, webrtcbin?: any) {
+    constructor(
+        gstSender: GstWebRTC.WebRTCRTPSender | null,
+        pipeline?: GstNs.Pipeline,
+        webrtcbin?: GstNs.Element,
+    ) {
         this._gstSender = gstSender;
         this._pipeline = pipeline ?? null;
         this._webrtcbin = webrtcbin ?? null;
@@ -143,19 +155,28 @@ export class RTCRtpSender {
     /** @internal — build the outgoing encoder chain and link to webrtcbin */
     _wirePipeline(track: MediaStreamTrack): void {
         if (this._linked || !this._pipeline || !this._webrtcbin) return;
-        const source = (track as any)._gstSource;
+        const source = track._gstSource as GstNs.Element | null;
         if (!source) return; // No GStreamer backing — nothing to wire
 
-        const trackAny = track as any;
-        let sourceForChain: any; // What to link to the valve (source directly or tee branch)
+        // MediaStreamTrack's GStreamer-backing fields are intentionally typed
+        // `any` on the track itself (they are runtime-attached by the
+        // get-user-media / VideoBridge code paths). We narrow them locally
+        // here to keep the rest of this method strongly typed.
+        const trackGst = track as MediaStreamTrack & {
+            _gstSource: GstNs.Element | null;
+            _gstPipeline: GstNs.Pipeline | null;
+            _gstTee: GstNs.Element | null;
+            _teeMultiplexer: TeeMultiplexer | null;
+        };
+        let sourceForChain: GstNs.Element | null; // source directly or null when tee branch
 
-        if (trackAny._gstTee && trackAny._gstPipeline && trackAny._gstPipeline !== this._pipeline) {
+        if (trackGst._gstTee && trackGst._gstPipeline && trackGst._gstPipeline !== this._pipeline) {
             // Source has a tee from VideoBridge (preview) in a different pipeline.
             // Instead of moving the source, we add our encoder chain elements to
             // the SOURCE's pipeline and request a new branch from its tee.
             // The webrtcbin must also move to the source pipeline.
-            const sourcePipeline = trackAny._gstPipeline;
-            const tee = trackAny._gstTee;
+            const sourcePipeline = trackGst._gstPipeline;
+            const tee = trackGst._gstTee;
 
             // Move webrtcbin to the source pipeline so everything is in one pipeline
             if (this._webrtcbin.get_parent() === this._pipeline) {
@@ -176,17 +197,17 @@ export class RTCRtpSender {
                 : tee.get_request_pad('src_%u');
             this._teeSrcPad = teeSrcPad;
             sourceForChain = null; // We'll link via pad below
-        } else if (trackAny._teeMultiplexer) {
+        } else if (trackGst._teeMultiplexer) {
             // Track already has a TeeMultiplexer (shared with another PC) — request a new branch
-            const tee = trackAny._teeMultiplexer as TeeMultiplexer;
+            const tee = trackGst._teeMultiplexer as TeeMultiplexer;
             const teeSrcPad = tee.requestSrcPad();
             this._teeSrcPad = teeSrcPad;
             sourceForChain = null; // We'll link via pad below
-        } else if (trackAny._gstPipeline && trackAny._gstPipeline !== this._pipeline) {
+        } else if (trackGst._gstPipeline && trackGst._gstPipeline !== this._pipeline) {
             // Source is in another pipeline (no tee from VideoBridge) — this is the
             // second PC using this track. Insert a tee between source and the
             // existing consumer. Move source to this pipeline and create a tee.
-            const oldPipeline = trackAny._gstPipeline;
+            const oldPipeline = trackGst._gstPipeline;
 
             // First, unlink source from its current peer (the first sender's valve)
             const sourceSrcPad = source.get_static_pad('src');
@@ -196,11 +217,11 @@ export class RTCRtpSender {
             source.set_state(Gst.State.NULL);
             oldPipeline.remove(source);
             this._pipeline.add(source);
-            trackAny._gstPipeline = this._pipeline;
+            trackGst._gstPipeline = this._pipeline;
 
             // Create tee in this pipeline
             const tee = new TeeMultiplexer(this._pipeline, source);
-            trackAny._teeMultiplexer = tee;
+            trackGst._teeMultiplexer = tee;
 
             // Reconnect the old consumer (first sender) via a tee branch
             if (oldPeer) {
@@ -214,11 +235,11 @@ export class RTCRtpSender {
             sourceForChain = null;
         } else {
             // First PC to use this track — move source directly
-            const oldPipeline = trackAny._gstPipeline;
+            const oldPipeline = trackGst._gstPipeline;
             if (oldPipeline && oldPipeline !== this._pipeline) {
                 source.set_state(Gst.State.NULL);
                 oldPipeline.remove(source);
-                trackAny._gstPipeline = this._pipeline;
+                trackGst._gstPipeline = this._pipeline;
             }
             if (source.get_parent() !== this._pipeline) {
                 this._pipeline.add(source);
@@ -227,25 +248,25 @@ export class RTCRtpSender {
         }
 
         // Valve element for Track.enabled control
-        const valve = Gst.ElementFactory.make('valve', null)!;
-        (valve as any).drop = !track.enabled;
+        const valve = asValveElement(Gst.ElementFactory.make('valve', null)!);
+        valve.drop = !track.enabled;
         this._valve = valve;
         this._pipeline.add(valve);
 
-        const elements: any[] = [valve];
-        let lastElement: any;
+        const elements: GstNs.Element[] = [valve];
+        let lastElement: GstNs.Element;
 
         if (track.kind === 'audio') {
             const convert = Gst.ElementFactory.make('audioconvert', null)!;
             const resample = Gst.ElementFactory.make('audioresample', null)!;
             const encoder = Gst.ElementFactory.make('opusenc', null)!;
-            const payloader = Gst.ElementFactory.make('rtpopuspay', null)!;
-            (payloader as any).pt = OPUS_PAYLOAD_TYPE;
+            const payloader = asRtpPayloaderElement(Gst.ElementFactory.make('rtpopuspay', null)!);
+            payloader.pt = OPUS_PAYLOAD_TYPE;
 
             // capsfilter tells webrtcbin the RTP caps immediately so createOffer
             // can generate the m=audio line without waiting for data to flow.
-            const capsfilter = Gst.ElementFactory.make('capsfilter', null)!;
-            (capsfilter as any).caps = Gst.Caps.from_string(
+            const capsfilter = asCapsFilterElement(Gst.ElementFactory.make('capsfilter', null)!);
+            capsfilter.caps = Gst.Caps.from_string(
                 `application/x-rtp,media=audio,encoding-name=OPUS,clock-rate=48000,payload=${OPUS_PAYLOAD_TYPE}`,
             );
 
@@ -269,14 +290,14 @@ export class RTCRtpSender {
             // Video
             const convert = Gst.ElementFactory.make('videoconvert', null)!;
             const scale = Gst.ElementFactory.make('videoscale', null)!;
-            const encoder = Gst.ElementFactory.make('vp8enc', null)!;
-            (encoder as any).deadline = 1; // Realtime encoding
-            (encoder as any).keyframe_max_dist = 60;
-            const payloader = Gst.ElementFactory.make('rtpvp8pay', null)!;
-            (payloader as any).pt = VP8_PAYLOAD_TYPE;
+            const encoder = asVp8EncElement(Gst.ElementFactory.make('vp8enc', null)!);
+            encoder.deadline = 1; // Realtime encoding
+            encoder.keyframe_max_dist = 60;
+            const payloader = asRtpPayloaderElement(Gst.ElementFactory.make('rtpvp8pay', null)!);
+            payloader.pt = VP8_PAYLOAD_TYPE;
 
-            const capsfilter = Gst.ElementFactory.make('capsfilter', null)!;
-            (capsfilter as any).caps = Gst.Caps.from_string(
+            const capsfilter = asCapsFilterElement(Gst.ElementFactory.make('capsfilter', null)!);
+            capsfilter.caps = Gst.Caps.from_string(
                 `application/x-rtp,media=video,encoding-name=VP8,clock-rate=90000,payload=${VP8_PAYLOAD_TYPE}`,
             );
 
@@ -321,7 +342,7 @@ export class RTCRtpSender {
 
         // Wire Track.enabled → valve.drop
         track._setEnableCallback((enabled: boolean) => {
-            if (this._valve) (this._valve as any).drop = !enabled;
+            if (this._valve) this._valve.drop = !enabled;
         });
     }
 
@@ -388,30 +409,36 @@ export class RTCRtpSender {
         if (this._track !== null && track.kind !== this._track.kind) {
             throw new TypeError('Cannot replace track with different kind');
         }
-        if (this._linked && (track as any)._gstSource) {
+        // Same narrowing as `_wirePipeline` — the GStreamer-backing fields on
+        // `MediaStreamTrack` are runtime-attached and typed `any` on the class.
+        const trackGst = track as MediaStreamTrack & {
+            _gstSource: GstNs.Element | null;
+            _gstPipeline: GstNs.Pipeline | null;
+        };
+        if (this._linked && trackGst._gstSource) {
             // Atomic source swap: old source → new source, keep rest of chain
             const oldSource = this._elements[0];
-            const newSource = (track as any)._gstSource;
+            const newSource = trackGst._gstSource;
 
             // Move new source from its pipeline
-            const oldPipeline = (track as any)._gstPipeline;
+            const oldPipeline = trackGst._gstPipeline;
             if (oldPipeline && oldPipeline !== this._pipeline) {
                 newSource.set_state(Gst.State.NULL);
                 oldPipeline.remove(newSource);
-                (track as any)._gstPipeline = this._pipeline;
+                trackGst._gstPipeline = this._pipeline;
             }
 
             // Swap: unlink old, link new
             oldSource.set_state(Gst.State.NULL);
-            oldSource.unlink(this._valve);
-            this._pipeline.remove(oldSource);
+            if (this._valve) oldSource.unlink(this._valve);
+            this._pipeline?.remove(oldSource);
 
-            this._pipeline.add(newSource);
-            newSource.link(this._valve);
+            this._pipeline?.add(newSource);
+            if (this._valve) newSource.link(this._valve);
             newSource.sync_state_with_parent();
 
             this._elements[0] = newSource;
-        } else if ((track as any)._gstSource) {
+        } else if (trackGst._gstSource) {
             this._wirePipeline(track);
         }
 
@@ -420,7 +447,7 @@ export class RTCRtpSender {
         this._track = track;
         if (this._linked) {
             track._setEnableCallback((enabled: boolean) => {
-                if (this._valve) (this._valve as any).drop = !enabled;
+                if (this._valve) this._valve.drop = !enabled;
             });
         }
     }

@@ -22,6 +22,7 @@ import {
     gstToIceGatheringState,
     w3cDirectionToGst,
 } from './gst-enum-maps.js';
+import { asWebRtcBin, asWebRtcSrcPad } from './internal/gst-types.js';
 import { DOMException } from '@gjsify/dom-exception';
 import { RTCSessionDescription, type RTCSessionDescriptionInit } from './rtc-session-description.js';
 import { RTCIceCandidate, type RTCIceCandidateInit } from './rtc-ice-candidate.js';
@@ -179,7 +180,7 @@ export class RTCPeerConnection extends EventTarget {
         // Connect via @gjsify/webrtc-native's WebrtcbinBridge — webrtcbin fires
         // its signals from the streaming thread, GJS would block direct JS
         // callbacks. The bridge hops to the main context on the C side.
-        this._bridge = new (WebrtcbinBridge as any)({ bin: this._webrtcbin });
+        this._bridge = new WebrtcbinBridge({ bin: this._webrtcbin });
         this._bridge.connect('negotiation-needed', () => this._handleNegotiationNeeded());
         this._bridge.connect('icecandidate', (_b, mlineIndex, candidate) =>
             this._handleIceCandidate(mlineIndex, candidate));
@@ -225,7 +226,7 @@ export class RTCPeerConnection extends EventTarget {
 
                 if (proto === 'stun:' || proto === 'stuns:') {
                     if (stunSet) continue; // webrtcbin supports only one STUN server
-                    (this._webrtcbin as any).stun_server = `${proto}//${hostPort}`;
+                    asWebRtcBin(this._webrtcbin).stun_server = `${proto}//${hostPort}`;
                     stunSet = true;
                 } else if (proto === 'turn:' || proto === 'turns:') {
                     if (typeof server.username !== 'string' || typeof server.credential !== 'string') {
@@ -237,7 +238,7 @@ export class RTCPeerConnection extends EventTarget {
                     try {
                         this._webrtcbin.emit('add-turn-server', turnUrl);
                     } catch {
-                        (this._webrtcbin as any).turn_server = turnUrl;
+                        asWebRtcBin(this._webrtcbin).turn_server = turnUrl;
                     }
                 } else {
                     throw new TypeError(`Unsupported ICE server protocol "${proto}"`);
@@ -251,49 +252,53 @@ export class RTCPeerConnection extends EventTarget {
         const gstPolicy = policy === 'relay'
             ? GstWebRTC.WebRTCICETransportPolicy.RELAY
             : GstWebRTC.WebRTCICETransportPolicy.ALL;
-        try { (this._webrtcbin as any).ice_transport_policy = gstPolicy; } catch { /* ignore */ }
+        try { asWebRtcBin(this._webrtcbin).ice_transport_policy = gstPolicy; } catch { /* ignore */ }
     }
 
     private _applyBundlePolicy(policy?: RTCBundlePolicy): void {
         if (!policy) return;
-        let gstPolicy: number;
+        let gstPolicy: GstWebRTC.WebRTCBundlePolicy;
         switch (policy) {
             case 'balanced':   gstPolicy = GstWebRTC.WebRTCBundlePolicy.BALANCED; break;
             case 'max-compat': gstPolicy = GstWebRTC.WebRTCBundlePolicy.MAX_COMPAT; break;
             case 'max-bundle': gstPolicy = GstWebRTC.WebRTCBundlePolicy.MAX_BUNDLE; break;
             default: return;
         }
-        try { (this._webrtcbin as any).bundle_policy = gstPolicy; } catch { /* ignore */ }
+        try { asWebRtcBin(this._webrtcbin).bundle_policy = gstPolicy; } catch { /* ignore */ }
     }
 
     // ---- Properties --------------------------------------------------------
 
     get signalingState(): RTCSignalingState {
         if (this._closed) return 'closed';
-        try { return gstToSignalingState((this._webrtcbin as any).signaling_state); }
+        try { return gstToSignalingState(asWebRtcBin(this._webrtcbin).signaling_state); }
         catch { return 'stable'; }
     }
 
     get connectionState(): RTCPeerConnectionState {
         if (this._closed) return 'closed';
-        try { return gstToConnectionState((this._webrtcbin as any).connection_state); }
+        try { return gstToConnectionState(asWebRtcBin(this._webrtcbin).connection_state); }
         catch { return 'new'; }
     }
 
     get iceConnectionState(): RTCIceConnectionState {
         if (this._closed) return 'closed';
-        try { return gstToIceConnectionState((this._webrtcbin as any).ice_connection_state); }
+        try { return gstToIceConnectionState(asWebRtcBin(this._webrtcbin).ice_connection_state); }
         catch { return 'new'; }
     }
 
     get iceGatheringState(): RTCIceGatheringState {
-        try { return gstToIceGatheringState((this._webrtcbin as any).ice_gathering_state); }
+        try { return gstToIceGatheringState(asWebRtcBin(this._webrtcbin).ice_gathering_state); }
         catch { return 'new'; }
     }
 
-    private _descProp(prop: string): RTCSessionDescription | null {
+    private _descProp(
+        prop: 'local_description' | 'remote_description'
+            | 'current_local_description' | 'current_remote_description'
+            | 'pending_local_description' | 'pending_remote_description',
+    ): RTCSessionDescription | null {
         try {
-            const desc = (this._webrtcbin as any)[prop] as GstWebRTC.WebRTCSessionDescription | null;
+            const desc = asWebRtcBin(this._webrtcbin)[prop];
             if (!desc) return null;
             return RTCSessionDescription.fromGstDesc(desc);
         } catch { return null; }
@@ -453,7 +458,11 @@ export class RTCPeerConnection extends EventTarget {
 
         let native: GstWebRTC.WebRTCDataChannel | null = null;
         try {
-            native = this._webrtcbin.emit('create-data-channel', label, gstOpts) as any;
+            // webrtcbin's `create-data-channel` is an action signal that returns
+            // a `GstWebRTCDataChannel`. The GIR-generated `emit()` overloads
+            // declare a `void` return for action signals, but at runtime the
+            // value flows back. Cast through `unknown` to acknowledge the gap.
+            native = this._webrtcbin.emit('create-data-channel', label, gstOpts) as unknown as GstWebRTC.WebRTCDataChannel | null;
         } catch (err: any) {
             throw new Error(`create-data-channel failed: ${err?.message ?? err}`);
         }
@@ -572,10 +581,10 @@ export class RTCPeerConnection extends EventTarget {
                 `Failed to execute 'addTransceiver' on 'RTCPeerConnection': The provided value '${direction}' is not a valid enum value of type RTCRtpTransceiverDirection.`,
             );
         }
-        const hasGstSource = trackOrKind instanceof MediaStreamTrack && (trackOrKind as any)._gstSource;
+        const hasGstSource = trackOrKind instanceof MediaStreamTrack && trackOrKind._gstSource;
         const wantsSend = direction === 'sendrecv' || direction === 'sendonly';
 
-        let gstTrans: any;
+        let gstTrans: GstWebRTC.WebRTCRTPTransceiver;
         let jsTrans: RTCRtpTransceiver;
 
         if (hasGstSource && wantsSend) {
@@ -594,10 +603,11 @@ export class RTCPeerConnection extends EventTarget {
             sender._wirePipeline(track);
 
             // Find the GstTransceiver that request_pad_simple created
-            gstTrans = this._findNewGstTransceiver();
-            if (!gstTrans) {
+            const found = this._findNewGstTransceiver();
+            if (!found) {
                 throw new Error('webrtcbin did not create a transceiver for the send pad');
             }
+            gstTrans = found;
 
             // Create wrapper with the pre-wired sender
             const gstReceiver = gstTrans.receiver ?? null;
@@ -618,7 +628,7 @@ export class RTCPeerConnection extends EventTarget {
             this._receivers.push(receiver);
 
             // Apply direction
-            (gstTrans as any).direction = w3cDirectionToGst(direction);
+            gstTrans.direction = w3cDirectionToGst(direction);
         } else {
             // Path B: No GStreamer source, or receive-only/inactive.
             // Use emit('add-transceiver') which creates a transceiver without pads.
@@ -629,17 +639,20 @@ export class RTCPeerConnection extends EventTarget {
                 ? w3cDirectionToGst('sendrecv')
                 : w3cDirectionToGst(direction);
 
-            gstTrans = this._webrtcbin.emit('add-transceiver', createDirection, caps) as any;
-            if (!gstTrans) {
+            // `add-transceiver` is an action signal returning the new
+            // GstWebRTCRTPTransceiver — see comment on `create-data-channel` above.
+            const result = this._webrtcbin.emit('add-transceiver', createDirection, caps) as unknown as GstWebRTC.WebRTCRTPTransceiver | null;
+            if (!result) {
                 throw new Error('webrtcbin did not create a transceiver');
             }
+            gstTrans = result;
 
             jsTrans = this._transceivers.get(gstTrans)!;
             if (!jsTrans) {
                 jsTrans = this._createTransceiverWrapper(gstTrans);
             }
 
-            (gstTrans as any).direction = w3cDirectionToGst(direction);
+            gstTrans.direction = w3cDirectionToGst(direction);
 
             if (trackOrKind instanceof MediaStreamTrack) {
                 jsTrans.sender._setTrack(trackOrKind);
@@ -797,9 +810,11 @@ export class RTCPeerConnection extends EventTarget {
     // ---- Transceiver helper -------------------------------------------------
 
     /** Find a GstWebRTCRTPTransceiver not yet in our map (created by request_pad_simple). */
-    private _findNewGstTransceiver(): any {
+    private _findNewGstTransceiver(): GstWebRTC.WebRTCRTPTransceiver | null {
         for (let i = 0; ; i++) {
-            const gt = this._webrtcbin.emit('get-transceiver', i) as any;
+            // `get-transceiver` is an action signal — return value flows back at
+            // runtime even though the GIR `emit()` overload is typed `void`.
+            const gt = this._webrtcbin.emit('get-transceiver', i) as unknown as GstWebRTC.WebRTCRTPTransceiver | null;
             if (!gt) return null;
             if (!this._transceivers.has(gt)) return gt;
         }
@@ -821,7 +836,7 @@ export class RTCPeerConnection extends EventTarget {
         this._sctpTransport = new RTCSctpTransport(dtls);
     }
 
-    private _createTransceiverWrapper(gstTrans: any): RTCRtpTransceiver {
+    private _createTransceiverWrapper(gstTrans: GstWebRTC.WebRTCRTPTransceiver): RTCRtpTransceiver {
         let kind: 'audio' | 'video' = 'audio';
         try {
             const gstKind = gstTrans.kind;
@@ -848,7 +863,7 @@ export class RTCPeerConnection extends EventTarget {
 
         // Pass mline index to sender for sink pad naming
         try {
-            const mline = (gstTrans as any).mlineindex;
+            const mline = gstTrans.mlineindex;
             if (typeof mline === 'number' && mline >= 0) {
                 sender._setMlineIndex(mline);
             }
@@ -892,7 +907,7 @@ export class RTCPeerConnection extends EventTarget {
         // Only process SRC pads (incoming media from remote peer)
         if (pad.direction !== Gst.PadDirection.SRC) return;
 
-        const gstTrans = (pad as any).transceiver;
+        const gstTrans = asWebRtcSrcPad(pad).transceiver;
         if (!gstTrans) return;
 
         let jsTrans = this._transceivers.get(gstTrans);
@@ -974,14 +989,15 @@ export class RTCPeerConnection extends EventTarget {
     private _syncIceState(): void {
         if (!this._iceTransport) return;
         const iceState = this.iceConnectionState;
-        this._iceTransport._setState(iceState as any);
+        // RTCIceConnectionState ≡ RTCIceTransportState (same string union).
+        this._iceTransport._setState(iceState);
     }
 
     /** Map PC ICE gathering state → ICE transport gathering state. */
     private _syncIceGatheringState(): void {
         if (!this._iceTransport) return;
         const gatheringState = this.iceGatheringState;
-        this._iceTransport._setGatheringState(gatheringState as any);
+        this._iceTransport._setGatheringState(gatheringState);
     }
 
     // ---- on<event> attribute handlers --------------------------------------

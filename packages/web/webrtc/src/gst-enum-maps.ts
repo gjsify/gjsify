@@ -90,7 +90,7 @@ export function gstDirectionToW3C(v: number): RTCRtpTransceiverDirection {
     return DIRECTION_GST_TO_W3C[v] ?? 'inactive';
 }
 
-export function w3cDirectionToGst(d: RTCRtpTransceiverDirection): number {
+export function w3cDirectionToGst(d: RTCRtpTransceiverDirection): GstWebRTC.WebRTCRTPTransceiverDirection {
     return DIRECTION_W3C_TO_GST[d] ?? GstWebRTC.WebRTCRTPTransceiverDirection.NONE;
 }
 

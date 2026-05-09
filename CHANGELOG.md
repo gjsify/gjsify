@@ -218,6 +218,64 @@
   Node readline forwards `opts.escapeCodeTimeout`). All 145 tests
   green on both Node and GJS (unchanged baseline).
 
+* **webrtc (2026-05-09):** type-safety pass on
+  `packages/web/webrtc/src/{rtc-peer-connection,rtc-rtp-sender,rtc-rtp-transceiver}.ts`
+  (Workstream N). `as any` reduced from 40 → 0 across the three
+  production files (peer-connection 20→0, rtp-sender 16→0,
+  rtp-transceiver 4→0). New internal-only helper module
+  `src/internal/gst-types.ts` (per AGENTS.md Rule 2c — not exported
+  from `package.json#exports`) declares thin element-specific
+  interfaces extending the broad `Gst.Element` / `Gst.Pad` typings:
+  `WebRtcBin` exposes the 14 GObject properties the
+  `RTCPeerConnection` impl reads or writes on the `webrtcbin`
+  element (`stun_server`, `turn_server`, `ice_transport_policy`,
+  `bundle_policy`, the four `*_state` enums, and the six SDP
+  `*_description` slots); `WebRtcSrcPad` exposes the `transceiver`
+  back-pointer that webrtcbin attaches to its SRC pads;
+  `ValveElement`, `RtpPayloaderElement`, `CapsFilterElement`, and
+  `Vp8EncElement` cover the encoder-chain elements
+  (`@gjsify/webrtc`'s `_wirePipeline` builds explicit
+  `valve → convert → encode → payloader → capsfilter` chains for
+  audio/video). Each interface ships a paired `asXxx(el)` narrowing
+  helper used at the single creation site. `RTCPeerConnection`
+  also tightens `_findNewGstTransceiver(): any` →
+  `GstWebRTCRTPTransceiver | null`, `_createTransceiverWrapper(any)`
+  → `(GstWebRTCRTPTransceiver)`, and adds a literal-union prop type
+  to `_descProp(prop)` so the six SDP-getter call sites are checked
+  against the `WebRtcBin` interface. Three remaining `as unknown as
+  …` cross-castings stay because they are not the GStreamer-property
+  pattern but webrtcbin's GObject *action* signals (`emit('create-data-channel')`,
+  `emit('add-transceiver')`, `emit('get-transceiver')`) — the GIR
+  generator types `emit()` overloads as `void`-returning, so the
+  signal's actual return value flows back through `as unknown` (a
+  comment documents this at each site). Dropped two `iceState as
+  any` / `gatheringState as any` casts on `RTCIceTransport._setState`
+  / `_setGatheringState` — the source and target string unions are
+  identical (`'new' | 'checking' | 'connected' | …`), so the casts
+  were dead weight. `WebrtcbinBridge as any` constructor cast also
+  removed — `@gjsify/webrtc-native`'s typings already declare the
+  `Partial<{ bin: Gst.Element }>` constructor-properties shape. In
+  `RTCRtpSender`, the five `private _pipeline: any` / `_webrtcbin:
+  any` / `_elements: any[]` / `_valve: any` / `_teeSrcPad: any`
+  fields plus the constructor's `pipeline?: any, webrtcbin?: any`
+  parameters are now typed as `GstNs.Pipeline | null` /
+  `GstNs.Element | null` / `GstNs.Element[]` / `ValveElement | null`
+  / `GstNs.Pad | null` (with `GstNs` aliasing `gi://Gst?version=1.0`
+  to avoid colliding with the runtime `Gst` import from `gst-init.js`).
+  Two local `trackAny` views inside `_wirePipeline` and `replaceTrack`
+  are narrowed to the four `_gstSource` / `_gstPipeline` / `_gstTee`
+  / `_teeMultiplexer` GStreamer-attached fields on `MediaStreamTrack`
+  (these remain `any` on the class itself — that is a separate
+  refactoring target outside this stream's scope: `media-stream-track.ts`
+  declares them `any` because they are runtime-attached by the
+  get-user-media / VideoBridge code paths). One ergonomic upstream
+  fix: `gstDirectionToW3C(d): number` → `: GstWebRTC.WebRTCRTPTransceiverDirection`
+  in `gst-enum-maps.ts` so the writeback `gstTrans.direction =
+  w3cDirectionToGst(d)` typechecks against the GIR enum-typed
+  property without a cast. Pure type-safety; runtime behavior
+  unchanged. `yarn check` + `yarn build` + `yarn test:gjs` all
+  green on Fedora 43 (GJS 1.86 / SpiderMonkey 140).
+
 * **zlib (2026-05-09):** type-safety pass on
   `packages/node/zlib/src/index.spec.ts` (Workstream J). `as any`
   reduced from 20 → 0. All 20 occurrences were `gzipSync(str as
