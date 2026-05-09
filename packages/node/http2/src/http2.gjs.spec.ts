@@ -7,38 +7,62 @@
 //   refs/node-test/parallel/test-http2-respond-file.js         (MIT, Node.js contributors)
 //   refs/node-test/parallel/test-http2-respond-file-fd.js      (MIT, Node.js contributors)
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
+//
+// Type strategy (Workstream G): runtime values come from `node:http2` so the Node
+// bundle stays free of `gi://*` imports (this file is loaded by the same `test.mts`
+// aggregator that also drives `test:node`, even though the suite body is no-op on
+// Node via `on('Gjs', …)`). For static typing we pull the impl-private classes from
+// `@gjsify/http2` via type-only imports — stripped at compile time, so the Node
+// bundle is unaffected, but TypeScript sees the real shapes (`Http2Server`,
+// `Http2ServerRequest/Response`, `ClientHttp2Session/Stream`) and the entire
+// `as any` chain that `@types/node`'s narrower declarations would force disappears.
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import http2 from 'node:http2';
 import { writeFileSync, openSync, closeSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type {
+  Http2Server,
+  Http2ServerRequest,
+  Http2ServerResponse,
+  ClientHttp2Session,
+  ClientHttp2Stream,
+  ServerHttp2Stream,
+} from '@gjsify/http2';
+
+// Local view of `node:http2`'s default export retyped against our impl-private
+// classes. `node:http2` is the runtime source on both Node and GJS (alias-mapped
+// to `@gjsify/http2` on the GJS target by the build), but its declarations come
+// from `@types/node` and don't expose the GJS-only shapes we want to assert
+// against. This cast is the single boundary between the two views.
+const gjsHttp2 = http2 as unknown as {
+  createServer(handler?: (req: Http2ServerRequest, res: Http2ServerResponse) => void): Http2Server;
+  connect(authority: string): ClientHttp2Session;
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-type AnyServer = ReturnType<typeof http2.createServer>;
-type AnyStream = ReturnType<ReturnType<typeof http2.connect>['request']>;
-
 function withServer(
-  handler: (req: any, res: any) => void,
-): Promise<{ server: AnyServer; port: number }> {
+  handler: (req: Http2ServerRequest, res: Http2ServerResponse) => void,
+): Promise<{ server: Http2Server; port: number }> {
   return new Promise((resolve, reject) => {
-    const server = http2.createServer(handler);
+    const server = gjsHttp2.createServer(handler);
     server.once('error', reject);
     server.listen(0, () => {
-      const port = (server.address() as any)?.port;
+      const port = server.address()?.port;
       if (!port) return reject(new Error('Could not get server port'));
       resolve({ server, port });
     });
   });
 }
 
-function collectBody(stream: AnyStream): Promise<string> {
+function collectBody(stream: ClientHttp2Stream): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    (stream as any).on('data', (chunk: Buffer) => chunks.push(chunk));
-    (stream as any).on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-    (stream as any).on('error', reject);
+    stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+    stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    stream.on('error', reject);
   });
 }
 
@@ -47,32 +71,32 @@ function collectBody(stream: AnyStream): Promise<string> {
 export default async () => {
   await on('Gjs', async () => {
 
-    await describe('http2.createServer()', async () => {
+    await describe('gjsHttp2.createServer()', async () => {
       await it('returns an server instance with listen/close', async () => {
-        const server = http2.createServer();
+        const server = gjsHttp2.createServer();
         expect(server).toBeDefined();
-        expect(typeof (server as any).listen).toBe('function');
-        expect(typeof (server as any).close).toBe('function');
+        expect(typeof server.listen).toBe('function');
+        expect(typeof server.close).toBe('function');
       });
 
       await it('listen() starts listening and emits listening', async () => {
-        const server = http2.createServer();
+        const server = gjsHttp2.createServer();
         await new Promise<void>((resolve, reject) => {
-          (server as any).once('error', reject);
-          (server as any).listen(0, resolve);
+          server.once('error', reject);
+          server.listen(0, resolve);
         });
-        expect((server as any).listening).toBeTruthy();
-        const addr = (server as any).address();
+        expect(server.listening).toBeTruthy();
+        const addr = server.address();
         expect(addr).toBeDefined();
-        expect(addr.port > 0).toBeTruthy();
-        (server as any).close();
+        expect((addr?.port ?? 0) > 0).toBeTruthy();
+        server.close();
       });
 
       await it('close() stops listening', async () => {
-        const server = http2.createServer();
-        await new Promise<void>((res) => (server as any).listen(0, res));
-        await new Promise<void>((res) => (server as any).close(res));
-        expect((server as any).listening).toBeFalsy();
+        const server = gjsHttp2.createServer();
+        await new Promise<void>((res) => server.listen(0, res));
+        await new Promise<void>((res) => server.close(() => res()));
+        expect(server.listening).toBeFalsy();
       });
     });
 
@@ -86,17 +110,17 @@ export default async () => {
           res.end();
         });
 
-        const session = http2.connect(`http://localhost:${port}`);
-        const stream = session.request({ ':method': 'GET', ':path': '/' }, { endStream: true } as any);
+        const session = gjsHttp2.connect(`http://localhost:${port}`);
+        const stream = session.request({ ':method': 'GET', ':path': '/' }, { endStream: true });
 
         await new Promise<void>((resolve, reject) => {
-          (stream as any).on('response', () => resolve());
-          (stream as any).on('error', reject);
+          stream.on('response', () => resolve());
+          stream.on('error', reject);
           setTimeout(() => reject(new Error('timeout')), 5000);
         });
 
         session.close();
-        (server as any).close();
+        server.close();
       });
 
       await it('req.method and req.url are populated', async () => {
@@ -110,15 +134,15 @@ export default async () => {
           res.end();
         });
 
-        const session = http2.connect(`http://localhost:${port}`);
+        const session = gjsHttp2.connect(`http://localhost:${port}`);
         const stream = session.request(
           { ':method': 'GET', ':path': '/hello?foo=bar' },
-          { endStream: true } as any,
+          { endStream: true },
         );
 
         await new Promise<void>((resolve, reject) => {
-          (stream as any).on('response', () => resolve());
-          (stream as any).on('error', reject);
+          stream.on('response', () => resolve());
+          stream.on('error', reject);
           setTimeout(() => reject(new Error('timeout')), 5000);
         });
 
@@ -126,7 +150,7 @@ export default async () => {
         expect(capturedUrl).toBe('/hello?foo=bar');
 
         session.close();
-        (server as any).close();
+        server.close();
       });
 
       await it('req.headers contains custom request headers', async () => {
@@ -138,22 +162,22 @@ export default async () => {
           res.end();
         });
 
-        const session = http2.connect(`http://localhost:${port}`);
+        const session = gjsHttp2.connect(`http://localhost:${port}`);
         const stream = session.request(
           { ':method': 'GET', ':path': '/', 'x-custom': 'test-value' },
-          { endStream: true } as any,
+          { endStream: true },
         );
 
         await new Promise<void>((resolve, reject) => {
-          (stream as any).on('response', () => resolve());
-          (stream as any).on('error', reject);
+          stream.on('response', () => resolve());
+          stream.on('error', reject);
           setTimeout(() => reject(new Error('timeout')), 5000);
         });
 
         expect(capturedHeaders['x-custom']).toBe('test-value');
 
         session.close();
-        (server as any).close();
+        server.close();
       });
     });
 
@@ -164,15 +188,15 @@ export default async () => {
           res.end('Hello HTTP/2');
         });
 
-        const session = http2.connect(`http://localhost:${port}`);
+        const session = gjsHttp2.connect(`http://localhost:${port}`);
         const stream = session.request(
           { ':method': 'GET', ':path': '/' },
-          { endStream: true } as any,
+          { endStream: true },
         );
 
         await new Promise<void>((resolve, reject) => {
-          (stream as any).on('response', () => resolve());
-          (stream as any).on('error', reject);
+          stream.on('response', () => resolve());
+          stream.on('error', reject);
           setTimeout(() => reject(new Error('timeout')), 5000);
         });
         const body = await collectBody(stream);
@@ -180,7 +204,7 @@ export default async () => {
         expect(body).toBe('Hello HTTP/2');
 
         session.close();
-        (server as any).close();
+        server.close();
       });
 
       await it(':status is included in response headers', async () => {
@@ -189,19 +213,19 @@ export default async () => {
           res.end('created');
         });
 
-        const session = http2.connect(`http://localhost:${port}`);
+        const session = gjsHttp2.connect(`http://localhost:${port}`);
         const stream = session.request(
           { ':method': 'POST', ':path': '/items' },
-          { endStream: true } as any,
+          { endStream: true },
         );
 
         let responseHeaders: Record<string, string | string[]> = {};
         await new Promise<void>((resolve, reject) => {
-          (stream as any).on('response', (headers: any) => {
+          stream.on('response', (headers: Record<string, string | string[]>) => {
             responseHeaders = headers;
             resolve();
           });
-          (stream as any).on('error', reject);
+          stream.on('error', reject);
           setTimeout(() => reject(new Error('timeout')), 5000);
         });
         await collectBody(stream);
@@ -209,7 +233,7 @@ export default async () => {
         expect(responseHeaders[':status']).toBe('201');
 
         session.close();
-        (server as any).close();
+        server.close();
       });
     });
 
@@ -227,26 +251,26 @@ export default async () => {
           res.end('ok');
         });
 
-        const session = http2.connect(`http://localhost:${port}`);
+        const session = gjsHttp2.connect(`http://localhost:${port}`);
         const stream = session.request({
           ':method': 'POST',
           ':path': '/upload',
           'content-type': 'text/plain',
         });
 
-        (stream as any).write('Hello');
-        (stream as any).end(' World');
+        stream.write('Hello');
+        stream.end(' World');
 
         await new Promise<void>((resolve, reject) => {
-          (stream as any).on('response', () => resolve());
-          (stream as any).on('error', reject);
+          stream.on('response', () => resolve());
+          stream.on('error', reject);
           setTimeout(() => reject(new Error('timeout')), 5000);
         });
 
         expect(capturedBody).toBe('Hello World');
 
         session.close();
-        (server as any).close();
+        server.close();
       });
     });
 
@@ -254,8 +278,8 @@ export default async () => {
       await it('server emits stream event with headers', async () => {
         let streamEventFired = false;
 
-        const server = http2.createServer();
-        (server as any).on('stream', (stream: any, headers: any) => {
+        const server = gjsHttp2.createServer();
+        server.on('stream', (stream: ServerHttp2Stream, headers: Record<string, string | string[]>) => {
           streamEventFired = true;
           expect(stream).toBeDefined();
           expect(typeof stream.respond).toBe('function');
@@ -264,21 +288,21 @@ export default async () => {
           stream.end('stream API response');
         });
 
-        await new Promise<void>((res) => (server as any).listen(0, res));
-        const port = (server as any).address()?.port ?? 0;
+        await new Promise<void>((res) => server.listen(0, res));
+        const port = server.address()?.port ?? 0;
 
-        const session = http2.connect(`http://localhost:${port}`);
+        const session = gjsHttp2.connect(`http://localhost:${port}`);
         const stream = session.request(
           { ':method': 'GET', ':path': '/' },
-          { endStream: true } as any,
+          { endStream: true },
         );
 
         const body = await new Promise<string>((resolve, reject) => {
           const chunks: Buffer[] = [];
-          (stream as any).on('response', () => {});
-          (stream as any).on('data', (chunk: Buffer) => chunks.push(chunk));
-          (stream as any).on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-          (stream as any).on('error', reject);
+          stream.on('response', () => {});
+          stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+          stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+          stream.on('error', reject);
           setTimeout(() => reject(new Error('timeout')), 5000);
         });
 
@@ -286,13 +310,13 @@ export default async () => {
         expect(streamEventFired).toBeTruthy();
 
         session.close();
-        (server as any).close();
+        server.close();
       });
     });
 
-    await describe('http2.connect()', async () => {
+    await describe('gjsHttp2.connect()', async () => {
       await it('returns a session with request() method', async () => {
-        const session = http2.connect('http://localhost:19999');
+        const session: ClientHttp2Session = gjsHttp2.connect('http://localhost:19999');
         expect(session).toBeDefined();
         expect(typeof session.request).toBe('function');
         expect(typeof session.close).toBe('function');
@@ -300,10 +324,10 @@ export default async () => {
       });
 
       await it('session.request() returns a stream with on()', async () => {
-        const session = http2.connect('http://localhost:19999');
+        const session = gjsHttp2.connect('http://localhost:19999');
         const stream = session.request({ ':method': 'GET', ':path': '/' });
         expect(stream).toBeDefined();
-        expect(typeof (stream as any).on).toBe('function');
+        expect(typeof stream.on).toBe('function');
         session.close();
       });
     });
@@ -327,7 +351,7 @@ export default async () => {
           (res as any).respondWithFile(fname, { 'content-type': 'text/plain' });
         });
 
-        const session = http2.connect(`http://localhost:${port}`);
+        const session = gjsHttp2.connect(`http://localhost:${port}`);
         const stream = session.request(
           { ':method': 'GET', ':path': '/' },
           { endStream: true } as any,
@@ -364,7 +388,7 @@ export default async () => {
           );
         });
 
-        const session = http2.connect(`http://localhost:${port}`);
+        const session = gjsHttp2.connect(`http://localhost:${port}`);
         const stream = session.request(
           { ':method': 'GET', ':path': '/' },
           { endStream: true } as any,
@@ -410,7 +434,7 @@ export default async () => {
           });
         });
 
-        const session = http2.connect(`http://localhost:${port}`);
+        const session = gjsHttp2.connect(`http://localhost:${port}`);
         const stream = session.request(
           { ':method': 'GET', ':path': '/' },
           { endStream: true } as any,
@@ -473,7 +497,7 @@ export default async () => {
           );
         });
 
-        const session = http2.connect(`http://localhost:${port}`);
+        const session = gjsHttp2.connect(`http://localhost:${port}`);
         const stream = session.request({ ':method': 'GET', ':path': '/' }, { endStream: true } as any);
 
         await new Promise<void>((resolve, reject) => {
@@ -516,7 +540,7 @@ export default async () => {
           );
         });
 
-        const session = http2.connect(`http://localhost:${port}`);
+        const session = gjsHttp2.connect(`http://localhost:${port}`);
         const stream = session.request({ ':method': 'GET', ':path': '/' }, { endStream: true } as any);
         await new Promise<void>((resolve, reject) => {
           (stream as any).on('response', () => resolve());
@@ -559,7 +583,7 @@ export default async () => {
           res.end('main');
         });
 
-        const session = http2.connect(`http://localhost:${port}`);
+        const session = gjsHttp2.connect(`http://localhost:${port}`);
         const stream = session.request({ ':method': 'GET', ':path': '/' }, { endStream: true } as any);
         await new Promise<void>((resolve, reject) => {
           (stream as any).on('response', () => resolve());
@@ -594,7 +618,7 @@ export default async () => {
           );
         });
 
-        const session = http2.connect(`http://localhost:${port}`);
+        const session = gjsHttp2.connect(`http://localhost:${port}`);
         const stream = session.request({ ':method': 'GET', ':path': '/' }, { endStream: true } as any);
         await new Promise<void>((resolve, reject) => {
           (stream as any).on('response', () => resolve());
