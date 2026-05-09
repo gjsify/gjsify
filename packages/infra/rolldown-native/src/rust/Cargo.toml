@@ -1,0 +1,31 @@
+[package]
+name = "gjsify_rolldown"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+# NOTE on dependency resolution
+# ─────────────────────────────
+# rolldown 0.1.0 on crates.io ships with transitive workspace deps that
+# don't compile cleanly together (rolldown_fs depends on a newer
+# OxcResolverFileSystem trait surface than the published rolldown_resolver
+# can satisfy — `error E0046: missing read, canonicalize`). Until that
+# coherence problem is fixed upstream, we build against the in-tree
+# refs/rolldown submodule via path deps. This means contributors need
+# `git submodule update --init refs/rolldown` to build the cdylib from
+# source — but downstream npm consumers only ever consume the prebuilt
+# .so + .typelib in `prebuilds/`, so they never see the submodule.
+[dependencies]
+rolldown = { path = "../../../../../refs/rolldown/crates/rolldown", features = ["serde"] }
+rolldown_common = { path = "../../../../../refs/rolldown/crates/rolldown_common", features = ["deserialize_bundler_options"] }
+serde = "1"
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
