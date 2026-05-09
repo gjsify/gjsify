@@ -23,6 +23,20 @@ import {
   moveMessagePortToContext,
 } from 'node:worker_threads';
 
+// W3C BroadcastChannel surface (onmessage / onmessageerror) — node:worker_threads
+// inherits these but the @types/node typings are tighter than the actual runtime
+// shape. Helper aliases keep the spec test file `as any`-free.
+type BroadcastChannelW3C = BroadcastChannel & {
+  onmessage: ((event: { data: unknown }) => void) | null;
+  onmessageerror: ((event: { data: unknown }) => void) | null;
+  addEventListener(type: string, listener: ((event: unknown) => void) | null): void;
+  removeEventListener(type: string, listener: ((event: unknown) => void) | null): void;
+};
+type MessagePortW3C = MessagePort & {
+  addEventListener(type: string, listener: ((event: unknown) => void) | null): void;
+  removeEventListener(type: string, listener: ((event: unknown) => void) | null): void;
+};
+
 export default async () => {
   // --- Module exports ---
 
@@ -242,7 +256,7 @@ export default async () => {
         channel.port2.on('message', resolve);
         channel.port1.postMessage(obj);
       });
-      expect((received as any).a.b.c.d.e).toBe(42);
+      expect((received as { a: { b: { c: { d: { e: number } } } } }).a.b.c.d.e).toBe(42);
       channel.port1.close();
       channel.port2.close();
     });
@@ -294,8 +308,9 @@ export default async () => {
       ch2.port1.postMessage('from-ch2');
       await done;
       expect(results.length).toBe(2);
-      const ch1Msg = results.find((r: any) => r.ch === 1) as any;
-      const ch2Msg = results.find((r: any) => r.ch === 2) as any;
+      type ChMsg = { ch: number; msg: string };
+      const ch1Msg = results.find((r): r is ChMsg => (r as ChMsg).ch === 1)!;
+      const ch2Msg = results.find((r): r is ChMsg => (r as ChMsg).ch === 2)!;
       expect(ch1Msg.msg).toBe('from-ch1');
       expect(ch2Msg.msg).toBe('from-ch2');
       ch1.port1.close();
@@ -432,8 +447,8 @@ export default async () => {
       const channel = new MessageChannel();
       // Use addEventListener which does NOT auto-start
       let received: unknown = null;
-      (channel.port2 as any).addEventListener('message', (event: any) => {
-        received = event.data;
+      channel.port2.addEventListener('message', (event: unknown) => {
+        received = (event as { data: unknown }).data;
       });
       channel.port1.postMessage('explicit-start');
       // Not started yet — message should be queued
@@ -572,7 +587,7 @@ export default async () => {
       channel.port1.postMessage(message);
       const result = receiveMessageOnPort(channel.port2);
       expect(result).toBeDefined();
-      const received = (result as { message: unknown }).message as any;
+      const received = (result as { message: { hello: string; count: number } }).message;
       expect(received.hello).toBe('world');
       expect(received.count).toBe(42);
       channel.port1.close();
@@ -656,7 +671,7 @@ export default async () => {
       const bc2 = new BroadcastChannel('bc-deliver');
 
       const received = await new Promise<unknown>((resolve) => {
-        (bc2 as any).onmessage = (event: any) => resolve(event.data);
+        (bc2 as BroadcastChannelW3C).onmessage = (event) => resolve(event.data);
         bc1.postMessage('broadcast-hello');
       });
 
@@ -668,7 +683,7 @@ export default async () => {
     await it('should not deliver messages to self', async () => {
       const bc = new BroadcastChannel('bc-self');
       let received = false;
-      (bc as any).onmessage = () => { received = true; };
+      (bc as BroadcastChannelW3C).onmessage = () => { received = true; };
       bc.postMessage('self');
       await new Promise(resolve => setTimeout(resolve, 50));
       expect(received).toBe(false);
@@ -679,7 +694,7 @@ export default async () => {
       const bc1 = new BroadcastChannel('bc-name-a');
       const bc2 = new BroadcastChannel('bc-name-b');
       let received = false;
-      (bc2 as any).onmessage = () => { received = true; };
+      (bc2 as BroadcastChannelW3C).onmessage = () => { received = true; };
       bc1.postMessage('wrong-channel');
       await new Promise(resolve => setTimeout(resolve, 50));
       expect(received).toBe(false);
@@ -703,7 +718,7 @@ export default async () => {
       const bc1 = new BroadcastChannel('bc-closed-recv');
       const bc2 = new BroadcastChannel('bc-closed-recv');
       let received = false;
-      (bc2 as any).onmessage = () => { received = true; };
+      (bc2 as BroadcastChannelW3C).onmessage = () => { received = true; };
       bc2.close();
       bc1.postMessage('after-close');
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -719,8 +734,8 @@ export default async () => {
       let count = 0;
       const done = new Promise<void>((resolve) => {
         const handler = () => { count++; if (count === 2) resolve(); };
-        (bc2 as any).onmessage = handler;
-        (bc3 as any).onmessage = handler;
+        (bc2 as BroadcastChannelW3C).onmessage = handler;
+        (bc3 as BroadcastChannelW3C).onmessage = handler;
       });
 
       bc1.postMessage('to-all');
@@ -746,7 +761,7 @@ export default async () => {
       const original = { key: 'value', items: [1, 2, 3] };
 
       const received = await new Promise<unknown>((resolve) => {
-        (bc2 as any).onmessage = (event: any) => resolve(event.data);
+        (bc2 as BroadcastChannelW3C).onmessage = (event) => resolve(event.data);
         bc1.postMessage(original);
       });
 
@@ -762,7 +777,7 @@ export default async () => {
       const bc2 = new BroadcastChannel('bc-numeric');
 
       const received = await new Promise<unknown>((resolve) => {
-        (bc2 as any).onmessage = (event: any) => resolve(event.data);
+        (bc2 as BroadcastChannelW3C).onmessage = (event) => resolve(event.data);
         bc1.postMessage(42);
       });
 
@@ -776,7 +791,7 @@ export default async () => {
       const bc2 = new BroadcastChannel('bc-null');
 
       const received = await new Promise<unknown>((resolve) => {
-        (bc2 as any).onmessage = (event: any) => resolve(event.data);
+        (bc2 as BroadcastChannelW3C).onmessage = (event) => resolve(event.data);
         bc1.postMessage(null);
       });
 
@@ -791,7 +806,7 @@ export default async () => {
       const messages: unknown[] = [];
 
       const done = new Promise<void>((resolve) => {
-        (bc2 as any).onmessage = (event: any) => {
+        (bc2 as BroadcastChannelW3C).onmessage = (event) => {
           messages.push(event.data);
           if (messages.length === 3) resolve();
         };
@@ -813,7 +828,7 @@ export default async () => {
       const bc1 = new BroadcastChannel('bc-no-deliver-after-close');
       const bc2 = new BroadcastChannel('bc-no-deliver-after-close');
       let received = false;
-      (bc2 as any).onmessage = () => { received = true; };
+      (bc2 as BroadcastChannelW3C).onmessage = () => { received = true; };
       bc2.close();
       bc1.postMessage('should-not-arrive');
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -856,7 +871,7 @@ export default async () => {
     await it('should store object values', async () => {
       const obj = { hello: 'world' };
       setEnvironmentData('obj-key', obj);
-      expect((getEnvironmentData('obj-key') as any).hello).toBe('world');
+      expect((getEnvironmentData('obj-key') as { hello: string }).hello).toBe('world');
     });
 
     await it('should store boolean values', async () => {
@@ -974,13 +989,13 @@ export default async () => {
 
     await it('removeEventListener with null should not throw', async () => {
       const bc = new BroadcastChannel('bc-ae-null');
-      (bc as any).removeEventListener('message', null);
+      (bc as BroadcastChannelW3C).removeEventListener('message', null);
       bc.close();
     });
 
     await it('addEventListener with null should not throw', async () => {
       const bc = new BroadcastChannel('bc-ae-null-add');
-      (bc as any).addEventListener('message', null);
+      (bc as BroadcastChannelW3C).addEventListener('message', null);
       bc.close();
     });
   });
@@ -992,7 +1007,7 @@ export default async () => {
       const channel = new MessageChannel();
 
       const received = await new Promise<unknown>((resolve) => {
-        (channel.port2 as any).addEventListener('message', (event: unknown) => {
+        (channel.port2 as MessagePortW3C).addEventListener('message', (event: unknown) => {
           resolve((event as { data: unknown }).data);
         });
         channel.port2.start(); // must call start() when using addEventListener
@@ -1009,11 +1024,11 @@ export default async () => {
       let count = 0;
       const handler = (_event: unknown) => { count++; };
 
-      (channel.port2 as any).addEventListener('message', handler);
+      (channel.port2 as MessagePortW3C).addEventListener('message', handler);
       channel.port2.start();
       channel.port1.postMessage('first');
       await new Promise(resolve => setTimeout(resolve, 50));
-      (channel.port2 as any).removeEventListener('message', handler);
+      (channel.port2 as MessagePortW3C).removeEventListener('message', handler);
       channel.port1.postMessage('second');
       await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -1025,7 +1040,7 @@ export default async () => {
     await it('addEventListener should wrap message in event-like object', async () => {
       const channel = new MessageChannel();
       const event = await new Promise<unknown>((resolve) => {
-        (channel.port2 as any).addEventListener('message', resolve);
+        (channel.port2 as MessagePortW3C).addEventListener('message', resolve);
         channel.port2.start();
         channel.port1.postMessage('wrapped');
       });
@@ -1038,14 +1053,14 @@ export default async () => {
 
     await it('removeEventListener with null should not throw', async () => {
       const channel = new MessageChannel();
-      (channel.port1 as any).removeEventListener('message', null);
+      (channel.port1 as MessagePortW3C).removeEventListener('message', null);
       channel.port1.close();
       channel.port2.close();
     });
 
     await it('addEventListener with null should not throw', async () => {
       const channel = new MessageChannel();
-      (channel.port1 as any).addEventListener('message', null);
+      (channel.port1 as MessagePortW3C).addEventListener('message', null);
       channel.port1.close();
       channel.port2.close();
     });
@@ -1053,7 +1068,7 @@ export default async () => {
     await it('should support addEventListener for non-message events', async () => {
       const channel = new MessageChannel();
       const closed = new Promise<void>((resolve) => {
-        (channel.port1 as any).addEventListener('close', resolve);
+        (channel.port1 as MessagePortW3C).addEventListener('close', resolve);
       });
       channel.port1.close();
       await closed;
@@ -1381,7 +1396,7 @@ export default async () => {
         channel.port2.on('message', resolve);
         channel.port1.postMessage(obj);
       });
-      const r = received as any;
+      const r = received as { date: Date; items: [number, string, { three: number }]; nested: { deep: boolean } };
       expect(r.date instanceof Date).toBe(true);
       expect(r.items.length).toBe(3);
       expect(r.items[0]).toBe(1);
@@ -1438,8 +1453,8 @@ export default async () => {
       expect(r.size).toBe(2);
       const items = Array.from(r);
       // Check that the objects were cloned
-      expect(items.some((item: any) => item.a === 1)).toBe(true);
-      expect(items.some((item: any) => item.b === 2)).toBe(true);
+      expect(items.some((item) => (item as { a?: number }).a === 1)).toBe(true);
+      expect(items.some((item) => (item as { b?: number }).b === 2)).toBe(true);
       channel.port1.close();
     });
 
@@ -1491,7 +1506,7 @@ export default async () => {
     });
 
     await it('Worker should extend EventEmitter', async () => {
-      const proto = Worker.prototype as any;
+      const proto = Worker.prototype as unknown as Record<string, unknown>;
       expect(typeof proto.on).toBe('function');
       expect(typeof proto.once).toBe('function');
       expect(typeof proto.emit).toBe('function');
@@ -1529,7 +1544,7 @@ export default async () => {
     await it('should emit error for non-existent file on GJS', async () => {
       const nonExistent = '/tmp/gjsify-nonexistent-worker-' + Date.now() + '.mjs';
 
-      const worker = new Worker(nonExistent) as any;
+      const worker = new Worker(nonExistent);
       const result = await new Promise<{ type: string; message?: string; code?: number }>((resolve) => {
         worker.on('error', (err: Error) => {
           resolve({ type: 'error', message: err.message });
@@ -1546,7 +1561,7 @@ export default async () => {
       const worker = new Worker(
         'parentPort.postMessage("started"); await new Promise(r => setTimeout(r, 5000));',
         { eval: true }
-      ) as any;
+      );
 
       const started = await new Promise<boolean>((resolve) => {
         worker.on('message', () => resolve(true));
@@ -1586,6 +1601,305 @@ export default async () => {
       expect(w.threadId).toBeGreaterThan(0);
       expect(Number.isInteger(w.threadId)).toBe(true);
       await w.terminate();
+    });
+  });
+
+  // --- transferList: ArrayBuffer transfer ---
+  // SPDX-License-Identifier: MIT
+  // Ported from refs/node-test/parallel/test-worker-message-port-arraybuffer.js
+  // Original: Copyright (c) Node.js contributors. MIT.
+  // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
+
+  await describe('MessagePort transferList — ArrayBuffer', async () => {
+    await it('should detach the source ArrayBuffer after transfer', async () => {
+      const channel = new MessageChannel();
+      const arrayBuffer = new ArrayBuffer(40);
+      const view = new Uint32Array(arrayBuffer);
+      view[0] = 0x12345678;
+
+      const received = await new Promise<unknown>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage(view, [arrayBuffer]);
+      });
+
+      // Source buffer is detached — byteLength becomes 0.
+      expect(arrayBuffer.byteLength).toBe(0);
+
+      // Receiver got a typed array whose first element matches.
+      const recv = received as Uint32Array;
+      expect(recv instanceof Uint32Array).toBe(true);
+      expect(recv[0]).toBe(0x12345678);
+
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should throw DataCloneError when transferring a detached ArrayBuffer', async () => {
+      const channel = new MessageChannel();
+      const arrayBuffer = new ArrayBuffer(40);
+
+      // First transfer detaches it.
+      channel.port1.postMessage(null, [arrayBuffer]);
+      expect(arrayBuffer.byteLength).toBe(0);
+
+      // Re-transferring the same (now detached) buffer must throw.
+      let threw: Error | null = null;
+      try {
+        channel.port1.postMessage(null, [arrayBuffer]);
+      } catch (err) {
+        threw = err as Error;
+      }
+      expect(threw).toBeDefined();
+      expect(threw!.name).toBe('DataCloneError');
+
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should transfer multiple ArrayBuffers in one call', async () => {
+      const channel = new MessageChannel();
+      const a = new ArrayBuffer(8);
+      const b = new ArrayBuffer(16);
+      new Uint8Array(a)[0] = 0xaa;
+      new Uint8Array(b)[0] = 0xbb;
+
+      const received = await new Promise<{ a: ArrayBuffer; b: ArrayBuffer }>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage({ a, b }, [a, b]);
+      });
+
+      expect(a.byteLength).toBe(0);
+      expect(b.byteLength).toBe(0);
+      expect(received.a.byteLength).toBe(8);
+      expect(received.b.byteLength).toBe(16);
+      expect(new Uint8Array(received.a)[0]).toBe(0xaa);
+      expect(new Uint8Array(received.b)[0]).toBe(0xbb);
+
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should reject duplicate entries in the transfer list', async () => {
+      const channel = new MessageChannel();
+      const buf = new ArrayBuffer(8);
+      let threw: Error | null = null;
+      try {
+        channel.port1.postMessage(buf, [buf, buf]);
+      } catch (err) {
+        threw = err as Error;
+      }
+      expect(threw).toBeDefined();
+      expect(threw!.name).toBe('DataCloneError');
+      // Buffer must NOT have been transferred (validation pre-flight).
+      expect(buf.byteLength).toBe(8);
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should reject non-transferable values in transfer list', async () => {
+      const channel = new MessageChannel();
+      let threw: Error | null = null;
+      try {
+        channel.port1.postMessage('payload', [{} as unknown as ArrayBuffer]);
+      } catch (err) {
+        threw = err as Error;
+      }
+      expect(threw).toBeDefined();
+      expect(threw!.name).toBe('DataCloneError');
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should leave non-transferred ArrayBuffers untouched (deep copy)', async () => {
+      const channel = new MessageChannel();
+      const transferred = new ArrayBuffer(8);
+      const copied = new ArrayBuffer(8);
+      new Uint8Array(copied)[0] = 0xcc;
+
+      const received = await new Promise<{ t: ArrayBuffer; c: ArrayBuffer }>((resolve) => {
+        channel.port2.on('message', resolve);
+        channel.port1.postMessage({ t: transferred, c: copied }, [transferred]);
+      });
+
+      expect(transferred.byteLength).toBe(0);
+      expect(copied.byteLength).toBe(8);
+      expect(received.t.byteLength).toBe(8);
+      expect(received.c.byteLength).toBe(8);
+      expect(new Uint8Array(received.c)[0]).toBe(0xcc);
+
+      channel.port1.close();
+      channel.port2.close();
+    });
+  });
+
+  // --- transferList: MessagePort transfer ---
+  // SPDX-License-Identifier: MIT
+  // Ported from refs/node-test/parallel/test-worker-message-port-message-port-transferring.js
+  //                refs/node-test/parallel/test-worker-message-port-transfer-closed.js
+  //                refs/node-test/parallel/test-worker-message-port-transfer-self.js
+  // Original: Copyright (c) Node.js contributors. MIT.
+
+  await describe('MessagePort transferList — MessagePort', async () => {
+    await it('should transfer a MessagePort across a base channel', async () => {
+      const base = new MessageChannel();
+      const inner = new MessageChannel();
+
+      // Send inner.port1 across base.port1 → base.port2.
+      base.port1.postMessage({ port: inner.port1 }, [inner.port1]);
+
+      const movedPort = await new Promise<MessagePort>((resolve) => {
+        base.port2.on('message', (msg: unknown) => resolve((msg as { port: MessagePort }).port));
+      });
+
+      // Receiver-side moved port must be a usable MessagePort wired to inner.port2.
+      expect(movedPort instanceof MessagePort).toBe(true);
+
+      const received = await new Promise<unknown>((resolve) => {
+        inner.port2.on('message', resolve);
+        movedPort.postMessage('hello-via-moved-port');
+      });
+      expect(received).toBe('hello-via-moved-port');
+
+      movedPort.close();
+      inner.port2.close();
+      base.port1.close();
+      base.port2.close();
+    });
+
+    await it('should reject transferring the source port to itself', async () => {
+      const channel = new MessageChannel();
+      let threw: Error | null = null;
+      try {
+        channel.port1.postMessage(null, [channel.port1]);
+      } catch (err) {
+        threw = err as Error;
+      }
+      expect(threw).toBeDefined();
+      expect(threw!.name).toBe('DataCloneError');
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should reject transferring a closed MessagePort', async () => {
+      const base = new MessageChannel();
+      const inner = new MessageChannel();
+      inner.port1.close();
+
+      let threw: Error | null = null;
+      try {
+        base.port1.postMessage({ port: inner.port1 }, [inner.port1]);
+      } catch (err) {
+        threw = err as Error;
+      }
+      expect(threw).toBeDefined();
+      expect(threw!.name).toBe('DataCloneError');
+      expect(threw!.message.includes('detached')).toBe(true);
+
+      base.port1.close();
+      base.port2.close();
+      inner.port2.close();
+    });
+
+    await it('should detach the source port after transfer (cannot reuse)', async () => {
+      const base = new MessageChannel();
+      const inner = new MessageChannel();
+      const sourcePort = inner.port1;
+
+      base.port1.postMessage({ port: sourcePort }, [sourcePort]);
+
+      // Re-transferring the now-detached port must throw.
+      let threw: Error | null = null;
+      try {
+        base.port1.postMessage({ port: sourcePort }, [sourcePort]);
+      } catch (err) {
+        threw = err as Error;
+      }
+      expect(threw).toBeDefined();
+      expect(threw!.name).toBe('DataCloneError');
+
+      base.port1.close();
+      base.port2.close();
+      inner.port2.close();
+    });
+  });
+
+  // --- SharedArrayBuffer support ---
+  // SPDX-License-Identifier: MIT
+  // Ported from refs/node-test/parallel/test-worker-message-channel-sharedarraybuffer.js
+  // Original: Copyright (c) Node.js contributors. MIT.
+  //
+  // Note: SharedArrayBuffer is not exposed in GJS today — Mozilla disables it
+  // unless the embedder opts in. These tests run only when SAB is available
+  // (Node.js, or future GJS builds with SAB enabled). See STATUS.md
+  // "Open TODOs" → SharedArrayBuffer cross-process sharing.
+
+  await describe('SharedArrayBuffer in postMessage', async () => {
+    const SAB = (globalThis as Record<string, unknown>).SharedArrayBuffer as
+      typeof SharedArrayBuffer | undefined;
+
+    if (typeof SAB !== 'function') {
+      await it('SharedArrayBuffer not available — skipping SAB suite (expected on GJS)', async () => {
+        expect(typeof SAB).toBe('undefined');
+      });
+      return;
+    }
+
+    await it('should pass-through SharedArrayBuffer (same backing store)', async () => {
+      const channel = new MessageChannel();
+      const sab = new SAB(16);
+      const writer = new Int32Array(sab);
+      writer[0] = 7;
+
+      const received = await new Promise<SharedArrayBuffer>((resolve) => {
+        channel.port2.on('message', (msg) => resolve(msg as SharedArrayBuffer));
+        channel.port1.postMessage(sab);
+      });
+
+      // Same backing store: writes on the source side are visible to the receiver.
+      expect(received instanceof SAB).toBe(true);
+      expect(received.byteLength).toBe(16);
+      writer[0] = 42;
+      const reader = new Int32Array(received);
+      expect(reader[0]).toBe(42);
+
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('should reject SharedArrayBuffer in transfer list', async () => {
+      const channel = new MessageChannel();
+      const sab = new SAB(8);
+      let threw: Error | null = null;
+      try {
+        channel.port1.postMessage(sab, [sab as unknown as ArrayBuffer]);
+      } catch (err) {
+        threw = err as Error;
+      }
+      expect(threw).toBeDefined();
+      expect(threw!.name).toBe('DataCloneError');
+      // SAB must remain usable.
+      expect(sab.byteLength).toBe(8);
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    await it('Atomics.add on shared store is observable across MessagePort send', async () => {
+      const channel = new MessageChannel();
+      const sab = new SAB(16);
+      const view = new Int32Array(sab);
+
+      const received = await new Promise<Int32Array>((resolve) => {
+        channel.port2.on('message', (msg) => resolve(new Int32Array(msg as SharedArrayBuffer)));
+        channel.port1.postMessage(sab);
+      });
+
+      // Mutate after send — both sides observe the same memory.
+      Atomics.add(view, 0, 5);
+      Atomics.add(view, 0, 7);
+      expect(Atomics.load(received, 0)).toBe(12);
+
+      channel.port1.close();
+      channel.port2.close();
     });
   });
 };

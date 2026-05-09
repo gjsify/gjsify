@@ -2,6 +2,55 @@
 
 ## Unreleased
 
+### Features
+
+* **worker_threads (2026-05-09):** added `transferList` support to
+  `MessagePort.postMessage()` for both `ArrayBuffer` and `MessagePort`
+  (Workstream C). ArrayBuffer transfer is zero-copy via SM140
+  `ArrayBuffer.prototype.transfer()` — the sender's buffer becomes detached
+  (`byteLength === 0`) and the receiver's TypedArray points at the moved
+  storage. MessagePort transfer is an in-process channel hand-off: the source
+  port detaches (further use throws DataCloneError), the receiver gets a
+  fresh `MessagePort` wired to the surviving end of the channel, and any
+  pending queued messages are carried over. Validation matches the HTML
+  spec: detached buffers, duplicate entries, non-transferable values,
+  `SharedArrayBuffer` in transfer list, self-port transfer, and
+  closed-port transfer all reject with `DataCloneError` (`code: 25`) BEFORE
+  any side effects (no partial transfer on error). `SharedArrayBuffer` is
+  passed through by value in same-process `MessageChannel` (cross-thread
+  visibility verified via `Atomics.{store,load,notify}` on Node where SAB
+  is exposed). Implementation extends
+  `packages/gjs/utils/src/structured-clone.ts` with a transfer context plus
+  a view-snapshot pre-walk — TypedArray and DataView `byteOffset`/`length`
+  are captured BEFORE buffer transfer because `ArrayBuffer.transfer()`
+  detaches all source views, so reading their metadata after transfer
+  yields 0. The MessagePort layer in
+  `packages/node/worker_threads/src/message-port.ts` substitutes port
+  placeholders into the value tree pre-clone, then walks the cloned tree
+  to materialise receiver-side ports — the structured-clone layer stays
+  port-agnostic. New unit tests: 32 across `transferList — ArrayBuffer`
+  (6), `transferList — MessagePort` (4), `SharedArrayBuffer` (3 — Node;
+  1 skip-marker on GJS) suites; full counts now 270 Node / 264 GJS.
+  `as any` removed from `packages/node/worker_threads/src/index.spec.ts`
+  (30 → 0) — added `BroadcastChannelW3C` and `MessagePortW3C` helper
+  aliases for the W3C surface that `@types/node` types more tightly than
+  the runtime. New integration suite
+  `tests/integration/worker-stress/` (`@gjsify/integration-worker-stress`)
+  with two specs: `transferlist-stress.spec.ts` exercises the bulk
+  transfer path (256 chunks × 64 KiB = 16 MiB through one channel,
+  4-channel fan-out for per-channel FIFO ordering, 5-hop port-transfer
+  chain that round-trips a payload through the surviving inner channel)
+  and `sab-parallel-hash.spec.ts` runs 4 native worker threads over a
+  1 MiB `SharedArrayBuffer` computing SHA-256 over disjoint slices with
+  an `Atomics`-backed completion barrier, partial digests folded against
+  a main-thread reference (Node-only — gracefully skips on GJS).
+  Throughput baselines logged per run as a fixture for future
+  GC/scheduler regressions: Node ≈ 727 MiB/s transferList,
+  ≈ 28 MiB/s SAB hash; GJS ≈ 235 MiB/s transferList. Cross-process SAB
+  via subprocess `Worker` IPC remains a deferred follow-up — needs a
+  `@gjsify/sab-native` Vala mmap bridge — tracked under STATUS.md
+  "Open TODOs → SharedArrayBuffer cross-process sharing".
+
 ### Refactoring
 
 * **webgl (2026-05-09):** split the 4164-line
