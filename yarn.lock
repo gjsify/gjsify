@@ -3231,6 +3231,22 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/integration-gettext-parser@workspace:tests/integration/gettext-parser":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/integration-gettext-parser@workspace:tests/integration/gettext-parser"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.14"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/gettext-parser": "npm:^8.0.0"
+    "@types/node": "npm:^25.6.2"
+    gettext-parser: "npm:^9.0.2"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/integration-mcp-inspector-cli@workspace:tests/integration/mcp-inspector-cli":
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-mcp-inspector-cli@workspace:tests/integration/mcp-inspector-cli"
@@ -7187,6 +7203,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/gettext-parser@npm:^8.0.0":
+  version: 8.0.0
+  resolution: "@types/gettext-parser@npm:8.0.0"
+  dependencies:
+    "@types/node": "npm:*"
+    "@types/readable-stream": "npm:*"
+  checksum: 10/e84fee97e340969df3d0ea568e78ac1846a9426b9ca702875cfbc1aa6d09106fcc360e5b4a86746fcbbf3f034d1b12f3c11c4f3f684920c88e86daf28080c33e
+  languageName: node
+  linkType: hard
+
 "@types/gettext-parser@npm:^9.0.0":
   version: 9.0.0
   resolution: "@types/gettext-parser@npm:9.0.0"
@@ -7414,6 +7440,15 @@ __metadata:
   version: 1.2.7
   resolution: "@types/range-parser@npm:1.2.7"
   checksum: 10/95640233b689dfbd85b8c6ee268812a732cf36d5affead89e806fe30da9a430767af8ef2cd661024fd97e19d61f3dec75af2df5e80ec3bea000019ab7028629a
+  languageName: node
+  linkType: hard
+
+"@types/readable-stream@npm:*":
+  version: 4.0.23
+  resolution: "@types/readable-stream@npm:4.0.23"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10/2798c083eb74c9c5910cdda2e8132e333e2435362cc811eb866871e6a2ea77cd5a665dd3085be0e45ccc90a6d7b533d3d221f3b5ccfcf3080f4133517105b3fd
   languageName: node
   linkType: hard
 
