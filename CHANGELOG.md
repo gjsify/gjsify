@@ -4,6 +4,42 @@
 
 ### Features
 
+* **http2 + http2-native (2026-05-09):** Workstream A — Phase 2 of the
+  http2 module. New `@gjsify/http2-native` Vala/GObject prebuild
+  package wraps libnghttp2 primitives that libsoup's high-level GIR
+  API does not expose: `FrameEncoder` (HPACK header-block encoder +
+  raw frame builder for DATA / HEADERS / PUSH_PROMISE — backed by a
+  tiny C shim around `nghttp2_hd_deflate_*` since nghttp2 has no
+  upstream Vala VAPI), `StreamIdAllocator` (RFC 7540 §5.1.1 even-id
+  sequencer for PUSH_PROMISE plus client-id tracking for GOAWAY),
+  `SessionBridge` (HTTP/2 client-preface detection — placeholder for
+  the future cleartext-h2c session driver). All buffer ownership stays
+  C-side via `GLib.Bytes` so SpiderMonkey GC cannot race nghttp2
+  allocations — same pattern as `@gjsify/webrtc-native` /
+  `@gjsify/http-soup-bridge`. TS wrapper loads the typelib lazily
+  via try/catch and falls back to JS counters when the prebuild is
+  unavailable. Ships as `.so` + `.typelib` for linux-{x86_64,aarch64,
+  ppc64,s390x,riscv64} via the existing CI matrix in
+  `.github/workflows/prebuilds.yml` (libnghttp2-devel added to the
+  Fedora + Ubuntu install steps). Wired into `@gjsify/http2`:
+  `Http2ServerResponse.respondWithFile()` / `respondWithFD()` stream
+  the file body through `fs.read()` 64 KiB chunks into Soup's existing
+  chunked-write path with `statCheck()` callback honoured;
+  `pushStream()` / `createPushResponse()` allocate even stream-ids via
+  the bridge, build PUSH_PROMISE frame bytes via the encoder, and
+  synthesise child `ServerHttp2Stream` instances backed by detached
+  `Http2ServerResponse` buffers — application code calling
+  `pushStream(headers, cb)` gets a fully-usable stream + observable
+  `pushPromiseFrame` for inspection; nested-push correctly rejected
+  with `ERR_HTTP2_NESTED_PUSH`. 23 new tests ported from
+  `refs/node-test/parallel/test-http2-{server-push-stream,respond-file,
+  respond-file-fd}.js` (151 total: 102 Node + 49 GJS). Wire-level
+  PUSH_PROMISE delivery + h2c server still pending — Soup multiplexes
+  HTTP/2 internally and refuses external frame injection; needs a
+  parallel raw-nghttp2 server loop on a `Gio.SocketService`-accepted
+  socket. Tracked in STATUS.md "Open TODOs → http2 PUSH_PROMISE wire
+  delivery" and "http2 client-side `'push'` event".
+
 * **tls (2026-05-09):** Workstream B — promoted `@gjsify/tls` from Partial
   toward Full. Added: cert-chain extraction in `getPeerCertificate(detailed)`
   (walks `Gio.TlsCertificate.get_issuer()` recursively, returns Node-shape

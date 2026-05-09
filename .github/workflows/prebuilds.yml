@@ -14,6 +14,8 @@ on:
       - 'packages/web/webrtc-native/meson.build'
       - 'packages/node/http-soup-bridge/src/vala/**'
       - 'packages/node/http-soup-bridge/meson.build'
+      - 'packages/node/http2-native/src/vala/**'
+      - 'packages/node/http2-native/meson.build'
       - '.github/workflows/prebuilds.yml'
 
 
@@ -42,6 +44,8 @@ jobs:
         # gstreamer*-devel packages provide the .pc files for gstreamer-sdp-1.0
         # and gstreamer-webrtc-1.0 that @gjsify/webrtc-native needs at Vala build time.
         # libsoup3-devel is needed by @gjsify/http-soup-bridge for libsoup-3.0.
+        # libnghttp2-devel is needed by @gjsify/http2-native for the HPACK / frame
+        # encoder shim wrapping nghttp2.
         run: >
           dnf install -y
           git tar xz findutils
@@ -53,6 +57,7 @@ jobs:
           gstreamer1-plugins-base-devel
           gstreamer1-plugins-bad-free-devel
           libsoup3-devel
+          libnghttp2-devel
 
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -129,6 +134,30 @@ jobs:
           path: packages/node/http-soup-bridge/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
+      # -------- @gjsify/http2-native (GjsifyHttp2) --------
+      - name: Build @gjsify/http2-native Vala library
+        working-directory: packages/node/http2-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/http2-native prebuilds
+        working-directory: packages/node/http2-native
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p "prebuilds/linux-${ARCH}"
+          cp build/libgjsifyhttp2.so build/GjsifyHttp2-1.0.gir build/GjsifyHttp2-1.0.typelib "prebuilds/linux-${ARCH}/"
+          echo "@gjsify/http2-native prebuilds for linux-${ARCH}:"
+          ls -lh "prebuilds/linux-${ARCH}/"
+
+      - name: Upload @gjsify/http2-native prebuilds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: http2-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/node/http2-native/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
   # ----------------------------------------------------------------
   # QEMU-emulated builds — ppc64, s390x, riscv64
   #
@@ -193,7 +222,8 @@ jobs:
                 gstreamer1-devel \
                 gstreamer1-plugins-base-devel \
                 gstreamer1-plugins-bad-free-devel \
-                libsoup3-devel
+                libsoup3-devel \
+                libnghttp2-devel
             else
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -205,7 +235,8 @@ jobs:
                 libgstreamer1.0-dev \
                 libgstreamer-plugins-base1.0-dev \
                 libgstreamer-plugins-bad1.0-dev \
-                libsoup-3.0-dev
+                libsoup-3.0-dev \
+                libnghttp2-dev
             fi
 
           run: |
@@ -240,6 +271,16 @@ jobs:
             cp build/libgjsifyhttpsoupbridge.so build/GjsifyHttpSoupBridge-1.0.gir build/GjsifyHttpSoupBridge-1.0.typelib "prebuilds/linux-${ARCH}/"
             echo "@gjsify/http-soup-bridge prebuilds for linux-${ARCH}:"
             ls -lh "prebuilds/linux-${ARCH}/"
+            cd ../../..
+
+            # -------- @gjsify/http2-native --------
+            cd packages/node/http2-native
+            meson setup build .
+            meson compile -C build
+            mkdir -p "prebuilds/linux-${ARCH}"
+            cp build/libgjsifyhttp2.so build/GjsifyHttp2-1.0.gir build/GjsifyHttp2-1.0.typelib "prebuilds/linux-${ARCH}/"
+            echo "@gjsify/http2-native prebuilds for linux-${ARCH}:"
+            ls -lh "prebuilds/linux-${ARCH}/"
 
       - name: Upload @gjsify/webgl prebuilds artifact
         uses: actions/upload-artifact@v4
@@ -260,6 +301,13 @@ jobs:
         with:
           name: http-soup-bridge-prebuilds-linux-${{ matrix.arch }}
           path: packages/node/http-soup-bridge/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
+      - name: Upload @gjsify/http2-native prebuilds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: http2-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/node/http2-native/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
   # ----------------------------------------------------------------
@@ -369,11 +417,42 @@ jobs:
           name: http-soup-bridge-prebuilds-linux-riscv64
           path: packages/node/http-soup-bridge/prebuilds/linux-riscv64/
 
+      # -------- @gjsify/http2-native --------
+      - name: Download http2-native x86_64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: http2-native-prebuilds-linux-x86_64
+          path: packages/node/http2-native/prebuilds/linux-x86_64/
+
+      - name: Download http2-native aarch64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: http2-native-prebuilds-linux-aarch64
+          path: packages/node/http2-native/prebuilds/linux-aarch64/
+
+      - name: Download http2-native ppc64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: http2-native-prebuilds-linux-ppc64
+          path: packages/node/http2-native/prebuilds/linux-ppc64/
+
+      - name: Download http2-native s390x prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: http2-native-prebuilds-linux-s390x
+          path: packages/node/http2-native/prebuilds/linux-s390x/
+
+      - name: Download http2-native riscv64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: http2-native-prebuilds-linux-riscv64
+          path: packages/node/http2-native/prebuilds/linux-riscv64/
+
       - name: Commit prebuilds
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add packages/framework/webgl/prebuilds/ packages/web/webrtc-native/prebuilds/ packages/node/http-soup-bridge/prebuilds/
+          git add packages/framework/webgl/prebuilds/ packages/web/webrtc-native/prebuilds/ packages/node/http-soup-bridge/prebuilds/ packages/node/http2-native/prebuilds/
           if git diff --cached --quiet; then
             echo "No prebuild changes to commit."
           else

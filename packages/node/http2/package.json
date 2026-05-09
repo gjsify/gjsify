@@ -41,6 +41,7 @@
         "@girs/gobject-2.0": "2.88.0-4.0.0-rc.14",
         "@girs/soup-3.0": "3.6.6-4.0.0-rc.14",
         "@gjsify/events": "workspace:^",
+        "@gjsify/http2-native": "workspace:^",
         "@gjsify/utils": "workspace:^"
     }
 }
