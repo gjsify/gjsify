@@ -1,0 +1,37 @@
+{
+    "name": "@gjsify/lightningcss-wasm",
+    "version": "0.3.21",
+    "description": "Phase D-2 POC: GJS-compatible loader for the lightningcss WASM bundle. Re-exports the `lightningcss-wasm` npm package's transform/bundle/bundleAsync API on top of SpiderMonkey 140's synchronous `new WebAssembly.Module/Instance` constructors. Reads the .wasm via @gjsify/fs (or Node's native fs), resolves randomness via globalThis.crypto. No WASI, no SharedArrayBuffer — single-shot CSS pipeline. Intended as the WASM-track counterpart to `@gjsify/lightningcss-native`; the better of the two wins the slot in `@gjsify/rolldown-plugin-gjsify`'s cssAsStringPlugin (see Phase D-2 decision matrix).",
+    "type": "module",
+    "main": "src/index.mjs",
+    "module": "src/index.mjs",
+    "exports": {
+        ".": {
+            "default": "./src/index.mjs"
+        },
+        "./wasm/lightningcss_node.wasm": "./wasm/lightningcss_node.wasm"
+    },
+    "files": [
+        "src",
+        "wasm"
+    ],
+    "scripts": {
+        "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
+        "check": "echo 'no typecheck — vendored JS only' && exit 0"
+    },
+    "keywords": [
+        "gjs",
+        "lightningcss",
+        "wasm",
+        "css",
+        "minify",
+        "browserslist",
+        "napi-wasm"
+    ],
+    "dependencies": {
+        "@gjsify/fs": "workspace:^",
+        "@gjsify/webcrypto": "workspace:^"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}
