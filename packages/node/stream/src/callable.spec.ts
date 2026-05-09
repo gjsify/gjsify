@@ -43,6 +43,45 @@ export default async () => {
 		});
 	});
 
+	await describe('makeCallable: no-new invocation (legacy stream constructors)', async () => {
+		// Regression: Node's stream constructors guard against missing-new
+		// with `if (!(this instanceof Cls)) return new Cls(...)`. Consumers
+		// like `merge2` (used by `fast-glob`) call `Stream.PassThrough(opts)`
+		// without `new` and rely on the result being a real instance. The
+		// makeCallable apply trap must auto-construct in that case rather
+		// than try to mutate `undefined`/`globalThis`.
+		await it('PassThrough(opts) without new returns an instance', async () => {
+			const pt: any = (PassThrough as any)({});
+			expect(pt instanceof PassThrough).toBe(true);
+			expect(pt instanceof Transform).toBe(true);
+			expect(typeof pt.pipe).toBe('function');
+		});
+
+		await it('Readable({read}) without new returns an instance', async () => {
+			const r: any = (Readable as any)({ read() {} });
+			expect(r instanceof Readable).toBe(true);
+			expect(r.readable).toBe(true);
+		});
+
+		await it('Writable({write}) without new returns an instance', async () => {
+			const w: any = (Writable as any)({ write(_c: any, _e: any, cb: any) { cb(); } });
+			expect(w instanceof Writable).toBe(true);
+			expect(w.writable).toBe(true);
+		});
+
+		await it('PassThrough() pipes data through a no-new instance', async () => {
+			const pt: any = (PassThrough as any)();
+			const chunks: Buffer[] = [];
+			await new Promise<void>((resolve, reject) => {
+				pt.on('data', (c: Buffer) => chunks.push(c));
+				pt.on('end', resolve);
+				pt.on('error', reject);
+				pt.end(Buffer.from('hello'));
+			});
+			expect(Buffer.concat(chunks).toString()).toBe('hello');
+		});
+	});
+
 	await describe('makeCallable: legacy Stream.call(this) + util.inherits', async () => {
 		await it('Stream.call(plainObject) assigns EventEmitter bookkeeping', async () => {
 			// Plain object promoted to a Stream via .call()

@@ -62,9 +62,14 @@ export function readdirSync(
 ): string[] | Dirent[] {
   const pathStr = normalizePath(path);
   const file = Gio.File.new_for_path(pathStr);
+  // NOFOLLOW_SYMLINKS so the enumerator's standard::type reflects the real
+  // dirent — Node's readdir(withFileTypes:true).Dirent.isSymbolicLink()
+  // must return true for entries that are themselves symlinks (rather than
+  // following them and reporting the target's type). @nodelib/fs.scandir
+  // (used by fast-glob) relies on this.
   const enumerator = file.enumerate_children(
     'standard::name,standard::type',
-    Gio.FileQueryInfoFlags.NONE,
+    Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
     null,
   );
 
@@ -74,14 +79,15 @@ export function readdirSync(
   while (info !== null) {
     const childName = info.get_name();
     const childPath = join(pathStr, childName);
+    const childType = info.get_file_type();
 
     if (options?.withFileTypes) {
-      result.push(new Dirent(childPath, childName));
+      result.push(new Dirent(childPath, childName, childType));
     } else {
       result.push(childName);
     }
 
-    if (options?.recursive && info.get_file_type() === Gio.FileType.DIRECTORY) {
+    if (options?.recursive && childType === Gio.FileType.DIRECTORY) {
       const subEntries = readdirSync(childPath, options);
       for (const entry of subEntries) {
         if (typeof entry === 'string') {

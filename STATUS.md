@@ -662,6 +662,24 @@ Phase D-1 Workstream P — pure-JS ECMAScript parser + AST visitor used by `@gjs
 | error-positions.spec.ts | ✅ (6) | ✅ (6) | `SyntaxError` `pos`/`loc.line`/`loc.column`, `(line:col)` message suffix, multi-line line numbers, unterminated string column, reserved-word misuse in module mode, plain `Error` subclass + stack-trace shape |
 
 Acorn + acorn-walk both bundle as ESM through Rolldown's `import` condition and execute on GJS without `@gjsify/*` polyfill changes — confirms the SpiderMonkey 140 ES2024 surface (private class fields, top-level await, optional chaining, logical assignment, dynamic `import()`, import attributes, tagged templates) used by the parser is intact under `firefox140` lowering. Clears two more of the 11 Phase D-1 npm runtime-deps that the future GJS-hosted `@gjsify/cli` build needs.
+### fast-glob (`tests/integration/fast-glob/`)
+
+Phase D-1 Workstream Q — validates the `fast-glob` v3 pattern matcher used by `@gjsify/rolldown-plugin-gjsify` and `@gjsify/vite-plugin-gettext` end-to-end on GJS. Already exercised indirectly by the ts-for-gir suite (which depends on glob through TypeDoc + the workspace generators); this suite isolates and explicitly asserts the surface. **Node: 98/98 green. GJS: 98/98 green, 0 skips.**
+
+Fixtures generated at prebuild time by `scripts/setup-fixtures.mjs` — a deterministic tree under `./fixtures/` (top-level files with mixed extensions, dotfiles, two-level nesting, a hidden subdirectory, plus three symlinks: file → file, dir → dir, dangling). The published `fast-glob` tarball strips its own `__tests__/` (the package.json `files` filter excludes `out/{benchmark,tests}` and `out/**/*.spec.*`), so this suite's spec files are derived from `fast-glob`'s documented public API rather than ported verbatim.
+
+| Suite | Node | GJS | Exercises |
+|---|---|---|---|
+| basic-patterns.spec.ts | ✅ (8) | ✅ (8) | `*.ts`, `**/*.ts`, `**/*.{ts,js}`, `!**/excluded`, `ignore` option, empty-match, `isDynamicPattern`, `escapePath` |
+| glob-vs-stream.spec.ts | ✅ (5) | ✅ (5) | `fg()` async / `fg.sync()` / `fg.stream()` parity, `objectMode` shape, `stats: true` |
+| cwd-and-absolute.spec.ts | ✅ (6) | ✅ (6) | `cwd` relative + nested, `absolute: true`, async/sync agreement, absolute pattern with no cwd |
+| dot-and-hidden.spec.ts | ✅ (8) | ✅ (8) | `dot: false` (default) hides dotfiles, `dot: true`, `onlyFiles` true/false, `markDirectories`, `onlyDirectories` with/without symlink follow |
+| symlinks.spec.ts | ✅ (7) | ✅ (7) | `followSymbolicLinks: true` (default) for file + directory symlinks, `followSymbolicLinks: false`, dangling symlink under `suppressErrors`, async/sync parity, `objectMode` `dirent.isSymbolicLink()` |
+
+#### Root-cause fixes surfaced by the fast-glob port and landed in this PR
+
+1. **`@gjsify/fs` `readdirSync(withFileTypes: true)` now reports symlinks correctly.** [packages/node/fs/src/sync.ts](packages/node/fs/src/sync.ts) `readdirSync` was opening the directory enumerator with `Gio.FileQueryInfoFlags.NONE`, which follows symlinks when reading `standard::type`. Result: every symlink dirent reported the *target's* type (so `Dirent.isSymbolicLink()` returned `false` even for symlinks). `@nodelib/fs.scandir` (used by fast-glob) relies on the dirent type to short-circuit a follow-up `lstat`, so `followSymbolicLinks: false` had no effect on GJS — symlink entries got walked anyway. Fixed by switching the enumerator to `Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS` and threading the entry's `info.get_file_type()` into the `Dirent` constructor (it already mapped `Gio.FileType.SYMBOLIC_LINK` → `_isSymbolicLink = true`).
+2. **`makeCallable` now auto-constructs on no-`new` invocation.** [packages/gjs/utils/src/callable.ts](packages/gjs/utils/src/callable.ts) `apply` trap previously always tried to transplant a fresh instance's properties onto `thisArg`. When the wrapped class was called as a plain function (`PassThrough(opts)` from `merge2`, used inside fast-glob), `thisArg` was `undefined` (strict mode) → `Object.defineProperty(undefined, …)` crashed with "undefined is not a non-null object". Fixed: when `thisArg == null` or `thisArg === globalThis`, treat the call as a constructor call and return `Reflect.construct(target, args, target)`. Mirrors Node's stream constructors' explicit `if (!(this instanceof Cls)) return new Cls(...)` legacy guard. Regression tests added to [packages/node/stream/src/callable.spec.ts](packages/node/stream/src/callable.spec.ts) (`makeCallable: no-new invocation` describe block, 4 cases — `PassThrough`, `Readable`, `Writable`, plus an end-to-end pipe-through-no-new-instance check).
 
 ## Open TODOs
 

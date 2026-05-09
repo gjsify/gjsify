@@ -23,6 +23,59 @@
 
 ### Features
 
+* **integration-fast-glob (2026-05-09):** Phase D-1 Workstream Q — new
+  `tests/integration/fast-glob/` suite
+  (`@gjsify/integration-fast-glob`, private). 5 spec files / 98 cases
+  covering the public [`fast-glob@^3`](https://github.com/mrmlnc/fast-glob)
+  API used by `@gjsify/rolldown-plugin-gjsify` and
+  `@gjsify/vite-plugin-gettext`. Total: **98/98 green on Node, 98/98
+  green on GJS, 0 skips.** Stresses `@gjsify/fs`
+  (`readdirSync(withFileTypes:true)` symlink classification, `lstat`,
+  `realpath`), `@gjsify/path`, and `process.cwd()`. Fixtures generated
+  at prebuild time by `scripts/setup-fixtures.mjs` rather than copied
+  from the npm package — `fast-glob`'s published tarball strips its
+  own `__tests__/` (the `package.json#files` filter excludes
+  `out/{benchmark,tests}` and `out/**/*.spec.*`). Tree: top-level
+  files (`a.ts`, `b.js`, `c.md`, `excluded.ts`, `.dotfile`), nested
+  `sub/` (`c.ts`, `d.js`, `.dotsub/hidden.ts`, `deeper/e.ts`), plus
+  three symlinks (file → file, dir → dir, dangling). Two root-cause
+  fixes landed in the same PR (see Bug Fixes below).
+
+### Bug Fixes
+
+* **fs (2026-05-09):** `readdirSync(withFileTypes: true)` now reports
+  symlinks correctly on GJS. `packages/node/fs/src/sync.ts` was
+  opening the directory enumerator with
+  `Gio.FileQueryInfoFlags.NONE`, which follows symlinks while reading
+  `standard::type`. Result: every symlink dirent reported the
+  *target's* type, so `Dirent.isSymbolicLink()` always returned
+  `false`. `@nodelib/fs.scandir` (the engine inside `fast-glob`) uses
+  that bit to short-circuit a follow-up `lstat`, so
+  `followSymbolicLinks: false` had no effect on GJS — symlink entries
+  were walked anyway. Fixed by switching the enumerator to
+  `Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS` and threading the
+  entry's `info.get_file_type()` into the `Dirent` constructor (the
+  `Dirent` already mapped `Gio.FileType.SYMBOLIC_LINK` →
+  `_isSymbolicLink = true`). Surfaced by the new `fast-glob`
+  integration suite. All 638 fs tests still green on Node and GJS.
+* **utils/callable (2026-05-09):** `makeCallable` now auto-constructs
+  on no-`new` invocation. `packages/gjs/utils/src/callable.ts`'s
+  `apply` trap previously always tried to transplant a fresh
+  instance's properties onto `thisArg`; when the wrapped class was
+  called as a plain function (`PassThrough(opts)` from `merge2`, used
+  by `fast-glob`), `thisArg` was `undefined` (strict mode) and the
+  transplant crashed with "undefined is not a non-null object". The
+  trap now treats `thisArg == null` (or `=== globalThis`) as a
+  no-`new` constructor call and returns
+  `Reflect.construct(target, args, target)` — mirrors the explicit
+  `if (!(this instanceof Cls)) return new Cls(...)` legacy guard
+  Node's stream constructors carry. Regression tests added to
+  `packages/node/stream/src/callable.spec.ts`
+  (`makeCallable: no-new invocation` describe block, 4 cases —
+  `PassThrough`, `Readable`, `Writable` no-new constructors plus an
+  end-to-end pipe-through test). 517/517 stream tests + 266/266
+  events tests + 138/138 utils tests still green on Node and GJS.
+
 * **http2 + http2-native (2026-05-09):** Workstream A — Phase 2 of the
   http2 module. New `@gjsify/http2-native` Vala/GObject prebuild
   package wraps libnghttp2 primitives that libsoup's high-level GIR
