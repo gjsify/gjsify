@@ -121,6 +121,37 @@
 
 ### Refactoring
 
+* **readline (2026-05-09):** type-safety pass on
+  `packages/node/readline/src/index.ts` (Workstream L). `as any`
+  reduced from 26 → 0 in production source. New internal-only
+  helper module `src/internal/stream-types.ts` (per AGENTS.md
+  Rule 2c — not exported from `package.json#exports`) declares
+  `GjsReadableTty` and `GjsWritableTty` interfaces that augment
+  `node:stream`'s `Readable`/`Writable` with the TTY-specific
+  runtime members (`isRaw`, `isTTY`, `setRawMode`, `columns`,
+  `rows`, `getColorDepth`, `hasColors`) that exist on both
+  `tty.ReadStream`/`WriteStream` and `@gjsify/process`'s
+  `ProcessReadStream`/`ProcessWriteStream` but are absent from the
+  base `Readable`/`Writable` types. A third helper
+  `KeypressTaggedStream` (intersection type — `Readable &
+  { [key: symbol]: ... }`, modelled as intersection rather than
+  `extends Readable` to avoid colliding with `Readable`'s built-in
+  symbol keys like `Symbol.asyncDispose` /
+  `EventEmitter.captureRejectionSymbol`) replaces the
+  `(stream as any)[_KEYPRESS_DECODER]` casts in
+  `emitKeypressEvents`. Public API of `Interface` unchanged
+  (`_input: Readable | null`, `_output: Writable | null`); only
+  internal usage narrows. The `emitKeypressEvents(stream, iface)`
+  signature was tightened from `Readable & Record<symbol, unknown>`
+  to plain `Readable` (Node-spec compatible) with the symbol-tagged
+  view applied internally. Side-effects: `Interface` now exposes
+  the `escapeCodeTimeout?: number` field already declared on
+  `InterfaceOptions` so `emitKeypressEvents(stream, this)`
+  satisfies the structural `{ escapeCodeTimeout?: number }`
+  parameter without `as any` (also a behavior parity improvement —
+  Node readline forwards `opts.escapeCodeTimeout`). All 145 tests
+  green on both Node and GJS (unchanged baseline).
+
 * **zlib (2026-05-09):** type-safety pass on
   `packages/node/zlib/src/index.spec.ts` (Workstream J). `as any`
   reduced from 20 → 0. All 20 occurrences were `gzipSync(str as

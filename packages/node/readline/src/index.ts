@@ -4,6 +4,12 @@
 import { EventEmitter } from 'node:events';
 import { StringDecoder } from 'node:string_decoder';
 import type { Readable, Writable } from 'node:stream';
+import type {
+  GjsReadableTty,
+  GjsWritableTty,
+  KeypressEmitter,
+  KeypressTaggedStream,
+} from './internal/stream-types.js';
 
 export interface InterfaceOptions {
   input?: Readable;
@@ -24,6 +30,10 @@ export class Interface extends EventEmitter {
   terminal: boolean;
   line = '';
   cursor = 0;
+  // Mirrors `InterfaceOptions.escapeCodeTimeout` so that
+  // `emitKeypressEvents(stream, this)` can read it via the structural
+  // `{ escapeCodeTimeout?: number }` parameter shape.
+  escapeCodeTimeout?: number;
 
   private _input: Readable | null;
   private _output: Writable | null;
@@ -63,6 +73,7 @@ export class Interface extends EventEmitter {
     this._historySize = opts.historySize ?? 30;
     this.history = [];
     this._crlfDelay = opts.crlfDelay ?? 100;
+    this.escapeCodeTimeout = opts.escapeCodeTimeout;
 
     if (this._input) {
       this._boundOnData = (chunk: Buffer | string) => this._onData(chunk);
@@ -77,12 +88,13 @@ export class Interface extends EventEmitter {
       }
 
       if (this.terminal) {
-        emitKeypressEvents(this._input as Readable & Record<symbol, unknown>, this as any);
-        if ('setRawMode' in this._input && typeof (this._input as any).setRawMode === 'function') {
-          if (!(this._input as any).isRaw) (this._input as any).setRawMode(true);
+        emitKeypressEvents(this._input, this);
+        const ttyInput = this._input as GjsReadableTty;
+        if (typeof ttyInput.setRawMode === 'function') {
+          if (!ttyInput.isRaw) ttyInput.setRawMode(true);
         }
-        if ('resume' in this._input && typeof (this._input as any).resume === 'function') {
-          (this._input as any).resume();
+        if (typeof this._input.resume === 'function') {
+          this._input.resume();
         }
 
         this._boundOnKeypress = (str: string | undefined, key: Key) => {
@@ -176,7 +188,7 @@ export class Interface extends EventEmitter {
   write(data: string | Buffer | null, key?: { ctrl?: boolean; meta?: boolean; shift?: boolean; name?: string }): void {
     if (this._closed) return;
     if (key) {
-      if (this._input) (this._input as any).emit('keypress', data ?? '', key);
+      if (this._input) this._input.emit('keypress', data ?? '', key);
       return;
     }
     if (data !== null && data !== undefined) {
@@ -207,16 +219,16 @@ export class Interface extends EventEmitter {
       this._boundOnError = null;
       this._boundOnKeypress = null;
 
-      if (this.terminal && (this._input as any).isRaw &&
-          'setRawMode' in this._input && typeof (this._input as any).setRawMode === 'function') {
-        (this._input as any).setRawMode(false);
+      const ttyInput = this._input as GjsReadableTty;
+      if (this.terminal && ttyInput.isRaw && typeof ttyInput.setRawMode === 'function') {
+        ttyInput.setRawMode(false);
       }
 
       // Pause stdin so ProcessReadStream releases the GLib main loop via
       // quitMainLoop(). Mirrors Node.js readline: close() pauses the stream
       // so the event loop can drain and the process exits when no more prompts follow.
-      if ('pause' in this._input && typeof (this._input as any).pause === 'function') {
-        (this._input as any).pause();
+      if (typeof this._input.pause === 'function') {
+        this._input.pause();
       }
     }
 
@@ -244,7 +256,7 @@ export class Interface extends EventEmitter {
   }
 
   getCursorPos(): { rows: number; cols: number } {
-    const columns = (this._output as any)?.columns ?? 80;
+    const columns = (this._output as GjsWritableTty | null)?.columns ?? 80;
     const len = this._prompt.length + this.cursor;
     return { rows: Math.floor(len / columns), cols: len % columns };
   }
@@ -495,42 +507,47 @@ const _ESCAPE_DECODER   = Symbol('escape-decoder');
 
 // Idempotent — calling twice on the same stream is a no-op.
 // Ported from refs/node/lib/internal/readline/emitKeypressEvents.js.
-export function emitKeypressEvents(stream: Readable & Record<symbol, unknown>, iface: { escapeCodeTimeout?: number } = {}): void {
-  if ((stream as any)[_KEYPRESS_DECODER]) return;
+export function emitKeypressEvents(stream: Readable, iface: { escapeCodeTimeout?: number } = {}): void {
+  // Cast once to the symbol-tagged shape; runtime augmentation is tracked
+  // via two private symbols (decoder + escape-state generator).
+  const tagged = stream as KeypressTaggedStream;
+  if (tagged[_KEYPRESS_DECODER]) return;
 
-  (stream as any)[_KEYPRESS_DECODER] = new StringDecoder('utf8');
-  (stream as any)[_ESCAPE_DECODER] = emitKeys(stream as any);
-  (stream as any)[_ESCAPE_DECODER].next();
+  tagged[_KEYPRESS_DECODER] = new StringDecoder('utf8');
+  tagged[_ESCAPE_DECODER] = emitKeys(stream as KeypressEmitter);
+  (tagged[_ESCAPE_DECODER] as Generator<void, void, string>).next();
 
   const escTimeout = iface.escapeCodeTimeout ?? ESCAPE_CODE_TIMEOUT;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const triggerEscape = () => (stream as any)[_ESCAPE_DECODER].next('');
+  const triggerEscape = () =>
+    (tagged[_ESCAPE_DECODER] as Generator<void, void, string>).next('');
 
   function onData(input: Buffer | string): void {
-    if ((stream as any).listenerCount('keypress') > 0) {
-      const str: string = (stream as any)[_KEYPRESS_DECODER].write(
+    if (stream.listenerCount('keypress') > 0) {
+      const decoder = tagged[_KEYPRESS_DECODER] as StringDecoder;
+      const str: string = decoder.write(
         typeof input === 'string' ? Buffer.from(input) : input,
       );
       if (str) {
         clearTimeout(timeoutId);
         for (const ch of str) {
           try {
-            (stream as any)[_ESCAPE_DECODER].next(ch);
+            (tagged[_ESCAPE_DECODER] as Generator<void, void, string>).next(ch);
             if (ch === '\x1b') timeoutId = setTimeout(triggerEscape, escTimeout);
           } catch {
-            (stream as any)[_ESCAPE_DECODER] = emitKeys(stream as any);
-            (stream as any)[_ESCAPE_DECODER].next();
+            tagged[_ESCAPE_DECODER] = emitKeys(stream as KeypressEmitter);
+            (tagged[_ESCAPE_DECODER] as Generator<void, void, string>).next();
           }
         }
       }
     } else {
-      (stream as any).removeListener('data', onData);
-      delete (stream as any)[_KEYPRESS_DECODER];
-      delete (stream as any)[_ESCAPE_DECODER];
+      stream.removeListener('data', onData);
+      delete tagged[_KEYPRESS_DECODER];
+      delete tagged[_ESCAPE_DECODER];
     }
   }
 
-  (stream as any).on('data', onData);
+  stream.on('data', onData);
 }
 
 export default {
