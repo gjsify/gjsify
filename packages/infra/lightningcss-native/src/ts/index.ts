@@ -121,3 +121,49 @@ export function transform(input: TransformInput): TransformResult {
   }
   return out;
 }
+
+/**
+ * Convenience facade matching the npm `lightningcss` `bundle()` /
+ * `bundleAsync()` shape but synchronous (the underlying lightningcss
+ * `Bundler::bundle` is sync — npm's `bundleAsync` exists only because
+ * the JS-side wrapper needed to host the JS resolver callback).
+ *
+ * Resolves `@import` chains via lightningcss's filesystem-backed
+ * `FileProvider` — equivalent to `bundleAsync` with the default
+ * `read: fs.readFileSync` resolver.
+ */
+export interface BundleInput {
+  /** Entry CSS file path. */
+  filename: string;
+  /** browserslist query, e.g. `"firefox >= 60"`. */
+  targets?: string;
+  minify?: boolean;
+  sourceMap?: boolean;
+  /** Equivalent of npm `lightningcss`'s `errorRecovery: true`. Default true. */
+  errorRecovery?: boolean;
+}
+
+export function bundle(input: BundleInput): TransformResult {
+  const native = loadNativeLightningcss();
+  if (!native) {
+    throw new Error(
+      `@gjsify/lightningcss-native: prebuild not available (${_loadError?.message ?? 'unknown'})`
+    );
+  }
+
+  const engine = new native.Engine();
+  const [outCode, outMap] = engine.bundle(
+    input.filename,
+    input.targets ?? null,
+    Boolean(input.minify),
+    Boolean(input.sourceMap),
+    input.errorRecovery ?? true,
+  );
+
+  const out: TransformResult = { code: outCode.get_data() ?? new Uint8Array(0) };
+  if (outMap) {
+    const mapData = outMap.get_data();
+    if (mapData) out.map = mapData;
+  }
+  return out;
+}

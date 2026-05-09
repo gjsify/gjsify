@@ -19,9 +19,22 @@
 // flattened to GTK4-CSS-engine-compatible output. Targeting is opt-in —
 // a missing `targets` keeps the source pristine.
 //
-// `lightningcss` is a regular dependency of this package; the plugin
-// imports it lazily so missing-arch installs surface the underlying
-// load error instead of crashing every gjsify build.
+// Backend selection (Phase D-2 decision matrix in
+// `docs/poc/lightningcss-decision.md`):
+//
+//   1. `@gjsify/lightningcss-native` when its prebuild is loadable on
+//      the running architecture (3-5× faster than the WASM track,
+//      ~960× faster cold init). Only relevant when `gjsify build`
+//      itself runs under GJS (Phase D-3).
+//   2. npm `lightningcss` for everything else (Node, unsupported
+//      arches, dev machines without the prebuild). Existing behavior;
+//      keeps the regular dependency on this package.
+//
+// Selection is lazy and silent — the first `.css` load probes for
+// the native bridge once, caches the answer, and routes the rest of
+// the build through the chosen backend. Set the env var
+// `GJSIFY_CSS_BACKEND={native|npm}` to force a specific backend
+// (mainly useful for benchmarking + the integration suite).
 
 import { readFile } from 'node:fs/promises';
 import type { Plugin } from 'rolldown';
@@ -42,6 +55,87 @@ export interface CssAsStringOptions {
      * verbatim in the bundled JS (rare).
      */
     bundle?: boolean;
+}
+
+interface BundleResult {
+    code: Uint8Array;
+}
+
+type Bundler = (filename: string, targets: import('lightningcss').Targets | undefined) => Promise<BundleResult>;
+
+let _bundlerPromise: Promise<Bundler> | null = null;
+
+async function pickBundler(): Promise<Bundler> {
+    const forced = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.GJSIFY_CSS_BACKEND;
+
+    if (forced === 'npm') return loadNpmBundler();
+    if (forced === 'native') {
+        const native = await tryLoadNativeBundler();
+        if (!native) throw new Error('GJSIFY_CSS_BACKEND=native but @gjsify/lightningcss-native is not loadable');
+        return native;
+    }
+
+    const native = await tryLoadNativeBundler();
+    return native ?? loadNpmBundler();
+}
+
+async function tryLoadNativeBundler(): Promise<Bundler | null> {
+    // The native bridge only exists under GJS — `imports.gi` marker. Skip
+    // the dynamic import entirely on Node so it doesn't even register as a
+    // resolved dep, which would inflate the CLI's bundled output.
+    const isGjs = typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
+    if (!isGjs) return null;
+
+    try {
+        const mod = await import('@gjsify/lightningcss-native');
+        if (!mod.hasNativeLightningcss()) return null;
+        return async (filename, targets) => {
+            // The native shim accepts a browserslist string; the npm
+            // `lightningcss` Targets struct is bitfield-encoded
+            // (`firefox: 60 << 16` etc). Convert by extracting major
+            // version per browser key and re-emitting as the equivalent
+            // browserslist query.
+            const query = targetsToBrowserslist(targets);
+            return mod.bundle({
+                filename,
+                targets: query,
+                minify: false,
+                sourceMap: false,
+                errorRecovery: true,
+            });
+        };
+    } catch {
+        return null;
+    }
+}
+
+async function loadNpmBundler(): Promise<Bundler> {
+    const { bundleAsync } = await import('lightningcss');
+    return async (filename, targets) => {
+        const result = await bundleAsync({
+            filename,
+            targets,
+            minify: false,
+            errorRecovery: true,
+        });
+        return { code: result.code };
+    };
+}
+
+function targetsToBrowserslist(
+    targets: import('lightningcss').Targets | undefined,
+): string | undefined {
+    if (!targets) return undefined;
+    const parts: string[] = [];
+    for (const [browser, encoded] of Object.entries(targets) as [string, number | undefined][]) {
+        if (typeof encoded !== 'number') continue;
+        // npm lightningcss encodes versions as `(major << 16) | (minor << 8) | patch`.
+        const major = (encoded >>> 16) & 0xff;
+        if (major === 0) continue;
+        const name = browser === 'ios_saf' ? 'ios' : browser;
+        parts.push(`${name} >= ${major}`);
+    }
+    return parts.length ? parts.join(', ') : undefined;
 }
 
 export function cssAsStringPlugin(options: CssAsStringOptions = {}): Plugin {
@@ -67,12 +161,8 @@ async function loadAndBundleCss(
     filename: string,
     targets: import('lightningcss').Targets | undefined,
 ): Promise<Uint8Array> {
-    const { bundleAsync } = await import('lightningcss');
-    const result = await bundleAsync({
-        filename,
-        targets,
-        minify: false,
-        errorRecovery: true,
-    });
-    return result.code;
+    if (!_bundlerPromise) _bundlerPromise = pickBundler();
+    const bundler = await _bundlerPromise;
+    const { code } = await bundler(filename, targets);
+    return code;
 }

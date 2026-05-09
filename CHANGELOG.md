@@ -23,6 +23,25 @@
 
 ### Features
 
+* **cssAsStringPlugin prefers @gjsify/lightningcss-native (2026-05-10):**
+  Phase D-2 wire-up — the plugin's `.css` bundling step now picks its
+  backend lazily on first call: under GJS, probe
+  `@gjsify/lightningcss-native`'s `hasNativeLightningcss()`; on success
+  route through its new `bundle()` method (3-5× faster than the WASM
+  track per the decision matrix in `docs/poc/lightningcss-decision.md`).
+  On Node or when the native prebuild is unavailable, fall back to
+  npm `lightningcss`'s `bundleAsync` (existing behavior — npm
+  `lightningcss` stays a regular dep). Backend cached for the rest of
+  the build; env override `GJSIFY_CSS_BACKEND={native|npm}` for
+  benchmarking + integration suites. Required extending
+  `@gjsify/lightningcss-native` with a `bundle()` GObject method on
+  top of lightningcss's built-in filesystem `FileProvider` — resolves
+  `@import` chains in Rust without ever crossing the FFI boundary,
+  mirroring npm `lightningcss`'s `bundleAsync` semantics. Smoke
+  tested under GJS 1.88: 0.99 ms cold for a 3-file `@import` bundle
+  with nesting-flatten + minify; @import-of-missing-file surfaces a
+  clear `os error 2` diagnostic. Existing `tests/e2e/css-bundling/`
+  suite still green via the npm path.
 * **rolldown-native POC (2026-05-10):** Phase D-2 FFI track for the
   rolldown bundler crate, mirroring `@gjsify/lightningcss-native`.
   Adds `@gjsify/rolldown-native` under `packages/infra/rolldown-native/`:

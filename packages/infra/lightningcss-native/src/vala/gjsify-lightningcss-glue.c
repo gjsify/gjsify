@@ -67,3 +67,51 @@ gjsify_lightningcss_glue_transform (const char  *filename,
   gjsify_lightningcss_result_free (res);
   return out_code;
 }
+
+GBytes *
+gjsify_lightningcss_glue_bundle (const char  *filename,
+                                 const char  *browserslist,
+                                 gboolean     minify,
+                                 gboolean     source_map,
+                                 gboolean     error_recovery,
+                                 GBytes     **out_map,
+                                 GError     **error)
+{
+  if (out_map)
+    *out_map = NULL;
+
+  if (filename == NULL || filename[0] == '\0')
+    {
+      g_set_error_literal (error,
+                           GJSIFY_LIGHTNINGCSS_ERROR,
+                           GJSIFY_LIGHTNINGCSS_ERROR_FAILED,
+                           "lightningcss: bundle requires a filename");
+      return NULL;
+    }
+
+  GjsifyBundleOpts opts;
+  opts.filename       = filename;
+  opts.browserslist   = browserslist;
+  opts.minify         = minify ? true : false;
+  opts.source_map     = source_map ? true : false;
+  opts.error_recovery = error_recovery ? true : false;
+
+  GjsifyResult res = gjsify_lightningcss_bundle (opts);
+
+  if (res.error != NULL)
+    {
+      g_set_error_literal (error,
+                           GJSIFY_LIGHTNINGCSS_ERROR,
+                           GJSIFY_LIGHTNINGCSS_ERROR_FAILED,
+                           res.error);
+      gjsify_lightningcss_result_free (res);
+      return NULL;
+    }
+
+  GBytes *out_code = g_bytes_new (res.code, res.code_len);
+  if (source_map && res.map != NULL && out_map != NULL)
+    *out_map = g_bytes_new (res.map, res.map_len);
+
+  gjsify_lightningcss_result_free (res);
+  return out_code;
+}

@@ -45,6 +45,29 @@ GBytes *gjsify_lightningcss_glue_transform (const char  *filename,
                                             GBytes     **out_map,
                                             GError     **error);
 
+/**
+ * gjsify_lightningcss_glue_bundle:
+ * @filename:        entry CSS path (must not be NULL)
+ * @browserslist:    targets query (NULL = no lowering)
+ * @minify:          minify the output
+ * @source_map:      compute a source map for the entry file
+ * @error_recovery:  continue on parse errors (lightningcss
+ *                   `errorRecovery: true` semantics)
+ * @out_map:         (out)(transfer full)(nullable): JSON source map
+ * @error:           (out)(optional)
+ *
+ * Returns: (transfer full): bundled output CSS as GBytes. The bundler
+ * resolves @import chains via lightningcss's built-in `FileProvider`
+ * (filesystem-backed).
+ */
+GBytes *gjsify_lightningcss_glue_bundle (const char  *filename,
+                                         const char  *browserslist,
+                                         gboolean     minify,
+                                         gboolean     source_map,
+                                         gboolean     error_recovery,
+                                         GBytes     **out_map,
+                                         GError     **error);
+
 G_END_DECLS
 
 #endif /* GJSIFY_LIGHTNINGCSS_GLUE_H */

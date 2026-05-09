@@ -41,6 +41,18 @@ typedef struct {
  * to gjsify_lightningcss_result_free() exactly once when done. */
 GjsifyResult gjsify_lightningcss_transform (GjsifyTransformOpts opts);
 
+typedef struct {
+  const char *filename;       /* entry CSS path; MUST NOT be NULL */
+  const char *browserslist;   /* may be NULL → no targets lowering */
+  bool        minify;
+  bool        source_map;
+  bool        error_recovery;
+} GjsifyBundleOpts;
+
+/* Bundle a CSS entry file (resolves @import chains via lightningcss's
+ * built-in FileProvider). Same ownership rules as transform(). */
+GjsifyResult gjsify_lightningcss_bundle (GjsifyBundleOpts opts);
+
 void gjsify_lightningcss_result_free (GjsifyResult result);
 
 G_END_DECLS
