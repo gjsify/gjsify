@@ -713,6 +713,20 @@ The published `@rollup/pluginutils` tarball strips its own `test/` directory (th
 
 Clears another of the 11 Phase D-1 npm runtime-deps the future GJS-hosted `@gjsify/cli` build needs. The picomatch transitive dep used by `createFilter` also bundles + runs cleanly on GJS — additional indirect coverage that `@gjsify/path` + the SpiderMonkey 140 RegExp surface match Node's behavior for the heavy regex paths inside `picomatch`.
 
+### minify-xml (`tests/integration/minify-xml/`)
+
+Phase D-1 Workstream X — validates the `minify-xml` v4 pure-JS XML compressor consumed by `@gjsify/vite-plugin-blueprint` to compress the XML output it generates from `.blp` Blueprint sources. **Node: 63/63 green. GJS: 63/63 green, 0 skips.** No `@gjsify/*` fixes required — `minify-xml` is built entirely on `String.prototype.replace` + heavy lookbehind/lookahead `RegExp`s, and SpiderMonkey 140's RegExp engine matches Node's V8 RegExp behavior exactly for every pattern the minifier exercises (including the lookbehind-anchored `tagPattern` chain that's the heart of the algorithm).
+
+The published `minify-xml` tarball strips its own `test/` directory (the package.json `files` filter ships only `cli.js` + `index.d.ts*`), so the spec files are derived from `minify-xml`'s [documented public API](https://github.com/kristian/minify-xml) (the `MinifyOptions` JSDoc + `defaultOptions` enumeration) rather than ported verbatim.
+
+| Suite | Node | GJS | Exercises |
+|---|---|---|---|
+| basic.spec.ts | ✅ (10) | ✅ (10) | `minify` exports, comment removal, inter-tag whitespace removal, in-tag whitespace collapse, `<tag></tag>` → `<tag/>` collapse, text content preservation, CDATA preservation (default), XML prolog handling, idempotency on representative input |
+| options.spec.ts | ✅ (10) | ✅ (10) | `removeComments: false`, `collapseEmptyElements: false`, `removeWhitespaceBetweenTags: false`, `collapseWhitespaceInTags: false`, `xml:space="preserve"` honoring, `trimWhitespaceFromTexts`, `collapseWhitespaceInTexts`, `ignoreCData: false`, `removeUnusedNamespaces` (default + override) |
+| edge-cases.spec.ts | ✅ (12) | ✅ (12) | 100-deep nesting (no recursion overflow), single-quoted attributes, `>` inside attribute values, XML entities (`&lt;`/`&gt;`/`&amp;`/`&quot;`), processing instructions, mixed text+element content, Blueprint-style GTK XML resource (representative consumer shape), idempotency, unicode (CJK + emoji + Cyrillic), CDATA containing XML-like markup, empty input, single self-closing element |
+
+Clears the last of the 11 Phase D-1 npm runtime-deps the future GJS-hosted `@gjsify/cli` build needs (excluding the Rust blockers `rolldown` / `lightningcss` that fall through to D-2 research). The Blueprint consumer path — `@gjsify/vite-plugin-blueprint` calls `minify(xml)` on the XML string blueprint-compiler emits — is now end-to-end-validated, so the existing GTK examples that bundle `.blp` resources are protected against any future RegExp-engine-divergence regressions.
+
 ## Open TODOs
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
