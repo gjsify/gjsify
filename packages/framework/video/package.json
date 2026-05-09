@@ -26,12 +26,12 @@
         "bridge"
     ],
     "dependencies": {
-        "@girs/gdk-4.0": "4.0.0-4.0.0-rc.14",
-        "@girs/gjs": "4.0.0-rc.14",
-        "@girs/glib-2.0": "2.88.0-4.0.0-rc.14",
-        "@girs/gobject-2.0": "2.88.0-4.0.0-rc.14",
-        "@girs/gst-1.0": "1.28.1-4.0.0-rc.14",
-        "@girs/gtk-4.0": "4.23.0-4.0.0-rc.14",
+        "@girs/gdk-4.0": "4.0.0-4.0.0-rc.15",
+        "@girs/gjs": "4.0.0-rc.15",
+        "@girs/glib-2.0": "2.88.0-4.0.0-rc.15",
+        "@girs/gobject-2.0": "2.88.0-4.0.0-rc.15",
+        "@girs/gst-1.0": "1.28.1-4.0.0-rc.15",
+        "@girs/gtk-4.0": "4.23.0-4.0.0-rc.15",
         "@gjsify/bridge-types": "workspace:^",
         "@gjsify/dom-elements": "workspace:^",
         "@gjsify/dom-events": "workspace:^",

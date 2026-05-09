@@ -11,7 +11,7 @@
     "typecheck": "astro check"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.39.1",
+    "@astrojs/starlight": "^0.39.2",
     "@fontsource/coming-soon": "^5.2.8",
     "@gjsify/adwaita-fonts": "workspace:^",
     "@gjsify/adwaita-icons": "workspace:^",

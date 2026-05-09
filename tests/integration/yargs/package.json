@@ -17,13 +17,13 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.0-rc.14",
+        "@girs/gjs": "4.0.0-rc.15",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.6.2",
-        "@types/yargs": "^17.0.33",
+        "@types/yargs": "^17.0.35",
         "typescript": "^6.0.3",
         "yargs": "^18.0.0"
     },

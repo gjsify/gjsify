@@ -31,13 +31,13 @@
         "offscreen"
     ],
     "dependencies": {
-        "@girs/gdk-4.0": "4.0.0-4.0.0-rc.14",
-        "@girs/gdkpixbuf-2.0": "2.0.0-4.0.0-rc.14",
-        "@girs/gjs": "4.0.0-rc.14",
-        "@girs/glib-2.0": "2.88.0-4.0.0-rc.14",
-        "@girs/gobject-2.0": "2.88.0-4.0.0-rc.14",
-        "@girs/pango-1.0": "1.57.1-4.0.0-rc.14",
-        "@girs/pangocairo-1.0": "1.0.0-4.0.0-rc.14"
+        "@girs/gdk-4.0": "4.0.0-4.0.0-rc.15",
+        "@girs/gdkpixbuf-2.0": "2.0.0-4.0.0-rc.15",
+        "@girs/gjs": "4.0.0-rc.15",
+        "@girs/glib-2.0": "2.88.0-4.0.0-rc.15",
+        "@girs/gobject-2.0": "2.88.0-4.0.0-rc.15",
+        "@girs/pango-1.0": "1.57.1-4.0.0-rc.15",
+        "@girs/pangocairo-1.0": "1.0.0-4.0.0-rc.15"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
