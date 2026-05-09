@@ -142,6 +142,31 @@
   (the single pre-existing `@girs/gjs` import comes from
   `@gjsify/unit`'s GJS code path and is unaffected).
 
+* **webgl (2026-05-09):** type-safety pass on
+  `packages/framework/webgl/src/ts/webgl2.spec.ts` (Workstream I).
+  `as any` reduced from 2 → 0 in `webgl2.spec.ts`. Replaced
+  `(c as any).getContext('webgl2')` with `c as unknown as
+  OurHTMLCanvasElement` — the bridge callback types `c` as
+  `globalThis.HTMLCanvasElement` (DOM spec), but at runtime it is the
+  GTK-backed `@gjsify/webgl` `HTMLCanvasElement` whose `getContext()`
+  overload returns the concrete `WebGL2RenderingContext`. Replaced
+  `getExtension('OES_texture_half_float') as any` with `as unknown as
+  OESTextureHalfFloat | null` — the extension class is now exposed via
+  the package barrel, so the test reaches `HALF_FLOAT_OES` through a
+  typed property instead of an untyped indexer. New named exports on
+  `@gjsify/webgl`: `OESTextureHalfFloat`, `OESTextureFloat`,
+  `OESTextureFloatLinear`, `OESStandardDerivatives`,
+  `OESElementIndexUint`, `EXTBlendMinMax`, `EXTColorBufferFloat`,
+  `EXTColorBufferHalfFloat`, `EXTTextureFilterAnisotropic`,
+  `STACKGLDestroyContext`, `STACKGLResizeDrawingBuffer` — the
+  extension classes were already on disk under
+  `src/ts/extensions/` but never re-exported from the index, leaving
+  consumers no choice but `as any` on `getExtension()` results. Pure
+  type-safety refactor — no runtime change. 860/860 GJS tests green
+  (unchanged baseline). Per CLAUDE.md Testing → Rules 2 + 2b: this
+  spec is GJS-only (relies on Gtk.GLArea + libgwebgl), so direct
+  `@gjsify/webgl` imports are sanctioned and impl-private types
+  (extension classes) are the right vocabulary instead of casts.
 
 * **canvas2d-core (2026-05-09):** type-safety pass on
   `packages/dom/canvas2d-core/src/canvas-rendering-context-2d.ts` (Workstream H).
