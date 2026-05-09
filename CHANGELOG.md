@@ -121,6 +121,39 @@
 
 ### Refactoring
 
+* **http (2026-05-09):** type-safety pass on
+  `packages/node/http/src/index.spec.ts` (Workstream K). `as any`
+  reduced from 50 → 0 (one comment-only mention of the term remains in
+  the file header explaining the strategy). Same hybrid pattern as
+  Workstream G (`@gjsify/http2`): the spec is cross-platform and runs
+  in both the Node and GJS test bundles, so the runtime source stays
+  `import http from 'node:http'` — a direct
+  `import { … } from '@gjsify/http'` would drag `gi://Soup/Gio/GLib`
+  into the Node bundle and crash it at load. Impl-private symbols
+  (`OutgoingMessage`, `IncomingMessage`, `Agent`, `validateHeaderName`,
+  `validateHeaderValue`, `setMaxIdleHTTPParsers`) come in via
+  `import type { … } from '@gjsify/http'` (stripped at compile time)
+  and are exposed through a single `gjsHttp = http as unknown as
+  Omit<typeof http, …> & { … }` boundary cast at the top of the file.
+  Replacements: `(http as any).OutgoingMessage`/`setMaxIdleHTTPParsers`/
+  `validateHeaderName`/`validateHeaderValue` → `gjsHttp.<name>`;
+  `new (http.IncomingMessage as any)(null)` (15×) →
+  `new gjsHttp.IncomingMessage(null)` (constructor typed as
+  `(socket?: unknown) => IncomingMessage` to model the GJS impl's
+  zero-arg constructor); `(agent as any).protocol`/`maxFreeSockets`/
+  `keepAliveMsecs`/`keepAlive` → bare property access on
+  `new gjsHttp.Agent()`; `(http.globalAgent as any).protocol` →
+  `gjsHttp.globalAgent.protocol`; `(res as any).appendHeader`/
+  `writeContinue`/`flushHeaders` → bare method calls (these are
+  already in `@types/node`'s `ServerResponse`, so the casts were dead
+  weight). One `100 as any` (negative-test for `validateHeaderName`)
+  tightened to `100 as unknown as string`. Two `catch (error: any)`
+  blocks reduced to bare `catch (error)`. No new exports from
+  `@gjsify/http` were needed — every symbol was already exported. All
+  1040 Node tests + 1038 GJS tests green (unchanged baseline). Pure
+  type-safety; no runtime change. Hygiene check: `dist/test.node.mjs`
+  contains zero `gi://` imports.
+
 * **webcrypto (2026-05-09):** type-safety pass on
   `packages/web/webcrypto/src/index.spec.ts` (Workstream M). `as any`
   reduced from 26 → 0. Pattern-(a) algorithm narrowings — `(key.algorithm

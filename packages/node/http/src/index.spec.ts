@@ -1,13 +1,51 @@
 // Ported from refs/node-test/parallel/test-http-*.js
 // Original: MIT license, Node.js contributors
-import { describe, it, expect, on } from '@gjsify/unit';
+//
+// Type strategy (Workstream K): runtime values come from `node:http` so the Node
+// bundle stays free of `gi://*` imports (this file is loaded by the same
+// `test.mts` aggregator that also drives `test:node`; a direct
+// `import { … } from '@gjsify/http'` would drag `gi://Soup/Gio/GLib` into the
+// Node bundle and crash it at load). For static typing we pull the
+// impl-private symbols (`OutgoingMessage`, `validateHeaderName`,
+// `validateHeaderValue`, `setMaxIdleHTTPParsers`) from `@gjsify/http` via
+// type-only imports — stripped at compile time, so the Node bundle is
+// unaffected, but TypeScript sees the real shapes (concrete subclasses of
+// `Writable`/`Readable`) and the entire `as any` chain that `@types/node`
+// would force disappears.
+
+import { describe, it, expect } from '@gjsify/unit';
 import { Buffer } from 'node:buffer';
 
-import * as http from 'node:http';
-import type { validateHeaderName as gjsifyValidateHeaderName, validateHeaderValue as gjsifyValidateHeaderValue } from 'node:http';
+import http from 'node:http';
+import type {
+  OutgoingMessage as OurOutgoingMessage,
+  IncomingMessage as OurIncomingMessage,
+  Agent as OurAgent,
+  validateHeaderName as ourValidateHeaderName,
+  validateHeaderValue as ourValidateHeaderValue,
+  setMaxIdleHTTPParsers as ourSetMaxIdleHTTPParsers,
+} from '@gjsify/http';
 
-const validateHeaderName: typeof gjsifyValidateHeaderName = (http as any).validateHeaderName;
-const validateHeaderValue: typeof gjsifyValidateHeaderValue = (http as any).validateHeaderValue;
+// Local view of `node:http`'s default export retyped against our impl-private
+// classes. `node:http` is the runtime source on both Node and GJS (alias-mapped
+// to `@gjsify/http` on the GJS target by the build), but its declarations come
+// from `@types/node` and don't expose the GJS-only shapes we want to assert
+// against. This cast is the single boundary between the two views.
+const gjsHttp = http as unknown as Omit<
+  typeof http,
+  'OutgoingMessage' | 'IncomingMessage' | 'Agent' | 'globalAgent'
+> & {
+  OutgoingMessage: typeof OurOutgoingMessage;
+  IncomingMessage: new (socket?: unknown) => OurIncomingMessage;
+  Agent: new (options?: ConstructorParameters<typeof OurAgent>[0]) => OurAgent;
+  globalAgent: OurAgent;
+  validateHeaderName: typeof ourValidateHeaderName;
+  validateHeaderValue: typeof ourValidateHeaderValue;
+  setMaxIdleHTTPParsers: typeof ourSetMaxIdleHTTPParsers;
+};
+
+const validateHeaderName = gjsHttp.validateHeaderName;
+const validateHeaderValue = gjsHttp.validateHeaderValue;
 
 export default async () => {
 
@@ -39,7 +77,7 @@ export default async () => {
       let threw = false;
       try {
         validateHeaderName('');
-      } catch (error: any) {
+      } catch (error) {
         threw = true;
         expect(error instanceof TypeError).toBe(true);
       }
@@ -61,8 +99,8 @@ export default async () => {
     await it('should throw for number input', async () => {
       let threw = false;
       try {
-        validateHeaderName(100 as any);
-      } catch (error: any) {
+        validateHeaderName(100 as unknown as string);
+      } catch (error) {
         threw = true;
         expect(error instanceof TypeError).toBe(true);
       }
@@ -260,7 +298,7 @@ export default async () => {
     });
 
     await it('should export OutgoingMessage', async () => {
-      expect(typeof (http as any).OutgoingMessage).toBe('function');
+      expect(typeof gjsHttp.OutgoingMessage).toBe('function');
     });
 
     await it('should export ClientRequest', async () => {
@@ -273,14 +311,14 @@ export default async () => {
     });
 
     await it('should export setMaxIdleHTTPParsers', async () => {
-      expect(typeof (http as any).setMaxIdleHTTPParsers).toBe('function');
+      expect(typeof gjsHttp.setMaxIdleHTTPParsers).toBe('function');
       // Should not throw
-      (http as any).setMaxIdleHTTPParsers(256);
+      gjsHttp.setMaxIdleHTTPParsers(256);
     });
 
     await it('should export validateHeaderName and validateHeaderValue', async () => {
-      expect(typeof (http as any).validateHeaderName).toBe('function');
-      expect(typeof (http as any).validateHeaderValue).toBe('function');
+      expect(typeof gjsHttp.validateHeaderName).toBe('function');
+      expect(typeof gjsHttp.validateHeaderValue).toBe('function');
     });
 
     await it('should have a default export', async () => {
@@ -292,7 +330,7 @@ export default async () => {
   // --- OutgoingMessage ---
   await describe('http.OutgoingMessage', async () => {
     await it('should be constructable', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       expect(msg).toBeDefined();
       expect(msg.headersSent).toBe(false);
@@ -300,7 +338,7 @@ export default async () => {
     });
 
     await it('should support setHeader/getHeader/hasHeader/removeHeader', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       msg.setHeader('X-Test', 'value');
       expect(msg.getHeader('x-test')).toBe('value');
@@ -310,7 +348,7 @@ export default async () => {
     });
 
     await it('should support getHeaderNames and getHeaders', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       msg.setHeader('Content-Type', 'text/plain');
       msg.setHeader('X-Custom', 'val');
@@ -322,7 +360,7 @@ export default async () => {
     });
 
     await it('should support appendHeader', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       msg.setHeader('Set-Cookie', 'a=1');
       msg.appendHeader('Set-Cookie', 'b=2');
@@ -331,19 +369,19 @@ export default async () => {
     });
 
     await it('should have sendDate property', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       expect(typeof msg.sendDate).toBe('boolean');
     });
 
     await it('should have sendDate as boolean', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       expect(typeof msg.sendDate).toBe('boolean');
     });
 
     await it('should store headers case-insensitively', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       msg.setHeader('Content-Type', 'text/html');
       expect(msg.getHeader('content-type')).toBe('text/html');
@@ -352,7 +390,7 @@ export default async () => {
     });
 
     await it('should overwrite existing header with setHeader', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       msg.setHeader('X-Test', 'first');
       msg.setHeader('X-Test', 'second');
@@ -360,19 +398,19 @@ export default async () => {
     });
 
     await it('should return undefined for non-existent header', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       expect(msg.getHeader('x-nonexistent')).toBeUndefined();
     });
 
     await it('should return false for hasHeader on non-existent header', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       expect(msg.hasHeader('x-nonexistent')).toBe(false);
     });
 
     await it('should handle removeHeader for non-existent header without error', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       // Should not throw
       msg.removeHeader('x-nonexistent');
@@ -380,7 +418,7 @@ export default async () => {
     });
 
     await it('should return empty arrays when no headers set', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       expect(msg.getHeaderNames().length).toBe(0);
       const headers = msg.getHeaders();
@@ -388,16 +426,16 @@ export default async () => {
     });
 
     await it('should accept numeric header values via setHeader', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       msg.setHeader('Content-Length', 42);
       const val = msg.getHeader('content-length');
       // Node.js stores as number, GJS stores as string -- both are valid
-      expect(val == 42).toBe(true);
+      expect(val as unknown as number == 42).toBe(true);
     });
 
     await it('should accept array header values via setHeader', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       msg.setHeader('Set-Cookie', ['a=1', 'b=2']);
       const val = msg.getHeader('set-cookie');
@@ -405,7 +443,7 @@ export default async () => {
     });
 
     await it('should support appendHeader with array value', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       msg.setHeader('X-Multi', 'first');
       msg.appendHeader('X-Multi', ['second', 'third']);
@@ -414,20 +452,20 @@ export default async () => {
     });
 
     await it('should support appendHeader on non-existent header', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       msg.appendHeader('X-New', 'value');
       expect(msg.getHeader('x-new')).toBe('value');
     });
 
     await it('should have headersSent default to false', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       expect(msg.headersSent).toBe(false);
     });
 
     await it('should have socket property default to null', async () => {
-      const OutgoingMessage = (http as any).OutgoingMessage;
+      const OutgoingMessage = gjsHttp.OutgoingMessage;
       const msg = new OutgoingMessage();
       expect(msg.socket).toBeNull();
     });
@@ -452,23 +490,23 @@ export default async () => {
     });
 
     await it('should have protocol property', async () => {
-      const agent = new http.Agent();
-      expect((agent as any).protocol).toBe('http:');
+      const agent = new gjsHttp.Agent();
+      expect(agent.protocol).toBe('http:');
     });
 
     await it('should have maxFreeSockets property', async () => {
-      const agent = new http.Agent();
-      expect((agent as any).maxFreeSockets).toBe(256);
+      const agent = new gjsHttp.Agent();
+      expect(agent.maxFreeSockets).toBe(256);
     });
 
     await it('should have keepAliveMsecs property', async () => {
-      const agent = new http.Agent();
-      expect((agent as any).keepAliveMsecs).toBe(1000);
+      const agent = new gjsHttp.Agent();
+      expect(agent.keepAliveMsecs).toBe(1000);
     });
 
     await it('should have keepAlive property', async () => {
-      const agent = new http.Agent();
-      expect((agent as any).keepAlive).toBe(false);
+      const agent = new gjsHttp.Agent();
+      expect(agent.keepAlive).toBe(false);
     });
 
     await it('should not throw when destroy is called', async () => {
@@ -497,7 +535,7 @@ export default async () => {
     });
 
     await it('should have protocol http:', async () => {
-      expect((http.globalAgent as any).protocol).toBe('http:');
+      expect(gjsHttp.globalAgent.protocol).toBe('http:');
     });
 
     await it('should have destroy method', async () => {
@@ -508,87 +546,88 @@ export default async () => {
   // --- IncomingMessage standalone ---
   await describe('http.IncomingMessage standalone', async () => {
     await it('should be constructable', async () => {
-      // Node.js requires a socket arg; GJS does not — use (null as any) for compat
-      const msg = new (http.IncomingMessage as any)(null);
+      // Node.js requires a socket arg; GJS does not — gjsHttp.IncomingMessage's
+      // constructor signature is `(socket?: unknown)` so passing null is fine.
+      const msg = new gjsHttp.IncomingMessage(null);
       expect(msg).toBeDefined();
     });
 
     await it('should have httpVersion property', async () => {
-      const msg = new (http.IncomingMessage as any)(null);
+      const msg = new gjsHttp.IncomingMessage(null);
       // Node.js defaults to null, GJS defaults to '1.1' — both are valid initial values
       expect(msg.httpVersion === null || msg.httpVersion === '1.1').toBe(true);
     });
 
     await it('should have httpVersionMajor and httpVersionMinor properties', async () => {
-      const msg = new (http.IncomingMessage as any)(null);
+      const msg = new gjsHttp.IncomingMessage(null);
       // Node.js defaults to null, GJS defaults to 1
       expect(msg.httpVersionMajor === null || msg.httpVersionMajor === 1).toBe(true);
       expect(msg.httpVersionMinor === null || msg.httpVersionMinor === 1).toBe(true);
     });
 
     await it('should have empty headers object', async () => {
-      const msg = new (http.IncomingMessage as any)(null);
+      const msg = new gjsHttp.IncomingMessage(null);
       expect(typeof msg.headers).toBe('object');
       expect(Object.keys(msg.headers).length).toBe(0);
     });
 
     await it('should have empty rawHeaders array', async () => {
-      const msg = new (http.IncomingMessage as any)(null);
+      const msg = new gjsHttp.IncomingMessage(null);
       expect(Array.isArray(msg.rawHeaders)).toBe(true);
       expect(msg.rawHeaders.length).toBe(0);
     });
 
     await it('should have method property', async () => {
-      const msg = new (http.IncomingMessage as any)(null);
+      const msg = new gjsHttp.IncomingMessage(null);
       // Node.js defaults to null, GJS defaults to undefined
       expect(msg.method === null || msg.method === undefined).toBe(true);
     });
 
     await it('should have url property', async () => {
-      const msg = new (http.IncomingMessage as any)(null);
+      const msg = new gjsHttp.IncomingMessage(null);
       // Node.js defaults to '', GJS defaults to undefined — both are falsy
       expect(!msg.url || msg.url === '').toBe(true);
     });
 
     await it('should have statusCode property', async () => {
-      const msg = new (http.IncomingMessage as any)(null);
+      const msg = new gjsHttp.IncomingMessage(null);
       // Node.js defaults to null, GJS defaults to undefined
       expect(msg.statusCode === null || msg.statusCode === undefined).toBe(true);
     });
 
     await it('should have statusMessage property', async () => {
-      const msg = new (http.IncomingMessage as any)(null);
+      const msg = new gjsHttp.IncomingMessage(null);
       // Node.js defaults to null, GJS defaults to undefined
       expect(msg.statusMessage === null || msg.statusMessage === undefined || msg.statusMessage === '').toBe(true);
     });
 
     await it('should have complete default to false', async () => {
-      const msg = new (http.IncomingMessage as any)(null);
+      const msg = new gjsHttp.IncomingMessage(null);
       expect(msg.complete).toBe(false);
     });
 
     await it('should have aborted default to false', async () => {
-      const msg = new (http.IncomingMessage as any)(null);
+      const msg = new gjsHttp.IncomingMessage(null);
       expect(msg.aborted).toBe(false);
     });
 
     await it('should have socket property', async () => {
-      const msg = new (http.IncomingMessage as any)(null);
+      const msg = new gjsHttp.IncomingMessage(null);
       expect(msg.socket).toBeNull();
     });
 
     await it('should have setTimeout method', async () => {
-      const msg = new (http.IncomingMessage as any)(null);
+      const msg = new gjsHttp.IncomingMessage(null);
       expect(typeof msg.setTimeout).toBe('function');
     });
 
     await it('should have destroy method', async () => {
-      const msg = new (http.IncomingMessage as any)(null);
+      const msg = new gjsHttp.IncomingMessage(null);
       expect(typeof msg.destroy).toBe('function');
     });
 
     await it('should be a Readable stream', async () => {
-      const msg = new (http.IncomingMessage as any)(null);
+      const msg = new gjsHttp.IncomingMessage(null);
       expect(typeof msg.on).toBe('function');
       expect(typeof msg.read).toBe('function');
       expect(typeof msg.pipe).toBe('function');
@@ -808,7 +847,7 @@ export default async () => {
     await it('should support appendHeader', async () => {
       const server = http.createServer((req, res) => {
         res.setHeader('X-Multi', 'first');
-        (res as any).appendHeader('X-Multi', 'second');
+        res.appendHeader('X-Multi', 'second');
         const val = res.getHeader('X-Multi');
         expect(Array.isArray(val)).toBeTruthy();
         res.writeHead(200);
@@ -830,7 +869,7 @@ export default async () => {
     await it('should support writeContinue', async () => {
       const server = http.createServer((req, res) => {
         let continueCalled = false;
-        (res as any).writeContinue(() => { continueCalled = true; });
+        res.writeContinue(() => { continueCalled = true; });
         res.writeHead(200);
         res.end('ok');
       });
@@ -850,7 +889,7 @@ export default async () => {
     await it('should support flushHeaders', async () => {
       const server = http.createServer((req, res) => {
         res.writeHead(200, { 'X-Flush': 'test' });
-        (res as any).flushHeaders();
+        res.flushHeaders();
         expect(res.headersSent).toBeTruthy();
         res.end('ok');
       });
