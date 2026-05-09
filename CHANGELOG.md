@@ -554,6 +554,29 @@
   build needs (tracked in STATUS.md "Integration Test Coverage →
   acorn + acorn-walk").
 
+* **integration-pkg-types (2026-05-09):** Phase D-1 Workstream U —
+  combined `tests/integration/pkg-types/` suite
+  (`@gjsify/integration-pkg-types`, private). 5 spec files / 38 cases
+  covering [`pkg-types@^2`](https://github.com/unjs/pkg-types) (read +
+  write of `package.json` / `tsconfig.json`, `findFile` / `findNearestFile`
+  walking up the tree, `definePackageJSON` / `defineTSConfig` identity
+  helpers) and [`get-tsconfig@^4`](https://github.com/privatenumber/get-tsconfig)
+  (`getTsconfig`, `parseTsconfig`, `findTsconfig`, `extends` chain
+  resolution including 2-level `a → b → c` chains, `createPathsMatcher`
+  for path aliases + baseUrl-based fallback). Total: **88/88 green on
+  Node, 88/88 green on GJS, 0 skips.** Stresses `@gjsify/fs` (read +
+  write JSON files, `findNearestFile` walking up directory trees),
+  `@gjsify/path` (`resolve`, `dirname`, `join`, `relative`), and the
+  built-in JSON parser. Both packages are direct devDeps of
+  `@gjsify/cli` (config loading) — no `@gjsify/*` fixes required, the
+  suite passed first try after correcting three test assertions to
+  match documented library semantics (relative paths normalized to
+  `'./<value>'`; non-aliased specifiers fall back to baseUrl-relative
+  resolution rather than `[]`). Clears two more of the 11 Phase D-1
+  npm runtime-deps the future GJS-hosted `@gjsify/cli` build needs
+  (tracked in STATUS.md "Integration Test Coverage → pkg-types +
+  get-tsconfig").
+
 ## [0.3.21](https://github.com/gjsify/gjsify/compare/v0.3.20...v0.3.21) (2026-05-08)
 
 ### Bug Fixes
