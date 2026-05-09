@@ -3247,6 +3247,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/integration-cosmiconfig@workspace:tests/integration/cosmiconfig":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/integration-cosmiconfig@workspace:tests/integration/cosmiconfig"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.14"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.6.2"
+    cosmiconfig: "npm:^9.0.1"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/integration-fast-glob@workspace:tests/integration/fast-glob":
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-fast-glob@workspace:tests/integration/fast-glob"
