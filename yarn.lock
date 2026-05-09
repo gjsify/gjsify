@@ -3034,7 +3034,7 @@ __metadata:
   resolution: "@gjsify/integration-deepkit-type-compiler@workspace:tests/integration/deepkit-type-compiler"
   dependencies:
     "@deepkit/type-compiler": "npm:^1.0.19"
-    "@girs/gjs": "npm:4.0.0-rc.14"
+    "@girs/gjs": "npm:4.0.0-rc.15"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
@@ -3109,7 +3109,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-minify-xml@workspace:tests/integration/minify-xml"
   dependencies:
-    "@girs/gjs": "npm:4.0.0-rc.14"
+    "@girs/gjs": "npm:4.0.0-rc.15"
     "@gjsify/cli": "workspace:^"
     "@gjsify/node-globals": "workspace:^"
     "@gjsify/runtime": "workspace:^"
