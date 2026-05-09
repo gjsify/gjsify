@@ -20,7 +20,7 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.0-rc.14",
+        "@girs/gjs": "4.0.0-rc.15",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
