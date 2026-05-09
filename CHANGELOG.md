@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Refactoring
+
+* **stream:** split the 1676-line `packages/node/stream/src/index.ts` into
+  per-class modules (Workstream E). New layout — `stream-base.ts` (`Stream_`),
+  `readable.ts`, `writable.ts`, `duplex.ts`, `transform.ts`, `passthrough.ts`,
+  `utils/{pipe,pipeline,finished}.ts`, `internal/{state,types}.ts`. `src/index.ts`
+  is now a thin re-export barrel that preserves the historical default-export
+  shape (`Stream` augmented with `{Readable, Writable, Duplex, Transform,
+  PassThrough, pipeline, finished, addAbortSignal, isReadable, isWritable,
+  isDestroyed, isDisturbed, isErrored, getDefaultHighWaterMark,
+  setDefaultHighWaterMark}`) so `cjs-compat.cjs`'s `mod.default || mod` and
+  `util.inherits(Sub, require('stream'))` keep working unchanged.
+  `Stream_.prototype.pipe` is wired via a late-binding `_setPipeImpl` hook
+  rather than a direct top-level import — necessary because the natural
+  dependency graph (stream-base → pipe → readable → stream-base) trips GJS's
+  eager ESM evaluation with "class heritage Stream\_ is not an object or null".
+  All 509 GJS / 507 Node stream tests pass; integration suites (streamx 156/156,
+  socket.io and webtorrent unchanged from pre-refactor baseline) are unaffected.
+  `as any` in the source files reduced from 35 to ~0 — replaced by typed
+  `unknown` casts, concrete stream subtypes, or narrow `as unknown as` bridges
+  where Node's option-type `this: Readable` doesn't unify with our internal
+  `Readable_`.
+
 ## [0.3.21](https://github.com/gjsify/gjsify/compare/v0.3.20...v0.3.21) (2026-05-08)
 
 ### Bug Fixes
