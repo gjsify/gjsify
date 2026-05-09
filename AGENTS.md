@@ -417,6 +417,8 @@ Matchers: `toBe|toEqual|toBeTruthy|toBeFalsy|toBeNull|toBeDefined|toBeUndefined|
 
 1. **Cross-platform pkgs:** `node:` prefix for all Node imports (value+type). **Never import `@gjsify/*` directly** (except `@gjsify/unit`). Aliased Web pkgs: bare specifier from `ALIASES_WEB_FOR_{GJS,NODE}`.
 2. **GJS-only pkgs** (dom-elements, webgl): import `@gjsify/*` directly. No aliases, no `test:node`.
+2b. **GJS-only spec files in cross-platform pkgs** (`*.gjs.spec.ts`, OR a section wrapped in `on('Gjs', …)`): direct `@gjsify/*` imports allowed for that file/section. Same justification as rule 2 — only runs on GJS, has full access to impl-private types. Use this to test internal classes/methods (`Http2ServerResponse._allocatePushId`, `_state`, internals not surfaced through `@types/node`) **type-safely** instead of casting through `as any`. Cross-platform `*.spec.ts` (both Node + GJS) must still follow rule 1.
+2c. **Internal-only helpers** (modules under `src/internal/`, `src/utils/internal-*.ts`, or anything not in the package's `exports` map): may import directly from sibling `@gjsify/*` packages even in production code, since the helper itself is not consumed externally and the import chain stays inside the workspace's GJS-resolved set. Use this to give internal utilities concrete `@gjsify/*` types instead of structural duck shapes. Public surface (`src/index.ts` and anything reachable from `exports`) still follows rule 1 to keep the cross-platform contract intact.
 3. Node tests = correctness of test; GJS tests = our impl. Both must pass.
 4. Common `*.spec.ts`: both platforms, no `@girs/*`. Platform-specific `*.gjs.spec.ts` / `on('Gjs')`: minimal.
 5. Layout: `src/index.ts`(impl) | `src/*.spec.ts` | `src/test.mts`(entry).
