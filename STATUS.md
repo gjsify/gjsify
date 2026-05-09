@@ -635,6 +635,20 @@ Fixtures (`tests/integration/ts-for-gir/girs/`) are gjsify's own Vala-generated 
 2. **`IncomingMessage` wrongly emitted `'close'` after body stream ends.** Engine.io registers `req.on('close', onClose)` to detect dropped connections during long-poll. Our `Readable._emitEnd()` auto-emitted `'close'` after `'end'` (mimicking `autoDestroy` behavior), which engine.io treated as a premature disconnect. Fix: added `_autoClose()` protected hook to `Readable` (emits `'close'` by default) and overrode it in `IncomingMessage` to be a no-op — `'close'` now fires only via `destroy()`, matching Node.js HTTP semantics.
 3. **`EventEmitter.prototype` methods were non-enumerable.** Socket.io v4 builds `Server`→Namespace proxy methods by iterating `Object.keys(EventEmitter.prototype)`. ES class methods are non-enumerable, so this returned `[]` and no proxy was created. `io.on('connection', handler)` attached to the Server's own EventEmitter instead of the default namespace, so the `connection` event (fired by `namespace._doConnect`) never reached user handlers. Fix: after the class declaration in [packages/node/events/src/event-emitter.ts](packages/node/events/src/event-emitter.ts), `Object.defineProperty` re-declares all 15 public instance methods as `enumerable: true`, matching Node.js's prototype-assignment style.
 
+### yargs (`tests/integration/yargs/`)
+
+Phase D-1 Workstream O — validates the yargs v18 ESM CLI parser used by `@gjsify/cli` end-to-end on GJS. **Node: 52/52 green. GJS: 52/52 green, 0 skips.** No `@gjsify/*` fixes were required; the suite passed first time on both runtimes after a single test rewrite (replaced an internal `.getCommands()` probe with a public-API command-routing assertion).
+
+| Suite | Node | GJS | Exercises |
+|---|---|---|---|
+| parser.spec.ts | ✅ (10) | ✅ (10) | Positional `_`, long/short flags, `--no-flag`, `--`-terminator, `parseSync()`, `.argv` getter, numeric coercion, `.string()` opt-out |
+| options.spec.ts | ✅ (10) | ✅ (10) | `.alias`, `.default`, `.choices`, `.count`, `.coerce`, `.array` (single + multi), `.demandOption` via `.fail()` |
+| commands.spec.ts | ✅ (6) | ✅ (6) | Handler invocation, positional binding, `.strictCommands()`, nested subcommands, `*` default-command, sibling routing across `.parse()` calls |
+| help.spec.ts | ✅ (5) | ✅ (5) | `.getHelp()` rendering (usage + options + commands), `.version()`, `.epilogue()`, `.group()` |
+| esm.spec.ts | ✅ (6) | ✅ (6) | `yargs` default export vs `yargs/yargs` factory, `yargs/helpers#hideBin`, parser reuse across `.parse()` calls, `process.argv` shape |
+
+Yargs's transitive deps (cliui, escalade, get-caller-file, string-width, y18n, yargs-parser) all bundle and run on GJS without intervention — this clears one of the 11 npm runtime-deps that the future GJS-hosted `@gjsify/cli` build needs.
+
 ## Open TODOs
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.

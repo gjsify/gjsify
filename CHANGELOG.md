@@ -382,6 +382,25 @@
   where Node's option-type `this: Readable` doesn't unify with our internal
   `Readable_`.
 
+### Tests
+
+* **integration-yargs (2026-05-09):** Phase D-1 Workstream O — new
+  `tests/integration/yargs/` suite (`@gjsify/integration-yargs`,
+  private). 5 spec files / 37 cases ported from yargs v18 upstream
+  (`test/yargs.cjs`, `test/command.cjs`, `test/usage.cjs`) into
+  `@gjsify/unit` style, plus an original ESM-entry-points spec covering
+  the exact import shape `@gjsify/cli` relies on (`yargs`,
+  `yargs/yargs`, `yargs/helpers#hideBin`). Total: **52/52 green on
+  Node, 52/52 green on GJS, 0 skips.** Stresses `@gjsify/events`
+  (Yargs internals + `EventEmitter`-style hooks), `@gjsify/util`
+  (yargs error formatting), `process.argv` (`hideBin()`), and the ESM
+  loader path through yargs's `lib/platform-shims/esm.mjs`. Yargs's
+  full transitive dep tree (cliui, escalade, get-caller-file,
+  string-width, y18n, yargs-parser) bundles + runs on GJS without any
+  `@gjsify/*` patches — this clears one of the 11 npm runtime-deps
+  the future GJS-hosted `@gjsify/cli` build needs (tracked in
+  STATUS.md "Integration Test Coverage → yargs").
+
 ## [0.3.21](https://github.com/gjsify/gjsify/compare/v0.3.20...v0.3.21) (2026-05-08)
 
 ### Bug Fixes
