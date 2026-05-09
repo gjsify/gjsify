@@ -23,6 +23,36 @@
 
 ### Features
 
+* **lightningcss-native POC (2026-05-09):** Phase D-2 Workstream — first
+  bridging POC for the Rust-crate runtime blockers. Adds
+  `@gjsify/lightningcss-native` under `packages/infra/lightningcss-native/`:
+  a Vala+Rust cdylib that exposes a single
+  `GjsifyLightningcss.Engine.transform()` GObject method for the
+  parse → minify(targets) → to_css pipeline. Architecture mirrors
+  `@gjsify/http2-native`: Rust shim (`src/rust/`, depends on
+  `lightningcss = "1"` from crates.io, ~7.7 MB cdylib) exposes one
+  `extern "C"` returning a struct with malloc'd `code`/`map`/`error`
+  buffers; C glue (`src/vala/gjsify-lightningcss-glue.c`) translates
+  that into `GBytes` + `GError` (refcount-friendly for SpiderMonkey
+  GC); Vala wraps as `Engine.transform(filename, code, browserslist,
+  minify, source_map)`. TS facade exposes both the raw `Engine`
+  GObject and a npm-`lightningcss`-shaped `transform({filename, code,
+  targets, minify, sourceMap})` convenience helper. Smoke tested under
+  GJS 1.88: nesting flatten for `firefox >= 60` query, minify
+  (`.x{color:red;margin:0}`), source-map JSON output, parse-error →
+  `GError` with NUL-byte safety. Prebuilds for linux-x86_64 only (CI
+  multi-arch + integration spec deferred to the decision-matrix
+  follow-up against the lightningcss-wasm POC).
+* **Phase D-2 audit + lightningcss submodule (2026-05-09):** new
+  `docs/poc/wasi-imports.md` documents the WASM/WASI host-import
+  surface for both rolldown's `wasm32-wasi-threads` binding and
+  lightningcss-wasm. Findings: rolldown WASM is **SAB-blocked** under
+  stock GJS (Mozilla disables `SharedArrayBuffer`); lightningcss-wasm
+  is clean (no WASI, no SAB, ~30 napi-wasm fns + 2 customs);
+  lightningcss already ships clean C bindings via
+  `refs/lightningcss/c/` which significantly de-risks the FFI POC.
+  Three escape paths documented for the rolldown SAB blocker. Also
+  registers `refs/lightningcss` as a submodule (v1.32.0+2).
 * **integration-fast-glob (2026-05-09):** Phase D-1 Workstream Q — new
   `tests/integration/fast-glob/` suite
   (`@gjsify/integration-fast-glob`, private). 5 spec files / 98 cases

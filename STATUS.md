@@ -313,6 +313,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | **vite-plugin-gettext** | xgettext/msgfmt/po2json pipeline (Vite/Rollup/Rolldown) | Full |
 | **resolve-npm** | Central alias registry (60+ mappings) | Full |
 | **empty** | Stub module for platform exclusion | Full |
+| **lightningcss-native** | Phase D-2 POC. Vala+Rust cdylib bridge to lightningcss for GJS. Combined `parse → minify(targets) → to_css` pipeline behind `Engine.transform()`; browserslist-as-string accepted directly. Backs `cssAsStringPlugin` under `--app gjs` so GTK4-CSS lowering works without a Node runtime in the build pipeline. Ships Rust `cdylib` (`libgjsify_lightningcss.so`, ~7.7 MB) + Vala bridge (`libgjsifylightningcss.so`, ~24 KB) + GIR/typelib in `prebuilds/linux-x86_64/`. POC-only: no source-map input, no css-modules, no analyze-dependencies — those are Phase B work. | POC |
 
 **GJS Infrastructure:**
 
@@ -348,6 +349,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | **`@gjsify/http-soup-bridge` (Vala)** | http (libsoup server bridge — GC-safe SoupServerMessage lifetime, SSE/long-poll peer-close detection via `g_socket_create_source`) |
 | **`@gjsify/http2-native` (Vala + C shim)** | http2 (libnghttp2 HPACK encoder + raw frame builder for PUSH_PROMISE / DATA / HEADERS, server-side even-id allocator, h2c connection-preface detection — buffers C-side via GLib.Bytes) |
 | **`@gjsify/terminal-native` (Vala)** | tty, process (optional terminal syscalls — Posix.isatty, ioctl TIOCGWINSZ, termios raw mode, SIGWINCH; GLib/env fallback when not installed) |
+| **`@gjsify/lightningcss-native` (Vala + Rust cdylib)** | Phase D-2 POC bridge to the `lightningcss` crate. Rust shim (`src/rust/`, `lightningcss = "1"` from crates.io) exposes a one-shot extern `gjsify_lightningcss_transform()`; C glue (`src/vala/gjsify-lightningcss-glue.c`) translates the malloc'd Rust struct into `GBytes` + `GError`; Vala wraps that as `GjsifyLightningcss.Engine.transform()`. Used today only by future Phase B `cssAsStringPlugin` integration; the existing build pipeline still pulls npm `lightningcss` until the WASM-vs-FFI decision matrix lands. |
 
 ---
 
@@ -412,8 +414,14 @@ Not yet implemented (but potentially relevant for GJS projects):
 - ~~**MCP TypeScript SDK integration suites**~~✓ — `tests/integration/mcp-typescript-sdk/` (108 tests) and `tests/integration/mcp-inspector-cli/` (14 tests). Validates `@gjsify/http`, `@gjsify/fetch`, `@gjsify/net`, `@gjsify/ws`, `@gjsify/events` against the Model Context Protocol SDK and official MCP Inspector CLI subprocess. Surfaced and fixed: `ServerRequestSocket.destroySoon()`, `SoupMessageLifecycle` GC-guard, async-handler rejection swallowing, `McpServer` GC between requests.
 - ~~**Multi-arch native prebuilds (ppc64/s390x/riscv64)**~~✓ — QEMU-based CI builds for three additional Linux architectures via `uraimo/run-on-arch-action`. `@gjsify/webgl`, `@gjsify/webrtc-native`, `@gjsify/http-soup-bridge` all ship prebuilds for linux-{x86_64,aarch64,ppc64,s390x,riscv64}. `nodeArchToLinuxArch()` in the CLI passes these through as-is.
 - ~~**`@gjsify/v8` promoted Stub → Partial**~~✓ — Real heap stats via `/proc/self/status` (Linux). V8 wire format v15 serialize/deserialize (`Serializer`/`Deserializer`/`DefaultSerializer`/`DefaultDeserializer` classes) covering scalars, TypedArrays, Buffer, BigInt, circular refs, Date, RegExp, ArrayBuffer. `isStringOneByteRepresentation`, `GCProfiler`, `startCpuProfile`. 72 tests (was 8).
+- ~~**Phase D-2 audit + `@gjsify/lightningcss-native` POC scaffold**~~✓ — `docs/poc/wasi-imports.md` documents the host-import surface for both rolldown's `wasm32-wasi-threads` binding (SAB-blocked under stock GJS) and lightningcss-wasm (NAPI on plain WASM, no WASI, no SAB — clean WASM target). `refs/lightningcss` registered as a submodule. `@gjsify/lightningcss-native` package added under `packages/infra/lightningcss-native/`: Rust shim (`src/rust/`, single combined `parse → minify(targets) → to_css` extern depending on `lightningcss = "1"` from crates.io), C glue translating the malloc'd Rust struct into `GBytes` + `GError`, Vala wrapper exposing `GjsifyLightningcss.Engine.transform()`. Smoke tested under GJS 1.88: nesting flattening for `firefox >= 60`, minify, source-map JSON, parse-error → `GError` round-trip all work. Prebuilds for linux-x86_64 only (CI multi-arch + decision-matrix vs lightningcss-wasm POC pending).
 
 ### High Priority
+
+0. **Phase D-2: Rust crates on GJS (rolldown + lightningcss)** — Final blocker before Phase D-3 (CLI on GJS, Flatpak without `Sdk.Extension.node24`). Two parallel POC tracks per crate, decision per crate (split possible):
+   - **WASM/WASI track**: `@gjsify/wasi` shim (~30 `wasi_snapshot_preview1` syscalls mapped to `@gjsify/{fs,process,clock,random,…}`) + `@gjsify/lightningcss-wasm` loader (NAPI on plain WASM, no WASI/SAB needed) + `@gjsify/rolldown-wasm` (NAPI-RS WASI loader, **SAB-blocked under stock GJS** — needs single-threaded rolldown rebuild without `wasi-threads`).
+   - **Vala+Rust FFI track**: `@gjsify/lightningcss-native` ✓ (POC scaffold landed, smoke tested under GJS 1.88) + `@gjsify/rolldown-native` (Rust cdylib wrapping `rolldown::Bundler::write` + Vala bridge with main-thread signal pattern from `@gjsify/webrtc-native` for plugin callbacks).
+   - **Decision matrix**: pre-build size, cold start, bundle time on `tests/integration/{yargs,ts-for-gir}/`, plugin-callback overhead microbench, CI matrix complexity, maintenance load. Plausible split: lightningcss → WASM (small + sync, one binary all archs); rolldown → FFI (plugins + threads). See `docs/poc/wasi-imports.md` for full audit and risk register.
 
 1. **Real-world application examples** — Validate the platform against real frameworks and use cases. Each example must run on both Node.js and GJS. Current: Express.js hello, Koa.js blog, Static file server, SSE chat, Hono REST API, file search CLI, DNS lookup, worker pool. Planned:
 

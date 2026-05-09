@@ -1,0 +1,60 @@
+{
+    "name": "@gjsify/lightningcss-native",
+    "version": "0.3.21",
+    "description": "Vala/GObject + Rust cdylib bridge to lightningcss for GJS. Replaces the Node-only npm `lightningcss` package: parse, transform, minify, and browserslist-target lowering of CSS without leaving a Node-free GJS process. Backs `@gjsify/rolldown-plugin-gjsify`'s cssAsStringPlugin under `--app gjs` so GTK4-CSS lowering (firefox60) works without a Node runtime in the build pipeline.",
+    "type": "module",
+    "main": "lib/esm/index.js",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "files": [
+        "lib",
+        "prebuilds",
+        "meson.build",
+        "src/rust",
+        "src/vala"
+    ],
+    "gjsify": {
+        "prebuilds": "prebuilds"
+    },
+    "scripts": {
+        "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "init:meson": "meson setup build .",
+        "init:meson:wipe": "yarn init:meson --wipe",
+        "build": "yarn build:gjsify && yarn build:types",
+        "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
+        "build:meson": "yarn init:meson && meson compile -C build",
+        "build:types": "tsc",
+        "build:prebuilds": "yarn build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifylightningcss.so build/libgjsify_lightningcss.so build/GjsifyLightningcss-1.0.gir build/GjsifyLightningcss-1.0.typelib prebuilds/linux-x86_64/",
+        "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=./prebuilds/linux-x86_64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyLightningcss-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true"
+    },
+    "keywords": [
+        "gjs",
+        "lightningcss",
+        "css",
+        "minify",
+        "browserslist",
+        "vala",
+        "rust",
+        "native"
+    ],
+    "dependencies": {
+        "@girs/gjs": "4.0.0-rc.15",
+        "@girs/glib-2.0": "2.88.0-4.0.0-rc.15",
+        "@girs/gobject-2.0": "2.88.0-4.0.0-rc.15"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@ts-for-gir/cli": "^4.0.0-rc.15",
+        "@types/node": "^25.6.2",
+        "typescript": "^6.0.3"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}
