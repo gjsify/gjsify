@@ -685,15 +685,41 @@ Workaround for SNI-critical use cases: spawn one TLSServer per hostname on diffe
 
 Use `@gjsify/worker_threads` `MessageChannel` (in-process) for any zero-copy / shared-memory workload today. Cross-process workers remain JSON-IPC-only with transparent deep-clone for now.
 
-### Low priority — Node-free build chain (long-term)
+### Long-term goal — Phase D: gjsify Self-Hosting auf GJS
 
-User-stated goal (2026-05-07): eliminate Node.js from the gjsify build chain entirely. Status today:
+User-stated goal (2026-05-09): the entire gjsify toolchain (`gjsify build`/`run`/`install`/`create`/`dlx`/`showcase`/`flatpak`) runs on GJS itself, no Node.js anywhere. Subsumes the earlier "Node-free build chain" goal (2026-05-07) and pushes it through to a complete self-hosting story.
+
+Status of the existing pieces:
 - ✅ App runtime (the GJS bundle `gjsify build` outputs) is already Node-free — single-file bundle, `#!/usr/bin/env -S gjs -m`, runs on `org.gnome.Platform`'s GJS.
 - ❌ App build: `@gjsify/cli` runs as a Node binary; Rolldown is a Rust crate exposed as a Node module — no GJS bindings exist.
 - ❌ Package install: Yarn is Node-based. Replacement is `gjsify install` (project memory: gjsify install goal); current `@gjsify/cli` ships a native install backend (`@gjsify/semver` + `@gjsify/npm-registry` + `@gjsify/tar`) which is the foundation, but `gjsify install <pkg>` user-facing CLI is still pending.
 - ❌ Flatpak build sandbox: today uses `org.freedesktop.Sdk.Extension.node24` for `yarn install` + `gjsify build`. Once gjsify-self-hosting + `gjsify install` user CLI are usable, the SDK extension drops out and `gjsify flatpak deps` becomes obsolete.
 
-Track here so future sessions don't reinvent the analysis. No PR planned in 2026-Q2; longer-term Phase C work.
+Sub-phases:
+- **D-1 (in progress, 2026-Q2)** — Integration tests for every npm runtime dependency of `packages/infra/*`. 11 streams cover the realistic test targets: `yargs`, `acorn`+`acorn-walk`, `fast-glob`, `gettext-parser`, `cosmiconfig`, `execa`, `pkg-types`+`get-tsconfig`, `@rollup/pluginutils`, `@deepkit/type-compiler`, `minify-xml`. Each suite is a `tests/integration/<pkg>/` matching the existing pattern. Every issue surfaced runs through the standard root-cause-fix policy (CLAUDE.md "scope expansion is the *expected* cost") — fix in-PR by default, defer with full STATUS.md tracker only when the gap needs a Vala bridge or weeks of upstream work. Outcome: hard evidence that every non-Rust npm dep gjsify uses today already runs on GJS, narrowing Phase C blockers down to the two Rust crates.
+- **D-2 (research, 2026-Q3)** — Decide replacement strategy for the two Rust blockers. `rolldown@^1` (no JS port; options: WASM build of rolldown core, JS-only fallback to `rollup`/`esbuild` via WASM, or a Vala-backed bundler that re-uses `gwebgl`-style native infra). `lightningcss@^1` (CSS parser; options: `postcss` + JS plugins, or stub for typical-app CSS volumes that don't need it).
+- **D-3 (deferred, 2026-Q3+)** — Release `gjsify install` user CLI (backend already complete); ship a CLI bundle for GJS itself; drop `Sdk.Extension.node24` from the Flatpak workflow.
+
+Track here so future sessions don't reinvent the analysis. The D-1 wave plan lives in `.claude/plans/erstelle-einen-umsetzungsplan-f-r-fluttering-barto.md`.
+
+### Medium priority — Phase D-1: integration tests for npm runtime deps of gjsify infra
+
+10 new `tests/integration/<pkg>/` suites are being added in 3 batches under the established pattern (`@gjsify/integration-<pkg>`, `private:true`, `prebuild:test:{gjs,node}` → `build:test:{gjs,node}` → `test:{gjs,node}`). Suites and pillars exercised:
+
+| Stream | Package | Pillars |
+|---|---|---|
+| O | `yargs` ^18 | events, util, process.argv, ESM |
+| P | `acorn` + `acorn-walk` | pure JS parser/AST (no GNOME deps) |
+| Q | `fast-glob` ^3 | fs (URL paths, readdir, stat), path |
+| R | `gettext-parser` ^9 | buffer, fs, encoding |
+| S | `cosmiconfig` ^9 | fs, path, dynamic `import()`, ESM `file://` |
+| T | `execa` ^9 | child_process, stream, events, signals |
+| U | `pkg-types` ^2 + `get-tsconfig` ^4 | fs, path, JSON parsing (one combined suite) |
+| V | `@rollup/pluginutils` ^5 | path, picomatch glob (transitive) |
+| W | `@deepkit/type-compiler` ^1 | typescript peer (heavy), reflection compiler |
+| X | `minify-xml` ^4 | string-manipulation, regex |
+
+Issue-handling policy per stream: **fix in the same PR by default**; defer with STATUS.md tracker only when the fix needs a Vala bridge or weeks of upstream work. After D-1 wave the deferred fixes get aggregated into `.claude/plans/phase-d-1-followup-fixes.md` for a D-1.5 wave.
 
 ### Completed (Phase A — gjsify v0.3.5)
 
