@@ -3253,6 +3253,20 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/lightningcss-native@workspace:packages/infra/lightningcss-native":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/lightningcss-native@workspace:packages/infra/lightningcss-native"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.15"
+    "@girs/glib-2.0": "npm:2.88.0-4.0.0-rc.15"
+    "@girs/gobject-2.0": "npm:2.88.0-4.0.0-rc.15"
+    "@gjsify/cli": "workspace:^"
+    "@ts-for-gir/cli": "npm:^4.0.0-rc.15"
+    "@types/node": "npm:^25.6.2"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/module@workspace:^, @gjsify/module@workspace:packages/node/module":
   version: 0.0.0-use.local
   resolution: "@gjsify/module@workspace:packages/node/module"
