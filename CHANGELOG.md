@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Goals
+
+* **Phase D — gjsify Self-Hosting auf GJS (2026-05-09):** new long-term goal
+  raised by the user — the entire gjsify toolchain (`gjsify build`/`run`/
+  `install`/`create`/`dlx`/`showcase`/`flatpak`) should run on GJS itself,
+  no Node.js anywhere. Subsumes the earlier "Node-free build chain" goal
+  and pushes it through to a complete self-hosting story. Sub-phases:
+  **D-1 (in progress)** — integration tests for every npm runtime dep of
+  `packages/infra/*` (10 streams: yargs, acorn, fast-glob, gettext-parser,
+  cosmiconfig, execa, pkg-types+get-tsconfig, @rollup/pluginutils,
+  @deepkit/type-compiler, minify-xml — fix-in-PR-by-default policy);
+  **D-2 (research)** — replacement strategy for the two Rust blockers
+  `rolldown` and `lightningcss`; **D-3 (deferred)** — release `gjsify
+  install` user CLI + ship CLI bundle for GJS itself + drop
+  `Sdk.Extension.node24` from the Flatpak workflow. Anchored in STATUS.md
+  `Long-term goal — Phase D` + the per-stream tracker
+  `Medium priority — Phase D-1`. Plan file:
+  `.claude/plans/erstelle-einen-umsetzungsplan-f-r-fluttering-barto.md`.
+
 ### Features
 
 * **http2 + http2-native (2026-05-09):** Workstream A — Phase 2 of the
