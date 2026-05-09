@@ -3201,6 +3201,22 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/integration-acorn@workspace:tests/integration/acorn":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/integration-acorn@workspace:tests/integration/acorn"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.14"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.6.2"
+    acorn: "npm:^8.16.0"
+    acorn-walk: "npm:^8.3.5"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/integration-autobahn@workspace:tests/integration/autobahn":
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-autobahn@workspace:tests/integration/autobahn"

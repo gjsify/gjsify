@@ -478,6 +478,29 @@
   the future GJS-hosted `@gjsify/cli` build needs (tracked in
   STATUS.md "Integration Test Coverage → yargs").
 
+* **integration-acorn (2026-05-09):** Phase D-1 Workstream P — new
+  `tests/integration/acorn/` suite (`@gjsify/integration-acorn`,
+  private). 5 spec files / 38 cases covering `acorn@^8.16` (parser)
+  and `acorn-walk@^8.3` (AST visitor) — both pure-JS deps of
+  `@gjsify/rolldown-plugin-gjsify`'s `auto-globals` detector. Total:
+  **127/127 green on Node, 127/127 green on GJS, 0 skips.** Stresses
+  the SpiderMonkey 140 ES2024 surface end-to-end through the parser:
+  arrow + destructuring + rest, classes (static / private / getters),
+  async/await + for-await-of, optional chaining, nullish coalescing,
+  logical assignment, tagged templates, named/default imports,
+  dynamic `import()`, import attributes (`with { type: 'json' }` at
+  `ecmaVersion: 'latest'`), top-level await, multi-line `loc`
+  reporting (1-based line / 0-based column), `(line:col)` error
+  suffix shape, `simple` / `ancestor` / `full` / `recursive` walkers,
+  `findNodeAt` / `findNodeAround` range queries, `make()` walker
+  composition. No `@gjsify/*` fixes were required — first-try green
+  on both runtimes. Acts as a clean canary that the SpiderMonkey 140
+  / `firefox140` lowering / `@gjsify/*` core JS path runs the parser
+  used by every `--globals auto` build. Clears two more of the 11
+  Phase D-1 npm runtime-deps the future GJS-hosted `@gjsify/cli`
+  build needs (tracked in STATUS.md "Integration Test Coverage →
+  acorn + acorn-walk").
+
 ## [0.3.21](https://github.com/gjsify/gjsify/compare/v0.3.20...v0.3.21) (2026-05-08)
 
 ### Bug Fixes
