@@ -627,6 +627,32 @@
   `rolldown` / `lightningcss` that fall through to D-2 research).
   Tracked in STATUS.md "Integration Test Coverage → minify-xml".
 
+* **integration-deepkit-type-compiler (2026-05-09):** Phase D-1
+  Workstream W — new `tests/integration/deepkit-type-compiler/` suite
+  (`@gjsify/integration-deepkit-type-compiler`, private). 2 spec files
+  / 13 cases covering [`@deepkit/type-compiler@^1`](https://github.com/deepkit/deepkit-framework)
+  — the TypeScript reflection emitter consumed by
+  `@gjsify/rolldown-plugin-deepkit` (opt-in via `reflection: true`).
+  Suites: `loader` (`DeepkitLoader` constructor + `transform()`
+  round-trip on plain code, empty input, class+interface declarations,
+  two-transforms-don't-interfere, no-typeOf-call no-instrumentation
+  invariant), `transform` (`typeOf<T>()` instrumentation signal —
+  call rewritten to `typeOf<T>([], …)` — per-kind metadata emission
+  shapes: named interface (hoisted `const __ΩName`), class (`static
+  __type` member), primitive type alias (hoisted `__ΩName`), inline
+  structural type (in-place encoded string), round-trip safety,
+  syntactically broken input handling). Total: **29/29 green on Node,
+  29/29 green on GJS, 0 skips.** No `@gjsify/*` fixes required —
+  Deepkit + its `typescript@^5` peer + `@marcj/ts-clone-node`
+  transitive bundle and run cleanly on SpiderMonkey 140 through the
+  standard `@gjsify/cli` build path. The test bundle alone is ≈8 MiB
+  (TypeScript itself dominates), confirming Rolldown's tree-shaking
+  + the `--app gjs` config don't choke on the deepest dep we ship.
+  Clears the next-to-last of the 11 Phase D-1 npm runtime-deps the
+  future GJS-hosted `@gjsify/cli` build needs (excluding the Rust
+  blockers `rolldown` / `lightningcss`). Tracked in STATUS.md
+  "Integration Test Coverage → @deepkit/type-compiler".
+
 ## [0.3.21](https://github.com/gjsify/gjsify/compare/v0.3.20...v0.3.21) (2026-05-08)
 
 ### Bug Fixes

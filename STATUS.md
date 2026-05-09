@@ -727,6 +727,17 @@ The published `minify-xml` tarball strips its own `test/` directory (the package
 
 Clears the last of the 11 Phase D-1 npm runtime-deps the future GJS-hosted `@gjsify/cli` build needs (excluding the Rust blockers `rolldown` / `lightningcss` that fall through to D-2 research). The Blueprint consumer path — `@gjsify/vite-plugin-blueprint` calls `minify(xml)` on the XML string blueprint-compiler emits — is now end-to-end-validated, so the existing GTK examples that bundle `.blp` resources are protected against any future RegExp-engine-divergence regressions.
 
+### @deepkit/type-compiler (`tests/integration/deepkit-type-compiler/`)
+
+Phase D-1 Workstream W — validates the Deepkit TypeScript type compiler consumed by `@gjsify/rolldown-plugin-deepkit`. The plugin is opt-in (`reflection: true` in `.gjsifyrc.js`), but when enabled it instruments user code via `DeepkitLoader.transform()` — the same TypeScript Compiler API surface this suite exercises end-to-end. **Node: 29/29 green. GJS: 29/29 green, 0 skips.** No `@gjsify/*` fixes required — Deepkit + its `typescript@^5` peer + `@marcj/ts-clone-node` transitive bundle and run cleanly on SpiderMonkey 140 through the standard `@gjsify/cli` build path.
+
+| Suite | Node | GJS | Exercises |
+|---|---|---|---|
+| loader.spec.ts | ✅ (6) | ✅ (6) | `DeepkitLoader` constructor + `transform()` round-trip on plain code, empty input, class+interface declarations, two-transforms-don't-interfere, no-typeOf-call no-instrumentation invariant |
+| transform.spec.ts | ✅ (7) | ✅ (7) | `typeOf<T>()` instrumentation signal (call rewritten to `typeOf<T>([], …)`), per-kind metadata emission shapes — named interface (hoisted `const __ΩName`), class (`static __type` member), primitive type alias (hoisted `__ΩName`), inline structural type (in-place encoded string), round-trip safety, syntactically broken input handling |
+
+The TypeScript Compiler API code path inside Deepkit + `@marcj/ts-clone-node` walks `Program`, `SourceFile`, `Printer`, and `CustomTransformerFactory` shapes — the heaviest single TS-API exercise we've put through the GJS bundle path. Bundle size for the test alone is ≈8 MiB (TypeScript itself is the dominant cost), confirming Rolldown's tree-shaking + the `--app gjs` config don't choke on the deepest dep we ship. Clears the next-to-last of the 11 Phase D-1 npm runtime-deps the future GJS-hosted `@gjsify/cli` build needs (excluding the Rust blockers `rolldown` / `lightningcss`).
+
 ## Open TODOs
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
