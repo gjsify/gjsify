@@ -741,5 +741,59 @@ export default async () => {
 				expect(code).not.toBe(0);
 			});
 		});
+
+	});
+
+	await describe('child_process.spawn — AbortSignal option', async () => {
+
+		await it('AbortController kills the running child + emits AbortError', async () => {
+			const ctrl = new AbortController();
+			const result = await new Promise<{ code: number | null; signal: string | null; err: Error | null }>((resolve) => {
+				const child = spawn('sleep', ['10'], { signal: ctrl.signal });
+				let err: Error | null = null;
+				child.on('error', (e) => { err = e as Error; });
+				child.on('close', (code, signal) => resolve({ code, signal, err }));
+				setTimeout(() => ctrl.abort(), 50);
+			});
+			expect(result.err).toBeTruthy();
+			expect(result.err?.name).toBe('AbortError');
+			// Process should have been signal-killed (not exited cleanly).
+			expect(result.signal).toBe('SIGTERM');
+		});
+
+		// This test only runs on GJS — Node's native `spawn()` schedules
+		// the AbortError emission for an already-aborted signal in a way
+		// that races our test's listener attachment, so it's nondeterministic
+		// across Node versions. Our @gjsify impl uses queueMicrotask so the
+		// listener is reliably installed first.
+		await on('Gjs', async () => {
+			await it('an already-aborted signal kills the child immediately', async () => {
+				const ctrl = new AbortController();
+				ctrl.abort();
+				const result = await new Promise<{ code: number | null; signal: string | null; err: Error | null }>((resolve) => {
+					const child = spawn('sleep', ['10'], { signal: ctrl.signal });
+					let err: Error | null = null;
+					child.on('error', (e) => { err = e as Error; });
+					child.on('close', (code, signal) => resolve({ code, signal, err }));
+					setTimeout(() => resolve({ code: -999, signal: 'never-closed', err }), 5_000);
+				});
+				expect(result.err?.name).toBe('AbortError');
+				expect(result.signal).toBe('SIGTERM');
+			});
+		});
+
+		await it('signal that never aborts allows normal exit', async () => {
+			const ctrl = new AbortController();
+			const code = await new Promise<number | null>((resolve, reject) => {
+				const child = spawn('echo', ['hello'], { signal: ctrl.signal });
+				child.on('close', resolve);
+				child.on('error', reject);
+				setTimeout(() => reject(new Error('child did not close within 5 s')), 5_000);
+			});
+			expect(code).toBe(0);
+			// Important: aborting AFTER exit must not throw / emit.
+			ctrl.abort();
+			await new Promise<void>((r) => setTimeout(r, 20));
+		});
 	});
 };
