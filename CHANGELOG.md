@@ -121,6 +121,41 @@
 
 ### Refactoring
 
+* **canvas2d-core (2026-05-09):** type-safety pass on
+  `packages/dom/canvas2d-core/src/canvas-rendering-context-2d.ts` (Workstream H).
+  `as any` reduced from 34 → 0 in `canvas-rendering-context-2d.ts`, and from 35
+  → 0 across all non-test source under `packages/dom/canvas2d-core/src/` (one
+  occurrence remains inside a doc comment). New `src/cairo-types.ts` introduces
+  `CairoPattern = Cairo.Pattern & CairoPatternRuntime` plus an `asCairoPattern()`
+  narrowing helper for the `setExtend`/`setFilter`/`getExtend`/`getFilter`
+  methods that exist at runtime on every `cairo_pattern_t` but are absent from
+  the GIR-generated `@girs/cairo-1.0` / `@girs/gjs/cairo` typings (the GIR
+  emitter ships an empty `class Pattern {}` for "Foreign Struct" types, and
+  module-augmenting `giCairo.Pattern` is not effective because `@girs/gjs/cairo`
+  uses an unexported `declare namespace giCairo`). New `src/dom-types.ts`
+  introduces `CanvasLike`, `PixbufImageSource`, `CanvasImageSource`,
+  `CanvasContext2DLike`, `DOMMatrix2DLike`, `DOMMatrixConstructor`, and
+  `CanvasGlobalThis` interfaces — plus `isPixbufImageSource()` and
+  `isCanvasImageSource()` type guards — so the constructor (`canvas: any →
+  CanvasLike`), `drawImage()`/`createPattern()` (`image: any → unknown` +
+  guarded narrowing), `getTransform()` fallback (`globalThis as any` →
+  `globalThis as CanvasGlobalThis`, struct literal typed
+  `DOMMatrix2DLike`), and `_getDrawImageSource()` (`image: any → unknown`) all
+  work against concrete types. `_options?: any` on the constructor becomes a
+  fully-typed `CanvasRenderingContext2DInit` mirroring the WHATWG dictionary.
+  Direct `Cairo.Context` method calls (`userToDevice`, `setAntialias`,
+  `paintWithAlpha`, `getSource`) and `Gdk.cairo_set_source_pixbuf(this._ctx,
+  …)` / `PangoCairo.{create_layout,show_layout,layout_path}(this._ctx, …)` no
+  longer need `as any` — the GIR types already accept `Cairo.Context` directly,
+  the casts were vestigial. `canvas-pattern.ts` adopts the same shape: the
+  private constructor stores a `CairoPattern` (rather than `Cairo.SurfacePattern`
+  + `(pat as any).setExtend`), and `CanvasPattern.create(image: any → unknown)`
+  uses the new type guards. Return-type casts to the WHATWG DOM lib types
+  (`new OurCanvasGradient(…) as any → as unknown as CanvasGradient`, same for
+  `CanvasPattern` and `ImageData`) tighten the cast chain through `unknown`.
+  Test counts unchanged — all 578 GJS tests pass; `@gjsify/dom-elements`,
+  `@gjsify/canvas2d`, and the `@gjsify/example-dom-canvas2d-fireworks`
+  showcase rebuild clean. No runtime change.
 * **webgl (2026-05-09):** split the 4164-line
   `packages/framework/webgl/src/ts/webgl-context-base.ts` — the largest file in
   the repo — into focused composition modules under

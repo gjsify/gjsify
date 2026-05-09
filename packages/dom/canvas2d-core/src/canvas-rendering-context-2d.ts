@@ -10,6 +10,14 @@ import PangoCairo from 'gi://PangoCairo';
 // HTMLCanvasElement type is provided by the DOM lib.
 // Our @gjsify/dom-elements HTMLCanvasElement satisfies this interface.
 
+import { asCairoPattern } from './cairo-types.js';
+import {
+    type CanvasLike,
+    type CanvasGlobalThis,
+    type DOMMatrix2DLike,
+    isPixbufImageSource,
+    isCanvasImageSource,
+} from './dom-types.js';
 import { parseColor } from './color.js';
 import {
     quadraticToCubic,
@@ -27,11 +35,23 @@ import { CanvasPattern as OurCanvasPattern } from './canvas-pattern.js';
 import { Path2D } from './canvas-path.js';
 
 /**
+ * Options bag passed through the `getContext('2d', options)` factory. Mirrors
+ * the WHATWG `CanvasRenderingContext2DSettings` dictionary; fields are
+ * accepted but not yet honored by this implementation.
+ */
+export interface CanvasRenderingContext2DInit {
+    alpha?: boolean;
+    desynchronized?: boolean;
+    colorSpace?: PredefinedColorSpace;
+    willReadFrequently?: boolean;
+}
+
+/**
  * CanvasRenderingContext2D backed by Cairo.ImageSurface.
  * Implements the Canvas 2D API for GJS.
  */
 export class CanvasRenderingContext2D {
-    readonly canvas: any;
+    readonly canvas: CanvasLike;
 
     private _surface: Cairo.ImageSurface;
     private _ctx: Cairo.Context;
@@ -40,7 +60,7 @@ export class CanvasRenderingContext2D {
     private _surfaceWidth: number;
     private _surfaceHeight: number;
 
-    constructor(canvas: any, _options?: any) {
+    constructor(canvas: CanvasLike, _options?: CanvasRenderingContext2DInit) {
         this.canvas = canvas;
         this._surfaceWidth = canvas.width || 300;
         this._surfaceHeight = canvas.height || 150;
@@ -115,18 +135,17 @@ export class CanvasRenderingContext2D {
      * creation — so we re-apply it on every fill/stroke.
      */
     private _applyPatternFilter(): void {
-        const pat = (this._ctx as any).getSource?.();
-        if (pat && typeof pat.setFilter === 'function') {
-            let filter: number;
-            if (!this._state.imageSmoothingEnabled) {
-                filter = Cairo.Filter.NEAREST as unknown as number;
-            } else if (this._state.imageSmoothingQuality === 'high') {
-                filter = Cairo.Filter.BEST as unknown as number;
-            } else {
-                filter = Cairo.Filter.BILINEAR as unknown as number;
-            }
-            pat.setFilter(filter);
+        const pat = asCairoPattern(this._ctx.getSource?.());
+        if (!pat) return;
+        let filter: Cairo.Filter;
+        if (!this._state.imageSmoothingEnabled) {
+            filter = Cairo.Filter.NEAREST;
+        } else if (this._state.imageSmoothingQuality === 'high') {
+            filter = Cairo.Filter.BEST;
+        } else {
+            filter = Cairo.Filter.BILINEAR;
         }
+        pat.setFilter(filter);
     }
 
     /** Apply line properties to the Cairo context. */
@@ -170,9 +189,9 @@ export class CanvasRenderingContext2D {
      * regardless of any ctx.scale() or ctx.rotate() in effect.
      */
     private _deviceToUserDistance(dx: number, dy: number): [number, number] {
-        const origin = (this._ctx as any).userToDevice(0, 0);
-        const xAxis  = (this._ctx as any).userToDevice(1, 0);
-        const yAxis  = (this._ctx as any).userToDevice(0, 1);
+        const origin = this._ctx.userToDevice(0, 0);
+        const xAxis  = this._ctx.userToDevice(1, 0);
+        const yAxis  = this._ctx.userToDevice(0, 1);
         const a = (xAxis[0] ?? 0) - (origin[0] ?? 0);
         const b = (xAxis[1] ?? 0) - (origin[1] ?? 0);
         const c = (yAxis[0] ?? 0) - (origin[0] ?? 0);
@@ -304,9 +323,9 @@ export class CanvasRenderingContext2D {
         //   userToDevice(0, 0) = (e,     f)      — translation
         //   userToDevice(1, 0) = (a + e, b + f)  — first basis vector
         //   userToDevice(0, 1) = (c + e, d + f)  — second basis vector
-        const origin = (this._ctx as any).userToDevice(0, 0);
-        const xAxis  = (this._ctx as any).userToDevice(1, 0);
-        const yAxis  = (this._ctx as any).userToDevice(0, 1);
+        const origin = this._ctx.userToDevice(0, 0);
+        const xAxis  = this._ctx.userToDevice(1, 0);
+        const yAxis  = this._ctx.userToDevice(0, 1);
         const e = origin[0] ?? 0;
         const f = origin[1] ?? 0;
         const a = (xAxis[0] ?? 0) - e;
@@ -314,11 +333,11 @@ export class CanvasRenderingContext2D {
         const c = (yAxis[0] ?? 0) - e;
         const d = (yAxis[1] ?? 0) - f;
 
-        const DOMMatrixCtor = (globalThis as any).DOMMatrix;
+        const DOMMatrixCtor = (globalThis as CanvasGlobalThis).DOMMatrix;
         if (typeof DOMMatrixCtor === 'function') {
             return new DOMMatrixCtor([a, b, c, d, e, f]);
         }
-        return {
+        const fallback: DOMMatrix2DLike = {
             a, b, c, d, e, f,
             m11: a, m12: b, m13: 0, m14: 0,
             m21: c, m22: d, m23: 0, m24: 0,
@@ -326,7 +345,8 @@ export class CanvasRenderingContext2D {
             m41: e, m42: f, m43: 0, m44: 1,
             is2D: true,
             isIdentity: (a === 1 && b === 0 && c === 0 && d === 1 && e === 0 && f === 0),
-        } as any;
+        };
+        return fallback as unknown as DOMMatrix;
     }
 
     resetTransform(): void {
@@ -693,15 +713,15 @@ export class CanvasRenderingContext2D {
     // ---- Gradient / Pattern factories ----
 
     createLinearGradient(x0: number, y0: number, x1: number, y1: number): CanvasGradient {
-        return new OurCanvasGradient('linear', x0, y0, x1, y1) as any;
+        return new OurCanvasGradient('linear', x0, y0, x1, y1) as unknown as CanvasGradient;
     }
 
     createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): CanvasGradient {
-        return new OurCanvasGradient('radial', x0, y0, x1, y1, r0, r1) as any;
+        return new OurCanvasGradient('radial', x0, y0, x1, y1, r0, r1) as unknown as CanvasGradient;
     }
 
-    createPattern(image: any, repetition: string | null): CanvasPattern | null {
-        return OurCanvasPattern.create(image, repetition) as any;
+    createPattern(image: unknown, repetition: string | null): CanvasPattern | null {
+        return OurCanvasPattern.create(image, repetition) as unknown as CanvasPattern | null;
     }
 
     // ---- Image data methods ----
@@ -710,9 +730,9 @@ export class CanvasRenderingContext2D {
     createImageData(imagedata: ImageData): ImageData;
     createImageData(swOrImageData: number | ImageData, sh?: number): ImageData {
         if (typeof swOrImageData === 'number') {
-            return new OurImageData(Math.abs(swOrImageData), Math.abs(sh!)) as any;
+            return new OurImageData(Math.abs(swOrImageData), Math.abs(sh!)) as unknown as ImageData;
         }
-        return new OurImageData(swOrImageData.width, swOrImageData.height) as any;
+        return new OurImageData(swOrImageData.width, swOrImageData.height) as unknown as ImageData;
     }
 
     getImageData(sx: number, sy: number, sw: number, sh: number): ImageData {
@@ -722,7 +742,7 @@ export class CanvasRenderingContext2D {
         // Use Gdk.pixbuf_get_from_surface to read pixels
         const pixbuf = Gdk.pixbuf_get_from_surface(this._surface, sx, sy, sw, sh);
         if (!pixbuf) {
-            return new OurImageData(sw, sh) as any;
+            return new OurImageData(sw, sh) as unknown as ImageData;
         }
 
         const pixels = pixbuf.get_pixels();
@@ -742,7 +762,7 @@ export class CanvasRenderingContext2D {
             }
         }
 
-        return new OurImageData(out, sw, sh) as any;
+        return new OurImageData(out, sw, sh) as unknown as ImageData;
     }
 
     putImageData(imageData: ImageData, dx: number, dy: number, dirtyX?: number, dirtyY?: number, dirtyWidth?: number, dirtyHeight?: number): void {
@@ -784,7 +804,7 @@ export class CanvasRenderingContext2D {
         // putImageData per spec ignores compositing — always uses SOURCE operator
         this._ctx.save();
         this._ctx.setOperator(Cairo.Operator.SOURCE);
-        Gdk.cairo_set_source_pixbuf(this._ctx as any, pixbuf, dx + sx, dy + sy);
+        Gdk.cairo_set_source_pixbuf(this._ctx, pixbuf, dx + sx, dy + sy);
         this._ctx.rectangle(dx + sx, dy + sy, sw, sh);
         this._ctx.fill();
         this._ctx.restore();
@@ -792,11 +812,11 @@ export class CanvasRenderingContext2D {
 
     // ---- drawImage ----
 
-    drawImage(image: any, dx: number, dy: number): void;
-    drawImage(image: any, dx: number, dy: number, dw: number, dh: number): void;
-    drawImage(image: any, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number): void;
+    drawImage(image: unknown, dx: number, dy: number): void;
+    drawImage(image: unknown, dx: number, dy: number, dw: number, dh: number): void;
+    drawImage(image: unknown, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number): void;
     drawImage(
-        image: any,
+        image: unknown,
         a1: number, a2: number,
         a3?: number, a4?: number,
         a5?: number, a6?: number,
@@ -860,7 +880,7 @@ export class CanvasRenderingContext2D {
         this._ctx.scale(dw / sw, dh / sh);
         this._ctx.translate(-sx, -sy);
 
-        Gdk.cairo_set_source_pixbuf(this._ctx as any, pixbuf, 0, 0);
+        Gdk.cairo_set_source_pixbuf(this._ctx, pixbuf, 0, 0);
 
         // Apply Cairo interpolation filter based on imageSmoothingEnabled +
         // imageSmoothingQuality. setSource installs a fresh SurfacePattern and
@@ -871,16 +891,17 @@ export class CanvasRenderingContext2D {
         //
         // Cairo.Filter values (verified runtime in GJS 1.86):
         //   FAST=0  GOOD=1  BEST=2  NEAREST=3  BILINEAR=4  GAUSSIAN=5
-        // GIR typings are incomplete for Cairo.SurfacePattern so we go via any.
-        const pat = (this._ctx as any).getSource?.();
-        if (pat && typeof pat.setFilter === 'function') {
-            let filter: number;
+        // GIR typings are missing setFilter on Pattern — `asCairoPattern`
+        // narrows to the augmented shape (see cairo-types.ts).
+        const pat = asCairoPattern(this._ctx.getSource?.());
+        if (pat) {
+            let filter: Cairo.Filter;
             if (!this._state.imageSmoothingEnabled) {
-                filter = Cairo.Filter.NEAREST as unknown as number;
+                filter = Cairo.Filter.NEAREST;
             } else if (this._state.imageSmoothingQuality === 'high') {
-                filter = Cairo.Filter.BEST as unknown as number;
+                filter = Cairo.Filter.BEST;
             } else {
-                filter = Cairo.Filter.BILINEAR as unknown as number;
+                filter = Cairo.Filter.BILINEAR;
             }
             pat.setFilter(filter);
         }
@@ -891,24 +912,24 @@ export class CanvasRenderingContext2D {
         // doesn't support per-draw alpha, so paint() is the spec-correct
         // choice for drawImage. The clip above confines the paint to dx,dy,dw,dh.
         if (this._state.globalAlpha < 1) {
-            (this._ctx as any).paintWithAlpha(this._state.globalAlpha);
+            this._ctx.paintWithAlpha(this._state.globalAlpha);
         } else {
             this._ctx.paint();
         }
         this._ctx.restore();
     }
 
-    private _getDrawImageSource(image: any): { pixbuf: GdkPixbuf.Pixbuf; imgWidth: number; imgHeight: number } | null {
+    private _getDrawImageSource(image: unknown): { pixbuf: GdkPixbuf.Pixbuf; imgWidth: number; imgHeight: number } | null {
         // HTMLImageElement (GdkPixbuf-backed)
-        if (typeof image?.isPixbuf === 'function' && image.isPixbuf()) {
-            const pixbuf = image._pixbuf as GdkPixbuf.Pixbuf;
+        if (isPixbufImageSource(image)) {
+            const pixbuf = image._pixbuf;
             return { pixbuf, imgWidth: pixbuf.get_width(), imgHeight: pixbuf.get_height() };
         }
 
         // HTMLCanvasElement with a 2D context
-        if (typeof image?.getContext === 'function') {
-            const w = image.width;
-            const h = image.height;
+        if (isCanvasImageSource(image)) {
+            const w = image.width ?? 0;
+            const h = image.height ?? 0;
             // Reject non-positive / non-finite dimensions before they reach
             // GdkPixbuf — `pixbuf_get_from_surface` logs a GLib-CRITICAL on
             // `width > 0 && height > 0` assertion failure for NaN/0 inputs.
@@ -917,7 +938,7 @@ export class CanvasRenderingContext2D {
             }
             const ctx2d = image.getContext('2d');
             if (ctx2d && typeof ctx2d._getSurface === 'function') {
-                const surface = ctx2d._getSurface() as Cairo.ImageSurface;
+                const surface = ctx2d._getSurface();
                 surface.flush();
                 const pixbuf = Gdk.pixbuf_get_from_surface(surface, 0, 0, w, h);
                 if (pixbuf) {
@@ -933,7 +954,7 @@ export class CanvasRenderingContext2D {
 
     /** Create a PangoCairo layout configured with current font/text settings. */
     private _createTextLayout(text: string): Pango.Layout {
-        const layout = PangoCairo.create_layout(this._ctx as any);
+        const layout = PangoCairo.create_layout(this._ctx);
         layout.set_text(text, -1);
 
         // Force LTR base direction so text is never rendered mirrored
@@ -1077,10 +1098,10 @@ export class CanvasRenderingContext2D {
                 const aa = this._state.imageSmoothingEnabled ? Cairo.Antialias.DEFAULT : Cairo.Antialias.NONE;
                 for (const [tx, ty, ta] of taps) {
                     this._ctx.save();
-                    (this._ctx as any).setAntialias(aa);
+                    this._ctx.setAntialias(aa);
                     this._ctx.setSourceRGBA(sc.r, sc.g, sc.b, ta);
                     this._ctx.moveTo(x + xOff + tx, y + yOff + ty);
-                    PangoCairo.show_layout(this._ctx as any, layout);
+                    PangoCairo.show_layout(this._ctx, layout);
                     this._ctx.restore();
                 }
             }
@@ -1090,9 +1111,9 @@ export class CanvasRenderingContext2D {
         this._ctx.save();
         // Disable anti-aliasing so pixel/bitmap fonts render crisp (matching browser
         // behaviour for fonts with no outline hints). cairo_save/restore covers antialias.
-        (this._ctx as any).setAntialias(this._state.imageSmoothingEnabled ? Cairo.Antialias.DEFAULT : Cairo.Antialias.NONE);
+        this._ctx.setAntialias(this._state.imageSmoothingEnabled ? Cairo.Antialias.DEFAULT : Cairo.Antialias.NONE);
         this._ctx.moveTo(x + xOff, y + yOff);
-        PangoCairo.show_layout(this._ctx as any, layout);
+        PangoCairo.show_layout(this._ctx, layout);
         this._ctx.restore();
     }
 
@@ -1107,9 +1128,9 @@ export class CanvasRenderingContext2D {
         const yOff = this._getTextBaselineOffset(layout);
 
         this._ctx.save();
-        (this._ctx as any).setAntialias(this._state.imageSmoothingEnabled ? Cairo.Antialias.DEFAULT : Cairo.Antialias.NONE);
+        this._ctx.setAntialias(this._state.imageSmoothingEnabled ? Cairo.Antialias.DEFAULT : Cairo.Antialias.NONE);
         this._ctx.moveTo(x + xOff, y + yOff);
-        PangoCairo.layout_path(this._ctx as any, layout);
+        PangoCairo.layout_path(this._ctx, layout);
         this._ctx.stroke();
         this._ctx.restore();
     }
