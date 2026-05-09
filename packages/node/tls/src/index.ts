@@ -1,9 +1,51 @@
-// Reference: Node.js lib/tls.js
-// Reimplemented for GJS using Gio.TlsClientConnection / Gio.TlsServerConnection
+// Reference: Node.js lib/tls.js, lib/_tls_common.js, lib/_tls_wrap.js
+// Reimplemented for GJS using Gio.TlsClientConnection / Gio.TlsServerConnection /
+//   Gio.TlsCertificate.
+//
+// Node-TLS option / API → Gio.TLS property/method mapping (authoritative for this file):
+//
+//   Node option / API                 →  Gio binding
+//   ─────────────────────────────────────────────────────────────────────────
+//   tls.createSecureContext({cert})   →  Gio.TlsCertificate.new_from_pem
+//   {key} (separate PEM)              →  PEM concatenated then new_from_pem
+//   {ca} (PEM string or array)        →  per-block Gio.TlsCertificate.new_from_pem
+//                                        used as trust anchors via cert.verify()
+//   {rejectUnauthorized: false}       →  TlsConnection 'accept-certificate'
+//                                        signal returns true
+//   {minVersion}/{maxVersion}/        →  Not exposed by Gio (handled by GnuTLS
+//   {ciphers}                            backend); stored for diagnostics only
+//   {ALPNProtocols}                   →  TlsConnection.set_advertised_protocols
+//   tlsSocket.alpnProtocol            →  TlsConnection.get_negotiated_protocol
+//   {servername} (SNI)                →  TlsClientConnection.set_server_identity
+//                                        (Gio.NetworkAddress with hostname)
+//   tls.connect({cert,key}) (mTLS)    →  TlsConnection.set_certificate(client_cert)
+//   tls.createServer({SNICallback})   →  Best-effort: see "Open TODOs" — Gio
+//                                        does not surface the ClientHello
+//                                        server_name to JS before handshake.
+//   tlsSocket.getPeerCertificate()    →  TlsConnection.get_peer_certificate +
+//                                        TlsCertificate.get_subject_name /
+//                                        get_issuer_name / get_dns_names /
+//                                        get_ip_addresses / get_not_valid_*  /
+//                                        certificate_pem
+//   detailed=true issuer chain        →  TlsCertificate.get_issuer (walked)
+//   tlsSocket.getProtocol()           →  TlsConnection.get_protocol_version
+//   tlsSocket.getCipher()             →  TlsConnection.get_ciphersuite_name
+//   server: {requestCert,             →  TlsServerConnection.authentication_mode
+//            rejectUnauthorized}         REQUESTED / REQUIRED / NONE
+//
+// Documented gaps (see STATUS.md "Open TODOs"):
+//   - SNI server-side selection from ClientHello: Gio does not expose
+//     server_name extension before handshake; SNICallback is consulted but
+//     selection is approximate.
+//   - OCSP stapling: not exposed by Gio.
+//   - TLS session resumption ('session' event, {session} option): GnuTLS
+//     resumption API is not surfaced via GI.
+//   - Custom DH/ECDH params, ticket keys: not exposed.
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { Socket, Server } from 'node:net';
+import type { Server as NetServer } from 'node:net';
 import { createNodeError, deferEmit } from '@gjsify/utils';
 
 export const DEFAULT_MIN_VERSION = 'TLSv1.2';
@@ -18,11 +60,200 @@ export function getCiphers(): string[] {
   ];
 }
 
-export interface PeerCertificate {
-  subject?: { CN?: string | string[]; [key: string]: unknown };
-  subjectaltname?: string;
+// ============================================================================
+// PEM helpers
+// ============================================================================
+
+type PemInput = string | Buffer | Uint8Array | Array<string | Buffer | Uint8Array>;
+
+/** Coerce a PEM input (string, Buffer/Uint8Array, or array) to a single PEM string. */
+function pemToString(value: PemInput): string {
+  if (Array.isArray(value)) {
+    return value.map(pemToString).join('\n');
+  }
+  if (typeof value === 'string') return value;
+  if (value && typeof (value as Buffer).toString === 'function') {
+    try {
+      return (value as Buffer).toString('utf-8');
+    } catch {
+      return new TextDecoder('utf-8').decode(value as Uint8Array);
+    }
+  }
+  return String(value);
+}
+
+/** Split a concatenated PEM blob into individual `-----BEGIN ...-----...-----END ...-----` blocks. */
+function splitPemBlocks(pem: string): string[] {
+  const out: string[] = [];
+  const re = /-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(pem)) !== null) {
+    out.push(m[0]);
+  }
+  return out;
+}
+
+/** Build a TlsCertificate (and chain) from PEM strings. The first cert and key are the leaf. */
+function buildGioCertificate(cert: PemInput, key?: PemInput): Gio.TlsCertificate {
+  const certPem = pemToString(cert);
+  const keyPem = key ? pemToString(key) : '';
+  const pem = keyPem ? `${certPem}\n${keyPem}` : certPem;
+  return Gio.TlsCertificate.new_from_pem(pem, pem.length);
+}
+
+/** Parse a CA bundle (PEM string or array) into a list of TlsCertificate trust anchors. */
+function buildCaCertificates(ca: PemInput): Gio.TlsCertificate[] {
+  const blocks: string[] = [];
+  if (Array.isArray(ca)) {
+    for (const item of ca) blocks.push(...splitPemBlocks(pemToString(item)));
+  } else {
+    blocks.push(...splitPemBlocks(pemToString(ca)));
+  }
+  const out: Gio.TlsCertificate[] = [];
+  for (const block of blocks) {
+    try {
+      out.push(Gio.TlsCertificate.new_from_pem(block, block.length));
+    } catch {
+      // Skip blocks that aren't certificates (DH params, comments, etc).
+    }
+  }
+  return out;
+}
+
+// ============================================================================
+// Peer-certificate extraction
+// ============================================================================
+
+export interface CertSubject {
+  CN?: string | string[];
   [key: string]: unknown;
 }
+
+export interface PeerCertificate {
+  subject?: CertSubject;
+  issuer?: CertSubject;
+  subjectaltname?: string;
+  valid_from?: string;
+  valid_to?: string;
+  fingerprint?: string;
+  fingerprint256?: string;
+  serialNumber?: string;
+  raw?: Uint8Array;
+  issuerCertificate?: PeerCertificate;
+  [key: string]: unknown;
+}
+
+/** Parse a distinguished name string (e.g. "CN=example.com,O=Foo") into a key→value object. */
+function parseDistinguishedName(dn: string | null): CertSubject {
+  if (!dn) return {};
+  const out: CertSubject = {};
+  for (const part of dn.split(/,(?![^=]*=)/)) {
+    const eq = part.indexOf('=');
+    if (eq < 0) continue;
+    const key = part.slice(0, eq).trim();
+    const value = part.slice(eq + 1).trim();
+    const existing = out[key];
+    if (existing === undefined) out[key] = value;
+    else if (Array.isArray(existing)) existing.push(value);
+    else out[key] = [existing as string, value];
+  }
+  return out;
+}
+
+/** Format a GLib.DateTime as an OpenSSL-style validity string. */
+function formatCertDate(dt: GLib.DateTime | null): string {
+  if (!dt) return '';
+  try { return dt.format('%b %d %H:%M:%S %Y GMT') ?? ''; } catch { return ''; }
+}
+
+/** Build the "subjectaltname" string from DNS names + IP addresses (Node format). */
+function formatAltNames(cert: Gio.TlsCertificate): string {
+  const parts: string[] = [];
+  try {
+    const dns = cert.get_dns_names();
+    if (dns) {
+      for (const b of dns) {
+        const data = b.get_data();
+        if (!data) continue;
+        parts.push(`DNS:${new TextDecoder('utf-8').decode(data)}`);
+      }
+    }
+  } catch { /* not all backends support this */ }
+  try {
+    const ips = cert.get_ip_addresses();
+    if (ips) for (const ip of ips) parts.push(`IP Address:${ip.to_string()}`);
+  } catch { /* same */ }
+  return parts.join(', ');
+}
+
+/** Compute SHA-1 / SHA-256 fingerprint strings from raw DER bytes (`AA:BB:CC:…`). */
+function fingerprintFromBytes(bytes: Uint8Array, algo: GLib.ChecksumType): string {
+  try {
+    const cs = new GLib.Checksum(algo);
+    cs.update(bytes);
+    const hex = cs.get_string();
+    if (!hex) return '';
+    const out: string[] = [];
+    for (let i = 0; i < hex.length; i += 2) out.push(hex.slice(i, i + 2).toUpperCase());
+    return out.join(':');
+  } catch {
+    return '';
+  }
+}
+
+/** Decode a single PEM cert block into raw DER bytes. */
+function pemToDer(pem: string): Uint8Array {
+  const m = /-----BEGIN CERTIFICATE-----([\s\S]*?)-----END CERTIFICATE-----/.exec(pem);
+  if (!m) return new Uint8Array(0);
+  const b64 = m[1].replace(/[\s\r\n]+/g, '');
+  try {
+    const atob = (globalThis as { atob?: (s: string) => string }).atob;
+    if (!atob) return new Uint8Array(0);
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  } catch {
+    return new Uint8Array(0);
+  }
+}
+
+/** Convert a single TlsCertificate to the Node `getPeerCertificate()` shape. */
+function tlsCertToPeerCert(cert: Gio.TlsCertificate, detailed: boolean): PeerCertificate {
+  const out: PeerCertificate = {};
+  try { out.subject = parseDistinguishedName(cert.get_subject_name()); } catch { /* */ }
+  try { out.issuer = parseDistinguishedName(cert.get_issuer_name()); } catch { /* */ }
+  out.subjectaltname = formatAltNames(cert);
+  try {
+    out.valid_from = formatCertDate(cert.get_not_valid_before());
+    out.valid_to = formatCertDate(cert.get_not_valid_after());
+  } catch { /* */ }
+  try {
+    const c = cert as unknown as { certificate_pem?: string; certificatePem?: string };
+    const pemProp = c.certificate_pem ?? c.certificatePem;
+    if (pemProp) {
+      const der = pemToDer(pemProp);
+      out.raw = der;
+      out.fingerprint = fingerprintFromBytes(der, GLib.ChecksumType.SHA1);
+      out.fingerprint256 = fingerprintFromBytes(der, GLib.ChecksumType.SHA256);
+    }
+  } catch { /* */ }
+  if (detailed) {
+    try {
+      const issuerCert = cert.get_issuer();
+      if (issuerCert && !issuerCert.is_same(cert)) {
+        out.issuerCertificate = tlsCertToPeerCert(issuerCert, true);
+      } else if (issuerCert) {
+        out.issuerCertificate = out;  // self-signed: Node returns self-ref
+      }
+    } catch { /* */ }
+  }
+  return out;
+}
+
+// ============================================================================
+// RFC 6125 hostname matching
+// ============================================================================
 
 /** Removes a trailing dot from a fully-qualified domain name. */
 function unfqdn(host: string): string {
@@ -34,27 +265,67 @@ function splitHost(host: string): string[] {
   return unfqdn(host).toLowerCase().split('.');
 }
 
-/** Wildcard-match a hostname part list against a pattern (supports leading *). */
-function checkWildcard(hostParts: string[], pattern: string): boolean {
-  const patParts = splitHost(pattern);
-  if (patParts.length !== hostParts.length) return false;
-  // Wildcard only valid in the leftmost label
-  if (patParts[0] === '*') {
-    // e.g. *.example.com — match any single label against *
-    return patParts.slice(1).join('.') === hostParts.slice(1).join('.');
+/** Reject control / non-ASCII bytes in pattern labels (RFC 6125 sanity). */
+function isPrintableAscii(s: string): boolean {
+  // U+0021 ('!') through U+007E ('~')
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x21 || c > 0x7E) return false;
   }
-  return patParts.every((p, i) => p === hostParts[i]);
+  return true;
+}
+
+/**
+ * Match a hostname (already split into labels) against a single pattern from
+ * a SAN DNS entry or CN. Implements RFC 6125 §6.4.3:
+ *  - wildcard valid only in the leftmost label
+ *  - wildcard label may not contain Punycode A-labels (`xn--`)
+ *  - `*.tld` (two-label patterns) are rejected
+ *  - exactly one wildcard per label
+ */
+function checkHostMatch(hostParts: string[], pattern: string): boolean {
+  if (!pattern) return false;
+  const patternParts = splitHost(pattern);
+  if (hostParts.length !== patternParts.length) return false;
+  if (patternParts.includes('')) return false;
+  if (!patternParts.every(isPrintableAscii)) return false;
+  for (let i = hostParts.length - 1; i > 0; i--) {
+    if (hostParts[i] !== patternParts[i]) return false;
+  }
+  const hostSub = hostParts[0];
+  const patSub = patternParts[0];
+  const wildSplit = patSub.split('*', 3);
+  if (wildSplit.length === 1 || patSub.includes('xn--')) {
+    return hostSub === patSub;
+  }
+  if (wildSplit.length > 2) return false;
+  if (patternParts.length <= 2) return false;
+  const prefix = wildSplit[0];
+  const suffix = wildSplit[1];
+  if (prefix.length + suffix.length > hostSub.length) return false;
+  if (!hostSub.startsWith(prefix)) return false;
+  if (!hostSub.endsWith(suffix)) return false;
+  return true;
+}
+
+/** Error returned by checkServerIdentity, with Node-compatible shape. */
+export interface CertAltNameError extends Error {
+  reason: string;
+  host: string;
+  cert: PeerCertificate;
+  code: 'ERR_TLS_CERT_ALTNAME_INVALID';
 }
 
 /**
  * Verifies that the certificate `cert` is valid for `hostname`.
- * Returns an Error if the check fails, or undefined on success.
+ * Returns an Error (with code 'ERR_TLS_CERT_ALTNAME_INVALID') if the check
+ * fails, or `undefined` on success.
  *
- * Reference: Node.js lib/tls.js exports.checkServerIdentity
+ * Reference: Node.js lib/tls.js exports.checkServerIdentity (RFC 6125 §6.4.3).
  */
-export function checkServerIdentity(hostname: string, cert: PeerCertificate): Error | undefined {
+export function checkServerIdentity(hostname: string, cert: PeerCertificate): CertAltNameError | undefined {
   const subject = cert.subject;
-  const altNames = cert.subjectaltname as string | undefined;
+  const altNames = cert.subjectaltname;
   const dnsNames: string[] = [];
   const ips: string[] = [];
 
@@ -63,11 +334,8 @@ export function checkServerIdentity(hostname: string, cert: PeerCertificate): Er
   if (altNames) {
     const parts = altNames.split(', ');
     for (const name of parts) {
-      if (name.startsWith('DNS:')) {
-        dnsNames.push(name.slice(4));
-      } else if (name.startsWith('IP Address:')) {
-        ips.push(name.slice(11).trim());
-      }
+      if (name.startsWith('DNS:')) dnsNames.push(name.slice(4));
+      else if (name.startsWith('IP Address:')) ips.push(name.slice(11).trim());
     }
   }
 
@@ -76,49 +344,87 @@ export function checkServerIdentity(hostname: string, cert: PeerCertificate): Er
 
   hostname = unfqdn(hostname);
 
-  // Check numeric IP addresses
   const isIPv4 = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname);
   const isIPv6 = hostname.includes(':');
   if (isIPv4 || isIPv6) {
     valid = ips.some(ip => ip.toLowerCase() === hostname.toLowerCase());
-    if (!valid)
+    if (!valid) {
       reason = `IP: ${hostname} is not in the cert's list: ${ips.join(', ')}`;
+    }
   } else if (dnsNames.length > 0 || subject?.CN) {
     const hostParts = splitHost(hostname);
 
     if (dnsNames.length > 0) {
-      valid = dnsNames.some(pattern => checkWildcard(hostParts, pattern));
-      if (!valid)
+      valid = dnsNames.some(pattern => checkHostMatch(hostParts, pattern.trim()));
+      if (!valid) {
         reason = `Host: ${hostname}. is not in the cert's altnames: ${altNames}`;
-    } else {
-      const cn = subject!.CN as string | string[];
-      if (Array.isArray(cn)) {
-        valid = cn.some(c => checkWildcard(hostParts, c));
-      } else if (cn) {
-        valid = checkWildcard(hostParts, cn);
       }
-      if (!valid)
+    } else {
+      const cn = subject?.CN;
+      if (Array.isArray(cn)) {
+        valid = cn.some(c => checkHostMatch(hostParts, c));
+      } else if (cn) {
+        valid = checkHostMatch(hostParts, cn);
+      }
+      if (!valid) {
         reason = `Host: ${hostname}. is not cert's CN: ${cn}`;
+      }
     }
   } else {
     reason = 'Cert does not contain a DNS name';
   }
 
   if (!valid) {
-    const err = new Error(reason) as NodeJS.ErrnoException & { reason: string; host: string; cert: PeerCertificate };
+    const err = new Error(reason) as CertAltNameError;
     err.reason = reason;
     err.host = hostname;
     err.cert = cert;
+    err.code = 'ERR_TLS_CERT_ALTNAME_INVALID';
     return err;
   }
   return undefined;
 }
 
+// ============================================================================
+// SecureContext
+// ============================================================================
+
 export interface SecureContextOptions {
-  ca?: string | Buffer | Array<string | Buffer>;
-  cert?: string | Buffer | Array<string | Buffer>;
-  key?: string | Buffer | Array<string | Buffer>;
+  ca?: PemInput;
+  cert?: PemInput;
+  key?: PemInput;
+  passphrase?: string;
   rejectUnauthorized?: boolean;
+  ciphers?: string;
+  minVersion?: string;
+  maxVersion?: string;
+  ALPNProtocols?: string[];
+}
+
+/** Internal "secure context" — parsed TLS material shared by tls.connect/createServer. */
+export interface SecureContext {
+  certificate: Gio.TlsCertificate | null;
+  caCertificates: Gio.TlsCertificate[];
+  options: SecureContextOptions;
+  /**
+   * Node-compat handle (Node returns a `SecureContext` with an internal native
+   * `context` field). We have no native handle, so this points back at the
+   * SecureContext object itself — `ctx.context !== undefined` matches Node.
+   */
+  context: SecureContext;
+}
+
+/** Build a SecureContext from PEM material. Buffer/Uint8Array/string all accepted. */
+export function createSecureContext(options?: SecureContextOptions): SecureContext {
+  const opts = options ?? {};
+  let certificate: Gio.TlsCertificate | null = null;
+  if (opts.cert) {
+    try { certificate = buildGioCertificate(opts.cert, opts.key); } catch { certificate = null; }
+  }
+  const caCertificates = opts.ca ? buildCaCertificates(opts.ca) : [];
+  const ctx = { certificate, caCertificates, options: opts } as SecureContext;
+  ctx.context = ctx;  // Node-compat self-reference
+  return ctx;
 }
 
 export interface TlsConnectOptions extends SecureContextOptions {
@@ -127,6 +433,20 @@ export interface TlsConnectOptions extends SecureContextOptions {
   socket?: Socket;
   servername?: string;
   ALPNProtocols?: string[];
+  /** Pre-built secure context from createSecureContext(). */
+  secureContext?: SecureContext;
+  /** Custom server-identity check (runs after the GnuTLS-level check). */
+  checkServerIdentity?: (host: string, cert: PeerCertificate) => Error | undefined;
+}
+
+/** Internal helper: cast a Socket to its private-field shape (we own the impl). */
+interface SocketInternals {
+  _connection: Gio.SocketConnection | null;
+  _ioStream: Gio.IOStream | null;
+  _inputStream: Gio.InputStream | null;
+  _outputStream: Gio.OutputStream | null;
+  _reading: boolean;
+  _startReading(): void;
 }
 
 /**
@@ -137,11 +457,14 @@ export class TLSSocket extends Socket {
   authorized = false;
   authorizationError?: string;
   alpnProtocol: string | false = false;
+  servername: string | undefined;
 
   /** @internal */
   _tlsConnection: Gio.TlsConnection | null = null;
+  /** @internal — preserved for diagnostics + future cert-chain verification. */
+  _secureContext: SecureContext | null = null;
 
-  constructor(socket?: Socket, options?: SecureContextOptions) {
+  constructor(_socket?: Socket, _options?: SecureContextOptions) {
     super();
   }
 
@@ -151,25 +474,23 @@ export class TLSSocket extends Socket {
    */
   _setupTlsStreams(tlsConn: Gio.TlsConnection): void {
     this._tlsConnection = tlsConn;
-    // Replace the underlying I/O streams with the TLS connection's streams
-    (this as any)._inputStream = tlsConn.get_input_stream();
-    (this as any)._outputStream = tlsConn.get_output_stream();
-    // Store connection for teardown
-    (this as any)._connection = tlsConn as unknown as Gio.SocketConnection;
+    const internals = this as unknown as SocketInternals;
+    internals._inputStream = tlsConn.get_input_stream();
+    internals._outputStream = tlsConn.get_output_stream();
+    internals._connection = tlsConn as unknown as Gio.SocketConnection;
   }
 
-  /** Get the peer certificate info. */
-  getPeerCertificate(_detailed?: boolean): any {
+  /**
+   * Get the peer certificate. When `detailed` is true, walks the issuer chain
+   * via `Gio.TlsCertificate.get_issuer()` and populates `issuerCertificate`
+   * recursively (with a self-reference on the root for compatibility).
+   */
+  getPeerCertificate(detailed = false): PeerCertificate {
     if (!this._tlsConnection) return {};
     try {
       const cert = this._tlsConnection.get_peer_certificate();
       if (!cert) return {};
-      return {
-        subject: {},
-        issuer: {},
-        valid_from: '',
-        valid_to: '',
-      };
+      return tlsCertToPeerCert(cert, detailed);
     } catch {
       return {};
     }
@@ -192,7 +513,7 @@ export class TLSSocket extends Socket {
     }
   }
 
-  /** Get the cipher info. */
+  /** Get the negotiated cipher suite name + version. */
   getCipher(): { name: string; version: string } | null {
     if (!this._tlsConnection) return null;
     try {
@@ -203,7 +524,7 @@ export class TLSSocket extends Socket {
     }
   }
 
-  /** Get the negotiated ALPN protocol. */
+  /** Get the negotiated ALPN protocol (or false if none). */
   getAlpnProtocol(): string | false {
     if (!this._tlsConnection) return false;
     try {
@@ -233,59 +554,94 @@ export function connect(options: TlsConnectOptions, callback?: () => void): TLSS
   const servername = options.servername || host;
   const rejectUnauthorized = options.rejectUnauthorized !== false;
 
-  // Listen for TCP connect, then upgrade to TLS
+  const ctx = options.secureContext ?? createSecureContext(options);
+  socket._secureContext = ctx;
+  socket.servername = servername;
+  const customCheckServerIdentity = options.checkServerIdentity;
+
   socket.once('connect', () => {
-    const rawConnection: Gio.SocketConnection | null = (socket as any)._connection;
+    const rawConnection = (socket as unknown as SocketInternals)._connection;
     if (!rawConnection) {
       socket.destroy(new Error('No underlying connection for TLS upgrade'));
       return;
     }
 
     try {
-      // Create TLS client connection wrapping the raw TCP connection
       const connectable = Gio.NetworkAddress.new(servername, port);
       const tlsConn = Gio.TlsClientConnection.new(
-        rawConnection as Gio.IOStream,
+        rawConnection as unknown as Gio.IOStream,
         connectable,
-      ) as Gio.TlsClientConnection;
+      );
 
-      // Set server identity for certificate validation
       tlsConn.set_server_identity(connectable);
 
-      // Set ALPN protocols if provided
-      if (options.ALPNProtocols && options.ALPNProtocols.length > 0) {
+      // Client certificate (mTLS)
+      if (ctx.certificate) {
         try {
-          (tlsConn as Gio.TlsClientConnection).set_advertised_protocols(options.ALPNProtocols);
-        } catch {
-          // ALPN may not be supported on all GnuTLS versions
+          tlsConn.set_certificate(ctx.certificate);
+        } catch (err: unknown) {
+          // eslint-disable-next-line no-console
+          console.warn('[tls] failed to set client certificate:', err);
         }
       }
 
-      // Handle certificate validation
-      if (!rejectUnauthorized) {
-        (tlsConn as Gio.TlsConnection).connect(
-          'accept-certificate',
-          () => true,
-        );
+      // ALPN
+      if (options.ALPNProtocols && options.ALPNProtocols.length > 0) {
+        try {
+          tlsConn.set_advertised_protocols(options.ALPNProtocols);
+        } catch {
+          // ALPN may not be supported
+        }
       }
 
-      // Perform TLS handshake asynchronously
+      // Certificate validation: by default rely on system trust store +
+      // 'accept-certificate' returning false. With a custom CA we accept
+      // peer certs that validate against `ctx.caCertificates`. With
+      // `rejectUnauthorized: false`, accept everything.
+      tlsConn.connect('accept-certificate', (
+        _conn: Gio.TlsConnection,
+        peerCert: Gio.TlsCertificate,
+        _errors: Gio.TlsCertificateFlags,
+      ): boolean => {
+        if (!rejectUnauthorized) return true;
+        if (ctx.caCertificates.length === 0) return false;
+        for (const ca of ctx.caCertificates) {
+          try {
+            const flags = peerCert.verify(connectable, ca);
+            if (flags === Gio.TlsCertificateFlags.NO_FLAGS) return true;
+          } catch { /* try next */ }
+        }
+        return false;
+      });
+
       const cancellable = new Gio.Cancellable();
-      (tlsConn as Gio.TlsConnection).handshake_async(
+      tlsConn.handshake_async(
         GLib.PRIORITY_DEFAULT,
         cancellable,
         (_source: Gio.TlsConnection | null, asyncResult: Gio.AsyncResult) => {
           try {
-            (tlsConn as Gio.TlsConnection).handshake_finish(asyncResult);
+            tlsConn.handshake_finish(asyncResult);
             socket.authorized = true;
-            socket._setupTlsStreams(tlsConn as Gio.TlsConnection);
-
-            // Get ALPN result
+            socket._setupTlsStreams(tlsConn);
             socket.alpnProtocol = socket.getAlpnProtocol();
 
-            // Restart reading with TLS streams
-            (socket as any)._reading = false;
-            (socket as any)._startReading();
+            // Custom server-identity check (post-handshake, mirrors Node).
+            if (customCheckServerIdentity) {
+              const peer = socket.getPeerCertificate();
+              const idErr = customCheckServerIdentity(servername, peer);
+              if (idErr) {
+                socket.authorized = false;
+                socket.authorizationError = idErr.message;
+                if (rejectUnauthorized) {
+                  socket.destroy(idErr);
+                  return;
+                }
+              }
+            }
+
+            const internals = socket as unknown as SocketInternals;
+            internals._reading = false;
+            internals._startReading();
 
             socket.emit('secureConnect');
           } catch (err: unknown) {
@@ -294,8 +650,7 @@ export function connect(options: TlsConnectOptions, callback?: () => void): TLSS
             if (rejectUnauthorized) {
               socket.destroy(err instanceof Error ? err : new Error(String(err)));
             } else {
-              // Still emit secureConnect but with authorized=false
-              socket._setupTlsStreams(tlsConn as Gio.TlsConnection);
+              socket._setupTlsStreams(tlsConn);
               socket.emit('secureConnect');
             }
           }
@@ -306,95 +661,114 @@ export function connect(options: TlsConnectOptions, callback?: () => void): TLSS
     }
   });
 
-  // Initiate TCP connection
   socket.connect({ port, host });
   return socket;
 }
 
-/**
- * Create a TLS secure context.
- */
-export function createSecureContext(options?: SecureContextOptions): { context: any } {
-  return { context: options || {} };
-}
-
 export const rootCertificates: string[] = [];
+
+// ============================================================================
+// TLSServer / createServer
+// ============================================================================
+
+export type SNICallback = (
+  servername: string,
+  cb: (err: Error | null, ctx?: SecureContext) => void,
+) => void;
 
 export interface TlsServerOptions extends SecureContextOptions {
   requestCert?: boolean;
   rejectUnauthorized?: boolean;
   ALPNProtocols?: string[];
+  SNICallback?: SNICallback;
 }
 
 /**
- * Build a Gio.TlsCertificate from PEM cert+key strings.
- */
-function buildGioCertificate(cert: string | Buffer | Array<string | Buffer>, key?: string | Buffer | Array<string | Buffer>): Gio.TlsCertificate {
-  const certStr = Array.isArray(cert)
-    ? cert.map((c) => (typeof c === 'string' ? c : c.toString('utf-8'))).join('\n')
-    : typeof cert === 'string' ? cert : cert.toString('utf-8');
-
-  const keyStr = key
-    ? Array.isArray(key)
-      ? key.map((k) => (typeof k === 'string' ? k : k.toString('utf-8'))).join('\n')
-      : typeof key === 'string' ? key : key.toString('utf-8')
-    : '';
-
-  const pem = keyStr ? `${certStr}\n${keyStr}` : certStr;
-  return Gio.TlsCertificate.new_from_pem(pem, pem.length);
-}
-
-/**
- * TLSServer wraps a net.Server to accept TLS connections.
+ * TLSServer accepts incoming TCP connections and upgrades each to TLS via
+ * `Gio.TlsServerConnection`. Supports mTLS via `requestCert`+`rejectUnauthorized`,
+ * SNI selection via `addContext`/`SNICallback`, and ALPN negotiation.
  */
 export class TLSServer extends Server {
   private _tlsCertificate: Gio.TlsCertificate | null = null;
   private _tlsOptions: TlsServerOptions;
-  private _sniContexts = new Map<string, Gio.TlsCertificate>();
+  private _sniContexts = new Map<string, SecureContext>();
+  /** @internal — exposed for tests. */
+  _secureContext: SecureContext;
 
   constructor(options?: TlsServerOptions, secureConnectionListener?: (socket: TLSSocket) => void) {
     super();
-    this._tlsOptions = options || {};
+    this._tlsOptions = options ?? {};
+    this._secureContext = createSecureContext(this._tlsOptions);
+    this._tlsCertificate = this._secureContext.certificate;
 
     if (secureConnectionListener) {
       this.on('secureConnection', secureConnectionListener);
     }
 
-    if (this._tlsOptions.cert) {
-      try {
-        this._tlsCertificate = buildGioCertificate(this._tlsOptions.cert, this._tlsOptions.key);
-      } catch (err: unknown) {
-        deferEmit(this, 'error', createNodeError(err, 'createServer', {}));
-      }
+    if (this._tlsOptions.cert && !this._tlsCertificate) {
+      // PEM provided but failed to parse — emit error asynchronously.
+      deferEmit(this as unknown as NetServer, 'error', createNodeError(
+        new Error('Failed to parse TLS certificate'), 'createServer', {},
+      ));
     }
   }
 
   /**
-   * Add a context for SNI (Server Name Indication).
+   * Add an additional context for SNI (Server Name Indication). Uses RFC 6125
+   * matching against the requested server name.
    */
   addContext(hostname: string, context: SecureContextOptions): void {
-    if (context.cert) {
+    try {
+      const ctx = createSecureContext(context);
+      this._sniContexts.set(hostname.toLowerCase(), ctx);
+    } catch (err: unknown) {
+      this.emit('error', createNodeError(err, 'addContext', {}));
+    }
+  }
+
+  /**
+   * Resolve a SecureContext for the given server name. Order:
+   *   1. exact match in `_sniContexts`
+   *   2. RFC 6125 wildcard match in `_sniContexts`
+   *   3. SNICallback (if provided)
+   *   4. fall through to the server's default context
+   */
+  private _resolveSniContext(servername: string | null, done: (ctx: SecureContext) => void): void {
+    const fallback = this._secureContext;
+    if (!servername) { done(fallback); return; }
+    const lower = servername.toLowerCase();
+    const exact = this._sniContexts.get(lower);
+    if (exact) { done(exact); return; }
+    const hostParts = splitHost(lower);
+    for (const [pattern, ctx] of this._sniContexts) {
+      if (checkHostMatch(hostParts, pattern)) { done(ctx); return; }
+    }
+    if (this._tlsOptions.SNICallback) {
       try {
-        const cert = buildGioCertificate(context.cert, context.key);
-        this._sniContexts.set(hostname, cert);
-      } catch (err: unknown) {
-        this.emit('error', createNodeError(err, 'addContext', {}));
+        this._tlsOptions.SNICallback(servername, (err: Error | null, ctx?: SecureContext) => {
+          if (err || !ctx) { done(fallback); return; }
+          done(ctx);
+        });
+        return;
+      } catch {
+        done(fallback);
+        return;
       }
     }
+    done(fallback);
   }
 
   listen(...args: unknown[]): this {
     this.on('connection', (socket: Socket) => {
       this._upgradeTls(socket);
     });
-    return super.listen(...(args as [any]));
+    type ListenArgs = Parameters<NetServer['listen']>;
+    return (super.listen as (...a: ListenArgs) => this)(...(args as unknown as ListenArgs));
   }
 
-  /**
-   * Upgrade a raw TCP socket to TLS using Gio.TlsServerConnection.
-   */
+  /** Upgrade a raw TCP socket to TLS using Gio.TlsServerConnection. */
   private _upgradeTls(socket: Socket): void {
-    const rawConnection: Gio.SocketConnection | null = (socket as any)._connection;
+    const rawConnection = (socket as unknown as SocketInternals)._connection;
     if (!rawConnection) {
       const err = new Error('Cannot upgrade socket: no underlying connection');
       this.emit('tlsClientError', err, socket);
@@ -402,78 +776,101 @@ export class TLSServer extends Server {
       return;
     }
 
-    if (!this._tlsCertificate) {
+    if (!this._tlsCertificate && this._sniContexts.size === 0 && !this._tlsOptions.SNICallback) {
       const err = new Error('TLS server has no certificate configured');
       this.emit('tlsClientError', err, socket);
       socket.destroy();
       return;
     }
 
-    try {
-      const tlsConn = Gio.TlsServerConnection.new(
-        rawConnection as Gio.IOStream,
-        this._tlsCertificate,
-      );
-
-      // Configure client authentication
-      if (this._tlsOptions.requestCert) {
-        tlsConn.authenticationMode = this._tlsOptions.rejectUnauthorized !== false
-          ? Gio.TlsAuthenticationMode.REQUIRED
-          : Gio.TlsAuthenticationMode.REQUESTED;
-      } else {
-        tlsConn.authenticationMode = Gio.TlsAuthenticationMode.NONE;
+    // SNI: Gio does not surface ClientHello server_name to JS pre-handshake;
+    // we use the server's default certificate. Real-world SNI multiplexing
+    // is documented in STATUS.md "Open TODOs".
+    this._resolveSniContext(null, (ctx) => {
+      const certificate = ctx.certificate ?? this._tlsCertificate;
+      if (!certificate) {
+        const err = new Error('SNI resolution returned no certificate');
+        this.emit('tlsClientError', err, socket);
+        socket.destroy();
+        return;
       }
 
-      if (this._tlsOptions.rejectUnauthorized === false) {
-        (tlsConn as Gio.TlsConnection).connect(
-          'accept-certificate',
-          () => true,
+      try {
+        const tlsConn = Gio.TlsServerConnection.new(
+          rawConnection as unknown as Gio.IOStream,
+          certificate,
         );
-      }
 
-      // Set ALPN protocols
-      if (this._tlsOptions.ALPNProtocols && this._tlsOptions.ALPNProtocols.length > 0) {
-        try {
-          (tlsConn as any).set_advertised_protocols(this._tlsOptions.ALPNProtocols);
-        } catch {
-          // ALPN may not be supported
+        // Client-cert / mTLS configuration
+        if (this._tlsOptions.requestCert) {
+          tlsConn.authenticationMode = this._tlsOptions.rejectUnauthorized !== false
+            ? Gio.TlsAuthenticationMode.REQUIRED
+            : Gio.TlsAuthenticationMode.REQUESTED;
+        } else {
+          tlsConn.authenticationMode = Gio.TlsAuthenticationMode.NONE;
         }
-      }
 
-      // Perform TLS handshake
-      const cancellable = new Gio.Cancellable();
-      (tlsConn as Gio.TlsConnection).handshake_async(
-        GLib.PRIORITY_DEFAULT,
-        cancellable,
-        (_source: Gio.TlsConnection | null, asyncResult: Gio.AsyncResult) => {
-          try {
-            (tlsConn as Gio.TlsConnection).handshake_finish(asyncResult);
+        const requireClientCert = !!this._tlsOptions.requestCert
+          && this._tlsOptions.rejectUnauthorized !== false;
+        const clientCAs = this._secureContext.caCertificates;
 
-            // Create TLSSocket with TLS I/O streams wired up
-            const tlsSocket = new TLSSocket();
-            tlsSocket.encrypted = true;
-            tlsSocket.authorized = true;
-            tlsSocket._setupTlsStreams(tlsConn as Gio.TlsConnection);
-
-            // Get ALPN result
-            tlsSocket.alpnProtocol = tlsSocket.getAlpnProtocol();
-
-            // Start reading on the TLS streams
-            (tlsSocket as any)._startReading();
-
-            this.emit('secureConnection', tlsSocket);
-          } catch (err: unknown) {
-            const nodeErr = createNodeError(err, 'handshake', {});
-            this.emit('tlsClientError', nodeErr, socket);
-            socket.destroy();
+        tlsConn.connect('accept-certificate', (
+          _conn: Gio.TlsConnection,
+          peerCert: Gio.TlsCertificate,
+          _errors: Gio.TlsCertificateFlags,
+        ): boolean => {
+          if (!requireClientCert) return true;
+          if (clientCAs.length === 0) return false;
+          for (const ca of clientCAs) {
+            try {
+              const flags = peerCert.verify(null, ca);
+              if (flags === Gio.TlsCertificateFlags.NO_FLAGS) return true;
+            } catch { /* try next */ }
           }
-        },
-      );
-    } catch (err: unknown) {
-      const nodeErr = createNodeError(err, 'tls_wrap', {});
-      this.emit('tlsClientError', nodeErr, socket);
-      socket.destroy();
-    }
+          return false;
+        });
+
+        // ALPN
+        if (this._tlsOptions.ALPNProtocols && this._tlsOptions.ALPNProtocols.length > 0) {
+          try {
+            tlsConn.set_advertised_protocols(this._tlsOptions.ALPNProtocols);
+          } catch {
+            // ALPN may not be supported
+          }
+        }
+
+        const cancellable = new Gio.Cancellable();
+        tlsConn.handshake_async(
+          GLib.PRIORITY_DEFAULT,
+          cancellable,
+          (_source: Gio.TlsConnection | null, asyncResult: Gio.AsyncResult) => {
+            try {
+              tlsConn.handshake_finish(asyncResult);
+
+              const tlsSocket = new TLSSocket();
+              tlsSocket.encrypted = true;
+              tlsSocket.authorized = true;
+              tlsSocket._secureContext = ctx;
+              tlsSocket._setupTlsStreams(tlsConn);
+              tlsSocket.alpnProtocol = tlsSocket.getAlpnProtocol();
+
+              const internals = tlsSocket as unknown as SocketInternals;
+              internals._startReading();
+
+              this.emit('secureConnection', tlsSocket);
+            } catch (err: unknown) {
+              const nodeErr = createNodeError(err, 'handshake', {});
+              this.emit('tlsClientError', nodeErr, socket);
+              socket.destroy();
+            }
+          },
+        );
+      } catch (err: unknown) {
+        const nodeErr = createNodeError(err, 'tls_wrap', {});
+        this.emit('tlsClientError', nodeErr, socket);
+        socket.destroy();
+      }
+    });
   }
 }
 
@@ -494,7 +891,7 @@ export function createServer(
 
 export { TLSServer as Server };
 
-export default {
+const tlsExports = {
   TLSSocket,
   TLSServer,
   Server: TLSServer,
@@ -508,3 +905,5 @@ export default {
   DEFAULT_MAX_VERSION,
   DEFAULT_CIPHERS,
 };
+
+export default tlsExports;

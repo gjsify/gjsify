@@ -4,6 +4,38 @@
 
 ### Features
 
+* **tls (2026-05-09):** Workstream B — promoted `@gjsify/tls` from Partial
+  toward Full. Added: cert-chain extraction in `getPeerCertificate(detailed)`
+  (walks `Gio.TlsCertificate.get_issuer()` recursively, returns Node-shape
+  `{subject, issuer, subjectaltname, valid_from, valid_to, fingerprint,
+  fingerprint256, raw, issuerCertificate}`); full RFC 6125 §6.4.3 hostname
+  matching in `checkServerIdentity` (wildcard prefix/suffix, xn-- A-label
+  exact-match, `*.tld` rejection, IPv4/IPv6, CN fallback, error code
+  `ERR_TLS_CERT_ALTNAME_INVALID`); mTLS — `tls.connect({cert,key})` calls
+  `Gio.TlsConnection.set_certificate()`; `tls.createServer({requestCert,
+  rejectUnauthorized,ca})` validates the client cert against `ca` via
+  `cert.verify()` and sets `Gio.TlsAuthenticationMode.REQUIRED/REQUESTED/
+  NONE` accordingly; SNI server — `addContext(host, ctx)` + `SNICallback`
+  plumbing with RFC 6125 wildcard host-pattern matching (best-effort
+  selection — Gio does not surface the ClientHello server_name extension
+  to JS pre-handshake; documented in STATUS.md "Open TODOs"); ALPN —
+  explicit `ALPNProtocols` via `set_advertised_protocols`,
+  `tlsSocket.alpnProtocol` via `get_negotiated_protocol`; rich
+  `createSecureContext({cert,key,ca,passphrase,ciphers,minVersion,
+  maxVersion})` accepting string, Buffer, Uint8Array, or array thereof —
+  splits CA bundles into individual PEM blocks via regex and parses each
+  through `Gio.TlsCertificate.new_from_pem`, exposes a Node-compat
+  `ctx.context` self-reference; custom `checkServerIdentity` override on
+  `tls.connect`. Two new spec files: `cert.spec.ts` (RFC 6125
+  depth/prefix/IDN edge cases + error.code) and `tls.gjs.spec.ts`
+  (GJS-only Gio.TlsCertificate / TlsServerConnection option plumbing).
+  All 65 `as any` removed from `packages/node/tls/src/index.spec.ts`
+  (replaced by `unknown` + type guards and a `fakeCert()` helper). Test
+  counts: 132 → 169 GJS (Node: 262 incl. Node-strict assertions). Gio
+  gaps that genuinely cannot be filled today (SNI ClientHello selection,
+  OCSP stapling, TLS session resumption, channel binding) tracked in
+  STATUS.md "Open TODOs → TLS gaps that Gio does not surface".
+
 * **worker_threads (2026-05-09):** added `transferList` support to
   `MessagePort.postMessage()` for both `ArrayBuffer` and `MessagePort`
   (Workstream C). ArrayBuffer transfer is zero-copy via SM140
