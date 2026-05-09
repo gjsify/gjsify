@@ -31,13 +31,13 @@ export class RTCRtpTransceiver {
 
     get mid(): string | null {
         if (this._stopped) return null;
-        const m = (this._gstTrans as any).mid;
+        const m = this._gstTrans.mid;
         return (m === '' || m == null) ? null : String(m);
     }
 
     get direction(): RTCRtpTransceiverDirection {
         if (this._stopped) return 'stopped';
-        return gstDirectionToW3C((this._gstTrans as any).direction);
+        return gstDirectionToW3C(this._gstTrans.direction);
     }
 
     set direction(d: RTCRtpTransceiverDirection) {
@@ -54,12 +54,16 @@ export class RTCRtpTransceiver {
         if (!valid.includes(d)) {
             throw new TypeError(`The provided value '${d}' is not a valid enum value of type RTCRtpTransceiverDirection.`);
         }
-        (this._gstTrans as any).direction = w3cDirectionToGst(d);
+        this._gstTrans.direction = w3cDirectionToGst(d);
     }
 
     get currentDirection(): RTCRtpTransceiverDirection | null {
         if (this._stopped) return null;
-        const cd = (this._gstTrans as any).current_direction ?? (this._gstTrans as any).currentDirection;
+        // GIR exposes both snake_case `current_direction` and camelCase
+        // `currentDirection` getters — they refer to the same GObject
+        // property. Read snake_case first; fall back to camelCase for
+        // older GstWebRTC bindings that omitted the snake_case alias.
+        const cd = this._gstTrans.current_direction ?? this._gstTrans.currentDirection;
         if (cd == null) return null;
         const w3c = gstDirectionToW3C(cd);
         return w3c === 'inactive' ? null : w3c;
