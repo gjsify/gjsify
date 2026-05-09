@@ -23,6 +23,28 @@
 
 ### Features
 
+* **rolldown-native POC (2026-05-10):** Phase D-2 FFI track for the
+  rolldown bundler crate, mirroring `@gjsify/lightningcss-native`.
+  Adds `@gjsify/rolldown-native` under `packages/infra/rolldown-native/`:
+  Rust shim (`src/rust/`, path-dep on `refs/rolldown` because crates.io
+  0.1.0 has broken transitive deps — `rolldown_fs` wants a newer
+  `OxcResolverFileSystem` trait surface than the published
+  `rolldown_resolver` provides) exposes one
+  `extern "C" gjsify_rolldown_bundle(options_json)` that
+  deserializes `BundlerOptions` via serde, drives
+  `Bundler::generate()` to completion on a per-call current-thread
+  tokio runtime, and serializes the BundleOutput as JSON. C glue
+  → `GBytes` + `GError`. Vala wrapper exposes
+  `GjsifyRolldown.Bundler.bundle()`. TS facade (`src/ts/index.ts`)
+  matches the npm `rolldown` shape: `bundle({input, cwd, format,
+  minify, sourcemap, …}) → {warnings, output: (Chunk|Asset)[]}`.
+  Smoke tested under GJS 1.88: 17 ms cold for a 3-file ESM bundle
+  with constant-inlining + tree-shake, 25-byte minified single-export
+  output, clear `UnresolvedEntry` diagnostics on missing inputs.
+  POC scope: no JS plugins (Phase B), no watch/HMR, no incremental
+  builds. Prebuilds for linux-x86_64 only. End consumers receive
+  the prebuilt `.so` + `.typelib` and never see the `refs/rolldown`
+  submodule.
 * **lightningcss-wasm POC (2026-05-09):** Phase D-2 WASM track —
   WebAssembly bridging POC, companion to the FFI track shipped earlier
   the same day. Adds `@gjsify/lightningcss-wasm` under
