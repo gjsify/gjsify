@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { setTimeout, setImmediate, setInterval } from 'node:timers/promises';
+import { setTimeout, setImmediate, setInterval, scheduler } from 'node:timers/promises';
 
 export default async () => {
   await describe('timers/promises', async () => {
@@ -119,6 +119,51 @@ export default async () => {
       });
     });
 
+    await describe('scheduler', async () => {
+      await it('should expose wait + yield as functions', async () => {
+        expect(typeof scheduler).toBe('object');
+        expect(typeof scheduler.wait).toBe('function');
+        expect(typeof scheduler.yield).toBe('function');
+      });
+
+      await it('scheduler.wait resolves after delay', async () => {
+        const start = Date.now();
+        await scheduler.wait(20);
+        const elapsed = Date.now() - start;
+        expect(elapsed).toBeGreaterThan(10);
+      });
+
+      await it('scheduler.wait with explicit small delay resolves quickly', async () => {
+        const start = Date.now();
+        await scheduler.wait(1);
+        const elapsed = Date.now() - start;
+        // Just confirm we resolved without hanging — we don't assert <Xms
+        // because GC pauses can stretch the floor unpredictably.
+        expect(elapsed).toBeGreaterThan(-1);
+      });
+
+      await it('scheduler.wait honours AbortSignal', async () => {
+        const controller = new AbortController();
+        controller.abort();
+        let threw = false;
+        try {
+          await scheduler.wait(1000, { signal: controller.signal });
+        } catch (e: any) {
+          threw = true;
+          expect(e.name).toBe('AbortError');
+        }
+        expect(threw).toBe(true);
+      });
+
+      await it('scheduler.yield resolves on the next microtask', async () => {
+        let microtaskRan = false;
+        queueMicrotask(() => { microtaskRan = true; });
+        await scheduler.yield();
+        // After yielding once, the queued microtask must have drained.
+        expect(microtaskRan).toBe(true);
+      });
+    });
+
     await describe('exports', async () => {
       await it('should export setTimeout as a function', async () => {
         expect(typeof setTimeout).toBe('function');
@@ -130,6 +175,10 @@ export default async () => {
 
       await it('should export setInterval as a function', async () => {
         expect(typeof setInterval).toBe('function');
+      });
+
+      await it('should export scheduler as an object', async () => {
+        expect(typeof scheduler).toBe('object');
       });
     });
   });

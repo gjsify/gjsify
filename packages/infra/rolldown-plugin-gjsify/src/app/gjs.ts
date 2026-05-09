@@ -113,6 +113,19 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
             mainFields: format === 'esm' ? ['browser', 'module', 'main'] : ['browser', 'main', 'module'],
             // ESM: omit 'require' — packages listing 'require' before 'import'
             // would silently route through their CJS entry.
+            //
+            // We deliberately do NOT add `'node'` here. Per Node's exports-map
+            // spec the resolver iterates keys in DECLARATION ORDER and picks
+            // the first one whose name is in `conditionNames` — the order of
+            // conditionNames itself is irrelevant. Packages like
+            // `cross-fetch-ponyfill` declare `"node"` first in their exports
+            // map and ship a Node-only entry that imports `blobFrom`/
+            // `fileFrom` (from native `node:fetch`). With `node` enabled,
+            // the resolver picks that branch over `browser` and the bundle
+            // breaks at link time. Packages that genuinely need their `node`
+            // export under GJS (rare — only one known case so far,
+            // `unicorn-magic`'s `traversePathUp`) are handled with explicit
+            // resolve aliases instead.
             conditionNames: format === 'esm' ? ['browser', 'import'] : ['browser', 'require', 'import'],
         },
         transform: {

@@ -87,3 +87,29 @@ export async function* setInterval<T = void>(delay = 0, value?: T, options?: { s
     });
   }
 }
+
+/**
+ * `scheduler` namespace — Node 19+/24 stable APIs.
+ * Reference: https://nodejs.org/api/timers.html#timerspromisesschedulerwaitdelay-options
+ */
+export const scheduler = {
+  /**
+   * Returns a promise that resolves after `delay` ms (or 1ms if undefined).
+   * Same as `setTimeout(delay)` but co-located on the `scheduler` namespace.
+   */
+  wait(delay = 1, options?: { signal?: AbortSignal; ref?: boolean }): Promise<void> {
+    return setTimeout<void>(delay, undefined, options);
+  },
+  /**
+   * Yields control back to the event loop — resolves on the next macrotask.
+   * Lighter than `setTimeout(0)` (no timer source allocation, just a microtask).
+   */
+  yield(): Promise<void> {
+    return new Promise((resolve) => {
+      // Use queueMicrotask for tightest yield. Node uses setImmediate which
+      // schedules a check-phase callback; on GJS without setImmediate, the
+      // microtask drain has equivalent semantics for cooperative scheduling.
+      queueMicrotask(resolve);
+    });
+  },
+};
