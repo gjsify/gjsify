@@ -709,6 +709,45 @@ export function toUSVString(string: string): string {
   return string.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '\uFFFD');
 }
 
+// ---- aborted ----
+
+/**
+ * Returns a Promise that resolves once `signal` aborts. The optional
+ * `resource` argument is accepted for Node compatibility — Node uses it
+ * for experimental "resource cleanup" tracking; we ignore it (no-op),
+ * which matches the observable behavior of `util.aborted()` for the
+ * documented use case.
+ *
+ * Reference: https://nodejs.org/api/util.html#utilabortedsignal-resource
+ *
+ * @param signal An `AbortSignal` to wait on.
+ * @param resource Any non-null object — accepted for Node parity.
+ */
+export function aborted(signal: AbortSignal, resource: object): Promise<void> {
+  // Match Node's behaviour: validation errors come back as a rejected
+  // Promise (not a synchronous throw). Mirrors Node's `aborted` impl,
+  // which dispatches through a webidl-validated `AbortSignal` cast and
+  // produces a rejected Promise on bad input.
+  if (signal == null || typeof (signal as AbortSignal).aborted !== 'boolean') {
+    return Promise.reject(
+      new TypeError('The "signal" argument must be an instance of AbortSignal'),
+    );
+  }
+  if (resource == null || typeof resource !== 'object') {
+    return Promise.reject(
+      new TypeError('The "resource" argument must be an non-null object'),
+    );
+  }
+  if (signal.aborted) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 // ---- Default export ----
 
 export default {
@@ -740,6 +779,7 @@ export default {
   isBuffer,
   isDeepStrictEqual,
   toUSVString,
+  aborted,
   TextDecoder: globalThis.TextDecoder,
   TextEncoder: globalThis.TextEncoder,
   getSystemErrorName,
