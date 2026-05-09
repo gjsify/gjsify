@@ -121,6 +121,7 @@
 
 ### Refactoring
 
+<<<<<<< HEAD
 * **canvas2d-core (2026-05-09):** type-safety pass on
   `packages/dom/canvas2d-core/src/canvas-rendering-context-2d.ts` (Workstream H).
   `as any` reduced from 34 → 0 in `canvas-rendering-context-2d.ts`, and from 35
@@ -156,6 +157,27 @@
   Test counts unchanged — all 578 GJS tests pass; `@gjsify/dom-elements`,
   `@gjsify/canvas2d`, and the `@gjsify/example-dom-canvas2d-fireworks`
   showcase rebuild clean. No runtime change.
+
+* **http2 (2026-05-09):** type-safety pass on
+  `packages/node/http2/src/http2.gjs.spec.ts` (Workstream G). `as any` reduced
+  from 49 → 0 in code (one occurrence remains in a doc comment). Strategy:
+  keep `import http2 from 'node:http2'` as the runtime source — the file is
+  built into the Node test bundle alongside the cross-platform `index.spec.ts`,
+  and a direct `import { … } from '@gjsify/http2'` would drag
+  `gi://Soup/Gio/GLib` into that bundle and crash it at load — and pull the
+  impl-private classes (`Http2Server`, `Http2ServerRequest`,
+  `Http2ServerResponse`, `ClientHttp2Session`, `ClientHttp2Stream`,
+  `ServerHttp2Stream`) via a single `import type { … } from '@gjsify/http2'`.
+  Type-only imports are stripped at compile time, so the Node bundle stays
+  free of GJS-only code, but TypeScript sees the real shapes (concrete
+  subclasses of `EventEmitter`/`Readable`/`Writable`/`Duplex`) instead of
+  `@types/node`'s narrower declarations. A single
+  `gjsHttp2 = http2 as unknown as { … }` cast at the top of the file is the
+  boundary between the two views; every test in the file then uses the
+  retyped object directly without further casts. Helpers (`withServer`,
+  `collectBody`) and event handlers (`(req, res) => …`,
+  `('stream', (stream, headers) => …)`) all gain proper typing. All 128 tests
+  (102 Node-shared + 26 GJS-only) pass on both targets. No runtime change.
 * **webgl (2026-05-09):** split the 4164-line
   `packages/framework/webgl/src/ts/webgl-context-base.ts` — the largest file in
   the repo — into focused composition modules under
