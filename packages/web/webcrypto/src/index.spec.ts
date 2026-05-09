@@ -4,6 +4,12 @@
 // Original: MIT license (Deno), 3-Clause BSD license (WPT), MIT license (Node.js contributors)
 
 import { describe, it, expect, on } from '@gjsify/unit';
+import type {
+  AesKeyAlgorithm,
+  HmacKeyAlgorithm,
+  EcKeyAlgorithm,
+  KeyUsage,
+} from '@gjsify/webcrypto';
 
 export default async () => {
 
@@ -101,7 +107,7 @@ export default async () => {
     await it('should throw for Float32Array', async () => {
       let threw = false;
       try {
-        crypto.getRandomValues(new Float32Array(1) as any);
+        crypto.getRandomValues(new Float32Array(1) as unknown as ArrayBufferView<ArrayBuffer>);
       } catch {
         threw = true;
       }
@@ -111,7 +117,7 @@ export default async () => {
     await it('should throw for Float64Array', async () => {
       let threw = false;
       try {
-        crypto.getRandomValues(new Float64Array(1) as any);
+        crypto.getRandomValues(new Float64Array(1) as unknown as ArrayBufferView<ArrayBuffer>);
       } catch {
         threw = true;
       }
@@ -121,7 +127,7 @@ export default async () => {
     await it('should throw for DataView', async () => {
       let threw = false;
       try {
-        crypto.getRandomValues(new DataView(new ArrayBuffer(1)) as any);
+        crypto.getRandomValues(new DataView(new ArrayBuffer(1)) as unknown as ArrayBufferView<ArrayBuffer>);
       } catch {
         threw = true;
       }
@@ -327,7 +333,7 @@ export default async () => {
         ['encrypt', 'decrypt'],
       ) as CryptoKey;
       expect(key.type).toBe('secret');
-      expect((key.algorithm as any).length).toBe(128);
+      expect((key.algorithm as AesKeyAlgorithm).length).toBe(128);
     });
 
     await it('should generate AES-CTR 192 key', async () => {
@@ -337,7 +343,7 @@ export default async () => {
         ['encrypt', 'decrypt'],
       ) as CryptoKey;
       expect(key.type).toBe('secret');
-      expect((key.algorithm as any).length).toBe(192);
+      expect((key.algorithm as AesKeyAlgorithm).length).toBe(192);
     });
 
     await it('should generate AES-GCM 256 key', async () => {
@@ -348,7 +354,7 @@ export default async () => {
       ) as CryptoKey;
       expect(key.type).toBe('secret');
       expect(key.algorithm.name).toBe('AES-GCM');
-      expect((key.algorithm as any).length).toBe(256);
+      expect((key.algorithm as AesKeyAlgorithm).length).toBe(256);
     });
 
     await it('should generate AES-CBC 128 key', async () => {
@@ -358,7 +364,7 @@ export default async () => {
         ['encrypt', 'decrypt'],
       ) as CryptoKey;
       expect(key.type).toBe('secret');
-      expect((key.algorithm as any).length).toBe(128);
+      expect((key.algorithm as AesKeyAlgorithm).length).toBe(128);
     });
 
     await it('should generate non-extractable key', async () => {
@@ -398,7 +404,7 @@ export default async () => {
       ) as CryptoKey;
       expect(key.type).toBe('secret');
       expect(key.algorithm.name).toBe('HMAC');
-      expect((key.algorithm as any).hash.name).toBe('SHA-256');
+      expect((key.algorithm as HmacKeyAlgorithm).hash.name).toBe('SHA-256');
     });
 
     await it('should generate HMAC key with SHA-1', async () => {
@@ -408,7 +414,7 @@ export default async () => {
         ['sign', 'verify'],
       ) as CryptoKey;
       expect(key.type).toBe('secret');
-      expect((key.algorithm as any).hash.name).toBe('SHA-1');
+      expect((key.algorithm as HmacKeyAlgorithm).hash.name).toBe('SHA-1');
     });
 
     await it('should generate HMAC key with SHA-384', async () => {
@@ -418,7 +424,7 @@ export default async () => {
         ['sign', 'verify'],
       ) as CryptoKey;
       expect(key.type).toBe('secret');
-      expect((key.algorithm as any).hash.name).toBe('SHA-384');
+      expect((key.algorithm as HmacKeyAlgorithm).hash.name).toBe('SHA-384');
     });
 
     await it('should generate HMAC key with SHA-512', async () => {
@@ -428,7 +434,7 @@ export default async () => {
         ['sign', 'verify'],
       ) as CryptoKey;
       expect(key.type).toBe('secret');
-      expect((key.algorithm as any).hash.name).toBe('SHA-512');
+      expect((key.algorithm as HmacKeyAlgorithm).hash.name).toBe('SHA-512');
     });
   });
 
@@ -538,7 +544,7 @@ export default async () => {
         'raw', rawKey, { name: 'AES-CBC' }, true, ['encrypt', 'decrypt'],
       );
       expect(key.type).toBe('secret');
-      expect((key.algorithm as any).length).toBe(128);
+      expect((key.algorithm as AesKeyAlgorithm).length).toBe(128);
     });
 
     await it('should import raw AES-192 key', async () => {
@@ -547,7 +553,7 @@ export default async () => {
         'raw', rawKey, { name: 'AES-CBC' }, true, ['encrypt', 'decrypt'],
       );
       expect(key.type).toBe('secret');
-      expect((key.algorithm as any).length).toBe(192);
+      expect((key.algorithm as AesKeyAlgorithm).length).toBe(192);
     });
 
     await it('should import and export JWK HMAC key', async () => {
@@ -1250,7 +1256,7 @@ export default async () => {
 
       expect(derivedKey.type).toBe('secret');
       expect(derivedKey.algorithm.name).toBe('AES-GCM');
-      expect((derivedKey.algorithm as any).length).toBe(256);
+      expect((derivedKey.algorithm as AesKeyAlgorithm).length).toBe(256);
 
       // Verify derived key works for encryption
       const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -1273,7 +1279,7 @@ export default async () => {
       );
       expect(derivedKey.type).toBe('secret');
       expect(derivedKey.algorithm.name).toBe('AES-CBC');
-      expect((derivedKey.algorithm as any).length).toBe(128);
+      expect((derivedKey.algorithm as AesKeyAlgorithm).length).toBe(128);
     });
 
     await it('should derive HMAC key from HKDF', async () => {
@@ -1333,7 +1339,7 @@ export default async () => {
       expect(keyPair.publicKey.type).toBe('public');
       expect(keyPair.privateKey.type).toBe('private');
       expect(keyPair.publicKey.algorithm.name).toBe('ECDH');
-      expect((keyPair.publicKey.algorithm as any).namedCurve).toBe('P-256');
+      expect((keyPair.publicKey.algorithm as EcKeyAlgorithm).namedCurve).toBe('P-256');
     });
 
     await it('should derive shared secret between two key pairs', async () => {
@@ -1402,7 +1408,7 @@ export default async () => {
 
       expect(keyPair.publicKey.type).toBe('public');
       expect(keyPair.privateKey.type).toBe('private');
-      expect((keyPair.publicKey.algorithm as any).namedCurve).toBe('P-384');
+      expect((keyPair.publicKey.algorithm as EcKeyAlgorithm).namedCurve).toBe('P-384');
     });
 
     await it('ECDH P-384 shared secret', async () => {
@@ -1509,7 +1515,7 @@ export default async () => {
         ['sign', 'verify'],
       ) as CryptoKey;
       expect(key.algorithm.name).toBe('HMAC');
-      expect((key.algorithm as any).hash.name).toBe('SHA-512');
+      expect((key.algorithm as HmacKeyAlgorithm).hash.name).toBe('SHA-512');
     });
 
     await it('EC key pair should have namedCurve in algorithm', async () => {
@@ -1518,8 +1524,8 @@ export default async () => {
         true,
         ['sign', 'verify'],
       ) as CryptoKeyPair;
-      expect((keyPair.publicKey.algorithm as any).namedCurve).toBe('P-256');
-      expect((keyPair.privateKey.algorithm as any).namedCurve).toBe('P-256');
+      expect((keyPair.publicKey.algorithm as EcKeyAlgorithm).namedCurve).toBe('P-256');
+      expect((keyPair.privateKey.algorithm as EcKeyAlgorithm).namedCurve).toBe('P-256');
     });
   });
 
@@ -1536,7 +1542,7 @@ export default async () => {
       expect(keyPair.publicKey.type).toBe('public');
       expect(keyPair.privateKey.type).toBe('private');
       expect(keyPair.publicKey.algorithm.name).toBe('ECDSA');
-      expect((keyPair.publicKey.algorithm as any).namedCurve).toBe('P-256');
+      expect((keyPair.publicKey.algorithm as EcKeyAlgorithm).namedCurve).toBe('P-256');
     });
 
     await it('should sign and verify with ECDSA P-256 SHA-256', async () => {
@@ -1714,7 +1720,7 @@ export default async () => {
       let threw = false;
       try {
         await subtle.generateKey(
-          { name: 'CHACHA20' } as any, true, ['encrypt', 'decrypt'],
+          { name: 'CHACHA20' }, true, ['encrypt', 'decrypt'],
         );
       } catch {
         threw = true;
@@ -1752,7 +1758,7 @@ export default async () => {
       let threw = false;
       try {
         await subtle.generateKey(
-          { name: 'AES-CBC', length: 100 } as any, true, ['encrypt', 'decrypt'],
+          { name: 'AES-CBC', length: 100 }, true, ['encrypt', 'decrypt'],
         );
       } catch {
         threw = true;
@@ -1786,7 +1792,7 @@ export default async () => {
       try {
         // encrypt is not valid for HMAC
         await subtle.generateKey(
-          { name: 'HMAC', hash: 'SHA-256' }, true, ['encrypt'] as any,
+          { name: 'HMAC', hash: 'SHA-256' }, true, ['encrypt'] as unknown as KeyUsage[],
         );
       } catch {
         threw = true;
@@ -1799,7 +1805,7 @@ export default async () => {
       try {
         // sign is not valid for AES
         await subtle.generateKey(
-          { name: 'AES-CBC', length: 256 }, true, ['sign'] as any,
+          { name: 'AES-CBC', length: 256 }, true, ['sign'] as unknown as KeyUsage[],
         );
       } catch {
         threw = true;
@@ -1811,7 +1817,7 @@ export default async () => {
       let threw = false;
       try {
         await subtle.importKey(
-          'pkcs8' as any, new Uint8Array(32), { name: 'AES-CBC' }, true, ['encrypt'],
+          'pkcs8', new Uint8Array(32), { name: 'AES-CBC' }, true, ['encrypt'],
         );
       } catch {
         threw = true;

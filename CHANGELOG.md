@@ -121,6 +121,39 @@
 
 ### Refactoring
 
+* **webcrypto (2026-05-09):** type-safety pass on
+  `packages/web/webcrypto/src/index.spec.ts` (Workstream M). `as any`
+  reduced from 26 → 0. Pattern-(a) algorithm narrowings — `(key.algorithm
+  as any).length` / `.hash.name` / `.namedCurve` (19 occurrences) — now
+  use the impl-side `AesKeyAlgorithm` / `HmacKeyAlgorithm` /
+  `EcKeyAlgorithm` interfaces, type-only-imported from `@gjsify/webcrypto`
+  (Rule 2b — the spec is cross-platform and runs in the Node bundle, so a
+  runtime `import { … } from '@gjsify/webcrypto'` would drag GJS-only
+  `@girs/*` code in via `subtle.ts`'s `import('crypto')` path; type-only
+  imports are erased at compile time). Three `getRandomValues(<invalid>
+  as any)` casts on `Float32Array` / `Float64Array` / `DataView` retyped
+  to `as unknown as ArrayBufferView<ArrayBuffer>` (preserves the
+  intentional invalid-input test). Two `KeyUsage[]` casts (`['encrypt']
+  as any` for HMAC, `['sign'] as any` for AES) tightened to `as unknown
+  as KeyUsage[]`. The five remaining `as any`s on first arguments to
+  `generateKey({ name: 'CHACHA20' } as any, …)` / `{ name: 'AES-CBC',
+  length: 100 } as any` / `'pkcs8' as any` were dead weight — the public
+  signatures (`AlgorithmIdentifier = string | { name: string; [key:
+  string]: unknown }`, `format: 'raw' | 'jwk' | 'pkcs8' | 'spki'`)
+  already accept these shapes, so the casts were stripped entirely. New
+  type-only re-exports from `packages/web/webcrypto/src/index.ts`:
+  `AesKeyAlgorithm`, `HmacKeyAlgorithm`, `EcKeyAlgorithm`,
+  `RsaHashedKeyAlgorithm`, plus the full set of algorithm-parameter
+  interfaces (`AesKeyGenParams`, `HmacKeyGenParams`, `EcKeyGenParams`,
+  `HmacImportParams`, `EcKeyImportParams`, `AesCbcParams`, `AesCtrParams`,
+  `AesGcmParams`, `RsaOaepParams`, `EcdsaParams`, `RsaPssParams`,
+  `Pbkdf2Params`, `HkdfParams`, `EcdhKeyDeriveParams`,
+  `AlgorithmIdentifier`) — these were already declared in `crypto-key.ts`
+  but only `KeyAlgorithm` / `KeyUsage` / `KeyType` / `CryptoKeyPair` were
+  re-exported from the package root. All 486 tests green on Node, all
+  GJS tests green (unchanged baseline). Pure type-safety; no runtime
+  change.
+
 * **readline (2026-05-09):** type-safety pass on
   `packages/node/readline/src/index.ts` (Workstream L). `as any`
   reduced from 26 → 0 in production source. New internal-only
