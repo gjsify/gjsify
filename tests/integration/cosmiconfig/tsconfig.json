@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/declarations.d.ts",
+        "src/fixtures.ts",
+        "src/js-loader.spec.ts",
+        "src/json-loader.spec.ts",
+        "src/module-name.spec.ts",
+        "src/cache-and-clear.spec.ts",
+        "src/transform.spec.ts"
+    ]
+}
