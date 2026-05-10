@@ -3158,6 +3158,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/integration-rolldown-native@workspace:tests/integration/rolldown-native":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/integration-rolldown-native@workspace:tests/integration/rolldown-native"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.15"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/rolldown-native": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.6.2"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/integration-rollup-pluginutils@workspace:tests/integration/rollup-pluginutils":
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-rollup-pluginutils@workspace:tests/integration/rollup-pluginutils"
@@ -3482,7 +3497,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/rolldown-native@workspace:packages/infra/rolldown-native":
+"@gjsify/rolldown-native@workspace:^, @gjsify/rolldown-native@workspace:packages/infra/rolldown-native":
   version: 0.0.0-use.local
   resolution: "@gjsify/rolldown-native@workspace:packages/infra/rolldown-native"
   dependencies:
