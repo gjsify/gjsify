@@ -21,9 +21,14 @@ crate-type = ["cdylib"]
 [dependencies]
 rolldown = { path = "../../../../../refs/rolldown/crates/rolldown", features = ["serde"] }
 rolldown_common = { path = "../../../../../refs/rolldown/crates/rolldown_common", features = ["deserialize_bundler_options"] }
-serde = "1"
+rolldown_plugin = { path = "../../../../../refs/rolldown/crates/rolldown_plugin" }
+anyhow = "1"
+async-trait = "0.1"
+crossbeam-channel = "0.5"
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync", "time"] }
 
 [profile.release]
 lto = "thin"

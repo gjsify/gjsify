@@ -23,6 +23,52 @@
 
 ### Features
 
+* **Phase D-2.B.1: rolldown-native plugin-bridge skeleton (2026-05-10):**
+  First proof that bidirectional FFI callbacks for rolldown's plugin
+  system work end-to-end across Rust → Vala → JS → respond → Rust.
+  Adds `GjsifyRolldown.BundlerSession` GObject class with three
+  signals (`load_requested(req_id, plugin_index, args_json)`,
+  `completed(output_json)`, `error_occurred(message)`) and three
+  methods (`start(args_json)`, `respond(req_id, response_json)`,
+  `cancel()`).
+
+  Architecture mirrors `@gjsify/webrtc-native`'s main-thread
+  signal-bridge pattern. New Rust modules in
+  `packages/infra/rolldown-native/src/rust/src/`:
+  - `plugin_proxy.rs` — `JsPluginProxy` implements
+    `rolldown_plugin::Plugin`. Each hook call awaits a
+    `tokio::sync::oneshot` filled by the JS side via `respond()`.
+    `register_hook_usage()` tells rolldown which hooks the proxy
+    actually implements so dispatch attempts skip unset ones.
+    60-second response timeout prevents hangs.
+  - `session.rs` — `BundleSession` owns the multi-threaded tokio
+    runtime, the `crossbeam_channel` of pending hook requests, and
+    an eventfd-pair (`request_eventfd` for "request available",
+    `complete_eventfd` for "build done") that the Vala main loop
+    watches.
+
+  Vala bridge (`src/vala/rolldown.vala`) opens GLib `IOChannel`
+  watches on the eventfds, parses the request envelope just enough
+  to peek `hook` + `reqId` + `pluginIndex` (json-glib), routes to
+  the matching signal. Response goes back through
+  `gjsify_rolldown_glue_session_respond`.
+
+  Three smoke tests pass under GJS 1.88:
+  - load hook returns synthesized code → bundled output contains it
+    (`export const synthesized = "from-js-plugin"`)
+  - plugin chain `[always-skip, real-loader, never-runs]` → first
+    non-null wins, plugin 2 never invoked
+  - `{kind:'error', message:'...', stack:'...'}` response →
+    rolldown wraps as `UnloadableDependency` BuildDiagnostic, the
+    session emits `error_occurred` with the wrapped message
+
+  Phase B.1 wires only the `load` hook end-to-end; the remaining
+  11 hooks (transform, resolveId, renderChunk, banner/footer/
+  intro/outro, buildStart/End, generateBundle, writeBundle,
+  closeBundle) get fanned out in Phase B.2. Plugin-context
+  methods (`this.resolve`, `this.error`) come in B.3 via nested
+  protocol.
+
 * **integration-lightningcss byte-equality suite (2026-05-10):**
   Phase D-2 follow-up. New `tests/integration/lightningcss/` suite
   (`@gjsify/integration-lightningcss`, private) turns the

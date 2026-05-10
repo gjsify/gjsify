@@ -14,6 +14,11 @@ cc = meson.get_compiler('c')
 vala_deps = [
     dependency('glib-2.0'),
     dependency('gobject-2.0'),
+    # json-glib is used by BundlerSession to peek at the hook name +
+    # request id from the Rust-emitted JSON envelope before routing
+    # to the matching GObject signal. The full payload is forwarded
+    # to JS unparsed.
+    dependency('json-glib-1.0'),
 ]
 
 # ----------------------------------------------------------------------------

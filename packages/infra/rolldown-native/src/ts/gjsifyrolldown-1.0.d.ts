@@ -20,19 +20,57 @@ declare module 'gi://GjsifyRolldown?version=1.0' {
     class Bundler extends GObject.Object {
       constructor(properties?: Partial<GObject.Object.ConstructorProperties>);
       static new(): Bundler;
+      bundle(options_json: GLib.Bytes): GLib.Bytes;
+    }
+
+    /**
+     * BundlerSession — long-lived bundle session that drives a
+     * rolldown build asynchronously and emits a GObject signal each
+     * time a JS plugin hook needs to fire.
+     *
+     * Phase B.1 wires the `load` hook only; remaining 11 hooks come
+     * in Phase B.2.
+     *
+     * Lifecycle:
+     *   1. `new GjsifyRolldown.BundlerSession()`
+     *   2. Connect signal handlers (`load_requested`, `completed`,
+     *      `error_occurred`).
+     *   3. `start(args_json)` with payload
+     *      `{"options": <BundlerOptions>, "plugins": [{"name", "hooks"}]}`.
+     *   4. JS handlers respond via `respond(req_id, response_json)`.
+     *   5. On `completed` or `error_occurred`, the session is done.
+     *      Call `cancel()` to abort early.
+     */
+    class BundlerSession extends GObject.Object {
+      constructor(properties?: Partial<GObject.Object.ConstructorProperties>);
+      static new(): BundlerSession;
 
       /**
-       * @param options_json UTF-8 JSON document matching rolldown's
-       *                     `BundlerOptions` serde shape (camelCase
-       *                     keys; nested enums use rolldown's own
-       *                     PascalCase variants — see the rolldown
-       *                     docs).
-       *
-       * Returns the BundleOutput as JSON in a `GLib.Bytes`. Throws
-       * `GError` (quark `gjsify-rolldown-error-quark`) on any pipeline
-       * failure; the message contains the rolldown diagnostic.
+       * Start the bundle session. May only be called once per
+       * instance. Throws GError if already started or if Rust-side
+       * setup fails.
        */
-      bundle(options_json: GLib.Bytes): GLib.Bytes;
+      start(args_json: GLib.Bytes): void;
+
+      /**
+       * Submit the JS-side response for a previously-pulled
+       * request. The response JSON must match
+       * `{kind:'skip'} | {kind:'ok', value:...} | {kind:'error', message, stack?}`.
+       */
+      respond(req_id: number, response_json: GLib.Bytes): void;
+
+      /** Abort the build. Pending JS-replies will fail with timeout
+       *  or "channel closed". */
+      cancel(): void;
+
+      // GObject signal accessors. GJS exposes `connect('signal', cb)`.
+      connect(signal: 'load_requested',
+              cb: (self: BundlerSession, req_id: number, plugin_index: number, args_json: GLib.Bytes) => void): number;
+      connect(signal: 'completed',
+              cb: (self: BundlerSession, output_json: GLib.Bytes) => void): number;
+      connect(signal: 'error_occurred',
+              cb: (self: BundlerSession, message: string) => void): number;
+      connect(signal: string, cb: (...args: unknown[]) => unknown): number;
     }
   }
 
