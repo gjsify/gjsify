@@ -23,6 +23,45 @@
 
 ### Features
 
+* **Phase D-2.B.2: rolldown-native — all 12 hooks + per-hook id regex
+  filter (2026-05-10):** Extends the B.1 skeleton from a single
+  `load` hook to the complete `Plugin`-trait surface. The Vala
+  signal collapsed from one-per-hook into a generic
+  `hook_requested(hook_name, req_id, plugin_index, args_json)` —
+  JS-side adapters dispatch by `hook_name`. All 12 hooks
+  (`load`, `transform`, `resolveId`, `renderChunk`, `banner`,
+  `footer`, `intro`, `outro`, `buildStart`, `buildEnd`,
+  `generateBundle`, `writeBundle`, `closeBundle`) round-trip
+  through Rust → eventfd → Vala → JS → respond → tokio oneshot.
+
+  `PluginMeta.idFilter` adds an optional per-hook regex
+  short-circuit (load/transform/resolveId only — the only hooks
+  whose primary input is a single `id` string). When set, the
+  Rust proxy compiles the regex once at session start and skips
+  the JS round-trip whenever the id doesn't match. Mirrors
+  rolldown's own `HookFilter.value` short-circuit; full token-tree
+  boolean expressions stay JS-side for now and surface via
+  `kind:'skip'` responses, which Phase B.4's zero-copy pass will
+  optimize.
+
+  Serialization fix: per-variant `#[serde(rename_all = "camelCase")]`
+  on `HookRequestPayload` was being dropped by `#[serde(flatten)]`
+  in the wire envelope (serde issue #1346). Replaced flatten with
+  a manual `serde_json::Value` merge so multi-word fields like
+  `moduleType`, `isEntry`, `fileName` reach JS in the documented
+  camelCase shape.
+
+  Smoke tests under GJS 1.88: a single multi-hook plugin sees
+  `{buildStart:1, resolveId:2, transform:3, load:2, buildEnd:1,
+  banner:1, footer:1, renderChunk:1, generateBundle:1}` and the
+  final chunk contains the expected stacked contributions
+  (renderChunk prefix → banner → body → footer). A two-plugin
+  filter test confirms a `{idFilter:{load:'\\.txt$'}}` plugin
+  receives only `b.txt` while the no-filter sibling sees both
+  `.mjs` modules. Phase B.3 (nested protocol for plugin-context
+  methods like `this.resolve`) and B.4 (zero-copy GBytes for the
+  transform hook) follow.
+
 * **Phase D-2.B.1: rolldown-native plugin-bridge skeleton (2026-05-10):**
   First proof that bidirectional FFI callbacks for rolldown's plugin
   system work end-to-end across Rust → Vala → JS → respond → Rust.

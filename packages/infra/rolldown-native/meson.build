@@ -29,6 +29,8 @@ cargo = find_program('cargo')
 rust_sources = files(
     'src/rust/Cargo.toml',
     'src/rust/src/lib.rs',
+    'src/rust/src/plugin_proxy.rs',
+    'src/rust/src/session.rs',
 )
 
 rust_target_dir = meson.current_build_dir() / 'cargo-target'
