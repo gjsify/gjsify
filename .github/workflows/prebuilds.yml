@@ -207,7 +207,14 @@ jobs:
       # cold cargo build is ~5 min CPU on x86_64. Submodule init alone
       # downloads several hundred MB.
       - name: Init refs/rolldown submodule (rolldown-native source dep)
-        run: git submodule update --init --recursive refs/rolldown
+        # GitHub-Actions Fedora containers run as root while the
+        # repo is bind-mounted as a different uid → git refuses with
+        # "dubious ownership" unless the dir is whitelisted. Mirror
+        # the same `safe.directory` workaround the other Fedora
+        # workflows use before invoking submodule update.
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git submodule update --init --recursive refs/rolldown
 
       - name: Build @gjsify/rolldown-native (Rust cdylib + Vala bridge)
         working-directory: packages/infra/rolldown-native
