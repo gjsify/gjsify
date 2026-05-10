@@ -23,6 +23,32 @@
 
 ### Features
 
+* **Phase D-2.B.6: rolldown-native — integration test suite
+  (2026-05-10):** New `tests/integration/rolldown-native/`
+  (`@gjsify/integration-rolldown-native`, private). 6 specs / 29
+  assertions, all passing under GJS 1.88, exercising the
+  `bundleWithPlugins()` facade end-to-end with the full Phase B
+  contract surface:
+  - all 12 hook positions fire on a single multi-hook plugin (B.2)
+  - `idFilter.load` regex short-circuits non-matching ids (B.2)
+  - `this.resolve()` re-enters the resolver pipeline (B.3)
+  - `this.resolve()` from one plugin triggers another plugin's
+    `resolveId` (B.3 re-entrancy)
+  - `this.error()` throws synchronously in the JS handler (B.3)
+  - rolldown-shaped `{filter, handler}` hooks dispatch correctly
+    after `toNativePlugin` translation (B.5b adapter)
+
+  GJS-only because the native bridge needs the GjsifyRolldown
+  typelib. Replaces the ad-hoc `/tmp/rolldown-b{2,3,5}-*.js` scripts
+  built up across B.1–B.5; permanent regression coverage now lives
+  in version control.
+
+  The end-to-end self-host loop the original plan sketched (CLI
+  bundles itself for GJS, then bundles a test project, diff vs
+  Node-CLI output) needs the gjsify CLI's own runtime portability
+  story to land first — tracked separately in STATUS.md "Open TODOs"
+  rather than blocking the B-series merges.
+
 * **Phase D-2.B.5b: rolldown-native — `gjsify build` CLI wire-up
   (2026-05-10):** New `packages/infra/cli/src/lib/bundler-pick.ts`
   encapsulates the npm-vs-native engine choice behind a single
