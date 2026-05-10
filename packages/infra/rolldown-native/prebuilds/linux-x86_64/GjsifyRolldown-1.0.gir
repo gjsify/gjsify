@@ -92,11 +92,14 @@
 				<type name="GjsifyRolldown.BundlerSession" c:type="GjsifyRolldownBundlerSession*"/>
 			</return-value>
 		</constructor>
-		<glib:signal name="load-requested">
+		<glib:signal name="hook-requested">
 			<return-value transfer-ownership="full">
 				<type name="none" c:type="void"/>
 			</return-value>
 			<parameters>
+				<parameter name="hook_name" transfer-ownership="none">
+					<type name="utf8" c:type="const gchar*"/>
+				</parameter>
 				<parameter name="req_id" transfer-ownership="none">
 					<type name="guint64" c:type="guint64"/>
 				</parameter>

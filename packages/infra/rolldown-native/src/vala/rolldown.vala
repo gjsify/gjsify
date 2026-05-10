@@ -114,9 +114,33 @@ namespace GjsifyRolldown {
         private uint _request_source_id = 0;
         private uint _complete_source_id = 0;
 
-        /** Emitted when rolldown invokes a `load` hook on a JS plugin.
-         *  JS handler MUST eventually call `respond(req_id, json)`. */
-        public signal void load_requested (uint64 req_id, uint plugin_index, GLib.Bytes args_json);
+        /**
+         * Emitted whenever rolldown invokes a plugin hook.
+         *
+         * @hook_name: one of `load`, `transform`, `resolveId`,
+         *             `renderChunk`, `banner`, `footer`, `intro`,
+         *             `outro`, `buildStart`, `buildEnd`,
+         *             `generateBundle`, `writeBundle`, `closeBundle`
+         * @req_id: opaque ID; pass back to `respond()` exactly once
+         * @plugin_index: position in the user's `plugins[]` array
+         *                that originally registered this hook
+         * @args_json: full request envelope as JSON. Shape depends on
+         *             the hook — see `HookRequestPayload` in
+         *             `src/rust/src/plugin_proxy.rs`.
+         *
+         * JS handler MUST eventually call `respond(req_id, json)`
+         * exactly once with one of:
+         *   `{"kind":"skip"}`  — chain to next plugin
+         *   `{"kind":"ok", "value": ...}`  — handler succeeded
+         *   `{"kind":"error", "message": "...", "stack": "..."}`
+         *
+         * Failure to respond within 60s aborts the build with a
+         * timeout error.
+         */
+        public signal void hook_requested (string hook_name,
+                                           uint64 req_id,
+                                           uint plugin_index,
+                                           GLib.Bytes args_json);
 
         /** Emitted when the bundle completes successfully. */
         public signal void completed (GLib.Bytes output_json);
@@ -205,13 +229,28 @@ namespace GjsifyRolldown {
                 return;
             }
 
+            // Generic dispatch — JS-side adapter routes by hook name.
+            // Validates that hook is one of the known names; unknown
+            // names indicate a Rust/Vala desync and are surfaced as
+            // build errors rather than silently accepted.
             switch (hook) {
                 case "load":
-                    load_requested (req_id, plugin_index, req_bytes);
+                case "transform":
+                case "resolveId":
+                case "renderChunk":
+                case "banner":
+                case "footer":
+                case "intro":
+                case "outro":
+                case "buildStart":
+                case "buildEnd":
+                case "generateBundle":
+                case "writeBundle":
+                case "closeBundle":
+                    hook_requested (hook, req_id, plugin_index, req_bytes);
                     break;
                 default:
-                    // Phase B.2 fans out to the remaining 11 hooks.
-                    error_occurred ("rolldown: hook '%s' not yet supported in Phase B.1".printf (hook));
+                    error_occurred ("rolldown: unknown hook '%s' from Rust side".printf (hook));
                     break;
             }
         }

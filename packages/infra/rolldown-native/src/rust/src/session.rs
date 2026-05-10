@@ -139,12 +139,17 @@ pub extern "C" fn gjsify_rolldown_session_start(
     // Build N proxies, one per user plugin. Order in this Vec is the
     // plugin order rolldown sees — matches plugin_index in the
     // request payload so JS dispatches to the right plugin.
-    let proxies: Vec<SharedPluginable> = args
+    let proxies: Vec<SharedPluginable> = match args
         .plugins
         .iter()
         .enumerate()
         .map(|(idx, meta)| {
-            let proxy = JsPluginProxy {
+            let load_id_filter = compile_filter(&meta.id_filter.load, &meta.name, "load")?;
+            let transform_id_filter =
+                compile_filter(&meta.id_filter.transform, &meta.name, "transform")?;
+            let resolve_id_filter =
+                compile_filter(&meta.id_filter.resolve_id, &meta.name, "resolveId")?;
+            Ok::<_, String>(Arc::new(JsPluginProxy {
                 name: meta.name.clone(),
                 plugin_index: idx,
                 hooks: meta.hooks.clone(),
@@ -152,10 +157,21 @@ pub extern "C" fn gjsify_rolldown_session_start(
                 next_request_id: next_request_id.clone(),
                 request_eventfd,
                 response_timeout: Duration::from_secs(60),
-            };
-            Arc::new(proxy) as SharedPluginable
+                load_id_filter,
+                transform_id_filter,
+                resolve_id_filter,
+            }) as SharedPluginable)
         })
-        .collect();
+        .collect::<Result<Vec<_>, _>>()
+    {
+        Ok(v) => v,
+        Err(msg) => {
+            unsafe { libc::close(request_eventfd) };
+            unsafe { libc::close(complete_eventfd) };
+            unsafe { *err_out = err_to_cstr(msg) };
+            return ptr::null_mut();
+        }
+    };
 
     // Drop the original sender so the channel naturally closes when
     // all proxies are dropped (which happens after the bundle task
@@ -338,23 +354,20 @@ pub extern "C" fn gjsify_rolldown_session_next_request(
     let payload = req.payload;
     session.pending.lock().unwrap().insert(req_id, req.reply);
 
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Wire<'a> {
-        req_id: u64,
-        plugin_index: usize,
-        #[serde(flatten)]
-        payload: &'a crate::plugin_proxy::HookRequestPayload,
-    }
-
-    let wire = Wire {
-        req_id,
-        plugin_index,
-        payload: &payload,
-    };
-    let json = match serde_json::to_string(&wire) {
-        Ok(s) => s,
-        Err(e) => format!("{{\"req_id\":{req_id},\"error\":\"serialize: {e}\"}}"),
+    // Serialize the payload standalone so the per-variant
+    // `#[serde(rename_all = "camelCase")]` inside HookRequestPayload
+    // is honored. `#[serde(flatten)]` would silently drop those rules
+    // (serde issue #1346) and re-emit fields like `module_type` /
+    // `is_entry` in their original snake_case.
+    let json = match serde_json::to_value(&payload) {
+        Ok(mut value) => {
+            if let Some(obj) = value.as_object_mut() {
+                obj.insert("reqId".to_string(), serde_json::json!(req_id));
+                obj.insert("pluginIndex".to_string(), serde_json::json!(plugin_index));
+            }
+            value.to_string()
+        }
+        Err(e) => format!("{{\"reqId\":{req_id},\"error\":\"serialize: {e}\"}}"),
     };
     let len = json.len();
     unsafe { *out_len = len };
@@ -498,4 +511,15 @@ fn num_cpus_capped() -> usize {
         .unwrap_or(2)
 }
 
-use serde::Serialize;
+fn compile_filter(
+    src: &Option<String>,
+    plugin_name: &str,
+    hook_name: &str,
+) -> Result<Option<regex::Regex>, String> {
+    match src {
+        None => Ok(None),
+        Some(pat) => regex::Regex::new(pat).map(Some).map_err(|e| {
+            format!("rolldown: plugin '{plugin_name}' {hook_name} filter '{pat}' invalid: {e}")
+        }),
+    }
+}

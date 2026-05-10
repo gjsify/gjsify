@@ -64,8 +64,17 @@ declare module 'gi://GjsifyRolldown?version=1.0' {
       cancel(): void;
 
       // GObject signal accessors. GJS exposes `connect('signal', cb)`.
-      connect(signal: 'load_requested',
-              cb: (self: BundlerSession, req_id: number, plugin_index: number, args_json: GLib.Bytes) => void): number;
+      //
+      // `hook_requested` fires for every plugin hook invocation —
+      // hook_name is one of: load, transform, resolveId, renderChunk,
+      // banner, footer, intro, outro, buildStart, buildEnd,
+      // generateBundle, writeBundle, closeBundle. The args_json
+      // envelope shape depends on the hook (see HookRequestPayload
+      // in src/rust/src/plugin_proxy.rs). JS handler MUST eventually
+      // call respond(req_id, json) exactly once.
+      connect(signal: 'hook_requested',
+              cb: (self: BundlerSession, hook_name: string, req_id: number,
+                   plugin_index: number, args_json: GLib.Bytes) => void): number;
       connect(signal: 'completed',
               cb: (self: BundlerSession, output_json: GLib.Bytes) => void): number;
       connect(signal: 'error_occurred',
