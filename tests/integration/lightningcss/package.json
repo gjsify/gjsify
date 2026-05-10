@@ -1,0 +1,34 @@
+{
+    "name": "@gjsify/integration-lightningcss",
+    "description": "Integration tests: byte-equality across the three lightningcss backends gjsify wires through cssAsStringPlugin. Compares @gjsify/lightningcss-native (Vala+Rust FFI) and @gjsify/lightningcss-wasm (vendored WASM) under GJS, and @gjsify/lightningcss-wasm vs npm `lightningcss` under Node. Locks in the load-bearing Phase D-2 decision-matrix claim that all three backends produce byte-identical output for the same input.",
+    "type": "module",
+    "private": true,
+    "engines": {
+        "node": ">=22.12.0"
+    },
+    "scripts": {
+        "clear": "rm -rf dist wasm tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "prebuild:test": "mkdir -p wasm && cp ../../../packages/infra/lightningcss-wasm/wasm/lightningcss_node.wasm wasm/",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile dist/test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile dist/test.node.mjs",
+        "build:test": "yarn prebuild:test && yarn build:test:node && yarn build:test:gjs",
+        "test": "yarn build:test && yarn test:node && yarn test:gjs",
+        "test:node": "node dist/test.node.mjs",
+        "test:gjs": "gjsify run dist/test.gjs.mjs"
+    },
+    "devDependencies": {
+        "@girs/gjs": "4.0.0-rc.15",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/lightningcss-native": "workspace:^",
+        "@gjsify/lightningcss-wasm": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.6.2",
+        "lightningcss": "^1.32.0",
+        "typescript": "^6.0.3"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}

@@ -465,6 +465,17 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 `tests/integration/` validates `@gjsify/*` implementations by running curated upstream tests from popular npm packages. Opt-in target: `yarn test:integration`.
 
+### lightningcss (`tests/integration/lightningcss/`)
+
+6 fixtures × 2 backend pairs = **12/12 byte-equality assertions green** (6/6 Node, 6/6 GJS). Locks in the load-bearing Phase D-2 decision-matrix property (`docs/poc/lightningcss-decision.md`): every backend gjsify wires through `cssAsStringPlugin` produces byte-identical output for the same input.
+
+| Runtime | Backends compared | Pass |
+|---|---|---|
+| Node | `@gjsify/lightningcss-wasm` vs npm `lightningcss` | 6/6 |
+| GJS | `@gjsify/lightningcss-native` vs `@gjsify/lightningcss-wasm` | 6/6 |
+
+Together those two diffs cover all three backends — a transitive byte-equality chain from native → wasm → npm. Fixtures exercise distinct lowering / minification paths (plain selector, longhand collapse, CSS nesting flatten for `firefox >= 60`, `lch()` color lowering, pretty-print, nested `@media` flatten) so a drift in any single transform surfaces as one failing assertion. Source maps are intentionally NOT part of the contract — `mappings` strings encode source indexes that legitimately differ between backends; code-only equality is what `cssAsStringPlugin` consumers observe.
+
 ### webtorrent (`tests/integration/webtorrent/`)
 
 7 test files ported from `refs/webtorrent/test/` into `@gjsify/unit` style. **Node: 185/185 green. GJS: 185/185 green, 0 skips.**
