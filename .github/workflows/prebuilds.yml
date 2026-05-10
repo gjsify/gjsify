@@ -63,6 +63,7 @@ jobs:
           gstreamer1-plugins-bad-free-devel
           libsoup3-devel
           libnghttp2-devel
+          json-glib-devel
 
       - name: Install Rust toolchain (rustup, stable)
         # Fedora 43's `dnf install cargo` ships rustc ~1.79 — too old for
@@ -308,7 +309,8 @@ jobs:
                 gstreamer1-plugins-base-devel \
                 gstreamer1-plugins-bad-free-devel \
                 libsoup3-devel \
-                libnghttp2-devel
+                libnghttp2-devel \
+                json-glib-devel
             else
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -321,7 +323,8 @@ jobs:
                 libgstreamer-plugins-base1.0-dev \
                 libgstreamer-plugins-bad1.0-dev \
                 libsoup-3.0-dev \
-                libnghttp2-dev
+                libnghttp2-dev \
+                libjson-glib-dev
             fi
 
           run: |
