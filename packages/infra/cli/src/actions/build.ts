@@ -1,7 +1,7 @@
 import type { ConfigData, BundlerOptions } from "../types/index.js";
 import type { App, PluginOptions } from "@gjsify/rolldown-plugin-gjsify";
 import type { RolldownOutput, RolldownPluginOption } from "rolldown";
-import { rolldown } from "rolldown";
+import { runBundle } from "../bundler-pick.js";
 import { gjsifyPlugin, textLoaderPlugin, resolveShebangLine } from "@gjsify/rolldown-plugin-gjsify";
 import { resolveUserPlugins } from "../utils/resolve-plugin-by-name.js";
 import {
@@ -375,13 +375,7 @@ export class BuildAction {
             plugins: [...pnpPlugins, ...userPlugins, ...cfg.plugins],
         };
 
-        const build = await rolldown(finalOpts);
-        let writeResult: RolldownOutput;
-        try {
-            writeResult = await build.write(finalOpts.output ?? {});
-        } finally {
-            await build.close();
-        }
+        const writeResult = await runBundle(finalOpts);
 
         if (app === "gjs" && this.configData.shebang) {
             await this.applyShebang(outfile, verbose);
@@ -422,10 +416,5 @@ async function runOneLibraryBuild(args: OneLibraryBuildArgs): Promise<RolldownOu
         plugins: [...args.pnpPlugins, ...cfg.plugins],
     };
 
-    const build = await rolldown(finalOpts);
-    try {
-        return await build.write(finalOpts.output ?? {});
-    } finally {
-        await build.close();
-    }
+    return await runBundle(finalOpts);
 }
