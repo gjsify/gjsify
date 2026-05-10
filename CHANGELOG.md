@@ -23,6 +23,37 @@
 
 ### Features
 
+* **Phase D-2.B.5b: rolldown-native — `gjsify build` CLI wire-up
+  (2026-05-10):** New `packages/infra/cli/src/lib/bundler-pick.ts`
+  encapsulates the npm-vs-native engine choice behind a single
+  `runBundle(finalOpts) → Promise<RolldownOutput>` helper. The CLI's
+  `buildApp()` and `runOneLibraryBuild()` both call it instead of
+  `rolldown(opts).write(opts.output)` directly.
+
+  Default behavior is unchanged (npm rolldown). Setting
+  `GJSIFY_BUNDLER=native` opts into `@gjsify/rolldown-native` via
+  the B.5a `bundleWithPlugins()` facade. Under Node the env var is
+  ignored. Under GJS, if the prebuild isn't loadable for the running
+  architecture, `runBundle` throws a clear configuration error
+  rather than silently falling back.
+
+  Plugin-shape adapter (`toNativePlugin`) translates rolldown's
+  per-hook `{filter, handler}` form (and the bare-function form)
+  to `NativePlugin` shape. `filter.id` regex/string sources become
+  `idFilter.<hook>` regex strings on the Rust side, exercising
+  B.2's regex short-circuit. `this.resolve()` / `this.warn()` /
+  `this.error()` calls inside hook handlers route through B.3's
+  nested protocol. Plugins that depend on rolldown context methods
+  the native facade doesn't implement (`this.parse`, `this.emitFile`,
+  `this.getModuleInfo`) will fail at hook-call time — the current
+  gjsify plugin set doesn't use any of those.
+
+  `@gjsify/cli` declares `@gjsify/rolldown-native` as an optional
+  peer dependency so npm consumers without the prebuild aren't
+  broken.
+
+  Self-host smoke (B.6) follows next.
+
 * **Phase D-2.B.5a: rolldown-native — `bundleWithPlugins()` TS facade
   (2026-05-10):** New `@gjsify/rolldown-native` export that turns the
   raw `BundlerSession` GObject + signal surface into a single
