@@ -48,3 +48,81 @@ gjsify_rolldown_glue_bundle (GBytes  *options_json,
   gjsify_rolldown_result_free (res);
   return out;
 }
+
+/* ----------------------------------------------------------------- */
+/* Phase B.1+: plugin-callback bridge glue.                          */
+/* ----------------------------------------------------------------- */
+
+BundleSession *
+gjsify_rolldown_glue_session_start (GBytes  *args_json,
+                                    GError **error)
+{
+  if (args_json == NULL)
+    {
+      g_set_error_literal (error,
+                           GJSIFY_ROLLDOWN_ERROR,
+                           GJSIFY_ROLLDOWN_ERROR_FAILED,
+                           "rolldown: NULL args JSON");
+      return NULL;
+    }
+  gsize len = 0;
+  const char *data = (const char *) g_bytes_get_data (args_json, &len);
+  char *err = NULL;
+  BundleSession *session = gjsify_rolldown_session_start (data, len, &err);
+  if (session == NULL)
+    {
+      g_set_error_literal (error,
+                           GJSIFY_ROLLDOWN_ERROR,
+                           GJSIFY_ROLLDOWN_ERROR_FAILED,
+                           err != NULL ? err : "rolldown: unknown session-start error");
+      if (err != NULL) gjsify_rolldown_session_free_error (err);
+      return NULL;
+    }
+  return session;
+}
+
+GBytes *
+gjsify_rolldown_glue_session_next_request (BundleSession *session)
+{
+  if (session == NULL) return NULL;
+  size_t len = 0;
+  char *json = gjsify_rolldown_session_next_request (session, &len);
+  if (json == NULL || len == 0) return NULL;
+  GBytes *out = g_bytes_new (json, len);
+  gjsify_rolldown_session_free_string (json);
+  return out;
+}
+
+gboolean
+gjsify_rolldown_glue_session_respond (BundleSession *session,
+                                      guint64        req_id,
+                                      GBytes        *response_json)
+{
+  if (session == NULL || response_json == NULL) return FALSE;
+  gsize len = 0;
+  const char *data = (const char *) g_bytes_get_data (response_json, &len);
+  return gjsify_rolldown_session_respond (session, req_id, data, len);
+}
+
+GBytes *
+gjsify_rolldown_glue_session_try_result (BundleSession *session,
+                                         GError       **error)
+{
+  if (session == NULL) return NULL;
+  size_t len = 0;
+  bool is_error = false;
+  char *json = gjsify_rolldown_session_try_result (session, &len, &is_error);
+  if (json == NULL) return NULL;          /* still building */
+  if (is_error)
+    {
+      g_set_error_literal (error,
+                           GJSIFY_ROLLDOWN_ERROR,
+                           GJSIFY_ROLLDOWN_ERROR_FAILED,
+                           json);
+      gjsify_rolldown_session_free_string (json);
+      return NULL;
+    }
+  GBytes *out = g_bytes_new (json, len);
+  gjsify_rolldown_session_free_string (json);
+  return out;
+}

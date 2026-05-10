@@ -35,13 +35,20 @@ use rolldown_common::BundlerOptions;
 use serde::Serialize;
 use tokio::runtime::Builder;
 
+// Plugin-callback machinery (Phase B.1). The session module owns the
+// stateful Bundler instance + tokio runtime + Vala-side eventfd
+// pumps; plugin_proxy holds the JsPluginProxy that bridges
+// rolldown's Pluginable trait to the channel.
+pub mod plugin_proxy;
+pub mod session;
+
 /// Serializable mirror of the parts of `rolldown_common::Output` we expose to JS.
 ///
 /// Both the variant tag (`Chunk`/`Asset` → `chunk`/`asset`) and the per-variant
 /// field names are camelCased so JS sees `{type:"chunk", fileName:"…"}`.
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
-enum OutputJson {
+pub enum OutputJson {
     #[serde(rename_all = "camelCase")]
     Chunk {
         file_name: String,
@@ -66,9 +73,9 @@ enum OutputJson {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct BundleOutputJson {
-    warnings: Vec<String>,
-    output: Vec<OutputJson>,
+pub struct BundleOutputJson {
+    pub warnings: Vec<String>,
+    pub output: Vec<OutputJson>,
 }
 
 /// Result of `gjsify_rolldown_bundle`.
@@ -111,7 +118,7 @@ impl GjsifyRolldownResult {
     }
 }
 
-fn convert_output(out: rolldown_common::Output) -> OutputJson {
+pub fn convert_output(out: rolldown_common::Output) -> OutputJson {
     use rolldown_common::Output;
     match out {
         Output::Chunk(chunk) => {
