@@ -326,6 +326,11 @@ pub struct JsPluginProxy {
     pub load_id_filter: Option<Regex>,
     pub transform_id_filter: Option<Regex>,
     pub resolve_id_filter: Option<Regex>,
+    /// Shared session state for nested-protocol callbacks
+    /// (`this.resolve()` / `this.warn()`). The proxy registers each
+    /// load/transform hook's `PluginContext` here so the JS handler
+    /// can re-enter Rust during its `await`.
+    pub shared: std::sync::Arc<crate::session::SessionShared>,
 }
 
 impl fmt::Debug for JsPluginProxy {
@@ -350,15 +355,42 @@ impl JsPluginProxy {
     /// Push a hook request onto the channel + wake the main loop via
     /// eventfd-write, then await the JS-side response.
     async fn dispatch(&self, payload: HookRequestPayload) -> anyhow::Result<HookResponse> {
+        self.dispatch_inner(payload, None).await
+    }
+
+    /// Variant of `dispatch` that registers `ctx` for the duration of
+    /// the JS handler's await. Used by load/transform hooks so the
+    /// JS handler may call `this.resolve()` / `this.warn()` mid-await
+    /// via `gjsify_rolldown_session_context_resolve`.
+    async fn dispatch_with_ctx(
+        &self,
+        payload: HookRequestPayload,
+        ctx: rolldown_plugin::PluginContext,
+    ) -> anyhow::Result<HookResponse> {
+        self.dispatch_inner(payload, Some(ctx)).await
+    }
+
+    async fn dispatch_inner(
+        &self,
+        payload: HookRequestPayload,
+        ctx: Option<rolldown_plugin::PluginContext>,
+    ) -> anyhow::Result<HookResponse> {
         let (reply_tx, reply_rx) = oneshot::channel();
+        let req_id = self.new_request_id();
+
+        if let Some(c) = ctx {
+            self.shared.contexts.lock().unwrap().insert(req_id, c);
+        }
+
         let req = HookRequest {
-            req_id: self.new_request_id(),
+            req_id,
             plugin_index: self.plugin_index,
             payload,
             reply: reply_tx,
         };
 
         if self.request_tx.send(req).is_err() {
+            self.shared.contexts.lock().unwrap().remove(&req_id);
             return Err(anyhow!("rolldown: plugin channel closed (session aborted)"));
         }
 
@@ -371,7 +403,13 @@ impl JsPluginProxy {
             );
         }
 
-        match tokio::time::timeout(self.response_timeout, reply_rx).await {
+        let result = tokio::time::timeout(self.response_timeout, reply_rx).await;
+        // Clear the context registration regardless of outcome; the
+        // JS handler is finished (or timed out) and any further
+        // `this.resolve()` calls keyed on this req_id would race.
+        self.shared.contexts.lock().unwrap().remove(&req_id);
+
+        match result {
             Ok(Ok(resp)) => Ok(resp),
             Ok(Err(_)) => Err(anyhow!(
                 "rolldown: plugin {} dropped reply for request",
@@ -416,7 +454,7 @@ impl Plugin for JsPluginProxy {
 
     fn load(
         &self,
-        _ctx: SharedLoadPluginContext,
+        ctx: SharedLoadPluginContext,
         args: &HookLoadArgs<'_>,
     ) -> impl std::future::Future<Output = HookLoadReturn> + Send {
         let proxies = self.proxies("load");
@@ -426,16 +464,19 @@ impl Plugin for JsPluginProxy {
             .as_ref()
             .map(|re| !re.is_match(&id))
             .unwrap_or(false);
+        let ctx_clone = ctx.inner.clone();
         async move {
             if !proxies || filtered { return Ok(None); }
-            let resp = self.dispatch(HookRequestPayload::Load { id }).await?;
+            let resp = self
+                .dispatch_with_ctx(HookRequestPayload::Load { id }, ctx_clone)
+                .await?;
             resp.into_load_return()
         }
     }
 
     fn resolve_id(
         &self,
-        _ctx: &PluginContext,
+        ctx: &PluginContext,
         args: &HookResolveIdArgs<'_>,
     ) -> impl std::future::Future<Output = HookResolveIdReturn> + Send {
         let proxies = self.proxies("resolveId");
@@ -447,10 +488,14 @@ impl Plugin for JsPluginProxy {
             .as_ref()
             .map(|re| !re.is_match(&specifier))
             .unwrap_or(false);
+        let ctx_clone = ctx.clone();
         async move {
             if !proxies || filtered { return Ok(None); }
             let resp = self
-                .dispatch(HookRequestPayload::ResolveId { specifier, importer, is_entry })
+                .dispatch_with_ctx(
+                    HookRequestPayload::ResolveId { specifier, importer, is_entry },
+                    ctx_clone,
+                )
                 .await?;
             resp.into_resolve_id_return()
         }
@@ -458,7 +503,7 @@ impl Plugin for JsPluginProxy {
 
     fn transform(
         &self,
-        _ctx: SharedTransformPluginContext,
+        ctx: SharedTransformPluginContext,
         args: &HookTransformArgs<'_>,
     ) -> impl std::future::Future<Output = HookTransformReturn> + Send {
         let proxies = self.proxies("transform");
@@ -470,10 +515,14 @@ impl Plugin for JsPluginProxy {
             .as_ref()
             .map(|re| !re.is_match(&id))
             .unwrap_or(false);
+        let ctx_clone = ctx.inner.clone();
         async move {
             if !proxies || filtered { return Ok(None); }
             let resp = self
-                .dispatch(HookRequestPayload::Transform { id, code, module_type })
+                .dispatch_with_ctx(
+                    HookRequestPayload::Transform { id, code, module_type },
+                    ctx_clone,
+                )
                 .await?;
             resp.into_transform_return()
         }

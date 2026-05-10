@@ -58,6 +58,26 @@ gboolean gjsify_rolldown_glue_session_respond (BundleSession *session,
 GBytes *gjsify_rolldown_glue_session_try_result (BundleSession *session,
                                                  GError       **error);
 
+/* ----------------------------------------------------------------- */
+/* Phase B.3 — nested-protocol glue.                                  */
+/* ----------------------------------------------------------------- */
+
+/* Trigger ctx.resolve() for the JS plugin currently handling
+ * @parent_req_id. Returns the child request ID immediately; the
+ * sub-result lands on the context-response queue. Returns 0 on
+ * error (parent unknown / args malformed). */
+guint64 gjsify_rolldown_glue_session_context_resolve (BundleSession *session,
+                                                      guint64        parent_req_id,
+                                                      GBytes        *args_json);
+
+/* Append a string to the build's warnings list. */
+void    gjsify_rolldown_glue_session_context_warn (BundleSession *session,
+                                                   GBytes        *message);
+
+/* Drain one queued context-resolve sub-result. Returns NULL when
+ * the queue is empty. */
+GBytes *gjsify_rolldown_glue_session_next_context_response (BundleSession *session);
+
 G_END_DECLS
 
 #endif /* GJSIFY_ROLLDOWN_GLUE_H */
