@@ -77,6 +77,35 @@
 				</parameter>
 			</parameters>
 		</method>
+		<method name="context_resolve" c:identifier="gjsify_rolldown_bundler_session_context_resolve">
+			<return-value transfer-ownership="full">
+				<type name="guint64" c:type="guint64"/>
+			</return-value>
+			<parameters>
+				<instance-parameter name="self" transfer-ownership="none">
+					<type name="GjsifyRolldown.BundlerSession" c:type="GjsifyRolldownBundlerSession*"/>
+				</instance-parameter>
+				<parameter name="parent_req_id" transfer-ownership="none">
+					<type name="guint64" c:type="guint64"/>
+				</parameter>
+				<parameter name="args_json" transfer-ownership="none">
+					<type name="GLib.Bytes" c:type="GBytes*"/>
+				</parameter>
+			</parameters>
+		</method>
+		<method name="context_warn" c:identifier="gjsify_rolldown_bundler_session_context_warn">
+			<return-value transfer-ownership="full">
+				<type name="none" c:type="void"/>
+			</return-value>
+			<parameters>
+				<instance-parameter name="self" transfer-ownership="none">
+					<type name="GjsifyRolldown.BundlerSession" c:type="GjsifyRolldownBundlerSession*"/>
+				</instance-parameter>
+				<parameter name="message" transfer-ownership="none">
+					<type name="GLib.Bytes" c:type="GBytes*"/>
+				</parameter>
+			</parameters>
+		</method>
 		<method name="cancel" c:identifier="gjsify_rolldown_bundler_session_cancel">
 			<return-value transfer-ownership="full">
 				<type name="none" c:type="void"/>
@@ -128,6 +157,19 @@
 			<parameters>
 				<parameter name="message" transfer-ownership="none">
 					<type name="utf8" c:type="const gchar*"/>
+				</parameter>
+			</parameters>
+		</glib:signal>
+		<glib:signal name="context-response">
+			<return-value transfer-ownership="full">
+				<type name="none" c:type="void"/>
+			</return-value>
+			<parameters>
+				<parameter name="child_id" transfer-ownership="none">
+					<type name="guint64" c:type="guint64"/>
+				</parameter>
+				<parameter name="response_json" transfer-ownership="none">
+					<type name="GLib.Bytes" c:type="GBytes*"/>
 				</parameter>
 			</parameters>
 		</glib:signal>

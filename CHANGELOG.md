@@ -23,6 +23,59 @@
 
 ### Features
 
+* **Phase D-2.B.3: rolldown-native — nested protocol for plugin-context
+  callbacks (2026-05-10):** Adds `BundlerSession.context_resolve()` +
+  `context_warn()` methods and a `context_response(child_id,
+  response_json)` signal so JS plugin hook handlers can re-enter the
+  Rust resolve pipeline mid-await. This unblocks `aliasPlugin`-style
+  plugins that call `this.resolve(source, importer)` from inside
+  `load`/`transform`/`resolveId` hooks, and `pnpPlugin`-style
+  `this.warn(msg)` accumulation into `BundleOutputJson.warnings`.
+
+  `this.error(msg)` stays purely JS-side (handler throws → caught →
+  `kind:'error'` response — no FFI needed).
+
+  Implementation:
+  - **Rust** (`session.rs` / `plugin_proxy.rs`): new `SessionShared`
+    Arc bundles `contexts: HashMap<u64, PluginContext>` +
+    `next_child_id: AtomicU64` + `context_response_tx:
+    Sender<ContextResolveResponse>` + `context_response_eventfd: c_int`
+    + `context_warnings: Mutex<Vec<String>>`. Each load/transform/
+    resolveId hook clones its `PluginContext` into the session
+    registry keyed by parent `req_id` before dispatching to JS, and
+    removes it once the parent's reply arrives or times out. New
+    extern `gjsify_rolldown_session_context_resolve(parent_req_id,
+    args_json) -> u64 child_id` looks up the parent ctx, spawns a
+    fresh tokio task that awaits `ctx.resolve(specifier, importer,
+    opts).await`, and writes the result to the
+    context-response channel + wakes the eventfd. Cancellation +
+    arg-parse errors deliver synthetic `{error}` responses so JS
+    awaits never hang.
+
+  - **Vala** (`rolldown.vala`): `BundlerSession` watches a third
+    `IOChannel` over `context_response_eventfd`, drains the response
+    queue, peeks `childId` via `Json.Parser` and re-emits as
+    `context_response(child_id, response_json)`. New methods
+    `context_resolve(parent_req_id, args_json) → uint64` and
+    `context_warn(message)`.
+
+  - **C glue** (`gjsify-rolldown-glue.{h,c}`): three new wrappers
+    around the new Rust externs. New `BundleSession*` API entries in
+    `gjsify-rolldown.h` mirror the Rust signatures.
+
+  Two smoke tests pass under GJS 1.88:
+  - `ctx.resolve('./other.mjs', importer)` from a `load` hook returns
+    `{id: '/tmp/.../other.mjs', external: false}`. `ctx.warn('test')`
+    is appended to `BundleOutputJson.warnings`.
+  - Re-entrancy: a `load` plugin's `ctx.resolve('@alias/foo', importer)`
+    re-enters the resolve pipeline and triggers a different plugin's
+    `resolveId` hook. The alias plugin sees the nested call (its
+    `resolveId` fires, returns `'/tmp/.../aliased.mjs'`), and the
+    load plugin observes the resolved path. Confirms rolldown's
+    `skip_self: true` semantics work through our nested-protocol
+    surface — the load plugin doesn't recursively trigger its own
+    `resolveId`, but other plugins still get to claim the specifier.
+
 * **Phase D-2.B.2: rolldown-native — all 12 hooks + per-hook id regex
   filter (2026-05-10):** Extends the B.1 skeleton from a single
   `load` hook to the complete `Plugin`-trait surface. The Vala

@@ -93,6 +93,27 @@ namespace GjsifyRolldown {
             cheader_filename = "gjsify-rolldown.h")]
     private extern void _session_cancel (BundleSessionHandle session);
 
+    /* Phase B.3 — nested-protocol externs. */
+
+    [CCode (cname = "gjsify_rolldown_glue_session_context_resolve",
+            cheader_filename = "gjsify-rolldown-glue.h")]
+    private extern uint64 _glue_session_context_resolve (BundleSessionHandle session,
+                                                         uint64 parent_req_id,
+                                                         GLib.Bytes args_json);
+
+    [CCode (cname = "gjsify_rolldown_glue_session_context_warn",
+            cheader_filename = "gjsify-rolldown-glue.h")]
+    private extern void _glue_session_context_warn (BundleSessionHandle session,
+                                                    GLib.Bytes message);
+
+    [CCode (cname = "gjsify_rolldown_session_context_response_fd",
+            cheader_filename = "gjsify-rolldown.h")]
+    private extern int _session_context_response_fd (BundleSessionHandle session);
+
+    [CCode (cname = "gjsify_rolldown_glue_session_next_context_response",
+            cheader_filename = "gjsify-rolldown-glue.h")]
+    private extern GLib.Bytes? _glue_session_next_context_response (BundleSessionHandle session);
+
     /**
      * BundlerSession — long-lived bundle session that drives a
      * rolldown build asynchronously, emitting a GObject signal
@@ -113,6 +134,7 @@ namespace GjsifyRolldown {
         private BundleSessionHandle? _handle = null;
         private uint _request_source_id = 0;
         private uint _complete_source_id = 0;
+        private uint _ctx_response_source_id = 0;
 
         /**
          * Emitted whenever rolldown invokes a plugin hook.
@@ -149,6 +171,15 @@ namespace GjsifyRolldown {
         public signal void error_occurred (string message);
 
         /**
+         * Phase B.3 — emitted whenever a context-resolve sub-result
+         * (initiated via `context_resolve()`) is ready. JS handler
+         * matches `child_id` against the value previously returned
+         * from `context_resolve()`, parses `response_json` as
+         * `{childId, id?, external?, error?}`.
+         */
+        public signal void context_response (uint64 child_id, GLib.Bytes response_json);
+
+        /**
          * Start the bundle session. @args_json must be a UTF-8 JSON
          * document of shape `{"options": <BundlerOptions>, "plugins":
          * [{"name": "...", "hooks": ["load", ...]}]}`.
@@ -180,6 +211,44 @@ namespace GjsifyRolldown {
             comp_chan.set_encoding (null);
             comp_chan.set_buffered (false);
             _complete_source_id = comp_chan.add_watch (GLib.IOCondition.IN, on_complete_ready);
+
+            int ctx_fd = _session_context_response_fd (_handle);
+            var ctx_chan = new GLib.IOChannel.unix_new (ctx_fd);
+            ctx_chan.set_close_on_unref (false);
+            ctx_chan.set_encoding (null);
+            ctx_chan.set_buffered (false);
+            _ctx_response_source_id = ctx_chan.add_watch (GLib.IOCondition.IN, on_ctx_response_ready);
+        }
+
+        private bool on_ctx_response_ready (GLib.IOChannel source, GLib.IOCondition cond) {
+            char[] sink = new char[8];
+            try {
+                size_t got;
+                source.read_chars (sink, out got);
+            } catch (Error e) {
+                // ignore — eventfd had nothing left
+            }
+
+            while (_handle != null) {
+                var resp_bytes = _glue_session_next_context_response (_handle);
+                if (resp_bytes == null) break;
+
+                // Peek at childId so the C signal handler can route by it
+                // without re-parsing the JSON in JS.
+                unowned uint8[]? data = resp_bytes.get_data ();
+                ssize_t len = (ssize_t) resp_bytes.get_size ();
+                uint64 child_id = 0;
+                try {
+                    var parser = new Json.Parser ();
+                    parser.load_from_data ((string) data, len);
+                    child_id = (uint64) parser.get_root ().get_object ().get_int_member ("childId");
+                } catch (Error e) {
+                    error_occurred ("rolldown: malformed context_response from Rust: %s".printf (e.message));
+                    continue;
+                }
+                context_response (child_id, resp_bytes);
+            }
+            return true;
         }
 
         private bool on_request_ready (GLib.IOChannel source, GLib.IOCondition cond) {
@@ -289,11 +358,35 @@ namespace GjsifyRolldown {
                 GLib.Source.remove (_complete_source_id);
                 _complete_source_id = 0;
             }
+            if (_ctx_response_source_id != 0) {
+                GLib.Source.remove (_ctx_response_source_id);
+                _ctx_response_source_id = 0;
+            }
         }
 
         public void respond (uint64 req_id, GLib.Bytes response_json) {
             if (_handle == null) return;
             _glue_session_respond (_handle, req_id, response_json);
+        }
+
+        /**
+         * Phase B.3 — trigger `ctx.resolve()` on behalf of the JS
+         * plugin handler currently running for `parent_req_id`.
+         * Returns a child request ID that JS uses to match the
+         * eventual `context_response(child_id, ...)` signal.
+         * Returns 0 if `parent_req_id` is unknown (parent already
+         * completed, or JS called outside a handler).
+         */
+        public uint64 context_resolve (uint64 parent_req_id, GLib.Bytes args_json) {
+            if (_handle == null) return 0;
+            return _glue_session_context_resolve (_handle, parent_req_id, args_json);
+        }
+
+        /** Phase B.3 — append a `this.warn(msg)` string to the build's
+         *  warnings list. */
+        public void context_warn (GLib.Bytes message) {
+            if (_handle == null) return;
+            _glue_session_context_warn (_handle, message);
         }
 
         public void cancel () {

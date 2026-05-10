@@ -24,11 +24,12 @@ use std::sync::Mutex;
 use std::sync::atomic::AtomicU64;
 use std::time::Duration;
 
-use crossbeam_channel::{Receiver, unbounded};
+use crossbeam_channel::{Receiver, Sender, unbounded};
 use rolldown::Bundler;
 use rolldown_common::BundlerOptions;
 use rolldown_plugin::__inner::SharedPluginable;
-use serde::Deserialize;
+use rolldown_plugin::{PluginContext, PluginContextResolveOptions};
+use serde::{Deserialize, Serialize};
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::oneshot;
 
@@ -39,6 +40,37 @@ use crate::{BundleOutputJson, OutputJson, convert_output};
 pub struct StartArgs {
     pub options: BundlerOptions,
     pub plugins: Vec<PluginMeta>,
+}
+
+/// One context-resolve sub-result flowing Rust → JS. Surfaces through
+/// the `context_response_eventfd` queue.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextResolveResponse {
+    pub child_id: u64,
+    /// Resolved id, when the call succeeded and produced one.
+    pub id: Option<String>,
+    /// Whether the resolved module is external. Mirrors rolldown's
+    /// `ResolvedId.is_external`.
+    pub external: Option<bool>,
+    /// Set when `ctx.resolve()` failed. Maps to rolldown's
+    /// `ResolveError` variants serialized as `Display`. JS handler
+    /// rejects its `await` Promise with this message.
+    pub error: Option<String>,
+}
+
+/// Slice of session state shared with `JsPluginProxy`. Wrapped in
+/// `Arc` and cloned into each proxy. Holds everything the proxies
+/// need to (a) register/unregister parent `PluginContext` snapshots
+/// for nested-protocol callbacks, (b) deliver context-resolve results
+/// to JS via the dedicated eventfd, and (c) accumulate `this.warn()`
+/// strings into the final BundleOutput.
+pub struct SessionShared {
+    pub contexts: Mutex<std::collections::HashMap<u64, PluginContext>>,
+    pub next_child_id: AtomicU64,
+    pub context_response_tx: Sender<ContextResolveResponse>,
+    pub context_response_eventfd: c_int,
+    pub context_warnings: Mutex<Vec<String>>,
 }
 
 /// Public session handle. Owned via raw pointer on the C side.
@@ -61,6 +93,13 @@ pub struct BundleSession {
     /// Cancel flag — set by the C side via `cancel()`. tokio task
     /// observes via shared atomic and aborts.
     pub cancelled: Arc<std::sync::atomic::AtomicBool>,
+    /// Phase B.3 — shared with each `JsPluginProxy` for nested
+    /// plugin-context callbacks.
+    pub shared: Arc<SessionShared>,
+    /// Receiver side of the context-response channel. Drained by
+    /// `gjsify_rolldown_session_next_context_response` from the GLib
+    /// main loop after waking on `context_response_eventfd`.
+    pub context_response_rx: Receiver<ContextResolveResponse>,
 }
 
 impl BundleSession {
@@ -132,9 +171,27 @@ pub extern "C" fn gjsify_rolldown_session_start(
         return ptr::null_mut();
     }
 
+    let context_response_eventfd =
+        unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
+    if context_response_eventfd < 0 {
+        unsafe { libc::close(request_eventfd) };
+        unsafe { libc::close(complete_eventfd) };
+        unsafe { *err_out = err_to_cstr("rolldown: eventfd(context_response) failed".to_string()) };
+        return ptr::null_mut();
+    }
+
     let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let (request_tx, request_rx) = unbounded::<HookRequest>();
+    let (context_response_tx, context_response_rx) = unbounded::<ContextResolveResponse>();
     let next_request_id = Arc::new(AtomicU64::new(1));
+
+    let shared = Arc::new(SessionShared {
+        contexts: Mutex::new(std::collections::HashMap::new()),
+        next_child_id: AtomicU64::new(1),
+        context_response_tx,
+        context_response_eventfd,
+        context_warnings: Mutex::new(Vec::new()),
+    });
 
     // Build N proxies, one per user plugin. Order in this Vec is the
     // plugin order rolldown sees — matches plugin_index in the
@@ -160,6 +217,7 @@ pub extern "C" fn gjsify_rolldown_session_start(
                 load_id_filter,
                 transform_id_filter,
                 resolve_id_filter,
+                shared: shared.clone(),
             }) as SharedPluginable)
         })
         .collect::<Result<Vec<_>, _>>()
@@ -168,6 +226,7 @@ pub extern "C" fn gjsify_rolldown_session_start(
         Err(msg) => {
             unsafe { libc::close(request_eventfd) };
             unsafe { libc::close(complete_eventfd) };
+            unsafe { libc::close(context_response_eventfd) };
             unsafe { *err_out = err_to_cstr(msg) };
             return ptr::null_mut();
         }
@@ -187,6 +246,7 @@ pub extern "C" fn gjsify_rolldown_session_start(
         Err(e) => {
             unsafe { libc::close(request_eventfd) };
             unsafe { libc::close(complete_eventfd) };
+            unsafe { libc::close(context_response_eventfd) };
             unsafe { *err_out = err_to_cstr(format!("rolldown: tokio init: {e}")) };
             return ptr::null_mut();
         }
@@ -196,9 +256,10 @@ pub extern "C" fn gjsify_rolldown_session_start(
     let result_slot_clone = result_slot.clone();
     let complete_eventfd_for_task = complete_eventfd;
     let cancelled_for_task = cancelled.clone();
+    let shared_for_task = shared.clone();
 
     runtime.spawn(async move {
-        let res = run_bundle(args.options, proxies, cancelled_for_task).await;
+        let res = run_bundle(args.options, proxies, cancelled_for_task, shared_for_task).await;
         let final_json = match res {
             Ok(json) => Ok(json),
             Err(msg) => Err(msg),
@@ -223,6 +284,8 @@ pub extern "C" fn gjsify_rolldown_session_start(
         result: Mutex::new(None),
         complete_eventfd,
         cancelled,
+        shared,
+        context_response_rx,
     });
 
     // Move the result slot into the session AFTER spawn (the spawn
@@ -289,6 +352,7 @@ async fn run_bundle(
     options: BundlerOptions,
     plugins: Vec<SharedPluginable>,
     cancelled: Arc<std::sync::atomic::AtomicBool>,
+    shared: Arc<SessionShared>,
 ) -> Result<String, String> {
     if cancelled.load(std::sync::atomic::Ordering::SeqCst) {
         return Err("rolldown: cancelled before start".to_string());
@@ -300,7 +364,10 @@ async fn run_bundle(
         .await
         .map_err(|e| format!("rolldown: Bundler::generate: {e:?}"))?;
 
-    let warnings: Vec<String> = bundle.warnings.iter().map(|w| format!("{w:?}")).collect();
+    let mut warnings: Vec<String> = bundle.warnings.iter().map(|w| format!("{w:?}")).collect();
+    // Append `this.warn(...)` strings collected during the build so the
+    // JS caller sees them alongside rolldown-internal warnings.
+    warnings.extend(shared.context_warnings.lock().unwrap().drain(..));
     let output: Vec<OutputJson> = bundle.assets.into_iter().map(convert_output).collect();
     serde_json::to_string(&BundleOutputJson { warnings, output })
         .map_err(|e| format!("rolldown: serialize: {e}"))
@@ -467,11 +534,190 @@ pub extern "C" fn gjsify_rolldown_session_free(session: *mut BundleSession) {
     unsafe {
         libc::close(boxed.request_eventfd);
         libc::close(boxed.complete_eventfd);
+        libc::close(boxed.shared.context_response_eventfd);
     }
     // Dropping the runtime aborts all in-flight tasks. shutdown_timeout
     // gives them up to 500ms to drain; any remaining workers are
     // terminated. Prevents the GJS process exit from hanging.
     boxed.runtime.shutdown_timeout(Duration::from_millis(500));
+}
+
+// ---------------------------------------------------------------------
+// Phase B.3 — nested-protocol FFI surface
+// ---------------------------------------------------------------------
+
+/// JS-side request shape for `this.resolve()`. `args_json` is the
+/// payload of `gjsify_rolldown_session_context_resolve`. We deserialize
+/// it once, hand the values to `PluginContext.resolve()`, and surface
+/// the result on the context-response channel.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextResolveRequest {
+    pub specifier: String,
+    #[serde(default)]
+    pub importer: Option<String>,
+    #[serde(default)]
+    pub skip_self: Option<bool>,
+    #[serde(default)]
+    pub is_entry: Option<bool>,
+}
+
+/// FFI: trigger a `ctx.resolve()` callback on behalf of a JS plugin
+/// hook handler. Returns a child request ID immediately; the actual
+/// result lands on the context-response queue (drained via
+/// `next_context_response()`).
+///
+/// Returns 0 on error (parent_req_id unknown / args malformed).
+#[unsafe(no_mangle)]
+pub extern "C" fn gjsify_rolldown_session_context_resolve(
+    session: *mut BundleSession,
+    parent_req_id: u64,
+    args_json: *const c_char,
+    args_json_len: usize,
+) -> u64 {
+    if session.is_null() || args_json.is_null() {
+        return 0;
+    }
+    let session = unsafe { &*session };
+
+    // Snapshot the parent context. Both load and transform hooks
+    // register a `PluginContext::clone()` keyed by their req_id
+    // before sending the JS request.
+    let ctx = match session.shared.contexts.lock().unwrap().get(&parent_req_id).cloned() {
+        Some(c) => c,
+        None => return 0,
+    };
+
+    let slice = unsafe { std::slice::from_raw_parts(args_json as *const u8, args_json_len) };
+    let req: ContextResolveRequest = match serde_json::from_slice(slice) {
+        Ok(r) => r,
+        Err(e) => {
+            // Best effort: drop a synthetic child reply so JS doesn't
+            // hang waiting on a Promise that will never resolve.
+            let child_id = session.shared.next_child_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let resp = ContextResolveResponse {
+                child_id,
+                id: None,
+                external: None,
+                error: Some(format!("rolldown: malformed context_resolve args JSON: {e}")),
+            };
+            let _ = session.shared.context_response_tx.send(resp);
+            wake_eventfd(session.shared.context_response_eventfd);
+            return child_id;
+        }
+    };
+
+    let child_id = session
+        .shared
+        .next_child_id
+        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let shared = session.shared.clone();
+
+    session.runtime.spawn(async move {
+        let opts = PluginContextResolveOptions {
+            skip_self: req.skip_self.unwrap_or(true),
+            is_entry: req.is_entry.unwrap_or(false),
+            ..Default::default()
+        };
+        let resp = match ctx
+            .resolve(&req.specifier, req.importer.as_deref(), Some(opts))
+            .await
+        {
+            Ok(Ok(resolved)) => ContextResolveResponse {
+                child_id,
+                id: Some(resolved.id.to_string()),
+                external: Some(matches!(
+                    resolved.external,
+                    rolldown_common::ResolvedExternal::Absolute
+                        | rolldown_common::ResolvedExternal::Relative
+                )),
+                error: None,
+            },
+            Ok(Err(resolve_err)) => ContextResolveResponse {
+                child_id,
+                id: None,
+                external: None,
+                error: Some(format!("{resolve_err:?}")),
+            },
+            Err(e) => ContextResolveResponse {
+                child_id,
+                id: None,
+                external: None,
+                error: Some(format!("{e}")),
+            },
+        };
+        let _ = shared.context_response_tx.send(resp);
+        wake_eventfd(shared.context_response_eventfd);
+    });
+
+    child_id
+}
+
+/// JS-side `this.warn(msg)` — accumulate the message; it surfaces in
+/// the final `BundleOutputJson.warnings` array.
+#[unsafe(no_mangle)]
+pub extern "C" fn gjsify_rolldown_session_context_warn(
+    session: *mut BundleSession,
+    message: *const c_char,
+    message_len: usize,
+) {
+    if session.is_null() || message.is_null() {
+        return;
+    }
+    let slice = unsafe { std::slice::from_raw_parts(message as *const u8, message_len) };
+    let msg = match std::str::from_utf8(slice) {
+        Ok(s) => s.to_string(),
+        Err(_) => "rolldown: this.warn() called with non-UTF-8 message".to_string(),
+    };
+    let session = unsafe { &*session };
+    session.shared.context_warnings.lock().unwrap().push(msg);
+}
+
+/// FFI: get the eventfd that signals "a context-resolve sub-result is
+/// available". GLib main loop watches this with `G_IO_IN`.
+#[unsafe(no_mangle)]
+pub extern "C" fn gjsify_rolldown_session_context_response_fd(
+    session: *mut BundleSession,
+) -> c_int {
+    if session.is_null() {
+        return -1;
+    }
+    let session = unsafe { &*session };
+    session.shared.context_response_eventfd
+}
+
+/// FFI: drain one pending context-resolve response. Returns NULL when
+/// the channel is empty.
+#[unsafe(no_mangle)]
+pub extern "C" fn gjsify_rolldown_session_next_context_response(
+    session: *mut BundleSession,
+    out_len: *mut usize,
+) -> *mut c_char {
+    if session.is_null() {
+        unsafe { *out_len = 0 };
+        return ptr::null_mut();
+    }
+    let session = unsafe { &*session };
+    let resp = match session.context_response_rx.try_recv() {
+        Ok(r) => r,
+        Err(_) => {
+            unsafe { *out_len = 0 };
+            return ptr::null_mut();
+        }
+    };
+    let json = match serde_json::to_string(&resp) {
+        Ok(s) => s,
+        Err(e) => format!("{{\"childId\":{},\"error\":\"serialize: {e}\"}}", resp.child_id),
+    };
+    unsafe { *out_len = json.len() };
+    CString::new(json).ok().map(|c| c.into_raw()).unwrap_or(ptr::null_mut())
+}
+
+fn wake_eventfd(fd: c_int) {
+    let one: u64 = 1;
+    unsafe {
+        libc::write(fd, &one as *const u64 as *const libc::c_void, 8);
+    }
 }
 
 #[unsafe(no_mangle)]
