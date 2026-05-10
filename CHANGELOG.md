@@ -23,6 +23,20 @@
 
 ### Features
 
+* **integration-lightningcss byte-equality suite (2026-05-10):**
+  Phase D-2 follow-up. New `tests/integration/lightningcss/` suite
+  (`@gjsify/integration-lightningcss`, private) turns the
+  decision-matrix's load-bearing byte-equality property into a
+  permanent regression guard. 6 fixtures × 2 backend pairs = 12
+  assertions covering all three backends transitively:
+    - Node: `@gjsify/lightningcss-wasm` vs npm `lightningcss` (6/6)
+    - GJS:  `@gjsify/lightningcss-native` vs `@gjsify/lightningcss-wasm` (6/6)
+  Fixtures exercise distinct paths: plain selector, longhand
+  collapse, CSS nesting flatten for `firefox >= 60`, `lch()` color
+  lowering, pretty-print, nested `@media` flatten. Source maps are
+  intentionally NOT part of the contract (mappings indexes
+  legitimately differ between backends). Wired into `yarn
+  test:integration`.
 * **Multi-arch CI prebuilds for lightningcss-native + rolldown-native
   (2026-05-10):** Extended `.github/workflows/prebuilds.yml` so the
   Phase D-2 native packages get prebuilt and committed alongside the

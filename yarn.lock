@@ -3075,6 +3075,23 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/integration-lightningcss@workspace:tests/integration/lightningcss":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/integration-lightningcss@workspace:tests/integration/lightningcss"
+  dependencies:
+    "@girs/gjs": "npm:4.0.0-rc.15"
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/lightningcss-native": "workspace:^"
+    "@gjsify/lightningcss-wasm": "workspace:^"
+    "@gjsify/node-globals": "workspace:^"
+    "@gjsify/runtime": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.6.2"
+    lightningcss: "npm:^1.32.0"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/integration-mcp-inspector-cli@workspace:tests/integration/mcp-inspector-cli":
   version: 0.0.0-use.local
   resolution: "@gjsify/integration-mcp-inspector-cli@workspace:tests/integration/mcp-inspector-cli"
@@ -3253,7 +3270,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/lightningcss-native@workspace:packages/infra/lightningcss-native":
+"@gjsify/lightningcss-native@workspace:^, @gjsify/lightningcss-native@workspace:packages/infra/lightningcss-native":
   version: 0.0.0-use.local
   resolution: "@gjsify/lightningcss-native@workspace:packages/infra/lightningcss-native"
   dependencies:
@@ -3267,7 +3284,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/lightningcss-wasm@workspace:packages/infra/lightningcss-wasm":
+"@gjsify/lightningcss-wasm@workspace:^, @gjsify/lightningcss-wasm@workspace:packages/infra/lightningcss-wasm":
   version: 0.0.0-use.local
   resolution: "@gjsify/lightningcss-wasm@workspace:packages/infra/lightningcss-wasm"
   dependencies:
