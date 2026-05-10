@@ -23,6 +23,33 @@
 
 ### Features
 
+* **Phase D-2.B.5a: rolldown-native — `bundleWithPlugins()` TS facade
+  (2026-05-10):** New `@gjsify/rolldown-native` export that turns the
+  raw `BundlerSession` GObject + signal surface into a single
+  `Promise<BundleResult>` call, accepting an array of plugin objects
+  with the rolldown-shaped hook signatures (`load`, `transform`,
+  `resolveId`, `renderChunk`, `banner`/`footer`/`intro`/`outro`,
+  `buildStart`/`buildEnd`, `generateBundle`/`writeBundle`/`closeBundle`)
+  plus per-hook `idFilter`. Inside each handler `this` is a
+  `NativePluginContext` exposing `resolve()` (Promise-returning,
+  routes through B.3's `context_resolve` protocol), `warn(msg)` (B.3
+  `context_warn`), and `error(msg)` (pure JS throw, caught at the
+  dispatch boundary and converted to a build-failing
+  `kind:'error'` response).
+
+  Smoke-tested under GJS 1.88 with a 4-plugin pipeline (alias →
+  loader → wrap → lifecycle): `this.resolve('@virtual/loader')` from
+  a `transform` hook produces the right id, `this.warn()` shows up
+  in `BundleOutputJson.warnings`, `renderChunk` prefix + `banner`
+  inject correctly, and the constant `41 + 1` gets folded to `42`.
+
+  Companion CLI wire-up (B.5b) lands in a follow-up PR — that one
+  swaps `rolldown(opts)` in `packages/infra/cli/src/actions/build.ts`
+  + `packages/infra/rolldown-plugin-gjsify/src/utils/auto-globals.ts`
+  for `bundleWithPlugins()` whenever the GJS runtime can load this
+  package's prebuild. Splitting the facade off from the CLI swap
+  keeps each PR small and the wire-up trivially A/B-testable.
+
 * **Phase D-2.B.3: rolldown-native — nested protocol for plugin-context
   callbacks (2026-05-10):** Adds `BundlerSession.context_resolve()` +
   `context_warn()` methods and a `context_response(child_id,
