@@ -23,6 +23,25 @@
 
 ### Features
 
+* **Multi-arch CI prebuilds for lightningcss-native + rolldown-native
+  (2026-05-10):** Extended `.github/workflows/prebuilds.yml` so the
+  Phase D-2 native packages get prebuilt and committed alongside the
+  existing webgl / webrtc-native / http-soup-bridge / http2-native
+  ones. Coverage:
+  - `lightningcss-native`: linux-{x86_64, aarch64, ppc64, s390x, riscv64}
+    (5 arches; pure crates.io deps, no submodule).
+  - `rolldown-native`: linux-{x86_64, aarch64} only — the rolldown
+    crate graph (~250 transitive crates incl. tokio + oxc) compiles
+    in ~5 min on native x86_64 and would blow the 6-hour QEMU job
+    timeout under emulation. Multi-arch rolldown waits for either a
+    coherent rolldown crates.io publish or cross-compilation via
+    `cross`.
+
+  Both jobs install `rustup` (Fedora 43's distro `cargo` is too old
+  for `indexmap@2.14`'s `edition2024`). `refs/rolldown` submodule
+  initialized in the rolldown-native step. Workflow path-trigger
+  expanded to the new packages so source changes auto-trigger
+  rebuilds on main.
 * **cssAsStringPlugin prefers @gjsify/lightningcss-native (2026-05-10):**
   Phase D-2 wire-up — the plugin's `.css` bundling step now picks its
   backend lazily on first call: under GJS, probe

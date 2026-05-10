@@ -16,6 +16,10 @@ on:
       - 'packages/node/http-soup-bridge/meson.build'
       - 'packages/node/http2-native/src/vala/**'
       - 'packages/node/http2-native/meson.build'
+      - 'packages/infra/lightningcss-native/src/**'
+      - 'packages/infra/lightningcss-native/meson.build'
+      - 'packages/infra/rolldown-native/src/**'
+      - 'packages/infra/rolldown-native/meson.build'
       - '.github/workflows/prebuilds.yml'
 
 
@@ -46,9 +50,10 @@ jobs:
         # libsoup3-devel is needed by @gjsify/http-soup-bridge for libsoup-3.0.
         # libnghttp2-devel is needed by @gjsify/http2-native for the HPACK / frame
         # encoder shim wrapping nghttp2.
+        # `curl` is needed by rustup-init below.
         run: >
           dnf install -y
-          git tar xz findutils
+          git tar xz findutils curl
           meson vala gcc pkgconf
           glib2-devel gobject-introspection-devel
           gtk4-devel gdk-pixbuf2-devel
@@ -58,6 +63,15 @@ jobs:
           gstreamer1-plugins-bad-free-devel
           libsoup3-devel
           libnghttp2-devel
+
+      - name: Install Rust toolchain (rustup, stable)
+        # Fedora 43's `dnf install cargo` ships rustc ~1.79 — too old for
+        # the lightningcss/rolldown crate trees that pull `indexmap@2.14`
+        # which requires `edition2024` (rustc ≥ 1.85). Install rustup
+        # directly for a current toolchain.
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -158,6 +172,66 @@ jobs:
           path: packages/node/http2-native/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
+      # -------- @gjsify/lightningcss-native (GjsifyLightningcss) --------
+      # Pure Rust + Vala; depends on `lightningcss = "1"` from crates.io,
+      # no submodule needed. cargo first downloads + compiles the crate
+      # graph (~7 min cold on a fresh runner), then meson links the Vala
+      # bridge against the resulting cdylib.
+      - name: Build @gjsify/lightningcss-native (Rust cdylib + Vala bridge)
+        working-directory: packages/infra/lightningcss-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/lightningcss-native prebuilds
+        working-directory: packages/infra/lightningcss-native
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p "prebuilds/linux-${ARCH}"
+          cp build/libgjsifylightningcss.so build/libgjsify_lightningcss.so build/GjsifyLightningcss-1.0.gir build/GjsifyLightningcss-1.0.typelib "prebuilds/linux-${ARCH}/"
+          echo "@gjsify/lightningcss-native prebuilds for linux-${ARCH}:"
+          ls -lh "prebuilds/linux-${ARCH}/"
+
+      - name: Upload @gjsify/lightningcss-native prebuilds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lightningcss-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/infra/lightningcss-native/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
+      # -------- @gjsify/rolldown-native (GjsifyRolldown) --------
+      # Heavier than lightningcss-native: depends on the `refs/rolldown`
+      # submodule (rolldown 0.1.0 on crates.io has broken transitive
+      # deps — see packages/infra/rolldown-native/src/rust/Cargo.toml).
+      # cold cargo build is ~5 min CPU on x86_64. Submodule init alone
+      # downloads several hundred MB.
+      - name: Init refs/rolldown submodule (rolldown-native source dep)
+        run: git submodule update --init --recursive refs/rolldown
+
+      - name: Build @gjsify/rolldown-native (Rust cdylib + Vala bridge)
+        working-directory: packages/infra/rolldown-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/rolldown-native prebuilds
+        working-directory: packages/infra/rolldown-native
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p "prebuilds/linux-${ARCH}"
+          cp build/libgjsifyrolldown.so build/libgjsify_rolldown.so build/GjsifyRolldown-1.0.gir build/GjsifyRolldown-1.0.typelib "prebuilds/linux-${ARCH}/"
+          echo "@gjsify/rolldown-native prebuilds for linux-${ARCH}:"
+          ls -lh "prebuilds/linux-${ARCH}/"
+
+      - name: Upload @gjsify/rolldown-native prebuilds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rolldown-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/infra/rolldown-native/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
   # ----------------------------------------------------------------
   # QEMU-emulated builds — ppc64, s390x, riscv64
   #
@@ -211,10 +285,14 @@ jobs:
           githubToken: ${{ github.token }}
 
           # Detect package manager: dnf for Fedora (ppc64/s390x), apt-get for Ubuntu (riscv64).
+          # `curl` is needed for rustup-init below; `cargo` is the distro
+          # package — usually too old for the lightningcss-native build
+          # (needs rustc ≥ 1.85 for indexmap@2.14's edition2024). We
+          # install rustup separately in `run:`.
           install: |
             if command -v dnf > /dev/null 2>&1; then
               dnf install -y \
-                git tar xz findutils \
+                git tar xz findutils curl \
                 meson vala gcc pkgconf \
                 glib2-devel gobject-introspection-devel \
                 gtk4-devel gdk-pixbuf2-devel \
@@ -227,7 +305,7 @@ jobs:
             else
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                git tar xz-utils findutils \
+                git tar xz-utils findutils curl \
                 meson valac gcc pkg-config \
                 libglib2.0-dev gobject-introspection libgirepository1.0-dev \
                 libgtk-4-dev libgdk-pixbuf-2.0-dev \
@@ -242,6 +320,10 @@ jobs:
           run: |
             set -e
             ARCH="${{ matrix.arch }}"
+
+            # rustup install (used by lightningcss-native further down)
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+            export PATH="$HOME/.cargo/bin:$PATH"
 
             # -------- @gjsify/webgl --------
             cd packages/framework/webgl
@@ -281,6 +363,30 @@ jobs:
             cp build/libgjsifyhttp2.so build/GjsifyHttp2-1.0.gir build/GjsifyHttp2-1.0.typelib "prebuilds/linux-${ARCH}/"
             echo "@gjsify/http2-native prebuilds for linux-${ARCH}:"
             ls -lh "prebuilds/linux-${ARCH}/"
+            cd ../../..
+
+            # -------- @gjsify/lightningcss-native --------
+            # Pure crates.io deps (no submodule). Cargo download + compile
+            # under QEMU is the slow step here — single-arch cold build
+            # takes ~20-30 min on emulated ppc64/s390x/riscv64. Worth it:
+            # this is exactly the path that lets `gjsify build` run on
+            # exotic-arch GJS hosts without the WASM fallback's overhead.
+            cd packages/infra/lightningcss-native
+            meson setup build .
+            meson compile -C build
+            mkdir -p "prebuilds/linux-${ARCH}"
+            cp build/libgjsifylightningcss.so build/libgjsify_lightningcss.so build/GjsifyLightningcss-1.0.gir build/GjsifyLightningcss-1.0.typelib "prebuilds/linux-${ARCH}/"
+            echo "@gjsify/lightningcss-native prebuilds for linux-${ARCH}:"
+            ls -lh "prebuilds/linux-${ARCH}/"
+
+            # NOTE: @gjsify/rolldown-native is intentionally NOT built in
+            # the QEMU matrix. The rolldown crate graph (tokio + oxc + ~250
+            # transitive crates) compiles in ~5 min on native x86_64; under
+            # QEMU emulation that easily blows the 6-hour job timeout.
+            # Multi-arch rolldown prebuilds wait for either (a) a coherent
+            # crates.io publish so the cargo build doesn't pull the whole
+            # rolldown workspace, or (b) cross-compilation via `cross`
+            # rather than QEMU userspace. Tracked in STATUS.md "Open TODOs".
 
       - name: Upload @gjsify/webgl prebuilds artifact
         uses: actions/upload-artifact@v4
@@ -308,6 +414,13 @@ jobs:
         with:
           name: http2-native-prebuilds-linux-${{ matrix.arch }}
           path: packages/node/http2-native/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
+      - name: Upload @gjsify/lightningcss-native prebuilds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lightningcss-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/infra/lightningcss-native/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
   # ----------------------------------------------------------------
@@ -448,11 +561,61 @@ jobs:
           name: http2-native-prebuilds-linux-riscv64
           path: packages/node/http2-native/prebuilds/linux-riscv64/
 
+      # -------- @gjsify/lightningcss-native --------
+      - name: Download lightningcss-native x86_64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: lightningcss-native-prebuilds-linux-x86_64
+          path: packages/infra/lightningcss-native/prebuilds/linux-x86_64/
+
+      - name: Download lightningcss-native aarch64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: lightningcss-native-prebuilds-linux-aarch64
+          path: packages/infra/lightningcss-native/prebuilds/linux-aarch64/
+
+      - name: Download lightningcss-native ppc64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: lightningcss-native-prebuilds-linux-ppc64
+          path: packages/infra/lightningcss-native/prebuilds/linux-ppc64/
+
+      - name: Download lightningcss-native s390x prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: lightningcss-native-prebuilds-linux-s390x
+          path: packages/infra/lightningcss-native/prebuilds/linux-s390x/
+
+      - name: Download lightningcss-native riscv64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: lightningcss-native-prebuilds-linux-riscv64
+          path: packages/infra/lightningcss-native/prebuilds/linux-riscv64/
+
+      # -------- @gjsify/rolldown-native (native runners only) --------
+      - name: Download rolldown-native x86_64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: rolldown-native-prebuilds-linux-x86_64
+          path: packages/infra/rolldown-native/prebuilds/linux-x86_64/
+
+      - name: Download rolldown-native aarch64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: rolldown-native-prebuilds-linux-aarch64
+          path: packages/infra/rolldown-native/prebuilds/linux-aarch64/
+
       - name: Commit prebuilds
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add packages/framework/webgl/prebuilds/ packages/web/webrtc-native/prebuilds/ packages/node/http-soup-bridge/prebuilds/ packages/node/http2-native/prebuilds/
+          git add \
+            packages/framework/webgl/prebuilds/ \
+            packages/web/webrtc-native/prebuilds/ \
+            packages/node/http-soup-bridge/prebuilds/ \
+            packages/node/http2-native/prebuilds/ \
+            packages/infra/lightningcss-native/prebuilds/ \
+            packages/infra/rolldown-native/prebuilds/
           if git diff --cached --quiet; then
             echo "No prebuild changes to commit."
           else
