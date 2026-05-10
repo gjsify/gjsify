@@ -41,5 +41,13 @@
     "devDependencies": {
         "@types/yargs": "^17.0.35",
         "typescript": "^6.0.3"
+    },
+    "peerDependencies": {
+        "@gjsify/rolldown-native": "workspace:^"
+    },
+    "peerDependenciesMeta": {
+        "@gjsify/rolldown-native": {
+            "optional": true
+        }
     }
 }

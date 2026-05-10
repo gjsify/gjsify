@@ -1528,6 +1528,11 @@ __metadata:
     rolldown: "npm:^1.0.0"
     typescript: "npm:^6.0.3"
     yargs: "npm:^18.0.0"
+  peerDependencies:
+    "@gjsify/rolldown-native": "workspace:^"
+  peerDependenciesMeta:
+    "@gjsify/rolldown-native":
+      optional: true
   bin:
     gjsify: ./lib/index.js
   languageName: unknown
