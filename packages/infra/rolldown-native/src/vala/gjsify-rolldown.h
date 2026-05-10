@@ -75,6 +75,37 @@ void  gjsify_rolldown_session_free         (BundleSession *session);
 void  gjsify_rolldown_session_free_string  (char *s);
 void  gjsify_rolldown_session_free_error   (char *s);
 
+/* ----------------------------------------------------------------- */
+/* Phase B.3 — nested protocol for plugin-context callbacks.         */
+/* ----------------------------------------------------------------- */
+
+/* Trigger a `ctx.resolve()` callback on behalf of the JS plugin
+ * handler currently running for `parent_req_id`. Returns a child
+ * request ID immediately; the actual sub-result lands on the
+ * context-response channel (drained via
+ * gjsify_rolldown_session_next_context_response). Returns 0 on
+ * error (parent_req_id unknown / args malformed). */
+uint64_t gjsify_rolldown_session_context_resolve (BundleSession *session,
+                                                  uint64_t       parent_req_id,
+                                                  const char    *args_json,
+                                                  size_t         args_json_len);
+
+/* Append a string to the build's warnings list. Surfaces in
+ * BundleOutputJson.warnings. */
+void  gjsify_rolldown_session_context_warn (BundleSession *session,
+                                            const char    *message,
+                                            size_t         message_len);
+
+/* Eventfd that the GLib main loop should watch with G_IO_IN. Wakes
+ * whenever a context-resolve sub-result is queued. Caller MUST NOT
+ * close it. */
+int   gjsify_rolldown_session_context_response_fd (BundleSession *session);
+
+/* Drain one context-resolve sub-result as JSON
+ * `{childId, id?, external?, error?}`. Returns NULL when empty. */
+char *gjsify_rolldown_session_next_context_response (BundleSession *session,
+                                                     size_t        *out_len);
+
 #ifdef __cplusplus
 }
 #endif

@@ -59,6 +59,20 @@ declare module 'gi://GjsifyRolldown?version=1.0' {
        */
       respond(req_id: number, response_json: GLib.Bytes): void;
 
+      /**
+       * Phase B.3 — trigger `ctx.resolve()` on behalf of the JS
+       * plugin handler currently running for `parent_req_id`.
+       * Returns the child request ID. The eventual sub-result
+       * surfaces via the `context_response(child_id, json)` signal.
+       * `args_json` shape:
+       *   `{specifier, importer?, skipSelf?, isEntry?}`
+       */
+      context_resolve(parent_req_id: number, args_json: GLib.Bytes): number;
+
+      /** Phase B.3 — append a `this.warn(msg)` string to the build's
+       *  warnings list (UTF-8 bytes). */
+      context_warn(message: GLib.Bytes): void;
+
       /** Abort the build. Pending JS-replies will fail with timeout
        *  or "channel closed". */
       cancel(): void;
@@ -79,6 +93,9 @@ declare module 'gi://GjsifyRolldown?version=1.0' {
               cb: (self: BundlerSession, output_json: GLib.Bytes) => void): number;
       connect(signal: 'error_occurred',
               cb: (self: BundlerSession, message: string) => void): number;
+      connect(signal: 'context_response',
+              cb: (self: BundlerSession, child_id: number,
+                   response_json: GLib.Bytes) => void): number;
       connect(signal: string, cb: (...args: unknown[]) => unknown): number;
     }
   }

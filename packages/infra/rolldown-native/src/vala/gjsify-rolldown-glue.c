@@ -126,3 +126,40 @@ gjsify_rolldown_glue_session_try_result (BundleSession *session,
   gjsify_rolldown_session_free_string (json);
   return out;
 }
+
+/* ----------------------------------------------------------------- */
+/* Phase B.3 — nested-protocol glue.                                 */
+/* ----------------------------------------------------------------- */
+
+guint64
+gjsify_rolldown_glue_session_context_resolve (BundleSession *session,
+                                              guint64        parent_req_id,
+                                              GBytes        *args_json)
+{
+  if (session == NULL || args_json == NULL) return 0;
+  gsize len = 0;
+  const char *data = (const char *) g_bytes_get_data (args_json, &len);
+  return gjsify_rolldown_session_context_resolve (session, parent_req_id, data, len);
+}
+
+void
+gjsify_rolldown_glue_session_context_warn (BundleSession *session,
+                                           GBytes        *message)
+{
+  if (session == NULL || message == NULL) return;
+  gsize len = 0;
+  const char *data = (const char *) g_bytes_get_data (message, &len);
+  gjsify_rolldown_session_context_warn (session, data, len);
+}
+
+GBytes *
+gjsify_rolldown_glue_session_next_context_response (BundleSession *session)
+{
+  if (session == NULL) return NULL;
+  size_t len = 0;
+  char *json = gjsify_rolldown_session_next_context_response (session, &len);
+  if (json == NULL || len == 0) return NULL;
+  GBytes *out = g_bytes_new (json, len);
+  gjsify_rolldown_session_free_string (json);
+  return out;
+}
