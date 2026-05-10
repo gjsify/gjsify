@@ -114,6 +114,20 @@ function getGLib(): typeof GLib {
   return gi.GLib;
 }
 
+// Re-export Phase B plugin facade.
+export {
+  bundleWithPlugins,
+  type NativePlugin,
+  type NativePluginContext,
+  type PluginIdFilter,
+  type LoadHookHandler,
+  type TransformHookHandler,
+  type ResolveIdHookHandler,
+  type RenderChunkHookHandler,
+  type AddonHookHandler,
+  type LifecycleHookHandler,
+} from './plugins.js';
+
 /**
  * Convenience facade: serialize options to JSON, call the native
  * bundler, parse the JSON output. Throws if the prebuild is unavailable
