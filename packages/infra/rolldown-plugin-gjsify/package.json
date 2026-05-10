@@ -53,9 +53,13 @@
         "lightningcss": "^1.32.0"
     },
     "peerDependencies": {
+        "@gjsify/lightningcss-native": "workspace:^",
         "rolldown": "^1.0.0-rc.18"
     },
     "peerDependenciesMeta": {
+        "@gjsify/lightningcss-native": {
+            "optional": true
+        },
         "rolldown": {
             "optional": true
         }

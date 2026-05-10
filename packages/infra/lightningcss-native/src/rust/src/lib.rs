@@ -21,6 +21,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr;
 
+use lightningcss::bundler::{Bundler, FileProvider};
 use lightningcss::stylesheet::{
     MinifyOptions, ParserFlags, ParserOptions, PrinterOptions, StyleSheet,
 };
@@ -216,5 +217,114 @@ pub extern "C" fn gjsify_lightningcss_result_free(result: GjsifyResult) {
     }
     if !result.error.is_null() {
         unsafe { drop(CString::from_raw(result.error)) };
+    }
+}
+
+#[repr(C)]
+pub struct GjsifyBundleOpts {
+    pub filename: *const c_char,         // entry CSS path; must NOT be NULL
+    pub browserslist: *const c_char,     // may be NULL → no targets
+    pub minify: bool,
+    pub source_map: bool,
+    pub error_recovery: bool,
+}
+
+/// Bundle a CSS entry file: resolve all `@import` chains via the
+/// lightningcss `Bundler` + `FileProvider` (filesystem-backed), then
+/// run the same minify/transform/print pipeline as `transform()`.
+///
+/// Same `GjsifyResult` ownership rules as `gjsify_lightningcss_transform`.
+#[no_mangle]
+pub extern "C" fn gjsify_lightningcss_bundle(opts: GjsifyBundleOpts) -> GjsifyResult {
+    let filename = match cstr_to_str(opts.filename) {
+        Some(f) if !f.is_empty() => f.to_owned(),
+        _ => return GjsifyResult::err("lightningcss: bundle requires a non-empty filename"),
+    };
+
+    let targets: Targets = match cstr_to_str(opts.browserslist) {
+        None => Targets::default(),
+        Some(query) => match Browsers::from_browserslist([query]) {
+            Ok(Some(browsers)) => Targets::from(browsers),
+            Ok(None) => Targets::default(),
+            Err(e) => {
+                return GjsifyResult::err(format!("lightningcss: browserslist: {e}"))
+            }
+        },
+    };
+
+    let parser_opts = ParserOptions {
+        filename: filename.clone(),
+        flags: ParserFlags::empty(),
+        css_modules: None,
+        error_recovery: opts.error_recovery,
+        source_index: 0,
+        warnings: None,
+    };
+
+    let fs = FileProvider::new();
+    let mut bundler = Bundler::new(&fs, None, parser_opts);
+    let mut stylesheet = match bundler.bundle(std::path::Path::new(&filename)) {
+        Ok(ss) => ss,
+        Err(e) => return GjsifyResult::err(format!("lightningcss: bundle: {e}")),
+    };
+
+    let minify_opts = MinifyOptions {
+        targets,
+        ..Default::default()
+    };
+    if let Err(e) = stylesheet.minify(minify_opts) {
+        return GjsifyResult::err(format!("lightningcss: transform: {e}"));
+    }
+
+    let mut source_map = if opts.source_map {
+        let mut sm = SourceMap::new("/");
+        sm.add_source(&filename);
+        // Best effort: read the entry file content so the map has something
+        // sensible to point at. Bundled imports won't have their content
+        // captured; that's acceptable for the GJS lower path.
+        if let Ok(src) = std::fs::read_to_string(&filename) {
+            let _ = sm.set_source_content(0, &src);
+        }
+        Some(sm)
+    } else {
+        None
+    };
+
+    let printer_opts = PrinterOptions {
+        minify: opts.minify,
+        project_root: None,
+        source_map: source_map.as_mut(),
+        targets,
+        analyze_dependencies: None,
+        pseudo_classes: None,
+    };
+
+    let printed = match stylesheet.to_css(printer_opts) {
+        Ok(p) => p,
+        Err(e) => return GjsifyResult::err(format!("lightningcss: print: {e}")),
+    };
+
+    let (code_ptr, code_len, code_cap) = vec_to_owned_ptr(printed.code.into_bytes());
+
+    let (map_ptr, map_len, map_cap) = if let Some(mut sm) = source_map {
+        match sm.to_json(None) {
+            Ok(json) => vec_to_owned_ptr(json.into_bytes()),
+            Err(e) => {
+                unsafe { Vec::from_raw_parts(code_ptr, code_len, code_cap) };
+                return GjsifyResult::err(format!("lightningcss: source-map serialize: {e}"));
+            }
+        }
+    } else {
+        (ptr::null_mut(), 0, 0)
+    };
+
+    GjsifyResult {
+        code: code_ptr,
+        code_len,
+        code_cap,
+        map: map_ptr,
+        map_len,
+        map_cap,
+        error: ptr::null_mut(),
     }
 }

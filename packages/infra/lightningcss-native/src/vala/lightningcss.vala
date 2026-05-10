@@ -28,6 +28,15 @@ namespace GjsifyLightningcss {
                                                 bool source_map,
                                                 out GLib.Bytes? out_map) throws GLib.Error;
 
+    [CCode (cname = "gjsify_lightningcss_glue_bundle",
+            cheader_filename = "gjsify-lightningcss-glue.h")]
+    private extern GLib.Bytes? _glue_bundle (string filename,
+                                             string? browserslist,
+                                             bool minify,
+                                             bool source_map,
+                                             bool error_recovery,
+                                             out GLib.Bytes? out_map) throws GLib.Error;
+
     /**
      * Engine — stateless one-shot CSS transform pipeline.
      *
@@ -66,6 +75,36 @@ namespace GjsifyLightningcss {
             if (bytes == null)
                 throw new GLib.Error (GLib.Quark.from_string ("gjsify-lightningcss-error-quark"),
                                       0, "lightningcss: unknown error (NULL result without GError)");
+            return bytes;
+        }
+
+        /**
+         * bundle:
+         * @filename: entry CSS file path
+         * @browserslist: browserslist query (null disables targets lowering)
+         * @minify: minify the output
+         * @source_map: also produce a JSON source map
+         * @error_recovery: keep parsing after recoverable errors
+         *                  (matches lightningcss `errorRecovery: true`)
+         * @out_source_map: (out)(transfer full)(nullable)
+         *
+         * Returns: (transfer full): bundled output CSS as GLib.Bytes.
+         * Resolves @import chains via lightningcss's built-in
+         * filesystem-backed FileProvider.
+         */
+        public GLib.Bytes bundle (string filename,
+                                  string? browserslist,
+                                  bool minify,
+                                  bool source_map,
+                                  bool error_recovery,
+                                  out GLib.Bytes? out_source_map) throws GLib.Error {
+            GLib.Bytes? map = null;
+            var bytes = _glue_bundle (filename, browserslist, minify,
+                                      source_map, error_recovery, out map);
+            out_source_map = map;
+            if (bytes == null)
+                throw new GLib.Error (GLib.Quark.from_string ("gjsify-lightningcss-error-quark"),
+                                      0, "lightningcss: unknown bundle error");
             return bytes;
         }
     }

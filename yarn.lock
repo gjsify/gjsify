@@ -3506,8 +3506,11 @@ __metadata:
     rolldown: "npm:^1.0.0"
     typescript: "npm:^6.0.3"
   peerDependencies:
+    "@gjsify/lightningcss-native": "workspace:^"
     rolldown: ^1.0.0-rc.18
   peerDependenciesMeta:
+    "@gjsify/lightningcss-native":
+      optional: true
     rolldown:
       optional: true
   languageName: unknown

@@ -46,6 +46,26 @@ declare module 'gi://GjsifyLightningcss?version=1.0' {
         minify: boolean,
         source_map: boolean,
       ): [GLib.Bytes, GLib.Bytes | null];
+
+      /**
+       * @param filename       entry CSS file path
+       * @param browserslist   targets query (null = no lowering)
+       * @param minify
+       * @param source_map
+       * @param error_recovery keep parsing after recoverable errors
+       *                       (matches lightningcss `errorRecovery: true`)
+       *
+       * Returns: `[outputCss, sourceMapJson | null]`. Resolves
+       * `@import` chains via lightningcss's filesystem-backed
+       * FileProvider.
+       */
+      bundle(
+        filename: string,
+        browserslist: string | null,
+        minify: boolean,
+        source_map: boolean,
+        error_recovery: boolean,
+      ): [GLib.Bytes, GLib.Bytes | null];
     }
   }
 

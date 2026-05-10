@@ -43,6 +43,34 @@
 				</parameter>
 			</parameters>
 		</method>
+		<method name="bundle" c:identifier="gjsify_lightningcss_engine_bundle" throws="1">
+			<return-value transfer-ownership="full">
+				<type name="GLib.Bytes" c:type="GBytes*"/>
+			</return-value>
+			<parameters>
+				<instance-parameter name="self" transfer-ownership="none">
+					<type name="GjsifyLightningcss.Engine" c:type="GjsifyLightningcssEngine*"/>
+				</instance-parameter>
+				<parameter name="filename" transfer-ownership="none">
+					<type name="utf8" c:type="const gchar*"/>
+				</parameter>
+				<parameter name="browserslist" transfer-ownership="none" nullable="1">
+					<type name="utf8" c:type="const gchar*"/>
+				</parameter>
+				<parameter name="minify" transfer-ownership="none">
+					<type name="gboolean" c:type="gboolean"/>
+				</parameter>
+				<parameter name="source_map" transfer-ownership="none">
+					<type name="gboolean" c:type="gboolean"/>
+				</parameter>
+				<parameter name="error_recovery" transfer-ownership="none">
+					<type name="gboolean" c:type="gboolean"/>
+				</parameter>
+				<parameter name="out_source_map" direction="out" transfer-ownership="full" optional="1">
+					<type name="GLib.Bytes" c:type="GBytes**"/>
+				</parameter>
+			</parameters>
+		</method>
 		<constructor name="new" c:identifier="gjsify_lightningcss_engine_new">
 			<return-value transfer-ownership="full">
 				<type name="GjsifyLightningcss.Engine" c:type="GjsifyLightningcssEngine*"/>
