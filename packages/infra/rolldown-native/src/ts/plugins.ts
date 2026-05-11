@@ -128,7 +128,11 @@ interface BaseEnvelope {
 
 interface LoadArgs extends BaseEnvelope { hook: 'load'; id: string; }
 interface ResolveIdArgs extends BaseEnvelope { hook: 'resolveId'; specifier: string; importer?: string; isEntry: boolean; }
-interface TransformArgs extends BaseEnvelope { hook: 'transform'; id: string; code: string; moduleType: string; }
+// Phase B.4 — transform's `code` is delivered out-of-band as a GLib
+// bytes payload (fetched via `session.take_request_payload(reqId)`)
+// to avoid JSON-escaping arbitrary source. The envelope only carries
+// metadata + the `payloadKind` marker.
+interface TransformArgs extends BaseEnvelope { hook: 'transform'; id: string; moduleType: string; payloadKind?: 'code'; }
 interface RenderChunkArgs extends BaseEnvelope { hook: 'renderChunk'; code: string; fileName: string; name: string; isEntry: boolean; }
 interface AddonArgs extends BaseEnvelope { hook: 'banner' | 'footer' | 'intro' | 'outro'; fileName: string; name: string; isEntry: boolean; }
 interface LifecycleArgs extends BaseEnvelope { hook: 'buildStart' | 'buildEnd' | 'generateBundle' | 'writeBundle' | 'closeBundle'; error?: string; }
@@ -225,6 +229,20 @@ export function bundleWithPlugins(
     }
     const ctx = makeContext(reqId);
     try {
+      // Phase B.4 — transform's `code` arrives out-of-band as a
+      // bytes payload; fetch + decode here before invoking the user
+      // handler. The handler receives a normal string, same as before.
+      if (hookName === 'transform' && plugin.transform) {
+        const a = args as TransformArgs;
+        const codeBytes = session.take_request_payload(reqId);
+        if (codeBytes === null) {
+          throw new Error(`@gjsify/rolldown-native: transform request for ${a.id} missing payload bytes`);
+        }
+        const code = dec(codeBytes);
+        const result = await plugin.transform.call(ctx, code, a.id, a.moduleType);
+        respondTransform(reqId, result);
+        return;
+      }
       const result = await runHook(plugin, hookName, args, ctx);
       respondOk(reqId, result);
     } catch (e) {
@@ -237,6 +255,47 @@ export function bundleWithPlugins(
       ? { kind: 'skip' as const }
       : { kind: 'ok' as const, value };
     session.respond(reqId, enc(JSON.stringify(payload)));
+  }
+
+  /**
+   * Phase B.4 — transform-specific responder. When the handler
+   * returns a new code string, stash the bytes via
+   * `set_response_payload(reqId, ...)` and signal Rust to read them
+   * via `hasCodeBytes: true`. Falls back to a normal `kind:'skip'`
+   * when the handler returned null/undefined.
+   */
+  function respondTransform(reqId: number, value: unknown): void {
+    if (value === undefined || value === null) {
+      session.respond(reqId, enc(JSON.stringify({ kind: 'skip' })));
+      return;
+    }
+    let code: string | undefined;
+    let moduleType: string | undefined;
+    if (typeof value === 'string') {
+      code = value;
+    } else if (typeof value === 'object') {
+      const v = value as { code?: string; moduleType?: string };
+      code = v.code;
+      moduleType = v.moduleType;
+    }
+    if (typeof code !== 'string') {
+      // Nothing to stash — fall back to skip rather than send an
+      // empty string and let rolldown delete the module's body.
+      session.respond(reqId, enc(JSON.stringify({ kind: 'skip' })));
+      return;
+    }
+    const bytes = getGLib().Bytes.new(new TextEncoder().encode(code));
+    const ok = session.set_response_payload(reqId, bytes);
+    if (!ok) {
+      respondError(reqId, new Error(`@gjsify/rolldown-native: failed to stash transform response payload for reqId ${reqId}`));
+      return;
+    }
+    session.respond(reqId, enc(JSON.stringify({
+      kind: 'ok',
+      value: moduleType !== undefined
+        ? { hasCodeBytes: true, moduleType }
+        : { hasCodeBytes: true },
+    })));
   }
 
   function respondError(reqId: number, e: unknown): void {
@@ -276,11 +335,11 @@ async function runHook(p: NativePlugin, hookName: string, args: HookArgs, ctx: N
     case 'load':
       if (!p.load) return null;
       return normalizeLoadResult(await p.load.call(ctx, (args as LoadArgs).id));
-    case 'transform': {
-      if (!p.transform) return null;
-      const a = args as TransformArgs;
-      return normalizeTransformResult(await p.transform.call(ctx, a.code, a.id, a.moduleType));
-    }
+    case 'transform':
+      // Handled in dispatchHook via the B.4 bytes-payload path; this
+      // branch is unreachable but kept for completeness in case a
+      // future caller invokes runHook directly.
+      return null;
     case 'resolveId': {
       if (!p.resolveId) return null;
       const a = args as ResolveIdArgs;

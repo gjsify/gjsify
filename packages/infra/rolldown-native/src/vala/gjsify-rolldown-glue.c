@@ -163,3 +163,33 @@ gjsify_rolldown_glue_session_next_context_response (BundleSession *session)
   gjsify_rolldown_session_free_string (json);
   return out;
 }
+
+/* ----------------------------------------------------------------- */
+/* Phase B.4 — bytes-payload side-channel glue.                       */
+/* ----------------------------------------------------------------- */
+
+GBytes *
+gjsify_rolldown_glue_session_take_request_payload (BundleSession *session,
+                                                   guint64        req_id)
+{
+  if (session == NULL) return NULL;
+  size_t len = 0;
+  uint8_t *buf = gjsify_rolldown_session_take_request_payload (session, req_id, &len);
+  if (buf == NULL || len == 0) return NULL;
+  /* Copy into GLib heap and free the Rust allocation immediately so
+   * GBytes refcount/lifetime stays inside the GLib side. */
+  GBytes *out = g_bytes_new (buf, len);
+  gjsify_rolldown_session_free_payload (buf, len);
+  return out;
+}
+
+gboolean
+gjsify_rolldown_glue_session_set_response_payload (BundleSession *session,
+                                                   guint64        req_id,
+                                                   GBytes        *bytes)
+{
+  if (session == NULL || bytes == NULL) return FALSE;
+  gsize len = 0;
+  const uint8_t *data = (const uint8_t *) g_bytes_get_data (bytes, &len);
+  return gjsify_rolldown_session_set_response_payload (session, req_id, data, len);
+}

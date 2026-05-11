@@ -71,6 +71,14 @@ pub struct SessionShared {
     pub context_response_tx: Sender<ContextResolveResponse>,
     pub context_response_eventfd: c_int,
     pub context_warnings: Mutex<Vec<String>>,
+    /// Phase B.4 — parallel bytes-payload slots keyed by req_id.
+    /// `request_payloads` holds Rust → JS payloads (e.g. transform
+    /// `code` source bytes), drained by the JS adapter via
+    /// `take_request_payload(reqId)`. `response_payloads` holds JS →
+    /// Rust payloads (e.g. transform output bytes), stashed by JS
+    /// before `respond()` and consumed by the Rust dispatch site.
+    pub request_payloads: Mutex<std::collections::HashMap<u64, Vec<u8>>>,
+    pub response_payloads: Mutex<std::collections::HashMap<u64, Vec<u8>>>,
 }
 
 /// Public session handle. Owned via raw pointer on the C side.
@@ -191,6 +199,8 @@ pub extern "C" fn gjsify_rolldown_session_start(
         context_response_tx,
         context_response_eventfd,
         context_warnings: Mutex::new(Vec::new()),
+        request_payloads: Mutex::new(std::collections::HashMap::new()),
+        response_payloads: Mutex::new(std::collections::HashMap::new()),
     });
 
     // Build N proxies, one per user plugin. Order in this Vec is the
@@ -718,6 +728,77 @@ fn wake_eventfd(fd: c_int) {
     unsafe {
         libc::write(fd, &one as *const u64 as *const libc::c_void, 8);
     }
+}
+
+// ---------------------------------------------------------------------
+// Phase B.4 — bytes-payload side-channel for the transform hook.
+// ---------------------------------------------------------------------
+
+/// FFI: drain the request-payload bytes the Rust side stashed for
+/// `req_id` (transform's source code). Returns NULL if the slot is
+/// empty or already consumed. Caller frees the returned buffer via
+/// `gjsify_rolldown_session_free_payload(buf, len)`.
+#[unsafe(no_mangle)]
+pub extern "C" fn gjsify_rolldown_session_take_request_payload(
+    session: *mut BundleSession,
+    req_id: u64,
+    out_len: *mut usize,
+) -> *mut u8 {
+    if session.is_null() {
+        unsafe { *out_len = 0 };
+        return ptr::null_mut();
+    }
+    let session = unsafe { &*session };
+    let bytes = match session.shared.request_payloads.lock().unwrap().remove(&req_id) {
+        Some(b) => b,
+        None => {
+            unsafe { *out_len = 0 };
+            return ptr::null_mut();
+        }
+    };
+    let mut boxed = bytes.into_boxed_slice();
+    let ptr = boxed.as_mut_ptr();
+    let len = boxed.len();
+    std::mem::forget(boxed);
+    unsafe { *out_len = len };
+    ptr
+}
+
+/// FFI: JS-side stashes response payload bytes (the transform hook's
+/// output code) for the Rust dispatch site to pick up after
+/// `respond()`. Returns true on success.
+#[unsafe(no_mangle)]
+pub extern "C" fn gjsify_rolldown_session_set_response_payload(
+    session: *mut BundleSession,
+    req_id: u64,
+    bytes: *const u8,
+    bytes_len: usize,
+) -> bool {
+    if session.is_null() || bytes.is_null() {
+        return false;
+    }
+    let slice = unsafe { std::slice::from_raw_parts(bytes, bytes_len) };
+    let owned = slice.to_vec();
+    let session = unsafe { &*session };
+    session
+        .shared
+        .response_payloads
+        .lock()
+        .unwrap()
+        .insert(req_id, owned);
+    true
+}
+
+/// Free a payload buffer returned by
+/// `gjsify_rolldown_session_take_request_payload`. The caller MUST
+/// pass back the same length they received.
+#[unsafe(no_mangle)]
+pub extern "C" fn gjsify_rolldown_session_free_payload(buf: *mut u8, len: usize) {
+    if buf.is_null() {
+        return;
+    }
+    let slice = unsafe { std::slice::from_raw_parts_mut(buf, len) };
+    let _boxed = unsafe { Box::from_raw(slice as *mut [u8]) };
 }
 
 #[unsafe(no_mangle)]

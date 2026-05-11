@@ -106,6 +106,29 @@ int   gjsify_rolldown_session_context_response_fd (BundleSession *session);
 char *gjsify_rolldown_session_next_context_response (BundleSession *session,
                                                      size_t        *out_len);
 
+/* ----------------------------------------------------------------- */
+/* Phase B.4 — bytes-payload side-channel for transform's source code. */
+/* ----------------------------------------------------------------- */
+
+/* Drain the request-payload bytes the Rust side stashed for @req_id
+ * (transform's source code). Returns NULL when empty / already
+ * consumed. Caller frees the returned buffer via
+ * gjsify_rolldown_session_free_payload(buf, len). */
+uint8_t *gjsify_rolldown_session_take_request_payload (BundleSession *session,
+                                                       uint64_t       req_id,
+                                                       size_t        *out_len);
+
+/* Stash bytes the JS handler wants Rust to read after respond() — the
+ * transform hook's output code. Returns true on success. */
+bool     gjsify_rolldown_session_set_response_payload  (BundleSession *session,
+                                                        uint64_t       req_id,
+                                                        const uint8_t *bytes,
+                                                        size_t         bytes_len);
+
+/* Free a buffer returned by take_request_payload. */
+void     gjsify_rolldown_session_free_payload          (uint8_t       *buf,
+                                                        size_t         len);
+
 #ifdef __cplusplus
 }
 #endif

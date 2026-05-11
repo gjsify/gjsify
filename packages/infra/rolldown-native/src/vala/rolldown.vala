@@ -114,6 +114,19 @@ namespace GjsifyRolldown {
             cheader_filename = "gjsify-rolldown-glue.h")]
     private extern GLib.Bytes? _glue_session_next_context_response (BundleSessionHandle session);
 
+    /* Phase B.4 — bytes-payload side-channel externs. */
+
+    [CCode (cname = "gjsify_rolldown_glue_session_take_request_payload",
+            cheader_filename = "gjsify-rolldown-glue.h")]
+    private extern GLib.Bytes? _glue_session_take_request_payload (BundleSessionHandle session,
+                                                                   uint64 req_id);
+
+    [CCode (cname = "gjsify_rolldown_glue_session_set_response_payload",
+            cheader_filename = "gjsify-rolldown-glue.h")]
+    private extern bool _glue_session_set_response_payload (BundleSessionHandle session,
+                                                            uint64 req_id,
+                                                            GLib.Bytes bytes);
+
     /**
      * BundlerSession — long-lived bundle session that drives a
      * rolldown build asynchronously, emitting a GObject signal
@@ -387,6 +400,27 @@ namespace GjsifyRolldown {
         public void context_warn (GLib.Bytes message) {
             if (_handle == null) return;
             _glue_session_context_warn (_handle, message);
+        }
+
+        /**
+         * Phase B.4 — drain the request-payload bytes Rust stashed for
+         * `req_id` (currently only the transform hook's source code).
+         * Returns null when there's no stashed payload (e.g. the hook
+         * is not transform, or the slot was already taken).
+         */
+        public GLib.Bytes? take_request_payload (uint64 req_id) {
+            if (_handle == null) return null;
+            return _glue_session_take_request_payload (_handle, req_id);
+        }
+
+        /**
+         * Phase B.4 — stash bytes for Rust to consume after `respond()`.
+         * Used by the transform hook to return the new code without
+         * round-tripping through a JSON-encoded string.
+         */
+        public bool set_response_payload (uint64 req_id, GLib.Bytes bytes) {
+            if (_handle == null) return false;
+            return _glue_session_set_response_payload (_handle, req_id, bytes);
         }
 
         public void cancel () {

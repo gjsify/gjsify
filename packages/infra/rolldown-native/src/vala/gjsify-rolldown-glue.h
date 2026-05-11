@@ -78,6 +78,23 @@ void    gjsify_rolldown_glue_session_context_warn (BundleSession *session,
  * the queue is empty. */
 GBytes *gjsify_rolldown_glue_session_next_context_response (BundleSession *session);
 
+/* ----------------------------------------------------------------- */
+/* Phase B.4 — bytes-payload side-channel.                            */
+/* ----------------------------------------------------------------- */
+
+/* Take the request-payload bytes Rust stashed for @req_id. Returns
+ * NULL when empty. The returned GBytes is independent of Rust's
+ * allocation (data was copied into a GLib heap buffer + the Rust
+ * payload freed in-place). */
+GBytes *gjsify_rolldown_glue_session_take_request_payload (BundleSession *session,
+                                                           guint64        req_id);
+
+/* Stash bytes Rust should read after the JS handler responds — the
+ * transform hook's output code. */
+gboolean gjsify_rolldown_glue_session_set_response_payload (BundleSession *session,
+                                                            guint64        req_id,
+                                                            GBytes        *bytes);
+
 G_END_DECLS
 
 #endif /* GJSIFY_ROLLDOWN_GLUE_H */

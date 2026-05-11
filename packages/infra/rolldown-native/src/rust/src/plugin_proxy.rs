@@ -73,9 +73,13 @@ pub struct PluginIdFilter {
 /// Hook invocation flowing Rust → JS. Tagged so the Vala bridge can
 /// route to the matching GObject signal.
 ///
-/// Per-hook payloads are intentionally small — heavy data (transform
-/// `code`) goes through as String today; Phase B.4 moves it to
-/// zero-copy GBytes alongside a parallel signal-with-bytes overload.
+/// Per-hook payloads are intentionally small. Phase B.4 split heavy
+/// data (`transform.code`) out of the JSON envelope and into a
+/// parallel bytes-payload slot keyed by req_id, so the JS adapter
+/// can fetch it as a `GLib.Bytes` (zero-copy Uint8Array view) via
+/// `take_request_payload(reqId)`. The Transform variant therefore
+/// no longer carries the code string — only `payloadKind:'code'`
+/// telling JS to go fetch the bytes.
 #[derive(Debug, Serialize)]
 #[serde(tag = "hook", rename_all = "camelCase")]
 pub enum HookRequestPayload {
@@ -83,8 +87,11 @@ pub enum HookRequestPayload {
     Load { id: String },
     #[serde(rename_all = "camelCase")]
     ResolveId { specifier: String, importer: Option<String>, is_entry: bool },
+    /// `code` is delivered as bytes via the request-payload side-channel
+    /// (`take_request_payload(reqId)`). The `payload_kind` marker
+    /// flags this for the JS adapter.
     #[serde(rename_all = "camelCase")]
-    Transform { id: String, code: String, module_type: String },
+    Transform { id: String, module_type: String, payload_kind: &'static str },
     #[serde(rename_all = "camelCase")]
     RenderChunk { code: String, file_name: String, name: String, is_entry: bool },
     #[serde(rename_all = "camelCase")]
@@ -164,6 +171,12 @@ pub struct TransformHookValue {
     pub code: Option<String>,
     #[serde(default)]
     pub module_type: Option<String>,
+    /// Phase B.4 — when true, the new code bytes were stashed via
+    /// `set_response_payload(reqId, bytes)` before `respond()`.
+    /// `code` is then expected to be absent and the Rust side picks
+    /// the bytes up from `SessionShared.response_payloads`.
+    #[serde(default)]
+    pub has_code_bytes: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -229,6 +242,44 @@ impl HookResponse {
                     normalize_external_id: None,
                     side_effects,
                     package_json_path: None,
+                }))
+            }
+            HookResponse::Error { message, stack } => Err(combine(message, stack)),
+        }
+    }
+
+    /// Phase B.4 variant — like `into_transform_return` but consumes
+    /// pre-fetched `response_bytes` (taken from the response-payload
+    /// slot at the dispatch site) when the response envelope
+    /// advertises `hasCodeBytes: true`. Falls back to `value.code`
+    /// (JSON-embedded string) otherwise so callers not yet using the
+    /// zero-copy path keep working.
+    pub fn into_transform_return_with_bytes(
+        self,
+        response_bytes: Option<Vec<u8>>,
+    ) -> HookTransformReturn {
+        match self {
+            HookResponse::Skip => Ok(None),
+            HookResponse::Ok { value } => {
+                let v: TransformHookValue = serde_json::from_value(value)
+                    .map_err(|e| anyhow!("rolldown: malformed transform response: {e}"))?;
+                let module_type = parse_module_type(v.module_type.as_deref())?;
+                let code = if v.has_code_bytes {
+                    let bytes = response_bytes.ok_or_else(|| {
+                        anyhow!("rolldown: transform response advertised hasCodeBytes but no payload was stashed")
+                    })?;
+                    match String::from_utf8(bytes) {
+                        Ok(s) => Some(s),
+                        Err(e) => return Err(anyhow!("rolldown: transform response payload was not valid UTF-8: {e}")),
+                    }
+                } else {
+                    v.code
+                };
+                Ok(Some(HookTransformOutput {
+                    code,
+                    map: None,
+                    side_effects: None,
+                    module_type,
                 }))
             }
             HookResponse::Error { message, stack } => Err(combine(message, stack)),
@@ -355,7 +406,8 @@ impl JsPluginProxy {
     /// Push a hook request onto the channel + wake the main loop via
     /// eventfd-write, then await the JS-side response.
     async fn dispatch(&self, payload: HookRequestPayload) -> anyhow::Result<HookResponse> {
-        self.dispatch_inner(payload, None).await
+        let (resp, _bytes) = self.dispatch_inner(payload, None, None).await?;
+        Ok(resp)
     }
 
     /// Variant of `dispatch` that registers `ctx` for the duration of
@@ -367,19 +419,39 @@ impl JsPluginProxy {
         payload: HookRequestPayload,
         ctx: rolldown_plugin::PluginContext,
     ) -> anyhow::Result<HookResponse> {
-        self.dispatch_inner(payload, Some(ctx)).await
+        let (resp, _bytes) = self.dispatch_inner(payload, Some(ctx), None).await?;
+        Ok(resp)
+    }
+
+    /// Variant that pre-stashes a bytes payload alongside the JSON
+    /// envelope. The JS side fetches it via
+    /// `take_request_payload(reqId)` instead of seeing it embedded in
+    /// the envelope. Used by `transform` to avoid JSON-escaping
+    /// arbitrarily large source code. Returns the response paired
+    /// with any response bytes the JS side stashed before replying.
+    async fn dispatch_with_payload(
+        &self,
+        payload: HookRequestPayload,
+        ctx: rolldown_plugin::PluginContext,
+        request_bytes: Vec<u8>,
+    ) -> anyhow::Result<(HookResponse, Option<Vec<u8>>)> {
+        self.dispatch_inner(payload, Some(ctx), Some(request_bytes)).await
     }
 
     async fn dispatch_inner(
         &self,
         payload: HookRequestPayload,
         ctx: Option<rolldown_plugin::PluginContext>,
-    ) -> anyhow::Result<HookResponse> {
+        request_bytes: Option<Vec<u8>>,
+    ) -> anyhow::Result<(HookResponse, Option<Vec<u8>>)> {
         let (reply_tx, reply_rx) = oneshot::channel();
         let req_id = self.new_request_id();
 
         if let Some(c) = ctx {
             self.shared.contexts.lock().unwrap().insert(req_id, c);
+        }
+        if let Some(bytes) = request_bytes {
+            self.shared.request_payloads.lock().unwrap().insert(req_id, bytes);
         }
 
         let req = HookRequest {
@@ -391,6 +463,7 @@ impl JsPluginProxy {
 
         if self.request_tx.send(req).is_err() {
             self.shared.contexts.lock().unwrap().remove(&req_id);
+            self.shared.request_payloads.lock().unwrap().remove(&req_id);
             return Err(anyhow!("rolldown: plugin channel closed (session aborted)"));
         }
 
@@ -408,9 +481,17 @@ impl JsPluginProxy {
         // JS handler is finished (or timed out) and any further
         // `this.resolve()` calls keyed on this req_id would race.
         self.shared.contexts.lock().unwrap().remove(&req_id);
+        // Clean up any unconsumed request payload bytes. If the JS
+        // adapter took ownership via `take_request_payload`, this is
+        // a no-op; if it never did, we don't want the bytes to leak.
+        self.shared.request_payloads.lock().unwrap().remove(&req_id);
+        // Pop any response bytes the JS side stashed via
+        // `set_response_payload(req_id, bytes)`. Returned to the
+        // caller so it can decode + use without going through JSON.
+        let response_bytes = self.shared.response_payloads.lock().unwrap().remove(&req_id);
 
         match result {
-            Ok(Ok(resp)) => Ok(resp),
+            Ok(Ok(resp)) => Ok((resp, response_bytes)),
             Ok(Err(_)) => Err(anyhow!(
                 "rolldown: plugin {} dropped reply for request",
                 self.name
@@ -508,7 +589,7 @@ impl Plugin for JsPluginProxy {
     ) -> impl std::future::Future<Output = HookTransformReturn> + Send {
         let proxies = self.proxies("transform");
         let id = args.id.to_string();
-        let code = args.code.clone();
+        let code_bytes = args.code.as_bytes().to_vec();
         let module_type = format!("{:?}", args.module_type).to_lowercase();
         let filtered = self
             .transform_id_filter
@@ -518,13 +599,24 @@ impl Plugin for JsPluginProxy {
         let ctx_clone = ctx.inner.clone();
         async move {
             if !proxies || filtered { return Ok(None); }
-            let resp = self
-                .dispatch_with_ctx(
-                    HookRequestPayload::Transform { id, code, module_type },
+            // Phase B.4 — the JS adapter fetches `code` bytes via
+            // `take_request_payload(reqId)`; the JSON envelope only
+            // carries metadata + the `payloadKind:'code'` marker.
+            // Response side: if JS stashed new code as response
+            // payload bytes (and set `hasCodeBytes: true` on the
+            // value), `dispatch_with_payload` returns them too.
+            let (resp, response_bytes) = self
+                .dispatch_with_payload(
+                    HookRequestPayload::Transform {
+                        id,
+                        module_type,
+                        payload_kind: "code",
+                    },
                     ctx_clone,
+                    code_bytes,
                 )
                 .await?;
-            resp.into_transform_return()
+            resp.into_transform_return_with_bytes(response_bytes)
         }
     }
 
