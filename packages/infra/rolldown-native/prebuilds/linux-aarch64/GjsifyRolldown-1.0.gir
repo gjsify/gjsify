@@ -106,6 +106,35 @@
 				</parameter>
 			</parameters>
 		</method>
+		<method name="take_request_payload" c:identifier="gjsify_rolldown_bundler_session_take_request_payload">
+			<return-value transfer-ownership="full" nullable="1">
+				<type name="GLib.Bytes" c:type="GBytes*"/>
+			</return-value>
+			<parameters>
+				<instance-parameter name="self" transfer-ownership="none">
+					<type name="GjsifyRolldown.BundlerSession" c:type="GjsifyRolldownBundlerSession*"/>
+				</instance-parameter>
+				<parameter name="req_id" transfer-ownership="none">
+					<type name="guint64" c:type="guint64"/>
+				</parameter>
+			</parameters>
+		</method>
+		<method name="set_response_payload" c:identifier="gjsify_rolldown_bundler_session_set_response_payload">
+			<return-value transfer-ownership="full">
+				<type name="gboolean" c:type="gboolean"/>
+			</return-value>
+			<parameters>
+				<instance-parameter name="self" transfer-ownership="none">
+					<type name="GjsifyRolldown.BundlerSession" c:type="GjsifyRolldownBundlerSession*"/>
+				</instance-parameter>
+				<parameter name="req_id" transfer-ownership="none">
+					<type name="guint64" c:type="guint64"/>
+				</parameter>
+				<parameter name="bytes" transfer-ownership="none">
+					<type name="GLib.Bytes" c:type="GBytes*"/>
+				</parameter>
+			</parameters>
+		</method>
 		<method name="cancel" c:identifier="gjsify_rolldown_bundler_session_cancel">
 			<return-value transfer-ownership="full">
 				<type name="none" c:type="void"/>
