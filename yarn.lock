@@ -1520,6 +1520,7 @@ __metadata:
     "@gjsify/rolldown-plugin-pnp": "workspace:^"
     "@gjsify/semver": "workspace:^"
     "@gjsify/tar": "workspace:^"
+    "@gjsify/unit": "workspace:^"
     "@gjsify/web-polyfills": "workspace:^"
     "@types/yargs": "npm:^17.0.35"
     cosmiconfig: "npm:^9.0.1"
