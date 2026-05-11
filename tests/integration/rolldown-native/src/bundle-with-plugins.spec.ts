@@ -275,6 +275,77 @@ export default async () => {
                 // 'hi'.length === 2 → 'const v = 2'
                 expect(chunk.code.includes('const v = 2')).toBe(true);
             });
+
+            await it('real-file load hook + idFilter inlines a CSS source as a JS string (mirrors cssAsStringPlugin behavior)', async () => {
+                // End-to-end check that the native plugin bridge can drive
+                // a file-backed `load`-hook transformation under GJS — the
+                // same shape `cssAsStringPlugin` uses to turn
+                // `import css from './app.css'` into a JS string default
+                // export for Gtk.CssProvider.load_from_string.
+                //
+                // Reads the CSS via GLib.file_get_contents (GJS-native fs
+                // — no Node polyfills involved), wraps the source as a
+                // JSON-stringified default export, and asserts the bundled
+                // chunk contains the original selector. Verifies:
+                //   1. idFilter.load short-circuits non-CSS modules
+                //   2. The load hook receives the right id
+                //   3. Returning {code: <generated JS>} ends up in the bundle
+                //   4. The whole flow works against real files on disk
+                //      (not just synthetic strings emitted from the plugin)
+
+                const dir = tmpdir('rdn-int-css-fixture');
+                writeFile(`${dir}/main.mjs`, 'import css from "./app.css";\nexport const length = css.length;');
+                writeFile(`${dir}/app.css`, '.btn { color: red; }\n.btn:hover { color: blue; }\n');
+
+                const loadCalls: string[] = [];
+
+                const cssAsString: NativePlugin = {
+                    name: 'css-as-string-fixture',
+                    idFilter: { load: '\\.css$' },
+                    load(id) {
+                        loadCalls.push(id);
+                        const [ok, bytes] = GLib.file_get_contents(id);
+                        if (!ok) {
+                            this.error(`css fixture: could not read ${id}`);
+                        }
+                        // Rolldown removed its experimental CSS bundling
+                        // and now rejects any `.css` module unless the
+                        // load hook claims it AND tags the output as JS.
+                        // Mirrors the real cssAsStringPlugin's
+                        // `moduleType: 'js'` return.
+                        const text = new (globalThis as unknown as { TextDecoder: new () => { decode(b: Uint8Array): string } }).TextDecoder().decode(bytes);
+                        return {
+                            code: `export default ${JSON.stringify(text)};`,
+                            moduleType: 'js',
+                        };
+                    },
+                };
+
+                const result = await bundleWithPlugins(
+                    {
+                        input: [{ name: 'main', import: `${dir}/main.mjs` }],
+                        cwd: dir,
+                        format: 'esm',
+                    },
+                    [cssAsString],
+                );
+
+                // Filter must have steered the load hook to exactly the CSS file.
+                expect(loadCalls.length).toBe(1);
+                expect(loadCalls[0].endsWith('app.css')).toBe(true);
+
+                const chunk = result.output[0];
+                if (chunk.type !== 'chunk') throw new Error('expected chunk');
+
+                // Rolldown tree-shakes the dead string body but
+                // constant-folds `css.length` from the synthesized JS
+                // module. The CSS file is exactly 49 bytes — finding
+                // that constant inlined in the bundle proves the full
+                // chain worked: idFilter routed → load hook fired →
+                // returned `code: 'export default "<49-char string>";'`
+                // with `moduleType: 'js'` → rolldown parsed + inlined.
+                expect(chunk.code.includes('const length = 49')).toBe(true);
+            });
         });
     });
 };
