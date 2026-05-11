@@ -41,13 +41,13 @@ interface NativeRolldownSurface {
     bundleWithPlugins(opts: unknown, plugins: NativePlugin[]): Promise<BundleResult>;
 }
 
-interface NativePluginContext {
+export interface NativePluginContext {
     resolve(specifier: string, importer?: string, opts?: { skipSelf?: boolean; isEntry?: boolean }): Promise<{ id: string; external: boolean } | null>;
     warn(message: string): void;
     error(message: string): never;
 }
 
-interface NativePlugin {
+export interface NativePlugin {
     name: string;
     idFilter?: { load?: string; transform?: string; resolveId?: string };
     load?: (this: NativePluginContext, id: string) => unknown;
@@ -153,9 +153,9 @@ async function runNativeBundle(finalOpts: BundlerOptions): Promise<RolldownOutpu
     return synthRolldownOutput(result);
 }
 
-type PluginRecord = { name?: string; [k: string]: unknown };
+export type PluginRecord = { name?: string; [k: string]: unknown };
 
-function isPluginObject(p: unknown): p is PluginRecord {
+export function isPluginObject(p: unknown): p is PluginRecord {
     return p !== null && typeof p === 'object' && !Array.isArray(p);
 }
 
@@ -196,7 +196,7 @@ function oneToSource(f: RegExp | string): string | undefined {
     return undefined;
 }
 
-function toNativePlugin(p: PluginRecord): NativePlugin {
+export function toNativePlugin(p: PluginRecord): NativePlugin {
     const name = typeof p.name === 'string' ? p.name : 'unnamed-plugin';
     const out: NativePlugin = { name };
     const idFilter: { load?: string; transform?: string; resolveId?: string } = {};

@@ -10,11 +10,14 @@
         "gjsify": "./lib/index.js"
     },
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
+        "clear": "rm -rf lib dist tsconfig.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
         "start": "node lib/index.js",
         "build": "tsc && yarn chmod",
-        "chmod": "chmod +x ./lib/index.js"
+        "chmod": "chmod +x ./lib/index.js",
+        "build:test:node": "node lib/index.js build src/test.mts --app node --outfile dist/test.node.mjs",
+        "test:node": "node dist/test.node.mjs",
+        "test": "yarn build:test:node && yarn test:node"
     },
     "keywords": [
         "gjs",
@@ -39,6 +42,7 @@
         "yargs": "^18.0.0"
     },
     "devDependencies": {
+        "@gjsify/unit": "workspace:^",
         "@types/yargs": "^17.0.35",
         "typescript": "^6.0.3"
     },
