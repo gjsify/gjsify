@@ -23,6 +23,51 @@
 
 ### Features
 
+* **Phase D-2.B.4: rolldown-native — zero-copy GBytes payload for the
+  transform hook (2026-05-11):** The transform request/response no
+  longer JSON-encodes the module's source code. Instead the bytes
+  travel out-of-band through a parallel payload slot keyed by
+  `req_id`. Same wire-protocol shape for the other 11 hooks — only
+  transform changed.
+
+  - **Rust** (`SessionShared` + `plugin_proxy.rs`): two new
+    `Mutex<HashMap<u64, Vec<u8>>>` slots — `request_payloads` (Rust
+    → JS, drained by JS adapter) and `response_payloads` (JS →
+    Rust, popped by the dispatch site after `respond()`). New
+    externs `take_request_payload(reqId)`, `set_response_payload
+    (reqId, bytes)`, `free_payload(buf, len)`. Transform's
+    `HookRequestPayload::Transform` variant dropped the `code:
+    String` field and gained a `payload_kind: "code"` marker.
+    `HookResponse::into_transform_return_with_bytes(Option<Vec<u8>>)`
+    builds the `HookTransformOutput` from response-payload bytes
+    when the envelope sets `hasCodeBytes: true`.
+  - **Vala bridge**: `BundlerSession.take_request_payload(req_id) →
+    GLib.Bytes?` and `set_response_payload(req_id, GLib.Bytes) →
+    bool`. C glue copies the Rust-allocated buffer into a GLib
+    heap GBytes and frees the Rust side in-place so refcount
+    lifetime stays GLib-owned.
+  - **TS facade** (`plugins.ts`): `dispatchHook` special-cases
+    `'transform'` — fetches `code` bytes via
+    `session.take_request_payload(reqId)`, decodes to string, calls
+    the user handler unchanged. Result side: new
+    `respondTransform()` stashes the output code via
+    `set_response_payload` + sets `hasCodeBytes: true` in the
+    envelope. Handlers that return `null` skip cleanly (no bytes
+    stashed) so the payload-slot lifecycle stays balanced.
+
+  Two new integration specs in `tests/integration/rolldown-native/`
+  verify the round-trip: a transform that uppercases a placeholder
+  sees the original source via the request-payload path AND its
+  modification reaches the bundle via the response-payload path
+  (`ORIGINAL` → `TRANSFORMED`), and a no-op transform leaves the
+  source intact without stashing response bytes. Brings the suite
+  to 9 specs / 38 assertions.
+
+  Plan-estimated 30–50% hook-overhead reduction on 100-module
+  bundles; we don't have a 100-module benchmark in-repo yet, so the
+  saving is left to be measured once the self-host loop lands real
+  CLI builds through this path.
+
 * **Phase D-2.B.6: rolldown-native — integration test suite
   (2026-05-10):** New `tests/integration/rolldown-native/`
   (`@gjsify/integration-rolldown-native`, private). 6 specs / 29

@@ -73,6 +73,21 @@ declare module 'gi://GjsifyRolldown?version=1.0' {
        *  warnings list (UTF-8 bytes). */
       context_warn(message: GLib.Bytes): void;
 
+      /**
+       * Phase B.4 — drain the request-payload bytes Rust stashed for
+       * `req_id` (transform's source code today; future hooks may
+       * grow their own bytes payloads). Returns null when no payload
+       * is stashed for that req_id (or it was already taken).
+       */
+      take_request_payload(req_id: number): GLib.Bytes | null;
+
+      /**
+       * Phase B.4 — stash bytes for the Rust dispatch site to read
+       * after `respond()`. Used by the transform hook to return new
+       * code without JSON-encoding the string.
+       */
+      set_response_payload(req_id: number, bytes: GLib.Bytes): boolean;
+
       /** Abort the build. Pending JS-replies will fail with timeout
        *  or "channel closed". */
       cancel(): void;

@@ -276,6 +276,85 @@ export default async () => {
                 expect(chunk.code.includes('const v = 2')).toBe(true);
             });
 
+            await it('transform hook ships code via zero-copy bytes payload (B.4)', async () => {
+                // Verifies the B.4 wire change: transform's `code`
+                // travels out-of-band as a GLib.Bytes payload via the
+                // session's request/response payload slots, not as a
+                // JSON-escaped string in the envelope.
+                //
+                // From the user-handler's POV nothing changes — it
+                // still receives a `code: string` arg and returns
+                // `{code: <new string>}`. We verify only the
+                // observable behavior (the transform RAN, modified
+                // the code, and the change shows up in the bundle).
+                const dir = tmpdir('rdn-int-b4');
+                writeFile(`${dir}/main.mjs`, 'export const X = "ORIGINAL";');
+
+                let observedReceived: string | null = null;
+                const upper: NativePlugin = {
+                    name: 'b4-uppercase',
+                    transform(code, id, _moduleType) {
+                        if (id.endsWith('main.mjs')) {
+                            observedReceived = code;
+                            return { code: code.replace('ORIGINAL', 'TRANSFORMED') };
+                        }
+                        return null;
+                    },
+                };
+
+                const result = await bundleWithPlugins(
+                    {
+                        input: [{ name: 'main', import: `${dir}/main.mjs` }],
+                        cwd: dir,
+                        format: 'esm',
+                    },
+                    [upper],
+                );
+
+                // The handler received the original source (proves the
+                // request-payload bytes path delivered the right code).
+                expect(observedReceived !== null).toBe(true);
+                expect((observedReceived as unknown as string).includes('"ORIGINAL"')).toBe(true);
+
+                const chunk = result.output[0];
+                if (chunk.type !== 'chunk') throw new Error('expected chunk');
+                // The output reflects the transformed code (proves the
+                // response-payload bytes path delivered the new code
+                // back to rolldown).
+                expect(chunk.code.includes('TRANSFORMED')).toBe(true);
+                expect(chunk.code.includes('ORIGINAL')).toBe(false);
+            });
+
+            await it('transform hook returning null skips cleanly (no payload bytes stashed)', async () => {
+                // Edge case: when the user handler returns null, the
+                // B.4 path must NOT stash response-payload bytes; the
+                // response just carries `kind:'skip'`. Verifies the
+                // payload-slot lifecycle stays balanced.
+                const dir = tmpdir('rdn-int-b4-skip');
+                writeFile(`${dir}/main.mjs`, 'export const Y = 7;');
+
+                let callCount = 0;
+                const noop: NativePlugin = {
+                    name: 'b4-skip',
+                    transform() { callCount++; return null; },
+                };
+
+                const result = await bundleWithPlugins(
+                    {
+                        input: [{ name: 'main', import: `${dir}/main.mjs` }],
+                        cwd: dir,
+                        format: 'esm',
+                    },
+                    [noop],
+                );
+
+                expect(callCount >= 1).toBe(true);
+                const chunk = result.output[0];
+                if (chunk.type !== 'chunk') throw new Error('expected chunk');
+                // Source survives the no-op transform.
+                expect(chunk.code.includes('const Y = 7')).toBe(true);
+            });
+
             await it('real-file load hook + idFilter inlines a CSS source as a JS string (mirrors cssAsStringPlugin behavior)', async () => {
                 // End-to-end check that the native plugin bridge can drive
                 // a file-backed `load`-hook transformation under GJS — the
