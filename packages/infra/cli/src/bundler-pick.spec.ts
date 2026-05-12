@@ -13,7 +13,7 @@
 // mis-translating filters when real-world plugin shapes change.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { toNativePlugin, isPluginObject, type NativePlugin } from './bundler-pick.js';
+import { toNativePlugin, isPluginObject, shouldUseNative, type NativePlugin } from './bundler-pick.js';
 import {
     cssAsStringPlugin,
     shebangPlugin,
@@ -198,6 +198,58 @@ export default async () => {
             } as Record<string, unknown>);
             expect((native as unknown as Record<string, unknown>).api).toBe(undefined);
             expect((native as unknown as Record<string, unknown>).resolveDynamicImport).toBe(undefined);
+        });
+    });
+
+    await describe('shouldUseNative — Phase D-3.1 runtime default', async () => {
+        // The Node-side test sees:
+        //   - process.env.GJSIFY_BUNDLER respected (env-var overrides)
+        //   - globalThis.imports?.gi UNDEFINED (we're under Node) → default returns false
+        // We mutate process.env around each assertion; restore on exit so the
+        // suite stays hermetic with the rest of the file.
+
+        await it('GJSIFY_BUNDLER=npm forces npm path even when native is loadable', async () => {
+            const prev = process.env.GJSIFY_BUNDLER;
+            process.env.GJSIFY_BUNDLER = 'npm';
+            try {
+                const result = await shouldUseNative();
+                expect(result).toBe(false);
+            } finally {
+                if (prev === undefined) delete process.env.GJSIFY_BUNDLER;
+                else process.env.GJSIFY_BUNDLER = prev;
+            }
+        });
+
+        await it('GJSIFY_BUNDLER=native throws under Node when prebuild not loadable', async () => {
+            const prev = process.env.GJSIFY_BUNDLER;
+            process.env.GJSIFY_BUNDLER = 'native';
+            try {
+                let thrown: Error | null = null;
+                try {
+                    await shouldUseNative();
+                } catch (e) {
+                    thrown = e as Error;
+                }
+                expect(thrown !== null).toBe(true);
+                expect((thrown as Error).message.includes('not loadable')).toBe(true);
+            } finally {
+                if (prev === undefined) delete process.env.GJSIFY_BUNDLER;
+                else process.env.GJSIFY_BUNDLER = prev;
+            }
+        });
+
+        await it('default under Node = false (no imports.gi, npm rolldown wins)', async () => {
+            const prev = process.env.GJSIFY_BUNDLER;
+            delete process.env.GJSIFY_BUNDLER;
+            try {
+                // Under Node test runner, globalThis.imports?.gi is undefined,
+                // so the new D-3.1 runtime-detect logic correctly returns false
+                // and the npm rolldown path is taken in runBundle.
+                const result = await shouldUseNative();
+                expect(result).toBe(false);
+            } finally {
+                if (prev !== undefined) process.env.GJSIFY_BUNDLER = prev;
+            }
         });
     });
 };
