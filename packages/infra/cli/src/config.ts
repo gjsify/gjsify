@@ -258,7 +258,18 @@ export class Config {
         if (cliArgs.minify !== undefined) output.minify = cliArgs.minify;
         if (output.minify === undefined) output.minify = true;
         if (output.minify === true) {
-            output.minify = { mangle: { keepNames: { function: true, class: true } } };
+            // `keepNames: true` on output is the top-level BundlerOptions
+            // path: rolldown wires it into both `mangle.keepNames.all_true()`
+            // (function+class) AND `compress.keepNames.all_true()` for us.
+            // The previous `minify: { mangle: { keepNames: {...} } }` shape
+            // worked under npm rolldown's JS API but rolldown's serde
+            // `deserialize_minify` (deserialize_minify_options.rs:311) only
+            // accepts SimpleMinifyOptions (bool/string), so the object form
+            // was rejected by the native facade's JSON-deserializer with
+            // "data did not match any variant of untagged enum
+            // SimpleMinifyOptions". `output.keepNames` reaches the binding
+            // through the documented top-level path in both engines.
+            output.keepNames = true;
         }
         if (cliArgs.logLevel) {
             // Map esbuild log levels to Rolldown's narrower set:
