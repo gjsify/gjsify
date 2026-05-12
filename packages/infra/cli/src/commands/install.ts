@@ -49,6 +49,7 @@ interface InstallOptions {
     'save-dev'?: boolean;
     'save-peer'?: boolean;
     'save-optional'?: boolean;
+    immutable?: boolean;
     verbose: boolean;
 }
 
@@ -73,12 +74,34 @@ export const installCommand: Command<any, InstallOptions> = {
             .option('save-dev', { type: 'boolean', alias: 'D' })
             .option('save-peer', { type: 'boolean' })
             .option('save-optional', { type: 'boolean', alias: 'O' })
+            .option('immutable', {
+                description:
+                    'CI mode: install strictly from gjsify-lock.json, fail if the lockfile is missing or stale. Equivalent to yarn --immutable / npm ci --frozen-lockfile.',
+                type: 'boolean',
+                default: false,
+            })
             .option('verbose', {
                 description: 'Verbose install logging.',
                 type: 'boolean',
                 default: false,
             }),
     handler: async (args) => {
+        // --immutable is incompatible with explicit `<pkg>` adds and with
+        // `--global` (which has no lockfile concept). Matches yarn's
+        // behavior: `yarn add --immutable` is a hard error.
+        if (args.immutable) {
+            if (args.packages && args.packages.length > 0) {
+                console.error(
+                    'gjsify install --immutable does not accept package arguments. ' +
+                    'Remove the package names or drop --immutable.',
+                );
+                process.exit(1);
+            }
+            if (args.global) {
+                console.error('gjsify install --immutable is incompatible with --global.');
+                process.exit(1);
+            }
+        }
         if (args.global) {
             if (!args.packages || args.packages.length === 0) {
                 console.error(
@@ -176,7 +199,10 @@ async function projectInstallNative(args: InstallOptions): Promise<void> {
         prefix: cwd,
         specs,
         verbose: args.verbose,
-        lockfile: true,
+        // --immutable consumes the lockfile verbatim and must NOT rewrite
+        // it (the whole point is byte-stability under CI).
+        lockfile: !args.immutable,
+        frozen: args.immutable,
     });
 
     // Update package.json only when the user passed explicit packages
@@ -254,7 +280,8 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
             prefix: cwd,
             specs: [...externalSpecs],
             verbose: args.verbose,
-            lockfile: true,
+            lockfile: !args.immutable,
+            frozen: args.immutable,
         });
     } else if (args.verbose) {
         console.log('gjsify install: no external deps to fetch');
