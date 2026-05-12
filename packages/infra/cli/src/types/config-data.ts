@@ -200,7 +200,16 @@ export interface ConfigDataFlatpak {
     runtime?: 'gnome' | 'freedesktop';
     /** Runtime/SDK version, e.g. `'50'` for GNOME or `'24.08'` for Freedesktop. */
     runtimeVersion?: string;
-    /** Extra SDK extensions, e.g. `['org.freedesktop.Sdk.Extension.node24']` for build-time `yarn install`. */
+    /**
+     * Extra SDK extensions to include in the manifest, e.g.
+     * `['org.freedesktop.Sdk.Extension.llvm17']` for projects with native
+     * code that needs a specific toolchain. Leave empty (the default) for
+     * pure gjsify projects — the GNOME runtime already ships GJS + GLib
+     * + libsoup, and `gjsify build` produces a self-contained bundle that
+     * needs no build-time Node anymore. (Before Phase D-3 we added
+     * `org.freedesktop.Sdk.Extension.node24` here by default for the
+     * yarn-install + esbuild build step — that's no longer required.)
+     */
     sdkExtensions?: string[];
     /** Path components prepended to PATH inside the build sandbox. */
     appendPath?: string[];
