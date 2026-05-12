@@ -15,9 +15,10 @@
 // `"workspaces"` field) is Phase D.3 — for now we detect and surface a
 // clear error pointing at the in-progress work.
 
-import { existsSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import { spawn } from 'node:child_process';
+import { discoverWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import {
     buildInstallCommand,
@@ -126,19 +127,6 @@ async function projectInstallNative(args: InstallOptions): Promise<void> {
     const cwd = process.cwd();
     const pkgPath = join(cwd, 'package.json');
 
-    // Workspace install (no args, root pkg.json has `workspaces`) is Phase
-    // D.3 — surface a precise error so users don't get a confusing partial
-    // result. Project-local `gjsify install <pkg>` inside a workspace child
-    // works fine (this branch checks only cwd's pkg.json).
-    if ((!args.packages || args.packages.length === 0) && isWorkspaceRoot(cwd)) {
-        throw new Error(
-            'gjsify install: this project declares a "workspaces" field but ' +
-            'workspace-aware install is not yet wired (Phase D.3). For now run ' +
-            '`yarn install` for the full monorepo install, or set ' +
-            'GJSIFY_INSTALL_BACKEND=npm to delegate to npm.',
-        );
-    }
-
     // Yarn-Berry / PnP detection: fall back to yarn with a clear warning
     // rather than producing a half-working node_modules tree.
     if (existsSync(join(cwd, '.pnp.cjs')) || existsSync(join(cwd, '.pnp.loader.mjs'))) {
@@ -147,6 +135,16 @@ async function projectInstallNative(args: InstallOptions): Promise<void> {
             'not PnP-aware yet. Use `yarn install` or set ' +
             'GJSIFY_INSTALL_BACKEND=npm.',
         );
+    }
+
+    // Workspace install (no args, root pkg.json has `workspaces`) — Phase D.3.
+    // Project-local `gjsify install <pkg>` inside a workspace child still
+    // goes through the single-package code path below (this branch only
+    // fires for the root no-args case, which is the `yarn install`
+    // equivalent).
+    if ((!args.packages || args.packages.length === 0) && isWorkspaceRoot(cwd)) {
+        await workspaceInstall(cwd, args);
+        return;
     }
 
     let specs: string[];
@@ -193,6 +191,95 @@ async function projectInstallNative(args: InstallOptions): Promise<void> {
             addDependencyEntry(pkg, name, finalRange, kind);
         }
         writePackageJson(pkgPath, pkg);
+    }
+}
+
+/**
+ * Phase D.3 — workspace-aware install. Mirrors what `yarn install` does
+ * at a monorepo root:
+ *   1. Discover every workspace under the root.
+ *   2. Aggregate the union of their external (non-`workspace:`) deps.
+ *   3. Run the native install backend ONCE at the root prefix so all
+ *      externals land in a single `node_modules/` (poor-man's hoisting —
+ *      we don't deduplicate version-range conflicts yet, the BFS resolver
+ *      picks first-match).
+ *   4. For every `workspace:` reference, symlink the target workspace's
+ *      directory into the requesting workspace's `node_modules/<dep>`
+ *      so `import '@gjsify/utils'` resolves to the local source.
+ *
+ * Hoisting strategy is intentionally minimal — D.3 ships the working
+ * baseline; per-workspace dedup + nested `node_modules/` for version
+ * conflicts are tracked as a follow-up in STATUS.md "Open TODOs".
+ */
+async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void> {
+    const workspaces = discoverWorkspaces(cwd, { includeRoot: true });
+    if (workspaces.length === 0) {
+        throw new Error(`gjsify install: ${cwd} has a "workspaces" field but no workspaces were discovered`);
+    }
+    const byName = new Map(workspaces.map((w) => [w.name, w] as const));
+    const externalSpecs = new Set<string>();
+    interface SymlinkPlan { fromWorkspaceName: string; depName: string; targetLocation: string; }
+    const symlinks: SymlinkPlan[] = [];
+
+    for (const ws of workspaces) {
+        const m = ws.manifest;
+        for (const kind of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
+            const block = m[kind];
+            if (!block) continue;
+            for (const [depName, spec] of Object.entries(block)) {
+                if (typeof spec !== 'string') continue;
+                if (spec.startsWith('workspace:')) {
+                    const target = byName.get(depName);
+                    if (!target) {
+                        throw new Error(
+                            `gjsify install: ${ws.name} declares "${depName}: ${spec}" but ` +
+                            `no workspace with that name exists`,
+                        );
+                    }
+                    symlinks.push({ fromWorkspaceName: ws.name, depName, targetLocation: target.location });
+                    continue;
+                }
+                if (/^(link|file|portal|git\+|https?):/.test(spec)) continue;
+                externalSpecs.add(`${depName}@${spec}`);
+            }
+        }
+    }
+
+    console.log(
+        `gjsify install: ${workspaces.length} workspace(s), ${externalSpecs.size} external dep spec(s), ${symlinks.length} workspace symlink(s)`,
+    );
+
+    if (externalSpecs.size > 0) {
+        await installPackages({
+            prefix: cwd,
+            specs: [...externalSpecs],
+            verbose: args.verbose,
+            lockfile: true,
+        });
+    } else if (args.verbose) {
+        console.log('gjsify install: no external deps to fetch');
+    }
+
+    for (const link of symlinks) {
+        const target = byName.get(link.fromWorkspaceName);
+        if (!target) continue;
+        const linkPath = join(target.location, 'node_modules', link.depName);
+        mkdirSync(dirname(linkPath), { recursive: true });
+        // Remove any prior entry (regular dir, broken symlink, file).
+        try {
+            const stat = lstatSync(linkPath);
+            if (stat.isSymbolicLink() || stat.isFile()) {
+                rmSync(linkPath, { force: true });
+            } else if (stat.isDirectory()) {
+                rmSync(linkPath, { recursive: true, force: true });
+            }
+        } catch { /* ENOENT — fine, nothing to remove */ }
+        // Relative symlink so the repo is portable across checkout paths.
+        const relTarget = relative(dirname(linkPath), link.targetLocation);
+        symlinkSync(relTarget, linkPath);
+    }
+    if (symlinks.length > 0) {
+        console.log(`gjsify install: wired ${symlinks.length} workspace symlink(s)`);
     }
 }
 
