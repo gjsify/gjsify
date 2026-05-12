@@ -27,7 +27,7 @@
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -145,6 +145,37 @@ describe('CLI self-host loop', { timeout: 5 * 60 * 1000 }, () => {
         assert.equal(out.status, 0, `yargs bundle run failed: ${out.stderr}`);
         // `@gjsify/unit` prints `✔ <count> completed` on success.
         assert.match(out.stdout, /\b52 completed\b/, `expected '52 completed' in output, got: ${out.stdout.slice(-500)}`);
+    });
+
+    it('GJS-CLI and Node-CLI yargs bundles are size-equivalent (within 15%)', () => {
+        // Strong byte-equivalence is blocked by rolldown's internal compress
+        // heuristics: even with identical top-level `keepNames: true`, the
+        // two engines emit slightly different module-init code (arrow-fn
+        // `__name()` wrappers vs. named methods). Both produce semantically
+        // identical bundles (52/52 yargs tests pass on both), so we assert
+        // a sane size envelope here and revisit a stricter check once the
+        // upstream rolldown behavior is unified.
+        const nodeOut = join(OUT_DIR, 'yargs.node.mjs');
+        const gjsOut = join(OUT_DIR, 'yargs.gjs.mjs');
+        execFileSync('node', [
+            NODE_CLI,
+            'build', YARGS_FIXTURE,
+            '--app', 'gjs',
+            '--outfile', nodeOut,
+        ], { cwd: MONOREPO_ROOT, stdio: 'pipe' });
+        assert.ok(existsSync(nodeOut), 'Node-CLI did not produce yargs.node.mjs');
+        // gjsOut was created by the previous test; sanity-check.
+        assert.ok(existsSync(gjsOut), 'GJS-CLI bundle from previous test is missing');
+
+        const nodeSize = statSync(nodeOut).size;
+        const gjsSize = statSync(gjsOut).size;
+        const ratio = Math.abs(nodeSize - gjsSize) / Math.max(nodeSize, gjsSize);
+        assert.ok(ratio < 0.15, `bundle size delta too large: node=${nodeSize} gjs=${gjsSize} ratio=${ratio.toFixed(3)}`);
+
+        // Both bundles must produce the same test result under gjs.
+        const fromNode = gjs(['-m', nodeOut]);
+        assert.equal(fromNode.status, 0, `node-built bundle failed under gjs: ${fromNode.stderr}`);
+        assert.match(fromNode.stdout, /\b52 completed\b/);
     });
 });
 

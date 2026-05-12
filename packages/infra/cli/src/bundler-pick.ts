@@ -272,15 +272,6 @@ function stripUnserializable<T extends Record<string, unknown>>(opts: T): T {
     for (const [k, v] of Object.entries(opts)) {
         if (typeof v === 'function') continue;
         if (k === 'sourcemap' && typeof v === 'boolean') continue;
-        // `minify` accepts a rich `MangleOptions` object under npm rolldown
-        // (`{ mangle: { keepNames: {...} } }`) but the native facade's
-        // `SimpleMinifyOptions` enum only accepts `true | false | "dce-only"`.
-        // Collapse the object form to plain `true` — name-preservation can't
-        // be propagated through this engine yet (tracked in STATUS.md).
-        if (k === 'minify' && v !== null && typeof v === 'object') {
-            out[k] = true;
-            continue;
-        }
         out[k] = v;
     }
     return out as T;
