@@ -83,16 +83,29 @@ export async function runBundle(finalOpts: BundlerOptions): Promise<RolldownOutp
 
 let _nativeProbe: Promise<NativeRolldownSurface | null> | null = null;
 
-async function shouldUseNative(): Promise<boolean> {
+export async function shouldUseNative(): Promise<boolean> {
     const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
     const choice = env.GJSIFY_BUNDLER;
+
+    // Explicit env-var override always wins.
     if (choice === 'npm') return false;
-    if (choice !== 'native') return false; // default = npm; native is opt-in
-    const native = await tryLoadNative();
-    if (!native) {
-        throw new Error('GJSIFY_BUNDLER=native but @gjsify/rolldown-native is not loadable (no prebuild for this architecture, or not running under GJS).');
+    if (choice === 'native') {
+        const native = await tryLoadNative();
+        if (!native) {
+            throw new Error('GJSIFY_BUNDLER=native but @gjsify/rolldown-native is not loadable (no prebuild for this architecture, or not running under GJS).');
+        }
+        return true;
     }
-    return true;
+
+    // Phase D-3.1 — runtime-aware default.
+    //   Node:    use npm rolldown (no FFI loading cost at install time).
+    //   GJS:     try @gjsify/rolldown-native — it's the only engine
+    //            that can actually run here (npm rolldown is a Rust
+    //            crate). Fall back to npm only on Node.
+    const isGjs = typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
+    if (!isGjs) return false;
+    const native = await tryLoadNative();
+    return native !== null;
 }
 
 async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
