@@ -200,24 +200,9 @@ describe('gjsify install <pkg> — project-local native (Phase D.1)', { timeout:
     assert.match(lock.packages['top-pkg'].integrity, /^sha512-/);
   });
 
-  it('refuses workspace root install and points at Phase D.3', async () => {
-    // Set up a sibling project with a `workspaces` field.
-    const workspaceRoot = mkdtempSync(join(tmpdir(), 'gjsify-e2e-install-ws-'));
-    try {
-      writeFileSync(join(workspaceRoot, 'package.json'), JSON.stringify({
-        name: 'ws-root', version: '0.0.1', type: 'module', private: true,
-        workspaces: ['packages/*'],
-      }, null, 2) + '\n');
-
-      const r = await runCli(cliEntry, ['install'], { cwd: workspaceRoot, env: envForCli });
-      assert.notEqual(r.status, 0, 'workspace root install should fail with a guiding error');
-      const combined = r.stdout + r.stderr;
-      assert.match(combined, /Phase D\.3|workspace-aware install/i,
-        `expected error to mention Phase D.3 / workspace install, got: ${combined}`);
-    } finally {
-      rmSync(workspaceRoot, { recursive: true, force: true });
-    }
-  });
+  // Note: a previous revision asserted that workspace-root install FAILS
+  // with a Phase-D.3 marker. D.3 wired the workspace-aware path, so the
+  // workspace coverage lives in `tests/e2e/workspace-install/run.mjs` now.
 
   it('detects Yarn PnP and falls back with a clear error', async () => {
     const pnpRoot = mkdtempSync(join(tmpdir(), 'gjsify-e2e-install-pnp-'));
