@@ -25,8 +25,22 @@
 
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
-import { rolldown, type RolldownOutput } from 'rolldown';
+import type { RolldownOutput } from 'rolldown';
 import type { BundlerOptions } from './types/index.js';
+
+// npm `rolldown` is a Rust crate with platform-specific prebuilds; loading
+// it eagerly at module init pulls musl-detection code that does
+// `require('node:fs')` synchronously — fine on Node, but fatal under GJS
+// where the createRequire polyfill rejects synchronous builtin loads.
+// Dynamic import keeps it off the GJS code path entirely; the native
+// branch (`@gjsify/rolldown-native`) handles bundling there.
+async function loadNpmRolldown(): Promise<typeof import('rolldown').rolldown> {
+    // Indirect specifier so Rolldown's static-analysis doesn't try to
+    // bundle the npm crate into a GJS target build.
+    const specifier = 'rolldown';
+    const mod = (await import(/* @vite-ignore */ specifier)) as typeof import('rolldown');
+    return mod.rolldown;
+}
 
 interface BundleResult {
     warnings: string[];
@@ -66,6 +80,55 @@ export interface NativePlugin {
 }
 
 /**
+ * In-memory bundle used by `--globals auto` for AST-driven detection.
+ * Mirrors the shape of `AnalysisBundler` in
+ * `@gjsify/rolldown-plugin-gjsify/utils/auto-globals`. Routes through the
+ * same engine as the final build (npm rolldown on Node, native on GJS) so
+ * the GJS-bundled CLI doesn't try to load the unloadable npm crate.
+ */
+export async function bundleToChunks(input: {
+    rolldownInput: import('rolldown').InputOptions;
+    format: 'esm' | 'cjs' | 'iife';
+}): Promise<string[]> {
+    if (await shouldUseNative()) {
+        const native = await tryLoadNative();
+        if (!native) throw new Error('@gjsify/rolldown-native not loadable');
+        const rawPlugins = (input.rolldownInput.plugins ?? []) as unknown[];
+        const nativePlugins: NativePlugin[] = [];
+        for (const p of rawPlugins) {
+            if (isPluginObject(p)) nativePlugins.push(toNativePlugin(p));
+        }
+        const opts = liftTransformExtras(stripUnserializable({
+            ...input.rolldownInput,
+            input: normalizeInputForNative(input.rolldownInput.input),
+            format: input.format,
+        }));
+        delete (opts as { plugins?: unknown }).plugins;
+        const result = await native.bundleWithPlugins(
+            opts as unknown as Record<string, unknown>,
+            nativePlugins,
+        );
+        const codes: string[] = [];
+        for (const item of result.output) {
+            if (item.type === 'chunk') codes.push(item.code);
+        }
+        return codes;
+    }
+    const rolldown = await loadNpmRolldown();
+    const build = await rolldown(input.rolldownInput);
+    try {
+        const result = await build.generate({ format: input.format, minify: false, sourcemap: false });
+        const codes: string[] = [];
+        for (const entry of result.output) {
+            if (entry.type === 'chunk') codes.push(entry.code);
+        }
+        return codes;
+    } finally {
+        await build.close();
+    }
+}
+
+/**
  * Run a bundle with the picked engine. Drop-in replacement for the
  * `rolldown(opts).write(opts.output)` flow used directly in build.ts.
  */
@@ -73,6 +136,7 @@ export async function runBundle(finalOpts: BundlerOptions): Promise<RolldownOutp
     if (await shouldUseNative()) {
         return await runNativeBundle(finalOpts);
     }
+    const rolldown = await loadNpmRolldown();
     const build = await rolldown(finalOpts);
     try {
         return await build.write(finalOpts.output ?? {});
@@ -114,11 +178,22 @@ async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
         const isGjs = typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
         if (!isGjs) return null;
         try {
-            // Indirect specifier so tsc + Rolldown don't try to resolve
-            // the optional peer dep at build time. Resolution happens
-            // only at runtime under GJS.
+            // Under GJS the ESM loader has no node_modules resolver — a bare
+            // `import('@gjsify/rolldown-native')` would throw `Module not
+            // found`. Resolve via createRequire (PnP+node_modules-aware) to
+            // a real path, then dynamic-import the resulting file:// URL.
+            // Under Node a bare specifier import works directly, so we keep
+            // the simpler form there.
             const specifier = '@gjsify/rolldown-native';
-            const mod = (await import(/* @vite-ignore */ specifier)) as NativeRolldownSurface;
+            let target: string = specifier;
+            if (isGjs) {
+                const { createRequire } = await import('node:module');
+                const require = createRequire(import.meta.url);
+                const resolved = require.resolve(specifier);
+                const { pathToFileURL } = await import('node:url');
+                target = pathToFileURL(resolved).href;
+            }
+            const mod = (await import(/* @vite-ignore */ target)) as NativeRolldownSurface;
             if (!mod.hasNativeRolldown()) return null;
             return mod;
         } catch {
@@ -142,9 +217,23 @@ async function runNativeBundle(finalOpts: BundlerOptions): Promise<RolldownOutpu
 
     // Strip plugins from opts — bundleWithPlugins gets them as a
     // separate argument and the Rust side wires them into rolldown's
-    // own plugin chain.
-    const bundlerOpts = { ...finalOpts };
-    delete bundlerOpts.plugins;
+    // own plugin chain. Normalize `input` to the Rust deserializer's
+    // expected `InputItem[]` shape, and flatten `output: { … }` (npm
+    // rolldown's JS-side shape) into the top-level keys the Rust
+    // BundlerOptions deserializer expects.
+    const { output: outputOpts, plugins: _droppedPlugins, ...rest } = finalOpts as unknown as Record<string, unknown> & { output?: Record<string, unknown> };
+    void _droppedPlugins;
+    const bundlerOpts = liftTransformExtras(stripUnserializable({
+        ...rest,
+        ...(outputOpts ?? {}),
+        input: normalizeInputForNative(finalOpts.input as import('rolldown').InputOptions['input']),
+    }));
+    if ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.GJSIFY_DEBUG_NATIVE_OPTS) {
+        // Debug switch to inspect the shape we ship to the native facade —
+        // mismatches surface as Rust serde parse errors that point at column
+        // numbers in this JSON.
+        console.error('[gjsify-bundler-pick] native opts JSON:', JSON.stringify(bundlerOpts));
+    }
     const result = await native.bundleWithPlugins(bundlerOpts as unknown as Record<string, unknown>, nativePlugins);
 
     // The native facade returns the BundleOutput shape but doesn't
@@ -164,6 +253,105 @@ async function runNativeBundle(finalOpts: BundlerOptions): Promise<RolldownOutpu
 
     // Synthesize the RolldownOutput shape downstream code touches.
     return synthRolldownOutput(result);
+}
+
+/**
+ * Drop fields the JSON encoder can't ship to the Rust deserializer.
+ * `external` may be a function predicate (npm rolldown supports this);
+ * functions vanish under `JSON.stringify` and surface as parse errors on
+ * the Rust side. Strip top-level function values so the option object
+ * is JSON-clean. (The actual external behavior under native rolldown
+ * comes from arrays/regex strings, set elsewhere by the orchestrator.)
+ *
+ * Also drops `sourcemap: false` — the JS API accepts a boolean while
+ * the Rust deserializer expects an enum (`'File' | 'Inline' | 'Hidden'`).
+ * Omitting the field has the same effect as `false`.
+ */
+function stripUnserializable<T extends Record<string, unknown>>(opts: T): T {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(opts)) {
+        if (typeof v === 'function') continue;
+        if (k === 'sourcemap' && typeof v === 'boolean') continue;
+        // `minify` accepts a rich `MangleOptions` object under npm rolldown
+        // (`{ mangle: { keepNames: {...} } }`) but the native facade's
+        // `SimpleMinifyOptions` enum only accepts `true | false | "dce-only"`.
+        // Collapse the object form to plain `true` — name-preservation can't
+        // be propagated through this engine yet (tracked in STATUS.md).
+        if (k === 'minify' && v !== null && typeof v === 'object') {
+            out[k] = true;
+            continue;
+        }
+        out[k] = v;
+    }
+    return out as T;
+}
+
+/**
+ * The Rust deserializer in the native facade treats `define` and `inject`
+ * as top-level fields on `BundlerOptions`, while npm rolldown's JS API
+ * groups them under `transform.{define,inject}`. Lift them out so the
+ * orchestrator's shape (built around the JS API) is accepted by the Rust
+ * side too. Other transform sub-options (`target`, `dropLabels`, …) stay
+ * where they are because they are real TransformOptions fields.
+ */
+function liftTransformExtras<T extends Record<string, unknown>>(opts: T): T {
+    const transform = opts['transform'] as Record<string, unknown> | undefined;
+    if (!transform) return opts;
+    const lift: Record<string, unknown> = {};
+    const remaining: Record<string, unknown> = { ...transform };
+    for (const key of ['define', 'inject'] as const) {
+        if (key in remaining) {
+            lift[key] = remaining[key];
+            delete remaining[key];
+        }
+    }
+    // `inject` shape diverges between engines: npm rolldown accepts a map
+    // `{ alias: 'module' | [module, named] }`; the native Rust deserializer
+    // expects an array of named-import descriptors. Convert if needed.
+    if (lift['inject'] !== undefined && !Array.isArray(lift['inject'])) {
+        lift['inject'] = mapToInjectArray(lift['inject'] as Record<string, string | [string, string]>);
+    }
+    return {
+        ...opts,
+        transform: Object.keys(remaining).length === 0 ? undefined : remaining,
+        ...lift,
+    } as T;
+}
+
+function mapToInjectArray(
+    map: Record<string, string | [string, string]>,
+): Array<Record<string, string>> {
+    const out: Array<Record<string, string>> = [];
+    for (const [alias, value] of Object.entries(map)) {
+        if (typeof value === 'string') {
+            // Default-import binding: `import alias from 'module'`
+            out.push({ type: 'default', from: value, alias });
+        } else {
+            // Named-import binding: `import { imported as alias } from 'from'`
+            const [from, imported] = value;
+            out.push({ type: 'named', from, imported, alias });
+        }
+    }
+    return out;
+}
+
+/**
+ * The native rolldown facade's Rust deserializer requires
+ * `input: BundleInputItem[]` (i.e. `[{ import, name? }]`). Normalize the
+ * other shapes npm rolldown accepts (string, string[], record) into that
+ * shape so callers can pass either engine the same options object.
+ */
+function normalizeInputForNative(
+    input: import('rolldown').InputOptions['input'],
+): Array<{ name?: string; import: string }> {
+    if (input === undefined) return [];
+    if (typeof input === 'string') return [{ import: input }];
+    if (Array.isArray(input)) {
+        return input.map((v) =>
+            typeof v === 'string' ? { import: v } : (v as { name?: string; import: string }),
+        );
+    }
+    return Object.entries(input as Record<string, string>).map(([name, file]) => ({ name, import: file }));
 }
 
 export type PluginRecord = { name?: string; [k: string]: unknown };

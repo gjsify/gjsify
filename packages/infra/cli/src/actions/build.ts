@@ -1,7 +1,7 @@
 import type { ConfigData, BundlerOptions } from "../types/index.js";
 import type { App, PluginOptions } from "@gjsify/rolldown-plugin-gjsify";
 import type { RolldownOutput, RolldownPluginOption } from "rolldown";
-import { runBundle } from "../bundler-pick.js";
+import { runBundle, bundleToChunks } from "../bundler-pick.js";
 import { gjsifyPlugin, textLoaderPlugin, resolveShebangLine } from "@gjsify/rolldown-plugin-gjsify";
 import { resolveUserPlugins } from "../utils/resolve-plugin-by-name.js";
 import {
@@ -339,6 +339,7 @@ export class BuildAction {
                 gjsifyPluginFactory,
                 verbose,
                 { extraGlobalsList: extras, excludeGlobals },
+                bundleToChunks,
             );
 
             pluginOpts.autoGlobalsInject = injectPath;

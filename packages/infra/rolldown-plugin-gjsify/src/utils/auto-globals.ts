@@ -18,7 +18,41 @@
 // alias `globalThis` to a short variable and defeat MemberExpression
 // detection in detect-free-globals.ts.
 
-import { rolldown, type InputOptions, type OutputChunk, type RolldownPluginOption, type TransformOptions } from 'rolldown';
+import type { InputOptions, RolldownPluginOption, TransformOptions } from 'rolldown';
+
+/**
+ * In-memory bundle function — returns the per-entry chunk code strings.
+ * Implementations: npm rolldown (Node default), `@gjsify/rolldown-native`
+ * (GJS). Pulled out so auto-globals can run under either engine without
+ * hardcoding npm rolldown (which can't load under GJS — the Rust prebuild's
+ * init code uses `require('node:fs')` synchronously).
+ *
+ * The default impl below dynamically imports npm rolldown; the CLI
+ * overrides this from `actions/build.ts` to route via the same engine the
+ * final build uses.
+ */
+export type AnalysisBundler = (input: {
+    rolldownInput: InputOptions;
+    format: 'esm' | 'cjs' | 'iife';
+}) => Promise<string[]>;
+
+const defaultBundler: AnalysisBundler = async ({ rolldownInput, format }) => {
+    // Indirect specifier so the GJS bundle doesn't pull npm rolldown in
+    // statically. Only reached when the caller doesn't override (Node).
+    const specifier = 'rolldown';
+    const mod = (await import(/* @vite-ignore */ specifier)) as typeof import('rolldown');
+    const build = await mod.rolldown(rolldownInput);
+    try {
+        const result = await build.generate({ format, minify: false, sourcemap: false });
+        const codes: string[] = [];
+        for (const entry of result.output) {
+            if (entry.type === 'chunk') codes.push(entry.code);
+        }
+        return codes;
+    } finally {
+        await build.close();
+    }
+};
 import { detectFreeGlobals } from './detect-free-globals.js';
 import { resolveGlobalsList, writeRegisterInjectFile } from './scan-globals.js';
 import { GJS_GLOBALS_MAP } from '@gjsify/resolve-npm/globals-map';
@@ -139,6 +173,7 @@ export async function detectAutoGlobals(
     gjsifyPluginFactory: GjsifyPluginFactory,
     verbose?: boolean,
     options: DetectAutoGlobalsOptions = {},
+    bundler: AnalysisBundler = defaultBundler,
 ): Promise<AutoGlobalsResult> {
     const extraRegisterPaths = options.extraGlobalsList
         ? resolveGlobalsList(options.extraGlobalsList)
@@ -178,28 +213,17 @@ export async function detectAutoGlobals(
             ? appendInjectAsEntry(analysisOptions.input, currentInject)
             : analysisOptions.input;
 
-        const build = await rolldown({
-            input: inputWithInject,
-            external: analysisOptions.external,
-            resolve: analysisOptions.resolve,
-            transform: analysisOptions.transform,
-            plugins: [...callerPlugins, gjsifyInstance],
-            logLevel: 'silent',
+        const chunkCodes = await bundler({
+            rolldownInput: {
+                input: inputWithInject,
+                external: analysisOptions.external,
+                resolve: analysisOptions.resolve,
+                transform: analysisOptions.transform,
+                plugins: [...callerPlugins, gjsifyInstance],
+                logLevel: 'silent',
+            },
+            format: analysisOptions.format ?? 'esm',
         });
-
-        const chunkCodes: string[] = [];
-        try {
-            const result = await build.generate({
-                format: analysisOptions.format ?? 'esm',
-                minify: false,
-                sourcemap: false,
-            });
-            for (const entry of result.output) {
-                if (entry.type === 'chunk') chunkCodes.push((entry as OutputChunk).code);
-            }
-        } finally {
-            await build.close();
-        }
 
         if (chunkCodes.length === 0) {
             return { detected: new Set(), injectPath: currentInject };
@@ -211,8 +235,22 @@ export async function detectAutoGlobals(
         // top-level declarations: `File`, `Buffer`, …) that acorn can't
         // parse. Per-chunk parsing keeps each chunk's lexical scope intact.
         const newDetected = new Set<string>();
-        for (const code of chunkCodes) {
-            for (const id of detectFreeGlobals(code)) newDetected.add(id);
+        for (let i = 0; i < chunkCodes.length; i++) {
+            const code = chunkCodes[i] ?? '';
+            try {
+                for (const id of detectFreeGlobals(code)) newDetected.add(id);
+            } catch (e) {
+                if ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.GJSIFY_DEBUG_AUTO_GLOBALS) {
+                    const path = `/tmp/gjsify-auto-globals-failed-chunk-${i}.mjs`;
+                    try {
+                        // eslint-disable-next-line @typescript-eslint/no-require-imports
+                        const fs = await import('node:fs');
+                        fs.writeFileSync(path, code);
+                        console.error(`[gjsify-auto-globals] parse failed on chunk #${i} — wrote ${path} for inspection`);
+                    } catch { /* ignore */ }
+                }
+                throw e;
+            }
         }
 
         // Apply excludeGlobals BEFORE writing the next iteration's inject file.

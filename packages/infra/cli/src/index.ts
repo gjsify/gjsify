@@ -18,7 +18,12 @@ import {
 } from './commands/index.js'
 import { APP_NAME } from './constants.js'
 
-void yargs(hideBin(process.argv))
+// `parseAsync()` instead of `.argv` so the top-level await keeps the
+// process alive until command handlers complete. Under Node this is
+// cosmetic — the event loop holds the process up — but under GJS the
+// script ends as soon as the top-level synchronous flow finishes, and
+// fire-and-forget handlers silently exit before any async work runs.
+await yargs(hideBin(process.argv))
     .scriptName(APP_NAME)
     .strict()
     .command(create.command, create.description, create.builder, create.handler)
@@ -34,4 +39,5 @@ void yargs(hideBin(process.argv))
     .command(gsettings.command, gsettings.description, gsettings.builder, gsettings.handler)
     .command(flatpak.command, flatpak.description, flatpak.builder, flatpak.handler)
     .demandCommand(1)
-    .help().argv
+    .help()
+    .parseAsync()
