@@ -46,7 +46,10 @@ describe('CLI flatpak subcommand group E2E', { timeout: 10 * 60 * 1000 }, () => 
           appId: 'org.example.FlatpakSmoke',
           runtime: 'gnome',
           runtimeVersion: '50',
-          sdkExtensions: ['org.freedesktop.Sdk.Extension.node24'],
+          // No sdkExtensions: a pure gjsify project doesn't need any.
+          // Before Phase D-3 we defaulted `node24` here for build-time
+          // `yarn install` + esbuild; that requirement is gone now that
+          // the GJS-CLI self-host loop is closed.
         },
       },
     }, tarballsDir, tarballMap);
@@ -80,13 +83,36 @@ describe('CLI flatpak subcommand group E2E', { timeout: 10 * 60 * 1000 }, () => 
     assert.equal(manifest.runtime, 'org.gnome.Platform');
     assert.equal(manifest['runtime-version'], '50');
     assert.equal(manifest.sdk, 'org.gnome.Sdk');
-    assert.deepEqual(manifest['sdk-extensions'], ['org.freedesktop.Sdk.Extension.node24']);
-    assert.match(manifest['build-options']['append-path'], /\/usr\/lib\/sdk\/node24\/bin/);
+    // Default pure-gjsify projects don't need any SDK extensions — Phase D-3
+    // closed the self-host loop so build-time Node is no longer required.
+    // With no extensions and no explicit `appendPath`, the orchestrator skips
+    // `sdk-extensions` and `build-options` entirely (init.ts:130-132).
+    assert.equal(manifest['sdk-extensions'], undefined,
+      'pure gjsify project should not need any SDK extensions');
+    assert.equal(manifest['build-options'], undefined,
+      'no build-options without extensions / explicit appendPath');
     assert.deepEqual(manifest['finish-args'], [
       '--device=dri', '--share=ipc', '--socket=fallback-x11', '--socket=wayland',
     ]);
     assert.equal(manifest.modules[0].name, 'FlatpakSmoke');
     assert.equal(manifest.modules[0].buildsystem, 'meson');
+  });
+
+  it('flatpak init honors explicit sdkExtensions (e.g. for native toolchains)', () => {
+    // Regression guard for the deriveAppendPath logic — projects that
+    // genuinely need extra Sdk.Extension.<x> (rust/llvm/etc.) still get
+    // the correct `sdk-extensions` + `append-path` wiring even though the
+    // default no longer includes any extension.
+    const customManifest = join(projectDir, 'custom-ext.json');
+    execFileSync('npx', [
+      'gjsify', 'flatpak', 'init',
+      '--manifest', customManifest, '--force',
+      '--sdk-extension', 'org.freedesktop.Sdk.Extension.llvm17',
+    ], { cwd: projectDir, stdio: 'pipe', timeout: 60 * 1000 });
+    const manifest = JSON.parse(readFileSync(customManifest, 'utf-8'));
+    assert.deepEqual(manifest['sdk-extensions'], ['org.freedesktop.Sdk.Extension.llvm17']);
+    assert.match(manifest['build-options']['append-path'], /\/usr\/lib\/sdk\/llvm17\/bin/);
+    assert.match(manifest['build-options']['append-path'], /\/app\/bin$/);
   });
 
   it('flatpak init --cli-only strips GUI finish-args but keeps GNOME runtime', () => {
