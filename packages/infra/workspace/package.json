@@ -1,0 +1,43 @@
+{
+    "name": "@gjsify/workspace",
+    "version": "0.3.21",
+    "description": "Yarn-workspaces-compatible discovery + resolution for gjsify install/foreach. Reads package.json `workspaces` (string array or { packages, nohoist } shape), expands globs, resolves `workspace:^` to local versions, builds the dependency graph + topological order. Cross-platform Node + GJS.",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "main": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "scripts": {
+        "clear": "rm -rf lib tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",
+        "check": "tsc --noEmit",
+        "build": "yarn build:gjsify && yarn build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.mts'",
+        "build:types": "tsc -p tsconfig.build.json",
+        "build:test": "yarn build:test:gjs && yarn build:test:node",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "yarn build:gjsify && yarn build:test && yarn test:node && yarn test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "test:node": "node test.node.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "node",
+        "workspace",
+        "yarn",
+        "monorepo",
+        "install"
+    ],
+    "license": "MIT",
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.6.2",
+        "typescript": "^6.0.3"
+    }
+}

@@ -4200,6 +4200,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@gjsify/workspace@workspace:packages/infra/workspace":
+  version: 0.0.0-use.local
+  resolution: "@gjsify/workspace@workspace:packages/infra/workspace"
+  dependencies:
+    "@gjsify/cli": "workspace:^"
+    "@gjsify/unit": "workspace:^"
+    "@types/node": "npm:^25.6.2"
+    typescript: "npm:^6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "@gjsify/ws@workspace:^, @gjsify/ws@workspace:packages/node/ws":
   version: 0.0.0-use.local
   resolution: "@gjsify/ws@workspace:packages/node/ws"
