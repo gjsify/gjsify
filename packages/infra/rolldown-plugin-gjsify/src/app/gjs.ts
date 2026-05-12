@@ -26,9 +26,38 @@ import {
 } from '../plugins/rewrite-node-modules-paths.js';
 import { processStubPlugin } from '../plugins/process-stub.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
-import { shebangPlugin, resolveShebangLine } from '../plugins/shebang.js';
+import { shebangPlugin, resolveShebangLine, inputShebangStripPlugin } from '../plugins/shebang.js';
 
 const _shimDir = dirname(fileURLToPath(import.meta.url));
+
+const CONSOLE_SHIM_SUBPATH = '@gjsify/rolldown-plugin-gjsify/lib/shims/console-gjs.js';
+
+function resolveConsoleShim(): string {
+    // Preferred: relative to this module's directory. Works under the
+    // normal Node consumer flow where `_shimDir` = `<pkg>/lib/app/`.
+    const relative = resolve(_shimDir, '../shims/console-gjs.js');
+    let fs: typeof import('node:fs') | null = null;
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        fs = require('node:fs') as typeof import('node:fs');
+    } catch { /* no fs — return the best guess */ return relative; }
+    if (fs.existsSync(relative)) return relative;
+    // Fallback: walk up from `_shimDir` looking for a node_modules tree
+    // that contains the shim. Used when the orchestrator is bundled into
+    // a single .mjs (GJS-CLI self-host) and `_shimDir` collapses to the
+    // bundle's dir, breaking the relative lookup. We deliberately don't
+    // use createRequire(...).resolve() because our @gjsify/module polyfill
+    // doesn't yet honor the `exports` map for subpath imports.
+    let cur = _shimDir;
+    for (let i = 0; i < 12; i++) {
+        const candidate = resolve(cur, 'node_modules', CONSOLE_SHIM_SUBPATH);
+        if (fs.existsSync(candidate)) return candidate;
+        const parent = resolve(cur, '..');
+        if (parent === cur) break;
+        cur = parent;
+    }
+    return relative;
+}
 
 /** Resolved Rolldown configuration template + plugins for `--app gjs`. */
 export interface GjsBuildConfig {
@@ -75,8 +104,17 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     const exclude = input.pluginOptions.exclude ?? [];
     const entryPoints = await globToEntryPoints(input.input, exclude);
 
+    // unicorn-magic gates its full API behind the "node" conditional
+    // exports. We deliberately omit `node` from conditionNames (some
+    // packages ship genuinely Node-only code there — see comment
+    // around `conditionNames` below). Route the package to our
+    // bundled shim so the API is reachable under --app gjs without
+    // turning on the node condition globally.
+    const unicornMagicShim = resolve(_shimDir, '../shims/unicorn-magic.js');
+
     const aliasMap = {
         ...getAliasesForGjs({ external }),
+        'unicorn-magic': unicornMagicShim,
         ...(input.pluginOptions.aliases ?? {}),
         ...(input.userAliases ?? {}),
     };
@@ -84,9 +122,16 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     // The console shim replaces all `console` references with print()/printerr()-
     // based implementations that bypass GLib.log_structured() — no prefix,
     // ANSI codes work. Disabled via `pluginOptions.consoleShim === false`.
+    //
+    // Path resolution: `resolve(_shimDir, '../shims/...')` works in normal
+    // Node consumption (_shimDir = `<pkg>/lib/app/`). When the CLI is
+    // bundled into a single .mjs (e.g. the GJS-CLI self-host loop),
+    // `import.meta.url` collapses to the bundle's path and the relative
+    // resolution lands at a non-existent location. Walk up via
+    // createRequire's node_modules-aware resolver as a fallback.
     const consoleShimEnabled = input.pluginOptions.consoleShim !== false;
     const consoleShimPath = consoleShimEnabled
-        ? resolve(_shimDir, '../shims/console-gjs.js')
+        ? resolveConsoleShim()
         : null;
 
     // The auto-globals inject stub (when present) is side-effect-imported
@@ -166,6 +211,12 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         // Virtual-entry plugin runs FIRST so its resolveId/load match the
         // synthetic input ids that `wrapInputWithSideEffects` produces.
         ...(virtualEntries.plugin ? [virtualEntries.plugin] : []),
+        // Strip leading #! from any input module BEFORE bundling — otherwise
+        // a shebang in e.g. the CLI's own entry file ends up embedded
+        // mid-chunk after our process-stub banner, and acorn (auto-globals
+        // detector) rejects the `#` byte. Final-output shebang is composed
+        // by shebangPlugin's renderChunk hook.
+        inputShebangStripPlugin(),
         // random-access-file's 'browser' field maps to a throwing stub; force
         // the fs-backed Node entry. Implemented via the gjsify alias plugin
         // as a direct entry-table override.

@@ -101,6 +101,12 @@ export function detectFreeGlobals(code: string): Set<string> {
     const ast = acorn.parse(code, {
         ecmaVersion: 'latest',
         sourceType: 'module',
+        // Some bundled chunks carry an embedded `#!shebang` line —
+        // notably any project bundling its own CLI gets the
+        // `#!/usr/bin/env -S gjs -m` shebang hoisted to byte 0.
+        // Acorn rejects shebangs by default; allow them so the
+        // free-globals analyzer doesn't choke on its own input.
+        allowHashBang: true,
     });
 
     // --- Pass 1: collect all declared names across the entire module ---

@@ -16,6 +16,30 @@ export interface ShebangPluginOptions {
     line?: string;
 }
 
+/**
+ * Strip a leading `#!…\n` from a source module. Rolldown preserves input
+ * shebangs verbatim, which ends up embedded mid-chunk after our process-stub
+ * banner — acorn (used by the auto-globals detector) then rejects `#` because
+ * it's not at byte 0 anymore. Stripping at the transform stage cleans both
+ * the analysis bundle and the final bundle; the gjsify-shebang renderChunk
+ * step then injects the correct line for the output target.
+ */
+const SHEBANG_RE = /^#![^\n]*\n/;
+
+/** Always-on plugin half: strips input shebangs regardless of output options. */
+export function inputShebangStripPlugin(): Plugin {
+    return {
+        name: 'gjsify-input-shebang-strip',
+        transform: {
+            order: 'pre' as const,
+            handler(code) {
+                if (!code.startsWith('#!')) return null;
+                return { code: code.replace(SHEBANG_RE, ''), map: null };
+            },
+        },
+    };
+}
+
 export function shebangPlugin(options: ShebangPluginOptions = {}): Plugin | null {
     if (!options.enabled) return null;
     const line = options.line ?? GJS_SHEBANG;
