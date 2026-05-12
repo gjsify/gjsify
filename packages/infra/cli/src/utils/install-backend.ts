@@ -38,12 +38,22 @@ export interface InstallOptions {
 
 const DEFAULT_BACKEND = process.env.GJSIFY_INSTALL_BACKEND ?? 'native';
 
-export async function installPackages(opts: InstallOptions): Promise<void> {
+export interface InstallResult {
+    /** Top-level packages that were requested, with the version each
+     *  resolved to. Empty for the npm backend (parsing npm's stdout would
+     *  be unreliable; callers that need this should set
+     *  GJSIFY_INSTALL_BACKEND=native). */
+    installed: Array<{ name: string; version: string }>;
+}
+
+export async function installPackages(opts: InstallOptions): Promise<InstallResult> {
     if (DEFAULT_BACKEND === 'npm') {
-        return installViaNpm(opts);
+        await installViaNpm(opts);
+        return { installed: [] };
     }
     const { installPackagesNative } = await import('./install-backend-native.js');
-    return installPackagesNative(opts);
+    const installed = await installPackagesNative(opts);
+    return { installed };
 }
 
 async function installViaNpm({ prefix, specs, verbose, registry }: InstallOptions): Promise<void> {

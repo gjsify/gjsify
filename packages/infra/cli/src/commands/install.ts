@@ -1,25 +1,23 @@
 // `gjsify install [pkg...]` — install packages with gjsify-aware post-checks.
 //
 // Modes:
-//   gjsify install                    → project install (npm install)
-//   gjsify install <pkg> [<pkg>...]   → add package(s) to project (npm install <pkg>...)
+//   gjsify install                    → project install (native, reads pkg.json)
+//   gjsify install <pkg> [<pkg>...]   → add package(s) to project (native)
 //   gjsify install -g <pkg> [...]     → user-global install (XDG, GJS-runnable bin)
 //
-// Project mode delegates to `npm install` in cwd and runs `runMinimalChecks()`
-// + `detectNativePackages()` to surface missing system deps and `@gjsify/*`
-// packages with native prebuilds.
+// All three modes route through `@gjsify/{semver,npm-registry,tar}` via
+// `installPackagesNative` — no Node/npm required at runtime. Set
+// `GJSIFY_INSTALL_BACKEND=npm` to opt back into the legacy `npm install`
+// subprocess flow (useful as escape-hatch for projects that hit a
+// missing native-backend feature).
 //
-// Global mode is the GJS equivalent of `npm i -g`: extracts the package tree
-// into `${XDG_DATA_HOME}/gjsify/global/node_modules/<pkg>/` via the native
-// install backend (no Node/npm required at runtime), then symlinks the bins
-// declared by `gjsify.bin` (preferred) or `bin` (fallback) into
-// `~/.local/bin/`. Subsequent commands invoked by name resolve to the
-// extracted package, so package-relative assets like `@ts-for-gir/cli`'s
-// `dist-templates/` are found by ordinary `__dirname/..` resolution — no
-// embedded asset stores, no separate release tarballs.
+// Workspace-aware install (`gjsify install` in a monorepo root with a
+// `"workspaces"` field) is Phase D.3 — for now we detect and surface a
+// clear error pointing at the in-progress work.
 
+import { existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
 import type { Command } from '../types/index.js';
 import {
     buildInstallCommand,
@@ -34,6 +32,15 @@ import {
     linkGlobalBins,
     specToPackageName,
 } from '../utils/install-global.js';
+import {
+    addDependencyEntry,
+    defaultRangeFromVersion,
+    parseSpec,
+    projectSpecsFromPackageJson,
+    readPackageJson,
+    writePackageJson,
+    type DependencyKind,
+} from '../utils/pkg-json-edit.js';
 
 interface InstallOptions {
     packages?: string[];
@@ -89,20 +96,117 @@ export const installCommand: Command<any, InstallOptions> = {
             return;
         }
 
-        const npmArgs = ['install'];
-        if (args['save-dev']) npmArgs.push('--save-dev');
-        if (args['save-peer']) npmArgs.push('--save-peer');
-        if (args['save-optional']) npmArgs.push('--save-optional');
-        if (args.verbose) npmArgs.push('--loglevel', 'verbose');
-        if (args.packages && args.packages.length > 0) {
-            npmArgs.push(...args.packages);
+        // Escape-hatch: legacy npm subprocess flow.
+        if (process.env.GJSIFY_INSTALL_BACKEND === 'npm') {
+            await projectInstallViaNpm(args);
+            await runPostInstallChecks();
+            return;
         }
 
-        await spawnNpm(npmArgs);
-
+        await projectInstallNative(args);
         await runPostInstallChecks();
     },
 };
+
+function isWorkspaceRoot(cwd: string): boolean {
+    const pkgPath = join(cwd, 'package.json');
+    const pkg = readPackageJson(pkgPath);
+    if (!pkg) return false;
+    return pkg.workspaces !== undefined;
+}
+
+function depKindFromArgs(args: InstallOptions): DependencyKind {
+    if (args['save-dev']) return 'devDependencies';
+    if (args['save-peer']) return 'peerDependencies';
+    if (args['save-optional']) return 'optionalDependencies';
+    return 'dependencies';
+}
+
+async function projectInstallNative(args: InstallOptions): Promise<void> {
+    const cwd = process.cwd();
+    const pkgPath = join(cwd, 'package.json');
+
+    // Workspace install (no args, root pkg.json has `workspaces`) is Phase
+    // D.3 — surface a precise error so users don't get a confusing partial
+    // result. Project-local `gjsify install <pkg>` inside a workspace child
+    // works fine (this branch checks only cwd's pkg.json).
+    if ((!args.packages || args.packages.length === 0) && isWorkspaceRoot(cwd)) {
+        throw new Error(
+            'gjsify install: this project declares a "workspaces" field but ' +
+            'workspace-aware install is not yet wired (Phase D.3). For now run ' +
+            '`yarn install` for the full monorepo install, or set ' +
+            'GJSIFY_INSTALL_BACKEND=npm to delegate to npm.',
+        );
+    }
+
+    // Yarn-Berry / PnP detection: fall back to yarn with a clear warning
+    // rather than producing a half-working node_modules tree.
+    if (existsSync(join(cwd, '.pnp.cjs')) || existsSync(join(cwd, '.pnp.loader.mjs'))) {
+        throw new Error(
+            'gjsify install: detected Yarn PnP (.pnp.cjs) — native install is ' +
+            'not PnP-aware yet. Use `yarn install` or set ' +
+            'GJSIFY_INSTALL_BACKEND=npm.',
+        );
+    }
+
+    let specs: string[];
+    const pkg = readPackageJson(pkgPath);
+
+    const existingSpecs = pkg ? projectSpecsFromPackageJson(pkg) : [];
+
+    if (args.packages && args.packages.length > 0) {
+        // Combine new specs with existing manifest deps so a single
+        // `gjsify install <new>` doesn't churn the lockfile (would drop
+        // every previously-pinned entry otherwise). New specs with the
+        // same name as an existing dep override.
+        const newNames = new Set(args.packages.map((s) => parseSpec(s).name));
+        const carryover = existingSpecs.filter((s) => !newNames.has(parseSpec(s).name));
+        specs = [...carryover, ...args.packages];
+    } else {
+        if (!pkg) {
+            throw new Error(`gjsify install: no package.json in ${cwd}`);
+        }
+        specs = existingSpecs;
+        if (specs.length === 0) {
+            console.log('gjsify install: no dependencies declared in package.json — nothing to do.');
+            return;
+        }
+    }
+
+    mkdirSync(cwd, { recursive: true });
+    const result = await installPackages({
+        prefix: cwd,
+        specs,
+        verbose: args.verbose,
+        lockfile: true,
+    });
+
+    // Update package.json only when the user passed explicit packages
+    // (the `gjsify install <pkg>...` add-a-dep flow). The no-args refresh
+    // flow doesn't mutate manifest entries.
+    if (args.packages && args.packages.length > 0 && pkg) {
+        const kind = depKindFromArgs(args);
+        for (const spec of args.packages) {
+            const { name, range } = parseSpec(spec);
+            const installed = result.installed.find((r) => r.name === name);
+            const finalRange = range ?? (installed ? defaultRangeFromVersion(installed.version) : 'latest');
+            addDependencyEntry(pkg, name, finalRange, kind);
+        }
+        writePackageJson(pkgPath, pkg);
+    }
+}
+
+async function projectInstallViaNpm(args: InstallOptions): Promise<void> {
+    const npmArgs = ['install'];
+    if (args['save-dev']) npmArgs.push('--save-dev');
+    if (args['save-peer']) npmArgs.push('--save-peer');
+    if (args['save-optional']) npmArgs.push('--save-optional');
+    if (args.verbose) npmArgs.push('--loglevel', 'verbose');
+    if (args.packages && args.packages.length > 0) {
+        npmArgs.push(...args.packages);
+    }
+    await spawnNpm(npmArgs);
+}
 
 async function spawnNpm(npmArgs: string[]): Promise<void> {
     return new Promise<void>((resolve, reject) => {

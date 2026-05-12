@@ -66,7 +66,12 @@ interface Lockfile {
     packages: Record<string, LockfileEntry>;
 }
 
-export async function installPackagesNative(opts: InstallOptions): Promise<void> {
+export interface InstalledTopLevel {
+    name: string;
+    version: string;
+}
+
+export async function installPackagesNative(opts: InstallOptions): Promise<InstalledTopLevel[]> {
     if (opts.specs.length === 0) {
         throw new Error("installPackagesNative: empty specs list");
     }
@@ -100,6 +105,33 @@ export async function installPackagesNative(opts: InstallOptions): Promise<void>
     await downloadAndExtractAll(nodes, opts.prefix, npmrc, log);
     await linkBins(nodes, opts.prefix, log);
     log("install: done");
+
+    // Surface the top-level requested packages so callers can update
+    // package.json with the resolved version (mirrors `npm install --save`
+    // behavior). Sub-deps are not included.
+    return topLevelResolutions(opts.specs, nodes);
+}
+
+function topLevelResolutions(specs: string[], nodes: ResolvedNode[]): InstalledTopLevel[] {
+    const byName = new Map(nodes.map((n) => [n.name, n] as const));
+    const out: InstalledTopLevel[] = [];
+    for (const spec of specs) {
+        const name = parseSpecName(spec);
+        const node = byName.get(name);
+        if (node) out.push({ name: node.name, version: node.version });
+    }
+    return out;
+}
+
+function parseSpecName(spec: string): string {
+    if (spec.startsWith("@")) {
+        const slash = spec.indexOf("/");
+        if (slash === -1) return spec;
+        const at = spec.indexOf("@", slash + 1);
+        return at === -1 ? spec : spec.slice(0, at);
+    }
+    const at = spec.indexOf("@");
+    return at === -1 ? spec : spec.slice(0, at);
 }
 
 async function resolveDeps(
@@ -327,24 +359,31 @@ function normalizeBin(pkgName: string, bin: string | Record<string, string>): Ma
 
 async function loadNpmrc(opts: InstallOptions): Promise<NpmrcConfig> {
     const home = os.homedir();
-    const homeRc = path.join(home, ".npmrc");
     let parsed: NpmrcConfig = {
         registry: opts.registry ?? DEFAULT_REGISTRY,
         scopes: {},
         authTokens: {},
         basicAuth: {},
     };
-    if (fs.existsSync(homeRc)) {
+    // Layered .npmrc lookup (most-specific wins): home → project (cwd's
+    // prefix). npm itself merges through `XDG_CONFIG_HOME/npm/npmrc` and a
+    // workspace-root one too; the gjsify project-local case is what users
+    // hit most often (mock-registry tests, scoped-registry overrides), so
+    // we cover that explicitly.
+    for (const candidate of [path.join(home, ".npmrc"), path.join(opts.prefix, ".npmrc")]) {
+        if (!fs.existsSync(candidate)) continue;
         try {
-            parsed = parseNpmrc(fs.readFileSync(homeRc, "utf-8"));
+            const projectParsed = parseNpmrc(fs.readFileSync(candidate, "utf-8"));
+            parsed = { ...parsed, ...projectParsed, scopes: { ...parsed.scopes, ...projectParsed.scopes } };
         } catch (e) {
-            // Don't let a busted .npmrc prevent installs from anonymous registries.
-            console.warn(`gjsify install: ignoring malformed ${homeRc}: ${(e as Error).message}`);
+            console.warn(`gjsify install: ignoring malformed ${candidate}: ${(e as Error).message}`);
         }
     }
-    if (opts.registry) {
-        parsed.registry = opts.registry;
-    }
+    // env-var override (npm convention: `npm_config_registry`).
+    const envRegistry = process.env.npm_config_registry;
+    if (envRegistry) parsed.registry = envRegistry;
+    // Explicit caller-provided registry trumps everything else.
+    if (opts.registry) parsed.registry = opts.registry;
     return parsed;
 }
 
