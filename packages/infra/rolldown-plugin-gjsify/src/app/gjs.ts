@@ -30,8 +30,6 @@ import { shebangPlugin, resolveShebangLine, inputShebangStripPlugin } from '../p
 
 const _shimDir = dirname(fileURLToPath(import.meta.url));
 
-const CONSOLE_SHIM_SUBPATH = '@gjsify/rolldown-plugin-gjsify/lib/shims/console-gjs.js';
-
 function resolveConsoleShim(): string {
     // Preferred: relative to this module's directory. Works under the
     // normal Node consumer flow where `_shimDir` = `<pkg>/lib/app/`.
@@ -40,23 +38,22 @@ function resolveConsoleShim(): string {
     try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         fs = require('node:fs') as typeof import('node:fs');
-    } catch { /* no fs — return the best guess */ return relative; }
+    } catch { return relative; }
     if (fs.existsSync(relative)) return relative;
-    // Fallback: walk up from `_shimDir` looking for a node_modules tree
-    // that contains the shim. Used when the orchestrator is bundled into
-    // a single .mjs (GJS-CLI self-host) and `_shimDir` collapses to the
-    // bundle's dir, breaking the relative lookup. We deliberately don't
-    // use createRequire(...).resolve() because our @gjsify/module polyfill
-    // doesn't yet honor the `exports` map for subpath imports.
-    let cur = _shimDir;
-    for (let i = 0; i < 12; i++) {
-        const candidate = resolve(cur, 'node_modules', CONSOLE_SHIM_SUBPATH);
-        if (fs.existsSync(candidate)) return candidate;
-        const parent = resolve(cur, '..');
-        if (parent === cur) break;
-        cur = parent;
+    // Fallback: when the orchestrator is bundled into a single .mjs
+    // (GJS-CLI self-host loop) `_shimDir` collapses to the bundle's
+    // own directory and the relative lookup misses. createRequire's
+    // resolver is `exports`-map-aware (Phase C), so the published
+    // subpath export `./shims/console-gjs` works under both Node and
+    // GJS without further walking.
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const Module = require('node:module') as typeof import('node:module');
+        const require_ = Module.createRequire(import.meta.url);
+        return require_.resolve('@gjsify/rolldown-plugin-gjsify/shims/console-gjs');
+    } catch {
+        return relative;
     }
-    return relative;
 }
 
 /** Resolved Rolldown configuration template + plugins for `--app gjs`. */
