@@ -15,6 +15,8 @@ import {
     flatpakCommand as flatpak,
     dlxCommand as dlx,
     installCommand as install,
+    foreachCommand as foreach,
+    workspaceCommand as workspace,
 } from './commands/index.js'
 import { APP_NAME } from './constants.js'
 
@@ -38,6 +40,8 @@ await yargs(hideBin(process.argv))
     .command(gettext.command, gettext.description, gettext.builder, gettext.handler)
     .command(gsettings.command, gsettings.description, gsettings.builder, gsettings.handler)
     .command(flatpak.command, flatpak.description, flatpak.builder, flatpak.handler)
+    .command(foreach.command, foreach.description, foreach.builder, foreach.handler)
+    .command(workspace.command, workspace.description, workspace.builder, workspace.handler)
     .demandCommand(1)
     .help()
     .parseAsync()
