@@ -103,8 +103,20 @@ function resolvePackageEntry(dirPath: string): string | null {
   const pkgJsonFile = resolvePath(dirPath, 'package.json');
   if (!pkgJsonFile.query_exists(null)) return null;
 
-  const pkg = readJSON(pkgJsonFile.get_path()!) as Record<string, string>;
-  const main = pkg.main || pkg.module || 'index.js';
+  const pkg = readJSON(pkgJsonFile.get_path()!) as Record<string, unknown>;
+
+  // `exports` map first — when present, it MUST be the authoritative
+  // resolution for the root entry. The legacy `main`/`module` fields are
+  // only consulted as a fallback (or when no exports map exists).
+  if (pkg['exports'] !== undefined) {
+    const resolvedFromExports = resolveExportsMap(pkg['exports'], '.', DEFAULT_EXPORT_CONDITIONS);
+    if (resolvedFromExports) {
+      const resolved = resolvePath(dirPath, resolvedFromExports);
+      if (resolved.query_exists(null)) return resolved.get_path()!;
+    }
+  }
+
+  const main = (pkg['main'] as string | undefined) || (pkg['module'] as string | undefined) || 'index.js';
   const entryFile = resolvePath(dirPath, main);
 
   if (entryFile.query_exists(null)) return entryFile.get_path()!;
@@ -116,6 +128,93 @@ function resolvePackageEntry(dirPath: string): string | null {
   }
 
   return null;
+}
+
+/**
+ * Resolve a `pkg.exports`-map entry into a relative file path.
+ *
+ * Implements a useful subset of the Node ESM Package Exports spec
+ * (https://nodejs.org/api/packages.html#package-entry-points):
+ *   - shorthand string form (`"exports": "./lib/index.js"`)
+ *   - object form with `.` + `./<subpath>` keys
+ *   - conditional resolution against `conditions` in order (first match wins)
+ *   - `null` value → block (return undefined, caller treats as not-exported)
+ *
+ * Pattern wildcards (`./shims/*`) and subpath imports (`#internal`) are
+ * out of scope for now — the surface we need right now is fixed-key
+ * subpaths like `./shims/console-gjs`. Each gap surfaces a clear caller
+ * error rather than silent miss.
+ *
+ * @param exportsField Raw value of `pkg.exports`.
+ * @param subpath The requested subpath, including the leading `./`
+ *   (so `.` for root, `./foo` for `pkg/foo`).
+ * @param conditions Ordered condition list — first one that has a value
+ *   wins. Standard order: `["node", "import", "default"]` for GJS.
+ */
+function resolveExportsMap(
+  exportsField: unknown,
+  subpath: string,
+  conditions: readonly string[],
+): string | undefined {
+  if (typeof exportsField === 'string') {
+    // Shorthand: `"exports": "./lib/index.js"` applies to `.` only.
+    return subpath === '.' ? exportsField : undefined;
+  }
+  if (exportsField === null || typeof exportsField !== 'object') return undefined;
+  const map = exportsField as Record<string, unknown>;
+
+  // If the map has no `.`-prefixed keys, it's purely a condition map
+  // applying to root (`.`) — wrap it under `.` for the lookup.
+  const hasSubpathKeys = Object.keys(map).some((k) => k === '.' || k.startsWith('./'));
+  const lookup = hasSubpathKeys ? map[subpath] : (subpath === '.' ? map : undefined);
+  if (lookup === undefined || lookup === null) return undefined;
+
+  return pickConditionalValue(lookup, conditions);
+}
+
+/**
+ * Walk a conditional-export node, picking the first matching condition.
+ * `lookup` is either a leaf (string/null) or a nested condition map.
+ */
+function pickConditionalValue(lookup: unknown, conditions: readonly string[]): string | undefined {
+  if (typeof lookup === 'string') return lookup;
+  if (lookup === null || typeof lookup !== 'object') return undefined;
+  const map = lookup as Record<string, unknown>;
+  // `default` always wins as the final fallback inside the conditions
+  // we recognize, but other conditions take precedence in the order the
+  // caller provides them (e.g. `node` before `import`).
+  for (const cond of conditions) {
+    if (cond in map) {
+      const resolved = pickConditionalValue(map[cond], conditions);
+      if (resolved !== undefined) return resolved;
+    }
+  }
+  if ('default' in map && !conditions.includes('default')) {
+    return pickConditionalValue(map['default'], conditions);
+  }
+  return undefined;
+}
+
+const DEFAULT_EXPORT_CONDITIONS: readonly string[] = ['node', 'import', 'default'];
+
+/**
+ * Extract `<pkgName>` and `<subpath>` from a bare specifier:
+ *   `lodash`          → { pkg: 'lodash',          subpath: '.' }
+ *   `@scope/foo`      → { pkg: '@scope/foo',      subpath: '.' }
+ *   `@scope/foo/bar`  → { pkg: '@scope/foo',      subpath: './bar' }
+ *   `lodash/fp`       → { pkg: 'lodash',          subpath: './fp' }
+ */
+function splitBareSpecifier(id: string): { pkg: string; subpath: string } {
+  if (id.startsWith('@')) {
+    const slash1 = id.indexOf('/');
+    if (slash1 === -1) return { pkg: id, subpath: '.' };
+    const slash2 = id.indexOf('/', slash1 + 1);
+    if (slash2 === -1) return { pkg: id, subpath: '.' };
+    return { pkg: id.slice(0, slash2), subpath: '.' + id.slice(slash2) };
+  }
+  const slash = id.indexOf('/');
+  if (slash === -1) return { pkg: id, subpath: '.' };
+  return { pkg: id.slice(0, slash), subpath: '.' + id.slice(slash) };
 }
 
 /** Convert a file: URL (string or object) to an absolute path. */
@@ -160,17 +259,50 @@ function resolveBareViaPnpFromCaller(id: string, callerDir: string): Gio.File | 
  * node_modules exists but doesn't contain the requested package.
  */
 function resolveInNodeModules(id: string, callerDir: string): Gio.File {
+  const { pkg: pkgName, subpath } = splitBareSpecifier(id);
   let dir = Gio.File.new_for_path(callerDir);
   while (dir.has_parent(null)) {
     const nodeModulesFile = dir.resolve_relative_path('node_modules');
     if (nodeModulesFile.query_exists(null)) {
-      const candidate = nodeModulesFile.resolve_relative_path(id);
-      if (candidate.query_exists(null)) return candidate;
-      // Extensionless fallback: try appending .js (e.g. id = 'foo' → node_modules/foo.js)
-      const bn = candidate.get_basename();
-      if (bn && !hasExtension(bn)) {
-        const withJs = tryJsExtension(candidate.get_path()!);
-        if (withJs) return withJs;
+      const pkgDir = nodeModulesFile.resolve_relative_path(pkgName);
+      if (pkgDir.query_exists(null)) {
+        // Try the package's `exports` map for the requested subpath
+        // (including `.` for the package root). The map is authoritative
+        // when present — Node would only fall back to literal-path or
+        // `main`/`module` when no `exports` exists.
+        const pkgJson = pkgDir.resolve_relative_path('package.json');
+        if (pkgJson.query_exists(null)) {
+          const manifest = readJSON(pkgJson.get_path()!) as Record<string, unknown>;
+          if (manifest['exports'] !== undefined) {
+            const relative = resolveExportsMap(manifest['exports'], subpath, DEFAULT_EXPORT_CONDITIONS);
+            if (relative !== undefined) {
+              const target = pkgDir.resolve_relative_path(relative);
+              if (target.query_exists(null)) return target;
+              // fall through to literal-path on miss — keeps the
+              // behavior conservative when an exports entry points at
+              // a non-existent file
+            }
+          }
+        }
+        // Literal-path fallback (subpath used as plain relative path
+        // under the package dir, or `.` resolved to the dir itself).
+        const candidate = subpath === '.' ? pkgDir : pkgDir.resolve_relative_path(subpath.slice(2));
+        if (candidate.query_exists(null)) return candidate;
+        const bn = candidate.get_basename();
+        if (bn && !hasExtension(bn)) {
+          const withJs = tryJsExtension(candidate.get_path()!);
+          if (withJs) return withJs;
+        }
+      } else {
+        // Original behavior for the no-pkgDir case — literal `node_modules/id`
+        // walk, handles edge cases like single-file shims at the root.
+        const candidate = nodeModulesFile.resolve_relative_path(id);
+        if (candidate.query_exists(null)) return candidate;
+        const bn = candidate.get_basename();
+        if (bn && !hasExtension(bn)) {
+          const withJs = tryJsExtension(candidate.get_path()!);
+          if (withJs) return withJs;
+        }
       }
     }
     dir = dir.get_parent()!;

@@ -347,6 +347,27 @@ export default async () => {
       const req = createRequire(import.meta.url);
       expect(req.resolve('events')).toBe('events');
     });
+
+    await it('resolve should honor pkg.exports subpath maps (Phase C)', async () => {
+      // `@gjsify/rolldown-plugin-gjsify` exports `./shims/console-gjs` →
+      // `./lib/shims/console-gjs.js`. Without exports-map support this
+      // call fell back to the literal walk and returned a non-existent
+      // path; with the Phase-C resolver the spec-defined subpath wins.
+      const req = createRequire(import.meta.url);
+      const resolved = req.resolve('@gjsify/rolldown-plugin-gjsify/shims/console-gjs');
+      expect(typeof resolved).toBe('string');
+      expect(resolved.endsWith('/lib/shims/console-gjs.js')).toBe(true);
+    });
+
+    await it('resolve should honor pkg.exports root entry (.)', async () => {
+      // `@gjsify/rolldown-plugin-gjsify` root export is the object-form
+      // `{ "types": "./lib/index.d.ts", "default": "./lib/index.js" }`
+      // — exports-map resolution picks `default` for the runtime require.
+      const req = createRequire(import.meta.url);
+      const resolved = req.resolve('@gjsify/rolldown-plugin-gjsify');
+      expect(typeof resolved).toBe('string');
+      expect(resolved.endsWith('/lib/index.js')).toBe(true);
+    });
   });
 
   await describe('module exports', async () => {
