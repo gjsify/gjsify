@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.4.0](https://github.com/gjsify/gjsify/compare/v0.3.21...v0.4.0) (2026-05-13)
+
+### Features
+
+* **child_process:** honour {signal} option in spawn ([771f7cf](https://github.com/gjsify/gjsify/commit/771f7cf59cf562a43b9064c06cf3ee455c12b3b5))
+* **cli:** Phase A — top-level keepNames replaces nested minify shape ([#158](https://github.com/gjsify/gjsify/issues/158)) ([4db88bd](https://github.com/gjsify/gjsify/commit/4db88bded397a0dfeb49f2e69266a39a612a078b))
+* **cli:** Phase D-2.B.5b — gjsify build CLI wire-up to native rolldown ([#150](https://github.com/gjsify/gjsify/issues/150)) ([ae1fee0](https://github.com/gjsify/gjsify/commit/ae1fee053f95a2ed6183489970cee61d62f454df))
+* **cli:** Phase D-3.1 — bundler-pick defaults to native under GJS ([#156](https://github.com/gjsify/gjsify/issues/156)) ([5791351](https://github.com/gjsify/gjsify/commit/579135176d00799635d9790c597b6ee8b67ffb11))
+* **cli:** Phase D-3.2/3.3 — gjsify CLI runs under GJS + bundles ESM projects ([#157](https://github.com/gjsify/gjsify/issues/157)) ([b64c6eb](https://github.com/gjsify/gjsify/commit/b64c6eb45da2d3fada37f3d57d6c51eb214cc4b1))
+* **cli:** Phase D.1 — project-local install via native backend ([#161](https://github.com/gjsify/gjsify/issues/161)) ([36aebe9](https://github.com/gjsify/gjsify/commit/36aebe9184f20b1363cb88f95aece2d5d38169bb))
+* **cli:** Phase D.3 — workspace-aware gjsify install ([#163](https://github.com/gjsify/gjsify/issues/163)) ([68f9f96](https://github.com/gjsify/gjsify/commit/68f9f96702b9ec925cd9a8346fb3921c0a20fd29))
+* **cli:** Phase D.4 — gjsify foreach + gjsify workspace commands ([#167](https://github.com/gjsify/gjsify/issues/167)) ([6a025d5](https://github.com/gjsify/gjsify/commit/6a025d5238320b83e0ee7a7497e995f20c853fdd))
+* **cli:** Phase D.5 — gjsify run dual-mode script-runner ([#165](https://github.com/gjsify/gjsify/issues/165)) ([dfd8fbf](https://github.com/gjsify/gjsify/commit/dfd8fbf83a36c3b48c3f3143dc00080331a8942e))
+* **cli:** Phase D.6 — gjsify install --immutable CI mode ([#166](https://github.com/gjsify/gjsify/issues/166)) ([4523181](https://github.com/gjsify/gjsify/commit/452318105a0841967d3fa4638a56ba2bb625c202))
+* **cli:** Phase D.7b.1 — committed GJS bundle + gjsify.bin distribution ([#170](https://github.com/gjsify/gjsify/issues/170)) ([8d68bf9](https://github.com/gjsify/gjsify/commit/8d68bf9a50ce02a9c56fdf8e9f9675ec3c3805ae))
+* **flatpak:** Phase B — drop Node24 SDK extension from default manifest ([#159](https://github.com/gjsify/gjsify/issues/159)) ([248e99b](https://github.com/gjsify/gjsify/commit/248e99b3216fcb85ea99584003b152dffda3d975))
+* **http2-native:** introduce nghttp2 Vala bridge ([6d2ceb3](https://github.com/gjsify/gjsify/commit/6d2ceb3f16c64a9fe6a8989fcf27a4a357b50625))
+* **http2:** server push + respondWithFD/File via @gjsify/http2-native ([581a19a](https://github.com/gjsify/gjsify/commit/581a19afb59e19976556e3c7289643b8318a62d4))
+* **lightningcss-native:** Phase D-2 POC — Vala+Rust cdylib bridge to lightningcss ([#133](https://github.com/gjsify/gjsify/issues/133)) ([42201ad](https://github.com/gjsify/gjsify/commit/42201ad3141f8412b8bfe944ec91431aeab14aa0))
+* **lightningcss-wasm:** Phase D-2 POC — WASM track via napi-wasm ([#134](https://github.com/gjsify/gjsify/issues/134)) ([4a494d4](https://github.com/gjsify/gjsify/commit/4a494d4f259acd8019795a783b2ba3eb6616b78a)), closes [#133](https://github.com/gjsify/gjsify/issues/133) [#132](https://github.com/gjsify/gjsify/issues/132)
+* **module:** Phase C — createRequire honors pkg.exports map ([#160](https://github.com/gjsify/gjsify/issues/160)) ([e51b126](https://github.com/gjsify/gjsify/commit/e51b126724180f8e0346efa7883e2777858c0986)), closes [#157](https://github.com/gjsify/gjsify/issues/157)
+* **monorepo:** Phase D.7a — root scripts migrated from yarn to gjsify ([#168](https://github.com/gjsify/gjsify/issues/168)) ([33097c4](https://github.com/gjsify/gjsify/commit/33097c4aa94b7754df0b7f7bcdb2f13d72028048))
+* **rolldown-native:** Phase D-2 POC — Vala+Rust cdylib bridge to rolldown ([#136](https://github.com/gjsify/gjsify/issues/136)) ([6149b76](https://github.com/gjsify/gjsify/commit/6149b76793a75f21ea55f58c112843f840f940c3)), closes [#133](https://github.com/gjsify/gjsify/issues/133)
+* **rolldown-native:** Phase D-2.B.1 — plugin-bridge skeleton (load hook) ([#140](https://github.com/gjsify/gjsify/issues/140)) ([8402b1c](https://github.com/gjsify/gjsify/commit/8402b1cfc6f619b2ec32f3a3000912d6332db3c1)), closes [#136](https://github.com/gjsify/gjsify/issues/136)
+* **rolldown-native:** Phase D-2.B.2 — all 12 hooks + per-hook id regex filter ([#141](https://github.com/gjsify/gjsify/issues/141)) ([abd0566](https://github.com/gjsify/gjsify/commit/abd0566ee2f9432a32afe0f3e508ebaff0fc4378)), closes [#1346](https://github.com/gjsify/gjsify/issues/1346)
+* **rolldown-native:** Phase D-2.B.3 — nested protocol for plugin-context callbacks ([#147](https://github.com/gjsify/gjsify/issues/147)) ([e1d5c60](https://github.com/gjsify/gjsify/commit/e1d5c6048374eb931eebcd0669ee720909e20efd))
+* **rolldown-native:** Phase D-2.B.4 — zero-copy GBytes payload for transform hook ([#155](https://github.com/gjsify/gjsify/issues/155)) ([beb69c4](https://github.com/gjsify/gjsify/commit/beb69c41b4f32949c43e83da4f0ffe2ed134256c))
+* **rolldown-native:** Phase D-2.B.5a — bundleWithPlugins() TS facade ([#148](https://github.com/gjsify/gjsify/issues/148)) ([f3f0084](https://github.com/gjsify/gjsify/commit/f3f0084eae057f49899f4865001418dac0ec96a6))
+* **rolldown-plugin-gjsify:** cssAsStringPlugin prefers @gjsify/lightningcss-native ([#137](https://github.com/gjsify/gjsify/issues/137)) ([a25eb78](https://github.com/gjsify/gjsify/commit/a25eb7875bf2cf9966227d5fc138de5e89cfb7f4))
+* **tls:** cert-chain, mTLS, SNI server, ALPN, RFC 6125 checkServerIdentity ([2b259b7](https://github.com/gjsify/gjsify/commit/2b259b7e61611d694bfcc46693882d3745bd13eb))
+* **util:** add aborted(signal, resource) — Node 19+ stable API ([a7ab491](https://github.com/gjsify/gjsify/commit/a7ab491004483db122b03967ad92a3530522d5ab))
+* **worker_threads:** transferList for ArrayBuffer + MessagePort, SAB pass-through ([54a5260](https://github.com/gjsify/gjsify/commit/54a5260db2b3fa896afcd92cb87f8108597518ed))
+* **workspace:** Phase D.2 — @gjsify/workspace package ([#162](https://github.com/gjsify/gjsify/issues/162)) ([bfacd13](https://github.com/gjsify/gjsify/commit/bfacd13b65413f1eb411d874d04b47e4d8ae51d6))
+
+### Bug Fixes
+
+* **build:** move build:gjs-bundle to root build chain tail ([#171](https://github.com/gjsify/gjsify/issues/171)) ([b57153d](https://github.com/gjsify/gjsify/commit/b57153d4046b286edea3f985a0d9ebe26d77969e))
+* **ci:** functional bundle freshness check, not byte-exact ([#175](https://github.com/gjsify/gjsify/issues/175)) ([dd43c24](https://github.com/gjsify/gjsify/commit/dd43c2497023a5a9b0c51ea724dc01ca552e1917))
+* **cli:** include showcases.json in npm tarball files allowlist ([#176](https://github.com/gjsify/gjsify/issues/176)) ([b522c0c](https://github.com/gjsify/gjsify/commit/b522c0c5f5aebe9c45ab71f8062636612c7bc72c)), closes [#170](https://github.com/gjsify/gjsify/issues/170)
+* **monorepo:** add @gjsify/cli to root devDependencies — gives root scripts access to `gjsify` binary ([#172](https://github.com/gjsify/gjsify/issues/172)) ([618614c](https://github.com/gjsify/gjsify/commit/618614c711817bddebc313942e610ed2df661bc7))
+* **monorepo:** revert `clear` + `clear:examples` to yarn — pre-build ordering ([#169](https://github.com/gjsify/gjsify/issues/169)) ([fcc799d](https://github.com/gjsify/gjsify/commit/fcc799dfedc8e1037a096a3f1c39813573ecf459)), closes [#168](https://github.com/gjsify/gjsify/issues/168)
+* **timers:** add scheduler API to node:timers/promises ([3eac808](https://github.com/gjsify/gjsify/commit/3eac8082feea2f596469256eb899b087e7d8dd92))
+* **yarn.lock:** align with latest main after [#122](https://github.com/gjsify/gjsify/issues/122) merge ([5390ad8](https://github.com/gjsify/gjsify/commit/5390ad8405e63afc490818cf899ce4405d101cab))
+* **yarn.lock:** regenerate after Phase D-1 Batch 1 merges ([179ae4f](https://github.com/gjsify/gjsify/commit/179ae4f2d577093b5a4c1d238dfd15b3a0285412)), closes [#117](https://github.com/gjsify/gjsify/issues/117) [#118](https://github.com/gjsify/gjsify/issues/118) [#119](https://github.com/gjsify/gjsify/issues/119) [#120](https://github.com/gjsify/gjsify/issues/120) [#120](https://github.com/gjsify/gjsify/issues/120) [#121](https://github.com/gjsify/gjsify/issues/121)
+
 ## Unreleased
 
 ### Goals

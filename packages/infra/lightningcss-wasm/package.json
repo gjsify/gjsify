@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/lightningcss-wasm",
-    "version": "0.3.21",
+    "version": "0.4.0",
     "description": "Phase D-2 POC: GJS-compatible loader for the lightningcss WASM bundle. Re-exports the `lightningcss-wasm` npm package's transform/bundle/bundleAsync API on top of SpiderMonkey 140's synchronous `new WebAssembly.Module/Instance` constructors. Reads the .wasm via @gjsify/fs (or Node's native fs), resolves randomness via globalThis.crypto. No WASI, no SharedArrayBuffer — single-shot CSS pipeline. Intended as the WASM-track counterpart to `@gjsify/lightningcss-native`; the better of the two wins the slot in `@gjsify/rolldown-plugin-gjsify`'s cssAsStringPlugin (see Phase D-2 decision matrix).",
     "type": "module",
     "main": "src/index.mjs",
