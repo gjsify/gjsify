@@ -75,6 +75,18 @@ jobs:
       - name: Enable Corepack
         run: su testuser -c 'corepack enable'
 
+      # Phase D.7c (additive): verify the Node-free install path works in
+      # CI BEFORE the yarn install runs. The CLI's committed GJS bundle
+      # consumes `gjsify-lock.json` and produces a working
+      # `node_modules/` tree under stock `gjs`. This step is informational
+      # for now — yarn install runs immediately after and overwrites
+      # node_modules with the yarn-managed shape (which the rest of CI
+      # depends on via `yarn run …`). When the workspace scripts are
+      # decoupled from `yarn run`, this step becomes the canonical
+      # install path and `yarn install --immutable` will be dropped.
+      - name: Smoke-test Node-free install (gjsify install --immutable)
+        run: su testuser -c 'gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable'
+
       - name: Install NPM dependencies
         run: su testuser -c 'yarn install --immutable'
 
