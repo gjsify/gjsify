@@ -1522,6 +1522,7 @@ __metadata:
     "@gjsify/tar": "workspace:^"
     "@gjsify/unit": "workspace:^"
     "@gjsify/web-polyfills": "workspace:^"
+    "@gjsify/workspace": "workspace:^"
     "@types/yargs": "npm:^17.0.35"
     cosmiconfig: "npm:^9.0.1"
     get-tsconfig: "npm:^4.14.0"
@@ -4200,7 +4201,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gjsify/workspace@workspace:packages/infra/workspace":
+"@gjsify/workspace@workspace:^, @gjsify/workspace@workspace:packages/infra/workspace":
   version: 0.0.0-use.local
   resolution: "@gjsify/workspace@workspace:packages/infra/workspace"
   dependencies:
