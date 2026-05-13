@@ -195,9 +195,13 @@ describe('gjsify install <pkg> — project-local native (Phase D.1)', { timeout:
     const lockPath = join(projectDir, 'gjsify-lock.json');
     assert.ok(existsSync(lockPath), 'gjsify-lock.json missing after install');
     const lock = JSON.parse(readFileSync(lockPath, 'utf-8'));
-    assert.equal(lock.lockfileVersion, 1);
-    assert.ok(lock.packages['top-pkg'], 'lockfile must pin top-pkg');
-    assert.match(lock.packages['top-pkg'].integrity, /^sha512-/);
+    // Lockfile schema v2 (Phase D.7b): packages keyed by install path
+    // so nested-`node_modules/` entries (introduced for version-conflict
+    // resolution) can coexist with hoisted root entries in the same map.
+    assert.equal(lock.lockfileVersion, 2);
+    const topEntry = lock.packages['node_modules/top-pkg'];
+    assert.ok(topEntry, 'lockfile must pin top-pkg at node_modules/top-pkg');
+    assert.match(topEntry.integrity, /^sha512-/);
   });
 
   // Note: a previous revision asserted that workspace-root install FAILS

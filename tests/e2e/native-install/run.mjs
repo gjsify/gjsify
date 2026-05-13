@@ -206,11 +206,14 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
       const lockPath = join(prefix, 'gjsify-lock.json');
       assert.ok(existsSync(lockPath), `expected ${lockPath} to be written`);
       const lock = JSON.parse(readFileSync(lockPath, 'utf-8'));
-      assert.equal(lock.lockfileVersion, 1);
+      // Phase D.7b: lockfile schema v2, keyed by install path so nested
+      // entries (for version conflicts) can coexist with hoisted ones.
+      assert.equal(lock.lockfileVersion, 2);
       assert.deepEqual(lock.requested, ['root@^0.1.0']);
       for (const name of ['root', 'middle', 'leaf']) {
-        assert.ok(lock.packages[name], `lockfile missing pin for ${name}`);
-        assert.match(lock.packages[name].integrity, /^sha512-/);
+        const entry = lock.packages[`node_modules/${name}`];
+        assert.ok(entry, `lockfile missing pin for node_modules/${name}`);
+        assert.match(entry.integrity, /^sha512-/);
       }
     } finally {
       try { rmSync(harnessFile, { force: true }); } catch { /* best effort */ }

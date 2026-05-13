@@ -5,7 +5,13 @@
 // node_modules/ via @gjsify/tar. Output layout matches `npm install` so the
 // existing `runGjsBundle()` prebuild detection works without branching.
 //
-// Out of scope (deferred to Phase 4): lockfile, peerDependencies validation,
+// Phase D.7b — version-conflict resolution via nested `node_modules`.
+// The resolver tracks per-package placement: a dep is hoisted to the
+// root when no conflict exists, nested under the requesting package
+// when its required version is incompatible with what's already at
+// the root. Mirrors npm v3+ behavior.
+//
+// Out of scope (still deferred): peerDependencies validation,
 // lifecycle scripts, git/file specs.
 
 import * as fs from "node:fs";
@@ -16,6 +22,7 @@ import {
     Range,
     SemVer,
     maxSatisfying,
+    satisfies,
 } from "@gjsify/semver";
 import {
     DEFAULT_REGISTRY,
@@ -38,17 +45,24 @@ interface ParsedSpec {
 }
 
 interface ResolvedNode {
+    /** Package name (e.g. `@gjsify/cli`, `lodash`). */
     name: string;
     version: string;
     tarballUrl: string;
     integrity?: string;
+    /** Where this node lives relative to the install prefix. Always
+     *  starts with `node_modules/`; nested entries look like
+     *  `node_modules/<parent>/node_modules/<dep>`. */
+    installPath: string;
+    /** `dependencies` field from the packument (range strings keyed by name). */
     dependencies: Record<string, string>;
+    /** `optionalDependencies` field from the packument. */
     optionalDependencies: Record<string, string>;
     bin?: string | Record<string, string>;
 }
 
 const LOCKFILE_NAME = "gjsify-lock.json";
-const LOCKFILE_VERSION = 1;
+const LOCKFILE_VERSION = 2;
 
 interface LockfileEntry {
     version: string;
@@ -62,7 +76,8 @@ interface Lockfile {
     lockfileVersion: number;
     /** Top-level specs used to seed this lockfile (preserves user intent). */
     requested: string[];
-    /** Pinned packages keyed by name. */
+    /** Pinned packages keyed by `installPath` (e.g. `node_modules/foo` or
+     *  `node_modules/foo/node_modules/bar` for nested entries). */
     packages: Record<string, LockfileEntry>;
 }
 
@@ -129,7 +144,12 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
 }
 
 function topLevelResolutions(specs: string[], nodes: ResolvedNode[]): InstalledTopLevel[] {
-    const byName = new Map(nodes.map((n) => [n.name, n] as const));
+    // Top-level installs live at `node_modules/<name>` (no nesting). Build
+    // a name → root-node lookup limited to the top-level set.
+    const byName = new Map<string, ResolvedNode>();
+    for (const n of nodes) {
+        if (n.installPath === `node_modules/${n.name}`) byName.set(n.name, n);
+    }
     const out: InstalledTopLevel[] = [];
     for (const spec of specs) {
         const name = parseSpecName(spec);
@@ -150,6 +170,21 @@ function parseSpecName(spec: string): string {
     return at === -1 ? spec : spec.slice(0, at);
 }
 
+/**
+ * Tree-aware dependency resolution with npm v3+ hoisting semantics.
+ *
+ *   - A dep is HOISTED (placed at `node_modules/<dep>`) when no existing
+ *     placement conflicts with its required range — either it's not
+ *     placed yet, or it's already at the root with a satisfying version.
+ *   - A dep is NESTED (placed at `<requester>/node_modules/<dep>`) when
+ *     the root has an incompatible version. Subsequent dependents of the
+ *     same conflicting version reuse the nested placement.
+ *
+ * The walk is BFS over (requester, depName, depRange) edges. Top-level
+ * specs are seeded with a synthetic `null` requester so they hoist to
+ * the root. Each placement returns a `ResolvedNode` whose `installPath`
+ * captures where it lives in the tree.
+ */
 async function resolveDeps(
     specs: string[],
     npmrc: NpmrcConfig,
@@ -164,47 +199,192 @@ async function resolveDeps(
         return fresh;
     };
 
-    const resolved = new Map<string, ResolvedNode>();
-    const queue: ParsedSpec[] = specs.map(parseSpec);
+    /** Every installed package keyed by `installPath`. */
+    const byPath = new Map<string, ResolvedNode>();
+    /** Root placements indexed by name for the hoist-vs-nest decision. */
+    const root = new Map<string, ResolvedNode>();
+
+    interface Edge {
+        /** `installPath` of the requester. `null` means the project root
+         *  (top-level specs). */
+        from: string | null;
+        name: string;
+        range: string;
+        /** Whether failure to resolve should throw (false for optionalDeps). */
+        required: boolean;
+    }
+    const queue: Edge[] = specs.map(parseSpec).map((s) => ({
+        from: null,
+        name: s.name,
+        range: s.range,
+        required: true,
+    }));
 
     while (queue.length > 0) {
-        const spec = queue.shift() as ParsedSpec;
-        if (resolved.has(spec.name)) {
-            // Single-version-per-name policy (npm v6 semantics). Phase 4 v2
-            // (when peer-dep validation lands) revisits this for duplication.
+        const edge = queue.shift() as Edge;
+
+        // Walk the ancestor chain to see whether a satisfying placement is
+        // already visible from the requester's `node_modules` lookup. npm's
+        // resolver does this — each level of nesting acts as a fallback.
+        const visible = findVisible(edge.from, edge.name, byPath);
+        if (visible && satisfiesRange(visible.version, edge.range)) {
+            // Compatible placement reachable; reuse, no new install.
             continue;
         }
-        const packument = await fetchPkg(spec.name);
-        const version = pickVersion(packument, spec.range);
-        if (!version) {
-            throw new Error(`No version of ${spec.name} satisfies ${spec.range}`);
-        }
-        const v = packument.versions[version];
-        if (!v) {
-            throw new Error(
-                `Packument for ${spec.name} promised ${version} but no entry exists`,
-            );
-        }
-        const node: ResolvedNode = {
-            name: spec.name,
-            version,
-            tarballUrl: v.dist.tarball,
-            integrity: v.dist.integrity,
-            dependencies: v.dependencies ?? {},
-            optionalDependencies: v.optionalDependencies ?? {},
-            bin: v.bin,
-        };
-        resolved.set(spec.name, node);
-        log("resolve: %s@%s ← %s", spec.name, version, spec.range);
 
-        for (const [depName, depRange] of Object.entries(node.dependencies)) {
-            if (!resolved.has(depName)) queue.push({ name: depName, range: depRange });
-        }
-        for (const [depName, depRange] of Object.entries(node.optionalDependencies)) {
-            if (!resolved.has(depName)) queue.push({ name: depName, range: depRange });
+        // No compatible existing placement. Resolve a fresh version.
+        let version: string | null = null;
+        try {
+            const packument = await fetchPkg(edge.name);
+            version = pickVersion(packument, edge.range);
+            if (!version) {
+                if (!edge.required) continue;
+                throw new Error(
+                    `No version of ${edge.name} satisfies ${edge.range}`,
+                );
+            }
+            const v = packument.versions[version];
+            if (!v) {
+                throw new Error(
+                    `Packument for ${edge.name} promised ${version} but no entry exists`,
+                );
+            }
+
+            // Decision: hoist to root, or nest under the requester?
+            //   - Hoist iff the root has no conflicting placement (i.e. the
+            //     root slot for `name` is empty OR holds the same version).
+            //   - Otherwise nest. Top-level specs (from === null) always
+            //     hoist; the resolver guarantees they never conflict with
+            //     each other because the input set is checked once.
+            const installPath = decidePlacement(edge.from, edge.name, version, root);
+
+            const node: ResolvedNode = {
+                name: edge.name,
+                version,
+                tarballUrl: v.dist.tarball,
+                integrity: v.dist.integrity,
+                installPath,
+                dependencies: v.dependencies ?? {},
+                optionalDependencies: v.optionalDependencies ?? {},
+                bin: v.bin,
+            };
+            byPath.set(installPath, node);
+            if (installPath === `node_modules/${edge.name}`) {
+                root.set(edge.name, node);
+            }
+            log(
+                "resolve: %s@%s ← %s (at %s)",
+                edge.name,
+                version,
+                edge.range,
+                installPath,
+            );
+
+            for (const [depName, depRange] of Object.entries(node.dependencies)) {
+                queue.push({ from: installPath, name: depName, range: depRange, required: true });
+            }
+            for (const [depName, depRange] of Object.entries(node.optionalDependencies)) {
+                queue.push({ from: installPath, name: depName, range: depRange, required: false });
+            }
+        } catch (e) {
+            // Optional deps that fail to resolve are skipped — yarn/npm
+            // behavior. Required deps re-throw.
+            if (!edge.required) {
+                log(
+                    "resolve: optional dep %s@%s skipped (%s)",
+                    edge.name,
+                    edge.range,
+                    (e as Error).message,
+                );
+                continue;
+            }
+            throw e;
         }
     }
-    return Array.from(resolved.values());
+
+    return Array.from(byPath.values());
+}
+
+/**
+ * Walk the ancestor `node_modules` chain from `requesterPath` upward,
+ * looking for a placement of `name` that the requester would resolve
+ * through Node's CommonJS lookup. Returns the first match — that's the
+ * one the requester actually sees at runtime.
+ */
+function findVisible(
+    requesterPath: string | null,
+    name: string,
+    byPath: Map<string, ResolvedNode>,
+): ResolvedNode | null {
+    // From the requester's directory, Node walks up node_modules dirs
+    // looking for `<dir>/node_modules/<name>`. Translate that to lockfile
+    // paths: any prefix of the requester's `installPath` that ends in a
+    // package directory gives a candidate `<prefix>/node_modules/<name>`.
+    //
+    // The requester itself ALSO checks its OWN `node_modules` first
+    // (i.e. `<requesterPath>/node_modules/<name>` — nested deps shadow
+    // ancestor ones). Then it walks up.
+    const candidates: string[] = [];
+    if (requesterPath !== null) {
+        candidates.push(`${requesterPath}/node_modules/${name}`);
+        // Walk up: strip the last `/node_modules/<pkg>` segment and try again.
+        let p = requesterPath;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+            // Find the deepest `/node_modules/<pkg>` in `p`, strip it.
+            const idx = p.lastIndexOf("/node_modules/");
+            if (idx < 0) break;
+            p = p.slice(0, idx);
+            candidates.push(`${p}/node_modules/${name}`);
+            if (p === "") break;
+        }
+    }
+    // The root `node_modules/<name>` is the final candidate (covers the
+    // `requesterPath === null` case too).
+    candidates.push(`node_modules/${name}`);
+
+    for (const candidate of candidates) {
+        const hit = byPath.get(candidate);
+        if (hit) return hit;
+    }
+    return null;
+}
+
+/**
+ * Decide where to install `name@version` for a request from `requesterPath`.
+ *
+ *   - Root is empty for `name`: hoist (return `node_modules/<name>`).
+ *   - Root has the SAME version: reuse the root placement.
+ *   - Root has a DIFFERENT version: nest under the requester.
+ *
+ * Top-level requesters (requesterPath === null) always hoist.
+ */
+function decidePlacement(
+    requesterPath: string | null,
+    name: string,
+    version: string,
+    root: Map<string, ResolvedNode>,
+): string {
+    const rootSlot = root.get(name);
+    if (!rootSlot) return `node_modules/${name}`;
+    if (rootSlot.version === version) return `node_modules/${name}`;
+    if (requesterPath === null) {
+        // Top-level specs are deduplicated by the caller before reaching
+        // here; this branch is defensive (would only fire on a duplicate
+        // top-level spec with conflicting versions).
+        return `node_modules/${name}`;
+    }
+    return `${requesterPath}/node_modules/${name}`;
+}
+
+function satisfiesRange(version: string, range: string): boolean {
+    // dist-tag (e.g. `latest`) cannot be matched here — caller passed a
+    // raw range. Dist-tags only meaningful at fresh-resolve time.
+    try {
+        return satisfies(version, new Range(range));
+    } catch {
+        return false;
+    }
 }
 
 function readLockfile(lockfilePath: string): Lockfile | null {
@@ -221,10 +401,12 @@ function readLockfile(lockfilePath: string): Lockfile | null {
 
 function writeLockfile(lockfilePath: string, specs: string[], nodes: ResolvedNode[]): void {
     const packages: Record<string, LockfileEntry> = {};
-    // Sort for deterministic output (diff-friendly).
-    const sorted = [...nodes].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    // Sort by install path for deterministic, diff-friendly output.
+    const sorted = [...nodes].sort((a, b) =>
+        a.installPath < b.installPath ? -1 : a.installPath > b.installPath ? 1 : 0,
+    );
     for (const node of sorted) {
-        packages[node.name] = {
+        packages[node.installPath] = {
             version: node.version,
             resolved: node.tarballUrl,
             integrity: node.integrity,
@@ -242,15 +424,26 @@ function writeLockfile(lockfilePath: string, specs: string[], nodes: ResolvedNod
 }
 
 function lockfileToNodes(lockfile: Lockfile): ResolvedNode[] {
-    return Object.entries(lockfile.packages).map(([name, entry]) => ({
-        name,
+    return Object.entries(lockfile.packages).map(([installPath, entry]) => ({
+        // Recover the package name from the path: the last segment is
+        // either `<name>` (unscoped) or `@scope/<name>` (scoped).
+        name: nameFromInstallPath(installPath),
         version: entry.version,
         tarballUrl: entry.resolved,
         integrity: entry.integrity,
+        installPath,
         dependencies: entry.dependencies ?? {},
         optionalDependencies: {},
         bin: entry.bin,
     }));
+}
+
+function nameFromInstallPath(installPath: string): string {
+    // Last `node_modules/` boundary, then the rest is the package name
+    // (single segment unscoped, or `@scope/pkg` scoped).
+    const idx = installPath.lastIndexOf("/node_modules/");
+    const after = idx < 0 ? installPath.replace(/^node_modules\//, "") : installPath.slice(idx + "/node_modules/".length);
+    return after;
 }
 
 function lockfileMatchesRequest(lockfile: Lockfile, specs: string[]): boolean {
@@ -322,41 +515,83 @@ async function downloadAndExtractAll(
     npmrc: NpmrcConfig,
     log: Logger,
 ): Promise<void> {
-    const queue = [...nodes];
+    // Sort by install-path depth ascending so parents extract before
+    // children. Extracting a parent on top of an existing child would
+    // wipe out the child.
+    const queue = [...nodes].sort((a, b) =>
+        depth(a.installPath) - depth(b.installPath) ||
+        (a.installPath < b.installPath ? -1 : 1),
+    );
     const workers: Array<Promise<void>> = [];
     const concurrency = Math.max(1, Math.min(DEFAULT_CONCURRENCY, queue.length));
+    // Parents (depth 1) are extracted serially first to avoid concurrent
+    // `rm -rf` + extract races with their children. Once depth-1 is done,
+    // depths >=2 run with full concurrency.
+    let cursor = 0;
+    const depth1End = queue.findIndex((n) => depth(n.installPath) > 1);
+    const splitAt = depth1End < 0 ? queue.length : depth1End;
+
+    // Serial root pass.
+    while (cursor < splitAt) {
+        const node = queue[cursor++];
+        if (!node) break;
+        await extractOne(node, prefix, npmrc, log);
+    }
+
+    // Concurrent nested pass.
     for (let i = 0; i < concurrency; i++) {
-        workers.push(worker());
+        workers.push((async () => {
+            while (true) {
+                const idx = cursor++;
+                if (idx >= queue.length) return;
+                const node = queue[idx];
+                if (!node) return;
+                await extractOne(node, prefix, npmrc, log);
+            }
+        })());
     }
     await Promise.all(workers);
+}
 
-    async function worker(): Promise<void> {
-        while (queue.length > 0) {
-            const node = queue.shift();
-            if (!node) return;
-            const dest = path.join(prefix, "node_modules", node.name);
-            log("fetch: %s@%s ← %s", node.name, node.version, node.tarballUrl);
-            const bytes = await fetchTarball(node.tarballUrl, {
-                npmrc,
-                integrity: node.integrity,
-            });
-            fs.rmSync(dest, { recursive: true, force: true });
-            fs.mkdirSync(dest, { recursive: true });
-            await extractTarball(bytes, dest);
-        }
-    }
+async function extractOne(
+    node: ResolvedNode,
+    prefix: string,
+    npmrc: NpmrcConfig,
+    log: Logger,
+): Promise<void> {
+    const dest = path.join(prefix, node.installPath);
+    log("fetch: %s@%s ← %s (→ %s)", node.name, node.version, node.tarballUrl, node.installPath);
+    const bytes = await fetchTarball(node.tarballUrl, {
+        npmrc,
+        integrity: node.integrity,
+    });
+    fs.rmSync(dest, { recursive: true, force: true });
+    fs.mkdirSync(dest, { recursive: true });
+    await extractTarball(bytes, dest);
+}
+
+function depth(installPath: string): number {
+    // Count `node_modules/` segments to know nesting depth.
+    // `node_modules/foo` = 1, `node_modules/foo/node_modules/bar` = 2, etc.
+    return installPath.split("/node_modules/").length;
 }
 
 async function linkBins(nodes: ResolvedNode[], prefix: string, log: Logger): Promise<void> {
+    // Only root-level packages publish bins into the top-level
+    // `node_modules/.bin/`. Nested-package bins are addressable by their
+    // direct dependents through the nested .bin (npm matches this) — we
+    // omit nested-bin linking for now since no consumer of the install
+    // backend depends on it (gjsify's own use cases all hit root bins).
     const binDir = path.join(prefix, "node_modules", ".bin");
     let created = 0;
     for (const node of nodes) {
         if (!node.bin) continue;
+        if (depth(node.installPath) !== 1) continue;
         const map = normalizeBin(node.name, node.bin);
         if (map.size === 0) continue;
         fs.mkdirSync(binDir, { recursive: true });
         for (const [binName, binTarget] of map) {
-            const targetAbs = path.join(prefix, "node_modules", node.name, binTarget);
+            const targetAbs = path.join(prefix, node.installPath, binTarget);
             if (!fs.existsSync(targetAbs)) continue;
             try {
                 fs.chmodSync(targetAbs, 0o755);
