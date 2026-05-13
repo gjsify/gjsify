@@ -84,6 +84,19 @@ jobs:
       - name: Build
         run: su testuser -c 'yarn run build'
 
+      # The CLI's GJS bundle is committed to enable Node-free bootstrap (Phase D.7b).
+      # `yarn run build` re-generates it via `build:gjs-bundle`; if the committed bytes
+      # have drifted from what the current src/ produces, the PR author must run
+      # `yarn workspace @gjsify/cli run build:gjs-bundle` locally and commit the result.
+      - name: Verify committed CLI GJS bundle is up-to-date
+        run: |
+          if ! git diff --exit-code -- packages/infra/cli/dist/cli.gjs.mjs; then
+            echo "::error::packages/infra/cli/dist/cli.gjs.mjs is stale."
+            echo "::error::Refresh locally: yarn workspace @gjsify/cli run build:gjs-bundle"
+            echo "::error::Then commit the updated bundle."
+            exit 1
+          fi
+
       # Root `build` uses --no-private, so private example workspaces are skipped; tests need dist/.
       - name: Build examples
         run: su testuser -c 'yarn run build:examples'
