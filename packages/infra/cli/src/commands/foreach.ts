@@ -29,7 +29,7 @@ interface ForeachOptions {
     'topological-dev'?: boolean;
     include?: string[];
     exclude?: string[];
-    'no-private'?: boolean;
+    private?: boolean;
     verbose?: boolean;
     jobs?: number;
 }
@@ -83,10 +83,12 @@ export const foreachCommand: Command<any, ForeachOptions> = {
                 type: 'string',
                 array: true,
             })
-            .option('no-private', {
-                description: 'Skip workspaces declared as `private: true`.',
+            .option('private', {
+                // Yargs auto-negates `--no-private` to `private=false`, so the
+                // user-facing flag stays `--no-private` (yarn-compatible).
+                description: 'Include private workspaces (default true). Pass --no-private to skip them.',
                 type: 'boolean',
-                default: false,
+                default: true,
             })
             .option('verbose', {
                 description: 'Echo every spawned command before running it.',
@@ -106,7 +108,7 @@ export const foreachCommand: Command<any, ForeachOptions> = {
         let selected = filterWorkspaces(allWorkspaces, {
             include: args.include,
             exclude: args.exclude,
-            noPrivate: args['no-private'],
+            noPrivate: args.private === false,
         });
 
         // Only run on workspaces that actually have the requested script —
