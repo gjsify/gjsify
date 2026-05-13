@@ -10957,6 +10957,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "gjsify@workspace:."
   dependencies:
+    "@gjsify/cli": "workspace:^"
     "@release-it/bumper": "npm:^7.0.5"
     "@release-it/conventional-changelog": "npm:^11.0.0"
     conventional-changelog-conventionalcommits: "npm:^9.3.1"
