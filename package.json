@@ -61,6 +61,7 @@
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
   "devDependencies": {
+    "@gjsify/cli": "workspace:^",
     "@release-it/bumper": "^7.0.5",
     "@release-it/conventional-changelog": "^11.0.0",
     "conventional-changelog-conventionalcommits": "^9.3.1",
