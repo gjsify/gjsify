@@ -84,15 +84,31 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
     const existingLock = readLockfile(lockfilePath);
 
     let nodes: ResolvedNode[];
-    if (existingLock && (opts.frozen || lockfileMatchesRequest(existingLock, opts.specs))) {
+    if (opts.frozen) {
+        // --immutable / --frozen: lockfile is the authoritative source.
+        // Reject if the file is missing, version-mismatched, or its
+        // `requested` set has drifted from the live request — silently
+        // honoring a stale lockfile would mask real dep churn (the original
+        // bug --immutable exists to catch).
+        if (!existingLock) {
+            throw new Error(
+                `install: --immutable requires ${LOCKFILE_NAME} at ${opts.prefix} — none found. ` +
+                `Run \`gjsify install\` (without --immutable) to generate one and commit it.`,
+            );
+        }
+        const drift = describeLockfileDrift(existingLock, opts.specs);
+        if (drift) {
+            throw new Error(
+                `install: --immutable but ${lockfilePath} is stale.\n${drift}\n` +
+                `Re-run \`gjsify install\` (without --immutable) to refresh the lockfile.`,
+            );
+        }
+        log("install: --immutable, using lockfile (%d package(s))", Object.keys(existingLock.packages).length);
+        nodes = lockfileToNodes(existingLock);
+    } else if (existingLock && lockfileMatchesRequest(existingLock, opts.specs)) {
         log("install: using lockfile (%d package(s))", Object.keys(existingLock.packages).length);
         nodes = lockfileToNodes(existingLock);
     } else {
-        if (opts.frozen) {
-            throw new Error(
-                `install: --frozen requested but ${lockfilePath} is missing or stale (specs differ)`,
-            );
-        }
         log("install: resolving %d top-level spec(s) → %s", opts.specs.length, opts.prefix);
         nodes = await resolveDeps(opts.specs, npmrc, log);
         if (opts.lockfile) {
@@ -242,6 +258,26 @@ function lockfileMatchesRequest(lockfile: Lockfile, specs: string[]): boolean {
     const a = [...lockfile.requested].sort();
     const b = [...specs].sort();
     return a.every((v, i) => v === b[i]);
+}
+
+/**
+ * Human-readable diff between `lockfile.requested` and the live request.
+ * Returns null when the two sets are identical (the lockfile is in sync).
+ * Used by `--immutable` to surface exactly which deps drifted, so CI
+ * failures don't force the user to diff lockfile JSON by hand.
+ */
+function describeLockfileDrift(lockfile: Lockfile, specs: string[]): string | null {
+    const lockSet = new Set(lockfile.requested);
+    const liveSet = new Set(specs);
+    const added: string[] = [];
+    const removed: string[] = [];
+    for (const s of liveSet) if (!lockSet.has(s)) added.push(s);
+    for (const s of lockSet) if (!liveSet.has(s)) removed.push(s);
+    if (added.length === 0 && removed.length === 0) return null;
+    const lines: string[] = [];
+    if (added.length > 0) lines.push(`  + ${added.sort().join("\n  + ")}`);
+    if (removed.length > 0) lines.push(`  - ${removed.sort().join("\n  - ")}`);
+    return lines.join("\n");
 }
 
 function parseSpec(raw: string): ParsedSpec {
