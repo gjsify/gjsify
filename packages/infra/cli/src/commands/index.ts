@@ -10,3 +10,5 @@ export * from './gsettings.js';
 export { flatpakCommand } from './flatpak/index.js';
 export * from './dlx.js';
 export * from './install.js';
+export * from './foreach.js';
+export * from './workspace.js';
