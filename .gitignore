@@ -17,6 +17,15 @@ lib/
 build/
 builddir/
 
+# Phase D.7b: the gjsify CLI's GJS bundle is committed so CI (and
+# downstream consumers) can bootstrap via `gjs -m cli.gjs.mjs …`
+# without Node. Refreshed by `yarn workspace @gjsify/cli run
+# build:gjs-bundle` on every CLI source change; a staleness check
+# in CI forces a refresh-commit when src/ changes without the
+# bundle being rebuilt.
+!packages/infra/cli/dist/
+!packages/infra/cli/dist/cli.gjs.mjs
+
 packages/**/*/test.*.js
 packages/**/*/test.*.js.map
 packages/**/*/test.*.cjs
