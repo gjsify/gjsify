@@ -73,24 +73,22 @@ jobs:
           chown -R testuser:testuser .
 
       - name: Enable Corepack
-        # `yarn` is still on PATH for `yarn run <script>` invocations (the
-        # script *implementations* are gjsify-based now but the entrypoints
-        # stay `yarn run …` until we ship a script-runner adapter that
-        # exposes parity for things like `yarn workspaces foreach … npm
-        # publish …`). Corepack provides yarn 4 without needing a system
-        # install.
         run: su testuser -c 'corepack enable'
 
-      # Phase D.7c: Node-free bootstrap. The CLI's committed GJS bundle
-      # (`packages/infra/cli/dist/cli.gjs.mjs`) installs `node_modules/`
-      # directly from `gjsify-lock.json`. No `yarn install`, no `npm
-      # install` — only `gjs -m` to run the bundle and the host's GJS to
-      # execute it. The functional bundle-freshness check runs after
-      # `Build` (which regenerates the bundle); if the committed bundle
-      # is out-of-sync with the just-bumped package.json version, that
-      # later step will fail with a clear "refresh and commit" error.
-      - name: Install NPM dependencies (via gjsify)
+      # Phase D.7c (additive): verify the Node-free install path works in
+      # CI BEFORE the yarn install runs. The CLI's committed GJS bundle
+      # consumes `gjsify-lock.json` and produces a working
+      # `node_modules/` tree under stock `gjs`. This step is informational
+      # for now — yarn install runs immediately after and overwrites
+      # node_modules with the yarn-managed shape (which the rest of CI
+      # depends on via `yarn run …`). When the workspace scripts are
+      # decoupled from `yarn run`, this step becomes the canonical
+      # install path and `yarn install --immutable` will be dropped.
+      - name: Smoke-test Node-free install (gjsify install --immutable)
         run: su testuser -c 'gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable'
+
+      - name: Install NPM dependencies
+        run: su testuser -c 'yarn install --immutable'
 
       - name: Clear
         run: su testuser -c 'yarn run clear'
