@@ -15,7 +15,7 @@
 // `"workspaces"` field) is Phase D.3 — for now we detect and surface a
 // clear error pointing at the in-progress work.
 
-import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { spawn } from 'node:child_process';
 import { discoverWorkspaces } from '@gjsify/workspace';
@@ -217,6 +217,34 @@ async function projectInstallNative(args: InstallOptions): Promise<void> {
             addDependencyEntry(pkg, name, finalRange, kind);
         }
         writePackageJson(pkgPath, pkg);
+
+        // Re-sync the lockfile's `requested` field with what
+        // `projectSpecsFromPackageJson()` will return on the next
+        // invocation. Without this, a `gjsify install foo` (bare name,
+        // lockfile records `"foo"`) followed by `gjsify install
+        // --immutable` (reads package.json → spec `"foo@^1.2.3"`) would
+        // surface a spurious drift error.
+        if (!args.immutable) {
+            syncLockfileRequested(cwd, projectSpecsFromPackageJson(pkg));
+        }
+    }
+}
+
+function syncLockfileRequested(cwd: string, specs: string[]): void {
+    const lockPath = join(cwd, 'gjsify-lock.json');
+    if (!existsSync(lockPath)) return;
+    try {
+        const lock = JSON.parse(readFileSync(lockPath, 'utf-8')) as { requested?: string[] };
+        const sorted = [...specs].sort();
+        const current = [...(lock.requested ?? [])].sort();
+        if (sorted.length === current.length && sorted.every((s, i) => s === current[i])) {
+            return; // Already in sync; preserve byte-stability.
+        }
+        lock.requested = specs;
+        writeFileSync(lockPath, JSON.stringify(lock, null, 2) + '\n');
+    } catch {
+        // Best-effort sync; if the lockfile is malformed, the next
+        // non-immutable install will rewrite it from scratch.
     }
 }
 
