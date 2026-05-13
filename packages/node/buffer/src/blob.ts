@@ -53,8 +53,22 @@ class BlobPolyfill implements Blob {
     return new BlobPolyfill([], { type }) as unknown as Blob;
   }
 
-  stream(): ReadableStream {
-    throw new Error('Blob.stream() not implemented');
+  stream(): ReadableStream<Uint8Array<ArrayBuffer>> {
+    // ReadableStream is part of the host platform under GJS via
+    // `@gjsify/streams` (auto-registered by `--globals auto`). Emit the
+    // blob's bytes as a single chunk on `pull` and close — sufficient
+    // for every consumer of Blob.stream() we hit in practice (the
+    // @gjsify/tar gunzip path, fetch Response bodies, etc.) without
+    // pulling in a streaming/chunking implementation that has no real
+    // memory win for in-memory blobs.
+    const blob = this;
+    return new ReadableStream<Uint8Array<ArrayBuffer>>({
+      async pull(controller) {
+        const ab = await blob.arrayBuffer();
+        controller.enqueue(new Uint8Array(ab));
+        controller.close();
+      },
+    });
   }
 }
 
