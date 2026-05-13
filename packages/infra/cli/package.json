@@ -16,7 +16,8 @@
     },
     "files": [
         "lib",
-        "dist/cli.gjs.mjs"
+        "dist/cli.gjs.mjs",
+        "showcases.json"
     ],
     "scripts": {
         "clear": "rm -rf lib dist tsconfig.tsbuildinfo || exit 0",
