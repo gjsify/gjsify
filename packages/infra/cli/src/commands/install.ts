@@ -337,6 +337,48 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
         console.log(`gjsify install: wired ${symlinks.length} workspace symlink(s)`);
     }
 
+    // Hoist EVERY workspace package to the repo root's `node_modules/` so
+    // transitive workspace deps are reachable from any descendant via
+    // standard Node parent-walk resolution. yarn's `nodeLinker: node-modules`
+    // does the same thing — the entire workspace graph is materialised at
+    // the root, which is how rolldown's resolver finds e.g.
+    // `@gjsify/abort-controller/register` injected from a deeply-nested
+    // package's `node_modules/.cache/gjsify/` cache file when the consumer
+    // didn't declare a direct dep on it (auto-globals injection at build
+    // time).
+    //
+    // Without this hoist, each workspace's `node_modules/` only contains
+    // its direct declared deps, and any auto-injected register import for
+    // a workspace package the consumer didn't list as a dep externalises
+    // and the bundle fails at runtime with `Module not found`.
+    const rootBinDir = join(cwd, 'node_modules');
+    let rootHoisted = 0;
+    for (const ws of workspaces) {
+        // Skip the root workspace itself (its location IS cwd; it can't
+        // symlink itself into its own node_modules).
+        if (ws.location === cwd) continue;
+        if (!ws.name) continue;
+        const linkPath = join(rootBinDir, ws.name);
+        mkdirSync(dirname(linkPath), { recursive: true });
+        try {
+            const stat = lstatSync(linkPath);
+            if (stat.isSymbolicLink() || stat.isFile()) {
+                rmSync(linkPath, { force: true });
+            } else if (stat.isDirectory()) {
+                // Already a real directory (e.g. an npm-fetched stub from
+                // a previous tooling pass) — leave it alone rather than
+                // clobbering an externally-managed install.
+                continue;
+            }
+        } catch { /* ENOENT — fine, nothing to remove */ }
+        const relTarget = relative(dirname(linkPath), ws.location);
+        symlinkSync(relTarget, linkPath);
+        rootHoisted++;
+    }
+    if (rootHoisted > 0) {
+        console.log(`gjsify install: hoisted ${rootHoisted} workspace(s) to root node_modules/`);
+    }
+
     // Link workspace bins into `node_modules/.bin/`. Without this,
     // `npm run <script>` (or any `node_modules/.bin`-PATH consumer)
     // cannot find the `gjsify` binary on a fresh checkout — yarn

@@ -48,8 +48,15 @@
         "typescript": "^6.0.3"
     },
     "dependencies": {
+        "@gjsify/abort-controller": "workspace:^",
         "@gjsify/assert": "workspace:^",
+        "@gjsify/buffer": "workspace:^",
+        "@gjsify/dom-elements": "workspace:^",
+        "@gjsify/dom-exception": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
         "@gjsify/process": "workspace:^",
-        "@gjsify/utils": "workspace:^"
+        "@gjsify/utils": "workspace:^",
+        "@gjsify/web-globals": "workspace:^",
+        "@gjsify/web-streams": "workspace:^"
     }
 }
