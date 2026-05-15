@@ -37,7 +37,9 @@
         "cli"
     ],
     "dependencies": {
+        "@gjsify/buffer": "workspace:^",
         "@gjsify/create-app": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
         "@gjsify/node-polyfills": "workspace:^",
         "@gjsify/npm-registry": "workspace:^",
         "@gjsify/resolve-npm": "workspace:^",
