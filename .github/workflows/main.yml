@@ -80,8 +80,15 @@ jobs:
       - name: Install dependencies (gjsify install --immutable)
         run: su testuser -c 'gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable'
 
-      - name: Clear
-        run: su testuser -c 'npm run clear'
+      # No Clear step — CI runs in a fresh container, nothing to clear.
+      # `npm run build` overwrites lib/ in every workspace anyway. The
+      # `clear` script is preserved in package.json for developer use
+      # (where stale build artifacts can persist across branch switches).
+      # An earlier attempt with `npm run clear` here hung at ~the
+      # 200-workspace mark — `gjsify foreach -p` under GJS spawning
+      # parallel `npm run clear` subprocesses doesn't terminate
+      # cleanly. Tracked in STATUS.md "Open TODOs → gjsify foreach
+      # GJS subprocess hang under deep parallelism".
 
       - name: Build
         run: su testuser -c 'npm run build'
