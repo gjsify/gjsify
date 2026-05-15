@@ -50,6 +50,7 @@
         "@girs/gtk-4.0": "4.23.0-4.0.0-rc.15",
         "@girs/gwebgl-0.1": "0.1.0-4.0.0-rc.5",
         "@gjsify/dom-elements": "workspace:^",
+        "@gjsify/dom-events": "workspace:^",
         "@gjsify/event-bridge": "workspace:^",
         "@gjsify/utils": "workspace:^",
         "bit-twiddle": "^1.0.2",

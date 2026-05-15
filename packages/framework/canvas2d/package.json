@@ -39,6 +39,7 @@
         "@girs/pangocairo-1.0": "1.0.0-4.0.0-rc.15",
         "@gjsify/canvas2d-core": "workspace:^",
         "@gjsify/dom-elements": "workspace:^",
+        "@gjsify/dom-events": "workspace:^",
         "@gjsify/event-bridge": "workspace:^",
         "@gjsify/utils": "workspace:^"
     },
