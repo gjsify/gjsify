@@ -80,9 +80,6 @@ jobs:
       - name: Install dependencies (gjsify install --immutable)
         run: su testuser -c 'gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable'
 
-      - name: Build
-        run: su testuser -c 'npm run build'
-
       # The CLI's GJS bundle is committed to enable Node-free bootstrap (Phase D.7b).
       # We can't enforce a byte-exact freshness check — the build is not perfectly
       # cross-environment deterministic (Node patch version + system libs perturb
@@ -91,6 +88,12 @@ jobs:
       # version. That catches both "bundle is broken" and "bundle is from the
       # previous release" without forcing every CI environment to produce
       # byte-identical output.
+      #
+      # MUST run BEFORE the Build step — `npm run build` rebuilds
+      # `dist/cli.gjs.mjs`, overwriting the committed copy with one assembled
+      # from the just-installed node_modules layout. Verifying after a rebuild
+      # would test the rebuilt bundle (not the committed one), defeating the
+      # purpose of the freshness check.
       - name: Verify committed CLI GJS bundle is functional + up-to-date
         run: |
           set -e
@@ -103,6 +106,9 @@ jobs:
             exit 1
           fi
           echo "GJS bundle OK — reports v$ACTUAL matching package.json."
+
+      - name: Build
+        run: su testuser -c 'npm run build'
 
       # Root `build` uses --no-private, so private example workspaces are skipped; tests need dist/.
       - name: Build examples
