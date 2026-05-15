@@ -359,18 +359,20 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
         if (ws.location === cwd) continue;
         if (!ws.name) continue;
         const linkPath = join(rootBinDir, ws.name);
-        mkdirSync(dirname(linkPath), { recursive: true });
+        // If a symlink already exists here (from the per-workspace loop
+        // above when the root workspace declared this dep directly), it
+        // already points at the right place — skip. We don't try to
+        // remove + recreate because under GJS's Gio-backed fs polyfill,
+        // `rmSync` on a symlink can race with `symlinkSync` and surface
+        // EEXIST. A real directory at this path is also left alone —
+        // someone else (npm, yarn) seeded it and we shouldn't clobber.
+        let existsHere = false;
         try {
-            const stat = lstatSync(linkPath);
-            if (stat.isSymbolicLink() || stat.isFile()) {
-                rmSync(linkPath, { force: true });
-            } else if (stat.isDirectory()) {
-                // Already a real directory (e.g. an npm-fetched stub from
-                // a previous tooling pass) — leave it alone rather than
-                // clobbering an externally-managed install.
-                continue;
-            }
-        } catch { /* ENOENT — fine, nothing to remove */ }
+            lstatSync(linkPath);
+            existsHere = true;
+        } catch { /* ENOENT */ }
+        if (existsHere) continue;
+        mkdirSync(dirname(linkPath), { recursive: true });
         const relTarget = relative(dirname(linkPath), ws.location);
         symlinkSync(relTarget, linkPath);
         rootHoisted++;
