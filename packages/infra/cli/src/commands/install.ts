@@ -355,26 +355,19 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
         const m = ws.manifest as Record<string, unknown>;
         const gjsifyBin = (m.gjsify as { bin?: string | Record<string, string> } | undefined)?.bin;
         const nodeBin = m.bin as string | Record<string, string> | undefined;
-        const entries = normalizeWorkspaceBins(ws.name, gjsifyBin, nodeBin);
-        if (entries.size === 0) continue;
+        // For each bin name, collect both the Node-target and GJS-target
+        // when they exist. The shim prefers Node at invocation time
+        // because Node's child_process is more reliable than GJS's
+        // Gio.Subprocess polyfill (parallel-spawn close-event delivery
+        // races under heavy concurrency); GJS is the fallback for fresh
+        // checkouts where the Node target hasn't been built yet.
+        const merged = mergeWorkspaceBins(ws.name, gjsifyBin, nodeBin);
+        if (merged.size === 0) continue;
         mkdirSync(wsBinDir, { recursive: true });
-        for (const [binName, { relTarget, runtime }] of entries) {
+        for (const [binName, { nodeTarget, gjsTarget }] of merged) {
             const linkPath = join(wsBinDir, binName);
-            const targetAbs = join(ws.location, relTarget);
-            const targetRel = relative(wsBinDir, targetAbs);
-            // Remove any prior entry.
             try { rmSync(linkPath, { force: true }); } catch { /* fine */ }
-            // Write a shim script. Using a shim (not a raw symlink) lets
-            // us decide between `gjs -m` and `node` at invocation time
-            // based on the bin's source. This matches yarn's
-            // /tmp/xfs-<hash>/<bin> shim layout.
-            const shim = runtime === 'gjs'
-                ? `#!/bin/sh\nexec gjs -m "${targetAbs}" "$@"\n`
-                : `#!/bin/sh\nexec node "${targetAbs}" "$@"\n`;
-            writeFileSync(linkPath, shim, { mode: 0o755 });
-            // `mode` on writeFileSync is unreliable across kernels +
-            // umasks (and silently no-ops when the file already exists).
-            // Explicit chmod guarantees the +x bit lands.
+            writeFileSync(linkPath, buildBinShim(ws.location, nodeTarget, gjsTarget), { mode: 0o755 });
             chmodSync(linkPath, 0o755);
             wsBinsCreated++;
         }
@@ -385,33 +378,59 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
 }
 
 /**
- * Walk a workspace's `bin` (Node) + `gjsify.bin` (GJS) declarations
- * into a unified `<binName> → {relTarget, runtime}` map. `gjsify.bin`
- * entries win on name conflict because their target is committed
- * (`dist/cli.gjs.mjs`) while `bin` typically points at `lib/index.js`,
- * a build artifact that may not exist on a fresh checkout.
+ * Build a shell shim that prefers Node when its target file exists at
+ * invocation time, falling back to GJS otherwise. The runtime check is
+ * per-invocation (not at install time) so the same shim works both
+ * before and after the workspace's `lib/` has been built — a fresh
+ * checkout only has the committed `dist/cli.gjs.mjs`, while every
+ * subsequent `npm run build` produces `lib/index.js`.
+ *
+ * Both targets are absolute paths so the shim is portable across the
+ * different cwds that consumers (`yarn run`, `npm run`, direct PATH
+ * invocation) call us from.
  */
-function normalizeWorkspaceBins(
+function buildBinShim(wsLocation: string, nodeTarget?: string, gjsTarget?: string): string {
+    const nodeAbs = nodeTarget ? join(wsLocation, nodeTarget) : null;
+    const gjsAbs = gjsTarget ? join(wsLocation, gjsTarget) : null;
+    if (nodeAbs && gjsAbs) {
+        return `#!/bin/sh\nif [ -f "${nodeAbs}" ]; then\n  exec node "${nodeAbs}" "$@"\nfi\nexec gjs -m "${gjsAbs}" "$@"\n`;
+    }
+    if (nodeAbs) return `#!/bin/sh\nexec node "${nodeAbs}" "$@"\n`;
+    if (gjsAbs) return `#!/bin/sh\nexec gjs -m "${gjsAbs}" "$@"\n`;
+    throw new Error('buildBinShim: either nodeTarget or gjsTarget must be provided');
+}
+
+/**
+ * Walk a workspace's `bin` (Node) + `gjsify.bin` (GJS) declarations
+ * into a unified `<binName> → {nodeTarget?, gjsTarget?}` map. The
+ * shim built from this picks Node at runtime when its target exists,
+ * GJS otherwise.
+ */
+function mergeWorkspaceBins(
     pkgName: string,
     gjsifyBin: string | Record<string, string> | undefined,
     nodeBin: string | Record<string, string> | undefined,
-): Map<string, { relTarget: string; runtime: 'gjs' | 'node' }> {
-    const out = new Map<string, { relTarget: string; runtime: 'gjs' | 'node' }>();
+): Map<string, { nodeTarget?: string; gjsTarget?: string }> {
+    const out = new Map<string, { nodeTarget?: string; gjsTarget?: string }>();
     const baseName = pkgName.startsWith('@') ? pkgName.slice(pkgName.indexOf('/') + 1) : pkgName;
-    const addEntry = (key: string, value: string | undefined, runtime: 'gjs' | 'node') => {
-        if (typeof value !== 'string' || value.length === 0) return;
-        out.set(key, { relTarget: value, runtime });
+    const get = (key: string) => {
+        let entry = out.get(key);
+        if (!entry) { entry = {}; out.set(key, entry); }
+        return entry;
     };
-    // Node bins first; gjsify bins override on the same key.
     if (typeof nodeBin === 'string') {
-        addEntry(baseName, nodeBin, 'node');
+        get(baseName).nodeTarget = nodeBin;
     } else if (nodeBin && typeof nodeBin === 'object') {
-        for (const [k, v] of Object.entries(nodeBin)) addEntry(k, v, 'node');
+        for (const [k, v] of Object.entries(nodeBin)) {
+            if (typeof v === 'string' && v.length > 0) get(k).nodeTarget = v;
+        }
     }
     if (typeof gjsifyBin === 'string') {
-        addEntry(baseName, gjsifyBin, 'gjs');
+        get(baseName).gjsTarget = gjsifyBin;
     } else if (gjsifyBin && typeof gjsifyBin === 'object') {
-        for (const [k, v] of Object.entries(gjsifyBin)) addEntry(k, v, 'gjs');
+        for (const [k, v] of Object.entries(gjsifyBin)) {
+            if (typeof v === 'string' && v.length > 0) get(k).gjsTarget = v;
+        }
     }
     return out;
 }
