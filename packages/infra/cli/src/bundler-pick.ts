@@ -25,6 +25,8 @@
 
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import type { RolldownOutput } from 'rolldown';
 import type { BundlerOptions } from './types/index.js';
 
@@ -184,13 +186,19 @@ async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
             // a real path, then dynamic-import the resulting file:// URL.
             // Under Node a bare specifier import works directly, so we keep
             // the simpler form there.
+            //
+            // `createRequire` + `pathToFileURL` are statically imported at
+            // the top of this file so the GJS bundle inlines them via
+            // `@gjsify/module` / `@gjsify/url`. A *dynamic* `import('node:…')`
+            // would instead hit the GJS native ESM loader which doesn't
+            // know the `node:` URI scheme and throws — silently swallowed
+            // by the surrounding catch, leaving the caller to fall back
+            // to npm rolldown (which then throws ImportError for `rolldown`).
             const specifier = '@gjsify/rolldown-native';
             let target: string = specifier;
             if (isGjs) {
-                const { createRequire } = await import('node:module');
                 const require = createRequire(import.meta.url);
                 const resolved = require.resolve(specifier);
-                const { pathToFileURL } = await import('node:url');
                 target = pathToFileURL(resolved).href;
             }
             const mod = (await import(/* @vite-ignore */ target)) as NativeRolldownSurface;

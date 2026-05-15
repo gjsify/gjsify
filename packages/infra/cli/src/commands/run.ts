@@ -109,8 +109,11 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
     const fullCmd = extraArgs.length > 0
         ? `${literal} ${extraArgs.map(shellEscape).join(' ')}`
         : literal;
+    // ensureMainLoop() (called inside spawn) keeps GJS alive after the
+    // child exits — without an explicit process.exit() the success path
+    // would park the loop forever. The error path already exits.
     await new Promise<void>((resolveOk, reject) => {
-        const child = spawn(fullCmd, { cwd, env, stdio: 'inherit', shell: true });
+        const child = spawn(fullCmd, [], { cwd, env, stdio: 'inherit', shell: true });
         child.on('close', (code) => {
             if (code === 0) resolveOk();
             else reject(new Error(`script "${script}" exited with code ${code}`));
@@ -120,6 +123,7 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
         console.error(err.message);
         process.exit(1);
     });
+    process.exit(0);
 }
 
 function findWorkspaceRoot(start: string): string | null {

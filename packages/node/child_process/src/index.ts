@@ -382,8 +382,26 @@ export function execFileSync(file: string, args?: string[], options?: ExecSyncOp
 
 /**
  * Spawn a new process (async, with event-based API).
+ *
+ * Node accepts both `spawn(command, args, options)` and `spawn(command, options)`
+ * — the second form omits args. Detect the overload at the boundary so callers
+ * that pass options as the 2nd positional (e.g. `spawn('sh', { shell: true })`)
+ * don't get the options object spread into argv.
  */
-export function spawn(command: string, args?: string[], options?: SpawnOptions): ChildProcess {
+export function spawn(
+  command: string,
+  argsOrOptions?: string[] | SpawnOptions,
+  maybeOptions?: SpawnOptions,
+): ChildProcess {
+  let args: string[] | undefined;
+  let options: SpawnOptions | undefined;
+  if (Array.isArray(argsOrOptions)) {
+    args = argsOrOptions;
+    options = maybeOptions;
+  } else {
+    args = undefined;
+    options = argsOrOptions;
+  }
   const _args = args || [];
   const child = new ChildProcess();
   const useShell = options?.shell;
@@ -397,7 +415,28 @@ export function spawn(command: string, args?: string[], options?: SpawnOptions):
     argv = [command, ..._args];
   }
 
-  const flags = Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE | Gio.SubprocessFlags.STDIN_PIPE;
+  // Honour `stdio` (subset of Node's API): `'inherit'` → no PIPE flag so the
+  // child writes directly to the parent's fd; `'ignore'` → no PIPE either,
+  // child output is silently dropped at the kernel level; `'pipe'` (default)
+  // → PIPE flag set so child output flows through GioInputStreamReadable.
+  // Three-tuple form `['inherit'|'pipe'|'ignore', ..., ...]` is normalised
+  // per-fd so callers can mix-and-match (e.g. ['ignore','pipe','pipe']).
+  const stdioOpt = options?.stdio;
+  const stdioTriple: [string, string, string] = Array.isArray(stdioOpt)
+    ? [
+        typeof stdioOpt[0] === 'string' ? stdioOpt[0] : 'pipe',
+        typeof stdioOpt[1] === 'string' ? stdioOpt[1] : 'pipe',
+        typeof stdioOpt[2] === 'string' ? stdioOpt[2] : 'pipe',
+      ]
+    : typeof stdioOpt === 'string'
+      ? [stdioOpt, stdioOpt, stdioOpt]
+      : ['pipe', 'pipe', 'pipe'];
+  let flags = Gio.SubprocessFlags.NONE;
+  if (stdioTriple[0] === 'pipe') flags |= Gio.SubprocessFlags.STDIN_PIPE;
+  if (stdioTriple[1] === 'pipe') flags |= Gio.SubprocessFlags.STDOUT_PIPE;
+  if (stdioTriple[1] === 'ignore') flags |= Gio.SubprocessFlags.STDOUT_SILENCE;
+  if (stdioTriple[2] === 'pipe') flags |= Gio.SubprocessFlags.STDERR_PIPE;
+  if (stdioTriple[2] === 'ignore') flags |= Gio.SubprocessFlags.STDERR_SILENCE;
 
   try {
     const proc = _spawnSubprocess(argv, flags, options);
@@ -466,8 +505,24 @@ export function spawn(command: string, args?: string[], options?: SpawnOptions):
 
 /**
  * Spawn a new process (sync).
+ *
+ * Same overload as `spawn`: accepts both `(command, args, options)` and
+ * `(command, options)`.
  */
-export function spawnSync(command: string, args?: string[], options?: ExecSyncOptions): SpawnSyncResult {
+export function spawnSync(
+  command: string,
+  argsOrOptions?: string[] | ExecSyncOptions,
+  maybeOptions?: ExecSyncOptions,
+): SpawnSyncResult {
+  let args: string[] | undefined;
+  let options: ExecSyncOptions | undefined;
+  if (Array.isArray(argsOrOptions)) {
+    args = argsOrOptions;
+    options = maybeOptions;
+  } else {
+    args = undefined;
+    options = argsOrOptions;
+  }
   const _args = args || [];
   const useShell = options?.shell;
   const input = options?.input;

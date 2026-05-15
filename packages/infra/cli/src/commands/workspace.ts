@@ -65,6 +65,10 @@ export const workspaceCommand: Command<any, WorkspaceCmdOptions> = {
             console.error(err.message);
             process.exit(1);
         });
+        // ensureMainLoop() (called inside spawn) keeps GJS alive after the
+        // child exits — without an explicit process.exit() the success path
+        // would park the loop forever.
+        process.exit(0);
     },
 };
 
