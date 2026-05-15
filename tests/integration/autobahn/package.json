@@ -26,6 +26,7 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
+        "@gjsify/utils": "workspace:^",
         "@gjsify/websocket": "workspace:^",
         "@gjsify/ws": "workspace:^",
         "@types/node": "^25.6.2",
