@@ -15,7 +15,7 @@
 // `"workspaces"` field) is Phase D.3 — for now we detect and surface a
 // clear error pointing at the in-progress work.
 
-import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { spawn } from 'node:child_process';
 import { discoverWorkspaces } from '@gjsify/workspace';
@@ -372,6 +372,10 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
                 ? `#!/bin/sh\nexec gjs -m "${targetAbs}" "$@"\n`
                 : `#!/bin/sh\nexec node "${targetAbs}" "$@"\n`;
             writeFileSync(linkPath, shim, { mode: 0o755 });
+            // `mode` on writeFileSync is unreliable across kernels +
+            // umasks (and silently no-ops when the file already exists).
+            // Explicit chmod guarantees the +x bit lands.
+            chmodSync(linkPath, 0o755);
             wsBinsCreated++;
         }
     }
