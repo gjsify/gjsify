@@ -1,13 +1,17 @@
 #!/usr/bin/env node
-// Packs all non-private @gjsify/* workspace packages into tarballs using a
-// single `yarn workspaces foreach pack` invocation. Outputs a JSON map of
-// { packageName: tarballFilename } to stdout; diagnostic output goes to stderr.
+// Packs all non-private @gjsify/* workspace packages into tarballs.
+// Outputs a JSON map of { packageName: tarballFilename } to stdout;
+// diagnostic output goes to stderr.
 //
 // Usage: node pack.mjs <tarballsDir>
+//
+// Phase D.7d removed yarn from CI, so this script no longer shells out
+// to `yarn workspaces list/foreach pack`. It now walks the root
+// pkg.workspaces globs directly and invokes `npm pack` per workspace.
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { mkdirSync, readFileSync, readdirSync, existsSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -21,28 +25,39 @@ if (!tarballsDir) {
 
 mkdirSync(tarballsDir, { recursive: true });
 
-const workspaces = execFileSync('yarn', ['workspaces', 'list', '--json'], {
-  cwd: MONOREPO_ROOT,
-  encoding: 'utf8',
-  maxBuffer: 50 * 1024 * 1024,
-})
-  .trim()
-  .split('\n')
-  .filter(Boolean)
-  .map((line) => JSON.parse(line))
-  .filter((w) => w.location !== '.');
-
-function readPkg(location) {
-  return JSON.parse(readFileSync(join(MONOREPO_ROOT, location, 'package.json'), 'utf8'));
+// Inline workspace walk — minimal-glob form (trailing `*` only) matches
+// every pattern this monorepo's root pkg.workspaces uses.
+function discoverWorkspaces() {
+  const rootPkg = JSON.parse(readFileSync(join(MONOREPO_ROOT, 'package.json'), 'utf8'));
+  const patterns = Array.isArray(rootPkg.workspaces)
+    ? rootPkg.workspaces
+    : (rootPkg.workspaces?.packages ?? []);
+  const out = [];
+  for (const pattern of patterns) {
+    const dirs = pattern.endsWith('/*')
+      ? readdirSync(join(MONOREPO_ROOT, pattern.slice(0, -2)), { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .map((d) => join(MONOREPO_ROOT, pattern.slice(0, -2), d.name))
+      : [join(MONOREPO_ROOT, pattern)];
+    for (const dir of dirs) {
+      const pkgPath = join(dir, 'package.json');
+      if (!existsSync(pkgPath)) continue;
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+        if (!pkg.name) continue;
+        out.push({ name: pkg.name, location: relative(MONOREPO_ROOT, dir), pkg });
+      } catch { /* unreadable — skip */ }
+    }
+  }
+  return out;
 }
 
-// Skip templates (consumed via scaffolding, not installed as deps) and private
-// packages (yarn pack --no-private would refuse them anyway). Examples stay in
-// because @gjsify/cli depends on @gjsify/example-* showcases.
-const selected = workspaces.filter((w) => {
+// Skip templates (consumed via scaffolding, not installed as deps) and
+// private packages. Examples stay in because @gjsify/cli depends on
+// @gjsify/example-* showcases.
+const selected = discoverWorkspaces().filter((w) => {
   if (w.name.startsWith('@gjsify/template-')) return false;
-  const pkg = readPkg(w.location);
-  return !pkg.private;
+  return !w.pkg.private;
 });
 
 if (selected.length === 0) {
@@ -50,16 +65,23 @@ if (selected.length === 0) {
   process.exit(0);
 }
 
-// Yarn expands %s to the package ident: @gjsify/foo → @gjsify-foo.tgz
-const includeFlags = selected.flatMap((w) => ['--include', w.name]);
-execFileSync(
-  'yarn',
-  ['workspaces', 'foreach', '-A', '--no-private', ...includeFlags, 'pack', '-o', `${tarballsDir}/%s.tgz`],
-  { cwd: MONOREPO_ROOT, stdio: ['pipe', 'pipe', 'inherit'], maxBuffer: 50 * 1024 * 1024 },
-);
-
 const tarballMap = {};
 for (const w of selected) {
-  tarballMap[w.name] = `${w.name.replace('/', '-')}.tgz`;
+  // `npm pack` writes `<scope>-<name>-<version>.tgz` (e.g.
+  // `gjsify-buffer-0.4.0.tgz`) into the cwd by default. `--pack-destination`
+  // redirects it to <tarballsDir> directly.
+  const stdout = execFileSync(
+    'npm',
+    ['pack', '--pack-destination', resolve(tarballsDir), '--json'],
+    { cwd: join(MONOREPO_ROOT, w.location), stdio: ['pipe', 'pipe', 'inherit'], encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 },
+  );
+  const result = JSON.parse(stdout);
+  // npm pack --json returns an array of {filename, …} entries.
+  const filename = result[0]?.filename;
+  if (!filename) {
+    console.error(`pack.mjs: ${w.name} — npm pack returned no filename`);
+    process.exit(1);
+  }
+  tarballMap[w.name] = filename;
 }
 process.stdout.write(`${JSON.stringify(tarballMap, null, 2)}\n`);
