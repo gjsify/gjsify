@@ -124,7 +124,10 @@ jobs:
         run: su testuser -c 'LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" npm run test'
 
       - name: Test WebGL conformance
-        run: su testuser -c 'LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify workspace @gjsify/webgl test:conformance'
+        # `gjsify` is at `node_modules/.bin/gjsify` after install. xvfb-run
+        # spawns a clean shell that doesn't inherit the PATH npm would
+        # prepend, so prepend it explicitly here.
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify workspace @gjsify/webgl test:conformance'
 
       - name: Test CLI examples
         run: su testuser -c 'npm run test:examples'
