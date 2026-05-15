@@ -32,6 +32,7 @@
     "@girs/gjs": "4.0.0-rc.15",
     "@girs/gobject-2.0": "2.88.0-4.0.0-rc.15",
     "@girs/gtk-4.0": "4.23.0-4.0.0-rc.15",
+    "@gjsify/adwaita-icons": "workspace:^",
     "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/cli": "workspace:^",
     "@gjsify/vite-plugin-blueprint": "workspace:^",
