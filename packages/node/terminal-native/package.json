@@ -36,13 +36,13 @@
     "scripts": {
         "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
-        "build": "yarn build:gjsify && yarn build:types",
+        "build": "npm run build:gjsify && npm run build:types",
         "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
         "build:types": "tsc",
         "init:meson": "meson setup build .",
-        "init:meson:wipe": "yarn init:meson --wipe",
-        "build:meson": "yarn init:meson && meson compile -C build",
-        "build:prebuilds": "yarn build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifyterminal.so build/GjsifyTerminal-1.0.gir build/GjsifyTerminal-1.0.typelib prebuilds/linux-x86_64/",
+        "init:meson:wipe": "npm run init:meson --wipe",
+        "build:meson": "npm run init:meson && meson compile -C build",
+        "build:prebuilds": "npm run build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifyterminal.so build/GjsifyTerminal-1.0.gir build/GjsifyTerminal-1.0.typelib prebuilds/linux-x86_64/",
         "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=./prebuilds/linux-x86_64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyTerminal-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true"
     },
     "dependencies": {

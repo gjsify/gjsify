@@ -10,8 +10,8 @@
         "clear": "rm -rf dist tsconfig.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile dist/test.gjs.mjs",
-        "build:test": "yarn build:test:gjs",
-        "test": "yarn build:test && yarn test:gjs",
+        "build:test": "npm run build:test:gjs",
+        "test": "npm run build:test && npm run test:gjs",
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {

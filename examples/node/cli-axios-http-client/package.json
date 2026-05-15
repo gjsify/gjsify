@@ -9,10 +9,10 @@
     "scripts": {
         "clear": "rm -rf dist tsconfig.tsbuildinfo",
         "check": "tsc --noEmit",
-        "start": "yarn start:gjs",
+        "start": "npm run start:gjs",
         "start:gjs": "gjsify run dist/index.gjs.js",
         "start:node": "node dist/index.node.mjs",
-        "build": "yarn build:gjs && yarn build:node",
+        "build": "npm run build:gjs && npm run build:node",
         "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
         "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs"
     },

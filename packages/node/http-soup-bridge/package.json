@@ -25,13 +25,13 @@
         "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
         "init:meson": "meson setup build .",
-        "init:meson:wipe": "yarn init:meson --wipe",
-        "build": "yarn build:gjsify && yarn build:types",
+        "init:meson:wipe": "npm run init:meson --wipe",
+        "build": "npm run build:gjsify && npm run build:types",
         "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
-        "build:meson": "yarn init:meson && meson compile -C build",
+        "build:meson": "npm run init:meson && meson compile -C build",
         "build:types": "tsc",
         "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=./prebuilds/linux-x86_64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyHttpSoupBridge-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true",
-        "build:prebuilds": "yarn build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifyhttpsoupbridge.so build/GjsifyHttpSoupBridge-1.0.gir build/GjsifyHttpSoupBridge-1.0.typelib prebuilds/linux-x86_64/"
+        "build:prebuilds": "npm run build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifyhttpsoupbridge.so build/GjsifyHttpSoupBridge-1.0.gir build/GjsifyHttpSoupBridge-1.0.typelib prebuilds/linux-x86_64/"
     },
     "keywords": [
         "gjs",

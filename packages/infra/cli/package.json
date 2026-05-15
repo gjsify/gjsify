@@ -23,12 +23,12 @@
         "clear": "rm -rf lib dist tsconfig.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
         "start": "node lib/index.js",
-        "build": "tsc && yarn chmod",
+        "build": "tsc && npm run chmod",
         "build:gjs-bundle": "node lib/index.js build src/index.ts --app gjs --outfile dist/cli.gjs.mjs",
         "chmod": "chmod +x ./lib/index.js",
         "build:test:node": "node lib/index.js build src/test.mts --app node --outfile dist/test.node.mjs",
         "test:node": "node dist/test.node.mjs",
-        "test": "yarn build:test:node && yarn test:node"
+        "test": "npm run build:test:node && npm run test:node"
     },
     "keywords": [
         "gjs",
