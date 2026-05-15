@@ -336,6 +336,80 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
     if (symlinks.length > 0) {
         console.log(`gjsify install: wired ${symlinks.length} workspace symlink(s)`);
     }
+
+    // Link workspace bins into `node_modules/.bin/`. Without this,
+    // `npm run <script>` (or any `node_modules/.bin`-PATH consumer)
+    // cannot find the `gjsify` binary on a fresh checkout — yarn
+    // creates these shims at install time; we need to match.
+    //
+    // Each workspace's `bin` entry maps `<binName>` → `<relative-target>`.
+    // For GJS-runnable bins, `gjsify.bin` is preferred — its target is the
+    // committed `dist/cli.gjs.mjs` bundle that exists on a fresh checkout,
+    // versus the `bin` field which typically points at `lib/index.js`
+    // (a build artifact that may not yet exist). The shim wraps the
+    // target in a shell script that picks the right interpreter (`gjs -m`
+    // for `.mjs` bundles, `node` for `.js` files).
+    const wsBinDir = join(cwd, 'node_modules', '.bin');
+    let wsBinsCreated = 0;
+    for (const ws of workspaces) {
+        const m = ws.manifest as Record<string, unknown>;
+        const gjsifyBin = (m.gjsify as { bin?: string | Record<string, string> } | undefined)?.bin;
+        const nodeBin = m.bin as string | Record<string, string> | undefined;
+        const entries = normalizeWorkspaceBins(ws.name, gjsifyBin, nodeBin);
+        if (entries.size === 0) continue;
+        mkdirSync(wsBinDir, { recursive: true });
+        for (const [binName, { relTarget, runtime }] of entries) {
+            const linkPath = join(wsBinDir, binName);
+            const targetAbs = join(ws.location, relTarget);
+            const targetRel = relative(wsBinDir, targetAbs);
+            // Remove any prior entry.
+            try { rmSync(linkPath, { force: true }); } catch { /* fine */ }
+            // Write a shim script. Using a shim (not a raw symlink) lets
+            // us decide between `gjs -m` and `node` at invocation time
+            // based on the bin's source. This matches yarn's
+            // /tmp/xfs-<hash>/<bin> shim layout.
+            const shim = runtime === 'gjs'
+                ? `#!/bin/sh\nexec gjs -m "${targetAbs}" "$@"\n`
+                : `#!/bin/sh\nexec node "${targetAbs}" "$@"\n`;
+            writeFileSync(linkPath, shim, { mode: 0o755 });
+            wsBinsCreated++;
+        }
+    }
+    if (wsBinsCreated > 0) {
+        console.log(`gjsify install: linked ${wsBinsCreated} workspace bin(s) into node_modules/.bin/`);
+    }
+}
+
+/**
+ * Walk a workspace's `bin` (Node) + `gjsify.bin` (GJS) declarations
+ * into a unified `<binName> → {relTarget, runtime}` map. `gjsify.bin`
+ * entries win on name conflict because their target is committed
+ * (`dist/cli.gjs.mjs`) while `bin` typically points at `lib/index.js`,
+ * a build artifact that may not exist on a fresh checkout.
+ */
+function normalizeWorkspaceBins(
+    pkgName: string,
+    gjsifyBin: string | Record<string, string> | undefined,
+    nodeBin: string | Record<string, string> | undefined,
+): Map<string, { relTarget: string; runtime: 'gjs' | 'node' }> {
+    const out = new Map<string, { relTarget: string; runtime: 'gjs' | 'node' }>();
+    const baseName = pkgName.startsWith('@') ? pkgName.slice(pkgName.indexOf('/') + 1) : pkgName;
+    const addEntry = (key: string, value: string | undefined, runtime: 'gjs' | 'node') => {
+        if (typeof value !== 'string' || value.length === 0) return;
+        out.set(key, { relTarget: value, runtime });
+    };
+    // Node bins first; gjsify bins override on the same key.
+    if (typeof nodeBin === 'string') {
+        addEntry(baseName, nodeBin, 'node');
+    } else if (nodeBin && typeof nodeBin === 'object') {
+        for (const [k, v] of Object.entries(nodeBin)) addEntry(k, v, 'node');
+    }
+    if (typeof gjsifyBin === 'string') {
+        addEntry(baseName, gjsifyBin, 'gjs');
+    } else if (gjsifyBin && typeof gjsifyBin === 'object') {
+        for (const [k, v] of Object.entries(gjsifyBin)) addEntry(k, v, 'gjs');
+    }
+    return out;
 }
 
 async function projectInstallViaNpm(args: InstallOptions): Promise<void> {

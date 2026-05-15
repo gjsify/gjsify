@@ -72,29 +72,19 @@ jobs:
           useradd -m testuser
           chown -R testuser:testuser .
 
-      - name: Enable Corepack
-        run: su testuser -c 'corepack enable'
-
-      # Phase D.7c (additive): verify the Node-free install path works in
-      # CI BEFORE the yarn install runs. The CLI's committed GJS bundle
-      # consumes `gjsify-lock.json` and produces a working
-      # `node_modules/` tree under stock `gjs`. This step is informational
-      # for now — yarn install runs immediately after and overwrites
-      # node_modules with the yarn-managed shape (which the rest of CI
-      # depends on via `yarn run …`). When the workspace scripts are
-      # decoupled from `yarn run`, this step becomes the canonical
-      # install path and `yarn install --immutable` will be dropped.
-      - name: Smoke-test Node-free install (gjsify install --immutable)
+      # Phase D.7d: Node-free install. The committed GJS bundle
+      # (`packages/infra/cli/dist/cli.gjs.mjs`) consumes
+      # `gjsify-lock.json` and materialises `node_modules/` (incl.
+      # workspace `.bin/` shims so `npm run …` finds `gjsify` on PATH).
+      # No yarn anywhere in the bootstrap.
+      - name: Install dependencies (gjsify install --immutable)
         run: su testuser -c 'gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable'
 
-      - name: Install NPM dependencies
-        run: su testuser -c 'yarn install --immutable'
-
       - name: Clear
-        run: su testuser -c 'yarn run clear'
+        run: su testuser -c 'npm run clear'
 
       - name: Build
-        run: su testuser -c 'yarn run build'
+        run: su testuser -c 'npm run build'
 
       # The CLI's GJS bundle is committed to enable Node-free bootstrap (Phase D.7b).
       # We can't enforce a byte-exact freshness check — the build is not perfectly
@@ -111,7 +101,7 @@ jobs:
           ACTUAL=$(gjs -m packages/infra/cli/dist/cli.gjs.mjs --version 2>&1 | head -1 | tr -d '[:space:]')
           if [ "$ACTUAL" != "$EXPECTED" ]; then
             echo "::error::packages/infra/cli/dist/cli.gjs.mjs reports version '$ACTUAL', package.json says '$EXPECTED'."
-            echo "::error::Refresh locally: yarn workspace @gjsify/cli run build && yarn workspace @gjsify/cli run build:gjs-bundle"
+            echo "::error::Refresh locally: gjsify workspace @gjsify/cli build && gjsify workspace @gjsify/cli build:gjs-bundle"
             echo "::error::Then commit packages/infra/cli/dist/cli.gjs.mjs."
             exit 1
           fi
@@ -119,25 +109,25 @@ jobs:
 
       # Root `build` uses --no-private, so private example workspaces are skipped; tests need dist/.
       - name: Build examples
-        run: su testuser -c 'yarn run build:examples'
+        run: su testuser -c 'npm run build:examples'
 
       - name: Check
-        run: su testuser -c 'yarn run check'
+        run: su testuser -c 'npm run check'
 
       - name: Check examples
-        run: su testuser -c 'yarn run check:examples'
+        run: su testuser -c 'npm run check:examples'
 
       - name: Test
-        run: su testuser -c 'LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" yarn run test'
+        run: su testuser -c 'LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" npm run test'
 
       - name: Test WebGL conformance
-        run: su testuser -c 'LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" yarn workspace @gjsify/webgl test:conformance'
+        run: su testuser -c 'LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify workspace @gjsify/webgl test:conformance'
 
       - name: Test CLI examples
-        run: su testuser -c 'yarn run test:examples'
+        run: su testuser -c 'npm run test:examples'
 
       - name: Test net examples
-        run: su testuser -c 'yarn run test:examples:net'
+        run: su testuser -c 'npm run test:examples:net'
 
       - name: E2E tests
-        run: su testuser -c 'yarn test:e2e'
+        run: su testuser -c 'npm run test:e2e'
