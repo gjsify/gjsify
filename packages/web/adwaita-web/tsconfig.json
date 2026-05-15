@@ -10,7 +10,8 @@
         "moduleResolution": "bundler",
         "allowImportingTsExtensions": true,
         "emitDeclarationOnly": true,
-        "strict": false
+        "strict": false,
+        "types": []
     },
     "include": ["src/**/*.ts"]
 }
