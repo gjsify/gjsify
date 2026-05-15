@@ -25,12 +25,12 @@
         "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
         "init:meson": "meson setup build .",
-        "init:meson:wipe": "npm run init:meson --wipe",
-        "build": "npm run build:gjsify && npm run build:types",
+        "init:meson:wipe": "gjsify run init:meson --wipe",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
         "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
-        "build:meson": "npm run init:meson && meson compile -C build",
+        "build:meson": "gjsify run init:meson && meson compile -C build",
         "build:types": "tsc -b --force",
-        "build:prebuilds": "npm run build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifywebrtc.so build/GjsifyWebrtc-0.1.typelib prebuilds/linux-x86_64/"
+        "build:prebuilds": "gjsify run build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifywebrtc.so build/GjsifyWebrtc-0.1.typelib prebuilds/linux-x86_64/"
     },
     "keywords": [
         "gjs",

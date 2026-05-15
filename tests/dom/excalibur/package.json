@@ -7,7 +7,7 @@
         "clear": "rm -rf lib test.gjs.mjs tsconfig.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
-        "test": "npm run build:test:gjs && npm run test:gjs",
+        "test": "gjsify run build:test:gjs && gjsify run test:gjs",
         "test:gjs": "gjsify run test.gjs.mjs"
     },
     "dependencies": {

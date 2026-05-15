@@ -11,14 +11,14 @@
         "check": "tsc --noEmit",
         "build:driver:gjs": "gjsify build src/fuzzingclient-driver.ts --app gjs --outfile dist/driver-websocket.gjs.mjs --globals auto,WebSocket",
         "build:driver:ws:gjs": "gjsify build src/fuzzingclient-driver-ws.ts --app gjs --outfile dist/driver-ws.gjs.mjs --globals auto,WebSocket",
-        "build": "npm run build:driver:gjs && npm run build:driver:ws:gjs",
+        "build": "gjsify run build:driver:gjs && gjsify run build:driver:ws:gjs",
         "autobahn:up": "node scripts/autobahn-up.mjs && node scripts/wait-for-autobahn.mjs",
         "autobahn:down": "node scripts/autobahn-down.mjs",
         "driver:websocket:gjs": "node scripts/run-driver.mjs dist/driver-websocket.gjs.mjs reports/output/driver-websocket.log",
         "driver:ws:gjs": "node scripts/run-driver.mjs dist/driver-ws.gjs.mjs reports/output/driver-ws.log",
-        "test": "npm run build && npm run autobahn:up && npm run driver:websocket:gjs && npm run driver:ws:gjs && node scripts/validate-reports.mjs && npm run autobahn:down",
-        "test:websocket": "npm run build && npm run autobahn:up && npm run driver:websocket:gjs && node scripts/validate-reports.mjs websocket && npm run autobahn:down",
-        "test:ws": "npm run build && npm run autobahn:up && npm run driver:ws:gjs && node scripts/validate-reports.mjs ws && npm run autobahn:down",
+        "test": "gjsify run build && gjsify run autobahn:up && gjsify run driver:websocket:gjs && gjsify run driver:ws:gjs && node scripts/validate-reports.mjs && gjsify run autobahn:down",
+        "test:websocket": "gjsify run build && gjsify run autobahn:up && gjsify run driver:websocket:gjs && node scripts/validate-reports.mjs websocket && gjsify run autobahn:down",
+        "test:ws": "gjsify run build && gjsify run autobahn:up && gjsify run driver:ws:gjs && node scripts/validate-reports.mjs ws && gjsify run autobahn:down",
         "report:show": "echo 'Open reports/output/clients/index.html in a browser'"
     },
     "devDependencies": {

@@ -27,7 +27,7 @@
     "scripts": {
         "clear": "rm -rf lib dist tsconfig.tsbuildinfo scss/_icons.generated.scss || exit 0",
         "check": "tsc --noEmit",
-        "build": "npm run build:scss && npm run build:gjsify && npm run build:types",
+        "build": "gjsify run build:scss && gjsify run build:gjsify && gjsify run build:types",
         "build:scss": "node scripts/build-scss.mjs",
         "build:gjsify": "gjsify build --library 'src/**/*.ts' --exclude 'src/**/*.spec.ts'",
         "build:types": "tsc"
