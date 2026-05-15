@@ -30,6 +30,7 @@
     "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/canvas2d": "workspace:^",
     "@gjsify/cli": "workspace:^",
+    "@gjsify/vite-plugin-blueprint": "workspace:^",
     "@types/node": "^25.6.2",
     "http-server": "^14.1.1",
     "typescript": "^6.0.3"
