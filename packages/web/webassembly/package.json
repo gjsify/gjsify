@@ -20,6 +20,10 @@
         },
         "./globals": "./globals.mjs"
     },
+    "files": [
+        "lib",
+        "globals.mjs"
+    ],
     "sideEffects": [
         "./lib/esm/register.js",
         "./lib/esm/register/*.js",

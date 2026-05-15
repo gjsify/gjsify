@@ -10,6 +10,9 @@
     "author": "Pascal Garber",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
+    "files": [
+        "lib"
+    ],
     "type": "module",
     "exports": {
         ".": {

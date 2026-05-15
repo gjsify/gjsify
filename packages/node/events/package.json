@@ -12,6 +12,10 @@
             "default": "./lib/esm/index.js"
         }
     },
+    "files": [
+        "lib",
+        "cjs-compat.cjs"
+    ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",
         "check": "tsc --noEmit",

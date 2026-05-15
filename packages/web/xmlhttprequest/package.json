@@ -4,6 +4,9 @@
     "description": "XMLHttpRequest and URL.createObjectURL/revokeObjectURL for GJS — backed by @gjsify/fetch and GLib",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
+    "files": [
+        "lib"
+    ],
     "type": "module",
     "exports": {
         ".": {

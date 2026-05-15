@@ -11,6 +11,9 @@
             "default": "./lib/esm/index.js"
         }
     },
+    "files": [
+        "lib"
+    ],
     "scripts": {
         "clear": "rm -rf lib tmp tsconfig.tsbuildinfo test.gjs.mjs || exit 0",
         "check": "tsc --noEmit",

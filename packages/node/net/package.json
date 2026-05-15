@@ -15,6 +15,9 @@
             "default": "./lib/esm/socket.js"
         }
     },
+    "files": [
+        "lib"
+    ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",
         "check": "tsc --noEmit",

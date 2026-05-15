@@ -19,6 +19,9 @@
             "default": "./lib/shims/console-gjs.js"
         }
     },
+    "files": [
+        "lib"
+    ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",

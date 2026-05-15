@@ -15,6 +15,9 @@
             "types": "./types/blueprint.d.ts"
         }
     },
+    "files": [
+        "lib"
+    ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",

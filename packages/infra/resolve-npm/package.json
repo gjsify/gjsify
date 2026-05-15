@@ -14,6 +14,9 @@
         "./globals-map": "./lib/globals-map.mjs",
         "./package.json": "./package.json"
     },
+    "files": [
+        "lib"
+    ],
     "scripts": {
         "clear": "echo 'nothing to do'",
         "check": "true",

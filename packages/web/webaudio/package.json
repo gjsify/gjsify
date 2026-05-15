@@ -15,6 +15,9 @@
             "default": "./lib/esm/register.js"
         }
     },
+    "files": [
+        "lib"
+    ],
     "sideEffects": [
         "./lib/esm/register.js"
     ],

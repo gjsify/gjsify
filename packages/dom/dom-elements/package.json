@@ -39,6 +39,9 @@
             "default": "./lib/esm/register/navigator.js"
         }
     },
+    "files": [
+        "lib"
+    ],
     "sideEffects": [
         "./lib/esm/register.js",
         "./lib/esm/register/*.js"
