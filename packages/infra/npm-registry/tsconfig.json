@@ -12,7 +12,8 @@
         "composite": true,
         "skipLibCheck": true,
         "strict": true,
-        "lib": ["ESNext", "DOM"]
+        "lib": ["ESNext", "DOM"],
+        "types": []
     },
     "include": [
         "src/**/*.ts"
