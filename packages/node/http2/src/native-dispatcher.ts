@@ -45,6 +45,34 @@ export interface NativeStreamHandler {
   (event: NativeStreamEvent): void;
 }
 
+/**
+ * Per-stream submit handle the dispatcher hands to its caller. Used by
+ * `@gjsify/http2`'s server.ts to route response writes, DATA frames, and
+ * push-promise allocations through the SessionBridge that owns the
+ * underlying TCP connection.
+ *
+ * Pushed streams reuse the parent's connection (single TCP socket per
+ * HTTP/2 session) — `pushPromise()` allocates a server-side stream-id
+ * via `SessionBridge.submit_push_promise()` and returns a sibling backend
+ * the caller can use to dispatch the pushed response.
+ */
+export interface NativeStreamBackend {
+  /** Connection-unique stream id this backend writes to. */
+  readonly streamId: number;
+  /** Submit a response (status + headers) back through the wire. */
+  respond(headers: Record<string, string | number | string[]>, endStream: boolean): void;
+  /** Submit a DATA frame for this stream. */
+  writeData(chunk: Buffer, endStream: boolean): void;
+  /** RST_STREAM to abort. */
+  reset(errorCode?: number): void;
+  /**
+   * Submit a PUSH_PROMISE on this stream. Returns the freshly-allocated
+   * pushed-stream backend (null on error / push disabled). The caller
+   * then dispatches headers + body through the returned backend.
+   */
+  pushPromise(headers: Record<string, string | number | string[]>): NativeStreamBackend | null;
+}
+
 export interface NativeStreamEvent {
   /** Connection-unique stream id (odd, client-initiated). */
   streamId: number;
@@ -60,14 +88,8 @@ export interface NativeStreamEvent {
   localPort: number;
   /** Async iterator yielding DATA chunks for this stream. */
   body: AsyncIterable<Buffer>;
-  /** Submit a response (status + headers + body) back through the wire. */
-  respond(headers: Record<string, string | number | string[]>, endStream: boolean): void;
-  /** Submit a DATA frame for this stream. */
-  writeData(chunk: Buffer, endStream: boolean): void;
-  /** RST_STREAM to abort. */
-  reset(errorCode?: number): void;
-  /** Allocate a server-push promise. Returns the promised stream id, or 0 on error. */
-  pushPromise(headers: Record<string, string | number | string[]>): number;
+  /** Per-stream submit handle. Use this for response/data/push-promise. */
+  backend: NativeStreamBackend;
 }
 
 interface NativeConnection {
@@ -355,22 +377,7 @@ export class Http2NativeDispatcher {
       remotePort: conn.remotePort,
       localPort: this._listenPort,
       body: this._makeBodyIterator(streamState),
-      respond: (responseHeaders, endStr) => {
-        this._submitResponse(conn, streamId, responseHeaders, endStr);
-      },
-      writeData: (chunk, endStr) => {
-        this._submitData(conn, streamId, chunk, endStr);
-      },
-      reset: (errorCode = 0) => {
-        try { conn.bridge.submit_rst_stream(streamId, errorCode); } catch {}
-        this._flushOutput(conn);
-      },
-      pushPromise: (pushHeaders) => {
-        const { names, values } = headersRecordToArrays(pushHeaders);
-        const promised = conn.bridge.submit_push_promise(streamId, names, values);
-        this._flushOutput(conn);
-        return promised;
-      },
+      backend: this._makeBackend(conn, streamId),
     };
 
     // Defer the handler call by one tick — gives JS code a chance to wire up
@@ -414,6 +421,44 @@ export class Http2NativeDispatcher {
       }
     }
     conn.streams.delete(streamId);
+  }
+
+  /**
+   * Build a per-stream submit handle on the given connection. Pushed
+   * streams (allocated via `submit_push_promise`) share the underlying
+   * `SessionBridge` so they can reuse this same factory.
+   */
+  private _makeBackend(conn: NativeConnection, streamId: number): NativeStreamBackend {
+    return {
+      streamId,
+      respond: (headers, endStream) => {
+        this._submitResponse(conn, streamId, headers, endStream);
+      },
+      writeData: (chunk, endStream) => {
+        this._submitData(conn, streamId, chunk, endStream);
+      },
+      reset: (errorCode = 0) => {
+        try { conn.bridge.submit_rst_stream(streamId, errorCode); } catch {}
+        this._flushOutput(conn);
+      },
+      pushPromise: (pushHeaders) => {
+        const { names, values } = headersRecordToArrays(pushHeaders);
+        const promised = conn.bridge.submit_push_promise(streamId, names, values);
+        this._flushOutput(conn);
+        if (!promised) return null;
+        // Register a minimal stream state so subsequent submit_response /
+        // submit_data flows through the standard `_submitResponse` /
+        // `_submitData` path with the "responseSubmitted" guard intact.
+        conn.streams.set(promised, {
+          endStreamFromPeer: true,  // pushed streams have no inbound DATA
+          bodyBuffer: [],
+          bodyResolvers: [],
+          bodyClosed: true,
+          responseSubmitted: false,
+        });
+        return this._makeBackend(conn, promised);
+      },
+    };
   }
 
   private _submitResponse(

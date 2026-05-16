@@ -276,6 +276,20 @@ accum_take_headers (StreamHeaderAccum *a,
 
 /* ── nghttp2 callbacks ───────────────────────────────────────────────── */
 
+/* For HEADERS, the headers belong to frame->hd.stream_id. For PUSH_PROMISE,
+ * they describe the resource on the PROMISED stream id (the parent stream
+ * id is the request the push is associated with). Keep one accumulator per
+ * logical stream so PUSH_PROMISE-on-the-client surfaces a complete header
+ * set keyed by the promised id. */
+static guint32
+accum_key_for_frame (const nghttp2_frame *frame)
+{
+    if (frame->hd.type == NGHTTP2_PUSH_PROMISE) {
+        return (guint32) frame->push_promise.promised_stream_id;
+    }
+    return (guint32) frame->hd.stream_id;
+}
+
 static int
 on_begin_headers_cb (nghttp2_session *session,
                      const nghttp2_frame *frame,
@@ -283,11 +297,11 @@ on_begin_headers_cb (nghttp2_session *session,
 {
     GjsifyHttp2Session *self = user_data;
     (void) session;
-    /* Reset/create accumulator for this stream. Closing+reopening the
-     * same id is illegal in HTTP/2, so destroy-then-create is safe. */
-    g_hash_table_remove (self->header_accumulators,
-                         GUINT_TO_POINTER (frame->hd.stream_id));
-    accum_get_or_create (self, frame->hd.stream_id);
+    guint32 key = accum_key_for_frame (frame);
+    /* Reset/create accumulator for the logical stream. Closing+reopening
+     * the same id is illegal in HTTP/2, so destroy-then-create is safe. */
+    g_hash_table_remove (self->header_accumulators, GUINT_TO_POINTER (key));
+    accum_get_or_create (self, key);
     return 0;
 }
 
@@ -302,7 +316,8 @@ on_header_cb (nghttp2_session *session,
     GjsifyHttp2Session *self = user_data;
     (void) session;
     (void) flags;
-    StreamHeaderAccum *a = accum_get_or_create (self, frame->hd.stream_id);
+    guint32 key = accum_key_for_frame (frame);
+    StreamHeaderAccum *a = accum_get_or_create (self, key);
     /* g_ptr_array owns via g_free — store NUL-terminated copies. */
     g_ptr_array_add (a->names,  g_strndup ((const char *) name,  namelen));
     g_ptr_array_add (a->values, g_strndup ((const char *) value, valuelen));

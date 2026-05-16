@@ -110,18 +110,22 @@ export class Http2ServerRequest extends Readable {
 // ─── Http2ServerResponse ──────────────────────────────────────────────────────
 
 /**
- * Backend that routes writes through `SessionBridge.submit_response()` +
- * `submit_data()` instead of into a Soup message. Set on responses produced
- * by the native dispatcher (Phase 1+). When `_nativeBackend` is non-null,
- * `Http2ServerResponse` ignores its `_soupMsg` field (also null in that case)
- * and dispatches every operation through this object.
+ * Per-stream backend that routes writes through `SessionBridge.submit_*`
+ * instead of into a Soup message. Set on responses produced by the native
+ * dispatcher (Phase 1+). When `_nativeBackend` is non-null,
+ * `Http2ServerResponse` ignores its `_soupMsg` field (also null in that
+ * case) and dispatches every operation through this object.
+ *
+ * Pushed streams reuse the same connection — `pushPromise()` returns a
+ * sibling backend for the freshly-allocated promised stream id.
  */
 export interface Http2NativeBackend {
+  streamId: number;
   submitResponse(statusCode: number, statusMessage: string, headers: Map<string, string | string[]>, endStream: boolean): void;
   submitData(chunk: Buffer, endStream: boolean): void;
   reset(errorCode: number): void;
-  /** Used by pushStream() to allocate the promised id + send PUSH_PROMISE. */
-  submitPushPromise(headers: Record<string, string | string[]>): number;
+  /** Allocate a pushed stream-id; returns a child backend or null on error. */
+  pushPromise(headers: Record<string, string | number | string[]>): Http2NativeBackend | null;
 }
 
 export class Http2ServerResponse extends Writable {
@@ -150,6 +154,8 @@ export class Http2ServerResponse extends Writable {
   }
   /** Whether this response routes through the native HTTP/2 dispatcher. */
   get isNative(): boolean { return this._nativeBackend !== null; }
+  /** @internal — used by `ServerHttp2Stream.pushStream()` to allocate a pushed child backend. */
+  get nativeBackend(): Http2NativeBackend | null { return this._nativeBackend; }
 
   // Called by Http2Server after stream is created
   _setStream(stream: ServerHttp2Stream): void {
@@ -664,7 +670,28 @@ export class ServerHttp2Stream extends EventEmitter {
     if (!normalised[':method']) normalised[':method'] = 'GET';
     pushHeaders = normalised;
 
-    if (this._session) {
+    // Native-dispatcher path: if this stream's response is backed by a
+    // native backend, submit the PUSH_PROMISE through the wire and build
+    // a pushed Http2ServerResponse whose writes route through the child
+    // backend the dispatcher just allocated. Both the promised stream id
+    // AND the PUSH_PROMISE frame come from nghttp2 itself.
+    const parentBackend = this._res.nativeBackend;
+    let pushChildBackend: Http2NativeBackend | null = null;
+    if (parentBackend) {
+      pushChildBackend = parentBackend.pushPromise(normalised);
+      if (!pushChildBackend) {
+        const err = Object.assign(new Error('No available stream ids'), {
+          code: 'ERR_HTTP2_OUT_OF_STREAMS',
+        });
+        callback(err, null as unknown as ServerHttp2Stream, {});
+        return;
+      }
+      promisedId = pushChildBackend.streamId;
+      // No frameBytes — the bytes are already on the wire; expose `null`
+      // through `pushPromiseFrame` so consumers can distinguish the two
+      // paths during the transition window.
+      frameBytes = null;
+    } else if (this._session) {
       promisedId = this._session._allocatePushId();
       if (promisedId === 0) {
         const err = Object.assign(new Error('No available stream ids'), {
@@ -679,11 +706,14 @@ export class ServerHttp2Stream extends EventEmitter {
       promisedId = 2;
     }
 
-    // Build the synthetic response surface. We can't dispatch a separate
-    // SoupServerMessage onto the existing Soup connection (Soup multiplexes
-    // streams internally and refuses external injection), so the push
-    // response writes into a detached buffer reachable from `pushStream._res`.
-    const pushRes = new Http2ServerResponse(_makeDetachedSoupMessage());
+    // Build the synthetic response surface. Native path: wire writes via
+    // the child backend. Soup path: writes land in a detached buffer
+    // reachable from `pushStream._res.detachedBody` (test inspection only,
+    // since Soup multiplexes HTTP/2 streams internally and refuses
+    // external injection).
+    const pushRes = pushChildBackend
+      ? new Http2ServerResponse(null, pushChildBackend)
+      : new Http2ServerResponse(_makeDetachedSoupMessage());
     const pushStream = new ServerHttp2Stream(pushRes, this._session, {
       isPushedStream: true,
       streamId: promisedId,
@@ -988,19 +1018,27 @@ export class Http2Server extends EventEmitter {
   private _handleNativeStream(event: import('./native-dispatcher.js').NativeStreamEvent): void {
     const req = new Http2ServerRequest();
 
-    // Build the native backend that routes _write/_final through the bridge.
-    const backend: Http2NativeBackend = {
+    // Build the http2-side Http2NativeBackend on top of the per-stream
+    // dispatcher backend. Wraps the dispatcher API in the response-shaped
+    // form `Http2ServerResponse` consumes. The closure recurses through
+    // `pushPromise` so pushed streams get the same shape automatically.
+    const adapt = (b: import('./native-dispatcher.js').NativeStreamBackend): Http2NativeBackend => ({
+      streamId: b.streamId,
       submitResponse: (statusCode, _statusMessage, headers, endStream) => {
         const responseHeaders: Record<string, string | number | string[]> = {
           ':status': statusCode,
         };
         for (const [k, v] of headers) responseHeaders[k] = v as string | string[];
-        event.respond(responseHeaders, endStream);
+        b.respond(responseHeaders, endStream);
       },
-      submitData: (chunk, endStream) => event.writeData(chunk, endStream),
-      reset: (errorCode) => event.reset(errorCode),
-      submitPushPromise: (headers) => event.pushPromise(headers),
-    };
+      submitData: (chunk, endStream) => b.writeData(chunk, endStream),
+      reset: (errorCode) => b.reset(errorCode),
+      pushPromise: (headers) => {
+        const child = b.pushPromise(headers);
+        return child ? adapt(child) : null;
+      },
+    });
+    const backend = adapt(event.backend);
 
     const res = new Http2ServerResponse(null, backend);
     const session = new ServerHttp2Session();
