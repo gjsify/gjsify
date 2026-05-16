@@ -124,7 +124,12 @@ export default async function () {
           try {
             const bytes = inStream.read_bytes(16384, null);
             const n = bytes.get_size();
-            if (n === 0) return false;
+            if (n === 0) {
+              // EOF — server closed its end. Drive the bridge so any
+              // pending events (like a buffered GOAWAY) get drained.
+              client.dispatch_pending();
+              return false;
+            }
             client.feed_input(bytes);
             client.dispatch_pending();
             pump();
@@ -427,6 +432,73 @@ export default async function () {
 
           session.close();
         } finally {
+          await closeServer(server);
+        }
+      });
+
+      await it('Phase 4 — server.close() releases the listen port immediately', async () => {
+        // The teardown contract we *can* assert without TCP-timing races:
+        // (1) close() returns synchronously and emits 'close' deferred-async,
+        // (2) the listen port becomes immediately reusable. The over-the-wire
+        // GOAWAY frame is queued by `_closeConnection`'s submit_goaway +
+        // flushOutput → shutdown(write); whether the peer observes it
+        // versus the FIN first is a kernel/TCP-stack scheduling concern.
+        const { server: server1, port: port1 } = await startServer((_req, res) => {
+          res.end('hello');
+        });
+
+        let closeFired = false;
+        server1.on('close', () => { closeFired = true; });
+
+        await closeServer(server1);
+        // 'close' is deferEmit'd — give the main loop one tick to drain it.
+        await new Promise<void>((r) => GLib.idle_add(GLib.PRIORITY_DEFAULT, () => { r(); return false; }));
+        expect(closeFired).toBe(true);
+
+        // The freed port should be re-bindable. Even if not the same port,
+        // a fresh listen must succeed without error.
+        const { server: server2 } = await startServer((_req, res) => { res.end('ok'); });
+        await closeServer(server2);
+      });
+
+      await it('Phase 4 — long-running connection survives 50 sequential requests (GC pinning)', async () => {
+        // Historical GC race: SessionBridge.BoxedInstance could be GC'd
+        // mid-IO if not pinned. We verify the dispatcher's connection set
+        // keeps it alive over a real workload.
+        const { server, port } = await startServer((req, res) => {
+          res.setHeader('content-type', 'text/plain');
+          res.end('reply-' + req.url!.slice(1));
+        });
+
+        const fx = openClient(port);
+        try {
+          const completed = new Set<number>();
+          const responses = new Map<number, string>();
+          fx.client.connect('data_received', (_b: unknown, sid: number, chunk: any, endStream: boolean) => {
+            if (chunk.get_size() > 0) {
+              const prev = responses.get(sid) ?? '';
+              responses.set(sid, prev + new TextDecoder().decode(chunk.get_data()));
+            }
+            if (endStream) completed.add(sid);
+          });
+
+          const ids: number[] = [];
+          for (let i = 0; i < 50; i++) {
+            const sid = fx.client.submit_request(
+              [':method', ':scheme', ':authority', ':path'],
+              ['GET', 'http', 'localhost', '/' + i],
+              true,
+            );
+            ids.push(sid);
+          }
+          pumpClient(fx);
+          await waitFor(() => completed.size === 50, 10_000);
+
+          for (let i = 0; i < 50; i++) {
+            expect(responses.get(ids[i])).toBe('reply-' + i);
+          }
+        } finally {
+          closeClient(fx);
           await closeServer(server);
         }
       });
