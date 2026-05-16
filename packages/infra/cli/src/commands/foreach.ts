@@ -19,6 +19,7 @@ import {
     topologicalSort,
     type Workspace,
 } from '@gjsify/workspace';
+import { findWorkspaceRoot } from '../utils/workspace-root.js';
 
 interface ForeachOptions {
     script: string;
@@ -102,7 +103,9 @@ export const foreachCommand: Command<any, ForeachOptions> = {
                 alias: 'j',
             }),
     handler: async (args) => {
-        const cwd = process.cwd();
+        // Walk up to the monorepo root — foreach is sometimes invoked
+        // from inside a child workspace's script chain.
+        const cwd = findWorkspaceRoot(process.cwd()) ?? process.cwd();
         const allWorkspaces = discoverWorkspaces(cwd);
 
         let selected = filterWorkspaces(allWorkspaces, {

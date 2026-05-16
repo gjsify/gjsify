@@ -20,7 +20,7 @@ import { spawn } from 'node:child_process';
 import type { Command } from '../types/index.js';
 import { runGjsBundle } from '../utils/run-gjs.js';
 import { readPackageJson } from '../utils/pkg-json-edit.js';
-import { discoverWorkspaces } from '@gjsify/workspace';
+import { findWorkspaceRoot } from '../utils/workspace-root.js';
 
 interface RunOptions {
     target: string;
@@ -124,28 +124,6 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
         process.exit(1);
     });
     process.exit(0);
-}
-
-function findWorkspaceRoot(start: string): string | null {
-    let dir = start;
-    for (let i = 0; i < 12; i++) {
-        const pkgPath = join(dir, 'package.json');
-        if (existsSync(pkgPath)) {
-            const pkg = readPackageJson(pkgPath);
-            if (pkg?.workspaces !== undefined) {
-                try {
-                    // Sanity-check that cwd is reachable as a workspace —
-                    // otherwise we'd pick an unrelated grand-parent monorepo.
-                    const ws = discoverWorkspaces(dir);
-                    if (dir === start || ws.some((w) => w.location === start)) return dir;
-                } catch { /* not a usable workspace root */ }
-            }
-        }
-        const parent = resolve(dir, '..');
-        if (parent === dir) break;
-        dir = parent;
-    }
-    return null;
 }
 
 function shellEscape(arg: string): string {

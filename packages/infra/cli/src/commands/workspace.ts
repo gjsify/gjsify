@@ -7,6 +7,7 @@
 import { spawn } from 'node:child_process';
 import type { Command } from '../types/index.js';
 import { discoverWorkspaces } from '@gjsify/workspace';
+import { findWorkspaceRoot } from '../utils/workspace-root.js';
 
 interface WorkspaceCmdOptions {
     name: string;
@@ -35,7 +36,12 @@ export const workspaceCommand: Command<any, WorkspaceCmdOptions> = {
                 array: true,
             }),
     handler: async (args) => {
-        const workspaces = discoverWorkspaces(process.cwd());
+        // Walk up to the monorepo root — `gjsify workspace` is often
+        // invoked from a child workspace's script (e.g. website's
+        // `build:deps` calls `gjsify workspace @gjsify/adwaita-web …`),
+        // where process.cwd() is the child workspace, not the monorepo root.
+        const root = findWorkspaceRoot(process.cwd()) ?? process.cwd();
+        const workspaces = discoverWorkspaces(root);
         const target = workspaces.find((w) => w.name === args.name);
         if (!target) {
             console.error(`gjsify workspace: no workspace named "${args.name}" — discovered ${workspaces.length} workspace(s)`);
