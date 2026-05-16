@@ -6,7 +6,8 @@
         "moduleResolution": "bundler",
         "allowImportingTsExtensions": true,
         "noEmit": true,
-        "strict": false
+        "strict": false,
+        "types": []
     },
     "include": ["*.ts"],
     "exclude": ["scripts"]

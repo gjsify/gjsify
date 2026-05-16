@@ -186,14 +186,14 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
       });
       console.log('OK');
     `;
-    // Drop the harness inside this test directory so the spawned `yarn node`
-    // can resolve workspace packages via PnP (PnP is bound to the cwd).
+    // Drop the harness inside the workspace root so the spawned `node`
+    // resolves workspace packages via the gjsify-installed node_modules tree
+    // (Phase D.7d dropped yarn from CI; we no longer have PnP available).
     const harnessFile = new URL('./harness.tmp.mjs', import.meta.url).pathname;
     const workspaceRoot = new URL('../../../', import.meta.url).pathname;
     writeFileSync(harnessFile, harness);
     try {
-      const out = await runHarness('yarn', [
-        'node',
+      const out = await runHarness('node', [
         '--experimental-strip-types',
         '--no-warnings',
         harnessFile,

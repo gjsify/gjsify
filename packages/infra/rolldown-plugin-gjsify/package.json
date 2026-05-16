@@ -19,6 +19,9 @@
             "default": "./lib/shims/console-gjs.js"
         }
     },
+    "files": [
+        "lib"
+    ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
@@ -42,6 +45,7 @@
     ],
     "license": "MIT",
     "dependencies": {
+        "@gjsify/console": "workspace:^",
         "@gjsify/resolve-npm": "workspace:^",
         "@gjsify/rolldown-plugin-deepkit": "workspace:^",
         "@gjsify/rolldown-plugin-pnp": "workspace:^",

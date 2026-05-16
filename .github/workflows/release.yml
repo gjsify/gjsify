@@ -35,26 +35,19 @@ jobs:
           node-version: '24.x'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Configure Yarn for npm publishing
-        run: |
-          corepack enable
-          yarn config set npmRegistryServer "https://registry.npmjs.org"
-          yarn config set npmAlwaysAuth true
-          yarn config set npmAuthToken "${NODE_AUTH_TOKEN}"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Install dependencies
-        run: yarn install --immutable
+      # Phase D.7d: Node-free install via the committed GJS bundle.
+      # Mirrors main.yml — see that workflow for rationale.
+      - name: Install dependencies (gjsify install --immutable)
+        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
 
       - name: Build packages
-        run: yarn run build
+        run: npm run build
 
       - name: Build examples
-        run: yarn run build:examples
+        run: npm run build:examples
 
       - name: Publish packages to npm
-        run: yarn workspaces foreach -v --all --no-private --exclude '@girs/*' npm publish --tolerate-republish --tag latest --access public
+        run: npm run npm:publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

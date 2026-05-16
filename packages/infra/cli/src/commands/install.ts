@@ -15,7 +15,7 @@
 // `"workspaces"` field) is Phase D.3 — for now we detect and surface a
 // clear error pointing at the in-progress work.
 
-import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { spawn } from 'node:child_process';
 import { discoverWorkspaces } from '@gjsify/workspace';
@@ -336,6 +336,147 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
     if (symlinks.length > 0) {
         console.log(`gjsify install: wired ${symlinks.length} workspace symlink(s)`);
     }
+
+    // Hoist EVERY workspace package to the repo root's `node_modules/` so
+    // transitive workspace deps are reachable from any descendant via
+    // standard Node parent-walk resolution. yarn's `nodeLinker: node-modules`
+    // does the same thing — the entire workspace graph is materialised at
+    // the root, which is how rolldown's resolver finds e.g.
+    // `@gjsify/abort-controller/register` injected from a deeply-nested
+    // package's `node_modules/.cache/gjsify/` cache file when the consumer
+    // didn't declare a direct dep on it (auto-globals injection at build
+    // time).
+    //
+    // Without this hoist, each workspace's `node_modules/` only contains
+    // its direct declared deps, and any auto-injected register import for
+    // a workspace package the consumer didn't list as a dep externalises
+    // and the bundle fails at runtime with `Module not found`.
+    const rootBinDir = join(cwd, 'node_modules');
+    let rootHoisted = 0;
+    for (const ws of workspaces) {
+        // Skip the root workspace itself (its location IS cwd; it can't
+        // symlink itself into its own node_modules).
+        if (ws.location === cwd) continue;
+        if (!ws.name) continue;
+        const linkPath = join(rootBinDir, ws.name);
+        // If a symlink already exists here (from the per-workspace loop
+        // above when the root workspace declared this dep directly), it
+        // already points at the right place — skip. We don't try to
+        // remove + recreate because under GJS's Gio-backed fs polyfill,
+        // `rmSync` on a symlink can race with `symlinkSync` and surface
+        // EEXIST. A real directory at this path is also left alone —
+        // someone else (npm, yarn) seeded it and we shouldn't clobber.
+        let existsHere = false;
+        try {
+            lstatSync(linkPath);
+            existsHere = true;
+        } catch { /* ENOENT */ }
+        if (existsHere) continue;
+        mkdirSync(dirname(linkPath), { recursive: true });
+        const relTarget = relative(dirname(linkPath), ws.location);
+        symlinkSync(relTarget, linkPath);
+        rootHoisted++;
+    }
+    if (rootHoisted > 0) {
+        console.log(`gjsify install: hoisted ${rootHoisted} workspace(s) to root node_modules/`);
+    }
+
+    // Link workspace bins into `node_modules/.bin/`. Without this,
+    // `npm run <script>` (or any `node_modules/.bin`-PATH consumer)
+    // cannot find the `gjsify` binary on a fresh checkout — yarn
+    // creates these shims at install time; we need to match.
+    //
+    // Each workspace's `bin` entry maps `<binName>` → `<relative-target>`.
+    // For GJS-runnable bins, `gjsify.bin` is preferred — its target is the
+    // committed `dist/cli.gjs.mjs` bundle that exists on a fresh checkout,
+    // versus the `bin` field which typically points at `lib/index.js`
+    // (a build artifact that may not yet exist). The shim wraps the
+    // target in a shell script that picks the right interpreter (`gjs -m`
+    // for `.mjs` bundles, `node` for `.js` files).
+    const wsBinDir = join(cwd, 'node_modules', '.bin');
+    let wsBinsCreated = 0;
+    for (const ws of workspaces) {
+        const m = ws.manifest as Record<string, unknown>;
+        const gjsifyBin = (m.gjsify as { bin?: string | Record<string, string> } | undefined)?.bin;
+        const nodeBin = m.bin as string | Record<string, string> | undefined;
+        // For each bin name, collect both the Node-target and GJS-target
+        // when they exist. The shim prefers Node at invocation time
+        // because Node's child_process is more reliable than GJS's
+        // Gio.Subprocess polyfill (parallel-spawn close-event delivery
+        // races under heavy concurrency); GJS is the fallback for fresh
+        // checkouts where the Node target hasn't been built yet.
+        const merged = mergeWorkspaceBins(ws.name, gjsifyBin, nodeBin);
+        if (merged.size === 0) continue;
+        mkdirSync(wsBinDir, { recursive: true });
+        for (const [binName, { nodeTarget, gjsTarget }] of merged) {
+            const linkPath = join(wsBinDir, binName);
+            try { rmSync(linkPath, { force: true }); } catch { /* fine */ }
+            writeFileSync(linkPath, buildBinShim(ws.location, nodeTarget, gjsTarget), { mode: 0o755 });
+            chmodSync(linkPath, 0o755);
+            wsBinsCreated++;
+        }
+    }
+    if (wsBinsCreated > 0) {
+        console.log(`gjsify install: linked ${wsBinsCreated} workspace bin(s) into node_modules/.bin/`);
+    }
+}
+
+/**
+ * Build a shell shim that prefers Node when its target file exists at
+ * invocation time, falling back to GJS otherwise. The runtime check is
+ * per-invocation (not at install time) so the same shim works both
+ * before and after the workspace's `lib/` has been built — a fresh
+ * checkout only has the committed `dist/cli.gjs.mjs`, while every
+ * subsequent `npm run build` produces `lib/index.js`.
+ *
+ * Both targets are absolute paths so the shim is portable across the
+ * different cwds that consumers (`yarn run`, `npm run`, direct PATH
+ * invocation) call us from.
+ */
+function buildBinShim(wsLocation: string, nodeTarget?: string, gjsTarget?: string): string {
+    const nodeAbs = nodeTarget ? join(wsLocation, nodeTarget) : null;
+    const gjsAbs = gjsTarget ? join(wsLocation, gjsTarget) : null;
+    if (nodeAbs && gjsAbs) {
+        return `#!/bin/sh\nif [ -f "${nodeAbs}" ]; then\n  exec node "${nodeAbs}" "$@"\nfi\nexec gjs -m "${gjsAbs}" "$@"\n`;
+    }
+    if (nodeAbs) return `#!/bin/sh\nexec node "${nodeAbs}" "$@"\n`;
+    if (gjsAbs) return `#!/bin/sh\nexec gjs -m "${gjsAbs}" "$@"\n`;
+    throw new Error('buildBinShim: either nodeTarget or gjsTarget must be provided');
+}
+
+/**
+ * Walk a workspace's `bin` (Node) + `gjsify.bin` (GJS) declarations
+ * into a unified `<binName> → {nodeTarget?, gjsTarget?}` map. The
+ * shim built from this picks Node at runtime when its target exists,
+ * GJS otherwise.
+ */
+function mergeWorkspaceBins(
+    pkgName: string,
+    gjsifyBin: string | Record<string, string> | undefined,
+    nodeBin: string | Record<string, string> | undefined,
+): Map<string, { nodeTarget?: string; gjsTarget?: string }> {
+    const out = new Map<string, { nodeTarget?: string; gjsTarget?: string }>();
+    const baseName = pkgName.startsWith('@') ? pkgName.slice(pkgName.indexOf('/') + 1) : pkgName;
+    const get = (key: string) => {
+        let entry = out.get(key);
+        if (!entry) { entry = {}; out.set(key, entry); }
+        return entry;
+    };
+    if (typeof nodeBin === 'string') {
+        get(baseName).nodeTarget = nodeBin;
+    } else if (nodeBin && typeof nodeBin === 'object') {
+        for (const [k, v] of Object.entries(nodeBin)) {
+            if (typeof v === 'string' && v.length > 0) get(k).nodeTarget = v;
+        }
+    }
+    if (typeof gjsifyBin === 'string') {
+        get(baseName).gjsTarget = gjsifyBin;
+    } else if (gjsifyBin && typeof gjsifyBin === 'object') {
+        for (const [k, v] of Object.entries(gjsifyBin)) {
+            if (typeof v === 'string' && v.length > 0) get(k).gjsTarget = v;
+        }
+    }
+    return out;
 }
 
 async function projectInstallViaNpm(args: InstallOptions): Promise<void> {

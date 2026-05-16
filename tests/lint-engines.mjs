@@ -4,32 +4,41 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..');
 const MIN_NODE_MAJOR = 22;
 
-// Get all non-private workspaces (same set that gets published)
+// Get all non-private workspaces (same set that gets published).
+// Inlined workspace walk so this test doesn't require yarn — Phase D.7d
+// removed yarn from CI entirely.
 function getPublishedWorkspaces() {
-  const output = execFileSync('yarn', ['workspaces', 'list', '--json'], {
-    cwd: MONOREPO_ROOT,
-    encoding: 'utf8',
-  });
-  return output
-    .trim()
-    .split('\n')
-    .map((line) => JSON.parse(line))
-    .filter((ws) => ws.location !== '.')
-    .map((ws) => {
-      const pkgPath = join(MONOREPO_ROOT, ws.location, 'package.json');
-      const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-      return { name: ws.name, location: ws.location, pkg };
-    })
-    .filter((ws) => !ws.pkg.private);
+  const rootPkg = JSON.parse(readFileSync(join(MONOREPO_ROOT, 'package.json'), 'utf8'));
+  const patterns = Array.isArray(rootPkg.workspaces)
+    ? rootPkg.workspaces
+    : (rootPkg.workspaces?.packages ?? []);
+  const out = [];
+  for (const pattern of patterns) {
+    const dirs = pattern.endsWith('/*')
+      ? readdirSync(join(MONOREPO_ROOT, pattern.slice(0, -2)), { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .map((d) => join(MONOREPO_ROOT, pattern.slice(0, -2), d.name))
+      : [join(MONOREPO_ROOT, pattern)];
+    for (const dir of dirs) {
+      const pkgPath = join(dir, 'package.json');
+      if (!existsSync(pkgPath)) continue;
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+        if (pkg.private) continue;
+        if (!pkg.name) continue;
+        out.push({ name: pkg.name, location: relative(MONOREPO_ROOT, dir) || '.', pkg });
+      } catch { /* unreadable package.json — skip */ }
+    }
+  }
+  return out;
 }
 
 describe('published package engines', () => {

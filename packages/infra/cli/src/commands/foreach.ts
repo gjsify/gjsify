@@ -135,20 +135,27 @@ export const foreachCommand: Command<any, ForeachOptions> = {
         const cmdArgs = args.args ?? [];
         const verbose = args.verbose === true;
 
-        if (args.parallel && !args.topological && !args['topological-dev']) {
-            const jobs = args.jobs && args.jobs > 0 ? args.jobs : cpus().length;
-            await runParallel(selected, cmd, cmdArgs, jobs, verbose);
-            return;
+        try {
+            if (args.parallel && !args.topological && !args['topological-dev']) {
+                const jobs = args.jobs && args.jobs > 0 ? args.jobs : cpus().length;
+                await runParallel(selected, cmd, cmdArgs, jobs, verbose);
+            } else if (args.parallel) {
+                // Topological + parallel: each workspace starts as soon as its
+                // deps (in the selected set) have finished. Yarn calls this
+                // "topological order with concurrency"; we cap at --jobs.
+                const jobs = args.jobs && args.jobs > 0 ? args.jobs : cpus().length;
+                await runTopologicalParallel(selected, cmd, cmdArgs, jobs, verbose, args['topological-dev'] === true);
+            } else {
+                await runSequential(selected, cmd, cmdArgs, verbose);
+            }
+        } catch (err) {
+            console.error((err as Error).message);
+            process.exit(1);
         }
-        if (args.parallel) {
-            // Topological + parallel: each workspace starts as soon as its
-            // deps (in the selected set) have finished. Yarn calls this
-            // "topological order with concurrency"; we cap at --jobs.
-            const jobs = args.jobs && args.jobs > 0 ? args.jobs : cpus().length;
-            await runTopologicalParallel(selected, cmd, cmdArgs, jobs, verbose, args['topological-dev'] === true);
-            return;
-        }
-        await runSequential(selected, cmd, cmdArgs, verbose);
+        // ensureMainLoop() (called inside spawn) keeps GJS alive after every
+        // child exits — without an explicit process.exit() the success path
+        // would park the loop forever.
+        process.exit(0);
     },
 };
 

@@ -6,11 +6,12 @@
 import { readFileSync, writeFileSync, mkdirSync, cpSync, readdirSync, rmSync, statSync, existsSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = join(__dirname, '..');
-// PROJECT_CWD is set by Yarn when running workspace scripts
+// `PROJECT_CWD` was set by Yarn for workspace scripts; npm doesn't set an
+// equivalent. Walk up from the package root to find the monorepo root
+// (4 levels: create-gjsify → infra → packages → repo root).
 const monoRepoRoot = process.env.PROJECT_CWD ?? join(pkgRoot, '..', '..', '..');
 const templatesSrcRoot = join(monoRepoRoot, 'templates');
 const distTemplatesRoot = join(pkgRoot, 'dist-templates');
@@ -18,29 +19,45 @@ const distTemplatesRoot = join(pkgRoot, 'dist-templates');
 const EXCLUDE_BASENAMES = new Set(['node_modules', 'dist', 'lib']);
 const EXCLUDE_EXT = /\.tsbuildinfo$/;
 
+// Inline workspace discovery — walks `pkg.workspaces` globs and reads
+// `name` + `version` from each member. We can't depend on
+// `@gjsify/workspace` here because this script runs as part of
+// `@gjsify/create-app build`, which sits earlier in `build:infra` than
+// `@gjsify/workspace build:types` — at this point `workspace/lib/` may
+// not exist yet on a fresh checkout.
 function buildVersionMap() {
-    const output = execFileSync('yarn', ['workspaces', 'list', '--json'], {
-        cwd: monoRepoRoot,
-        encoding: 'utf8',
-    });
     const map = new Map();
-    for (const line of output.trim().split('\n')) {
-        let entry;
-        try {
-            entry = JSON.parse(line);
-        } catch {
-            continue;
-        }
-        const { name, location } = entry;
-        if (!name || !location) continue;
-        try {
-            const pkg = JSON.parse(readFileSync(join(monoRepoRoot, location, 'package.json'), 'utf8'));
-            if (pkg.version) map.set(name, pkg.version);
-        } catch {
-            // workspace package.json unreadable — skip
+    const rootPkg = JSON.parse(readFileSync(join(monoRepoRoot, 'package.json'), 'utf8'));
+    const patterns = Array.isArray(rootPkg.workspaces)
+        ? rootPkg.workspaces
+        : (rootPkg.workspaces?.packages ?? []);
+    for (const pattern of patterns) {
+        for (const dir of expandGlob(monoRepoRoot, pattern)) {
+            try {
+                const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+                if (pkg.name && typeof pkg.version === 'string') {
+                    map.set(pkg.name, pkg.version);
+                }
+            } catch { /* not a workspace */ }
         }
     }
     return map;
+}
+
+// Minimal glob expansion: only the trailing-`*` form (`packages/node/*`,
+// `examples/dom/*`) and bare paths (`tests/browser`, `website`). Mirrors
+// the only two shapes used in this monorepo's `pkg.workspaces`.
+function expandGlob(rootDir, pattern) {
+    if (!pattern.endsWith('/*')) {
+        const dir = join(rootDir, pattern);
+        return existsSync(join(dir, 'package.json')) ? [dir] : [];
+    }
+    const parent = join(rootDir, pattern.slice(0, -2));
+    if (!existsSync(parent)) return [];
+    return readdirSync(parent, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => join(parent, d.name))
+        .filter((dir) => existsSync(join(dir, 'package.json')));
 }
 
 function resolveWorkspaceDeps(deps, versionMap, templateName) {

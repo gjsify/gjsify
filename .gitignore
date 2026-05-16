@@ -1,11 +1,7 @@
-# Yarn https://yarnpkg.com/getting-started/qa#which-files-should-be-gitignored
+# Yarn artifacts (Phase D.7d removed yarn from this monorepo; PnP-related
+# E2E tests still touch .yarn/* when yarn is on PATH, so keep ignored).
 .pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/sdks
-!.yarn/versions
+.yarn/
 
 *.tsbuildinfo
 
@@ -19,7 +15,7 @@ builddir/
 
 # Phase D.7b: the gjsify CLI's GJS bundle is committed so CI (and
 # downstream consumers) can bootstrap via `gjs -m cli.gjs.mjs …`
-# without Node. Refreshed by `yarn workspace @gjsify/cli run
+# without Node. Refreshed by `gjsify workspace @gjsify/cli
 # build:gjs-bundle` on every CLI source change; a staleness check
 # in CI forces a refresh-commit when src/ changes without the
 # bundle being rebuilt.

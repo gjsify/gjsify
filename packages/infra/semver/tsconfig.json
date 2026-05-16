@@ -11,7 +11,8 @@
         "declarationDir": "lib/types",
         "composite": true,
         "skipLibCheck": true,
-        "strict": true
+        "strict": true,
+        "types": []
     },
     "include": [
         "src/**/*.ts"

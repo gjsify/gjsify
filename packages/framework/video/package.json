@@ -11,10 +11,13 @@
             "default": "./lib/esm/index.js"
         }
     },
+    "files": [
+        "lib"
+    ],
     "scripts": {
         "clear": "rm -rf lib tmp tsconfig.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
-        "build": "yarn build:gjsify && yarn build:types",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
         "build:types": "tsc"
     },
