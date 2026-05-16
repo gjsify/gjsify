@@ -41,7 +41,7 @@ jobs:
         run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
 
       - name: Build documentation site
-        run: npm run docs:build
+        run: gjsify run docs:build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

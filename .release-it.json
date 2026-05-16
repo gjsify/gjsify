@@ -20,9 +20,9 @@
   "plugins": {
     "@release-it/bumper": {
       "out": [
-        "packages/**/package.json",
-        "examples/**/package.json",
-        "showcases/**/package.json",
+        "packages/*/*/package.json",
+        "examples/*/*/package.json",
+        "showcases/*/*/package.json",
         "website/package.json"
       ]
     },

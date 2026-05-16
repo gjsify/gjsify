@@ -41,13 +41,13 @@ jobs:
         run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
 
       - name: Build packages
-        run: npm run build
+        run: gjsify run build
 
       - name: Build examples
-        run: npm run build:examples
+        run: gjsify run build:examples
 
       - name: Publish packages to npm
-        run: npm run npm:publish
+        run: gjsify run npm:publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

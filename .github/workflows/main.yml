@@ -75,7 +75,7 @@ jobs:
       # Phase D.7d: Node-free install. The committed GJS bundle
       # (`packages/infra/cli/dist/cli.gjs.mjs`) consumes
       # `gjsify-lock.json` and materialises `node_modules/` (incl.
-      # workspace `.bin/` shims so `npm run …` finds `gjsify` on PATH).
+      # workspace `.bin/` shims so `gjsify run …` finds `gjsify` on PATH).
       # No yarn anywhere in the bootstrap.
       - name: Install dependencies (gjsify install --immutable)
         run: su testuser -c 'gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable'
@@ -89,7 +89,7 @@ jobs:
       # previous release" without forcing every CI environment to produce
       # byte-identical output.
       #
-      # MUST run BEFORE the Build step — `npm run build` rebuilds
+      # MUST run BEFORE the Build step — `gjsify run build` rebuilds
       # `dist/cli.gjs.mjs`, overwriting the committed copy with one assembled
       # from the just-installed node_modules layout. Verifying after a rebuild
       # would test the rebuilt bundle (not the committed one), defeating the
@@ -108,20 +108,20 @@ jobs:
           echo "GJS bundle OK — reports v$ACTUAL matching package.json."
 
       - name: Build
-        run: su testuser -c 'npm run build'
+        run: su testuser -c 'gjsify run build'
 
       # Root `build` uses --no-private, so private example workspaces are skipped; tests need dist/.
       - name: Build examples
-        run: su testuser -c 'npm run build:examples'
+        run: su testuser -c 'gjsify run build:examples'
 
       - name: Check
-        run: su testuser -c 'npm run check'
+        run: su testuser -c 'gjsify run check'
 
       - name: Check examples
-        run: su testuser -c 'npm run check:examples'
+        run: su testuser -c 'gjsify run check:examples'
 
       - name: Test
-        run: su testuser -c 'LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" npm run test'
+        run: su testuser -c 'LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify run test'
 
       - name: Test WebGL conformance
         # `gjsify` is at `node_modules/.bin/gjsify` after install. xvfb-run
@@ -130,10 +130,10 @@ jobs:
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify workspace @gjsify/webgl test:conformance'
 
       - name: Test CLI examples
-        run: su testuser -c 'npm run test:examples'
+        run: su testuser -c 'gjsify run test:examples'
 
       - name: Test net examples
-        run: su testuser -c 'npm run test:examples:net'
+        run: su testuser -c 'gjsify run test:examples:net'
 
       - name: E2E tests
-        run: su testuser -c 'npm run test:e2e'
+        run: su testuser -c 'gjsify run test:e2e'
