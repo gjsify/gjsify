@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/vite-plugin-blueprint",
-    "version": "0.4.2",
+    "version": "0.4.3",
     "description": "Compile GNOME Blueprint .blp templates to XML strings via blueprint-compiler. Vite / Rollup / Rolldown compatible.",
     "type": "module",
     "main": "lib/index.js",
