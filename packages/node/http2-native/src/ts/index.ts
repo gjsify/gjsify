@@ -20,6 +20,7 @@ type FrameEncoderInstance = GjsifyHttp2NS.FrameEncoder;
 type FrameEncoderCtor = typeof GjsifyHttp2NS.FrameEncoder;
 type StreamIdAllocatorInstance = GjsifyHttp2NS.StreamIdAllocator;
 type StreamIdAllocatorCtor = typeof GjsifyHttp2NS.StreamIdAllocator;
+type SessionBridgeInstance = GjsifyHttp2NS.SessionBridge;
 type SessionBridgeStatic = typeof GjsifyHttp2NS.SessionBridge;
 
 export interface NativeHttp2Module {
@@ -30,6 +31,7 @@ export interface NativeHttp2Module {
 
 export type { FrameEncoderInstance as FrameEncoder };
 export type { StreamIdAllocatorInstance as StreamIdAllocator };
+export type { SessionBridgeInstance as SessionBridge };
 
 let _native: NativeHttp2Module | null = null;
 let _loaded = false;

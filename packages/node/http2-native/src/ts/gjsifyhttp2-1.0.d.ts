@@ -90,11 +90,43 @@ export namespace GjsifyHttp2 {
         build_headers_frame(stream_id: number, end_stream: boolean, end_headers: boolean, header_block: (GLib.Bytes | Uint8Array)): GLib.Bytes;
 
         /**
-         * @param associated_stream_id 
-         * @param promised_stream_id 
-         * @param header_block 
+         * @param associated_stream_id
+         * @param promised_stream_id
+         * @param header_block
          */
         build_push_promise(associated_stream_id: number, promised_stream_id: number, header_block: (GLib.Bytes | Uint8Array)): GLib.Bytes;
+
+        /**
+         * @param ack send a SETTINGS-ACK frame (empty payload)
+         * @param ids SETTINGS identifier array
+         * @param values matching values array
+         */
+        build_settings_frame(ack: boolean, ids: number[], values: number[]): GLib.Bytes;
+
+        /**
+         * @param stream_id 0 for connection-level, > 0 for per-stream
+         * @param increment 31-bit window-size increment
+         */
+        build_window_update_frame(stream_id: number, increment: number): GLib.Bytes;
+
+        /**
+         * @param ack send a PING-ACK frame (caller echoes payload)
+         * @param payload 8 bytes opaque data
+         */
+        build_ping_frame(ack: boolean, payload: (GLib.Bytes | Uint8Array | null)): GLib.Bytes;
+
+        /**
+         * @param stream_id stream to reset
+         * @param error_code RFC 7540 error code
+         */
+        build_rst_stream_frame(stream_id: number, error_code: number): GLib.Bytes;
+
+        /**
+         * @param last_stream_id highest stream id processed
+         * @param error_code RFC 7540 error code
+         * @param debug_data optional debug info
+         */
+        build_goaway_frame(last_stream_id: number, error_code: number, debug_data: (GLib.Bytes | Uint8Array | null)): GLib.Bytes;
 
         nghttp2_version(): string;
     }
@@ -189,6 +221,13 @@ export namespace GjsifyHttp2 {
     namespace SessionBridge {
         // Signal signatures
         interface SignalSignatures extends GObject.Object.SignalSignatures {
+            "headers-received": (stream_id: number, headers: GLib.Variant, end_stream: boolean) => void;
+            "data-received": (stream_id: number, chunk: GLib.Bytes, end_stream: boolean) => void;
+            "stream-closed": (stream_id: number, error_code: number) => void;
+            "frame-send-ready": () => void;
+            "goaway-received": (last_stream_id: number, error_code: number) => void;
+            "settings-received": () => void;
+            "push-promise-received": (stream_id: number, promised_stream_id: number, headers: GLib.Variant) => void;
         }
 
         // Constructor properties interface
@@ -217,8 +256,6 @@ export namespace GjsifyHttp2 {
 
         _init(...args: any[]): void;
 
-        static ["new"](): SessionBridge;
-
         // Signals
         /** @signal */
         connect<K extends keyof SessionBridge.SignalSignatures>(signal: K, callback: GObject.SignalCallback<this, SessionBridge.SignalSignatures[K]>): number;
@@ -232,13 +269,34 @@ export namespace GjsifyHttp2 {
         emit<K extends keyof SessionBridge.SignalSignatures>(signal: K, ...args: GObject.GjsParameters<SessionBridge.SignalSignatures[K]> extends [any, ...infer Q] ? Q : never): void;
         emit(signal: string, ...args: any[]): void;
 
-        // Static methods
-        /**
-         * @param bytes 
-         */
-        static is_client_preface(bytes: (GLib.Bytes | null)): boolean;
+        // Static factories
+        static new_server(): SessionBridge | null;
+        static new_client(): SessionBridge | null;
 
+        // Static helpers
+        static is_client_preface(bytes: (GLib.Bytes | null)): boolean;
         static preface_length(): number;
+
+        // I/O
+        feed_input(input: GLib.Bytes): number;
+        drain_output(): GLib.Bytes;
+        want_read(): boolean;
+        want_write(): boolean;
+
+        // Submits
+        submit_settings(): number;
+        submit_response(stream_id: number, names: string[], values: string[], end_stream: boolean): number;
+        submit_request(names: string[], values: string[], end_stream: boolean): number;
+        submit_data(stream_id: number, data: GLib.Bytes, end_stream: boolean): number;
+        submit_push_promise(parent_id: number, names: string[], values: string[]): number;
+        submit_goaway(last_stream_id: number, error_code: number): number;
+        submit_rst_stream(stream_id: number, error_code: number): number;
+
+        // Synchronous event drain (test/dispatcher use).
+        dispatch_pending(): void;
+
+        // Teardown.
+        close(): void;
     }
 
 
