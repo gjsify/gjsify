@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/gjsify/gjsify/compare/v0.4.1...v0.4.2) (2026-05-16)
+
+### Bug Fixes
+
+* **cli:** workspace/foreach/run walk up to monorepo root ([e94d823](https://github.com/gjsify/gjsify/commit/e94d823490bc180941930af210f1aceb7823365e))
+* **website:** replace remaining yarn refs in scripts with gjsify ([9758cf9](https://github.com/gjsify/gjsify/commit/9758cf95099e876d10a1ad90c7d9de5d83c2b08d))
+
 ## [0.4.1](https://github.com/gjsify/gjsify/compare/v0.4.0...v0.4.1) (2026-05-16)
 
 ### Features
