@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.3](https://github.com/gjsify/gjsify/compare/v0.4.2...v0.4.3) (2026-05-16)
+
+### Features
+
+* **cli:** gjsify foreach --exec mode for arbitrary commands ([9e5ffbd](https://github.com/gjsify/gjsify/commit/9e5ffbd5e3441043cc0d38a33853efbadc6bd5a2))
+
 ## [0.4.2](https://github.com/gjsify/gjsify/compare/v0.4.1...v0.4.2) (2026-05-16)
 
 ### Bug Fixes
