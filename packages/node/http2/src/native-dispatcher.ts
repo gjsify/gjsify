@@ -505,16 +505,22 @@ export class Http2NativeDispatcher {
   private _closeConnection(conn: NativeConnection): void {
     if (conn.closed) return;
     conn.closed = true;
+    // Submit a GOAWAY frame and flush it onto the wire BEFORE we tear down
+    // the streams. Without the explicit flush the peer would see only EOF
+    // (kernel FIN) and never receive the GOAWAY frame nghttp2 just queued.
     try { conn.bridge.submit_goaway(0, 0); } catch {}
     try { this._flushOutput(conn); } catch {}
     if (conn.inSource) {
       try { conn.inSource.destroy(); } catch {}
       conn.inSource = null;
     }
-    try { conn.outStream.close(null); } catch {}
-    try { conn.inStream.close(null); } catch {}
-    try { conn.socket.close(); } catch {}
-    try { conn.bridge.close(); } catch {}
+    // Half-close the write side so the kernel sends FIN AFTER the GOAWAY
+    // bytes we just flushed. The peer drains its read side cleanly. Without
+    // shutdown the abrupt close might drop the buffered GOAWAY.
+    try {
+      (conn.socket as unknown as { shutdown: (read: boolean, write: boolean) => boolean })
+        .shutdown(false, true);
+    } catch {}
     // Drain any pending body resolvers so awaiting iterators don't hang.
     for (const state of conn.streams.values()) {
       state.bodyClosed = true;
@@ -522,6 +528,16 @@ export class Http2NativeDispatcher {
         state.bodyResolvers.shift()!({ value: undefined as unknown as Buffer, done: true });
       }
     }
+    // Schedule the actual socket close on a later idle tick so the GOAWAY
+    // bytes have time to leave our send buffer. shutdown alone doesn't
+    // block; the peer is still reading at this point.
+    const finalClose = () => {
+      try { conn.outStream.close(null); } catch {}
+      try { conn.inStream.close(null); } catch {}
+      try { conn.socket.close(); } catch {}
+      try { conn.bridge.close(); } catch {}
+    };
+    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => { finalClose(); return false; });
     this._connections.delete(conn);
   }
 }

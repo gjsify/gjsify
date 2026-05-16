@@ -574,6 +574,12 @@ export class ServerHttp2Stream extends EventEmitter {
 
   close(code?: number, callback?: () => void): void {
     if (callback) this.once('close', callback);
+    // Native path: emit RST_STREAM with the supplied error code. The
+    // bridge owns the wire I/O; flushing happens inside submit_rst_stream.
+    const backend = this._res.nativeBackend;
+    if (backend) {
+      try { backend.reset(code ?? constants.NGHTTP2_NO_ERROR); } catch {}
+    }
     this._res.end();
   }
 
