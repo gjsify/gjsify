@@ -109,6 +109,21 @@ export class Http2ServerRequest extends Readable {
 
 // ─── Http2ServerResponse ──────────────────────────────────────────────────────
 
+/**
+ * Backend that routes writes through `SessionBridge.submit_response()` +
+ * `submit_data()` instead of into a Soup message. Set on responses produced
+ * by the native dispatcher (Phase 1+). When `_nativeBackend` is non-null,
+ * `Http2ServerResponse` ignores its `_soupMsg` field (also null in that case)
+ * and dispatches every operation through this object.
+ */
+export interface Http2NativeBackend {
+  submitResponse(statusCode: number, statusMessage: string, headers: Map<string, string | string[]>, endStream: boolean): void;
+  submitData(chunk: Buffer, endStream: boolean): void;
+  reset(errorCode: number): void;
+  /** Used by pushStream() to allocate the promised id + send PUSH_PROMISE. */
+  submitPushPromise(headers: Record<string, string | string[]>): number;
+}
+
 export class Http2ServerResponse extends Writable {
   statusCode = 200;
   statusMessage = '';
@@ -117,6 +132,7 @@ export class Http2ServerResponse extends Writable {
   sendDate = true;
 
   private _soupMsg: Soup.ServerMessage | null;
+  private _nativeBackend: Http2NativeBackend | null;
   private _headers: Map<string, string | string[]> = new Map();
   private _streaming = false;
   private _timeoutTimer: ReturnType<typeof setTimeout> | null = null;
@@ -127,21 +143,29 @@ export class Http2ServerResponse extends Writable {
   get stream(): ServerHttp2Stream | null { return this._stream; }
   get socket(): null { return null; }
   /** Whether this response is detached from a Soup connection (push streams). */
-  get isDetached(): boolean { return this._soupMsg === null; }
+  get isDetached(): boolean { return this._soupMsg === null && this._nativeBackend === null; }
   /** Buffered body bytes for detached (push) responses — null on regular responses. */
   get detachedBody(): Buffer | null {
     return this._detachedBody ? Buffer.concat(this._detachedBody) : null;
   }
+  /** Whether this response routes through the native HTTP/2 dispatcher. */
+  get isNative(): boolean { return this._nativeBackend !== null; }
 
   // Called by Http2Server after stream is created
   _setStream(stream: ServerHttp2Stream): void {
     this._stream = stream;
   }
 
-  constructor(soupMsg: Soup.ServerMessage | null) {
+  /** @internal Used by the native dispatcher to attach its submit backend. */
+  _setNativeBackend(backend: Http2NativeBackend): void {
+    this._nativeBackend = backend;
+  }
+
+  constructor(soupMsg: Soup.ServerMessage | null, nativeBackend: Http2NativeBackend | null = null) {
     super();
     this._soupMsg = soupMsg;
-    if (soupMsg === null) this._detachedBody = [];
+    this._nativeBackend = nativeBackend;
+    if (soupMsg === null && nativeBackend === null) this._detachedBody = [];
   }
 
   setHeader(name: string, value: string | number | string[]): this {
@@ -252,6 +276,13 @@ export class Http2ServerResponse extends Writable {
       this._timeoutTimer = null;
     }
 
+    if (this._nativeBackend) {
+      // Native dispatcher: submit response headers; END_STREAM goes with the
+      // first DATA frame in _write or _final.
+      this._nativeBackend.submitResponse(this.statusCode, this.statusMessage, this._headers, false);
+      return;
+    }
+
     if (!this._soupMsg) return; // detached push response — no Soup wire
 
     this._soupMsg.set_status(this.statusCode, this.statusMessage || null);
@@ -275,7 +306,9 @@ export class Http2ServerResponse extends Writable {
   _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
     const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
     this._startStreaming();
-    if (this._soupMsg) {
+    if (this._nativeBackend) {
+      this._nativeBackend.submitData(buf, false);
+    } else if (this._soupMsg) {
       const responseBody = this._soupMsg.get_response_body();
       responseBody.append(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
       this._soupMsg.unpause();
@@ -287,7 +320,9 @@ export class Http2ServerResponse extends Writable {
 
   _final(callback: (error?: Error | null) => void): void {
     if (this._streaming) {
-      if (this._soupMsg) {
+      if (this._nativeBackend) {
+        this._nativeBackend.submitData(Buffer.alloc(0), true);
+      } else if (this._soupMsg) {
         const responseBody = this._soupMsg.get_response_body();
         responseBody.complete();
         this._soupMsg.unpause();
@@ -306,6 +341,12 @@ export class Http2ServerResponse extends Writable {
     if (this._timeoutTimer) {
       clearTimeout(this._timeoutTimer);
       this._timeoutTimer = null;
+    }
+
+    if (this._nativeBackend) {
+      // No body — submit headers with END_STREAM.
+      this._nativeBackend.submitResponse(this.statusCode, this.statusMessage, this._headers, true);
+      return;
     }
 
     if (!this._soupMsg) return;
@@ -807,6 +848,19 @@ export interface ServerOptions {
   Http1IncomingMessage?: any;
   Http1ServerResponse?: any;
   unknownProtocolTimeout?: number;
+  /**
+   * Native dispatcher mode (gjsify-specific, defaults to `'auto'`).
+   *
+   * - `'auto'` — use the @gjsify/http2-native dispatcher when available and
+   *   the call is for cleartext HTTP/2 (`createServer({allowHTTP1: false})`)
+   *   or h2 ALPN over TLS. Falls back to Soup HTTP/1.1 otherwise.
+   * - `'force'` — always use the native dispatcher; throws if the prebuild
+   *   is missing. Useful for tests + integration with raw nghttp2 clients.
+   * - `'off'` — never use the dispatcher; keep the Soup path even for h2c.
+   *   `createServer({allowHTTP1: false})` then has no working configuration
+   *   and listen() will throw.
+   */
+  nativeDispatcher?: 'auto' | 'force' | 'off';
 }
 
 export class Http2Server extends EventEmitter {
@@ -815,10 +869,14 @@ export class Http2Server extends EventEmitter {
   timeout = 0;
 
   protected _soupServer: Soup.Server | null = null;
+  protected _nativeDispatcher: import('./native-dispatcher.js').Http2NativeDispatcher | null = null;
   protected _address: { port: number; family: string; address: string } | null = null;
-  private _options: ServerOptions;
+  protected _options: ServerOptions;
 
   get soupServer(): Soup.Server | null { return this._soupServer; }
+  get nativeDispatcher(): import('./native-dispatcher.js').Http2NativeDispatcher | null {
+    return this._nativeDispatcher;
+  }
 
   constructor(options?: ServerOptions | ((req: Http2ServerRequest, res: Http2ServerResponse) => void), handler?: (req: Http2ServerRequest, res: Http2ServerResponse) => void) {
     super();
@@ -847,6 +905,30 @@ export class Http2Server extends EventEmitter {
     if (callback) this.once('listening', callback);
 
     try {
+      // Decide whether to take the native dispatcher path. createServer({
+      // allowHTTP1: false }) signals "h2c only" — Soup can't serve h2c, so
+      // we MUST use the native dispatcher. `nativeDispatcher: 'force'` is a
+      // test escape hatch.
+      const mode = this._options.nativeDispatcher ?? 'auto';
+      const wantsNative =
+        mode === 'force' ||
+        (mode === 'auto' && this._options.allowHTTP1 === false);
+
+      if (mode === 'off' && this._options.allowHTTP1 === false) {
+        throw new Error(
+          'createServer({ allowHTTP1: false }) requires the native dispatcher; ' +
+          'nativeDispatcher cannot be "off" in this configuration',
+        );
+      }
+
+      if (wantsNative) {
+        this._startNativeListen(port, hostname);
+        ensureMainLoop();
+        deferEmit(this, 'listening');
+        _activeServers.add(this);
+        return this;
+      }
+
       this._soupServer = new Soup.Server({});
       this._configureSoupServer(this._soupServer);
 
@@ -878,6 +960,101 @@ export class Http2Server extends EventEmitter {
     }
 
     return this;
+  }
+
+  /**
+   * Native dispatcher takes over the listen socket. Soup is not involved.
+   * Used by createServer({allowHTTP1: false}) (h2c).
+   */
+  private _startNativeListen(port: number, hostname: string): void {
+    // Lazy import keeps the module out of the Node bundle for createServer
+    // consumers who never opt into the native path.
+    const { Http2NativeDispatcher } = require('./native-dispatcher.js') as typeof import('./native-dispatcher.js');
+    if (!Http2NativeDispatcher.available()) {
+      throw new Error(
+        '@gjsify/http2-native prebuild is not loadable. createServer({ allowHTTP1: false }) ' +
+        'requires the native HTTP/2 dispatcher. Ensure GjsifyHttp2-1.0.typelib is installed.',
+      );
+    }
+    this._nativeDispatcher = new Http2NativeDispatcher({
+      handler: (event) => this._handleNativeStream(event),
+    });
+    const actualPort = this._nativeDispatcher.listen(port);
+    this.listening = true;
+    this._address = { port: actualPort, family: 'IPv4', address: hostname };
+  }
+
+  /** @internal Handler for streams arriving on the native dispatcher. */
+  private _handleNativeStream(event: import('./native-dispatcher.js').NativeStreamEvent): void {
+    const req = new Http2ServerRequest();
+
+    // Build the native backend that routes _write/_final through the bridge.
+    const backend: Http2NativeBackend = {
+      submitResponse: (statusCode, _statusMessage, headers, endStream) => {
+        const responseHeaders: Record<string, string | number | string[]> = {
+          ':status': statusCode,
+        };
+        for (const [k, v] of headers) responseHeaders[k] = v as string | string[];
+        event.respond(responseHeaders, endStream);
+      },
+      submitData: (chunk, endStream) => event.writeData(chunk, endStream),
+      reset: (errorCode) => event.reset(errorCode),
+      submitPushPromise: (headers) => event.pushPromise(headers),
+    };
+
+    const res = new Http2ServerResponse(null, backend);
+    const session = new ServerHttp2Session();
+    const stream = new ServerHttp2Stream(res, session, { streamId: event.streamId });
+    req._setStream(stream);
+    res._setStream(stream);
+
+    // Populate request metadata from the pseudo-headers.
+    const headers = event.headers;
+    req.method = String((headers[':method'] ?? 'GET'));
+    const path = String(headers[':path'] ?? '/');
+    req.url = path;
+    req.authority = String(headers[':authority'] ?? '');
+    req.scheme = String(headers[':scheme'] ?? 'http');
+    req.httpVersion = '2.0';
+    req.httpVersionMajor = 2;
+    req.httpVersionMinor = 0;
+
+    // Strip pseudo-headers from regular headers; everything else stays.
+    for (const [k, v] of Object.entries(headers)) {
+      if (k.startsWith(':')) continue;
+      req.headers[k] = v;
+      if (Array.isArray(v)) {
+        for (const item of v) req.rawHeaders.push(k, item);
+      } else {
+        req.rawHeaders.push(k, v);
+      }
+    }
+
+    req.socket = {
+      remoteAddress: event.remoteAddress,
+      remotePort: event.remotePort,
+      localAddress: this._address?.address ?? '127.0.0.1',
+      localPort: event.localPort,
+      encrypted: false,
+    } as any;
+
+    // Drain DATA frames into the Readable. The dispatcher gave us an async
+    // iterable; pump it into `_pushBody` and signal EOF.
+    (async () => {
+      try {
+        for await (const chunk of event.body) {
+          req._pushBody(chunk);
+        }
+        req._pushBody(null);
+      } catch {
+        req._pushBody(null);
+      }
+    })();
+
+    // Build the stream headers (Node-compat: includes pseudo-headers).
+    const streamHeaders: Record<string, string | string[]> = { ...headers };
+    this.emit('stream', stream, streamHeaders);
+    this.emit('request', req, res);
   }
 
   // Override in Http2SecureServer to set TLS certificate before listen
@@ -978,6 +1155,10 @@ export class Http2Server extends EventEmitter {
     if (this._soupServer) {
       this._soupServer.disconnect();
       this._soupServer = null;
+    }
+    if (this._nativeDispatcher) {
+      this._nativeDispatcher.close();
+      this._nativeDispatcher = null;
     }
     this.listening = false;
     _activeServers.delete(this);
