@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/gjsify/gjsify/compare/v0.4.0...v0.4.1) (2026-05-16)
+
+### Features
+
+* **cli:** Phase D.7b — install backend nested-node_modules ([#177](https://github.com/gjsify/gjsify/issues/177)) ([becfbea](https://github.com/gjsify/gjsify/commit/becfbea666a62c53fbd4c2199827dea118c14d14))
+* **monorepo:** Phase D.7c — CI bootstraps via gjsify install (yarn install removed) ([#178](https://github.com/gjsify/gjsify/issues/178)) ([510a296](https://github.com/gjsify/gjsify/commit/510a2962c114841f0ade614499599a6292029cee)), closes [#170](https://github.com/gjsify/gjsify/issues/170) [#177](https://github.com/gjsify/gjsify/issues/177)
+* **monorepo:** Phase D.7d — drop yarn entirely from the gjsify monorepo ([#179](https://github.com/gjsify/gjsify/issues/179)) ([df2c038](https://github.com/gjsify/gjsify/commit/df2c038481eea1d77901bb6f2e148b8eb8f67b09))
+
 ## [0.4.0](https://github.com/gjsify/gjsify/compare/v0.3.21...v0.4.0) (2026-05-13)
 
 ### Features

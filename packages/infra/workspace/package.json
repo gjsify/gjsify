@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/workspace",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "description": "Yarn-workspaces-compatible discovery + resolution for gjsify install/foreach. Reads package.json `workspaces` (string array or { packages, nohoist } shape), expands globs, resolves `workspace:^` to local versions, builds the dependency graph + topological order. Cross-platform Node + GJS.",
     "type": "module",
     "module": "lib/esm/index.js",
