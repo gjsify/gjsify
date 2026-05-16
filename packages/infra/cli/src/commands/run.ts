@@ -14,7 +14,7 @@
 // as a bundle file. Everything else is a script name. Users who want
 // to disambiguate can pass `./<file>` explicitly.
 
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import type { Command } from '../types/index.js';
@@ -48,7 +48,16 @@ export const runCommand: Command<any, RunOptions> = {
         const target = args.target as string;
         const extraArgs = (args.args as string[]) ?? [];
 
-        if (looksLikeFile(target)) {
+        // Script lookup wins over file detection. Without this, a bare
+        // `gjsify run build` would resolve to a file when a `./build`
+        // directory exists in cwd (e.g. meson's build dir from a Vala
+        // prebuild) — masking the package.json's `"build": "…"` script.
+        // File mode is still entered for explicit path-shaped targets
+        // (`./bundle.js`, `dist/x.mjs`, `/abs/path`).
+        const pkg = readPackageJson(join(process.cwd(), 'package.json'));
+        const hasScript = pkg?.scripts && typeof (pkg.scripts as Record<string, unknown>)[target] === 'string';
+
+        if (!hasScript && looksLikeFile(target)) {
             const file = resolve(target);
             await runGjsBundle(file, extraArgs);
             return;
@@ -62,7 +71,13 @@ function looksLikeFile(target: string): boolean {
     if (target.startsWith('./') || target.startsWith('../') || target.startsWith('/')) return true;
     if (target.includes('/') || target.includes('\\')) return true;
     if (/\.(c?js|mjs|cjs|gjs)$/.test(target)) return true;
-    return existsSync(target);
+    // Bare names like "build" can collide with build/ directories from
+    // meson/vala prebuilds — only treat as a file if it's a regular file,
+    // not a directory.
+    try {
+        const st = statSync(target);
+        return st.isFile();
+    } catch { return false; }
 }
 
 /**
