@@ -15,7 +15,7 @@
     "publish": false
   },
   "hooks": {
-    "after:bump": "node scripts/bump-docs-version.mjs ${latestVersion} ${version} && yarn workspace @gjsify/cli run build && yarn workspace @gjsify/cli run build:gjs-bundle && git add packages/infra/cli/dist/cli.gjs.mjs"
+    "after:bump": "node scripts/bump-docs-version.mjs ${latestVersion} ${version} && gjsify workspace @gjsify/cli build && gjsify workspace @gjsify/cli build:gjs-bundle && git add packages/infra/cli/dist/cli.gjs.mjs"
   },
   "plugins": {
     "@release-it/bumper": {
