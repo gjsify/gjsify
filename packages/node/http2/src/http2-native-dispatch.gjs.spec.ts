@@ -17,11 +17,14 @@ import type {
   Http2ServerResponse,
 } from '@gjsify/http2';
 
+import type { ClientHttp2Session } from '@gjsify/http2';
+
 const gjsHttp2 = http2 as unknown as {
   createServer(
     opts: { allowHTTP1?: boolean; nativeDispatcher?: 'auto' | 'force' | 'off' },
     handler?: (req: Http2ServerRequest, res: Http2ServerResponse) => void,
   ): Http2Server;
+  connect(authority: string, options?: { nativeDispatcher?: 'auto' | 'force' | 'off' }): ClientHttp2Session;
 };
 
 async function startServer(
@@ -321,6 +324,109 @@ export default async function () {
           expect(pushedHdrs['content-type']).toBe('text/css');
         } finally {
           closeClient(fx);
+          await closeServer(server);
+        }
+      });
+
+      await it('Phase 3 — http2.connect(h2c) drives a request via the native client', async () => {
+        // Uses gjsHttp2.connect() — same API as Soup, but the http://
+        // authority routes through Http2NativeClientDispatcher (auto mode).
+        const { server, port } = await startServer((req, res) => {
+          if (req.url === '/echo') {
+            let body = '';
+            req.setEncoding('utf8');
+            req.on('data', (c: string) => { body += c; });
+            req.on('end', () => {
+              res.setHeader('content-type', 'text/plain');
+              res.end('echo:' + body);
+            });
+            return;
+          }
+          res.statusCode = 404;
+          res.end();
+        });
+
+        try {
+          const session = gjsHttp2.connect('http://localhost:' + port, { nativeDispatcher: 'force' });
+          // 'connect' fires on the next microtask; await it.
+          await new Promise<void>((resolve) => session.once('connect', () => resolve()));
+          // alpnProtocol should report 'h2c' on the native client path.
+          expect((session as unknown as { alpnProtocol: string }).alpnProtocol).toBe('h2c');
+
+          const stream = session.request({
+            ':method': 'POST',
+            ':path': '/echo',
+            'content-type': 'text/plain',
+          });
+          let responseStatus: string | null = null;
+          stream.on('response', (headers: Record<string, string | string[]>) => {
+            responseStatus = String(headers[':status']);
+          });
+          stream.write(Buffer.from('payload-123'));
+          stream.end();
+
+          const chunks: string[] = [];
+          for await (const chunk of stream as unknown as AsyncIterable<Buffer>) {
+            chunks.push(chunk.toString('utf8'));
+          }
+          expect(responseStatus).toBe('200');
+          expect(chunks.join('')).toBe('echo:payload-123');
+
+          session.close();
+        } finally {
+          await closeServer(server);
+        }
+      });
+
+      await it('Phase 3 — client receives server-pushed streams via "stream" event', async () => {
+        const { server, port } = await startServer((_req, res) => {
+          (res as any).stream.pushStream(
+            { ':method': 'GET', ':scheme': 'http', ':authority': 'localhost', ':path': '/style.css' },
+            (err: Error | null, pushedStream: any) => {
+              if (err) { res.statusCode = 500; res.end(); return; }
+              pushedStream.respond({ ':status': 200, 'content-type': 'text/css' });
+              pushedStream.end('p { color: blue; }');
+              res.setHeader('content-type', 'text/html');
+              res.end('<html></html>');
+            },
+          );
+        });
+
+        try {
+          const session = gjsHttp2.connect('http://localhost:' + port, { nativeDispatcher: 'force' });
+          await new Promise<void>((resolve) => session.once('connect', () => resolve()));
+
+          let pushedHeaders: Record<string, string | string[]> | null = null;
+          let pushedBody: string | null = null;
+          const pushReceived = new Promise<void>((resolve) => {
+            (session as any).on('stream', async (pushed: any, headers: Record<string, string | string[]>) => {
+              pushedHeaders = headers;
+              const chunks: string[] = [];
+              pushed.on('response', () => {});
+              for await (const chunk of pushed as AsyncIterable<Buffer>) {
+                chunks.push(chunk.toString('utf8'));
+              }
+              pushedBody = chunks.join('');
+              resolve();
+            });
+          });
+
+          const stream = session.request({ ':method': 'GET', ':path': '/' }, { endStream: true } as any);
+          for await (const _c of stream as unknown as AsyncIterable<Buffer>) {
+            // drain main response
+            void _c;
+          }
+          await Promise.race([
+            pushReceived,
+            new Promise<void>((_r, reject) => setTimeout(() => reject(new Error('push timeout')), 5000)),
+          ]);
+
+          expect(pushedHeaders).not.toBe(null);
+          expect(pushedHeaders![':path']).toBe('/style.css');
+          expect(pushedBody).toBe('p { color: blue; }');
+
+          session.close();
+        } finally {
           await closeServer(server);
         }
       });

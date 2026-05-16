@@ -331,7 +331,6 @@ on_frame_recv_cb (nghttp2_session *session,
 {
     GjsifyHttp2Session *self = user_data;
     (void) session;
-
     switch (frame->hd.type) {
     case NGHTTP2_HEADERS: {
         StreamHeaderAccum *a = g_hash_table_lookup (self->header_accumulators,
