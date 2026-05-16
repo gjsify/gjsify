@@ -253,6 +253,78 @@ export default async function () {
         }
       });
 
+      await it('delivers PUSH_PROMISE on the wire — client sees the promised stream', async () => {
+        // Phase 2: pushStream() routes the PUSH_PROMISE frame through the
+        // native dispatcher's SessionBridge.submit_push_promise(). The
+        // client-side SessionBridge surfaces the frame as a
+        // `push-promise-received` signal, then the promised stream's
+        // HEADERS + DATA arrive on the same connection.
+        const { server, port } = await startServer((_req, res) => {
+          (res as any).stream.pushStream(
+            { ':method': 'GET', ':scheme': 'http', ':authority': 'localhost', ':path': '/style.css' },
+            (err: Error | null, pushStream: any) => {
+              if (err) { res.statusCode = 500; res.end(); return; }
+              pushStream.respond({ ':status': 200, 'content-type': 'text/css' });
+              pushStream.end('body { color: red; }');
+              res.setHeader('content-type', 'text/html');
+              res.end('<html><link rel=stylesheet href=/style.css></html>');
+            },
+          );
+        });
+
+        const fx = openClient(port);
+        try {
+          let pushPromise: { sid: number; promisedSid: number; headers: Array<[string, string]> } | null = null;
+          const responses = new Map<number, { headers: Array<[string, string]> | null; body: string; done: boolean }>();
+          fx.client.connect('push_promise_received', (_b: unknown, sid: number, promisedSid: number, headersVar: any) => {
+            pushPromise = { sid, promisedSid, headers: headersVar.deep_unpack() };
+          });
+          fx.client.connect('headers_received', (_b: unknown, sid: number, headersVar: any, _endStream: boolean) => {
+            const cur = responses.get(sid) ?? { headers: null, body: '', done: false };
+            cur.headers = headersVar.deep_unpack();
+            responses.set(sid, cur);
+          });
+          fx.client.connect('data_received', (_b: unknown, sid: number, chunk: any, endStream: boolean) => {
+            const cur = responses.get(sid) ?? { headers: null, body: '', done: false };
+            if (chunk.get_size() > 0) cur.body += new TextDecoder().decode(chunk.get_data());
+            if (endStream) cur.done = true;
+            responses.set(sid, cur);
+          });
+
+          fx.client.submit_request(
+            [':method', ':scheme', ':authority', ':path'],
+            ['GET', 'http', 'localhost', '/'],
+            true,
+          );
+          pumpClient(fx);
+
+          await waitFor(() => pushPromise !== null && responses.get(1)?.done === true && responses.get(pushPromise!.promisedSid)?.done === true, 5000);
+
+          // PUSH_PROMISE arrived on the wire ⇒ pushPromise !== null
+          expect(pushPromise).not.toBe(null);
+          expect(pushPromise!.sid).toBe(1); // promised on the request stream
+          expect(pushPromise!.promisedSid % 2).toBe(0); // server-allocated even id
+          const promisedHdrs: Record<string, string> = {};
+          for (const [k, v] of pushPromise!.headers) promisedHdrs[k] = v;
+          expect(promisedHdrs[':path']).toBe('/style.css');
+
+          // Main stream response
+          const main = responses.get(1)!;
+          expect(main.body).toBe('<html><link rel=stylesheet href=/style.css></html>');
+
+          // Pushed stream response
+          const pushed = responses.get(pushPromise!.promisedSid)!;
+          expect(pushed.body).toBe('body { color: red; }');
+          const pushedHdrs: Record<string, string> = {};
+          for (const [k, v] of pushed.headers!) pushedHdrs[k] = v;
+          expect(pushedHdrs[':status']).toBe('200');
+          expect(pushedHdrs['content-type']).toBe('text/css');
+        } finally {
+          closeClient(fx);
+          await closeServer(server);
+        }
+      });
+
       await it('routes multiple concurrent streams on one connection', async () => {
         const { server, port } = await startServer((req, res) => {
           res.setHeader('content-type', 'text/plain');
