@@ -21,23 +21,27 @@ jobs:
   build:
     name: Build Documentation
     runs-on: ubuntu-latest
+    container:
+      image: fedora:43
     steps:
+      - name: Install container prerequisites
+        run: dnf install -y git tar xz findutils gjs glib2-devel gobject-introspection-devel gtk4-devel libsoup3-devel libepoxy-devel gdk-pixbuf2-devel libadwaita-devel blueprint-compiler meson vala gcc pkgconf
+
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Install dependencies
-        run: yarn install --immutable
+      # Phase D.7d: Node-free install via the committed GJS bundle.
+      # Mirrors main.yml — see that workflow for rationale.
+      - name: Install dependencies (gjsify install --immutable)
+        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
 
       - name: Build documentation site
-        run: yarn workspace @gjsify/website build
+        run: npm run docs:build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
