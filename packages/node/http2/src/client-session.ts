@@ -35,6 +35,20 @@ export interface ClientSessionOptions {
   cert?: string | Buffer | Array<string | Buffer>;
   key?: string | Buffer | Array<string | Buffer>;
   ALPNProtocols?: string[];
+  /**
+   * Native dispatcher mode (gjsify-specific, defaults to `'auto'`).
+   *
+   * - `'auto'` — use the @gjsify/http2-native client for `http://` (h2c)
+   *   URLs when the prebuild is loadable; route `https://` through Soup
+   *   (h2 negotiated transparently via ALPN — works fine, no need for
+   *   the native path).
+   * - `'force'` — always use the native client; throws if unavailable.
+   *   Surfaces server-pushed streams ('stream' event on the session) that
+   *   Soup's high-level Session API doesn't expose.
+   * - `'off'` — never use the native client; keep Soup even for h2c.
+   *   Result: h2c requests fail at the protocol level.
+   */
+  nativeDispatcher?: 'auto' | 'force' | 'off';
 }
 
 export interface ClientStreamOptions {
@@ -111,7 +125,7 @@ export class Http2Session extends EventEmitter {
 // The Soup request is dispatched when end() is called.
 
 export class ClientHttp2Stream extends Duplex {
-  readonly id = 1;
+  private _id: number = 1;
   readonly pending = false;
   readonly aborted = false;
   readonly bufferSize = 0;
@@ -123,11 +137,25 @@ export class ClientHttp2Stream extends Duplex {
   private _cancellable: Gio.Cancellable;
   private _state: number = constants.NGHTTP2_STREAM_STATE_OPEN;
   private _responseHeaders: Record<string, string | string[]> = {};
+  /** Native dispatcher stream id when the request rides the native path. */
+  private _nativeStreamId: number = 0;
 
+  /** Returns the client-allocated stream id. Native path: real nghttp2 id;
+   * Soup path: hard-coded 1 (Soup multiplexes opaquely). */
+  get id(): number { return this._id; }
   get state(): number { return this._state; }
   get rstCode(): number { return constants.NGHTTP2_NO_ERROR; }
   get session(): ClientHttp2Session { return this._session; }
   get sentHeaders(): Record<string, string | string[]> { return this._requestHeaders; }
+
+  /** @internal Hook used by the native client dispatcher to bind a stream to
+   *  a server-pushed promised id (pushed streams arrive with their id
+   *  already allocated by the peer; we don't submit_request for them). */
+  _setNativeStreamId(streamId: number): void {
+    this._id = streamId;
+    this._nativeStreamId = streamId;
+    this._wireNativeBody();
+  }
 
   constructor(session: ClientHttp2Session, requestHeaders: Record<string, string | string[]>) {
     super();
@@ -140,14 +168,81 @@ export class ClientHttp2Stream extends Duplex {
 
   _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
     const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
-    this._requestChunks.push(buf);
+    if (this._nativeStreamId > 0) {
+      this._session._getNativeClient()!.writeData(this._nativeStreamId, buf, false);
+    } else {
+      this._requestChunks.push(buf);
+    }
     callback();
   }
 
   _final(callback: (error?: Error | null) => void): void {
+    const nativeClient = this._session._getNativeClient();
+    if (nativeClient) {
+      try {
+        if (this._nativeStreamId > 0) {
+          // Request body already streamed via _write; close the stream half.
+          nativeClient.writeData(this._nativeStreamId, Buffer.alloc(0), true);
+        } else {
+          // Submit the request with the buffered body (or end-stream if no body).
+          const body = Buffer.concat(this._requestChunks);
+          const endStream = body.length === 0;
+          const streamId = nativeClient.submitRequest(this._requestHeaders, endStream);
+          if (streamId === 0) {
+            callback(new Error('Failed to submit HTTP/2 request stream'));
+            return;
+          }
+          this._id = streamId;
+          this._nativeStreamId = streamId;
+          if (body.length > 0) {
+            nativeClient.writeData(streamId, body, true);
+          }
+          this._wireNativeBody();
+        }
+        callback();
+      } catch (err) {
+        callback(err instanceof Error ? err : new Error(String(err)));
+      }
+      return;
+    }
     this._sendRequest()
       .then(() => callback())
       .catch((err) => callback(err instanceof Error ? err : new Error(String(err))));
+  }
+
+  /** Wire response headers + body iteration when running on the native path. */
+  private _wireNativeBody(): void {
+    const nativeClient = this._session._getNativeClient();
+    if (!nativeClient || this._nativeStreamId === 0) return;
+    const streamId = this._nativeStreamId;
+    (async () => {
+      try {
+        // Wait for headers up to 30 s.
+        const deadline = Date.now() + 30_000;
+        let headers: Record<string, string | string[]> | null = null;
+        while (Date.now() < deadline) {
+          headers = nativeClient.responseHeaders(streamId);
+          if (headers) break;
+          await new Promise<void>((r) => GLib.idle_add(GLib.PRIORITY_DEFAULT, () => { r(); return false; }));
+        }
+        if (!headers) {
+          this.destroy(new Error('Native HTTP/2 client: response headers timeout'));
+          return;
+        }
+        this._responseHeaders = headers;
+        this._state = constants.NGHTTP2_STREAM_STATE_HALF_CLOSED_LOCAL;
+        this.emit('response', headers, 0);
+
+        for await (const chunk of nativeClient.body(streamId)) {
+          if (chunk.length > 0) this.push(chunk);
+        }
+        this.push(null);
+        this._state = constants.NGHTTP2_STREAM_STATE_CLOSED;
+      } catch (err) {
+        this._state = constants.NGHTTP2_STREAM_STATE_CLOSED;
+        this.destroy(err instanceof Error ? err : new Error(String(err)));
+      }
+    })();
   }
 
   private async _sendRequest(): Promise<void> {
@@ -264,6 +359,11 @@ export class ClientHttp2Session extends Http2Session {
   private _authority: string;
   private _soupSession: Soup.Session;
   private _streams: Set<ClientHttp2Stream> = new Set();
+  private _nativeClient: import('./native-client-dispatcher.js').Http2NativeClientDispatcher | null = null;
+
+  get nativeClient(): import('./native-client-dispatcher.js').Http2NativeClientDispatcher | null {
+    return this._nativeClient;
+  }
 
   constructor(authority: string, options: ClientSessionOptions = {}) {
     super();
@@ -283,18 +383,72 @@ export class ClientHttp2Session extends Http2Session {
       );
     }
 
+    // Native dispatcher: opt-in via `nativeDispatcher: 'force'`. The default
+    // ('auto') keeps the Soup path verbatim so existing consumers — which
+    // expect Soup-managed HTTP/1.1 for http:// and Soup-managed h2 (via ALPN)
+    // for https:// — are unaffected by Phase 3. Setting `'force'` switches
+    // to the native client + surfaces server-pushed streams as 'stream'
+    // events that Soup's high-level Session API doesn't expose.
+    const mode = options.nativeDispatcher ?? 'auto';
+    if (mode === 'force') {
+      this._setupNativeClient(authority, mode);
+    }
+
     // Emit 'connect' asynchronously after construction
     Promise.resolve().then(() => {
       if (!this.destroyed) {
-        (this as any).alpnProtocol = this.encrypted ? 'h2' : undefined;
+        (this as any).alpnProtocol = this.encrypted ? 'h2' : (this._nativeClient ? 'h2c' : undefined);
         this.emit('connect', this, null);
       }
     });
   }
 
+  private _setupNativeClient(authority: string, mode: 'auto' | 'force' | 'off'): void {
+    // Lazy load to keep the module out of the Node bundle when only Soup is
+    // used. Pulling node:http2 directly never instantiates the dispatcher.
+    const { Http2NativeClientDispatcher } = require('./native-client-dispatcher.js') as typeof import('./native-client-dispatcher.js');
+    if (!Http2NativeClientDispatcher.available()) {
+      if (mode === 'force') {
+        throw new Error('@gjsify/http2-native prebuild not loadable — nativeDispatcher: "force" cannot proceed');
+      }
+      return; // fall back to Soup path
+    }
+    // Parse host:port from the authority URL.
+    const stripped = authority.replace(/^https?:\/\//, '');
+    const [host, portStr] = stripped.split(':');
+    const port = parseInt(portStr || (this.encrypted ? '443' : '80'), 10);
+    this._nativeClient = new Http2NativeClientDispatcher({
+      onPushPromise: (event) => {
+        // Surface as 'stream' event on the session — matches Node's
+        // `ClientHttp2Session` 'stream' event for incoming pushes.
+        const pushedStream = new ClientHttp2Stream(this, event.headers);
+        (pushedStream as unknown as { _setNativeStreamId(id: number): void })._setNativeStreamId(event.promisedStreamId);
+        this._streams.add(pushedStream);
+        this.emit('stream', pushedStream, event.headers, 0);
+      },
+      onGoaway: (lastStreamId, errorCode) => {
+        this.emit('goaway', errorCode, lastStreamId);
+      },
+      onClose: () => {
+        // Allow consumers to react.
+      },
+    });
+    try {
+      this._nativeClient.connect(host || 'localhost', port);
+    } catch (err) {
+      this._nativeClient = null;
+      if (mode === 'force') throw err;
+    }
+  }
+
   /** @internal Used by ClientHttp2Stream to get the Soup.Session */
   _getSoupSession(): Soup.Session {
     return this._soupSession;
+  }
+
+  /** @internal Used by ClientHttp2Stream to access the native client dispatcher. */
+  _getNativeClient(): import('./native-client-dispatcher.js').Http2NativeClientDispatcher | null {
+    return this._nativeClient;
   }
 
   /** @internal Used by ClientHttp2Stream to build the request URL */
@@ -307,20 +461,22 @@ export class ClientHttp2Session extends Http2Session {
       throw new Error('Session is closed');
     }
 
-    // Fill in missing pseudo-headers from the authority
-    const finalHeaders = { ...headers };
-    if (!finalHeaders[':scheme']) {
-      finalHeaders[':scheme'] = this.encrypted ? 'https' : 'http';
+    // Fill in missing pseudo-headers from the authority. RFC 7540 §8.1.2.1:
+    // pseudo-headers MUST appear before any regular header in the encoded
+    // block — nghttp2 rejects mis-ordered requests with PROTOCOL_ERROR.
+    // We rebuild the headers object with pseudo-headers first, regular
+    // headers second; insertion order is the wire order.
+    const pseudo: Record<string, string | string[]> = {};
+    const regular: Record<string, string | string[]> = {};
+    for (const [k, v] of Object.entries(headers)) {
+      if (k.startsWith(':')) pseudo[k] = v;
+      else regular[k] = v;
     }
-    if (!finalHeaders[':authority']) {
-      finalHeaders[':authority'] = this._authority.replace(/^https?:\/\//, '');
-    }
-    if (!finalHeaders[':method']) {
-      finalHeaders[':method'] = 'GET';
-    }
-    if (!finalHeaders[':path']) {
-      finalHeaders[':path'] = '/';
-    }
+    if (!pseudo[':method']) pseudo[':method'] = 'GET';
+    if (!pseudo[':scheme']) pseudo[':scheme'] = this.encrypted ? 'https' : 'http';
+    if (!pseudo[':authority']) pseudo[':authority'] = this._authority.replace(/^https?:\/\//, '');
+    if (!pseudo[':path']) pseudo[':path'] = '/';
+    const finalHeaders: Record<string, string | string[]> = { ...pseudo, ...regular };
 
     const stream = new ClientHttp2Stream(this, finalHeaders);
     this._streams.add(stream);
