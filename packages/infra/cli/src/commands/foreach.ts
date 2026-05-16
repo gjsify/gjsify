@@ -22,7 +22,7 @@ import {
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 
 interface ForeachOptions {
-    script: string;
+    script?: string;
     args?: string[];
     all?: boolean;
     parallel?: boolean;
@@ -33,18 +33,18 @@ interface ForeachOptions {
     private?: boolean;
     verbose?: boolean;
     jobs?: number;
+    exec?: boolean;
 }
 
 export const foreachCommand: Command<any, ForeachOptions> = {
-    command: 'foreach <script> [args..]',
+    command: 'foreach [script] [args..]',
     description:
-        'Run a workspace script across all (or filtered) workspaces. Drop-in for `yarn workspaces foreach`: -A/--all, -p/--parallel, -t/--topological, --include, --exclude, --no-private.',
+        'Run a workspace script across all (or filtered) workspaces. Drop-in for `yarn workspaces foreach`: -A/--all, -p/--parallel, -t/--topological, --include, --exclude, --no-private. Pass --exec to run an arbitrary command instead of a script.',
     builder: (yargs) =>
         yargs
             .positional('script', {
-                description: 'Script name to run in each workspace (`run <name>`-equivalent).',
+                description: 'Script name to run in each workspace (`run <name>`-equivalent). With --exec, the command to run instead.',
                 type: 'string',
-                demandOption: true,
             })
             .positional('args', {
                 description: 'Extra arguments forwarded to each child invocation.',
@@ -101,6 +101,17 @@ export const foreachCommand: Command<any, ForeachOptions> = {
                 description: 'Maximum concurrent workspaces in --parallel mode (default: cpu count).',
                 type: 'number',
                 alias: 'j',
+            })
+            .option('exec', {
+                description: 'Treat <script> [args..] as an arbitrary command (yarn `workspaces foreach exec`-equivalent) instead of a package.json script lookup. Workspace filtering by script presence is skipped. Use `-- <cmd> <args...>` to pass flags to the command without yargs intercepting them.',
+                type: 'boolean',
+                default: false,
+            })
+            .parserConfiguration({
+                // Preserve `--` as args._['--'] so callers can write
+                //   gjsify foreach --exec -- npm publish --tag latest
+                // without yargs grabbing --tag/--access/etc.
+                'populate--': true,
             }),
     handler: async (args) => {
         // Walk up to the monorepo root — foreach is sometimes invoked
@@ -108,22 +119,61 @@ export const foreachCommand: Command<any, ForeachOptions> = {
         const cwd = findWorkspaceRoot(process.cwd()) ?? process.cwd();
         const allWorkspaces = discoverWorkspaces(cwd);
 
+        const exec = args.exec === true;
+
+        // In --exec mode, support both
+        //   gjsify foreach --exec npm something          (no flags in command)
+        //   gjsify foreach --exec -- npm publish --tag X (flags in command)
+        // The `--` form is the typical one: `populate--: true` puts the
+        // post-separator argv into args._['--'], where yargs cannot grab
+        // --tag/--access/etc. as its own options.
+        let cmd: string | undefined = args.script;
+        let cmdArgs: readonly string[] = args.args ?? [];
+        if (exec) {
+            // With populate--:true, anything after the literal `--`
+            // separator lands in top-level args['--']. yargs DOES NOT
+            // attach it to args._ — it's a sibling array.
+            const fromDoubleDash = (((args as Record<string, unknown>)['--'] as unknown[]) ?? [])
+                .filter((v): v is string => typeof v === 'string');
+            if (fromDoubleDash.length > 0) {
+                if (!cmd) {
+                    cmd = fromDoubleDash[0]!;
+                    cmdArgs = [...cmdArgs, ...fromDoubleDash.slice(1)];
+                } else {
+                    cmdArgs = [...cmdArgs, ...fromDoubleDash];
+                }
+            }
+            if (!cmd) {
+                console.error('gjsify foreach --exec: missing command. Pass it after `--`, e.g. `gjsify foreach --exec -- npm publish --tag latest`.');
+                process.exit(1);
+            }
+        }
+
         let selected = filterWorkspaces(allWorkspaces, {
             include: args.include,
             exclude: args.exclude,
             noPrivate: args.private === false,
         });
 
-        // Only run on workspaces that actually have the requested script —
-        // yarn does this too, otherwise every project that doesn't declare
-        // `<script>` would fail and force the user to `--exclude` it.
-        selected = selected.filter((ws) => {
-            const scripts = (ws.manifest.scripts as Record<string, string> | undefined) ?? {};
-            return typeof scripts[args.script] === 'string';
-        });
+        // In script mode, only run on workspaces that actually have the
+        // requested script — yarn does this too, otherwise every project
+        // that doesn't declare `<script>` would fail and force the user to
+        // `--exclude` it. In --exec mode the command runs unconditionally
+        // (yarn's `workspaces foreach exec` semantics).
+        if (!exec) {
+            if (!cmd) {
+                console.error('gjsify foreach: missing <script> positional. Pass --exec to run an arbitrary command instead.');
+                process.exit(1);
+            }
+            const scriptName = cmd;
+            selected = selected.filter((ws) => {
+                const scripts = (ws.manifest.scripts as Record<string, string> | undefined) ?? {};
+                return typeof scripts[scriptName] === 'string';
+            });
+        }
 
         if (selected.length === 0) {
-            console.log(`gjsify foreach: no workspaces match (script="${args.script}", include=${JSON.stringify(args.include ?? [])}, exclude=${JSON.stringify(args.exclude ?? [])})`);
+            console.log(`gjsify foreach: no workspaces match (${exec ? 'exec' : 'script'}="${cmd}", include=${JSON.stringify(args.include ?? [])}, exclude=${JSON.stringify(args.exclude ?? [])})`);
             return;
         }
 
@@ -134,22 +184,23 @@ export const foreachCommand: Command<any, ForeachOptions> = {
             selected = topologicalSort(graph);
         }
 
-        const cmd = args.script;
-        const cmdArgs = args.args ?? [];
         const verbose = args.verbose === true;
+        // `cmd` is guaranteed string at this point — both branches above
+        // exit on undefined, but TS doesn't narrow through them.
+        const finalCmd = cmd!;
 
         try {
             if (args.parallel && !args.topological && !args['topological-dev']) {
                 const jobs = args.jobs && args.jobs > 0 ? args.jobs : cpus().length;
-                await runParallel(selected, cmd, cmdArgs, jobs, verbose);
+                await runParallel(selected, finalCmd, cmdArgs, jobs, verbose, exec);
             } else if (args.parallel) {
                 // Topological + parallel: each workspace starts as soon as its
                 // deps (in the selected set) have finished. Yarn calls this
                 // "topological order with concurrency"; we cap at --jobs.
                 const jobs = args.jobs && args.jobs > 0 ? args.jobs : cpus().length;
-                await runTopologicalParallel(selected, cmd, cmdArgs, jobs, verbose, args['topological-dev'] === true);
+                await runTopologicalParallel(selected, finalCmd, cmdArgs, jobs, verbose, args['topological-dev'] === true, exec);
             } else {
-                await runSequential(selected, cmd, cmdArgs, verbose);
+                await runSequential(selected, finalCmd, cmdArgs, verbose, exec);
             }
         } catch (err) {
             console.error((err as Error).message);
@@ -167,9 +218,10 @@ async function runSequential(
     script: string,
     args: readonly string[],
     verbose: boolean,
+    exec: boolean,
 ): Promise<void> {
     for (const ws of workspaces) {
-        await runOne(ws, script, args, /* prefixOutput */ false, verbose);
+        await runOne(ws, script, args, /* prefixOutput */ false, verbose, exec);
     }
 }
 
@@ -179,6 +231,7 @@ async function runParallel(
     args: readonly string[],
     concurrency: number,
     verbose: boolean,
+    exec: boolean,
 ): Promise<void> {
     let cursor = 0;
     const workers: Promise<void>[] = [];
@@ -186,7 +239,7 @@ async function runParallel(
         workers.push((async () => {
             while (cursor < workspaces.length) {
                 const i = cursor++;
-                await runOne(workspaces[i]!, script, args, /* prefixOutput */ true, verbose);
+                await runOne(workspaces[i]!, script, args, /* prefixOutput */ true, verbose, exec);
             }
         })());
     }
@@ -200,6 +253,7 @@ async function runTopologicalParallel(
     concurrency: number,
     verbose: boolean,
     includeDev: boolean,
+    exec: boolean,
 ): Promise<void> {
     const selectedNames = new Set(workspaces.map((w) => w.name));
     const remaining = new Map<string, Set<string>>();
@@ -236,7 +290,7 @@ async function runTopologicalParallel(
                 const next = ready.sort()[0]!;
                 remaining.delete(next);
                 inflight++;
-                runOne(byName.get(next)!, script, args, /* prefixOutput */ true, verbose)
+                runOne(byName.get(next)!, script, args, /* prefixOutput */ true, verbose, exec)
                     .then(() => {
                         inflight--;
                         done.add(next);
@@ -270,7 +324,19 @@ async function runOne(
     args: readonly string[],
     prefixOutput: boolean,
     verbose: boolean,
+    exec: boolean,
 ): Promise<void> {
+    if (exec) {
+        // Arbitrary-command mode: spawn `<script> <args...>` directly
+        // (yarn `workspaces foreach exec`-equivalent). Used by callers
+        // that need to run binaries the workspace doesn't expose as a
+        // package.json script — e.g. `gjsify foreach --exec npm publish`.
+        if (verbose) {
+            console.error(`[${ws.name}] $ ${script} ${args.join(' ')}`);
+        }
+        await spawnPrefixed(script, args, ws.location, prefixOutput ? `[${ws.name}] ` : null);
+        return;
+    }
     // Use the same package manager that invoked us — yarn under yarn,
     // npm under npm, gjsify under gjsify. Default to `npm` for portability
     // when nothing is detectable; the script-runner (D.5) will replace
