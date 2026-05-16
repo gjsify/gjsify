@@ -108,20 +108,20 @@ jobs:
           echo "GJS bundle OK — reports v$ACTUAL matching package.json."
 
       - name: Build
-        run: su testuser -c 'gjsify run build'
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run build'
 
       # Root `build` uses --no-private, so private example workspaces are skipped; tests need dist/.
       - name: Build examples
-        run: su testuser -c 'gjsify run build:examples'
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run build:examples'
 
       - name: Check
-        run: su testuser -c 'gjsify run check'
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run check'
 
       - name: Check examples
-        run: su testuser -c 'gjsify run check:examples'
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run check:examples'
 
       - name: Test
-        run: su testuser -c 'LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify run test'
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify run test'
 
       - name: Test WebGL conformance
         # `gjsify` is at `node_modules/.bin/gjsify` after install. xvfb-run
@@ -130,10 +130,10 @@ jobs:
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify workspace @gjsify/webgl test:conformance'
 
       - name: Test CLI examples
-        run: su testuser -c 'gjsify run test:examples'
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:examples'
 
       - name: Test net examples
-        run: su testuser -c 'gjsify run test:examples:net'
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:examples:net'
 
       - name: E2E tests
-        run: su testuser -c 'gjsify run test:e2e'
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:e2e'
