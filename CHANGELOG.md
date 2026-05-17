@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.5](https://github.com/gjsify/gjsify/compare/v0.4.4...v0.4.5) (2026-05-17)
+
+### Features
+
+* **cli:** support npm overrides + yarn resolutions in gjsify install ([611f1ac](https://github.com/gjsify/gjsify/commit/611f1ac42079ccca86299f21a8180b4d54959d5d))
+
 ## [0.4.4](https://github.com/gjsify/gjsify/compare/v0.4.3...v0.4.4) (2026-05-17)
 
 ### Features
