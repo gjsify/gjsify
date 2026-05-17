@@ -14,3 +14,5 @@ export * from './foreach.js';
 export * from './workspace.js';
 export * from './pack.js';
 export * from './publish.js';
+export * from './self-update.js';
+export * from './generate-installer.js';

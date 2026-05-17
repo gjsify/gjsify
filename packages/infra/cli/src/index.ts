@@ -19,6 +19,8 @@ import {
     workspaceCommand as workspace,
     packCommand as pack,
     publishCommand as publish,
+    selfUpdateCommand as selfUpdate,
+    generateInstallerCommand as generateInstaller,
 } from './commands/index.js'
 import { APP_NAME } from './constants.js'
 
@@ -46,6 +48,8 @@ await yargs(hideBin(process.argv))
     .command(workspace.command, workspace.description, workspace.builder, workspace.handler)
     .command(pack.command, pack.description, pack.builder, pack.handler)
     .command(publish.command, publish.description, publish.builder, publish.handler)
+    .command(selfUpdate.command, selfUpdate.description, selfUpdate.builder, selfUpdate.handler)
+    .command(generateInstaller.command, generateInstaller.description, generateInstaller.builder, generateInstaller.handler)
     .demandCommand(1)
     .help()
     .parseAsync()
