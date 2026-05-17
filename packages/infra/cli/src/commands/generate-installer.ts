@@ -32,13 +32,17 @@ interface GenerateInstallerOptions {
     force: boolean;
 }
 
-// Read at build time — static-read-inliner sees the literal
-// `readFileSync(new URL(<lit>, import.meta.url), 'utf-8')` shape and inlines
-// the template contents directly into the bundled CLI.
-const INSTALLER_TEMPLATE = readFileSync(
-    new URL('../templates/install.mjs.tmpl', import.meta.url),
-    'utf-8',
-);
+// Lazy load. Reading at the top level breaks `gjsify run copy-templates`
+// (the bootstrap step that ships the template into `lib/templates/` after
+// `tsc`): the run script must first import this module to dispatch into
+// itself, which would then ENOENT on the not-yet-copied template file.
+// The static-read-inliner can still detect this shape inside the handler.
+function loadInstallerTemplate(): string {
+    return readFileSync(
+        new URL('../templates/install.mjs.tmpl', import.meta.url),
+        'utf-8',
+    );
+}
 
 const DEFAULT_BOOTSTRAP_URL =
     'https://github.com/gjsify/gjsify/releases/latest/download/cli.gjs.mjs';
@@ -104,7 +108,7 @@ export const generateInstallerCommand: Command<any, GenerateInstallerOptions> = 
         const binName = args['bin-name'] ?? pickDefaultBinName(pkgJson, target);
         const bootstrapUrl = args['bootstrap-url'] ?? DEFAULT_BOOTSTRAP_URL;
 
-        const rendered = INSTALLER_TEMPLATE
+        const rendered = loadInstallerTemplate()
             .replace(
                 /const DEFAULT_TARGET = '[^']+';/,
                 `const DEFAULT_TARGET = ${JSON.stringify(target)};`,
