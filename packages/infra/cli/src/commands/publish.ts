@@ -144,7 +144,19 @@ export const publishCommand: Command<any, PublishOptions> = {
         const npmrc = await loadNpmrc(wsDir);
         const registry = process.env.npm_config_registry ?? registryFor(packed.name, npmrc) ?? DEFAULT_REGISTRY;
         const registryClean = registry.endsWith('/') ? registry.slice(0, -1) : registry;
-        const url = `${registryClean}/${encodeURIComponent(packed.name).replace('%40', '@')}`;
+        // npm-package-arg's escapedName convention for scoped packages:
+        // `@${scope-without-leading-@}%2f${name}` (lowercase %2f, literal @).
+        // Unscoped: `encodeURIComponent(name)`. Match it exactly — the
+        // npm registry is picky about the publish PUT URL shape.
+        const escapedName = packed.name.startsWith('@')
+            ? (() => {
+                const slash = packed.name.indexOf('/');
+                const scope = packed.name.slice(1, slash);
+                const base = packed.name.slice(slash + 1);
+                return `@${encodeURIComponent(scope)}%2f${encodeURIComponent(base)}`;
+            })()
+            : encodeURIComponent(packed.name);
+        const url = `${registryClean}/${escapedName}`;
         // npm publish convention: the dist.tarball URL + _attachments key both
         // use the UNSCOPED basename — `cli-0.4.5.tgz`, not
         // `gjsify-cli-0.4.5.tgz`. This is what libnpmpublish does (see
@@ -172,6 +184,12 @@ export const publishCommand: Command<any, PublishOptions> = {
         const headers = buildHeaders(url, { npmrc });
         headers['content-type'] = 'application/json';
         headers['accept'] = '*/*';
+
+        if (process.env.GJSIFY_PUBLISH_DEBUG) {
+            console.error(`gjsify publish: PUT ${url} (${packed.name}@${packed.version})`);
+            console.error(`  authorization: ${headers['authorization'] ? '(set)' : '(none)'}`);
+            console.error(`  payload size: ${JSON.stringify(payload).length} bytes`);
+        }
 
         const res = await fetch(url, {
             method: 'PUT',

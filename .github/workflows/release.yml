@@ -50,6 +50,7 @@ jobs:
         run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run npm:publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GJSIFY_PUBLISH_DEBUG: "1"
 
       - name: Summary
         env:
