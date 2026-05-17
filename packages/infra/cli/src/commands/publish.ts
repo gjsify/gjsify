@@ -268,14 +268,29 @@ async function loadRewrittenManifest(wsDir: string, pkg: Record<string, unknown>
 }
 
 async function loadNpmrc(cwd: string): Promise<NpmrcConfig> {
+    // npm CLI's npmrc resolution order (lowest → highest precedence):
+    //   1. globalconfig:  /etc/npmrc  (system)
+    //   2. userconfig:    $NPM_CONFIG_USERCONFIG  (overrides ~/.npmrc)
+    //                     or ~/.npmrc  (default)
+    //   3. projectconfig: ./.npmrc  (closest)
+    //
+    // actions/setup-node writes the auth-token npmrc to $RUNNER_TEMP/.npmrc
+    // and exports NPM_CONFIG_USERCONFIG pointing at it — it does NOT touch
+    // ~/.npmrc. Honor the env var so CI authentication works end-to-end.
     const sources: string[] = [];
     const projectNpmrc = join(cwd, '.npmrc');
     if (existsSync(projectNpmrc)) sources.push(readFileSync(projectNpmrc, 'utf-8'));
-    const homeNpmrc = join(homedir(), '.npmrc');
-    if (existsSync(homeNpmrc)) sources.push(readFileSync(homeNpmrc, 'utf-8'));
-    // Inline `NODE_AUTH_TOKEN` env (set by actions/setup-node + the npm CLI's
-    // `_authToken=${NODE_AUTH_TOKEN}` placeholder) — npm expands env refs
-    // inside .npmrc. Parse with the env interpolated.
+    const userConfig = process.env.NPM_CONFIG_USERCONFIG;
+    if (userConfig && existsSync(userConfig)) {
+        sources.push(readFileSync(userConfig, 'utf-8'));
+    } else {
+        const homeNpmrc = join(homedir(), '.npmrc');
+        if (existsSync(homeNpmrc)) sources.push(readFileSync(homeNpmrc, 'utf-8'));
+    }
+    // Inline `${VAR}` placeholders (npm CLI's expand-on-read behavior).
+    // The auth-token npmrc from actions/setup-node ships
+    // `_authToken=${NODE_AUTH_TOKEN}` as a literal placeholder; the env var
+    // is set on the publish step.
     const merged = sources.join('\n').replace(/\$\{([A-Z_][A-Z0-9_]*)\}/gi, (_, name) => process.env[name as string] ?? '');
     return parseNpmrc(merged);
 }
