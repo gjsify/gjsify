@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.7](https://github.com/gjsify/gjsify/compare/v0.4.6...v0.4.7) (2026-05-17)
+
+### Bug Fixes
+
+* **cli:** gjsify publish — use unscoped basename in wire filename ([98bb7f9](https://github.com/gjsify/gjsify/commit/98bb7f92cf15220775b779f0dd4bb3c3949d8220))
+
 ## [0.4.6](https://github.com/gjsify/gjsify/compare/v0.4.5...v0.4.6) (2026-05-17)
 
 ### Features
