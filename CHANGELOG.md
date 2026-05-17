@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.10](https://github.com/gjsify/gjsify/compare/v0.4.9...v0.4.10) (2026-05-17)
+
+### Features
+
+* **cli:** Phase F MVP — Node-free install.mjs bootstrap + self-update + generate-installer ([#186](https://github.com/gjsify/gjsify/issues/186)) ([7a0e27c](https://github.com/gjsify/gjsify/commit/7a0e27ce7f13d479eb3b6684d45ee24ef170a9a0))
+* **web-streams:** ReadableByteStreamController + BYOB reader (W3C Streams) ([ff4da81](https://github.com/gjsify/gjsify/commit/ff4da8130ee1d65ca487e31111fe3afa0823abc7))
+
 ## [0.4.9](https://github.com/gjsify/gjsify/compare/v0.4.8...v0.4.9) (2026-05-17)
 
 ### Bug Fixes

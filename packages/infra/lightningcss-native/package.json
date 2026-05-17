@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/lightningcss-native",
-    "version": "0.4.9",
+    "version": "0.4.10",
     "description": "Vala/GObject + Rust cdylib bridge to lightningcss for GJS. Replaces the Node-only npm `lightningcss` package: parse, transform, minify, and browserslist-target lowering of CSS without leaving a Node-free GJS process. Backs `@gjsify/rolldown-plugin-gjsify`'s cssAsStringPlugin under `--app gjs` so GTK4-CSS lowering (firefox60) works without a Node runtime in the build pipeline.",
     "type": "module",
     "main": "lib/esm/index.js",

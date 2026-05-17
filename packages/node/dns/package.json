@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/dns",
-    "version": "0.4.9",
+    "version": "0.4.10",
     "description": "Node.js dns module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",
