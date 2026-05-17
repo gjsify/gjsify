@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.4](https://github.com/gjsify/gjsify/compare/v0.4.3...v0.4.4) (2026-05-17)
+
+### Features
+
+* **http2-native:** full nghttp2 session bridge (Phase 0) ([3a6fe6c](https://github.com/gjsify/gjsify/commit/3a6fe6c21164174b3748daaddf9bf6366a608b08))
+* **http2:** client-side native session + server push reception (Phase 3) ([75b48de](https://github.com/gjsify/gjsify/commit/75b48de49332dadf2d3d5aa7879ef63805ad0655))
+* **http2:** hardening — GOAWAY, RST_STREAM, GC pinning (Phase 4) ([e03eb2b](https://github.com/gjsify/gjsify/commit/e03eb2b0980abb297832b7fd1dba97565afe1fa0))
+* **http2:** native h2c dispatcher on Gio.SocketService (Phase 1) ([cbdc0e2](https://github.com/gjsify/gjsify/commit/cbdc0e2a73893c77a210fcc2b2eba6d5049574f7))
+* **http2:** PUSH_PROMISE wire delivery (Phase 2) ([3fcd03e](https://github.com/gjsify/gjsify/commit/3fcd03eef27e97e94cc9607405634fcded44cdc3))
+
+### Bug Fixes
+
+* **cli,scripts:** publish-workspace + run.ts script-vs-file precedence ([302c97a](https://github.com/gjsify/gjsify/commit/302c97aa8a50a3506a279db0c4629f7a7f2247e6))
+
 ## [0.4.3](https://github.com/gjsify/gjsify/compare/v0.4.2...v0.4.3) (2026-05-16)
 
 ### Features
