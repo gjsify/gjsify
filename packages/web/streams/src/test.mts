@@ -2,5 +2,6 @@
 import { run } from '@gjsify/unit';
 
 import testSuite from './index.spec.js';
+import byobSuite from './byob.spec.js';
 
-run({ testSuite });
+await run({ testSuite, byobSuite });
