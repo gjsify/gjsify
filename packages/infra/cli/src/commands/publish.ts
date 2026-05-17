@@ -145,7 +145,18 @@ export const publishCommand: Command<any, PublishOptions> = {
         const registry = process.env.npm_config_registry ?? registryFor(packed.name, npmrc) ?? DEFAULT_REGISTRY;
         const registryClean = registry.endsWith('/') ? registry.slice(0, -1) : registry;
         const url = `${registryClean}/${encodeURIComponent(packed.name).replace('%40', '@')}`;
-        const tarballUrl = `${registryClean}/${packed.name}/-/${packed.filename}`;
+        // npm publish convention: the dist.tarball URL + _attachments key both
+        // use the UNSCOPED basename — `cli-0.4.5.tgz`, not
+        // `gjsify-cli-0.4.5.tgz`. This is what libnpmpublish does (see
+        // `attachments[\`${unscopedName}-${version}.tgz\`]` in
+        // libnpmpublish/lib/publish.js). The full scoped filename is what
+        // `npm pack` writes to disk, but the registry stores tarballs at
+        // the unscoped path.
+        const unscopedName = packed.name.includes('/')
+            ? packed.name.slice(packed.name.indexOf('/') + 1)
+            : packed.name;
+        const wireFilename = `${unscopedName}-${packed.version}.tgz`;
+        const tarballUrl = `${registryClean}/${packed.name}/-/${wireFilename}`;
 
         // 4. Build payload + PUT
         const payload = buildPublishPayload({
@@ -154,7 +165,7 @@ export const publishCommand: Command<any, PublishOptions> = {
             access,
             tarballBytes: tarBytes,
             tarballUrl,
-            packed,
+            packed: { ...packed, wireFilename },
             provenance,
         });
 
@@ -257,7 +268,7 @@ interface BuildPayloadOptions {
     access?: string;
     tarballBytes: Uint8Array;
     tarballUrl: string;
-    packed: { name: string; version: string; filename: string; integrity: string; shasum: string };
+    packed: { name: string; version: string; filename: string; integrity: string; shasum: string; wireFilename: string };
     provenance: boolean;
 }
 
@@ -281,7 +292,7 @@ function buildPublishPayload(opts: BuildPayloadOptions): Record<string, unknown>
         versions: { [packed.version]: versionEntry },
         readme: '',
         _attachments: {
-            [packed.filename]: {
+            [packed.wireFilename]: {
                 content_type: 'application/octet-stream',
                 data: base64Encode(tarballBytes),
                 length: tarballBytes.byteLength,
