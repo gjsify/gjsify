@@ -66,7 +66,13 @@ export {
 
 // Re-export class types for direct import
 export { WritableStreamDefaultWriter, WritableStreamDefaultController } from './writable-stream.js';
-export { ReadableStreamDefaultReader, ReadableStreamDefaultController } from './readable-stream.js';
+export {
+  ReadableStreamDefaultReader,
+  ReadableStreamDefaultController,
+  ReadableStreamBYOBReader,
+  ReadableStreamBYOBRequest,
+  ReadableByteStreamController,
+} from './readable-stream.js';
 export { TransformStreamDefaultController } from './transform-stream.js';
 
 // Re-export internals needed by other packages

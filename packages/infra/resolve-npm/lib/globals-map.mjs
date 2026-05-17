@@ -36,6 +36,9 @@ export const GJS_GLOBALS_GROUPS = {
         'fetch', 'Headers', 'Request', 'Response',
         'FormData',
         'ReadableStream', 'WritableStream', 'TransformStream',
+        'ReadableStreamBYOBReader', 'ReadableStreamBYOBRequest',
+        'ReadableByteStreamController', 'ReadableStreamDefaultController',
+        'ReadableStreamDefaultReader',
         'TextEncoderStream', 'TextDecoderStream',
         'ByteLengthQueuingStrategy', 'CountQueuingStrategy',
         'CompressionStream', 'DecompressionStream',
@@ -107,6 +110,11 @@ export const GJS_GLOBALS_MAP = {
 
     // --- WHATWG Streams (granular register subpaths) ------------------------
     ReadableStream:       'web-streams/register/readable',
+    ReadableStreamBYOBReader:        'web-streams/register/readable',
+    ReadableStreamBYOBRequest:       'web-streams/register/readable',
+    ReadableByteStreamController:    'web-streams/register/readable',
+    ReadableStreamDefaultController: 'web-streams/register/readable',
+    ReadableStreamDefaultReader:     'web-streams/register/readable',
     WritableStream:       'web-streams/register/writable',
     TransformStream:      'web-streams/register/transform',
     TextEncoderStream:    'web-streams/register/text-streams',

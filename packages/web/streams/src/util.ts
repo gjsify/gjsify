@@ -72,6 +72,78 @@ export function cloneAsUint8Array(view: ArrayBufferView): Uint8Array {
   return new Uint8Array(buffer.slice(byteOffset, byteOffset + byteLength));
 }
 
+// Transfer an ArrayBuffer to a fixed-length copy that detaches the source.
+// SM140 / Node 24+ supports `ArrayBuffer.prototype.transfer`. If unavailable,
+// fall back to a `slice` (which copies but does NOT detach). The spec
+// (https://streams.spec.whatwg.org/#transfer-array-buffer) requires detach,
+// so we treat the fallback as best-effort.
+export function transferArrayBuffer(buffer: ArrayBufferLike): ArrayBuffer {
+  // SharedArrayBuffer doesn't have transfer; slice it.
+  const proto = ArrayBuffer.prototype as unknown as { transfer?: (newByteLength?: number) => ArrayBuffer };
+  if (typeof proto.transfer === 'function') {
+    return (buffer as ArrayBuffer).transfer();
+  }
+  return (buffer as ArrayBuffer).slice(0);
+}
+
+export function isDetachedBuffer(buffer: ArrayBufferLike): boolean {
+  // SharedArrayBuffer is never detached.
+  if (typeof SharedArrayBuffer !== 'undefined' && buffer instanceof SharedArrayBuffer) {
+    return false;
+  }
+  // A detached ArrayBuffer has byteLength === 0 AND cannot be sliced.
+  // Reading byteLength on a detached buffer returns 0; touching .slice throws.
+  if ((buffer as ArrayBuffer).byteLength !== 0) return false;
+  try {
+    (buffer as ArrayBuffer).slice(0, 0);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+// Map a TypedArray's [[Symbol.toStringTag]] back to its constructor.
+// Returns undefined for plain DataView (caller should use DataView).
+export function typedArrayConstructorByTag(tag: string | undefined): (new (buffer: ArrayBufferLike, byteOffset?: number, length?: number) => ArrayBufferView) | undefined {
+  switch (tag) {
+    case 'Int8Array': return Int8Array as unknown as any;
+    case 'Uint8Array': return Uint8Array as unknown as any;
+    case 'Uint8ClampedArray': return Uint8ClampedArray as unknown as any;
+    case 'Int16Array': return Int16Array as unknown as any;
+    case 'Uint16Array': return Uint16Array as unknown as any;
+    case 'Int32Array': return Int32Array as unknown as any;
+    case 'Uint32Array': return Uint32Array as unknown as any;
+    case 'Float32Array': return Float32Array as unknown as any;
+    case 'Float64Array': return Float64Array as unknown as any;
+    case 'BigInt64Array': return typeof BigInt64Array !== 'undefined' ? (BigInt64Array as unknown as any) : undefined;
+    case 'BigUint64Array': return typeof BigUint64Array !== 'undefined' ? (BigUint64Array as unknown as any) : undefined;
+    default: return undefined;
+  }
+}
+
+// Per-element byte size lookup (matches TypedArray.BYTES_PER_ELEMENT).
+export function elementSizeByTag(tag: string | undefined): number {
+  switch (tag) {
+    case 'Int8Array':
+    case 'Uint8Array':
+    case 'Uint8ClampedArray':
+      return 1;
+    case 'Int16Array':
+    case 'Uint16Array':
+      return 2;
+    case 'Int32Array':
+    case 'Uint32Array':
+    case 'Float32Array':
+      return 4;
+    case 'Float64Array':
+    case 'BigInt64Array':
+    case 'BigUint64Array':
+      return 8;
+    default:
+      return 1;
+  }
+}
+
 export function ArrayBufferViewGetBuffer(view: ArrayBufferView): ArrayBuffer {
   return view.buffer as ArrayBuffer;
 }

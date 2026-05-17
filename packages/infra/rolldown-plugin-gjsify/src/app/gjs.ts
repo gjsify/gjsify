@@ -295,10 +295,21 @@ function wrapInputWithSideEffects(
         .map((p) => `import ${JSON.stringify(p)};`)
         .join('\n');
 
+    // Resolved real-path targets from `userEntries` get their
+    // moduleSideEffects forced to 'no-treeshake' so the user-entry's
+    // top-level body (`run({...})`, side-effect calls) survives tree-shake
+    // even when its package.json restricts sideEffects to register files.
+    const resolvedTargets = new Set<string>();
+
     const plugin: RolldownPluginOption = {
         name: 'gjsify-virtual-entry',
         async resolveId(source, importer) {
             if (source.startsWith(PREFIX)) return source;
+            // Force-mark the resolved user-entry target as having
+            // top-level side effects.
+            if (resolvedTargets.has(source)) {
+                return { id: source, moduleSideEffects: 'no-treeshake' };
+            }
             return null;
         },
         async load(id) {
@@ -311,9 +322,16 @@ function wrapInputWithSideEffects(
             // specifier and emits it as an external import.
             const resolved = await this.resolve(realPath, undefined, { skipSelf: true });
             const target = resolved?.id ?? realPath;
+            resolvedTargets.add(target);
+            // The bare `export * from <target>` re-exports named bindings
+            // but does NOT execute the source module's top-level body. A
+            // companion side-effect-only `import <target>` plus our
+            // resolveId-side `moduleSideEffects: 'no-treeshake'` mark
+            // forces the body to run — `run({...})` calls in test entries,
+            // top-level await, etc.
             return {
-                code: `${sideEffectImports}\nexport * from ${JSON.stringify(target)};\n`,
-                moduleSideEffects: true,
+                code: `${sideEffectImports}\nimport ${JSON.stringify(target)};\nexport * from ${JSON.stringify(target)};\n`,
+                moduleSideEffects: 'no-treeshake',
             };
         },
     };
