@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.6](https://github.com/gjsify/gjsify/compare/v0.4.5...v0.4.6) (2026-05-17)
+
+### Features
+
+* **cli:** Phase E — gjsify pack + gjsify publish (drop npm publish/pack) ([3a8de65](https://github.com/gjsify/gjsify/commit/3a8de6515289eb83c20292dc0e07a035b949039d))
+
 ## [0.4.5](https://github.com/gjsify/gjsify/compare/v0.4.4...v0.4.5) (2026-05-17)
 
 ### Features
