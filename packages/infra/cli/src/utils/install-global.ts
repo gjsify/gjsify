@@ -109,7 +109,19 @@ export function linkGlobalBins(packageNames: string[], layout: GlobalLayout): Li
             // Inline `${target}` directly — this file is rewritten on every
             // install, paths are user-owned, and POSIX `sh` quoting via
             // single-quotes plus `'\''` for embedded quotes is well-defined.
-            const launcher = `#!/bin/sh\nexec ${shQuote(targetAbs)} "$@"\n`;
+            //
+            // `.gjs.mjs` and `.mjs` bins are GJS-runnable bundles; we wrap them
+            // with `gjs -m` rather than direct-exec because not every published
+            // bundle ships a `#!/usr/bin/env -S gjs -m` shebang (the CLI's
+            // build:gjs-bundle script gained the `--shebang` flag late in
+            // Phase F, but published <=0.4.x tarballs predate it). Direct-
+            // exec'ing a shebang-less .mjs file falls back to /bin/sh which
+            // then tries to parse JavaScript as shell. Plain Node scripts
+            // with shebangs (lib/index.js) keep the direct-exec path.
+            const isGjsBundle = targetAbs.endsWith('.gjs.mjs') || targetAbs.endsWith('.mjs');
+            const launcher = isGjsBundle
+                ? `#!/bin/sh\nexec gjs -m ${shQuote(targetAbs)} "$@"\n`
+                : `#!/bin/sh\nexec ${shQuote(targetAbs)} "$@"\n`;
             fs.writeFileSync(linkPath, launcher);
             fs.chmodSync(linkPath, 0o755);
             created.push({ name: binName, target: targetAbs, link: linkPath });

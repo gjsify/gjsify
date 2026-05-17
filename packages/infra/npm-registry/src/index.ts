@@ -244,7 +244,16 @@ export function parseNpmrc(text: string): NpmrcConfig {
 
 /** Build auth + UA headers for a request URL. Pure (no I/O). */
 export function buildHeaders(url: string, opts: FetchOptions): Record<string, string> {
-    const headers: Record<string, string> = { "user-agent": "gjsify-install/0.3.7" };
+    const headers: Record<string, string> = {
+        "user-agent": "gjsify-install/0.3.7",
+        // Disable transparent gzip negotiation. Under GJS, libsoup's chunked-
+        // decoder raises G_IO_ERROR_PARTIAL_INPUT at the tail of npm CDN
+        // gzipped responses (the upstream closes the TCP connection at a
+        // non-chunk boundary). Requesting identity avoids the entire chunked-
+        // gzip code path. Bandwidth cost is negligible for our payloads
+        // (~64 KB packuments).
+        "accept-encoding": "identity",
+    };
     if (opts.npmrc) {
         const auth = resolveAuthForUrl(url, opts.npmrc);
         if (auth) headers["authorization"] = auth;

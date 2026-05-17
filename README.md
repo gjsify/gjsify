@@ -53,16 +53,51 @@ sudo apt install gjs libglib2.0-dev libgirepository1.0-dev libgtk-4-dev \
 
 ### Using the CLI directly
 
-```bash
-# Install the CLI
-npm install -g @gjsify/cli
+**Node-free install** (recommended, requires only `gjs` ≥ 1.86 and `curl`):
 
+```bash
+curl -fsSL https://github.com/gjsify/gjsify/releases/latest/download/install.mjs \
+  -o /tmp/g.mjs && gjs -m /tmp/g.mjs && rm /tmp/g.mjs
+```
+
+Lays down `@gjsify/cli` under `~/.local/share/gjsify/global/` and a launcher
+at `~/.local/bin/gjsify`. Run `gjsify self-update` to refresh in place.
+
+**npm install** (still supported if you want to manage the CLI via Node):
+
+```bash
+npm install -g @gjsify/cli
+```
+
+Then:
+
+```bash
 # Build a TypeScript file for GJS (default target)
 gjsify build src/index.ts --outfile dist/app.js
 
 # Run it
 gjsify run dist/app.js
 ```
+
+### Ship your own GJS app with a one-line installer
+
+`gjsify generate-installer` scaffolds an `install.mjs` for your package,
+parameterised to your npm name and bin name:
+
+```bash
+cd my-gjs-app
+gjsify generate-installer
+git add install.mjs && git commit -m "chore: add gjsify-based installer"
+```
+
+Users of your app then install with:
+
+```bash
+curl -fsSL https://github.com/<you>/<repo>/raw/main/install.mjs \
+  -o /tmp/i.mjs && gjs -m /tmp/i.mjs && rm /tmp/i.mjs
+```
+
+No npm / Node required on the user's machine.
 
 ## Usage
 

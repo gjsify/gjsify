@@ -52,6 +52,26 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           GJSIFY_PUBLISH_DEBUG: "1"
 
+      # Phase F: ship install.mjs + cli.gjs.mjs as GitHub-release assets so end
+      # users can bootstrap gjsify (or any gjsify-based GJS app) with a single
+      # `curl ... | gjs -m -` line, no npm/Node required. The bundle was
+      # rebuilt above by `gjsify run build` (executes build:gjs-bundle).
+      - name: Generate cli.gjs.mjs.sha256
+        if: github.event_name == 'release'
+        run: |
+          cd packages/infra/cli/dist
+          sha256sum cli.gjs.mjs | awk '{print $1}' > cli.gjs.mjs.sha256
+          cat cli.gjs.mjs.sha256
+
+      - name: Upload installer + bootstrap bundle to GitHub release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            install.mjs
+            packages/infra/cli/dist/cli.gjs.mjs
+            packages/infra/cli/dist/cli.gjs.mjs.sha256
+
       - name: Summary
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name || github.event.inputs.release_tag || 'unknown' }}
