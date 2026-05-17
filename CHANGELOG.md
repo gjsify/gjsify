@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.8](https://github.com/gjsify/gjsify/compare/v0.4.7...v0.4.8) (2026-05-17)
+
+### Bug Fixes
+
+* **cli:** gjsify publish — match npm-package-arg URL encoding + add debug ([b0ec386](https://github.com/gjsify/gjsify/commit/b0ec386fde2b2d9bb2dc80dbca5b70c1d1fe6b09))
+
 ## [0.4.7](https://github.com/gjsify/gjsify/compare/v0.4.6...v0.4.7) (2026-05-17)
 
 ### Bug Fixes

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/rolldown-plugin-deepkit",
-    "version": "0.4.7",
+    "version": "0.4.8",
     "description": "Deepkit type compiler plugin for Rolldown / Rollup / Vite",
     "type": "module",
     "main": "lib/index.js",
