@@ -17,6 +17,8 @@ import {
     installCommand as install,
     foreachCommand as foreach,
     workspaceCommand as workspace,
+    packCommand as pack,
+    publishCommand as publish,
 } from './commands/index.js'
 import { APP_NAME } from './constants.js'
 
@@ -42,6 +44,8 @@ await yargs(hideBin(process.argv))
     .command(flatpak.command, flatpak.description, flatpak.builder, flatpak.handler)
     .command(foreach.command, foreach.description, foreach.builder, foreach.handler)
     .command(workspace.command, workspace.description, workspace.builder, workspace.handler)
+    .command(pack.command, pack.description, pack.builder, pack.handler)
+    .command(publish.command, publish.description, publish.builder, publish.handler)
     .demandCommand(1)
     .help()
     .parseAsync()

@@ -67,19 +67,19 @@ if (selected.length === 0) {
 
 const tarballMap = {};
 for (const w of selected) {
-  // `npm pack` writes `<scope>-<name>-<version>.tgz` (e.g.
+  // `gjsify pack` writes `<scope>-<name>-<version>.tgz` (e.g.
   // `gjsify-buffer-0.4.0.tgz`) into the cwd by default. `--pack-destination`
-  // redirects it to <tarballsDir> directly.
+  // redirects it to <tarballsDir> directly. Match the same --json shape as
+  // npm pack: an array of {filename, …} entries.
   const stdout = execFileSync(
-    'npm',
+    'gjsify',
     ['pack', '--pack-destination', resolve(tarballsDir), '--json'],
     { cwd: join(MONOREPO_ROOT, w.location), stdio: ['pipe', 'pipe', 'inherit'], encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 },
   );
   const result = JSON.parse(stdout);
-  // npm pack --json returns an array of {filename, …} entries.
   const filename = result[0]?.filename;
   if (!filename) {
-    console.error(`pack.mjs: ${w.name} — npm pack returned no filename`);
+    console.error(`pack.mjs: ${w.name} — gjsify pack returned no filename`);
     process.exit(1);
   }
   tarballMap[w.name] = filename;

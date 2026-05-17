@@ -115,6 +115,24 @@ export async function gunzip(input: Uint8Array): Promise<Uint8Array> {
         );
     }
     const stream = new Blob([new Uint8Array(input)]).stream().pipeThrough(new Decomp("gzip"));
+    return drainStream(stream);
+}
+
+/** Compress a buffer to gzip using Web CompressionStream (cross-platform). */
+export async function gzip(input: Uint8Array): Promise<Uint8Array> {
+    const Comp = (globalThis as { CompressionStream?: typeof CompressionStream })
+        .CompressionStream;
+    if (typeof Comp !== "function") {
+        throw new Error(
+            "@gjsify/tar: globalThis.CompressionStream is not available — " +
+                "import '@gjsify/compression-streams/register' on GJS to register it",
+        );
+    }
+    const stream = new Blob([new Uint8Array(input)]).stream().pipeThrough(new Comp("gzip"));
+    return drainStream(stream);
+}
+
+async function drainStream(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
     const chunks: Uint8Array[] = [];
     let total = 0;
     const reader = stream.getReader();

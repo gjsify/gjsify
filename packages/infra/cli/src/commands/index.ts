@@ -12,3 +12,5 @@ export * from './dlx.js';
 export * from './install.js';
 export * from './foreach.js';
 export * from './workspace.js';
+export * from './pack.js';
+export * from './publish.js';
