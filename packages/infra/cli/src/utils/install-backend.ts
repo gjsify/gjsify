@@ -34,6 +34,18 @@ export interface InstallOptions {
     lockfile?: boolean;
     /** Use `<prefix>/gjsify-lock.json` as the source of truth — fail if missing. */
     frozen?: boolean;
+    /**
+     * Per-package version overrides — `<name> → <range>`. Applied to every
+     * edge during dependency resolution, irrespective of the requester.
+     * Mirrors npm's top-level `overrides` field and yarn's `resolutions`
+     * (the simple, name-only flavour; pattern keys like `typescript@*` are
+     * normalised to bare `typescript` by the caller before passing in).
+     *
+     * Lets a workspace root pin a transitive dep version when the
+     * deduplicated tree would otherwise pick a different one — e.g. for
+     * forcing `typescript@~5.9` across every `typescript@*` devDep.
+     */
+    overrides?: Record<string, string>;
 }
 
 const DEFAULT_BACKEND = process.env.GJSIFY_INSTALL_BACKEND ?? 'native';

@@ -125,7 +125,7 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
         nodes = lockfileToNodes(existingLock);
     } else {
         log("install: resolving %d top-level spec(s) → %s", opts.specs.length, opts.prefix);
-        nodes = await resolveDeps(opts.specs, npmrc, log);
+        nodes = await resolveDeps(opts.specs, npmrc, log, opts.overrides);
         if (opts.lockfile) {
             writeLockfile(lockfilePath, opts.specs, nodes);
             log("install: wrote %s (%d entries)", LOCKFILE_NAME, nodes.length);
@@ -189,7 +189,16 @@ async function resolveDeps(
     specs: string[],
     npmrc: NpmrcConfig,
     log: Logger,
+    overrides?: Record<string, string>,
 ): Promise<ResolvedNode[]> {
+    const applyOverride = (name: string, range: string): string => {
+        if (!overrides) return range;
+        const override = overrides[name];
+        if (typeof override !== 'string' || override.length === 0) return range;
+        if (override === range) return range;
+        log("install: override %s %s → %s", name, range, override);
+        return override;
+    };
     const packumentCache = new Map<string, Promise<Packument>>();
     const fetchPkg = (name: string): Promise<Packument> => {
         const cached = packumentCache.get(name);
@@ -216,7 +225,7 @@ async function resolveDeps(
     const queue: Edge[] = specs.map(parseSpec).map((s) => ({
         from: null,
         name: s.name,
-        range: s.range,
+        range: applyOverride(s.name, s.range),
         required: true,
     }));
 
@@ -281,10 +290,10 @@ async function resolveDeps(
             );
 
             for (const [depName, depRange] of Object.entries(node.dependencies)) {
-                queue.push({ from: installPath, name: depName, range: depRange, required: true });
+                queue.push({ from: installPath, name: depName, range: applyOverride(depName, depRange), required: true });
             }
             for (const [depName, depRange] of Object.entries(node.optionalDependencies)) {
-                queue.push({ from: installPath, name: depName, range: depRange, required: false });
+                queue.push({ from: installPath, name: depName, range: applyOverride(depName, depRange), required: false });
             }
         } catch (e) {
             // Optional deps that fail to resolve are skipped — yarn/npm

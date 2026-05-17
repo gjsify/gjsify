@@ -303,6 +303,16 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
         `gjsify install: ${workspaces.length} workspace(s), ${externalSpecs.size} external dep spec(s), ${symlinks.length} workspace symlink(s)`,
     );
 
+    // Read top-level package.json's `overrides` (npm-native) or `resolutions`
+    // (yarn-native, kept as the existing field name in pre-Phase-D.8 repos).
+    // Both are flattened to a name → version map and passed to the install
+    // backend. Pattern keys like `typescript@*` are normalised to bare names —
+    // we don't yet support per-parent scoping (npm's nested overrides shape).
+    const rootManifest = workspaces.find((w) => w.location === cwd)?.manifest as
+        | { overrides?: unknown; resolutions?: unknown }
+        | undefined;
+    const overrides = extractOverrides(rootManifest);
+
     if (externalSpecs.size > 0) {
         await installPackages({
             prefix: cwd,
@@ -310,6 +320,7 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
             verbose: args.verbose,
             lockfile: !args.immutable,
             frozen: args.immutable,
+            overrides,
         });
     } else if (args.verbose) {
         console.log('gjsify install: no external deps to fetch');
@@ -433,6 +444,48 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
  * different cwds that consumers (`yarn run`, `npm run`, direct PATH
  * invocation) call us from.
  */
+/**
+ * Flatten npm `overrides` or yarn `resolutions` into a bare name → range map.
+ *
+ * Supports two input shapes:
+ *
+ *   "overrides": { "typescript": "~5.9.2" }                       (npm)
+ *   "resolutions": { "typescript@*": "~5.9.2" }                   (yarn pattern)
+ *
+ * Pattern keys with a version glob (`name@*`, `name@^x`) are normalised to the
+ * bare name — gjsify's resolver doesn't yet support per-incoming-range
+ * scoping. Object-valued nested overrides (npm's per-parent shape, e.g.
+ * `"foo": { ".": "1.0", "bar": "2.0" }`) are intentionally ignored; they would
+ * silently misbehave without per-parent support, so we surface a warning
+ * instead of half-applying them.
+ *
+ * Keys beginning with `_` are skipped (convention for documentation entries
+ * like `"_comment_typescript"` used in the wild).
+ */
+function extractOverrides(rootManifest: { overrides?: unknown; resolutions?: unknown } | undefined): Record<string, string> | undefined {
+    if (!rootManifest) return undefined;
+    const out: Record<string, string> = {};
+    const merge = (source: Record<string, unknown> | undefined, fieldName: string) => {
+        if (!source) return;
+        for (const [key, value] of Object.entries(source)) {
+            if (key.startsWith('_')) continue;
+            if (typeof value !== 'string') {
+                console.warn(`gjsify install: ${fieldName}["${key}"] is not a string — nested override shape isn't supported yet, skipping`);
+                continue;
+            }
+            // Normalise pattern keys (`name@*`, `name@^range`) → bare name.
+            // For scoped packages preserve the leading `@`.
+            let name = key;
+            const atIdx = key.startsWith('@') ? key.indexOf('@', 1) : key.indexOf('@');
+            if (atIdx > 0) name = key.slice(0, atIdx);
+            out[name] = value;
+        }
+    };
+    merge(rootManifest.overrides as Record<string, unknown> | undefined, 'overrides');
+    merge(rootManifest.resolutions as Record<string, unknown> | undefined, 'resolutions');
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function buildBinShim(wsLocation: string, nodeTarget?: string, gjsTarget?: string): string {
     const nodeAbs = nodeTarget ? join(wsLocation, nodeTarget) : null;
     const gjsAbs = gjsTarget ? join(wsLocation, gjsTarget) : null;
