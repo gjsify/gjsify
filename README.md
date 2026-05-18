@@ -8,13 +8,15 @@ Use Node.js APIs, Web APIs, and DOM interfaces in GNOME desktop applications. gj
 
 ## Features
 
-- **42 Node.js modules** — fs, net, http, crypto, streams, child_process, sqlite, ws, and more
-- **19 Web API packages** — fetch, XMLHttpRequest, WebSocket, WebCrypto, WebRTC, WebAudio, Streams, EventSource, AbortController, DOMParser, Gamepad
+- **43 Node.js modules** — fs, net, http, http2 (h2c + ALPN + native dispatcher), crypto, streams, child_process, sqlite, ws, sab-native (cross-process SharedBuffer), terminal-native, and more
+- **19 Web API packages** — fetch, XMLHttpRequest, WebSocket, WebCrypto, WebRTC, WebAudio, Streams (BYOB), EventSource, AbortController, DOMParser, Gamepad
 - **8 DOM / bridge packages** — Canvas2D (Cairo), Canvas2D-core (headless), WebGL (OpenGL ES), DOM elements, event bridge, iframes (WebKit), video (gtk4paintablesink), bridge-types
 - **3 Adwaita packages for browser targets** — Web Components, Adwaita Sans fonts, symbolic icons
-- **4 integration test suites** — webtorrent, socket.io, streamx, Autobahn RFC 6455 fuzzing
+- **8 integration test suites** — webtorrent, socket.io, streamx, Autobahn (RFC 6455 fuzzing), mcp-typescript-sdk, mcp-inspector-cli, axios, worker-stress
+- **Flatpak toolchain** — `gjsify flatpak init` scaffolds manifest + MetaInfo + .desktop + flathub.json from one config block; `gjsify flatpak check` runs Flathub linters locally
+- **Node-free CLI bootstrap** — `curl … install.mjs | gjs -m -` installs `@gjsify/cli` without npm/Node; `gjsify self-update` / `gjsify uninstall -g` round out the lifecycle
 - **ESM-only**, TypeScript-first, Rolldown-based build system
-- Native GNOME library bindings: `Gio` for I/O, `Soup 3.0` for HTTP, `GLib` for crypto/process, `Cairo` for 2D, `GTK 4` for UI, `GStreamer` for media + WebRTC, `libgda` for SQLite, `Manette` for gamepads, `WebKit` for iframes
+- Native GNOME library bindings: `Gio` for I/O, `Soup 3.0` for HTTP, `GLib` for crypto/process, `Cairo` for 2D, `GTK 4` for UI, `GStreamer` for media + WebRTC, `libgda` for SQLite, `Manette` for gamepads, `WebKit` for iframes, `nghttp2` for native HTTP/2
 - Every unit test runs on both Node.js and GJS
 
 ## Quick Start
@@ -99,6 +101,22 @@ curl -fsSL https://github.com/<you>/<repo>/raw/main/install.mjs \
 
 No npm / Node required on the user's machine.
 
+### Ship as a Flatpak
+
+`gjsify flatpak init` scaffolds the full Flathub asset set — manifest +
+MetaInfo XML + `.desktop` + `flathub.json` — from one `package.json`
+config block. `--kind app` (default) for GTK/Adwaita desktop apps;
+`--kind cli` for headless tools.
+
+```bash
+gjsify flatpak init               # generate everything
+gjsify flatpak check              # run appstreamcli + flatpak-builder-lint locally
+gjsify flatpak build              # wrap flatpak-builder
+```
+
+See the [Flatpak app guide](https://gjsify.github.io/gjsify/guides/flatpak-app/)
+and [Flatpak CLI guide](https://gjsify.github.io/gjsify/guides/flatpak-cli-tool/) for end-to-end submission.
+
 ## Usage
 
 Write standard Node.js code — the bundler resolves `node:*` imports to `@gjsify/*` implementations when targeting GJS:
@@ -129,9 +147,9 @@ console.log(text);
 
 | Status | Packages |
 |--------|----------|
-| **Full** (34) | assert, async_hooks, buffer, child_process, console, constants, crypto, dgram, diagnostics_channel, dns, events, fs, globals, http, https, module, net, os, path, perf_hooks, process, querystring, readline, stream, string_decoder, sys, timers, tls, tty, url, util, zlib |
-| **Partial** (5) | sqlite (libgda-backed subset), ws (no noServer/perMessageDeflate/ping-pong events), worker_threads (subprocess-based, no SharedArrayBuffer), http2 (constants only), vm (eval-based, no realm isolation) |
-| **Stub** (4) | cluster, domain, inspector, v8 |
+| **Full** (36) | assert, async_hooks, buffer, child_process, console, constants, crypto, dgram, diagnostics_channel, dns, events, fs, globals, http, http2, https, module, net, os, path, perf_hooks, process, querystring, readline, stream, string_decoder, sys, timers, tls, tty, url, util, zlib + native: terminal-native, sab-native |
+| **Partial** (5) | sqlite (libgda-backed subset), ws (no perMessageDeflate/ping-pong events), worker_threads (subprocess-based + cross-process SAB via sab-native), vm (eval-based, no realm isolation), v8 (stub) |
+| **Stub** (3) | cluster, domain, inspector |
 
 Plus `@gjsify/node-polyfills` meta package for scaffolding.
 

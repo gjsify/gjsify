@@ -221,6 +221,30 @@ Unknown identifiers are silently ignored. If a `ReferenceError: X is not defined
 
 </details>
 
+## `gjsify install`
+
+Install npm dependencies for a project (or globally with `-g`). Drop-in for `npm install` / `yarn install`. Uses a native install backend (`@gjsify/semver` + `@gjsify/npm-registry` + `@gjsify/tar`) — no Node or npm CLI at runtime.
+
+```bash
+gjsify install                  # full project install
+gjsify install --immutable      # CI mode — install strictly from gjsify-lock.json
+gjsify install lodash           # add lodash, save to dependencies
+gjsify install -D vitest        # save to devDependencies
+gjsify install -g @gjsify/cli   # global install under ~/.local/share/gjsify/global/
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `[packages..]` | — | Optional package specs. Omit for full project install. |
+| `-g`, `--global` | `false` | Install into `~/.local/share/gjsify/global/` and symlink bins into `~/.local/bin/`. |
+| `-D`, `--save-dev` | `false` | Save to `devDependencies`. |
+| `--save-peer` | `false` | Save to `peerDependencies`. |
+| `-O`, `--save-optional` | `false` | Save to `optionalDependencies`. |
+| `--immutable` | `false` | Refuse to update `gjsify-lock.json`; fail if it's missing or stale. Equivalent to `yarn --immutable` / `npm ci --frozen-lockfile`. |
+| `--verbose` | `false` | Per-package install log. |
+
+Resolver mirrors npm v3+ semantics: each `(requester → dep → range)` edge is checked against the ancestor `node_modules` chain; compatible placements are reused, conflicting ones are nested. Supports `npm`-style `overrides` and `yarn`-style `resolutions` in `package.json`. Lockfile schema is v2 (path-keyed `packages` map).
+
 ## `gjsify dlx`
 
 Run the GJS bundle of an npm-published package without persisting it in your project. Pattern follows `npx` / `yarn dlx` / `pnpm dlx`, but `dlx` here is strictly a **GJS-bundle runner**: it always invokes `gjs -m <bundle>` after resolving the package's GJS entry. Packages without a GJS entry fail loudly.
@@ -302,6 +326,48 @@ gjs -m dist/index.js
 ```
 
 </details>
+
+## `gjsify foreach`
+
+Run a workspace script across all (or filtered) workspaces. Drop-in for `yarn workspaces foreach`.
+
+```bash
+gjsify foreach build                          # run `build` in every workspace
+gjsify foreach -p -t build                    # parallel + topological order
+gjsify foreach --no-private build             # skip workspaces marked private:true
+gjsify foreach --include '@gjsify/web-*' test # glob filter
+gjsify foreach --exec -- npm publish --tag latest  # arbitrary command
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `[script]` | — | Script name to run; with `--exec`, the command to run. |
+| `[args..]` | — | Extra arguments forwarded to each invocation. |
+| `-A`, `--all` | `false` | Include workspaces declared as `private: true`. |
+| `-p`, `--parallel` | `false` | Run workspaces in parallel (capped by `--jobs`). |
+| `-t`, `--topological` | `false` | Wait for each workspace's prod-deps to finish before starting it. |
+| `--topological-dev` | `false` | Like `--topological` but also respects `devDependencies`. |
+| `--include <glob>` | — | Repeatable; include workspaces matching the glob. |
+| `--exclude <glob>` | — | Repeatable; exclude workspaces matching the glob. |
+| `--no-private` | — | Skip private workspaces. |
+| `-j`, `--jobs <n>` | cpu count | Max concurrent workspaces in `--parallel` mode. |
+| `--exec` | `false` | Treat `<script> [args..]` as an arbitrary command (use `-- <cmd>` to forward flags). |
+| `-v`, `--verbose` | `false` | Echo every spawned command. |
+
+## `gjsify workspace`
+
+Run a single script in a single workspace. Drop-in for `yarn workspace <name> run <script>`.
+
+```bash
+gjsify workspace @gjsify/cli build
+gjsify workspace @gjsify/fetch test:gjs
+```
+
+| Argument | Description |
+|---|---|
+| `<name>` | Workspace name (matches `package.json#name`). |
+| `<script>` | Script name to run. |
+| `[args..]` | Extra arguments forwarded to the script. |
 
 ## `gjsify check`
 
@@ -414,6 +480,24 @@ npx @gjsify/cli gresource data/org.example.App.data.gresource.xml \
 Requires `glib-compile-resources` (package: `glib2-devel` on Fedora, `libglib2.0-dev-bin` on Debian/Ubuntu).
 
 See it in action: [`adwaita-package-builder` showcase](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-package-builder) embeds `style.css` this way.
+
+## `gjsify gsettings`
+
+Compile GSettings schema XML files (`*.gschema.xml`) into a binary `gschemas.compiled`. Thin wrapper around `glib-compile-schemas`.
+
+```bash
+npx @gjsify/cli gsettings data/schemas
+npx @gjsify/cli gsettings data/schemas --targetdir dist/schemas
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `<schemadir>` | — | Directory containing `*.gschema.xml` files (required). |
+| `-t`, `--targetdir` | `<schemadir>` | Directory to write `gschemas.compiled` into. |
+| `--strict` | `true` | Pass `--strict` to `glib-compile-schemas` (warnings become errors). `--no-strict` to disable. |
+| `--verbose` | `false` | Print the underlying `glib-compile-schemas` invocation. |
+
+Requires `glib-compile-schemas` (package: `glib2-devel` on Fedora, `libglib2.0-dev-bin` on Debian/Ubuntu).
 
 ## `gjsify gettext`
 
@@ -597,6 +681,54 @@ gjsify uninstall -g <pkg1> <pkg2>        # remove multiple packages
 ```
 
 Scoped to `--global` only. Project-local removal (mirror of `npm uninstall <pkg>` without -g) requires rewriting `package.json` + refreshing the lockfile, which is a separate workstream.
+
+## `gjsify pack`
+
+Produce an npm-compatible `.tgz` tarball for a workspace. Drop-in for `npm pack`. Always rewrites `workspace:^/~/*` deps to resolved version ranges so the published tarball is portable. Honors the `files` allowlist + `.npmignore`/`.gitignore` with the same precedence as npm.
+
+```bash
+gjsify pack                                # pack the current workspace
+gjsify pack packages/infra/cli             # pack a specific workspace
+gjsify pack --pack-destination dist        # write the .tgz somewhere else
+gjsify pack --json                         # emit npm-pack-compatible metadata
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `[path]` | `cwd` | Workspace path to pack. |
+| `--pack-destination <dir>` | workspace cwd | Where to write the tarball. |
+| `--json` | `false` | Emit pack metadata as JSON on stdout (matches `npm pack --json`). |
+| `--dry-run` | `false` | Compute everything but do not write the `.tgz`. |
+
+Auto-includes `package.json`, `README*`, `LICENSE*`, `NOTICE*`, `main` and `bin` entries even if they're not in `files`.
+
+## `gjsify publish`
+
+Pack + upload a workspace to its npm registry. Drop-in for `npm publish`. Uses [`gjsify pack`](#gjsify-pack) under the hood (so the `workspace:^` rewrite happens automatically). Authenticates by reading `process.env.NPM_CONFIG_USERCONFIG` first (where `actions/setup-node@v6` writes the auth-token npmrc) with `~/.npmrc` as fallback.
+
+```bash
+gjsify publish                                  # publish current workspace
+gjsify publish packages/infra/cli --tag latest
+gjsify publish --access public                  # required for first publish of scoped pkg
+gjsify publish --tolerate-republish             # treat 409 conflict as success
+gjsify publish --dry-run                        # pack only, don't PUT
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `[path]` | `cwd` | Workspace path to publish. |
+| `--tag <tag>` | `latest` | npm dist-tag. |
+| `--access <kind>` | — | `public` or `restricted` (required on first publish of scoped packages). |
+| `--tolerate-republish` | `false` | Treat a 409 conflict (version already published) as success. Matches `yarn --tolerate-republish`. |
+| `--provenance` | `false` | Recorded in payload but no signing happens (no sigstore signer yet). |
+| `--dry-run` | `false` | Pack only, do not PUT. |
+| `--json` | `false` | Emit publish metadata as JSON. |
+
+Combine with [`gjsify foreach`](#gjsify-foreach) to publish every workspace in one go:
+
+```bash
+gjsify foreach --no-private --exec -- gjsify publish --tag latest --access public
+```
 
 | Option | Default | Description |
 |---|---|---|
