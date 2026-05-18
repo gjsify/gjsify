@@ -140,6 +140,40 @@ export default async () => {
 
         await Promise.all(workers.map(w => w.terminate()));
       });
+
+      await it('8-worker stress: increment a shared counter 10k times each, parent observes 80k', async () => {
+        const sb = SharedBuffer.create(64);
+        atomics.store32(sb, 0, 0);
+
+        const STRESS_WORKERS = 8;
+        const ITER_PER_WORKER = 10_000;
+
+        const workerSrc = `
+          const sb = workerData.sb;
+          const n = workerData.n;
+          for (let i = 0; i < n; i++) sb._nativeHandle.atomic_add_i32(0, 1);
+          parentPort.postMessage({ done: true });
+        `;
+
+        const workers: Worker[] = [];
+        for (let i = 0; i < STRESS_WORKERS; i++) {
+          workers.push(new Worker(workerSrc, {
+            eval: true,
+            workerData: { sb: sb, n: ITER_PER_WORKER },
+          }));
+        }
+
+        // Wait for every worker to send 'done'.
+        await Promise.all(workers.map(w => new Promise<void>((resolve, reject) => {
+          w.once('message', () => resolve());
+          w.once('error', reject);
+        })));
+
+        // No lost increments under contention.
+        expect(atomics.load32(sb, 0)).toBe(STRESS_WORKERS * ITER_PER_WORKER);
+
+        await Promise.all(workers.map(w => w.terminate()));
+      });
     });
 
   });
