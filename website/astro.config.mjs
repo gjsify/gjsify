@@ -50,8 +50,11 @@ export default defineConfig({
         {
           label: 'Guides',
           items: [
+            { slug: 'guides/install' },
+            { slug: 'guides/distributing-gjs-apps' },
             { slug: 'guides/dlx-packaging' },
             { slug: 'guides/self-executing-package' },
+            { slug: 'guides/flatpak-app' },
             { slug: 'guides/flatpak-cli-tool' },
           ],
         },

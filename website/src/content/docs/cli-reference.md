@@ -221,6 +221,30 @@ Unknown identifiers are silently ignored. If a `ReferenceError: X is not defined
 
 </details>
 
+## `gjsify install`
+
+Install npm dependencies for a project (or globally with `-g`). Drop-in for `npm install` / `yarn install`. Uses a native install backend (`@gjsify/semver` + `@gjsify/npm-registry` + `@gjsify/tar`) — no Node or npm CLI at runtime.
+
+```bash
+gjsify install                  # full project install
+gjsify install --immutable      # CI mode — install strictly from gjsify-lock.json
+gjsify install lodash           # add lodash, save to dependencies
+gjsify install -D vitest        # save to devDependencies
+gjsify install -g @gjsify/cli   # global install under ~/.local/share/gjsify/global/
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `[packages..]` | — | Optional package specs. Omit for full project install. |
+| `-g`, `--global` | `false` | Install into `~/.local/share/gjsify/global/` and symlink bins into `~/.local/bin/`. |
+| `-D`, `--save-dev` | `false` | Save to `devDependencies`. |
+| `--save-peer` | `false` | Save to `peerDependencies`. |
+| `-O`, `--save-optional` | `false` | Save to `optionalDependencies`. |
+| `--immutable` | `false` | Refuse to update `gjsify-lock.json`; fail if it's missing or stale. Equivalent to `yarn --immutable` / `npm ci --frozen-lockfile`. |
+| `--verbose` | `false` | Per-package install log. |
+
+Resolver mirrors npm v3+ semantics: each `(requester → dep → range)` edge is checked against the ancestor `node_modules` chain; compatible placements are reused, conflicting ones are nested. Supports `npm`-style `overrides` and `yarn`-style `resolutions` in `package.json`. Lockfile schema is v2 (path-keyed `packages` map).
+
 ## `gjsify dlx`
 
 Run the GJS bundle of an npm-published package without persisting it in your project. Pattern follows `npx` / `yarn dlx` / `pnpm dlx`, but `dlx` here is strictly a **GJS-bundle runner**: it always invokes `gjs -m <bundle>` after resolving the package's GJS entry. Packages without a GJS entry fail loudly.
@@ -302,6 +326,48 @@ gjs -m dist/index.js
 ```
 
 </details>
+
+## `gjsify foreach`
+
+Run a workspace script across all (or filtered) workspaces. Drop-in for `yarn workspaces foreach`.
+
+```bash
+gjsify foreach build                          # run `build` in every workspace
+gjsify foreach -p -t build                    # parallel + topological order
+gjsify foreach --no-private build             # skip workspaces marked private:true
+gjsify foreach --include '@gjsify/web-*' test # glob filter
+gjsify foreach --exec -- npm publish --tag latest  # arbitrary command
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `[script]` | — | Script name to run; with `--exec`, the command to run. |
+| `[args..]` | — | Extra arguments forwarded to each invocation. |
+| `-A`, `--all` | `false` | Include workspaces declared as `private: true`. |
+| `-p`, `--parallel` | `false` | Run workspaces in parallel (capped by `--jobs`). |
+| `-t`, `--topological` | `false` | Wait for each workspace's prod-deps to finish before starting it. |
+| `--topological-dev` | `false` | Like `--topological` but also respects `devDependencies`. |
+| `--include <glob>` | — | Repeatable; include workspaces matching the glob. |
+| `--exclude <glob>` | — | Repeatable; exclude workspaces matching the glob. |
+| `--no-private` | — | Skip private workspaces. |
+| `-j`, `--jobs <n>` | cpu count | Max concurrent workspaces in `--parallel` mode. |
+| `--exec` | `false` | Treat `<script> [args..]` as an arbitrary command (use `-- <cmd>` to forward flags). |
+| `-v`, `--verbose` | `false` | Echo every spawned command. |
+
+## `gjsify workspace`
+
+Run a single script in a single workspace. Drop-in for `yarn workspace <name> run <script>`.
+
+```bash
+gjsify workspace @gjsify/cli build
+gjsify workspace @gjsify/fetch test:gjs
+```
+
+| Argument | Description |
+|---|---|
+| `<name>` | Workspace name (matches `package.json#name`). |
+| `<script>` | Script name to run. |
+| `[args..]` | Extra arguments forwarded to the script. |
 
 ## `gjsify check`
 
@@ -415,6 +481,24 @@ Requires `glib-compile-resources` (package: `glib2-devel` on Fedora, `libglib2.0
 
 See it in action: [`adwaita-package-builder` showcase](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-package-builder) embeds `style.css` this way.
 
+## `gjsify gsettings`
+
+Compile GSettings schema XML files (`*.gschema.xml`) into a binary `gschemas.compiled`. Thin wrapper around `glib-compile-schemas`.
+
+```bash
+npx @gjsify/cli gsettings data/schemas
+npx @gjsify/cli gsettings data/schemas --targetdir dist/schemas
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `<schemadir>` | — | Directory containing `*.gschema.xml` files (required). |
+| `-t`, `--targetdir` | `<schemadir>` | Directory to write `gschemas.compiled` into. |
+| `--strict` | `true` | Pass `--strict` to `glib-compile-schemas` (warnings become errors). `--no-strict` to disable. |
+| `--verbose` | `false` | Print the underlying `glib-compile-schemas` invocation. |
+
+Requires `glib-compile-schemas` (package: `glib2-devel` on Fedora, `libglib2.0-dev-bin` on Debian/Ubuntu).
+
 ## `gjsify gettext`
 
 Compile gettext `.po` files for GNOME apps. Wraps `msgfmt` with the common output shapes — per-language locale tree (`.mo`), metainfo template substitution (`.xml`), and two less-common formats (`.desktop`, `.json`).
@@ -446,6 +530,110 @@ Requires `msgfmt` (package: `gettext`).
 See it in action: [`adwaita-package-builder` showcase](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-package-builder) uses both `--format mo` (runtime `.mo` tree) and `--format xml --metainfo` (AppStream substitution).
 
 Before running, `gjsify showcase` calls `gjsify check` to verify system dependencies.
+
+## `gjsify flatpak`
+
+Subcommand group for shipping GJS apps and CLIs as Flatpaks. Five subcommands:
+
+| Subcommand | Purpose |
+|---|---|
+| `flatpak init` | Scaffold the full Flathub-ready asset set: manifest JSON + MetaInfo XML + `.desktop` (apps only) + `flathub.json` |
+| `flatpak check` | Run `appstreamcli validate --strict` + `flatpak-builder-lint manifest` locally |
+| `flatpak build` | Wrap `flatpak-builder` with sensible defaults |
+| `flatpak deps` | Wrap `flatpak-node-generator` to produce the offline npm cache |
+| `flatpak ci` | Scaffold `.github/workflows/flatpak.yml` matching the Flathub action shape |
+
+End-to-end guides: [Ship a GJS app as a Flatpak](./guides/flatpak-app/) | [Ship a CLI tool as a Flatpak](./guides/flatpak-cli-tool/).
+
+### `gjsify flatpak init`
+
+Generate the full Flathub asset bundle from `package.json#gjsify.flatpak`.
+
+```bash
+# Default — GTK/Adwaita desktop app
+npx @gjsify/cli flatpak init
+
+# CLI tool — no .desktop, console-application MetaInfo, skip-icons-check
+npx @gjsify/cli flatpak init --kind cli
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--app-id` | `gjsify.flatpak.appId` or `package.json#name` | Reverse-DNS app id |
+| `--kind <app\|cli>` | `app` | Template kind. `cli` emits `console-application` MetaInfo + `flathub.json` with `skip-icons-check: true`, no `.desktop`. |
+| `--cli-only` | `false` | Deprecated alias for `--kind cli`. |
+| `--runtime <gnome\|freedesktop>` | `gnome` | Runtime family. Both kinds default to GNOME because GJS bundles need GLib/GIO at runtime. |
+| `--runtime-version` | `50` (gnome) / `24.08` (freedesktop) | Runtime version |
+| `--manifest <path>` | `<app-id>.json` | Manifest output path |
+| `--metainfo <path>` | `data/<app-id>.metainfo.xml.in` | MetaInfo XML output path |
+| `--desktop <path>` | `data/<app-id>.desktop.in` | `.desktop` output path (kind=app only) |
+| `--flathub-json <path>` | `flathub.json` | flathub.json output path |
+| `--command` | `gjsify.flatpak.command` or app id | Binary name in `/app/bin` |
+| `--sdk-extension <ext>` | — | Repeatable; extra SDK extension (e.g. `org.freedesktop.Sdk.Extension.node24`) |
+| `--finish-arg <arg>` | — | Repeatable; appended to default finish-args |
+| `--force` | `false` | Overwrite existing outputs (default: skip-and-log) |
+| `--verbose` | `false` | Print resolved fields before writing |
+
+**Non-destructive contract:** each output (manifest / metainfo / desktop / flathub.json) is independently checked for existence; existing files are skipped with a log line. Re-run with `--force` to overwrite. User edits to one file (e.g. a hand-tuned `.desktop`) don't block re-running `init` to refresh the others.
+
+**Config gaps degrade gracefully:** missing MetaInfo fields are reported with per-field hints pointing at the exact `gjsify.flatpak.<key>` to set. The manifest still writes; MetaInfo + .desktop are skipped until you fill the gaps and re-run. Full field list:
+
+| `gjsify.flatpak.<key>` | Required for | Notes |
+|---|---|---|
+| `appId` | both | Reverse-DNS. |
+| `kind` | both | `"app"` (default) or `"cli"`. |
+| `developer.id` / `developer.name` | metainfo | AppStream OARS 1.1+ requires `<developer id="…">`. |
+| `developer.email` | optional | Emits `<email>` inside `<developer>`. |
+| `developer.nameTranslatable` | optional | Default `false` → emits `translate="no"`. Set `true` for descriptive names. |
+| `summary` | metainfo | ≤80 chars, no trailing period. |
+| `summaryTranslatorHint` | optional | Emits `<!-- TRANSLATORS: ... -->` before `<summary>`. |
+| `description` | metainfo | **String** form (blank-line-split into `<p>`) or **`DescriptionBlock[]`** (`{p, translatorHint?}` paragraphs and `{ul:[...], translatorHint?}` bullet lists). |
+| `license.metadata` | metainfo | SPDX id; defaults to `CC0-1.0` when absent. |
+| `license.project` | metainfo | SPDX id of the software project. |
+| `homepageUrl` | metainfo | `<url type="homepage">`. |
+| `bugtrackerUrl` / `vcsBrowserUrl` / `donationUrl` / `translateUrl` | optional | Extra `<url>` entries. `translateUrl` is the Weblate/Crowdin URL. |
+| `iconRemote` | optional | `<icon type="remote">` — useful for Flathub thumbnail before local SVG ships. |
+| `categories` | metainfo (app) / desktop | Freedesktop Menu spec categories. |
+| `keywords` | optional | Search keywords. |
+| `releases` | metainfo | `[{ version, date, description? }]`. Flathub requires ≥1. `description` accepts the same string-or-block-array shape. |
+| `screenshots` | optional (app) | `[{ url, caption?, captionTranslatorHint?, environment?, type? }]`. |
+| `branding` | optional (app) | `{ accentLight, accentDark }` hex colours. |
+| `icon` | optional (app) | Path to scalable SVG; warning if missing. |
+| `contentRating` | optional | OARS keyword string (default `oars-1.1`) **or** `{ type?, attributes? }` with OARS keys (`social-info`, `language-humor`, …) → `none\|mild\|moderate\|intense`. |
+| `kudos` | optional | `["ModernToolkit", "HiDpiIcon", "TouchscreenSupport", "UserDocs", ...]` — Flathub-recognised quality markers. |
+| `provides.binaries` | optional | Defaults to `[command]`. |
+| `provides.mimetypes` / `provides.dbus` | optional | Extra `<mediatype>` / `<dbus>` entries. |
+| `supports.controls` | optional | `["keyboard", "pointing", "touch", "gamepad", "tablet", "console", "vision"]`. |
+| `supports.internet` | optional | `"always" \| "offline-only" \| "first-run"`. |
+| `requires.displayLengthMin` / `recommends.displayLengthMin` | optional | Minimum display length in pixels. Phone-portrait min ≈ 360, tablet recommendation ≈ 480. |
+| `requires.controls` / `recommends.controls` | optional | Hard / soft control requirements. |
+
+For multilingual apps, every translatable string (`summary`, `description` paragraphs + list items, screenshot captions, release notes) supports a parallel `translatorHint` field that emits a `<!-- TRANSLATORS: ... -->` comment in the generated `.metainfo.xml.in` — `xgettext` / `msgfmt --xml --template` picks these up and forwards them to the `.po` files so contributors on Weblate / Crowdin see the context. See the [flatpak-app guide → Rich AppStream features](/gjsify/guides/flatpak-app/#rich-appstream-features-i18n-ready) for a worked example.
+
+### `gjsify flatpak check`
+
+Run Flathub linters locally — same checks Flathub's PR CI runs.
+
+```bash
+npx @gjsify/cli flatpak check                              # auto-detect manifest
+npx @gjsify/cli flatpak check eu.jumplink.Learn6502.json   # explicit manifest
+npx @gjsify/cli flatpak check --repo repo                  # also lint a built repo
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `[manifest]` | auto | Manifest path; defaults to `<app-id>.json` or the single `.json` matching a manifest shape. |
+| `--metainfo <path>` | `data/<app-id>.metainfo.xml.in` | MetaInfo to validate; skipped if missing. |
+| `--repo <path>` | — | If set, also runs `flatpak-builder-lint repo <path>` (post-build). |
+| `--appstream` | `true` | Toggle `appstreamcli validate --strict`. `--no-appstream` to skip. |
+| `--builder-lint` | `true` | Toggle `flatpak-builder-lint`. `--no-builder-lint` to skip. |
+| `--verbose` | `false` | Stream linter stdout/stderr through. |
+
+Requires `appstreamcli` and `flatpak-builder-lint` on `PATH`. Both ship inside the `org.flatpak.Builder` Flatpak — install via `flatpak install -y flathub org.flatpak.Builder`; check prints this hint on `ENOENT`. Exit code aggregates: non-zero if any linter fails or any required binary is missing.
+
+### `gjsify flatpak build`, `deps`, `ci`
+
+See the [flatpak-app guide](./guides/flatpak-app/) for usage examples; flags are stable since v0.4.x.
 
 ## `gjsify self-update`
 
@@ -506,6 +694,54 @@ gjsify uninstall -g <pkg1> <pkg2>        # remove multiple packages
 ```
 
 Scoped to `--global` only. Project-local removal (mirror of `npm uninstall <pkg>` without -g) requires rewriting `package.json` + refreshing the lockfile, which is a separate workstream.
+
+## `gjsify pack`
+
+Produce an npm-compatible `.tgz` tarball for a workspace. Drop-in for `npm pack`. Always rewrites `workspace:^/~/*` deps to resolved version ranges so the published tarball is portable. Honors the `files` allowlist + `.npmignore`/`.gitignore` with the same precedence as npm.
+
+```bash
+gjsify pack                                # pack the current workspace
+gjsify pack packages/infra/cli             # pack a specific workspace
+gjsify pack --pack-destination dist        # write the .tgz somewhere else
+gjsify pack --json                         # emit npm-pack-compatible metadata
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `[path]` | `cwd` | Workspace path to pack. |
+| `--pack-destination <dir>` | workspace cwd | Where to write the tarball. |
+| `--json` | `false` | Emit pack metadata as JSON on stdout (matches `npm pack --json`). |
+| `--dry-run` | `false` | Compute everything but do not write the `.tgz`. |
+
+Auto-includes `package.json`, `README*`, `LICENSE*`, `NOTICE*`, `main` and `bin` entries even if they're not in `files`.
+
+## `gjsify publish`
+
+Pack + upload a workspace to its npm registry. Drop-in for `npm publish`. Uses [`gjsify pack`](#gjsify-pack) under the hood (so the `workspace:^` rewrite happens automatically). Authenticates by reading `process.env.NPM_CONFIG_USERCONFIG` first (where `actions/setup-node@v6` writes the auth-token npmrc) with `~/.npmrc` as fallback.
+
+```bash
+gjsify publish                                  # publish current workspace
+gjsify publish packages/infra/cli --tag latest
+gjsify publish --access public                  # required for first publish of scoped pkg
+gjsify publish --tolerate-republish             # treat 409 conflict as success
+gjsify publish --dry-run                        # pack only, don't PUT
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `[path]` | `cwd` | Workspace path to publish. |
+| `--tag <tag>` | `latest` | npm dist-tag. |
+| `--access <kind>` | — | `public` or `restricted` (required on first publish of scoped packages). |
+| `--tolerate-republish` | `false` | Treat a 409 conflict (version already published) as success. Matches `yarn --tolerate-republish`. |
+| `--provenance` | `false` | Recorded in payload but no signing happens (no sigstore signer yet). |
+| `--dry-run` | `false` | Pack only, do not PUT. |
+| `--json` | `false` | Emit publish metadata as JSON. |
+
+Combine with [`gjsify foreach`](#gjsify-foreach) to publish every workspace in one go:
+
+```bash
+gjsify foreach --no-private --exec -- gjsify publish --tag latest --access public
+```
 
 | Option | Default | Description |
 |---|---|---|

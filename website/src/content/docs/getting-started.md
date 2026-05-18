@@ -5,15 +5,29 @@ description: Scaffold, build and run your first GJSify project
 
 ## Quick Start
 
+**Node-free (recommended)** — install `@gjsify/cli` with one curl line:
+
+```bash
+curl -fsSL https://github.com/gjsify/gjsify/releases/latest/download/install.mjs \
+  -o /tmp/g.mjs && gjs -m /tmp/g.mjs && rm /tmp/g.mjs
+
+gjsify create my-app
+cd my-app
+gjsify install
+gjsify run dev
+```
+
+Or if you already have Node.js installed:
+
 ```bash
 npx @gjsify/cli create my-app
 cd my-app && npm install
 npm run dev
 ```
 
-That's it — a GTK 4 window running your TypeScript, natively on Linux.
+Either way: a GTK 4 window running your TypeScript, natively on Linux. See the [Install guide](/gjsify/guides/install/) for `~/.local/bin` PATH setup, [`gjsify self-update`](/gjsify/cli-reference/#gjsify-self-update), and [`gjsify uninstall`](/gjsify/cli-reference/#gjsify-uninstall).
 
-> **Tip:** Run `npx @gjsify/cli --help` to see all available commands at a glance.
+> **Tip:** Run `gjsify --help` (or `npx @gjsify/cli --help`) to see all available subcommands.
 
 ## Prerequisites
 
@@ -21,8 +35,8 @@ You need a few system packages:
 
 - **GJS** 1.86+ — the GNOME JavaScript runtime (SpiderMonkey 140)
 - **GTK 4** — the UI toolkit
-- **Node.js** 24+ — build time only (for `npm`/`npx`)
 - **libsoup3** — HTTP, WebSocket and `fetch` at runtime
+- **Node.js** 24+ — *optional*, only needed if you prefer `npm install` / `npx` over the Node-free bootstrap above
 
 <details>
 <summary>Install commands</summary>
@@ -130,6 +144,9 @@ See the [CLI Reference](/gjsify/cli-reference/#known-identifiers) for the full l
 
 ## Next steps
 
+- [Install guide](/gjsify/guides/install/) — Node-free bootstrap, self-update, uninstall
+- [Distribute your GJS app](/gjsify/guides/distributing-gjs-apps/) — ship a one-line installer for your own package
+- [Ship a GJS app as a Flatpak](/gjsify/guides/flatpak-app/) — submit to Flathub
 - [CLI Reference](/gjsify/cli-reference/) — all `gjsify` subcommands and flags
 - [How It Works](/gjsify/how-it-works/) — auto-aliasing, prebuilds and the GJS build pipeline
 - [Packages Overview](/gjsify/packages/overview/) — 57+ Node.js, Web and DOM packages
