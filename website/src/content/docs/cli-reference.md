@@ -446,3 +446,51 @@ Requires `msgfmt` (package: `gettext`).
 See it in action: [`adwaita-package-builder` showcase](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-package-builder) uses both `--format mo` (runtime `.mo` tree) and `--format xml --metainfo` (AppStream substitution).
 
 Before running, `gjsify showcase` calls `gjsify check` to verify system dependencies.
+
+## `gjsify self-update`
+
+Refresh the installed `@gjsify/cli` to the latest release (or a pinned dist-tag).
+
+```bash
+gjsify self-update              # install latest
+gjsify self-update --check      # diff only, exit 1 if outdated
+gjsify self-update --force      # reinstall identical version
+gjsify self-update --tag next   # install a specific dist-tag (or version)
+```
+
+Walks `import.meta.url` to find the CLI's own `package.json`, fetches the matching `dist-tag` via `@gjsify/npm-registry`, then re-uses the install backend that powers `gjsify install -g` (handles transitive native prebuilds, lockfile, bin shims).
+
+Only works for CLIs installed under `~/.local/share/gjsify/global/` (the `install.mjs` bootstrap or `gjsify install -g`). Installs from `npm install -g` land outside that prefix; `self-update` surfaces a warning pointing at the new bootstrap.
+
+| Option | Default | Description |
+|---|---|---|
+| `--check` | `false` | Compare current vs target without installing. Exit 0 if up-to-date, 1 if outdated. |
+| `--force` | `false` | Reinstall even when target matches current. |
+| `--tag` | `latest` | npm dist-tag or pinned version. |
+
+## `gjsify generate-installer`
+
+Scaffold an `install.mjs` for your own GJS-runnable npm package — your users get the same `curl ... | gjs -m -` install story as gjsify itself.
+
+```bash
+cd my-gjs-app
+gjsify generate-installer
+# → install.mjs written. Commit it.
+
+# Optional flags:
+gjsify generate-installer \
+  --target @my-org/my-app \
+  --bin-name my-app \
+  --bootstrap-url https://example.com/cli.gjs.mjs \
+  --output bin/install.mjs --force
+```
+
+The generated `install.mjs` is a verbatim copy of gjsify's own root `install.mjs` with three constants substituted (`DEFAULT_TARGET`, `DEFAULT_BIN_NAME`, `DEFAULT_BOOTSTRAP_URL`). See the [Distributing GJS apps guide](/guides/distributing-gjs-apps/) for the full publication workflow.
+
+| Option | Default | Description |
+|---|---|---|
+| `[target]` (positional) | `package.json#name` | npm package to install. |
+| `--bin-name <name>` | first key of `gjsify.bin` or `bin` | Bin name produced by the installer. |
+| `--bootstrap-url <url>` | gjsify GH `releases/latest/download/cli.gjs.mjs` | Override the bootstrap bundle source. |
+| `--output <file>` | `install.mjs` | Where to write the installer. |
+| `--force` | `false` | Overwrite an existing file. |
