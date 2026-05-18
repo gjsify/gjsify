@@ -16,6 +16,8 @@ on:
       - 'packages/node/http-soup-bridge/meson.build'
       - 'packages/node/http2-native/src/vala/**'
       - 'packages/node/http2-native/meson.build'
+      - 'packages/node/sab-native/src/vala/**'
+      - 'packages/node/sab-native/meson.build'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/rolldown-native/src/**'
@@ -171,6 +173,33 @@ jobs:
         with:
           name: http2-native-prebuilds-linux-${{ matrix.arch }}
           path: packages/node/http2-native/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
+      # -------- @gjsify/sab-native (GjsifySabNative) --------
+      # Pure libc (memfd_create, mmap, futex, socketpair, SCM_RIGHTS) — no
+      # external libraries. Backs cross-process SharedBuffer for
+      # @gjsify/worker_threads.
+      - name: Build @gjsify/sab-native Vala library
+        working-directory: packages/node/sab-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/sab-native prebuilds
+        working-directory: packages/node/sab-native
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p "prebuilds/linux-${ARCH}"
+          cp build/libgjsifysabnative.so build/GjsifySabNative-1.0.gir build/GjsifySabNative-1.0.typelib "prebuilds/linux-${ARCH}/"
+          echo "@gjsify/sab-native prebuilds for linux-${ARCH}:"
+          ls -lh "prebuilds/linux-${ARCH}/"
+
+      - name: Upload @gjsify/sab-native prebuilds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sab-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/node/sab-native/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
       # -------- @gjsify/lightningcss-native (GjsifyLightningcss) --------
@@ -375,6 +404,16 @@ jobs:
             ls -lh "prebuilds/linux-${ARCH}/"
             cd ../../..
 
+            # -------- @gjsify/sab-native --------
+            cd packages/node/sab-native
+            meson setup build .
+            meson compile -C build
+            mkdir -p "prebuilds/linux-${ARCH}"
+            cp build/libgjsifysabnative.so build/GjsifySabNative-1.0.gir build/GjsifySabNative-1.0.typelib "prebuilds/linux-${ARCH}/"
+            echo "@gjsify/sab-native prebuilds for linux-${ARCH}:"
+            ls -lh "prebuilds/linux-${ARCH}/"
+            cd ../../..
+
             # -------- @gjsify/lightningcss-native --------
             # Pure crates.io deps (no submodule). Cargo download + compile
             # under QEMU is the slow step here — single-arch cold build
@@ -424,6 +463,13 @@ jobs:
         with:
           name: http2-native-prebuilds-linux-${{ matrix.arch }}
           path: packages/node/http2-native/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
+      - name: Upload @gjsify/sab-native prebuilds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sab-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/node/sab-native/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
       - name: Upload @gjsify/lightningcss-native prebuilds artifact
@@ -571,6 +617,37 @@ jobs:
           name: http2-native-prebuilds-linux-riscv64
           path: packages/node/http2-native/prebuilds/linux-riscv64/
 
+      # -------- @gjsify/sab-native --------
+      - name: Download sab-native x86_64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: sab-native-prebuilds-linux-x86_64
+          path: packages/node/sab-native/prebuilds/linux-x86_64/
+
+      - name: Download sab-native aarch64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: sab-native-prebuilds-linux-aarch64
+          path: packages/node/sab-native/prebuilds/linux-aarch64/
+
+      - name: Download sab-native ppc64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: sab-native-prebuilds-linux-ppc64
+          path: packages/node/sab-native/prebuilds/linux-ppc64/
+
+      - name: Download sab-native s390x prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: sab-native-prebuilds-linux-s390x
+          path: packages/node/sab-native/prebuilds/linux-s390x/
+
+      - name: Download sab-native riscv64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: sab-native-prebuilds-linux-riscv64
+          path: packages/node/sab-native/prebuilds/linux-riscv64/
+
       # -------- @gjsify/lightningcss-native --------
       - name: Download lightningcss-native x86_64 prebuilds
         uses: actions/download-artifact@v4
@@ -624,6 +701,7 @@ jobs:
             packages/web/webrtc-native/prebuilds/ \
             packages/node/http-soup-bridge/prebuilds/ \
             packages/node/http2-native/prebuilds/ \
+            packages/node/sab-native/prebuilds/ \
             packages/infra/lightningcss-native/prebuilds/ \
             packages/infra/rolldown-native/prebuilds/
           if git diff --cached --quiet; then
