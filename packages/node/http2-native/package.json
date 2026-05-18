@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/http2-native",
-    "version": "0.4.10",
+    "version": "0.4.11",
     "description": "Optional Vala/GObject bridge providing nghttp2 primitives unreachable through libsoup's high-level GIR API: HPACK header-block encoding (for PUSH_PROMISE / DATA frames), server-side push stream-ID allocation, and a thin nghttp2_session wrapper for future cleartext HTTP/2 (h2c) support. Used by @gjsify/http2 to back ServerHttp2Stream.pushStream() / respondWithFD() / respondWithFile() and enable createServer() over plain TCP once the full Soup ↔ nghttp2 boundary is in place.",
     "type": "module",
     "main": "lib/esm/index.js",

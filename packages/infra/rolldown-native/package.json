@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/rolldown-native",
-    "version": "0.4.10",
+    "version": "0.4.11",
     "description": "Phase D-2 POC: Vala/GObject + Rust cdylib bridge to rolldown for GJS. Wraps `rolldown::Bundler::generate()` (async, tokio) in a per-call current-thread runtime so JS sees a sync `bundle()` call. JSON-encoded BundlerOptions in, JSON-encoded BundleOutput out — the boundary stays small even though rolldown's option surface is enormous. POC scope: no JS plugins (Phase B), no watch/HMR, no incremental builds. Companion to `@gjsify/lightningcss-native`; together they remove the last two Rust-crate runtime blockers from the gjsify build pipeline (Phase D-3 unblock).",
     "type": "module",
     "main": "lib/esm/index.js",

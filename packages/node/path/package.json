@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/path",
-    "version": "0.4.10",
+    "version": "0.4.11",
     "description": "Node.js path module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

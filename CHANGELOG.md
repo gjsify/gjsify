@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.11](https://github.com/gjsify/gjsify/compare/v0.4.10...v0.4.11) (2026-05-18)
+
+### Features
+
+* **cli:** Phase F.8 — gjsify uninstall -g <pkg> ([#189](https://github.com/gjsify/gjsify/issues/189)) ([8b68faa](https://github.com/gjsify/gjsify/commit/8b68faae7ce94bc2568e7d5942668c16fb28fdd4))
+
+### Bug Fixes
+
+* **ci:** release.yml needs contents:write to upload GH release assets ([#187](https://github.com/gjsify/gjsify/issues/187)) ([ecb897d](https://github.com/gjsify/gjsify/commit/ecb897d10d116fff71cf02c69c19a845fd41cabd))
+
 ## [0.4.10](https://github.com/gjsify/gjsify/compare/v0.4.9...v0.4.10) (2026-05-17)
 
 ### Features
