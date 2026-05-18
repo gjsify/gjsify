@@ -357,6 +357,125 @@ describe('CLI flatpak subcommand group E2E', { timeout: 10 * 60 * 1000 }, () => 
     assert.deepEqual(manifest['finish-args'], []);
   });
 
+  // ── Phase F.9.6 — rich AppStream surface ───────────────────────────────
+
+  it('flatpak init --kind app with rich AppStream config emits all advanced sections', () => {
+    const richProjectDir = join(tmpDir, 'flatpak-init-rich');
+    mkdirSync(richProjectDir, { recursive: true });
+    setupProject(richProjectDir, {
+      name: 'org.example.RichApp',
+      version: '1.0.0',
+      type: 'module',
+      private: true,
+      dependencies: { '@gjsify/cli': '^0.1.0' },
+      gjsify: {
+        flatpak: {
+          appId: 'org.example.RichApp',
+          kind: 'app',
+          developer: { id: 'org.example', name: 'Example Dev', email: 'hi@example.com' },
+          summary: 'Rich content demo',
+          summaryTranslatorHint: 'App tagline shown in app stores',
+          description: [
+            { p: 'Welcome paragraph.', translatorHint: 'Intro shown first in app stores' },
+            { ul: [
+              { item: 'First feature', translatorHint: 'Feature 1' },
+              'Second feature',
+            ], translatorHint: 'Feature list' },
+            { p: 'Closing call to action.' },
+          ],
+          license: { metadata: 'CC0-1.0', project: 'MIT' },
+          homepageUrl: 'https://example.org',
+          translateUrl: 'https://hosted.weblate.org/projects/example/app/',
+          iconRemote: 'https://example.org/icon.svg',
+          categories: ['Education'],
+          kudos: ['ModernToolkit', 'HiDpiIcon', 'UserDocs'],
+          supports: { controls: ['keyboard', 'pointing', 'touch'], internet: 'offline-only' },
+          requires: { displayLengthMin: 360 },
+          recommends: { displayLengthMin: 480 },
+          contentRating: {
+            type: 'oars-1.1',
+            attributes: { 'social-info': 'mild', 'language-humor': 'mild' },
+          },
+          provides: { binaries: ['example-cli', 'example-helper'], mimetypes: ['application/x-example'] },
+          releases: [
+            {
+              version: '1.0.0',
+              date: '2026-05-18',
+              description: [
+                { p: 'Initial rich release.', translatorHint: 'Release notes for 1.0' },
+                { ul: ['Feature A', 'Feature B'] },
+              ],
+            },
+            { version: '0.9.0', date: '2026-04-15' },
+          ],
+          screenshots: [{
+            url: 'https://example.org/s1.png',
+            caption: 'Main view',
+            captionTranslatorHint: 'Screenshot of the main view',
+          }],
+        },
+      },
+    }, tarballsDir, tarballMap);
+
+    execFileSync('npx', ['gjsify', 'flatpak', 'init'], {
+      cwd: richProjectDir,
+      stdio: 'pipe',
+      timeout: 60 * 1000,
+    });
+
+    const metainfo = readFileSync(
+      join(richProjectDir, 'data/org.example.RichApp.metainfo.xml.in'),
+      'utf-8',
+    );
+
+    // Translator hints land on the right tags
+    assert.match(metainfo, /<!-- TRANSLATORS: App tagline shown in app stores -->\s*<summary>Rich content demo<\/summary>/);
+    assert.match(metainfo, /<!-- TRANSLATORS: Intro shown first in app stores -->\s*<p>Welcome paragraph\.<\/p>/);
+    assert.match(metainfo, /<!-- TRANSLATORS: Feature list -->\s*<ul>/);
+    assert.match(metainfo, /<!-- TRANSLATORS: Feature 1 -->\s*<li>First feature<\/li>/);
+    assert.match(metainfo, /<!-- TRANSLATORS: Screenshot of the main view -->\s*<caption>Main view<\/caption>/);
+    assert.match(metainfo, /<!-- TRANSLATORS: Release notes for 1\.0 -->\s*<p>Initial rich release\.<\/p>/);
+
+    // Developer: nameTranslatable defaults to false → translate="no"
+    assert.match(metainfo, /<name translate="no">Example Dev<\/name>/);
+    assert.match(metainfo, /<email>hi@example\.com<\/email>/);
+
+    // Bullet list rendered with mixed string + {item} forms
+    assert.match(metainfo, /<li>First feature<\/li>/);
+    assert.match(metainfo, /<li>Second feature<\/li>/);
+
+    // iconRemote, translateUrl
+    assert.match(metainfo, /<icon type="remote">https:\/\/example\.org\/icon\.svg<\/icon>/);
+    assert.match(metainfo, /<url type="translate">https:\/\/hosted\.weblate\.org/);
+
+    // content_rating with attributes
+    assert.match(metainfo, /<content_rating type="oars-1\.1">/);
+    assert.match(metainfo, /<content_attribute id="social-info">mild<\/content_attribute>/);
+    assert.match(metainfo, /<content_attribute id="language-humor">mild<\/content_attribute>/);
+
+    // kudos
+    assert.match(metainfo, /<kudo>ModernToolkit<\/kudo>/);
+    assert.match(metainfo, /<kudo>HiDpiIcon<\/kudo>/);
+
+    // provides — explicit binaries + mediatype
+    assert.match(metainfo, /<binary>example-cli<\/binary>/);
+    assert.match(metainfo, /<binary>example-helper<\/binary>/);
+    assert.match(metainfo, /<mediatype>application\/x-example<\/mediatype>/);
+
+    // supports + internet
+    assert.match(metainfo, /<supports>[\s\S]*<control>keyboard<\/control>[\s\S]*<control>pointing<\/control>[\s\S]*<control>touch<\/control>[\s\S]*<internet>offline-only<\/internet>[\s\S]*<\/supports>/);
+
+    // requires + recommends with display_length
+    assert.match(metainfo, /<requires>\s*<display_length compare="ge">360<\/display_length>\s*<\/requires>/);
+    assert.match(metainfo, /<recommends>\s*<display_length compare="ge">480<\/display_length>\s*<\/recommends>/);
+
+    // Per-release rich description with embedded <ul>
+    assert.match(metainfo, /<release version="1\.0\.0" date="2026-05-18">[\s\S]*<description>[\s\S]*<p>Initial rich release\.<\/p>[\s\S]*<ul>[\s\S]*<li>Feature A<\/li>[\s\S]*<\/ul>[\s\S]*<\/description>[\s\S]*<\/release>/);
+
+    // Release without description renders as self-closed
+    assert.match(metainfo, /<release version="0\.9\.0" date="2026-04-15" \/>/);
+  });
+
   // ── Phase F.9.2 — check command ────────────────────────────────────────
 
   it('flatpak check shells out to appstreamcli + flatpak-builder-lint and surfaces failures', () => {

@@ -74,6 +74,97 @@ What each block does:
 * **`branding`** — light + dark accent colours rendered into GNOME Software's app card; optional but recommended.
 * **`icon`** — scalable SVG path. Flathub mandates an SVG (PNG-only is rejected); a missing icon path triggers a warning, not an error.
 
+## Rich AppStream features (i18n-ready)
+
+The simple `description: "string"` form above splits on blank lines into `<p>` blocks. For richer content — bullet lists, per-string translator hints, kudos, supports/requires, content_rating attributes — use the full schema:
+
+```jsonc
+{
+  "gjsify": {
+    "flatpak": {
+      // ...basic fields above...
+
+      "summaryTranslatorHint": "App tagline shown in app stores",
+
+      "description": [
+        { "p": "Discover the fascinating world of 6502 assembly!",
+          "translatorHint": "App store intro paragraph" },
+        { "ul": [
+            { "item": "Interactive tutorials guide you step by step",
+              "translatorHint": "Tutorial feature bullet" },
+            "Built-in code editor with syntax highlighting",
+            { "item": "Debug your programs with real-time inspection",
+              "translatorHint": "Debugger feature bullet" }
+          ], "translatorHint": "Feature list intro hint" },
+        { "p": "Perfect for hobbyists, students, and curious minds." }
+      ],
+
+      "developer": {
+        "id": "eu.jumplink",
+        "name": "Pascal Garber",
+        "email": "pascal@example.com",
+        "nameTranslatable": false
+      },
+
+      "translateUrl": "https://hosted.weblate.org/projects/your-project/app/",
+      "iconRemote": "https://raw.githubusercontent.com/you/your-repo/main/data/icons/hicolor/scalable/apps/eu.jumplink.Learn6502.svg",
+
+      "kudos": ["ModernToolkit", "HiDpiIcon", "TouchscreenSupport", "UserDocs"],
+
+      "supports": {
+        "controls": ["keyboard", "pointing", "touch"]
+      },
+      "requires": {
+        "displayLengthMin": 360
+      },
+      "recommends": {
+        "displayLengthMin": 480
+      },
+
+      "contentRating": {
+        "type": "oars-1.1",
+        "attributes": {
+          "social-info": "mild",
+          "language-humor": "mild"
+        }
+      },
+
+      "provides": {
+        "binaries": ["eu.jumplink.Learn6502"],
+        "mimetypes": ["application/x-6502-asm"]
+      },
+
+      "screenshots": [
+        { "url": "https://example.com/screenshots/1.png",
+          "caption": "Code editor and virtual game console",
+          "captionTranslatorHint": "Screenshot of the main desktop layout" },
+        { "url": "https://example.com/screenshots/2.png",
+          "caption": "Appearance settings" }
+      ],
+
+      "releases": [
+        {
+          "version": "0.6.5",
+          "date": "2026-05-15",
+          "description": [
+            { "p": "GNOME 50 runtime support.",
+              "translatorHint": "Release notes for 0.6.5 — GNOME runtime update" },
+            { "ul": [
+              "Updated TypeScript to v6",
+              "Fixed back-button visibility bug"
+            ]}
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+Every translatable string is emitted with a `<!-- TRANSLATORS: ... -->` comment immediately before its tag. `xgettext` (or `msgfmt --xml --template`) picks these up automatically and forwards them as `#. TRANSLATORS:` comments into the generated `.po` files — so contributors on Weblate / Crowdin see the context without leaving their editor.
+
+The `developer.nameTranslatable: false` (default) emits `<name translate="no">` — recommended for personal/brand names. Set to `true` for descriptive phrases that should be localised.
+
 Missing required fields surface as per-field hints with the exact config key when you run init:
 
 ```

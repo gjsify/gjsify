@@ -583,19 +583,32 @@ npx @gjsify/cli flatpak init --kind cli
 | `appId` | both | Reverse-DNS. |
 | `kind` | both | `"app"` (default) or `"cli"`. |
 | `developer.id` / `developer.name` | metainfo | AppStream OARS 1.1+ requires `<developer id="…">`. |
+| `developer.email` | optional | Emits `<email>` inside `<developer>`. |
+| `developer.nameTranslatable` | optional | Default `false` → emits `translate="no"`. Set `true` for descriptive names. |
 | `summary` | metainfo | ≤80 chars, no trailing period. |
-| `description` | metainfo | Blank lines split paragraphs (each becomes `<p>`); `&`/`<`/`>` are escaped. |
+| `summaryTranslatorHint` | optional | Emits `<!-- TRANSLATORS: ... -->` before `<summary>`. |
+| `description` | metainfo | **String** form (blank-line-split into `<p>`) or **`DescriptionBlock[]`** (`{p, translatorHint?}` paragraphs and `{ul:[...], translatorHint?}` bullet lists). |
 | `license.metadata` | metainfo | SPDX id; defaults to `CC0-1.0` when absent. |
 | `license.project` | metainfo | SPDX id of the software project. |
 | `homepageUrl` | metainfo | `<url type="homepage">`. |
-| `bugtrackerUrl` / `vcsBrowserUrl` / `donationUrl` | optional | Extra `<url>` entries. |
+| `bugtrackerUrl` / `vcsBrowserUrl` / `donationUrl` / `translateUrl` | optional | Extra `<url>` entries. `translateUrl` is the Weblate/Crowdin URL. |
+| `iconRemote` | optional | `<icon type="remote">` — useful for Flathub thumbnail before local SVG ships. |
 | `categories` | metainfo (app) / desktop | Freedesktop Menu spec categories. |
 | `keywords` | optional | Search keywords. |
-| `releases` | metainfo | `[{ version, date, description? }]`. Flathub requires ≥1. |
-| `screenshots` | optional (app) | `[{ url, caption?, environment? }]`. |
+| `releases` | metainfo | `[{ version, date, description? }]`. Flathub requires ≥1. `description` accepts the same string-or-block-array shape. |
+| `screenshots` | optional (app) | `[{ url, caption?, captionTranslatorHint?, environment?, type? }]`. |
 | `branding` | optional (app) | `{ accentLight, accentDark }` hex colours. |
 | `icon` | optional (app) | Path to scalable SVG; warning if missing. |
-| `contentRating` | optional | OARS keyword (default `oars-1.1`). |
+| `contentRating` | optional | OARS keyword string (default `oars-1.1`) **or** `{ type?, attributes? }` with OARS keys (`social-info`, `language-humor`, …) → `none\|mild\|moderate\|intense`. |
+| `kudos` | optional | `["ModernToolkit", "HiDpiIcon", "TouchscreenSupport", "UserDocs", ...]` — Flathub-recognised quality markers. |
+| `provides.binaries` | optional | Defaults to `[command]`. |
+| `provides.mimetypes` / `provides.dbus` | optional | Extra `<mediatype>` / `<dbus>` entries. |
+| `supports.controls` | optional | `["keyboard", "pointing", "touch", "gamepad", "tablet", "console", "vision"]`. |
+| `supports.internet` | optional | `"always" \| "offline-only" \| "first-run"`. |
+| `requires.displayLengthMin` / `recommends.displayLengthMin` | optional | Minimum display length in pixels. Phone-portrait min ≈ 360, tablet recommendation ≈ 480. |
+| `requires.controls` / `recommends.controls` | optional | Hard / soft control requirements. |
+
+For multilingual apps, every translatable string (`summary`, `description` paragraphs + list items, screenshot captions, release notes) supports a parallel `translatorHint` field that emits a `<!-- TRANSLATORS: ... -->` comment in the generated `.metainfo.xml.in` — `xgettext` / `msgfmt --xml --template` picks these up and forwards them to the `.po` files so contributors on Weblate / Crowdin see the context. See the [flatpak-app guide → Rich AppStream features](/gjsify/guides/flatpak-app/#rich-appstream-features-i18n-ready) for a worked example.
 
 ### `gjsify flatpak check`
 

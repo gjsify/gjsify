@@ -242,12 +242,40 @@ export interface ConfigDataFlatpak {
      * `gjsify flatpak init`.
      */
     kind?: 'app' | 'cli';
-    /** Developer attribution required by Flathub. `id` must be reverse-DNS. */
-    developer?: { id: string; name: string };
-    /** One-line summary, ≤80 chars, no trailing period (Flathub rule). */
+    /**
+     * Developer attribution required by Flathub. `id` must be reverse-DNS.
+     * `email` (optional) becomes `<email>` inside `<developer>`.
+     * `nameTranslatable: false` (default) emits `translate="no"` on the
+     * `<name>` tag — recommended for personal/brand names that should not
+     * be translated. Set to `true` if the name is a descriptive phrase
+     * that translators should localise.
+     */
+    developer?: {
+        id: string;
+        name: string;
+        email?: string;
+        nameTranslatable?: boolean;
+    };
+    /**
+     * One-line summary, ≤80 chars, no trailing period (Flathub rule).
+     * Translatable — gettext's `msgfmt --xml --template` substitutes
+     * `<summary>` from `.po` files at build time. Set
+     * `summaryTranslatorHint` to emit a `<!-- TRANSLATORS: ... -->`
+     * comment before the tag.
+     */
     summary?: string;
-    /** Long description. Multi-paragraph plain text — converted to MetaInfo `<description>` paragraphs. */
-    description?: string;
+    /** Translator hint emitted as `<!-- TRANSLATORS: ... -->` before `<summary>`. */
+    summaryTranslatorHint?: string;
+    /**
+     * Long description. Two forms:
+     * - **String** — split on blank lines into `<p>` blocks. Best for
+     *   simple descriptions without bullet lists.
+     * - **Block array** — explicit blocks (`{p:..., translatorHint?:...}`
+     *   for paragraphs or `{ul:[...], translatorHint?:...}` for bullet
+     *   lists). Each block can carry its own translator hint. Use this
+     *   form when you need bullet lists or per-string translator context.
+     */
+    description?: string | DescriptionBlock[];
     /** Project homepage URL. Recommended; required for Flathub submission. */
     homepageUrl?: string;
     /** Bug tracker URL. */
@@ -262,26 +290,49 @@ export interface ConfigDataFlatpak {
      * is distributed (default `'CC0-1.0'`).
      */
     license?: { metadata?: string; project: string };
-    /** Content-rating spec keyword. Default `'oars-1.1'`. */
-    contentRating?: string;
+    /**
+     * Content-rating policy. Two forms:
+     * - **String** — just the spec keyword (default `'oars-1.1'`), emits
+     *   an empty `<content_rating type="..."/>` block.
+     * - **Object** — keyword + `attributes` map. Each attribute is an
+     *   OARS key (`violence-cartoon`, `social-info`, etc.) → severity
+     *   (`none`, `mild`, `moderate`, `intense`). Flathub recommends
+     *   declaring attributes explicitly even when they're `none` so the
+     *   rating audit is auditable.
+     */
+    contentRating?: string | {
+        type?: string;
+        attributes?: Record<string, 'none' | 'mild' | 'moderate' | 'intense'>;
+    };
     /** Freedesktop Menu categories (e.g. `['Development', 'Utility']`). */
     categories?: string[];
     /** Search keywords for app stores. */
     keywords?: string[];
     /**
      * Release history. Most recent first. Each entry produces a
-     * `<release version=… date=…>` block in the MetaInfo XML.
+     * `<release version=… date=…>` block. `description` accepts the
+     * same string-or-block-array shape as the top-level `description`
+     * field — use the array form for release notes with bullet lists
+     * or per-string translator hints.
      */
-    releases?: Array<{ version: string; date: string; description?: string }>;
+    releases?: Array<{
+        version: string;
+        date: string;
+        description?: string | DescriptionBlock[];
+    }>;
     /**
      * Screenshots for app-stores. `url` is an absolute HTTPS URL to a PNG.
-     * `caption` is optional. `environment` is one of `'plasma'|'gnome'|'cli'`
-     * — Flathub uses it to group by desktop.
+     * `caption` is optional and translatable — set `captionTranslatorHint`
+     * for a `<!-- TRANSLATORS: ... -->` hint. `environment` is one of
+     * `'plasma'|'gnome'|'cli'` — Flathub uses it to group by desktop.
+     * First entry defaults to `type="default"`; override with `type`.
      */
     screenshots?: Array<{
         url: string;
         caption?: string;
+        captionTranslatorHint?: string;
         environment?: 'plasma' | 'gnome' | 'cli';
+        type?: 'default' | 'source';
     }>;
     /** Light/dark accent colours (hex `#rrggbb`) — emit `<branding>` block. */
     branding?: { accentLight: string; accentDark: string };
@@ -291,4 +342,77 @@ export interface ConfigDataFlatpak {
      * exists; when unset on `--kind app`, init prints a Flathub hint.
      */
     icon?: string;
+
+    // ─── Phase F.9.6: Rich AppStream surface ───────────────────────────────
+
+    /**
+     * Remote-hosted icon URL — emitted as `<icon type="remote">`. Useful
+     * for the Flathub app-store thumbnail before the local SVG ships.
+     */
+    iconRemote?: string;
+    /**
+     * Translation platform URL (Weblate, Crowdin, Transifex, etc.).
+     * Emitted as `<url type="translate">`. Set this when your app accepts
+     * community translation contributions through a hosted platform.
+     */
+    translateUrl?: string;
+    /**
+     * AppStream kudos — Flathub recognises a fixed set of "well-behaved"
+     * markers. Common values: `ModernToolkit`, `HiDpiIcon`,
+     * `TouchscreenSupport`, `UserDocs`, `HighContrast`, `Notifications`,
+     * `SearchProvider`. Full list at
+     * https://www.freedesktop.org/software/appstream/docs/sect-Metadata-DesktopApps.html#tag-dapp-kudos
+     */
+    kudos?: string[];
+    /**
+     * Things this app provides to the system. `<binary>` is auto-included
+     * with the value of `command` when omitted (apps + CLIs both need
+     * this for AppStream to register the binary correctly).
+     */
+    provides?: {
+        binaries?: string[];
+        mimetypes?: string[];
+        dbus?: Array<{ type: 'user' | 'system'; id: string }>;
+    };
+    /**
+     * Hardware controls the app supports (best-effort declaration —
+     * AppStream `<supports>`). Common values:
+     * `keyboard`, `pointing`, `touch`, `gamepad`, `tablet`, `console`,
+     * `vision`.
+     */
+    supports?: {
+        controls?: Array<'keyboard' | 'pointing' | 'touch' | 'gamepad' | 'tablet' | 'console' | 'vision'>;
+        /** Internet connectivity requirement. */
+        internet?: 'always' | 'offline-only' | 'first-run';
+    };
+    /**
+     * Hard requirements — AppStream `<requires>`. App won't function
+     * without these. `displayLengthMin` is the minimum display length in
+     * pixels (logical units) — typical phone-portrait minimum is 360.
+     */
+    requires?: {
+        displayLengthMin?: number;
+        internet?: 'always' | 'offline-only' | 'first-run';
+        controls?: Array<'keyboard' | 'pointing' | 'touch' | 'gamepad' | 'tablet' | 'console'>;
+    };
+    /**
+     * Soft recommendations — AppStream `<recommends>`. App works better
+     * with these but functions without them. `displayLengthMin` typical
+     * tablet-min recommendation is 480.
+     */
+    recommends?: {
+        displayLengthMin?: number;
+        controls?: Array<'keyboard' | 'pointing' | 'touch' | 'gamepad' | 'tablet' | 'console'>;
+    };
 }
+
+/**
+ * A single block inside a MetaInfo `<description>`. Either a paragraph
+ * (`{p}`) or a bullet list (`{ul}`). Each block can carry an optional
+ * `translatorHint` that becomes a `<!-- TRANSLATORS: ... -->` comment
+ * before the block in the emitted `.metainfo.xml.in` template — gives
+ * translators context when the string lands in their `.po` file.
+ */
+export type DescriptionBlock =
+    | { p: string; translatorHint?: string }
+    | { ul: Array<string | { item: string; translatorHint?: string }>; translatorHint?: string };
