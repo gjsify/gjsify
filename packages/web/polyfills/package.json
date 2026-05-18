@@ -20,6 +20,7 @@
         "@gjsify/fetch": "workspace:^",
         "@gjsify/formdata": "workspace:^",
         "@gjsify/gamepad": "workspace:^",
+        "@gjsify/message-channel": "workspace:^",
         "@gjsify/web-globals": "workspace:^",
         "@gjsify/web-streams": "workspace:^",
         "@gjsify/webassembly": "workspace:^",

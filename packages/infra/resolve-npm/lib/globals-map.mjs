@@ -44,6 +44,7 @@ export const GJS_GLOBALS_GROUPS = {
         'CompressionStream', 'DecompressionStream',
         'crypto',
         'AbortController', 'AbortSignal',
+        'MessageChannel', 'MessagePort',
         'Event', 'EventTarget', 'CustomEvent', 'MessageEvent',
         'ErrorEvent', 'CloseEvent', 'ProgressEvent', 'UIEvent',
         'MouseEvent', 'PointerEvent', 'KeyboardEvent', 'WheelEvent', 'FocusEvent',
@@ -132,6 +133,8 @@ export const GJS_GLOBALS_MAP = {
     // --- Events + Abort (granular register subpaths) -----------------------
     AbortController:      'abort-controller/register',
     AbortSignal:          'abort-controller/register',
+    MessageChannel:       'message-channel/register',
+    MessagePort:          'message-channel/register',
     Event:                'dom-events/register/event-target',
     EventTarget:          'dom-events/register/event-target',
     CustomEvent:          'dom-events/register/custom-events',
