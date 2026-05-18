@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.13](https://github.com/gjsify/gjsify/compare/v0.4.12...v0.4.13) (2026-05-18)
+
+### Features
+
+* **iframe:** consume @gjsify/message-channel for MessagePort transferList ([#198](https://github.com/gjsify/gjsify/issues/198)) ([03a5836](https://github.com/gjsify/gjsify/commit/03a58362708f82836dc5374ba41fb62ab2a767e2)), closes [#196](https://github.com/gjsify/gjsify/issues/196) [#196](https://github.com/gjsify/gjsify/issues/196)
+
+### Bug Fixes
+
+* **cli:** flatpak init — gjsify.flatpak.name overrides display-name derivation ([#199](https://github.com/gjsify/gjsify/issues/199)) ([cd255e8](https://github.com/gjsify/gjsify/commit/cd255e841cb6569951586694d580e9d1371e357f))
+
 ## [0.4.12](https://github.com/gjsify/gjsify/compare/v0.4.11...v0.4.12) (2026-05-18)
 
 ### Features

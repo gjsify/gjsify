@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/sab-native",
-    "version": "0.4.12",
+    "version": "0.4.13",
     "description": "Optional Vala/GObject bridge providing cross-process shared memory + atomics for @gjsify/worker_threads. Wraps Linux memfd_create(2) + mmap(MAP_SHARED) to back JS-visible SharedBuffer regions whose fds can be passed to child workers via SCM_RIGHTS over a Unix-domain socket; exposes typed accessors (getInt32LE / setUint8 / etc.) plus atomics built on __atomic_* GCC builtins and SYS_futex for wait/notify. Workaround for the stock-GJS gap where SharedArrayBuffer is unavailable (Mozilla disables the SAB constructor without COOP/COEP opts) and SAB cannot share backing stores across Gio.Subprocess workers anyway.",
     "type": "module",
     "main": "lib/esm/index.js",
