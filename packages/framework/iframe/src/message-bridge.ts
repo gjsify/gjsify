@@ -13,7 +13,8 @@ Gio._promisify(WebKit.WebView.prototype, 'evaluate_javascript', 'evaluate_javasc
 
 import type { IFrameWindowProxy } from './iframe-window-proxy.js';
 import type { IFrameMessageData } from './types/index.js';
-import type { IFrameMessagePort } from './iframe-message-channel.js';
+import type { MessagePort } from '@gjsify/message-channel';
+import { BridgePortTransport } from './iframe-message-channel.js';
 import {
   encodeBinariesForJson,
   decodeBinariesFromJson,
@@ -232,8 +233,13 @@ export class MessageBridge {
 	/** GJS-side endpoints of transferred ports, keyed by per-bridge id.
 	 *  When the WebView sends a `{__gjsifyPortMessage: id, payload}` envelope,
 	 *  we route the payload to `_ports.get(id)._receive(decoded)`. */
-	private _ports = new Map<number, IFrameMessagePort>();
+	private _ports = new Map<number, MessagePort>();
 	private _nextPortId = 1;
+	private _transport: BridgePortTransport | null = null;
+	private _getTransport(): BridgePortTransport {
+		if (this._transport === null) this._transport = new BridgePortTransport(this);
+		return this._transport;
+	}
 
 	constructor(webView: WebKit.WebView) {
 		this._webView = webView;
@@ -270,35 +276,37 @@ export class MessageBridge {
 	 */
 	/**
 	 * Register a port pair for cross-bridge transfer. Called by
-	 * IFrameWindowProxy.postMessage when it sees an IFrameMessagePort
-	 * in the transferList. Returns the port-id placeholder that should
-	 * be substituted into the outgoing payload.
+	 * IFrameWindowProxy.postMessage when it sees a `MessagePort` in the
+	 * transferList. Returns the port-id placeholder that should be
+	 * substituted into the outgoing payload.
 	 *
 	 * Marks the transferred port as detached locally and wires its
-	 * surviving partner so the partner's postMessage routes back over
-	 * the bridge.
+	 * surviving partner with a `BridgePortTransport` so the partner's
+	 * postMessage routes back over the WebKit bridge instead of the
+	 * (now-null) in-process partner.
 	 */
-	_registerTransferredPort(port: IFrameMessagePort): number {
+	_registerTransferredPort(port: MessagePort): number {
 		if (port._transferred) {
-			throw new Error('IFrameMessagePort: already transferred');
+			throw new Error('MessagePort: already transferred');
 		}
 		const partner = port._partner;
 		if (!partner) {
-			throw new Error('IFrameMessagePort: partner missing — port already transferred or closed');
+			throw new Error('MessagePort: partner missing — port already transferred or closed');
 		}
 		const id = this._nextPortId++;
 		// Detach the transferred port locally.
 		port._transferred = true;
 		port._partner = null;
-		// Wire the partner: future postMessages on partner flow via the bridge.
+		// Wire the partner: future postMessages on partner flow via the
+		// bridge transport adapter.
 		partner._partner = null;
-		partner._bridge = this;
+		partner._transport = this._getTransport();
 		partner._portId = id;
 		this._ports.set(id, partner);
 		return id;
 	}
 
-	/** @internal Called by IFrameMessagePort.postMessage when its partner
+	/** @internal Called by MessagePort.postMessage when its partner
 	 *  was transferred to the WebView. Dispatches the data onto the
 	 *  WebView-side proxy port via evaluate_javascript. */
 	_sendPortMessage(portId: number, data: unknown): void {
@@ -308,7 +316,7 @@ export class MessageBridge {
 		this._webView.evaluate_javascript(script, -1, null, null, null).catch(() => {});
 	}
 
-	/** @internal Called by IFrameMessagePort.close to tear down the
+	/** @internal Called by MessagePort.close to tear down the
 	 *  bridge-side registration. The WebView side keeps its proxy port
 	 *  alive in user-script land but subsequent .deliver calls go nowhere. */
 	_closePort(portId: number): void {
@@ -317,7 +325,7 @@ export class MessageBridge {
 		this._webView.evaluate_javascript(script, -1, null, null, null).catch(() => {});
 	}
 
-	sendToWebView(data: unknown, targetOrigin: string, transfer?: IFrameMessagePort[]): void {
+	sendToWebView(data: unknown, targetOrigin: string, transfer?: MessagePort[]): void {
 		// Validate + match against the WebView's current origin per HTML spec.
 		// '*' always delivers; a parseable URL must match the WebView's
 		// location.origin; '/' means "must match source's own origin" — for
@@ -333,12 +341,12 @@ export class MessageBridge {
 			if (compareTo !== webViewOrigin) return;
 		}
 
-		// Substitute any IFrameMessagePort instances in the payload with
+		// Substitute any MessagePort instances in the payload with
 		// {__gjsifyPort: id} placeholders. The bootstrap walker turns these
 		// back into proxy ports on the WebView side.
 		let prepared = data;
 		if (transfer && transfer.length > 0) {
-			const portToId = new Map<IFrameMessagePort, number>();
+			const portToId = new Map<MessagePort, number>();
 			for (const p of transfer) {
 				const id = this._registerTransferredPort(p);
 				portToId.set(p, id);
@@ -444,7 +452,7 @@ export class MessageBridge {
 	}
 
 	/**
-	 * Walk the user payload and replace each IFrameMessagePort instance
+	 * Walk the user payload and replace each MessagePort instance
 	 * (transferred via the transferList) with a {__gjsifyPort: id}
 	 * placeholder. Non-transferred ports are passed through untouched —
 	 * matches W3C semantics where only ports in transferList are detached.
@@ -467,22 +475,22 @@ export class MessageBridge {
 }
 
 /**
- * Walk a value tree, replacing each `IFrameMessagePort` found in
+ * Walk a value tree, replacing each `MessagePort` found in
  * `portToId` with a `{__gjsifyPort: id}` placeholder. Non-transferred
  * ports pass through unchanged — caller is expected to populate the map
  * exactly with the ports listed in transferList. Plain objects + arrays
  * are walked; other tagged types (Map, Set, Date, …) and primitives are
  * left as-is.
  */
-function substitutePorts(value: unknown, portToId: Map<IFrameMessagePort, number>): unknown {
+function substitutePorts(value: unknown, portToId: Map<MessagePort, number>): unknown {
 	const seen = new WeakMap<object, unknown>();
 
 	function walk(v: unknown): unknown {
 		if (v === null || typeof v !== 'object') return v;
 		// Use Symbol.toStringTag to detect our port without dragging
 		// a runtime import dependency into this helper.
-		if ((v as { [Symbol.toStringTag]?: string })[Symbol.toStringTag] === 'MessagePort' && portToId.has(v as IFrameMessagePort)) {
-			return { __gjsifyPort: portToId.get(v as IFrameMessagePort) };
+		if ((v as { [Symbol.toStringTag]?: string })[Symbol.toStringTag] === 'MessagePort' && portToId.has(v as MessagePort)) {
+			return { __gjsifyPort: portToId.get(v as MessagePort) };
 		}
 		if (seen.has(v as object)) return seen.get(v as object);
 		if (Array.isArray(v)) {
