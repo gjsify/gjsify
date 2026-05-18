@@ -13,8 +13,51 @@ Gio._promisify(WebKit.WebView.prototype, 'evaluate_javascript', 'evaluate_javasc
 
 import type { IFrameWindowProxy } from './iframe-window-proxy.js';
 import type { IFrameMessageData } from './types/index.js';
+import {
+  encodeBinariesForJson,
+  decodeBinariesFromJson,
+  BINARY_SERIALIZER_INJECTED_SRC,
+} from './serialize.js';
 
 const CHANNEL_NAME = 'gjsify-iframe';
+
+/**
+ * Synthetic origin attached to messages travelling FROM the GJS host
+ * INTO the WebView. The WebView can use this in a targetOrigin filter to
+ * accept messages only when they originate from its hosting GJS process
+ * (vs. any other code that might inject script via developer tools).
+ *
+ * Uses the `https://` scheme so WHATWG URL parsing gives a real origin
+ * string (non-special schemes like `gjsify://` return `null` as origin
+ * per the URL spec, which would break the equality comparison the
+ * bridge does on every message). `.local` is the standard RFC 6762
+ * suffix for non-routable mDNS names, so it can't collide with a real
+ * site.
+ */
+export const GJS_HOST_ORIGIN = 'https://gjsify.local';
+
+/**
+ * Per HTML spec for window.postMessage:
+ *   - '*'         → no origin restriction
+ *   - URL string  → only deliver if destination origin matches URL.origin
+ *   - '/'         → only deliver if destination origin matches source origin
+ *   - other       → throw SyntaxError
+ *
+ * Returns the canonical origin string (e.g. 'https://example.com'),
+ * `'*'`, or `null` if the input is `'/'`. Throws `SyntaxError` for
+ * malformed input.
+ */
+export function normaliseTargetOrigin(targetOrigin: string): string | null {
+	if (targetOrigin === '*') return '*';
+	if (targetOrigin === '/') return null;
+	try {
+		return new URL(targetOrigin).origin;
+	} catch {
+		const err = new Error(`Invalid target origin '${targetOrigin}'`);
+		err.name = 'SyntaxError';
+		throw err;
+	}
+}
 
 /**
  * Bootstrap script injected into every WebView page at document start.
@@ -25,16 +68,57 @@ const CHANNEL_NAME = 'gjsify-iframe';
  * 2. Creates a parent proxy with a postMessage() that sends via the WebKit handler
  * 3. Overrides window.parent to point to the proxy
  */
+/**
+ * @internal Exposed only for unit testing — verifies the bootstrap
+ * idempotency guard survives refactors. Not part of the public API.
+ */
+export const BOOTSTRAP_SCRIPT_FOR_TEST = (): string => BOOTSTRAP_SCRIPT;
+
 const BOOTSTRAP_SCRIPT = `(function() {
     var handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers['${CHANNEL_NAME}'];
     if (!handler) return;
+
+    // Idempotency guard: WebKit auto-injects this script at INJECTION_TIME.START
+    // for every page load. On rapid reload, srcdoc remount, or
+    // history.replaceState shenanigans, the script may run twice in the
+    // same window without an intervening real navigation. If we
+    // overwrite our previous override blindly we'd capture OUR override
+    // as origPostMessage, losing the real one — and any consumer using
+    // __gjsifyBridge.origPostMessage would loop forever.
+    if (window.__gjsifyBridge && window.__gjsifyBridge.__bridgeVersion === 1) return;
+
+    var GJS_HOST_ORIGIN = '${GJS_HOST_ORIGIN}';
+
+    ${BINARY_SERIALIZER_INJECTED_SRC}
+
+    function normaliseOrigin(t) {
+        if (t === '*') return '*';
+        if (t === '/') return location.origin;       // source own-origin shortcut
+        try { return new URL(t).origin; }
+        catch (_) {
+            var err = new SyntaxError("Invalid target origin '" + t + "'");
+            throw err;
+        }
+    }
+
     function bridgePostMessage(data, targetOrigin) {
+        var t = targetOrigin || '*';
+        var resolved = normaliseOrigin(t);
+        // Drop silently if the targetOrigin doesn't match GJS host origin.
+        // '*' matches anything; otherwise must equal GJS_HOST_ORIGIN.
+        if (resolved !== '*' && resolved !== GJS_HOST_ORIGIN) return;
         handler.postMessage(JSON.stringify({
-            data: data,
-            targetOrigin: targetOrigin || '*',
+            data: __encodeBin(data),
+            targetOrigin: resolved,
             origin: location.origin
         }));
     }
+
+    // GJS → WebView messages come in via window.dispatchEvent(new MessageEvent(...))
+    // injected by evaluate_javascript. We can't intercept that path, so the
+    // injection itself decodes placeholders before constructing MessageEvent —
+    // see MessageBridge.sendToWebView in message-bridge.ts.
+
     // In a WebKit.WebView loaded via srcdoc, window.parent === window (no real iframe nesting).
     // window.parent is [LegacyUnforgeable] — cannot be redefined with defineProperty.
     // Instead, override window.postMessage directly. Since window.parent === window,
@@ -43,8 +127,13 @@ const BOOTSTRAP_SCRIPT = `(function() {
     window.postMessage = function(data, targetOrigin) {
         bridgePostMessage(data, targetOrigin);
     };
-    // Also expose on a safe namespace for explicit use
-    window.__gjsifyBridge = { postMessage: bridgePostMessage, origPostMessage: origPostMessage };
+    // Also expose on a safe namespace for explicit use. Version-tag
+    // the bridge so the idempotency guard above can detect a re-run.
+    window.__gjsifyBridge = {
+        __bridgeVersion: 1,
+        postMessage: bridgePostMessage,
+        origPostMessage: origPostMessage,
+    };
 })();`;
 
 /**
@@ -98,12 +187,31 @@ export class MessageBridge {
 	 * Send a message from GJS to the WebView content.
 	 * Dispatches a standard MessageEvent on the WebView's window object.
 	 */
-	sendToWebView(data: unknown, _targetOrigin: string): void {
-		const serialized = JSON.stringify(data);
-		const origin = JSON.stringify('gjsify');
+	sendToWebView(data: unknown, targetOrigin: string): void {
+		// Validate + match against the WebView's current origin per HTML spec.
+		// '*' always delivers; a parseable URL must match the WebView's
+		// location.origin; '/' means "must match source's own origin" — for
+		// GJS-side senders that's GJS_HOST_ORIGIN, which can never match a
+		// real WebView origin, so '/' always drops.
+		const targetCanonical = normaliseTargetOrigin(targetOrigin);
+		if (targetCanonical !== '*') {
+			const webViewOrigin = this.getLocation().origin;
+			// `null` from '/' OR a real origin string. '/' resolves to source's
+			// own origin = GJS_HOST_ORIGIN here, which never matches a real
+			// WebView origin.
+			const compareTo = targetCanonical ?? GJS_HOST_ORIGIN;
+			if (compareTo !== webViewOrigin) return;
+		}
+
+		// Encode binaries to base64 placeholders before JSON-stringifying the
+		// payload. The injected snippet decodes them on the WebView side before
+		// dispatching MessageEvent, so user code sees a real typed array.
+		const encoded = encodeBinariesForJson(data);
+		const serialized = JSON.stringify(encoded);
+		const origin = JSON.stringify(GJS_HOST_ORIGIN);
 		// Note: do not pass `source` — WebKit's MessageEvent constructor throws TypeError
 		// if source is not a valid MessageEventSource (Window/MessagePort/ServiceWorker)
-		const script = `window.dispatchEvent(new MessageEvent('message', { data: JSON.parse(${JSON.stringify(serialized)}), origin: ${origin} }));`;
+		const script = `(function(){${BINARY_SERIALIZER_INJECTED_SRC}window.dispatchEvent(new MessageEvent('message', { data: __decodeBin(JSON.parse(${JSON.stringify(serialized)})), origin: ${origin} }));})();`;
 
 		// evaluate_javascript is async in WebKit 6.0 — fire and forget
 		this._webView.evaluate_javascript(
@@ -145,9 +253,20 @@ export class MessageBridge {
 					const json = jsValue.to_string();
 					const envelope: IFrameMessageData = JSON.parse(json);
 
+					// Bootstrap already enforces targetOrigin against GJS_HOST_ORIGIN.
+					// Re-validate here as defense-in-depth: a tampered WebView could
+					// emit a JSON envelope directly via the message handler bypassing
+					// the bootstrap's normaliseOrigin call. '*' always allowed,
+					// otherwise must equal GJS_HOST_ORIGIN.
+					const target = envelope.targetOrigin;
+					if (target !== '*' && target !== GJS_HOST_ORIGIN) return;
+
+					// Decode any binary placeholders in `data` back into typed arrays.
+					const decodedData = decodeBinariesFromJson(envelope.data);
+
 					// Dispatch MessageEvent on the IFrameWindowProxy
 					const event = new MessageEvent('message', {
-						data: envelope.data,
+						data: decodedData,
 						origin: envelope.origin,
 					});
 					this._windowProxy.dispatchEvent(event);
