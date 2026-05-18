@@ -233,8 +233,7 @@ export default async () => {
           expect(atomics.load32(sb, 4) >>> 0).toBe(0xDEADBEEF);
         } finally {
           GLib.unlink(childPath);
-          // parentFd intentionally leaked — process exits immediately after the suite.
-          // Avoid GioUnix (separate typelib in GJS 1.86+) just for a one-shot close().
+          try { fdChannel?.closeFd(parentFd); } catch { /* ignore */ }
         }
       });
     });
