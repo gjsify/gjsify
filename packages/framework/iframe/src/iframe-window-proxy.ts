@@ -5,7 +5,7 @@
 import { EventTarget } from '@gjsify/dom-events';
 
 import type { MessageBridge } from './message-bridge.js';
-import type { IFrameMessagePort } from './iframe-message-channel.js';
+import type { MessagePort } from '@gjsify/message-channel';
 
 /**
  * Lightweight Window-like proxy returned by `HTMLIFrameElement.contentWindow`.
@@ -35,13 +35,13 @@ export class IFrameWindowProxy extends EventTarget {
 	 * @param message - Data to send (must be JSON-serializable + base64-encodable
 	 *   binaries — see @gjsify/iframe/serialize for supported binary types).
 	 * @param targetOrigin - Target origin for the message. Default: '*'.
-	 * @param transfer - Optional list of `IFrameMessagePort` instances to
+	 * @param transfer - Optional list of `MessagePort` instances to
 	 *   transfer. Each transferred port is detached locally; its surviving
 	 *   partner becomes the GJS-side endpoint of a bidirectional channel
 	 *   routed through the bridge. The WebView receives proxy ports under
 	 *   `MessageEvent.data` wherever the original ports appeared in `message`.
 	 */
-	postMessage(message: unknown, targetOrigin = '*', transfer?: IFrameMessagePort[]): void {
+	postMessage(message: unknown, targetOrigin = '*', transfer?: MessagePort[]): void {
 		if (this._closed) return;
 		this._bridge.sendToWebView(message, targetOrigin, transfer);
 	}

@@ -38,7 +38,8 @@
         "@girs/javascriptcore-6.0": "2.52.1-4.0.0-rc.15",
         "@girs/webkit-6.0": "2.52.1-4.0.0-rc.15",
         "@gjsify/dom-elements": "workspace:^",
-        "@gjsify/dom-events": "workspace:^"
+        "@gjsify/dom-events": "workspace:^",
+        "@gjsify/message-channel": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
