@@ -2,7 +2,7 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0.4.11, ESM-only, GNOME libs. Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (20 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra.
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0.4.11, ESM-only, GNOME libs. Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (21 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra.
 
 ## Governance — non-negotiable
 
@@ -75,6 +75,7 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0
 | dom-events | — | Event, CustomEvent, EventTarget, UIEvent, MouseEvent, PointerEvent, KeyboardEvent, WheelEvent, FocusEvent |
 | dom-exception | — | DOMException (WebIDL) |
 | abort-controller | — | AbortController, AbortSignal |
+| message-channel | — | MessageChannel, MessagePort (W3C, EventTarget-based, transport-pluggable). Stock GJS exposes neither — needed for browser-compat code. Pluggable transport hook backs `@gjsify/iframe` WebKit bridge + (future) `@gjsify/worker_threads` cross-process workers |
 | formdata | — | FormData, File |
 | streams | — | ReadableStream, WritableStream, TransformStream, TextEncoder/DecoderStream |
 | compression-streams | Gio | CompressionStream, DecompressionStream |
