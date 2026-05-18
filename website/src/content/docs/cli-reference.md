@@ -494,3 +494,24 @@ The generated `install.mjs` is a verbatim copy of gjsify's own root `install.mjs
 | `--bootstrap-url <url>` | gjsify GH `releases/latest/download/cli.gjs.mjs` | Override the bootstrap bundle source. |
 | `--output <file>` | `install.mjs` | Where to write the installer. |
 | `--force` | `false` | Overwrite an existing file. |
+
+## `gjsify uninstall`
+
+Symmetric inverse of `gjsify install -g`. Removes a previously installed package tree from `~/.local/share/gjsify/global/node_modules/<pkg>/` plus any bin shims under `~/.local/bin/` that point into it.
+
+```bash
+gjsify uninstall -g <pkg>                # remove pkg and its bin shim(s)
+gjsify uninstall -g <pkg> --dry-run      # show what would be removed
+gjsify uninstall -g <pkg1> <pkg2>        # remove multiple packages
+```
+
+Scoped to `--global` only. Project-local removal (mirror of `npm uninstall <pkg>` without -g) requires rewriting `package.json` + refreshing the lockfile, which is a separate workstream.
+
+| Option | Default | Description |
+|---|---|---|
+| `<packages..>` (positional) | — | One or more package names. |
+| `--global` / `-g` | `false` | Required; removes from `defaultGlobalLayout()` paths. |
+| `--dry-run` | `false` | Print "would remove" lines, touch no files. |
+| `--verbose` | `false` | Surface inspection failures (rare). |
+
+Exits non-zero when nothing was removed (no matching install found).
