@@ -6,7 +6,10 @@ export { HTMLIFrameElement } from './html-iframe-element.js';
 export { IFrameBridge } from './iframe-bridge.js';
 export { IFrameWindowProxy } from './iframe-window-proxy.js';
 export { MessageBridge, GJS_HOST_ORIGIN } from './message-bridge.js';
-export { IFrameMessageChannel, IFrameMessagePort } from './iframe-message-channel.js';
+// Browser-standard MessageChannel + MessagePort (re-exported from
+// @gjsify/message-channel for convenience; same instances are exposed
+// under the legacy IFrame-prefixed aliases for back-compat).
+export { MessageChannel, MessagePort, IFrameMessageChannel, IFrameMessagePort } from './iframe-message-channel.js';
 export type { IFrameBridgeOptions, IFrameReadyCallback, IFrameMessageData } from './types/index.js';
 
 // Side-effect: register DOM globals on import.
