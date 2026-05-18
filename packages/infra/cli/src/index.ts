@@ -21,6 +21,7 @@ import {
     publishCommand as publish,
     selfUpdateCommand as selfUpdate,
     generateInstallerCommand as generateInstaller,
+    uninstallCommand as uninstall,
 } from './commands/index.js'
 import { APP_NAME } from './constants.js'
 
@@ -50,6 +51,7 @@ await yargs(hideBin(process.argv))
     .command(publish.command, publish.description, publish.builder, publish.handler)
     .command(selfUpdate.command, selfUpdate.description, selfUpdate.builder, selfUpdate.handler)
     .command(generateInstaller.command, generateInstaller.description, generateInstaller.builder, generateInstaller.handler)
+    .command(uninstall.command, uninstall.description, uninstall.builder, uninstall.handler)
     .demandCommand(1)
     .help()
     .parseAsync()

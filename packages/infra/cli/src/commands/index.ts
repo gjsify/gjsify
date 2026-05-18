@@ -16,3 +16,4 @@ export * from './pack.js';
 export * from './publish.js';
 export * from './self-update.js';
 export * from './generate-installer.js';
+export * from './uninstall.js';
