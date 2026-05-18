@@ -19,7 +19,11 @@ jobs:
     container:
       image: fedora:43
     permissions:
-      contents: read
+      # contents: write so softprops/action-gh-release can upload install.mjs
+      # + cli.gjs.mjs + .sha256 as assets onto the release record that
+      # triggered this workflow. id-token: write keeps OIDC provenance
+      # available for future signed-publish work.
+      contents: write
       id-token: write
 
     steps:
