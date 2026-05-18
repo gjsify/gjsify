@@ -256,6 +256,7 @@ describe('CLI flatpak subcommand group E2E', { timeout: 10 * 60 * 1000 }, () => 
         flatpak: {
           appId: 'org.example.AppFull',
           kind: 'app',
+          name: 'App Full Title',
           developer: { id: 'org.example', name: 'Example Developer' },
           summary: 'A test desktop app',
           description: 'First paragraph here.\n\nSecond paragraph with <special> & "chars".',
@@ -299,9 +300,13 @@ describe('CLI flatpak subcommand group E2E', { timeout: 10 * 60 * 1000 }, () => 
     assert.match(metainfo, /scheme_preference="light">#5b81b8</);
     assert.match(metainfo, /<content_rating type="oars-1\.1"/);
 
+    // Display-name override lands in both MetaInfo + .desktop
+    assert.match(metainfo, /<name>App Full Title<\/name>/);
+
     // .desktop content sanity
     const desktop = readFileSync(desktopPath, 'utf-8');
     assert.match(desktop, /\[Desktop Entry\]/);
+    assert.match(desktop, /Name=App Full Title/);
     assert.match(desktop, /Exec=org\.example\.AppFull/);
     assert.match(desktop, /Icon=org\.example\.AppFull/);
     assert.match(desktop, /Categories=Utility;Development;/);

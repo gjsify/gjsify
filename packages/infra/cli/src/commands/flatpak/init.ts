@@ -189,10 +189,10 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
         const manifestPath = resolve(cwd, manifestOut);
         writeIfFresh(manifestPath, JSON.stringify(manifest, null, 4) + '\n', args.force ?? false, 'manifest');
 
-        const name = (pkg.name as string | undefined) ?? appId;
+        const pkgName = (pkg.name as string | undefined) ?? appId;
         const scaffold: ScaffoldInputs = {
             appId,
-            name: friendlyName(name, appId),
+            name: flatpak.name ?? friendlyName(pkgName, appId),
             command,
             kind,
             flatpak,

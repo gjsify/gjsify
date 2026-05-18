@@ -243,6 +243,14 @@ export interface ConfigDataFlatpak {
      */
     kind?: 'app' | 'cli';
     /**
+     * App display name (`.desktop` `Name=` + MetaInfo `<name>`). Defaults
+     * to a friendly derivation of `package.json#name` — that works when
+     * `name` is the reverse-DNS app id, but breaks when it's an npm
+     * package name like `learn6502`. Set this explicitly to the
+     * human-readable name shown in app stores (e.g. `"Learn 6502 Assembly"`).
+     */
+    name?: string;
+    /**
      * Developer attribution required by Flathub. `id` must be reverse-DNS.
      * `email` (optional) becomes `<email>` inside `<developer>`.
      * `nameTranslatable: false` (default) emits `translate="no"` on the
