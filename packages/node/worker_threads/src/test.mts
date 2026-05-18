@@ -5,4 +5,5 @@ import '@gjsify/node-globals/register/url';
 import '@gjsify/node-globals/register/structured-clone';
 import { run } from '@gjsify/unit';
 import testSuite from './index.spec.js';
-run({ testSuite });
+import sabSuite from './worker-shared-buffer.gjs.spec.js';
+run({ testSuite, sabSuite });

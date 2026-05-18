@@ -323,7 +323,12 @@ gjsify_sab_region_futex_wait (GjsifySabRegion *region,
     ts_ptr = &ts;
   }
 
-  long ret = syscall (SYS_futex, addr, FUTEX_WAIT_PRIVATE,
+  /* FUTEX_WAIT (no _PRIVATE flag) so the kernel keys by underlying
+   * physical page rather than the calling process's virtual address.
+   * SharedBuffer regions are mmap'd at different addresses in each
+   * Worker, but back the same physical pages via memfd_create —
+   * FUTEX_WAIT_PRIVATE would fail to match across processes. */
+  long ret = syscall (SYS_futex, addr, FUTEX_WAIT,
                       (int) expected, ts_ptr, NULL, 0);
   if (ret == 0) return 0;             /* woken via FUTEX_WAKE */
   int e = errno;
@@ -340,7 +345,7 @@ gjsify_sab_region_futex_wake (GjsifySabRegion *region,
 {
   BOUNDS_CHECK (region, offset, 4);
   int32_t *addr = (int32_t *) ((guint8 *) region->ptr + offset);
-  long ret = syscall (SYS_futex, addr, FUTEX_WAKE_PRIVATE, count,
+  long ret = syscall (SYS_futex, addr, FUTEX_WAKE, count,
                       NULL, NULL, 0);
   return (gint) ret;
 }
@@ -441,4 +446,16 @@ gjsify_sab_recv_fd (gint socket_fd, guint32 *tag)
   /* No fd in the message — protocol violation. */
   errno = EBADMSG;
   return -1;
+}
+
+gboolean
+gjsify_sab_close_fd (gint fd)
+{
+  if (fd < 0) return FALSE;
+  int r;
+  do {
+    r = close (fd);
+  } while (r < 0 && errno == EINTR);
+  /* EBADF: already closed (or never opened) — caller's intent satisfied. */
+  return r == 0 || errno == EBADF;
 }

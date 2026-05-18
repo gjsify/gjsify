@@ -52,6 +52,7 @@ export interface NativeFdChannelClass {
     make_pair(): [boolean, number, number];
     send_fd(socket_fd: number, fd_to_send: number, tag: number): boolean;
     recv_fd(socket_fd: number): [number, number]; // [fd, tag]
+    close_fd(fd: number): boolean;
 }
 
 export interface GjsifySabNativeModule {
@@ -314,10 +315,14 @@ export const fdChannel = _mod ? {
         if (!ok) throw new Error('socketpair() failed');
         return { parentFd: parent_fd, childFd: child_fd };
     },
-    sendFd(socketFd: number, fdToSend: number, tag: number): void {
-        if (!_mod!.FdChannel.send_fd(socketFd, fdToSend, tag >>> 0)) {
-            throw new Error('sendmsg(SCM_RIGHTS) failed');
-        }
+    /**
+     * Send one fd over an open SOCK_SEQPACKET pair via SCM_RIGHTS. Returns
+     * `true` on success, `false` on `sendmsg()` failure (errno preserved on
+     * the calling thread — caller surfaces the error in whatever shape
+     * makes sense for the situation).
+     */
+    sendFd(socketFd: number, fdToSend: number, tag: number): boolean {
+        return _mod!.FdChannel.send_fd(socketFd, fdToSend, tag >>> 0);
     },
     /**
      * Blocking recv of one fd. Returns the received fd + tag, or null on
@@ -328,5 +333,12 @@ export const fdChannel = _mod ? {
         if (fd === 0)  return null;       // orderly EOF
         if (fd < 0)    throw new Error('recvmsg failed');
         return { fd, tag: tag >>> 0 };
+    },
+    /**
+     * close(2) on a fd previously created by `makePair()` (or any fd, really).
+     * Idempotent — closing an already-closed fd is fine.
+     */
+    closeFd(fd: number): void {
+        _mod!.FdChannel.close_fd(fd);
     },
 } : null;

@@ -19,6 +19,7 @@
 // supported — see STATUS.md "Open TODOs".
 
 import { EventEmitter } from 'node:events';
+import { isSharedBuffer } from './sab-transfer.js';
 
 /**
  * Internal placeholder used while serializing a transferred MessagePort.
@@ -109,6 +110,17 @@ export class MessagePort extends EventEmitter {
         // SharedArrayBuffer must NOT appear in transfer list — it shares.
         if (tag === 'SharedArrayBuffer') {
           throw createDataCloneError('SharedArrayBuffer cannot appear in transfer list (it is shared, not transferred)');
+        }
+
+        // @gjsify/sab-native SharedBuffer — same "shared, not transferred"
+        // semantics as SAB. In-process MessagePort.postMessage doesn't need
+        // fd-passing (both ports share a JS heap), so we treat the entry as
+        // a no-op pass-through: the SharedBuffer reaches the receiver intact
+        // via structuredClone's SharedBuffer branch. The cross-process worker
+        // path in worker.ts is what actually consumes the entry and routes
+        // the fd over SCM_RIGHTS.
+        if (isSharedBuffer(item)) {
+          continue;
         }
 
         throw createDataCloneError(`Value at index ${transferList.indexOf(item)} of transfer list is not transferable`);

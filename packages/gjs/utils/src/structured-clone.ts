@@ -178,6 +178,17 @@ function internalClone(
     return obj;
   }
 
+  // --- @gjsify/sab-native SharedBuffer ---
+  // Same pass-through semantics as SharedArrayBuffer: shared backing store
+  // means the same JS instance survives the "clone". Detected by constructor
+  // name to avoid a hard dep from @gjsify/utils on @gjsify/sab-native (utils
+  // sits lower in the dep graph). The worker_threads layer is responsible
+  // for actually transferring the underlying memfd across the IPC boundary;
+  // here we just keep the instance reference intact.
+  if (obj && typeof obj === 'object' && (obj as { constructor?: { name?: string } }).constructor?.name === 'SharedBuffer') {
+    return obj;
+  }
+
   // --- DataView ---
   if (tag === 'DataView') {
     const src = obj as DataView;
