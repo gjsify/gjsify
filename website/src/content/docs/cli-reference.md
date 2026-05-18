@@ -582,6 +582,7 @@ npx @gjsify/cli flatpak init --kind cli
 |---|---|---|
 | `appId` | both | Reverse-DNS. |
 | `kind` | both | `"app"` (default) or `"cli"`. |
+| `name` | optional | Human-readable display name for `<name>` + `.desktop` `Name=`. Defaults to a friendly derivation of `package.json#name` — set explicitly when the npm name doesn't match the display name (e.g. npm name `learn6502` vs display name `"Learn 6502 Assembly"`). |
 | `developer.id` / `developer.name` | metainfo | AppStream OARS 1.1+ requires `<developer id="…">`. |
 | `developer.email` | optional | Emits `<email>` inside `<developer>`. |
 | `developer.nameTranslatable` | optional | Default `false` → emits `translate="no"`. Set `true` for descriptive names. |
