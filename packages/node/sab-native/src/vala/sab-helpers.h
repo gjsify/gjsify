@@ -140,6 +140,11 @@ gboolean gjsify_sab_send_fd    (gint socket_fd, gint fd_to_send, guint32 tag);
  * sender-encoded tag value. */
 gint     gjsify_sab_recv_fd    (gint socket_fd, guint32 *tag);
 
+/* close_fd: just `close(2)` wrapped so JS callers don't have to drag in
+ * GioUnix's typelib for a single syscall. Returns TRUE on success
+ * (or EBADF — already closed is harmless), FALSE on other errno. */
+gboolean gjsify_sab_close_fd   (gint fd);
+
 G_END_DECLS
 
 #endif /* GJSIFY_SAB_HELPERS_H */

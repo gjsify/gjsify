@@ -41,6 +41,10 @@ namespace GjsifySabNative {
             cheader_filename = "sab-helpers.h")]
     private extern int _recv_fd (int socket_fd, out uint32 tag);
 
+    [CCode (cname = "gjsify_sab_close_fd",
+            cheader_filename = "sab-helpers.h")]
+    private extern bool _close_fd (int fd);
+
     /* ── Public static API ──────────────────────────────────────────────── */
 
     public class FdChannel : GLib.Object {
@@ -83,6 +87,15 @@ namespace GjsifySabNative {
          */
         public static int recv_fd (int socket_fd, out uint32 tag) {
             return _recv_fd (socket_fd, out tag);
+        }
+
+        /**
+         * Wrap close(2) so JS callers don't have to pull in GioUnix just for
+         * a one-shot fd close on cleanup. Returns true on success or if the
+         * fd was already closed (EBADF — caller's intent satisfied either way).
+         */
+        public static bool close_fd (int fd) {
+            return _close_fd (fd);
         }
     }
 }

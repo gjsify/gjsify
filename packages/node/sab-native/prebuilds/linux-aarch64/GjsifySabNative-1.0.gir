@@ -404,6 +404,16 @@
 				</parameter>
 			</parameters>
 		</function>
+		<function name="close_fd" c:identifier="gjsify_sab_native_fd_channel_close_fd">
+			<return-value transfer-ownership="full">
+				<type name="gboolean" c:type="gboolean"/>
+			</return-value>
+			<parameters>
+				<parameter name="fd" transfer-ownership="none">
+					<type name="gint" c:type="gint"/>
+				</parameter>
+			</parameters>
+		</function>
 		<constructor name="new" c:identifier="gjsify_sab_native_fd_channel_new">
 			<return-value transfer-ownership="full">
 				<type name="GjsifySabNative.FdChannel" c:type="GjsifySabNativeFdChannel*"/>

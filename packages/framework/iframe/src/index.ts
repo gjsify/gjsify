@@ -5,7 +5,8 @@
 export { HTMLIFrameElement } from './html-iframe-element.js';
 export { IFrameBridge } from './iframe-bridge.js';
 export { IFrameWindowProxy } from './iframe-window-proxy.js';
-export { MessageBridge } from './message-bridge.js';
+export { MessageBridge, GJS_HOST_ORIGIN } from './message-bridge.js';
+export { IFrameMessageChannel, IFrameMessagePort } from './iframe-message-channel.js';
 export type { IFrameBridgeOptions, IFrameReadyCallback, IFrameMessageData } from './types/index.js';
 
 // Side-effect: register DOM globals on import.
