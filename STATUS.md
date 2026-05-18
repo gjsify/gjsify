@@ -22,7 +22,7 @@
 ## Summary
 
 gjsify implements Node.js, Web Standard, and DOM APIs for GJS (GNOME JavaScript / SpiderMonkey 140).
-The project comprises **43 Node.js packages** (+1 meta), **19 Web API packages** (+1 meta), **8 DOM/bridge packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
+The project comprises **44 Node.js packages** (+1 meta), **20 Web API packages** (+1 meta), **8 DOM/bridge packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
@@ -368,7 +368,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Partially implemented | 5 (11%) — sqlite, ws, worker_threads, vm, v8 |
 | Stubs | 3 (7%) — cluster, domain, inspector |
 | Native bridges | 4 (terminal-native, http-soup-bridge, http2-native, sab-native) |
-| Web API packages | 19 + 1 meta (17 full, 2 partial) |
+| Web API packages | 20 + 1 meta (18 full, 2 partial) |
 | DOM / Bridge packages | 8 (all implemented) — dom-elements, canvas2d-core, canvas2d, bridge-types, webgl, event-bridge, iframe, video |
 | Browser UI packages | 3 (adwaita-web, adwaita-fonts, adwaita-icons) |
 | GJS infrastructure packages | 4 (unit, utils, runtime, types) |
