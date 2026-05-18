@@ -5,7 +5,9 @@ description: Use `gjsify flatpak` to package a GJS-based command-line tool — l
 
 This guide covers packaging a **headless CLI tool** built with `gjsify build` as a Flatpak. The companion guide for GUI apps is implicit in `gjsify flatpak init`'s default flags; the only thing that changes for CLI tools is the runtime permissions, not the runtime itself.
 
-If you're shipping a GTK/Adwaita app, run `gjsify flatpak init` (no `--cli-only`) and skip to [Build the bundle](#3-build-the-bundle).
+If you're shipping a GTK/Adwaita app, see the companion guide [Ship a GJS app as a Flatpak](./flatpak-app/).
+
+> **`--cli-only` is deprecated.** It still works as an alias for `--kind cli` for one-or-two releases of backwards compatibility, then will be removed.
 
 ## Why Flatpak for a CLI tool?
 
@@ -29,11 +31,11 @@ Your bundle imports through `gi://*`, `system`, `cairo`, `gettext`, and the `@gj
 
 The unused GUI libs (GTK, Adwaita) cost nothing at runtime — Flatpak shares them across applications via the OSTree repo.
 
-`gjsify flatpak init --cli-only` keeps `org.gnome.Platform` as the runtime and only strips the GUI **finish-args** (`--device=dri`, `--socket=wayland`, `--socket=fallback-x11`).
+`gjsify flatpak init --kind cli` keeps `org.gnome.Platform` as the runtime and only strips the GUI **finish-args** (`--device=dri`, `--socket=wayland`, `--socket=fallback-x11`).
 
 ## 2. Generate the manifest
 
-`gjsify flatpak init --cli-only` reads `package.json#gjsify.flatpak` and writes `<app-id>.json`:
+`gjsify flatpak init --kind cli` reads `package.json#gjsify.flatpak` and writes `<app-id>.json`:
 
 ```jsonc
 // package.json
@@ -62,7 +64,7 @@ The unused GUI libs (GTK, Adwaita) cost nothing at runtime — Flatpak shares th
 ```
 
 ```sh
-gjsify flatpak init --cli-only
+gjsify flatpak init --kind cli
 ```
 
 Produces `org.gjsify.TsForGir.json`:
@@ -99,6 +101,41 @@ Produces `org.gjsify.TsForGir.json`:
 For a CLI that reads the host's GObject-introspection repository (which is what `ts-for-gir` does to generate types), the two `--filesystem=/usr/share/gir-1.0:ro` and `--filesystem=/usr/share/gobject-introspection-1.0:ro` mounts are essential. Without them the CLI can run, but it has nothing to read.
 
 `--share=network` is only needed if your CLI hits the network (e.g. for npm-registry access). Drop it if the tool is fully offline.
+
+### MetaInfo XML and flathub.json
+
+`gjsify flatpak init --kind cli` also writes:
+
+* **`data/<app-id>.metainfo.xml.in`** — a `<component type="console-application">` AppStream record with `<provides><binary>` pointing at your CLI's command name. Flathub validation requires this.
+* **`flathub.json`** — policy stub with `{ "skip-icons-check": true }`. CLI tools have no `.desktop` entry and no icon, and `flatpak-builder-lint` would otherwise reject the build with `appstream-missing-icon`.
+
+For the MetaInfo file to be emitted, your `gjsify.flatpak` config needs at minimum:
+
+```jsonc
+{
+  "gjsify": {
+    "flatpak": {
+      "kind": "cli",
+      "developer":   { "id": "org.gjsify", "name": "Gjsify Authors" },
+      "summary":     "GIR-to-TypeScript types generator",
+      "description": "Generates @girs/* TypeScript types from .gir files.",
+      "license":     { "metadata": "CC0-1.0", "project": "Apache-2.0" },
+      "homepageUrl": "https://github.com/gjsify/ts-for-gir",
+      "releases":    [{ "version": "4.0.0", "date": "2026-05-18" }]
+    }
+  }
+}
+```
+
+Missing fields are reported with a per-field hint pointing at the exact config key; the manifest still writes successfully, only MetaInfo/.desktop are skipped. Fill in the gaps and re-run with `--force` to regenerate.
+
+### Lint locally before submitting to Flathub
+
+```sh
+gjsify flatpak check org.gjsify.TsForGir.json
+```
+
+Runs `appstreamcli validate --strict` against the MetaInfo XML (autodetected from `data/<app-id>.metainfo.xml.in`) plus `flatpak-builder-lint manifest` against the JSON. Both ship inside the `org.flatpak.Builder` Flatpak — `flatpak install -y flathub org.flatpak.Builder` if missing. Exit code is non-zero if any linter fails; the same checks run inside Flathub's PR CI, so green here means green there.
 
 ## 3. Replace the meson module if your tool ships without meson
 
@@ -197,7 +234,8 @@ Once the bundle works locally:
 
 ## Reference
 
-* [`gjsify flatpak init`](../../cli-reference/#gjsify-flatpak-init) — manifest scaffold
+* [`gjsify flatpak init`](../../cli-reference/#gjsify-flatpak-init) — manifest + MetaInfo + .desktop + flathub.json scaffold
+* [`gjsify flatpak check`](../../cli-reference/#gjsify-flatpak-check) — local Flathub-lint pass
 * [`gjsify flatpak build`](../../cli-reference/#gjsify-flatpak-build) — flatpak-builder wrapper
 * [`gjsify flatpak deps`](../../cli-reference/#gjsify-flatpak-deps) — node-deps offline cache
 * [`gjsify flatpak ci`](../../cli-reference/#gjsify-flatpak-ci) — workflow scaffold

@@ -9,7 +9,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, readFileSync, existsSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -127,21 +127,28 @@ describe('CLI flatpak subcommand group E2E', { timeout: 10 * 60 * 1000 }, () => 
     assert.deepEqual(manifest['finish-args'], [], 'GUI finish-args must be stripped under --cli-only');
   });
 
-  it('flatpak init refuses to overwrite without --force', () => {
-    let exitCode = 0;
-    let stderr = '';
-    try {
-      execFileSync('npx', ['gjsify', 'flatpak', 'init'], {
-        cwd: projectDir,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        timeout: 60 * 1000,
-      });
-    } catch (e) {
-      exitCode = e.status ?? -1;
-      stderr = (e.stderr ?? '').toString();
-    }
-    assert.notStrictEqual(exitCode, 0, 'expected init to fail when target exists');
-    assert.match(stderr, /exists.*--force/i, `expected exists hint, got: ${stderr}`);
+  it('flatpak init skips existing outputs without --force (idempotent regen surface)', () => {
+    const manifestPath = join(projectDir, 'org.example.FlatpakSmoke.json');
+    assert.ok(existsSync(manifestPath), 'precondition: manifest from earlier test should exist');
+    const before = readFileSync(manifestPath, 'utf-8');
+
+    // Mutate the manifest, then re-run init without --force. The file must
+    // NOT be overwritten (skip + log; not error).
+    const sentinel = '{ "marker": "user-edit", "id": "org.example.FlatpakSmoke" }\n';
+    writeFileSync(manifestPath, sentinel, 'utf-8');
+
+    const out = execFileSync('npx', ['gjsify', 'flatpak', 'init'], {
+      cwd: projectDir,
+      stdio: 'pipe',
+      timeout: 60 * 1000,
+    }).toString();
+
+    assert.match(out, /skipped manifest:.*exists/i, `expected skip log, got: ${out}`);
+    // User edit preserved
+    assert.equal(readFileSync(manifestPath, 'utf-8'), sentinel, 'manifest was overwritten without --force');
+
+    // Restore for subsequent tests
+    writeFileSync(manifestPath, before, 'utf-8');
   });
 
   it('flatpak ci writes the workflow file with the resolved container image', () => {
@@ -213,6 +220,207 @@ describe('CLI flatpak subcommand group E2E', { timeout: 10 * 60 * 1000 }, () => 
     assert.match(last, /flatpak-build/);
     assert.match(last, /org\.example\.FlatpakSmoke\.json/);
   });
+
+  // ── Phase F.9.1 — init MetaInfo + .desktop + flathub.json scaffolding ──
+
+  it('flatpak init on minimal config writes only the manifest + warns about missing MetaInfo fields', () => {
+    const res = spawnSync('npx', ['gjsify', 'flatpak', 'init', '--manifest', 'manifest-min.json', '--force'], {
+      cwd: projectDir,
+      timeout: 60 * 1000,
+      encoding: 'utf-8',
+    });
+    assert.equal(res.status, 0, `init exit non-zero: ${res.stderr}`);
+    // Manifest written
+    assert.ok(existsSync(join(projectDir, 'manifest-min.json')));
+    // MetaInfo skipped due to missing developer/summary/license/homepageUrl;
+    // warnings land on stderr via console.warn.
+    const merged = (res.stdout ?? '') + (res.stderr ?? '');
+    assert.match(merged, /MetaInfo \/ \.desktop are skipped/i, `expected skip warning, got: ${merged}`);
+    assert.match(merged, /developer/);
+    assert.match(merged, /summary/);
+    assert.match(merged, /license\.project/);
+    assert.match(merged, /homepageUrl/);
+  });
+
+  it('flatpak init --kind app with full config emits manifest + MetaInfo + .desktop + flathub.json', () => {
+    // Fresh project with full MetaInfo config.
+    const appProjectDir = join(tmpDir, 'flatpak-init-app');
+    mkdirSync(appProjectDir, { recursive: true });
+    setupProject(appProjectDir, {
+      name: 'org.example.AppFull',
+      version: '2.0.0',
+      type: 'module',
+      private: true,
+      dependencies: { '@gjsify/cli': '^0.1.0' },
+      gjsify: {
+        flatpak: {
+          appId: 'org.example.AppFull',
+          kind: 'app',
+          developer: { id: 'org.example', name: 'Example Developer' },
+          summary: 'A test desktop app',
+          description: 'First paragraph here.\n\nSecond paragraph with <special> & "chars".',
+          license: { metadata: 'CC0-1.0', project: 'GPL-3.0-or-later' },
+          homepageUrl: 'https://example.org',
+          bugtrackerUrl: 'https://example.org/issues',
+          categories: ['Utility', 'Development'],
+          keywords: ['test', 'demo'],
+          releases: [{ version: '2.0.0', date: '2026-05-18' }],
+          branding: { accentLight: '#5b81b8', accentDark: '#3a5d8c' },
+        },
+      },
+    }, tarballsDir, tarballMap);
+
+    execFileSync('npx', ['gjsify', 'flatpak', 'init'], {
+      cwd: appProjectDir,
+      stdio: 'pipe',
+      timeout: 60 * 1000,
+    });
+
+    // All four files present
+    assert.ok(existsSync(join(appProjectDir, 'org.example.AppFull.json')), 'manifest missing');
+    const metainfoPath = join(appProjectDir, 'data/org.example.AppFull.metainfo.xml.in');
+    assert.ok(existsSync(metainfoPath), 'metainfo missing');
+    const desktopPath = join(appProjectDir, 'data/org.example.AppFull.desktop.in');
+    assert.ok(existsSync(desktopPath), '.desktop missing');
+    assert.ok(existsSync(join(appProjectDir, 'flathub.json')), 'flathub.json missing');
+
+    // MetaInfo content sanity
+    const metainfo = readFileSync(metainfoPath, 'utf-8');
+    assert.match(metainfo, /<component type="desktop-application">/);
+    assert.match(metainfo, /<id>org\.example\.AppFull<\/id>/);
+    assert.match(metainfo, /<developer id="org\.example">/);
+    assert.match(metainfo, /<p>First paragraph here\.<\/p>/);
+    // XML escaping of special chars
+    assert.match(metainfo, /Second paragraph with &lt;special&gt; &amp; &quot;chars&quot;\./);
+    assert.match(metainfo, /<launchable type="desktop-id">org\.example\.AppFull\.desktop<\/launchable>/);
+    assert.match(metainfo, /<category>Utility<\/category>/);
+    assert.match(metainfo, /<keyword>test<\/keyword>/);
+    assert.match(metainfo, /<release version="2\.0\.0" date="2026-05-18"/);
+    assert.match(metainfo, /scheme_preference="light">#5b81b8</);
+    assert.match(metainfo, /<content_rating type="oars-1\.1"/);
+
+    // .desktop content sanity
+    const desktop = readFileSync(desktopPath, 'utf-8');
+    assert.match(desktop, /\[Desktop Entry\]/);
+    assert.match(desktop, /Exec=org\.example\.AppFull/);
+    assert.match(desktop, /Icon=org\.example\.AppFull/);
+    assert.match(desktop, /Categories=Utility;Development;/);
+    assert.match(desktop, /Keywords=test;demo;/);
+  });
+
+  it('flatpak init --kind cli emits console-application MetaInfo + skip-icons-check flathub.json + no .desktop', () => {
+    const cliProjectDir = join(tmpDir, 'flatpak-init-cli');
+    mkdirSync(cliProjectDir, { recursive: true });
+    setupProject(cliProjectDir, {
+      name: 'org.example.CliTool',
+      version: '1.0.0',
+      type: 'module',
+      private: true,
+      dependencies: { '@gjsify/cli': '^0.1.0' },
+      gjsify: {
+        flatpak: {
+          appId: 'org.example.CliTool',
+          kind: 'cli',
+          command: 'clitool',
+          developer: { id: 'org.example', name: 'Example Developer' },
+          summary: 'A test CLI tool',
+          description: 'CLI description.',
+          license: { project: 'MIT' },
+          homepageUrl: 'https://example.org',
+          releases: [{ version: '1.0.0', date: '2026-05-18' }],
+        },
+      },
+    }, tarballsDir, tarballMap);
+
+    execFileSync('npx', ['gjsify', 'flatpak', 'init'], {
+      cwd: cliProjectDir,
+      stdio: 'pipe',
+      timeout: 60 * 1000,
+    });
+
+    const metainfo = readFileSync(join(cliProjectDir, 'data/org.example.CliTool.metainfo.xml.in'), 'utf-8');
+    assert.match(metainfo, /<component type="console-application">/);
+    assert.match(metainfo, /<provides>\s*<binary>clitool<\/binary>\s*<\/provides>/);
+    // No <launchable> for CLI
+    assert.doesNotMatch(metainfo, /<launchable/);
+
+    // No .desktop file for CLI
+    assert.equal(existsSync(join(cliProjectDir, 'data/org.example.CliTool.desktop.in')), false,
+      '.desktop must not be written for --kind cli');
+
+    // flathub.json sets skip-icons-check
+    const flathub = JSON.parse(readFileSync(join(cliProjectDir, 'flathub.json'), 'utf-8'));
+    assert.equal(flathub['skip-icons-check'], true);
+
+    // Manifest finish-args should be empty (no GUI bits) for CLI
+    const manifest = JSON.parse(readFileSync(join(cliProjectDir, 'org.example.CliTool.json'), 'utf-8'));
+    assert.deepEqual(manifest['finish-args'], []);
+  });
+
+  // ── Phase F.9.2 — check command ────────────────────────────────────────
+
+  it('flatpak check shells out to appstreamcli + flatpak-builder-lint and surfaces failures', () => {
+    // Add stubs for the two linters; both succeed by default.
+    writeShim(stubBinDir, 'appstreamcli', 'APPSTREAMCLI_CALLS');
+    writeShim(stubBinDir, 'flatpak-builder-lint', 'BUILDER_LINT_CALLS');
+
+    const checkProjectDir = join(tmpDir, 'flatpak-check-ok');
+    mkdirSync(join(checkProjectDir, 'data'), { recursive: true });
+    setupProject(checkProjectDir, {
+      name: 'org.example.CheckOk', version: '1.0.0', type: 'module', private: true,
+      dependencies: { '@gjsify/cli': '^0.1.0' },
+      gjsify: { flatpak: { appId: 'org.example.CheckOk' } },
+    }, tarballsDir, tarballMap);
+    writeFileSync(join(checkProjectDir, 'org.example.CheckOk.json'), '{}\n');
+    writeFileSync(join(checkProjectDir, 'data/org.example.CheckOk.metainfo.xml.in'), '<component/>\n');
+
+    const out = execFileSync('npx', ['gjsify', 'flatpak', 'check'], {
+      cwd: checkProjectDir,
+      stdio: 'pipe',
+      timeout: 60 * 1000,
+      env: { ...process.env, PATH: pathWithStubs },
+    }).toString();
+    assert.match(out, /OK: appstreamcli validate --strict/);
+    assert.match(out, /OK: flatpak-builder-lint manifest/);
+    assert.match(out, /all checks passed/);
+
+    // Verify call shape
+    const appstreamCalls = readFileSync(join(stubBinDir, 'APPSTREAMCLI_CALLS'), 'utf-8').trim();
+    assert.match(appstreamCalls, /validate --strict .*org\.example\.CheckOk\.metainfo\.xml\.in/);
+    const lintCalls = readFileSync(join(stubBinDir, 'BUILDER_LINT_CALLS'), 'utf-8').trim();
+    assert.match(lintCalls, /manifest .*org\.example\.CheckOk\.json/);
+  });
+
+  it('flatpak check exits non-zero when a linter fails', () => {
+    // Replace the appstreamcli shim with one that exits 1.
+    writeShim(stubBinDir, 'appstreamcli', 'APPSTREAMCLI_CALLS', false, /* exitCode */ 1);
+
+    const failProjectDir = join(tmpDir, 'flatpak-check-fail');
+    mkdirSync(join(failProjectDir, 'data'), { recursive: true });
+    setupProject(failProjectDir, {
+      name: 'org.example.CheckFail', version: '1.0.0', type: 'module', private: true,
+      dependencies: { '@gjsify/cli': '^0.1.0' },
+      gjsify: { flatpak: { appId: 'org.example.CheckFail' } },
+    }, tarballsDir, tarballMap);
+    writeFileSync(join(failProjectDir, 'org.example.CheckFail.json'), '{}\n');
+    writeFileSync(join(failProjectDir, 'data/org.example.CheckFail.metainfo.xml.in'), '<broken/>\n');
+
+    let exitCode = 0;
+    let stdout = '';
+    try {
+      execFileSync('npx', ['gjsify', 'flatpak', 'check'], {
+        cwd: failProjectDir,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 60 * 1000,
+        env: { ...process.env, PATH: pathWithStubs },
+      });
+    } catch (e) {
+      exitCode = e.status ?? -1;
+      stdout = (e.stdout ?? '').toString();
+    }
+    assert.notStrictEqual(exitCode, 0, 'expected non-zero exit when appstreamcli fails');
+    assert.match(stdout, /FAIL: appstreamcli/);
+  });
 });
 
 /**
@@ -222,7 +430,7 @@ describe('CLI flatpak subcommand group E2E', { timeout: 10 * 60 * 1000 }, () => 
  *      (so the CLI's downstream existence checks succeed).
  *   3. Exits 0.
  */
-function writeShim(binDir, name, traceFile, createFile = false) {
+function writeShim(binDir, name, traceFile, createFile = false, exitCode = 0) {
   const trace = join(binDir, traceFile);
   const lines = [
     '#!/bin/sh',
@@ -241,7 +449,7 @@ function writeShim(binDir, name, traceFile, createFile = false) {
       '[ -n "$out" ] && : > "$out"',
     );
   }
-  lines.push('exit 0');
+  lines.push(`exit ${exitCode}`);
 
   const path = join(binDir, name);
   writeFileSync(path, lines.join('\n') + '\n', 'utf-8');

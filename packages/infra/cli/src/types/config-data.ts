@@ -231,4 +231,64 @@ export interface ConfigDataFlatpak {
     ciContainer?: string;
     /** Branches the generated workflow triggers on. Default `['main']`. */
     ciBranches?: string[];
+
+    // ─── Phase F.9: MetaInfo / .desktop / flathub.json scaffolding ─────────
+
+    /**
+     * App kind. `'app'` (default) → desktop-application MetaInfo, GUI
+     * finish-args, .desktop + icon required. `'cli'` → console-application
+     * MetaInfo with `<provides><binary>`, no .desktop, flathub.json sets
+     * `skip-icons-check`. Supersedes the older `--cli-only` flag on
+     * `gjsify flatpak init`.
+     */
+    kind?: 'app' | 'cli';
+    /** Developer attribution required by Flathub. `id` must be reverse-DNS. */
+    developer?: { id: string; name: string };
+    /** One-line summary, ≤80 chars, no trailing period (Flathub rule). */
+    summary?: string;
+    /** Long description. Multi-paragraph plain text — converted to MetaInfo `<description>` paragraphs. */
+    description?: string;
+    /** Project homepage URL. Recommended; required for Flathub submission. */
+    homepageUrl?: string;
+    /** Bug tracker URL. */
+    bugtrackerUrl?: string;
+    /** VCS browser URL (e.g. GitHub repo). */
+    vcsBrowserUrl?: string;
+    /** Donation URL (e.g. OpenCollective / GitHub Sponsors). */
+    donationUrl?: string;
+    /**
+     * License SPDX identifiers. `project` is the project's source license
+     * (mandatory). `metadata` is the license under which the MetaInfo XML
+     * is distributed (default `'CC0-1.0'`).
+     */
+    license?: { metadata?: string; project: string };
+    /** Content-rating spec keyword. Default `'oars-1.1'`. */
+    contentRating?: string;
+    /** Freedesktop Menu categories (e.g. `['Development', 'Utility']`). */
+    categories?: string[];
+    /** Search keywords for app stores. */
+    keywords?: string[];
+    /**
+     * Release history. Most recent first. Each entry produces a
+     * `<release version=… date=…>` block in the MetaInfo XML.
+     */
+    releases?: Array<{ version: string; date: string; description?: string }>;
+    /**
+     * Screenshots for app-stores. `url` is an absolute HTTPS URL to a PNG.
+     * `caption` is optional. `environment` is one of `'plasma'|'gnome'|'cli'`
+     * — Flathub uses it to group by desktop.
+     */
+    screenshots?: Array<{
+        url: string;
+        caption?: string;
+        environment?: 'plasma' | 'gnome' | 'cli';
+    }>;
+    /** Light/dark accent colours (hex `#rrggbb`) — emit `<branding>` block. */
+    branding?: { accentLight: string; accentDark: string };
+    /**
+     * Path to a scalable SVG icon. Flathub requires SVG (`/app/share/icons/
+     * hicolor/scalable/apps/<app-id>.svg`). When set, init verifies the file
+     * exists; when unset on `--kind app`, init prints a Flathub hint.
+     */
+    icon?: string;
 }

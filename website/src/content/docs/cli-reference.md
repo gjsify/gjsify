@@ -447,6 +447,97 @@ See it in action: [`adwaita-package-builder` showcase](https://github.com/gjsify
 
 Before running, `gjsify showcase` calls `gjsify check` to verify system dependencies.
 
+## `gjsify flatpak`
+
+Subcommand group for shipping GJS apps and CLIs as Flatpaks. Five subcommands:
+
+| Subcommand | Purpose |
+|---|---|
+| `flatpak init` | Scaffold the full Flathub-ready asset set: manifest JSON + MetaInfo XML + `.desktop` (apps only) + `flathub.json` |
+| `flatpak check` | Run `appstreamcli validate --strict` + `flatpak-builder-lint manifest` locally |
+| `flatpak build` | Wrap `flatpak-builder` with sensible defaults |
+| `flatpak deps` | Wrap `flatpak-node-generator` to produce the offline npm cache |
+| `flatpak ci` | Scaffold `.github/workflows/flatpak.yml` matching the Flathub action shape |
+
+End-to-end guides: [Ship a GJS app as a Flatpak](./guides/flatpak-app/) | [Ship a CLI tool as a Flatpak](./guides/flatpak-cli-tool/).
+
+### `gjsify flatpak init`
+
+Generate the full Flathub asset bundle from `package.json#gjsify.flatpak`.
+
+```bash
+# Default — GTK/Adwaita desktop app
+npx @gjsify/cli flatpak init
+
+# CLI tool — no .desktop, console-application MetaInfo, skip-icons-check
+npx @gjsify/cli flatpak init --kind cli
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--app-id` | `gjsify.flatpak.appId` or `package.json#name` | Reverse-DNS app id |
+| `--kind <app\|cli>` | `app` | Template kind. `cli` emits `console-application` MetaInfo + `flathub.json` with `skip-icons-check: true`, no `.desktop`. |
+| `--cli-only` | `false` | Deprecated alias for `--kind cli`. |
+| `--runtime <gnome\|freedesktop>` | `gnome` | Runtime family. Both kinds default to GNOME because GJS bundles need GLib/GIO at runtime. |
+| `--runtime-version` | `50` (gnome) / `24.08` (freedesktop) | Runtime version |
+| `--manifest <path>` | `<app-id>.json` | Manifest output path |
+| `--metainfo <path>` | `data/<app-id>.metainfo.xml.in` | MetaInfo XML output path |
+| `--desktop <path>` | `data/<app-id>.desktop.in` | `.desktop` output path (kind=app only) |
+| `--flathub-json <path>` | `flathub.json` | flathub.json output path |
+| `--command` | `gjsify.flatpak.command` or app id | Binary name in `/app/bin` |
+| `--sdk-extension <ext>` | — | Repeatable; extra SDK extension (e.g. `org.freedesktop.Sdk.Extension.node24`) |
+| `--finish-arg <arg>` | — | Repeatable; appended to default finish-args |
+| `--force` | `false` | Overwrite existing outputs (default: skip-and-log) |
+| `--verbose` | `false` | Print resolved fields before writing |
+
+**Non-destructive contract:** each output (manifest / metainfo / desktop / flathub.json) is independently checked for existence; existing files are skipped with a log line. Re-run with `--force` to overwrite. User edits to one file (e.g. a hand-tuned `.desktop`) don't block re-running `init` to refresh the others.
+
+**Config gaps degrade gracefully:** missing MetaInfo fields are reported with per-field hints pointing at the exact `gjsify.flatpak.<key>` to set. The manifest still writes; MetaInfo + .desktop are skipped until you fill the gaps and re-run. Full field list:
+
+| `gjsify.flatpak.<key>` | Required for | Notes |
+|---|---|---|
+| `appId` | both | Reverse-DNS. |
+| `kind` | both | `"app"` (default) or `"cli"`. |
+| `developer.id` / `developer.name` | metainfo | AppStream OARS 1.1+ requires `<developer id="…">`. |
+| `summary` | metainfo | ≤80 chars, no trailing period. |
+| `description` | metainfo | Blank lines split paragraphs (each becomes `<p>`); `&`/`<`/`>` are escaped. |
+| `license.metadata` | metainfo | SPDX id; defaults to `CC0-1.0` when absent. |
+| `license.project` | metainfo | SPDX id of the software project. |
+| `homepageUrl` | metainfo | `<url type="homepage">`. |
+| `bugtrackerUrl` / `vcsBrowserUrl` / `donationUrl` | optional | Extra `<url>` entries. |
+| `categories` | metainfo (app) / desktop | Freedesktop Menu spec categories. |
+| `keywords` | optional | Search keywords. |
+| `releases` | metainfo | `[{ version, date, description? }]`. Flathub requires ≥1. |
+| `screenshots` | optional (app) | `[{ url, caption?, environment? }]`. |
+| `branding` | optional (app) | `{ accentLight, accentDark }` hex colours. |
+| `icon` | optional (app) | Path to scalable SVG; warning if missing. |
+| `contentRating` | optional | OARS keyword (default `oars-1.1`). |
+
+### `gjsify flatpak check`
+
+Run Flathub linters locally — same checks Flathub's PR CI runs.
+
+```bash
+npx @gjsify/cli flatpak check                              # auto-detect manifest
+npx @gjsify/cli flatpak check eu.jumplink.Learn6502.json   # explicit manifest
+npx @gjsify/cli flatpak check --repo repo                  # also lint a built repo
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `[manifest]` | auto | Manifest path; defaults to `<app-id>.json` or the single `.json` matching a manifest shape. |
+| `--metainfo <path>` | `data/<app-id>.metainfo.xml.in` | MetaInfo to validate; skipped if missing. |
+| `--repo <path>` | — | If set, also runs `flatpak-builder-lint repo <path>` (post-build). |
+| `--appstream` | `true` | Toggle `appstreamcli validate --strict`. `--no-appstream` to skip. |
+| `--builder-lint` | `true` | Toggle `flatpak-builder-lint`. `--no-builder-lint` to skip. |
+| `--verbose` | `false` | Stream linter stdout/stderr through. |
+
+Requires `appstreamcli` and `flatpak-builder-lint` on `PATH`. Both ship inside the `org.flatpak.Builder` Flatpak — install via `flatpak install -y flathub org.flatpak.Builder`; check prints this hint on `ENOENT`. Exit code aggregates: non-zero if any linter fails or any required binary is missing.
+
+### `gjsify flatpak build`, `deps`, `ci`
+
+See the [flatpak-app guide](./guides/flatpak-app/) for usage examples; flags are stable since v0.4.x.
+
 ## `gjsify self-update`
 
 Refresh the installed `@gjsify/cli` to the latest release (or a pinned dist-tag).

@@ -1,15 +1,19 @@
 // `gjsify flatpak init` — generate a Flatpak manifest from package.json
-// + the `gjsify.flatpak` config namespace.
+// + the `gjsify.flatpak` config namespace, plus (Phase F.9) MetaInfo XML,
+// `.desktop` (app kind only), and `flathub.json` policy stub in the same
+// invocation.
 //
 // Defaults are designed for the two real-world shapes:
-//   * GTK4 + Adwaita apps (Learn6502): `gnome` runtime, GUI finish-args
-//   * Headless CLI tools (ts-for-gir): same `gnome` runtime (GJS bundles
-//     need GLib/GIO at runtime — Freedesktop ships no GJS), but lean
-//     finish-args via `--cli-only`. Memory file
-//     `project_flatpak_runtime_choice.md` documents this trade-off.
+//   * `--kind app` (default) — GTK4 + Adwaita apps (Learn6502): `gnome`
+//     runtime, GUI finish-args, desktop-application MetaInfo, .desktop +
+//     icon required.
+//   * `--kind cli` — headless CLI tools (ts-for-gir): same `gnome` runtime
+//     (GJS bundles need GLib/GIO at runtime — Freedesktop ships no GJS),
+//     but lean finish-args + console-application MetaInfo + flathub.json
+//     with `skip-icons-check`.
 
-import { existsSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import type { Command, ConfigData, ConfigDataFlatpak } from '../../types/index.js';
 import {
     DEFAULT_CLI_FINISH_ARGS,
@@ -18,14 +22,26 @@ import {
     readPackageJson,
     resolveRuntime,
 } from './utils.js';
+import {
+    renderDesktop,
+    renderFlathubJson,
+    renderMetainfoApp,
+    renderMetainfoCli,
+    validateScaffoldInputs,
+    type ScaffoldInputs,
+} from './scaffold.js';
 import { Config } from '../../config.js';
 
 interface FlatpakInitOptions {
     appId?: string;
     runtime?: string;
     runtimeVersion?: string;
+    kind?: string;
     cliOnly?: boolean;
     manifest?: string;
+    metainfo?: string;
+    desktop?: string;
+    flathubJson?: string;
     command?: string;
     force?: boolean;
     sdkExtension?: string[];
@@ -36,7 +52,7 @@ interface FlatpakInitOptions {
 export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
     command: 'init',
     description:
-        'Generate a Flatpak manifest from package.json + `gjsify.flatpak` config.',
+        'Generate Flatpak manifest + MetaInfo XML + .desktop + flathub.json from `gjsify.flatpak` config.',
     builder: (yargs) => {
         return yargs
             .option('app-id', {
@@ -51,13 +67,32 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
                 description: 'Runtime version (default: gnome -> 50, freedesktop -> 24.08)',
                 type: 'string',
             })
+            .option('kind', {
+                description: 'App kind: "app" (default, desktop) or "cli" (console-application MetaInfo, no .desktop)',
+                choices: ['app', 'cli'] as const,
+            })
             .option('cli-only', {
-                description: 'Strip GUI finish-args; keep `gnome` runtime so GJS is available at runtime',
+                description: '(Deprecated) Alias for `--kind cli`. Use --kind instead.',
                 type: 'boolean',
                 default: false,
             })
             .option('manifest', {
-                description: 'Output path. Default: `<app-id>.json` in cwd.',
+                description: 'Output path for the manifest. Default: `<app-id>.json` in cwd.',
+                type: 'string',
+                normalize: true,
+            })
+            .option('metainfo', {
+                description: 'Output path for the MetaInfo XML. Default: `data/<app-id>.metainfo.xml.in` in cwd.',
+                type: 'string',
+                normalize: true,
+            })
+            .option('desktop', {
+                description: 'Output path for the .desktop entry (app kind only). Default: `data/<app-id>.desktop.in`.',
+                type: 'string',
+                normalize: true,
+            })
+            .option('flathub-json', {
+                description: 'Output path for the flathub.json policy stub. Default: `flathub.json` in cwd.',
                 type: 'string',
                 normalize: true,
             })
@@ -76,7 +111,7 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
                 array: true,
             })
             .option('force', {
-                description: 'Overwrite an existing manifest',
+                description: 'Overwrite existing output files (manifest, metainfo, desktop, flathub.json)',
                 type: 'boolean',
                 default: false,
             })
@@ -104,6 +139,11 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
             );
         }
 
+        const kind: 'app' | 'cli' =
+            (args.kind as 'app' | 'cli' | undefined) ??
+            flatpak.kind ??
+            (args.cliOnly ? 'cli' : 'app');
+
         const { runtime, runtimeId, sdk, runtimeVersion } = resolveRuntime(flatpak, {
             runtime: args.runtime,
             runtimeVersion: args.runtimeVersion,
@@ -114,12 +154,11 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
         const command = (args.command as string | undefined) ?? flatpak.command ?? appId;
 
         const explicitFinishArgs = args.finishArg as string[] | undefined;
-        const cliOnly = args.cliOnly === true;
         const finishArgs =
             explicitFinishArgs !== undefined
                 ? explicitFinishArgs
                 : flatpak.finishArgs ??
-                  (cliOnly ? DEFAULT_CLI_FINISH_ARGS : DEFAULT_GUI_FINISH_ARGS);
+                  (kind === 'cli' ? DEFAULT_CLI_FINISH_ARGS : DEFAULT_GUI_FINISH_ARGS);
 
         const manifest: Record<string, unknown> = {
             id: appId,
@@ -137,8 +176,6 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
         const cleanup = flatpak.cleanup;
         if (cleanup?.length) manifest.cleanup = cleanup;
 
-        // Modules: caller-supplied `extraModules` first, then the app's own
-        // meson module pointing at the source dir.
         const modules: unknown[] = [];
         if (flatpak.extraModules?.length) modules.push(...flatpak.extraModules);
         modules.push({
@@ -148,32 +185,85 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
         });
         manifest.modules = modules;
 
-        const out = (args.manifest as string | undefined) ?? `${appId}.json`;
-        const outPath = resolve(cwd, out);
-        if (existsSync(outPath) && !args.force) {
-            throw new Error(
-                `gjsify flatpak init: ${outPath} exists. Pass --force to overwrite.`,
-            );
-        }
+        const manifestOut = (args.manifest as string | undefined) ?? `${appId}.json`;
+        const manifestPath = resolve(cwd, manifestOut);
+        writeIfFresh(manifestPath, JSON.stringify(manifest, null, 4) + '\n', args.force ?? false, 'manifest');
 
-        const json = JSON.stringify(manifest, null, 4) + '\n';
-        writeFileSync(outPath, json, 'utf-8');
+        const name = (pkg.name as string | undefined) ?? appId;
+        const scaffold: ScaffoldInputs = {
+            appId,
+            name: friendlyName(name, appId),
+            command,
+            kind,
+            flatpak,
+        };
+
+        const missing = validateScaffoldInputs(scaffold);
+        if (missing.length > 0) {
+            console.warn('[gjsify flatpak init] Manifest written, but MetaInfo / .desktop are skipped — config gaps:');
+            for (const m of missing) console.warn(`  - ${m.field}: ${m.hint}`);
+            console.warn(
+                '\nFill these fields in package.json#gjsify.flatpak (or .gjsifyrc.*) and re-run with --force.',
+            );
+        } else {
+            const metainfoXml =
+                kind === 'cli' ? renderMetainfoCli(scaffold) : renderMetainfoApp(scaffold);
+            const metainfoOut =
+                (args.metainfo as string | undefined) ?? `data/${appId}.metainfo.xml.in`;
+            writeIfFresh(resolve(cwd, metainfoOut), metainfoXml, args.force ?? false, 'metainfo');
+
+            if (kind === 'app') {
+                const desktopOut =
+                    (args.desktop as string | undefined) ?? `data/${appId}.desktop.in`;
+                writeIfFresh(resolve(cwd, desktopOut), renderDesktop(scaffold), args.force ?? false, 'desktop');
+
+                if (!flatpak.icon) {
+                    console.warn(
+                        `[gjsify flatpak init] No gjsify.flatpak.icon set. Flathub requires a scalable SVG at\n` +
+                            `  data/icons/hicolor/scalable/apps/${appId}.svg`,
+                    );
+                }
+            }
+
+            const flathubOut = (args.flathubJson as string | undefined) ?? 'flathub.json';
+            writeIfFresh(resolve(cwd, flathubOut), renderFlathubJson(kind), args.force ?? false, 'flathub.json');
+        }
 
         if (args.verbose) {
-            console.log(`[gjsify flatpak init] runtime=${runtimeId} ${runtimeVersion} sdk=${sdk}`);
+            console.log(`[gjsify flatpak init] kind=${kind} runtime=${runtimeId} ${runtimeVersion} sdk=${sdk}`);
             console.log(`[gjsify flatpak init] command=${command} finish-args=${JSON.stringify(finishArgs)}`);
+            void runtime;
         }
-        console.log(`[gjsify flatpak init] wrote ${outPath}`);
     },
 };
 
-/** Concatenate two optional arrays, dropping `undefined`. */
+function writeIfFresh(path: string, content: string, force: boolean, label: string): void {
+    if (existsSync(path) && !force) {
+        console.log(`[gjsify flatpak init] skipped ${label}: ${path} (exists; --force to overwrite)`);
+        return;
+    }
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, content, 'utf-8');
+    console.log(`[gjsify flatpak init] wrote ${label}: ${path}`);
+}
+
+function friendlyName(pkgName: string, appId: string): string {
+    if (pkgName.startsWith('@')) {
+        const base = pkgName.slice(pkgName.indexOf('/') + 1);
+        return base;
+    }
+    if (pkgName === appId) {
+        const segs = appId.split('.');
+        return segs[segs.length - 1] ?? appId;
+    }
+    return pkgName;
+}
+
 function mergeArrays(a: string[] | undefined, b: string[] | undefined): string[] | undefined {
     if (!a?.length && !b?.length) return undefined;
     return [...(a ?? []), ...(b ?? [])];
 }
 
-/** Map known SDK extension ids to their /usr/lib/sdk/<name>/bin paths. */
 function deriveAppendPath(sdkExtensions: string[]): string[] {
     const out: string[] = [];
     for (const ext of sdkExtensions) {
@@ -184,7 +274,6 @@ function deriveAppendPath(sdkExtensions: string[]): string[] {
     return out;
 }
 
-/** Last segment of the reverse-DNS id, used as the meson-module name. */
 function deriveModuleName(appId: string): string {
     const parts = appId.split('.');
     return parts[parts.length - 1] || appId;
