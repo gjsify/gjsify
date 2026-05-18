@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.12](https://github.com/gjsify/gjsify/compare/v0.4.11...v0.4.12) (2026-05-18)
+
+### Features
+
+* **cli:** Phase F.9 — flatpak init Flathub asset scaffold + check ([#194](https://github.com/gjsify/gjsify/issues/194)) ([910230e](https://github.com/gjsify/gjsify/commit/910230ea337b4f38bdc23a3059ca25eedfd4aff3))
+* **iframe:** binary postMessage + W3C origin checks + bootstrap idempotency + MessagePort transferList ([#195](https://github.com/gjsify/gjsify/issues/195)) ([efa096e](https://github.com/gjsify/gjsify/commit/efa096e1a3622e2e93802bd055ab7b03a6407a34))
+* **message-channel:** @gjsify/message-channel — W3C MessageChannel + MessagePort globals ([#196](https://github.com/gjsify/gjsify/issues/196)) ([3da7dca](https://github.com/gjsify/gjsify/commit/3da7dca9cb29fed85a00452bdfa9cc5ee92784f1)), closes [#195](https://github.com/gjsify/gjsify/issues/195) [#195](https://github.com/gjsify/gjsify/issues/195)
+* **sab-native:** Vala bridge for cross-process shared memory + atomics ([#190](https://github.com/gjsify/gjsify/issues/190)) ([79707e4](https://github.com/gjsify/gjsify/commit/79707e4c746a2f4dd70ab1f45231f3d2478ed7fd))
+* **worker_threads:** cross-process SharedBuffer transfer via @gjsify/sab-native ([#193](https://github.com/gjsify/gjsify/issues/193)) ([1bc1dd7](https://github.com/gjsify/gjsify/commit/1bc1dd78912f5217f5251140d2c177d87867500b))
+
 ## [0.4.11](https://github.com/gjsify/gjsify/compare/v0.4.10...v0.4.11) (2026-05-18)
 
 ### Features
