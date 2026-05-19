@@ -31,6 +31,11 @@ import {
     type ScaffoldInputs,
 } from './scaffold.js';
 import { Config } from '../../config.js';
+import {
+    BiomeNotFoundError,
+    hasBiomeDevDep,
+    runBiome,
+} from '../../utils/biome-resolve.js';
 
 interface FlatpakInitOptions {
     appId?: string;
@@ -47,6 +52,7 @@ interface FlatpakInitOptions {
     sdkExtension?: string[];
     finishArg?: string[];
     verbose?: boolean;
+    format?: boolean;
 }
 
 export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
@@ -119,6 +125,13 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
                 description: 'Print the resolved manifest fields before writing',
                 type: 'boolean',
                 default: false,
+            })
+            .option('format', {
+                description:
+                    'Run `gjsify format --write` on the generated files when `@biomejs/biome` is detected in the project. ' +
+                    'Default: true. Pass --no-format to skip.',
+                type: 'boolean',
+                default: true,
             });
     },
     handler: async (args) => {
@@ -185,9 +198,14 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
         });
         manifest.modules = modules;
 
+        const writtenFiles: string[] = [];
+        const trackWrite = (p: string | null) => {
+            if (p) writtenFiles.push(p);
+        };
+
         const manifestOut = (args.manifest as string | undefined) ?? `${appId}.json`;
         const manifestPath = resolve(cwd, manifestOut);
-        writeIfFresh(manifestPath, JSON.stringify(manifest, null, 4) + '\n', args.force ?? false, 'manifest');
+        trackWrite(writeIfFresh(manifestPath, JSON.stringify(manifest, null, 2) + '\n', args.force ?? false, 'manifest'));
 
         const pkgName = (pkg.name as string | undefined) ?? appId;
         const scaffold: ScaffoldInputs = {
@@ -210,12 +228,12 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
                 kind === 'cli' ? renderMetainfoCli(scaffold) : renderMetainfoApp(scaffold);
             const metainfoOut =
                 (args.metainfo as string | undefined) ?? `data/${appId}.metainfo.xml.in`;
-            writeIfFresh(resolve(cwd, metainfoOut), metainfoXml, args.force ?? false, 'metainfo');
+            trackWrite(writeIfFresh(resolve(cwd, metainfoOut), metainfoXml, args.force ?? false, 'metainfo'));
 
             if (kind === 'app') {
                 const desktopOut =
                     (args.desktop as string | undefined) ?? `data/${appId}.desktop.in`;
-                writeIfFresh(resolve(cwd, desktopOut), renderDesktop(scaffold), args.force ?? false, 'desktop');
+                trackWrite(writeIfFresh(resolve(cwd, desktopOut), renderDesktop(scaffold), args.force ?? false, 'desktop'));
 
                 if (!flatpak.icon) {
                     console.warn(
@@ -226,7 +244,29 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
             }
 
             const flathubOut = (args.flathubJson as string | undefined) ?? 'flathub.json';
-            writeIfFresh(resolve(cwd, flathubOut), renderFlathubJson(kind), args.force ?? false, 'flathub.json');
+            trackWrite(writeIfFresh(resolve(cwd, flathubOut), renderFlathubJson(kind), args.force ?? false, 'flathub.json'));
+        }
+
+        // Optional post-format: when biome is configured in the project,
+        // run `biome format --write` on the generated files so they match
+        // the project's prettier/biome style. Default behaviour (2-space
+        // JSON) already matches biome/prettier/Flathub defaults; this
+        // step harmonises edge-case fields (line endings, trailing commas
+        // in JSONC, key sort order if biome's organize-imports has rules).
+        if (writtenFiles.length > 0 && args.format !== false && hasBiomeDevDep(cwd)) {
+            try {
+                await runBiome(['format', '--write', ...writtenFiles], { cwd });
+            } catch (err) {
+                if (err instanceof BiomeNotFoundError) {
+                    // Biome configured but binary missing — non-fatal warning.
+                    console.warn(
+                        `[gjsify flatpak init] post-format skipped: @biomejs/biome declared but binary not installed. ` +
+                            `Run \`gjsify install\` then re-run with --force, or pass --no-format.`,
+                    );
+                } else {
+                    throw err;
+                }
+            }
         }
 
         if (args.verbose) {
@@ -237,14 +277,15 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
     },
 };
 
-function writeIfFresh(path: string, content: string, force: boolean, label: string): void {
+function writeIfFresh(path: string, content: string, force: boolean, label: string): string | null {
     if (existsSync(path) && !force) {
         console.log(`[gjsify flatpak init] skipped ${label}: ${path} (exists; --force to overwrite)`);
-        return;
+        return null;
     }
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, content, 'utf-8');
     console.log(`[gjsify flatpak init] wrote ${label}: ${path}`);
+    return path;
 }
 
 function friendlyName(pkgName: string, appId: string): string {

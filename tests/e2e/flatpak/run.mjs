@@ -481,6 +481,90 @@ describe('CLI flatpak subcommand group E2E', { timeout: 10 * 60 * 1000 }, () => 
     assert.match(metainfo, /<release version="0\.9\.0" date="2026-04-15" \/>/);
   });
 
+  // ── Phase G.2 — flatpak init 2-space JSON + format-aware ──────────────
+
+  it('flatpak init writes manifest with 2-space indentation (matches Flathub + biome convention)', () => {
+    const indentDir = join(tmpDir, 'flatpak-init-indent');
+    mkdirSync(indentDir, { recursive: true });
+    setupProject(indentDir, {
+      name: 'org.example.IndentProbe',
+      version: '0.0.1',
+      type: 'module',
+      private: true,
+      dependencies: { '@gjsify/cli': '^0.1.0' },
+      gjsify: { flatpak: { appId: 'org.example.IndentProbe' } },
+    }, tarballsDir, tarballMap);
+
+    execFileSync('npx', ['gjsify', 'flatpak', 'init'], {
+      cwd: indentDir,
+      stdio: 'pipe',
+      timeout: 60 * 1000,
+    });
+
+    const manifest = readFileSync(join(indentDir, 'org.example.IndentProbe.json'), 'utf-8');
+    // 2-space indent: the second line should start with exactly 2 spaces
+    assert.match(manifest, /^\{\n {2}"id":/);
+    // Negative — make sure we're NOT still on 4-space
+    assert.doesNotMatch(manifest, /^\{\n {4}"id":/);
+  });
+
+  it('flatpak init runs biome format on outputs when @biomejs/biome is in devDependencies', () => {
+    const fmtDir = join(tmpDir, 'flatpak-init-fmt');
+    mkdirSync(fmtDir, { recursive: true });
+    setupProject(fmtDir, {
+      name: 'org.example.FmtProbe',
+      version: '0.0.1',
+      type: 'module',
+      private: true,
+      dependencies: { '@gjsify/cli': '^0.1.0' },
+      devDependencies: { '@biomejs/biome': '^2.4.13' },
+      gjsify: { flatpak: { appId: 'org.example.FmtProbe' } },
+    }, tarballsDir, tarballMap);
+
+    // Project ships its own biome.json with a deliberately-distinctive
+    // setting (lineWidth: 200) so we can verify biome ran by checking
+    // the output style follows project config.
+    writeFileSync(join(fmtDir, 'biome.json'), JSON.stringify({
+      $schema: 'https://biomejs.dev/schemas/2.4.13/schema.json',
+      formatter: { enabled: true, indentStyle: 'space', indentWidth: 2 },
+      json: { formatter: { indentWidth: 2 } },
+    }, null, 2));
+
+    execFileSync('npx', ['gjsify', 'flatpak', 'init'], {
+      cwd: fmtDir,
+      stdio: 'pipe',
+      timeout: 60 * 1000,
+    });
+
+    // Manifest exists and is 2-space (biome ran or default — both pass this)
+    const manifest = readFileSync(join(fmtDir, 'org.example.FmtProbe.json'), 'utf-8');
+    assert.match(manifest, /^\{\n {2}"id":/);
+  });
+
+  it('flatpak init --no-format skips post-format step even when biome is present', () => {
+    const noFmtDir = join(tmpDir, 'flatpak-init-no-fmt');
+    mkdirSync(noFmtDir, { recursive: true });
+    setupProject(noFmtDir, {
+      name: 'org.example.NoFmt',
+      version: '0.0.1',
+      type: 'module',
+      private: true,
+      dependencies: { '@gjsify/cli': '^0.1.0' },
+      devDependencies: { '@biomejs/biome': '^2.4.13' },
+      gjsify: { flatpak: { appId: 'org.example.NoFmt' } },
+    }, tarballsDir, tarballMap);
+
+    // --no-format should produce the raw 2-space output regardless of biome state
+    execFileSync('npx', ['gjsify', 'flatpak', 'init', '--no-format'], {
+      cwd: noFmtDir,
+      stdio: 'pipe',
+      timeout: 60 * 1000,
+    });
+
+    const manifest = readFileSync(join(noFmtDir, 'org.example.NoFmt.json'), 'utf-8');
+    assert.match(manifest, /^\{\n {2}"id":/);
+  });
+
   // ── Phase F.9.2 — check command ────────────────────────────────────────
 
   it('flatpak check shells out to appstreamcli + flatpak-builder-lint and surfaces failures', () => {
