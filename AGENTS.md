@@ -115,7 +115,7 @@ Composition-first (Remix/Astro/SvelteKit/Solid-Start feel). Anything NOT Node/We
 | canvas2d | `@gjsify/canvas2d-core`, Cairo, GdkPixbuf, PangoCairo, Gtk 4 | Re-exports canvas2d-core + **FontFace** (PangoCairo font loading) + `Canvas2DBridge`→`Gtk.DrawingArea` GTK widget |
 | webgl | gwebgl, Gtk 4.0, GObject | WebGL 1.0/2.0 via Vala (@gwebgl-0.1), WebGLBridge→Gtk.GLArea |
 | video | Gst 1.0, Gtk 4.0 | HTMLVideoElement, VideoBridge→Gtk.Picture(gtk4paintablesink). srcObject(MediaStream from getUserMedia/WebRTC) + src(URI via playbin). Phase 1 |
-| iframe | WebKit 6.0 | HTMLIFrameElement, IFrameBridge→WebKit.WebView, postMessage bridge |
+| iframe | WebKit 6.0 | HTMLIFrameElement, IFrameBridge→WebKit.WebView, postMessage bridge, navigation (loadUri / loadHtml / goBack / goForward / reload + canGoBack/canGoForward) |
 
 ### Bridge pattern
 
