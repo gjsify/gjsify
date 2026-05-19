@@ -1,8 +1,8 @@
 // `gjsify flatpak` — yargs subcommand-group dispatcher.
 //
-// Wires {init, build, deps, ci, check}. Each subcommand is a self-contained
-// `Command<>` so it composes the same way as `gresource` / `gettext` /
-// `gsettings` at the top level.
+// Wires {init, build, deps, ci, check, sync-flathub, diff, release}.
+// Each subcommand is a self-contained `Command<>` so it composes the
+// same way as `gresource` / `gettext` / `gsettings` at the top level.
 
 import type { Command } from '../../types/index.js';
 import { flatpakInitCommand } from './init.js';
@@ -11,11 +11,13 @@ import { flatpakDepsCommand } from './deps.js';
 import { flatpakCiCommand } from './ci.js';
 import { flatpakCheckCommand } from './check.js';
 import { flatpakSyncFlathubCommand } from './sync-flathub.js';
+import { flatpakDiffCommand } from './diff.js';
+import { flatpakReleaseCommand } from './release.js';
 
 export const flatpakCommand: Command = {
     command: 'flatpak <subcommand>',
     description:
-        'Flatpak toolchain: init/build/deps/ci/check/sync-flathub subcommands for shipping GJS apps and CLIs as Flatpaks.',
+        'Flatpak toolchain: init/build/deps/ci/check/sync-flathub/diff/release subcommands for shipping GJS apps and CLIs as Flatpaks.',
     builder: (yargs) => {
         return yargs
             .command(
@@ -54,6 +56,18 @@ export const flatpakCommand: Command = {
                 flatpakSyncFlathubCommand.builder!,
                 flatpakSyncFlathubCommand.handler!,
             )
+            .command(
+                flatpakDiffCommand.command as string,
+                flatpakDiffCommand.description,
+                flatpakDiffCommand.builder!,
+                flatpakDiffCommand.handler!,
+            )
+            .command(
+                flatpakReleaseCommand.command as string,
+                flatpakReleaseCommand.description,
+                flatpakReleaseCommand.builder!,
+                flatpakReleaseCommand.handler!,
+            )
             .demandCommand(1)
             .strict();
     },
@@ -66,4 +80,6 @@ export {
     flatpakCiCommand,
     flatpakCheckCommand,
     flatpakSyncFlathubCommand,
+    flatpakDiffCommand,
+    flatpakReleaseCommand,
 };

@@ -533,7 +533,7 @@ Before running, `gjsify showcase` calls `gjsify check` to verify system dependen
 
 ## `gjsify flatpak`
 
-Subcommand group for shipping GJS apps and CLIs as Flatpaks. Six subcommands:
+Subcommand group for shipping GJS apps and CLIs as Flatpaks. Eight subcommands:
 
 | Subcommand | Purpose |
 |---|---|
@@ -543,6 +543,8 @@ Subcommand group for shipping GJS apps and CLIs as Flatpaks. Six subcommands:
 | `flatpak deps` | Wrap `flatpak-node-generator` to produce the offline npm cache |
 | `flatpak ci` | Scaffold `.github/workflows/flatpak.yml` matching the Flathub action shape |
 | `flatpak sync-flathub` | After cutting a release, sync the per-app `flathub/<app-id>` tracking-repo manifest to the new git tag + commit |
+| `flatpak diff` | Compare the local git state to the per-app Flathub tracking-repo manifest; surface version drift |
+| `flatpak release` | Cut a release end-to-end: chain init + check + tag + sync-flathub |
 
 End-to-end guides: [Ship a GJS app as a Flatpak](./guides/flatpak-app/) | [Ship a CLI tool as a Flatpak](./guides/flatpak-cli-tool/).
 
@@ -676,6 +678,64 @@ npx @gjsify/cli flatpak sync-flathub --version v0.6.6 --no-pr
 Requires `git` (always) and `gh` (unless `--no-pr`). Both surface install hints on `ENOENT`. Idempotent: re-running with the same `--version` is a no-op when the manifest is already pinned.
 
 **`gjsify.flatpak.flathubRepo`** in `package.json#gjsify.flatpak` overrides the default `flathub/<app-id>` derivation for repos that don't follow the convention.
+
+### `gjsify flatpak diff`
+
+Compare the local git state against the per-app Flathub tracking-repo manifest and surface version drift before publishing.
+
+```bash
+# Fetch flathub manifest, compare local latest tag against pinned tag
+npx @gjsify/cli flatpak diff
+
+# Compare against an explicit version
+npx @gjsify/cli flatpak diff --version v0.6.6
+
+# Compare against a local file (offline / CI)
+npx @gjsify/cli flatpak diff --against ./flathub/<app-id>.json
+
+# Print the full flathub source entry
+npx @gjsify/cli flatpak diff --detail
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--version <tag>` | `git describe --tags --abbrev=0` in cwd | Local version to compare against. |
+| `--app-id <id>` | `gjsify.flatpak.appId` | Reverse-DNS app id. |
+| `--flathub-repo <owner/name>` | `gjsify.flatpak.flathubRepo` or `flathub/<app-id>` | Tracking-repo to fetch from. |
+| `--against <path>` | — | Read a local manifest instead of fetching. |
+| `--detail` | `false` | Also print the full flathub manifest source entry. |
+| `--source-index <n>` | first `type: git` source | Which `modules[0].sources[]` entry to inspect. |
+| `--verbose` | `false` | Echo fetch URL + resolved values. |
+
+Exit 0 when the local tag matches the flathub-pinned tag; exit 1 on drift with a hint at the exact `gjsify flatpak sync-flathub` command that would fix it.
+
+### `gjsify flatpak release`
+
+Cut a release end-to-end: chain `flatpak init` (regenerate assets) → `flatpak check` (lint locally) → `git tag` (+ push) → `flatpak sync-flathub` (open the Flathub PR). One command for the maintainer flow that otherwise spans four manual invocations.
+
+```bash
+# Full chain
+npx @gjsify/cli flatpak release v0.6.6
+
+# Show the plan without running anything
+npx @gjsify/cli flatpak release v0.6.6 --dry-run
+
+# Tag was already created
+npx @gjsify/cli flatpak release v0.6.6 --skip-tag
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `<version>` | — | **Required.** Release tag, e.g. `v0.6.6`. |
+| `--skip-init` | `false` | Skip the `flatpak init --force` regen step. |
+| `--skip-check` | `false` | Skip the `flatpak check` linter step. |
+| `--skip-tag` | `false` | Skip `git tag` + `git push origin <version>`. |
+| `--push-tag` | `true` | Whether to push the created tag (only relevant without `--skip-tag`). |
+| `--flathub-repo <owner/name>` | — | Override forwarded to `sync-flathub`. |
+| `--dry-run` | `false` | Print the plan, take no action. |
+| `--verbose` | `false` | Echo every sub-command invocation. |
+
+The orchestrator runs `init` + `check` **before** creating the tag — if either fails, no tag is created (the release is aborted, not half-released).
 
 ## `gjsify self-update`
 
