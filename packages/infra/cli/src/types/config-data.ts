@@ -429,9 +429,10 @@ export interface ConfigDataFlatpak {
         controls?: Array<'keyboard' | 'pointing' | 'touch' | 'gamepad' | 'tablet' | 'console'>;
     };
     /**
-     * Flathub tracking-repo override for `gjsify flatpak sync-flathub`.
-     * Default: `flathub/<appId>` (e.g. `flathub/eu.jumplink.Learn6502`).
-     * Set this when the upstream repo deviates from that convention.
+     * Flathub tracking-repo override for `gjsify flatpak sync-flathub` /
+     * `gjsify flatpak diff`. Default: `flathub/<appId>` (e.g.
+     * `flathub/eu.jumplink.Learn6502`). Set this when the upstream repo
+     * deviates from that convention.
      */
     flathubRepo?: string;
 }
