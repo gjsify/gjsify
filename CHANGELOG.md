@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.14](https://github.com/gjsify/gjsify/compare/v0.4.13...v0.4.14) (2026-05-19)
+
+### Features
+
+* **buffer, sab-native:** Buffer.from(SharedBuffer) ergonomic interop ([#209](https://github.com/gjsify/gjsify/issues/209)) ([430610c](https://github.com/gjsify/gjsify/commit/430610c7ef5893b689db0d4a43d6f810e65f3ced))
+* **cli:** Phase F.10.{2,3} — gjsify flatpak diff + release ([#208](https://github.com/gjsify/gjsify/issues/208)) ([77a99cc](https://github.com/gjsify/gjsify/commit/77a99cc179d85c5fe9b2c12fec899a8e7617532d))
+* **cli:** Phase F.10.1 — gjsify flatpak sync-flathub ([#203](https://github.com/gjsify/gjsify/issues/203)) ([1b8e0e3](https://github.com/gjsify/gjsify/commit/1b8e0e345500470f357edf43d3eb8fbe17e3043c))
+* **cli:** Phase G.1 — gjsify format / lint / fix (biome native-spawn) + recommended biome.json defaults ([#200](https://github.com/gjsify/gjsify/issues/200)) ([bb82791](https://github.com/gjsify/gjsify/commit/bb82791b1c136bf707d7121e5f57c554ab55cc92))
+* **cli:** Phase G.2 — flatpak init 2-space JSON + optional biome-aware post-format ([#201](https://github.com/gjsify/gjsify/issues/201)) ([9f0ac93](https://github.com/gjsify/gjsify/commit/9f0ac9344e090555b723471232cce810814c94be)), closes [package.json#devDependencies](https://github.com/gjsify/package.json/issues/devDependencies)
+* **cli:** Phase G.3 — gjsify build --watch ([#205](https://github.com/gjsify/gjsify/issues/205)) ([9930043](https://github.com/gjsify/gjsify/commit/9930043bcab27d65c3925ff1ac5264d1ad6dfc28))
+* **cli:** Phase G.4 — gjsify test runner ([#207](https://github.com/gjsify/gjsify/issues/207)) ([0fc1983](https://github.com/gjsify/gjsify/commit/0fc198348f4e9d5badbe56256ff2909c45e6d45a))
+* **cli:** Phase G.5 — gjsify upgrade (yarn upgrade-interactive / ncu replacement) ([#213](https://github.com/gjsify/gjsify/issues/213)) ([df6f8ef](https://github.com/gjsify/gjsify/commit/df6f8efe6d7359c6e396cf7654ba0444ba25e228))
+* **worker_threads:** compose MessagePort over @gjsify/message-channel ([#204](https://github.com/gjsify/gjsify/issues/204)) ([22f9ba5](https://github.com/gjsify/gjsify/commit/22f9ba5702fef5cecd0242628341aa0800448988))
+
 ## [0.4.13](https://github.com/gjsify/gjsify/compare/v0.4.12...v0.4.13) (2026-05-18)
 
 ### Features
