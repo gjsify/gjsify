@@ -142,6 +142,47 @@ export const IFrameBridge = GObject.registerClass(
 		}
 
 		/**
+		 * Navigate the embedded WebView back one entry in its internal
+		 * history list. No-op when `canGoBack` is false.
+		 *
+		 * Note: reflects WebKit's own navigation history (independent of
+		 * any application-level history the embedder maintains). The
+		 * browser `<iframe>` element has no equivalent — cross-origin
+		 * iframes cannot be navigated programmatically by the parent. For
+		 * cross-variant (browser + GJS) parity, embedders typically track
+		 * URLs themselves and call `loadUri(url)`; the methods here exist
+		 * for apps that DO want to expose the WebKit-internal back/forward
+		 * list directly (e.g. a "WebView with browser-like UX").
+		 */
+		goBack(): void {
+			this.go_back();
+		}
+
+		/** Navigate forward in the WebView's internal history. No-op when
+		 *  `canGoForward` is false. See `goBack()` for caveats. */
+		goForward(): void {
+			this.go_forward();
+		}
+
+		// `reload()` is inherited from WebKit.WebView verbatim — no
+		// camelCase rewrap needed (the GIR-generated method name already
+		// matches the convention). Apps call `iframeWidget.reload()`
+		// directly.
+
+		/** True when the WebView has prior entries in its internal history.
+		 *  Reflects WebKit's `can-go-back` state, NOT any application-level
+		 *  history stack. */
+		get canGoBack(): boolean {
+			return this.can_go_back();
+		}
+
+		/** True when the WebView has forward entries in its internal history.
+		 *  Reflects WebKit's `can-go-forward` state. */
+		get canGoForward(): boolean {
+			return this.can_go_forward();
+		}
+
+		/**
 		 * Set `globalThis.HTMLIFrameElement` to the gjsify implementation.
 		 */
 		installGlobals(): void {

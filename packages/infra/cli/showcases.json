@@ -30,6 +30,13 @@
             "needsWebgl": true
         },
         {
+            "name": "minimalist-browser",
+            "category": "dom",
+            "package": "@gjsify/example-dom-minimalist-browser",
+            "description": "Minimalist browser with URL bar + back/forward + iframe content area; same code runs in browser (real iframe) and GJS (IFrameBridge over WebKit.WebView)",
+            "needsWebgl": false
+        },
+        {
             "name": "express-webserver",
             "category": "node",
             "package": "@gjsify/example-node-express-webserver",
