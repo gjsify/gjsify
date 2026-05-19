@@ -17,3 +17,6 @@ export * from './publish.js';
 export * from './self-update.js';
 export * from './generate-installer.js';
 export * from './uninstall.js';
+export * from './format.js';
+export * from './lint.js';
+export * from './fix.js';

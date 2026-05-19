@@ -22,6 +22,9 @@ import {
     selfUpdateCommand as selfUpdate,
     generateInstallerCommand as generateInstaller,
     uninstallCommand as uninstall,
+    formatCommand as format,
+    lintCommand as lint,
+    fixCommand as fix,
 } from './commands/index.js'
 import { APP_NAME } from './constants.js'
 
@@ -52,6 +55,9 @@ await yargs(hideBin(process.argv))
     .command(selfUpdate.command, selfUpdate.description, selfUpdate.builder, selfUpdate.handler)
     .command(generateInstaller.command, generateInstaller.description, generateInstaller.builder, generateInstaller.handler)
     .command(uninstall.command, uninstall.description, uninstall.builder, uninstall.handler)
+    .command(format.command, format.description, format.builder, format.handler)
+    .command(lint.command, lint.description, lint.builder, lint.handler)
+    .command(fix.command, fix.description, fix.builder, fix.handler)
     .demandCommand(1)
     .help()
     .parseAsync()
