@@ -533,7 +533,7 @@ Before running, `gjsify showcase` calls `gjsify check` to verify system dependen
 
 ## `gjsify flatpak`
 
-Subcommand group for shipping GJS apps and CLIs as Flatpaks. Five subcommands:
+Subcommand group for shipping GJS apps and CLIs as Flatpaks. Six subcommands:
 
 | Subcommand | Purpose |
 |---|---|
@@ -542,6 +542,7 @@ Subcommand group for shipping GJS apps and CLIs as Flatpaks. Five subcommands:
 | `flatpak build` | Wrap `flatpak-builder` with sensible defaults |
 | `flatpak deps` | Wrap `flatpak-node-generator` to produce the offline npm cache |
 | `flatpak ci` | Scaffold `.github/workflows/flatpak.yml` matching the Flathub action shape |
+| `flatpak sync-flathub` | After cutting a release, sync the per-app `flathub/<app-id>` tracking-repo manifest to the new git tag + commit |
 
 End-to-end guides: [Ship a GJS app as a Flatpak](./guides/flatpak-app/) | [Ship a CLI tool as a Flatpak](./guides/flatpak-cli-tool/).
 
@@ -635,6 +636,46 @@ Requires `appstreamcli` and `flatpak-builder-lint` on `PATH`. Both ship inside t
 ### `gjsify flatpak build`, `deps`, `ci`
 
 See the [flatpak-app guide](./guides/flatpak-app/) for usage examples; flags are stable since v0.4.x.
+
+### `gjsify flatpak sync-flathub`
+
+Sync the per-app `flathub/<app-id>` tracking-repo manifest to a new git tag + commit. Flathub publishes each app from a separate repo whose manifest pins the upstream `tag` + `commit`; after cutting a release in your source repo, this command updates that pin and (optionally) opens the PR.
+
+```bash
+# Use the latest local git tag + its commit; auto-resolves flathub-repo from appId
+npx @gjsify/cli flatpak sync-flathub
+
+# Explicit tag + commit
+npx @gjsify/cli flatpak sync-flathub --version v0.6.6 --commit 1a2b3c4d…
+
+# Show resolution without writing or invoking git/gh
+npx @gjsify/cli flatpak sync-flathub --version v0.6.6 --dry-run
+
+# Local clone + commit only — skip push + PR
+npx @gjsify/cli flatpak sync-flathub --version v0.6.6 --no-pr
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--version <tag>` | `git describe --tags --abbrev=0` in cwd | Git tag to sync to. |
+| `--app-id <id>` | `gjsify.flatpak.appId` | Reverse-DNS app id (used to locate the manifest in the flathub-repo). |
+| `--flathub-repo <owner/name>` | `gjsify.flatpak.flathubRepo` or `flathub/<app-id>` | Tracking-repo. |
+| `--commit <sha>` | `git rev-list -n 1 <version>` in cwd | Pin to this commit. |
+| `--branch <name>` | `update-to-<version>` | Branch name in the flathub-repo. |
+| `--source-index <n>` | first `type: git` source | Which `modules[0].sources[]` entry to update (for manifests with multiple sources). |
+| `--no-pr` | open PR | Skip `gh pr create`, also skip `git push` (local commit only). |
+| `--dry-run` | `false` | Report resolution + intended branch + commit, touch no files. |
+| `--verbose` | `false` | Echo every `git` / `gh` invocation. |
+
+**Workflow:**
+1. Clones (or updates) `flathub/<app-id>` into `$XDG_CACHE_HOME/gjsify/flathub-sync/`.
+2. Surgically edits `modules[0].sources[<i>]` — sets `tag` + `commit`, injects an `x-checker-data` block if missing (so Flathub's auto-update bot can pick up future releases).
+3. Preserves the manifest's original 2-space indent + key ordering.
+4. Creates branch `update-to-<version>`, commits, pushes, opens a PR via `gh pr create`.
+
+Requires `git` (always) and `gh` (unless `--no-pr`). Both surface install hints on `ENOENT`. Idempotent: re-running with the same `--version` is a no-op when the manifest is already pinned.
+
+**`gjsify.flatpak.flathubRepo`** in `package.json#gjsify.flatpak` overrides the default `flathub/<app-id>` derivation for repos that don't follow the convention.
 
 ## `gjsify self-update`
 
