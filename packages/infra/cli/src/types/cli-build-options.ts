@@ -97,4 +97,11 @@ export interface CliBuildOptions {
    * Example: `--exclude-globals fetch,XMLHttpRequest`
    */
   excludeGlobals?: string[];
+  /**
+   * Watch source files and rebuild on change. Logs each rebuild with
+   * duration; SIGINT/SIGTERM cleanly closes the watcher. Only valid with
+   * `--app gjs|node|browser` (rejected with `--library`). Requires the
+   * npm `rolldown` engine — run under Node.
+   */
+  watch?: boolean;
 }

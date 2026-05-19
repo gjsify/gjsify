@@ -1,7 +1,7 @@
 import type { ConfigData, BundlerOptions } from "../types/index.js";
 import type { App, PluginOptions } from "@gjsify/rolldown-plugin-gjsify";
 import type { RolldownOutput, RolldownPluginOption } from "rolldown";
-import { runBundle, bundleToChunks } from "../bundler-pick.js";
+import { runBundle, runWatch, bundleToChunks } from "../bundler-pick.js";
 import { gjsifyPlugin, textLoaderPlugin, resolveShebangLine } from "@gjsify/rolldown-plugin-gjsify";
 import { resolveUserPlugins } from "../utils/resolve-plugin-by-name.js";
 import {
@@ -229,7 +229,7 @@ export class BuildAction {
     }
 
     /** Application mode */
-    async buildApp(app: App = "gjs"): Promise<RolldownOutput[]> {
+    async buildApp(app: App = "gjs", opts: { watch?: boolean } = {}): Promise<RolldownOutput[]> {
         const {
             verbose,
             typescript,
@@ -376,6 +376,11 @@ export class BuildAction {
             plugins: [...pnpPlugins, ...userPlugins, ...cfg.plugins],
         };
 
+        if (opts.watch) {
+            await this.runWatchLoop(finalOpts, app, outfile, verbose);
+            return [];
+        }
+
         const writeResult = await runBundle(finalOpts);
 
         if (app === "gjs" && this.configData.shebang) {
@@ -385,11 +390,92 @@ export class BuildAction {
         return [writeResult];
     }
 
-    async start(buildType: { library?: boolean; app?: App } = { app: "gjs" }) {
+    /**
+     * Drive `rolldown.watch(...)`: rebuild on source change, apply the
+     * post-bundle shebang hook on each successful build, surface errors
+     * without exiting, clean up on SIGINT/SIGTERM. Resolves only when the
+     * watcher closes — keeps the CLI process alive across rebuilds.
+     */
+    private async runWatchLoop(
+        finalOpts: BundlerOptions,
+        app: App,
+        outfile: string | undefined,
+        verbose: boolean | undefined,
+    ): Promise<void> {
+        const watcher = await runWatch(finalOpts);
+
+        const closed = new Promise<void>((resolve) => {
+            watcher.on("close", () => resolve());
+        });
+
+        let closing = false;
+        const shutdown = async () => {
+            if (closing) return;
+            closing = true;
+            console.log("\n[gjsify build --watch] stopping watcher…");
+            try {
+                await watcher.close();
+            } catch (err) {
+                console.error("[gjsify build --watch] watcher close error:", err);
+            }
+        };
+        process.on("SIGINT", shutdown);
+        process.on("SIGTERM", shutdown);
+
+        watcher.on("event", async (event) => {
+            switch (event.code) {
+                case "START":
+                    if (verbose) console.log("[gjsify build --watch] rebuild start");
+                    break;
+                case "BUNDLE_START":
+                    console.log("[gjsify build --watch] building…");
+                    break;
+                case "BUNDLE_END":
+                    console.log(`[gjsify build --watch] built in ${event.duration}ms`);
+                    try {
+                        if (app === "gjs" && this.configData.shebang) {
+                            await this.applyShebang(outfile, verbose);
+                        }
+                    } finally {
+                        await event.result.close();
+                    }
+                    break;
+                case "END":
+                    console.log("[gjsify build --watch] waiting for changes…");
+                    break;
+                case "ERROR":
+                    console.error("[gjsify build --watch] build failed:", event.error?.message ?? event.error);
+                    if (verbose && event.error?.stack) console.error(event.error.stack);
+                    try {
+                        await event.result.close();
+                    } catch {
+                        // best-effort cleanup
+                    }
+                    break;
+            }
+        });
+
+        if (verbose) {
+            watcher.on("change", (id, change) => {
+                console.log(`[gjsify build --watch] ${change.event}: ${id}`);
+            });
+        }
+
+        await closed;
+    }
+
+    async start(
+        buildType: { library?: boolean; app?: App; watch?: boolean } = { app: "gjs" },
+    ) {
         if (buildType.library) {
+            if (buildType.watch) {
+                throw new Error(
+                    "gjsify build: --watch is not supported with --library (library mode would emit watcher rebuilds for every produced format; use --app gjs|node|browser instead).",
+                );
+            }
             return await this.buildLibrary();
         }
-        return await this.buildApp(buildType.app);
+        return await this.buildApp(buildType.app, { watch: buildType.watch });
     }
 }
 

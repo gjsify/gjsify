@@ -131,6 +131,28 @@ export async function bundleToChunks(input: {
 }
 
 /**
+ * Watch source files and rebuild on change. Only npm rolldown supports
+ * this path — `@gjsify/rolldown-native` does not surface a watcher API yet.
+ * Returns the watcher; the caller registers `event` / `close` listeners
+ * and is responsible for invoking `watcher.close()` on shutdown.
+ */
+export async function runWatch(
+    finalOpts: BundlerOptions,
+): Promise<import('rolldown').RolldownWatcher> {
+    if (await shouldUseNative()) {
+        throw new Error(
+            '`gjsify build --watch` requires the npm `rolldown` engine. The native engine ' +
+                '(`@gjsify/rolldown-native`) does not expose a watcher API. Run the watch loop ' +
+                'under Node (`node lib/index.js build … --watch`) or set `GJSIFY_BUNDLER=npm`.',
+        );
+    }
+    const specifier = 'rolldown';
+    const mod = (await import(/* @vite-ignore */ specifier)) as typeof import('rolldown');
+    const output = finalOpts.output ?? {};
+    return mod.watch({ ...finalOpts, output });
+}
+
+/**
  * Run a bundle with the picked engine. Drop-in replacement for the
  * `rolldown(opts).write(opts.output)` flow used directly in build.ts.
  */
