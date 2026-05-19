@@ -38,6 +38,7 @@ npx @gjsify/cli build src/index.ts --outfile dist/index.js
 | `--minify` | bool | `false` | Minify the output |
 | `--globals` | string | `"auto"` | Globals mode (see below) |
 | `--shebang` | bool | `false` | Prepend `#!/usr/bin/env -S gjs -m` to the outfile and chmod it `0o755`. Only with `--app gjs` and a single `--outfile`. |
+| `--watch`, `-w` | bool | `false` | Watch source files and rebuild on change. Logs each rebuild with duration; SIGINT cleanly stops the watcher. Rejected with `--library`. Requires the npm `rolldown` engine — run under Node. |
 | `--verbose` | bool | `false` | Show detected globals and build details |
 
 <details>

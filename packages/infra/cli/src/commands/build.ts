@@ -133,6 +133,13 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 type: 'string',
                 normalize: true,
             })
+            .option('watch', {
+                alias: 'w',
+                description: "Watch source files and rebuild on change. Logs each rebuild with duration; clean SIGINT shutdown. Only valid with --app gjs|node|browser (rejected with --library). Requires the npm `rolldown` engine — run under Node, not the GJS-bundled CLI.",
+                type: 'boolean',
+                normalize: true,
+                default: false,
+            })
     },
     handler: async (args) => {
         const config = new Config();
@@ -141,6 +148,7 @@ export const buildCommand: Command<any, CliBuildOptions> = {
         await action.start({
             library: args.library,
             app: args.app,
+            watch: args.watch,
         })
     }
 }
