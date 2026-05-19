@@ -225,10 +225,14 @@ export class SharedBuffer {
      * **NOT zero-copy in current GJS.** GJS's `byteArray.fromGBytes`
      * (`refs/gjs/gjs/byteArray.cpp::from_gbytes_func`) allocates a fresh
      * `JS::ArrayBuffer` and memcpy's the GBytes data into it — by design,
-     * for alignment + immutability reasons. To actually share storage with
-     * the mmap'd region we'd need a Vala/C shim that calls
-     * `JS::NewExternalArrayBuffer` directly. Tracked as an upstream GJS
-     * patch candidate in STATUS.md.
+     * for alignment + immutability reasons.
+     *
+     * **Why no internal fix is possible**: a true zero-copy view would need
+     * `JS::NewExternalArrayBuffer` against the mmap pointer, but that JSAPI
+     * call requires a `JSContext*` which GJS does not expose to
+     * GObject-introspected `.so` plugins. The fix has to land in GJS
+     * itself (e.g. a `byteArray.fromGBytesShared` helper). Tracked under
+     * STATUS.md "Upstream GJS Patch Candidates".
      *
      * Modifications to the returned array therefore do NOT propagate back
      * to the region — use `writeBytes()` to commit changes.
@@ -244,9 +248,11 @@ export class SharedBuffer {
     /**
      * Return a `Buffer` containing the bytes at `[offset, offset+length)`.
      * The Buffer is a fresh allocation (see `viewBytes()` for the "not
-     * zero-copy in current GJS" caveat) — `buf.writeUInt32LE(...)`,
-     * `buf.subarray(...)`, `buf.toString('hex')`, `createHash().update(buf)`
-     * all work, but writes do NOT propagate back to the shared region.
+     * zero-copy in current GJS" caveat — the limitation is in GJS'
+     * `byteArray.fromGBytes`, not bypassable from a `.so` plugin without
+     * upstream patching GJS) — `buf.writeUInt32LE(...)`, `buf.subarray(...)`,
+     * `buf.toString('hex')`, `createHash().update(buf)` all work, but
+     * writes do NOT propagate back to the shared region.
      *
      * Requires `globalThis.Buffer` to be registered (via
      * `@gjsify/buffer/register`) — otherwise throws. Consumers running
