@@ -1,0 +1,32 @@
+{
+  "name": "@gjsify/example-node-cli-sab-parallel-hash",
+  "description": "4-worker parallel SHA-256 hash over a @gjsify/sab-native SharedBuffer",
+  "main": "dist/index.gjs.js",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "check": "tsc --noEmit",
+    "start": "gjsify run start:gjs",
+    "start:gjs": "gjsify run dist/index.gjs.js",
+    "start:node": "node dist/index.node.mjs",
+    "build": "gjsify run build:gjs && gjsify run build:node",
+    "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
+    "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs",
+    "test": "gjsify run start"
+  },
+  "devDependencies": {
+    "@gjsify/cli": "workspace:^",
+    "@gjsify/node-globals": "workspace:^",
+    "@gjsify/runtime": "workspace:^",
+    "@types/node": "^25.6.2",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@gjsify/sab-native": "workspace:^"
+  },
+  "private": true,
+  "version": "0.4.13"
+}
