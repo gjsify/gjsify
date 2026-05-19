@@ -461,7 +461,7 @@ run({ testSuite });
 
 **`@girs/*` or `gi://*` in a browser/Node bundle** = missing alias somewhere in the dependency chain. Fix the import (make the test file not drag in GJS-specific code) — never mask with `external:` (leaves bare specifiers the browser can't resolve) or a blanket `NODE_BUILTINS_EMPTY` map.
 
-**Packages with browser tests (11):** `abort-controller`, `compression-streams`, `dom-events`, `domparser`, `eventsource`, `fetch`, `formdata`, `streams`, `webcrypto`, `websocket`, `webstorage`. GJS-only packages (`webaudio`, `webrtc`, `gamepad`, …) have no browser test — the native platform has no equivalent of libsoup/GStreamer/Manette.
+**Packages with browser tests (12):** `abort-controller`, `compression-streams`, `dom-events`, `domparser`, `eventsource`, `fetch`, `formdata`, `message-channel`, `streams`, `webcrypto`, `websocket`, `webstorage`. GJS-only packages (`webaudio`, `webrtc`, `gamepad`, …) have no browser test — the native platform has no equivalent of libsoup/GStreamer/Manette.
 
 **Run locally:** `cd tests/browser && npx playwright test --project=firefox` (Firefox-primary; add `--project=chromium` to surface engine diffs). HTTP server must be running (Playwright starts one automatically from `playwright.config.ts`).
 
