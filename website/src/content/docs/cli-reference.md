@@ -983,3 +983,34 @@ gjsify fix --no-write    # report only, don't modify
 | `--write` | `true` | Apply fixes. Pass `--no-write` to report only. |
 | `--config-path <path>` | walks up | biome.json path override. |
 | `--verbose` | `false` | Echo resolved biome binary + args. |
+
+## `gjsify upgrade`
+
+Drop-in replacement for `yarn upgrade-interactive` / `npx npm-check-updates`. Checks the npm registry for newer versions of declared dependencies and updates `package.json` accordingly. Interactive prompt by default; `--latest` / `--minor` / `--patch` switch to non-interactive bulk-update mode.
+
+```bash
+gjsify upgrade                          # interactive: pick which to upgrade
+gjsify upgrade --latest                 # non-interactive: bump every dep to latest (allows major)
+gjsify upgrade --minor                  # skip major bumps (semver-minor + patch only)
+gjsify upgrade --patch                  # patches only
+gjsify upgrade --latest --dry-run       # print plan, don't write
+gjsify upgrade --filter '@gjsify,vite'  # narrow scope by substring
+gjsify upgrade -y                       # interactive-all (no prompt, select everything)
+```
+
+Workspace-aware: `workspace:`, `file:`, `link:`, `git:`, `git+`, `http(s):`, `npm:`, `*`, `latest` ranges are skipped — those are not external npm dependencies. Range prefix is preserved (`^1.2.3` → `^2.0.0`, `~0.4.0` → `~0.5.0`).
+
+The registry URL is resolved from `~/.npmrc` → `<cwd>/.npmrc`, with `npm_config_registry` env var overriding both. Scope-specific registries + auth tokens from `.npmrc` are honored.
+
+| Option | Default | Description |
+|---|---|---|
+| `--latest` | `false` | Non-interactive bulk-update — allows major bumps. |
+| `--minor` | `false` | Non-interactive — semver-minor + patch only. |
+| `--patch` | `false` | Non-interactive — semver-patch only. |
+| `--filter <substring>` | — | Comma-separated list of substrings (case-insensitive) to match against package names. |
+| `--dry-run` | `false` | Print upgrade plan, don't write `package.json`. |
+| `--yes` / `-y` | `false` | In interactive mode, select all candidates without prompting. |
+| `--cwd <path>` | `process.cwd()` | Project directory. |
+| `--verbose` | `false` | Print resolution details. |
+
+Output is a color-coded table (red=major, yellow=minor, green=patch, cyan=prerelease) listing every dependency with a newer version available. After write-back, `gjsify install` must be run to actually fetch the new versions.

@@ -26,6 +26,7 @@ import {
     formatCommand as format,
     lintCommand as lint,
     fixCommand as fix,
+    upgradeCommand as upgrade,
 } from './commands/index.js'
 import { APP_NAME } from './constants.js'
 
@@ -57,6 +58,7 @@ await yargs(hideBin(process.argv))
     .command(selfUpdate.command, selfUpdate.description, selfUpdate.builder, selfUpdate.handler)
     .command(generateInstaller.command, generateInstaller.description, generateInstaller.builder, generateInstaller.handler)
     .command(uninstall.command, uninstall.description, uninstall.builder, uninstall.handler)
+    .command(upgrade.command, upgrade.description, upgrade.builder, upgrade.handler)
     .command(format.command, format.description, format.builder, format.handler)
     .command(lint.command, lint.description, lint.builder, lint.handler)
     .command(fix.command, fix.description, fix.builder, fix.handler)
