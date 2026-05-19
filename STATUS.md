@@ -902,6 +902,35 @@ Workaround for SNI-critical use cases: spawn one TLSServer per hostname on diffe
 
 Use `@gjsify/worker_threads` `MessageChannel` (in-process) for any zero-copy / pure-`ArrayBuffer` workload today. Cross-process SharedBuffer is the path for shared-memory workloads across subprocess workers.
 
+### Medium priority — Cross-process MessagePort transfer via Worker subprocess IPC (#204 follow-up)
+
+`@gjsify/worker_threads`' `MessagePort.postMessage(value, transferList)` accepts `MessagePort` instances in the transferList, but the channel hand-off only works **in-process** (same GJS heap). When the same call happens between a parent and a Gio.Subprocess Worker, the transferred port is silently dropped on the wire — the JSON IPC protocol has no representation for it.
+
+PR #204 (`worker_threads` MessagePort composition over `@gjsify/message-channel`) made this newly tractable: the worker_threads MessagePort now wraps a `_inner: SharedMessagePort` whose `MessagePortTransport` hook is the same interface `@gjsify/iframe`'s `BridgePortTransport` already uses. The unblocked design:
+
+- **Wire side.** Define a `SubprocessPortTransport` adapter (lives in `packages/node/worker_threads/src/subprocess-port-transport.ts`) that implements `MessagePortTransport.{send, close}` against the existing `FdChannel`-paired stdin-JSON pipe — same one `Worker.postMessage` already uses for `SharedBuffer`. Send-side: `transport.send(portId, data)` emits a `{__msgport: portId, op: 'send', data: ...}` JSON line on the child's stdin; close-side: `{__msgport: portId, op: 'close'}`. Receive-side: the bootstrap recognises these lines, looks up the local port in a `portRegistry`, and calls `port._inner._receive(data)` / `port._inner.close()`.
+- **Placeholder protocol.** When `MessagePort` enters the transferList, the existing `substitutePortsWithPlaceholders()` already emits `{__gjsifyTransferredPort: true, index: N}`. Cross-process variant: emit `{__gjsifyTransferredPort: true, portId: <fresh-id>}` instead. On the receiver, `replacePlaceholdersWithPorts()` constructs a fresh `worker_threads.MessagePort` whose `_inner._transport` is the `SubprocessPortTransport` for the parent direction, and registers `portId` in the local `portRegistry` so future `op: 'send'` lines route to it.
+- **Lifecycle.** The transferred port's `_inner._partner` stays `null` (the partner lives across the wire). When the local port is closed/GC'd, send a final `{op: 'close', portId}` so the partner detaches cleanly.
+
+E2E: a new worker-stress integration test — parent creates a `MessageChannel`, transfers `port2` to the Worker via `worker.postMessage(channel, [channel.port2])`, then both sides exchange messages over the transferred port. Acceptance: round-trip works end-to-end through the SubprocessPortTransport, child can `port.close()` and parent sees `'close'`, no fd leak or port-registry leak across 100 spawn/transfer/terminate cycles.
+
+This is exactly the cross-cutting story PR #198 + PR #204 set up — iframe + worker_threads both now share `@gjsify/message-channel`'s transport-pluggable port surface; iframe routes over WebKit IPC, worker_threads needs the subprocess-IPC adapter to finish parity.
+
+### Medium priority — True zero-copy `SharedBuffer.viewBytes()` via Vala/C shim (#209 follow-up)
+
+PR #209 shipped `SharedBuffer.viewBytes(offset, length)` and `SharedBuffer.toBuffer<T>()` plus a duck-typed `Buffer.from(sharedBuffer)` overload. The structural contract is correct — but under stock GJS, the result is a fresh memcpy because `imports.byteArray.fromGBytes` deliberately copies (`refs/gjs/gjs/byteArray.cpp::from_gbytes_func` → `JS::NewArrayBuffer + memcpy`).
+
+The "Upstream GJS Patch Candidates" table lists this as an upstream gap with two alternatives. **The Vala/C-shim alternative is gjsify-internal and actionable today** — no GJS patch needed:
+
+- Add a `read_external_view(offset, length): unknown` method to `GjsifySabNative.SharedBuffer` (vala/shared-buffer.vala + sab-helpers.c). The C side calls SpiderMonkey's `JS::NewExternalArrayBuffer(cx, len, region->ptr + offset, free_cb, region_ref(region))`. `free_cb` calls `region_unref` so the mmap stays alive as long as the JS view does. Returns the ArrayBuffer wrapped as `Uint8Array(buffer, 0, len)`.
+- Swap `SharedBuffer.viewBytes()` in `packages/node/sab-native/src/ts/index.ts` to prefer `_native.read_external_view(offset, length)` and fall back to `read_bytes` + `byteArray.fromGBytes` when the native method isn't present (keeps prebuilds without the new symbol working).
+- Flip the spec — change the "view is a copy in current GJS" test in `shared-buffer.gjs.spec.ts` to assert writes-through-the-view propagate (currently pinned to the copy semantics so a swap is a deliberate API change).
+- `Buffer.from(sharedBuffer)` becomes truly zero-copy without any consumer-side API change — the duck-type contract in `@gjsify/buffer` (PR #209) is already forward-compatible.
+
+Acceptance: `view[0] = 250` mutates the underlying mmap; a sibling process mapping the same memfd via `SharedBuffer.fromFd(...).getUint8(0)` returns 250. cli-sab-parallel-hash's per-worker hashes can drop the explicit `readBytes`/`writeBytes` ceremony and operate on `viewBytes()` directly.
+
+Note: the Vala/C-shim path is the only fix that's actionable inside gjsify — the GJS-upstream patch is tracked separately in "Upstream GJS Patch Candidates" (would benefit other consumers of `byteArray.fromGBytes` against mmap'd GBytes, not just sab-native).
+
 ### Long-term goal — Phase D: gjsify Self-Hosting auf GJS
 
 User-stated goal (2026-05-09): the entire gjsify toolchain (`gjsify build`/`run`/`install`/`create`/`dlx`/`showcase`/`flatpak`) runs on GJS itself, no Node.js anywhere. Subsumes the earlier "Node-free build chain" goal (2026-05-07) and pushes it through to a complete self-hosting story.
