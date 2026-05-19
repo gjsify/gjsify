@@ -209,3 +209,6 @@
 [submodule "refs/lightningcss"]
 	path = refs/lightningcss
 	url = git@github.com:parcel-bundler/lightningcss.git
+[submodule "refs/biome"]
+	path = refs/biome
+	url = git@github.com:biomejs/biome.git

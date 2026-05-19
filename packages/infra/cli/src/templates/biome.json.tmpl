@@ -1,0 +1,79 @@
+{
+    "$schema": "https://biomejs.dev/schemas/2.4.13/schema.json",
+    "formatter": {
+        "enabled": true,
+        "indentStyle": "space",
+        "indentWidth": 4,
+        "lineWidth": 120,
+        "lineEnding": "lf"
+    },
+    "linter": {
+        "enabled": true,
+        "rules": {
+            "recommended": true,
+            "style": {
+                "useImportType": "warn",
+                "useNodejsImportProtocol": "error",
+                "noNonNullAssertion": "off"
+            },
+            "suspicious": {
+                "noExplicitAny": "warn",
+                "noConsole": "off"
+            },
+            "correctness": {
+                "noUnusedImports": "warn"
+            }
+        }
+    },
+    "javascript": {
+        "formatter": {
+            "quoteStyle": "single",
+            "jsxQuoteStyle": "double",
+            "semicolons": "always",
+            "trailingCommas": "all",
+            "arrowParentheses": "always",
+            "bracketSpacing": true,
+            "bracketSameLine": false
+        }
+    },
+    "json": {
+        "formatter": {
+            "indentWidth": 2,
+            "trailingCommas": "none",
+            "lineWidth": 120
+        }
+    },
+    "css": {
+        "formatter": {
+            "indentWidth": 2,
+            "quoteStyle": "single"
+        }
+    },
+    "files": {
+        "includes": [
+            "**",
+            "!**/node_modules",
+            "!**/dist",
+            "!**/lib",
+            "!**/build",
+            "!**/build-dir",
+            "!**/builddir",
+            "!**/flatpak-build",
+            "!**/.flatpak-builder",
+            "!**/repo",
+            "!**/coverage",
+            "!**/refs",
+            "!**/@types",
+            "!**/templates",
+            "!**/prebuilds",
+            "!**/.yarn/cache",
+            "!**/.yarn/install-state.gz",
+            "!**/cli.gjs.mjs",
+            "!**/test.gjs.mjs",
+            "!**/test.node.mjs",
+            "!**/*.gresource",
+            "!**/*.compiled",
+            "!**/*.metainfo.xml"
+        ]
+    }
+}

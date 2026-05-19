@@ -183,6 +183,22 @@ export interface ConfigData {
      * declaratively. CLI flags override these values.
      */
     flatpak?: ConfigDataFlatpak;
+    /**
+     * Format/lint config consumed by `gjsify format` / `gjsify lint` /
+     * `gjsify fix`. Thin shell — Biome's own `biome.json` is the real
+     * configuration file; we only need a pointer here.
+     */
+    format?: ConfigDataFormat;
+}
+
+/** Optional pointer to a non-default biome.json. */
+export interface ConfigDataFormat {
+    /**
+     * Path to biome.json. Default: walks up from cwd to find one;
+     * falls back to the recommended template shipped with `gjsify`
+     * (writable via `gjsify format --init`).
+     */
+    configPath?: string;
 }
 
 /**

@@ -23,7 +23,7 @@
         "clear": "rm -rf lib dist tsconfig.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
         "start": "node lib/index.js",
-        "build": "tsc && mkdir -p lib/templates/flatpak && cp -L src/templates/install.mjs.tmpl lib/templates/install.mjs.tmpl && cp src/templates/flatpak/*.tmpl lib/templates/flatpak/ && gjsify run chmod",
+        "build": "tsc && mkdir -p lib/templates/flatpak && cp -L src/templates/install.mjs.tmpl lib/templates/install.mjs.tmpl && cp src/templates/flatpak/*.tmpl lib/templates/flatpak/ && cp src/templates/biome.json.tmpl lib/templates/biome.json.tmpl && gjsify run chmod",
         "build:gjs-bundle": "node lib/index.js build src/index.ts --app gjs --outfile dist/cli.gjs.mjs --shebang",
         "chmod": "chmod +x ./lib/index.js",
         "build:test:node": "node lib/index.js build src/test.mts --app node --outfile dist/test.node.mjs",
