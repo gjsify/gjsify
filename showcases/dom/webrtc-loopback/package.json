@@ -1,8 +1,17 @@
 {
   "name": "@gjsify/example-dom-webrtc-loopback",
+  "version": "0.4.14",
   "description": "WebRTC data-channel loopback demo (two local peers) for GJS and browser",
   "main": "dist/gjs.js",
   "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    "./browser": "./src/browser/browser.ts",
+    "./loopback-demo": "./src/loopback-demo.ts",
+    "./package.json": "./package.json"
+  },
   "engines": {
     "node": ">=22.12.0"
   },
@@ -14,8 +23,11 @@
     "start:browser": "http-server dist -o -c-1",
     "build": "gjsify run build:gjs && gjsify run build:browser && gjsify run build:assets",
     "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js",
-    "build:browser": "gjsify build src/browser/browser.ts --app browser --outfile dist/browser.js",
+    "build:browser": "gjsify build src/browser/browser-main.ts --app browser --outfile dist/browser-main.js",
     "build:assets": "mkdir -p dist && cp -f src/browser/index.html dist/index.html"
+  },
+  "dependencies": {
+    "@gjsify/webrtc": "workspace:^"
   },
   "devDependencies": {
     "@girs/gjs": "4.0.0-rc.15",
@@ -23,11 +35,10 @@
     "@gjsify/cli": "workspace:^",
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/runtime": "workspace:^",
-    "@gjsify/webrtc": "workspace:^",
     "@types/node": "^25.6.2",
     "http-server": "^14.1.1",
     "typescript": "^6.0.3"
   },
-  "private": true,
-  "version": "0.4.14"
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT"
 }
