@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
 import { Buffer } from 'node:buffer';
 
 // Ported from Deno (https://github.com/denoland/deno_std/blob/main/node/buffer_test.ts)
@@ -508,6 +508,73 @@ export default async () => {
 			expect(buf[0]).toBe(99); // shares memory
 		});
 	});
+
+	await on('Gjs', async () => await describe('Buffer.from SharedBuffer-like (structural, GJS)', async () => {
+		// GJS-only: emulates the @gjsify/sab-native SharedBuffer surface
+		// (viewBytes + byteLength + constructor.name === 'SharedBuffer')
+		// against a plain ArrayBuffer-backed fake. Validates that
+		// @gjsify/buffer's Buffer.from recognises the duck-type and
+		// produces a zero-copy view. Real @gjsify/sab-native is GJS-only
+		// and tested separately in its own spec — this pins the structural
+		// contract that lets sab-native plug in without a hard dep.
+		//
+		// Node-native Buffer.from rejects SharedBuffer-shaped input; that's
+		// fine because @gjsify/sab-native isn't reachable from Node anyway.
+
+		class SharedBuffer {
+			private _data: Uint8Array;
+			constructor(size: number) { this._data = new Uint8Array(size); }
+			get byteLength(): number { return this._data.byteLength; }
+			viewBytes(offset: number, length: number): Uint8Array {
+				return new Uint8Array(this._data.buffer, this._data.byteOffset + offset, length);
+			}
+			// Expose internal for assertion only
+			_underlying(): Uint8Array { return this._data; }
+		}
+
+		await it('Buffer.from(sharedBufferLike) returns a Buffer of full byteLength', async () => {
+			const sb = new SharedBuffer(16);
+			sb._underlying().set([0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE]);
+			const buf = Buffer.from(sb as any);
+			expect(buf.byteLength).toBe(16);
+			expect(buf[0]).toBe(0xDE);
+			expect(buf[5]).toBe(0xFE);
+		});
+
+		await it('Buffer.from(sharedBufferLike, offset, length) respects slice args', async () => {
+			const sb = new SharedBuffer(16);
+			for (let i = 0; i < 16; i++) sb._underlying()[i] = i;
+			const buf = Buffer.from(sb as any, 4, 8);
+			expect(buf.byteLength).toBe(8);
+			expect(buf[0]).toBe(4);
+			expect(buf[7]).toBe(11);
+		});
+
+		await it('Buffer.from(sharedBufferLike) shares storage when viewBytes returns a view', async () => {
+			// Our fake SharedBuffer's viewBytes returns a true view (it's a
+			// subarray, not a copy). Buffer.from(arrayBuffer, offset, length)
+			// is zero-copy, so writes through the resulting Buffer propagate
+			// back to the source. This validates the contract Buffer.from
+			// guarantees for the SharedBuffer duck-type — the real
+			// @gjsify/sab-native SharedBuffer's viewBytes happens to be a
+			// memcpy in current GJS (limitation of byteArray.fromGBytes,
+			// tracked in STATUS.md), so end-to-end is a copy there. Once
+			// the C-level zero-copy shim lands, sab-native will share
+			// storage too.
+			const sb = new SharedBuffer(8);
+			const buf = Buffer.from(sb as any);
+			buf[0] = 42;
+			buf[7] = 99;
+			expect(sb._underlying()[0]).toBe(42);
+			expect(sb._underlying()[7]).toBe(99);
+		});
+
+		await it('Buffer.from(notSharedBufferLike) still routes to other branches', async () => {
+			// Plain object without viewBytes — should NOT be recognised, falls
+			// through to the existing "not transferable" TypeError path.
+			expect(() => Buffer.from({ byteLength: 8 } as any)).toThrow(TypeError);
+		});
+	}));
 
 	await describe('Buffer.allocUnsafe various sizes', async () => {
 		await it('should return correct size for larger allocations', async () => {

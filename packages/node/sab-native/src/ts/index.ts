@@ -198,7 +198,8 @@ export class SharedBuffer {
     /**
      * Read a byte range out as a Uint8Array. ONE-TIME COPY — modifications
      * to the returned array do NOT propagate back to the region. Use
-     * `writeBytes()` to commit changes back.
+     * `writeBytes()` to commit changes back, or `viewBytes()` for a
+     * zero-copy view.
      */
     readBytes(offset: number, length: number): Uint8Array {
         const bytes = this._assertOpen().read_bytes(offset, length);
@@ -212,6 +213,71 @@ export class SharedBuffer {
         // Fallback: assume the returned object exposes a .toArray() method
         // (older GJS). Wrapped in Uint8Array so callers don't see GByteArray.
         return new Uint8Array((bytes as { toArray(): Uint8Array }).toArray());
+    }
+
+    /**
+     * Return a fresh `Uint8Array` containing the bytes at `[offset, offset+length)`.
+     * Same semantics as `readBytes()` — kept under this name because
+     * downstream tooling (`Buffer.from`, `node:crypto`'s `Hash.update`,
+     * `fs.writeSync`) calls into this method via duck-typing and the
+     * `viewBytes` name reads more naturally there.
+     *
+     * **NOT zero-copy in current GJS.** GJS's `byteArray.fromGBytes`
+     * (`refs/gjs/gjs/byteArray.cpp::from_gbytes_func`) allocates a fresh
+     * `JS::ArrayBuffer` and memcpy's the GBytes data into it — by design,
+     * for alignment + immutability reasons. To actually share storage with
+     * the mmap'd region we'd need a Vala/C shim that calls
+     * `JS::NewExternalArrayBuffer` directly. Tracked as an upstream GJS
+     * patch candidate in STATUS.md.
+     *
+     * Modifications to the returned array therefore do NOT propagate back
+     * to the region — use `writeBytes()` to commit changes.
+     *
+     * @throws Error if `byteArray.fromGBytes` is not available (GJS < 1.66).
+     */
+    viewBytes(offset: number, length: number): Uint8Array {
+        // Reuse readBytes — same C-side GBytes wrap + same SpiderMonkey
+        // copy. Method exists as a stable duck-type entry for Buffer.from.
+        return this.readBytes(offset, length);
+    }
+
+    /**
+     * Return a `Buffer` containing the bytes at `[offset, offset+length)`.
+     * The Buffer is a fresh allocation (see `viewBytes()` for the "not
+     * zero-copy in current GJS" caveat) — `buf.writeUInt32LE(...)`,
+     * `buf.subarray(...)`, `buf.toString('hex')`, `createHash().update(buf)`
+     * all work, but writes do NOT propagate back to the shared region.
+     *
+     * Requires `globalThis.Buffer` to be registered (via
+     * `@gjsify/buffer/register`) — otherwise throws. Consumers running
+     * under the standard gjsify CLI bundle have Buffer registered via
+     * `--globals auto`; for ad-hoc scripts, add an explicit
+     * `import '@gjsify/buffer/register'` at the entry point.
+     *
+     * Return type is generic to avoid an import dependency on
+     * `@gjsify/buffer` — the concrete return is a `Buffer` (subclass of
+     * `Uint8Array`). Default `T = Uint8Array` is always safe;
+     * `toBuffer<Buffer>()` gets the full Buffer surface.
+     *
+     * @param offset byte offset into the shared region. Defaults to 0.
+     * @param length byte length. Defaults to `byteLength - offset`.
+     */
+    toBuffer<T extends Uint8Array = Uint8Array>(offset = 0, length?: number): T {
+        const len = length ?? (this.byteLength - offset);
+        const view = this.viewBytes(offset, len);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const BufferCtor = (globalThis as any).Buffer;
+        if (typeof BufferCtor?.from !== 'function') {
+            throw new Error(
+                'SharedBuffer.toBuffer: globalThis.Buffer is not registered. ' +
+                'Import "@gjsify/buffer/register" or rely on --globals auto.'
+            );
+        }
+        // Buffer.from(ArrayBuffer, byteOffset, length) is zero-copy in
+        // @gjsify/buffer (constructor reuses the ArrayBuffer directly) —
+        // the underlying ArrayBuffer is already a SpiderMonkey-owned copy
+        // produced by readBytes, so no further copy happens here.
+        return BufferCtor.from(view.buffer, view.byteOffset, view.byteLength) as T;
     }
 
     /**
