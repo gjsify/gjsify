@@ -297,6 +297,60 @@ Resolution order:
 
 Multi-bin packages without a chosen bin fail with `dlx: package "X" defines multiple GJS bins — pass one of: a, b`.
 
+## `gjsify test`
+
+Build + run the package's `src/test.mts` aggregator on GJS and Node and aggregate the results. Replaces the per-package `build:test:{gjs,node}` + `test:{gjs,node}` + `test` script boilerplate.
+
+```bash
+# Default: build + run on both runtimes, aggregate exit codes
+npx @gjsify/cli test
+
+# Only one runtime
+npx @gjsify/cli test --runtime gjs
+npx @gjsify/cli test --runtime node
+
+# Skip building (assume bundles already exist)
+npx @gjsify/cli test --no-build
+
+# Force rebuild even if bundles look fresh
+npx @gjsify/cli test --rebuild
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--runtime <gjs\|node\|all>` | `all` | Which runtime(s) to build + run. |
+| `--entry <path>` | `gjsify.test.entry` or `src/test.mts` | Test entry. |
+| `--outdir <path>` | `gjsify.test.outdir` or `dist/` | Where to write `test.{gjs,node}.mjs`. |
+| `--rebuild` | `false` | Always rebuild, even when outputs look fresh (mtime-based check). |
+| `--build` | `true` | Build before running. `--no-build` skips when bundles already exist. |
+| `--verbose` | `false` | Resolved entry/outdir + per-step timing. |
+
+`package.json#gjsify.test` configures defaults declaratively:
+
+```json
+{
+  "gjsify": {
+    "test": {
+      "entry": "src/test.mts",
+      "outdir": "dist",
+      "runtimes": ["gjs", "node"]
+    }
+  }
+}
+```
+
+The test entry typically aggregates [`@gjsify/unit`](https://www.npmjs.com/package/@gjsify/unit) suites:
+
+```ts
+// src/test.mts
+import { run } from '@gjsify/unit';
+import myFeature from './my-feature.spec.js';
+import other from './other.spec.js';
+run({ myFeature, other });
+```
+
+Output: per-runtime summary line, e.g. `[gjsify test] ✅ gjs (412ms)  ✅ node (88ms)`. Exit code is non-zero whenever any runtime build or run fails.
+
 ## `gjsify run`
 
 Run a built GJS bundle. Automatically sets `LD_LIBRARY_PATH` and `GI_TYPELIB_PATH` for native prebuilds.

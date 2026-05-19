@@ -4,6 +4,7 @@ import { hideBin } from 'yargs/helpers'
 
 import {
     buildCommand as build,
+    testCommand as test,
     runCommand as run,
     infoCommand as info,
     checkCommand as check,
@@ -39,6 +40,7 @@ await yargs(hideBin(process.argv))
     .command(create.command, create.description, create.builder, create.handler)
     .command(install.command, install.description, install.builder, install.handler)
     .command(build.command, build.description, build.builder, build.handler)
+    .command(test.command, test.description, test.builder, test.handler)
     .command(run.command, run.description, run.builder, run.handler)
     .command(dlx.command, dlx.description, dlx.builder, dlx.handler)
     .command(info.command, info.description, info.builder, info.handler)
