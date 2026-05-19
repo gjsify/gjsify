@@ -1,7 +1,33 @@
 // Reference: Node.js lib/internal/worker/io.js
 // Reference: HTML Living Standard §9.4.4 message ports + transferable objects
 // Reference: refs/node-test/parallel/test-worker-message-port-transfer*.js
-// Reimplemented for GJS using EventEmitter
+// Reimplemented for GJS — composes @gjsify/message-channel for the W3C
+// surface, keeps EventEmitter contract for @types/node compat.
+//
+// Architecture (Message-Channel Unification Step 3, composition path):
+// - This class still `extends EventEmitter` because `@types/node`'s
+//   `MessagePort` declares that base, so `port.on('message', cb)` /
+//   `port.once(...)` / `port.emit(...)` continue to use EventEmitter
+//   semantics.
+// - For the W3C surface (`addEventListener('message')`, `onmessage` IDL
+//   setter, `start()`/`close()` queue draining, microtask-async dispatch via
+//   `dispatchEvent(new MessageEvent('message', { data }))`) we compose a
+//   private `_inner` instance of the shared `@gjsify/message-channel`
+//   MessagePort. The inner owns the canonical "started + queue + closed"
+//   state, and EventEmitter dispatches mirror its lifecycle.
+// - In-process dispatch path:
+//     sender.postMessage(value, transferList)
+//       → cloned = structuredClone(value, { transfer })
+//       → target._receiveMessage(cloned)
+//       → target._inner._receive(cloned)             // queues OR W3C-dispatches
+//       → if target._inner._started: target._dispatchEmit(cloned)  // EventEmitter side
+// - `addEventListener('message')` on this wrapper does **not** auto-start the
+//   port (matches Node's documented behaviour and W3C HTML §9.4.4); we
+//   sidestep the inner shared MP's developer-friendly auto-start by
+//   bypassing its `addEventListener` override (calling
+//   `EventTarget.prototype.addEventListener` directly via the inner's
+//   prototype chain). `port.on('message')` and `port.onmessage = fn` both
+//   auto-start, matching Node + W3C.
 //
 // Transferable support:
 // - ArrayBuffer transfer uses the structured-clone layer's transfer hook
@@ -9,21 +35,22 @@
 // - MessagePort transfer is handled at this layer: a MessagePort listed in
 //   transferList is detached from its current channel (close locally) and
 //   re-attached on the receiver side. Wire format: a placeholder
-//   `{ __gjsifyTransferredPort: true, queue: [...], hasOtherEnd: bool }`
-//   is substituted into the cloned message tree, then materialised back into
-//   a MessagePort on the receiver. Because the underlying linked-port pair
-//   is in-process JS (no IPC), we move the surviving end of the channel
-//   directly — there is no separate serialization step.
+//   `{ __gjsifyTransferredPort: true, index: N }` is substituted into the
+//   cloned message tree, then swapped back to fresh local MessagePorts on
+//   the receiver. Because the underlying linked-port pair is in-process JS
+//   (no IPC), we move the surviving end of the channel directly — there is
+//   no separate serialization step.
 //
-// Cross-process MessagePort transfer (i.e. via Worker subprocess IPC) is not
+// Cross-process MessagePort transfer (via Worker subprocess IPC) is not
 // supported — see STATUS.md "Open TODOs".
 
 import { EventEmitter } from 'node:events';
+import { MessagePort as SharedMessagePort } from '@gjsify/message-channel';
 import { isSharedBuffer } from './sab-transfer.js';
 
 /**
  * Internal placeholder used while serializing a transferred MessagePort.
- * Replaced with a fresh local MessagePort by `_finalizeTransfer` after
+ * Replaced with a fresh local MessagePort by the receiver after
  * structuredClone returns.
  */
 interface TransferredPortPlaceholder {
@@ -41,19 +68,24 @@ function isTransferredPortPlaceholder(value: unknown): value is TransferredPortP
 }
 
 export class MessagePort extends EventEmitter {
-  private _started = false;
   private _closed = false;
   private _detached = false;
-  private _messageQueue: unknown[] = [];
   /** @internal Linked port for in-process communication */
   _otherPort: MessagePort | null = null;
-  /** @internal Maps addEventListener listeners to their internal wrappers */
-  private _aeWrappers: Map<((event: unknown) => void), ((data: unknown) => void)> = new Map();
+  /** @internal W3C-surface delegate from `@gjsify/message-channel`. Owns the
+   *  canonical started/queue/closed state — the wrapper mirrors lifecycle
+   *  events to the EventEmitter side. */
+  _inner: SharedMessagePort = new SharedMessagePort();
 
   start(): void {
-    if (this._started || this._closed) return;
-    this._started = true;
-    this._drainQueue();
+    if (this._closed || this._inner._started) return;
+    // Snapshot queue BEFORE inner.start() drains it. The shared MP drains to
+    // its W3C listeners via microtask; we mirror to EventEmitter listeners
+    // via the same microtask scheduling so timing matches pre-refactor
+    // behaviour for `port.on('message')` consumers.
+    const queued = this._inner._queue.slice();
+    this._inner.start();
+    for (const msg of queued) this._dispatchEmit(msg);
   }
 
   close(): void {
@@ -62,6 +94,7 @@ export class MessagePort extends EventEmitter {
     const other = this._otherPort;
     this._otherPort = null;
     if (other) other._otherPort = null;
+    this._inner.close();
     this.emit('close');
     this.removeAllListeners();
   }
@@ -158,8 +191,6 @@ export class MessagePort extends EventEmitter {
       const newPorts = portMaterialisationOrder.map((sourcePort) => {
         // The source port is being moved. Steal its channel partner.
         const partner = sourcePort._otherPort;
-        const queued = sourcePort._messageQueue.slice();
-        sourcePort._messageQueue.length = 0;
         sourcePort._otherPort = null;
         sourcePort._detached = true;
         // Mark closed locally — the original port is no longer usable.
@@ -168,8 +199,6 @@ export class MessagePort extends EventEmitter {
         const newPort = new MessagePort();
         newPort._otherPort = partner;
         if (partner) partner._otherPort = newPort;
-        // Carry over any pending messages that the sourcePort had not drained yet.
-        for (const msg of queued) newPort._messageQueue.push(msg);
         return newPort;
       });
       receiverMessage = replacePlaceholdersWithPorts(cloned, newPorts);
@@ -183,19 +212,21 @@ export class MessagePort extends EventEmitter {
 
   _receiveMessage(message: unknown): void {
     if (this._closed) return;
-    if (!this._started) {
-      this._messageQueue.push(message);
-      return;
-    }
-    this._dispatchMessage(message);
+    // Inner handles W3C-side: queues until started, then microtask-dispatches
+    // a MessageEvent to addEventListener('message') / onmessage handlers.
+    this._inner._receive(message);
+    // EventEmitter side: only fire when started (matches old behaviour where
+    // unstarted ports buffer; `receiveMessageOnPort` can pull from the buffer
+    // without dispatching).
+    if (this._inner._started) this._dispatchEmit(message);
   }
 
   get _hasQueuedMessages(): boolean {
-    return this._messageQueue.length > 0;
+    return this._inner._queue.length > 0;
   }
 
   _dequeueMessage(): unknown | undefined {
-    return this._messageQueue.shift();
+    return this._inner._queue.shift();
   }
 
   /** @internal Has this port been transferred elsewhere? */
@@ -203,13 +234,7 @@ export class MessagePort extends EventEmitter {
     return this._detached;
   }
 
-  private _drainQueue(): void {
-    while (this._messageQueue.length > 0) {
-      this._dispatchMessage(this._messageQueue.shift());
-    }
-  }
-
-  private _dispatchMessage(message: unknown): void {
+  private _dispatchEmit(message: unknown): void {
     Promise.resolve().then(() => {
       if (!this._closed) {
         this.emit('message', message);
@@ -218,41 +243,81 @@ export class MessagePort extends EventEmitter {
   }
 
   /**
-   * Web-compatible addEventListener. Wraps message data in a MessageEvent-like
-   * object `{ data, type }` before calling the listener.
-   * Requires explicit `port.start()` call (unlike `on('message')` which auto-starts).
+   * Web-compatible addEventListener. For `'message'` (and `'messageerror'`),
+   * routes through the inner shared MessagePort which dispatches a
+   * MessageEvent. For Node-only signals like `'close'`, routes to the
+   * EventEmitter side so `port.emit('close')` reaches the listener.
+   *
+   * Does NOT auto-start the port — matches Node + W3C HTML §9.4.4. Use
+   * `port.start()` explicitly, or attach via `port.on('message')` /
+   * `port.onmessage = fn` (both auto-start).
    */
-  addEventListener(type: string, listener: ((event: unknown) => void) | null): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  addEventListener(type: string, listener: any, options?: any): void {
     if (!listener) return;
-    if (type === 'message') {
-      const wrapper = (data: unknown) => {
-        listener({ data, type: 'message' });
+    if (type === 'message' || type === 'messageerror') {
+      // Bypass shared-MP's addEventListener (which auto-starts the port — a
+      // developer-friendly deviation that Node + worker_threads tests don't
+      // want). Walk up the prototype chain to EventTarget's addEventListener
+      // and call it on the inner directly.
+      const eventTargetProto = Object.getPrototypeOf(Object.getPrototypeOf(this._inner)) as {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        addEventListener(type: string, listener: any, options?: any): void;
       };
-      this._aeWrappers.set(listener, wrapper);
-      super.on('message', wrapper);
+      eventTargetProto.addEventListener.call(this._inner, type, listener, options);
+      return;
+    }
+    // Non-MessagePort-spec events (`'close'`, custom): use EventEmitter.
+    super.on(type, listener);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  removeEventListener(type: string, listener: any, options?: any): void {
+    if (!listener) return;
+    if (type === 'message' || type === 'messageerror') {
+      const eventTargetProto = Object.getPrototypeOf(Object.getPrototypeOf(this._inner)) as {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        removeEventListener(type: string, listener: any, options?: any): void;
+      };
+      eventTargetProto.removeEventListener.call(this._inner, type, listener, options);
+      return;
+    }
+    super.off(type, listener);
+  }
+
+  /** W3C `onmessage` IDL attribute — delegated to the inner. Assigning a
+   *  non-null handler auto-starts both surfaces (matches W3C HTML spec). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  get onmessage(): any {
+    return this._inner.onmessage;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  set onmessage(fn: any) {
+    // Shared MP's onmessage setter internally calls addEventListener which
+    // auto-starts the inner port + drains its queue to W3C listeners.
+    // Mirror that to the EventEmitter side by snapshotting the queue first
+    // and replaying it after the inner has started.
+    if (fn !== null && !this._inner._started) {
+      const queued = this._inner._queue.slice();
+      this._inner.onmessage = fn;
+      for (const msg of queued) this._dispatchEmit(msg);
     } else {
-      super.on(type, listener);
+      this._inner.onmessage = fn;
     }
   }
 
-  removeEventListener(type: string, listener: ((event: unknown) => void) | null): void {
-    if (!listener) return;
-    if (type === 'message') {
-      const wrapper = this._aeWrappers.get(listener);
-      if (wrapper) {
-        super.off('message', wrapper);
-        this._aeWrappers.delete(listener);
-      }
-    } else {
-      super.off(type, listener);
-    }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  get onmessageerror(): any {
+    return this._inner.onmessageerror;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  set onmessageerror(fn: any) {
+    this._inner.onmessageerror = fn;
   }
 
   on(event: string | symbol, listener: (...args: unknown[]) => void): this {
     super.on(event, listener);
-    if (event === 'message' && !this._started) {
-      this.start();
-    }
+    if (event === 'message') this.start();
     return this;
   }
 
@@ -262,9 +327,7 @@ export class MessagePort extends EventEmitter {
 
   once(event: string | symbol, listener: (...args: unknown[]) => void): this {
     super.once(event, listener);
-    if (event === 'message' && !this._started) {
-      this.start();
-    }
+    if (event === 'message') this.start();
     return this;
   }
 }
