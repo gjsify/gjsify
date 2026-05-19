@@ -189,6 +189,11 @@ export interface ConfigData {
      * configuration file; we only need a pointer here.
      */
     format?: ConfigDataFormat;
+    /**
+     * Test-runner configuration consumed by `gjsify test`. CLI flags
+     * (--entry, --outdir, --runtime) override these values.
+     */
+    test?: ConfigDataTest;
 }
 
 /** Optional pointer to a non-default biome.json. */
@@ -199,6 +204,19 @@ export interface ConfigDataFormat {
      * (writable via `gjsify format --init`).
      */
     configPath?: string;
+}
+
+/**
+ * `gjsify test` configuration. All fields optional — sensible defaults
+ * apply when missing.
+ */
+export interface ConfigDataTest {
+    /** Path to the test entry. Default: `src/test.mts`. */
+    entry?: string;
+    /** Output directory for the built test bundles. Default: `dist/`. */
+    outdir?: string;
+    /** Default runtimes when `--runtime` not specified. Default: `['gjs', 'node']`. */
+    runtimes?: Array<'gjs' | 'node'>;
 }
 
 /**
