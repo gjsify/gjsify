@@ -11,18 +11,18 @@ Based on the original [sample-jelly-jumper](https://github.com/excaliburjs/sampl
 ## Setup
 
 ```bash
-yarn install
-yarn build
+gjsify install
+gjsify run build
 ```
 
 ## Run
 
 ```bash
 # GJS/GTK4 native
-yarn start
+gjsify run start
 
 # Browser
-yarn start:browser
+gjsify run start:browser
 ```
 
 ## Controls
