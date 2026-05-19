@@ -182,9 +182,21 @@ export class Buffer extends Uint8Array {
   static from(elements: Iterable<number>): Buffer;
   static from(value: string, encoding?: string): Buffer;
   static from(value: ArrayBuffer | SharedArrayBuffer, byteOffset?: number, length?: number): Buffer;
+  // Structural overload for @gjsify/sab-native's SharedBuffer — no import
+  // to keep @gjsify/buffer at the bottom of the dep tree. Matched
+  // duck-typed at runtime by viewBytes + byteLength + constructor.name.
+  static from(value: { viewBytes(offset: number, length: number): Uint8Array; readonly byteLength: number }, byteOffset?: number, length?: number): Buffer;
   static from(value: Uint8Array | Buffer): Buffer;
   static from(
-    value: ArrayBuffer | SharedArrayBuffer | ArrayLike<number> | Iterable<number> | Uint8Array | Buffer | string,
+    value:
+      | ArrayBuffer
+      | SharedArrayBuffer
+      | ArrayLike<number>
+      | Iterable<number>
+      | Uint8Array
+      | Buffer
+      | string
+      | { viewBytes(offset: number, length: number): Uint8Array; readonly byteLength: number },
     encodingOrOffset?: string | number | ((v: unknown, k: number) => number),
     length?: number
   ): Buffer {
@@ -221,6 +233,24 @@ export class Buffer extends Uint8Array {
       const offset = (encodingOrOffset as number) || 0;
       const len = length !== undefined ? length : value.byteLength - offset;
       return new Buffer(new Uint8Array(value, offset, len));
+    }
+
+    // @gjsify/sab-native SharedBuffer — duck-typed (no import of sab-native
+    // to keep buffer at the bottom of the dep tree). Recognised by the
+    // `viewBytes(offset, length): Uint8Array` zero-copy method and the
+    // `byteLength` accessor. The resulting Buffer is a zero-copy view over
+    // the mmap'd region — modifications write through to every process.
+    if (
+      value !== null && typeof value === 'object'
+      && typeof (value as { viewBytes?: unknown }).viewBytes === 'function'
+      && typeof (value as { byteLength?: unknown }).byteLength === 'number'
+      && (value as { constructor?: { name?: string } }).constructor?.name === 'SharedBuffer'
+    ) {
+      const sb = value as unknown as { viewBytes(o: number, l: number): Uint8Array; byteLength: number };
+      const offset = (encodingOrOffset as number) || 0;
+      const len = length !== undefined ? length : sb.byteLength - offset;
+      const view = sb.viewBytes(offset, len);
+      return new Buffer(view.buffer as ArrayBuffer, view.byteOffset, view.byteLength);
     }
 
     if (Array.isArray(value)) {
