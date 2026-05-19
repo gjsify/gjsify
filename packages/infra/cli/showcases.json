@@ -30,6 +30,13 @@
             "needsWebgl": true
         },
         {
+            "name": "webrtc-loopback",
+            "category": "dom",
+            "package": "@gjsify/example-dom-webrtc-loopback",
+            "description": "WebRTC data-channel loopback: two local peers exchange offer/answer + ICE, then echo messages over an RTCDataChannel",
+            "needsWebgl": false
+        },
+        {
             "name": "minimalist-browser",
             "category": "dom",
             "package": "@gjsify/example-dom-minimalist-browser",
