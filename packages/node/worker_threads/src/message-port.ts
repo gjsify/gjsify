@@ -42,7 +42,11 @@
 //   no separate serialization step.
 //
 // Cross-process MessagePort transfer (via Worker subprocess IPC) is not
-// supported — see STATUS.md "Open TODOs".
+// supported yet — the `_inner` composition (this PR) exposes the
+// `MessagePortTransport` hook that a future `SubprocessPortTransport`
+// adapter can plug into. Tracked in STATUS.md "Open TODOs / Medium
+// priority — Cross-process MessagePort transfer via Worker subprocess
+// IPC (#204 follow-up)".
 
 import { EventEmitter } from 'node:events';
 import { MessagePort as SharedMessagePort } from '@gjsify/message-channel';
