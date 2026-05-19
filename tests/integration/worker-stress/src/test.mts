@@ -12,9 +12,11 @@ import { run } from '@gjsify/unit';
 import transferListSuite from './transferlist-stress.spec.js';
 import sabHashSuite from './sab-parallel-hash.spec.js';
 import sabNativeHashSuite from './sab-native-parallel-hash.gjs.spec.js';
+import crossProcessPortSuite from './cross-process-port-transfer.gjs.spec.js';
 
 run({
   transferListSuite,
   sabHashSuite,
   sabNativeHashSuite,
+  crossProcessPortSuite,
 });

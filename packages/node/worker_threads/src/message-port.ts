@@ -41,12 +41,19 @@
 //   (no IPC), we move the surviving end of the channel directly — there is
 //   no separate serialization step.
 //
-// Cross-process MessagePort transfer (via Worker subprocess IPC) is not
-// supported yet — the `_inner` composition (this PR) exposes the
-// `MessagePortTransport` hook that a future `SubprocessPortTransport`
-// adapter can plug into. Tracked in STATUS.md "Open TODOs / Medium
-// priority — Cross-process MessagePort transfer via Worker subprocess
-// IPC (#204 follow-up)".
+// Cross-process MessagePort transfer (via Worker subprocess IPC):
+// `Worker.postMessage(value, [port])` extracts each transferred port
+// from the transferList, severs the in-process partnership on the
+// parent's kept end, attaches a `SubprocessPortTransport` to the kept
+// end's `_inner._transport` (which routes outbound traffic to the child
+// via stdin JSON lines), and emits a
+// `{__gjsifyTransferredPort: true, portId}` placeholder on the wire.
+// The child bootstrap materialises that placeholder to an inline port
+// object whose `postMessage` writes back over stdout. Both sides use
+// the same `portId` as a registry key for inbound routing. See
+// `subprocess-port-transport.ts` for the adapter + nextParentPortId
+// counter. transferList-within-transferList chains (port-in-port) are
+// not supported on the cross-process path.
 
 import { EventEmitter } from 'node:events';
 import { MessagePort as SharedMessagePort } from '@gjsify/message-channel';
@@ -106,6 +113,22 @@ export class MessagePort extends EventEmitter {
   postMessage(value: unknown, transferList?: unknown[]): void {
     if (this._closed) return;
     const target = this._otherPort;
+
+    // Cross-process branch: in-process partner gone, but a
+    // SubprocessPortTransport is attached to `_inner._transport`. The
+    // surviving end routes outbound messages over the worker IPC wire
+    // (parent ↔ child stdin/stdout) instead of an in-process partner.
+    // transferList is intentionally restricted on the cross-process path
+    // in v1 — port-in-port-in-port chains and ArrayBuffer-over-wire are
+    // separate workstreams (see STATUS.md Open TODOs).
+    if (!target && this._inner._transport !== null) {
+      if (transferList && transferList.length > 0) {
+        throw createDataCloneError('transferList is not supported on cross-process MessagePort yet');
+      }
+      this._inner.postMessage(value);
+      return;
+    }
+
     if (!target) return;
 
     // --- Transfer-list pre-flight ---
