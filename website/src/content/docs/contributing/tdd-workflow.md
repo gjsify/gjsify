@@ -13,8 +13,8 @@ GJSify follows a test-driven development approach:
 
 1. **Study the API** — read `refs/node/lib/<name>.js` for the canonical Node.js implementation (or the relevant `refs/deno/ext/…` file for Web APIs)
 2. **Port tests** — write tests in `*.spec.ts` using `@gjsify/unit`
-3. **Verify on Node.js** — `yarn test:node` — tests should pass against the real Node.js implementation first
-4. **Test on GJS** — `yarn test:gjs` — expect failures, then fix the GJSify implementation
+3. **Verify on Node.js** — `gjsify run test:node` (in the package) — tests should pass against the real Node.js implementation first
+4. **Test on GJS** — `gjsify run test:gjs` — expect failures, then fix the GJSify implementation
 5. **Implement** — use `@girs/*` types, consult `refs/{deno,bun,quickjs,workerd}/` for reference
 6. **Iterate** — until both platforms pass
 
@@ -31,7 +31,9 @@ GJSify follows a test-driven development approach:
 Before opening a pull request, run the full validation sequence:
 
 ```bash
-yarn install && yarn clear && yarn build && yarn check && yarn test
+gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+PATH="$PWD/node_modules/.bin:$PATH"
+gjsify run clear && gjsify run build && gjsify run check && gjsify run test
 ```
 
 This mirrors what CI does and catches most integration issues before review.

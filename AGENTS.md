@@ -2,7 +2,7 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). Yarn workspaces monorepo, v0.4.13, ESM-only, GNOME libs. Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (21 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra.
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.4.13, ESM-only, GNOME libs. Bootstraps via the committed `packages/infra/cli/dist/cli.gjs.mjs` GJS bundle — `gjsify install --immutable` is the supported install path (no yarn / no Node-only npm CLI required at runtime, see Phase D.7d). Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (21 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra.
 
 ## Governance — non-negotiable
 
@@ -566,15 +566,15 @@ Discovery: `gjsify showcase` lists; `<name>` runs `check` then shared `runGjsBun
 
 1. Study API: `refs/node/lib/<name>.js`
 2. Port tests to `*.spec.ts` via `@gjsify/unit`
-3. `yarn test:node` — verify tests correct
-4. `yarn test:gjs` — expect failures → fix impl
+3. `gjsify run test:node` (in the package) — verify tests correct
+4. `gjsify run test:gjs` — expect failures → fix impl
 5. Implement with `@girs/*`, consult `refs/{deno,bun,quickjs,workerd}/`
 6. Iterate until both pass
-7. Full: `yarn install && yarn clear && yarn build && yarn check && yarn test`
+7. Full: `gjsify install --immutable && gjsify run clear && gjsify run build && gjsify run check && gjsify run test`
 
 ## Type Safety
 
-`unknown` over `any` | `as unknown as T` for unrelated casts | Error callbacks: `NodeJS.ErrnoException | null` | Validate: `yarn check`
+`unknown` over `any` | `as unknown as T` for unrelated casts | Error callbacks: `NodeJS.ErrnoException | null` | Validate: `gjsify run check`
 
 ## Source Attribution
 
