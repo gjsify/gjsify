@@ -6,8 +6,11 @@
 // runs end-to-end on GJS. Pillars exercised: pure-JS string
 // manipulation + heavy lookbehind/lookahead RegExp surface (the entire
 // minifier is ≈10 RegExp transforms over the input string).
+//
+// No explicit `@gjsify/node-globals/register` — `gjsify build` defaults to
+// `--globals auto`, scanning the bundled output and injecting only the
+// granular /register subpaths actually referenced.
 
-import '@gjsify/node-globals/register';
 import { run } from '@gjsify/unit';
 import basicSuite from './basic.spec.js';
 import optionsSuite from './options.spec.js';

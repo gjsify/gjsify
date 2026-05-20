@@ -7,8 +7,11 @@
 // picomatch glob (transitive dep used by createFilter), and pure-JS string +
 // AST helpers (dataToEsm, makeLegalIdentifier, attachScopes,
 // extractAssignedNames).
+//
+// No explicit `@gjsify/node-globals/register` — `gjsify build` defaults to
+// `--globals auto`, scanning the bundled output and injecting only the
+// granular /register subpaths actually referenced.
 
-import '@gjsify/node-globals/register';
 import { run } from '@gjsify/unit';
 import createFilterSuite from './create-filter.spec.js';
 import dataToEsmSuite from './data-to-esm.spec.js';

@@ -6,8 +6,11 @@
 // this suite is events (Yargs internals + EventEmitter compat),
 // util (inspect/format used by yargs error messages), process (argv,
 // process.cwd) and the ESM import path itself.
+//
+// No explicit `@gjsify/node-globals/register` — `gjsify build` defaults to
+// `--globals auto`, scanning the bundled output and injecting only the
+// granular /register subpaths actually referenced.
 
-import '@gjsify/node-globals/register';
 import { run } from '@gjsify/unit';
 import parserSuite from './parser.spec.js';
 import optionsSuite from './options.spec.js';
