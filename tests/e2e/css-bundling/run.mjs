@@ -79,4 +79,47 @@ describe('CLI css-bundling E2E', { timeout: 10 * 60 * 1000 }, () => {
     assert.match(out, /\.input\.focused/,
       'nested `&.focused` should flatten to `.input.focused` for GTK4');
   });
+
+  it('resolves @import of npm-package specifiers via node_modules + exports', () => {
+    // Plant a fake scoped package under node_modules whose package.json
+    // exposes a CSS file via the `exports` field. The bundled CSS must
+    // pull in that file's content, mirroring how downstream monorepos
+    // (e.g. pixel-rpg/map-editor) share CSS across workspace packages.
+    const pkgDir = join(projectDir, 'node_modules', '@css-fixture', 'shared');
+    mkdirSync(pkgDir, { recursive: true });
+    writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({
+      name: '@css-fixture/shared',
+      version: '0.0.1',
+      exports: { './styles.css': './lib/styles.css' },
+    }, null, 2));
+    mkdirSync(join(pkgDir, 'lib'), { recursive: true });
+    writeFileSync(join(pkgDir, 'lib', 'styles.css'),
+      `.shared-banner { background: papayawhip; padding: 8px; }\n`,
+    );
+
+    // Bare-package import + relative imports in the same file, so the
+    // resolver must pick the right strategy for each kind.
+    writeFileSync(join(projectDir, 'src', 'pkg-import.css'),
+      `@import "@css-fixture/shared/styles.css";\n@import "./widgets/button.css";\n`,
+    );
+    writeFileSync(join(projectDir, 'src', 'pkg-import.ts'),
+      `import css from './pkg-import.css';\nconsole.log(css.length);\n`,
+    );
+
+    execFileSync('npx', ['gjsify', 'build', '--app', 'gjs', 'src/pkg-import.ts', '--outfile', 'dist/pkg-import.js'], {
+      cwd: projectDir,
+      stdio: 'pipe',
+      timeout: 60 * 1000,
+    });
+    const out = readFileSync(join(projectDir, 'dist', 'pkg-import.js'), 'utf-8');
+
+    assert.doesNotMatch(out, /@import/,
+      'all @import statements resolved — none left as literal text');
+    assert.match(out, /\.shared-banner/,
+      'css from @css-fixture/shared/styles.css must be inlined');
+    assert.match(out, /papayawhip/,
+      'concrete property from the bare-package CSS must survive bundling');
+    assert.match(out, /\.btn:hover/,
+      'relative @import still works alongside the bare-package one');
+  });
 });

@@ -37,6 +37,9 @@
 // (mainly useful for benchmarking + the integration suite).
 
 import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import type { Plugin } from 'rolldown';
 
 export interface CssAsStringOptions {
@@ -138,10 +141,39 @@ async function loadNpmBundler(): Promise<Bundler> {
             targets,
             minify: false,
             errorRecovery: true,
+            resolver: cssBundleResolver,
         });
         return { code: result.code };
     };
 }
+
+// lightningcss `bundleAsync` resolver — adds npm-package-specifier support
+// to `@import` statements. Without a resolver, lightningcss only walks
+// relative + absolute paths; bare package specifiers (`@scope/pkg/file.css`
+// or `pkg-name/file.css`) hit ENOENT.
+//
+// This restores the @import-from-node_modules behavior that the old
+// `@gjsify/esbuild-plugin-css` shipped with — needed by every consumer
+// monorepo that puts shared CSS in a workspace package (e.g.
+// pixel-rpg/map-editor's `@import "@pixelrpg/gjs/index.css"`).
+//
+// Algorithm mirrors Node's standard module-resolution algorithm so that
+// `exports` maps in the target package.json are honored (e.g.
+// `@pixelrpg/gjs` exposes `./index.css` via its exports field — that
+// must resolve through `package.json#exports`, not a direct file probe).
+const cssBundleResolver = {
+    resolve(specifier: string, from: string): string {
+        if (isAbsolute(specifier)) return specifier;
+        if (specifier.startsWith('./') || specifier.startsWith('../')) {
+            return resolvePath(dirname(from), specifier);
+        }
+        // Bare specifier — walk node_modules and honor package.json exports.
+        // `createRequire` takes a file URL or path; passing the importer
+        // lets it scope its node_modules walk to the right starting point.
+        const req = createRequire(pathToFileURL(from).href);
+        return req.resolve(specifier);
+    },
+};
 
 function targetsToBrowserslist(
     targets: import('lightningcss').Targets | undefined,
