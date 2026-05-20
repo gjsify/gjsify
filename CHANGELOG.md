@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.15](https://github.com/gjsify/gjsify/compare/v0.4.14...v0.4.15) (2026-05-20)
+
+### Features
+
+* **cli:** gjsify barrels — index.ts generator (barrelsby replacement) ([#219](https://github.com/gjsify/gjsify/issues/219)) ([d7456e4](https://github.com/gjsify/gjsify/commit/d7456e40e5cf02b93308ff1e2428194110685b86))
+* Phase D-1 execa integration tests + uncover 3 GJS gaps ([#218](https://github.com/gjsify/gjsify/issues/218)) ([c5d4662](https://github.com/gjsify/gjsify/commit/c5d466214f332a77410e1676ccc5354b97e2b705))
+* **showcases:** minimalist-browser — IFrameBridge + postMessage cross-variant ([#217](https://github.com/gjsify/gjsify/issues/217)) ([a88f4ac](https://github.com/gjsify/gjsify/commit/a88f4ac52a3fa98ee5cc73eec0bedaaa8c13bc0b))
+* **showcases:** promote webrtc-loopback example to showcases/dom/ ([#215](https://github.com/gjsify/gjsify/issues/215)) ([7413f46](https://github.com/gjsify/gjsify/commit/7413f4648c35738d18d43d75dd80881efef984ac))
+* **worker_threads:** cross-process MessagePort transfer via SubprocessPortTransport ([#216](https://github.com/gjsify/gjsify/issues/216)) ([92f92c5](https://github.com/gjsify/gjsify/commit/92f92c5b91125ca6460d08ee5b2896ecff37d5cf)), closes [#204](https://github.com/gjsify/gjsify/issues/204) [#198](https://github.com/gjsify/gjsify/issues/198) [#204](https://github.com/gjsify/gjsify/issues/204)
+
 ## [0.4.14](https://github.com/gjsify/gjsify/compare/v0.4.13...v0.4.14) (2026-05-19)
 
 ### Features

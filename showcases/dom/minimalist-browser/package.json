@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-dom-minimalist-browser",
-  "version": "0.4.13",
+  "version": "0.4.15",
   "description": "Minimalist browser with URL bar + back/forward/reload + iframe content area; same code runs in browser (real <iframe>) and GJS (IFrameBridge over WebKit.WebView)",
   "main": "dist/gjs.js",
   "type": "module",
