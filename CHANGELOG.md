@@ -1,5 +1,7 @@
 # Changelog
 
+## [0.4.18](https://github.com/gjsify/gjsify/compare/v0.4.17...v0.4.18) (2026-05-20)
+
 ## [0.4.17](https://github.com/gjsify/gjsify/compare/v0.4.16...v0.4.17) (2026-05-20)
 
 ### Bug Fixes
