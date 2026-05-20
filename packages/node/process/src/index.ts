@@ -773,7 +773,15 @@ export const cwd = process.cwd.bind(process);
 export const chdir = process.chdir.bind(process);
 export const exit = process.exit.bind(process);
 export const nextTick = process.nextTick.bind(process);
-export const hrtime = process.hrtime.bind(process);
+// `process.hrtime.bind(process)` loses the `.bigint` property attached to
+// the underlying function (Function.prototype.bind does not copy own props),
+// which breaks `import { hrtime } from 'node:process'; hrtime.bigint()` —
+// the canonical perf-tracking pattern used by execa, ts-for-gir, etc.
+// Re-attach `.bigint` to the bound export so the named-import shape matches
+// Node's behavior.
+export const hrtime = Object.assign(process.hrtime.bind(process), {
+    bigint: (process.hrtime as unknown as { bigint: () => bigint }).bigint.bind(process),
+});
 export const uptime = process.uptime.bind(process);
 export const memoryUsage = process.memoryUsage.bind(process);
 export const cpuUsage = process.cpuUsage.bind(process);
