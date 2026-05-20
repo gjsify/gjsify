@@ -407,6 +407,14 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
     // target in a shell script that picks the right interpreter (`gjs -m`
     // for `.mjs` bundles, `node` for `.js` files).
     const wsBinDir = join(cwd, 'node_modules', '.bin');
+    // Discover native prebuilds reachable from the workspace cwd so the
+    // workspace-local `node_modules/.bin/gjsify` shim sets GI_TYPELIB_PATH /
+    // LD_LIBRARY_PATH for them. Same rationale as the global launcher in
+    // install-global.ts — the bin shim invokes the CLI bundle via `gjs -m`
+    // directly, with no chance to set env after the fact, so without this
+    // preamble `imports.gi.GjsifyTerminal` etc. fail and process.stdout
+    // collapses to no-color, 80-col defaults.
+    const nativePrebuildDirs = detectNativePackages(cwd).map((p) => p.prebuildsDir);
     let wsBinsCreated = 0;
     for (const ws of workspaces) {
         const m = ws.manifest as Record<string, unknown>;
@@ -424,7 +432,7 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
         for (const [binName, { nodeTarget, gjsTarget }] of merged) {
             const linkPath = join(wsBinDir, binName);
             try { rmSync(linkPath, { force: true }); } catch { /* fine */ }
-            writeFileSync(linkPath, buildBinShim(ws.location, nodeTarget, gjsTarget), { mode: 0o755 });
+            writeFileSync(linkPath, buildBinShim(ws.location, nodeTarget, gjsTarget, nativePrebuildDirs), { mode: 0o755 });
             chmodSync(linkPath, 0o755);
             wsBinsCreated++;
         }
@@ -488,14 +496,32 @@ function extractOverrides(rootManifest: { overrides?: unknown; resolutions?: unk
     return Object.keys(out).length > 0 ? out : undefined;
 }
 
-function buildBinShim(wsLocation: string, nodeTarget?: string, gjsTarget?: string): string {
+function buildBinShim(
+    wsLocation: string,
+    nodeTarget?: string,
+    gjsTarget?: string,
+    nativePrebuildDirs: string[] = [],
+): string {
     const nodeAbs = nodeTarget ? join(wsLocation, nodeTarget) : null;
     const gjsAbs = gjsTarget ? join(wsLocation, gjsTarget) : null;
+    // GJS-only env preamble — Node ignores GI_TYPELIB_PATH so we scope the
+    // export to the gjs branch, keeping the shim minimal when no native pkgs
+    // exist or only the Node bin is in play.
+    const gjsPreamble = nativePrebuildDirs.length === 0
+        ? ''
+        : (() => {
+            const joined = `'${nativePrebuildDirs.join(':').replace(/'/g, `'\\''`)}'`;
+            return (
+                `GI_TYPELIB_PATH=${joined}\${GI_TYPELIB_PATH:+":$GI_TYPELIB_PATH"}\n` +
+                `LD_LIBRARY_PATH=${joined}\${LD_LIBRARY_PATH:+":$LD_LIBRARY_PATH"}\n` +
+                `export GI_TYPELIB_PATH LD_LIBRARY_PATH\n`
+            );
+        })();
     if (nodeAbs && gjsAbs) {
-        return `#!/bin/sh\nif [ -f "${nodeAbs}" ]; then\n  exec node "${nodeAbs}" "$@"\nfi\nexec gjs -m "${gjsAbs}" "$@"\n`;
+        return `#!/bin/sh\nif [ -f "${nodeAbs}" ]; then\n  exec node "${nodeAbs}" "$@"\nfi\n${gjsPreamble}exec gjs -m "${gjsAbs}" "$@"\n`;
     }
     if (nodeAbs) return `#!/bin/sh\nexec node "${nodeAbs}" "$@"\n`;
-    if (gjsAbs) return `#!/bin/sh\nexec gjs -m "${gjsAbs}" "$@"\n`;
+    if (gjsAbs) return `#!/bin/sh\n${gjsPreamble}exec gjs -m "${gjsAbs}" "$@"\n`;
     throw new Error('buildBinShim: either nodeTarget or gjsTarget must be provided');
 }
 
