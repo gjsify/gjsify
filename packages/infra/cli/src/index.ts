@@ -36,9 +36,19 @@ import { APP_NAME } from './constants.js'
 // cosmetic — the event loop holds the process up — but under GJS the
 // script ends as soon as the top-level synchronous flow finishes, and
 // fire-and-forget handlers silently exit before any async work runs.
-await yargs(hideBin(process.argv))
+const cli = yargs(hideBin(process.argv));
+await cli
     .scriptName(APP_NAME)
     .strict()
+    // Use the full terminal width for help. yargs's default caps at 80
+    // (`Math.min(80, process.stdout.columns)`); we explicitly opt into
+    // the real terminal width so long option/description lines wrap at
+    // the actual terminal edge instead of an arbitrary 80-col limit.
+    // `terminalWidth()` reads `process.stdout.columns`, which under GJS
+    // is backed by @gjsify/terminal-native (ioctl TIOCGWINSZ) when the
+    // typelib is on GI_TYPELIB_PATH — see the global launcher in
+    // packages/infra/cli/src/utils/install-global.ts.
+    .wrap(cli.terminalWidth())
     .command(create.command, create.description, create.builder, create.handler)
     .command(install.command, install.description, install.builder, install.handler)
     .command(build.command, build.description, build.builder, build.handler)

@@ -25,6 +25,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { detectNativePackages } from './detect-native-packages.js';
+
 export interface GlobalLayout {
     /** Where extracted package trees live: `<prefix>/node_modules/<pkg>/`. */
     prefix: string;
@@ -87,6 +89,19 @@ export function linkGlobalBins(packageNames: string[], layout: GlobalLayout): Li
     fs.mkdirSync(layout.binDir, { recursive: true });
     const created: LinkedBin[] = [];
 
+    // Discover @gjsify/* packages with native prebuilds (Vala/GObject typelibs
+    // + shared libs) under the global prefix. The launcher bakes their
+    // directories into GI_TYPELIB_PATH / LD_LIBRARY_PATH so `imports.gi.X`
+    // resolves at CLI startup — required for e.g. @gjsify/terminal-native,
+    // without which process.stdout.isTTY / columns / colors all fall back to
+    // the conservative env-only defaults (no colors, 80-col wrap).
+    //
+    // `runGjsBundle()` does the same dance for `gjsify run <bundle>` at
+    // runtime; here we do it at install time because the global launcher
+    // invokes the CLI bundle directly, with no opportunity to set env first.
+    const nativePrebuildDirs = detectNativePackages(layout.prefix).map((p) => p.prebuildsDir);
+    const envPreamble = buildLauncherEnvPreamble(nativePrebuildDirs);
+
     for (const pkgName of packageNames) {
         const pkgDir = path.join(layout.prefix, 'node_modules', pkgName);
         const pkgJsonPath = path.join(pkgDir, 'package.json');
@@ -119,8 +134,11 @@ export function linkGlobalBins(packageNames: string[], layout: GlobalLayout): Li
             // then tries to parse JavaScript as shell. Plain Node scripts
             // with shebangs (lib/index.js) keep the direct-exec path.
             const isGjsBundle = targetAbs.endsWith('.gjs.mjs') || targetAbs.endsWith('.mjs');
+            // Only GJS bundles need the GI typelib search path. Plain Node
+            // scripts ignore GI_TYPELIB_PATH, so skipping the preamble there
+            // keeps the launcher minimal.
             const launcher = isGjsBundle
-                ? `#!/bin/sh\nexec gjs -m ${shQuote(targetAbs)} "$@"\n`
+                ? `#!/bin/sh\n${envPreamble}exec gjs -m ${shQuote(targetAbs)} "$@"\n`
                 : `#!/bin/sh\nexec ${shQuote(targetAbs)} "$@"\n`;
             fs.writeFileSync(linkPath, launcher);
             fs.chmodSync(linkPath, 0o755);
@@ -133,6 +151,25 @@ export function linkGlobalBins(packageNames: string[], layout: GlobalLayout): Li
 
 function shQuote(s: string): string {
     return `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * Build the POSIX-sh `export` lines that prepend the given prebuild
+ * directories to GI_TYPELIB_PATH and LD_LIBRARY_PATH. Any pre-existing value
+ * inherited from the user's environment is preserved as a suffix so
+ * user-installed typelibs/libraries still resolve.
+ *
+ * Returns the empty string when no prebuilds were found — avoids emitting an
+ * inert assignment in the launcher.
+ */
+function buildLauncherEnvPreamble(prebuildsDirs: string[]): string {
+    if (prebuildsDirs.length === 0) return '';
+    const joined = shQuote(prebuildsDirs.join(':'));
+    return (
+        `GI_TYPELIB_PATH=${joined}\${GI_TYPELIB_PATH:+":$GI_TYPELIB_PATH"}\n` +
+        `LD_LIBRARY_PATH=${joined}\${LD_LIBRARY_PATH:+":$LD_LIBRARY_PATH"}\n` +
+        `export GI_TYPELIB_PATH LD_LIBRARY_PATH\n`
+    );
 }
 
 function pickBinMap(

@@ -118,13 +118,18 @@ export const uninstallCommand: Command<any, UninstallOptions> = {
  *   #!/bin/sh
  *   exec '<absolute-path>' "$@"
  *
- * or (for `.gjs.mjs` / `.mjs` targets):
+ * or (for `.gjs.mjs` / `.mjs` targets, with optional GI_TYPELIB_PATH /
+ * LD_LIBRARY_PATH preamble for native @gjsify/* prebuilds):
  *
  *   #!/bin/sh
+ *   GI_TYPELIB_PATH='<dirs>'${GI_TYPELIB_PATH:+":$GI_TYPELIB_PATH"}
+ *   LD_LIBRARY_PATH='<dirs>'${LD_LIBRARY_PATH:+":$LD_LIBRARY_PATH"}
+ *   export GI_TYPELIB_PATH LD_LIBRARY_PATH
  *   exec gjs -m '<absolute-path>' "$@"
  *
- * We parse the absolute path out of the single-quoted segment and check
- * whether it's under `pkgDir`. Non-shim files (e.g. unrelated binaries
+ * We extract the single-quoted path on the `exec` line (NOT the first quoted
+ * string in the file, which with the preamble is the prebuild dir list) and
+ * check whether it's under `pkgDir`. Non-shim files (e.g. unrelated binaries
  * the user installed via `npm install -g`) are skipped silently.
  */
 function findBinShimsForPackage(binDir: string, pkgDir: string, verbose: boolean): string[] {
@@ -143,8 +148,14 @@ function findBinShimsForPackage(binDir: string, pkgDir: string, verbose: boolean
             if (!st.isFile()) continue;
             const content = readFileSync(fullPath, 'utf-8');
             if (!content.startsWith('#!/bin/sh')) continue;
-            // Match the first single-quoted absolute path.
-            const m = content.match(/'([^']+)'/);
+            // Find the `exec [gjs -m] '<target>' "$@"` line; the path may
+            // contain `:` from the optional prebuild preamble lines, which
+            // is why we anchor to `exec ` rather than the first quoted run.
+            const execLine = content
+                .split('\n')
+                .find((line) => /^exec (?:gjs -m )?'/.test(line));
+            if (!execLine) continue;
+            const m = execLine.match(/'([^']+)'/);
             if (!m) continue;
             const target = m[1];
             if (target.startsWith(pkgDir + '/') || target === pkgDir) {
