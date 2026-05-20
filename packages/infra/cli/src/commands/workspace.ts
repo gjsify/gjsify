@@ -56,11 +56,20 @@ export const workspaceCommand: Command<any, WorkspaceCmdOptions> = {
         const argv = runner === 'gjsify'
             ? ['run', args.script, ...(args.args ?? [])]
             : ['run', args.script, ...(args.args && args.args.length > 0 ? ['--', ...args.args] : [])];
+        // Default FORCE_COLOR=1 unless the user explicitly opted out (matches
+        // yarn / npm / gjsify run behaviour) — without this, tools that key
+        // on isTTY (chalk, picocolors, biome) drop colors when stdout is a
+        // pipe, including GitHub Actions where the log viewer renders ANSI
+        // fine.
+        const colorEnv =
+            process.env.FORCE_COLOR !== undefined || process.env.NO_COLOR !== undefined
+                ? {}
+                : { FORCE_COLOR: '1' };
         await new Promise<void>((resolve, reject) => {
             const child = spawn(runner, argv, {
                 cwd: target.location,
                 stdio: 'inherit',
-                env: process.env,
+                env: { ...process.env, ...colorEnv },
             });
             child.on('close', (code) => {
                 if (code === 0) resolve();
