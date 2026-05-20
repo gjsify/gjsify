@@ -6,8 +6,7 @@ import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { EventEmitter } from 'node:events';
 import { Buffer } from 'node:buffer';
-import { Readable } from 'node:stream';
-import type { Writable } from 'node:stream';
+import { Readable, Writable } from 'node:stream';
 import { gbytesToUint8Array, deferEmit, ensureMainLoop } from '@gjsify/utils';
 
 // Wraps a Gio.InputStream as a Node.js Readable so proc.stdout/stderr work
@@ -46,6 +45,107 @@ class GioInputStreamReadable extends Readable {
 
   override _destroy(error: Error | null, callback: (err?: Error | null) => void): void {
     this._cancellable.cancel();
+    callback(error);
+  }
+}
+
+/**
+ * Wraps a `Gio.OutputStream` (e.g. `Gio.Subprocess.get_stdin_pipe()`) as a
+ * Node.js `Writable` so async `spawn()` produces a `child.stdin` that
+ * speaks the `.write(chunk)` / `.end(chunk?)` / pipe-from-Readable contract.
+ *
+ * Mirrors `GioInputStreamReadable` (stdout / stderr side). `_write` calls
+ * `write_bytes_async`; `_final` closes the underlying stream so the child
+ * sees EOF on stdin. Consumers like execa rely on `child.stdin.write(input)`
+ * for the `{ input: 'string' }` shape — surfaced by the
+ * `tests/integration/execa/` D-1 suite (#218), which is what motivated
+ * landing the async-side path that had been missing.
+ */
+class GioOutputStreamWritable extends Writable {
+  private _stream: Gio.OutputStream;
+  private _cancellable = new Gio.Cancellable();
+  private _closed = false;
+
+  constructor(stream: Gio.OutputStream) {
+    super();
+    this._stream = stream;
+  }
+
+  override _write(
+    chunk: Buffer | Uint8Array | string,
+    _encoding: BufferEncoding,
+    callback: (err?: Error | null) => void,
+  ): void {
+    if (this._closed) {
+      callback(new Error('write after end'));
+      return;
+    }
+    // Node's `_write` already coerces string chunks to Buffer when the
+    // stream isn't in objectMode (default). Be defensive anyway — execa
+    // passes ArrayBufferView for its `input` option.
+    const bytes: Uint8Array = typeof chunk === 'string'
+      ? Buffer.from(chunk)
+      : chunk instanceof Uint8Array
+        ? chunk
+        : Buffer.from(chunk as unknown as ArrayLike<number>);
+    // `new GLib.Bytes(uint8array)` copies into a GBytes; the GIO write
+    // pipeline owns the lifetime. Doing it sync would require
+    // `write_bytes(...)` which blocks the main loop — `_async` keeps
+    // GTK + the timer queue responsive.
+    this._stream.write_bytes_async(
+      new GLib.Bytes(bytes),
+      GLib.PRIORITY_DEFAULT,
+      this._cancellable,
+      (_source: unknown, result: Gio.AsyncResult) => {
+        try {
+          this._stream.write_bytes_finish(result);
+          callback();
+        } catch (err) {
+          if (this._cancellable.is_cancelled()) {
+            // Treat post-cancel finish as silent completion — destroy()
+            // already informed downstream listeners.
+            callback();
+          } else {
+            callback(err as Error);
+          }
+        }
+      },
+    );
+  }
+
+  override _final(callback: (err?: Error | null) => void): void {
+    if (this._closed) {
+      callback();
+      return;
+    }
+    this._closed = true;
+    // Close the stdin pipe so the child sees EOF — symmetrical to Node's
+    // `child.stdin.end()` -> `close()` on the underlying file descriptor.
+    // Use sync `close()` here intentionally: `close_async()` on a pipe
+    // whose read-end is held by an already-exited subprocess can hang
+    // indefinitely because the kernel keeps the dispatch chain alive
+    // until both ends agree. The sync close just flips fcntl + returns,
+    // which is what Node's `child.stdin.end()` semantically promises.
+    try {
+      this._stream.close(null);
+    } catch {
+      // Already closed (subprocess exited and the kernel collapsed the
+      // pipe end before us). Node's Writable contract is that the
+      // `_final` callback resolves once EOF has been signalled; it has
+      // been, even if via a different path.
+    }
+    callback();
+  }
+
+  override _destroy(error: Error | null, callback: (err?: Error | null) => void): void {
+    this._cancellable.cancel();
+    // Best-effort close — `_destroy` may fire before `_final` if the
+    // consumer called `.destroy()` directly. Skip the async dance and use
+    // the sync `close` to avoid leaving the stream open in error paths.
+    if (!this._closed) {
+      this._closed = true;
+      try { this._stream.close(null); } catch { /* already closed */ }
+    }
     callback(error);
   }
 }
@@ -456,6 +556,16 @@ export function spawn(
     child._setSubprocess(proc);
     _activeProcesses.add(child);
 
+    // Stdin: wire the pipe as a Writable when caller asked for 'pipe'
+    // (default when stdio[0] is unspecified). Otherwise leave
+    // `child.stdin = null` — matches Node for `'inherit'` / `'ignore'`
+    // shapes where the child uses the parent's fd directly or has stdin
+    // silenced at spawn time.
+    if (stdioTriple[0] === 'pipe') {
+      const stdinPipe = proc.get_stdin_pipe();
+      if (stdinPipe) child.stdin = new GioOutputStreamWritable(stdinPipe);
+    }
+
     const stdoutPipe = proc.get_stdout_pipe();
     if (stdoutPipe) child.stdout = new GioInputStreamReadable(stdoutPipe);
 
@@ -499,6 +609,17 @@ export function spawn(
         child.signalCode = signal;
         if (abortSignal && onAbort) {
           abortSignal.removeEventListener('abort', onAbort);
+        }
+        // Match Node's `child_process` behaviour: when the subprocess
+        // exits, destroy `child.stdin` if it's still open. Without this,
+        // consumers that await `stream.finished(child.stdin)` (e.g.
+        // execa's `waitForStdioStreams`) hang indefinitely because no
+        // one has called `end()` or `destroy()` on the Writable. Node's
+        // own impl does the same at
+        // https://github.com/nodejs/node/blob/main/lib/internal/child_process.js
+        // (search for `this.stdin.destroy()` on the exit path).
+        if (child.stdin && !child.stdin.destroyed) {
+          child.stdin.destroy();
         }
         child.emit('exit', exitStatus, signal);
         child.emit('close', exitStatus, signal);
