@@ -130,15 +130,23 @@ export const publishCommand: Command<any, PublishOptions> = {
         }
 
         // `--check-trusted` short-circuits the entire pack + publish flow.
-        // We only need the package name and the resolved registry to do an
-        // OIDC token exchange. Reading the raw package.json (no `workspace:^`
-        // rewrite) is enough since we're not actually transmitting a payload.
+        // Reports the OIDC exchange result for the workspace's package and
+        // exits 0 either way — by design, so `gjsify foreach publish
+        // --check-trusted` walks every workspace without bailing on the
+        // first misconfigured one. CI can grep `^✗ ` (or parse `--json`
+        // entries with `ok: false`) to surface failures.
         if (checkTrustedOnly) {
             const rawPkgPath = join(wsDir, 'package.json');
-            const rawPkg = JSON.parse(readFileSync(rawPkgPath, 'utf-8')) as { name?: string };
+            const rawPkg = JSON.parse(readFileSync(rawPkgPath, 'utf-8')) as { name?: string; private?: boolean };
             if (typeof rawPkg.name !== 'string') {
-                console.error(`gjsify publish --check-trusted: ${rawPkgPath} has no \`name\` field`);
+                process.stderr.write(`gjsify publish --check-trusted: ${rawPkgPath} has no \`name\` field\n`);
                 process.exit(2);
+            }
+            if (rawPkg.private === true) {
+                const out = { ok: true, action: 'check-trusted', name: rawPkg.name, skipped: 'private' };
+                if (args.json) process.stdout.write(`${JSON.stringify(out)}\n`);
+                else process.stdout.write(`- ${rawPkg.name}: skipped (private package)\n`);
+                return;
             }
             const npmrcCheck = await loadNpmrc(wsDir);
             const registry =
@@ -155,7 +163,10 @@ export const publishCommand: Command<any, PublishOptions> = {
                 return;
             } catch (err) {
                 handleOidcFailure(err, rawPkg.name, args.json === true);
-                process.exit(1);
+                // Report-mode: exit 0 so `gjsify foreach` keeps walking. The
+                // `✗ <name>: <reason>` (or JSON `ok:false`) line is the
+                // failure signal for CI to grep / parse.
+                return;
             }
         }
 
