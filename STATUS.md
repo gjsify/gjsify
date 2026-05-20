@@ -863,9 +863,37 @@ Phase D-1 Workstream W — validates the Deepkit TypeScript type compiler consum
 
 The TypeScript Compiler API code path inside Deepkit + `@marcj/ts-clone-node` walks `Program`, `SourceFile`, `Printer`, and `CustomTransformerFactory` shapes — the heaviest single TS-API exercise we've put through the GJS bundle path. Bundle size for the test alone is ≈8 MiB (TypeScript itself is the dominant cost), confirming Rolldown's tree-shaking + the `--app gjs` config don't choke on the deepest dep we ship. Clears the next-to-last of the 11 Phase D-1 npm runtime-deps the future GJS-hosted `@gjsify/cli` build needs (excluding the Rust blockers `rolldown` / `lightningcss`).
 
+### execa (`tests/integration/execa/`)
+
+Phase D-1 Workstream — validates the `execa` v9 subprocess wrapper consumed by `@gjsify/vite-plugin-blueprint` (spawns `blueprint-compiler`) and `@gjsify/vite-plugin-gettext` (spawns `xgettext` / `msgfmt`). **Node: 44/44 green. GJS: 43/43 green, 1 ignored on GJS** (async-stdin piping — tracked in Open TODOs).
+
+| Suite | Node | GJS | Exercises |
+|---|---|---|---|
+| basic-spawn.spec.ts | ✅ (6) | ✅ (6) | `execa(cmd, args)` happy path, multi-line stdout, no-shell-interpretation of argv, `result.command` shape, `cwd` option, `.pid` field on the child handle |
+| output-capture.spec.ts | ✅ (5) | ✅ (4) | independent stdout/stderr capture, empty-output handling, `env` option forwarding, JSON output parsing. `input: <string>` stdin piping ignored on GJS (see TODO below) |
+| error-handling.spec.ts | ✅ (4) | ✅ (4) | non-zero-exit throws, `reject:false` returns failure result, ENOENT-on-missing-binary, stderr capture on throw |
+| sync.spec.ts | ✅ (4) | ✅ (4) | `execaSync` happy path, sync throw on non-zero, sync `reject:false`, env-aware sync output |
+
+**Two `@gjsify/*` fixes shipped with this suite** (both surfaced first time on the GJS-bundled execa path):
+
+1. **`@gjsify/process` — `import { hrtime } from 'node:process'` now preserves `.bigint`.** execa imports `hrtime` as a named import and immediately calls `hrtime.bigint()` for perf-tracking. The named export was previously `process.hrtime.bind(process)`, which strips the `.bigint` own property (Function.prototype.bind doesn't copy own props). Replaced with `Object.assign(process.hrtime.bind(process), { bigint: process.hrtime.bigint.bind(process) })` so the named-import shape matches Node. Companion regression test added under `process.hrtime deep`.
+2. **`@gjsify/child_process` — `ChildProcess.stdio` getter exposes the `[stdin, stdout, stderr]` tuple.** execa iterates `subprocess.stdio` to dispose stream resources on subprocess exit; without it execa threw `Symbol.iterator, subprocess.stdio is undefined` on every async spawn. Added as a getter returning the existing named streams, so the array stays consistent if `stdin`/`stdout`/`stderr` change.
+3. **`@gjsify/rolldown-plugin-gjsify` — process-stub now includes `.bigint` on its `hrtime`.** The synchronous bootstrap stub prepended to every `--app gjs` bundle had a `hrtime(t){return[0,0]}` shim without the `.bigint` property; once the full `@gjsify/process` impl loads it shadows the stub, but any `__esm`-lazy-init code that calls `process.hrtime.bigint()` *before* register runs would hit a TypeError. Both layers now agree.
+
 ## Open TODOs
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
+
+### Medium priority — `@gjsify/child_process` async `spawn()` stdin-piping (execa integration follow-up)
+
+Surfaced by the `tests/integration/execa/` D-1 suite. execa's `{ input: 'string' }` option (and the broader `child.stdin.write(...)` shape) requires async `spawn()` to expose a Writable that wraps `Gio.Subprocess.get_stdin_pipe()` (a `Gio.OutputStream`). Today only the *sync* paths (`execSync` / `spawnSync` / `execFileSync`) accept stdin input — they all route through `proc.communicate(stdinBytes, null)`. The async path leaves `child.stdin = null`.
+
+Plan:
+- Add a `GioOutputStreamWritable` helper in `packages/node/child_process/src/index.ts` analogous to the existing `GioInputStreamReadable`. `_write(chunk, enc, cb)` calls `out.write_bytes_async(GLib.Bytes.new(...), null, (s, r) => { try { s.write_bytes_finish(r); cb(); } catch (e) { cb(e); } })`. `_final(cb)` calls `out.close_async(...)`.
+- In the async `spawn()` flow (around line 459 of the file), after `child._setSubprocess(proc)`, if `stdioTriple[0] === 'pipe'` get the stdin pipe (`proc.get_stdin_pipe()`) and set `child.stdin = new GioOutputStreamWritable(stdin)`.
+- Unignore the `passes stdin via the input option (string)` test in `tests/integration/execa/src/output-capture.spec.ts` once the path works.
+
+Lower than other D-1 work because the affected consumers (vite-plugin-blueprint, vite-plugin-gettext) all use *fire-and-forget* spawns that read stdout from subprocesses they're invoking — none of them pipe stdin to the child. Real-world execa users on GJS today should use `execaSync` for stdin-piping workloads.
 
 ### Low priority — WebGL deferred items (Workstream D)
 

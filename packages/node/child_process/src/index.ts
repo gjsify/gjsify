@@ -127,6 +127,19 @@ export class ChildProcess extends EventEmitter {
   stdout: Readable | null = null;
   stderr: Readable | null = null;
 
+  /**
+   * Node-compatible `stdio` tuple — `[stdin, stdout, stderr, ...extraFds]`.
+   * Index 0/1/2 mirror the named streams above. Slots 3+ are reserved for
+   * `options.stdio = ['pipe', 'pipe', 'pipe', 'pipe']` extra fds, which we
+   * don't surface yet — `null` placeholders match Node's shape when extras
+   * weren't requested. Consumers like execa iterate this array (e.g. to
+   * dispose streams on subprocess exit), so the property MUST exist even
+   * when nothing was piped.
+   */
+  get stdio(): Array<Writable | Readable | null> {
+    return [this.stdin, this.stdout, this.stderr];
+  }
+
   private _subprocess: Gio.Subprocess | null = null;
 
   /** @internal Set the underlying Gio.Subprocess and extract PID. */

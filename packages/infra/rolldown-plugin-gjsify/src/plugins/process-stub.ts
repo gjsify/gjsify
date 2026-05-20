@@ -19,6 +19,11 @@ import type { Plugin } from 'rolldown';
 export const GJS_PROCESS_STUB =
     'if(typeof globalThis.process==="undefined"){' +
         'const _s=imports.system,_G=imports.gi.GLib;' +
+        // process.hrtime needs a `.bigint` property attached to the function
+        // itself (Node API shape: `process.hrtime.bigint()` — used by execa,
+        // perf-tracking libs, …). Build it as a named local so we can
+        // attach the property before stashing it on the stub object.
+        'const _h=t=>t?[0,0]:[0,0];_h.bigint=()=>0n;' +
         'globalThis.process={' +
             'platform:"linux",arch:"x64",version:"v20.0.0",' +
             'env:new Proxy({},{' +
@@ -36,7 +41,7 @@ export const GJS_PROCESS_STUB =
             'stderr:{write(s){printerr(s)}},stdout:{write(s){print(s)}},stdin:null,' +
             'exitCode:undefined,' +
             'nextTick(fn,...a){Promise.resolve().then(()=>fn(...a))},' +
-            'hrtime(t){return t?[0,0]:[0,0]},' +
+            'hrtime:_h,' +
         '};' +
     '}';
 

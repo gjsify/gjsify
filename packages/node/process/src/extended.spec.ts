@@ -137,6 +137,19 @@ export default async () => {
       const b = process.hrtime.bigint();
       expect(b >= a).toBe(true);
     });
+
+    await it('named-import hrtime (from "node:process") preserves .bigint', async () => {
+      // Regression: `import { hrtime } from 'node:process'; hrtime.bigint()`
+      // is the canonical perf-tracking shape used by execa, ts-for-gir, etc.
+      // Previously the named export was `process.hrtime.bind(process)`, which
+      // strips own properties — `.bigint` was undefined on the bound copy.
+      // Now Object.assign re-attaches it so behavior matches Node.
+      const { hrtime: namedHrtime } = await import('process');
+      expect(typeof (namedHrtime as { bigint?: () => bigint }).bigint).toBe('function');
+      const t = (namedHrtime as { bigint: () => bigint }).bigint();
+      expect(typeof t).toBe('bigint');
+      expect(t > 0n).toBe(true);
+    });
   });
 
   // ===================== process.memoryUsage =====================
