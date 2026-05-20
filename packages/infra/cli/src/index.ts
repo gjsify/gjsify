@@ -27,6 +27,7 @@ import {
     lintCommand as lint,
     fixCommand as fix,
     upgradeCommand as upgrade,
+    barrelsCommand as barrels,
 } from './commands/index.js'
 import { APP_NAME } from './constants.js'
 
@@ -62,6 +63,7 @@ await yargs(hideBin(process.argv))
     .command(format.command, format.description, format.builder, format.handler)
     .command(lint.command, lint.description, lint.builder, lint.handler)
     .command(fix.command, fix.description, fix.builder, fix.handler)
+    .command(barrels.command, barrels.description, barrels.builder, barrels.handler)
     .demandCommand(1)
     .help()
     .parseAsync()

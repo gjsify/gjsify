@@ -4,7 +4,9 @@
 
 import { run } from '@gjsify/unit';
 import bundlerPickSuite from './bundler-pick.spec.js';
+import barrelsGenerateSuite from './barrels-generate.spec.js';
 
 run({
     bundlerPickSuite,
+    barrelsGenerateSuite,
 });
