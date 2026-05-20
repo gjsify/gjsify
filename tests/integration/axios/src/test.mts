@@ -1,6 +1,11 @@
-import '@gjsify/node-globals/register';
-import { run } from '@gjsify/unit';
+// Integration-test entry for @gjsify/integration-axios.
+// Builds once per runtime (gjs/node) via `gjsify build src/test.mts`.
+//
+// No explicit `@gjsify/node-globals/register` — `gjsify build` defaults to
+// `--globals auto`, scanning the bundled output and injecting only the
+// granular /register subpaths actually referenced.
 
+import { run } from '@gjsify/unit';
 
 import basicSuite       from './basic.spec.js';
 import headersSuite     from './headers.spec.js';

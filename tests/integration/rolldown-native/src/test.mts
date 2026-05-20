@@ -6,8 +6,11 @@
 //   B.2 — all 12 hooks fire, idFilter regex short-circuits
 //   B.3 — nested protocol (this.resolve / this.warn) round-trips
 //   B.5a — bundleWithPlugins() Promise facade hides session wiring
+//
+// No explicit `@gjsify/node-globals/register` — `gjsify build` defaults to
+// `--globals auto`, scanning the bundled output and injecting only the
+// granular /register subpaths actually referenced.
 
-import '@gjsify/node-globals/register';
 import { run } from '@gjsify/unit';
 import bundleWithPluginsSuite from './bundle-with-plugins.spec.js';
 

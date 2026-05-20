@@ -1,11 +1,14 @@
 // Integration-test entry for @gjsify/integration-streamx.
 // Builds once per runtime (gjs/node) via `gjsify build src/test.mts`.
 //
-// @gjsify/node-globals/register pins timers with GLib.Source GC and
-// registers queueMicrotask — required for streamx's fast scheduling path
-// (streamx falls back to process.nextTick if queueMicrotask is undefined).
+// streamx's fast scheduling path requires timers with GLib.Source GC and
+// queueMicrotask (it falls back to process.nextTick if queueMicrotask is
+// undefined).
+//
+// No explicit `@gjsify/node-globals/register` — `gjsify build` defaults to
+// `--globals auto`, scanning the bundled output and injecting only the
+// granular /register subpaths actually referenced (timers, microtask here).
 
-import '@gjsify/node-globals/register';
 import { run } from '@gjsify/unit';
 import readableSuite from './readable.spec.js';
 import writableSuite from './writable.spec.js';

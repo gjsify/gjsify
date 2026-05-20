@@ -5,8 +5,11 @@
 // @gjsify/vite-plugin-gettext) runs end-to-end on GJS. Stresses
 // @gjsify/buffer (binary MO file parsing, endianness, NUL/EOT separators),
 // @gjsify/fs (URL-path file reads), and text encoding edge cases.
+//
+// No explicit `@gjsify/node-globals/register` — `gjsify build` defaults to
+// `--globals auto`, scanning the bundled output and injecting only the
+// granular /register subpaths actually referenced.
 
-import '@gjsify/node-globals/register';
 import { run } from '@gjsify/unit';
 import parsePoSuite from './parse-po.spec.js';
 import parseMoSuite from './parse-mo.spec.js';

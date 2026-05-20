@@ -1,11 +1,13 @@
 // Integration-test entry for @gjsify/integration-webtorrent.
 // Builds once per runtime (gjs/node) via `gjsify build src/test.mts`.
 //
-// `@gjsify/node-globals/register` pins timers with GLib.Source GC and
-// registers the Node-style Buffer/process/URL globals that webtorrent's
-// fs-chunk-store and bittorrent-protocol expect.
+// webtorrent's fs-chunk-store and bittorrent-protocol expect Node-style
+// Buffer/process/URL globals + timers with GLib.Source GC.
+//
+// No explicit `@gjsify/node-globals/register` — `gjsify build` defaults to
+// `--globals auto`, scanning the bundled output and injecting only the
+// granular /register subpaths actually referenced.
 
-import '@gjsify/node-globals/register';
 import { run } from '@gjsify/unit';
 import selectionsSuite from './selections.spec.js';
 import rarityMapSuite from './rarity-map.spec.js';

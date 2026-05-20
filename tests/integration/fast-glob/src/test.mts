@@ -1,11 +1,13 @@
 // Integration-test entry for @gjsify/integration-fast-glob.
 // Builds once per runtime (gjs/node) via `gjsify build src/test.mts`.
 //
-// @gjsify/node-globals/register pins timers + queueMicrotask and registers
-// process — fast-glob uses path/fs heavily and reads process.cwd() through
+// fast-glob uses path/fs heavily and reads process.cwd() through
 // internal helpers.
+//
+// No explicit `@gjsify/node-globals/register` — `gjsify build` defaults to
+// `--globals auto`, scanning the bundled output and injecting only the
+// granular /register subpaths actually referenced.
 
-import '@gjsify/node-globals/register';
 import { run } from '@gjsify/unit';
 import basicPatternsSuite from './basic-patterns.spec.js';
 import globVsStreamSuite from './glob-vs-stream.spec.js';

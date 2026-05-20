@@ -4,8 +4,11 @@
 // Validates that acorn (ECMAScript parser) + acorn-walk (AST visitor) — both
 // pure JS — run end-to-end on GJS. Acts as a Phase D-1 canary for the core
 // SpiderMonkey 140 + @gjsify/* JS path: no GNOME deps, no streams, no fs.
+//
+// No explicit `@gjsify/node-globals/register` — `gjsify build` defaults to
+// `--globals auto`, scanning the bundled output and injecting only the
+// granular /register subpaths actually referenced.
 
-import '@gjsify/node-globals/register';
 import { run } from '@gjsify/unit';
 import parseBasicSuite from './parse-basic.spec.js';
 import parseStrictSuite from './parse-strict.spec.js';
