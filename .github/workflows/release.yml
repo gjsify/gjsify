@@ -25,6 +25,11 @@ on:
         required: false
         type: boolean
         default: true
+      verify_only:
+        description: 'Run `gjsify foreach publish --check-trusted` against every package and skip the actual publish. Used to audit Trusted Publisher configs on npmjs.com after configuring them — the OIDC JWT issued for THIS workflow file matches the configured `release.yml` Trusted Publishers.'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   publish:
@@ -69,12 +74,56 @@ jobs:
       - name: Build examples
         run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run build:examples
 
-      # Publish to npm on the `release` event (always) and on
-      # workflow_dispatch only when the operator explicitly opts in by
-      # toggling skip_publish off. Re-running an existing release should
-      # leave npm alone (each version is published exactly once).
+      # Trusted-Publisher audit. Runs when `gh workflow run release.yml
+      # -f verify_only=true` is invoked. The OIDC JWT issued for this
+      # workflow file matches the `release.yml` filename configured per
+      # package as Trusted Publisher on npmjs.com, so a `--check-trusted`
+      # exchange succeeds for every correctly-configured package and 4xx
+      # for every misconfigured one. Always exits 0; read the GitHub Step
+      # Summary for the per-bucket counts + list of failing packages.
+      - name: Verify Trusted Publishers (audit mode)
+        if: ${{ inputs.verify_only == true }}
+        id: check_trusted
+        env:
+          GJSIFY_PUBLISH_DEBUG: "1"
+        run: |
+          set -o pipefail
+          PATH="$PWD/node_modules/.bin:$PATH" \
+            gjsify foreach -v --no-private \
+              --exclude '@girs/*' \
+              --exec -- gjsify publish --check-trusted \
+            2>&1 | tee /tmp/check-trusted.log
+
+          MISCONFIGURED=$(grep -cE "(^|\] )✗ " /tmp/check-trusted.log || true)
+          OK=$(grep -cE "(^|\] )✓ " /tmp/check-trusted.log || true)
+          SKIPPED=$(grep -cE "(^|\] )- " /tmp/check-trusted.log || true)
+
+          {
+            echo "## Trusted Publisher verification"
+            echo ""
+            echo "| Status | Count |"
+            echo "|---|---|"
+            echo "| ✓ Configured        | $OK |"
+            echo "| ✗ Misconfigured     | $MISCONFIGURED |"
+            echo "| - Skipped (private) | $SKIPPED |"
+            echo ""
+            if [ "$MISCONFIGURED" -gt 0 ]; then
+              echo "### Misconfigured packages"
+              echo ""
+              echo "Each row below means the OIDC token exchange returned non-2xx for that package. Most common cause: no Trusted Publisher entry yet — add one at https://www.npmjs.com/package/<name>/access with Repository: gjsify/gjsify, Workflow: release.yml."
+              echo ""
+              FENCE='```'
+              echo "$FENCE"
+              grep -E "(^|\] )✗ " /tmp/check-trusted.log || true
+              echo "$FENCE"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Publish to npm on the `release` event (always) or on
+      # workflow_dispatch with skip_publish=false. Never runs in
+      # `verify_only` mode — that path is a pure audit.
       - name: Publish packages to npm
-        if: ${{ github.event_name == 'release' || inputs.skip_publish == false }}
+        if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
         run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run npm:publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -91,14 +140,14 @@ jobs:
       # that followed silently skipped the upload because the original
       # gate was hard-pinned to `event_name == 'release'`).
       - name: Generate cli.gjs.mjs.sha256
-        if: ${{ github.event_name == 'release' || inputs.release_tag != '' }}
+        if: ${{ (github.event_name == 'release' || inputs.release_tag != '') && inputs.verify_only != true }}
         run: |
           cd packages/infra/cli/dist
           sha256sum cli.gjs.mjs | awk '{print $1}' > cli.gjs.mjs.sha256
           cat cli.gjs.mjs.sha256
 
       - name: Upload installer + bootstrap bundle to GitHub release
-        if: ${{ github.event_name == 'release' || inputs.release_tag != '' }}
+        if: ${{ (github.event_name == 'release' || inputs.release_tag != '') && inputs.verify_only != true }}
         uses: softprops/action-gh-release@v2
         with:
           # On `release` softprops infers tag_name from the event payload.
