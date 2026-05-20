@@ -93,8 +93,13 @@ describe('CLI css-bundling E2E', { timeout: 10 * 60 * 1000 }, () => {
       exports: { './styles.css': './lib/styles.css' },
     }, null, 2));
     mkdirSync(join(pkgDir, 'lib'), { recursive: true });
+    // Use a non-named color literal so lightningcss's color minification
+    // (`papayawhip` → `#ffefd5`, etc.) doesn't rewrite the value out from
+    // under the assertion. `#abcdef` round-trips verbatim — and the
+    // shared-banner class name + padding value are minification-stable
+    // anchors on their own.
     writeFileSync(join(pkgDir, 'lib', 'styles.css'),
-      `.shared-banner { background: papayawhip; padding: 8px; }\n`,
+      `.shared-banner { background: #abcdef; padding: 8px; }\n`,
     );
 
     // Bare-package import + relative imports in the same file, so the
@@ -117,7 +122,7 @@ describe('CLI css-bundling E2E', { timeout: 10 * 60 * 1000 }, () => {
       'all @import statements resolved — none left as literal text');
     assert.match(out, /\.shared-banner/,
       'css from @css-fixture/shared/styles.css must be inlined');
-    assert.match(out, /papayawhip/,
+    assert.match(out, /#abcdef|#ABCDEF/,
       'concrete property from the bare-package CSS must survive bundling');
     assert.match(out, /\.btn:hover/,
       'relative @import still works alongside the bare-package one');
