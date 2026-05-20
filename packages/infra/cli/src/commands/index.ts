@@ -22,3 +22,4 @@ export * from './format.js';
 export * from './lint.js';
 export * from './fix.js';
 export * from './upgrade.js';
+export * from './barrels.js';
