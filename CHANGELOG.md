@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.16](https://github.com/gjsify/gjsify/compare/v0.4.15...v0.4.16) (2026-05-20)
+
+### Features
+
+* **child_process, stream:** async spawn() stdin-piping + Writable _destroy subclass-override fix ([#220](https://github.com/gjsify/gjsify/issues/220)) ([cae47c6](https://github.com/gjsify/gjsify/commit/cae47c690e8781b0d48ea4f3f611d85c57629ffc))
+* **cli:** gjsify publish --trusted (npm Trusted Publishing via OIDC) ([#230](https://github.com/gjsify/gjsify/issues/230)) ([7747851](https://github.com/gjsify/gjsify/commit/7747851af65662cd51621f40631c18f788d0ac4e))
+* **npm-registry:** retry-with-backoff on transient fetch errors ([#224](https://github.com/gjsify/gjsify/issues/224)) ([c788471](https://github.com/gjsify/gjsify/commit/c78847144f60d02bcdea236bb38d5b9becbf8a11))
+* **showcases:** promote webrtc-video example to showcases/dom/ ([#221](https://github.com/gjsify/gjsify/issues/221)) ([87b900e](https://github.com/gjsify/gjsify/commit/87b900ea0c548c7adb5210f25816a260ced39baf)), closes [#215](https://github.com/gjsify/gjsify/issues/215) [#215](https://github.com/gjsify/gjsify/issues/215)
+* **tls:** real server-side SNI selection via ClientHello peek-and-parse ([#223](https://github.com/gjsify/gjsify/issues/223)) ([3ced93e](https://github.com/gjsify/gjsify/commit/3ced93e801dcd77cc0a4cf1e47559fcfa8908eec))
+
+### Bug Fixes
+
+* **examples:** mark cli-axios-http-client as private (AGENTS.md convention) ([#225](https://github.com/gjsify/gjsify/issues/225)) ([46e1cfd](https://github.com/gjsify/gjsify/commit/46e1cfd8db2892e9c9911c22309320fa13eb625c))
+* **rolldown-plugin-gjsify:** restore npm-package [@import](https://github.com/import) resolution in css-as-string ([#227](https://github.com/gjsify/gjsify/issues/227)) ([9e142a9](https://github.com/gjsify/gjsify/commit/9e142a908392283934949f0059e81e12154d105c))
+
 ## [0.4.15](https://github.com/gjsify/gjsify/compare/v0.4.14...v0.4.15) (2026-05-20)
 
 ### Features

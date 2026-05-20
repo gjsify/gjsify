@@ -1,6 +1,6 @@
 {
   "name": "gjsify",
-  "version": "0.4.15",
+  "version": "0.4.16",
   "description": "The full JavaScript ecosystem, native on GNOME",
   "type": "module",
   "private": true,
