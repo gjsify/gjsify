@@ -45,6 +45,12 @@ import {
     type NpmrcConfig,
 } from '@gjsify/npm-registry';
 import { packWorkspace, type PackWorkspaceOptions } from './pack.js';
+import {
+    getNpmTrustedToken,
+    hasGithubOidcEnv,
+    OidcExchangeError,
+    OidcUnavailableError,
+} from '../utils/npm-oidc.js';
 
 interface PublishOptions {
     path?: string;
@@ -54,6 +60,8 @@ interface PublishOptions {
     provenance?: boolean;
     'dry-run'?: boolean;
     json?: boolean;
+    trusted?: boolean | 'auto';
+    'check-trusted'?: boolean;
 }
 
 export const publishCommand: Command<any, PublishOptions> = {
@@ -90,6 +98,21 @@ export const publishCommand: Command<any, PublishOptions> = {
                 description: 'Emit publish metadata as JSON on stdout.',
                 type: 'boolean',
                 default: false,
+            })
+            .option('trusted', {
+                description:
+                    'Authenticate via npm Trusted Publishing (OIDC): exchange the GitHub Actions id-token for a short-lived npm token. ' +
+                    'Pass `--trusted` to force this mode (errors if env vars missing). ' +
+                    'Omit to auto-detect: OIDC is used iff `ACTIONS_ID_TOKEN_REQUEST_URL`+`_TOKEN` are set AND no `_authToken` is present in the resolved npmrc; otherwise the long-lived token path is used. ' +
+                    'Requires the calling workflow to declare `permissions: id-token: write` AND the target package to have a Trusted Publisher configured on npmjs.com.',
+                type: 'boolean',
+                default: undefined,
+            })
+            .option('check-trusted', {
+                description:
+                    'Diagnostic mode: perform the OIDC id-token request + npm token exchange, report success/failure, then exit WITHOUT publishing. Useful as a bulk-verifier (e.g. via `gjsify foreach publish --check-trusted`) to confirm Trusted Publisher config across many packages.',
+                type: 'boolean',
+                default: false,
             }),
     handler: async (args) => {
         const wsDir = resolve(args.path ?? process.cwd());
@@ -98,9 +121,53 @@ export const publishCommand: Command<any, PublishOptions> = {
         const tolerate = args['tolerate-republish'] === true;
         const provenance = args.provenance === true;
         const dryRun = args['dry-run'] === true;
+        const checkTrustedOnly = args['check-trusted'] === true;
+        const trustedFlag = args.trusted;
+        const verbose = Boolean(process.env.GJSIFY_PUBLISH_DEBUG);
 
         if (provenance) {
             console.warn('gjsify publish: --provenance recorded but not signed (no sigstore integration yet).');
+        }
+
+        // `--check-trusted` short-circuits the entire pack + publish flow.
+        // Reports the OIDC exchange result for the workspace's package and
+        // exits 0 either way — by design, so `gjsify foreach publish
+        // --check-trusted` walks every workspace without bailing on the
+        // first misconfigured one. CI can grep `^✗ ` (or parse `--json`
+        // entries with `ok: false`) to surface failures.
+        if (checkTrustedOnly) {
+            const rawPkgPath = join(wsDir, 'package.json');
+            const rawPkg = JSON.parse(readFileSync(rawPkgPath, 'utf-8')) as { name?: string; private?: boolean };
+            if (typeof rawPkg.name !== 'string') {
+                process.stderr.write(`gjsify publish --check-trusted: ${rawPkgPath} has no \`name\` field\n`);
+                process.exit(2);
+            }
+            if (rawPkg.private === true) {
+                const out = { ok: true, action: 'check-trusted', name: rawPkg.name, skipped: 'private' };
+                if (args.json) process.stdout.write(`${JSON.stringify(out)}\n`);
+                else process.stdout.write(`- ${rawPkg.name}: skipped (private package)\n`);
+                return;
+            }
+            const npmrcCheck = await loadNpmrc(wsDir);
+            const registry =
+                process.env.npm_config_registry ?? registryFor(rawPkg.name, npmrcCheck) ?? DEFAULT_REGISTRY;
+            try {
+                await getNpmTrustedToken({
+                    packageName: rawPkg.name,
+                    registry,
+                    log: verbose ? (m) => console.error(m) : undefined,
+                });
+                const out = { ok: true, action: 'check-trusted', name: rawPkg.name, registry };
+                if (args.json) process.stdout.write(`${JSON.stringify(out)}\n`);
+                else process.stdout.write(`✓ ${rawPkg.name}: trusted publisher OK\n`);
+                return;
+            } catch (err) {
+                handleOidcFailure(err, rawPkg.name, args.json === true);
+                // Report-mode: exit 0 so `gjsify foreach` keeps walking. The
+                // `✗ <name>: <reason>` (or JSON `ok:false`) line is the
+                // failure signal for CI to grep / parse.
+                return;
+            }
         }
 
         // 1. Pack the workspace (rewrites workspace:^, computes integrity)
@@ -185,10 +252,46 @@ export const publishCommand: Command<any, PublishOptions> = {
         headers['content-type'] = 'application/json';
         headers['accept'] = '*/*';
 
-        if (process.env.GJSIFY_PUBLISH_DEBUG) {
+        // Trusted Publishing path. `--trusted` forces OIDC (errors if env
+        // vars are missing); the default `undefined` triggers auto-detect:
+        // OIDC is used iff GitHub OIDC env vars are present AND no
+        // `NODE_AUTH_TOKEN` is set. With `NODE_AUTH_TOKEN` set the user has
+        // explicitly opted into token auth, so we don't shadow their choice.
+        const wantTrusted =
+            trustedFlag === true ||
+            (trustedFlag === undefined && hasGithubOidcEnv() && !process.env.NODE_AUTH_TOKEN);
+        let authMode: 'token' | 'oidc' = 'token';
+        if (wantTrusted) {
+            try {
+                const { token: oidcToken, audience } = await getNpmTrustedToken({
+                    packageName: packed.name,
+                    registry,
+                    log: verbose ? (m) => console.error(m) : undefined,
+                });
+                headers['authorization'] = `Bearer ${oidcToken}`;
+                authMode = 'oidc';
+                if (verbose) {
+                    console.error(`gjsify publish: OIDC token obtained (audience=${audience})`);
+                }
+            } catch (err) {
+                if (trustedFlag === true) {
+                    // Explicit --trusted: bail with a clear error.
+                    handleOidcFailure(err, packed.name, args.json === true);
+                    process.exit(1);
+                }
+                // Auto-detect: fall back to whatever buildHeaders found.
+                if (verbose) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    console.error(`gjsify publish: OIDC auto-detect failed (${msg}) — falling back to token auth`);
+                }
+            }
+        }
+
+        if (verbose) {
             console.error(`gjsify publish: PUT ${url} (${packed.name}@${packed.version})`);
+            console.error(`  auth-mode:     ${authMode}`);
             console.error(`  authorization: ${headers['authorization'] ? '(set)' : '(none)'}`);
-            console.error(`  payload size: ${JSON.stringify(payload).length} bytes`);
+            console.error(`  payload size:  ${JSON.stringify(payload).length} bytes`);
         }
 
         const res = await fetch(url, {
@@ -343,4 +446,24 @@ function base64Encode(bytes: Uint8Array): string {
         str += String.fromCharCode(...bytes.subarray(i, i + chunk));
     }
     return btoa(str);
+}
+
+function handleOidcFailure(err: unknown, packageName: string, asJson: boolean): void {
+    if (err instanceof OidcUnavailableError) {
+        const msg = `gjsify publish: OIDC not available — ${err.message}`;
+        if (asJson) process.stdout.write(`${JSON.stringify({ ok: false, name: packageName, error: 'oidc-unavailable', reason: err.reason, message: err.message })}\n`);
+        else process.stderr.write(`${msg}\n`);
+        return;
+    }
+    if (err instanceof OidcExchangeError) {
+        const friendly = err.status === 401 || err.status === 403
+            ? `npm rejected the OIDC exchange (${err.status}) — check that ${packageName} has a Trusted Publisher configured at https://www.npmjs.com/package/${encodeURIComponent(packageName)}/access pointing at this workflow.`
+            : err.message;
+        if (asJson) process.stdout.write(`${JSON.stringify({ ok: false, name: packageName, error: 'oidc-exchange', status: err.status, body: err.body, message: err.message })}\n`);
+        else process.stderr.write(`✗ ${packageName}: ${friendly}\n`);
+        return;
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    if (asJson) process.stdout.write(`${JSON.stringify({ ok: false, name: packageName, error: 'unknown', message: msg })}\n`);
+    else process.stderr.write(`✗ ${packageName}: ${msg}\n`);
 }
