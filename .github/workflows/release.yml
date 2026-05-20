@@ -57,11 +57,21 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
 
+      # OIDC mode: no `registry-url` here. When set, actions/setup-node
+      # injects `NODE_AUTH_TOKEN=XXXXX-XXXXX-XXXXX-XXXXX` as a literal
+      # placeholder into the job env so the generated .npmrc has SOME
+      # token reference to expand. That placeholder leaks into every
+      # subprocess as a non-empty NODE_AUTH_TOKEN, which `gjsify publish`
+      # auto-detect (`!process.env.NODE_AUTH_TOKEN`) then interprets as
+      # "user opted into token auth" and skips OIDC — defeating the
+      # entire Trusted Publishing setup. Dropping `registry-url` makes
+      # setup-node not write the placeholder npmrc; gjsify publish reads
+      # the registry from the package's own `publishConfig.registry`
+      # (or DEFAULT_REGISTRY) and authenticates via OIDC exchange.
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: '24.x'
-          registry-url: 'https://registry.npmjs.org'
 
       # Phase D.7d: Node-free install via the committed GJS bundle.
       # Mirrors main.yml — see that workflow for rationale.
