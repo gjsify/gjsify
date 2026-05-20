@@ -273,4 +273,148 @@ export default async () => {
             expect(caught instanceof IntegrityError).toBe(true);
         });
     });
+
+    await describe("@gjsify/npm-registry — retry-with-backoff", async () => {
+        await it("retries on TypeError 'fetch failed' and eventually succeeds", async () => {
+            let calls = 0;
+            const retries: number[] = [];
+            const mock = makeMockFetch(async () => {
+                calls++;
+                if (calls < 3) {
+                    // Mimic Node undici's network-error shape.
+                    throw new TypeError("fetch failed");
+                }
+                return new Response(
+                    JSON.stringify({ name: "lodash", "dist-tags": {}, versions: {} }),
+                    { status: 200 },
+                );
+            });
+            const p = await fetchPackument("lodash", {
+                fetch: mock,
+                retries: 3,
+                retryDelayMs: 1,
+                onRetry: ({ attempt }) => retries.push(attempt),
+            });
+            expect(p.name).toBe("lodash");
+            expect(calls).toBe(3);
+            expect(retries).toStrictEqual([1, 2]);
+        });
+
+        await it("retries on GJS-style FetchError (TLS handshake reset)", async () => {
+            let calls = 0;
+            const mock = makeMockFetch(async () => {
+                calls++;
+                if (calls < 2) {
+                    const err = new Error("Gio.TlsError: TLS handshake was not finished cleanly");
+                    (err as { name: string }).name = "FetchError";
+                    throw err;
+                }
+                return new Response(new Uint8Array([0x1f, 0x8b]), { status: 200 });
+            });
+            const got = await fetchTarball("https://r/x.tgz", {
+                fetch: mock,
+                retries: 3,
+                retryDelayMs: 1,
+            });
+            expect(got.length).toBe(2);
+            expect(calls).toBe(2);
+        });
+
+        await it("retries on 503 then succeeds", async () => {
+            let calls = 0;
+            const mock = makeMockFetch(async () => {
+                calls++;
+                if (calls < 3) {
+                    return new Response("temporarily unavailable", {
+                        status: 503,
+                        statusText: "Service Unavailable",
+                    });
+                }
+                return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
+            });
+            const got = await fetchTarball("https://r/x.tgz", {
+                fetch: mock,
+                retries: 3,
+                retryDelayMs: 1,
+            });
+            expect(got.length).toBe(3);
+            expect(calls).toBe(3);
+        });
+
+        await it("does NOT retry on 404 — surfaces immediately", async () => {
+            let calls = 0;
+            const mock = makeMockFetch(async () => {
+                calls++;
+                return new Response("not found", { status: 404 });
+            });
+            let caught: Error | null = null;
+            try {
+                await fetchPackument("nope", { fetch: mock, retries: 3, retryDelayMs: 1 });
+            } catch (e) {
+                caught = e as Error;
+            }
+            expect(caught instanceof PackageNotFoundError).toBe(true);
+            expect(calls).toBe(1);
+        });
+
+        await it("throws the underlying error after exhausting retries", async () => {
+            let calls = 0;
+            const mock = makeMockFetch(async () => {
+                calls++;
+                throw new TypeError("fetch failed");
+            });
+            let caught: Error | null = null;
+            try {
+                await fetchPackument("lodash", { fetch: mock, retries: 2, retryDelayMs: 1 });
+            } catch (e) {
+                caught = e as Error;
+            }
+            expect(caught instanceof TypeError).toBe(true);
+            expect(caught?.message).toBe("fetch failed");
+            // 1 initial + 2 retries = 3 total.
+            expect(calls).toBe(3);
+        });
+
+        await it("respects AbortSignal — aborts during backoff delay", async () => {
+            const ctrl = new AbortController();
+            let calls = 0;
+            const mock = makeMockFetch(async () => {
+                calls++;
+                throw new TypeError("fetch failed");
+            });
+            // Abort while the first backoff timer is pending.
+            setTimeout(() => ctrl.abort(), 5);
+            let caught: Error | null = null;
+            try {
+                await fetchPackument("lodash", {
+                    fetch: mock,
+                    retries: 5,
+                    retryDelayMs: 50,
+                    signal: ctrl.signal,
+                });
+            } catch (e) {
+                caught = e as Error;
+            }
+            expect(caught).toBeTruthy();
+            expect(caught?.name).toBe("AbortError");
+            // 1 initial attempt, then the abort fires during backoff.
+            expect(calls).toBe(1);
+        });
+
+        await it("retries: 0 disables retry path", async () => {
+            let calls = 0;
+            const mock = makeMockFetch(async () => {
+                calls++;
+                throw new TypeError("fetch failed");
+            });
+            let threw = false;
+            try {
+                await fetchPackument("lodash", { fetch: mock, retries: 0 });
+            } catch {
+                threw = true;
+            }
+            expect(threw).toBe(true);
+            expect(calls).toBe(1);
+        });
+    });
 };

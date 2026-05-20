@@ -143,6 +143,11 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
     return topLevelResolutions(opts.specs, nodes);
 }
 
+function errMsg(err: unknown): string {
+    if (err instanceof Error) return err.message;
+    return String(err);
+}
+
 function topLevelResolutions(specs: string[], nodes: ResolvedNode[]): InstalledTopLevel[] {
     // Top-level installs live at `node_modules/<name>` (no nesting). Build
     // a name → root-node lookup limited to the top-level set.
@@ -203,7 +208,12 @@ async function resolveDeps(
     const fetchPkg = (name: string): Promise<Packument> => {
         const cached = packumentCache.get(name);
         if (cached) return cached;
-        const fresh = fetchPackument(name, { npmrc });
+        const fresh = fetchPackument(name, {
+            npmrc,
+            onRetry: ({ attempt, error, delayMs }) => {
+                log("packument %s: retry %d after %dms (%s)", name, attempt, delayMs, errMsg(error));
+            },
+        });
         packumentCache.set(name, fresh);
         return fresh;
     };
@@ -573,6 +583,9 @@ async function extractOne(
     const bytes = await fetchTarball(node.tarballUrl, {
         npmrc,
         integrity: node.integrity,
+        onRetry: ({ attempt, error, delayMs }) => {
+            log("tarball %s@%s: retry %d after %dms (%s)", node.name, node.version, attempt, delayMs, errMsg(error));
+        },
     });
     fs.rmSync(dest, { recursive: true, force: true });
     fs.mkdirSync(dest, { recursive: true });
