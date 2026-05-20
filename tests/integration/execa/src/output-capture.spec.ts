@@ -3,7 +3,7 @@
 // Original: Copyright (c) Sindre Sorhus / execa contributors. MIT.
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
 
-import { describe, it, expect, on } from '@gjsify/unit';
+import { describe, it, expect } from '@gjsify/unit';
 import { execa } from 'execa';
 
 export default async () => {
@@ -33,20 +33,17 @@ export default async () => {
             expect(result.stdout).toBe('abc123');
         });
 
-        // GJS path needs `@gjsify/child_process`'s async `spawn()` to wire
-        // up `child.stdin` as a Writable wrapping Gio.Subprocess's stdin
-        // pipe (Gio.OutputStream). Currently only the *sync* paths
-        // (execSync/spawnSync via `proc.communicate(bytes, null)`) accept
-        // stdin input. Tracked under "Open TODOs" in STATUS.md.
-        await on('Node.js', async () => {
-            await it('passes stdin via the input option (string)', async () => {
-                const result = await execa(
-                    'node',
-                    ['-e', 'let buf = ""; process.stdin.on("data", d => buf += d); process.stdin.on("end", () => process.stdout.write(buf))'],
-                    { input: 'piped-stdin-payload' },
-                );
-                expect(result.stdout).toBe('piped-stdin-payload');
-            });
+        // Async stdin piping — execa's `{ input: 'string' }` shape now
+        // works on GJS too via `@gjsify/child_process`'s new
+        // `GioOutputStreamWritable` wrapping `Gio.Subprocess.get_stdin_pipe()`.
+        // Closes the Open TODO surfaced by #218.
+        await it('passes stdin via the input option (string)', async () => {
+            const result = await execa(
+                'node',
+                ['-e', 'let buf = ""; process.stdin.on("data", d => buf += d); process.stdin.on("end", () => process.stdout.write(buf))'],
+                { input: 'piped-stdin-payload' },
+            );
+            expect(result.stdout).toBe('piped-stdin-payload');
         });
 
         await it('parses JSON stdout when json:true', async () => {

@@ -117,6 +117,23 @@ export class Writable_ extends Stream_ {
     }
   }
 
+  /**
+   * Default `_destroy` impl — delegates to the constructor-opt `destroy`
+   * callback if one was provided. Subclasses can override this method
+   * (Node-spec convention: see lib/internal/streams/writable.js's
+   * `_destroy`), and the destroy() machinery will pick up the override
+   * automatically. Without this hook, packages like execa that wrap
+   * `subprocessStdin._destroy` to spy on cleanup-time exitCode have no
+   * way to intercept teardown.
+   */
+  _destroy(error: Error | null, callback: ErrCallback): void {
+    if (this._destroyImpl) {
+      this._destroyImpl.call(this, error, callback);
+    } else {
+      callback(error);
+    }
+  }
+
   private _maybeFlush(): void {
     // Flush writes that were buffered while waiting for _construct
     const pending = this._pendingConstruct.splice(0);
@@ -380,11 +397,13 @@ export class Writable_ extends Stream_ {
       nextTick(() => this.emit('close'));
     };
 
-    if (this._destroyImpl) {
-      this._destroyImpl.call(this, error ?? null, cb);
-    } else {
-      cb(error);
-    }
+    // Call _destroy (subclass-overridable) instead of _destroyImpl
+    // directly. The default _destroy in the base class delegates to
+    // _destroyImpl for backwards compatibility with the constructor-opt
+    // pattern; subclass overrides take precedence via normal JS
+    // prototype lookup. Matches Node's `Writable.destroy() → this._destroy()`
+    // dispatch in `lib/internal/streams/destroy.js`.
+    this._destroy(error ?? null, cb);
 
     return this;
   }
