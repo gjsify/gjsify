@@ -122,11 +122,20 @@ jobs:
       # Publish to npm on the `release` event (always) or on
       # workflow_dispatch with skip_publish=false. Never runs in
       # `verify_only` mode — that path is a pure audit.
+      # Authentication mode: npm Trusted Publishing (OIDC). `gjsify publish`
+      # auto-detects the GitHub Actions OIDC env vars (the workflow has
+      # `id-token: write` above) and, with no NODE_AUTH_TOKEN present,
+      # exchanges the runner-minted JWT at npm's
+      # `/-/npm/v1/oidc/token/exchange/package/<name>` endpoint for a
+      # short-lived publish token per package. The 104 stable @gjsify/*
+      # packages have Trusted Publisher entries configured for this
+      # repo + workflow on npmjs.com (verified via the `verify_only`
+      # audit before this cutover). Long-lived `NPM_TOKEN` secret can
+      # be removed once a real OIDC release completes successfully.
       - name: Publish packages to npm
         if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
         run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run npm:publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           GJSIFY_PUBLISH_DEBUG: "1"
 
       # Phase F: ship install.mjs + cli.gjs.mjs as GitHub-release assets so end
