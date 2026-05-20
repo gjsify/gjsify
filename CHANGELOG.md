@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.17](https://github.com/gjsify/gjsify/compare/v0.4.16...v0.4.17) (2026-05-20)
+
+### Bug Fixes
+
+* **cli:** bake GI_TYPELIB_PATH/LD_LIBRARY_PATH into launchers + full terminal width ([#226](https://github.com/gjsify/gjsify/issues/226)) ([0fc6c58](https://github.com/gjsify/gjsify/commit/0fc6c5870ca5bbb57e28fb6ea1cfb752d21aed5d))
+
 ## [0.4.16](https://github.com/gjsify/gjsify/compare/v0.4.15...v0.4.16) (2026-05-20)
 
 ### Features
