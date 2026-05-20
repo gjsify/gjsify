@@ -19,9 +19,12 @@
 //   {servername} (SNI)                →  TlsClientConnection.set_server_identity
 //                                        (Gio.NetworkAddress with hostname)
 //   tls.connect({cert,key}) (mTLS)    →  TlsConnection.set_certificate(client_cert)
-//   tls.createServer({SNICallback})   →  Best-effort: see "Open TODOs" — Gio
-//                                        does not surface the ClientHello
-//                                        server_name to JS before handshake.
+//   tls.createServer({SNICallback})   →  Real ClientHello-driven selection:
+//                                        peek the inbound bytes via
+//                                        Gio.BufferedInputStream, parse the
+//                                        server_name extension out, then pick
+//                                        a SecureContext via addContext() /
+//                                        SNICallback. See _upgradeTls below.
 //   tlsSocket.getPeerCertificate()    →  TlsConnection.get_peer_certificate +
 //                                        TlsCertificate.get_subject_name /
 //                                        get_issuer_name / get_dns_names /
@@ -34,9 +37,6 @@
 //            rejectUnauthorized}         REQUESTED / REQUIRED / NONE
 //
 // Documented gaps (see STATUS.md "Open TODOs"):
-//   - SNI server-side selection from ClientHello: Gio does not expose
-//     server_name extension before handshake; SNICallback is consulted but
-//     selection is approximate.
 //   - OCSP stapling: not exposed by Gio.
 //   - TLS session resumption ('session' event, {session} option): GnuTLS
 //     resumption API is not surfaced via GI.
@@ -47,6 +47,7 @@ import GLib from '@girs/glib-2.0';
 import { Socket, Server } from 'node:net';
 import type { Server as NetServer } from 'node:net';
 import { createNodeError, deferEmit } from '@gjsify/utils';
+import { parseClientHelloSni } from './internal/sni-parser.js';
 
 export const DEFAULT_MIN_VERSION = 'TLSv1.2';
 export const DEFAULT_MAX_VERSION = 'TLSv1.3';
@@ -783,94 +784,133 @@ export class TLSServer extends Server {
       return;
     }
 
-    // SNI: Gio does not surface ClientHello server_name to JS pre-handshake;
-    // we use the server's default certificate. Real-world SNI multiplexing
-    // is documented in STATUS.md "Open TODOs".
-    this._resolveSniContext(null, (ctx) => {
-      const certificate = ctx.certificate ?? this._tlsCertificate;
-      if (!certificate) {
-        const err = new Error('SNI resolution returned no certificate');
-        this.emit('tlsClientError', err, socket);
-        socket.destroy();
-        return;
-      }
+    // SNI server-side selection: wrap the connection's input stream in a
+    // Gio.BufferedInputStream, fill it (so the kernel-buffered ClientHello
+    // lands in the buffer), peek the bytes without consuming them, and parse
+    // out the server_name extension. The buffered stream is then handed to
+    // Gio.TlsServerConnection via a Gio.SimpleIOStream — subsequent reads
+    // first drain the buffer (the same ClientHello bytes), then continue
+    // from the underlying socket transparently. Gio.Socket.receive_message
+    // with MSG_PEEK is not introspectable in GJS (see refs note in
+    // @gjsify/http-soup-bridge), so this BufferedInputStream route is the
+    // pure-TS substitute.
+    const ioStream = rawConnection as unknown as Gio.IOStream;
+    const inputStream = ioStream.get_input_stream();
+    const outputStream = ioStream.get_output_stream();
+    // 4 KiB suffices for typical ClientHello (~100–800 B). Extremely large
+    // hellos with many extensions can hit ~16 KiB, but missing such tails
+    // only degrades to default-cert fallback — never breaks the handshake.
+    const buffered = Gio.BufferedInputStream.new_sized(inputStream, 4096);
 
-      try {
-        const tlsConn = Gio.TlsServerConnection.new(
-          rawConnection as unknown as Gio.IOStream,
-          certificate,
-        );
-
-        // Client-cert / mTLS configuration
-        if (this._tlsOptions.requestCert) {
-          tlsConn.authenticationMode = this._tlsOptions.rejectUnauthorized !== false
-            ? Gio.TlsAuthenticationMode.REQUIRED
-            : Gio.TlsAuthenticationMode.REQUESTED;
-        } else {
-          tlsConn.authenticationMode = Gio.TlsAuthenticationMode.NONE;
+    buffered.fill_async(
+      4096,
+      GLib.PRIORITY_DEFAULT,
+      null,
+      (_source: Gio.BufferedInputStream | null, asyncResult: Gio.AsyncResult) => {
+        let servername: string | null = null;
+        try {
+          buffered.fill_finish(asyncResult);
+          const peeked = buffered.peek_buffer();
+          servername = parseClientHelloSni(peeked);
+        } catch {
+          // peek failed — fall back to default cert selection.
         }
 
-        const requireClientCert = !!this._tlsOptions.requestCert
-          && this._tlsOptions.rejectUnauthorized !== false;
-        const clientCAs = this._secureContext.caCertificates;
-
-        tlsConn.connect('accept-certificate', (
-          _conn: Gio.TlsConnection,
-          peerCert: Gio.TlsCertificate,
-          _errors: Gio.TlsCertificateFlags,
-        ): boolean => {
-          if (!requireClientCert) return true;
-          if (clientCAs.length === 0) return false;
-          for (const ca of clientCAs) {
-            try {
-              const flags = peerCert.verify(null, ca);
-              if (flags === Gio.TlsCertificateFlags.NO_FLAGS) return true;
-            } catch { /* try next */ }
+        this._resolveSniContext(servername, (ctx) => {
+          const certificate = ctx.certificate ?? this._tlsCertificate;
+          if (!certificate) {
+            const err = new Error('SNI resolution returned no certificate');
+            this.emit('tlsClientError', err, socket);
+            socket.destroy();
+            return;
           }
-          return false;
-        });
 
-        // ALPN
-        if (this._tlsOptions.ALPNProtocols && this._tlsOptions.ALPNProtocols.length > 0) {
           try {
-            tlsConn.set_advertised_protocols(this._tlsOptions.ALPNProtocols);
-          } catch {
-            // ALPN may not be supported
-          }
-        }
+            // Construct a virtual IOStream pairing the buffered input
+            // (already holding the ClientHello) with the original output.
+            // TlsServerConnection accepts any GIOStream; SocketConnection
+            // identity is not required for handshake correctness.
+            const wrappedIo = new Gio.SimpleIOStream({
+              inputStream: buffered,
+              outputStream,
+            });
+            const tlsConn = Gio.TlsServerConnection.new(
+              wrappedIo,
+              certificate,
+            );
 
-        const cancellable = new Gio.Cancellable();
-        tlsConn.handshake_async(
-          GLib.PRIORITY_DEFAULT,
-          cancellable,
-          (_source: Gio.TlsConnection | null, asyncResult: Gio.AsyncResult) => {
-            try {
-              tlsConn.handshake_finish(asyncResult);
-
-              const tlsSocket = new TLSSocket();
-              tlsSocket.encrypted = true;
-              tlsSocket.authorized = true;
-              tlsSocket._secureContext = ctx;
-              tlsSocket._setupTlsStreams(tlsConn);
-              tlsSocket.alpnProtocol = tlsSocket.getAlpnProtocol();
-
-              const internals = tlsSocket as unknown as SocketInternals;
-              internals._startReading();
-
-              this.emit('secureConnection', tlsSocket);
-            } catch (err: unknown) {
-              const nodeErr = createNodeError(err, 'handshake', {});
-              this.emit('tlsClientError', nodeErr, socket);
-              socket.destroy();
+            // Client-cert / mTLS configuration
+            if (this._tlsOptions.requestCert) {
+              tlsConn.authenticationMode = this._tlsOptions.rejectUnauthorized !== false
+                ? Gio.TlsAuthenticationMode.REQUIRED
+                : Gio.TlsAuthenticationMode.REQUESTED;
+            } else {
+              tlsConn.authenticationMode = Gio.TlsAuthenticationMode.NONE;
             }
-          },
-        );
-      } catch (err: unknown) {
-        const nodeErr = createNodeError(err, 'tls_wrap', {});
-        this.emit('tlsClientError', nodeErr, socket);
-        socket.destroy();
-      }
-    });
+
+            const requireClientCert = !!this._tlsOptions.requestCert
+              && this._tlsOptions.rejectUnauthorized !== false;
+            const clientCAs = this._secureContext.caCertificates;
+
+            tlsConn.connect('accept-certificate', (
+              _conn: Gio.TlsConnection,
+              peerCert: Gio.TlsCertificate,
+              _errors: Gio.TlsCertificateFlags,
+            ): boolean => {
+              if (!requireClientCert) return true;
+              if (clientCAs.length === 0) return false;
+              for (const ca of clientCAs) {
+                try {
+                  const flags = peerCert.verify(null, ca);
+                  if (flags === Gio.TlsCertificateFlags.NO_FLAGS) return true;
+                } catch { /* try next */ }
+              }
+              return false;
+            });
+
+            // ALPN
+            if (this._tlsOptions.ALPNProtocols && this._tlsOptions.ALPNProtocols.length > 0) {
+              try {
+                tlsConn.set_advertised_protocols(this._tlsOptions.ALPNProtocols);
+              } catch {
+                // ALPN may not be supported
+              }
+            }
+
+            const cancellable = new Gio.Cancellable();
+            tlsConn.handshake_async(
+              GLib.PRIORITY_DEFAULT,
+              cancellable,
+              (_source: Gio.TlsConnection | null, asyncResult: Gio.AsyncResult) => {
+                try {
+                  tlsConn.handshake_finish(asyncResult);
+
+                  const tlsSocket = new TLSSocket();
+                  tlsSocket.encrypted = true;
+                  tlsSocket.authorized = true;
+                  tlsSocket._secureContext = ctx;
+                  tlsSocket._setupTlsStreams(tlsConn);
+                  tlsSocket.alpnProtocol = tlsSocket.getAlpnProtocol();
+
+                  const internals = tlsSocket as unknown as SocketInternals;
+                  internals._startReading();
+
+                  this.emit('secureConnection', tlsSocket);
+                } catch (err: unknown) {
+                  const nodeErr = createNodeError(err, 'handshake', {});
+                  this.emit('tlsClientError', nodeErr, socket);
+                  socket.destroy();
+                }
+              },
+            );
+          } catch (err: unknown) {
+            const nodeErr = createNodeError(err, 'tls_wrap', {});
+            this.emit('tlsClientError', nodeErr, socket);
+            socket.destroy();
+          }
+        });
+      },
+    );
   }
 }
 

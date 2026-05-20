@@ -11,9 +11,12 @@
 // subprocess flow (useful as escape-hatch for projects that hit a
 // missing native-backend feature).
 //
-// Workspace-aware install (`gjsify install` in a monorepo root with a
-// `"workspaces"` field) is Phase D.3 — for now we detect and surface a
-// clear error pointing at the in-progress work.
+// Workspace install (`gjsify install` in a monorepo root with a
+// `"workspaces"` field) hoists every workspace's externals into the root
+// `node_modules/` and symlinks `workspace:*` / `workspace:^` / `workspace:~`
+// refs to their target source. Open follow-ups (see STATUS.md "Open TODOs"):
+// per-workspace dedup of conflicting transitive version ranges (first-match
+// wins today).
 
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -160,7 +163,7 @@ async function projectInstallNative(args: InstallOptions): Promise<void> {
         );
     }
 
-    // Workspace install (no args, root pkg.json has `workspaces`) — Phase D.3.
+    // Workspace install (no args, root pkg.json has `workspaces`).
     // Project-local `gjsify install <pkg>` inside a workspace child still
     // goes through the single-package code path below (this branch only
     // fires for the root no-args case, which is the `yarn install`
@@ -249,8 +252,7 @@ function syncLockfileRequested(cwd: string, specs: string[]): void {
 }
 
 /**
- * Phase D.3 — workspace-aware install. Mirrors what `yarn install` does
- * at a monorepo root:
+ * Workspace-aware install. Mirrors what `yarn install` does at a monorepo root:
  *   1. Discover every workspace under the root.
  *   2. Aggregate the union of their external (non-`workspace:`) deps.
  *   3. Run the native install backend ONCE at the root prefix so all
@@ -261,9 +263,9 @@ function syncLockfileRequested(cwd: string, specs: string[]): void {
  *      directory into the requesting workspace's `node_modules/<dep>`
  *      so `import '@gjsify/utils'` resolves to the local source.
  *
- * Hoisting strategy is intentionally minimal — D.3 ships the working
- * baseline; per-workspace dedup + nested `node_modules/` for version
- * conflicts are tracked as a follow-up in STATUS.md "Open TODOs".
+ * Hoisting strategy is intentionally minimal — per-workspace dedup +
+ * nested `node_modules/` for version conflicts are tracked as a follow-up
+ * in STATUS.md "Open TODOs".
  */
 async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void> {
     const workspaces = discoverWorkspaces(cwd, { includeRoot: true });
