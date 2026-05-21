@@ -9,6 +9,7 @@ import { HTMLCanvasElement as OurHTMLCanvasElement } from './html-canvas-element
 import type { WebGLRenderingContext as OurWebGLRenderingContext } from './webgl-rendering-context.js';
 import { attachEventControllers } from '@gjsify/event-bridge';
 import { Event } from '@gjsify/dom-events';
+import { notifyElementResize } from '@gjsify/dom-elements';
 
 // Public callback type uses globalThis.HTMLCanvasElement (lib.dom) so callers can pass the
 // canvas directly to WebGL demos that type their canvas parameter as HTMLCanvasElement.
@@ -133,11 +134,19 @@ export const WebGLBridge = GObject.registerClass(
             //   widget.connect('resize', (w, width, height) => { ... })  // GObject
             //   widget.onResize((width, height) => { ... })              // convenience
             //   canvas.addEventListener('resize', () => { ... })         // DOM
+            //   new ResizeObserver(cb).observe(canvas)                   // W3C
+            //   new ResizeObserver(cb).observe(document.body)            // W3C — ancestor walk
+            // The ResizeObserver wiring (last two lines) goes through
+            // notifyElementResize() which also walks the ancestor chain —
+            // Excalibur.js 0.32's DisplayMode.FillContainer observes
+            // canvas.parentElement (i.e. document.body), not the canvas
+            // itself, and would otherwise never see GTK allocation changes.
             this.connect('resize', () => {
                 const width = this.get_allocated_width();
                 const height = this.get_allocated_height();
                 if (this._canvas) {
                     this._canvas.dispatchEvent(new Event('resize'));
+                    notifyElementResize(this._canvas, width, height);
                 }
                 for (const cb of this._resizeCallbacks) {
                     cb(width, height);

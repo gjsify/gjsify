@@ -29,6 +29,13 @@ export { Image } from './image.js';
 export { Document, document } from './document.js';
 export { MutationObserver } from './mutation-observer.js';
 export { ResizeObserver } from './resize-observer.js';
+export type {
+	ResizeObserverCallback,
+	ResizeObserverEntry,
+	ResizeObserverOptions,
+	ResizeObserverSize,
+} from './resize-observer.js';
+export { notifyElementResize } from './notify-resize.js';
 export { IntersectionObserver } from './intersection-observer.js';
 export { NodeType } from './node-type.js';
 export { NamespaceURI } from './namespace-uri.js';

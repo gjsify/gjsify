@@ -293,6 +293,57 @@ export class Element extends Node {
 		return clone;
 	}
 
+	// -- Backing-widget resize notifications --
+	//
+	// Framework bridges (`@gjsify/webgl`, `@gjsify/canvas2d`, `@gjsify/video`,
+	// `@gjsify/iframe`) pair a polyfill DOM element with a real GTK widget.
+	// When the widget's GTK `resize` signal fires, the bridge forwards the
+	// new allocation to the paired element via `notifyElementResize()` —
+	// this is the subscription side of that pipeline, used by the
+	// `ResizeObserver` polyfill so that consumers writing standard
+	// `new ResizeObserver(cb).observe(target)` code (Excalibur.js 0.32's
+	// `DisplayMode.FillContainer` is the canonical example) get fired on
+	// real GTK allocation changes, not on layout — which has no analogue
+	// in the GJS env.
+
+	private _resizeSubscribers: Set<(width: number, height: number) => void> | null = null;
+
+	/**
+	 * @internal Subscribe to backing-widget resize notifications.
+	 *
+	 * Returns an unsubscribe function. Two observers subscribing to the
+	 * same target each get their own disposer so the wrong one can never
+	 * cancel the other's subscription.
+	 */
+	_onResize(cb: (width: number, height: number) => void): () => void {
+		const set = this._resizeSubscribers ?? (this._resizeSubscribers = new Set());
+		set.add(cb);
+		return () => {
+			set.delete(cb);
+			if (set.size === 0) this._resizeSubscribers = null;
+		};
+	}
+
+	/**
+	 * @internal Dispatch the new size to every subscriber. Called by
+	 * `notifyElementResize()`; user code must use that wrapper because
+	 * it also walks up the ancestor chain (browser `ResizeObserver`
+	 * semantics — Excalibur observes `canvas.parentElement`, not the
+	 * canvas itself, so the bridge resize has to reach `document.body`).
+	 */
+	_fireResizeSubscribers(width: number, height: number): void {
+		const set = this._resizeSubscribers;
+		if (!set || set.size === 0) return;
+		// Snapshot in case a subscriber synchronously disconnects mid-dispatch.
+		for (const cb of [...set]) {
+			try {
+				cb(width, height);
+			} catch (err) {
+				console.error('ResizeObserver subscriber threw:', err);
+			}
+		}
+	}
+
 	// -- Pointer capture (no-op stubs, GTK tracks pointer implicitly) --
 	// Reference: refs/happy-dom/packages/happy-dom/src/nodes/element/Element.ts
 

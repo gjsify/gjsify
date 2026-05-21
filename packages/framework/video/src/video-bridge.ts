@@ -15,7 +15,7 @@ import { Event } from '@gjsify/dom-events';
 import { BridgeEnvironment } from '@gjsify/bridge-types';
 import type { BridgeWindowHost } from '@gjsify/bridge-types';
 
-import { HTMLVideoElement } from '@gjsify/dom-elements';
+import { HTMLVideoElement, notifyElementResize } from '@gjsify/dom-elements';
 import { buildMediaStreamPipeline, buildUriPipeline } from './pipeline-builder.js';
 import { Gst as GstRuntime } from './gst-init.js';
 
@@ -143,6 +143,7 @@ export const VideoBridge = GObject.registerClass(
                 lastWidth = width;
                 lastHeight = height;
                 this._video.dispatchEvent(new Event('resize'));
+                notifyElementResize(this._video, width, height);
                 for (const cb of this._resizeCallbacks) cb(width, height);
             };
             this.connect('notify::width-request', checkResize);
