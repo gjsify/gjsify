@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 
@@ -31,6 +34,24 @@ import {
 } from './commands/index.js'
 import { APP_NAME } from './constants.js'
 
+// Read the version from package.json adjacent to the bundle. yargs's
+// auto-version-discovery (its `pkg-up`-driven default) doesn't reach
+// through the bundled `dist/cli.gjs.mjs` path on GJS — falls back to
+// "unknown". Both layouts are covered:
+//   - dev (tsx, `yarn workspace`):  src/index.ts → ../package.json
+//   - bundled (install -g):         dist/cli.gjs.mjs → ../package.json
+function readBundleVersion(): string {
+    try {
+        const here = dirname(fileURLToPath(import.meta.url))
+        const pkg = JSON.parse(readFileSync(join(here, '..', 'package.json'), 'utf8')) as {
+            version?: unknown
+        }
+        return typeof pkg.version === 'string' ? pkg.version : 'unknown'
+    } catch {
+        return 'unknown'
+    }
+}
+
 // `parseAsync()` instead of `.argv` so the top-level await keeps the
 // process alive until command handlers complete. Under Node this is
 // cosmetic — the event loop holds the process up — but under GJS the
@@ -39,6 +60,7 @@ import { APP_NAME } from './constants.js'
 const cli = yargs(hideBin(process.argv));
 await cli
     .scriptName(APP_NAME)
+    .version(readBundleVersion())
     .strict()
     // Use the full terminal width for help. yargs's default caps at 80
     // (`Math.min(80, process.stdout.columns)`); we explicitly opt into
