@@ -9,8 +9,9 @@
 //   - Scoped packages route to the scope's registry if configured
 //     (`@scope:registry=...` in .npmrc).
 //   - Auth: bearer token (`_authToken`) or basic (`_auth`).
-//   - --tolerate-republish: surface a 409 conflict as a notice + exit 0
-//     (matches yarn's flag of the same name).
+//   - --tolerate-republish: surface a 409 conflict (or 403 with a
+//     "previously published" body — the OIDC-path response shape) as a
+//     notice + exit 0 (matches yarn's flag of the same name).
 //   - --tag: published version gets this dist-tag (default `latest`).
 //   - --access: public | restricted — required for first publish of a
 //     scoped package on the public registry.
@@ -80,7 +81,7 @@ export const publishCommand: Command<any, PublishOptions> = {
                 type: 'string',
             })
             .option('tolerate-republish', {
-                description: 'Treat a 409 conflict (version already published) as success. Matches yarn `--tolerate-republish`.',
+                description: 'Treat "version already published" as success — covers both classic 409 Conflict and the npm OIDC-path 403 Forbidden + `"previously published"` body shape. Matches yarn `--tolerate-republish`.',
                 type: 'boolean',
                 default: false,
             })
@@ -317,13 +318,26 @@ export const publishCommand: Command<any, PublishOptions> = {
         }
 
         const text = await res.text().catch(() => '<no body>');
-        if (res.status === 409 && tolerate) {
+        // npm signals "version already published" via two distinct shapes:
+        //   - HTTP 409 Conflict (classic libnpmpublish behaviour)
+        //   - HTTP 403 Forbidden with body
+        //     `{"error":"You cannot publish over the previously published
+        //     versions: <ver>."}` (observed on the OIDC publish path
+        //     starting around npm registry's 2026-05 changes — same
+        //     idempotency outcome, different status code)
+        // Both are intentionally tolerated under --tolerate-republish so
+        // that re-running a release workflow after a partial failure does
+        // not error on the already-published packages.
+        const isRepublishConflict =
+            res.status === 409 ||
+            (res.status === 403 && /previously published/i.test(text));
+        if (isRepublishConflict && tolerate) {
             const out = {
                 ok: true,
                 action: 'republish-tolerated',
                 name: packed.name,
                 version: packed.version,
-                status: 409,
+                status: res.status,
             };
             if (args.json) process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
             else process.stdout.write(`= ${packed.name}@${packed.version} (already published, tolerated)\n`);
