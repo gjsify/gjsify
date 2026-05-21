@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.20](https://github.com/gjsify/gjsify/compare/v0.4.19...v0.4.20) (2026-05-21)
+
+### Features
+
+* **tls-native:** @gjsify/tls-native Phase 1 — OCSP-response parsing ([#242](https://github.com/gjsify/gjsify/issues/242)) ([ca4b0aa](https://github.com/gjsify/gjsify/commit/ca4b0aa5594612e3fb5a5761adcb9b96ea4af865))
+
+### Bug Fixes
+
+* **cli:** pass orchestrator resolve+treeshake to --globals auto analysis ([#239](https://github.com/gjsify/gjsify/issues/239)) ([6fd6b70](https://github.com/gjsify/gjsify/commit/6fd6b70860f176d6b28d737e180c4005bf708c40)), closes [#222](https://github.com/gjsify/gjsify/issues/222)
+* **dom-elements:** real ResizeObserver — fire on bridge GTK resizes ([#245](https://github.com/gjsify/gjsify/issues/245)) ([d10d1a5](https://github.com/gjsify/gjsify/commit/d10d1a51aec7294a39e5c3be89171296f73a63bb))
+
 ## [0.4.19](https://github.com/gjsify/gjsify/compare/v0.4.18...v0.4.19) (2026-05-21)
 
 ### Bug Fixes
