@@ -6,7 +6,7 @@ import GObject from 'gi://GObject';
 import Gdk from 'gi://Gdk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
-import { HTMLCanvasElement as GjsifyHTMLCanvasElement } from '@gjsify/dom-elements';
+import { HTMLCanvasElement as GjsifyHTMLCanvasElement, notifyElementResize } from '@gjsify/dom-elements';
 import { attachEventControllers } from '@gjsify/event-bridge';
 import { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
 import { Event } from '@gjsify/dom-events';
@@ -99,12 +99,16 @@ export const Canvas2DBridge = GObject.registerClass(
                 // NOTE: Gtk.DrawingArea itself emits the 'resize' GObject signal
                 // (inherited) when the allocation changes, so consumers can use
                 // widget.connect('resize', ...) without us emitting it here.
-                // We additionally dispatch a DOM 'resize' event on the canvas
-                // and fire onResize() callbacks for cross-widget API parity
-                // with WebGLBridge.
+                // We additionally dispatch a DOM 'resize' event on the canvas,
+                // notify any ResizeObserver subscribers (on the canvas or any
+                // ancestor — see notifyElementResize for why the ancestor walk
+                // matters for Excalibur.js's FillContainer mode), and fire
+                // onResize() callbacks for cross-widget API parity with
+                // WebGLBridge.
                 this._canvas.width = width;
                 this._canvas.height = height;
                 this._canvas.dispatchEvent(new Event('resize'));
+                notifyElementResize(this._canvas, width, height);
                 for (const cb of this._resizeCallbacks) {
                     cb(width, height);
                 }

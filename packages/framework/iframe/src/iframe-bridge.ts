@@ -4,6 +4,8 @@
 import GObject from 'gi://GObject';
 import WebKit from 'gi://WebKit?version=6.0';
 
+import { notifyElementResize } from '@gjsify/dom-elements';
+
 import { HTMLIFrameElement } from './html-iframe-element.js';
 import { IFrameWindowProxy } from './iframe-window-proxy.js';
 import { MessageBridge } from './message-bridge.js';
@@ -89,6 +91,15 @@ export const IFrameBridge = GObject.registerClass(
 			this.connect('load-failed', () => {
 				this._iframe._onError();
 				return false;
+			});
+
+			// Surface WebKit.WebView allocation changes to any ResizeObserver
+			// observing the paired HTMLIFrameElement (or any ancestor of it —
+			// see notifyElementResize for the ancestor-walk rationale).
+			this.connect('resize', () => {
+				const width = this.get_allocated_width();
+				const height = this.get_allocated_height();
+				notifyElementResize(this._iframe, width, height);
 			});
 
 			this.connect('unrealize', () => {
