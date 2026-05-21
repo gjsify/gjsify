@@ -367,11 +367,18 @@ function spawnPrefixed(
     cwd: string,
     prefix: string | null,
 ): Promise<void> {
+    // Default FORCE_COLOR=1 unless the user explicitly opted out, so tools
+    // that key on `process.stdout.isTTY` (chalk, picocolors, …) still emit
+    // ANSI colors when run under gjsify foreach. Mirrors yarn / npm.
+    const colorEnv =
+        process.env.FORCE_COLOR !== undefined || process.env.NO_COLOR !== undefined
+            ? {}
+            : { FORCE_COLOR: '1' };
     return new Promise((resolve, reject) => {
         const child = spawn(cmd, args, {
             cwd,
             stdio: prefix ? ['ignore', 'pipe', 'pipe'] : 'inherit',
-            env: process.env,
+            env: { ...process.env, ...colorEnv },
         });
         if (prefix && child.stdout && child.stderr) {
             prefixLines(child.stdout, process.stdout, prefix);

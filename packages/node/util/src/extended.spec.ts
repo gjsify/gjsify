@@ -473,7 +473,23 @@ export default async () => {
   await describe('util.styleText', async () => {
     await it('returns plain text when stream is not a TTY', async () => {
       // Default options: validateStream=true, stream=process.stdout (no isTTY in test runtime).
-      expect(util.styleText('red', 'hello')).toBe('hello');
+      // Save + clear FORCE_COLOR / NO_COLOR for the duration of the assertion —
+      // gjsify's `gjsify run` / `foreach` / `workspace` now default FORCE_COLOR=1
+      // for spawned scripts (yarn-style) so that CI logs keep their color
+      // highlighting, but that override would otherwise make Node-compatible
+      // `styleText` emit ANSI even on non-TTY streams (correctly mirroring
+      // Node's own behaviour) — which contradicts what this test is asserting
+      // about the validateStream-default-on path.
+      const prevForce = process.env.FORCE_COLOR;
+      const prevNo = process.env.NO_COLOR;
+      delete process.env.FORCE_COLOR;
+      delete process.env.NO_COLOR;
+      try {
+        expect(util.styleText('red', 'hello')).toBe('hello');
+      } finally {
+        if (prevForce !== undefined) process.env.FORCE_COLOR = prevForce;
+        if (prevNo !== undefined) process.env.NO_COLOR = prevNo;
+      }
     });
 
     await it('wraps text in ANSI codes when validateStream=false', async () => {

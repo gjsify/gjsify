@@ -113,8 +113,20 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
     if (monorepoRoot && monorepoRoot !== cwd) {
         binDirs.push(join(monorepoRoot, 'node_modules', '.bin'));
     }
+    // Default FORCE_COLOR=1 when not already set, matching yarn / npm
+    // script-runner behaviour. Without this, tools that check
+    // `process.stdout.isTTY` (chalk, picocolors, biome, …) disable colors
+    // whenever the child's stdout is piped — including GitHub Actions
+    // (stdout is always a pipe there, but the GHA log viewer renders ANSI
+    // fine). Respect user overrides: FORCE_COLOR=0 or NO_COLOR keeps
+    // colors off.
+    const colorEnv =
+        process.env.FORCE_COLOR !== undefined || process.env.NO_COLOR !== undefined
+            ? {}
+            : { FORCE_COLOR: '1' };
     const env = {
         ...process.env,
+        ...colorEnv,
         PATH: [...binDirs, process.env.PATH ?? ''].filter(Boolean).join(delimiter),
         npm_lifecycle_event: script,
         npm_package_name: pkg.name ?? '',
