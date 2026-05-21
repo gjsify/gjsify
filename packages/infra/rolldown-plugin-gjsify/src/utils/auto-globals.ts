@@ -145,10 +145,28 @@ export interface AnalysisOptions {
  * Build a `gjsifyPlugin` for the analyser to insert into the plugin array.
  * Late-imported via dynamic `await import()` to break the cyclic dep
  * between this file and `../plugin.ts`.
+ *
+ * Returns either the plugin array directly (legacy form) or the full
+ * orchestrator config `{ options, plugins }`. The latter shape lets
+ * `detectAutoGlobals` reuse the orchestrator's `resolve.conditionNames` /
+ * `mainFields` / `external` / `treeshake` settings for the in-memory
+ * analysis bundle — without that, native-rolldown and npm-rolldown default
+ * to different module-resolution conditions and the bundled output (and
+ * therefore the detected free-global set) diverges between engines.
  */
+type GjsifyFactoryReturn =
+    | RolldownPluginOption
+    | { options: InputOptions; plugins: RolldownPluginOption[] };
+
 type GjsifyPluginFactory = (
     options: PluginOptions,
-) => RolldownPluginOption | Promise<RolldownPluginOption>;
+) => GjsifyFactoryReturn | Promise<GjsifyFactoryReturn>;
+
+function isFullConfig(
+    v: GjsifyFactoryReturn,
+): v is { options: InputOptions; plugins: RolldownPluginOption[] } {
+    return v !== null && typeof v === 'object' && !Array.isArray(v) && 'plugins' in v && 'options' in v;
+}
 
 /**
  * Run an iterative Rolldown build (in-memory) with acorn-based global
@@ -197,10 +215,26 @@ export async function detectAutoGlobals(
     });
 
     for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
-        const gjsifyInstance = await gjsifyPluginFactory({
+        const factoryResult = await gjsifyPluginFactory({
             ...pluginOptions,
             autoGlobalsInject: currentInject,
         } as PluginOptions);
+
+        // Two factory shapes are supported: a plain plugin array (legacy)
+        // or the orchestrator config `{ options, plugins }`. The latter
+        // gives auto-globals access to the per-app `resolve.conditionNames`
+        // / `mainFields` / `external` / `treeshake` settings — without
+        // these, native-rolldown defaults to a different module-resolution
+        // condition set than npm-rolldown, packages resolve to different
+        // entries, and the detected global set diverges between engines.
+        let gjsifyInstance: RolldownPluginOption;
+        let orchestratorOptions: InputOptions | undefined;
+        if (isFullConfig(factoryResult)) {
+            orchestratorOptions = factoryResult.options;
+            gjsifyInstance = factoryResult.plugins as unknown as RolldownPluginOption;
+        } else {
+            gjsifyInstance = factoryResult;
+        }
 
         // The auto-globals inject stub is a side-effect-only ESM file that
         // imports `<pkg>/register/<feature>` paths. Rolldown's `transform.inject`
@@ -213,15 +247,33 @@ export async function detectAutoGlobals(
             ? appendInjectAsEntry(analysisOptions.input, currentInject)
             : analysisOptions.input;
 
+        // Merge resolve + external + transform from the orchestrator's
+        // options so the analysis bundle goes through the same module
+        // resolution as the final build. Analysis-side overrides
+        // (`analysisOptions.*`) win when explicitly set.
+        const mergedResolve = analysisOptions.resolve ?? orchestratorOptions?.resolve;
+        const mergedExternal = analysisOptions.external ?? orchestratorOptions?.external;
+        const mergedTransform = analysisOptions.transform ?? orchestratorOptions?.transform;
+        const orchTreeshake = (orchestratorOptions as { treeshake?: unknown } | undefined)?.treeshake;
+
+        // Inline-collect both halves of the plugin chain in their existing
+        // shape: caller plugins first (PnP, user text-loaders), then the
+        // gjsify chain (which may be either a single RolldownPluginOption
+        // or an array of them depending on the factory shape).
+        const gjsifyPluginsArray = Array.isArray(gjsifyInstance)
+            ? gjsifyInstance
+            : [gjsifyInstance];
+
         const chunkCodes = await bundler({
             rolldownInput: {
                 input: inputWithInject,
-                external: analysisOptions.external,
-                resolve: analysisOptions.resolve,
-                transform: analysisOptions.transform,
-                plugins: [...callerPlugins, gjsifyInstance],
+                external: mergedExternal,
+                resolve: mergedResolve,
+                transform: mergedTransform,
+                plugins: [...callerPlugins, ...gjsifyPluginsArray],
                 logLevel: 'silent',
-            },
+                ...(orchTreeshake !== undefined ? { treeshake: orchTreeshake } : {}),
+            } as InputOptions,
             format: analysisOptions.format ?? 'esm',
         });
 

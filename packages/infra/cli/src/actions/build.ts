@@ -312,6 +312,13 @@ export class BuildAction {
 
         // --- Auto mode (with optional extras): iterative multi-pass build ---
         if (app === "gjs" && autoMode) {
+            // Return the full orchestrator config (options + plugins) so
+            // auto-globals can reuse the per-app `resolve.conditionNames` /
+            // `mainFields` / `external` / `treeshake` for the in-memory
+            // analysis bundle. Without these, native-rolldown defaults to
+            // a different module-resolution condition set than npm-rolldown
+            // and the detected free-global set diverges (see PR for the
+            // missing-URL case under the GJS-CLI self-host loop).
             const gjsifyPluginFactory = async (opts: PluginOptions) => {
                 const cfg = await gjsifyPlugin(
                     {
@@ -324,7 +331,7 @@ export class BuildAction {
                     },
                     opts,
                 );
-                return cfg.plugins;
+                return { options: cfg.options, plugins: cfg.plugins };
             };
 
             const { injectPath } = await detectAutoGlobals(
