@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.19](https://github.com/gjsify/gjsify/compare/v0.4.18...v0.4.19) (2026-05-21)
+
+### Bug Fixes
+
+* **child_process:** set STDIN_INHERIT for stdio:'inherit', not just NONE ([#234](https://github.com/gjsify/gjsify/issues/234)) ([6bfb49e](https://github.com/gjsify/gjsify/commit/6bfb49ef96d0510ac6d255a2f123c54b12a6160a))
+* **cli:** default FORCE_COLOR=1 for spawned scripts ([#235](https://github.com/gjsify/gjsify/issues/235)) ([7c8c721](https://github.com/gjsify/gjsify/commit/7c8c7212dc7b0d9e7caab0cdc9f7d28a26c8c0a2)), closes [#226](https://github.com/gjsify/gjsify/issues/226) [#228](https://github.com/gjsify/gjsify/issues/228)
+* **cli:** tolerate 403 + "previously published" body in --tolerate-republish ([#240](https://github.com/gjsify/gjsify/issues/240)) ([7c395ec](https://github.com/gjsify/gjsify/commit/7c395ec7f74477c2d91451e148824bbc188d702d))
+* **release-it:** preRelease=false so /releases/latest resolves correctly ([#237](https://github.com/gjsify/gjsify/issues/237)) ([0398334](https://github.com/gjsify/gjsify/commit/039833423bc91678b083033d7f8e5695144aa0e9))
+* **release:** drop actions/setup-node registry-url for OIDC mode ([#236](https://github.com/gjsify/gjsify/issues/236)) ([8f51713](https://github.com/gjsify/gjsify/commit/8f5171302766df38fb756107e33081cf94b7718c)), closes [#230](https://github.com/gjsify/gjsify/issues/230)
+
 ## [0.4.18](https://github.com/gjsify/gjsify/compare/v0.4.17...v0.4.18) (2026-05-20)
 
 ## [0.4.17](https://github.com/gjsify/gjsify/compare/v0.4.16...v0.4.17) (2026-05-20)
