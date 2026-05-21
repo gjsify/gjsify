@@ -56,3 +56,8 @@ meta.json
 
 # E2E test artifacts
 tests/e2e/*/out/
+
+# Copied worker_threads fixtures (sources live under src/fixtures/; copied to
+# the package root next to test.{gjs,node}.mjs by `prebuild:test:fixtures` so
+# `new URL('./fixtures/...', import.meta.url)` resolves from the test bundle).
+packages/node/worker_threads/fixtures/
