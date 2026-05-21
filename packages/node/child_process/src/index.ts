@@ -545,7 +545,15 @@ export function spawn(
       ? [stdioOpt, stdioOpt, stdioOpt]
       : ['pipe', 'pipe', 'pipe'];
   let flags = Gio.SubprocessFlags.NONE;
+  // stdin asymmetry vs stdout/stderr: Gio.Subprocess defaults stdin to
+  // /dev/null when neither STDIN_PIPE nor STDIN_INHERIT is set, while
+  // stdout/stderr default to *inherited* (only PIPE / SILENCE flip them).
+  // So `stdio: 'inherit'` must explicitly request STDIN_INHERIT — without
+  // it, TTY-aware children (release-it / enquirer prompts, password
+  // readers, …) see closed stdin and bail with "0 null" before any user
+  // input is possible.
   if (stdioTriple[0] === 'pipe') flags |= Gio.SubprocessFlags.STDIN_PIPE;
+  else if (stdioTriple[0] === 'inherit') flags |= Gio.SubprocessFlags.STDIN_INHERIT;
   if (stdioTriple[1] === 'pipe') flags |= Gio.SubprocessFlags.STDOUT_PIPE;
   if (stdioTriple[1] === 'ignore') flags |= Gio.SubprocessFlags.STDOUT_SILENCE;
   if (stdioTriple[2] === 'pipe') flags |= Gio.SubprocessFlags.STDERR_PIPE;
