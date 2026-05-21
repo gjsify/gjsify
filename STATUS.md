@@ -556,7 +556,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 ### Medium Priority
 
-3. **worker_threads file-based Workers** — Currently requires pre-bundled .mjs. Support file path resolution relative to build output.
+3. ~~**worker_threads file-based Workers**~~✓ — File-based `new Worker(filename | URL)` is regression-locked end-to-end on both Node and GJS by `packages/node/worker_threads/src/file-based-worker.spec.ts` (5 tests): `new URL('./fixture.mjs', import.meta.url)` (the Node-canonical bundle-relative form), absolute path string, `workerData` round-trip, `threadId` reporting, and graceful `parentPort.close()` exit. The fixture (`src/fixtures/echo-worker.mjs`) is a self-contained ESM module that picks its worker context source at runtime — `globalThis.__gjsify_worker_context` under GJS, dynamic `import('node:worker_threads')` under Node — so the same source runs as raw .mjs on both targets without going through `gjsify build`. A `prebuild:test:fixtures` script copies the fixture into `fixtures/` next to the test bundle so `new URL('./fixtures/echo-worker.mjs', import.meta.url)` resolves correctly. Node 281/281 + GJS 286/286 unit tests green. Bare `file://` URL strings remain accepted as a GJS-only extension (Node rejects them with `ERR_WORKER_PATH`) — not exercised by the cross-platform spec.
 
 ### Low Priority
 

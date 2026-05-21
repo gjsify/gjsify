@@ -6,4 +6,5 @@ import '@gjsify/node-globals/register/structured-clone';
 import { run } from '@gjsify/unit';
 import testSuite from './index.spec.js';
 import sabSuite from './worker-shared-buffer.gjs.spec.js';
-run({ testSuite, sabSuite });
+import fileBasedWorkerSuite from './file-based-worker.spec.js';
+run({ testSuite, sabSuite, fileBasedWorkerSuite });
