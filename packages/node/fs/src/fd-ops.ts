@@ -21,7 +21,12 @@ function getFH(fd: number | FileHandle): FileHandle {
 export function fstatSync(fd: number, options?: { bigint?: false }): Stats;
 export function fstatSync(fd: number, options: { bigint: true }): BigIntStats;
 export function fstatSync(fd: number, options?: { bigint?: boolean }): Stats | BigIntStats {
-  return statSync(normalizePath(getFH(fd).options.path), options as any);
+  // The `statSync` overload accepts a union of `{bigint?:false}` /
+  // `{bigint:true}` literals; here `options.bigint` is `boolean` (loosened
+  // by our entry-point overloads), so the call site needs a `StatOptions`
+  // cast. Going through the public `StatOptions` type instead of `any`
+  // preserves the rest of the option-bag's shape.
+  return statSync(normalizePath(getFH(fd).options.path), options as StatOptions);
 }
 
 export function fstat(fd: number, callback: (err: NodeJS.ErrnoException | null, stats: Stats) => void): void;
@@ -34,7 +39,11 @@ export function fstat(fd: number, optionsOrCb: any, callback?: any): void {
 }
 
 export async function fstatAsync(fd: number, options?: StatOptions): Promise<Stats | BigIntStats> {
-  return fstatSync(fd, options as any);
+  // Pick the right overload of fstatSync based on the runtime bigint flag.
+  // Casting through the precise union form keeps the call type-safe at
+  // each branch instead of using `as any`.
+  if (options?.bigint === true) return fstatSync(fd, options as { bigint: true });
+  return fstatSync(fd, options as { bigint?: false });
 }
 
 // ─── ftruncate ────────────────────────────────────────────────────────────────
@@ -126,9 +135,9 @@ export function readSync(
 ): number {
   let offset = 0;
   if (offsetOrOptions !== null && typeof offsetOrOptions === 'object') {
-    offset = (offsetOrOptions as any).offset ?? 0;
-    length = (offsetOrOptions as any).length ?? buffer.byteLength;
-    position = (offsetOrOptions as any).position ?? null;
+    offset = offsetOrOptions.offset ?? 0;
+    length = offsetOrOptions.length ?? buffer.byteLength;
+    position = offsetOrOptions.position ?? null;
   } else {
     offset = (offsetOrOptions as number | null | undefined) ?? 0;
     length = length ?? buffer.byteLength - offset;
@@ -165,7 +174,7 @@ export function writeSync(
   } else {
     const offset = (typeof offsetOrPosition === 'number' ? offsetOrPosition : 0);
     const len = (typeof lengthOrEncoding === 'number' ? lengthOrEncoding : bufferOrString.byteLength - offset);
-    data = new Uint8Array((bufferOrString as any).buffer, (bufferOrString as any).byteOffset + offset, len);
+    data = new Uint8Array(bufferOrString.buffer as ArrayBuffer, bufferOrString.byteOffset + offset, len);
   }
   return getFH(fd)._writeSync(data, position ?? null);
 }

@@ -81,8 +81,11 @@ export const WebGLBridge = GObject.registerClass(
                 this._canvas = new OurHTMLCanvasElement(this);
                 // Attach to document.body so event bubbling reaches ownerDocument
                 // (e.g. OrbitControls registers pointermove on ownerDocument).
-                if ((globalThis as any).document?.body) {
-                    (globalThis as any).document.body.appendChild(this._canvas);
+                {
+                    const g = globalThis as unknown as { document?: { body?: { appendChild(el: unknown): void } } };
+                    if (g.document?.body) {
+                        g.document.body.appendChild(this._canvas);
+                    }
                 }
                 // Eagerly create BOTH WebGL and WebGL2 contexts during the init
                 // render signal so their underlying _init() calls capture GtkGLArea's
@@ -108,7 +111,7 @@ export const WebGLBridge = GObject.registerClass(
                 this._renderTag = this.connect('render', (_widget: Gtk.GLArea) => {
                     if (this._frameCallback !== null) {
                         const time = (GLib.get_monotonic_time() - this._timeOrigin) / 1000;
-                        if ((globalThis as any).__GJSIFY_DEBUG_RAF === true) {
+                        if ((globalThis as { __GJSIFY_DEBUG_RAF?: boolean }).__GJSIFY_DEBUG_RAF === true) {
                             console.log(`[rAF] frame callback fires t=${time.toFixed(1)}`);
                         }
                         const cb = this._frameCallback;
@@ -228,9 +231,20 @@ export const WebGLBridge = GObject.registerClass(
          * browser-targeted code (e.g. Three.js) works unchanged on GJS.
          */
         installGlobals(): void {
-            (globalThis as any).requestAnimationFrame = (cb: FrameRequestCallback) =>
+            /**
+             * Module-local typed view of the globalThis slots this method writes.
+             * Avoids 3 `(globalThis as any)` writes at the call sites.
+             */
+            interface _RafGlobals {
+                requestAnimationFrame?: (cb: FrameRequestCallback) => number;
+                cancelAnimationFrame?: (id: number) => void;
+                performance?: { now: () => number; timeOrigin: number };
+            }
+            const g = globalThis as unknown as _RafGlobals;
+
+            g.requestAnimationFrame = (cb: FrameRequestCallback) =>
                 this.requestAnimationFrame(cb);
-            (globalThis as any).cancelAnimationFrame = (_id: number) => {
+            g.cancelAnimationFrame = (_id: number) => {
                 // Cancel is not yet fully implemented — clear pending frame callback.
                 this._frameCallback = null;
             };
@@ -238,7 +252,7 @@ export const WebGLBridge = GObject.registerClass(
             // Always override to ensure consistency — native GJS performance.now()
             // may use a different time origin than the frame clock.
             const timeOrigin = this._timeOrigin;
-            (globalThis as any).performance = {
+            g.performance = {
                 now: () => (GLib.get_monotonic_time() - timeOrigin) / 1000,
                 timeOrigin: Date.now(),
             };

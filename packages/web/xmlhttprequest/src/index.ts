@@ -163,13 +163,13 @@ export class XMLHttpRequest {
     send(_body?: any): void {
         let url = this._url;
         const responseType = this.responseType;
-        const DEBUG = (globalThis as any).__GJSIFY_DEBUG_XHR === true;
+        const DEBUG = (globalThis as { __GJSIFY_DEBUG_XHR?: boolean }).__GJSIFY_DEBUG_XHR === true;
 
         // Root-relative URLs (start with '/', not '//') have no host to
         // resolve against in GJS. Rewrite to file:// relative to the program
         // directory — matches how an HTTP static server would resolve them.
         if (url.startsWith('/') && !url.startsWith('//')) {
-            const prog = (System as any).programPath ?? System.programInvocationName ?? '';
+            const prog = (System as { programPath?: string }).programPath ?? System.programInvocationName ?? '';
             if (prog) {
                 const programDir = GLib.path_get_dirname(prog);
                 url = `file://${programDir}${this._url}`;
@@ -267,7 +267,12 @@ export class XMLHttpRequest {
     }
 
     private _emit(type: XHREventType, event: Record<string, any>): void {
-        const handler = (this as any)['on' + type];
+        // Look up the matching `on<type>` handler property. The Node-style
+        // `XMLHttpRequest` surface declares specific `onload` / `onerror` /
+        // `onprogress` / `ontimeout` / `onabort` / `onreadystatechange`
+        // properties, but indexing by computed `'on' + type` defeats
+        // structural typing. Cast through a typed view keyed on the union.
+        const handler = (this as unknown as Record<`on${XHREventType}`, ((e: unknown) => void) | undefined>)['on' + type as `on${XHREventType}`];
         if (typeof handler === 'function') handler.call(this, { type, ...event });
         for (const fn of this._listeners[type] ?? []) fn.call(this, { type, ...event });
     }
@@ -279,14 +284,28 @@ export class XMLHttpRequest {
 // HTMLImageElement.src natively handles file:// URLs via GLib.filename_from_uri + GdkPixbuf.
 // ---------------------------------------------------------------------------
 
+/**
+ * Module-local typed view of the URL-constructor properties this patch
+ * adds / consults. `createObjectURL` / `revokeObjectURL` are added by this
+ * patch; `__gjsify_objecturl` is a marker we set so a second `installObjectURLSupport()`
+ * call is a no-op (idempotency). Casting once through this interface keeps
+ * the 5 `(URL as any)` writes here readable.
+ */
+interface _URLObjectURLPatch {
+    createObjectURL?: (blob: FakeBlob | Blob) => string;
+    revokeObjectURL?: (url: string) => void;
+    __gjsify_objecturl?: boolean;
+}
+
 export function installObjectURLSupport(): void {
+    const urlPatch = URL as unknown as _URLObjectURLPatch;
     // Only install if not already a real implementation
-    if (typeof (URL as any).createObjectURL !== 'function' ||
-        (URL as any).__gjsify_objecturl !== true) {
+    if (typeof urlPatch.createObjectURL !== 'function' ||
+        urlPatch.__gjsify_objecturl !== true) {
 
         const _objectURLPaths = new Map<string, string>();
 
-        (URL as any).createObjectURL = function (blob: FakeBlob | Blob): string {
+        urlPatch.createObjectURL = function (blob: FakeBlob | Blob): string {
             if ((blob as FakeBlob)._tmpPath) {
                 const url = `file://${(blob as FakeBlob)._tmpPath}`;
                 _objectURLPaths.set(url, (blob as FakeBlob)._tmpPath!);
@@ -297,7 +316,7 @@ export function installObjectURLSupport(): void {
             return 'file:///dev/null';
         };
 
-        (URL as any).revokeObjectURL = function (url: string): void {
+        urlPatch.revokeObjectURL = function (url: string): void {
             const path = _objectURLPaths.get(url);
             if (path) {
                 try {
@@ -311,6 +330,6 @@ export function installObjectURLSupport(): void {
             }
         };
 
-        (URL as any).__gjsify_objecturl = true;
+        urlPatch.__gjsify_objecturl = true;
     }
 }

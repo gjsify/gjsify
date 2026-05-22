@@ -20,7 +20,13 @@ if (globalThis.performance) {
   let _now: () => number;
 
   try {
-    const GLib = (globalThis as any).imports.gi.GLib;
+    // `globalThis.imports` is the GJS runtime bootstrap object; it exists
+    // before any `@girs/*` modules resolve, so we read it via a structural
+    // type instead of importing `@girs/glib-2.0` (which would create a
+    // cross-pillar dep from a node-side polyfill).
+    const GLib = (globalThis as { imports?: { gi?: { GLib?: { get_monotonic_time(): number } } } })
+      .imports?.gi?.GLib;
+    if (!GLib) throw new Error('GJS imports.gi.GLib not available');
     _startTime = GLib.get_monotonic_time();
     _now = () => (GLib.get_monotonic_time() - _startTime) / 1000;
   } catch {
@@ -113,11 +119,25 @@ class PerformanceObserverEntryListStub {
   getEntriesByType(_type: string): any[] { return []; }
 }
 
-const PerformanceObserver = (globalThis as any).PerformanceObserver || PerformanceObserverStub;
-const PerformanceEntry = (globalThis as any).PerformanceEntry || PerformanceEntryStub;
-const PerformanceObserverEntryList = (globalThis as any).PerformanceObserverEntryList || PerformanceObserverEntryListStub;
-const PerformanceMark = (globalThis as any).PerformanceMark || class PerformanceMark extends PerformanceEntryStub {};
-const PerformanceMeasure = (globalThis as any).PerformanceMeasure || class PerformanceMeasure extends PerformanceEntryStub {};
+/**
+ * Module-local typed view of the perf_hooks-related constructors that may
+ * be present on `globalThis` (Node provides them natively; GJS does not).
+ * We do not write back through this — only read-with-fallback.
+ */
+interface _PerfHooksGlobals {
+  PerformanceObserver?: typeof PerformanceObserverStub;
+  PerformanceEntry?: typeof PerformanceEntryStub;
+  PerformanceObserverEntryList?: typeof PerformanceObserverEntryListStub;
+  PerformanceMark?: typeof PerformanceEntryStub;
+  PerformanceMeasure?: typeof PerformanceEntryStub;
+}
+
+const _g = globalThis as unknown as _PerfHooksGlobals;
+const PerformanceObserver = _g.PerformanceObserver || PerformanceObserverStub;
+const PerformanceEntry = _g.PerformanceEntry || PerformanceEntryStub;
+const PerformanceObserverEntryList = _g.PerformanceObserverEntryList || PerformanceObserverEntryListStub;
+const PerformanceMark = _g.PerformanceMark || class PerformanceMark extends PerformanceEntryStub {};
+const PerformanceMeasure = _g.PerformanceMeasure || class PerformanceMeasure extends PerformanceEntryStub {};
 
 /** Stub: event loop utilization metrics (not available in GJS). */
 function eventLoopUtilization(_utilization1?: any, _utilization2?: any): { idle: number; active: number; utilization: number } {

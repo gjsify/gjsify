@@ -7,6 +7,17 @@ import GObject from '@girs/gobject-2.0';
 import { InvalidArgTypeError, InvalidArgValueError, InvalidStateError, SqliteError } from './errors.ts';
 import type { SQLiteValue } from './types.ts';
 
+/**
+ * GJS auto-converts plain JS primitives (`number`, `string`, `boolean`,
+ * `Uint8Array`) to the matching `GObject.Value` when calling
+ * `Gda.Holder.set_value()`, but the GIR-typed signature only accepts
+ * `GObject.Value | null`. This helper hides the necessary structural cast
+ * once and lets the call sites stay free of `as any`.
+ */
+function setHolderPrim(holder: Gda.Holder, value: number | string | boolean | Uint8Array): boolean {
+    return holder.set_value(value as unknown as GObject.Value);
+}
+
 const MAX_INT64 = 9223372036854775807n;
 const MIN_INT64 = -9223372036854775808n;
 
@@ -27,7 +38,7 @@ function setHolderValue(holder: Gda.Holder, value: unknown): void {
         return;
     }
     if (typeof value === 'number') {
-        holder.set_value(value as any);
+        setHolderPrim(holder, value);
         return;
     }
     if (typeof value === 'bigint') {
@@ -36,23 +47,26 @@ function setHolderValue(holder: Gda.Holder, value: unknown): void {
                 `BigInt value is too large to bind.`
             );
         }
-        holder.set_value(Number(value) as any);
+        setHolderPrim(holder, Number(value));
         return;
     }
     if (typeof value === 'string') {
-        holder.set_value(value as any);
+        setHolderPrim(holder, value);
         return;
     }
     if (typeof value === 'boolean') {
-        holder.set_value((value ? 1 : 0) as any);
+        setHolderPrim(holder, value ? 1 : 0);
         return;
     }
     if (value instanceof Uint8Array || ArrayBuffer.isView(value)) {
         const bytes = value instanceof Uint8Array ? value : new Uint8Array((value as ArrayBufferView).buffer);
-        holder.set_value(bytes as any);
+        setHolderPrim(holder, bytes);
         return;
     }
-    holder.set_value(value as any);
+    // Unknown shape — let GJS' auto-conversion try its best; the cast is
+    // through `unknown` so the failure mode is a clean GObject error
+    // instead of silently dropping the value.
+    holder.set_value(value as unknown as GObject.Value);
 }
 
 export interface BindingContext {

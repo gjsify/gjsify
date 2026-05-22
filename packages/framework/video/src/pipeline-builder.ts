@@ -29,18 +29,33 @@ export function createPaintableSink(): PaintableSinkResult {
         throw new Error('Failed to create gtk4paintablesink element');
     }
 
-    const paintable: Gdk.Paintable = (paintableSink as any).paintable;
+    /**
+     * GStreamer element GObject-properties are typed dynamically. The
+     * `gtk4paintablesink` element ships a `paintable` property (a
+     * `Gdk.Paintable`), a `glsinkbin` element a `sink` property (a child
+     * `Gst.Element`), and `playbin` exposes `uri` + `video_sink`. None of
+     * these surface in the GIR-generated `Gst.Element` typings, so we cast
+     * once through a local structural type and let the property accesses
+     * stay readable.
+     */
+    interface _PaintableSink extends Gst.Element {
+        paintable: Gdk.Paintable & { gl_context?: unknown };
+    }
+    interface _GlSinkBin extends Gst.Element { sink: Gst.Element }
+
+    const paintable: Gdk.Paintable & { gl_context?: unknown } =
+        (paintableSink as _PaintableSink).paintable;
     if (!paintable) {
         throw new Error('gtk4paintablesink has no paintable property');
     }
 
     // Try GL-accelerated rendering via glsinkbin (pattern from refs/showtime)
     let glSink: Gst.Element | null = null;
-    const glContext = (paintable as any).gl_context;
+    const glContext = paintable.gl_context;
     if (glContext) {
         glSink = Gst.ElementFactory.make('glsinkbin', 'glsink');
         if (glSink) {
-            (glSink as any).sink = paintableSink;
+            (glSink as _GlSinkBin).sink = paintableSink;
         }
     }
 
@@ -88,7 +103,8 @@ export function buildMediaStreamPipeline(gstSource: any, gstPipeline: any): Medi
     if (!tee) {
         throw new Error('Failed to create tee element');
     }
-    (tee as any).allow_not_linked = true;
+    // tee's `allow-not-linked` GObject-property — not typed on Gst.Element.
+    (tee as Gst.Element & { allow_not_linked: boolean }).allow_not_linked = true;
 
     const queue = Gst.ElementFactory.make('queue', 'preview-queue');
     if (!queue) {
@@ -112,9 +128,15 @@ export function buildMediaStreamPipeline(gstSource: any, gstPipeline: any): Medi
     }
 
     // tee → queue (via request pad)
+    // Older GStreamer versions exposed `get_request_pad`; newer ones
+    // renamed it to `request_pad_simple`. Probe both shapes structurally
+    // so the call works against either typelib.
+    const teeWithLegacy = tee as Gst.Element & {
+        get_request_pad?: (name: string) => Gst.Pad | null;
+    };
     const teeSrcPad = tee.request_pad_simple
         ? tee.request_pad_simple('src_%u')
-        : (tee as any).get_request_pad('src_%u');
+        : teeWithLegacy.get_request_pad?.('src_%u') ?? null;
     const queueSinkPad = queue.get_static_pad('sink');
     if (teeSrcPad && queueSinkPad) {
         teeSrcPad.link(queueSinkPad);
@@ -147,8 +169,10 @@ export function buildUriPipeline(uri: string): MediaStreamPipelineResult {
         throw new Error('Failed to create playbin element');
     }
 
-    (playbin as any).uri = uri;
-    (playbin as any).video_sink = sink;
+    // playbin GObject properties — not surfaced on Gst.Element.
+    interface _Playbin extends Gst.Element { uri: string; video_sink: Gst.Element }
+    (playbin as _Playbin).uri = uri;
+    (playbin as _Playbin).video_sink = sink;
 
     // Wrap playbin in a pipeline
     const pipeline = new Gst.Pipeline({ name: 'video-bridge-uri-pipeline' });
