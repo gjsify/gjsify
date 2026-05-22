@@ -7,7 +7,42 @@ export * from './spy.js';
 import nodeAssert from 'node:assert';
 import { quitMainLoop } from '@gjsify/utils/main-loop';
 
-const mainloop: GLib.MainLoop | undefined = (globalThis as any)?.imports?.mainloop;
+/**
+ * Module-internal typed view of the cross-runtime globals this test runner
+ * reads from. `@gjsify/unit` must run on plain GJS (no Node polyfills loaded),
+ * Node.js, and browsers — so every access into `globalThis` is potentially
+ * undefined. Centralising those shapes here lets the call sites use
+ * `runtimeGlobals().<field>?.<...>` instead of scattering `as any` casts.
+ */
+interface _RuntimeGlobals {
+    imports?: {
+        mainloop?: GLib.MainLoop;
+        gi?: { GLib?: typeof GLib };
+        system?: { exit: (code: number) => never };
+    };
+    process?: {
+        env?: Partial<Record<string, string>>;
+        versions?: { gjs?: string; node?: string };
+        exit?: (code: number) => never;
+    };
+    performance?: { now?: () => number };
+    document?: {
+        documentElement: { dataset: Record<string, string> };
+    };
+    __gjsify_test_results?: {
+        passed: number;
+        failed: number;
+        total: number;
+        errors: Array<{ suite: string; test: string; message: string }>;
+    };
+}
+
+const runtimeGlobals = (): _RuntimeGlobals => globalThis as unknown as _RuntimeGlobals;
+
+/** Brand for `Error` instances we've already counted via `++countTestsFailed`. */
+interface _CountedError { __testFailureCounted?: boolean }
+
+const mainloop: GLib.MainLoop | undefined = runtimeGlobals().imports?.mainloop;
 
 let countTestsOverall = 0;
 let countTestsFailed = 0;
@@ -69,7 +104,7 @@ export const configure = (overrides: Partial<TimeoutConfig>) => {
 
 function applyEnvOverrides() {
 	try {
-		const env = (globalThis as any).process?.env;
+		const env = runtimeGlobals().process?.env;
 		if (!env) return;
 		const t = parseInt(env.GJSIFY_TEST_TIMEOUT, 10);
 		if (!isNaN(t) && t >= 0) timeoutConfig.testTimeout = t;
@@ -87,7 +122,7 @@ const GRAY = '\x1B[90m';
 const RESET = '\x1B[39m';
 
 const now = (): number =>
-	(globalThis as any).performance?.now?.() ?? Date.now();
+	runtimeGlobals().performance?.now?.() ?? Date.now();
 
 const formatDuration = (ms: number): string => {
 	if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`;
@@ -108,8 +143,8 @@ export type Runtime = 'Gjs' | 'Deno' | 'Node.js' | 'Unknown' | 'Browser' | 'Disp
 // Use console.log in browser contexts to avoid triggering print dialogs.
 // GJS check takes priority: @gjsify/dom-elements can set globalThis.document on GJS,
 // which would otherwise cause a false-positive browser detection.
-const _isGjsProcess = typeof (globalThis as any).process?.versions?.gjs === 'string';
-export const print = (!_isGjsProcess && typeof (globalThis as any).document !== 'undefined')
+const _isGjsProcess = typeof runtimeGlobals().process?.versions?.gjs === 'string';
+export const print = (!_isGjsProcess && typeof runtimeGlobals().document !== 'undefined')
     ? console.log
     : (globalThis.print || console.log);
 
@@ -129,7 +164,7 @@ class MatcherFactory {
 		if( (success && !this.positive) ||
 			(!success && this.positive) ) {
 			const error = new Error(msg);
-			(error as any).__testFailureCounted = true;
+			(error as Error & _CountedError).__testFailureCounted = true;
 			++countTestsFailed;
 			throw error;
 		}
@@ -411,13 +446,13 @@ describe.skip = async function(moduleName: string, _callback?: Callback) {
 
 const hasDisplay = (): boolean => {
 	// Check process.env (Node.js and GJS with @gjsify/globals)
-	const env = (globalThis as any).process?.env;
+	const env = runtimeGlobals().process?.env;
 	if (env) {
 		return !!(env.DISPLAY || env.WAYLAND_DISPLAY);
 	}
 	// GJS fallback via imports.gi.GLib (before process polyfill is available)
 	try {
-		const GLib = (globalThis as any)?.imports?.gi?.GLib;
+		const GLib = runtimeGlobals().imports?.gi?.GLib;
 		if (GLib) {
 			return !!(GLib.getenv('DISPLAY') || GLib.getenv('WAYLAND_DISPLAY'));
 		}
@@ -551,7 +586,7 @@ export const assert = function(success: any, message?: string | Error) {
 	try {
 		nodeAssert(success, message);
 	} catch (error) {
-		(error as any).__testFailureCounted = true;
+		(error as Error & _CountedError).__testFailureCounted = true;
 		throw error;
 	}
 }
@@ -562,7 +597,7 @@ assert.strictEqual = function<T>(actual: unknown, expected: T, message?: string 
 		nodeAssert.strictEqual(actual, expected, message);
 	} catch (error) {
 		++countTestsFailed;
-		(error as any).__testFailureCounted = true;
+		(error as Error & _CountedError).__testFailureCounted = true;
 		throw error;
 	}
 }
@@ -587,7 +622,7 @@ assert.deepStrictEqual = function<T>(actual: unknown, expected: T, message?: str
 		nodeAssert.deepStrictEqual(actual, expected, message);
 	} catch (error) {
 		++countTestsFailed;
-		(error as any).__testFailureCounted = true;
+		(error as Error & _CountedError).__testFailureCounted = true;
 		throw error;
 	}
 }
@@ -610,9 +645,10 @@ const runTests = async function(namespaces: Namespaces) {
 }
 
 const browserSignalDone = () => {
-	const doc = (globalThis as any).document;
+	const g = runtimeGlobals();
+	const doc = g.document;
 	if (!doc) return;
-	(globalThis as any).__gjsify_test_results = {
+	g.__gjsify_test_results = {
 		passed: countTestsOverall - countTestsFailed,
 		failed: countTestsFailed,
 		total: countTestsOverall,
@@ -674,7 +710,7 @@ const getRuntime = async () => {
 
 	// Only treat as Browser after confirming no Node/GJS process is present.
 	// dynamic imports throw in browsers, so we are safely past that path here.
-	if (typeof (globalThis as any).document !== 'undefined') {
+	if (typeof runtimeGlobals().document !== 'undefined') {
 		runtime = 'Browser';
 		return runtime;
 	}
@@ -741,7 +777,7 @@ export const run = async (namespaces: Namespaces, options?: { timeout?: number; 
 	if (mainloop) {
 		const exitCode = countTestsFailed > 0 ? 1 : 0;
 		try {
-			(globalThis as any).imports.system.exit(exitCode);
+			runtimeGlobals().imports?.system?.exit(exitCode);
 		} catch (_e) { /* system.exit unavailable */ }
 	}
 }
