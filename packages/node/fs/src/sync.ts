@@ -67,38 +67,62 @@ export function readdirSync(
   // must return true for entries that are themselves symlinks (rather than
   // following them and reporting the target's type). @nodelib/fs.scandir
   // (used by fast-glob) relies on this.
+  // Pre-pass: drain the enumerator into a name/type array, then CLOSE it
+  // before recursing or returning. Without the explicit close, GJS would
+  // hold the underlying Gio.FileEnumerator (and its dirfd) alive until
+  // garbage collection — deep recursive walks (e.g. `rmSync` on a
+  // node_modules tree with ~20 levels of nested @girs/* packages) hit
+  // the per-process fd limit and surface as
+  //   "Error opening directory: Zu viele offene Dateien" (EMFILE).
   const enumerator = file.enumerate_children(
     'standard::name,standard::type',
     Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
     null,
   );
 
-  const result: (string | Dirent)[] = [];
-  let info = enumerator.next_file(null);
+  interface Entry {
+    name: string;
+    type: Gio.FileType;
+  }
 
-  while (info !== null) {
-    const childName = info.get_name();
-    const childPath = join(pathStr, childName);
-    const childType = info.get_file_type();
+  const entries: Entry[] = [];
+  try {
+    let info = enumerator.next_file(null);
+    while (info !== null) {
+      entries.push({ name: info.get_name(), type: info.get_file_type() });
+      info = enumerator.next_file(null);
+    }
+  } finally {
+    try {
+      enumerator.close(null);
+    } catch {
+      // GIO sometimes throws on close after iteration completes — non-fatal.
+    }
+  }
+
+  const result: (string | Dirent)[] = [];
+  for (const entry of entries) {
+    const childPath = join(pathStr, entry.name);
 
     if (options?.withFileTypes) {
-      result.push(new Dirent(childPath, childName, childType));
+      result.push(new Dirent(childPath, entry.name, entry.type));
     } else {
-      result.push(childName);
+      result.push(entry.name);
     }
 
-    if (options?.recursive && childType === Gio.FileType.DIRECTORY) {
+    if (options?.recursive && entry.type === Gio.FileType.DIRECTORY) {
+      // Recurse only after this directory's enumerator has been closed
+      // (via the try/finally above) — keeps the open-fd count bounded
+      // by recursion depth × 1 instead of recursion depth × open-during-iteration.
       const subEntries = readdirSync(childPath, options);
-      for (const entry of subEntries) {
-        if (typeof entry === 'string') {
-          result.push(join(childName, entry));
+      for (const subEntry of subEntries) {
+        if (typeof subEntry === 'string') {
+          result.push(join(entry.name, subEntry));
         } else {
-          result.push(entry);
+          result.push(subEntry);
         }
       }
     }
-
-    info = enumerator.next_file(null);
   }
 
   return result as string[] | Dirent[];
@@ -545,17 +569,22 @@ export function rmSync(path: PathLike, options?: RmOptions): void {
   }
 
   if (dirent.isDirectory()) {
-    const childFiles = readdirSync(path, { withFileTypes: true });
+    // Use plain `readdirSync` (no withFileTypes) — the recursive call
+    // re-stats each child anyway (`new Dirent(pathStr)` at the top), so
+    // allocating + holding Dirent objects per level just adds GC pressure.
+    // The pre-collected name list also lets `readdirSync`'s enumerator
+    // close before the first recursive call descends, keeping the live
+    // fd count bounded by recursion depth × 1 (see readdirSync header
+    // for the EMFILE-on-deep-trees rationale).
+    const childNames = readdirSync(path) as string[];
 
-    if (!recursive && childFiles.length) {
+    if (!recursive && childNames.length) {
       const err = Object.assign(new Error(), { code: 5 }); // Gio.IOErrorEnum.NOT_EMPTY
       throw createNodeError(err, 'rm', path);
     }
 
-    for (const childFile of childFiles) {
-      if (typeof childFile !== 'string') {
-        rmSync(join(pathStr, childFile.name), options);
-      }
+    for (const childName of childNames) {
+      rmSync(join(pathStr, childName), options);
     }
   }
 
