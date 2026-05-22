@@ -29,16 +29,38 @@ defineGlobalIfMissing('window', globalThis);
 defineGlobalIfMissing('focus', () => {});
 defineGlobalIfMissing('blur', () => {});
 
+/**
+ * Module-local typed view of the globalThis-level event-target methods this
+ * file installs. Centralises the 5 `(globalThis as any)` casts that would
+ * otherwise appear in the install branch.
+ */
+interface _GlobalEventTarget {
+    __gjsify_globalEventTarget?: OurEventTarget;
+    addEventListener?: (type: string, listener: unknown, options?: unknown) => void;
+    removeEventListener?: (type: string, listener: unknown, options?: unknown) => void;
+    dispatchEvent?: (event: Event) => boolean;
+}
+
 // globalThis.addEventListener / removeEventListener / dispatchEvent
-if (typeof (globalThis as any).addEventListener !== 'function') {
-    const _globalEventTarget = new OurEventTarget();
-    (globalThis as any).__gjsify_globalEventTarget = _globalEventTarget;
-    (globalThis as any).addEventListener = (type: string, listener: any, options?: any) =>
-        _globalEventTarget.addEventListener(type, listener, options);
-    (globalThis as any).removeEventListener = (type: string, listener: any, options?: any) =>
-        _globalEventTarget.removeEventListener(type, listener, options);
-    (globalThis as any).dispatchEvent = (event: Event) =>
-        _globalEventTarget.dispatchEvent(event as any);
+{
+    const g = globalThis as unknown as _GlobalEventTarget;
+    if (typeof g.addEventListener !== 'function') {
+        const _globalEventTarget = new OurEventTarget();
+        g.__gjsify_globalEventTarget = _globalEventTarget;
+        // `_globalEventTarget` is the `@gjsify/dom-events` EventTarget, whose
+        // type-level Event is structurally narrower than the global lib's.
+        // The runtime accepts either shape; we cast through `unknown` so the
+        // global signatures (lib.dom.d.ts) keep their assignability.
+        type AnyListener = Parameters<OurEventTarget['addEventListener']>[1];
+        type AnyAddOpts = Parameters<OurEventTarget['addEventListener']>[2];
+        type AnyRemoveOpts = Parameters<OurEventTarget['removeEventListener']>[2];
+        g.addEventListener = (type, listener, options) =>
+            _globalEventTarget.addEventListener(type as string, listener as AnyListener, options as AnyAddOpts);
+        g.removeEventListener = (type, listener, options) =>
+            _globalEventTarget.removeEventListener(type as string, listener as AnyListener, options as AnyRemoveOpts);
+        g.dispatchEvent = (event) =>
+            _globalEventTarget.dispatchEvent(event as unknown as Parameters<OurEventTarget['dispatchEvent']>[0]);
+    }
 }
 
 // devicePixelRatio — defaults to 1 (no HiDPI scaling in GTK GL context)
@@ -56,7 +78,7 @@ defineGlobalIfMissing('pageYOffset', 0);
 defineGlobalIfMissing('alert', (...args: unknown[]) => console.error('alert:', ...args));
 
 // window.top — prevents Excalibur's iframe detection from crashing
-if (typeof (globalThis as any).top === 'undefined') {
+if (typeof (globalThis as unknown as { top?: unknown }).top === 'undefined') {
     Object.defineProperty(globalThis, 'top', {
         get: () => globalThis,
         configurable: true,

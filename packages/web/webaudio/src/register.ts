@@ -3,15 +3,25 @@
 
 import { AudioContext, HTMLAudioElement } from './index.js';
 
-if (typeof (globalThis as any).AudioContext === 'undefined') {
-    (globalThis as any).AudioContext = AudioContext;
+/** Module-local typed view of the globals this file writes. */
+interface _WebAudioGlobals {
+    AudioContext?: unknown;
+    webkitAudioContext?: unknown;
+    Audio?: unknown;
+    HTMLAudioElement?: unknown;
 }
-if (typeof (globalThis as any).webkitAudioContext === 'undefined') {
-    (globalThis as any).webkitAudioContext = AudioContext;
+
+const g = globalThis as unknown as _WebAudioGlobals;
+
+if (typeof g.AudioContext === 'undefined') {
+    g.AudioContext = AudioContext;
 }
-if (typeof (globalThis as any).Audio === 'undefined') {
-    (globalThis as any).Audio = HTMLAudioElement;
+if (typeof g.webkitAudioContext === 'undefined') {
+    g.webkitAudioContext = AudioContext;
 }
-if (typeof (globalThis as any).HTMLAudioElement === 'undefined') {
-    (globalThis as any).HTMLAudioElement = HTMLAudioElement;
+if (typeof g.Audio === 'undefined') {
+    g.Audio = HTMLAudioElement;
+}
+if (typeof g.HTMLAudioElement === 'undefined') {
+    g.HTMLAudioElement = HTMLAudioElement;
 }

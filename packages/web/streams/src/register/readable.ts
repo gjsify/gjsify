@@ -11,34 +11,52 @@ import {
   ReadableStreamDefaultReader,
 } from '../index.js';
 
+/**
+ * The subset of `globalThis` this register module writes to. Each name maps
+ * to a constructor function whose presence we feature-detect; we never read
+ * back through this shape, only assign. Defining it once removes 11
+ * `(globalThis as any)` casts in the install sites.
+ */
+interface _StreamGlobals {
+  ReadableStream?: unknown;
+  ReadableStreamBYOBReader?: unknown;
+  ReadableStreamBYOBRequest?: unknown;
+  ReadableByteStreamController?: unknown;
+  ReadableStreamDefaultController?: unknown;
+  ReadableStreamDefaultReader?: unknown;
+}
+
+const g = globalThis as unknown as _StreamGlobals;
+
 function isNativeStreamUsable(Ctor: unknown, method: string): boolean {
   try {
     if (typeof Ctor !== 'function') return false;
-    return typeof (Ctor as any).prototype[method] === 'function';
+    const proto = (Ctor as { prototype?: Record<string, unknown> }).prototype;
+    return typeof proto?.[method] === 'function';
   } catch {
     return false;
   }
 }
 
 if (!isNativeStreamUsable(globalThis.ReadableStream, 'getReader')) {
-  (globalThis as any).ReadableStream = ReadableStream;
+  g.ReadableStream = ReadableStream;
 }
 
 // Reader / controller / request classes — only install if missing. SM140
 // exposes some of these natively; install ours only on environments that
 // don't provide them (real GJS without native streams).
-if (typeof (globalThis as any).ReadableStreamBYOBReader === 'undefined') {
-  (globalThis as any).ReadableStreamBYOBReader = ReadableStreamBYOBReader;
+if (typeof g.ReadableStreamBYOBReader === 'undefined') {
+  g.ReadableStreamBYOBReader = ReadableStreamBYOBReader;
 }
-if (typeof (globalThis as any).ReadableStreamBYOBRequest === 'undefined') {
-  (globalThis as any).ReadableStreamBYOBRequest = ReadableStreamBYOBRequest;
+if (typeof g.ReadableStreamBYOBRequest === 'undefined') {
+  g.ReadableStreamBYOBRequest = ReadableStreamBYOBRequest;
 }
-if (typeof (globalThis as any).ReadableByteStreamController === 'undefined') {
-  (globalThis as any).ReadableByteStreamController = ReadableByteStreamController;
+if (typeof g.ReadableByteStreamController === 'undefined') {
+  g.ReadableByteStreamController = ReadableByteStreamController;
 }
-if (typeof (globalThis as any).ReadableStreamDefaultController === 'undefined') {
-  (globalThis as any).ReadableStreamDefaultController = ReadableStreamDefaultController;
+if (typeof g.ReadableStreamDefaultController === 'undefined') {
+  g.ReadableStreamDefaultController = ReadableStreamDefaultController;
 }
-if (typeof (globalThis as any).ReadableStreamDefaultReader === 'undefined') {
-  (globalThis as any).ReadableStreamDefaultReader = ReadableStreamDefaultReader;
+if (typeof g.ReadableStreamDefaultReader === 'undefined') {
+  g.ReadableStreamDefaultReader = ReadableStreamDefaultReader;
 }

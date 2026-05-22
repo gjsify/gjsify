@@ -6,15 +6,25 @@ import { RTCSessionDescription } from '../rtc-session-description.js';
 import { RTCIceCandidate } from '../rtc-ice-candidate.js';
 import { RTCPeerConnectionIceEvent } from '../rtc-events.js';
 
-if (typeof (globalThis as any).RTCPeerConnection === 'undefined') {
-    (globalThis as any).RTCPeerConnection = RTCPeerConnection;
+/** Module-local typed view of the globals this file writes. */
+interface _RtcPeerGlobals {
+    RTCPeerConnection?: unknown;
+    RTCSessionDescription?: unknown;
+    RTCIceCandidate?: unknown;
+    RTCPeerConnectionIceEvent?: unknown;
 }
-if (typeof (globalThis as any).RTCSessionDescription === 'undefined') {
-    (globalThis as any).RTCSessionDescription = RTCSessionDescription;
+
+const g = globalThis as unknown as _RtcPeerGlobals;
+
+if (typeof g.RTCPeerConnection === 'undefined') {
+    g.RTCPeerConnection = RTCPeerConnection;
 }
-if (typeof (globalThis as any).RTCIceCandidate === 'undefined') {
-    (globalThis as any).RTCIceCandidate = RTCIceCandidate;
+if (typeof g.RTCSessionDescription === 'undefined') {
+    g.RTCSessionDescription = RTCSessionDescription;
 }
-if (typeof (globalThis as any).RTCPeerConnectionIceEvent === 'undefined') {
-    (globalThis as any).RTCPeerConnectionIceEvent = RTCPeerConnectionIceEvent;
+if (typeof g.RTCIceCandidate === 'undefined') {
+    g.RTCIceCandidate = RTCIceCandidate;
+}
+if (typeof g.RTCPeerConnectionIceEvent === 'undefined') {
+    g.RTCPeerConnectionIceEvent = RTCPeerConnectionIceEvent;
 }

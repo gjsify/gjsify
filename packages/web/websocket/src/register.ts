@@ -12,12 +12,21 @@
 
 import { WebSocket, MessageEvent, CloseEvent } from './index.js';
 
-if (typeof (globalThis as any).WebSocket === 'undefined') {
-  (globalThis as any).WebSocket = WebSocket;
+/** Module-local typed view of the globals this file writes. */
+interface _WebSocketGlobals {
+  WebSocket?: unknown;
+  MessageEvent?: unknown;
+  CloseEvent?: unknown;
 }
-if (typeof (globalThis as any).MessageEvent === 'undefined') {
-  (globalThis as any).MessageEvent = MessageEvent;
+
+const g = globalThis as unknown as _WebSocketGlobals;
+
+if (typeof g.WebSocket === 'undefined') {
+  g.WebSocket = WebSocket;
 }
-if (typeof (globalThis as any).CloseEvent === 'undefined') {
-  (globalThis as any).CloseEvent = CloseEvent;
+if (typeof g.MessageEvent === 'undefined') {
+  g.MessageEvent = MessageEvent;
+}
+if (typeof g.CloseEvent === 'undefined') {
+  g.CloseEvent = CloseEvent;
 }
