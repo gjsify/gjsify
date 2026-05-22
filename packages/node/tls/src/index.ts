@@ -931,6 +931,24 @@ export function createServer(
 
 export { TLSServer as Server };
 
+// OCSP-response parsing — re-exported from @gjsify/tls-native. Gated by
+// hasOcspSupport() since the underlying bridge is a GJS-only Vala prebuild
+// wrapping GnuTLS. See ocsp.ts for the consumer flow.
+export {
+  parseOcspResponse,
+  hasOcspSupport,
+  OcspCertStatus,
+  OcspResponseStatus,
+  type OcspResponseInfo,
+} from './ocsp.js';
+
+import {
+  parseOcspResponse as _parseOcspResponseRe,
+  hasOcspSupport as _hasOcspSupportRe,
+  OcspCertStatus as _OcspCertStatusRe,
+  OcspResponseStatus as _OcspResponseStatusRe,
+} from './ocsp.js';
+
 const tlsExports = {
   TLSSocket,
   TLSServer,
@@ -944,6 +962,10 @@ const tlsExports = {
   DEFAULT_MIN_VERSION,
   DEFAULT_MAX_VERSION,
   DEFAULT_CIPHERS,
+  parseOcspResponse: _parseOcspResponseRe,
+  hasOcspSupport: _hasOcspSupportRe,
+  OcspCertStatus: _OcspCertStatusRe,
+  OcspResponseStatus: _OcspResponseStatusRe,
 };
 
 export default tlsExports;
