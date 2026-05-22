@@ -1,13 +1,14 @@
 // Reference: Node.js lib/internal/fs/promises.js (FileHandle)
 // Reimplemented for GJS using Gio.File
 
-import { warnNotImplemented, notImplemented, createGLibFileError } from '@gjsify/utils';
+import { warnNotImplemented, notImplemented } from '@gjsify/utils';
 import { ReadStream } from "./read-stream.js";
 import { WriteStream } from "./write-stream.js";
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from "./stats.js";
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 import { normalizePath } from './utils.js';
 import { chmodSync, chownSync } from './sync.js';
+import { resolveIOMode, openIOChannel, mapOpenError, shouldCreate, type IOMode } from './file-handle-open.js';
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { createInterface } from 'node:readline';
@@ -36,65 +37,6 @@ import type {
     ReadPosition,
 } from 'node:fs';
 import type { Interface as ReadlineInterface } from 'node:readline';
-
-// POSIX numeric open(2) flags (values on Linux x86-64).
-const O_WRONLY = 1;
-const O_RDWR   = 2;
-const O_CREAT  = 64;
-const O_TRUNC  = 512;
-const O_APPEND = 1024;
-
-type IOMode = 'r' | 'r+' | 'w' | 'w+' | 'a' | 'a+';
-
-/**
- * Convert open flags (Node.js string or POSIX numeric) to a GLib.IOChannel mode.
- * IOChannel.new_file() takes fopen(3) modes: 'r', 'r+', 'w', 'w+', 'a', 'a+'.
- */
-function resolveIOMode(flags: OpenFlags | number | undefined): IOMode {
-    if (flags === undefined || flags === null) return 'r';
-    if (typeof flags === 'number') {
-        const rdwr   = (flags & O_RDWR)   !== 0;
-        const wronly = (flags & O_WRONLY) !== 0;
-        const append = (flags & O_APPEND) !== 0;
-        const trunc  = (flags & O_TRUNC)  !== 0;
-        if (rdwr)   return trunc ? 'w+' : 'r+';
-        if (wronly) return append ? 'a' : 'w';
-        return 'r';
-    }
-    // Node.js string flags — map extras to IOChannel equivalents.
-    switch (flags) {
-        case 'ax': case 'wx':   return 'w';
-        case 'ax+': case 'wx+': return 'w+';
-        case 'as': case 'rs+':  return 'r+';
-        case 'as+':             return 'a+';
-        default:                return flags as IOMode;
-    }
-}
-
-/**
- * Open the file with the given IOChannel mode. When the flags request
- * create-if-missing + read/write without truncation (numeric O_CREAT | O_RDWR,
- * which maps to IOChannel 'r+' — a mode that requires the file to exist), we
- * catch the ENOENT and create an empty file, then retry. This avoids a TOCTOU
- * existence check and keeps the common "file exists" path to a single syscall.
- */
-function openIOChannel(path: string, mode: IOMode, creat: boolean): GLib.IOChannel {
-    try {
-        return GLib.IOChannel.new_file(path, mode);
-    } catch (err) {
-        const gErr = err as { code?: number } | null | undefined;
-        if (creat && mode === 'r+' && gErr?.code === GLib.FileError.NOENT) {
-            GLib.file_set_contents(path, new Uint8Array(0));
-            return GLib.IOChannel.new_file(path, mode);
-        }
-        throw err;
-    }
-}
-
-function mapOpenError(err: unknown, path: string): NodeJS.ErrnoException {
-    // GLib.IOChannel.new_file() always throws GLib.FileError (not Gio.IOErrorEnum).
-    return createGLibFileError(err, 'open', { path }) as NodeJS.ErrnoException;
-}
 
 export class FileHandle implements IFileHandle {
 
@@ -133,7 +75,7 @@ export class FileHandle implements IFileHandle {
         this.options.flags ||= "r";
         this.options.mode ||= 0o666;
         const pathStr = normalizePath(options.path);
-        const creat = typeof options.flags === 'number' && (options.flags & O_CREAT) !== 0;
+        const creat = shouldCreate(options.flags);
         const ioMode = resolveIOMode(options.flags);
         try {
             this._file = openIOChannel(pathStr, ioMode, creat);
