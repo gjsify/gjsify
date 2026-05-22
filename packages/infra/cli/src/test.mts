@@ -6,9 +6,11 @@ import { run } from '@gjsify/unit';
 import bundlerPickSuite from './bundler-pick.spec.js';
 import barrelsGenerateSuite from './barrels-generate.spec.js';
 import npmOidcSuite from './npm-oidc.spec.js';
+import installBackendParseSpecSuite from './install-backend-parse-spec.spec.js';
 
 run({
     bundlerPickSuite,
     barrelsGenerateSuite,
     npmOidcSuite,
+    installBackendParseSpecSuite,
 });
