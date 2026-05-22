@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.21](https://github.com/gjsify/gjsify/compare/v0.4.20...v0.4.21) (2026-05-22)
+
+### Features
+
+* **cli:** --tolerate-untrusted-new for first-publish Trusted Publisher gap ([#246](https://github.com/gjsify/gjsify/issues/246)) ([fb3034a](https://github.com/gjsify/gjsify/commit/fb3034a2058d0bcfb05a600b44cb8f0ee8bd9f17)), closes [#242](https://github.com/gjsify/gjsify/issues/242)
+* **website:** "Three worlds, one runtime" homepage section ([#244](https://github.com/gjsify/gjsify/issues/244)) ([4735e21](https://github.com/gjsify/gjsify/commit/4735e21396abe51b4959652f83c71d44371fa378))
+
+### Bug Fixes
+
+* **cli:** read version from package.json adjacent to bundle (--version) ([#243](https://github.com/gjsify/gjsify/issues/243)) ([d72d403](https://github.com/gjsify/gjsify/commit/d72d40369ce64c9b50e3858d292d7cfbde088100))
+* **cli:** resolve bare-name specs to `latest` dist-tag, not semver `*` ([#249](https://github.com/gjsify/gjsify/issues/249)) ([2337a19](https://github.com/gjsify/gjsify/commit/2337a19fe10649a0c2013d22e6b0b969f1a9dfd2))
+* **fs:** close Gio.FileEnumerator in readdirSync to avoid EMFILE on deep recursion ([#248](https://github.com/gjsify/gjsify/issues/248)) ([7e307a8](https://github.com/gjsify/gjsify/commit/7e307a8386efbaeb2b66c16820e3c5916dc20ff6))
+
 ## [0.4.20](https://github.com/gjsify/gjsify/compare/v0.4.19...v0.4.20) (2026-05-21)
 
 ### Features
