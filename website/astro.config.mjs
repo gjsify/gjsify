@@ -75,6 +75,12 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Projects',
+          items: [
+            { slug: 'projects/ts-for-gir' },
+          ],
+        },
+        {
           label: 'Contributing',
           items: [
             { slug: 'contributing/development-setup' },
