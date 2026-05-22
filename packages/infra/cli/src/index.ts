@@ -11,6 +11,7 @@ import {
     runCommand as run,
     infoCommand as info,
     systemCheckCommand as systemCheck,
+    checkCommand as check,
     showcaseCommand as showcase,
     createCommand as create,
     gresourceCommand as gresource,
@@ -79,6 +80,7 @@ await cli
     .command(dlx.command, dlx.description, dlx.builder, dlx.handler)
     .command(info.command, info.description, info.builder, info.handler)
     .command(systemCheck.command, systemCheck.description, systemCheck.builder, systemCheck.handler)
+    .command(check.command, check.description, check.builder, check.handler)
     .command(showcase.command, showcase.description, showcase.builder, showcase.handler)
     .command(gresource.command, gresource.description, gresource.builder, gresource.handler)
     .command(gettext.command, gettext.description, gettext.builder, gettext.handler)

@@ -3,6 +3,7 @@ export * from './test.js';
 export * from './run.js';
 export * from './info.js';
 export * from './system-check.js';
+export * from './check.js';
 export * from './showcase.js';
 export * from './create.js';
 export * from './gresource.js';

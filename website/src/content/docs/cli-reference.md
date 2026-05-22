@@ -424,6 +424,31 @@ gjsify workspace @gjsify/fetch test:gjs
 | `<script>` | Script name to run. |
 | `[args..]` | Extra arguments forwarded to the script. |
 
+## `gjsify check`
+
+Run TypeScript type-checks (`tsc --noEmit`) across the current workspace. Symmetric peer of `gjsify format` / `lint` / `fix`.
+
+```bash
+npx @gjsify/cli check                              # default: workspace-wide, parallel
+npx @gjsify/cli check --include '@gjsify/process'  # filter to one package
+npx @gjsify/cli check --no-parallel --verbose      # sequential with per-workspace output
+```
+
+Behaviour:
+
+- **In a workspace root**: walks every package whose `package.json#scripts.check` is defined (`@girs/*` always excluded), runs `npm run check` in each, aggregates exit codes. Parallel by default with `os.cpus().length` workers; `--jobs N` caps it, `--no-parallel` switches to sequential.
+- **In a single package** (cwd inside a workspace package with a `check` script): runs that package's `check` script directly. Useful for `npm run check` ergonomics from `gjsify`.
+
+Exits with code **1** if any workspace's check fails; **0** if all pass. With `--no-parallel`, exits with the first non-zero code; with `--parallel` (default), prints a summary of failed workspaces.
+
+| Option | Default | Description |
+|---|---|---|
+| `--include <glob>` | (all) | Repeatable. Only run in workspaces matching these glob patterns. |
+| `--exclude <glob>` | `@girs/*` | Repeatable. Skip workspaces matching these glob patterns. |
+| `--parallel`, `-p` | `true` | Run workspace checks in parallel. `--no-parallel` for sequential. |
+| `--jobs N`, `-j N` | `os.cpus().length` | Max parallel workers when `--parallel`. |
+| `--verbose` | `false` | Log per-workspace command before spawning. |
+
 ## `gjsify system-check`
 
 Verify that required system dependencies are installed.
@@ -434,7 +459,7 @@ npx @gjsify/cli system-check
 
 Reports an install command for your detected package manager when something is missing. Exits with code **1** if any required dependency is missing.
 
-> **Note:** The legacy name `gjsify check` still works as a deprecated alias. It will be repurposed in a future release for package-level TypeScript checks (analogous to `gjsify format` / `lint` / `fix`).
+> **Note:** Previously called `gjsify check`. The bare name was repurposed for workspace TypeScript checks (see above).
 
 <details>
 <summary>Required vs optional dependencies</summary>
