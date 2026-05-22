@@ -6,10 +6,11 @@
 //   gjsify install -g <pkg> [...]     → user-global install (XDG, GJS-runnable bin)
 //
 // All three modes route through `@gjsify/{semver,npm-registry,tar}` via
-// `installPackagesNative` — no Node/npm required at runtime. Set
-// `GJSIFY_INSTALL_BACKEND=npm` to opt back into the legacy `npm install`
-// subprocess flow (useful as escape-hatch for projects that hit a
-// missing native-backend feature).
+// `installPackagesNative` — no Node/npm required at runtime. Pass
+// `--backend=npm` (or set the legacy `GJSIFY_INSTALL_BACKEND=npm` env var)
+// to opt back into the `npm install` subprocess flow — useful as an
+// escape hatch for projects that hit a missing native-backend feature
+// (Yarn PnP repos, lifecycle scripts, npm's `overrides` quirks).
 //
 // Workspace install (`gjsify install` in a monorepo root with a
 // `"workspaces"` field) hoists every workspace's externals into the root
@@ -54,6 +55,7 @@ interface InstallOptions {
     'save-optional'?: boolean;
     immutable?: boolean;
     verbose: boolean;
+    backend?: 'native' | 'npm';
 }
 
 export const installCommand: Command<any, InstallOptions> = {
@@ -87,6 +89,12 @@ export const installCommand: Command<any, InstallOptions> = {
                 description: 'Verbose install logging.',
                 type: 'boolean',
                 default: false,
+            })
+            .option('backend', {
+                description:
+                    'Install backend. `native` (default) routes through `@gjsify/{semver,npm-registry,tar}` — no Node/npm at runtime. `npm` shells out to `npm install` as an escape hatch for cases the native backend does not yet model (Yarn PnP repos, lifecycle scripts). Overrides `GJSIFY_INSTALL_BACKEND` if both are set.',
+                type: 'string',
+                choices: ['native', 'npm'] as const,
             }),
     handler: async (args) => {
         // --immutable is incompatible with explicit `<pkg>` adds and with
@@ -123,8 +131,13 @@ export const installCommand: Command<any, InstallOptions> = {
             return;
         }
 
-        // Escape-hatch: legacy npm subprocess flow.
-        if (process.env.GJSIFY_INSTALL_BACKEND === 'npm') {
+        // Backend selection (in precedence order):
+        //   1. --backend flag (explicit user choice)
+        //   2. GJSIFY_INSTALL_BACKEND env (back-compat shape from pre-flag era)
+        //   3. native (default)
+        const backend = args.backend ?? process.env.GJSIFY_INSTALL_BACKEND ?? 'native';
+
+        if (backend === 'npm') {
             await projectInstallViaNpm(args);
             await runPostInstallChecks();
             return;
