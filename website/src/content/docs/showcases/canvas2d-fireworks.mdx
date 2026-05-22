@@ -1,0 +1,45 @@
+---
+title: canvas2d-fireworks
+description: Particle-based fireworks rendered through Canvas 2D — same code path on GJS (Cairo via Canvas2DBridge) and the browser.
+---
+
+Animated particle fireworks on a `<canvas>` 2D context, adapted from a popular CodePen by [@juliangarnier](https://codepen.io/juliangarnier/pen/gmOwJX). Inputs are wired up through [`@gjsify/event-bridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/event-bridge) so clicks fire fireworks in both runtimes.
+
+## What it exercises
+
+| Pillar | Surface used |
+|---|---|
+| [`@gjsify/canvas2d`](https://github.com/gjsify/gjsify/tree/main/packages/framework/canvas2d) | `Canvas2DBridge` → `Gtk.DrawingArea` (Cairo + PangoCairo) |
+| [`@gjsify/dom-elements`](https://github.com/gjsify/gjsify/tree/main/packages/dom/dom-elements) | `HTMLCanvasElement`, `getBoundingClientRect()`, `ResizeObserver` |
+| [`@gjsify/event-bridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/event-bridge) | GTK4 click + pointer-move → DOM `click` / `pointermove` |
+| `@gjsify/adwaita-web` (browser only) | Adwaita-styled control panel for the browser embed |
+
+Nothing in the showcase code references `@gjsify/*` directly — it uses standard `<canvas>` + `ctx.fillRect()` + `requestAnimationFrame()` calls. The framework layer translates each call into GTK4 + Cairo at runtime.
+
+## Run it on GJS
+
+```bash
+gjsify showcase canvas2d-fireworks
+```
+
+A GTK4 window opens with a `Gtk.DrawingArea` filling its surface. Click anywhere to fire a firework; the explosion animates at the GTK frame clock's vsync via the [`requestAnimationFrame`](../../patterns/bridges/#resizeobserver-wires-through-bridges) shim.
+
+## Run it in the browser
+
+```ts
+import { mount } from '@gjsify/example-dom-canvas2d-fireworks/browser';
+mount(document.getElementById('app')!);
+```
+
+Same code — the `<canvas>` is a real browser canvas, not a bridge.
+
+## Source
+
+[`showcases/dom/canvas2d-fireworks/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/canvas2d-fireworks) — entry points: `src/gjs/main.ts` (GTK shell), `src/browser/browser.ts` (mount), `src/shared/fireworks.ts` (the particle simulation, runs unchanged in both targets).
+
+The shared module is the value: it imports nothing platform-specific, only the standard `Canvas 2D` API surface. That surface is the contract between the browser and `@gjsify/canvas2d` — every method it uses must hold up identically in both runtimes.
+
+## Related
+
+- [Bridge widgets pattern](../../patterns/bridges/) — explains why `Canvas2DBridge` IS a `Gtk.DrawingArea` and how `installGlobals()` + `onReady()` lifecycle work.
+- [`@gjsify/canvas2d-core`](https://github.com/gjsify/gjsify/tree/main/packages/dom/canvas2d-core) — the headless Canvas 2D implementation behind the bridge.

@@ -82,6 +82,19 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Showcases',
+          items: [
+            { slug: 'showcases' },
+            { slug: 'showcases/canvas2d-fireworks' },
+            { slug: 'showcases/excalibur-jelly-jumper' },
+            { slug: 'showcases/three-geometry-teapot' },
+            { slug: 'showcases/three-postprocessing-pixel' },
+            { slug: 'showcases/minimalist-browser' },
+            { slug: 'showcases/webrtc-loopback' },
+            { slug: 'showcases/express-webserver' },
+          ],
+        },
+        {
           label: 'Contributing',
           items: [
             { slug: 'contributing/development-setup' },

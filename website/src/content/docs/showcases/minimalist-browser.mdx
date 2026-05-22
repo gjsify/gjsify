@@ -1,0 +1,55 @@
+---
+title: minimalist-browser
+description: URL bar + back/forward + iframe — same code runs in browser (real <iframe>) and GJS (IFrameBridge over WebKit.WebView).
+---
+
+A bare-bones browser shell — URL bar, back / forward / reload buttons, an `<iframe>` filling the rest. The same TS source compiles for the browser (where the iframe is a real iframe) and for GJS (where it's an `IFrameBridge` wrapping a full `WebKit.WebView`).
+
+## What it exercises
+
+| Pillar | What it needs |
+|---|---|
+| [`@gjsify/iframe`](https://github.com/gjsify/gjsify/tree/main/packages/framework/iframe) | `HTMLIFrameElement` + `IFrameBridge` → `WebKit.WebView` |
+| [`@gjsify/dom-elements`](https://github.com/gjsify/gjsify/tree/main/packages/dom/dom-elements) | `HTMLInputElement` for the URL bar, click handling |
+| [`@gjsify/event-bridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/event-bridge) | GTK click events on the toolbar buttons |
+| Adwaita widgets (GJS) | `Adw.HeaderBar` + `Gtk.Entry` for the chrome |
+
+## Run it on GJS
+
+```bash
+gjsify showcase minimalist-browser
+```
+
+Opens a GTK4 window. The chrome is an `Adw.HeaderBar` with native GTK buttons; the content area below is the `IFrameBridge` widget. Type a URL, hit Enter — WebKit loads it (full browser-grade web compat: cookies, JavaScript, CSS, the lot).
+
+## Run it in the browser
+
+```ts
+import { mount } from '@gjsify/example-dom-minimalist-browser/browser';
+mount(document.getElementById('app')!);
+```
+
+The same `<input>` + button handlers, the same `<iframe>` element. The browser embed is fully self-contained.
+
+## Source
+
+[`showcases/dom/minimalist-browser/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/minimalist-browser)
+
+- `src/shared/url-bar.ts` — URL parsing + normalization (shared)
+- `src/shared/history.ts` — back / forward stack management (shared)
+- `src/gjs/main.ts` — `Adw.ApplicationWindow` host
+- `src/browser/browser.ts` — DOM mount
+
+## The IFrameBridge story
+
+Unlike `Canvas2DBridge` / `WebGLBridge` / `VideoBridge`, which are pure-JS polyfills wrapping native GTK widgets, `IFrameBridge` IS [WebKit.WebView](https://webkitgtk.org/reference/webkit2gtk/stable/class.WebView.html). That's the entire point — we don't reimplement HTML rendering; for embedded web content the right tool is a real browser engine.
+
+The bridge exposes the standard `HTMLIFrameElement` API surface (`src`, `srcdoc`, `contentWindow.postMessage`, navigation events) so that **code shaped like browser code** works without a special "you're in GJS" branch. The `WebKit.WebView` is the engine; the iframe element is the contract.
+
+See [Bridge widgets pattern](../../patterns/bridges/#iframebridge-is-the-one-bridge-that-does-ship-a-browser) for when to reach for this — pretty much any time you embed third-party web content or a sandboxed report inside a GJS app.
+
+## Related
+
+- [Bridge widgets pattern](../../patterns/bridges/) — the four bridges side by side
+- [`refs/epiphany/`](https://github.com/gjsify/gjsify/tree/main/refs/epiphany) — GNOME Web, the canonical real-world consumer of `WebKit.WebView` in a GTK4 host
+- [`refs/webkit/`](https://github.com/gjsify/gjsify/tree/main/refs/webkit) — WebKit source for spec-behavior references

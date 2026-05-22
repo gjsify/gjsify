@@ -1,0 +1,57 @@
+---
+title: webrtc-loopback
+description: Two local peers exchange offer/answer + ICE, then echo messages over an RTCDataChannel — proves @gjsify/webrtc's full PeerConnection + DataChannel surface.
+---
+
+A WebRTC data-channel loopback: two `RTCPeerConnection` instances sit in the same process, exchange SDP offer / answer + ICE candidates, open an `RTCDataChannel`, and echo whatever the user types back through it. No signaling server, no remote peer — but the entire `RTCPeerConnection` state machine runs through GStreamer's webrtcbin on GJS.
+
+## What it exercises
+
+| Pillar | What it needs |
+|---|---|
+| [`@gjsify/webrtc`](https://github.com/gjsify/gjsify/tree/main/packages/web/webrtc) | `RTCPeerConnection`, `createOffer` / `createAnswer` / `setLocalDescription` / `setRemoteDescription`, ICE event firing, `RTCDataChannel` with `send` + `onmessage` |
+| [`@gjsify/webrtc-native`](https://github.com/gjsify/gjsify/tree/main/packages/web/webrtc-native) | Vala signal bridges that re-emit GStreamer's streaming-thread callbacks onto the GLib main context (otherwise they'd fire from a wrong thread and crash SpiderMonkey) |
+| `gst-1.0` + `gst-webrtc-1.0` | The actual WebRTC implementation (DTLS, SCTP, ICE) on GJS |
+| Adwaita widgets (GJS) | `Adw.PreferencesGroup` for the message log and input |
+
+## Run it on GJS
+
+```bash
+gjsify showcase webrtc-loopback
+```
+
+A GTK4 window opens. Click "Connect" — two `RTCPeerConnection` instances are created, both `oniceconnectionstatechange` handlers wire up, the offer / answer dance happens internally, and the data channel reaches `'open'`. Type into the input → echoes back.
+
+## Run it in the browser
+
+```ts
+import { mount } from '@gjsify/example-dom-webrtc-loopback/browser';
+mount(document.getElementById('app')!);
+```
+
+Exact same flow — uses the browser's native `RTCPeerConnection`. The contract is whether `@gjsify/webrtc`'s GJS implementation behaves identically.
+
+## Source
+
+[`showcases/dom/webrtc-loopback/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/webrtc-loopback)
+
+- `src/shared/loopback.ts` — the loopback dance (peer setup, signaling, data-channel wiring). Imports only `RTCPeerConnection` + `RTCSessionDescription` + `RTCIceCandidate` from the global namespace.
+- `src/gjs/main.ts` — Adwaita window host
+- `src/browser/browser.ts` — DOM mount
+
+## Why this showcase is non-trivial
+
+WebRTC is the second-broadest API surface in the Web platform (after the DOM itself). To match it on GJS, `@gjsify/webrtc` has to:
+
+1. Translate every `RTCSessionDescription` / `RTCIceCandidate` JSON object into the GstWebRTC equivalent + back
+2. Bridge GStreamer's streaming threads to the GLib main context so JS callbacks fire safely
+3. Wrap `RTCDataChannel`'s `'open'` / `'close'` / `'message'` events without dropping any (GstWebRTCDataChannel fires from yet another thread)
+4. Keep the `Gst.Promise.new_with_change_func` lifecycle aligned with the JS `Promise` lifecycle so SDP / ICE async calls don't leak
+
+If any of those layers misfires, the channel never reaches `'open'` and the showcase hangs at "Connecting…". A successful round-trip echo is the end-to-end proof that the full stack holds.
+
+## Related
+
+- [`refs/node-gst-webrtc/`](https://github.com/gjsify/gjsify/tree/main/refs/node-gst-webrtc) — the GStreamer-WebRTC reference impl
+- [`refs/webrtc-samples/`](https://github.com/gjsify/gjsify/tree/main/refs/webrtc-samples) — MDN / Google's reference samples for browser-side behavior
+- [`@gjsify/webrtc-native`](https://github.com/gjsify/gjsify/tree/main/packages/web/webrtc-native) — the Vala bridge package

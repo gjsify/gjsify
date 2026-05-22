@@ -1,0 +1,50 @@
+---
+title: excalibur-jelly-jumper
+description: Excalibur.js 0.32 platformer with Tiled tilemaps — runs on GJS through @gjsify/webgl + @gjsify/xmlhttprequest + @gjsify/domparser without a Excalibur.js fork.
+---
+
+A small 2D platformer built with the unmodified [Excalibur.js](https://excaliburjs.com/) game engine and [Tiled](https://www.mapeditor.org/) tilemaps. The same `npm` package runs in the browser and on GJS — Excalibur reaches for `<canvas>`, `WebGL`, `XMLHttpRequest`, `DOMParser`, `ResizeObserver`, and `requestAnimationFrame`, and every one of those calls is served by the corresponding `@gjsify/*` package on GJS.
+
+## What it exercises
+
+| Pillar | What Excalibur needs |
+|---|---|
+| [`@gjsify/webgl`](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) | `WebGLBridge` → `Gtk.GLArea` (Excalibur's WebGL renderer) |
+| [`@gjsify/dom-elements`](https://github.com/gjsify/gjsify/tree/main/packages/dom/dom-elements) | `HTMLCanvasElement`, `ResizeObserver` (the ancestor-walking one — see [Bridges](../../patterns/bridges/#resizeobserver-wires-through-bridges)) |
+| [`@gjsify/xmlhttprequest`](https://github.com/gjsify/gjsify/tree/main/packages/web/xmlhttprequest) | Excalibur's asset loader (`responseType: 'arraybuffer'` + `'blob'`) |
+| [`@gjsify/domparser`](https://github.com/gjsify/gjsify/tree/main/packages/web/domparser) | excalibur-tiled parses the `.tmx` XML map files |
+| [`@gjsify/event-bridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/event-bridge) | Keyboard input (jump / move / restart) |
+| [`@gjsify/webaudio`](https://github.com/gjsify/gjsify/tree/main/packages/web/webaudio) | Sound effects via Excalibur's WebAudio backend (GStreamer pipeline on GJS) |
+
+This is the showcase that surfaced the [ResizeObserver-on-bridge](../../patterns/bridges/#resizeobserver-wires-through-bridges) bug in v0.4.20 — `DisplayMode.FillContainer` mode observes `canvas.parentElement`, which only fires when the bridge's GTK resize signal walks the polyfill DOM tree's ancestors. The fix lives in [`@gjsify/dom-elements`'s notify-resize](https://github.com/gjsify/gjsify/blob/main/packages/dom/dom-elements/src/notify-resize.ts) and is what makes this showcase reflow correctly on window resize.
+
+## Run it on GJS
+
+```bash
+gjsify showcase excalibur-jelly-jumper
+```
+
+Opens a GTK4 window with the GLArea-backed canvas filling it. Arrow keys move, space jumps, R restarts. The Excalibur engine ticks at the GTK frame clock's vsync.
+
+## Run it in the browser
+
+```ts
+import { mount } from '@gjsify/example-dom-excalibur-jelly-jumper/browser';
+mount(document.getElementById('app')!);
+```
+
+The asset loader fetches tilemaps + spritesheets from `@gjsify/example-dom-excalibur-jelly-jumper/assets/*` (resolved via `require.resolve` in both targets — the browser bundles them via the website's Vite config).
+
+## Source
+
+[`showcases/dom/excalibur-jelly-jumper/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/excalibur-jelly-jumper) — shared scene/actors live in `src/shared/`, the `gjs/` and `browser/` entries differ only in the host wiring (Adw.Application vs `mount(container)`).
+
+## Why this showcase is load-bearing
+
+Excalibur is the canonical real-world consumer of the full WebGL + Canvas + WebAudio + XHR + DOMParser stack. Every time we promote a `@gjsify/*` package from Partial → Full, this showcase is one of the first regression checks — if Excalibur's "FillContainer" mode reflows correctly, if its asset loader resolves binary blobs without truncation, if its WebAudio mixer plays a multi-channel sound effect without artifacts, then the gjsify port of the underlying API is genuinely production-grade.
+
+## Related
+
+- [`refs/excalibur/`](https://github.com/gjsify/gjsify/tree/main/refs/excalibur) — Excalibur source, used for gap analysis against the bundled showcase.
+- [Bridge widgets pattern](../../patterns/bridges/) — covers the WebGLBridge lifecycle that this showcase uses.
+- [`pixel-rpg/map-editor`](https://github.com/PixelRPG/map-editor) — companion downstream project that built atop the same Excalibur + Tiled stack.
