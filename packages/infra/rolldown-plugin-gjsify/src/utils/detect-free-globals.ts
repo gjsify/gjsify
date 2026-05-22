@@ -49,6 +49,62 @@ const METHOD_MARKERS: Record<string, string> = {
 };
 
 /**
+ * wasm-bindgen-generated function-name patterns that imply a global
+ * identifier should be injected. wasm-bindgen emits its host-API
+ * import bindings as top-level functions named
+ * `__wbg_<jsName>_<hash>` where `<jsName>` is the property name of the
+ * JS API the WASM module wants to call. The body looks like:
+ *
+ *     function __wbg_crypto_574e78ad8b13b65f(arg0) {
+ *         const ret = getObject(arg0).crypto;
+ *         return addHeapObject(ret);
+ *     }
+ *
+ * `getObject(arg0)` is a runtime heap dereference (the object is one
+ * of the host bridges registered by wasm-bindgen at init time —
+ * typically `globalThis`, `window`, or `self`). The MemberExpression
+ * visitor can't follow that — `node.object` is a CallExpression, not
+ * an Identifier — so the underlying `.crypto` access is invisible to
+ * the static scan.
+ *
+ * Matching on the FUNCTION-NAME pattern instead is high precision
+ * (no false positives — `__wbg_` is wasm-bindgen-reserved) and high
+ * recall (the names are extremely stable across wasm-bindgen
+ * versions). Add an entry whenever a new wasm-bindgen-built npm
+ * package surfaces a needed global that the static scan misses.
+ *
+ * Keyed by the `<jsName>` extracted from the `__wbg_<jsName>_<hash>`
+ * function name; value is the gjsify global to inject.
+ */
+const WASM_BINDGEN_MARKERS: Record<string, string> = {
+    // crypto.getRandomValues chain — wasm-bindgen's canonical
+    // crypto-import binding pattern. Used by ed25519-dalek, ring, rand
+    // (when targeting wasm), and most Rust crates that touch
+    // randomness or hashing. Loro is the driving real-world consumer:
+    // its CRDT operations need crypto.getRandomValues for peer-id
+    // generation and ChangeID nonces.
+    crypto: 'crypto',
+    getRandomValues: 'crypto',
+    // Legacy IE prefix path — wasm-bindgen probes for `msCrypto` as a
+    // fallback when `crypto` isn't available. Doesn't apply to GJS
+    // (we ship a real `crypto`), but flagging the marker keeps the
+    // detector self-documenting.
+    msCrypto: 'crypto',
+};
+
+/**
+ * Match the wasm-bindgen function-name shape — return the `<jsName>`
+ * part of `__wbg_<jsName>_<hash>` or `null`. wasm-bindgen hashes are
+ * 8–16 hex chars in practice, but we accept any alphanumeric trailer
+ * so the pattern survives future format tweaks.
+ */
+const WBG_NAME_RE = /^__wbg_([A-Za-z][A-Za-z0-9]*)_[A-Za-z0-9]+$/;
+function wbgJsNameFor(fnName: string): string | null {
+    const match = fnName.match(WBG_NAME_RE);
+    return match?.[1] ?? null;
+}
+
+/**
  * Extract all bound names from a binding pattern
  * (Identifier, ObjectPattern, ArrayPattern, AssignmentPattern, RestElement).
  */
@@ -199,6 +255,22 @@ export function detectFreeGlobals(code: string): Set<string> {
             const markerTarget = METHOD_MARKERS[markerKey];
             if (markerTarget && KNOWN_GLOBALS.has(markerTarget)) {
                 freeGlobals.add(markerTarget);
+            }
+        },
+        FunctionDeclaration(node: acorn.FunctionDeclaration) {
+            // Pattern C: wasm-bindgen marker hook. The function name
+            // matches `__wbg_<jsName>_<hash>` and `<jsName>` is a known
+            // host API. The body would be `getObject(arg0).<jsName>` —
+            // an unfollowable runtime heap dereference — but the
+            // function NAME tells us exactly which global is needed.
+            // See WASM_BINDGEN_MARKERS for the why + which jsNames are
+            // mapped.
+            if (!node.id) return;
+            const jsName = wbgJsNameFor(node.id.name);
+            if (!jsName) return;
+            const target = WASM_BINDGEN_MARKERS[jsName];
+            if (target && KNOWN_GLOBALS.has(target)) {
+                freeGlobals.add(target);
             }
         },
         Identifier(node: acorn.Identifier, ancestors: acorn.AnyNode[]) {
