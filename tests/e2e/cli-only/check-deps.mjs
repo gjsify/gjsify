@@ -1,4 +1,5 @@
-// E2E test for `gjsify check` command.
+// E2E test for `gjsify system-check` command (formerly `gjsify check` —
+// renamed in v0.4.22 to free up `check` for workspace TS checks).
 // Verifies that the command runs without crashing, produces correctly formatted output,
 // and correctly reports Node.js as found (since the CLI itself runs in Node.js).
 // Requires: yarn build (monorepo must be built first)
@@ -18,7 +19,7 @@ import {
 /** Run gjsify check and return { stdout, exitCode }. Never throws. */
 function runCheck(projectDir, extraArgs = []) {
   try {
-    const stdout = execFileSync('npx', ['gjsify', 'check', ...extraArgs], {
+    const stdout = execFileSync('npx', ['gjsify', 'system-check', ...extraArgs], {
       cwd: projectDir,
       stdio: 'pipe',
       timeout: 30 * 1000,
@@ -34,7 +35,7 @@ function runCheck(projectDir, extraArgs = []) {
   }
 }
 
-describe('gjsify check E2E', { timeout: 10 * 60 * 1000 }, () => {
+describe('gjsify system-check E2E', { timeout: 10 * 60 * 1000 }, () => {
   let tmpDir;
   let tarballsDir;
   let tarballMap;

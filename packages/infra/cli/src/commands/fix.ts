@@ -2,8 +2,8 @@
 //
 // Equivalent to biome's `check` (format + safe-lint-fix + organize-imports).
 // Default writes fixes in-place; pass `--no-write` to report-only.
-// Naming: deliberately distinct from `gjsify check` (which verifies
-// system dependencies).
+// Naming: deliberately distinct from `gjsify check` (workspace TS check)
+// and `gjsify system-check` (system-dependency verifier).
 
 import { resolve } from 'node:path';
 import type { Command } from '../types/index.js';

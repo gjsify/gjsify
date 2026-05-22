@@ -91,12 +91,12 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
     }
   });
 
-  it('gjsify check --json skips gwebgl when project does not use @gjsify/webgl', () => {
+  it('gjsify system-check --json skips gwebgl when project does not use @gjsify/webgl', () => {
     // After the showcase-decoupling refactor (Phase D), the CLI no longer
     // transitively depends on @gjsify/webgl through showcase example packages.
-    // `gjsify check` correctly skips the gwebgl check for projects that don't
+    // `gjsify system-check` correctly skips the gwebgl check for projects that don't
     // use @gjsify/webgl — needsWebgl is decided per-project, not per-CLI.
-    const out = execFileSync('npx', ['gjsify', 'check', '--json'], {
+    const out = execFileSync('npx', ['gjsify', 'system-check', '--json'], {
       cwd: projectDir,
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -108,7 +108,7 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
       'gwebgl should be skipped when project does not depend on @gjsify/webgl');
   });
 
-  it('gjsify check --json resolves gwebgl from project deps (primary path)', () => {
+  it('gjsify system-check --json resolves gwebgl from project deps (primary path)', () => {
     // Create a second project that has @gjsify/webgl as a direct dependency.
     // checkNpmPackage should find it from the project's own node_modules first.
     const webglProjectDir = join(tmpDir, 'webgl-project');
@@ -125,7 +125,7 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
       },
     }, tarballsDir, tarballMap);
 
-    const out = execFileSync('npx', ['gjsify', 'check', '--json'], {
+    const out = execFileSync('npx', ['gjsify', 'system-check', '--json'], {
       cwd: webglProjectDir,
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore'],
