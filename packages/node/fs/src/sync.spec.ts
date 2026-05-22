@@ -308,6 +308,50 @@ export default async () => {
 			rmSync(dir, { recursive: true });
 			expect(existsSync(dir)).toBe(false);
 		});
+
+		await it('should remove a deeply nested tree without hitting EMFILE', () => {
+			// Regression for the user-reported issue where `gjsify install`
+			// hit `Gio.IOErrorEnum: Error opening directory '...': Zu viele
+			// offene Dateien` while clearing a stale ~20-level-deep
+			// node_modules tree (worker_threads/node_modules/@girs/gio-2.0/
+			// node_modules/@girs/gobject-2.0/...). Root cause was that
+			// `readdirSync`'s `Gio.FileEnumerator` never got an explicit
+			// `close()` — under deep recursion the fd-per-level kept piling
+			// up until the process hit its open-fd limit (typically 1024).
+			//
+			// 256 nested directories well exceeds any reasonable default
+			// fd limit when each level keeps an enumerator open; the test
+			// passes today and would fail before the close() fix.
+			const root = mkdtempSync(join(tmpdir(), 'fs-rmsync-deep-'));
+			let current = root;
+			for (let i = 0; i < 256; i++) {
+				current = join(current, 'd');
+				mkdirSync(current);
+			}
+			writeFileSync(join(current, 'leaf.txt'), 'data');
+			rmSync(root, { recursive: true });
+			expect(existsSync(root)).toBe(false);
+		});
+
+		await it('should keep open fd count bounded across many recursive removals', () => {
+			// Companion to the deep-tree case: a wide-and-medium-deep tree
+			// (multiple siblings per level) exercises the close-before-
+			// recurse semantics. Without the enumerator close, the leaks
+			// would accumulate across the inner loop iterations even when
+			// each individual subtree's depth stays modest.
+			const root = mkdtempSync(join(tmpdir(), 'fs-rmsync-wide-'));
+			for (let i = 0; i < 8; i++) {
+				let current = join(root, `tree-${i}`);
+				mkdirSync(current);
+				for (let j = 0; j < 32; j++) {
+					current = join(current, 'd');
+					mkdirSync(current);
+				}
+				writeFileSync(join(current, 'leaf.txt'), 'data');
+			}
+			rmSync(root, { recursive: true });
+			expect(existsSync(root)).toBe(false);
+		});
 	});
 
 	await describe('fs.Dirent type methods', async () => {

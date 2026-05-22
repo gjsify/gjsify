@@ -333,15 +333,21 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
         if (!target) continue;
         const linkPath = join(target.location, 'node_modules', link.depName);
         mkdirSync(dirname(linkPath), { recursive: true });
-        // Remove any prior entry (regular dir, broken symlink, file).
+        // Remove any prior entry — regular dir, broken symlink, file, or
+        // a normal symlink left over from a previous install. Using
+        // `{ recursive: true, force: true }` handles every shape in one
+        // call: `rmSync` no-ops on missing paths under `force: true`, and
+        // `recursive: true` covers the directory case. Avoids the EEXIST
+        // race a previous lstat-then-branch version hit when the stat's
+        // type-discrimination missed an edge case (e.g. broken symlink
+        // whose `isSymbolicLink()` returned a non-truthy value through
+        // Gio's NOFOLLOW path, leaving a leftover entry that
+        // `symlinkSync` would then refuse to overwrite).
         try {
-            const stat = lstatSync(linkPath);
-            if (stat.isSymbolicLink() || stat.isFile()) {
-                rmSync(linkPath, { force: true });
-            } else if (stat.isDirectory()) {
-                rmSync(linkPath, { recursive: true, force: true });
-            }
-        } catch { /* ENOENT — fine, nothing to remove */ }
+            rmSync(linkPath, { recursive: true, force: true });
+        } catch { /* unexpected — Gio failure on a path we just lstat'd to
+                     decide we wanted to remove. The subsequent symlinkSync
+                     will surface the real reason if there is one. */ }
         // Relative symlink so the repo is portable across checkout paths.
         const relTarget = relative(dirname(linkPath), link.targetLocation);
         symlinkSync(relTarget, linkPath);
