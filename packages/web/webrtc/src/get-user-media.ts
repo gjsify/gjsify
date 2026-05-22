@@ -11,6 +11,20 @@ import { Gst, ensureGstInit } from './gst-init.js';
 import { MediaStreamTrack } from './media-stream-track.js';
 import { MediaStream } from './media-stream.js';
 
+/**
+ * Structural shape for GStreamer element GObject-properties we set
+ * dynamically (none of these are typed on `Gst.Element` from the GIR
+ * bindings; GStreamer exposes them as runtime properties).
+ */
+interface _GstElementProps extends Gst.Element {
+    caps?: Gst.Caps;
+    is_live?: boolean;
+    /** audiotestsrc: 0=sine, 1=square, 2=saw, 3=triangle, ... */
+    wave?: number;
+    /** videotestsrc: 0=SMPTE bars, 1=snow, ... */
+    pattern?: number;
+}
+
 export interface MediaTrackConstraints {
     deviceId?: string;
     sampleRate?: number;
@@ -39,14 +53,14 @@ export async function getUserMedia(constraints: MediaStreamConstraints): Promise
     if (constraints.audio) {
         const audioConstraints = typeof constraints.audio === 'object' ? constraints.audio : {};
         const source = _createAudioSource();
-        const pipeline = new Gst.Pipeline() as any;
+        const pipeline = new Gst.Pipeline();
         pipeline.add(source);
 
         // Apply audio constraints via capsfilter
         const capsStr = _buildAudioCaps(audioConstraints);
         if (capsStr) {
             const capsfilter = Gst.ElementFactory.make('capsfilter', null)!;
-            (capsfilter as any).caps = Gst.Caps.from_string(capsStr);
+            (capsfilter as _GstElementProps).caps = Gst.Caps.from_string(capsStr);
             pipeline.add(capsfilter);
             source.link(capsfilter);
         }
@@ -61,14 +75,14 @@ export async function getUserMedia(constraints: MediaStreamConstraints): Promise
     if (constraints.video) {
         const videoConstraints = typeof constraints.video === 'object' ? constraints.video : {};
         const source = _createVideoSource();
-        const pipeline = new Gst.Pipeline() as any;
+        const pipeline = new Gst.Pipeline();
         pipeline.add(source);
 
         // Apply video constraints via capsfilter
         const capsStr = _buildVideoCaps(videoConstraints);
         if (capsStr) {
             const capsfilter = Gst.ElementFactory.make('capsfilter', null)!;
-            (capsfilter as any).caps = Gst.Caps.from_string(capsStr);
+            (capsfilter as _GstElementProps).caps = Gst.Caps.from_string(capsStr);
             pipeline.add(capsfilter);
             source.link(capsfilter);
         }
@@ -102,30 +116,30 @@ function _buildVideoCaps(c: MediaTrackConstraints): string | null {
     return `video/x-raw,${parts.join(',')}`;
 }
 
-function _createAudioSource(): any {
+function _createAudioSource(): Gst.Element {
     // Try real sources in priority order
     for (const name of ['pipewiresrc', 'pulsesrc', 'autoaudiosrc']) {
         const el = Gst.ElementFactory.make(name, null);
         if (el) {
-            try { (el as any).is_live = true; } catch { /* not all sources have is-live */ }
+            try { (el as _GstElementProps).is_live = true; } catch { /* not all sources have is-live */ }
             return el;
         }
     }
     // Fallback: test source (sine wave, audible for debugging)
     const el = Gst.ElementFactory.make('audiotestsrc', null)!;
-    (el as any).is_live = true;
-    (el as any).wave = 0; // sine
+    (el as _GstElementProps).is_live = true;
+    (el as _GstElementProps).wave = 0; // sine
     return el;
 }
 
-function _createVideoSource(): any {
+function _createVideoSource(): Gst.Element {
     for (const name of ['pipewiresrc', 'v4l2src', 'autovideosrc']) {
         const el = Gst.ElementFactory.make(name, null);
         if (el) return el;
     }
     // Fallback: test pattern
     const el = Gst.ElementFactory.make('videotestsrc', null)!;
-    (el as any).is_live = true;
-    (el as any).pattern = 0; // SMPTE bars
+    (el as _GstElementProps).is_live = true;
+    (el as _GstElementProps).pattern = 0; // SMPTE bars
     return el;
 }
