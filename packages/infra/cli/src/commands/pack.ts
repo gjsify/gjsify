@@ -31,12 +31,14 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { createTarball, gzip, type TarWriteEntry } from '@gjsify/tar';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
+import { runLifecycleScript } from '../utils/run-lifecycle-script.js';
 
 interface PackOptions {
     path?: string;
     'pack-destination'?: string;
     json?: boolean;
     'dry-run'?: boolean;
+    'ignore-scripts'?: boolean;
 }
 
 interface PackResult {
@@ -75,12 +77,21 @@ export const packCommand: Command<any, PackOptions> = {
                 description: 'Compute everything but do not write the .tgz.',
                 type: 'boolean',
                 default: false,
+            })
+            .option('ignore-scripts', {
+                description:
+                    'Skip the `prepack` lifecycle script before packing. ' +
+                    'Mirrors `npm pack --ignore-scripts`. Use when scripts ' +
+                    'are already run by the outer workflow.',
+                type: 'boolean',
+                default: false,
             }),
     handler: async (args) => {
         const wsDir = resolve(args.path ?? process.cwd());
         const result = await packWorkspace(wsDir, {
             destination: args['pack-destination'],
             dryRun: args['dry-run'] === true,
+            lifecycleScripts: args['ignore-scripts'] ? [] : ['prepack'],
         });
         if (args.json) {
             process.stdout.write(`${JSON.stringify([result], null, 2)}\n`);
@@ -97,6 +108,21 @@ export interface PackWorkspaceOptions {
     dryRun?: boolean;
     /** Skip the workspace:^ rewrite step (rare — useful for testing the raw layout). */
     skipWorkspaceRewrite?: boolean;
+    /**
+     * Lifecycle scripts to run from `pkg.scripts` BEFORE the file collection
+     * pass. Order matters — entries are executed sequentially, stopping on
+     * the first failure.
+     *
+     * Defaults:
+     *   - `['prepack']` from the `gjsify pack` CLI handler
+     *   - `['prepublishOnly', 'prepack']` from `gjsify publish`
+     *   - `[]` from programmatic callers that have already run scripts
+     *
+     * Mirrors `npm pack` / `npm publish` semantics. Pass `[]` (or set
+     * `--ignore-scripts` on the CLI) to skip — useful when an outer
+     * workflow has already produced the build artifacts.
+     */
+    lifecycleScripts?: readonly string[];
 }
 
 /**
@@ -117,18 +143,40 @@ export async function packWorkspace(wsDir: string, opts: PackWorkspaceOptions = 
         throw new Error(`gjsify pack: package.json at ${wsDir} has no "name"`);
     }
 
+    // Run npm-style lifecycle scripts BEFORE walking the file tree. The
+    // canonical case is `prepack` — many packages use it to generate
+    // build artifacts that aren't otherwise produced by their `build`
+    // script (template processing, codegen, etc.). Skipping these means
+    // the resulting tarball is missing files the package needs to work
+    // post-install. Matches `npm pack` / `npm publish` semantics.
+    const lifecycleScripts = opts.lifecycleScripts ?? ['prepack'];
+    for (const scriptName of lifecycleScripts) {
+        await runLifecycleScript(wsDir, pkg, scriptName, { optional: true });
+    }
+
+    // Re-read package.json AFTER lifecycle scripts in case one of them
+    // mutated it (e.g. a `prepack` that injects build metadata into
+    // package.json fields). Rare but legal — npm pack does the same.
+    const sourceAfterScripts = readFileSync(pkgPath, 'utf-8');
+    const pkgAfterScripts =
+        sourceAfterScripts === originalSource
+            ? pkg
+            : (JSON.parse(sourceAfterScripts) as Record<string, unknown>);
+
     // Rewrite workspace:^/~/* deps to resolved npm version ranges, mirroring
     // yarn's auto-rewrite at publish time. Done in-memory only — the source
     // package.json on disk is never mutated by `gjsify pack`.
     const rewrittenPkg = opts.skipWorkspaceRewrite
-        ? pkg
-        : rewriteWorkspaceDeps(pkg, wsDir);
-    const rewrittenSource = JSON.stringify(rewrittenPkg, null, indentOf(originalSource)) + '\n';
+        ? pkgAfterScripts
+        : rewriteWorkspaceDeps(pkgAfterScripts, wsDir);
+    const rewrittenSource =
+        JSON.stringify(rewrittenPkg, null, indentOf(sourceAfterScripts)) + '\n';
 
     // Collect files according to the package.json `files` field (or npm's
     // default set). The package.json itself is always included with the
-    // rewritten contents.
-    const filesToPack = collectFiles(wsDir, pkg);
+    // rewritten contents. We use the post-script `pkgAfterScripts` here so
+    // that any `files` array modified by a prepack script is honored.
+    const filesToPack = collectFiles(wsDir, pkgAfterScripts);
     const entries: TarWriteEntry[] = [{ name: 'package/', directory: true, mode: 0o755 }];
     const fileMetas: { path: string; size: number; mode: number }[] = [];
     let unpackedSize = 0;

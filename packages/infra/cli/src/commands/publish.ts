@@ -178,8 +178,17 @@ export const publishCommand: Command<any, PublishOptions> = {
             }
         }
 
-        // 1. Pack the workspace (rewrites workspace:^, computes integrity)
-        const packOpts: PackWorkspaceOptions = { dryRun: true };
+        // 1. Pack the workspace (rewrites workspace:^, computes integrity).
+        // Lifecycle scripts: `prepublishOnly` (publish-specific) runs before
+        // `prepack`. Matches `npm publish` semantics — packages that gate
+        // release-time validation on `prepublishOnly` (typecheck, smoke
+        // tests, version-tagging) get exactly that, and packages whose
+        // `prepack` generates build artifacts (process-templates,
+        // codegen, …) get those artifacts into the tarball.
+        const packOpts: PackWorkspaceOptions = {
+            dryRun: true,
+            lifecycleScripts: ['prepublishOnly', 'prepack'],
+        };
         const packed = await packWorkspace(wsDir, packOpts);
         // We need the raw bytes — re-run with destination=null and capture.
         // packWorkspace returns metadata only; for the bytes we re-pack into
@@ -386,9 +395,16 @@ export const publishCommand: Command<any, PublishOptions> = {
 
 async function packWorkspaceToBytes(wsDir: string): Promise<Uint8Array> {
     // Cheap re-run that writes to a tempdir, then read back. Avoids
-    // duplicating the file-walking + tar-building logic here.
+    // duplicating the file-walking + tar-building logic here. Lifecycle
+    // scripts are already run by the outer publish flow's first pack
+    // call — passing `[]` here skips re-running them (idempotent for
+    // most projects but a needless cost otherwise).
     const tmp = `/tmp/gjsify-publish-${process.pid}-${Date.now()}`;
-    const res = await packWorkspace(wsDir, { destination: tmp, dryRun: false });
+    const res = await packWorkspace(wsDir, {
+        destination: tmp,
+        dryRun: false,
+        lifecycleScripts: [],
+    });
     if (!res.absolutePath) throw new Error('gjsify publish: pack did not produce a file');
     const bytes = new Uint8Array(readFileSync(res.absolutePath));
     try { (await import('node:fs')).rmSync(res.absolutePath); } catch { /* best effort */ }
