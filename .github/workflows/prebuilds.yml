@@ -18,6 +18,8 @@ on:
       - 'packages/node/http2-native/meson.build'
       - 'packages/node/sab-native/src/vala/**'
       - 'packages/node/sab-native/meson.build'
+      - 'packages/node/tls-native/src/vala/**'
+      - 'packages/node/tls-native/meson.build'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/rolldown-native/src/**'
@@ -52,6 +54,8 @@ jobs:
         # libsoup3-devel is needed by @gjsify/http-soup-bridge for libsoup-3.0.
         # libnghttp2-devel is needed by @gjsify/http2-native for the HPACK / frame
         # encoder shim wrapping nghttp2.
+        # gnutls-devel provides the gnutls.pc + gnutls/ocsp.h that
+        # @gjsify/tls-native needs for OCSP-response parsing.
         # `curl` is needed by rustup-init below.
         run: >
           dnf install -y
@@ -65,6 +69,7 @@ jobs:
           gstreamer1-plugins-bad-free-devel
           libsoup3-devel
           libnghttp2-devel
+          gnutls-devel
           json-glib-devel
 
       - name: Install Rust toolchain (rustup, stable)
@@ -200,6 +205,34 @@ jobs:
         with:
           name: sab-native-prebuilds-linux-${{ matrix.arch }}
           path: packages/node/sab-native/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
+      # -------- @gjsify/tls-native (GjsifyTls) --------
+      # Vala bridge over GnuTLS's OCSP-response parser (gnutls_ocsp_resp_*),
+      # since Vala 0.56's bundled gnutls.vapi has no OCSP declarations.
+      # gnutls-devel provides the .pc + headers; the sibling vapi
+      # (`src/vala/gnutls-ocsp.vapi`) wires the missing declarations.
+      - name: Build @gjsify/tls-native Vala library
+        working-directory: packages/node/tls-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/tls-native prebuilds
+        working-directory: packages/node/tls-native
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p "prebuilds/linux-${ARCH}"
+          cp build/libgjsifytls.so build/GjsifyTls-1.0.gir build/GjsifyTls-1.0.typelib "prebuilds/linux-${ARCH}/"
+          echo "@gjsify/tls-native prebuilds for linux-${ARCH}:"
+          ls -lh "prebuilds/linux-${ARCH}/"
+
+      - name: Upload @gjsify/tls-native prebuilds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tls-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/node/tls-native/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
       # -------- @gjsify/lightningcss-native (GjsifyLightningcss) --------
@@ -339,6 +372,7 @@ jobs:
                 gstreamer1-plugins-bad-free-devel \
                 libsoup3-devel \
                 libnghttp2-devel \
+                gnutls-devel \
                 json-glib-devel
             else
               apt-get update
@@ -353,6 +387,7 @@ jobs:
                 libgstreamer-plugins-bad1.0-dev \
                 libsoup-3.0-dev \
                 libnghttp2-dev \
+                libgnutls28-dev \
                 libjson-glib-dev
             fi
 
@@ -414,6 +449,19 @@ jobs:
             ls -lh "prebuilds/linux-${ARCH}/"
             cd ../../..
 
+            # -------- @gjsify/tls-native --------
+            # GnuTLS OCSP-response parser. Pure C lib link via gnutls.pc;
+            # no Rust deps, so QEMU emulation cost stays in the meson +
+            # valac compile budget (single-arch cold build ≈ 30 s).
+            cd packages/node/tls-native
+            meson setup build .
+            meson compile -C build
+            mkdir -p "prebuilds/linux-${ARCH}"
+            cp build/libgjsifytls.so build/GjsifyTls-1.0.gir build/GjsifyTls-1.0.typelib "prebuilds/linux-${ARCH}/"
+            echo "@gjsify/tls-native prebuilds for linux-${ARCH}:"
+            ls -lh "prebuilds/linux-${ARCH}/"
+            cd ../../..
+
             # -------- @gjsify/lightningcss-native --------
             # Pure crates.io deps (no submodule). Cargo download + compile
             # under QEMU is the slow step here — single-arch cold build
@@ -470,6 +518,13 @@ jobs:
         with:
           name: sab-native-prebuilds-linux-${{ matrix.arch }}
           path: packages/node/sab-native/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
+      - name: Upload @gjsify/tls-native prebuilds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tls-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/node/tls-native/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
       - name: Upload @gjsify/lightningcss-native prebuilds artifact
@@ -648,6 +703,37 @@ jobs:
           name: sab-native-prebuilds-linux-riscv64
           path: packages/node/sab-native/prebuilds/linux-riscv64/
 
+      # -------- @gjsify/tls-native --------
+      - name: Download tls-native x86_64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: tls-native-prebuilds-linux-x86_64
+          path: packages/node/tls-native/prebuilds/linux-x86_64/
+
+      - name: Download tls-native aarch64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: tls-native-prebuilds-linux-aarch64
+          path: packages/node/tls-native/prebuilds/linux-aarch64/
+
+      - name: Download tls-native ppc64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: tls-native-prebuilds-linux-ppc64
+          path: packages/node/tls-native/prebuilds/linux-ppc64/
+
+      - name: Download tls-native s390x prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: tls-native-prebuilds-linux-s390x
+          path: packages/node/tls-native/prebuilds/linux-s390x/
+
+      - name: Download tls-native riscv64 prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          name: tls-native-prebuilds-linux-riscv64
+          path: packages/node/tls-native/prebuilds/linux-riscv64/
+
       # -------- @gjsify/lightningcss-native --------
       - name: Download lightningcss-native x86_64 prebuilds
         uses: actions/download-artifact@v4
@@ -702,6 +788,7 @@ jobs:
             packages/node/http-soup-bridge/prebuilds/ \
             packages/node/http2-native/prebuilds/ \
             packages/node/sab-native/prebuilds/ \
+            packages/node/tls-native/prebuilds/ \
             packages/infra/lightningcss-native/prebuilds/ \
             packages/infra/rolldown-native/prebuilds/
           if git diff --cached --quiet; then
