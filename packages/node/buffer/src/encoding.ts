@@ -1,5 +1,11 @@
 // Shared encoding normalization utilities.
-// Used by buffer, string_decoder, crypto, and other packages that deal with encodings.
+//
+// Originally lived in `@gjsify/utils/src/encoding.ts`; moved here in
+// v0.4.21+ because every consumer (this package, `@gjsify/string_decoder`,
+// `@gjsify/crypto`) is in the Buffer/encoding domain. `@gjsify/buffer`
+// re-exports the public surface (`normalizeEncoding`, `checkEncoding`,
+// `Encoding`) so downstreams that previously imported from `@gjsify/utils`
+// switch to `@gjsify/buffer` instead.
 
 /** Canonical encoding names (matches BufferEncoding from @types/node). */
 export type Encoding = 'utf8' | 'ascii' | 'latin1' | 'base64' | 'base64url' | 'hex' | 'utf16le' | 'binary' | 'ucs2' | 'ucs-2' | 'utf-8';

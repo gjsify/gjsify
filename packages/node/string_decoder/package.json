@@ -39,6 +39,6 @@
         "typescript": "^6.0.3"
     },
     "dependencies": {
-        "@gjsify/utils": "workspace:^"
+        "@gjsify/buffer": "workspace:^"
     }
 }

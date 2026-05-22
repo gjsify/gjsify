@@ -5,7 +5,7 @@ import GLib from '@girs/glib-2.0';
 import { Transform } from 'node:stream';
 import type { TransformCallback } from 'node:stream';
 import { Buffer } from 'node:buffer';
-import { normalizeEncoding } from '@gjsify/utils';
+import { normalizeEncoding } from '@gjsify/buffer';
 import { normalizeAlgorithm } from './crypto-utils.js';
 
 const CHECKSUM_TYPES: Record<string, GLib.ChecksumType> = {

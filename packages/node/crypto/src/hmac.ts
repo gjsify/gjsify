@@ -5,7 +5,7 @@
 import { Transform } from 'node:stream';
 import type { TransformCallback } from 'node:stream';
 import { Buffer } from 'node:buffer';
-import { normalizeEncoding } from '@gjsify/utils';
+import { normalizeEncoding } from '@gjsify/buffer';
 import { Hash } from './hash.js';
 import { normalizeAlgorithm, BLOCK_SIZES, SUPPORTED_ALGORITHMS } from './crypto-utils.js';
 

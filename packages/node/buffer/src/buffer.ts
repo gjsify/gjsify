@@ -3,7 +3,8 @@
 
 // BufferEncoding is a global type provided by @types/node
 
-import { normalizeEncoding, checkEncoding, atobPolyfill as _atob, btoaPolyfill as _btoa, base64Decode } from '@gjsify/utils';
+import { normalizeEncoding, checkEncoding } from './encoding.js';
+import { atobPolyfill as _atob, btoaPolyfill as _btoa, base64Decode } from './base64.js';
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
