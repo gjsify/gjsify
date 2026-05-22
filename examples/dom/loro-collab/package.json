@@ -1,0 +1,29 @@
+{
+    "name": "@gjsify/example-dom-loro-collab",
+    "description": "Two-pane collaborative text editor backed by Loro CRDTs — demonstrates real-time sync between two LoroDoc instances inside a single GTK4/Adwaita window. Each pane edits its own LoroDoc; the example wires them up so every commit is exchanged via snapshot bytes and both panes converge on the same merged text. Built on @gjsify/webassembly + the loro-crdt npm package (base64 entry).",
+    "main": "dist/loro-collab.gjs.js",
+    "type": "module",
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo",
+        "check": "tsc --noEmit",
+        "start": "gjsify run dist/loro-collab.gjs.js",
+        "build": "gjsify run build:gjs",
+        "build:gjs": "gjsify build src/main.ts --app gjs --outfile dist/loro-collab.gjs.js --globals 'auto,TextEncoder,TextDecoder,performance,crypto,console,Date'"
+    },
+    "devDependencies": {
+        "@girs/adw-1": "1.8.0-4.0.0-rc.15",
+        "@girs/gio-2.0": "2.88.0-4.0.0-rc.15",
+        "@girs/gjs": "4.0.0-rc.15",
+        "@girs/glib-2.0": "2.88.0-4.0.0-rc.15",
+        "@girs/gobject-2.0": "2.88.0-4.0.0-rc.15",
+        "@girs/gtk-4.0": "4.23.0-4.0.0-rc.15",
+        "@gjsify/cli": "workspace:^",
+        "@types/node": "^25.6.2",
+        "loro-crdt": "^1.12.1",
+        "typescript": "^6.0.3"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT",
+    "private": true,
+    "version": "0.4.21"
+}

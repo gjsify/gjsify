@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/loro-text.spec.ts",
+        "src/loro-list.spec.ts",
+        "src/loro-map.spec.ts",
+        "src/loro-tree.spec.ts",
+        "src/loro-snapshot-sync.spec.ts"
+    ]
+}
