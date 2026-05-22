@@ -42,6 +42,13 @@ export const dlxCommand: Command<any, DlxOptions> = {
         'Run the GJS bundle of an npm-published package without installing it locally.',
     builder: (yargs) =>
         yargs
+            // Collect everything after `--` into argv['--'] so callers can
+            // forward flags that would otherwise be intercepted by gjsify's
+            // own parser. Canonical example: `gjsify dlx @ts-for-gir/cli --
+            // --help` shows ts-for-gir's --help instead of gjsify dlx's.
+            // Without `populate--`, the trailing `--help` is consumed at
+            // the gjsify level and the bundle never sees it.
+            .parserConfiguration({ 'populate--': true })
             .positional('spec', {
                 description:
                     'Package spec (`name`, `name@version`, `@scope/name@spec`, or local path).',
@@ -50,11 +57,11 @@ export const dlxCommand: Command<any, DlxOptions> = {
             })
             .positional('binOrArg', {
                 description:
-                    'Optional bin name when the package defines `gjsify.bin` with multiple entries; otherwise treated as the first argument forwarded to the bundle.',
+                    'Optional bin name when the package defines `gjsify.bin` with multiple entries; otherwise treated as the first argument forwarded to the bundle. To pass a flag here (e.g. `--help`) use the `--` separator: `gjsify dlx <pkg> -- --help`.',
                 type: 'string',
             })
             .positional('extraArgs', {
-                description: 'Extra args forwarded to `gjs -m <bundle>`.',
+                description: 'Extra args forwarded to `gjs -m <bundle>`. Use `--` before flags to bypass gjsify-level parsing (`gjsify dlx <pkg> -- --help --verbose`).',
                 type: 'string',
                 array: true,
             })
@@ -101,10 +108,20 @@ export const dlxCommand: Command<any, DlxOptions> = {
         //   gjsify dlx <pkg> mybin                   → bin if package has gjsify.bin[mybin], else arg
         //   gjsify dlx <pkg> mybin -- arg1 arg2      → bin + extra args
         //   gjsify dlx <pkg> -- arg1 arg2            → no bin, extra args
+        //
+        // The `parserConfiguration({ 'populate--': true })` on the builder
+        // routes anything after `--` into `args['--']` (as `(string |
+        // number)[]`), so flags like `--help` reach the bundle untouched.
+        // Merge those into the positional extraArgs the splitter sees so
+        // both call shapes share one downstream path.
+        const passthroughDoubleDash = ((args as { ['--']?: ReadonlyArray<string | number> })['--'] ?? []).map((v) =>
+            String(v),
+        );
+        const extraArgsCombined = [...(args.extraArgs ?? []), ...passthroughDoubleDash];
         const { binName, extraArgs } = splitBinAndArgs(
             pkgDir,
             args.binOrArg,
-            args.extraArgs ?? [],
+            extraArgsCombined,
         );
 
         const entry = resolveGjsEntry(pkgDir, binName);
