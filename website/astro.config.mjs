@@ -68,6 +68,13 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Patterns',
+          items: [
+            { slug: 'patterns' },
+            { slug: 'patterns/gobject-classes' },
+          ],
+        },
+        {
           label: 'Contributing',
           items: [
             { slug: 'contributing/development-setup' },
