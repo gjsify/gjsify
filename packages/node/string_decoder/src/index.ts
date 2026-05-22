@@ -3,7 +3,7 @@
 // Uses function constructor (not ES6 class) for compatibility with legacy CJS patterns
 // that call StringDecoder.call(this, enc) (e.g., iconv-lite).
 
-import { normalizeEncoding, checkEncoding, base64Encode as bytesToBase64 } from '@gjsify/utils';
+import { normalizeEncoding, checkEncoding, base64Encode as bytesToBase64 } from '@gjsify/buffer';
 
 function normalizeAndValidateEncoding(enc?: string): string {
   if (enc) checkEncoding(enc);

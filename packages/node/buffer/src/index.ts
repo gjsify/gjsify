@@ -11,6 +11,13 @@ export {
   constants,
 };
 
+// Re-export encoding + base64 helpers that used to live in `@gjsify/utils`.
+// `@gjsify/string_decoder`, `@gjsify/crypto`, and other Buffer/encoding
+// consumers import these from here (their natural home — they describe the
+// Buffer-encoding contract).
+export { normalizeEncoding, checkEncoding, type Encoding } from './encoding.js';
+export { base64Encode, base64Decode, atobPolyfill, btoaPolyfill } from './base64.js';
+
 // Re-export Web APIs that Node's buffer module also exports (Blob since Node 18)
 import { Blob as BlobImpl, File as FileImpl } from './blob.js';
 

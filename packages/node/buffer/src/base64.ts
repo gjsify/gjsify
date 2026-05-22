@@ -1,6 +1,13 @@
-// Base64 encoding/decoding utilities for GJS
-// Shared by @gjsify/buffer and @gjsify/string_decoder
-// Reference: RFC 4648
+// Base64 encoding/decoding utilities.
+//
+// Originally lived in `@gjsify/utils/src/base64.ts`; moved here in v0.4.21+
+// because every consumer (this package, `@gjsify/string_decoder`,
+// `@gjsify/crypto`) is in the Buffer/encoding domain. `@gjsify/buffer`
+// re-exports the public surface (`base64Encode`, `base64Decode`,
+// `atobPolyfill`, `btoaPolyfill`) so downstreams that previously imported
+// from `@gjsify/utils` switch to `@gjsify/buffer` instead.
+//
+// Reference: RFC 4648.
 
 const B64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 const B64_LOOKUP = new Uint8Array(256);
