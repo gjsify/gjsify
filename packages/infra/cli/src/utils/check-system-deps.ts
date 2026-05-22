@@ -143,6 +143,14 @@ const OPTIONAL_DEPS: Record<string, OptionalDep> = {
     pangocairo: { id: 'pangocairo', name: 'PangoCairo',     pkgName: 'pangocairo' },
     webkitgtk:  { id: 'webkitgtk',  name: 'WebKitGTK',      pkgName: 'webkitgtk-6.0' },
     cairo:      { id: 'cairo',      name: 'Cairo',          pkgName: 'cairo' },
+    // Build-time deps for @gjsify/*-native Vala prebuilds. End-users with
+    // installed prebuilds don't need the -devel package — only contributors
+    // rebuilding from source via `yarn build:prebuilds`. We still surface
+    // them in the optional set so the "missing" diagnostic catches build-
+    // time failures with an actionable install-hint instead of a meson
+    // `Run-time dependency X found: NO` error mid-build.
+    gnutls:     { id: 'gnutls',     name: 'GnuTLS',         pkgName: 'gnutls' },
+    nghttp2:    { id: 'nghttp2',    name: 'libnghttp2',     pkgName: 'libnghttp2' },
 };
 
 /**
@@ -164,6 +172,12 @@ const PACKAGE_DEPS: Record<string, string[]> = {
     // runOptionalChecks. Mapping it here so its presence in the project's
     // dep tree triggers the check.
     '@gjsify/webgl':         ['gwebgl'],
+    // Native Vala bridges with `dependency('gnutls')` / `dependency('libnghttp2')`
+    // in their meson.build. Optional because the shipped prebuild covers the
+    // common-arch user path; only contributors rebuilding from source hit the
+    // build-time dep.
+    '@gjsify/tls-native':    ['gnutls'],
+    '@gjsify/http2-native':  ['nghttp2'],
     // @gjsify/event-bridge only needs gtk4/gdk which are already in the
     // required set, so it doesn't need an optional entry.
 };
@@ -361,6 +375,8 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         pango: 'libpango1.0-dev',
         pangocairo: 'libpango1.0-dev',
         cairo: 'libcairo2-dev',
+        gnutls: 'libgnutls28-dev',
+        nghttp2: 'libnghttp2-dev',
     },
     dnf: {
         gjs: 'gjs',
@@ -379,6 +395,8 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         pango: 'pango-devel',
         pangocairo: 'pango-devel',
         cairo: 'cairo-devel',
+        gnutls: 'gnutls-devel',
+        nghttp2: 'libnghttp2-devel',
     },
     pacman: {
         gjs: 'gjs',
@@ -397,6 +415,8 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         pango: 'pango',
         pangocairo: 'pango',
         cairo: 'cairo',
+        gnutls: 'gnutls',
+        nghttp2: 'libnghttp2',
     },
     zypper: {
         gjs: 'gjs',
@@ -415,6 +435,8 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         pango: 'pango-devel',
         pangocairo: 'pango-devel',
         cairo: 'cairo-devel',
+        gnutls: 'libgnutls-devel',
+        nghttp2: 'libnghttp2-devel',
     },
     apk: {
         gjs: 'gjs',
@@ -433,6 +455,8 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         pango: 'pango-dev',
         pangocairo: 'pango-dev',
         cairo: 'cairo-dev',
+        gnutls: 'gnutls-dev',
+        nghttp2: 'nghttp2-dev',
     },
     unknown: {},
 };
