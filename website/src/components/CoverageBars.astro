@@ -1,0 +1,249 @@
+---
+// Visualisation of gjsify's per-category API coverage.
+//
+// Source data lives in `src/data/coverage.ts` (mirrors STATUS.md Summary).
+// Each row renders as a stacked progress bar (Full / Partial / Stub) with
+// the percentage of Full coverage as the headline number, the absolute
+// counts on hover, and an optional note (used for categories like
+// Showcases where "Full count" is the interesting number, not the %).
+//
+// The aggregate "Across all categories" footer line gives a one-glance
+// answer to "how complete is gjsify?".
+
+import { coverageRows, totalsAcrossCategories } from "../data/coverage.ts";
+
+const totals = totalsAcrossCategories();
+const aggregateFullPct = Math.round((totals.full / totals.total) * 100);
+---
+
+<section class="coverage">
+	<h2 class="coverage-title">API coverage</h2>
+	<p class="coverage-subtitle">
+		Per-category implementation state. <strong>Full</strong> = every API surface that the consumer reaches works; <strong>Partial</strong> = core surface works, specific subsystems missing or behind a fallback; <strong>Stub</strong> = exists so dependency checks resolve, no-op on use.
+	</p>
+
+	<div class="coverage-rows">
+		{coverageRows.map((row) => {
+			const fullPct = (row.full / row.total) * 100;
+			const partialPct = (row.partial / row.total) * 100;
+			const stubPct = (row.stub / row.total) * 100;
+			const fullPctRounded = Math.round(fullPct);
+			return (
+				<div class="coverage-row">
+					<div class="coverage-row-head">
+						<span class="coverage-row-label">{row.category}</span>
+						<span class="coverage-row-headline">
+							{fullPctRounded === 100 ? (
+								<span class="coverage-row-headline-full">{row.full} / {row.total}</span>
+							) : (
+								<>
+									<span class="coverage-row-headline-pct">{fullPctRounded}%</span>
+									<span class="coverage-row-headline-sub">{row.full} / {row.total}</span>
+								</>
+							)}
+						</span>
+					</div>
+					<div
+						class="coverage-bar"
+						role="img"
+						aria-label={`${row.category}: ${row.full} full, ${row.partial} partial, ${row.stub} stub`}
+					>
+						{row.full > 0 && (
+							<span
+								class="coverage-seg coverage-seg-full"
+								style={`width: ${fullPct}%`}
+								title={`Full: ${row.full}`}
+							/>
+						)}
+						{row.partial > 0 && (
+							<span
+								class="coverage-seg coverage-seg-partial"
+								style={`width: ${partialPct}%`}
+								title={`Partial: ${row.partial}`}
+							/>
+						)}
+						{row.stub > 0 && (
+							<span
+								class="coverage-seg coverage-seg-stub"
+								style={`width: ${stubPct}%`}
+								title={`Stub: ${row.stub}`}
+							/>
+						)}
+					</div>
+					{row.note && <p class="coverage-row-note">{row.note}</p>}
+				</div>
+			);
+		})}
+	</div>
+
+	<div class="coverage-aggregate">
+		<span class="coverage-aggregate-label">Across all categories</span>
+		<span class="coverage-aggregate-headline">{aggregateFullPct}%</span>
+		<span class="coverage-aggregate-sub">{totals.full} of {totals.total} packages at Full coverage · {totals.partial} Partial · {totals.stub} Stub</span>
+	</div>
+</section>
+
+<style is:global>
+	.coverage {
+		max-width: 900px;
+		margin-inline: auto;
+		padding-block: clamp(2rem, 5vw, 4rem);
+		padding-inline: 1.5rem;
+	}
+
+	.coverage-title {
+		font-size: clamp(1.5rem, 3vw, 2rem);
+		font-weight: 800;
+		letter-spacing: -0.02em;
+		margin: 0 0 0.75rem;
+		color: var(--sl-color-white);
+	}
+
+	.coverage-subtitle {
+		color: var(--sl-color-gray-2);
+		font-size: 0.95rem;
+		line-height: 1.55;
+		margin: 0 0 2rem;
+	}
+
+	.coverage-rows {
+		display: flex;
+		flex-direction: column;
+		gap: 1.5rem;
+	}
+
+	.coverage-row {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.coverage-row-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
+	.coverage-row-label {
+		font-weight: 600;
+		color: var(--sl-color-white);
+		font-size: 1rem;
+	}
+
+	.coverage-row-headline {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0.5rem;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.coverage-row-headline-pct {
+		font-weight: 700;
+		font-size: 1.05rem;
+		color: var(--sl-color-accent);
+	}
+
+	.coverage-row-headline-full {
+		font-weight: 700;
+		font-size: 1.05rem;
+		color: #26a269;
+	}
+
+	.coverage-row-headline-sub {
+		color: var(--sl-color-gray-3);
+		font-size: 0.85rem;
+	}
+
+	/* The bar itself — stacked horizontal segments. */
+	.coverage-bar {
+		display: flex;
+		width: 100%;
+		height: 12px;
+		background: var(--sl-color-bg-nav);
+		border: 1px solid var(--adw-card-border);
+		border-radius: 6px;
+		overflow: hidden;
+	}
+
+	.coverage-seg {
+		display: block;
+		height: 100%;
+		transition: opacity 0.15s;
+	}
+
+	.coverage-seg:hover {
+		opacity: 0.85;
+	}
+
+	.coverage-seg-full    { background: #26a269; }     /* GNOME green */
+	.coverage-seg-partial { background: #e5a50a; }     /* GNOME yellow */
+	.coverage-seg-stub    { background: var(--sl-color-gray-4); }
+
+	.coverage-row-note {
+		margin: 0;
+		font-size: 0.85rem;
+		color: var(--sl-color-gray-3);
+		font-style: italic;
+	}
+
+	/* --- Aggregate footer --- */
+	.coverage-aggregate {
+		margin-top: 2.5rem;
+		padding: 1.5rem;
+		border-radius: var(--adw-border-radius);
+		border: 1px solid var(--adw-card-border);
+		background: linear-gradient(180deg, var(--sl-color-accent-low) 0%, var(--sl-color-bg-nav) 80%);
+		display: grid;
+		grid-template-columns: auto 1fr;
+		grid-template-rows: auto auto;
+		gap: 0.1rem 1rem;
+		align-items: center;
+	}
+
+	.coverage-aggregate-label {
+		grid-column: 1;
+		grid-row: 1 / 3;
+		font-weight: 600;
+		color: var(--sl-color-white);
+		font-size: 1.05rem;
+	}
+
+	.coverage-aggregate-headline {
+		grid-column: 2;
+		grid-row: 1;
+		font-weight: 800;
+		font-size: clamp(1.5rem, 3vw, 2rem);
+		color: var(--sl-color-accent);
+		letter-spacing: -0.02em;
+		justify-self: end;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.coverage-aggregate-sub {
+		grid-column: 2;
+		grid-row: 2;
+		color: var(--sl-color-gray-2);
+		font-size: 0.9rem;
+		justify-self: end;
+	}
+
+	@media (max-width: 600px) {
+		.coverage-aggregate {
+			grid-template-columns: 1fr;
+			grid-template-rows: auto auto auto;
+			text-align: center;
+		}
+
+		.coverage-aggregate-label,
+		.coverage-aggregate-headline,
+		.coverage-aggregate-sub {
+			grid-column: 1;
+			justify-self: center;
+		}
+
+		.coverage-aggregate-label { grid-row: 1; }
+		.coverage-aggregate-headline { grid-row: 2; }
+		.coverage-aggregate-sub { grid-row: 3; }
+	}
+</style>

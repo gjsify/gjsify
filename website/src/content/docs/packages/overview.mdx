@@ -3,6 +3,8 @@ title: Overview
 description: Summary of all 70+ GJSify packages
 ---
 
+import CoverageBars from '../../../components/CoverageBars.astro';
+
 GJSify provides **70+ packages** organized into four categories, all implementing standard APIs using native GNOME libraries.
 
 | Category | Packages | Description |
@@ -12,11 +14,7 @@ GJSify provides **70+ packages** organized into four categories, all implementin
 | [DOM & Graphics](./dom) | 8 | Canvas2D (+ headless core), WebGL, DOM elements, event bridge, iframe, video, bridge-types |
 | Adwaita for browser | 3 | `@gjsify/adwaita-web`, `@gjsify/adwaita-fonts`, `@gjsify/adwaita-icons` |
 
-## Status Legend
-
-- **Full** — Complete implementation, tests passing
-- **Partial** — Core functionality implemented, some APIs missing
-- **Stub** — Minimal placeholder, not yet functional
+<CoverageBars />
 
 ## Installation
 
