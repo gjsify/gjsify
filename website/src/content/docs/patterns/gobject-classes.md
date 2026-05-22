@@ -81,7 +81,7 @@ class Foo extends GObject.Object {
 }
 ```
 
-Works **iff** every `static [GObject.*] = …` initializer appears *above* the static block. ES class evaluation is strict source-order, so `static [GObject.interfaces] = …` must be assigned *before* `registerClass()` reads it. **Form A is preferable** because the rule isn't enforceable at the type level — a refactor that moves a static field around breaks Form B silently at runtime.
+Works **only if** every `static [GObject.*] = …` initializer appears *above* the static block. ES class evaluation is strict source-order, so `static [GObject.interfaces] = …` must be assigned *before* `registerClass()` reads it. **Form A is preferable** because the rule isn't enforceable at the type level — a refactor that moves a static field around breaks Form B silently at runtime.
 
 ### Form C — functional (no static block)
 
