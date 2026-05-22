@@ -424,15 +424,17 @@ gjsify workspace @gjsify/fetch test:gjs
 | `<script>` | Script name to run. |
 | `[args..]` | Extra arguments forwarded to the script. |
 
-## `gjsify check`
+## `gjsify system-check`
 
 Verify that required system dependencies are installed.
 
 ```bash
-npx @gjsify/cli check
+npx @gjsify/cli system-check
 ```
 
 Reports an install command for your detected package manager when something is missing. Exits with code **1** if any required dependency is missing.
+
+> **Note:** The legacy name `gjsify check` still works as a deprecated alias. It will be repurposed in a future release for package-level TypeScript checks (analogous to `gjsify format` / `lint` / `fix`).
 
 <details>
 <summary>Required vs optional dependencies</summary>
@@ -584,7 +586,7 @@ Requires `msgfmt` (package: `gettext`).
 
 See it in action: [`adwaita-package-builder` showcase](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-package-builder) uses both `--format mo` (runtime `.mo` tree) and `--format xml --metainfo` (AppStream substitution).
 
-Before running, `gjsify showcase` calls `gjsify check` to verify system dependencies.
+Before running, `gjsify showcase` calls `gjsify system-check` to verify system dependencies.
 
 ## `gjsify flatpak`
 
@@ -970,7 +972,7 @@ Use `gjsify fix` for the combined format + safe-lint-fix + organize-imports pass
 
 ## `gjsify fix`
 
-Combined `format + safe-lint-fix + organize-imports` (wraps Biome's `check --write`). Different from `gjsify check` (which verifies system dependencies).
+Combined `format + safe-lint-fix + organize-imports` (wraps Biome's `check --write`). Different from `gjsify system-check` (which verifies system dependencies).
 
 ```bash
 gjsify fix               # default: apply all safe fixes

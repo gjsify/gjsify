@@ -5,9 +5,9 @@ interface CheckOptions {
     json: boolean;
 }
 
-export const checkCommand: Command<any, CheckOptions> = {
-    command: 'check',
-    description: 'Check that required system dependencies (GJS, GTK4, libsoup3, …) are installed. Optional dependencies are detected only when their @gjsify/* package is in your project.',
+export const systemCheckCommand: Command<any, CheckOptions> = {
+    command: ['system-check', 'check'],
+    description: 'Check that required system dependencies (GJS, GTK4, libsoup3, …) are installed. Optional dependencies are detected only when their @gjsify/* package is in your project. The legacy `check` alias is deprecated and will be repurposed in a future release for package-level TypeScript checks (analogous to `gjsify format` / `lint` / `fix`).',
     builder: (yargs) => {
         return yargs
             .option('json', {
