@@ -189,13 +189,26 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
         const cleanup = flatpak.cleanup;
         if (cleanup?.length) manifest.cleanup = cleanup;
 
+        // Module assembly. Two precedence rules:
+        //   `flatpak.modules`      — full replacement; if set, neither the
+        //                            extras nor the meson default get added.
+        //                            Right shape for npm-tarball CLI tools
+        //                            where the meson default would be wrong.
+        //   `flatpak.extraModules` — prepended to the meson default.
+        //                            Right shape for meson-built GTK apps
+        //                            that want a few extra sibling modules
+        //                            (e.g. blueprint-compiler).
         const modules: unknown[] = [];
-        if (flatpak.extraModules?.length) modules.push(...flatpak.extraModules);
-        modules.push({
-            name: deriveModuleName(appId),
-            buildsystem: 'meson',
-            sources: [{ type: 'dir', path: '.' }],
-        });
+        if (flatpak.modules?.length) {
+            modules.push(...flatpak.modules);
+        } else {
+            if (flatpak.extraModules?.length) modules.push(...flatpak.extraModules);
+            modules.push({
+                name: deriveModuleName(appId),
+                buildsystem: 'meson',
+                sources: [{ type: 'dir', path: '.' }],
+            });
+        }
         manifest.modules = modules;
 
         const writtenFiles: string[] = [];

@@ -253,6 +253,13 @@ export interface ConfigDataFlatpak {
     finishArgs?: string[];
     /** Extra Flatpak modules prepended before the app's own meson/simple module (e.g. `blueprint-compiler` build). */
     extraModules?: unknown[];
+    /**
+     * Full replacement for the manifest's `modules` array. When set, neither
+     * `extraModules` nor the meson default get added — the array is used
+     * verbatim. Right shape for CLI tools that ship a pre-built bundle and
+     * install via shell commands (`buildsystem: simple`) instead of meson.
+     */
+    modules?: unknown[];
     /** Cleanup glob patterns applied to the final manifest, e.g. `['/include', '/lib/pkgconfig']`. */
     cleanup?: string[];
     /** Source-of-truth lockfile for `gjsify flatpak deps` — `yarn.lock` or `package-lock.json`. */
