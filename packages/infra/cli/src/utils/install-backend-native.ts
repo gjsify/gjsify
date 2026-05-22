@@ -518,7 +518,8 @@ export function parseSpec(raw: string): ParsedSpec {
     return { name: raw.slice(0, at), range: raw.slice(at + 1) || "latest" };
 }
 
-function pickVersion(packument: Packument, range: string): string | null {
+// Exported for unit-testing. Internal API.
+export function pickVersion(packument: Packument, range: string): string | null {
     // dist-tag fast path: `latest`, `next`, ...
     if (packument["dist-tags"][range]) return packument["dist-tags"][range];
 
