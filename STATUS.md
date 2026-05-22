@@ -902,6 +902,23 @@ User-tracked items collected on 2026-05-21. Not blocking anything, but every one
 - **Web/Node compat as progress bars on the website.** STATUS.md's summary table (`| Category | Total | Full | Partial | Stub |`) is the source of truth for coverage. The current website lists APIs textually; rendering the same data as `<progress>`/bar-style components with the exact `Full / (Full+Partial+Stub)` percentage per pillar makes the picture immediate. Driven by a small data file (`website/src/data/coverage.ts`) regenerated from STATUS.md so the bars never lag behind reality. Same idea per package on the detail pages.
 - **Ship `gjsify` and `ts-for-gir` themselves as Flathub CLI apps.** The `gjsify flatpak --cli-only` path (PR2 of the Flatpak-toolchain line, see entry below) already produces the right shape: GNOME Platform runtime + Node-SDK-Extension build-time + read-only `/usr/share/gir-1.0`/`/usr/share/gobject-introspection-1.0` mounts. Take both CLIs through the full Flathub-submission flow (manifest in `flathub/<app-id>` repo, `flatpak-builder` validation, appstreamcli + `flatpak-builder-lint` passing, screenshots/release notes). Stretches the helper subcommands against the canonical Flathub gate.
 
+### Low priority — Monitor Oxc maturity for a potential Biome → Oxc lint/format swap
+
+We picked Biome for `gjsify format` / `gjsify lint` / `gjsify fix` early on because it shipped a complete combined formatter + linter + import-sorter with one config file. The rest of the build stack is Vite-aligned (Rolldown bundler, Vite-plugin track), and Vite's sister project [Oxc](https://oxc.rs/) — same team as Rolldown — is converging on a competing Rust-based lint + format combo (`oxlint` 1.66.x stable, `oxfmt` shipping but younger). Code lives under `refs/oxc/` for reference.
+
+Not migrating today because:
+- We already use Oxc indirectly (Rolldown bundles `oxc-parser` for transform); the "Vite alignment" pressure is less urgent than it looks.
+- Migration cost is real (10+ packages × per-project `biome.json` → `oxlintrc.json` rewrite × verify-pass), no end-user value.
+- `oxfmt` is younger than Biome's formatter; Prettier-compat parity needs verification before a swap is worth it.
+- Biome 2.4 is stable and uncontroversial in our codebase.
+
+Triggers that would warrant the swap:
+- **Vite 8+ bakes Oxc into its core lint/format pipeline.** Carrying two Rust toolchains in the same workspace becomes wasteful.
+- **Biome hits a wall** (bug or feature gap we can't work around).
+- **`oxfmt` reaches v1.0 with confirmed Prettier-compat parity** AND a measurable improvement that we'd notice (build time, config ergonomics, ESLint-plugin coverage).
+
+Tracking spec: occasional spot-check of `refs/oxc/CHANGELOG.md` and `refs/oxc/apps/oxfmt/` for `oxfmt v1.0` milestone — at which point this entry escalates to "Medium priority — Pilot Oxc on `@gjsify/cli` first, then roll out".
+
 ### Low priority — WebGL deferred items (Workstream D)
 
 Surfaced (and removed from the source as bare `// TODO`/`// FIXME` markers) during the `webgl-context-base.ts` split. Each entry lives next to a structured `STATUS.md "Open TODOs": …` comment in the new module that owns the affected code path.
