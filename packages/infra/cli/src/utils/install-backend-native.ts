@@ -492,17 +492,30 @@ function describeLockfileDrift(lockfile: Lockfile, specs: string[]): string | nu
     return lines.join("\n");
 }
 
-function parseSpec(raw: string): ParsedSpec {
+// Exported for unit-testing — keep the function name + signature
+// stable, the install-backend itself still calls it via the local
+// binding below. Internal API.
+export function parseSpec(raw: string): ParsedSpec {
+    // Bare names without an explicit `@version` resolve to the `latest`
+    // dist-tag. This matches npm CLI behaviour (`npm install foo` →
+    // foo@latest) and — crucially — picks up prereleases when the
+    // publisher has tagged them as `latest`. Using semver `*` here
+    // would silently exclude any version with a `-` (rc, beta, alpha,
+    // …) suffix per semver §9 ("Pre-release versions have a lower
+    // precedence than the associated normal version"); ts-for-gir
+    // shipped only prereleases (4.0.0-rc.17 is the `latest` tag, no
+    // stable 4.x yet) and `*` was selecting the abandoned 3.3.0
+    // instead.
     if (raw.startsWith("@")) {
         const slash = raw.indexOf("/");
         if (slash < 0) throw new Error(`Invalid spec (scoped name without slash): ${raw}`);
         const at = raw.indexOf("@", slash);
-        if (at < 0) return { name: raw, range: "*" };
-        return { name: raw.slice(0, at), range: raw.slice(at + 1) || "*" };
+        if (at < 0) return { name: raw, range: "latest" };
+        return { name: raw.slice(0, at), range: raw.slice(at + 1) || "latest" };
     }
     const at = raw.indexOf("@");
-    if (at < 0) return { name: raw, range: "*" };
-    return { name: raw.slice(0, at), range: raw.slice(at + 1) || "*" };
+    if (at < 0) return { name: raw, range: "latest" };
+    return { name: raw.slice(0, at), range: raw.slice(at + 1) || "latest" };
 }
 
 function pickVersion(packument: Packument, range: string): string | null {
