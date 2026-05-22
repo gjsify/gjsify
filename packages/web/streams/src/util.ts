@@ -102,21 +102,36 @@ export function isDetachedBuffer(buffer: ArrayBufferLike): boolean {
   }
 }
 
+/**
+ * Constructor shape that this module's TypedArray lookup returns. Each
+ * concrete typed-array constructor (`Int8Array`, `Uint8Array`, …) accepts a
+ * `(buffer, byteOffset?, length?)` triple, but TS's lib.es5 types declare
+ * incompatible signatures across the family (e.g. `BigInt64Array` requires a
+ * specific buffer kind). Casting through this local alias preserves call-site
+ * type safety (the returned value is callable as a constructor) without
+ * littering the switch arms with `as any`.
+ */
+type ArrayBufferViewCtor = new (
+  buffer: ArrayBufferLike, byteOffset?: number, length?: number,
+) => ArrayBufferView;
+
 // Map a TypedArray's [[Symbol.toStringTag]] back to its constructor.
 // Returns undefined for plain DataView (caller should use DataView).
-export function typedArrayConstructorByTag(tag: string | undefined): (new (buffer: ArrayBufferLike, byteOffset?: number, length?: number) => ArrayBufferView) | undefined {
+export function typedArrayConstructorByTag(tag: string | undefined): ArrayBufferViewCtor | undefined {
   switch (tag) {
-    case 'Int8Array': return Int8Array as unknown as any;
-    case 'Uint8Array': return Uint8Array as unknown as any;
-    case 'Uint8ClampedArray': return Uint8ClampedArray as unknown as any;
-    case 'Int16Array': return Int16Array as unknown as any;
-    case 'Uint16Array': return Uint16Array as unknown as any;
-    case 'Int32Array': return Int32Array as unknown as any;
-    case 'Uint32Array': return Uint32Array as unknown as any;
-    case 'Float32Array': return Float32Array as unknown as any;
-    case 'Float64Array': return Float64Array as unknown as any;
-    case 'BigInt64Array': return typeof BigInt64Array !== 'undefined' ? (BigInt64Array as unknown as any) : undefined;
-    case 'BigUint64Array': return typeof BigUint64Array !== 'undefined' ? (BigUint64Array as unknown as any) : undefined;
+    case 'Int8Array': return Int8Array as unknown as ArrayBufferViewCtor;
+    case 'Uint8Array': return Uint8Array as unknown as ArrayBufferViewCtor;
+    case 'Uint8ClampedArray': return Uint8ClampedArray as unknown as ArrayBufferViewCtor;
+    case 'Int16Array': return Int16Array as unknown as ArrayBufferViewCtor;
+    case 'Uint16Array': return Uint16Array as unknown as ArrayBufferViewCtor;
+    case 'Int32Array': return Int32Array as unknown as ArrayBufferViewCtor;
+    case 'Uint32Array': return Uint32Array as unknown as ArrayBufferViewCtor;
+    case 'Float32Array': return Float32Array as unknown as ArrayBufferViewCtor;
+    case 'Float64Array': return Float64Array as unknown as ArrayBufferViewCtor;
+    case 'BigInt64Array':
+      return typeof BigInt64Array !== 'undefined' ? (BigInt64Array as unknown as ArrayBufferViewCtor) : undefined;
+    case 'BigUint64Array':
+      return typeof BigUint64Array !== 'undefined' ? (BigUint64Array as unknown as ArrayBufferViewCtor) : undefined;
     default: return undefined;
   }
 }

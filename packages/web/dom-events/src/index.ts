@@ -323,30 +323,36 @@ export class EventTarget {
   }
 
   dispatchEvent(event: Event): boolean {
+    // dispatchEvent mutates symbol-keyed slots that `Event` declares
+    // `private`; reaching past `private` from inside this module is safe
+    // (same compilation unit) but TS still rejects it. Casting once through
+    // a module-local typed view keeps the dispatch loop free of `as any`.
+    const ev = event as unknown as _EventInternals;
+
     // Prevent re-dispatching an event that is currently being dispatched
-    if ((event as any)[kDispatching]) {
+    if (ev[kDispatching]) {
       throw new DOMException('The event is already being dispatched.', 'InvalidStateError');
     }
 
-    (event as any)[kDispatching] = true;
-    (event as any)[kTarget] = this;
-    (event as any)[kCurrentTarget] = this;
-    (event as any)[kEventPhase] = Event.AT_TARGET;
+    ev[kDispatching] = true;
+    ev[kTarget] = this;
+    ev[kCurrentTarget] = this;
+    ev[kEventPhase] = Event.AT_TARGET;
 
     const list = this._listeners.get(event.type);
     if (list) {
       const entries = [...list];
       for (const entry of entries) {
         if (entry.removed) continue;
-        if ((event as any)[kImmediateStop]) break;
-        if ((event as any)[kStop]) break;
+        if (ev[kImmediateStop]) break;
+        if (ev[kStop]) break;
 
         if (entry.once) {
           this.removeEventListener(event.type, entry.listener, { capture: entry.capture });
         }
 
         try {
-          if (entry.passive) (event as any)[kInPassiveListener] = true;
+          if (entry.passive) ev[kInPassiveListener] = true;
           if (typeof entry.listener === 'function') {
             entry.listener.call(this, event);
           } else if (typeof entry.listener.handleEvent === 'function') {
@@ -355,17 +361,32 @@ export class EventTarget {
         } catch (err) {
           console.error(err);
         } finally {
-          (event as any)[kInPassiveListener] = false;
+          ev[kInPassiveListener] = false;
         }
       }
     }
 
-    (event as any)[kEventPhase] = Event.NONE;
-    (event as any)[kCurrentTarget] = null;
-    (event as any)[kDispatching] = false;
+    ev[kEventPhase] = Event.NONE;
+    ev[kCurrentTarget] = null;
+    ev[kDispatching] = false;
 
     return !event.defaultPrevented;
   }
+}
+
+/**
+ * Module-internal mirror of the symbol-keyed slots declared `private` on
+ * {@link Event}. Used by {@link EventTarget.dispatchEvent} to bypass the
+ * `private` modifier without resorting to `as any`. Not exported.
+ */
+interface _EventInternals {
+  [kTarget]: EventTarget | null;
+  [kCurrentTarget]: EventTarget | null;
+  [kEventPhase]: number;
+  [kStop]: boolean;
+  [kImmediateStop]: boolean;
+  [kDispatching]: boolean;
+  [kInPassiveListener]: boolean;
 }
 
 // Define phase constants as non-writable, non-configurable on Event.prototype and Event constructor
