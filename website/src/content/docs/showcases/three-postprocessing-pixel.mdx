@@ -1,0 +1,55 @@
+---
+title: three-postprocessing-pixel
+description: Three.js post-processing pixel-art renderer — proves the full EffectComposer + custom shader passes pipeline runs on GJS.
+---
+
+A spinning crystal sphere rendered through Three.js's [`EffectComposer`](https://threejs.org/docs/#examples/en/postprocessing/EffectComposer) with the [`RenderPixelatedPass`](https://threejs.org/docs/#examples/en/postprocessing/RenderPixelatedPass) addon — chunky retro pixels with antialiased edges. Ported from `refs/three/examples/webgl_postprocessing_pixel.html`.
+
+## What it exercises
+
+| Pillar | What it needs |
+|---|---|
+| [`@gjsify/webgl`](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) | Multiple framebuffers (`WebGLRenderTarget`), custom shaders compiled at runtime, `OrbitControls` |
+| [`@gjsify/dom-elements`](https://github.com/gjsify/gjsify/tree/main/packages/dom/dom-elements) | The standard canvas/RAF/Resize trio |
+| `@gjsify/adwaita-web` | Browser embed's resolution-tier controls |
+| Adwaita widgets (GJS) | `Adw.PreferencesGroup` + `Adw.SpinRow` for pixel-size + render-resolution controls |
+
+## Run it on GJS
+
+```bash
+gjsify showcase three-postprocessing-pixel
+```
+
+Opens a GTK4 window with an `Adw.ToolbarView`. Adjust pixel-size to crush the resolution into chunky cells; the `RenderPixelatedPass` writes into a low-res framebuffer then upscales with nearest-neighbor sampling for the retro look.
+
+## Run it in the browser
+
+```ts
+import { mount } from '@gjsify/example-dom-three-postprocessing-pixel/browser';
+mount(document.getElementById('app')!);
+```
+
+Same scene logic. Browser-side resolution controls live in `@gjsify/adwaita-web` web components for visual parity with the GJS shell.
+
+## Source
+
+[`showcases/dom/three-postprocessing-pixel/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/three-postprocessing-pixel)
+
+The shared `three-demo.ts` drives the scene + post-processing pipeline. Both targets re-use it; the only target-specific code is the host shell.
+
+## Why this is the harder Three.js showcase
+
+The plain `three-geometry-teapot` exercises a single forward render pass. This one threads the render through:
+
+1. **Custom-resolution `WebGLRenderTarget`** — the pixelated buffer
+2. **`RenderPass` → `RenderPixelatedPass`** — multi-stage composition
+3. **`OutputPass`** — final blit to the screen framebuffer
+4. **Custom GLSL shaders** for the pixel-art edge detection
+
+Each step has its own buffer / texture state. If `@gjsify/webgl` mishandles ANY framebuffer attachment or read-back, the pipeline produces a black canvas. Smoke-testing this showcase verifies the bridge's framebuffer / texture state-tracking is intact across the full WebGL2 surface.
+
+## Related
+
+- [`three-geometry-teapot`](./three-geometry-teapot/) — simpler companion (single render pass)
+- [`refs/three/`](https://github.com/gjsify/gjsify/tree/main/refs/three) — Three.js source, used as the gap-analysis reference
+- [Bridge widgets pattern](../../patterns/bridges/) — `WebGLBridge` lifecycle

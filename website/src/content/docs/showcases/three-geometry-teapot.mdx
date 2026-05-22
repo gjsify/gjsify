@@ -1,0 +1,54 @@
+---
+title: three-geometry-teapot
+description: Three.js Utah teapot with parameter controls — proves Three's full WebGL2 pipeline runs on GJS through @gjsify/webgl's Vala bridge.
+---
+
+The Utah teapot rendered with [Three.js](https://threejs.org/), with live Adwaita-styled controls for tessellation level, body / lid / bottom toggles, and material switching. Ported from [`refs/three/examples/webgl_geometry_teapot.html`](https://github.com/gjsify/gjsify/tree/main/refs/three/examples/webgl_geometry_teapot.html).
+
+## What it exercises
+
+| Pillar | What Three.js needs |
+|---|---|
+| [`@gjsify/webgl`](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) | Full WebGL 2.0 surface — Three's renderer reaches for VAOs, uniform buffer objects, `texStorage2D`, `drawElementsInstanced`. All routed through the [`gwebgl` Vala bridge](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) → libepoxy → GLES 3.2. |
+| [`@gjsify/dom-elements`](https://github.com/gjsify/gjsify/tree/main/packages/dom/dom-elements) | `HTMLCanvasElement`, `requestAnimationFrame`, `ResizeObserver`, `OrbitControls` mouse events |
+| [`@gjsify/event-bridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/event-bridge) | Mouse drag → camera orbit |
+| `@gjsify/adwaita-web` | Browser embed's control panel styling |
+| Adwaita widgets (GJS) | `Adw.PreferencesGroup` + `Adw.SwitchRow` + `Adw.SpinRow` for the same controls |
+
+## Run it on GJS
+
+```bash
+gjsify showcase three-geometry-teapot
+```
+
+A GTK4 window opens with an `Adw.ToolbarView` shell: the toolbar holds the controls (tessellation 1-20, body/lid/bottom switches, material dropdown), the content area is the WebGL canvas. Drag with the mouse to orbit the camera; scroll to zoom.
+
+## Run it in the browser
+
+```ts
+import { mount } from '@gjsify/example-dom-three-geometry-teapot/browser';
+mount(document.getElementById('app')!);
+```
+
+Same shared scene logic. The browser embed renders the same controls through `@gjsify/adwaita-web`'s custom elements so the visual story is identical.
+
+## Source
+
+[`showcases/dom/three-geometry-teapot/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/three-geometry-teapot)
+
+- `src/three-demo.ts` — the Three.js scene (shared between targets, no GJS-specific imports)
+- `src/gjs/window.ts` — `Adw.ApplicationWindow` with Blueprint UI definitions
+- `src/browser/browser.ts` — DOM mount + Adwaita-web wiring
+- `src/assets/UtahTeapot.glb` — the model (shipped as an npm asset via `exports['./assets/*']`)
+
+## Why this matters
+
+`@gjsify/webgl`'s Vala bridge maps each WebGL call into libepoxy's GLES 3.2 surface — but Three.js does NOT target GLES, it targets desktop WebGL. The fact that it runs unmodified is the load-bearing claim: the bridge handles every format / type / blit / buffer-storage difference between WebGL and GLES, so consumer code stays browser-shaped.
+
+When new Three.js features land (e.g. WebGPU paths, new post-processing passes), this showcase is one of the first regression targets — the matrix of WebGL calls Three reaches for is the broadest realistic surface available.
+
+## Related
+
+- [`three-postprocessing-pixel`](./three-postprocessing-pixel/) — same engine, different rendering pipeline (post-FX framebuffers + custom shaders)
+- [Bridge widgets pattern](../../patterns/bridges/) — covers the `WebGLBridge` lifecycle, including the resize → reframe flow
+- [`@gjsify/webgl`](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) — the package itself, where every new Three.js requirement gets implemented
