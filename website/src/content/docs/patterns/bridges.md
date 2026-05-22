@@ -1,0 +1,159 @@
+---
+title: Bridge widgets
+description: Canvas2DBridge, WebGLBridge, IFrameBridge, VideoBridge — pairing a polyfill DOM element with a real GTK widget without the wrong layering choices.
+---
+
+A *bridge* pairs one [DOM-spec polyfill](../../packages/dom/) element with a real GTK widget so that browser-shaped code — `canvas.getContext('webgl')`, `iframe.contentWindow.postMessage`, `video.srcObject = stream` — drives the GTK surface directly. No `WebKit.WebView` wrapper, no JSON-RPC, no separate renderer process. The HTML element and the GTK widget share one SpiderMonkey heap and one GLib main context.
+
+This page documents the four bridges that ship in `@gjsify/*` today, the lifecycle they all share (`onReady` / `installGlobals` / `_canvas|_video|_iframe`), and the rough edges to recognise before they bite (ResizeObserver wiring, GC pinning, environment isolation, parent-child ordering).
+
+## The four pairings
+
+| HTML element | Bridge class | GTK widget | Backed by |
+|---|---|---|---|
+| `HTMLCanvasElement` (`'2d'` ctx) | [`Canvas2DBridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/canvas2d) | `Gtk.DrawingArea` | Cairo + PangoCairo |
+| `HTMLCanvasElement` (`'webgl'` / `'webgl2'` ctx) | [`WebGLBridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) | `Gtk.GLArea` | libepoxy via `@gwebgl-0.1` (Vala) |
+| `HTMLVideoElement` | [`VideoBridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/video) | `Gtk.Picture` | GStreamer (`gtk4paintablesink`) |
+| `HTMLIFrameElement` | [`IFrameBridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/iframe) | `WebKit.WebView` | WebKit 6.0 |
+
+Every bridge is itself a `GObject.registerClass`-registered subclass of its underlying GTK widget. That means `bridge.set_size_request(...)`, `bridge.add_css_class(...)`, `bridge.show()` — everything you'd do on a plain `Gtk.GLArea` works on the bridge. The polyfill DOM element lives on the bridge as `_canvas` / `_video` / `_iframe`.
+
+## Lifecycle: `onReady` → `installGlobals` → access the element
+
+The same three-step ritual works for every bridge:
+
+```ts
+import Adw from 'gi://Adw';
+import { WebGLBridge } from '@gjsify/webgl';
+
+const bridge = new WebGLBridge();
+bridge.installGlobals();   // 1. expose requestAnimationFrame / performance / ... on globalThis
+bridge.onReady((canvas, gl) => {
+    // 2. you can safely touch the canvas + draw context now
+    gl.clearColor(0, 0, 0, 1);
+    // ...
+});
+
+const win = new Adw.ApplicationWindow({ application: app });
+win.set_child(bridge);     // 3. mount the bridge into a GTK tree
+win.present();
+```
+
+Three things to know about why this works:
+
+1. **`onReady(cb)` is fired the first time the underlying widget realizes its native surface.** For `WebGLBridge` that's the first `Gtk.GLArea.render` signal (the GL context isn't valid before then). For `Canvas2DBridge` it's the first `Gtk.DrawingArea` draw. For `IFrameBridge` it's `WebKit.LoadEvent.FINISHED`. For `VideoBridge` it's the first `Gtk.Picture` resize that produces a non-zero allocation. **Touching `bridge._canvas` / `gl` / `iframe.contentWindow` before `onReady` fires is undefined behaviour** — sometimes you get a zero-sized canvas, sometimes a crash.
+
+2. **`installGlobals()` is OPTIONAL but the typical case.** It registers the bridge's `requestAnimationFrame`, `cancelAnimationFrame`, `performance.now()`, and (where applicable) `window` / `document` polyfills on `globalThis`. Excalibur, Three.js, p5.js, WebTorrent — anything written against the browser globals — relies on these. **You can skip `installGlobals()` for code you wrote that doesn't read globals.**
+
+3. **Each bridge owns its own `BridgeEnvironment`.** A separate `document`, `body`, and `window` instance per bridge. `bridge.environment.document` is NOT `globalThis.document` (the latter is the shared polyfill from `@gjsify/dom-elements/register`). Code that expects "one document" should call `installGlobals()`; code that wants isolated DOM trees (e.g. an iframe-style embedded app) keeps separate environments per bridge.
+
+## Worked example — Canvas2D
+
+```ts
+import Adw from 'gi://Adw';
+import Gtk from 'gi://Gtk?version=4.0';
+import { Canvas2DBridge } from '@gjsify/canvas2d';
+
+const bridge = new Canvas2DBridge();
+bridge.installGlobals();
+bridge.onReady((canvas, ctx) => {
+    ctx.fillStyle = '#3584e4';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.font = '24px Adwaita Sans';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('Hello from GJS', 20, 40);
+});
+
+const win = new Adw.ApplicationWindow({ application: app });
+win.set_default_size(600, 400);
+win.set_child(bridge);
+win.present();
+```
+
+`bridge` IS the `Gtk.DrawingArea` — you can mount it anywhere a `Gtk.Widget` goes (inside an `Adw.ToolbarView`, a `Gtk.Box`, a `Gtk.Stack`, …). The Cairo surface is allocated lazily on the first `draw` signal, sized to match the widget's allocation, and re-allocated whenever the widget resizes.
+
+## Worked example — WebGL
+
+```ts
+import Adw from 'gi://Adw';
+import { WebGLBridge } from '@gjsify/webgl';
+
+const bridge = new WebGLBridge();
+bridge.installGlobals();
+bridge.onReady((canvas, gl) => {
+    gl.clearColor(0.0, 0.4, 0.6, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+});
+
+const win = new Adw.ApplicationWindow({ application: app });
+win.set_default_size(800, 600);
+win.set_child(bridge);
+win.present();
+```
+
+Same shape. Internally `WebGLBridge` extends `Gtk.GLArea`, uses libepoxy to load OpenGL ES 3.2, exposes the WebGL 1 / WebGL 2 API surface via `@gwebgl-0.1`, and translates `requestAnimationFrame` into the GTK frame clock so vsync just works. See the [`framework/webgl`](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) package for the implementation.
+
+## ResizeObserver wires through bridges
+
+This is the single most common rough edge. A `ResizeObserver(cb).observe(bridge._canvas)` fires whenever the GTK widget allocation changes — but only because the bridge's GTK `resize` signal handler forwards the new dimensions to the polyfill DOM tree via `notifyElementResize()` (see [`@gjsify/dom-elements`](https://github.com/gjsify/gjsify/tree/main/packages/dom/dom-elements) → `notify-resize.ts`).
+
+```ts
+import { WebGLBridge } from '@gjsify/webgl';
+import Excalibur from 'excalibur';
+
+const bridge = new WebGLBridge();
+bridge.installGlobals();
+
+bridge.onReady((canvas) => {
+    const engine = new Excalibur.Engine({
+        canvasElement: canvas,
+        displayMode: Excalibur.DisplayMode.FillContainer,  // ← observes canvas.parentElement
+    });
+    engine.start();
+});
+```
+
+Excalibur's `DisplayMode.FillContainer` installs `new ResizeObserver(cb).observe(canvas.parentElement || document.body)`. The bridge's `resize` handler doesn't fire on `document.body` directly — it fires on the bridge's `_canvas`, and `notifyElementResize()` then walks UP the parent chain firing each ancestor's `ResizeObserver` subscribers. **This is the only reason Excalibur's `FillContainer` reflows correctly in GJS** (cf. the v0.4.20 bug-fix at `@gjsify/dom-elements`'s `ResizeObserver` — the polyfill was previously a no-op stub).
+
+If you write code that needs the GTK resize event and `ResizeObserver` doesn't fit, the bridge also exposes:
+
+- **GObject signal**: `widget.connect('resize', (w, width, height) => { … })` — the standard `Gtk.Widget::resize` signal, inherited from the underlying widget.
+- **Convenience callback**: `widget.onResize((width, height) => { … })` — same payload as the signal, slightly less ceremony than `connect`.
+- **DOM event on the canvas**: `canvas.addEventListener('resize', () => { … })` — for libraries that write to the canvas's event target.
+
+All four pathways (GObject signal, `onResize`, DOM `resize` event, `ResizeObserver`) fire from the same underlying GTK `resize` signal. Pick whichever fits the consumer's idiom.
+
+## Rough edges
+
+### Don't forget `installGlobals()` when running browser-written code
+
+If you copy a Three.js / p5.js / Excalibur snippet, those libraries reach for `globalThis.requestAnimationFrame`, `globalThis.performance.now`, `globalThis.window`, `globalThis.document`. The bridge has them, but they're on `bridge.environment` until `installGlobals()` hoists them to the actual `globalThis`. Without the call, you get `TypeError: requestAnimationFrame is not a function`.
+
+### Lifetime: keep the bridge variable in scope
+
+The bridge owns the connection between GTK's reference graph (the parent window holds the bridge) and JS's reference graph (your code holds the bridge variable). Both must stay alive for the duration of the canvas's usefulness — the bridge's `_canvas`, `_video`, `_iframe` and the GL/Cairo/GStreamer pipeline are torn down when the bridge is GC'd OR when `bridge.unrealize()` fires (whichever first). The common bug: assigning the bridge into a variable that goes out of scope before the window does. The GTK widget gets cleaned up at the next GC cycle. Easy fix: hold the bridge in the same scope as the window, or store both on the same object.
+
+### Don't manipulate the canvas geometry directly
+
+`canvas.width = 800; canvas.height = 600` writes to the polyfill — but the GTK widget owns the actual surface. The bridge listens for the GTK allocation change and updates the canvas's width/height to match. **Setting `canvas.width` yourself does nothing visually** (and on `WebGLBridge`, will desync the framebuffer from the GL viewport until the next real resize). Resize via `widget.set_size_request(width, height)` or by changing the parent layout — the canvas geometry follows automatically.
+
+### `IFrameBridge` is the one bridge that DOES ship a browser
+
+Unlike the other three, `IFrameBridge` wraps `WebKit.WebView` — that's a full WebKit instance, not a polyfill. The point is to embed legitimate web content (a third-party site, a sandboxed app, an HTML report) inside a GTK app, NOT to "render HTML using GJS". Pairing with `IFrameBridge` is appropriate when you want browser-grade web compat for one specific surface; the other three bridges are appropriate when you want to RUN browser-shaped code natively under GJS.
+
+### Bridge environment vs `installGlobals()` — pick one
+
+If two bridges in the same app both `installGlobals()`, the second one's globals overwrite the first's. That's fine if you want one shared `requestAnimationFrame` driving multiple canvases; less fine if you have two independent games running in two widgets. The two patterns:
+
+- **One bridge, one global namespace**: typical desktop-app shape. Call `installGlobals()` on the primary bridge, read `requestAnimationFrame` etc. from `globalThis` everywhere.
+- **N bridges, N namespaces**: read `bridge.environment.window.requestAnimationFrame` per bridge, skip `installGlobals()` entirely. The polyfill ships isolated environments so this works — useful for storybook-style multi-widget apps.
+
+## See also
+
+- [`@gjsify/canvas2d`](https://github.com/gjsify/gjsify/tree/main/packages/framework/canvas2d) — Canvas2DBridge source + spec.
+- [`@gjsify/webgl`](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) — WebGLBridge source + Vala bridge.
+- [`@gjsify/video`](https://github.com/gjsify/gjsify/tree/main/packages/framework/video) — VideoBridge + GStreamer pipeline reference.
+- [`@gjsify/iframe`](https://github.com/gjsify/gjsify/tree/main/packages/framework/iframe) — IFrameBridge + postMessage bridge.
+- [Excalibur showcase](https://github.com/gjsify/gjsify/tree/main/showcases/dom/excalibur-jelly-jumper) — full game running in a `WebGLBridge` with the `ResizeObserver` reflow path exercised.
+- [`@gjsify/dom-elements` `notify-resize.ts`](https://github.com/gjsify/gjsify/tree/main/packages/dom/dom-elements/src/notify-resize.ts) — the ancestor-walk that makes `observe(canvas.parentElement)` work.

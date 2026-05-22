@@ -72,6 +72,7 @@ export default defineConfig({
           items: [
             { slug: 'patterns' },
             { slug: 'patterns/gobject-classes' },
+            { slug: 'patterns/bridges' },
           ],
         },
         {

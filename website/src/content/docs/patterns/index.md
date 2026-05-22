@@ -10,12 +10,12 @@ Each page lists one or more **preferred patterns** with a short rationale, then 
 ## Current pages
 
 - [**GObject classes**](./gobject-classes/) — `GObject.registerClass()` forms, the static-block pattern, init-order rules, `$gtype` declarations.
+- [**Bridge widgets**](./bridges/) — `Canvas2DBridge` / `WebGLBridge` / `IFrameBridge` / `VideoBridge` lifecycle, `installGlobals()` + `onReady()` conventions, `ResizeObserver` semantics, the parent-walk that makes Excalibur's `FillContainer` reflow correctly.
 
 ## Planned
 
 The list grows as we collect real-world friction. Open issues for new ideas:
 
-- **Bridges** — `Canvas2DBridge` / `WebGLBridge` / `IFrameBridge` / `VideoBridge` lifecycle, `installGlobals()` + `onReady()` conventions, `ResizeObserver` semantics.
 - **Signal handlers** — `connect` / `disconnect`, weak references, GC concerns, GLib mainloop coordination.
 - **`/register` subpath convention** — when to import `<pkg>/register` directly vs rely on `gjsify build --globals auto`.
 - **Async on GJS** — Promise / async-await composition with the GLib main context.
