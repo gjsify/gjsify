@@ -11,8 +11,6 @@ If you don't know what you want, write:
 
 ```ts
 class MyButton extends Gtk.Button {
-    static override $gtype: GObject.GType<MyButton>;
-
     pressedCount = 0;
 
     onPressed(): void {
@@ -33,7 +31,7 @@ class MyButton extends Gtk.Button {
                 'pressed-with-count': { param_types: [GObject.TYPE_INT] },
             },
             Implements: [Gtk.Accessible],
-        }, MyButton);
+        }, this);
     }
 }
 ```
@@ -41,9 +39,9 @@ class MyButton extends Gtk.Button {
 Two things make this form robust:
 
 1. **`static { GObject.registerClass(...) }` is the *last* element in the class body.** Anything in the class — methods, instance fields, *other* static fields — has already been picked up by the time `registerClass` runs.
-2. **All GObject metadata is passed inline** to `registerClass({…}, MyButton)` instead of via `static [GObject.interfaces] = …` / `static [GObject.properties] = …`. This sidesteps the init-order trap entirely (see [Static-block ordering trap](#static-block-ordering-trap) below).
+2. **All GObject metadata is passed inline** to `registerClass({…}, this)` instead of via `static [GObject.interfaces] = …` / `static [GObject.properties] = …`. This sidesteps the init-order trap entirely (see [Static-block ordering trap](#static-block-ordering-trap) below). Using `this` inside the static block (instead of the class name) avoids repeating the identifier and is GJS-idiomatic.
 
-The `static override $gtype: GObject.GType<MyButton>` declaration is the **type-safety fix** ptomato flagged in the [matrix discussion](#references): without it, `MyButton.$gtype` is typed as `GObject.GType<Object>` (TS static inheritance is invariant), so any code that does `GObject.type_is_a(x, MyButton)` or passes `MyButton` to APIs expecting `GType<MyButton>` gets the wrong narrowed type. The `override` keyword satisfies TS without changing runtime behaviour — GJS sets the property on the constructor as part of `registerClass`.
+You may also see `static override $gtype: GObject.GType<MyClass>;` written next to the static block. That's only necessary when you actually use `MyClass.$gtype` somewhere that needs the narrowed `GType<MyClass>` — typically `GObject.type_is_a(x, MyClass)` to type-narrow `x` to `MyClass`. For the common case (passing `MyClass` to APIs that accept any GType), the inherited `GType<GObject.Object>` from the base class is fine — no override needed. See [`$gtype` narrowing](#gtype-is-typed-as-the-base-class) below for when the override is worth writing.
 
 ## The three forms
 
@@ -51,8 +49,6 @@ The `static override $gtype: GObject.GType<MyButton>` declaration is the **type-
 
 ```ts
 class Foo extends GObject.Object {
-    static override $gtype: GObject.GType<Foo>;
-
     vfunc_init(): void { /* … */ }
 
     static {
@@ -60,25 +56,23 @@ class Foo extends GObject.Object {
             GTypeName: 'Foo',
             Implements: [Gio.Initable],
             Properties: { … },
-        }, Foo);
+        }, this);
     }
 }
 ```
 
-Everything `registerClass` needs is in its own arguments. No static fields outside the block can fire too early. `static { … }` lives at the bottom so it runs last in source order.
+Everything `registerClass` needs is in its own arguments. No static fields outside the block can fire too early. `static { … }` lives at the bottom so it runs last in source order. Inside the static block, `this` refers to the class itself — preferred over `Foo` because the body doesn't repeat the identifier and the snippet stays correct after a rename.
 
 ### Form B — static block, metadata in fields
 
 ```ts
 class Foo extends GObject.Object {
-    static override $gtype: GObject.GType<Foo>;
     static [GObject.interfaces] = [Gio.Initable];        // ← must come BEFORE registerClass
     static [GObject.properties] = { … };
 
     vfunc_init(): void { /* … */ }
 
-    static { GObject.registerClass(Foo); }               // ← still last
-}
+    static { GObject.registerClass(this); }              // ← still last
 ```
 
 Works **only if** every `static [GObject.*] = …` initializer appears *above* the static block. ES class evaluation is strict source-order, so `static [GObject.interfaces] = …` must be assigned *before* `registerClass()` reads it. **Form A is preferable** because the rule isn't enforceable at the type level — a refactor that moves a static field around breaks Form B silently at runtime.
@@ -125,28 +119,33 @@ new Foo().init(null);
 
 ### `$gtype` is typed as the base class
 
-Even with our generated types in `@girs/gobject-2.0`, subclasses inherit `static $gtype: GType<GObject.Object>` — TS doesn't narrow static-side `this` to the subclass. Code like this fails type-check:
+Subclasses inherit `static $gtype: GObject.GType<GObject.Object>` from the base class — TS doesn't narrow static-side `this` to the subclass. **This is usually fine.** Most APIs that take a GType (e.g. `GObject.signal_lookup`, `Gio.ListStore`'s `item_type` constructor prop, anywhere you pass `Foo.$gtype`) accept any `GType<T>`, so the wider `GType<Object>` matches without complaint.
+
+The override is only worth writing when you actually need the `T` in `GType<T>` to be the subclass — typically because you're calling `GObject.type_is_a(x, Foo)` and want `x is Foo` narrowing:
 
 ```ts
 class Foo extends GObject.Object {
-    static { GObject.registerClass({ GTypeName: 'Foo' }, Foo); }
+    static { GObject.registerClass({ GTypeName: 'Foo' }, this); }
 }
 
 GObject.type_is_a(x, Foo);
-// ^ Foo is inferred as { $gtype: GType<Object> }, not GType<Foo>
-//   so this returns `x is Object`, not `x is Foo`
+// ^ Foo.$gtype is inferred as GType<Object>, not GType<Foo>
+//   so this narrows `x` to Object, not Foo
 ```
 
-Fix with the `static override` declaration shown in [TL;DR](#tldr--pick-this-one):
+Fix only the consumer that needs the narrowing, by adding the override on the class:
 
 ```ts
 class Foo extends GObject.Object {
     static override $gtype: GObject.GType<Foo>;        // ← narrows the static type
-    static { GObject.registerClass({ GTypeName: 'Foo' }, Foo); }
+    static { GObject.registerClass({ GTypeName: 'Foo' }, this); }
 }
+
+GObject.type_is_a(x, Foo);
+// ^ now `x is Foo` ✓
 ```
 
-The `override` keyword tells TS *"yes, I know the base class declares this; I'm narrowing it intentionally"*. At runtime the property is still set by `registerClass` — the declaration is purely a type-system hint.
+The `override` keyword tells TS *"yes, I know the base class declares this; I'm narrowing it intentionally"*. At runtime the property is still set by `registerClass` — the declaration is purely a type-system hint. **Don't add it speculatively** — most code never hits the case that needs it.
 
 ### Subclassing a registered class
 
@@ -154,29 +153,27 @@ The `override` keyword tells TS *"yes, I know the base class declares this; I'm 
 
 ```ts
 class Parent extends GObject.Object {
-    static override $gtype: GObject.GType<Parent>;
     parentMethod(): void { … }
-    static { GObject.registerClass({ GTypeName: 'Parent' }, Parent); }
+    static { GObject.registerClass({ GTypeName: 'Parent' }, this); }
 }
 
 class Child extends Parent {
-    static override $gtype: GObject.GType<Child>;        // ← re-narrow for Child
     childMethod(): void { … }
-    static { GObject.registerClass({ GTypeName: 'Child' }, Child); }
+    static { GObject.registerClass({ GTypeName: 'Child' }, this); }
 }
 ```
 
-Each subclass needs its own `static override $gtype` to keep `Child.$gtype` correctly typed.
+Each subclass goes through its own `static { GObject.registerClass(...) }` block. Add `static override $gtype: GObject.GType<Child>;` on the subclass only if `Child.$gtype` needs the narrowed type (same rule as for the base — most code doesn't).
 
 ## Quick checklist
 
 When you write or review a class that goes through `GObject.registerClass()`:
 
-- [ ] `static override $gtype: GObject.GType<ThisClass>` declared (Form A / B only — Form C inherits the right type automatically).
 - [ ] `static { GObject.registerClass(...) }` is the last element of the class body.
-- [ ] Either: metadata is passed *inline* to `registerClass({…}, Class)` (Form A — preferred), or: every `static [GObject.*] = …` initializer comes *above* the block (Form B — fragile under refactor).
+- [ ] Inside the static block, `registerClass({...}, this)` — `this` instead of the class name avoids the rename trap and is GJS-idiomatic.
+- [ ] Either: metadata is passed *inline* to `registerClass({…}, this)` (Form A — preferred), or: every `static [GObject.*] = …` initializer comes *above* the block (Form B — fragile under refactor).
 - [ ] `vfunc_*` overrides are normal instance methods (no `static`), declared anywhere in the class body.
-- [ ] No `this`-typed `static` recommended — TS has no `typeof this` for statics; the explicit `override` per subclass is the cleanest workaround.
+- [ ] `static override $gtype: GObject.GType<ThisClass>` only when you actually need the narrowed type (e.g. `GObject.type_is_a(x, ThisClass)` to type-narrow). Most consumers accept any GType and don't need the override.
 
 ## References
 
