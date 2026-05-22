@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/tsc-version.spec.ts",
+        "src/tsc-api-typecheck.spec.ts",
+        "src/tsserver-handshake.spec.ts"
+    ]
+}

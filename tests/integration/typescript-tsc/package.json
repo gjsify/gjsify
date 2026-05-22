@@ -1,0 +1,28 @@
+{
+    "name": "@gjsify/integration-typescript-tsc",
+    "description": "Integration tests: TypeScript compiler (tsc) + language-server API on GJS and Node. Currently every `gjsify check` invocation shells out to `node tsc` (TypeScript is JS but the bin script reaches for Node-shaped fs / child_process / readline). The goal of this suite is to find out whether the TypeScript compiler API can run end-to-end under GJS via @gjsify/* polyfills — Program creation, type-checking, diagnostics emission — and what gaps surface for tsserver (the language server's LSP-over-stdio loop). Failures are documented in the suite's TODO comments and surface as test results, not silent skips.",
+    "type": "module",
+    "private": true,
+    "engines": {
+        "node": ">=22.12.0"
+    },
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile dist/test.gjs.mjs --globals 'auto'",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile dist/test.node.mjs",
+        "build:test": "gjsify run build:test:node && gjsify run build:test:gjs",
+        "test": "gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:node": "node dist/test.node.mjs",
+        "test:gjs": "gjsify run dist/test.gjs.mjs"
+    },
+    "devDependencies": {
+        "@girs/gjs": "4.0.0-rc.15",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^22.12.0",
+        "typescript": "^5.7.3"
+    }
+}
