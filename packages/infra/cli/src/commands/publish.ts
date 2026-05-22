@@ -58,6 +58,7 @@ interface PublishOptions {
     tag?: string;
     access?: string;
     'tolerate-republish'?: boolean;
+    'tolerate-untrusted-new'?: boolean;
     provenance?: boolean;
     'dry-run'?: boolean;
     json?: boolean;
@@ -82,6 +83,11 @@ export const publishCommand: Command<any, PublishOptions> = {
             })
             .option('tolerate-republish', {
                 description: 'Treat "version already published" as success — covers both classic 409 Conflict and the npm OIDC-path 403 Forbidden + `"previously published"` body shape. Matches yarn `--tolerate-republish`.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('tolerate-untrusted-new', {
+                description: 'Skip (exit 0) when OIDC token exchange returns `package not found` AND no fallback token is configured — i.e. a never-before-published `@scope/<name>` whose Trusted Publisher entry hasn\'t been set up on npmjs.com yet. Without this flag, one un-bootstrapped new package breaks the entire serialized `gjsify foreach publish` loop. Pair with `--tolerate-republish` in CI release workflows so a fresh-merged package gracefully skips its first CI publish, leaving the manual-bootstrap step to a maintainer (see AGENTS.md "New @gjsify/* package: first-publish + Trusted Publisher bootstrap").',
                 type: 'boolean',
                 default: false,
             })
@@ -120,6 +126,7 @@ export const publishCommand: Command<any, PublishOptions> = {
         const tag = args.tag ?? 'latest';
         const access = args.access;
         const tolerate = args['tolerate-republish'] === true;
+        const tolerateUntrustedNew = args['tolerate-untrusted-new'] === true;
         const provenance = args.provenance === true;
         const dryRun = args['dry-run'] === true;
         const checkTrustedOnly = args['check-trusted'] === true;
@@ -275,6 +282,34 @@ export const publishCommand: Command<any, PublishOptions> = {
                     console.error(`gjsify publish: OIDC token obtained (audience=${audience})`);
                 }
             } catch (err) {
+                // Detect the "never-before-published @scope/pkg" shape:
+                // npm's OIDC exchange returns 404 with body
+                //   {"message":"OIDC token exchange error - package not found"}
+                // for any package that has no Trusted Publisher entry (which
+                // includes every package that doesn't exist on npm yet —
+                // see AGENTS.md "New @gjsify/* package: first-publish +
+                // Trusted Publisher bootstrap"). Skip such a package when
+                // --tolerate-untrusted-new is set so one un-bootstrapped
+                // package doesn't break the entire serialized publish loop.
+                const isUntrustedNewPackage =
+                    err instanceof OidcExchangeError &&
+                    err.status === 404 &&
+                    /package not found/i.test(err.body);
+                if (isUntrustedNewPackage && tolerateUntrustedNew) {
+                    const headerMsg = `${packed.name}@${packed.version} (skipped — no Trusted Publisher on npm, see AGENTS.md "New @gjsify/* package: first-publish + Trusted Publisher bootstrap")`;
+                    if (args.json) {
+                        process.stdout.write(`${JSON.stringify({
+                            ok: true,
+                            action: 'skipped-untrusted-new',
+                            name: packed.name,
+                            version: packed.version,
+                            reason: 'no-trusted-publisher',
+                        }, null, 2)}\n`);
+                    } else {
+                        process.stdout.write(`~ ${headerMsg}\n`);
+                    }
+                    return;
+                }
                 if (trustedFlag === true) {
                     // Explicit --trusted: bail with a clear error.
                     handleOidcFailure(err, packed.name, args.json === true);

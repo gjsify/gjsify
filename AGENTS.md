@@ -519,6 +519,33 @@ Shared utils: `@gjsify/utils` (`packages/gjs/utils/`). Check before duplicating;
 
 **`@gjsify/stream` direct imports** in internal modules/test files needing non-standard exports (`Stream_`, `makeCallable`, internal state types) are allowed. All public code (examples, showcases, cross-package APIs) must use `node:stream`.
 
+### New `@gjsify/*` package: first-publish + Trusted Publisher bootstrap
+
+npm Trusted Publishing (OIDC) requires the package to **already exist** on npmjs.com — you cannot configure a Trusted Publisher for a name that has no published versions. This makes the **first publish a manual maintainer action**, not a CI release. Skipping this step breaks the entire serialized `npm:publish` loop in `release.yml`: every package alphabetically after the new name fails to publish because the OIDC exchange returns `404 — OIDC token exchange error - package not found` and the workflow exits 1 (incident on v0.4.20: `@gjsify/tls-native` was added in #242, no manual bootstrap → 60+ packages stuck at 0.4.19).
+
+Run before the merge that adds the package (or immediately after, before the next release-it patch):
+
+1. Build the package locally: `gjsify workspace @gjsify/<name> build`
+2. **Manual first publish from a maintainer machine** with an npm account that has `@gjsify` scope publish access + 2FA OTP (or a granular access token with bypass-2fa enabled):
+   ```bash
+   cd packages/<pillar>/<name>
+   npm publish --access public --otp <code>
+   ```
+   This creates the package record on npmjs.com.
+3. **Configure Trusted Publisher** at `https://www.npmjs.com/package/@gjsify/<name>/access`:
+   - Repository: `gjsify/gjsify`
+   - Workflow: `release.yml`
+   - Environment: (empty)
+   - Permission: `npm publish`
+4. **(Optional)** verify the config from CI before the next real release:
+   ```bash
+   gh workflow run release.yml -f verify_only=true
+   ```
+   The audit step prints a per-package `✓ / ✗` summary; the new package should report `✓`.
+5. **From here on, normal CI release-it cadence takes over** — every subsequent `release.yml` run picks up the package via OIDC + Trusted Publisher.
+
+Same procedure for new native-bridge packages (`@gjsify/<name>-native`) since they ship as their own npm packages alongside the parent. PR template / merge checklist should include: *"if this PR adds a new `@gjsify/*` package, the manual first-publish + Trusted Publisher step is done before merging or queued as the next maintainer action."*
+
 ## Example convention (GTK + browser)
 
 Dual-target with Adwaita UI:
