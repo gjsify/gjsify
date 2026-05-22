@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2026 gjsify contributors -->
+<component type="console-application">
+  <id>io.github.gjsify.Cli</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>gjsify</name>
+  <summary>Node.js + Web APIs for GJS — bundle, install, lint, format, flatpak-pack GJS apps</summary>
+  <description>
+    <p>gjsify is the build-and-tooling CLI for the gjsify project — a polyfill family + bundler that lets you write GNOME apps in Node-shaped TypeScript and run them on GJS (the GNOME JavaScript runtime) without Node.js at runtime.</p>
+    <p>Use this Flatpak when you want gjsify available on any modern Linux distro without installing Node.js or a system-wide npm setup. The CLI ships its own GJS bundle and a pinned Node 24 SDK extension for the subcommands (`gjsify build`, `gjsify lint`, `gjsify format`) that still call out to Node tooling internally.</p>
+    <ul>
+      <li>`gjsify build` — bundle a TypeScript entry into a single GJS / Node / browser file via Rolldown</li>
+      <li>`gjsify install` — Node-free npm install with a lockfile (XDG-aware, native backend)</li>
+      <li>`gjsify dlx &lt;pkg&gt;` — fetch and run any npm package's GJS bundle without persisting it</li>
+      <li>`gjsify lint` / `gjsify format` — Biome-powered linter + formatter</li>
+      <li>`gjsify flatpak {init,build,check,deps,ci}` — pack a GJS app or CLI into a Flatpak end-to-end</li>
+      <li>`gjsify gresource` — bundle GResource XML files for GTK apps</li>
+      <li>`gjsify showcase` — run the bundled demo programs (Excalibur, three.js, WebRTC, …)</li>
+    </ul>
+  </description>
+  <developer id="io.github.gjsify">
+    <name translate="no">gjsify contributors</name>
+    <email>pascal@artandcode.studio</email>
+  </developer>
+  <url type="homepage">https://gjsify.github.io/gjsify/</url>
+  <url type="vcs-browser">https://github.com/gjsify/gjsify</url>
+  <content_rating type="oars-1.1" />
+  <categories>
+    <category>Development</category>
+  </categories>
+  <provides>
+    <binary>gjsify</binary>
+  </provides>
+</component>

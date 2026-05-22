@@ -1,0 +1,33 @@
+{
+  "id": "io.github.gjsify.Cli",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "50",
+  "sdk": "org.gnome.Sdk",
+  "sdk-extensions": [
+    "org.freedesktop.Sdk.Extension.node24"
+  ],
+  "build-options": {
+    "append-path": "/usr/lib/sdk/node24/bin"
+  },
+  "command": "gjsify",
+  "finish-args": [
+    "--share=network",
+    "--filesystem=host"
+  ],
+  "modules": [
+    {
+      "name": "gjsify-cli",
+      "buildsystem": "simple",
+      "build-commands": [
+        "install -Dm755 dist/cli.gjs.mjs /app/share/gjsify/cli.gjs.mjs",
+        "install -Dm755 launcher.sh /app/bin/gjsify"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": "."
+        }
+      ]
+    }
+  ]
+}
