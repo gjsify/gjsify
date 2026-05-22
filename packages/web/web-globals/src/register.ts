@@ -38,20 +38,35 @@ import { FormData } from '@gjsify/formdata';
 // Performance (Web Performance API)
 import { performance, PerformanceObserver } from '@gjsify/perf_hooks';
 
+/**
+ * Module-local typed view of the globals this file writes. Centralises the
+ * 6 `(globalThis as any)` casts that would otherwise appear at every install
+ * site.
+ */
+interface _RegisteredWebGlobals {
+  URL?: unknown;
+  URLSearchParams?: unknown;
+  FormData?: unknown;
+  performance?: unknown;
+  PerformanceObserver?: unknown;
+}
+
+const g = globalThis as unknown as _RegisteredWebGlobals;
+
 if (typeof globalThis.URL !== 'function') {
-  (globalThis as any).URL = URL;
+  g.URL = URL;
 }
 if (typeof globalThis.URLSearchParams !== 'function') {
-  (globalThis as any).URLSearchParams = URLSearchParams;
+  g.URLSearchParams = URLSearchParams;
 }
 if (typeof globalThis.FormData !== 'function') {
-  (globalThis as any).FormData = FormData;
+  g.FormData = FormData;
 }
 if (typeof globalThis.performance === 'undefined') {
-  (globalThis as any).performance = performance;
+  g.performance = performance;
 }
-if (typeof (globalThis as any).PerformanceObserver !== 'function') {
-  (globalThis as any).PerformanceObserver = PerformanceObserver;
+if (typeof g.PerformanceObserver !== 'function') {
+  g.PerformanceObserver = PerformanceObserver;
 }
 
 // Web Audio API via GStreamer
