@@ -4,12 +4,22 @@
 
 import { Duplex } from 'node:stream';
 
+// Internal Duplex hooks/state we reach into to bridge a WebSocket. None of
+// these are part of `@types/node`'s public Duplex surface — they're the
+// documented protected hooks (`_destroy`, `_final`) Node's stream impl calls
+// for subclasses, plus `_writableState.finished` for the end-of-stream probe.
+interface _DuplexInternals {
+  _writableState?: { finished: boolean };
+  _destroy?: (err: Error | null, callback: (err: Error | null) => void) => void;
+  _final?: (callback: () => void) => void;
+}
+
 function emitClose(stream: Duplex): void {
   stream.emit('close');
 }
 
 function duplexOnEnd(this: Duplex): void {
-  if (!this.destroyed && (this as any)._writableState.finished) {
+  if (!this.destroyed && (this as Duplex & _DuplexInternals)._writableState?.finished) {
     this.destroy();
   }
 }
@@ -54,7 +64,8 @@ export function createWebSocketStream(ws: any, options: Record<string, unknown> 
     duplex.push(null);
   });
 
-  (duplex as any)._destroy = function (err: Error | null, callback: (err: Error | null) => void): void {
+  const _duplexInternal = duplex as Duplex & _DuplexInternals;
+  _duplexInternal._destroy = function (err: Error | null, callback: (err: Error | null) => void): void {
     if (ws.readyState === ws.CLOSED) {
       callback(err);
       process.nextTick(emitClose, duplex);
@@ -76,9 +87,9 @@ export function createWebSocketStream(ws: any, options: Record<string, unknown> 
     if (terminateOnDestroy) ws.terminate();
   };
 
-  (duplex as any)._final = function (callback: () => void): void {
+  _duplexInternal._final = function (callback: () => void): void {
     if (ws.readyState === ws.CONNECTING) {
-      ws.once('open', () => (duplex as any)._final(callback));
+      ws.once('open', () => _duplexInternal._final!(callback));
       return;
     }
     if (ws.readyState === ws.CLOSED || ws.readyState === ws.CLOSING) {
