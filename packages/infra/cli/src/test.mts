@@ -7,10 +7,12 @@ import bundlerPickSuite from './bundler-pick.spec.js';
 import barrelsGenerateSuite from './barrels-generate.spec.js';
 import npmOidcSuite from './npm-oidc.spec.js';
 import installBackendParseSpecSuite from './install-backend-parse-spec.spec.js';
+import inlineStaticReadsSuite from './inline-static-reads.spec.js';
 
 run({
     bundlerPickSuite,
     barrelsGenerateSuite,
     npmOidcSuite,
     installBackendParseSpecSuite,
+    inlineStaticReadsSuite,
 });
