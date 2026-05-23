@@ -45,6 +45,18 @@ export class RTCCertificate {
 export type AlgorithmIdentifier = string | Record<string, unknown>;
 
 /**
+ * Algorithm-parameter slots read by {@link generateCertificate}. The W3C
+ * `AlgorithmIdentifier` type is intentionally open-ended (`name` plus
+ * algorithm-specific extras), so a module-local typed view keeps the
+ * ECDSA / RSA validation branches free of `as any` while still tolerating
+ * the caller passing extras we don't read.
+ */
+interface _KeygenAlgorithmFields {
+    namedCurve?: unknown;
+    hash?: string | { name?: string };
+}
+
+/**
  * Generate a self-signed certificate for use with RTCPeerConnection.
  * Supports ECDSA P-256 and RSASSA-PKCS1-v1_5 with SHA-256.
  *
@@ -65,9 +77,11 @@ export async function generateCertificate(keygenAlgorithm: AlgorithmIdentifier):
         );
     }
 
+    const fields = (typeof keygenAlgorithm === 'object' ? keygenAlgorithm : {}) as _KeygenAlgorithmFields;
+
     // Validate supported algorithms
     if (name === 'ecdsa') {
-        const curve = (keygenAlgorithm as any).namedCurve;
+        const curve = fields.namedCurve;
         if (curve && curve !== 'P-256') {
             throw new DOMException(
                 `generateCertificate: unsupported ECDSA curve '${curve}'`,
@@ -75,7 +89,7 @@ export async function generateCertificate(keygenAlgorithm: AlgorithmIdentifier):
             );
         }
     } else if (name === 'rsassa-pkcs1-v1_5') {
-        const hash = (keygenAlgorithm as any).hash;
+        const hash = fields.hash;
         const hashName = typeof hash === 'string' ? hash : hash?.name;
         if (hashName && hashName.toUpperCase() === 'SHA-1') {
             throw new DOMException(

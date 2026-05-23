@@ -47,9 +47,11 @@ function convertValue(value: unknown, readBigInts: boolean): unknown {
     if (value instanceof Uint8Array) {
         return value;
     }
-    // GLib.Bytes from Gda
-    if (value && typeof (value as any).toArray === 'function') {
-        return new Uint8Array((value as any).toArray());
+    // GLib.Bytes from Gda — duck-typed structural view (the lib exposes
+    // `toArray()` returning a `Uint8Array`-compatible buffer).
+    const bytesLike = value as { toArray?: () => ArrayLike<number> };
+    if (typeof bytesLike.toArray === 'function') {
+        return new Uint8Array(bytesLike.toArray());
     }
     return value;
 }

@@ -10,6 +10,7 @@
 import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
+import type GObject from '@girs/gobject-2.0';
 import { EventEmitter } from 'node:events';
 import { Duplex } from 'node:stream';
 import { Buffer } from 'node:buffer';
@@ -375,9 +376,13 @@ export class ClientHttp2Session extends Http2Session {
     // Configure TLS for rejectUnauthorized: false (common in testing with self-signed certs)
     if (options.rejectUnauthorized === false) {
       // Connect to the accept-certificate signal on each message via session
-      // This is a best-effort approach; system CA store may still reject the cert
-      (this._soupSession as any).connect('accept-certificate',
-        (_msg: any, _cert: any, _errors: any) => {
+      // This is a best-effort approach; system CA store may still reject the cert.
+      // The signal isn't in Soup.Session's typed SignalSignatures map (it lives
+      // on Soup.Message); widening to the string-overload of GObject.connect()
+      // keeps the call typed without dropping into `any`.
+      const signalName: string = 'accept-certificate';
+      this._soupSession.connect(signalName,
+        (_msg: GObject.Object, _cert: Gio.TlsCertificate, _errors: Gio.TlsCertificateFlags) => {
           return true;
         }
       );
@@ -397,7 +402,12 @@ export class ClientHttp2Session extends Http2Session {
     // Emit 'connect' asynchronously after construction
     Promise.resolve().then(() => {
       if (!this.destroyed) {
-        (this as any).alpnProtocol = this.encrypted ? 'h2' : (this._nativeClient ? 'h2c' : undefined);
+        // alpnProtocol is publicly `readonly` on Http2Session, but the
+        // constructor needs to back-fill it once the dispatcher choice is
+        // known. A typed internal-mutable view drops the `as any` cast
+        // while keeping the public contract intact.
+        const _self = this as Http2Session & { alpnProtocol: string | undefined };
+        _self.alpnProtocol = this.encrypted ? 'h2' : (this._nativeClient ? 'h2c' : undefined);
         this.emit('connect', this, null);
       }
     });

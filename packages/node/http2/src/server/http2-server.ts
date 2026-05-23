@@ -236,7 +236,7 @@ export class Http2Server extends EventEmitter {
             localAddress: this._address?.address ?? '127.0.0.1',
             localPort: event.localPort,
             encrypted: false,
-        } as any;
+        };
 
         // Drain DATA frames into the Readable. The dispatcher gave us an async
         // iterable; pump it into `_pushBody` and signal EOF.
@@ -312,7 +312,7 @@ export class Http2Server extends EventEmitter {
             localAddress: this._address?.address ?? '127.0.0.1',
             localPort: this._address?.port ?? 0,
             encrypted: this instanceof Http2SecureServer,
-        } as any;
+        };
 
         // Push request body into the readable stream
         const body = soupMsg.get_request_body();

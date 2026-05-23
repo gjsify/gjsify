@@ -469,13 +469,32 @@ export class ServerHttp2Stream extends EventEmitter {
         this._res.respond(headers, options);
     }
 
-    // Writable-like interface delegating to response
-    write(chunk: any, encoding?: BufferEncoding | (() => void), callback?: () => void): boolean {
-        return this._res.write(chunk as any, encoding as any, callback as any);
+    // Writable-like interface delegating to response. `Parameters<>` lifts
+    // the underlying Writable's overload tuple so the delegation passes
+    // through without `as any` while still tolerating the relaxed
+    // chunk-type the public surface accepts.
+    write(
+        chunk: Parameters<Http2ServerResponse['write']>[0],
+        encoding?: BufferEncoding | (() => void),
+        callback?: () => void,
+    ): boolean {
+        return this._res.write(
+            chunk,
+            encoding as BufferEncoding,
+            callback,
+        );
     }
 
-    end(chunk?: any, encoding?: BufferEncoding | (() => void), callback?: () => void): this {
-        this._res.end(chunk as any, encoding as any, callback as any);
+    end(
+        chunk?: Parameters<Http2ServerResponse['end']>[0],
+        encoding?: BufferEncoding | (() => void),
+        callback?: () => void,
+    ): this {
+        this._res.end(
+            chunk,
+            encoding as BufferEncoding,
+            callback,
+        );
         return this;
     }
 

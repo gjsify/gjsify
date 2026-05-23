@@ -132,7 +132,7 @@ export async function* watchAsync(
   filename: PathLike,
   options?: WatchOptions & { signal?: AbortSignal },
 ): AsyncIterableIterator<WatchEvent> {
-  const signal = (options as any)?.signal as AbortSignal | undefined;
+  const signal = options?.signal;
 
   if (signal?.aborted) return;
 
@@ -165,7 +165,9 @@ export async function* watchAsync(
     finished = true;
     if (!cancellable.is_cancelled()) cancellable.cancel();
     while (waiterQueue.length > 0) {
-      waiterQueue.shift()!.resolve({ value: undefined as any, done: true });
+      // `done: true` iterator returns conventionally carry `value: undefined`;
+      // the default `TReturn` of `IteratorResult` allows that without a cast.
+      waiterQueue.shift()!.resolve({ value: undefined, done: true });
     }
   }
 

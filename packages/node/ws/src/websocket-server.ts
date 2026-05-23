@@ -156,7 +156,7 @@ class ServerSideWebSocket extends EventEmitter {
         this._conn.send_message(Soup.WebsocketDataType.TEXT, new GLib.Bytes(bytes));
       } else {
         let bytes: GLib.Bytes;
-        if (Buffer.isBuffer(data as any)) {
+        if (Buffer.isBuffer(data)) {
           const b = data as Buffer;
           bytes = new GLib.Bytes(new Uint8Array(b.buffer, b.byteOffset, b.byteLength));
         } else if (data instanceof ArrayBuffer) {
@@ -183,8 +183,8 @@ class ServerSideWebSocket extends EventEmitter {
     try {
       const reasonStr = reason === undefined
         ? null
-        : Buffer.isBuffer(reason as any)
-          ? (reason as Buffer).toString('utf8')
+        : Buffer.isBuffer(reason)
+          ? reason.toString('utf8')
           : String(reason);
       this._conn.close(code ?? 1000, reasonStr);
     } catch (err) {

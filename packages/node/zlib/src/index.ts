@@ -301,14 +301,19 @@ export function inflateRawSync(data: string | Uint8Array | ArrayBuffer, _options
 
 // ---- Brotli (not available in GJS — stubs throw at call time) ----
 
+// Node's CompressCallback signature requires a `result: Uint8Array` even on
+// the error path; convention is to pass an empty buffer when reporting an
+// error. Hand back a zero-length view rather than casting `null` through.
+const EMPTY_RESULT = new Uint8Array(0);
+
 export function brotliCompress(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
   const cb = (typeof optionsOrCallback === 'function' ? optionsOrCallback : callback) as ZlibCallback;
-  cb(new Error('brotliCompress: Brotli is not supported in this environment'), null as any);
+  cb(new Error('brotliCompress: Brotli is not supported in this environment'), EMPTY_RESULT);
 }
 
 export function brotliDecompress(data: string | Uint8Array | ArrayBuffer, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
   const cb = (typeof optionsOrCallback === 'function' ? optionsOrCallback : callback) as ZlibCallback;
-  cb(new Error('brotliDecompress: Brotli is not supported in this environment'), null as any);
+  cb(new Error('brotliDecompress: Brotli is not supported in this environment'), EMPTY_RESULT);
 }
 
 export function brotliCompressSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
