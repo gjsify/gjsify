@@ -7,15 +7,23 @@ import { GamepadManager } from './gamepad-manager.js';
 
 const manager = new GamepadManager();
 
+/** Module-local typed view of the globals this file writes. */
+interface _GamepadGlobals {
+    navigator?: { getGamepads?: () => (Gamepad | null)[] };
+    GamepadEvent?: typeof GamepadEvent;
+}
+
+const g = globalThis as unknown as _GamepadGlobals;
+
 // Ensure navigator object exists
-if (typeof (globalThis as any).navigator === 'undefined') {
-    (globalThis as any).navigator = {};
+if (typeof g.navigator === 'undefined') {
+    g.navigator = {};
 }
 
 // Register navigator.getGamepads()
-(globalThis as any).navigator.getGamepads = () => manager.getGamepads();
+g.navigator!.getGamepads = () => manager.getGamepads();
 
 // Register GamepadEvent globally
-if (typeof (globalThis as any).GamepadEvent === 'undefined') {
-    (globalThis as any).GamepadEvent = GamepadEvent;
+if (typeof g.GamepadEvent === 'undefined') {
+    g.GamepadEvent = GamepadEvent;
 }

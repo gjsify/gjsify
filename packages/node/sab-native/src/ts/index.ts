@@ -62,8 +62,24 @@ export interface GjsifySabNativeModule {
 
 /* ── Lazy load via GJS legacy imports API ───────────────────────────────── */
 
+/**
+ * Module-local typed view of the GJS-runtime globals this file reads.
+ * `globalThis.imports` is the GJS bootstrap object — it exists before any
+ * `@girs/*` modules resolve, so we read it via a structural type instead
+ * of importing `@girs/glib-2.0` from a node-side polyfill.
+ */
+interface _GjsRuntimeGlobals {
+    imports?: {
+        gi?: Record<string, unknown>;
+        byteArray?: { fromGBytes(bytes: unknown): Uint8Array; toGBytes(arr: Uint8Array): unknown };
+    };
+    Buffer?: { from(view: Uint8Array): unknown };
+}
+
+const _runtime = globalThis as unknown as _GjsRuntimeGlobals;
+
 let _mod: GjsifySabNativeModule | null = null;
-const _gi: Record<string, unknown> | undefined = (globalThis as any).imports?.gi;
+const _gi: Record<string, unknown> | undefined = _runtime.imports?.gi;
 if (_gi) {
     try {
         _mod = _gi['GjsifySabNative'] as GjsifySabNativeModule;
@@ -205,9 +221,9 @@ export class SharedBuffer {
         const bytes = this._assertOpen().read_bytes(offset, length);
         // GJS exposes GLib.Bytes-like values via imports.byteArray.fromGBytes
         // → Uint8Array. The copy keeps GC ownership inside SpiderMonkey.
-        const byteArray = (globalThis as any).imports?.byteArray;
+        const byteArray = _runtime.imports?.byteArray;
         if (byteArray && typeof byteArray.fromGBytes === 'function') {
-            const arr = byteArray.fromGBytes(bytes) as Uint8Array;
+            const arr = byteArray.fromGBytes(bytes);
             return new Uint8Array(arr); // detach from internal GByteArray
         }
         // Fallback: assume the returned object exposes a .toArray() method
@@ -271,8 +287,11 @@ export class SharedBuffer {
     toBuffer<T extends Uint8Array = Uint8Array>(offset = 0, length?: number): T {
         const len = length ?? (this.byteLength - offset);
         const view = this.viewBytes(offset, len);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const BufferCtor = (globalThis as any).Buffer;
+        // Buffer is registered globally by `@gjsify/buffer/register`. We
+        // type the structural `Buffer.from(ArrayBuffer, …)` overload via
+        // the runtime-globals view.
+        interface _BufferStatic { from(buffer: ArrayBufferLike, byteOffset?: number, length?: number): unknown }
+        const BufferCtor = (_runtime as unknown as { Buffer?: _BufferStatic }).Buffer;
         if (typeof BufferCtor?.from !== 'function') {
             throw new Error(
                 'SharedBuffer.toBuffer: globalThis.Buffer is not registered. ' +
@@ -290,13 +309,14 @@ export class SharedBuffer {
      * Write a byte range into the region. memcpy on the C side.
      */
     writeBytes(offset: number, data: Uint8Array): void {
-        const byteArray = (globalThis as any).imports?.byteArray;
+        const byteArray = _runtime.imports?.byteArray;
         let bytes: unknown;
         if (byteArray && typeof byteArray.toGBytes === 'function') {
             bytes = byteArray.toGBytes(data);
         } else {
             // Fallback: GLib.Bytes from a Uint8Array via global GLib.
-            const GLib = (globalThis as any).imports?.gi?.GLib;
+            interface _GLibBytesCtor { Bytes?: new (data: Uint8Array) => unknown }
+            const GLib = (_runtime.imports?.gi?.GLib as _GLibBytesCtor | undefined);
             bytes = GLib?.Bytes ? new GLib.Bytes(data) : data;
         }
         this._assertOpen().write_bytes(offset, bytes);
