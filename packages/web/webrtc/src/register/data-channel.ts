@@ -3,9 +3,17 @@
 import { RTCDataChannel } from '../rtc-data-channel.js';
 import { RTCDataChannelEvent } from '../rtc-events.js';
 
-if (typeof (globalThis as any).RTCDataChannel === 'undefined') {
-    (globalThis as any).RTCDataChannel = RTCDataChannel;
+/** Module-local typed view of the globals this file writes. */
+interface _RtcDataChannelGlobals {
+    RTCDataChannel?: typeof RTCDataChannel;
+    RTCDataChannelEvent?: typeof RTCDataChannelEvent;
 }
-if (typeof (globalThis as any).RTCDataChannelEvent === 'undefined') {
-    (globalThis as any).RTCDataChannelEvent = RTCDataChannelEvent;
+
+const g = globalThis as unknown as _RtcDataChannelGlobals;
+
+if (typeof g.RTCDataChannel === 'undefined') {
+    g.RTCDataChannel = RTCDataChannel;
+}
+if (typeof g.RTCDataChannelEvent === 'undefined') {
+    g.RTCDataChannelEvent = RTCDataChannelEvent;
 }

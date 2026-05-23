@@ -9,15 +9,25 @@ import {
 } from '@gjsify/dom-events';
 import EventSource from './index.js';
 
+/** Module-local typed view of the globals this file writes. */
+interface _EventSourceGlobals {
+  Event?: typeof DomEvent;
+  EventTarget?: typeof DomEventTarget;
+  MessageEvent?: typeof DomMessageEvent;
+  EventSource?: typeof EventSource;
+}
+
+const g = globalThis as unknown as _EventSourceGlobals;
+
 if (typeof globalThis.Event === 'undefined') {
-  (globalThis as any).Event = DomEvent;
+  g.Event = DomEvent;
 }
 if (typeof globalThis.EventTarget === 'undefined') {
-  (globalThis as any).EventTarget = DomEventTarget;
+  g.EventTarget = DomEventTarget;
 }
 if (typeof globalThis.MessageEvent === 'undefined') {
-  (globalThis as any).MessageEvent = DomMessageEvent;
+  g.MessageEvent = DomMessageEvent;
 }
 if (typeof globalThis.EventSource === 'undefined') {
-  (globalThis as any).EventSource = EventSource;
+  g.EventSource = EventSource;
 }

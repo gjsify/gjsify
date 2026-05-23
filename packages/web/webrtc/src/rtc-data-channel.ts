@@ -47,13 +47,22 @@ function toGBytes(buffer: ArrayBuffer | ArrayBufferView): GLib.Bytes {
     return new GLib.Bytes(view);
 }
 
+/** GIR-untyped accessors GJS exposes on GLib.Bytes for unwrapping the
+ *  underlying byte buffer. `toArray()` is the GJS-specific shortcut;
+ *  `get_data()` is the official C API. */
+interface _GLibBytesUnwrap {
+    toArray?: () => Uint8Array;
+    get_data?: () => Uint8Array | null;
+}
+
 /** Convert a GLib.Bytes payload to an ArrayBuffer. */
 function bytesToArrayBuffer(bytes: GLib.Bytes): ArrayBuffer {
-    const arr = (bytes as any).toArray?.();
+    const unwrap = bytes as unknown as _GLibBytesUnwrap;
+    const arr = unwrap.toArray?.();
     if (arr instanceof Uint8Array) {
         return (arr.buffer as ArrayBuffer).slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
     }
-    const data = (bytes as any).get_data?.();
+    const data = unwrap.get_data?.();
     if (data instanceof Uint8Array) {
         return (data.buffer as ArrayBuffer).slice(data.byteOffset, data.byteOffset + data.byteLength);
     }
@@ -84,12 +93,21 @@ export class RTCDataChannel extends EventTarget {
      */
     constructor(source: GstWebRTC.WebRTCDataChannel | DataChannelBridgeType) {
         super();
-        if ((source as DataChannelBridgeType).channel !== undefined && (source as any).dispose_bridge) {
+        // Discriminator: DataChannelBridge has both `channel` + `dispose_bridge`;
+        // the raw GstWebRTCDataChannel has neither. Check structurally via a
+        // narrow `_BridgeDuckType` rather than `as any`.
+        type _BridgeDuckType = { channel?: unknown; dispose_bridge?: unknown };
+        const ducked = source as _BridgeDuckType;
+        if (ducked.channel !== undefined && typeof ducked.dispose_bridge === 'function') {
             this._bridge = source as DataChannelBridgeType;
             this._native = this._bridge.channel as unknown as GstWebRTC.WebRTCDataChannel;
         } else {
             this._native = source as GstWebRTC.WebRTCDataChannel;
-            this._bridge = new (DataChannelBridge as any)({ channel: this._native });
+            // DataChannelBridge's GObject constructor takes a `channel` property —
+            // typed only through the GIR overload that requires `Gst.WebRTCDataChannel`.
+            // Cast through the structural ConstructorProps shape.
+            type _DcBridgeCtor = new (props: { channel: GstWebRTC.WebRTCDataChannel }) => DataChannelBridgeType;
+            this._bridge = new (DataChannelBridge as unknown as _DcBridgeCtor)({ channel: this._native });
         }
 
         this._bridge.connect('opened', () => this._handleOpen());
