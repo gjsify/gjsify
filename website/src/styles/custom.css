@@ -3,37 +3,98 @@
  * GNOME design language: developer.gnome.org
  */
 
-/* Light mode */
+/* Light mode — values mirror packages/web/adwaita-web/scss/_variables.scss */
 :root {
   --sl-color-accent-low:     rgba(53, 132, 228, 0.12);
   --sl-color-accent:         #3584e4;   /* GNOME Blue */
   --sl-color-accent-high:    #1a6bc4;
 
-  --sl-color-bg:             #fafafa;
+  --sl-color-bg:             #fafafb;
   --sl-color-bg-nav:         #ffffff;
-  --sl-color-bg-sidebar:     #f5f5f5;
+  --sl-color-bg-sidebar:     #ebebed;
   --sl-color-bg-inline-code: rgba(53, 132, 228, 0.08);
 
   --sl-font:                 'Adwaita Sans', 'Cantarell', -apple-system, BlinkMacSystemFont,
                              'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
 
-  /* Custom Adwaita structural vars */
-  --adw-border-radius:       12px;
+  /* Adwaita canonical tokens (light) */
+  --adw-window-bg:           #fafafb;
+  --adw-window-fg:           rgba(0, 0, 6, 0.8);
+  --adw-view-bg:             #ffffff;
+  --adw-headerbar-bg:        #ffffff;
+  --adw-headerbar-shade:     rgba(0, 0, 6, 0.12);
+  --adw-card-bg:             #ffffff;
+  --adw-card-shade:          rgba(0, 0, 6, 0.07);
   --adw-card-border:         rgba(0, 0, 0, 0.08);
+  --adw-accent-bg:           #3584e4;
+  --adw-accent-fg:           #ffffff;
+  --adw-accent:              #1c71d8;
+  --adw-success:             #26a269;
+  --adw-warning:             #e5a50a;
+  --adw-error:               #c01c28;
+  --adw-neutral:             rgba(0, 0, 0, 0.35);
+
+  /* Status pill backgrounds (with alpha so they harmonise across themes) */
+  --adw-pill-success-bg:     rgba(38, 162, 105, 0.15);
+  --adw-pill-warning-bg:     rgba(229, 165, 10, 0.18);
+  --adw-pill-error-bg:       rgba(192, 28, 40, 0.15);
+  --adw-pill-accent-bg:      rgba(53, 132, 228, 0.12);
+  --adw-pill-neutral-bg:     rgba(128, 128, 128, 0.15);
+
+  /* Radii */
+  --adw-window-radius:       15px;
+  --adw-card-radius:         12px;
+  --adw-border-radius:       12px;  /* legacy alias */
+  --adw-button-radius:       9px;
+  --adw-pill-radius:         999px;
+
+  /* Spacing */
+  --adw-spacing-xs:          6px;
+  --adw-spacing-s:           9px;
+  --adw-spacing-m:           12px;
+  --adw-spacing-l:           18px;
+  --adw-spacing-xl:          24px;
+
+  /* Shadows */
+  --adw-card-shadow:
+    0 0 0 1px rgb(0 0 6 / 3%),
+    0 1px 3px 1px rgb(0 0 6 / 7%),
+    0 2px 6px 2px rgb(0 0 6 / 3%);
+  --adw-window-shadow:
+    0 0 14px 5px rgb(0 0 0 / 15%),
+    0 0 5px 2px rgb(0 0 0 / 10%),
+    0 0 0 1px rgb(0 0 0 / 5%);
+
+  --dim-opacity:             0.55;
 }
 
 /* Dark mode */
 :root[data-theme='dark'] {
   --sl-color-accent-low:     rgba(53, 132, 228, 0.15);
-  --sl-color-accent:         #3584e4;   /* GNOME Blue — same as light mode */
+  --sl-color-accent:         #3584e4;
   --sl-color-accent-high:    #78aeed;
 
-  --sl-color-bg:             #242424;   /* Adwaita dark */
-  --sl-color-bg-nav:         #303030;
+  --sl-color-bg:             #222226;
+  --sl-color-bg-nav:         #2e2e32;
   --sl-color-bg-sidebar:     #1e1e1e;
   --sl-color-bg-inline-code: rgba(53, 132, 228, 0.12);
 
+  --adw-window-bg:           #222226;
+  --adw-window-fg:           #ffffff;
+  --adw-view-bg:             #1d1d20;
+  --adw-headerbar-bg:        #2e2e32;
+  --adw-headerbar-shade:     rgba(0, 0, 6, 0.36);
+  --adw-card-bg:             rgba(255, 255, 255, 0.05);
+  --adw-card-shade:          rgba(255, 255, 255, 0.08);
   --adw-card-border:         rgba(255, 255, 255, 0.06);
+  --adw-accent:              #78aeed;
+  --adw-neutral:             rgba(255, 255, 255, 0.28);
+
+  --adw-pill-success-bg:     rgba(38, 162, 105, 0.22);
+  --adw-pill-warning-bg:     rgba(229, 165, 10, 0.22);
+  --adw-pill-error-bg:       rgba(192, 28, 40, 0.22);
+  --adw-pill-accent-bg:      rgba(120, 174, 237, 0.18);
+  --adw-pill-neutral-bg:     rgba(255, 255, 255, 0.10);
 }
 
 /* Rounded code blocks (no title) */
@@ -413,4 +474,412 @@ a[aria-current='page']:hover {
 /* Last element inside details needs bottom spacing */
 .sl-markdown-content details > :last-child {
   margin-bottom: 1rem;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Adwaita coverage components (homepage)
+   Boxed list + accordion + progress bars + status pills.
+   Used by WebStandardsCoverage / NodeApiCoverage / BridgesGrid /
+   IntegrationTests. All values mirror packages/web/adwaita-web/scss.
+   ───────────────────────────────────────────────────────────────── */
+
+.adw-coverage {
+  max-width: 960px;
+  margin-inline: auto;
+  padding-block: clamp(2rem, 4vw, 3.5rem);
+  padding-inline: 1.5rem;
+}
+
+.adw-coverage + .adw-coverage {
+  padding-block-start: 0;
+}
+
+.adw-coverage-head {
+  margin-bottom: var(--adw-spacing-l);
+  padding-inline: 2px;
+}
+
+.adw-group-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: var(--dim-opacity);
+  margin: 0 0 var(--adw-spacing-xs) 0;
+}
+
+.adw-group-title-spaced {
+  margin-top: var(--adw-spacing-l);
+}
+
+.adw-coverage-title {
+  font-size: clamp(1.5rem, 2.5vw, 1.875rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--adw-spacing-s) 0;
+  color: var(--sl-color-white);
+}
+
+.adw-coverage-subtitle {
+  margin: 0;
+  color: var(--sl-color-gray-2);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+/* Aggregate summary card — Adwaita Card */
+.adw-coverage-aggregate {
+  margin-bottom: var(--adw-spacing-l);
+  padding: var(--adw-spacing-l);
+  border-radius: var(--adw-card-radius);
+  background: var(--adw-card-bg);
+  box-shadow: var(--adw-card-shadow);
+}
+
+.adw-coverage-aggregate-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--adw-spacing-m);
+  flex-wrap: wrap;
+  margin-bottom: var(--adw-spacing-m);
+}
+
+.adw-coverage-aggregate-pct {
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 800;
+  color: var(--adw-accent);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.adw-coverage-aggregate-sub {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--adw-spacing-xs);
+  align-items: center;
+}
+
+/* Boxed list — multi-row card with separators */
+.adw-boxed-list {
+  background: var(--adw-card-bg);
+  border-radius: var(--adw-card-radius);
+  box-shadow: var(--adw-card-shadow);
+  overflow: hidden;
+}
+
+.adw-row {
+  padding: var(--adw-spacing-m) var(--adw-spacing-l);
+  border-bottom: 1px solid var(--adw-card-shade);
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+}
+
+.adw-row:last-child {
+  border-bottom: none;
+}
+
+/* Expander row — wraps a <details> element */
+.adw-row-expander {
+  display: block;
+  padding: 0;
+}
+
+.adw-row-expander > summary {
+  padding: var(--adw-spacing-m) var(--adw-spacing-l);
+  min-height: 50px;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--adw-spacing-m);
+  user-select: none;
+  transition: background 0.15s;
+  font-weight: 600;
+  color: var(--sl-color-white);
+}
+
+.adw-row-expander > summary::-webkit-details-marker {
+  display: none;
+}
+
+.adw-row-expander > summary:hover {
+  background: rgba(128, 128, 128, 0.06);
+}
+
+.adw-row-expander[open] > summary {
+  border-bottom: 1px solid var(--adw-card-shade);
+}
+
+.adw-row-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--adw-spacing-s);
+  flex: 1;
+  min-width: 0;
+}
+
+.adw-row-title-plain {
+  font-weight: 600;
+  color: var(--sl-color-white);
+}
+
+.adw-chevron {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  background-color: var(--sl-color-gray-3);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M6 3l5 5-5 5' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M6 3l5 5-5 5' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  transition: transform 0.2s;
+}
+
+.adw-row-expander[open] > summary .adw-chevron {
+  transform: rotate(90deg);
+}
+
+.adw-row-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--adw-spacing-m);
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.adw-meta-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--sl-color-gray-2);
+  white-space: nowrap;
+}
+
+.adw-row-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.adw-row-headline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--adw-spacing-s);
+  flex-wrap: wrap;
+}
+
+.adw-row-subtitle {
+  margin: var(--adw-spacing-xs) 0 0 0;
+  font-size: 0.875rem;
+  color: var(--sl-color-gray-2);
+  display: flex;
+  align-items: baseline;
+  gap: var(--adw-spacing-s);
+  flex-wrap: wrap;
+}
+
+/* API list inside expanded row */
+.adw-api-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--adw-view-bg, transparent);
+}
+
+.adw-api-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--adw-spacing-m);
+  padding: var(--adw-spacing-s) var(--adw-spacing-l) var(--adw-spacing-s) calc(var(--adw-spacing-l) + var(--adw-spacing-m));
+  border-bottom: 1px solid var(--adw-card-shade);
+  min-height: 38px;
+  font-size: 0.9375rem;
+}
+
+.adw-api-item:last-child {
+  border-bottom: none;
+}
+
+.adw-api-name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--adw-spacing-s);
+  min-width: 0;
+}
+
+.adw-api-name code {
+  font-size: 0.875rem;
+  padding: 0 4px;
+}
+
+.adw-api-pkg {
+  font-size: 0.75rem;
+  font-family: var(--__sl-font-mono, ui-monospace, monospace);
+  color: var(--sl-color-gray-3);
+  background: transparent;
+  padding: 0;
+}
+
+.adw-api-backed {
+  font-size: 0.75rem;
+  color: var(--sl-color-gray-3);
+  font-style: italic;
+}
+
+.adw-api-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--adw-spacing-s);
+  flex-shrink: 0;
+  text-align: right;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.adw-api-note {
+  font-size: 0.75rem;
+  color: var(--sl-color-gray-3);
+  font-style: italic;
+  max-width: 22rem;
+}
+
+/* ── Adwaita progress bar ── */
+.adw-bar {
+  display: flex;
+  width: 100%;
+  height: 6px;
+  background: var(--adw-card-shade);
+  border-radius: var(--adw-pill-radius);
+  overflow: hidden;
+}
+
+.adw-bar-inline {
+  width: 160px;
+  min-width: 60px;
+}
+
+.adw-bar-seg {
+  display: block;
+  height: 100%;
+}
+
+.adw-bar-seg.seg-full    { background: var(--adw-success); }
+.adw-bar-seg.seg-partial { background: var(--adw-warning); }
+.adw-bar-seg.seg-missing { background: var(--adw-accent); opacity: 0.35; }
+.adw-bar-seg.seg-out     { background: var(--adw-neutral); }
+
+/* ── Adwaita pills ── */
+.adw-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: var(--adw-pill-radius);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.adw-pill-success { background: var(--adw-pill-success-bg); color: var(--adw-success); }
+.adw-pill-warning { background: var(--adw-pill-warning-bg); color: var(--adw-warning); }
+.adw-pill-error   { background: var(--adw-pill-error-bg);   color: var(--adw-error);   }
+.adw-pill-accent  { background: var(--adw-pill-accent-bg);  color: var(--adw-accent);  }
+.adw-pill-neutral { background: var(--adw-pill-neutral-bg); color: var(--sl-color-gray-2); }
+.adw-pill-muted   { background: transparent; color: var(--sl-color-gray-3); border: 1px solid var(--adw-card-shade); }
+
+/* ── Bridges & Integration helpers ── */
+.adw-bridge-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--adw-spacing-s);
+  flex-wrap: wrap;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.adw-bridge-pair code {
+  font-size: 0.875rem;
+  padding: 2px 6px;
+}
+
+.adw-bridge-dom { color: var(--adw-accent); background: var(--adw-pill-accent-bg); }
+.adw-bridge-gtk { color: var(--adw-success); background: var(--adw-pill-success-bg); }
+
+.adw-bridge-arrow {
+  color: var(--sl-color-gray-3);
+  font-weight: 400;
+}
+
+.adw-bridge-libs {
+  color: var(--sl-color-gray-3);
+  font-style: italic;
+  font-size: 0.8125rem;
+}
+
+.adw-integration-list .adw-row {
+  align-items: flex-start;
+}
+
+.adw-tag-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--adw-spacing-xs);
+  margin-top: var(--adw-spacing-xs);
+}
+
+.adw-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  border-radius: var(--adw-pill-radius);
+  background: var(--adw-pill-neutral-bg);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--sl-color-white);
+}
+
+.adw-tag-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--adw-success);
+  flex-shrink: 0;
+}
+
+.adw-tag-suffix {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--adw-accent);
+  letter-spacing: 0.04em;
+  margin-left: 2px;
+}
+
+/* Responsive — collapse meta on small screens */
+@media (max-width: 600px) {
+  .adw-row-meta {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--adw-spacing-xs);
+  }
+  .adw-bar-inline {
+    width: 100px;
+  }
+  .adw-api-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--adw-spacing-xs);
+  }
+  .adw-api-meta {
+    justify-content: flex-start;
+  }
 }

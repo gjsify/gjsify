@@ -1,0 +1,43 @@
+---
+// Integration test suites under tests/integration/* — shown as a tag-grid
+// of npm packages whose real test suites pass against @gjsify/*.
+//
+// Not measured as coverage (there's no canonical "all of npm" total) —
+// the value is showing the breadth.
+//
+// Data: src/data/integration-tests.ts
+
+import { groupIntegrationsByCategory, integrationSuites } from "../data/integration-tests.ts";
+
+const grouped = groupIntegrationsByCategory();
+const totalSuites = integrationSuites.length;
+---
+
+<section class="adw-coverage">
+	<header class="adw-coverage-head">
+		<p class="adw-group-title">Integration Tests</p>
+		<h2 class="adw-coverage-title">{totalSuites} npm packages, end-to-end</h2>
+		<p class="adw-coverage-subtitle">
+			Real-world libraries whose own test suites (or a curated subset) run unmodified against <code>@gjsify/*</code>. Catches regressions that polyfill-internal tests would miss.
+		</p>
+	</header>
+
+	<div class="adw-boxed-list adw-integration-list">
+		{Array.from(grouped.entries()).map(([categoryLabel, suites]) => (
+			<div class="adw-row">
+				<div class="adw-row-content">
+					<p class="adw-row-title-plain">{categoryLabel}</p>
+					<div class="adw-tag-grid">
+						{suites.map((s) => (
+							<span class="adw-tag" title={s.exercises}>
+								<span class="adw-tag-dot" aria-hidden="true" />
+								{s.name}
+								{s.gjsOnly && <span class="adw-tag-suffix">GJS</span>}
+							</span>
+						))}
+					</div>
+				</div>
+			</div>
+		))}
+	</div>
+</section>

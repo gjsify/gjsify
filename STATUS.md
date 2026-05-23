@@ -30,22 +30,27 @@
 ## Summary
 
 gjsify implements Node.js, Web Standard, and DOM APIs for GJS (GNOME JavaScript / SpiderMonkey 140).
-The project comprises **44 Node.js packages** (+1 meta), **20 Web API packages** (+1 meta), **8 DOM/bridge packages**, **4 GJS infrastructure packages**, and **9 build/infra tools**.
+The project comprises **41 Node.js modules** (+1 meta, +5 native bridges), **18 Web API packages** (+1 meta, +1 native bridge, +3 Adwaita assets), **2 DOM packages**, **6 framework bridge packages**, **3 GJS infrastructure packages**, and **16 build/infra tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
-| Node.js APIs | 43 | 36 (84%) | 4 (9%) | 4 (9%) |
+| Node.js APIs | 41 | 33 (80%) | 5 (12%) | 3 (7%) |
+| Node.js native bridges | 5 | 5 (terminal, sab, tls, http-soup, http2) | — | — |
 | Node.js meta | 1 | 1 | — | — |
-| Web APIs | 20 | 18 (90%) | 2 (10%) | — |
+| Web APIs | 18 | 16 (89%) | 2 (11%) | — |
+| Web native bridge | 1 | 1 (webrtc-native) | — | — |
 | Web meta | 1 | 1 | — | — |
-| DOM / Bridges | 8 | 8 (100%) | — | — |
-| Browser UI | 3 | 3 (adwaita-web, adwaita-fonts, adwaita-icons) | — | — |
+| Browser UI / Adwaita assets | 3 | 3 (adwaita-web, adwaita-fonts, adwaita-icons) | — | — |
+| DOM | 2 | 2 (dom-elements, canvas2d-core) | — | — |
+| Framework bridges | 6 | 6 (bridge-types, canvas2d, event-bridge, iframe, video, webgl) | — | — |
+| GJS Infrastructure | 3 | 3 (runtime, unit, utils) | — | — |
+| Build/Infra Tools | 16 | 16 | — | — |
 | Showcases | 8 | 8 | — | — |
-| GJS Infrastructure | 4 | 3 | 1 (types) | — |
-| Build/Infra Tools | 9 | 9 | — | — |
-| Integration test suites | 4 | 4 (webtorrent, socket.io, streamx, autobahn) | — | — |
+| Integration test suites | 21 | 21 | — | — |
 
-**Test coverage:** 10,570+ test cases in 112+ spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 43/44 — minimum supported runtime: GJS 1.86 / SpiderMonkey 140). Integration suites (`yarn test:integration`) are opt-in and exercise curated upstream tests from webtorrent / socket.io / streamx, plus the Autobahn fuzzingserver for RFC 6455 compliance.
+**Web platform coverage** (vs. the relevant W3C/WHATWG standards, not just our own package list): ≈54 % of all surveyed standards implemented full or partial, with ~20 % out of scope by design for desktop GTK apps (Service Worker, FS Access, Web Bluetooth, …). See `website/src/data/web-standards.ts` for the canonical category list.
+
+**Test coverage:** 10,570+ test cases in 112+ spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 43/44 — minimum supported runtime: GJS 1.86 / SpiderMonkey 140). Integration suites (`yarn test:integration`) are opt-in and exercise curated upstream tests from acorn, autobahn, axios, cosmiconfig, deepkit-type-compiler, execa, fast-glob, gettext-parser, lightningcss, mcp-inspector-cli, mcp-typescript-sdk, minify-xml, pkg-types, rolldown-native, rollup-pluginutils, socket.io, streamx, ts-for-gir, webtorrent, worker-stress, and yargs.
 
 ---
 
@@ -372,21 +377,23 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 | Metric | Value |
 |--------|-------|
-| Total Node.js packages | 44 + 1 meta |
-| Fully implemented | 36 (82%) |
-| Partially implemented | 5 (11%) — sqlite, ws, worker_threads, vm, v8 |
+| Total Node.js packages | 41 + 1 meta + 5 native bridges |
+| Fully implemented | 33 (80%) |
+| Partially implemented | 5 (12%) — sqlite, ws, worker_threads, vm, v8 |
 | Stubs | 3 (7%) — cluster, domain, inspector |
-| Native bridges | 4 (terminal-native, http-soup-bridge, http2-native, sab-native) |
-| Web API packages | 20 + 1 meta (18 full, 2 partial) |
-| DOM / Bridge packages | 8 (all implemented) — dom-elements, canvas2d-core, canvas2d, bridge-types, webgl, event-bridge, iframe, video |
+| Native Node bridges | 5 (terminal-native, sab-native, tls-native, http-soup-bridge, http2-native) |
+| Web API packages | 18 + 1 meta + 1 native bridge (16 full, 2 partial) |
+| Web native bridge | 1 (webrtc-native) |
+| DOM packages | 2 (dom-elements, canvas2d-core) |
+| Framework / bridge packages | 6 (bridge-types, canvas2d, event-bridge, iframe, video, webgl) |
 | Browser UI packages | 3 (adwaita-web, adwaita-fonts, adwaita-icons) |
-| GJS infrastructure packages | 4 (unit, utils, runtime, types) |
-| Build tools | 9 (infra/) |
+| GJS infrastructure packages | 3 (runtime, unit, utils) |
+| Build / infra tools | 16 (infra/) |
 | E2E suites | 25+ (create-app, cli-only, cli-only-pnp, standalone-plugin, native-install, cli-config, inline-static-reads, library-multi-build, terminal-native, gsettings, define-from-pkg, text-loader, css-bundling, dlx-native-prebuilds, dlx-version-pin, plugins-by-name, shebang-string, build-watch, test-runner, flatpak, flatpak-sync, flatpak-diff, flatpak-release, biome, upgrade — flatpak: 17 tests (incl. G.2 2-space + biome post-format); test-runner: 5; build-watch: 2; flatpak-sync: 4; flatpak-diff: 4; flatpak-release: 4; biome: 8; upgrade: 7 covering --latest/--patch/--minor/--filter/workspace skip/empty-deps against an in-process mock npm registry) |
 | Total test cases | 10,790+ (unit, +18 sab-native SharedBuffer/atomics/cross-process fd-roundtrip + SCM_RIGHTS, +4 worker_threads × sab-native cross-process SharedBuffer (eval workers + atomic counters), +32 worker_threads transferList/MessagePort/SAB, +23 http2 Phase 2 pushStream/respondWithFD/respondWithFile, +80 http2 Phases 0–4 native dispatcher / SessionBridge / GOAWAY / RST_STREAM / GC pinning, +11 `gjsify barrels` generator) + 1,861+ (integration: 185 webtorrent + 112 socket.io + 156 streamx + 131 autobahn + 108 mcp-typescript-sdk + 14 mcp-inspector-cli + 68 axios/120 GJS + 1035 worker-stress GJS / 1169 Node — including the new 4-worker × SHA-256 cross-process SharedBuffer barrier + 8-worker × 10k fetch_add stress suite via @gjsify/sab-native) |
 | Spec files | 110+ |
-| Integration test suites | 8 (webtorrent, socket.io, streamx, autobahn, mcp-typescript-sdk, mcp-inspector-cli, axios, worker-stress) |
-| Showcases | 8 (Canvas2D Fireworks, Three.js Teapot, Three.js Pixel Post-Processing, Excalibur Jelly Jumper, Express Webserver, Adwaita Package Builder, WebRTC Loopback, Minimalist Browser) |
+| Integration test suites | 21 (acorn, autobahn, axios, cosmiconfig, deepkit-type-compiler, execa, fast-glob, gettext-parser, lightningcss, mcp-inspector-cli, mcp-typescript-sdk, minify-xml, pkg-types, rolldown-native, rollup-pluginutils, socket.io, streamx, ts-for-gir, webtorrent, worker-stress, yargs) |
+| Showcases | 8 (Canvas2D Fireworks, Three.js Teapot, Three.js Pixel Post-Processing, Excalibur Jelly Jumper, Express Webserver, WebRTC Loopback, WebRTC Video, Minimalist Browser) |
 | Real-world examples | 53+ across `examples/dom/` (WebGL tutorials, WebRTC loopback/DTMF/trickle-ice/video/states, WebTorrent download/player/seed/stream, three.js variants, video-player, gamepad-snes, iframe, canvas2d-confetti/text) and `examples/node/` (Express, Koa, Hono REST, SSE chat, WS chat, socket.io pingpong / chat-server, static file server, CLI tools for fs/path/events/os/url/buffer, deepkit di/events/types/validation/workflow, file search, DNS lookup, JSON store, SQLite JSON store, Gio cat, worker pool, **4-worker SAB-native parallel SHA-256**, yargs, GTK HTTP dashboard, **axios HTTP client**) |
 | GNOME-integrated packages | 20+ (Gio, GLib, Soup, Gda, Gst, GstApp, GstWebRTC, GstSDP, Manette, WebKit, Gtk, Cairo, PangoCairo, GdkPixbuf, libepoxy) |
 | Alias mappings (GJS) | 70+ |

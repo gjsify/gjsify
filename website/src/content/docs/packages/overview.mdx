@@ -1,20 +1,26 @@
 ---
 title: Overview
-description: Summary of all 70+ GJSify packages
+description: Summary of all GJSify packages
 ---
 
-import CoverageBars from '../../../components/CoverageBars.astro';
+import WebStandardsCoverage from '../../../components/WebStandardsCoverage.astro';
+import NodeApiCoverage from '../../../components/NodeApiCoverage.astro';
+import BridgesGrid from '../../../components/BridgesGrid.astro';
 
-GJSify provides **70+ packages** organized into four categories, all implementing standard APIs using native GNOME libraries.
+GJSify is organised into four pillars, each implementing standard APIs on top of native GNOME libraries.
 
 | Category | Packages | Description |
 |---|---|---|
-| [Node.js Modules](./node) | 42 + 1 meta | `fs`, `net`, `http`, `crypto`, `stream`, `events`, `sqlite`, `ws`, and more |
-| [Web APIs](./web) | 19 + 1 meta | `fetch`, `XMLHttpRequest`, `WebSocket`, `WebRTC`, `WebAudio`, `Streams`, `DOMParser`, and more |
-| [DOM & Graphics](./dom) | 8 | Canvas2D (+ headless core), WebGL, DOM elements, event bridge, iframe, video, bridge-types |
+| [Node.js Modules](./node) | 41 + 1 meta | `fs`, `net`, `http`, `crypto`, `stream`, `events`, `sqlite`, `ws`, and more |
+| [Web APIs](./web) | 18 + 1 meta | `fetch`, `XMLHttpRequest`, `WebSocket`, `WebRTC`, `WebAudio`, `Streams`, `DOMParser`, and more |
+| [DOM & Bridges](./dom) | 2 DOM + 6 bridges | Canvas2D, WebGL, DOM elements; GTK-backed Canvas/WebGL/Video/IFrame bridges |
 | Adwaita for browser | 3 | `@gjsify/adwaita-web`, `@gjsify/adwaita-fonts`, `@gjsify/adwaita-icons` |
 
-<CoverageBars />
+<WebStandardsCoverage />
+
+<NodeApiCoverage />
+
+<BridgesGrid />
 
 ## Installation
 
