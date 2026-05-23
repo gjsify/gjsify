@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/cli",
-    "version": "0.4.21",
+    "version": "0.4.22",
     "description": "CLI for Gjsify",
     "type": "module",
     "main": "lib/index.js",
@@ -45,13 +45,27 @@
                 },
                 {
                     "ul": [
-                        { "item": "`gjsify build` — bundle a TypeScript entry into a single GJS / Node / browser file via Rolldown" },
-                        { "item": "`gjsify install` — Node-free npm install with a lockfile (XDG-aware, native backend)" },
-                        { "item": "`gjsify dlx <pkg>` — fetch and run any npm package's GJS bundle without persisting it" },
-                        { "item": "`gjsify lint` / `gjsify format` — Biome-powered linter + formatter" },
-                        { "item": "`gjsify flatpak {init,build,check,deps,ci}` — pack a GJS app or CLI into a Flatpak end-to-end" },
-                        { "item": "`gjsify gresource` — bundle GResource XML files for GTK apps" },
-                        { "item": "`gjsify showcase` — run the bundled demo programs (Excalibur, three.js, WebRTC, …)" }
+                        {
+                            "item": "`gjsify build` — bundle a TypeScript entry into a single GJS / Node / browser file via Rolldown"
+                        },
+                        {
+                            "item": "`gjsify install` — Node-free npm install with a lockfile (XDG-aware, native backend)"
+                        },
+                        {
+                            "item": "`gjsify dlx <pkg>` — fetch and run any npm package's GJS bundle without persisting it"
+                        },
+                        {
+                            "item": "`gjsify lint` / `gjsify format` — Biome-powered linter + formatter"
+                        },
+                        {
+                            "item": "`gjsify flatpak {init,build,check,deps,ci}` — pack a GJS app or CLI into a Flatpak end-to-end"
+                        },
+                        {
+                            "item": "`gjsify gresource` — bundle GResource XML files for GTK apps"
+                        },
+                        {
+                            "item": "`gjsify showcase` — run the bundled demo programs (Excalibur, three.js, WebRTC, …)"
+                        }
                     ]
                 }
             ],

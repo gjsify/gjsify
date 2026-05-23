@@ -1,3 +1,24 @@
+## [0.4.22](https://github.com/gjsify/gjsify/compare/v0.4.21...v0.4.22) (2026-05-23)
+
+### Features
+
+* **cli:** Flathub-ready Flatpak scaffold for @gjsify/cli ([#267](https://github.com/gjsify/gjsify/issues/267)) ([28573c1](https://github.com/gjsify/gjsify/commit/28573c181d6ec985b20559ad1f6bc71dd3205318))
+* **cli:** new `gjsify check` — workspace TS-check orchestrator ([#256](https://github.com/gjsify/gjsify/issues/256)) ([3fd81a8](https://github.com/gjsify/gjsify/commit/3fd81a8916238694e10955e5ce0a67561ede44d3)), closes [#254](https://github.com/gjsify/gjsify/issues/254)
+* **cli:** pack honors npm-style lifecycle scripts (prepack/prepublishOnly) ([#272](https://github.com/gjsify/gjsify/issues/272)) ([7c65735](https://github.com/gjsify/gjsify/commit/7c65735d4149784c875971aa53d0187009c9f4f0))
+* **install:** --backend=native|npm flag (closes Phase-4 follow-up) ([#274](https://github.com/gjsify/gjsify/issues/274)) ([71c15cb](https://github.com/gjsify/gjsify/commit/71c15cb6fece7863cceed778d49c46654420cb3d))
+* **tls:** re-export parseOcspResponse from @gjsify/tls-native ([#253](https://github.com/gjsify/gjsify/issues/253)) ([e5aa676](https://github.com/gjsify/gjsify/commit/e5aa6760cff219e2351326b9b7acc196ed3c41b6))
+* **website:** Adwaita coverage redesign — accordion API sections + bridges/tests grids ([#281](https://github.com/gjsify/gjsify/issues/281)) ([369a257](https://github.com/gjsify/gjsify/commit/369a257754de6bdf79aad4341cece0ca28709248))
+* **website:** coverage bars — STATUS.md Summary as visual progress bars ([#258](https://github.com/gjsify/gjsify/issues/258)) ([4a49d9e](https://github.com/gjsify/gjsify/commit/4a49d9eb47ba7a10ed6f474db5d57929e0822ad7))
+* **website:** pillar coverage progress bars from STATUS.md ([#295](https://github.com/gjsify/gjsify/issues/295)) ([ff3ee5f](https://github.com/gjsify/gjsify/commit/ff3ee5f817c7bae80708e5030e0cb25d85482887))
+* **website:** showcase pages — index + 7 per-showcase deep-dives ([#269](https://github.com/gjsify/gjsify/issues/269)) ([c8ef0b2](https://github.com/gjsify/gjsify/commit/c8ef0b2ad1829cf97f0aea4e303a6eec45ab71f3))
+
+### Bug Fixes
+
+* **cli:** dlx — forward extra args after `--` to the bundle ([#259](https://github.com/gjsify/gjsify/issues/259)) ([47fc8af](https://github.com/gjsify/gjsify/commit/47fc8af81327a103b05e803d4c0acb482f2a7d91))
+* **fs:** FileHandle.pull() + writer() stubs for Node 25.9+ types compat ([#280](https://github.com/gjsify/gjsify/issues/280)) ([c52cb7b](https://github.com/gjsify/gjsify/commit/c52cb7b8ed10aa37f65fdcf6d21bdc7ee9191cba))
+* **rolldown-plugin-gjsify:** auto-detect crypto in wasm-bindgen bundles ([#278](https://github.com/gjsify/gjsify/issues/278)) ([cb474f3](https://github.com/gjsify/gjsify/commit/cb474f3821ed40dbc4a9753a86c4833736b19936)), closes [#277](https://github.com/gjsify/gjsify/issues/277)
+* **rolldown-plugin:** inline-static-reads must not evaluate foreign .join ([#282](https://github.com/gjsify/gjsify/issues/282)) ([789109e](https://github.com/gjsify/gjsify/commit/789109ede5a320e07d24d04861c029db2a31259f))
+
 # Changelog
 
 ## [0.4.21](https://github.com/gjsify/gjsify/compare/v0.4.20...v0.4.21) (2026-05-22)
