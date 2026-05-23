@@ -46,8 +46,23 @@ export default async () => {
         await it('ts.server.toEvent constructs a well-formed event envelope', () => {
             // toEvent wraps an event-name + body into the protocol's
             // standard event-message envelope. Pure data-shape — easy
-            // smoke test that protocol helpers work.
-            const env = ts.server.toEvent('telemetry', { sample: 1 });
+            // smoke test that protocol helpers work. The helper isn't
+            // in the published @types/typescript surface (used by
+            // editor backends, not third-party consumers), so we reach
+            // it through a `Record<string, unknown>` indirection so
+            // tsc doesn't gate the test on the internal type.
+            const serverInternal = ts.server as unknown as Record<string, unknown>;
+            const toEvent = serverInternal.toEvent as
+                | ((event: string, body: unknown) => { type: string; event: string; body: unknown })
+                | undefined;
+            if (typeof toEvent !== 'function') {
+                // If the runtime doesn't expose toEvent either, this
+                // is a useful signal that the TypeScript internals
+                // changed — fail with a precise message instead of
+                // silently skipping.
+                throw new Error('ts.server.toEvent is missing at runtime');
+            }
+            const env = toEvent('telemetry', { sample: 1 });
             expect(env.type).toBe('event');
             expect(env.event).toBe('telemetry');
             expect(env.body).toStrictEqual({ sample: 1 });
