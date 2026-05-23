@@ -33,9 +33,21 @@ let _inflateSync: (buf: Uint8Array) => Uint8Array;
 let _deflateRawSync: (buf: Uint8Array) => Uint8Array;
 let _inflateRawSync: (buf: Uint8Array) => Uint8Array;
 
+/** Subset of `node:zlib` that this module uses. Avoids depending on
+ *  `@types/node` here — the surface we need is a handful of `*Sync` fns
+ *  with the standard `Buffer`-ish input/output shape. */
+interface _ZlibSync {
+  gzipSync: (buf: Uint8Array) => Uint8Array;
+  gunzipSync: (buf: Uint8Array) => Uint8Array;
+  deflateSync: (buf: Uint8Array) => Uint8Array;
+  inflateSync: (buf: Uint8Array) => Uint8Array;
+  deflateRawSync: (buf: Uint8Array) => Uint8Array;
+  inflateRawSync: (buf: Uint8Array) => Uint8Array;
+}
+
 async function loadZlib(): Promise<void> {
   if (_zlibLoaded) return;
-  const zlib = await import('zlib') as any;
+  const zlib = (await import('zlib')) as unknown as _ZlibSync;
   _gzipSync = zlib.gzipSync;
   _gunzipSync = zlib.gunzipSync;
   _deflateSync = zlib.deflateSync;
@@ -72,8 +84,12 @@ let DecompressionStreamImpl: {
 };
 
 if (hasNative) {
-  CompressionStreamImpl = globalThis.CompressionStream as any;
-  DecompressionStreamImpl = globalThis.DecompressionStream as any;
+  // The native lib.dom `CompressionStream` / `DecompressionStream`
+  // constructors return browser-typed `ReadableStream`/`WritableStream`
+  // that we type as the local impl (same runtime shape). One structural
+  // cast per assignment.
+  CompressionStreamImpl = globalThis.CompressionStream as unknown as typeof CompressionStreamImpl;
+  DecompressionStreamImpl = globalThis.DecompressionStream as unknown as typeof DecompressionStreamImpl;
 } else {
   // Initialize zlib eagerly
   const zlibReady = loadZlib();
@@ -100,7 +116,7 @@ if (hasNative) {
       this.readable = ts.readable;
       this.writable = ts.writable;
     }
-  } as any;
+  };
 
   DecompressionStreamImpl = class DecompressionStream {
     readonly readable: ReadableStream<Uint8Array>;
@@ -124,7 +140,7 @@ if (hasNative) {
       this.readable = ts.readable;
       this.writable = ts.writable;
     }
-  } as any;
+  };
 }
 
 // Note: globals are no longer registered at import time. Use the `/register`

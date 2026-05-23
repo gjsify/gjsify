@@ -130,14 +130,18 @@ export class MessagePort extends EventTarget {
 	}
 
 	set onmessage(fn: ((evt: MessageEvent) => unknown) | null) {
+		// `this.{add,remove}EventListener` come from `@gjsify/dom-events`'s
+		// `EventTarget`, whose Event/Listener types don't unify with
+		// lib.dom's at the type level (same names, structurally different
+		// trees). Cast each handler through the EventTarget's own listener
+		// type rather than `any` so the cast is at least named.
+		type ListenerArg = Parameters<EventTarget['addEventListener']>[1];
 		if (this._onmessage) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(this.removeEventListener as any)('message', this._onmessage);
+			this.removeEventListener('message', this._onmessage as unknown as ListenerArg);
 		}
 		this._onmessage = fn;
 		if (fn) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(this.addEventListener as any)('message', fn);
+			this.addEventListener('message', fn as unknown as ListenerArg);
 		}
 	}
 
@@ -146,24 +150,25 @@ export class MessagePort extends EventTarget {
 	}
 
 	set onmessageerror(fn: ((evt: MessageEvent) => unknown) | null) {
+		type ListenerArg = Parameters<EventTarget['addEventListener']>[1];
 		if (this._onmessageerror) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(this.removeEventListener as any)('messageerror', this._onmessageerror);
+			this.removeEventListener('messageerror', this._onmessageerror as unknown as ListenerArg);
 		}
 		this._onmessageerror = fn;
 		if (fn) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(this.addEventListener as any)('messageerror', fn);
+			this.addEventListener('messageerror', fn as unknown as ListenerArg);
 		}
 	}
 
 	// EventTarget.addEventListener override — implements W3C implicit-start.
-	// EventTarget here is @gjsify/dom-events's, whose Event types don't match
-	// lib.dom strictly; we cast through any to bridge the surface.
+	// The override signature uses `any` for listener/options because the
+	// public surface must match `lib.dom`'s `EventTarget`, whose
+	// `EventListenerOrEventListenerObject` is a distinct (and unrelated)
+	// type from `@gjsify/dom-events`'s same-named type. Narrowing here
+	// would force every consumer to re-cast.
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	addEventListener(type: string, listener: any, options?: any): void {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(super.addEventListener as any)(type, listener, options);
+		super.addEventListener(type, listener, options);
 		if (type === 'message') this.start();
 	}
 

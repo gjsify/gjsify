@@ -167,7 +167,13 @@ export class WebSocket extends EventEmitter {
     };
 
     try {
-      this._native = new (NativeWebSocket as any)(url, protocols, nativeOpts);
+      // `@gjsify/websocket`'s WebSocket ctor accepts an extra options arg
+      // (headers/origin/handshakeTimeout for the Soup upgrade) that the
+      // lib.dom WebSocket constructor doesn't declare. Cast through the
+      // structural constructor signature instead of `any` so the call
+      // arity is still type-checked.
+      type NativeWebSocketCtor = new (url: string | URL, protocols?: string | string[], opts?: typeof nativeOpts) => typeof this._native;
+      this._native = new (NativeWebSocket as unknown as NativeWebSocketCtor)(url, protocols, nativeOpts);
     } catch (err) {
       queueMicrotask(() => this._fail(err instanceof Error ? err : new Error(String(err))));
       return;
@@ -233,7 +239,7 @@ export class WebSocket extends EventEmitter {
       case 'arraybuffer': return buf;
       case 'fragments':   return [Buffer.from(buf)]; // one-fragment approximation
       case 'blob': {
-        const BlobCtor = (globalThis as any).Blob;
+        const BlobCtor = (globalThis as { Blob?: typeof globalThis.Blob }).Blob;
         return BlobCtor ? new BlobCtor([new Uint8Array(buf)]) : Buffer.from(buf);
       }
       case 'nodebuffer':
@@ -288,16 +294,15 @@ export class WebSocket extends EventEmitter {
       // W3C WebSocket.send accepts string / Blob / ArrayBuffer / ArrayBufferView.
       // ws accepts additionally Node Buffer (which is a Uint8Array subclass, so
       // ArrayBufferView — passes through) and numbers/booleans (coerced to str).
-      let payload: any = data;
+      let payload: unknown = data;
       if (typeof data === 'number' || typeof data === 'boolean') {
         payload = String(data);
-      } else if (Buffer.isBuffer(data as any)) {
+      } else if (Buffer.isBuffer(data)) {
         // Send the underlying bytes (not the Buffer wrapper) so Soup treats
         // it as binary, not text.
-        const b = data as Buffer;
-        payload = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+        payload = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
       }
-      this._native.send(payload);
+      this._native.send(payload as Parameters<typeof this._native.send>[0]);
       if (cb) queueMicrotask(() => cb());
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
@@ -321,8 +326,8 @@ export class WebSocket extends EventEmitter {
       // W3C close only accepts string reasons; coerce Buffer to utf-8 string.
       const reasonStr = reason === undefined
         ? undefined
-        : Buffer.isBuffer(reason as any)
-          ? (reason as Buffer).toString('utf8')
+        : Buffer.isBuffer(reason)
+          ? reason.toString('utf8')
           : String(reason);
       if (code === undefined) this._native?.close();
       else if (reasonStr === undefined) this._native?.close(code);
@@ -388,4 +393,4 @@ export class WebSocket extends EventEmitter {
 
 // Expose the ws constant on the constructor (matches `WebSocket.Server = WebSocketServer`
 // pattern from ws/index.js — see server-side file).
-(WebSocket as any).WebSocket = WebSocket;
+(WebSocket as typeof WebSocket & { WebSocket: typeof WebSocket }).WebSocket = WebSocket;
