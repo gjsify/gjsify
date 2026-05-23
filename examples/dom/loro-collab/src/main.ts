@@ -59,7 +59,7 @@ class Peer {
     private applyingRemote = false;
     private syncTimer: number | null = null;
 
-    constructor(label: string, peerId: string) {
+    constructor(label: string, peerId: number) {
         this.doc = new LoroDoc();
         this.doc.setPeerId(peerId);
         // Seed the doc with an empty LoroText so the container exists
@@ -156,8 +156,8 @@ class Peer {
 }
 
 function buildWindow(app: Adw.Application): Gtk.Window {
-    const leftPeer = new Peer('A', '1');
-    const rightPeer = new Peer('B', '2');
+    const leftPeer = new Peer('A', 1);
+    const rightPeer = new Peer('B', 2);
 
     // Seed both panes with a friendly hello so the sync mechanism is
     // visible on first launch.
