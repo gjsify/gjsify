@@ -26,17 +26,35 @@ export function getGjsGlobal(): GjsGlobalThis {
     return globalThis as unknown as GjsGlobalThis;
 }
 
+/** Stream-class shape we use: only the static `new(fd, closeOnClose)` factory
+ *  that the four GIO byte-stream classes share. */
+export interface GioStreamCtor {
+    new: (fd: number, closeOnClose: boolean) => unknown;
+}
+
+/** A loose view of the Gio/GioUnix namespace shape we touch: typed entries
+ *  for the four byte-stream classes we care about, plus an index signature
+ *  for dynamic access to anything else (most callers reach for the typed
+ *  entries, the index signature keeps the door open without `as any` casts). */
+export interface GioNamespaceLike {
+    UnixOutputStream?: GioStreamCtor;
+    OutputStream?: GioStreamCtor;
+    UnixInputStream?: GioStreamCtor;
+    InputStream?: GioStreamCtor;
+    [key: string]: unknown;
+}
+
 /**
  * Resolve the right Gio-flavoured namespace. GJS ≥ 1.88 supersedes
  * `Gio.UnixInputStream` etc. with `GioUnix.InputStream`; we try the new
  * namespace first and fall back to the legacy one. Returns `null` when
  * neither is available (e.g. under Node).
  */
-export function getGioNamespace(): any {
-    const _gi: Record<string, unknown> | undefined = (globalThis as any).imports?.gi;
+export function getGioNamespace(): GioNamespaceLike | null {
+    const _gi = getGjsGlobal().imports?.gi;
     if (!_gi) return null;
-    let gio: any = null;
-    try { gio = (_gi as any)['GioUnix']; } catch { /* try Gio */ }
-    if (!gio) { try { gio = (_gi as any)['Gio']; } catch { /* absent */ } }
+    let gio: GioNamespaceLike | null = null;
+    try { gio = (_gi['GioUnix'] as GioNamespaceLike | undefined) ?? null; } catch { /* try Gio */ }
+    if (!gio) { try { gio = (_gi['Gio'] as GioNamespaceLike | undefined) ?? null; } catch { /* absent */ } }
     return gio;
 }
