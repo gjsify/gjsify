@@ -21,16 +21,20 @@ const CONNECTING = 0;
 const OPEN = 1;
 const CLOSED = 2;
 
-// Use native globals if available (Node.js, browser), polyfill otherwise (GJS)
+// Use native globals if available (Node.js, browser), polyfill otherwise (GJS).
+// The `@gjsify/dom-events` re-exports are structurally narrower than lib.dom's
+// homonyms (their `Event` carries symbol-keyed `private` slots that don't
+// appear on lib.dom Event); cast once through `unknown` so the boundary is
+// explicit rather than going through `any`.
 const _Event: typeof Event = typeof globalThis.Event === 'function'
   ? globalThis.Event
-  : DomEvent as any;
+  : (DomEvent as unknown as typeof Event);
 const _EventTarget: { new(): EventTarget } = typeof globalThis.EventTarget === 'function'
   ? globalThis.EventTarget
-  : DomEventTarget as any;
+  : (DomEventTarget as unknown as { new(): EventTarget });
 const _MessageEvent: typeof MessageEvent = typeof globalThis.MessageEvent === 'function'
   ? globalThis.MessageEvent
-  : DomMessageEvent as any;
+  : (DomMessageEvent as unknown as typeof MessageEvent);
 
 /**
  * TextLineStream splits a string stream into individual lines.
@@ -91,7 +95,7 @@ export interface EventSourceInit {
  * Connects to an SSE endpoint via fetch, pipes the response through
  * TextDecoderStream and TextLineStream, then parses SSE fields.
  */
-export class EventSource extends (_EventTarget as any) {
+export class EventSource extends _EventTarget {
   static readonly CONNECTING = CONNECTING;
   static readonly OPEN = OPEN;
   static readonly CLOSED = CLOSED;

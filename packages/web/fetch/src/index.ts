@@ -47,15 +47,25 @@ const supportedSchemas = new Set(['data:', 'http:', 'https:', 'file:']);
  * reads via fetch) are acceptable for the current use cases — revisit if
  * @gjsify/fetch is ever used to handle untrusted input.
  */
+/**
+ * Module-local typed view of the GJS-runtime globals this file reads.
+ * `globalThis.imports.system` is the GJS bootstrap object that exposes
+ * `programPath` / `programInvocationName` before any `@girs/*` resolves.
+ */
+interface _FetchRuntimeGlobals {
+  __GJSIFY_DEBUG_FETCH?: boolean;
+  imports?: { system?: { programPath?: string; programInvocationName?: string } };
+}
+
 function rewriteRootRelativeUrl(input: RequestInfo | URL | Request): RequestInfo | URL | Request {
   if (typeof input !== 'string') return input;
   if (!input.startsWith('/') || input.startsWith('//')) return input;
-  const DEBUG = (globalThis as any).__GJSIFY_DEBUG_FETCH === true;
+  const _g = globalThis as unknown as _FetchRuntimeGlobals;
+  const DEBUG = _g.__GJSIFY_DEBUG_FETCH === true;
   try {
     // GJS-only: derive program dir from System.programInvocationName.
-    const imports = (globalThis as any).imports;
-    const programPath = imports?.system?.programPath
-      ?? imports?.system?.programInvocationName
+    const programPath = _g.imports?.system?.programPath
+      ?? _g.imports?.system?.programInvocationName
       ?? '';
     if (!programPath) return input;
     const dir = GLib.path_get_dirname(programPath);
@@ -63,7 +73,7 @@ function rewriteRootRelativeUrl(input: RequestInfo | URL | Request): RequestInfo
     if (DEBUG) console.log(`[fetch] rewrite ${input} → ${rewritten}`);
     return rewritten;
   } catch (err) {
-    if (DEBUG) console.warn(`[fetch] rewrite FAILED: ${(err as any)?.message ?? err}`);
+    if (DEBUG) console.warn(`[fetch] rewrite FAILED: ${err instanceof Error ? err.message : String(err)}`);
     return input;
   }
 }
@@ -94,7 +104,7 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
 
   // Handle file:// URIs via GLib direct read (no Soup needed).
   if (parsedURL.protocol === 'file:') {
-    const DEBUG = (globalThis as any).__GJSIFY_DEBUG_FETCH === true;
+    const DEBUG = (globalThis as unknown as _FetchRuntimeGlobals).__GJSIFY_DEBUG_FETCH === true;
     if (DEBUG) console.log(`[fetch] file:// ${request.url}`);
     try {
       const path = GLib.filename_from_uri(request.url)[0];
