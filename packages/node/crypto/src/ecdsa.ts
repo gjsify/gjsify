@@ -42,7 +42,7 @@ function truncateHash(hash: Uint8Array, curve: CurveParams): bigint {
 function hmacDigest(algo: string, key: Uint8Array, data: Uint8Array): Uint8Array {
   const hmac = new Hmac(algo, key);
   hmac.update(data);
-  return new Uint8Array(hmac.digest() as any);
+  return new Uint8Array(hmac.digest() as Buffer);
 }
 
 /**
@@ -148,7 +148,7 @@ export function ecdsaSign(
   // Hash the message
   const hash = new Hash(hashAlgo);
   hash.update(data);
-  const msgHash = new Uint8Array(hash.digest() as any);
+  const msgHash = new Uint8Array(hash.digest() as Buffer);
 
   // Truncate hash to curve order bit length
   const e = truncateHash(msgHash, curve);
@@ -221,7 +221,7 @@ export function ecdsaVerify(
   // Hash the message
   const hash = new Hash(hashAlgo);
   hash.update(data);
-  const msgHash = new Uint8Array(hash.digest() as any);
+  const msgHash = new Uint8Array(hash.digest() as Buffer);
   const e = truncateHash(msgHash, curve);
 
   // w = s^-1 mod n

@@ -2,9 +2,17 @@
 
 import { performance, PerformanceObserver } from '@gjsify/perf_hooks';
 
-if (typeof globalThis.performance === 'undefined') {
-  (globalThis as any).performance = performance;
+/** Module-local typed view of the globals this file writes. */
+interface _PerfGlobals {
+  performance?: typeof performance;
+  PerformanceObserver?: typeof PerformanceObserver;
 }
-if (typeof (globalThis as any).PerformanceObserver !== 'function') {
-  (globalThis as any).PerformanceObserver = PerformanceObserver;
+
+const g = globalThis as unknown as _PerfGlobals;
+
+if (typeof globalThis.performance === 'undefined') {
+  g.performance = performance;
+}
+if (typeof g.PerformanceObserver !== 'function') {
+  g.PerformanceObserver = PerformanceObserver;
 }

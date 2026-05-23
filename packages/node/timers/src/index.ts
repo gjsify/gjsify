@@ -20,7 +20,11 @@ function _clearTimeout(timeout: Timeout | number | undefined): void {
   if (timeout instanceof Timeout) {
     timeout.close();
   } else if (timeout != null) {
-    clearTimeout(timeout as any);
+    // `clearTimeout` is the globalThis builtin here (DOM signature takes
+    // `number`, Node signature takes `Timeout | string | number`). The
+    // narrowed branch can only see `number` since `Timeout` was matched
+    // above, so a structural cast through `number` keeps it safe.
+    clearTimeout(timeout as number);
   }
 }
 
@@ -39,7 +43,7 @@ function _clearInterval(timeout: Timeout | number | undefined): void {
   if (timeout instanceof Timeout) {
     timeout.close();
   } else if (timeout != null) {
-    clearInterval(timeout as any);
+    clearInterval(timeout as number);
   }
 }
 
@@ -58,7 +62,7 @@ function _clearImmediate(immediate: Immediate | number | undefined): void {
   if (immediate instanceof Immediate) {
     immediate.close();
   } else if (immediate != null) {
-    clearTimeout(immediate as any);
+    clearTimeout(immediate as number);
   }
 }
 

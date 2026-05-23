@@ -35,15 +35,27 @@ export function decodeAudioDataSync(arrayBuffer: ArrayBuffer): AudioBuffer {
     }
 
     const pipeline = Gst.parse_launch(PIPELINE_DESC) as Gst.Bin;
-    const appsrc = pipeline.get_by_name('src')!;
-    const appsink = pipeline.get_by_name('sink')!;
+    // `get_by_name()` returns a base Gst.Element; the AppSrc/AppSink methods
+    // we use here (push_buffer / end_of_stream / try_pull_sample) live on the
+    // GstApp subclasses but the GIR types don't auto-narrow. Cast through
+    // local structural shapes once instead of `as any` at each call site.
+    interface _AppSrc extends Gst.Element {
+        push_buffer(buf: Gst.Buffer): Gst.FlowReturn;
+        end_of_stream(): Gst.FlowReturn;
+    }
+    interface _AppSink extends Gst.Element {
+        try_pull_sample(timeout: number): Gst.Sample | null;
+    }
+
+    const appsrc = pipeline.get_by_name('src') as _AppSrc;
+    const appsink = pipeline.get_by_name('sink') as _AppSink;
 
     pipeline.set_state(Gst.State.PLAYING);
 
     // Push encoded data into the pipeline
     const data = new Uint8Array(arrayBuffer);
-    (appsrc as any).push_buffer(Gst.Buffer.new_wrapped(data));
-    (appsrc as any).end_of_stream();
+    appsrc.push_buffer(Gst.Buffer.new_wrapped(data));
+    appsrc.end_of_stream();
 
     // Pull decoded PCM samples
     const chunks: Uint8Array[] = [];
@@ -51,7 +63,7 @@ export function decodeAudioDataSync(arrayBuffer: ArrayBuffer): AudioBuffer {
     let channels = 0;
 
     while (true) {
-        const sample = (appsink as any).try_pull_sample(2 * Number(Gst.SECOND));
+        const sample = appsink.try_pull_sample(2 * Number(Gst.SECOND));
         if (!sample) break;
 
         // Read format from the first sample's negotiated caps
