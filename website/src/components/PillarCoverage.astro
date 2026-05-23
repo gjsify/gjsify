@@ -1,0 +1,71 @@
+---
+// Top-level pillar coverage — one bar per pillar (Node / Web / DOM /
+// Framework / Adwaita / Infra / Build/Infra / Showcases / Integration
+// suites). Reuses the .adw-bar / .seg-full / .seg-partial styling that
+// NodeApiCoverage and WebStandardsCoverage already define.
+//
+// Data is generated from STATUS.md by website/scripts/generate-coverage.mjs
+// so the bars always reflect the canonical Summary table.
+
+import { overviewPillars, tallyOverview } from "../data/coverage.ts";
+
+const total = tallyOverview();
+const aggregateImplemented = total.full + total.partial;
+
+function shortLabel(category: string): string {
+    if (category === "Node.js APIs") return "Node.js modules";
+    if (category === "Web APIs") return "Web API packages";
+    if (category === "Browser UI / Adwaita assets") return "Adwaita assets";
+    if (category === "Framework bridges") return "Framework bridges";
+    if (category === "GJS Infrastructure") return "GJS infra";
+    if (category === "Build/Infra Tools") return "Build / infra tools";
+    if (category === "Integration test suites") return "Integration test suites";
+    return category;
+}
+---
+
+<section class="adw-coverage">
+    <header class="adw-coverage-head">
+        <p class="adw-group-title">Project Coverage</p>
+        <h2 class="adw-coverage-title">{aggregateImplemented} of {total.total} pillar entries implemented</h2>
+        <p class="adw-coverage-subtitle">
+            Every category in <code>STATUS.md</code>'s summary table, rendered as a live progress bar. The data file is regenerated from <code>STATUS.md</code> on every build, so the bars never lag behind reality.
+        </p>
+    </header>
+
+    <div class="adw-coverage-aggregate">
+        <div class="adw-coverage-aggregate-head">
+            <span class="adw-coverage-aggregate-pct">{total.implementedPct}%</span>
+            <span class="adw-coverage-aggregate-sub">
+                <span class="adw-pill adw-pill-success">{total.full} full</span>
+                {total.partial > 0 && <span class="adw-pill adw-pill-warning">{total.partial} partial</span>}
+                {total.stub > 0 && <span class="adw-pill adw-pill-muted">{total.stub} stub</span>}
+            </span>
+        </div>
+        <div class="adw-bar" role="img" aria-label={`Across ${overviewPillars.length} pillars: ${total.full} full, ${total.partial} partial, ${total.stub} stub`}>
+            <span class="adw-bar-seg seg-full" style={`width: ${(total.full / total.total) * 100}%`} />
+            <span class="adw-bar-seg seg-partial" style={`width: ${(total.partial / total.total) * 100}%`} />
+            <span class="adw-bar-seg seg-out" style={`width: ${(total.stub / total.total) * 100}%`} />
+        </div>
+    </div>
+
+    <div class="adw-boxed-list">
+        {overviewPillars.map((p) => {
+            const implemented = p.full + p.partial;
+            const pct = p.total === 0 ? 0 : Math.round((implemented / p.total) * 100);
+            return (
+                <div class="adw-row">
+                    <span class="adw-row-title">{shortLabel(p.category)}</span>
+                    <span class="adw-row-meta">
+                        <span class="adw-meta-count">{implemented} / {p.total} ({pct}%)</span>
+                        <span class="adw-bar adw-bar-inline" role="img" aria-label={`${p.category}: ${p.full} full, ${p.partial} partial, ${p.stub} stub of ${p.total} total`}>
+                            <span class="adw-bar-seg seg-full" style={`width: ${(p.full / p.total) * 100}%`} />
+                            <span class="adw-bar-seg seg-partial" style={`width: ${(p.partial / p.total) * 100}%`} />
+                            <span class="adw-bar-seg seg-out" style={`width: ${(p.stub / p.total) * 100}%`} />
+                        </span>
+                    </span>
+                </div>
+            );
+        })}
+    </div>
+</section>
