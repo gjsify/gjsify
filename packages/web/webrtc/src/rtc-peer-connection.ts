@@ -25,7 +25,7 @@ import {
 import { asWebRtcBin, asWebRtcSrcPad } from './internal/gst-types.js';
 import { DOMException } from '@gjsify/dom-exception';
 import { RTCSessionDescription, type RTCSessionDescriptionInit } from './rtc-session-description.js';
-import { RTCIceCandidate, type RTCIceCandidateInit } from './rtc-ice-candidate.js';
+import { RTCIceCandidate } from './rtc-ice-candidate.js';
 import { RTCDataChannel } from './rtc-data-channel.js';
 import { RTCPeerConnectionIceEvent, RTCDataChannelEvent } from './rtc-events.js';
 import { RTCRtpSender, type RTCRtpTransceiverDirection } from './rtc-rtp-sender.js';
@@ -122,13 +122,18 @@ export interface RTCRtpTransceiverInit {
 let globalCounter = 0;
 
 export class RTCPeerConnection extends EventTarget {
-    private _pipeline: Gst.Pipeline;
-    private _webrtcbin: Gst.Element;
+    // Fields touched by per-concern split modules (see ./rtc-peer-connection/
+    // SDP negotiation, addTransceiver/addTrack, etc.) are package-internal
+    // (no `private`, `_`-prefixed) so install*Methods bodies can reach them
+    // through their `this: RTCPeerConnection` typing. Same convention as the
+    // WebGL2 / canvas2d-core splits.
+    _pipeline: Gst.Pipeline;
+    _webrtcbin: Gst.Element;
     private _bridge: WebrtcbinBridgeType;
     private _conf: RTCConfiguration;
     private _closed = false;
-    private _iceRestartNeeded = false;
-    private _hasNegotiated = false;
+    _iceRestartNeeded = false;
+    _hasNegotiated = false;
     private _dataChannels = new Map<unknown, RTCDataChannel>();
     private _transceivers = new Map<unknown, RTCRtpTransceiver>();
     private _senders: RTCRtpSender[] = [];
@@ -320,92 +325,17 @@ export class RTCPeerConnection extends EventTarget {
 
     // ---- Core methods ------------------------------------------------------
 
-    private _rejectIfClosed(method: string): void {
+    // SDP-negotiation methods (createOffer, createAnswer, setLocalDescription,
+    // setRemoteDescription, addIceCandidate) are installed on the prototype
+    // from ./rtc-peer-connection/sdp-negotiation.ts at the bottom of this
+    // file.
+
+    _rejectIfClosed(method: string): void {
         if (!this._closed) return;
         throw new DOMException(
             `RTCPeerConnection.${method}: connection is closed`,
             'InvalidStateError',
         );
-    }
-
-    async createOffer(_options?: RTCOfferOptions): Promise<RTCSessionDescriptionInit> {
-        this._rejectIfClosed('createOffer');
-        const opts = Gst.Structure.new_empty('offer-options');
-        // If restartIce() was called, request fresh ICE credentials
-        if (this._iceRestartNeeded) {
-            this._setStructureField(opts, 'ice-restart', 'boolean', true);
-            this._iceRestartNeeded = false;
-        }
-        const reply = await withGstPromise((p) => {
-            this._webrtcbin.emit('create-offer', opts, p);
-        });
-        // GJS unboxes `get_value` for boxed types directly to the underlying
-        // struct; no GObject.Value wrapper involvement.
-        const desc = reply!.get_value('offer') as unknown as GstWebRTC.WebRTCSessionDescription;
-        return RTCSessionDescription.fromGstDesc(desc).toJSON();
-    }
-
-    async createAnswer(_options?: RTCAnswerOptions): Promise<RTCSessionDescriptionInit> {
-        this._rejectIfClosed('createAnswer');
-        const opts = Gst.Structure.new_empty('answer-options');
-        const reply = await withGstPromise((p) => {
-            this._webrtcbin.emit('create-answer', opts, p);
-        });
-        const desc = reply!.get_value('answer') as unknown as GstWebRTC.WebRTCSessionDescription;
-        return RTCSessionDescription.fromGstDesc(desc).toJSON();
-    }
-
-    async setLocalDescription(description?: RTCSessionDescriptionInit): Promise<void> {
-        this._rejectIfClosed('setLocalDescription');
-
-        // W3C § 4.4.1.6 — implicit setLocalDescription (perfect negotiation):
-        // When called without arguments (or with empty type/sdp), auto-create
-        // the appropriate SDP based on the current signaling state.
-        if (!description || !description.type || !description.sdp) {
-            const state = this.signalingState;
-            if (state === 'stable' || state === 'have-local-offer') {
-                // Stable → create offer; have-local-offer → rollback + re-offer
-                description = await this.createOffer();
-            } else if (state === 'have-remote-offer' || state === 'have-remote-pranswer') {
-                description = await this.createAnswer();
-            } else {
-                throw new DOMException(
-                    `setLocalDescription: cannot auto-create SDP in signalingState '${state}'`,
-                    'InvalidStateError',
-                );
-            }
-        }
-
-        // On first-time setLocalDescription, the pipeline needs to start running.
-        this._pipeline.set_state(Gst.State.PLAYING);
-        const gstDesc = new RTCSessionDescription(description).toGstDesc();
-        await withGstPromise((p) => {
-            this._webrtcbin.emit('set-local-description', gstDesc, p);
-        });
-    }
-
-    async setRemoteDescription(description: RTCSessionDescriptionInit): Promise<void> {
-        this._rejectIfClosed('setRemoteDescription');
-        if (!description || !description.sdp || !description.type) {
-            throw new TypeError('setRemoteDescription requires an RTCSessionDescriptionInit with sdp and type');
-        }
-        this._pipeline.set_state(Gst.State.PLAYING);
-        const gstDesc = new RTCSessionDescription(description).toGstDesc();
-        await withGstPromise((p) => {
-            this._webrtcbin.emit('set-remote-description', gstDesc, p);
-        });
-        // Track that at least one negotiation has completed (for restartIce)
-        if (this.signalingState === 'stable') {
-            this._hasNegotiated = true;
-        }
-    }
-
-    async addIceCandidate(candidate: RTCIceCandidateInit | RTCIceCandidate | null): Promise<void> {
-        this._rejectIfClosed('addIceCandidate');
-        if (!candidate) return; // end-of-candidates marker — webrtcbin handles implicitly
-        const { candidate: cand, sdpMLineIndex } = candidate;
-        if (typeof cand !== 'string' || typeof sdpMLineIndex !== 'number') return;
-        this._webrtcbin.emit('add-ice-candidate', sdpMLineIndex, cand);
     }
 
     createDataChannel(label: string, options: RTCDataChannelInit = {}): RTCDataChannel {
@@ -481,7 +411,7 @@ export class RTCPeerConnection extends EventTarget {
         return js;
     }
 
-    private _setStructureField(
+    _setStructureField(
         structure: Gst.Structure,
         name: string,
         type: 'boolean' | 'int' | 'string',
@@ -1037,3 +967,12 @@ export class RTCPeerConnection extends EventTarget {
         return generateCertificate(keygenAlgorithm);
     }
 }
+
+// Wire focused method groups into RTCPeerConnection.prototype, same pattern
+// as the WebGL2 / canvas2d-core splits (PRs #273, #262). The side-effect
+// import is kept separate from the named import so tsc preserves it in the
+// emitted `.d.ts` — downstream consumers need the `declare module`
+// augmentations loaded to see SDP-negotiation methods on the published type.
+import './rtc-peer-connection/sdp-negotiation.js';
+import { installSdpNegotiationMethods } from './rtc-peer-connection/sdp-negotiation.js';
+installSdpNegotiationMethods(RTCPeerConnection.prototype);
