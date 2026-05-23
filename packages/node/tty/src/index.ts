@@ -87,13 +87,18 @@ export class WriteStream extends Writable {
         return;
       }
     }
+    // Typed view over the process.env reads. The runtime fallback (GLib.getenv)
+    // is invoked when process.env is absent — i.e. when the polyfill chain
+    // has not yet attached @gjsify/process — so we cannot rely on
+    // @types/node having injected `process` globally.
+    const _env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
     const cols = parseInt(
-      (globalThis as any).process?.env?.COLUMNS ||
+      _env?.COLUMNS ||
       (typeof GLib !== 'undefined' ? GLib.getenv('COLUMNS') : '') || '0',
       10,
     );
     const rows = parseInt(
-      (globalThis as any).process?.env?.LINES ||
+      _env?.LINES ||
       (typeof GLib !== 'undefined' ? GLib.getenv('LINES') : '') || '0',
       10,
     );
@@ -163,7 +168,9 @@ export class WriteStream extends Writable {
    * Returns 1 (no color), 4 (16 colors), 8 (256 colors), or 24 (true color).
    */
   getColorDepth(env?: Record<string, string>): number {
-    const e = env || (globalThis as any).process?.env || {};
+    const e = env
+      || (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+      || {};
 
     // FORCE_COLOR takes precedence
     if ('FORCE_COLOR' in e) {

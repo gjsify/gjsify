@@ -119,7 +119,7 @@ export class HTMLImageElement extends HTMLElement {
 	set src(src: string) {
 		this.setAttribute('src', src);
 
-		const DEBUG = (globalThis as any).__GJSIFY_DEBUG_IMG === true;
+		const DEBUG = (globalThis as { __GJSIFY_DEBUG_IMG?: boolean }).__GJSIFY_DEBUG_IMG === true;
 
 		// Handle data: URIs (e.g. base64 PNG logos from Excalibur's loader)
 		if (src.startsWith('data:')) {
@@ -149,7 +149,7 @@ export class HTMLImageElement extends HTMLElement {
 				if (DEBUG) console.log(`[img] ok data: (${this._naturalWidth}x${this._naturalHeight})`);
 				this.dispatchEvent(new Event('load'));
 			} catch (_error) {
-				if (DEBUG) console.warn(`[img] error data:: ${(_error as any)?.message ?? _error}`);
+				if (DEBUG) console.warn(`[img] error data:: ${_error instanceof Error ? _error.message : String(_error)}`);
 				this._complete = true;
 				this.dispatchEvent(new Event('error'));
 			}
@@ -181,7 +181,7 @@ export class HTMLImageElement extends HTMLElement {
 
 			this.dispatchEvent(new Event('load'));
 		} catch (_error) {
-			if (DEBUG) console.warn(`[img] error ${filename}: ${(_error as any)?.message ?? _error}`);
+			if (DEBUG) console.warn(`[img] error ${filename}: ${_error instanceof Error ? _error.message : String(_error)}`);
 			this._complete = true;
 			this.dispatchEvent(new Event('error'));
 		}
