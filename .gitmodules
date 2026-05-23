@@ -215,3 +215,6 @@
 [submodule "refs/oxc"]
 	path = refs/oxc
 	url = git@github.com:oxc-project/oxc.git
+[submodule "refs/Gradia"]
+	path = refs/Gradia
+	url = git@github.com:AlexanderVanhee/Gradia.git
