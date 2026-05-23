@@ -853,4 +853,42 @@ export class FileHandle implements IFileHandle {
     async [Symbol.asyncDispose](): Promise<void> {
         await this.close();
     }
+
+    /**
+     * `node:stream/iter` pull-mode reader. Added in Node 25.9 — wires the
+     * file handle into the new stream-iter pipeline so callers can do
+     * `await pipeTo(fh.pull({ autoClose: true }), w)` instead of the
+     * older `createReadStream()` pattern.
+     *
+     * Not implemented yet — `@gjsify/stream` doesn't ship the iter
+     * helpers ({@link https://nodejs.org/api/stream_iter.html}). The
+     * stub keeps the @types/node FileHandle interface satisfied so
+     * downstream typecheck passes; calling at runtime throws a clear
+     * "not yet" error. Tracked in STATUS.md "Open TODOs → Node 25
+     * stream/iter integration".
+     */
+    // biome-ignore lint/suspicious/noExplicitAny: stream/iter Transform / ByteReadableStream types are too new to plumb here cleanly; the throw makes the surface non-callable until the proper port lands.
+    pull(..._args: any[]): any {
+        throw new Error(
+            'FileHandle.pull() is not implemented in @gjsify/fs yet — ' +
+                'requires `node:stream/iter` (Node 25.9+) which @gjsify/stream ' +
+                'has not ported. Track gjsify Open TODO "Node 25 stream/iter ' +
+                'integration".',
+        );
+    }
+
+    /**
+     * `node:stream/iter` writer. Counterpart to {@link pull} — added in
+     * Node 25.9 alongside the new pipeline shape. Same not-implemented
+     * stub for the same reason. See {@link pull} for context.
+     */
+    // biome-ignore lint/suspicious/noExplicitAny: same as pull() — the WriterOptions / Writer types live in node:stream/iter; stub returns any so the throw surfaces at call time.
+    writer(_options?: any): any {
+        throw new Error(
+            'FileHandle.writer() is not implemented in @gjsify/fs yet — ' +
+                'requires `node:stream/iter` (Node 25.9+) which @gjsify/stream ' +
+                'has not ported. Track gjsify Open TODO "Node 25 stream/iter ' +
+                'integration".',
+        );
+    }
 }
