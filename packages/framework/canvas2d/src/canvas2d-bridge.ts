@@ -182,13 +182,19 @@ export const Canvas2DBridge = GObject.registerClass(
          * browser-targeted code works unchanged on GJS.
          */
         installGlobals(): void {
-            (globalThis as any).requestAnimationFrame = (cb: FrameRequestCallback) =>
+            interface _RafGlobals {
+                requestAnimationFrame?: (cb: FrameRequestCallback) => number;
+                performance?: { now: () => number; timeOrigin: number };
+            }
+            const g = globalThis as unknown as _RafGlobals;
+
+            g.requestAnimationFrame = (cb: FrameRequestCallback) =>
                 this.requestAnimationFrame(cb);
             // Install performance.now() on the same time origin as rAF timestamps.
             // Always override to ensure consistency — native GJS performance.now()
             // may use a different time origin than the frame clock.
             const timeOrigin = this._timeOrigin;
-            (globalThis as any).performance = {
+            g.performance = {
                 now: () => (GLib.get_monotonic_time() - timeOrigin) / 1000,
                 timeOrigin: Date.now(),
             };

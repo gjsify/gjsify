@@ -7,9 +7,12 @@
 
 import { AbortController, AbortSignal } from './index.js';
 
+interface _AbortGlobals { AbortController?: typeof AbortController; AbortSignal?: typeof AbortSignal }
+const g = globalThis as unknown as _AbortGlobals;
+
 if (typeof globalThis.AbortController === 'undefined') {
-  (globalThis as any).AbortController = AbortController;
+  g.AbortController = AbortController;
 }
 if (typeof globalThis.AbortSignal === 'undefined') {
-  (globalThis as any).AbortSignal = AbortSignal;
+  g.AbortSignal = AbortSignal;
 }

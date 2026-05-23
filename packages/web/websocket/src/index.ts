@@ -202,10 +202,13 @@ export class WebSocket extends EventTarget {
           const err = new Error(errorMessage);
 
           // Attach error info to the event so wrapper layers (e.g. @gjsify/ws)
-          // can surface a typed Error to their own 'error' listeners.
-          const errorEvent = new Event('error');
-          (errorEvent as any).error = err;
-          (errorEvent as any).message = errorMessage;
+          // can surface a typed Error to their own 'error' listeners. The
+          // W3C `Event` type doesn't model these payload fields, but `ws`
+          // consumers read them via property access. Cast through a typed
+          // augment instead of `as any`.
+          const errorEvent = new Event('error') as Event & { error?: Error; message?: string };
+          errorEvent.error = err;
+          errorEvent.message = errorMessage;
           this.dispatchEvent(errorEvent);
           if (this.onerror) this.onerror.call(this, errorEvent);
 
