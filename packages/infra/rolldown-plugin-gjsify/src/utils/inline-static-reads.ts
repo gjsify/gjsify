@@ -186,6 +186,11 @@ function tryInlineCall(
     }
 
     if (calleeName === 'readdirSync') {
+        // We inline as a plain string[] — refuse if the caller asks for
+        // Dirent[] via { withFileTypes: true }. Otherwise the consumer's
+        // child.isFile() call would throw at runtime ("isFile is not a
+        // function" on a string).
+        if (hasWithFileTypes(node.arguments[1])) return undefined;
         const path = evalPathExpr(node.arguments[0], ctx);
         if (path && existsSyncSafe(path) && isDirectorySafe(path)) {
             try {
@@ -484,6 +489,28 @@ function evalEncodingExpr(node: acorn.AnyNode | undefined): string | undefined {
     return undefined;
 }
 
+/**
+ * Detect `{ withFileTypes: true }` in a readdirSync options argument.
+ * Any non-literal or absence returns `false` (safe — we only abort
+ * inlining for an unambiguous `true`).
+ */
+function hasWithFileTypes(node: acorn.AnyNode | undefined): boolean {
+    if (!node || node.type !== 'ObjectExpression') return false;
+    for (const p of (node as acorn.ObjectExpression).properties) {
+        if (p.type !== 'Property' || p.computed) continue;
+        const key =
+            p.key.type === 'Identifier'
+                ? (p.key as acorn.Identifier).name
+                : p.key.type === 'Literal'
+                  ? String((p.key as acorn.Literal).value)
+                  : undefined;
+        if (key !== 'withFileTypes') continue;
+        if (p.value.type === 'Literal' && (p.value as acorn.Literal).value === true) return true;
+        return false;
+    }
+    return false;
+}
+
 function canonicalEncoding(v: string): string | undefined {
     const lc = v.toLowerCase();
     if (lc === 'utf8' || lc === 'utf-8') return 'utf8';
@@ -494,18 +521,34 @@ function canonicalEncoding(v: string): string | undefined {
 
 /**
  * Get the leaf identifier name of a callee. Recognises:
- *   `foo`               → "foo"
- *   `path.foo`          → "foo"
- *   `node:path.foo`     → "foo" (rare)
- *   `fs.foo` / `fs.promises.foo` → "foo"
+ *   `foo`               → "foo"          (assumed named import)
+ *   `path.foo`          → "foo"          (path module namespace/default import)
+ *   `fs.foo`            → "foo"          (fs module — caller validates context)
+ *
+ * For MemberExpression callees, the object identifier is restricted to a
+ * known module namespace name (`path`, `fs`, `JSON`). Otherwise `arr.join(',')`
+ * (Array.prototype.join) would resolve to `path.join`, and our static
+ * evaluator would happily treat a free `dir.join('/')` array call as
+ * `path.join('/')` → `'/'` → catastrophic root-directory scan. See PR for
+ * the TypeDoc bundling incident this prevents.
+ *
  * Returns `undefined` for computed/dynamic callees.
  */
+const PATH_NAMESPACE_OBJECTS = new Set(['path', 'fs']);
+
 function identifierName(node: acorn.AnyNode | undefined): string | undefined {
     if (!node) return undefined;
     if (node.type === 'Identifier') return (node as acorn.Identifier).name;
     if (node.type === 'MemberExpression' && !(node as acorn.MemberExpression).computed) {
         const me = node as acorn.MemberExpression;
-        if (me.property.type === 'Identifier') return (me.property as acorn.Identifier).name;
+        if (me.property.type !== 'Identifier') return undefined;
+        // The object must be a known namespace identifier — otherwise we
+        // misidentify Array.prototype methods (`arr.join`, `arr.includes`)
+        // and userland method calls as path/fs functions.
+        if (me.object.type !== 'Identifier') return undefined;
+        const obj = (me.object as acorn.Identifier).name;
+        if (!PATH_NAMESPACE_OBJECTS.has(obj)) return undefined;
+        return (me.property as acorn.Identifier).name;
     }
     return undefined;
 }
