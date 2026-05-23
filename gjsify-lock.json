@@ -12,10 +12,11 @@
     "@types/node@^25.6.2",
     "http-server@^14.1.1",
     "@girs/adw-1@1.10.0-4.0.0-rc.15",
+    "@girs/glib-2.0@2.88.0-4.0.0-rc.15",
+    "@girs/gobject-2.0@2.88.0-4.0.0-rc.15",
+    "loro-crdt@^1.12.1",
     "@types/three@^0.184.1",
     "three@0.184.0",
-    "@girs/gobject-2.0@2.88.0-4.0.0-rc.15",
-    "@girs/glib-2.0@2.88.0-4.0.0-rc.15",
     "@types/gl-matrix@^3.2.0",
     "gl-matrix@^3.4.4",
     "webtorrent@^2.8.5",
@@ -92,6 +93,7 @@
     "excalibur@0.32.0",
     "@playwright/test@^1.59.1",
     "typescript@^5.4.5",
+    "typescript@^5.7.3",
     "@modelcontextprotocol/inspector@^0.21.2",
     "zod@4.3.6",
     "@types/streamx@^2.9.5",
@@ -7933,6 +7935,11 @@
       "bin": {
         "loose-envify": "cli.js"
       }
+    },
+    "node_modules/loro-crdt": {
+      "version": "1.12.1",
+      "resolved": "https://registry.npmjs.org/loro-crdt/-/loro-crdt-1.12.1.tgz",
+      "integrity": "sha512-iHDGq4RaTHr6CFbXqV91ngKyVlB2NuYXz0q9t0Dedr8sQnbcPNdFs4DaqzDNP1jojuygFvYv12gt407M22OeQg=="
     },
     "node_modules/lru": {
       "version": "3.1.0",
