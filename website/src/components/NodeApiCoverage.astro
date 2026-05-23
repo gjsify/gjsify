@@ -1,0 +1,98 @@
+---
+// Node.js API coverage section — same Adwaita boxed-list + accordion
+// layout as WebStandardsCoverage, but with 3-tier (full/partial/stub)
+// status instead of the 4-tier web standards model.
+//
+// Data: src/data/node-apis.ts
+
+import {
+	nodeApiCategories,
+	tallyAllNodeApis,
+	tallyNodeCategory,
+	type NodeApiStatus,
+} from "../data/node-apis.ts";
+
+const totals = tallyAllNodeApis();
+const aggregateImplemented = totals.full + totals.partial;
+
+function pillClass(status: NodeApiStatus): string {
+	switch (status) {
+		case "full":    return "adw-pill adw-pill-success";
+		case "partial": return "adw-pill adw-pill-warning";
+		case "stub":    return "adw-pill adw-pill-muted";
+	}
+}
+
+function statusLabel(status: NodeApiStatus): string {
+	switch (status) {
+		case "full":    return "Full";
+		case "partial": return "Partial";
+		case "stub":    return "Stub";
+	}
+}
+---
+
+<section class="adw-coverage">
+	<header class="adw-coverage-head">
+		<p class="adw-group-title">Node.js API Coverage</p>
+		<h2 class="adw-coverage-title">{aggregateImplemented} of {totals.total} Node.js modules</h2>
+		<p class="adw-coverage-subtitle">
+			User-facing Node modules backed by GLib, Gio, Soup, and native Vala bridges. <strong>{totals.stub}</strong> deprecated or browser-irrelevant modules ship as stubs so dependency checks resolve.
+		</p>
+	</header>
+
+	<div class="adw-coverage-aggregate">
+		<div class="adw-coverage-aggregate-head">
+			<span class="adw-coverage-aggregate-pct">{totals.coveragePct}%</span>
+			<span class="adw-coverage-aggregate-sub">
+				<span class="adw-pill adw-pill-success">{totals.full} full</span>
+				<span class="adw-pill adw-pill-warning">{totals.partial} partial</span>
+				<span class="adw-pill adw-pill-muted">{totals.stub} stub</span>
+			</span>
+		</div>
+		<div class="adw-bar" role="img" aria-label={`Node APIs: ${totals.full} full, ${totals.partial} partial, ${totals.stub} stub`}>
+			<span class="adw-bar-seg seg-full" style={`width: ${(totals.full / totals.total) * 100}%`} />
+			<span class="adw-bar-seg seg-partial" style={`width: ${(totals.partial / totals.total) * 100}%`} />
+			<span class="adw-bar-seg seg-out" style={`width: ${(totals.stub / totals.total) * 100}%`} />
+		</div>
+	</div>
+
+	<div class="adw-boxed-list">
+		{nodeApiCategories.map((cat) => {
+			const t = tallyNodeCategory(cat);
+			const implemented = t.full + t.partial;
+			return (
+				<details class="adw-row adw-row-expander">
+					<summary class="adw-row-summary">
+						<span class="adw-row-title">
+							<span class="adw-chevron" aria-hidden="true" />
+							{cat.name}
+						</span>
+						<span class="adw-row-meta">
+							<span class="adw-meta-count">{implemented} / {t.total}</span>
+							<span class="adw-bar adw-bar-inline" role="img" aria-label={`${cat.name}: ${implemented} of ${t.total} implemented`}>
+								<span class="adw-bar-seg seg-full" style={`width: ${(t.full / t.total) * 100}%`} />
+								<span class="adw-bar-seg seg-partial" style={`width: ${(t.partial / t.total) * 100}%`} />
+								<span class="adw-bar-seg seg-out" style={`width: ${(t.stub / t.total) * 100}%`} />
+							</span>
+						</span>
+					</summary>
+					<ul class="adw-api-list">
+						{cat.apis.map((a) => (
+							<li class="adw-api-item">
+								<span class="adw-api-name">
+									<code>{a.name}</code>
+									{a.backed && <span class="adw-api-backed">{a.backed}</span>}
+								</span>
+								<span class="adw-api-meta">
+									{a.note && <span class="adw-api-note">{a.note}</span>}
+									<span class={pillClass(a.status)}>{statusLabel(a.status)}</span>
+								</span>
+							</li>
+						))}
+					</ul>
+				</details>
+			);
+		})}
+	</div>
+</section>

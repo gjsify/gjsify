@@ -1,0 +1,108 @@
+---
+// Web platform coverage section — Adwaita-styled boxed list with
+// accordion sub-categories. Data lives in `src/data/web-standards.ts`.
+//
+// Visual model:
+//   - Group header (uppercase, dim 9pt) above the card
+//   - Boxed list (card with shadow, no border) containing one <details>
+//     per category
+//   - Summary row: category name + headline pill + Adwaita progress bar
+//   - Open details: per-API list with status pills
+//   - Aggregate footer card showing total coverage
+
+import {
+	webStandardsCategories,
+	tallyAllWebStandards,
+	tallyCategory,
+	type StandardStatus,
+} from "../data/web-standards.ts";
+
+const totals = tallyAllWebStandards();
+const aggregateImplemented = totals.full + totals.partial;
+
+function pillClass(status: StandardStatus): string {
+	switch (status) {
+		case "full":         return "adw-pill adw-pill-success";
+		case "partial":      return "adw-pill adw-pill-warning";
+		case "missing":      return "adw-pill adw-pill-neutral";
+		case "out-of-scope": return "adw-pill adw-pill-muted";
+	}
+}
+
+function statusLabel(status: StandardStatus): string {
+	switch (status) {
+		case "full":         return "Full";
+		case "partial":      return "Partial";
+		case "missing":      return "Planned";
+		case "out-of-scope": return "Out of scope";
+	}
+}
+---
+
+<section class="adw-coverage">
+	<header class="adw-coverage-head">
+		<p class="adw-group-title">Web Platform Coverage</p>
+		<h2 class="adw-coverage-title">{aggregateImplemented} of {totals.total} web standards</h2>
+		<p class="adw-coverage-subtitle">
+			Coverage of relevant W3C and WHATWG standards, including <strong>{totals.outOfScope}</strong> APIs that are explicitly out of scope for desktop&nbsp;GTK apps (Service Worker, FS Access, Web Bluetooth, …).
+		</p>
+	</header>
+
+	<div class="adw-coverage-aggregate">
+		<div class="adw-coverage-aggregate-head">
+			<span class="adw-coverage-aggregate-pct">{totals.coveragePct}%</span>
+			<span class="adw-coverage-aggregate-sub">
+				<span class="adw-pill adw-pill-success">{totals.full} full</span>
+				<span class="adw-pill adw-pill-warning">{totals.partial} partial</span>
+				<span class="adw-pill adw-pill-neutral">{totals.missing} planned</span>
+				<span class="adw-pill adw-pill-muted">{totals.outOfScope} out of scope</span>
+			</span>
+		</div>
+		<div class="adw-bar" role="img" aria-label={`Web standards: ${totals.full} full, ${totals.partial} partial, ${totals.missing} planned, ${totals.outOfScope} out of scope`}>
+			<span class="adw-bar-seg seg-full" style={`width: ${(totals.full / totals.total) * 100}%`} />
+			<span class="adw-bar-seg seg-partial" style={`width: ${(totals.partial / totals.total) * 100}%`} />
+			<span class="adw-bar-seg seg-missing" style={`width: ${(totals.missing / totals.total) * 100}%`} />
+			<span class="adw-bar-seg seg-out" style={`width: ${(totals.outOfScope / totals.total) * 100}%`} />
+		</div>
+	</div>
+
+	<div class="adw-boxed-list">
+		{webStandardsCategories.map((cat) => {
+			const t = tallyCategory(cat);
+			const implemented = t.full + t.partial;
+			return (
+				<details class="adw-row adw-row-expander">
+					<summary class="adw-row-summary">
+						<span class="adw-row-title">
+							<span class="adw-chevron" aria-hidden="true" />
+							{cat.name}
+						</span>
+						<span class="adw-row-meta">
+							<span class="adw-meta-count">{implemented} / {t.total}</span>
+							<span class="adw-bar adw-bar-inline" role="img" aria-label={`${cat.name}: ${implemented} of ${t.total} implemented`}>
+								<span class="adw-bar-seg seg-full" style={`width: ${(t.full / t.total) * 100}%`} />
+								<span class="adw-bar-seg seg-partial" style={`width: ${(t.partial / t.total) * 100}%`} />
+								<span class="adw-bar-seg seg-missing" style={`width: ${(t.missing / t.total) * 100}%`} />
+								<span class="adw-bar-seg seg-out" style={`width: ${(t.outOfScope / t.total) * 100}%`} />
+							</span>
+						</span>
+					</summary>
+					<ul class="adw-api-list">
+						{cat.standards.map((s) => (
+							<li class="adw-api-item">
+								<span class="adw-api-name">
+									{s.name}
+									{s.pkg && <code class="adw-api-pkg">{s.pkg}</code>}
+								</span>
+								<span class="adw-api-meta">
+									{s.note && <span class="adw-api-note">{s.note}</span>}
+									<span class={pillClass(s.status)}>{statusLabel(s.status)}</span>
+								</span>
+							</li>
+						))}
+					</ul>
+				</details>
+			);
+		})}
+	</div>
+</section>

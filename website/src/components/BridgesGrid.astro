@@ -1,0 +1,51 @@
+---
+// DOM↔GTK bridges as an Adwaita boxed-list (not a progress bar).
+// Each bridge pairs a standard DOM element with its native GTK rendering.
+//
+// Data: src/data/bridges.ts
+
+import { bridges, nativeBridges } from "../data/bridges.ts";
+---
+
+<section class="adw-coverage">
+	<header class="adw-coverage-head">
+		<p class="adw-group-title">DOM ↔ GTK Bridges</p>
+		<h2 class="adw-coverage-title">Standard DOM elements, rendered natively</h2>
+		<p class="adw-coverage-subtitle">
+			App code uses standard HTML elements. Each bridge translates the DOM lifecycle to a GTK widget — Cairo for 2D, OpenGL via libepoxy for WebGL, GStreamer for video, WebKit for iframes.
+		</p>
+	</header>
+
+	<div class="adw-boxed-list">
+		{bridges.map((b) => (
+			<div class="adw-row">
+				<div class="adw-row-content">
+					<div class="adw-bridge-pair">
+						<code class="adw-bridge-dom">{b.domSurface}</code>
+						<span class="adw-bridge-arrow" aria-hidden="true">→</span>
+						<code class="adw-bridge-gtk">{b.gtkBacking}</code>
+					</div>
+					<p class="adw-row-subtitle">
+						<code class="adw-api-pkg">{b.package}</code>
+						<span class="adw-bridge-libs">{b.libs}</span>
+					</p>
+				</div>
+			</div>
+		))}
+	</div>
+
+	<p class="adw-group-title adw-group-title-spaced">Native Vala bridges</p>
+	<div class="adw-boxed-list">
+		{nativeBridges.map((b) => (
+			<div class="adw-row">
+				<div class="adw-row-content">
+					<div class="adw-row-headline">
+						<span class="adw-row-title-plain">{b.name}</span>
+						<code class="adw-api-pkg">{b.pkg}</code>
+					</div>
+					<p class="adw-row-subtitle">{b.purpose}</p>
+				</div>
+			</div>
+		))}
+	</div>
+</section>
