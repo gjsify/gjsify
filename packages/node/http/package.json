@@ -39,13 +39,13 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.6.2",
+        "@types/node": "^25.9.1",
         "typescript": "^6.0.3"
     },
     "dependencies": {
-        "@girs/gio-2.0": "2.88.0-4.0.0-rc.15",
-        "@girs/glib-2.0": "2.88.0-4.0.0-rc.15",
-        "@girs/soup-3.0": "3.6.6-4.0.0-rc.15",
+        "@girs/gio-2.0": "2.88.0-4.0.1",
+        "@girs/glib-2.0": "2.88.0-4.0.1",
+        "@girs/soup-3.0": "3.6.6-4.0.1",
         "@gjsify/buffer": "workspace:^",
         "@gjsify/events": "workspace:^",
         "@gjsify/http-soup-bridge": "workspace:^",

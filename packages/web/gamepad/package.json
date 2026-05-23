@@ -42,12 +42,12 @@
         "@gjsify/dom-events": "workspace:^"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.0-rc.15",
-        "@girs/glib-2.0": "2.88.0-4.0.0-rc.15",
-        "@girs/manette-0.2": "0.2.13-4.0.0-rc.15",
+        "@girs/gjs": "4.0.1",
+        "@girs/glib-2.0": "2.88.0-4.0.1",
+        "@girs/manette-0.2": "0.2.13-4.0.1",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.6.2",
+        "@types/node": "^25.9.1",
         "typescript": "^6.0.3"
     }
 }

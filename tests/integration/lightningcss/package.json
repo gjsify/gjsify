@@ -18,14 +18,14 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.0-rc.15",
+        "@girs/gjs": "4.0.1",
         "@gjsify/cli": "workspace:^",
         "@gjsify/lightningcss-native": "workspace:^",
         "@gjsify/lightningcss-wasm": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.6.2",
+        "@types/node": "^25.9.1",
         "lightningcss": "^1.32.0",
         "typescript": "^6.0.3"
     },
