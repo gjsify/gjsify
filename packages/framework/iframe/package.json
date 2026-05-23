@@ -33,10 +33,10 @@
         "dom"
     ],
     "dependencies": {
-        "@girs/gjs": "4.0.0-rc.15",
-        "@girs/gtk-4.0": "4.23.0-4.0.0-rc.15",
-        "@girs/javascriptcore-6.0": "2.52.1-4.0.0-rc.15",
-        "@girs/webkit-6.0": "2.52.1-4.0.0-rc.15",
+        "@girs/gjs": "4.0.1",
+        "@girs/gtk-4.0": "4.23.0-4.0.1",
+        "@girs/javascriptcore-6.0": "2.52.1-4.0.1",
+        "@girs/webkit-6.0": "2.52.1-4.0.1",
         "@gjsify/dom-elements": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/message-channel": "workspace:^"
@@ -44,7 +44,7 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.6.2",
+        "@types/node": "^25.9.1",
         "typescript": "^6.0.3"
     }
 }
