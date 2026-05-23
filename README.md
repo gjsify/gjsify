@@ -21,28 +21,57 @@ Use Node.js APIs, Web APIs, and DOM interfaces in GNOME desktop applications. gj
 
 ## Quick Start
 
+### Install the CLI
+
+**Node-free bootstrap** (recommended, requires only `gjs` ≥ 1.86 and `curl`):
+
+```bash
+curl -fsSL https://github.com/gjsify/gjsify/releases/latest/download/install.mjs \
+  -o /tmp/g.mjs && gjs -m /tmp/g.mjs && rm /tmp/g.mjs
+```
+
+This lays down `@gjsify/cli` under `~/.local/share/gjsify/global/` and a launcher
+at `~/.local/bin/gjsify` — no `npm` / `node` required on the machine. Run
+`gjsify self-update` to refresh in place, or `gjsify uninstall -g @gjsify/cli`
+to remove.
+
+**Optional Node-managed install** (escape hatch — only needed if you already
+manage CLIs through Node and want to install `@gjsify/cli` from npm):
+
+```bash
+gjsify install -g @gjsify/cli   # once the CLI is bootstrapped
+# or, from a Node-only machine:
+npm install -g @gjsify/cli
+```
+
 ### Create a new project
 
 ```bash
-npm create @gjsify/app my-app
+gjsify create my-app
 cd my-app
-npm install
-npm run build
-npm start
+gjsify install --immutable
+gjsify build
+gjsify run start
 ```
 
-This scaffolds a GTK 4 application with TypeScript, ready to build and run.
+`gjsify create` scaffolds a GTK 4 application with TypeScript, ready to build
+and run. `gjsify install` resolves and installs npm dependencies via the
+committed Node-free `dist/cli.gjs.mjs` bundle — no `npm` / `yarn` invocation
+required. Pass `--immutable` for reproducible CI installs (gjsify-lock.json must
+match `package.json`).
 
 ### Prerequisites
 
-**Node.js 24+** is required. Your system also needs GJS and GNOME development libraries.
+The runtime requirement is **GJS ≥ 1.86** (SpiderMonkey 140 / ES2024, ships
+with Fedora 43+ and Ubuntu 25.10+). Plus GNOME development libraries for the
+features you plan to use:
 
 Fedora:
 
 ```bash
 sudo dnf install gjs glib2-devel gobject-introspection-devel gtk4-devel \
   libsoup3-devel webkitgtk6.0-devel libadwaita-devel gdk-pixbuf2-devel \
-  libepoxy-devel libgda libgda-sqlite meson vala gcc pkgconf nodejs
+  libepoxy-devel libgda libgda-sqlite meson vala gcc pkgconf
 ```
 
 Ubuntu:
@@ -50,35 +79,24 @@ Ubuntu:
 ```bash
 sudo apt install gjs libglib2.0-dev libgirepository1.0-dev libgtk-4-dev \
   libsoup-3.0-dev libwebkitgtk-6.0-dev libadwaita-1-dev libgdk-pixbuf-2.0-dev \
-  libepoxy-dev libgda-6.0-dev meson valac gcc pkg-config nodejs
+  libepoxy-dev libgda-6.0-dev meson valac gcc pkg-config
 ```
+
+Node.js 24+ is **optional** — needed only if you run the legacy `test:node`
+cross-validation suites (every unit test is mirrored on Node + GJS) or if you
+prefer to manage `@gjsify/cli` via `npm install -g`.
 
 ### Using the CLI directly
-
-**Node-free install** (recommended, requires only `gjs` ≥ 1.86 and `curl`):
-
-```bash
-curl -fsSL https://github.com/gjsify/gjsify/releases/latest/download/install.mjs \
-  -o /tmp/g.mjs && gjs -m /tmp/g.mjs && rm /tmp/g.mjs
-```
-
-Lays down `@gjsify/cli` under `~/.local/share/gjsify/global/` and a launcher
-at `~/.local/bin/gjsify`. Run `gjsify self-update` to refresh in place.
-
-**npm install** (still supported if you want to manage the CLI via Node):
-
-```bash
-npm install -g @gjsify/cli
-```
-
-Then:
 
 ```bash
 # Build a TypeScript file for GJS (default target)
 gjsify build src/index.ts --outfile dist/app.js
 
-# Run it
+# Run it (sets LD_LIBRARY_PATH + GI_TYPELIB_PATH for native @gjsify/* prebuilds)
 gjsify run dist/app.js
+
+# Try a published GJS app without installing it
+gjsify dlx <pkg>
 ```
 
 ### Ship your own GJS app with a one-line installer
@@ -219,34 +237,44 @@ refs/         # 59 read-only reference submodules (Node.js, Deno, Bun, WebKit, G
 ## Development
 
 ```bash
-# Full build
-yarn build
+# Install dependencies (workspace-wide, reproducible from gjsify-lock.json)
+gjsify install --immutable
 
-# Type check
-yarn check
+# Full build (every workspace package, in topological order)
+gjsify foreach -A -t build
 
-# Run all unit tests
-yarn test
+# Type check (all packages, parallel)
+gjsify check
+
+# Run all unit tests (every package's src/test.mts on GJS + Node, aggregated)
+gjsify foreach -A test
 
 # Run opt-in integration suites (webtorrent, socket.io, streamx, Autobahn)
-yarn test:integration
-yarn test:integration:node
-yarn test:integration:gjs
+gjsify workspace @gjsify/integration-webtorrent test
+gjsify workspace @gjsify/integration-socket.io test
+gjsify workspace @gjsify/integration-streamx test
+gjsify workspace @gjsify/integration-autobahn test
 
 # Per-package testing
 cd packages/node/fs
-yarn test:node    # Verify test correctness on Node.js
-yarn test:gjs     # Verify implementation on GJS
+gjsify test                # Build + run src/test.mts on GJS and Node, aggregate
+gjsify test --runtime gjs  # Only the GJS run
+gjsify test --runtime node # Only the Node run (test-correctness validation)
 ```
+
+`gjsify test` replaces the per-package `build:test:{gjs,node}` + `test:{gjs,node}`
+script boilerplate: it locates `src/test.mts`, builds it in-process for each
+requested runtime, runs each output, and aggregates exit codes. Add `--rebuild`
+to force a rebuild or `--no-build` to run an already-built bundle.
 
 ### Testing Philosophy
 
-Every test runs on both Node.js and GJS. Node.js validates test correctness; GJS validates the implementation. Tests use `@gjsify/unit` (describe/it/expect).
+Every test runs on both Node.js and GJS. Node.js validates test correctness; GJS validates the implementation. Tests use `@gjsify/unit` (describe/it/expect). Node.js is therefore required for development of the polyfills themselves, but **not** for downstream consumers — they only need GJS.
 
 ## Target Environment
 
-- GJS 1.86+ (SpiderMonkey 140 / ES2024)
-- Node.js 24.x (for test validation)
+- GJS 1.86+ (SpiderMonkey 140 / ES2024) — runtime
+- Node.js 24.x — optional, only for the cross-validation `test:node` track
 - Rolldown target: `firefox140`
 - ESM-only, TypeScript 6.x
 
