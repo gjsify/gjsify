@@ -19,12 +19,18 @@ let _loop: GLib.MainLoop | null = null;
  *
  * @returns The MainLoop instance on GJS, or `undefined` on Node.js.
  */
+/** GJS runtime bootstrap shape we read here. Pre-dates `@girs/*` resolution. */
+interface _GjsImports {
+  imports?: { gi?: { GLib?: typeof GLib } };
+}
+
 export function ensureMainLoop(): GLib.MainLoop | undefined {
-  const gjsImports = (globalThis as any).imports;
+  const gjsImports = (globalThis as unknown as _GjsImports).imports;
   if (!gjsImports) return undefined; // Not GJS
   if (_started) return _loop!;
 
-  const GLibModule = gjsImports.gi.GLib;
+  const GLibModule = gjsImports.gi?.GLib;
+  if (!GLibModule) return undefined;
   _loop = new GLibModule.MainLoop(null, false);
   _started = true;
 
@@ -36,7 +42,10 @@ export function ensureMainLoop(): GLib.MainLoop | undefined {
   // (g_main_loop_run resets the quit flag on entry).
   if (GLibModule.main_depth() === 0) {
     try {
-      (_loop as any).runAsync();
+      // GIR types `runAsync(): Promise<void>` since GJS 1.86. We discard the
+      // promise — the loop runs on the default GLib context for as long as
+      // `_started` is true; cancellation is via `quitMainLoop()`.
+      void _loop.runAsync();
     } catch {
       // setMainLoopHook throws if already called (e.g., Gtk.Application.runAsync()).
       // In that case, a main loop hook is already registered — no action needed.

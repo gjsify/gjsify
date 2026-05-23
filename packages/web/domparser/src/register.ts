@@ -3,6 +3,9 @@
 
 import { DOMParser } from './index.js';
 
-if (typeof (globalThis as any).DOMParser === 'undefined') {
-    (globalThis as any).DOMParser = DOMParser;
+interface _DomParserGlobals { DOMParser?: typeof DOMParser }
+const g = globalThis as unknown as _DomParserGlobals;
+
+if (typeof g.DOMParser === 'undefined') {
+    g.DOMParser = DOMParser;
 }

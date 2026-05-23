@@ -5,8 +5,11 @@
 
 import { XMLHttpRequest, installObjectURLSupport } from './index.js';
 
-if (typeof (globalThis as any).XMLHttpRequest === 'undefined') {
-    (globalThis as any).XMLHttpRequest = XMLHttpRequest;
+interface _XhrGlobals { XMLHttpRequest?: typeof XMLHttpRequest }
+const g = globalThis as unknown as _XhrGlobals;
+
+if (typeof g.XMLHttpRequest === 'undefined') {
+    g.XMLHttpRequest = XMLHttpRequest;
 }
 
 // Patch URL.createObjectURL / revokeObjectURL
