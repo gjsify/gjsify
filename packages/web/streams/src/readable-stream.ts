@@ -47,6 +47,25 @@ const kPull = Symbol('kPull');
 const kRelease = Symbol('kRelease');
 const kSkipThrow = Symbol('kSkipThrow');
 
+// ---- Internal descriptor shapes ----
+
+/** A pull-into entry queued on a byte stream controller — produced by
+ *  `readableByteStreamControllerPullInto` and consumed by the BYOB read
+ *  machinery. Fields mirror Node's `PullIntoDescriptor` shape. */
+interface PullIntoDescriptor {
+  buffer: ArrayBufferLike;
+  bufferByteLength?: number;
+  byteOffset: number;
+  byteLength: number;
+  bytesFilled: number;
+  minimumFill: number;
+  elementSize: number;
+  // Typed-array-style constructor — `new (buffer, byteOffset, length)` —
+  // can be any of the TypedArray ctors, so we type as Function.
+  viewConstructor: Function;
+  readerType: 'byob' | 'default' | 'none';
+}
+
 // ---- Lazy error singletons ----
 
 let releasedError: TypeError | undefined;
@@ -2183,7 +2202,7 @@ function setupReadableByteStreamController(
     started: false,
     stream,
     byobRequest: null as ReadableStreamBYOBRequest | null,
-    pendingPullIntos: [] as any[],
+    pendingPullIntos: [] as PullIntoDescriptor[],
     autoAllocateChunkSize,
   };
   stream[kState].controller = controller;
@@ -2275,7 +2294,7 @@ function readableByteStreamTee(stream: any): [ReadableStream, ReadableStream] {
     return Promise.resolve();
   }
 
-  branch1 = new ReadableStream({
+  const branch1Source: UnderlyingByteSource = {
     type: 'bytes',
     pull: pullAlgorithm,
     cancel(reason: unknown) {
@@ -2289,8 +2308,9 @@ function readableByteStreamTee(stream: any): [ReadableStream, ReadableStream] {
       }
       return cancelPromise.promise;
     },
-  } as any);
-  branch2 = new ReadableStream({
+  };
+  branch1 = new ReadableStream(branch1Source);
+  const branch2Source: UnderlyingByteSource = {
     type: 'bytes',
     pull: pullAlgorithm,
     cancel(reason: unknown) {
@@ -2304,7 +2324,8 @@ function readableByteStreamTee(stream: any): [ReadableStream, ReadableStream] {
       }
       return cancelPromise.promise;
     },
-  } as any);
+  };
+  branch2 = new ReadableStream(branch2Source);
   branch1Controller = branch1[kState].controller;
   branch2Controller = branch2[kState].controller;
 
