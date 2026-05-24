@@ -37,9 +37,11 @@ Same shared scene logic. The browser embed renders the same controls through `@g
 [`showcases/dom/three-geometry-teapot/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/three-geometry-teapot)
 
 - `src/three-demo.ts` — the Three.js scene (shared between targets, no GJS-specific imports)
-- `src/gjs/window.ts` — `Adw.ApplicationWindow` with Blueprint UI definitions
+- `src/gjs/gjs.ts` — `Adw.Application` entry point that boots the window
+- `src/gjs/teapot-window.ts` + `src/gjs/teapot-window.blp` — `Adw.ApplicationWindow` with Blueprint UI definitions
 - `src/browser/browser.ts` — DOM mount + Adwaita-web wiring
-- `src/assets/UtahTeapot.glb` — the model (shipped as an npm asset via `exports['./assets/*']`)
+- `src/browser/browser-main.ts` — standalone browser entry point (fullscreen demo)
+- `src/assets/uv_grid_opengl.jpg` + `src/assets/pisa/` — UV grid texture and Pisa cubemap (shipped as npm assets via `exports['./assets/*']`)
 
 ## Why this matters
 
