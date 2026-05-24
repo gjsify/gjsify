@@ -15,6 +15,13 @@ const _symbolValueOf = Symbol.prototype.valueOf;
 const _weakMapHas = WeakMap.prototype.has;
 const _weakSetHas = WeakSet.prototype.has;
 
+// A valid WeakKey used as the probe key when calling `_weakMapHas` / `_weakSetHas`
+// on an unknown receiver — we only care whether the call throws "this is not a
+// WeakMap/Set" (caught for non-receivers); the key argument itself is irrelevant
+// but must be a WeakKey to pass the validation that happens before the `this`
+// check on the receiver.
+const _weakKeyProbe: WeakKey = {};
+
 const _getArrayBufferByteLength = Object.getOwnPropertyDescriptor(
   ArrayBuffer.prototype,
   "byteLength",
@@ -143,7 +150,7 @@ export function isSet(value: unknown): value is Set<unknown> {
 
 export function isWeakMap(value: unknown): value is WeakMap<WeakKey, unknown> {
   try {
-    _weakMapHas.call(value, null as any);
+    _weakMapHas.call(value, _weakKeyProbe);
     return true;
   } catch {
     return false;
@@ -152,7 +159,7 @@ export function isWeakMap(value: unknown): value is WeakMap<WeakKey, unknown> {
 
 export function isWeakSet(value: unknown): value is WeakSet<WeakKey> {
   try {
-    _weakSetHas.call(value, null as any);
+    _weakSetHas.call(value, _weakKeyProbe);
     return true;
   } catch {
     return false;
@@ -196,12 +203,16 @@ export function isNativeError(value: unknown): value is Error {
 
 // --- Function checks ---
 
+interface _Tagged {
+  [Symbol.toStringTag]?: unknown;
+}
+
 export function isAsyncFunction(value: unknown): boolean {
-  return typeof value === "function" && (value as any)[Symbol.toStringTag] === "AsyncFunction";
+  return typeof value === "function" && (value as _Tagged)[Symbol.toStringTag] === "AsyncFunction";
 }
 
 export function isGeneratorFunction(value: unknown): value is GeneratorFunction {
-  return typeof value === "function" && (value as any)[Symbol.toStringTag] === "GeneratorFunction";
+  return typeof value === "function" && (value as _Tagged)[Symbol.toStringTag] === "GeneratorFunction";
 }
 
 export function isGeneratorObject(value: unknown): value is Generator {

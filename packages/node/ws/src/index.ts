@@ -15,10 +15,17 @@ import { createWebSocketStream } from './stream.js';
 // `new (require('ws'))(url)` and `const { WebSocket } = require('ws')` both
 // work. esbuild's __toESM shim turns our ESM default into an object with
 // these properties; aliasing + the gjs CJS-compat layer handles the rest.
-(WebSocket as any).WebSocket = WebSocket;
-(WebSocket as any).WebSocketServer = WebSocketServer;
-(WebSocket as any).Server = WebSocketServer;
-(WebSocket as any).createWebSocketStream = createWebSocketStream;
+interface _WsCompatStatics {
+  WebSocket?: typeof WebSocket;
+  WebSocketServer?: typeof WebSocketServer;
+  Server?: typeof WebSocketServer;
+  createWebSocketStream?: typeof createWebSocketStream;
+}
+const _C = WebSocket as typeof WebSocket & _WsCompatStatics;
+_C.WebSocket = WebSocket;
+_C.WebSocketServer = WebSocketServer;
+_C.Server = WebSocketServer;
+_C.createWebSocketStream = createWebSocketStream;
 
 export { WebSocket, WebSocketServer, createWebSocketStream };
 export { WebSocketServer as Server };
