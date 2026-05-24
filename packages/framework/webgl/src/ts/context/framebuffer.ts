@@ -27,6 +27,7 @@ export interface FramebufferMethods {
     _validFramebufferAttachment(attachment: GLenum): boolean;
     _updateFramebufferAttachments(framebuffer: WebGLFramebuffer | null): void;
     _tryDetachFramebuffer(framebuffer: WebGLFramebuffer | null, renderbuffer: WebGLRenderbuffer): void;
+    _detachRenderbufferFromAllFramebuffers(renderbuffer: WebGLRenderbuffer): void;
     _getAttachments(): number[];
     _getColorAttachments(): number[];
     _resizeDrawingBuffer(width: number, height: number): void;
@@ -243,9 +244,11 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
             this.bindRenderbuffer(this.RENDERBUFFER, null);
         }
 
-        const activeFramebuffer = this._activeFramebuffer;
-
-        this._tryDetachFramebuffer(activeFramebuffer, renderbuffer);
+        // Detach the renderbuffer from every framebuffer it is attached to —
+        // not just the active one. Same rationale as deleteTexture's multi-FBO
+        // walk: the native driver only auto-detaches from the currently bound
+        // FBO, so other FBOs would otherwise keep a stale attachment.
+        this._detachRenderbufferFromAllFramebuffers(renderbuffer);
 
         renderbuffer._pendingDelete = true;
         renderbuffer._checkDelete();
@@ -370,10 +373,11 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
                 return renderbuffer._width;
             case this.RENDERBUFFER_HEIGHT:
                 return renderbuffer._height;
-            // STATUS.md "Open TODOs": MAX_RENDERBUFFER_SIZE returns the live native limit
-            // for now; investigate whether GL_MAX_RENDERBUFFER_SIZE needs JS-side caching
-            // (see "WebGL: cache MAX_RENDERBUFFER_SIZE on context init").
+            // GL_MAX_RENDERBUFFER_SIZE is a per-context invariant — sample once
+            // at _init() time and return the cached value here to avoid a native
+            // round-trip on every call.
             case this.MAX_RENDERBUFFER_SIZE:
+                return this._maxRenderbufferSize;
             case this.RENDERBUFFER_RED_SIZE:
             case this.RENDERBUFFER_GREEN_SIZE:
             case this.RENDERBUFFER_BLUE_SIZE:
@@ -587,14 +591,13 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
         }
     },
 
-    // STATUS.md "Open TODOs": detach the renderbuffer from every framebuffer
-    // it might be linked to, not just the active one
-    // (see "WebGL: detach renderbuffers from all framebuffers, not just the active one").
+    // Detach the renderbuffer from a single framebuffer (assumed currently bound
+    // when `framebuffer === this._activeFramebuffer`). Kept as a primitive; the
+    // multi-FBO walk lives in `_detachRenderbufferFromAllFramebuffers`.
     _tryDetachFramebuffer(this: WebGLContextBase, framebuffer: WebGLFramebuffer | null, renderbuffer: WebGLRenderbuffer): void {
         if (framebuffer && framebuffer._linked(renderbuffer)) {
             const attachments = this._getAttachments();
-            const framebufferAttachments = Object.keys(framebuffer._attachments);
-            for (let i = 0; i < framebufferAttachments.length; ++i) {
+            for (let i = 0; i < attachments.length; ++i) {
                 if (framebuffer._attachments[attachments[i]] === renderbuffer) {
                     this.framebufferTexture2D(
                         this.FRAMEBUFFER,
@@ -603,6 +606,41 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
                         null);
                 }
             }
+        }
+    },
+
+    _detachRenderbufferFromAllFramebuffers(this: WebGLContextBase, renderbuffer: WebGLRenderbuffer): void {
+        const activeFramebuffer = this._activeFramebuffer;
+        const attachments = this._getAttachments();
+        let restoreActive = false;
+
+        for (const idStr in this._framebuffers) {
+            const framebuffer = this._framebuffers[idStr];
+            if (!framebuffer || !framebuffer._linked(renderbuffer)) continue;
+
+            if (framebuffer !== activeFramebuffer) {
+                this._gl.bindFramebuffer(this.FRAMEBUFFER, framebuffer._ | 0);
+                restoreActive = true;
+            }
+
+            for (let i = 0; i < attachments.length; ++i) {
+                const attachment = attachments[i];
+                if (framebuffer._attachments[attachment] === renderbuffer) {
+                    // Clear native attachment via framebufferRenderbuffer(NULL).
+                    this._gl.framebufferRenderbuffer(
+                        this.FRAMEBUFFER,
+                        attachment,
+                        this.RENDERBUFFER,
+                        0);
+                    framebuffer._setAttachment(null, attachment);
+                }
+            }
+        }
+
+        if (restoreActive) {
+            this._gl.bindFramebuffer(
+                this.FRAMEBUFFER,
+                activeFramebuffer ? activeFramebuffer._ | 0 : this._gtkFboId);
         }
     },
 
