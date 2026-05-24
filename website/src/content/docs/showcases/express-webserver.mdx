@@ -3,7 +3,7 @@ title: express-webserver
 description: Unmodified Express 5 running on GJS through @gjsify/http — proves the http.Server / IncomingMessage / ServerResponse surface holds for the most-deployed Node web framework.
 ---
 
-A small Express 5 application — `app.get('/api/echo')`, JSON middleware, a static-file route — running on GJS through [`@gjsify/http`](https://github.com/gjsify/gjsify/tree/main/packages/node/http). Express imports unmodified from npm; gjsify's Node compat layer serves every `http.Server` / `IncomingMessage` / `ServerResponse` API call Express reaches for.
+A small Express 5 blog app — JSON API (`/api/posts`, `/api/posts/:slug`, `/api/runtime`), server-rendered article pages, and a static HTML/CSS/JS frontend — running on GJS through [`@gjsify/http`](https://github.com/gjsify/gjsify/tree/main/packages/node/http). Express imports unmodified from npm; gjsify's Node compat layer serves every `http.Server` / `IncomingMessage` / `ServerResponse` API call Express reaches for.
 
 ## What it exercises
 
@@ -21,32 +21,35 @@ A small Express 5 application — `app.get('/api/echo')`, JSON middleware, a sta
 gjsify showcase express-webserver
 ```
 
-Starts a `Gtk.Application`-less GLib mainloop with Express bound to `http://127.0.0.1:3000`. Hit it with curl:
+Starts a `Gtk.Application`-less GLib mainloop with Express bound to `http://127.0.0.1:3000`. Open the page or hit the API with curl:
 
 ```bash
-curl http://127.0.0.1:3000/api/echo?msg=hi
-# → {"echo":"hi","ts":"…"}
+curl http://127.0.0.1:3000/api/posts
+# → {"count":…,"posts":[…]}
+
+curl http://127.0.0.1:3000/api/runtime
+# → {"runtime":"GJS","platform":"linux","version":"…","time":"…"}
 ```
 
-The same Express app would behave identically under Node — there's no GJS-specific branch in `app.ts`. That's the load-bearing claim.
+The same Express app would behave identically under Node — there's no GJS-specific branch in `src/index.ts`. That's the load-bearing claim.
 
 ## Run it under Node (for comparison)
 
 ```bash
 cd showcases/node/express-webserver
-gjsify install
-gjsify run start
+gjsify run build
+gjsify run start:node
 ```
 
-`gjsify run` resolves the package's `gjsify.main` and invokes `gjs -m` for GJS, `node` for Node — same source, two targets.
+The package ships both `start` (GJS) and `start:node` scripts; same `src/index.ts`, two bundles (`dist/index.gjs.js`, `dist/index.node.mjs`).
 
 ## Source
 
 [`showcases/node/express-webserver/`](https://github.com/gjsify/gjsify/tree/main/showcases/node/express-webserver)
 
-- `src/app.ts` — the Express app definition (npm `express` import, no `@gjsify/*`)
-- `src/server.ts` — `app.listen(port)` + `ensureMainLoop()` for GJS (no-op on Node)
-- `src/test/echo.spec.ts` — assertion-based smoke test (cross-platform)
+- `src/index.ts` — the whole Express app: middleware, JSON API, server-rendered HTML pages, `app.listen()` (npm `express` import, no `@gjsify/*` in the request path)
+- `src/data/posts.ts` — in-memory blog post fixtures consumed by the API + HTML routes
+- `src/public/` — static frontend (`index.html`, `style.css`, `app.js`) served via `express.static()`
 
 ## Why Express specifically
 
