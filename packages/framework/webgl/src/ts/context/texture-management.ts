@@ -5,7 +5,6 @@
 import * as bits from 'bit-twiddle';
 import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 import type { WebGLContextBase } from '../webgl-context-base.js';
-import { WebGLFramebuffer } from '../webgl-framebuffer.js';
 import { WebGLTexture } from '../webgl-texture.js';
 import { WebGLTextureUnit } from '../webgl-texture-unit.js';
 import {
@@ -26,6 +25,7 @@ export interface TextureManagementMethods {
     bindTexture(target: GLenum | undefined, texture: WebGLTexture | null): void;
     createTexture(): WebGLTexture | null;
     deleteTexture(texture: WebGLTexture | null): void;
+    _detachTextureFromAllFramebuffers(texture: WebGLTexture): void;
     pixelStorei(pname?: GLenum, param?: GLint | GLboolean): void;
     texImage2D(target: GLenum, level: GLint, internalFormat: GLint, width: GLsizei, height: GLsizei, border: GLint, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void;
     texImage2D(target: GLenum, level: GLint, internalFormat: GLint, format: GLenum, type: GLenum, source: TexImageSource | GdkPixbuf.Pixbuf): void;
@@ -169,32 +169,56 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         }
         this.activeTexture(this.TEXTURE0 + curActive);
 
-        // Detach the texture from the active framebuffer if it is bound there.
-        // STATUS.md "Open TODOs": multi-FBO unbinding still has to be wired up
-        // (see "WebGL: detach textures from all framebuffers, not just the active one").
-        const ctx = this;
-        const activeFramebuffer = this._activeFramebuffer;
-        const tryDetach = (framebuffer: WebGLFramebuffer | null) => {
-            if (framebuffer && framebuffer._linked(texture)) {
-                const attachments = ctx._getAttachments();
-                for (let i = 0; i < attachments.length; ++i) {
-                    const attachment = attachments[i];
-                    if (framebuffer._attachments[attachment] === texture) {
-                        ctx.framebufferTexture2D(
-                            ctx.FRAMEBUFFER,
-                            attachment,
-                            ctx.TEXTURE_2D,
-                            null);
-                    }
-                }
-            }
-        };
-
-        tryDetach(activeFramebuffer);
+        // Detach the texture from every framebuffer it is attached to — not just
+        // the active one. Per WebGL/OpenGL ES 2.0 §4.4.2.3 the native driver only
+        // auto-detaches from the currently bound FBO; any other FBO would otherwise
+        // keep a stale attachment that becomes undefined on read after the texture
+        // is freed. Browsers (Chrome/Firefox) detach from all FBOs; we mirror that.
+        this._detachTextureFromAllFramebuffers(texture);
 
         // Mark texture for deletion
         texture._pendingDelete = true;
         texture._checkDelete();
+    },
+
+    _detachTextureFromAllFramebuffers(this: WebGLContextBase, texture: WebGLTexture): void {
+        const activeFramebuffer = this._activeFramebuffer;
+        const attachments = this._getAttachments();
+        let restoreActive = false;
+
+        for (const idStr in this._framebuffers) {
+            const framebuffer = this._framebuffers[idStr];
+            if (!framebuffer || !framebuffer._linked(texture)) continue;
+
+            // Bind this FBO so the native framebufferTexture2D call targets it.
+            // The active FBO is already bound, so skip the rebind in that case.
+            if (framebuffer !== activeFramebuffer) {
+                this._gl.bindFramebuffer(this.FRAMEBUFFER, framebuffer._ | 0);
+                restoreActive = true;
+            }
+
+            for (let i = 0; i < attachments.length; ++i) {
+                const attachment = attachments[i];
+                if (framebuffer._attachments[attachment] === texture) {
+                    // Clear native attachment for the currently bound FBO.
+                    this._gl.framebufferTexture2D(
+                        this.FRAMEBUFFER,
+                        attachment,
+                        framebuffer._attachmentFace[attachment] || this.TEXTURE_2D,
+                        0,
+                        framebuffer._attachmentLevel[attachment] || 0);
+                    // Clear JS-side bookkeeping (updates _refCount + _references).
+                    framebuffer._setAttachment(null, attachment);
+                }
+            }
+        }
+
+        // Restore previous binding if we changed it.
+        if (restoreActive) {
+            this._gl.bindFramebuffer(
+                this.FRAMEBUFFER,
+                activeFramebuffer ? activeFramebuffer._ | 0 : this._gtkFboId);
+        }
     },
 
     pixelStorei(this: WebGLContextBase, pname: GLenum = 0, param: GLint | GLboolean = 0): void {

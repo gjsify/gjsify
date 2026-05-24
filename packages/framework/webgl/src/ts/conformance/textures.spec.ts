@@ -369,5 +369,101 @@ export default async () => {
             });
         });
 
+        // ── deleteTexture multi-FBO detach ─────────────────────────────────────
+
+        await describe('textures/deleteTexture-multiFBO', async () => {
+            beforeEach(async () => { glArea.make_current(); });
+
+            await it('detaches deleted texture from every framebuffer that referenced it', async () => {
+                // Two framebuffers sharing the same color texture. After
+                // deleteTexture, BOTH must report the COLOR_ATTACHMENT0 type as
+                // NONE — otherwise the inactive FBO keeps a stale attachment.
+                const tex = gl.createTexture()!;
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+                    new Uint8Array([255, 255, 255, 255]));
+
+                const fb0 = gl.createFramebuffer()!;
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb0);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+
+                const fb1 = gl.createFramebuffer()!;
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb1);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+
+                // fb1 is currently bound; fb0 is inactive.
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+
+                // Verify both FBOs reference the texture before delete.
+                expect(gl.getFramebufferAttachmentParameter(
+                    gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
+                )).toBe(gl.TEXTURE);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb0);
+                expect(gl.getFramebufferAttachmentParameter(
+                    gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
+                )).toBe(gl.TEXTURE);
+
+                // Re-bind fb1 so it is the currently active FBO when we delete.
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb1);
+                gl.bindTexture(gl.TEXTURE_2D, null);
+                gl.deleteTexture(tex);
+
+                // Active FBO (fb1) — detached.
+                expect(gl.getFramebufferAttachmentParameter(
+                    gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
+                )).toBe(gl.NONE);
+
+                // Inactive FBO (fb0) — must also be detached (the new behaviour).
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb0);
+                expect(gl.getFramebufferAttachmentParameter(
+                    gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
+                )).toBe(gl.NONE);
+
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                gl.deleteFramebuffer(fb0);
+                gl.deleteFramebuffer(fb1);
+            });
+
+            await it('detaches deleted renderbuffer from every framebuffer that referenced it', async () => {
+                // Same shape as the texture case but for a depth renderbuffer.
+                const rb = gl.createRenderbuffer()!;
+                gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+                gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, 1, 1);
+
+                const fb0 = gl.createFramebuffer()!;
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb0);
+                gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+
+                const fb1 = gl.createFramebuffer()!;
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb1);
+                gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+
+                // fb1 still bound as the active FBO.
+                gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+                gl.deleteRenderbuffer(rb);
+
+                expect(gl.getFramebufferAttachmentParameter(
+                    gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
+                )).toBe(gl.NONE);
+
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb0);
+                expect(gl.getFramebufferAttachmentParameter(
+                    gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
+                )).toBe(gl.NONE);
+
+                expect(gl.getError()).toBe(gl.NO_ERROR);
+
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                gl.deleteFramebuffer(fb0);
+                gl.deleteFramebuffer(fb1);
+            });
+        });
+
     });
 };

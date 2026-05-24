@@ -85,9 +85,11 @@ export abstract class WebGLContextBase {
     canvas: HTMLCanvasElement;
 
     /**
-     * STATUS.md "Open TODOs" — Web platform parity:
-     *   "WebGL: drawingBufferColorSpace currently a static field; needs colorimetry
-     *    plumbing into Cairo/GTK GL output to honour 'srgb' vs 'display-p3'."
+     * Static `PredefinedColorSpace` placeholder — honouring `'display-p3'`
+     * end-to-end requires per-context surface-format selection through Cairo/GTK
+     * GL output (no consumer requests it today). Tracked in STATUS.md
+     * "Open TODOs" under WebGL Workstream D: drawingBufferColorSpace
+     * colorimetry plumbing.
      * @see https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/drawingBufferColorSpace
      */
     drawingBufferColorSpace: PredefinedColorSpace;
@@ -148,6 +150,7 @@ export abstract class WebGLContextBase {
     _maxTextureLevel = 0;
     _maxCubeMapSize = 0;
     _maxCubeMapLevel = 0;
+    _maxRenderbufferSize = 0;
 
     // Unpack alignment
     _unpackAlignment = 4;
@@ -234,6 +237,7 @@ export abstract class WebGLContextBase {
         this._maxTextureLevel = bits.log2(bits.nextPow2(this._maxTextureSize));
         this._maxCubeMapSize = this.getParameter(this.MAX_CUBE_MAP_TEXTURE_SIZE) as number;
         this._maxCubeMapLevel = bits.log2(bits.nextPow2(this._maxCubeMapSize));
+        this._maxRenderbufferSize = this.getParameter(this.MAX_RENDERBUFFER_SIZE) as number;
 
         // Unpack alignment
         this._unpackAlignment = 4;
@@ -241,10 +245,11 @@ export abstract class WebGLContextBase {
         this._unpackFlipY = false;
         this._unpackPremultAlpha = false;
 
-        // STATUS.md "Open TODOs": optional drawing-buffer pre-allocation.
-        // Headless-gl-style allocation is not currently used because GtkGLArea owns the
-        // surface; revisit if/when we add non-GTK output paths.
-        // this._allocateDrawingBuffer(width, height)
+        // Headless-gl-style drawing-buffer pre-allocation is intentionally not
+        // wired up because GtkGLArea owns the underlying surface. Re-enable
+        // `_allocateDrawingBuffer(width, height)` only if/when we add a non-GTK
+        // output path. Tracked in STATUS.md "Open TODOs" under WebGL Workstream D:
+        // optional headless drawing-buffer pre-allocation.
 
         // Initialize defaults
         this.bindBuffer(this.ARRAY_BUFFER, null);
