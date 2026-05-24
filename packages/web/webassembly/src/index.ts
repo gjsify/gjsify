@@ -15,7 +15,15 @@
 // the missing Promise APIs become trivially available. The streaming variants
 // fetch the bytes via Response.arrayBuffer() and pipe through the same wrappers.
 
-const NATIVE_WEBASSEMBLY = (globalThis as any).WebAssembly;
+/** Module-local typed view of the WebAssembly host slot we read. The
+ *  GIR/lib.dom types declare `WebAssembly` as a namespace value, but we
+ *  read it through `globalThis` because in some GJS bootstraps it's only
+ *  available as an own-property of the global, not via the namespace. */
+interface _WebAssemblyHost {
+    WebAssembly?: typeof globalThis.WebAssembly;
+}
+
+const NATIVE_WEBASSEMBLY = (globalThis as unknown as _WebAssemblyHost).WebAssembly;
 
 if (typeof NATIVE_WEBASSEMBLY === 'undefined') {
     throw new Error('@gjsify/webassembly: globalThis.WebAssembly is not defined; nothing to polyfill.');

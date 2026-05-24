@@ -64,7 +64,12 @@ export interface GjsifyTlsModule {
 // Synchronous optional load via GJS legacy imports API.
 let _mod: GjsifyTlsModule | null = null;
 
-const _gi: Record<string, unknown> | undefined = (globalThis as any).imports?.gi;
+/** Module-local typed view of the GJS legacy `imports.gi` host slot. */
+interface _GjsImportsHost {
+    imports?: { gi?: Record<string, unknown> };
+}
+
+const _gi: Record<string, unknown> | undefined = (globalThis as unknown as _GjsImportsHost).imports?.gi;
 if (_gi) {
     try {
         _mod = _gi['GjsifyTls'] as GjsifyTlsModule;

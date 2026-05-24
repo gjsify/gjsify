@@ -20,8 +20,8 @@ function getChecksumType(algorithm: string): GLib.ChecksumType {
   const normalized = normalizeAlgorithm(algorithm);
   const type = CHECKSUM_TYPES[normalized];
   if (type === undefined) {
-    const err = new Error(`Unknown message digest: ${algorithm}`);
-    (err as any).code = 'ERR_CRYPTO_HASH_UNKNOWN';
+    const err: NodeJS.ErrnoException = new Error(`Unknown message digest: ${algorithm}`);
+    err.code = 'ERR_CRYPTO_HASH_UNKNOWN';
     throw err;
   }
   return type;

@@ -153,8 +153,8 @@ export class Worker extends EventEmitter {
       const file = Gio.File.new_for_path(filePath);
       if (!file.query_exists(null)) {
         this._cleanup();
-        const err = new Error(`Cannot find module '${filePath}'`);
-        (err as any).code = 'ERR_MODULE_NOT_FOUND';
+        const err: NodeJS.ErrnoException = new Error(`Cannot find module '${filePath}'`);
+        err.code = 'ERR_MODULE_NOT_FOUND';
         // Emit error asynchronously to match Node.js behavior
         Promise.resolve().then(() => {
           this.emit('error', err);

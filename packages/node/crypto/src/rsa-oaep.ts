@@ -14,7 +14,7 @@ import { modPow, bigIntToBytes, bytesToBigInt } from './bigint-math.js';
 function hashDigest(algo: string, data: Uint8Array): Uint8Array {
   const h = new Hash(algo);
   h.update(data);
-  return new Uint8Array(h.digest() as any);
+  return new Uint8Array(h.digest() as Buffer);
 }
 
 // ---------------------------------------------------------------------------

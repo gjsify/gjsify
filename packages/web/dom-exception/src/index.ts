@@ -46,7 +46,7 @@ class _DOMExceptionPolyfill extends Error {
 export const DOMException: typeof globalThis.DOMException =
   typeof globalThis.DOMException !== 'undefined'
     ? globalThis.DOMException
-    : _DOMExceptionPolyfill as any;
+    : (_DOMExceptionPolyfill as unknown as typeof globalThis.DOMException);
 
 // Note: globals are no longer registered at import time. Use the `/register`
 // subpath (`import '@gjsify/dom-exception/register'`) if you need

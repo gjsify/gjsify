@@ -84,8 +84,16 @@ class FilePolyfill extends BlobPolyfill {
   }
 }
 
+/** Module-local typed view of the globals this file reads. `File` exists
+ *  on lib.dom but not on the GJS lib.* base — `globalThis.File` is
+ *  populated by `@gjsify/formdata/register`. Read through a typed view
+ *  rather than `(globalThis as any).File`. */
+interface _FilePolyfillHost {
+  File?: typeof FilePolyfill;
+}
+
 // Use native if available, polyfill otherwise
 const Blob = globalThis.Blob ?? BlobPolyfill;
-const File = (globalThis as any).File ?? FilePolyfill;
+const File = (globalThis as unknown as _FilePolyfillHost).File ?? FilePolyfill;
 
 export { Blob, File };

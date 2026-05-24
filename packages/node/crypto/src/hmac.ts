@@ -23,8 +23,8 @@ export class Hmac extends Transform {
     super();
     const normalized = normalizeAlgorithm(algorithm);
     if (!SUPPORTED_ALGORITHMS.has(normalized)) {
-      const err = new Error(`Unknown message digest: ${algorithm}`);
-      (err as any).code = 'ERR_CRYPTO_HASH_UNKNOWN';
+      const err: NodeJS.ErrnoException = new Error(`Unknown message digest: ${algorithm}`);
+      err.code = 'ERR_CRYPTO_HASH_UNKNOWN';
       throw err;
     }
     this._algorithm = normalized;

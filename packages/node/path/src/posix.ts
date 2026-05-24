@@ -25,6 +25,17 @@ export type FormatInputPathObject = Partial<ParsedPath>;
 export const sep = '/';
 export const delimiter = ':';
 
+/** Module-local typed view of the GJS legacy `imports.gi.GLib` slot. The
+ *  `imports` host object only exists on GJS — readable as a typed view
+ *  rather than `(globalThis as any).imports`. */
+interface _GjsImportsHost {
+  imports?: {
+    gi?: {
+      GLib?: { get_current_dir?: () => string };
+    };
+  };
+}
+
 function posixCwd(): string {
   // In GJS, try GLib.get_current_dir() at runtime
   if (typeof globalThis.process?.cwd === 'function') {
@@ -32,7 +43,7 @@ function posixCwd(): string {
   }
   // Fallback: try GLib
   try {
-    const GLib = (globalThis as any).imports?.gi?.GLib;
+    const GLib = (globalThis as unknown as _GjsImportsHost).imports?.gi?.GLib;
     if (GLib?.get_current_dir) {
       return GLib.get_current_dir();
     }

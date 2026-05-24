@@ -21,7 +21,12 @@ import {
     validate,
 } from '../index.js';
 
-const wa = (globalThis as any).WebAssembly;
+/** Module-local typed view of the WebAssembly host slot we read. */
+interface _WebAssemblyHost {
+    WebAssembly?: object;
+}
+
+const wa = (globalThis as unknown as _WebAssemblyHost).WebAssembly;
 if (typeof wa !== 'undefined') {
     // Replace unconditionally — the runtime stubs throw on first call, so
     // our wrappers are strictly more capable. Use defineProperty so
