@@ -1,3 +1,11 @@
+# Changelog
+
+## 0.4.24 (2026-05-24)
+
+### Bug Fixes
+
+* **webgl:** close 2 deferred items (multi-FBO texture detach + MAX_RENDERBUFFER cache) ([#300](https://github.com/gjsify/gjsify/issues/300)) ([722a20f](https://github.com/gjsify/gjsify/commit/722a20fbae27bdf56a13851d994499d78f405379))
+
 ## [0.4.23](https://github.com/gjsify/gjsify/compare/v0.4.22...v0.4.23) (2026-05-24)
 
 ### Bug Fixes
@@ -25,7 +33,7 @@
 * **rolldown-plugin-gjsify:** auto-detect crypto in wasm-bindgen bundles ([#278](https://github.com/gjsify/gjsify/issues/278)) ([cb474f3](https://github.com/gjsify/gjsify/commit/cb474f3821ed40dbc4a9753a86c4833736b19936)), closes [#277](https://github.com/gjsify/gjsify/issues/277)
 * **rolldown-plugin:** inline-static-reads must not evaluate foreign .join ([#282](https://github.com/gjsify/gjsify/issues/282)) ([789109e](https://github.com/gjsify/gjsify/commit/789109ede5a320e07d24d04861c029db2a31259f))
 
-# Changelog
+
 
 ## [0.4.21](https://github.com/gjsify/gjsify/compare/v0.4.20...v0.4.21) (2026-05-22)
 
