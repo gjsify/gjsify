@@ -37,7 +37,7 @@ The asset loader fetches tilemaps + spritesheets from `@gjsify/example-dom-excal
 
 ## Source
 
-[`showcases/dom/excalibur-jelly-jumper/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/excalibur-jelly-jumper) — shared scene/actors live in `src/shared/`, the `gjs/` and `browser/` entries differ only in the host wiring (Adw.Application vs `mount(container)`).
+[`showcases/dom/excalibur-jelly-jumper/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/excalibur-jelly-jumper) — entry points: `src/gjs/gjs.ts` (Adw.Application + `JellyJumperWindow`), `src/browser/browser.ts` (mount module — Adwaita-styled shell + `startGame(canvas)`), `src/browser/browser-main.ts` (standalone fullscreen browser entry). Shared scene/actor code lives at the top level — `src/game.ts`, `src/resources.ts`, `src/scenes/`, `src/actors/`, `src/components/`, `src/physics/`, `src/state/`, `src/ui/` — and runs unchanged in both targets.
 
 ## Why this showcase is load-bearing
 

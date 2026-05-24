@@ -35,10 +35,10 @@ The same `<input>` + button handlers, the same `<iframe>` element. The browser e
 
 [`showcases/dom/minimalist-browser/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/minimalist-browser)
 
-- `src/shared/url-bar.ts` — URL parsing + normalization (shared)
-- `src/shared/history.ts` — back / forward stack management (shared)
-- `src/gjs/main.ts` — `Adw.ApplicationWindow` host
-- `src/browser/browser.ts` — DOM mount
+- `src/browser-demo.ts` — shared `BrowserCore` (history stack, postMessage wiring, built-in `page:<name>` library) — runs unchanged in both targets
+- `src/gjs/gjs.ts` — `Adw.Application` + `Adw.ApplicationWindow` host driving `IFrameBridge`
+- `src/browser/browser.ts` — `mount(container)` module: DOM shell + real `<iframe>`
+- `src/browser/browser-main.ts` — standalone fullscreen browser entry (calls `mount(document.body)`)
 
 ## The IFrameBridge story
 
