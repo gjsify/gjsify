@@ -1,3 +1,9 @@
+## [0.4.23](https://github.com/gjsify/gjsify/compare/v0.4.22...v0.4.23) (2026-05-24)
+
+### Bug Fixes
+
+* **pack:** isolate lifecycle-script stdout from --json output ([#298](https://github.com/gjsify/gjsify/issues/298)) ([ef91f0c](https://github.com/gjsify/gjsify/commit/ef91f0c1d5739e029fb2b07c9d5c5a03a2571c5c)), closes [#272](https://github.com/gjsify/gjsify/issues/272)
+
 ## [0.4.22](https://github.com/gjsify/gjsify/compare/v0.4.21...v0.4.22) (2026-05-23)
 
 ### Features
