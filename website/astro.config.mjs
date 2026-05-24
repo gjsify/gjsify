@@ -91,6 +91,7 @@ export default defineConfig({
             { slug: 'showcases/three-postprocessing-pixel' },
             { slug: 'showcases/minimalist-browser' },
             { slug: 'showcases/webrtc-loopback' },
+            { slug: 'showcases/webrtc-video' },
             { slug: 'showcases/express-webserver' },
           ],
         },

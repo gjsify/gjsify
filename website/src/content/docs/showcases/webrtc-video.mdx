@@ -1,0 +1,68 @@
+---
+title: webrtc-video
+description: Webcam preview via getUserMedia — same MediaStream code drives a native browser <video> element and a GJS Gtk.Picture through @gjsify/video's VideoBridge.
+---
+
+A live webcam preview built on the standard `navigator.mediaDevices.getUserMedia({ video: true })` call. The resulting `MediaStream` is assigned to a `<video>` element's `srcObject` — and that single line is the entire cross-platform surface. In the browser it lights up a real `<video>`; on GJS it flows through [`@gjsify/video`](https://github.com/gjsify/gjsify/tree/main/packages/framework/video)'s `VideoBridge` into a GTK4 `Gtk.Picture` backed by GStreamer's `gtk4paintablesink`.
+
+## What it exercises
+
+| Pillar | What it needs |
+|---|---|
+| [`@gjsify/webrtc`](https://github.com/gjsify/gjsify/tree/main/packages/web/webrtc) | `navigator.mediaDevices.getUserMedia`, `MediaStream`, `MediaStreamTrack` — capture via GStreamer's `pipewiresrc` / `pulsesrc` / `v4l2src` fallback chain |
+| [`@gjsify/video`](https://github.com/gjsify/gjsify/tree/main/packages/framework/video) | `HTMLVideoElement.srcObject = MediaStream`, `VideoBridge` → `Gtk.Picture` (gtk4paintablesink) |
+| [`@gjsify/webrtc-native`](https://github.com/gjsify/gjsify/tree/main/packages/web/webrtc-native) | Vala bridges re-emitting GStreamer streaming-thread callbacks on the GLib main context |
+| `gst-1.0` + `gtk4paintablesink` | The capture + paintable rendering path on GJS |
+| Adwaita widgets (GJS) | `Adw.ApplicationWindow` + `Adw.HeaderBar` + `Adw.ToolbarView` hosting the bridge |
+
+The shared [`video-demo.ts`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/webrtc-video/src/video-demo.ts) is six lines of business logic: request a stream, assign it to `video.srcObject`, log the result. Every line is standard Web platform API — nothing references `@gjsify/*` directly.
+
+## Prerequisites
+
+- A webcam (or a virtual video device such as `v4l2loopback`).
+- PipeWire or PulseAudio on the host for capture; the showcase falls back through `pipewiresrc` → `pulsesrc` → `v4l2src` automatically.
+
+## Run it on GJS
+
+```bash
+gjsify showcase webrtc-video
+```
+
+A GTK4 window opens with an `Adw.ToolbarView` whose body is the `VideoBridge` widget. Once `getUserMedia` resolves, the `MediaStream` is handed to the bridge and the GStreamer pipeline transitions to `PLAYING` — the picture appears in the GTK4 widget at the frame clock's vsync. Close the window to release the camera (each `MediaStreamTrack` is stopped explicitly).
+
+## Run it in the browser
+
+```ts
+import { mount } from '@gjsify/example-dom-webrtc-video/browser';
+mount(document.getElementById('app')!);
+```
+
+Same code path — the browser's native `getUserMedia` populates a real `<video>` element. The `mount()` handle exposes `pause()` / `resume()` / `stop()` so a host (slideshow, embed, parent app) can suspend status updates or release the webcam without unmounting the surrounding DOM.
+
+## Source
+
+[`showcases/dom/webrtc-video/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/webrtc-video)
+
+- `src/video-demo.ts` — the shared `startVideo(video, log)` helper. Imports nothing platform-specific.
+- `src/gjs/gjs.ts` — Adwaita window host wiring the `VideoBridge`.
+- `src/browser/browser.ts` — exports `mount()` for slideshow / website embedding.
+- `src/browser/browser-main.ts` — standalone runner that calls `mount(document.body)` for `yarn start:browser`.
+
+## Why this showcase is non-trivial
+
+`MediaStream`-as-`srcObject` is the only Web API that hands a live media handle from one subsystem (`@gjsify/webrtc`'s GStreamer capture) into another (`@gjsify/video`'s rendering bridge). Making the contract hold up requires:
+
+1. **`getUserMedia` returning a real `MediaStream`** whose `MediaStreamTrack`s wrap actual GstWebRTC track sources — not just an empty shim.
+2. **`HTMLVideoElement.srcObject` setter** recognising a `MediaStream` (vs a `Blob`/URL string) and rerouting the underlying GStreamer pipeline to consume from the stream's tracks instead of a `playbin` source.
+3. **Tee-multiplexing** in `@gjsify/webrtc` so the same capture source can fan out to both the `VideoBridge` preview and (when added later) a `RTCPeerConnection` sender without instantiating two cameras.
+4. **Lifecycle cleanup** — when the consumer stops the tracks (`track.stop()`), the GStreamer source must release the camera so a subsequent `getUserMedia` call can re-acquire it.
+
+If any of those layers misfires, the bridge stays black or the pipeline gets stuck in `PAUSED`. A live preview is the end-to-end proof.
+
+## Related
+
+- [`webrtc-loopback`](./webrtc-loopback/) — sibling showcase that exercises the full `RTCPeerConnection` + `RTCDataChannel` surface (no media tracks).
+- [`@gjsify/video`](https://github.com/gjsify/gjsify/tree/main/packages/framework/video) — the bridge package that adapts `<video>` ↔ `Gtk.Picture`.
+- [`refs/showtime/`](https://github.com/gjsify/gjsify/tree/main/refs/showtime) — GNOME's video player, reference for the `Gtk.Picture` + `gtk4paintablesink` pattern.
+- [`refs/webrtc-samples/`](https://github.com/gjsify/gjsify/tree/main/refs/webrtc-samples) — MDN / Google reference samples for the browser-side `getUserMedia` contract.
+- [Bridge widgets pattern](../../patterns/bridges/) — how `VideoBridge` ties a DOM element to a GTK4 widget.
