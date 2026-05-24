@@ -732,7 +732,11 @@ export class FileHandle implements IFileHandle {
         this._ioStream = null;
         this._readStream = null;
         try { this._file.shutdown(true); } catch { /* best-effort */ }
-        delete (FileHandle as any).instances[this.fd];
+        // `instances` is declared `private static` on FileHandle; same-module
+        // access is allowed via a typed view of the constructor without
+        // dropping into `as any`.
+        const _ctor = FileHandle as unknown as { instances: { [fd: number]: FileHandle } };
+        delete _ctor.instances[this.fd];
     }
 
     /** @internal */ _readSync(buffer: NodeJS.ArrayBufferView, offset: number, length: number, position: number | null): number {
@@ -743,7 +747,9 @@ export class FileHandle implements IFileHandle {
             }
             const bytes = stream.read_bytes(length, null);
             const arr = bytes.get_data()!;
-            new Uint8Array((buffer as any).buffer, (buffer as any).byteOffset + offset).set(arr.subarray(0, arr.length));
+            // `NodeJS.ArrayBufferView` carries `buffer` + `byteOffset` directly;
+            // the previous `as any` was eating the structural lookup.
+            new Uint8Array(buffer.buffer as ArrayBuffer, buffer.byteOffset + offset).set(arr.subarray(0, arr.length));
             return arr.length;
         } finally {
             stream.close(null);
