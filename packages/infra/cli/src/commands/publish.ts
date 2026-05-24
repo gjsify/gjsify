@@ -188,6 +188,10 @@ export const publishCommand: Command<any, PublishOptions> = {
         const packOpts: PackWorkspaceOptions = {
             dryRun: true,
             lifecycleScripts: ['prepublishOnly', 'prepack'],
+            // `gjsify publish --json` emits the publish summary on stdout.
+            // Lifecycle scripts must not pollute that stream with their
+            // own log lines; redirect their stdout → parent's stderr.
+            lifecycleStdio: args.json ? 'inherit-stderr' : 'inherit',
         };
         const packed = await packWorkspace(wsDir, packOpts);
         // We need the raw bytes — re-run with destination=null and capture.

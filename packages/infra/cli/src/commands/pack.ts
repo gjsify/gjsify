@@ -92,6 +92,11 @@ export const packCommand: Command<any, PackOptions> = {
             destination: args['pack-destination'],
             dryRun: args['dry-run'] === true,
             lifecycleScripts: args['ignore-scripts'] ? [] : ['prepack'],
+            // When emitting machine-readable JSON on stdout, the prepack
+            // script's chatty log lines must NOT land on the parent's
+            // stdout — `JSON.parse(stdout)` callers would otherwise fail
+            // with `Unexpected token …`. Route lifecycle output to stderr.
+            lifecycleStdio: args.json ? 'inherit-stderr' : 'inherit',
         });
         if (args.json) {
             process.stdout.write(`${JSON.stringify([result], null, 2)}\n`);
@@ -123,6 +128,14 @@ export interface PackWorkspaceOptions {
      * workflow has already produced the build artifacts.
      */
     lifecycleScripts?: readonly string[];
+    /**
+     * Stdio mode for lifecycle scripts. Default `'inherit'` — child output
+     * appears in the parent's terminal. Pass `'inherit-stderr'` to redirect
+     * the child's stdout → parent's stderr; used by `gjsify pack --json`
+     * and `gjsify publish` so the parent's stdout stays a clean
+     * machine-readable JSON stream.
+     */
+    lifecycleStdio?: 'inherit' | 'inherit-stderr' | 'pipe' | 'ignore';
 }
 
 /**
@@ -151,7 +164,10 @@ export async function packWorkspace(wsDir: string, opts: PackWorkspaceOptions = 
     // post-install. Matches `npm pack` / `npm publish` semantics.
     const lifecycleScripts = opts.lifecycleScripts ?? ['prepack'];
     for (const scriptName of lifecycleScripts) {
-        await runLifecycleScript(wsDir, pkg, scriptName, { optional: true });
+        await runLifecycleScript(wsDir, pkg, scriptName, {
+            optional: true,
+            stdio: opts.lifecycleStdio,
+        });
     }
 
     // Re-read package.json AFTER lifecycle scripts in case one of them

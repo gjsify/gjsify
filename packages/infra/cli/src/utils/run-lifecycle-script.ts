@@ -24,8 +24,15 @@ import { findWorkspaceRoot } from './workspace-root.js';
 export interface RunLifecycleScriptOptions {
     /** When true, do not throw on missing scripts — return `false` instead. */
     optional?: boolean;
-    /** Stdio inheritance. Defaults to `'inherit'` so output goes to the parent. */
-    stdio?: 'inherit' | 'pipe' | 'ignore';
+    /**
+     * Stdio inheritance for the spawned script. Default `'inherit'` so output
+     * appears in the parent's terminal. Pass `'inherit-stderr'` to mirror
+     * inheritance but redirect the child's stdout → parent's stderr — used by
+     * `gjsify pack --json` and `gjsify publish` so the parent's stdout stays
+     * a clean JSON stream (script log lines would otherwise corrupt the
+     * machine-readable output that callers `JSON.parse`).
+     */
+    stdio?: 'inherit' | 'inherit-stderr' | 'pipe' | 'ignore';
     /** Extra environment variables layered on top of the defaults. */
     env?: Record<string, string>;
 }
@@ -74,11 +81,22 @@ export async function runLifecycleScript(
         ...(opts.env ?? {}),
     };
 
+    // `'inherit-stderr'` is our extension on top of node's stdio modes —
+    // child stdin inherits, child stdout → parent's stderr (fd 2), child
+    // stderr → parent's stderr. Used by `gjsify pack --json` so the
+    // prepack's log lines don't get interleaved with the JSON we emit on
+    // parent stdout. `spawn`'s `stdio` accepts numeric fds in array form
+    // and routes the child's matching stream to that fd.
+    const stdioConfig =
+        opts.stdio === 'inherit-stderr'
+            ? (['inherit', 2, 2] as const)
+            : (opts.stdio ?? 'inherit');
+
     await new Promise<void>((resolveOk, reject) => {
         const child = spawn(literal, [], {
             cwd: wsDir,
             env: env as Record<string, string>,
-            stdio: opts.stdio ?? 'inherit',
+            stdio: stdioConfig as Parameters<typeof spawn>[2]['stdio'],
             shell: true,
         });
         child.on('close', (code) => {
