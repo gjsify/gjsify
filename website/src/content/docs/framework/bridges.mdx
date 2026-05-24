@@ -1,0 +1,98 @@
+---
+title: Framework Bridges
+description: Use standard DOM elements (canvas, iframe, video) and have them render through real GTK widgets — Cairo, libepoxy, WebKit, GStreamer.
+---
+
+A **bridge** lets browser-shaped code (`canvas.getContext('webgl')`, `iframe.contentWindow.postMessage`, `video.srcObject = stream`) drive a native GTK widget directly — no `WebKit.WebView` host, no JSON-RPC, no separate renderer. Each bridge is a `GObject`-registered subclass of a `Gtk.Widget`, so the same instance you draw into is the widget you `set_child()` into your window.
+
+The point of the bridge layer is to keep consumer code unchanged across runtimes. A Three.js / Excalibur / WebTorrent snippet copied from MDN runs against GTK + libepoxy + GStreamer the same way it runs against a browser.
+
+## The four pairings
+
+| DOM element | Bridge class | GTK widget | Backed by |
+|---|---|---|---|
+| `HTMLCanvasElement` (`'2d'`) | `Canvas2DBridge` | `Gtk.DrawingArea` | Cairo + PangoCairo |
+| `HTMLCanvasElement` (`'webgl'` / `'webgl2'`) | `WebGLBridge` | `Gtk.GLArea` | libepoxy via `@gwebgl-0.1` (Vala) |
+| `HTMLIFrameElement` | `IFrameBridge` | `WebKit.WebView` | WebKit 6.0 |
+| `HTMLVideoElement` | `VideoBridge` | `Gtk.Picture` | GStreamer + `gtk4paintablesink` |
+
+Each bridge ships as its own npm package: [`@gjsify/canvas2d`](https://github.com/gjsify/gjsify/tree/main/packages/framework/canvas2d), [`@gjsify/webgl`](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl), [`@gjsify/iframe`](https://github.com/gjsify/gjsify/tree/main/packages/framework/iframe), [`@gjsify/video`](https://github.com/gjsify/gjsify/tree/main/packages/framework/video).
+
+## Lifecycle
+
+Every bridge exposes the same four hooks:
+
+- **`new Bridge()`** — constructs the GTK widget. The DOM element is created internally and isn't usable yet (the GL context / Cairo surface / WebKit page / GStreamer pipeline don't exist until the widget is realized).
+- **`bridge.installGlobals()`** — hoists the bridge's `requestAnimationFrame`, `cancelAnimationFrame`, `performance.now()`, and (where applicable) `window` / `document` polyfills onto `globalThis`. Required for libraries written against browser globals (Three.js, Excalibur, p5.js). Optional for code you wrote yourself.
+- **`bridge.onReady(cb)`** — fires once, the first time the underlying widget realizes. The callback receives the DOM element and (for canvas bridges) its drawing context. This is the earliest safe point to draw, run shaders, or read `canvas.width` / `canvas.height`.
+- **Element accessor** — `bridge.canvas` (Canvas2D, WebGL), `bridge.iframeElement` (IFrame), or `bridge.videoElement` (Video). Always the same DOM instance the `onReady` callback receives.
+
+Each bridge owns an isolated `BridgeEnvironment` (its own `document`, `body`, `window`) accessible at `bridge.environment`. If you skip `installGlobals()`, read `requestAnimationFrame` etc. from `bridge.environment.window` instead. The first bridge that calls `installGlobals()` wins — call it on the primary bridge if you have several.
+
+The bridge instance **is** the GTK widget. Mount it with `window.set_child(bridge)`, or drop it inside a `Gtk.Box` / `Adw.ToolbarView` / `Gtk.Stack` like any other widget.
+
+## Canvas 2D
+
+```ts
+import { Canvas2DBridge } from '@gjsify/canvas2d';
+
+const bridge = new Canvas2DBridge();
+bridge.installGlobals();
+bridge.onReady((canvas, ctx) => {
+    ctx.fillStyle = '#3584e4';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+});
+window.set_child(bridge);
+```
+
+## WebGL
+
+```ts
+import { WebGLBridge } from '@gjsify/webgl';
+
+const bridge = new WebGLBridge();
+bridge.installGlobals();
+bridge.onReady((canvas, gl) => {
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+});
+window.set_child(bridge);
+```
+
+`WebGLBridge` translates `requestAnimationFrame` into the GTK frame clock, so vsync just works. WebGL 2 is enabled by default — call `canvas.getContext('webgl2')` if you need to be explicit.
+
+## IFrame
+
+```ts
+import { IFrameBridge } from '@gjsify/iframe';
+
+const bridge = new IFrameBridge();
+bridge.onReady(iframe => {
+    iframe.contentWindow?.addEventListener('message', handler);
+});
+bridge.iframeElement.srcdoc = '<h1>Hello from WebKit</h1>';
+window.set_child(bridge);
+```
+
+Unlike the other three bridges, `IFrameBridge` wraps a real `WebKit.WebView` — you get a full browser engine, not a polyfill. Use it to embed third-party web content (sandboxed apps, HTML reports, web widgets) inside a GTK shell. `bridge.iframeElement` also exposes `src`, `srcdoc`, navigation (`reload()`, `goBack()`, `goForward()`), and `contentWindow.postMessage`.
+
+## Video
+
+```ts
+import { VideoBridge } from '@gjsify/video';
+
+const bridge = new VideoBridge();
+bridge.onReady(async video => {
+    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: true });
+});
+window.set_child(bridge);
+```
+
+`VideoBridge` accepts either a `MediaStream` via `srcObject` (camera capture, WebRTC track) or a file/URL via `src` (playbin pipeline). Both are rendered into the underlying `Gtk.Picture` via `gtk4paintablesink`.
+
+## See also
+
+- [`patterns/bridges`](/gjsify/patterns/bridges/) — deeper guide covering `ResizeObserver` wiring, GC pinning, and environment isolation.
+- [`canvas2d-fireworks`](/gjsify/showcases/canvas2d-fireworks/) — full Canvas 2D particle demo with click input wired through `@gjsify/event-bridge`.
+- [`three-geometry-teapot`](/gjsify/showcases/three-geometry-teapot/) — Three.js running through `WebGLBridge`.
+- [`minimalist-browser`](/gjsify/showcases/minimalist-browser/) — `IFrameBridge` hosting `WebKit.WebView` inside an Adwaita shell.

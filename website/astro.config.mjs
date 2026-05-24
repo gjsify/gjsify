@@ -76,6 +76,12 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Framework',
+          items: [
+            { slug: 'framework/bridges' },
+          ],
+        },
+        {
           label: 'Projects',
           items: [
             { slug: 'projects/ts-for-gir' },
