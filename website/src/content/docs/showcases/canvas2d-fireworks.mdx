@@ -35,7 +35,7 @@ Same code — the `<canvas>` is a real browser canvas, not a bridge.
 
 ## Source
 
-[`showcases/dom/canvas2d-fireworks/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/canvas2d-fireworks) — entry points: `src/gjs/main.ts` (GTK shell), `src/browser/browser.ts` (mount), `src/shared/fireworks.ts` (the particle simulation, runs unchanged in both targets).
+[`showcases/dom/canvas2d-fireworks/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/canvas2d-fireworks) — entry points: `src/gjs/gjs.ts` (GTK shell), `src/browser/browser.ts` (mount), `src/browser/browser-main.ts` (standalone fullscreen browser entry), `src/fireworks.ts` (the particle simulation, runs unchanged in both targets).
 
 The shared module is the value: it imports nothing platform-specific, only the standard `Canvas 2D` API surface. That surface is the contract between the browser and `@gjsify/canvas2d` — every method it uses must hold up identically in both runtimes.
 
