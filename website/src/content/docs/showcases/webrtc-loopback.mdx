@@ -33,11 +33,9 @@ Exact same flow — uses the browser's native `RTCPeerConnection`. The contract 
 
 ## Source
 
-[`showcases/dom/webrtc-loopback/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/webrtc-loopback)
+[`showcases/dom/webrtc-loopback/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/webrtc-loopback) — entry points: `src/gjs/gjs.ts` (GJS shell, GLib MainLoop), `src/browser/browser.ts` (mount), `src/browser/browser-main.ts` (standalone fullscreen browser entry), `src/loopback-demo.ts` (the loopback dance — peer setup, signaling, data-channel wiring, runs unchanged in both targets).
 
-- `src/shared/loopback.ts` — the loopback dance (peer setup, signaling, data-channel wiring). Imports only `RTCPeerConnection` + `RTCSessionDescription` + `RTCIceCandidate` from the global namespace.
-- `src/gjs/main.ts` — Adwaita window host
-- `src/browser/browser.ts` — DOM mount
+The shared module imports only `RTCPeerConnection` + `RTCSessionDescription` + `RTCIceCandidate` from the global namespace. That surface is the contract between the browser's native WebRTC and `@gjsify/webrtc` — every method it uses must hold up identically in both runtimes.
 
 ## Why this showcase is non-trivial
 
