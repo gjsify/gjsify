@@ -25,7 +25,7 @@ export function mgf1(hashAlgo: string, seed: Uint8Array, length: number): Uint8A
     const hash = new Hash(hashAlgo);
     hash.update(seed);
     hash.update(C);
-    const digest = new Uint8Array(hash.digest() as any);
+    const digest = new Uint8Array(hash.digest() as Buffer);
 
     const toCopy = Math.min(digest.length, length - offset);
     mask.set(digest.slice(0, toCopy), offset);

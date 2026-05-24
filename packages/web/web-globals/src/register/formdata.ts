@@ -2,6 +2,13 @@
 
 import { FormData } from '@gjsify/formdata';
 
+/** Module-local typed view of the globals this file writes. */
+interface _FormDataGlobals {
+  FormData?: typeof FormData;
+}
+
+const g = globalThis as unknown as _FormDataGlobals;
+
 if (typeof globalThis.FormData !== 'function') {
-  (globalThis as any).FormData = FormData;
+  g.FormData = FormData;
 }

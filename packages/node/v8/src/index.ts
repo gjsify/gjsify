@@ -77,7 +77,10 @@ export class GCProfiler {
     if (!this.#running) return undefined;
     this.#running = false;
     try {
-      const system = (globalThis as any).imports?.system;
+      // GJS legacy `imports.system` (`gc()` triggers a SpiderMonkey GC).
+      // Read through a typed view rather than `(globalThis as any).imports`.
+      interface _GjsImportsHost { imports?: { system?: { gc?: () => void } } }
+      const system = (globalThis as unknown as _GjsImportsHost).imports?.system;
       if (typeof system?.gc === 'function') system.gc();
     } catch { /* ignore */ }
     return { version: 1, startTime: this.#startTime, endTime: Date.now(), stats: [] };

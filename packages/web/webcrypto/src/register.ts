@@ -4,6 +4,13 @@
 
 import { crypto as cryptoInstance } from './index.js';
 
+/** Module-local typed view of the globals this file writes. */
+interface _WebCryptoGlobals {
+  crypto?: typeof cryptoInstance;
+}
+
+const g = globalThis as unknown as _WebCryptoGlobals;
+
 if (typeof globalThis.crypto === 'undefined' || typeof globalThis.crypto.subtle === 'undefined') {
-  (globalThis as any).crypto = cryptoInstance;
+  g.crypto = cryptoInstance;
 }

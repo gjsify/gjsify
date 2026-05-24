@@ -4,6 +4,13 @@
 
 import { DOMException } from './index.js';
 
+/** Module-local typed view of the globals this file writes. */
+interface _DOMExceptionGlobals {
+  DOMException?: typeof DOMException;
+}
+
+const g = globalThis as unknown as _DOMExceptionGlobals;
+
 if (typeof globalThis.DOMException === 'undefined') {
-  (globalThis as any).DOMException = DOMException;
+  g.DOMException = DOMException;
 }

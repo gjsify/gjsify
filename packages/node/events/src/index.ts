@@ -10,8 +10,12 @@ export const EventEmitter = makeCallable(EventEmitter_) as typeof EventEmitter_;
 export type EventEmitter = EventEmitter_;
 // Overwrite the backward-compat self-reference so CJS consumers that access
 // EventEmitter.EventEmitter (via __toESM namespace spread) also get the
-// makeCallable-wrapped version, not the raw inner class.
-(EventEmitter as any).EventEmitter = EventEmitter;
+// makeCallable-wrapped version, not the raw inner class. Typed-view rather
+// than `(EventEmitter as any).EventEmitter`.
+interface _EventEmitterCjsCompat {
+  EventEmitter: typeof EventEmitter;
+}
+(EventEmitter as unknown as _EventEmitterCjsCompat).EventEmitter = EventEmitter;
 
 // Named static exports matching Node.js events module API
 export const captureRejectionSymbol = EventEmitter.captureRejectionSymbol;
