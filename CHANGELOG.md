@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.25](https://github.com/gjsify/gjsify/compare/v0.4.24...v0.4.25) (2026-05-25)
+
+### Features
+
+* **website:** embed live Adwaita-window demos on showcase sub-pages ([#307](https://github.com/gjsify/gjsify/issues/307)) ([3931a0d](https://github.com/gjsify/gjsify/commit/3931a0ddab02a0350f73f8957d88902401cb333e))
+
+### Bug Fixes
+
+* **install:** actionable Yarn-PnP guard guidance ([#310](https://github.com/gjsify/gjsify/issues/310)) ([af68b52](https://github.com/gjsify/gjsify/commit/af68b5224e7bc756632c1693f50da64be3fea107)), closes [gjsify/ts-for-gir#392](https://github.com/gjsify/ts-for-gir/issues/392) [gjsify/ts-for-gir#392](https://github.com/gjsify/ts-for-gir/issues/392)
+
 ## 0.4.24 (2026-05-24)
 
 ### Bug Fixes

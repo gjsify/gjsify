@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/eventsource",
-    "version": "0.4.24",
+    "version": "0.4.25",
     "description": "W3C EventSource (Server-Sent Events) for GJS",
     "type": "module",
     "module": "lib/esm/index.js",
