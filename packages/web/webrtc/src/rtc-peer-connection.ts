@@ -14,17 +14,15 @@ import {
     type DataChannelBridge as DataChannelBridgeType,
 } from '@gjsify/webrtc-native';
 import { ensureWebrtcbinAvailable, Gst } from './gst-init.js';
-import { withGstPromise } from './gst-utils.js';
 import {
     gstToSignalingState,
     gstToConnectionState,
     gstToIceConnectionState,
     gstToIceGatheringState,
-    w3cDirectionToGst,
 } from './gst-enum-maps.js';
 import { asWebRtcBin, asWebRtcSrcPad } from './internal/gst-types.js';
 import { DOMException } from '@gjsify/dom-exception';
-import { RTCSessionDescription, type RTCSessionDescriptionInit } from './rtc-session-description.js';
+import { RTCSessionDescription } from './rtc-session-description.js';
 import { RTCIceCandidate } from './rtc-ice-candidate.js';
 import { RTCDataChannel } from './rtc-data-channel.js';
 import { RTCPeerConnectionIceEvent, RTCDataChannelEvent } from './rtc-events.js';
@@ -34,8 +32,6 @@ import { RTCRtpTransceiver } from './rtc-rtp-transceiver.js';
 import { MediaStream } from './media-stream.js';
 import { MediaStreamTrack } from './media-stream-track.js';
 import { RTCTrackEvent } from './rtc-track-event.js';
-import { parseGstStats, filterStatsByTrackId } from './gst-stats-parser.js';
-import type { RTCStatsReport } from './rtc-stats-report.js';
 import { RTCIceTransport } from './rtc-ice-transport.js';
 import { RTCDtlsTransport } from './rtc-dtls-transport.js';
 import { RTCSctpTransport } from './rtc-sctp-transport.js';
@@ -91,26 +87,6 @@ export interface RTCDataChannelInit {
 type EventHandler<E extends Event = Event> =
     ((this: RTCPeerConnection, ev: E) => any) | null;
 
-/**
- * Web-IDL `[EnforceRange] unsigned short` coercion. Coerces via ToNumber,
- * rejects values that can't be represented as an unsigned short (0..65535).
- * Matches Web-IDL §3.2.4.10: reject NaN, ±Infinity, and integers outside
- * the range; "100" → 100; fractional values are truncated.
- *
- * Reference: refs/wpt/webrtc/RTCDataChannelInit-{maxPacketLifeTime,maxRetransmits}-enforce-range.html
- */
-function coerceUnsignedShort(name: string, raw: unknown): number {
-    const n = Number(raw);
-    if (!Number.isFinite(n)) {
-        throw new TypeError(`createDataChannel: ${name} must be a finite number, got ${String(raw)}`);
-    }
-    const truncated = Math.trunc(n);
-    if (truncated < 0 || truncated > 65535) {
-        throw new TypeError(`createDataChannel: ${name}=${truncated} is outside the [0, 65535] range`);
-    }
-    return truncated;
-}
-
 
 export interface RTCRtpTransceiverInit {
     direction?: RTCRtpTransceiverDirection;
@@ -130,14 +106,14 @@ export class RTCPeerConnection extends EventTarget {
     _pipeline: Gst.Pipeline;
     _webrtcbin: Gst.Element;
     private _bridge: WebrtcbinBridgeType;
-    private _conf: RTCConfiguration;
-    private _closed = false;
+    _conf: RTCConfiguration;
+    _closed = false;
     _iceRestartNeeded = false;
     _hasNegotiated = false;
-    private _dataChannels = new Map<unknown, RTCDataChannel>();
-    private _transceivers = new Map<unknown, RTCRtpTransceiver>();
-    private _senders: RTCRtpSender[] = [];
-    private _receivers: RTCRtpReceiver[] = [];
+    _dataChannels = new Map<unknown, RTCDataChannel>();
+    _transceivers = new Map<unknown, RTCRtpTransceiver>();
+    _senders: RTCRtpSender[] = [];
+    _receivers: RTCRtpReceiver[] = [];
     private _iceTransport: RTCIceTransport | null = null;
     private _dtlsTransport: RTCDtlsTransport | null = null;
     private _sctpTransport: RTCSctpTransport | null = null;
@@ -211,7 +187,7 @@ export class RTCPeerConnection extends EventTarget {
 
     // ---- ICE server / policy config ---------------------------------------
 
-    private _applyIceServers(iceServers: RTCIceServer[]): void {
+    _applyIceServers(iceServers: RTCIceServer[]): void {
         let stunSet = false;
         for (const server of iceServers) {
             const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
@@ -252,7 +228,7 @@ export class RTCPeerConnection extends EventTarget {
         }
     }
 
-    private _applyIceTransportPolicy(policy?: RTCIceTransportPolicy): void {
+    _applyIceTransportPolicy(policy?: RTCIceTransportPolicy): void {
         if (!policy) return;
         const gstPolicy = policy === 'relay'
             ? GstWebRTC.WebRTCICETransportPolicy.RELAY
@@ -338,79 +314,6 @@ export class RTCPeerConnection extends EventTarget {
         );
     }
 
-    createDataChannel(label: string, options: RTCDataChannelInit = {}): RTCDataChannel {
-        if (this._closed) {
-            throw new DOMException(
-                'Cannot create a data channel on a closed RTCPeerConnection',
-                'InvalidStateError',
-            );
-        }
-        if (typeof label !== 'string') {
-            throw new TypeError('createDataChannel: label must be a string');
-        }
-        if (new TextEncoder().encode(label).byteLength > 65535) {
-            throw new TypeError('createDataChannel: label too long (> 65535 bytes)');
-        }
-
-        // Web-IDL `[EnforceRange] unsigned short` coercion for the three
-        // numeric options. Input is coerced via ToNumber (so "100" → 100)
-        // then range-checked against [0, 65535]; any value that can't be
-        // represented exactly as an unsigned short throws TypeError. Also
-        // handles WPT's `0` edge case (number) vs `undefined` (no value).
-        const maxPacketLifeTime = options.maxPacketLifeTime == null
-            ? undefined
-            : coerceUnsignedShort('maxPacketLifeTime', options.maxPacketLifeTime);
-        const maxRetransmits = options.maxRetransmits == null
-            ? undefined
-            : coerceUnsignedShort('maxRetransmits', options.maxRetransmits);
-        const id = options.id == null
-            ? undefined
-            : coerceUnsignedShort('id', options.id);
-
-        if (maxPacketLifeTime !== undefined && maxRetransmits !== undefined) {
-            throw new TypeError('createDataChannel: maxPacketLifeTime and maxRetransmits are mutually exclusive');
-        }
-        if (options.negotiated === true && id === undefined) {
-            throw new TypeError('createDataChannel: negotiated=true requires an id');
-        }
-        if (id === 65535) {
-            // Per RFC 8832 §5.1, id must be < 65535 (65535 is reserved).
-            throw new TypeError('createDataChannel: id 65535 is reserved');
-        }
-
-        const gstOpts = Gst.Structure.new_empty('data-channel-opts');
-        this._setStructureField(gstOpts, 'ordered', 'boolean', options.ordered);
-        this._setStructureField(gstOpts, 'max-packet-lifetime', 'int', maxPacketLifeTime);
-        this._setStructureField(gstOpts, 'max-retransmits', 'int', maxRetransmits);
-        this._setStructureField(gstOpts, 'protocol', 'string', options.protocol);
-        this._setStructureField(gstOpts, 'negotiated', 'boolean', options.negotiated);
-        this._setStructureField(gstOpts, 'id', 'int', id);
-
-        let native: GstWebRTC.WebRTCDataChannel | null = null;
-        try {
-            // webrtcbin's `create-data-channel` is an action signal that returns
-            // a `GstWebRTCDataChannel`. The GIR-generated `emit()` overloads
-            // declare a `void` return for action signals, but at runtime the
-            // value flows back. Cast through `unknown` to acknowledge the gap.
-            native = this._webrtcbin.emit('create-data-channel', label, gstOpts) as unknown as GstWebRTC.WebRTCDataChannel | null;
-        } catch (err: any) {
-            throw new Error(`create-data-channel failed: ${err?.message ?? err}`);
-        }
-        if (!native) {
-            throw new Error('webrtcbin returned null data channel (check id/label/options)');
-        }
-
-        // Data channel created → ensure SCTP transport exists
-        this._ensureSctpTransport();
-
-        const js = new RTCDataChannel(native);
-        this._dataChannels.set(native, js);
-        js.addEventListener('close', () => {
-            this._dataChannels.delete(native);
-        });
-        return js;
-    }
-
     _setStructureField(
         structure: Gst.Structure,
         name: string,
@@ -432,8 +335,6 @@ export class RTCPeerConnection extends EventTarget {
         structure.set_value(name, gvalue);
         gvalue.unset();
     }
-
-    getConfiguration(): RTCConfiguration { return { ...this._conf }; }
 
     close(): void {
         if (this._closed) return;
@@ -464,275 +365,18 @@ export class RTCPeerConnection extends EventTarget {
 
     // ---- Media / Transceiver API (Phase 2) ----------------------------------
 
-    addTransceiver(
-        trackOrKind: MediaStreamTrack | string,
-        init?: RTCRtpTransceiverInit,
-    ): RTCRtpTransceiver {
-        this._rejectIfClosed('addTransceiver');
+    // `addTransceiver` is installed on the prototype from
+    // ./rtc-peer-connection/transceivers.ts at the bottom of this file.
+    //
+    // `addTrack`, `removeTrack`, `getSenders`, `getReceivers`,
+    // `getTransceivers` are installed on the prototype from
+    // ./rtc-peer-connection/tracks.ts at the bottom of this file.
+    //
+    // `getStats`, `restartIce`, `setConfiguration`, `getConfiguration`
+    // are installed on the prototype from
+    // ./rtc-peer-connection/stats-and-config.ts at the bottom of this
+    // file.
 
-        let kind: 'audio' | 'video';
-        if (typeof trackOrKind === 'string') {
-            if (trackOrKind !== 'audio' && trackOrKind !== 'video') {
-                throw new TypeError(
-                    `Failed to execute 'addTransceiver' on 'RTCPeerConnection': The provided value '${trackOrKind}' is not a valid enum value of type MediaStreamTrackKind.`,
-                );
-            }
-            kind = trackOrKind;
-        } else if (trackOrKind instanceof MediaStreamTrack) {
-            kind = trackOrKind.kind;
-        } else {
-            throw new TypeError(
-                "Failed to execute 'addTransceiver' on 'RTCPeerConnection': parameter 1 is not of type 'MediaStreamTrack' or a valid MediaStreamTrackKind.",
-            );
-        }
-
-        if (init?.sendEncodings) {
-            const rids = new Set<string>();
-            for (const enc of init.sendEncodings) {
-                if (enc.rid !== undefined) {
-                    if (typeof enc.rid !== 'string' || enc.rid.length === 0 || enc.rid.length > 16 || !/^[a-zA-Z0-9]+$/.test(enc.rid)) {
-                        throw new TypeError(`Invalid RID value: ${enc.rid}`);
-                    }
-                    if (rids.has(enc.rid)) {
-                        throw new TypeError(`Duplicate RID: ${enc.rid}`);
-                    }
-                    rids.add(enc.rid);
-                }
-                if (enc.scaleResolutionDownBy !== undefined && enc.scaleResolutionDownBy < 1.0) {
-                    throw new RangeError('scaleResolutionDownBy must be >= 1.0');
-                }
-            }
-        }
-
-        const direction = init?.direction ?? 'sendrecv';
-        const validDirections = ['sendrecv', 'sendonly', 'recvonly', 'inactive'];
-        if (!validDirections.includes(direction)) {
-            throw new TypeError(
-                `Failed to execute 'addTransceiver' on 'RTCPeerConnection': The provided value '${direction}' is not a valid enum value of type RTCRtpTransceiverDirection.`,
-            );
-        }
-        const hasGstSource = trackOrKind instanceof MediaStreamTrack && trackOrKind._gstSource;
-        const wantsSend = direction === 'sendrecv' || direction === 'sendonly';
-
-        let gstTrans: GstWebRTC.WebRTCRTPTransceiver;
-        let jsTrans: RTCRtpTransceiver;
-
-        if (hasGstSource && wantsSend) {
-            // Path A: Track has a GStreamer source and needs to send.
-            // Requesting a sink pad from webrtcbin implicitly creates both
-            // the pad AND the transceiver. Using emit('add-transceiver')
-            // would create a duplicate with mline=-1.
-            const track = trackOrKind as MediaStreamTrack;
-
-            // Build encoder chain, link to webrtcbin via request_pad_simple
-            const sender = new RTCRtpSender(null, this._pipeline, this._webrtcbin);
-            sender._kind = kind;
-            // Allow sender to update our pipeline if it migrates to a VideoBridge pipeline
-            sender._onPipelineChanged = (newPipeline) => { this._pipeline = newPipeline; };
-            sender._setTrack(track);
-            sender._wirePipeline(track);
-
-            // Find the GstTransceiver that request_pad_simple created
-            const found = this._findNewGstTransceiver();
-            if (!found) {
-                throw new Error('webrtcbin did not create a transceiver for the send pad');
-            }
-            gstTrans = found;
-
-            // Create wrapper with the pre-wired sender
-            const gstReceiver = gstTrans.receiver ?? null;
-            const receiver = new RTCRtpReceiver(kind, gstReceiver, this._pipeline);
-
-            // Wire stats delegation + transport
-            const statsDelegate = (t: MediaStreamTrack) => this.getStats(t);
-            sender._getStatsForTrack = statsDelegate;
-            receiver._getStatsForTrack = statsDelegate;
-            const dtls = this._ensureTransports();
-            sender._transport = dtls;
-            receiver._transport = dtls;
-
-            jsTrans = new RTCRtpTransceiver(gstTrans, sender, receiver);
-            sender._transceiver = jsTrans;
-            this._transceivers.set(gstTrans, jsTrans);
-            this._senders.push(sender);
-            this._receivers.push(receiver);
-
-            // Apply direction
-            gstTrans.direction = w3cDirectionToGst(direction);
-        } else {
-            // Path B: No GStreamer source, or receive-only/inactive.
-            // Use emit('add-transceiver') which creates a transceiver without pads.
-            const caps = Gst.Caps.from_string(`application/x-rtp,media=${kind}`);
-            // webrtcbin doesn't accept NONE for add-transceiver; use SENDRECV
-            // and override to inactive after creation.
-            const createDirection = direction === 'inactive'
-                ? w3cDirectionToGst('sendrecv')
-                : w3cDirectionToGst(direction);
-
-            // `add-transceiver` is an action signal returning the new
-            // GstWebRTCRTPTransceiver — see comment on `create-data-channel` above.
-            const result = this._webrtcbin.emit('add-transceiver', createDirection, caps) as unknown as GstWebRTC.WebRTCRTPTransceiver | null;
-            if (!result) {
-                throw new Error('webrtcbin did not create a transceiver');
-            }
-            gstTrans = result;
-
-            jsTrans = this._transceivers.get(gstTrans)!;
-            if (!jsTrans) {
-                jsTrans = this._createTransceiverWrapper(gstTrans);
-            }
-
-            gstTrans.direction = w3cDirectionToGst(direction);
-
-            if (trackOrKind instanceof MediaStreamTrack) {
-                jsTrans.sender._setTrack(trackOrKind);
-            }
-        }
-
-        return jsTrans;
-    }
-
-    addTrack(track: MediaStreamTrack, ..._streams: MediaStream[]): RTCRtpSender {
-        this._rejectIfClosed('addTrack');
-
-        if (!(track instanceof MediaStreamTrack)) {
-            throw new TypeError(
-                "Failed to execute 'addTrack' on 'RTCPeerConnection': parameter 1 is not a MediaStreamTrack",
-            );
-        }
-
-        // Check if this track is already assigned to a sender
-        const existing = this._senders.find(s => s.track === track);
-        if (existing) {
-            throw new DOMException(
-                'Track already exists in a sender of this connection',
-                'InvalidAccessError',
-            );
-        }
-
-        // Look for a reusable transceiver (matching kind, no track, recvonly/inactive)
-        let reusable: RTCRtpTransceiver | undefined;
-        for (const t of this._transceivers.values()) {
-            if (
-                t.sender.track === null &&
-                !t.stopped &&
-                t.direction !== 'stopped' &&
-                t.receiver.track.kind === track.kind
-            ) {
-                const dir = t.direction;
-                if (dir === 'recvonly' || dir === 'inactive') {
-                    reusable = t;
-                    break;
-                }
-            }
-        }
-
-        if (reusable) {
-            // Expand direction to include send
-            const dir = reusable.direction;
-            reusable.direction = dir === 'recvonly' ? 'sendrecv' : 'sendonly';
-            reusable.sender._setTrack(track);
-            // Note: _wirePipeline is NOT called here for reusable transceivers.
-            // Tracks with GStreamer sources will be handled by addTransceiver Path A
-            // if no reusable transceiver exists, or the pipeline will be wired
-            // when webrtcbin creates the sink pad during SDP negotiation.
-            return reusable.sender;
-        }
-
-        // Create a new transceiver — addTransceiver handles both _setTrack
-        // and _wirePipeline for tracks with GStreamer sources (Path A).
-        const transceiver = this.addTransceiver(track, { direction: 'sendrecv' });
-        return transceiver.sender;
-    }
-
-    removeTrack(sender: RTCRtpSender): void {
-        this._rejectIfClosed('removeTrack');
-        if (!this._senders.includes(sender)) {
-            throw new DOMException(
-                'sender was not created by this connection',
-                'InvalidAccessError',
-            );
-        }
-        sender._setTrack(null);
-    }
-
-    getSenders(): RTCRtpSender[] { return [...this._senders]; }
-    getReceivers(): RTCRtpReceiver[] { return [...this._receivers]; }
-    getTransceivers(): RTCRtpTransceiver[] { return [...this._transceivers.values()]; }
-
-    async getStats(selector?: MediaStreamTrack | null): Promise<RTCStatsReport> {
-        this._rejectIfClosed('getStats');
-
-        // Validate selector — if a track is given, it must belong to a sender or receiver
-        if (selector != null && selector instanceof MediaStreamTrack) {
-            const hasSender = this._senders.some(s => s.track === selector);
-            const hasReceiver = this._receivers.some(r => r.track === selector);
-            if (!hasSender && !hasReceiver) {
-                throw new DOMException(
-                    'The selector track is not associated with a sender or receiver of this connection',
-                    'InvalidAccessError',
-                );
-            }
-        }
-
-        const reply = await withGstPromise((p) => {
-            this._webrtcbin.emit('get-stats', null, p);
-        });
-
-        const report = parseGstStats(reply);
-
-        // If a track selector was provided, filter to relevant stats
-        if (selector != null && selector instanceof MediaStreamTrack) {
-            return filterStatsByTrackId(report, selector.id);
-        }
-
-        return report;
-    }
-
-    // ---- ICE restart / reconfiguration (Phase 4.4) ---------------------------
-
-    restartIce(): void {
-        if (this._closed) return; // no-op on closed connections per spec
-        this._iceRestartNeeded = true;
-        // Only fire negotiationneeded if we've completed at least one negotiation.
-        // Before initial negotiation, restartIce has no observable effect.
-        if (this._hasNegotiated) {
-            // Fire asynchronously per spec (queued as a microtask)
-            Promise.resolve().then(() => {
-                if (this._closed) return;
-                this._handleNegotiationNeeded();
-            });
-        }
-    }
-
-    setConfiguration(configuration: RTCConfiguration): void {
-        this._rejectIfClosed('setConfiguration');
-
-        // Per spec: bundlePolicy and rtcpMuxPolicy cannot change after construction
-        if (configuration.bundlePolicy && configuration.bundlePolicy !== (this._conf.bundlePolicy ?? 'balanced')) {
-            throw new DOMException(
-                'setConfiguration: bundlePolicy cannot be changed',
-                'InvalidModificationError',
-            );
-        }
-        if (configuration.rtcpMuxPolicy && configuration.rtcpMuxPolicy !== (this._conf.rtcpMuxPolicy ?? 'require')) {
-            throw new DOMException(
-                'setConfiguration: rtcpMuxPolicy cannot be changed',
-                'InvalidModificationError',
-            );
-        }
-
-        // Apply new ICE servers
-        if (configuration.iceServers) {
-            this._applyIceServers(configuration.iceServers);
-        }
-        // Apply new ICE transport policy
-        if (configuration.iceTransportPolicy) {
-            this._applyIceTransportPolicy(configuration.iceTransportPolicy);
-        }
-
-        this._conf = { ...this._conf, ...configuration };
-    }
     getIdentityAssertion(): Promise<never> {
         return Promise.reject(new Error('getIdentityAssertion is not implemented'));
     }
@@ -740,7 +384,7 @@ export class RTCPeerConnection extends EventTarget {
     // ---- Transceiver helper -------------------------------------------------
 
     /** Find a GstWebRTCRTPTransceiver not yet in our map (created by request_pad_simple). */
-    private _findNewGstTransceiver(): GstWebRTC.WebRTCRTPTransceiver | null {
+    _findNewGstTransceiver(): GstWebRTC.WebRTCRTPTransceiver | null {
         for (let i = 0; ; i++) {
             // `get-transceiver` is an action signal — return value flows back at
             // runtime even though the GIR `emit()` overload is typed `void`.
@@ -751,7 +395,7 @@ export class RTCPeerConnection extends EventTarget {
     }
 
     /** Lazily create the shared DTLS and ICE transport instances (max-bundle → one pair). */
-    private _ensureTransports(): RTCDtlsTransport {
+    _ensureTransports(): RTCDtlsTransport {
         if (!this._dtlsTransport) {
             this._iceTransport = new RTCIceTransport();
             this._dtlsTransport = new RTCDtlsTransport(this._iceTransport);
@@ -760,13 +404,13 @@ export class RTCPeerConnection extends EventTarget {
     }
 
     /** Create the SCTP transport when a data channel is first negotiated. */
-    private _ensureSctpTransport(): void {
+    _ensureSctpTransport(): void {
         if (this._sctpTransport) return;
         const dtls = this._ensureTransports();
         this._sctpTransport = new RTCSctpTransport(dtls);
     }
 
-    private _createTransceiverWrapper(gstTrans: GstWebRTC.WebRTCRTPTransceiver): RTCRtpTransceiver {
+    _createTransceiverWrapper(gstTrans: GstWebRTC.WebRTCRTPTransceiver): RTCRtpTransceiver {
         let kind: 'audio' | 'video' = 'audio';
         try {
             const gstKind = gstTrans.kind;
@@ -813,7 +457,7 @@ export class RTCPeerConnection extends EventTarget {
     // the GStreamer streaming thread onto the GLib main context, so we can
     // synchronously dispatch from here.
 
-    private _handleNegotiationNeeded(): void {
+    _handleNegotiationNeeded(): void {
         const ev = new Event('negotiationneeded');
         this._onnegotiationneeded?.call(this, ev);
         this.dispatchEvent(ev);
@@ -970,9 +614,21 @@ export class RTCPeerConnection extends EventTarget {
 
 // Wire focused method groups into RTCPeerConnection.prototype, same pattern
 // as the WebGL2 / canvas2d-core splits (PRs #273, #262). The side-effect
-// import is kept separate from the named import so tsc preserves it in the
-// emitted `.d.ts` — downstream consumers need the `declare module`
-// augmentations loaded to see SDP-negotiation methods on the published type.
+// imports are kept separate from the named imports so tsc preserves them
+// in the emitted `.d.ts` — downstream consumers need the `declare module`
+// augmentations loaded to see the extracted methods on the published type.
 import './rtc-peer-connection/sdp-negotiation.js';
+import './rtc-peer-connection/data-channel.js';
+import './rtc-peer-connection/transceivers.js';
+import './rtc-peer-connection/tracks.js';
+import './rtc-peer-connection/stats-and-config.js';
 import { installSdpNegotiationMethods } from './rtc-peer-connection/sdp-negotiation.js';
+import { installDataChannelMethods } from './rtc-peer-connection/data-channel.js';
+import { installTransceiverMethods } from './rtc-peer-connection/transceivers.js';
+import { installTrackMethods } from './rtc-peer-connection/tracks.js';
+import { installStatsAndConfigMethods } from './rtc-peer-connection/stats-and-config.js';
 installSdpNegotiationMethods(RTCPeerConnection.prototype);
+installDataChannelMethods(RTCPeerConnection.prototype);
+installTransceiverMethods(RTCPeerConnection.prototype);
+installTrackMethods(RTCPeerConnection.prototype);
+installStatsAndConfigMethods(RTCPeerConnection.prototype);
