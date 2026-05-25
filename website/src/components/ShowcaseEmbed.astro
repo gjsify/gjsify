@@ -1,0 +1,290 @@
+---
+// Live Adwaita-window embed for a showcase sub-page.
+//
+// Mirrors the slot styling used by the home-page slideshow
+// (`ShowcaseSlideshow.astro`): a dark-tinted, rounded, drop-shadowed container
+// that frames the showcase's `mount()` output as if it were an Adwaita window.
+// Each embed lazy-imports `@gjsify/example-dom-<name>/browser` on first paint
+// and forwards an optional `mountOpts` payload (typically `{ assetBase }`).
+//
+// CSS is duplicated from the slideshow on purpose — extracting it would touch
+// the slideshow's working visual stack. Both components must stay in sync; if
+// you change one, change the other.
+
+interface MountOpts {
+  assetBase?: string;
+  startMuted?: boolean;
+  title?: string;
+  homeUrl?: string;
+  enablePerf?: boolean;
+}
+
+interface Props {
+  /**
+   * Showcase package suffix — combined with `@gjsify/example-dom-` to import
+   * the browser entry. Must correspond to a workspace package declared as a
+   * dependency of @gjsify/website AND a directory under `showcases/dom/<name>/`
+   * exporting `./browser` with a named `mount()` function.
+   */
+  name:
+    | 'three-postprocessing-pixel'
+    | 'three-geometry-teapot'
+    | 'excalibur-jelly-jumper'
+    | 'canvas2d-fireworks'
+    | 'minimalist-browser'
+    | 'webrtc-loopback';
+  /**
+   * DOM id for the mount container. Defaults to the showcase name. Override
+   * if a single page renders multiple embeds of the same showcase.
+   */
+  slideId?: string;
+  /**
+   * Forwarded verbatim to `mount(container, mountOpts)`. Only the keys the
+   * specific showcase understands are read; extras are ignored.
+   */
+  mountOpts?: MountOpts;
+}
+
+const { name, slideId, mountOpts } = Astro.props;
+const id = slideId ?? name;
+
+// Auto-derive assetBase for showcases that ship runtime assets via
+// `website/scripts/copy-showcase-assets.mjs` so callers don't have to repeat
+// the convention on every page. Honours an explicit `mountOpts.assetBase`.
+const ASSET_BASE_BY_NAME: Record<string, string | undefined> = {
+  'three-postprocessing-pixel': 'demos/pixel/',
+  'three-geometry-teapot': 'demos/teapot/',
+  'excalibur-jelly-jumper': 'demos/jelly-jumper/',
+};
+
+const defaultStartMuted = name === 'excalibur-jelly-jumper' ? true : undefined;
+
+const resolvedMountOpts: MountOpts = {
+  ...(ASSET_BASE_BY_NAME[name]
+    ? { assetBase: `__BASE__${ASSET_BASE_BY_NAME[name]}` }
+    : {}),
+  ...(defaultStartMuted !== undefined ? { startMuted: defaultStartMuted } : {}),
+  ...mountOpts,
+};
+
+// Serialise mount opts for the client script. `__BASE__` is a placeholder that
+// the client replaces with `import.meta.env.BASE_URL` so the URL respects
+// Astro's `base` config (e.g. `/gjsify/demos/pixel/` in production).
+const mountOptsJson = JSON.stringify(resolvedMountOpts);
+---
+
+<div class="showcase-embed" data-showcase-name={name} data-mount-opts={mountOptsJson}>
+  <div
+    class="showcase-embed-window focusable"
+    id={`demo-${id}`}
+    tabindex="0"
+    style="background-color:#222226"
+  ></div>
+</div>
+
+<script>
+  // Lazy-mount each showcase embed when it first scrolls into view. Same
+  // import shape as the slideshow's `mountSlide()` so the bundler shares the
+  // chunks (`@gjsify/example-dom-<name>/browser`).
+  interface ShowcaseHandle {
+    pause?: () => void;
+    resume?: () => void;
+    readonly isPaused?: boolean;
+  }
+
+  type ShowcaseName =
+    | 'three-postprocessing-pixel'
+    | 'three-geometry-teapot'
+    | 'excalibur-jelly-jumper'
+    | 'canvas2d-fireworks'
+    | 'minimalist-browser'
+    | 'webrtc-loopback';
+
+  const mounted = new WeakSet<Element>();
+  const handles = new WeakMap<Element, ShowcaseHandle>();
+  const base = import.meta.env.BASE_URL;
+
+  function resolveOpts(raw: string | null | undefined): Record<string, unknown> {
+    if (!raw) return {};
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+    // Expand the `__BASE__` placeholder so the URL respects Astro's base path.
+    for (const key of Object.keys(parsed)) {
+      const value = parsed[key];
+      if (typeof value === 'string' && value.startsWith('__BASE__')) {
+        parsed[key] = base + value.slice('__BASE__'.length);
+      }
+    }
+    return parsed;
+  }
+
+  async function doMount(root: HTMLElement): Promise<void> {
+    if (mounted.has(root)) return;
+    mounted.add(root);
+
+    const name = root.dataset.showcaseName as ShowcaseName | undefined;
+    const container = root.querySelector<HTMLElement>('.showcase-embed-window');
+    if (!name || !container) return;
+
+    const opts = resolveOpts(root.dataset.mountOpts);
+
+    let handle: ShowcaseHandle | undefined;
+    switch (name) {
+      case 'three-postprocessing-pixel': {
+        const { mount } = await import(
+          '@gjsify/example-dom-three-postprocessing-pixel/browser'
+        );
+        handle = mount(container, opts as { assetBase?: string });
+        break;
+      }
+      case 'three-geometry-teapot': {
+        const { mount } = await import(
+          '@gjsify/example-dom-three-geometry-teapot/browser'
+        );
+        handle = mount(container, opts as { assetBase?: string });
+        break;
+      }
+      case 'excalibur-jelly-jumper': {
+        const { mount } = await import(
+          '@gjsify/example-dom-excalibur-jelly-jumper/browser'
+        );
+        handle = mount(
+          container,
+          opts as { assetBase?: string; startMuted?: boolean; enablePerf?: boolean },
+        );
+        break;
+      }
+      case 'canvas2d-fireworks': {
+        const { mount } = await import(
+          '@gjsify/example-dom-canvas2d-fireworks/browser'
+        );
+        handle = mount(container);
+        break;
+      }
+      case 'minimalist-browser': {
+        const { mount } = await import(
+          '@gjsify/example-dom-minimalist-browser/browser'
+        );
+        handle = mount(container, opts as { title?: string; homeUrl?: string });
+        break;
+      }
+      case 'webrtc-loopback': {
+        const { mount } = await import(
+          '@gjsify/example-dom-webrtc-loopback/browser'
+        );
+        handle = mount(container, opts as { title?: string });
+        break;
+      }
+    }
+
+    if (handle) handles.set(root, handle);
+  }
+
+  function observe(root: HTMLElement): void {
+    if (!('IntersectionObserver' in window)) {
+      // Old browsers / SSR-less environments: mount eagerly.
+      void doMount(root);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            io.disconnect();
+            void doMount(root);
+            return;
+          }
+        }
+      },
+      { rootMargin: '200px' },
+    );
+    io.observe(root);
+  }
+
+  document
+    .querySelectorAll<HTMLElement>('.showcase-embed')
+    .forEach((root) => observe(root));
+</script>
+
+<style>
+  /* Mirrors the slideshow's `.slide-demo` framing so the embed reads as an
+     Adwaita window — same aspect ratio, radius, shadow and dark surface tint
+     used by `ShowcaseSlideshow.astro`. Margin-block adds breathing room
+     between the embed and the surrounding MDX prose. */
+  .showcase-embed {
+    width: 100%;
+    max-width: 1100px;
+    margin: 1.5rem auto 2rem;
+    /* The slideshow uses 30px of padding on its track to give the window's
+       drop-shadow room to bleed; we replicate that here so the shadow isn't
+       clipped against the next paragraph. */
+    padding: 16px 0 24px;
+  }
+
+  .showcase-embed-window {
+    width: 100%;
+    aspect-ratio: 11 / 7;
+    border-radius: 12px;
+    overflow: hidden;
+    /* Hard-coded surface tint matches the dark Adwaita window background so
+       the slot looks framed even before the showcase has mounted. */
+    background-color: #222226;
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.25),
+      0 0 0 1px rgba(0, 0, 0, 0.08);
+    position: relative;
+    outline: none;
+  }
+
+  /* Light-theme placeholder — same fallback shade the slideshow uses. */
+  :root[data-theme='light'] .showcase-embed-window {
+    background-color: #fafafb;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme='dark']) .showcase-embed-window {
+      background-color: #fafafb;
+    }
+  }
+
+  /* Adwaita window fills the container (Three / Excalibur / minimalist-browser
+     hosts emit an `<adw-window>` shell via `@gjsify/adwaita-web`). */
+  .showcase-embed-window :global(adw-window) {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+    outline: none;
+  }
+
+  /* Canvas fills the container (canvas2d-fireworks, also WebGL host canvases
+     used by Three and Excalibur). */
+  .showcase-embed-window :global(canvas) {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* WebRTC loopback log + minimalist-browser shell render plain sections —
+     make them fill the slot so the demo doesn't sit awkwardly above empty
+     dark space. */
+  .showcase-embed-window :global(section) {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Make the embed legible on smaller viewports — switch to a 4:3 aspect
+     ratio so the demos retain enough vertical room. Mirrors the slideshow's
+     mobile breakpoint. */
+  @media (max-width: 600px) {
+    .showcase-embed-window {
+      aspect-ratio: 4 / 3;
+    }
+  }
+</style>
