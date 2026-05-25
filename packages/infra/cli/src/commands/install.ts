@@ -166,13 +166,34 @@ async function projectInstallNative(args: InstallOptions): Promise<void> {
     const cwd = process.cwd();
     const pkgPath = join(cwd, 'package.json');
 
-    // Yarn-Berry / PnP detection: fall back to yarn with a clear warning
-    // rather than producing a half-working node_modules tree.
-    if (existsSync(join(cwd, '.pnp.cjs')) || existsSync(join(cwd, '.pnp.loader.mjs'))) {
+    // gjsify install is a node_modules-linker installer (like `npm install`
+    // or `yarn --nodeLinker node-modules`): it materialises a node_modules/
+    // tree + gjsify-lock.json. It deliberately does NOT produce a Yarn PnP
+    // install, and the two resolution strategies cannot coexist — a leftover
+    // `.pnp.cjs` makes Node ignore the node_modules/ tree we write, leaving a
+    // silently broken project.
+    //
+    // Native PnP *generation* (a byte-identical `.pnp.cjs` + `.yarn/cache/*.zip`
+    // that yarn itself would accept) is intentionally out of scope: it would
+    // mean replicating yarn's libzip-deterministic archives, SHA-512 cache
+    // keys, cache-version tracking and virtual-locator synthesis, and would
+    // only ever match a single yarn release. So we stop here with actionable
+    // guidance instead of half-doing it.
+    //
+    // We do NOT point users at `GJSIFY_INSTALL_BACKEND=npm` from this error:
+    // that backend chokes on `workspace:` specs (`EUNSUPPORTEDPROTOCOL`),
+    // which is exactly what the workspace repos that reach this branch have.
+    const pnpResidue = ['.pnp.cjs', '.pnp.loader.mjs'].filter((f) => existsSync(join(cwd, f)));
+    if (pnpResidue.length > 0) {
         throw new Error(
-            'gjsify install: detected Yarn PnP (.pnp.cjs) — native install is ' +
-            'not PnP-aware yet. Use `yarn install` or set ' +
-            'GJSIFY_INSTALL_BACKEND=npm.',
+            `gjsify install uses the node_modules linker and cannot run in a Yarn PnP ` +
+            `project (found ${pnpResidue.join(', ')} in ${cwd}).\n\n` +
+            `• If this project uses \`gjsify install\` to manage dependencies, these PnP ` +
+            `files are stale residue from an earlier \`yarn install\` — remove them and re-run:\n` +
+            `      rm -f .pnp.cjs .pnp.loader.mjs && rm -rf .yarn/cache .yarn/unplugged\n` +
+            `      gjsify install\n\n` +
+            `• If instead you want Yarn to manage dependencies, set \`nodeLinker: node-modules\` ` +
+            `in .yarnrc.yml and run \`yarn install\` (not \`gjsify install\`).`,
         );
     }
 
