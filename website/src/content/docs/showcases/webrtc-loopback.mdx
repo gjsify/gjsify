@@ -3,7 +3,13 @@ title: webrtc-loopback
 description: Two local peers exchange offer/answer + ICE, then echo messages over an RTCDataChannel — proves @gjsify/webrtc's full PeerConnection + DataChannel surface.
 ---
 
+import ShowcaseEmbed from '../../../components/ShowcaseEmbed.astro';
+
 A WebRTC data-channel loopback: two `RTCPeerConnection` instances sit in the same process, exchange SDP offer / answer + ICE candidates, open an `RTCDataChannel`, and echo whatever the user types back through it. No signaling server, no remote peer — but the entire `RTCPeerConnection` state machine runs through GStreamer's webrtcbin on GJS.
+
+## Live demo
+
+<ShowcaseEmbed name="webrtc-loopback" />
 
 ## What it exercises
 

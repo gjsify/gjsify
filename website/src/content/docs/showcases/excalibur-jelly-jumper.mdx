@@ -3,7 +3,13 @@ title: excalibur-jelly-jumper
 description: Excalibur.js 0.32 platformer with Tiled tilemaps — runs on GJS through @gjsify/webgl + @gjsify/xmlhttprequest + @gjsify/domparser without a Excalibur.js fork.
 ---
 
+import ShowcaseEmbed from '../../../components/ShowcaseEmbed.astro';
+
 A small 2D platformer built with the unmodified [Excalibur.js](https://excaliburjs.com/) game engine and [Tiled](https://www.mapeditor.org/) tilemaps. The same `npm` package runs in the browser and on GJS — Excalibur reaches for `<canvas>`, `WebGL`, `XMLHttpRequest`, `DOMParser`, `ResizeObserver`, and `requestAnimationFrame`, and every one of those calls is served by the corresponding `@gjsify/*` package on GJS.
+
+## Live demo
+
+<ShowcaseEmbed name="excalibur-jelly-jumper" />
 
 ## What it exercises
 

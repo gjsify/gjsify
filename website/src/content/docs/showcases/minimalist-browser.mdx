@@ -3,7 +3,13 @@ title: minimalist-browser
 description: URL bar + back/forward + iframe — same code runs in browser (real <iframe>) and GJS (IFrameBridge over WebKit.WebView).
 ---
 
+import ShowcaseEmbed from '../../../components/ShowcaseEmbed.astro';
+
 A bare-bones browser shell — URL bar, back / forward / reload buttons, an `<iframe>` filling the rest. The same TS source compiles for the browser (where the iframe is a real iframe) and for GJS (where it's an `IFrameBridge` wrapping a full `WebKit.WebView`).
+
+## Live demo
+
+<ShowcaseEmbed name="minimalist-browser" />
 
 ## What it exercises
 
