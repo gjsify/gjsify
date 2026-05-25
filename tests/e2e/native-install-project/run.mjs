@@ -208,7 +208,7 @@ describe('gjsify install <pkg> — project-local native (Phase D.1)', { timeout:
   // with a Phase-D.3 marker. D.3 wired the workspace-aware path, so the
   // workspace coverage lives in `tests/e2e/workspace-install/run.mjs` now.
 
-  it('detects Yarn PnP and falls back with a clear error', async () => {
+  it('detects Yarn PnP and errors with actionable guidance (no broken npm-backend tip)', async () => {
     const pnpRoot = mkdtempSync(join(tmpdir(), 'gjsify-e2e-install-pnp-'));
     try {
       writeFileSync(join(pnpRoot, 'package.json'), JSON.stringify({
@@ -221,6 +221,18 @@ describe('gjsify install <pkg> — project-local native (Phase D.1)', { timeout:
       const combined = r.stdout + r.stderr;
       assert.match(combined, /Yarn PnP|\.pnp\.cjs/i,
         `expected error to mention PnP, got: ${combined}`);
+      // Both real fixes must be spelled out: remove the residue, or switch
+      // yarn to the node_modules linker.
+      assert.match(combined, /rm -f \.pnp\.cjs/,
+        `expected error to suggest removing the PnP residue, got: ${combined}`);
+      assert.match(combined, /nodeLinker: node-modules/,
+        `expected error to mention the node-modules linker option, got: ${combined}`);
+      // Must NOT *recommend* the npm backend: it fails on `workspace:` specs
+      // (EUNSUPPORTEDPROTOCOL), the second wall workspace repos hit. (The
+      // unrelated `--backend` flag help text yargs auto-prints on error may
+      // still name the env var — we only forbid the `=npm` recommendation.)
+      assert.doesNotMatch(combined, /GJSIFY_INSTALL_BACKEND=npm/,
+        `error should no longer recommend setting GJSIFY_INSTALL_BACKEND=npm, got: ${combined}`);
     } finally {
       rmSync(pnpRoot, { recursive: true, force: true });
     }
