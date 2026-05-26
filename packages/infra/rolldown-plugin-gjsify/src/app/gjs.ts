@@ -230,8 +230,8 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         // `firefox: 60 << 16` makes lightningcss flatten the source
         // into the subset GTK4 understands.
         cssAsStringPlugin({ targets: { firefox: 60 << 16 } }),
-        nodeModulesPathRewritePlugin({ bundleDir }),
-        processStubPlugin({ userBanner: input.userBanner }),
+        nodeModulesPathRewritePlugin({ bundleDir, runtimeResolve: format === 'esm' }),
+        processStubPlugin({ userBanner: input.userBanner, captureBundleUrl: format === 'esm' }),
         // resolveShebangLine returns null when disabled (false/undefined) and
         // the resolved line otherwise — also handles `${env:…}` expansion.
         (() => {
