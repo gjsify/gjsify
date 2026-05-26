@@ -1,11 +1,11 @@
 ---
 title: Node.js Modules
-description: 42 Node.js API modules implemented for GJS using native GNOME libraries
+description: 41 Node.js API modules implemented for GJS using native GNOME libraries
 ---
 
 import NodeApiCoverage from '../../../components/NodeApiCoverage.astro';
 
-42 Node.js API modules (plus `@gjsify/node-polyfills` meta) implemented for GJS using native GNOME libraries.
+41 Node.js API modules (plus `@gjsify/node-polyfills` meta and 5 Vala native bridges) implemented for GJS using native GNOME libraries.
 
 <NodeApiCoverage />
 
@@ -26,9 +26,9 @@ import NodeApiCoverage from '../../../components/NodeApiCoverage.astro';
 | `events` | — | Full | EventEmitter (prototype methods enumerable for socket.io v4) |
 | `fs` | Gio | Full | sync/callback/promises/streams/FSWatcher; URL path args everywhere |
 | `globals` | GLib | Full | process, Buffer, structuredClone, TextEncoder/Decoder, URL, queueMicrotask |
-| `http` | Soup 3.0 | Partial | Server (Soup.Server), IncomingMessage, ServerResponse, Agent |
-| `http2` | — | Stub | constants only |
-| `https` | — | Partial | Agent, stub request/get |
+| `http` | Soup 3.0 | Full | Server (Soup.Server), IncomingMessage, ServerResponse, Agent |
+| `http2` | Soup 3.0 | Full | h2 via ALPN; PUSH_PROMISE/HEADERS/DATA via `@gjsify/http2-native` (Vala + libnghttp2) |
+| `https` | Soup 3.0 | Full | TLS-backed Agent, request/get via Soup + GIO |
 | `inspector` | — | Stub | Session stub |
 | `module` | Gio, GLib | Full | builtinModules, isBuiltin, createRequire |
 | `net` | Gio | Full | Socket (Gio.SocketClient), Server (Gio.SocketService) |
@@ -43,13 +43,13 @@ import NodeApiCoverage from '../../../components/NodeApiCoverage.astro';
 | `string_decoder` | — | Full | UTF-8, Base64, hex, streaming |
 | `sys` | — | Full | Deprecated alias for `util` |
 | `timers` | — | Full | setTimeout/setInterval/setImmediate + promises (GLib-safe) |
-| `tls` | Gio | Partial | TLSSocket via Gio.TlsClientConnection |
+| `tls` | Gio | Full | TLSSocket via Gio.TlsClientConnection + `@gjsify/tls-native` (Vala) |
 | `tty` | — | Full | ReadStream/WriteStream, ANSI escapes |
 | `url` | GLib | Full | URL (static `createObjectURL`/`revokeObjectURL`), URLSearchParams via GLib.Uri |
 | `util` | — | Full | inspect, format, promisify, types |
-| `v8` | — | Stub | getHeapStatistics, serialize/deserialize (JSON) |
+| `v8` | — | Partial | Wire-format v15 serialize/deserialize; getHeapStatistics; no heap snapshot or CPU profile |
 | `vm` | — | Partial | runInThisContext, runInNewContext, Script, compileFunction |
-| `worker_threads` | Gio, GLib | Partial | MessageChannel/Port/BroadcastChannel, subprocess Worker — no SharedArrayBuffer |
+| `worker_threads` | Gio, GLib | Partial | MessageChannel/Port/BroadcastChannel, subprocess Worker; SharedArrayBuffer via `@gjsify/sab-native` (cross-process, file-based) |
 | `ws` (npm) | Soup 3.0 | Partial | `ws`-compat WebSocket client + WebSocketServer over `@gjsify/websocket` |
 | `zlib` | — | Full | gzip/deflate via Web Compression API, Gio fallback |
 

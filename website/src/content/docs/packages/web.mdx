@@ -5,7 +5,7 @@ description: Web platform APIs implemented for GJS using native GNOME libraries
 
 import WebStandardsCoverage from '../../../components/WebStandardsCoverage.astro';
 
-19 Web platform APIs implemented for GJS using native GNOME libraries (plus `@gjsify/web-polyfills` meta).
+19 Web platform API packages (plus `@gjsify/webrtc-native` Vala bridge and `@gjsify/web-polyfills` meta) implemented for GJS using native GNOME libraries.
 
 <WebStandardsCoverage />
 
@@ -20,6 +20,7 @@ import WebStandardsCoverage from '../../../components/WebStandardsCoverage.astro
 | `fetch` | Soup 3.0, Gio, GLib | `fetch()`, Request (raw-body via `set_request_body_from_bytes`), Response, Headers |
 | `formdata` | — | FormData, File, multipart encoding |
 | `gamepad` | Manette 0.2 | Gamepad, GamepadButton, GamepadEvent, GamepadHapticActuator (dual-rumble) |
+| `message-channel` | — | MessageChannel, MessagePort (W3C Channel Messaging; backs `@gjsify/iframe` WebKit bridge and `worker_threads` cross-process IPC) |
 | `streams` | — | ReadableStream, WritableStream, TransformStream, TextEncoder/DecoderStream |
 | `web-globals` | — | Meta-register for every Web API global |
 | `webaudio` | Gst 1.0, GstApp 1.0 | AudioContext (GStreamer decodebin + playback chain), AudioBufferSourceNode, GainNode, AudioParam |
@@ -27,6 +28,7 @@ import WebStandardsCoverage from '../../../components/WebStandardsCoverage.astro
 | `webrtc` | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | Full W3C WebRTC (RTCPeerConnection, RTCDataChannel, RTCRtpSender/Receiver/Transceiver, MediaStream/Track, getUserMedia, RTCDTMFSender, RTCCertificate) |
 | `webrtc-native` | Gst 1.0, GstWebRTC 1.0 | Vala/GObject prebuild — main-thread signal bridges consumed by `@gjsify/webrtc` |
 | `websocket` | Soup 3.0 | WebSocket, MessageEvent, CloseEvent (NUL-byte-safe text frames, Autobahn-validated) |
+| `webassembly` | — | `WebAssembly.compile/instantiate/validate/compileStreaming/instantiateStreaming` — Promise-API polyfill wrapping SpiderMonkey's synchronous constructors; auto-detected by `--globals auto` |
 | `webstorage` | Gio | localStorage, sessionStorage |
 | `xmlhttprequest` | Soup 3.0, GLib | XMLHttpRequest (`responseType`: arraybuffer / blob / json / text / document), FakeBlob + temp-file plumbing for `URL.createObjectURL` |
 
