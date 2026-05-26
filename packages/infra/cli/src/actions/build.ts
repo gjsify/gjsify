@@ -2,7 +2,7 @@ import type { ConfigData, BundlerOptions } from "../types/index.js";
 import type { App, PluginOptions } from "@gjsify/rolldown-plugin-gjsify";
 import type { RolldownOutput, RolldownPluginOption } from "rolldown";
 import { runBundle, runWatch, bundleToChunks } from "../bundler-pick.js";
-import { gjsifyPlugin, textLoaderPlugin, resolveShebangLine } from "@gjsify/rolldown-plugin-gjsify";
+import { gjsifyPlugin, textLoaderPlugin, resolveShebangLine, NODE_SHEBANG } from "@gjsify/rolldown-plugin-gjsify";
 import { resolveUserPlugins } from "../utils/resolve-plugin-by-name.js";
 import {
     resolveGlobalsList,
@@ -192,25 +192,30 @@ export class BuildAction {
 
     /**
      * Post-processing: prepend the resolved shebang line and mark the
-     * output executable. Only runs for GJS app builds with a single outfile.
-     * The shebang plugin in `@gjsify/rolldown-plugin-gjsify` already injects
-     * during bundling — this hook is the safety net for anything that
-     * bypassed the plugin (e.g. user-supplied banners that out-ordered it),
-     * plus the chmod.
+     * output executable. Runs for GJS and Node app builds with a single
+     * outfile. The default line depends on the target — `gjs -m` for
+     * `--app gjs`, `node` for `--app node` — so a single `shebang: true`
+     * config produces a directly-executable bin for whichever target is
+     * built. For GJS the shebang plugin already injects during bundling;
+     * this hook is the safety net for anything that bypassed it (e.g.
+     * user-supplied banners that out-ordered it) plus the chmod. For Node
+     * there is no in-bundle plugin, so this hook is the sole injection point.
      */
     private async applyShebang(
+        app: App,
         outfile: string | undefined,
         verbose: boolean | undefined,
     ): Promise<void> {
         if (!outfile) {
             if (verbose)
                 console.warn(
-                    "[gjsify] --shebang skipped: no single outfile (use --outfile for GJS executables)",
+                    "[gjsify] --shebang skipped: no single outfile (use --outfile for executables)",
                 );
             return;
         }
 
-        const line = resolveShebangLine(this.configData.shebang) ?? DEFAULT_GJS_SHEBANG;
+        const defaultLine = app === "node" ? NODE_SHEBANG : DEFAULT_GJS_SHEBANG;
+        const line = resolveShebangLine(this.configData.shebang, defaultLine) ?? defaultLine;
 
         const content = await readFile(outfile, "utf-8");
         if (content.startsWith("#!")) {
@@ -390,8 +395,8 @@ export class BuildAction {
 
         const writeResult = await runBundle(finalOpts);
 
-        if (app === "gjs" && this.configData.shebang) {
-            await this.applyShebang(outfile, verbose);
+        if ((app === "gjs" || app === "node") && this.configData.shebang) {
+            await this.applyShebang(app, outfile, verbose);
         }
 
         return [writeResult];
@@ -440,8 +445,8 @@ export class BuildAction {
                 case "BUNDLE_END":
                     console.log(`[gjsify build --watch] built in ${event.duration}ms`);
                     try {
-                        if (app === "gjs" && this.configData.shebang) {
-                            await this.applyShebang(outfile, verbose);
+                        if ((app === "gjs" || app === "node") && this.configData.shebang) {
+                            await this.applyShebang(app, outfile, verbose);
                         }
                     } finally {
                         await event.result.close();
