@@ -100,14 +100,16 @@ if (hasNative) {
 
     constructor(format: CompressionFormat | string) {
       const validFormat = validateFormat(format);
-      if (!_zlibLoaded) {
-        throw new Error('zlib not yet loaded. Ensure module initialization is complete.');
-      }
-      const processFn = getCompressFn(validFormat);
       const ts = new TransformStream<Uint8Array, Uint8Array>({
-        transform(chunk, controller) {
+        // Await the lazy zlib load inside the (async) transform rather than
+        // requiring it at construction. `loadZlib()` is kicked off at module
+        // init but resolves on a later microtask, so a CompressionStream built
+        // synchronously right after import (e.g. `gjsify pack` → tar gzip)
+        // would otherwise race it and throw. The GJS backend is itself sync.
+        async transform(chunk, controller) {
           try {
-            controller.enqueue(processFn(chunk));
+            await zlibReady;
+            controller.enqueue(getCompressFn(validFormat)(chunk));
           } catch (err) {
             controller.error(err);
           }
@@ -124,14 +126,13 @@ if (hasNative) {
 
     constructor(format: CompressionFormat | string) {
       const validFormat = validateFormat(format);
-      if (!_zlibLoaded) {
-        throw new Error('zlib not yet loaded. Ensure module initialization is complete.');
-      }
-      const processFn = getDecompressFn(validFormat);
       const ts = new TransformStream<Uint8Array, Uint8Array>({
-        transform(chunk, controller) {
+        // See CompressionStream above: await the lazy zlib load in the async
+        // transform to avoid the construct-before-loaded race.
+        async transform(chunk, controller) {
           try {
-            controller.enqueue(processFn(chunk));
+            await zlibReady;
+            controller.enqueue(getDecompressFn(validFormat)(chunk));
           } catch (err) {
             controller.error(err);
           }
