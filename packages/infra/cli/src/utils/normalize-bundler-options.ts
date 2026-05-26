@@ -2,15 +2,54 @@
 // field on `.gjsifyrc.js` / `package.json#gjsify` into the equivalent
 // `bundler?: RolldownOptions` shape. Logs a single warning per build.
 //
-// Drop in 0.5.0.
+// Also handles the top-level `bundler.define` alias: Rolldown reads
+// `transform.define`, not a top-level `define`. A user who flat-renames
+// `esbuild: { define: {...} }` → `bundler: { define: {...} }` puts `define`
+// at the top level where Rolldown silently ignores it, causing
+// `ReferenceError: <TOKEN> is not defined` at GJS load time. We auto-map
+// top-level `bundler.define` into `bundler.transform.define` and emit a
+// one-time warning so the user can correct their config.
+//
+// Drop `esbuild` shim in 0.5.0; the `bundler.define` alias is permanent.
 
 import type { OutputOptions } from 'rolldown';
 import type { ConfigData, BundlerOptions, LegacyEsbuildOptions } from '../types/config-data.js';
 
 let warnedOnce = false;
+let warnedDefineOnce = false;
 
 export function normalizeBundlerOptions(configData: ConfigData): BundlerOptions {
-    const fromBundler: BundlerOptions = (configData.bundler ?? {}) as BundlerOptions;
+    const raw = (configData.bundler ?? {}) as BundlerOptions & { define?: Record<string, string> };
+
+    // --- Top-level bundler.define alias ------------------------------------------
+    // Rolldown only reads `transform.define`; a top-level `define` key is silently
+    // ignored. Detect it, warn once, and move it into `transform.define` so the
+    // user's flat esbuild→bundler rename of `define` Just Works.
+    let fromBundler: BundlerOptions = raw;
+    if (typeof (raw as Record<string, unknown>)['define'] === 'object' && (raw as Record<string, unknown>)['define'] !== null) {
+        if (!warnedDefineOnce) {
+            warnedDefineOnce = true;
+            // eslint-disable-next-line no-console
+            console.warn(
+                "[gjsify] WARNING: 'bundler.define' is not a valid Rolldown option and would be " +
+                    "silently ignored — it has been auto-mapped to 'bundler.transform.define'. " +
+                    "Move 'define' under 'bundler.transform.define' in your config to suppress " +
+                    "this warning and avoid a ReferenceError at GJS load time.",
+            );
+        }
+        const { define: topLevelDefine, ...rest } = raw as BundlerOptions & { define: Record<string, string> };
+        fromBundler = {
+            ...rest,
+            transform: {
+                ...(rest.transform ?? {}),
+                define: {
+                    ...(topLevelDefine ?? {}),
+                    ...(rest.transform?.define ?? {}),
+                },
+            },
+        };
+    }
+
     if (!configData.esbuild) return fromBundler;
 
     if (!warnedOnce) {
@@ -82,10 +121,12 @@ function legacyEsbuildToRolldown(esb: LegacyEsbuildOptions): BundlerOptions {
     if (Object.keys(transform).length > 0) out.transform = transform;
     if (Object.keys(resolve).length > 0) out.resolve = resolve;
 
-    // Discarded silently:
+    // Discarded (handled elsewhere):
     //   esb.inject  — esbuild's array-of-side-effect-files; surfaced at the
     //                 CLI layer instead, via input expansion.
-    //   esb.loader  — Rolldown infers module types from extensions natively.
+    //   esb.loader  — replaced by top-level `gjsify.loaders` (see ConfigData);
+    //                 migration: `esbuild.loader: { '.png': 'dataurl', '.glsl': 'text' }`
+    //                 → `loaders: { '.png': 'dataurl', '.glsl': 'text' }`.
     return out;
 }
 

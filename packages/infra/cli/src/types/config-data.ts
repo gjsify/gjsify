@@ -162,20 +162,30 @@ export interface ConfigData {
     defineFromEnv?: Record<string, { env: string; default?: string }>;
     /**
      * Extension → loader-kind map for files Rolldown does not classify
-     * natively. Currently only `'text'` is implemented — the file's content
-     * becomes the JS string default export (`export default "<content>"`).
-     * Replaces the legacy esbuild `loader: { '.ui': 'text' }` pattern.
+     * natively. Replaces the legacy esbuild `loader: { '.ui': 'text', '.png': 'dataurl' }`
+     * pattern.
+     *
+     * Loader kinds:
+     *   `'text'`    — file contents as a JS string default export
+     *                 (`export default "<source>"`). Good for GLSL shaders,
+     *                 `.ui` GtkBuilder XML, `.asm`, etc.
+     *   `'dataurl'` — `data:<mime>;base64,<b64>` string default export.
+     *                 MIME is inferred from the extension (.png → image/png,
+     *                 .jpg → image/jpeg, .gif → image/gif, .svg → image/svg+xml,
+     *                 .webp → image/webp, fallback application/octet-stream).
+     *                 Good for Excalibur's `ImageSource` and any library that
+     *                 accepts a data: URL rather than a separate asset file.
      *
      * Example:
      * ```jsonc
-     * "loaders": { ".ui": "text", ".asm": "text" }
+     * "loaders": { ".ui": "text", ".glsl": "text", ".png": "dataurl" }
      * ```
      *
      * Lives at the top level (not under `bundler`) so it doesn't leak into
-     * Rolldown's options on pass-through; the CLI converts it into a
-     * `text-loader` plugin prepended to the bundler's plugin chain.
+     * Rolldown's options on pass-through; the CLI converts it into a plugin
+     * prepended to the bundler's plugin chain.
      */
-    loaders?: Record<string, 'text'>;
+    loaders?: Record<string, 'text' | 'dataurl'>;
     /**
      * Flatpak-related configuration consumed by `gjsify flatpak <sub>`.
      * Lives in its own top-level namespace so the bundler config doesn't
