@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.26](https://github.com/gjsify/gjsify/compare/v0.4.25...v0.4.26) (2026-05-26)
+
+### Bug Fixes
+
+* **compression-streams:** await lazy zlib load in transform, not at construction ([#312](https://github.com/gjsify/gjsify/issues/312)) ([6b38d73](https://github.com/gjsify/gjsify/commit/6b38d73a305f80fe60863c43d5df1b1180e91515))
+* **rolldown-plugin-gjsify:** resolve bundled-dep data reads at runtime ([#311](https://github.com/gjsify/gjsify/issues/311)) ([7dd3b4f](https://github.com/gjsify/gjsify/commit/7dd3b4f00247e4293aabe52812c724da05217b4d)), closes [gjsify/ts-for-gir#392](https://github.com/gjsify/ts-for-gir/issues/392)
+
 ## [0.4.25](https://github.com/gjsify/gjsify/compare/v0.4.24...v0.4.25) (2026-05-25)
 
 ### Features
