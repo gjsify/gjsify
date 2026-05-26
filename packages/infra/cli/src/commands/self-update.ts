@@ -136,6 +136,22 @@ export const selfUpdateCommand: Command<any, SelfUpdateOptions> = {
  */
 function readCurrentVersion(): string | null {
     try {
+        // Escape hatch for tests: point GJSIFY_CLI_PACKAGE_JSON at a synthetic
+        // package.json to override the upward-walk discovery.  When set to a
+        // file whose `name` does not equal PACKAGE_NAME the function returns
+        // null, which is the correct production behaviour for "version unknown".
+        const override = process.env.GJSIFY_CLI_PACKAGE_JSON;
+        if (override) {
+            const pkg = JSON.parse(readFileSync(override, 'utf-8')) as {
+                name?: string;
+                version?: string;
+            };
+            if (pkg.name === PACKAGE_NAME && typeof pkg.version === 'string') {
+                return pkg.version;
+            }
+            return null;
+        }
+
         const here = fileURLToPath(import.meta.url);
         let dir = dirname(resolve(here));
         for (let i = 0; i < 8 && dir !== dirname(dir); i++) {

@@ -356,69 +356,37 @@ globalThis.fetch = async (input, init = {}) => {
     // "(unknown)" the command must complete without a hard crash.
 
     it('reports "(unknown)" current version gracefully when version discovery fails', async () => {
-        // Create a stripped-down wrapper that calls the CLI from a temp dir
-        // where no @gjsify/cli package.json exists above it, so the version
-        // walk finds nothing. We achieve this by writing a thin relay script
-        // that overrides import.meta.url's effective value by placing itself
-        // deep in a dir tree with no package.json, then imports the real CLI.
+        // Structural simulation — no ESM-namespace monkey-patching.
         //
-        // Simpler: we can't trivially redirect import.meta.url, so instead we
-        // verify the "(unknown)" path by stubbing readFileSync in the preload
-        // to make the package.json name check fail.
-        const preloadUnknown = join(tmpRoot, 'mock-fetch-unknown-version.mjs');
+        // readCurrentVersion() in self-update.ts honours the
+        // GJSIFY_CLI_PACKAGE_JSON env escape hatch: when set, it reads from
+        // that path instead of doing the upward import.meta.url walk.  Pointing
+        // it at a synthetic package.json whose `name` is NOT '@gjsify/cli'
+        // causes the function to return null → CLI prints "(unknown)".
+        //
+        // (We cannot reassign a named export on a frozen ESM module namespace,
+        // so `import * as realFs from 'node:fs'; realFs.readFileSync = …`
+        // throws TypeError.  The env-var approach is the canonical escape
+        // hatch used by GJSIFY_GLOBAL_PREFIX / GJSIFY_GLOBAL_BIN_DIR.)
+        const fakeCliPkgJson = join(tmpRoot, 'fake-cli-package.json');
         writeFileSync(
-            preloadUnknown,
-            `
-// Patch globalThis.fetch (same as main preload) AND stub 'node:fs' readFileSync
-// to return a fake package.json with a different name when queried for
-// @gjsify/cli package.json — this breaks readCurrentVersion()'s walk.
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import * as realFs from 'node:fs';
-
-const MOCK_REGISTRY = process.env.GJSIFY_E2E_REGISTRY_URL ?? '';
-const LATEST = process.env.GJSIFY_E2E_LATEST_VERSION ?? '';
-
-// Patch fetch.
-const _realFetch = globalThis.fetch.bind(globalThis);
-globalThis.fetch = async (input, init = {}) => {
-  const url = typeof input === 'string' ? input : input.url ?? String(input);
-  if (MOCK_REGISTRY && url.includes('registry.npmjs.org')) {
-    const mockUrl = url.replace(/https:\\/\\/registry\\.npmjs\\.org/, MOCK_REGISTRY);
-    const headers = { ...(init.headers ?? {}), 'x-mock-latest': LATEST };
-    return _realFetch(mockUrl, { ...init, headers });
-  }
-  return _realFetch(input, init);
-};
-
-// Patch readFileSync so that any package.json whose path contains
-// "@gjsify/cli" returns a poisoned payload with a different name — this
-// makes readCurrentVersion() skip it and return null.
-const _realReadFileSync = realFs.readFileSync.bind(realFs);
-realFs.readFileSync = (path, options) => {
-  const s = String(path);
-  if (s.endsWith('package.json') && s.includes('@gjsify')) {
-    // Return a package.json with a deliberately different name so the
-    // \`pkg.name === '@gjsify/cli'\` guard fails.
-    const content = JSON.stringify({ name: '@not-gjsify/cli', version: '0.0.0' });
-    return options ? content : Buffer.from(content);
-  }
-  return _realReadFileSync(path, options);
-};
-`,
+            fakeCliPkgJson,
+            JSON.stringify({ name: '@not-gjsify/cli', version: '0.0.0' }) + '\n',
         );
 
         // Use --check so that when currentVersion=(unknown) != target, the
-        // command exits 1 with "Install required" instead of calling
-        // installPackages (which would need a real npm tarball server).
+        // command exits 1 without calling installPackages (which needs a real
+        // npm tarball server).
         const result = await runSelfUpdate(['--check'], {
-            preloadPath: preloadUnknown,
+            preloadPath,
             env: {
                 GJSIFY_GLOBAL_PREFIX: prefixWithCli,
                 GJSIFY_GLOBAL_BIN_DIR: join(tmpRoot, 'bin-unknown'),
                 GJSIFY_E2E_REGISTRY_URL: registryUrl,
                 GJSIFY_E2E_LATEST_VERSION: currentVersion,
+                // Override the package.json path used by readCurrentVersion().
+                // The name does not match '@gjsify/cli' → returns null → "(unknown)".
+                GJSIFY_CLI_PACKAGE_JSON: fakeCliPkgJson,
             },
         });
 
