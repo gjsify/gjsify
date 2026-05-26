@@ -35,6 +35,24 @@ import {
 } from './commands/index.js'
 import { APP_NAME } from './constants.js'
 
+// Detect which runtime is executing the CLI (GJS or Node.js).
+// GJS MUST be checked first because @gjsify/process sets
+// `process.versions.node = '20.0.0'` for compatibility — a plain
+// `process.versions.node` check would be a false Node positive under GJS.
+function runtimeLabel(): string {
+    try {
+        const sys = (globalThis as { imports?: { system?: { version?: number } } }).imports?.system;
+        if (sys?.version !== undefined) {
+            const v = Number(sys.version);
+            return `GJS ${Math.floor(v / 10000)}.${Math.floor((v % 10000) / 100)}.${v % 100} (SpiderMonkey)`;
+        }
+    } catch { /* not GJS */ }
+    if (typeof process !== 'undefined' && typeof process.versions?.node === 'string') {
+        return `Node.js ${process.version}`;
+    }
+    return 'unknown runtime';
+}
+
 // Read the version from package.json adjacent to the bundle. yargs's
 // auto-version-discovery (its `pkg-up`-driven default) doesn't reach
 // through the bundled `dist/cli.gjs.mjs` path on GJS — falls back to
@@ -99,5 +117,6 @@ await cli
     .command(fix.command, fix.description, fix.builder, fix.handler)
     .command(barrels.command, barrels.description, barrels.builder, barrels.handler)
     .demandCommand(1)
+    .epilogue(`Running on ${runtimeLabel()}`)
     .help()
     .parseAsync()

@@ -5,7 +5,7 @@ description: All gjsify subcommands, flags and typical usage
 
 The `@gjsify/cli` package ships the `gjsify` binary. Run it via `npx @gjsify/cli <command>` or add it as a dev dependency.
 
-> **Tip:** `npx @gjsify/cli --help` lists all commands and flags.
+> **Tip:** `npx @gjsify/cli --help` lists all commands and flags. The output ends with a `Running on …` line showing the active runtime — `Running on Node.js v24.x.y` when invoked via the Node bin, or `Running on GJS 1.x.y (SpiderMonkey)` when running the GJS bundle.
 
 ## `gjsify create`
 
