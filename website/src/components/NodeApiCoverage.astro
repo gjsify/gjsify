@@ -57,6 +57,17 @@ function statusLabel(status: NodeApiStatus): string {
 		</div>
 	</div>
 
+	<style>
+		/* Hide the browser's native <summary> disclosure triangle so only the
+		   custom .adw-chevron span is shown — prevents the double-chevron bug. */
+		summary.adw-row-summary {
+			list-style: none;
+		}
+		summary.adw-row-summary::-webkit-details-marker {
+			display: none;
+		}
+	</style>
+
 	<div class="adw-boxed-list">
 		{nodeApiCategories.map((cat) => {
 			const t = tallyNodeCategory(cat);
