@@ -17,6 +17,9 @@
         },
         "./shims/console-gjs": {
             "default": "./lib/shims/console-gjs.js"
+        },
+        "./shims/module-resolve": {
+            "default": "./lib/shims/module-resolve.js"
         }
     },
     "files": [

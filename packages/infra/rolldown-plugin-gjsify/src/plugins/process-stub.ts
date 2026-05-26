@@ -16,6 +16,8 @@
 // line = zero source-map drift for the actual bundle code below.
 import type { Plugin } from 'rolldown';
 
+import { BUNDLE_URL_BANNER } from './bundle-url-banner.js';
+
 export const GJS_PROCESS_STUB =
     'if(typeof globalThis.process==="undefined"){' +
         'const _s=imports.system,_G=imports.gi.GLib;' +
@@ -79,10 +81,18 @@ export function composeBanner(stub: string, userBanner: string): string {
 export interface ProcessStubPluginOptions {
     /** User-supplied banner string. May contain a leading `#!shebang`. */
     userBanner?: string;
+    /**
+     * Prepend the bundle-URL anchor banner (read by the module-resolve shim).
+     * ESM-only — set by the orchestrator when `format === 'esm'`.
+     */
+    captureBundleUrl?: boolean;
 }
 
 export function processStubPlugin(options: ProcessStubPluginOptions = {}): Plugin {
-    const banner = composeBanner(GJS_PROCESS_STUB, options.userBanner ?? '');
+    // The anchor capture must precede the process stub so it runs at the very
+    // top of the chunk (where `import.meta.url` is the bundle's own URL).
+    const stub = (options.captureBundleUrl ? BUNDLE_URL_BANNER : '') + GJS_PROCESS_STUB;
+    const banner = composeBanner(stub, options.userBanner ?? '');
     return {
         name: 'gjsify-process-stub',
         renderChunk: {
