@@ -70,13 +70,6 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
         tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-publish-'));
         capturedPuts = [];
 
-        // Write a fake ~/.npmrc-style auth file the CLI reads via
-        // NPM_CONFIG_USERCONFIG.  The file uses the bare `_authToken=<tok>`
-        // form (no registry prefix) so it applies to any registry URL, which
-        // is the shape actions/setup-node writes for most registries.
-        fakeNpmrcPath = join(tmpDir, 'auth.npmrc');
-        writeFileSync(fakeNpmrcPath, `_authToken=${FAKE_TOKEN}\n`, 'utf-8');
-
         // Stand up the in-process mock npm registry.
         // Accepts PUT /<escaped-name> and records the request for assertions.
         // Returns 200 OK so the CLI exits cleanly.
@@ -107,6 +100,18 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
         await new Promise((resolve) => registryServer.listen(0, '127.0.0.1', resolve));
         const addr = registryServer.address();
         registryUrl = `http://127.0.0.1:${addr.port}`;
+
+        // Write a fake ~/.npmrc-style auth file the CLI reads via
+        // NPM_CONFIG_USERCONFIG.  parseNpmrc() only recognises the host-scoped
+        // form `//host:port/:_authToken=<tok>` (bare `_authToken=` is silently
+        // ignored).  Use the mock registry's actual host:port so buildHeaders()
+        // picks up the token for every PUT to that registry.
+        fakeNpmrcPath = join(tmpDir, 'auth.npmrc');
+        writeFileSync(
+            fakeNpmrcPath,
+            `//127.0.0.1:${addr.port}/:_authToken=${FAKE_TOKEN}\n`,
+            'utf-8',
+        );
     });
 
     after(() => {
@@ -117,11 +122,7 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
     });
 
     /**
-     * Build a publishable fixture package under `tmpDir/<name>/`.
-     * The package has:
-     *   - a real `package.json` with the given scoped name
-     *   - a `workspace:^` dep on `@gjsify/cli` (to test range resolution)
-     *   - a minimal `index.js` so `pack` has something to include
+     * Build a publishable fixture package under `tmpDir/<dirName>/`.
      * Returns the absolute path of the fixture directory.
      */
     function scaffoldFixture(dirName, pkgName, version) {
@@ -137,11 +138,6 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
                     type: 'module',
                     main: 'index.js',
                     files: ['index.js'],
-                    dependencies: {
-                        // workspace:^ dep — must be rewritten to a real range
-                        // in the published manifest; no leaked `workspace:^`.
-                        '@gjsify/cli': 'workspace:^',
-                    },
                 },
                 null,
                 2,
@@ -150,6 +146,83 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
         );
         writeFileSync(join(dir, 'index.js'), 'export const name = "fixture";\n', 'utf-8');
         return dir;
+    }
+
+    /**
+     * Build a mini-workspace fixture suitable for testing workspace:^ rewriting.
+     *
+     * Layout inside `tmpDir/ws-root/`:
+     *   package.json            — workspace root (workspaces: ["packages/*"])
+     *   packages/cli/           — provides @gjsify/cli at a real version
+     *   packages/<dirName>/     — the fixture package with workspace:^ on @gjsify/cli
+     *
+     * `rewriteWorkspaceDeps` in pack.ts calls `findWorkspaceRoot(fixtureDir)`,
+     * which walks upward looking for a package.json with a `workspaces` field
+     * that also lists fixtureDir among its discovered workspaces. The layout
+     * above satisfies both conditions without touching the real monorepo.
+     *
+     * Returns the absolute path of the fixture package directory.
+     */
+    function scaffoldWorkspaceFixture(dirName, pkgName, version) {
+        // Workspace root
+        const wsRoot = join(tmpDir, 'ws-root');
+        mkdirSync(wsRoot, { recursive: true });
+        writeFileSync(
+            join(wsRoot, 'package.json'),
+            JSON.stringify(
+                {
+                    name: 'e2e-ws-root',
+                    version: '0.0.0',
+                    private: true,
+                    workspaces: ['packages/*'],
+                },
+                null,
+                2,
+            ) + '\n',
+            'utf-8',
+        );
+
+        // Sibling: @gjsify/cli at a concrete version so workspace:^ resolves.
+        // The version here just needs to be a valid semver — the registry
+        // PUT assertion checks only that no `workspace:` prefix survives.
+        const cliDir = join(wsRoot, 'packages', 'cli');
+        mkdirSync(cliDir, { recursive: true });
+        writeFileSync(
+            join(cliDir, 'package.json'),
+            JSON.stringify(
+                { name: '@gjsify/cli', version: '0.4.27' },
+                null,
+                2,
+            ) + '\n',
+            'utf-8',
+        );
+
+        // The actual fixture package (what we publish).
+        const pkgDir = join(wsRoot, 'packages', dirName);
+        mkdirSync(pkgDir, { recursive: true });
+        writeFileSync(
+            join(pkgDir, 'package.json'),
+            JSON.stringify(
+                {
+                    name: pkgName,
+                    version,
+                    description: 'e2e workspace-range publish fixture',
+                    type: 'module',
+                    main: 'index.js',
+                    files: ['index.js'],
+                    dependencies: {
+                        // workspace:^ — must be rewritten to `^0.4.27` in the
+                        // published manifest; no `workspace:` prefix may survive.
+                        '@gjsify/cli': 'workspace:^',
+                    },
+                },
+                null,
+                2,
+            ) + '\n',
+            'utf-8',
+        );
+        writeFileSync(join(pkgDir, 'index.js'), 'export const name = "fixture";\n', 'utf-8');
+        return pkgDir;
     }
 
     /**
@@ -243,16 +316,22 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
         );
 
         // dist.tarball in the version entry must also use the unscoped basename.
+        // The URL path may legitimately contain `@` (the scoped package name),
+        // but the FILENAME (basename after the last `/`) must be unscoped.
+        // publish.ts line ~259: `${registryClean}/${packed.name}/-/${wireFilename}`
+        // → `http://127.0.0.1:PORT/@gjsify/e2e-pub-wire/-/e2e-pub-wire-2.3.4.tgz`
         const versions = put.body.versions ?? {};
         const versionEntry = versions[version] ?? {};
         const tarball = (versionEntry.dist ?? {}).tarball ?? '';
-        assert.ok(
-            tarball.endsWith('/e2e-pub-wire-2.3.4.tgz'),
-            `dist.tarball must end with unscoped basename; got: ${tarball}`,
+        const tarballBasename = tarball.split('/').pop() ?? '';
+        assert.equal(
+            tarballBasename,
+            'e2e-pub-wire-2.3.4.tgz',
+            `dist.tarball basename must be the unscoped filename; got: ${tarball}`,
         );
         assert.ok(
-            !tarball.includes('@'),
-            `dist.tarball must not contain @ (scoped prefix); got: ${tarball}`,
+            !tarballBasename.startsWith('@'),
+            `dist.tarball basename must not start with @ (scoped prefix); got: ${tarballBasename}`,
         );
     });
 
@@ -278,7 +357,10 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
     it('published dependencies have resolved ranges (no leaked workspace:^)', async () => {
         const pkgName = '@gjsify/e2e-pub-ws';
         const version = '0.5.0';
-        const fixtureDir = scaffoldFixture('workspace-range', pkgName, version);
+        // Use scaffoldWorkspaceFixture to create a mini-workspace where
+        // rewriteWorkspaceDeps can resolve @gjsify/cli's workspace:^ range
+        // against a real sibling — without touching the actual monorepo on disk.
+        const fixtureDir = scaffoldWorkspaceFixture('workspace-range', pkgName, version);
 
         await runPublish(fixtureDir);
 
