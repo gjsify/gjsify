@@ -9,6 +9,7 @@
 import type { Plugin } from 'rolldown';
 
 export const GJS_SHEBANG = '#!/usr/bin/env -S gjs -m';
+export const NODE_SHEBANG = '#!/usr/bin/env node';
 
 export interface ShebangPluginOptions {
     enabled?: boolean;
@@ -76,17 +77,21 @@ export function expandEnvTemplate(input: string, env: Record<string, string | un
  * that should be prepended to the bundle (without trailing newline), or
  * `null` when shebang injection is disabled.
  *
- *   `true`            → default GJS shebang
+ *   `true`            → `defaultLine` (the target's default shebang)
  *   `false|undefined` → null (disabled)
  *   `"…"`             → string with `${env:NAME[:-default]}` expanded
+ *
+ * `defaultLine` lets the caller pick the per-target default that `true`
+ * resolves to — `GJS_SHEBANG` for `--app gjs` (the default), `NODE_SHEBANG`
+ * for `--app node`. An explicit string value always wins over the default.
  *
  * If the resolved string does not start with `#!`, it is prefixed
  * automatically so users can write `"shebang": "/usr/bin/gjs -m"` instead
  * of `"#!/usr/bin/gjs -m"`.
  */
-export function resolveShebangLine(value: boolean | string | undefined): string | null {
+export function resolveShebangLine(value: boolean | string | undefined, defaultLine: string = GJS_SHEBANG): string | null {
     if (value === undefined || value === false) return null;
-    if (value === true) return GJS_SHEBANG;
+    if (value === true) return defaultLine;
     const expanded = expandEnvTemplate(value);
     if (!expanded.trim()) return null;
     return expanded.startsWith('#!') ? expanded : '#!' + expanded;

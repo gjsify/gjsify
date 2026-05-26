@@ -104,7 +104,7 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 default: 'auto'
             })
             .option('shebang', {
-                description: "Prepend a `#!/usr/bin/env -S gjs -m` shebang to the output and mark it executable (chmod 755). Only applies to GJS app builds with a single --outfile. Default: false (use --shebang to enable, or set `shebang: true` in `.gjsifyrc.js`).",
+                description: "Prepend a target-appropriate shebang to the output and mark it executable (chmod 755): `#!/usr/bin/env -S gjs -m` for --app gjs, `#!/usr/bin/env node` for --app node. Applies to GJS and Node app builds with a single --outfile. Default: false (use --shebang to enable, or set `shebang: true` in `.gjsifyrc.js`).",
                 type: 'boolean',
                 normalize: true
             })
