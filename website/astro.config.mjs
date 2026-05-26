@@ -5,6 +5,11 @@ export default defineConfig({
   site: 'https://gjsify.github.io',
   base: '/gjsify',
   trailingSlash: 'always',
+  // The Framework/Bridges page was merged into Patterns/Bridges (single source).
+  // Keep the old URL alive.
+  redirects: {
+    '/framework/bridges': '/patterns/bridges',
+  },
   vite: {
     optimizeDeps: {
       include: [
@@ -76,12 +81,6 @@ export default defineConfig({
             { slug: 'patterns' },
             { slug: 'patterns/gobject-classes' },
             { slug: 'patterns/bridges' },
-          ],
-        },
-        {
-          label: 'Framework',
-          items: [
-            { slug: 'framework/bridges' },
           ],
         },
         {
