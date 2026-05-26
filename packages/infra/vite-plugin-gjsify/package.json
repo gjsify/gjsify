@@ -1,0 +1,59 @@
+{
+    "name": "@gjsify/vite-plugin-gjsify",
+    "version": "0.4.27",
+    "description": "Vite plugin preset that mirrors `gjsify build --app browser` — dev (Vite/HMR) parity with the gjsify browser target.",
+    "type": "module",
+    "main": "lib/index.js",
+    "module": "lib/index.js",
+    "types": "lib/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/index.d.ts",
+            "default": "./lib/index.js"
+        }
+    },
+    "files": [
+        "lib"
+    ],
+    "scripts": {
+        "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build": "tsc"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/vite-plugin-gjsify#readme",
+    "keywords": [
+        "vite",
+        "rollup",
+        "rolldown",
+        "gjs",
+        "gtk",
+        "browser",
+        "gjsify"
+    ],
+    "license": "MIT",
+    "dependencies": {
+        "@gjsify/rolldown-plugin-deepkit": "workspace:^",
+        "@gjsify/rolldown-plugin-gjsify": "workspace:^",
+        "@gjsify/vite-plugin-blueprint": "workspace:^"
+    },
+    "peerDependencies": {
+        "vite": "^8.0.0"
+    },
+    "peerDependenciesMeta": {
+        "vite": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@types/node": "^25.9.1",
+        "typescript": "^6.0.3",
+        "vite": "^8.0.11"
+    }
+}
