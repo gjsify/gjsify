@@ -52,9 +52,19 @@ const FILENAME_DECL_RE = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|c
 // exact-match), mirroring the `./shims/console-gjs` convention.
 const MODULE_RESOLVE_SHIM = '@gjsify/rolldown-plugin-gjsify/shims/module-resolve';
 
+// Our own shims (module-resolve, console-gjs) get bundled into user output, so
+// they live in `node_modules/@gjsify/rolldown-plugin-gjsify/{lib,src}/shims/`
+// when consumed — but they must NEVER be rewritten. In particular the
+// module-resolve shim DECLARES `__gjsifyModule*` and its comments mention
+// `import.meta.url`; the naive token check below would otherwise treat that as
+// a rewrite target and prepend a self-import that collides with its exports.
+const GJSIFY_SHIM_RE = /[\\/]rolldown-plugin-gjsify[\\/](?:lib|src)[\\/]shims[\\/]/;
+
 /** True when the rewriter wants to look at this path — node_modules + supported ext. */
 export function shouldRewrite(path: string): boolean {
-    return path.includes('node_modules') && REWRITE_FILTER.test(path);
+    if (!path.includes('node_modules') || !REWRITE_FILTER.test(path)) return false;
+    if (GJSIFY_SHIM_RE.test(path)) return false;
+    return true;
 }
 
 /**
