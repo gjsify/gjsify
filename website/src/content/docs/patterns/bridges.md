@@ -94,6 +94,45 @@ win.present();
 
 Same shape. Internally `WebGLBridge` extends `Gtk.GLArea`, uses libepoxy to load OpenGL ES 3.2, exposes the WebGL 1 / WebGL 2 API surface via `@gwebgl-0.1`, and translates `requestAnimationFrame` into the GTK frame clock so vsync just works. See the [`framework/webgl`](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) package for the implementation.
 
+## Worked example — Video
+
+```ts
+import Adw from 'gi://Adw';
+import { VideoBridge } from '@gjsify/video';
+
+const bridge = new VideoBridge();
+bridge.onReady(async (video) => {
+    // Either a MediaStream (camera capture / WebRTC track) via `srcObject`,
+    // or a file/URL via `src` (a GStreamer `playbin` pipeline).
+    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: true });
+});
+
+const win = new Adw.ApplicationWindow({ application: app });
+win.set_child(bridge);
+win.present();
+```
+
+`VideoBridge` extends `Gtk.Picture` and renders both source kinds through `gtk4paintablesink`. Unlike the canvas bridges it has no draw context — you hand it a source via `srcObject` / `src` and GStreamer does the rest. No `installGlobals()` is needed unless your code reads browser globals.
+
+## Worked example — IFrame
+
+```ts
+import Adw from 'gi://Adw';
+import { IFrameBridge } from '@gjsify/iframe';
+
+const bridge = new IFrameBridge();
+bridge.onReady((iframe) => {
+    iframe.contentWindow?.addEventListener('message', handler);
+});
+bridge.iframeElement.srcdoc = '<h1>Hello from WebKit</h1>';
+
+const win = new Adw.ApplicationWindow({ application: app });
+win.set_child(bridge);
+win.present();
+```
+
+`IFrameBridge` is the odd one out — it wraps a real `WebKit.WebView`, not a polyfill (see the rough edge on `IFrameBridge` below). `bridge.iframeElement` exposes `src`, `srcdoc`, navigation (`reload()`, `goBack()`, `goForward()`), and `contentWindow.postMessage`.
+
 ## ResizeObserver wires through bridges
 
 This is the single most common rough edge. A `ResizeObserver(cb).observe(bridge._canvas)` fires whenever the GTK widget allocation changes — but only because the bridge's GTK `resize` signal handler forwards the new dimensions to the polyfill DOM tree via `notifyElementResize()` (see [`@gjsify/dom-elements`](https://github.com/gjsify/gjsify/tree/main/packages/dom/dom-elements) → `notify-resize.ts`).
