@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.27](https://github.com/gjsify/gjsify/compare/v0.4.26...v0.4.27) (2026-05-26)
+
+### Features
+
+* **cli:** --shebang emits node hashbang for --app node ([#314](https://github.com/gjsify/gjsify/issues/314)) ([d95b4ff](https://github.com/gjsify/gjsify/commit/d95b4ff1f497777ab9cde4738628eacf1caf3425))
+
 ## [0.4.26](https://github.com/gjsify/gjsify/compare/v0.4.25...v0.4.26) (2026-05-26)
 
 ### Bug Fixes
