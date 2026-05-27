@@ -203,22 +203,25 @@ export class HTMLElement extends Element {
 
 	// -- Layout stubs --
 	//
-	// `clientWidth` / `clientHeight` return the latest allocation
-	// pushed by a framework bridge via `notifyElementResize()`
-	// (which writes into the `_allocatedClient…` fields on Element).
-	// Everything else stays at 0 — no layout engine to compute
-	// borders / offsets / scroll positions, and no current
-	// consumer needs them.
+	// `clientWidth` / `clientHeight` / `offsetWidth` / `offsetHeight`
+	// / `scrollWidth` / `scrollHeight` all return the latest allocation
+	// pushed by a framework bridge via `notifyElementResize()` (which
+	// writes into the `_allocatedClient…` fields on Element). The
+	// polyfill has no layout engine so they're not three distinct
+	// values — but consumers that read one or the other expect a
+	// non-zero number for a sized element. Borders / offsets / scroll
+	// positions stay 0; no current consumer needs them.
 	//
-	// Why `clientWidth` / `clientHeight` get special treatment:
-	// Excalibur.js `DisplayMode.FillContainer` reads
-	// `canvas.parentElement.clientWidth` to compute its resolution.
-	// The polyfill returning 0 there meant Excalibur produced a
-	// 0×0 viewport on every resize → blank canvas. With
-	// bridge-driven values they get the real GTK allocation.
+	// Excalibur.js `DisplayMode.FillContainer` reads `canvas.offsetWidth`
+	// / `offsetHeight` (FillContainer sets `canvas.style.{width,height}
+	// = '100%'`, then reads offset dims) to compute its resolution.
+	// Sibling `DisplayMode.FitContainer` reads `parent.clientWidth` /
+	// `clientHeight`. Both forms must return the live GTK allocation,
+	// otherwise the rendered scene collapses to a 0×0 backing store
+	// on every resize → blank canvas.
 
-	get offsetHeight(): number { return 0; }
-	get offsetWidth(): number { return 0; }
+	get offsetHeight(): number { return this._allocatedClientHeight; }
+	get offsetWidth(): number { return this._allocatedClientWidth; }
 	get offsetLeft(): number { return 0; }
 	get offsetTop(): number { return 0; }
 	get offsetParent(): Element | null { return null; }
@@ -226,8 +229,8 @@ export class HTMLElement extends Element {
 	get clientWidth(): number { return this._allocatedClientWidth; }
 	get clientLeft(): number { return 0; }
 	get clientTop(): number { return 0; }
-	get scrollHeight(): number { return 0; }
-	get scrollWidth(): number { return 0; }
+	get scrollHeight(): number { return this._allocatedClientHeight; }
+	get scrollWidth(): number { return this._allocatedClientWidth; }
 	get scrollTop(): number { return 0; }
 	set scrollTop(_value: number) { /* no layout engine */ }
 	get scrollLeft(): number { return 0; }
