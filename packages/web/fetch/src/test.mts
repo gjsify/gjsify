@@ -5,5 +5,6 @@ import 'fetch/register'; // register fetch/Headers/Request/Response globals on G
 import { run } from '@gjsify/unit';
 
 import testSuite from './index.spec.js';
+import soupSessionSuite from './soup-session.gjs.spec.js';
 
-run({ testSuite });
+run({ testSuite, soupSessionSuite });

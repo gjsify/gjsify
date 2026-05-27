@@ -21,6 +21,57 @@ import { validateReferrerPolicy, determineRequestsReferrer, DEFAULT_REFERRER_POL
 
 const INTERNALS = Symbol('Request internals');
 
+/**
+ * Process-wide shared `Soup.Session`.
+ *
+ * Why a singleton and not a fresh `new Soup.Session()` per request:
+ *
+ * libsoup's connection manager keeps each open connection registered on a
+ * per-host list (`SoupHost.conns`). That list is only emptied when the
+ * connection's `disconnected` signal is processed on the main loop. When a
+ * `Soup.Session` is *finalized* its connection manager is torn down
+ * (`soup_connection_manager_free` → `soup_host_free`), which asserts the host
+ * has no live connections — `g_warn_if_fail (host->conns == NULL)`. If a
+ * session is dropped while a connection is still registered (the disconnect
+ * hasn't been pumped yet), libsoup prints:
+ *
+ *     (gjs:…): libsoup-CRITICAL **: runtime check failed: (host->conns == NULL)
+ *
+ * Under GJS this is a SpiderMonkey-GC race: a per-request session (the old
+ * behavior — one `new Soup.Session()` per `Request`) becomes garbage as soon as
+ * the `Response` body is read, and a GC sweep can finalize it on the very same
+ * turn the connection is still being cleaned up. The same class of GLib/Soup
+ * BoxedInstance GC race is mitigated elsewhere in gjsify (e.g. `@gjsify/timers`
+ * uses `GLib.timeout_add` instead of holding `GLib.Source` boxed instances).
+ *
+ * Holding one long-lived session at module scope keeps it permanently reachable
+ * (never GC-finalized for the lifetime of the program), so the teardown path
+ * that fires the assertion is never reached mid-flight. It also lets libsoup
+ * pool and reuse keep-alive connections across requests — a real win for
+ * heavy fetch users like `@gjsify/npm-registry` during `gjsify install`.
+ *
+ * Lazily created so merely importing `@gjsify/fetch` (e.g. for `Headers`/
+ * `Request`/`Response` types on Node, or in a browser bundle) does not
+ * instantiate a Soup object.
+ */
+let sharedSession: Soup.Session | null = null;
+
+function getSharedSession(): Soup.Session {
+    if (sharedSession === null) {
+        sharedSession = new Soup.Session();
+        // Soup auto-adds a ContentDecoder to new sessions, but it decodes the
+        // body without removing the Content-Encoding header, causing
+        // double-decompression when index.ts also runs DecompressionStream.
+        // Remove it once here so our JS-level decompression handles everything.
+        try {
+            sharedSession.remove_feature_by_type(Soup.ContentDecoder.$gtype);
+        } catch {
+            /* not present */
+        }
+    }
+    return sharedSession;
+}
+
 /** Properties that may exist on a Request-like object (used for safe casting). */
 interface RequestLike {
     url?: string;
@@ -235,7 +286,11 @@ export class Request extends Body {
         let session: Soup.Session | null = null;
         let message: Soup.Message | null = null;
         if (scheme === 'http:' || scheme === 'https:') {
-            session = new Soup.Session();
+            // Reuse the process-wide shared session (see getSharedSession docs):
+            // a per-request session that gets GC-finalized while a connection is
+            // still registered on its host triggers libsoup's
+            // `host->conns == NULL` CRITICAL.
+            session = getSharedSession();
             message = new Soup.Message({
                 method,
                 uri: GLib.Uri.parse(parsedURL.toString(), GLib.UriFlags.NONE),
@@ -283,15 +338,9 @@ export class Request extends Body {
             throw new Error('Cannot send request: no Soup session (non-HTTP URL?)');
         }
 
-        // Soup auto-adds ContentDecoder to new sessions, but it decodes the body
-        // without removing the Content-Encoding header, causing double-decompression
-        // if we also run DecompressionStream below. Remove it so our JS-level
-        // decompression in index.ts handles everything correctly.
-        try {
-            session.remove_feature_by_type(Soup.ContentDecoder.$gtype);
-        } catch {
-            /* not present */
-        }
+        // ContentDecoder is removed once on the shared session in
+        // getSharedSession() (so the Content-Encoding header survives for our
+        // JS-level DecompressionStream in index.ts). Nothing per-request here.
 
         options.headers._appendToSoupMessage(message);
 
