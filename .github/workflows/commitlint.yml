@@ -16,24 +16,10 @@ jobs:
           # Fetch the full history so commitlint can walk back to the merge base.
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24.x'
-
-      - name: Install commitlint
-        run: npm install --no-save @commitlint/cli@^19 @commitlint/config-conventional@^19
-
-      - name: Lint commits in PR
-        # Validate every commit on the PR branch that is not already on the
-        # base branch.  The --from SHA is excluded; --to SHA is included.
-        # SHAs are hex strings from GitHub context — safe to use directly
-        # but kept in env vars for clarity.
-        env:
-          FROM_SHA: ${{ github.event.pull_request.base.sha }}
-          TO_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          npx commitlint \
-            --from "$FROM_SHA" \
-            --to   "$TO_SHA" \
-            --verbose
+      # Self-contained commitlint action: brings its own @commitlint/cli +
+      # @commitlint/config-conventional, auto-detects the repo's
+      # commitlint.config.cjs, and lints every commit in the PR. Avoids running
+      # `npm install` in this Yarn `workspace:`-protocol repo (which npm rejects
+      # with EUNSUPPORTEDPROTOCOL).
+      - name: Lint PR commits
+        uses: wagoid/commitlint-github-action@v6
