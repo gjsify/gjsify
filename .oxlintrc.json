@@ -1,5 +1,6 @@
 {
     "$schema": "./node_modules/oxlint/configuration_schema.json",
+    "jsPlugins": ["./packages/infra/oxlint-plugin-gjsify/src/index.ts"],
     "categories": {
         "correctness": "error"
     },
@@ -8,7 +9,8 @@
         "typescript/no-explicit-any": "warn",
         "typescript/no-non-null-assertion": "off",
         "unicorn/prefer-node-protocol": "error",
-        "eslint/no-unused-vars": "warn"
+        "eslint/no-unused-vars": "warn",
+        "gjsify/register-class-order": "error"
     },
     "ignorePatterns": [
         "**/node_modules",
