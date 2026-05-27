@@ -309,6 +309,25 @@ export class Element extends Node {
 	private _resizeSubscribers: Set<(width: number, height: number) => void> | null = null;
 
 	/**
+	 * Latest known allocation from a backing GTK widget, written by
+	 * `notifyElementResize()` (target + every ancestor). The polyfill
+	 * has no layout engine, so without this `clientWidth` /
+	 * `clientHeight` would always return 0 — which breaks consumers
+	 * that use `ResizeObserver` to react to a parent's size
+	 * (Excalibur.js `DisplayMode.FillContainer` reads
+	 * `canvas.parentElement.clientWidth` to compute its resolution;
+	 * with 0 the resolution comes out 0×0 and the canvas renders
+	 * blank).
+	 *
+	 * Multi-bridge scenarios fall back to last-write-wins on
+	 * shared ancestors (typically `document.body`) — acceptable
+	 * because the consumers that care (one canvas filling the
+	 * window) have a 1-to-1 bridge / ancestor mapping anyway.
+	 */
+	_allocatedClientWidth = 0;
+	_allocatedClientHeight = 0;
+
+	/**
 	 * @internal Subscribe to backing-widget resize notifications.
 	 *
 	 * Returns an unsubscribe function. Two observers subscribing to the
