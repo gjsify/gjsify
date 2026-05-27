@@ -310,16 +310,41 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
             if (!block) continue;
             for (const [depName, spec] of Object.entries(block)) {
                 if (typeof spec !== 'string') continue;
-                if (spec.startsWith('workspace:')) {
-                    const target = byName.get(depName);
-                    if (!target) {
-                        throw new Error(
-                            `gjsify install: ${ws.name} declares "${depName}: ${spec}" but ` +
-                                `no workspace with that name exists`,
-                        );
+                // A dependency whose NAME matches a local workspace is always
+                // satisfied by that workspace — never by a same-named package on
+                // npm. This holds regardless of the spec form: an explicit
+                // `workspace:` protocol, a plain semver range (`^1.2.3`), or even
+                // a dist-tag. Yarn/npm resolve a workspace-named dep to the local
+                // package first; we MUST do the same. Routing such a dep into the
+                // native fetch/extract queue is the data-loss bug this guards
+                // against — `extractOne` would `rmSync` + drop the published
+                // tarball over the workspace's OWN source tree (the published
+                // tarball ships only `files`, so `src/**` gets wiped). Symlink
+                // it instead, exactly like a `workspace:` ref.
+                const localWorkspace = byName.get(depName);
+                if (localWorkspace) {
+                    // Only an EXPLICIT out-of-workspace protocol (link:/file:/
+                    // portal:/git+/http(s):) opts out of the local workspace. Any
+                    // other shape — `workspace:` or a plain semver range/dist-tag
+                    // (`^1.2.3`, `*`, `latest`) — resolves to the local package.
+                    const explicitOverride = /^(link|file|portal|git\+|https?):/.test(spec);
+                    if (!explicitOverride) {
+                        symlinks.push({
+                            fromWorkspaceName: ws.name,
+                            depName,
+                            targetLocation: localWorkspace.location,
+                        });
+                        continue;
                     }
-                    symlinks.push({ fromWorkspaceName: ws.name, depName, targetLocation: target.location });
-                    continue;
+                    // explicit override → fall through to the existing handling.
+                }
+                if (spec.startsWith('workspace:')) {
+                    // `workspace:` against a name that is NOT a discovered
+                    // workspace is a hard error (typo / missing package).
+                    throw new Error(
+                        `gjsify install: ${ws.name} declares "${depName}: ${spec}" but ` +
+                            `no workspace with that name exists`,
+                    );
                 }
                 if (/^(link|file|portal|git\+|https?):/.test(spec)) continue;
                 externalSpecs.add(`${depName}@${spec}`);
