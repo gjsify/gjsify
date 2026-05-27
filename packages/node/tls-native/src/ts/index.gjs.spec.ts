@@ -12,7 +12,16 @@
 // STATUS.md "Open TODOs" as the "OCSP integration test" follow-up.
 
 import { describe, it, expect, on } from '@gjsify/unit';
-import { hasNativeTls, nativeTls, parseOcspResponse, OcspCertStatus, OcspResponseStatus } from './index.js';
+import {
+    hasNativeTls,
+    nativeTls,
+    parseOcspResponse,
+    OcspCertStatus,
+    OcspResponseStatus,
+    hasTlsSessionAccess,
+    createSessionAccess,
+    TlsChannelBindingType,
+} from './index.js';
 
 export default async () => {
     await on('Gjs', async () => {
@@ -56,6 +65,41 @@ export default async () => {
                 expect(OcspResponseStatus.TRY_LATER).toBe(3);
                 expect(OcspResponseStatus.SIG_REQUIRED).toBe(5);
                 expect(OcspResponseStatus.UNAUTHORIZED).toBe(6);
+            });
+
+            await it('exposes TlsChannelBindingType enum-style constants', () => {
+                expect(TlsChannelBindingType.TLS_UNIQUE).toBe(0);
+                expect(TlsChannelBindingType.TLS_SERVER_END_POINT).toBe(1);
+                expect(TlsChannelBindingType.TLS_EXPORTER).toBe(2);
+            });
+        });
+
+        // Phase 2 (POC scaffold): the SessionAccess native class exists,
+        // is_supported() returns false today, and methods throw
+        // SessionAccessError.NOT_SUPPORTED. Surface-only tests that lock
+        // the API shape in BEFORE the GIO struct-layout work lands.
+        await describe('@gjsify/tls-native — SessionAccess (Phase 2 POC)', async () => {
+            await it('exposes the SessionAccess class on the native module', () => {
+                expect(nativeTls).not.toBeNull();
+                expect(typeof nativeTls?.SessionAccess.is_supported).toBe('function');
+                expect(typeof nativeTls?.SessionAccess.for_connection).toBe('function');
+            });
+
+            await it('hasTlsSessionAccess() returns false until the gnutls_session_t access lands', () => {
+                // POC: deliberately false. See docs/poc/tls-phase2-session-access.md.
+                expect(hasTlsSessionAccess()).toBe(false);
+            });
+
+            await it('SessionAccess.is_supported() matches hasTlsSessionAccess()', () => {
+                expect(nativeTls?.SessionAccess.is_supported()).toBe(false);
+            });
+
+            await it('createSessionAccess(null) returns null', () => {
+                expect(createSessionAccess(null)).toBeNull();
+            });
+
+            await it('SessionAccess.for_connection(null) returns null', () => {
+                expect(nativeTls?.SessionAccess.for_connection(null)).toBeNull();
             });
         });
     });
