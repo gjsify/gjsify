@@ -426,8 +426,8 @@ export const EventTargetTest = async () => {
 
             assert.strictEqual(f.calls.length, 1, 'f should be called');
             assert.strictEqual(f.calls[0].type, 'throw' as const);
-            assert.strictEqual(f.calls[0].throw.name, 'InvalidStateError');
-            assert.strictEqual(f.calls[0].throw.code, 11);
+            assert.strictEqual((f.calls[0].throw as { name: string; code: number }).name, 'InvalidStateError');
+            assert.strictEqual((f.calls[0].throw as { name: string; code: number }).code, 11);
             // assertError("This event has been in dispatching.")
         });
 

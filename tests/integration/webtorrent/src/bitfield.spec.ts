@@ -13,6 +13,19 @@ import WebTorrent from 'webtorrent';
 import type { Instance as WebTorrentInstance, Torrent } from 'webtorrent';
 import fixtures from './fixtures.js';
 
+// @types/webtorrent does not model every runtime member exercised by these
+// upstream tests. Rather than augment the third-party module, narrow at the
+// use site to the concrete runtime shape the test relies on:
+//   - the `'warning'` / `'verified'` events (Instance/Torrent only declare a
+//     subset of their real event surface — fall back to the EventEmitter
+//     overload that accepts arbitrary event names);
+//   - the `bitfield` add option (real runtime accepts it, the typings don't);
+//   - the internal `_hasStartupBitfield` flag set by the bitfield-preload path.
+type EmitterLike = NodeJS.EventEmitter;
+interface TorrentWithStartupBitfield {
+    _hasStartupBitfield: boolean;
+}
+
 const disabledClientOpts = {
     dht: false,
     utp: false,
@@ -52,7 +65,7 @@ export default async () => {
             client.on('error', (err: Error) => {
                 clientError = err;
             });
-            client.on('warning', (err: Error) => {
+            (client as EmitterLike).on('warning', (err: Error) => {
                 clientError = err;
             });
 
@@ -71,19 +84,21 @@ export default async () => {
             client.on('error', (err: Error) => {
                 clientError = err;
             });
-            client.on('warning', (err: Error) => {
+            (client as EmitterLike).on('warning', (err: Error) => {
                 clientError = err;
             });
 
-            const torrent = client.add(fixtures.leaves.torrent, { bitfield: new Uint8Array([255, 255, 254]) });
+            const torrent = client.add(fixtures.leaves.torrent, {
+                bitfield: new Uint8Array([255, 255, 254]),
+            } as unknown as WebTorrent.TorrentOptions);
             let verifiedIndex = -1;
-            torrent.on('verified', (i: number) => {
+            (torrent as EmitterLike).on('verified', (i: number) => {
                 verifiedIndex = i;
             });
 
             await waitForReady(torrent);
             expect(verifiedIndex).toBe(1);
-            expect(torrent._hasStartupBitfield).toBeTruthy();
+            expect((torrent as unknown as TorrentWithStartupBitfield)._hasStartupBitfield).toBeTruthy();
             expect(clientError).toBeFalsy();
 
             await destroyClient(client);
@@ -95,19 +110,21 @@ export default async () => {
             client.on('error', (err: Error) => {
                 clientError = err;
             });
-            client.on('warning', (err: Error) => {
+            (client as EmitterLike).on('warning', (err: Error) => {
                 clientError = err;
             });
 
-            const torrent = client.add(fixtures.leaves.torrent, { bitfield: new Uint8Array([0, 0, 255]) });
+            const torrent = client.add(fixtures.leaves.torrent, {
+                bitfield: new Uint8Array([0, 0, 255]),
+            } as unknown as WebTorrent.TorrentOptions);
             let verifiedIndex = -1;
-            torrent.on('verified', (i: number) => {
+            (torrent as EmitterLike).on('verified', (i: number) => {
                 verifiedIndex = i;
             });
 
             await waitForReady(torrent);
             expect(verifiedIndex).toBe(17);
-            expect(torrent._hasStartupBitfield).toBeTruthy();
+            expect((torrent as unknown as TorrentWithStartupBitfield)._hasStartupBitfield).toBeTruthy();
             expect(torrent.done).toBeFalsy();
             expect(clientError).toBeFalsy();
 
@@ -120,19 +137,21 @@ export default async () => {
             client.on('error', (err: Error) => {
                 clientError = err;
             });
-            client.on('warning', (err: Error) => {
+            (client as EmitterLike).on('warning', (err: Error) => {
                 clientError = err;
             });
 
-            const torrent = client.add(fixtures.leaves.torrent, { bitfield: new Uint8Array([255, 255]) });
+            const torrent = client.add(fixtures.leaves.torrent, {
+                bitfield: new Uint8Array([255, 255]),
+            } as unknown as WebTorrent.TorrentOptions);
             let verifiedPieces = 0;
-            torrent.on('verified', () => {
+            (torrent as EmitterLike).on('verified', () => {
                 verifiedPieces += 1;
             });
 
             await waitForReady(torrent);
             expect(verifiedPieces).toBe(torrent.pieces.length);
-            expect(torrent._hasStartupBitfield).toBeFalsy();
+            expect((torrent as unknown as TorrentWithStartupBitfield)._hasStartupBitfield).toBeFalsy();
             expect(clientError).toBeFalsy();
 
             await destroyTorrentWithStore(torrent);
@@ -145,19 +164,21 @@ export default async () => {
             client.on('error', (err: Error) => {
                 clientError = err;
             });
-            client.on('warning', (err: Error) => {
+            (client as EmitterLike).on('warning', (err: Error) => {
                 clientError = err;
             });
 
-            const torrent = client.add(fixtures.leaves.torrent, { bitfield: new Uint8Array([255, 255, 254]) });
+            const torrent = client.add(fixtures.leaves.torrent, {
+                bitfield: new Uint8Array([255, 255, 254]),
+            } as unknown as WebTorrent.TorrentOptions);
             let verifiedPieces = 0;
-            torrent.on('verified', () => {
+            (torrent as EmitterLike).on('verified', () => {
                 verifiedPieces += 1;
             });
 
             await waitForReady(torrent);
             expect(verifiedPieces).toBe(0);
-            expect(torrent._hasStartupBitfield).toBeTruthy();
+            expect((torrent as unknown as TorrentWithStartupBitfield)._hasStartupBitfield).toBeTruthy();
             expect(clientError).toBeFalsy();
 
             await destroyClient(client);
@@ -169,19 +190,21 @@ export default async () => {
             client.on('error', (err: Error) => {
                 clientError = err;
             });
-            client.on('warning', (err: Error) => {
+            (client as EmitterLike).on('warning', (err: Error) => {
                 clientError = err;
             });
 
-            const torrent = client.add(fixtures.leaves.torrent, { bitfield: new Uint8Array([255, 255]) });
+            const torrent = client.add(fixtures.leaves.torrent, {
+                bitfield: new Uint8Array([255, 255]),
+            } as unknown as WebTorrent.TorrentOptions);
             let verifiedPieces = 0;
-            torrent.on('verified', () => {
+            (torrent as EmitterLike).on('verified', () => {
                 verifiedPieces += 1;
             });
 
             await waitForReady(torrent);
             expect(verifiedPieces).toBe(0);
-            expect(torrent._hasStartupBitfield).toBeFalsy();
+            expect((torrent as unknown as TorrentWithStartupBitfield)._hasStartupBitfield).toBeFalsy();
             expect(clientError).toBeFalsy();
 
             await destroyClient(client);

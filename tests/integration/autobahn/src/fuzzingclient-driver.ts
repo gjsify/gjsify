@@ -27,6 +27,8 @@
 import '@gjsify/node-globals/register/process';
 import '@gjsify/node-globals/register/timers';
 import { WebSocket } from '@gjsify/websocket';
+import type { MessageEvent } from '@gjsify/websocket';
+import type { Event, ErrorEvent } from '@gjsify/dom-events';
 // `System.exit()` is the reliable GJS exit path. process.exit() from
 // @gjsify/process reaches imports.system.exit via globalThis.imports, which
 // is empty in GJS ESM bundles and silently no-ops. The scripts/run-driver.mjs
@@ -127,7 +129,7 @@ async function runCase(n: number, total: number): Promise<void> {
         // Echo back exactly as received — Autobahn checks we preserve frame type,
         // payload bytes, and honor fragmentation/control-frame invariants.
         try {
-            ws.send(ev.data as string | ArrayBuffer | Blob | BufferSource);
+            ws.send(ev.data as string | ArrayBuffer | ArrayBufferView);
         } catch {
             /* send after close — Autobahn is already moving to the next case */
         }
