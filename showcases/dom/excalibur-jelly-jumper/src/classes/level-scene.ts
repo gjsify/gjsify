@@ -11,6 +11,7 @@ import { SpiderEnemy } from '../actors/enemies/spider.js';
 import { MovingPlatform } from '../actors/platforms/moving-platform.js';
 import { EnemySpawner } from '../actors/enemy-spawner.js';
 import { BirdEnemy } from '../actors/enemies/bird.js';
+import type { EnemyActor } from './enemy-actor.js';
 import type { BouncepadArgs } from '../actors/platforms/bouncepad.js';
 import { Bouncepad } from '../actors/platforms/bouncepad.js';
 import { AxeHazard } from '../actors/hazards/axe.js';
@@ -323,7 +324,7 @@ export default class LevelScene extends ex.Scene {
  * Helper function to create a spawner at the Tiled object position
  * for an enemy class
  */
-function makeSpawner(spawn: (actorArgs: { x: number; y: number; z: number }, props: FactoryProps) => unknown) {
+function makeSpawner(spawn: (actorArgs: { x: number; y: number; z: number }, props: FactoryProps) => EnemyActor) {
     return (props: FactoryProps) => {
         const x = props.object?.x ?? 0;
         const y = props.object?.y ?? 0;
