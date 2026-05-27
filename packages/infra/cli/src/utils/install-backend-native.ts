@@ -581,6 +581,15 @@ async function downloadAndExtractAll(
 
 async function extractOne(node: ResolvedNode, prefix: string, npmrc: NpmrcConfig, log: Logger): Promise<void> {
     const dest = path.join(prefix, node.installPath);
+    // Defense-in-depth against the workspace-source-wipe data-loss bug:
+    // every extractable node MUST land inside a `node_modules/` directory.
+    // The resolver only ever produces `installPath`s of that shape, so this
+    // can only fail if a workspace package leaked into the fetch/extract
+    // queue (the root cause fixed in `workspaceInstall`). Refusing here means
+    // a regression in the resolver can never again `rmSync` a working-tree
+    // source dir — the realpath check additionally rejects a `dest` that
+    // resolves THROUGH a symlink into a directory outside node_modules.
+    assertNodeModulesDest(dest, node);
     log('fetch: %s@%s ← %s (→ %s)', node.name, node.version, node.tarballUrl, node.installPath);
     const bytes = await fetchTarball(node.tarballUrl, {
         npmrc,
@@ -592,6 +601,48 @@ async function extractOne(node: ResolvedNode, prefix: string, npmrc: NpmrcConfig
     fs.rmSync(dest, { recursive: true, force: true });
     fs.mkdirSync(dest, { recursive: true });
     await extractTarball(bytes, dest);
+}
+
+/**
+ * Guard: a tarball may only be extracted into a `node_modules/` directory.
+ *
+ * Two checks, both belt-and-suspenders against ever wiping a working-tree
+ * source dir (the install-deletes-workspace-sources data-loss bug):
+ *
+ *   1. The logical `installPath` must contain a `node_modules` path segment.
+ *      The resolver always produces such paths; a workspace package that
+ *      slipped into the queue would not.
+ *   2. If `dest` already exists and resolves (via symlink) to a directory
+ *      whose REAL path is not under a `node_modules/` segment, refuse. This
+ *      catches the case where `node_modules/<name>` is a symlink to a
+ *      workspace's source tree — `rmSync(dest, { recursive: true })` would
+ *      then delete the link's target contents.
+ */
+function assertNodeModulesDest(dest: string, node: ResolvedNode): void {
+    const segments = dest.split(path.sep);
+    if (!segments.includes('node_modules')) {
+        throw new Error(
+            `gjsify install: refusing to extract ${node.name}@${node.version} into ${dest} — ` +
+                `target is not inside a node_modules/ directory. This would overwrite working-tree files. ` +
+                `A workspace package likely leaked into the fetch queue (it must be symlinked, not fetched).`,
+        );
+    }
+    let real: string;
+    try {
+        real = fs.realpathSync(dest);
+    } catch {
+        // `dest` doesn't exist yet (fresh install) — nothing to resolve, the
+        // logical-path check above is sufficient.
+        return;
+    }
+    const realSegments = real.split(path.sep);
+    if (!realSegments.includes('node_modules')) {
+        throw new Error(
+            `gjsify install: refusing to extract ${node.name}@${node.version} — ${dest} resolves to ${real}, ` +
+                `which is outside any node_modules/ directory (likely a symlink to a workspace source tree). ` +
+                `Extracting here would delete working-tree source files.`,
+        );
+    }
 }
 
 function depth(installPath: string): number {
