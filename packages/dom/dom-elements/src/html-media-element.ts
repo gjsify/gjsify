@@ -24,6 +24,22 @@ export const NETWORK_LOADING = 2;
 export const NETWORK_NO_SOURCE = 3;
 
 /**
+ * Source object accepted by {@link HTMLMediaElement.srcObject}.
+ *
+ * In the DOM spec this is `MediaProvider = MediaStream | MediaSource | Blob`
+ * (plus `null`). `@gjsify/dom-elements` is built without the DOM lib, so we
+ * model the structural surface that bridge consumers (e.g. `@gjsify/video`'s
+ * `VideoBridge`) rely on — the `getVideoTracks`/`getAudioTracks` accessors of a
+ * MediaStream — while still allowing any concrete `MediaStream`/`MediaSource`/
+ * `Blob` (which structurally satisfy this when DOM types are in scope).
+ */
+export interface MediaProvider {
+    getVideoTracks?(): unknown[];
+    getAudioTracks?(): unknown[];
+    getTracks?(): unknown[];
+}
+
+/**
  * Base class for media elements (video, audio).
  *
  * Stores media state and dispatches DOM events. Pipeline construction is
@@ -32,7 +48,7 @@ export const NETWORK_NO_SOURCE = 3;
 export class HTMLMediaElement extends HTMLElement {
     // -- Source --
     private _src = '';
-    private _srcObject: unknown = null;
+    private _srcObject: MediaProvider | null = null;
 
     // -- Playback state --
     currentTime = 0;
@@ -74,10 +90,10 @@ export class HTMLMediaElement extends HTMLElement {
     }
 
     // -- srcObject property (MediaStream) --
-    get srcObject(): unknown {
+    get srcObject(): MediaProvider | null {
         return this._srcObject;
     }
-    set srcObject(stream: unknown) {
+    set srcObject(stream: MediaProvider | null) {
         this._srcObject = stream;
         this._src = '';
         this.dispatchEvent(new Event('srcobjectchange'));
