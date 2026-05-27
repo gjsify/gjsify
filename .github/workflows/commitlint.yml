@@ -1,0 +1,25 @@
+name: Commitlint
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  commitlint:
+    name: Lint commit messages
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          # Fetch the full history so commitlint can walk back to the merge base.
+          fetch-depth: 0
+
+      # Self-contained commitlint action: brings its own @commitlint/cli +
+      # @commitlint/config-conventional, auto-detects the repo's
+      # commitlint.config.cjs, and lints every commit in the PR. Avoids running
+      # `npm install` in this Yarn `workspace:`-protocol repo (which npm rejects
+      # with EUNSUPPORTEDPROTOCOL).
+      - name: Lint PR commits
+        uses: wagoid/commitlint-github-action@v6
