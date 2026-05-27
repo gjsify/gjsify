@@ -1,0 +1,7 @@
+# Revisions to ignore in `git blame` — bulk mechanical reformats with no
+# semantic changes. Configure once per clone with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# (GitHub honours this file automatically in its blame view.)
+
+# style: reformat with oxfmt (Biome -> oxc migration)
+80683ee49e8985d8d587feaa0e3193b47545a019
