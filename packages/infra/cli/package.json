@@ -55,7 +55,7 @@
                             "item": "`gjsify dlx <pkg>` — fetch and run any npm package's GJS bundle without persisting it"
                         },
                         {
-                            "item": "`gjsify lint` / `gjsify format` — Biome-powered linter + formatter"
+                            "item": "`gjsify lint` / `gjsify format` — oxc-powered linter (oxlint) + formatter (oxfmt)"
                         },
                         {
                             "item": "`gjsify flatpak {init,build,check,deps,ci}` — pack a GJS app or CLI into a Flatpak end-to-end"
@@ -106,7 +106,7 @@
         "clear": "rm -rf lib dist tsconfig.tsbuildinfo || exit 0",
         "check": "tsc --noEmit",
         "start": "node lib/index.js",
-        "build": "tsc && mkdir -p lib/templates/flatpak && cp -L src/templates/install.mjs.tmpl lib/templates/install.mjs.tmpl && cp src/templates/flatpak/*.tmpl lib/templates/flatpak/ && cp src/templates/biome.json.tmpl lib/templates/biome.json.tmpl && gjsify run chmod",
+        "build": "tsc && mkdir -p lib/templates/flatpak && cp -L src/templates/install.mjs.tmpl lib/templates/install.mjs.tmpl && cp src/templates/flatpak/*.tmpl lib/templates/flatpak/ && cp src/templates/oxlintrc.json.tmpl lib/templates/oxlintrc.json.tmpl && cp src/templates/oxfmtrc.tmpl lib/templates/oxfmtrc.tmpl && gjsify run chmod",
         "build:gjs-bundle": "node lib/index.js build src/index.ts --app gjs --outfile dist/cli.gjs.mjs --shebang",
         "chmod": "chmod +x ./lib/index.js",
         "build:test:node": "node lib/index.js build src/test.mts --app node --outfile dist/test.node.mjs",

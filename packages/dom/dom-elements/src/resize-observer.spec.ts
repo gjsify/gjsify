@@ -229,8 +229,8 @@ export default async () => {
 
             expect(captured).toBeDefined();
             // Use a non-null local because TS narrowing through `captured` would
-            // require a null guard at every property access; biome rule
-            // `noNonNullAssertion` is disabled in test files for this reason.
+            // require a null guard at every property access; the
+            // `typescript/no-non-null-assertion` rule is disabled for this reason.
             const entry = captured as unknown as ResizeObserverEntry;
             expect(entry.target).toBe(canvas as unknown as object);
             expect(entry.contentRect.width).toBe(640);

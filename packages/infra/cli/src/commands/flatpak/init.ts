@@ -31,11 +31,7 @@ import {
     type ScaffoldInputs,
 } from './scaffold.js';
 import { Config } from '../../config.js';
-import {
-    BiomeNotFoundError,
-    hasBiomeDevDep,
-    runBiome,
-} from '../../utils/biome-resolve.js';
+import { OxcNotFoundError, hasOxcDevDep, runOxfmt } from '../../utils/oxc-resolve.js';
 
 interface FlatpakInitOptions {
     appId?: string;
@@ -128,8 +124,9 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
             })
             .option('format', {
                 description:
-                    'Run `gjsify format --write` on the generated files when `@biomejs/biome` is detected in the project. ' +
-                    'Default: true. Pass --no-format to skip.',
+                    'Run `oxfmt --write` on the generated JS/TS files when `oxfmt` is detected in the project. ' +
+                    'Default: true. Pass --no-format to skip. Note: oxfmt formats JS/TS only — the JSON/XML/.desktop ' +
+                    'manifests generated here are not reformatted (CSS/JSON formatting was dropped in the oxc migration).',
                 type: 'boolean',
                 default: true,
             });
@@ -260,20 +257,22 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
             trackWrite(writeIfFresh(resolve(cwd, flathubOut), renderFlathubJson(kind), args.force ?? false, 'flathub.json'));
         }
 
-        // Optional post-format: when biome is configured in the project,
-        // run `biome format --write` on the generated files so they match
-        // the project's prettier/biome style. Default behaviour (2-space
-        // JSON) already matches biome/prettier/Flathub defaults; this
-        // step harmonises edge-case fields (line endings, trailing commas
-        // in JSONC, key sort order if biome's organize-imports has rules).
-        if (writtenFiles.length > 0 && args.format !== false && hasBiomeDevDep(cwd)) {
+        // Optional post-format: when oxfmt is configured in the project, run
+        // `oxfmt --write` on any generated JS/TS files. oxfmt formats JS/TS
+        // (+TOML) only — the manifest/MetaInfo/.desktop/flathub outputs are
+        // JSON/XML/INI and are therefore left untouched (CSS/JSON formatting
+        // was dropped in the Biome → oxc migration). In practice flatpak init
+        // emits no JS/TS, so this is usually a no-op; it remains as a hook for
+        // any future JS/TS scaffold output.
+        const jsLikeFiles = writtenFiles.filter((p) => /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(p));
+        if (jsLikeFiles.length > 0 && args.format !== false && hasOxcDevDep(cwd)) {
             try {
-                await runBiome(['format', '--write', ...writtenFiles], { cwd });
+                await runOxfmt(['--write', ...jsLikeFiles], { cwd });
             } catch (err) {
-                if (err instanceof BiomeNotFoundError) {
-                    // Biome configured but binary missing — non-fatal warning.
+                if (err instanceof OxcNotFoundError) {
+                    // oxfmt configured but binding missing — non-fatal warning.
                     console.warn(
-                        `[gjsify flatpak init] post-format skipped: @biomejs/biome declared but binary not installed. ` +
+                        `[gjsify flatpak init] post-format skipped: oxfmt declared but binding not installed. ` +
                             `Run \`gjsify install\` then re-run with --force, or pass --no-format.`,
                     );
                 } else {

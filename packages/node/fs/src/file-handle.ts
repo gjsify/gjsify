@@ -815,7 +815,7 @@ export class FileHandle implements IFileHandle {
      * "not yet" error. Tracked in STATUS.md "Open TODOs → Node 25
      * stream/iter integration".
      */
-    // biome-ignore lint/suspicious/noExplicitAny: stream/iter Transform / ByteReadableStream types are too new to plumb here cleanly; the throw makes the surface non-callable until the proper port lands.
+    // oxlint-disable-next-line typescript/no-explicit-any -- stream/iter Transform / ByteReadableStream types are too new to plumb here cleanly; the throw makes the surface non-callable until the proper port lands.
     pull(..._args: any[]): any {
         throw new Error(
             'FileHandle.pull() is not implemented in @gjsify/fs yet — ' +
@@ -830,7 +830,7 @@ export class FileHandle implements IFileHandle {
      * Node 25.9 alongside the new pipeline shape. Same not-implemented
      * stub for the same reason. See {@link pull} for context.
      */
-    // biome-ignore lint/suspicious/noExplicitAny: same as pull() — the WriterOptions / Writer types live in node:stream/iter; stub returns any so the throw surfaces at call time.
+    // oxlint-disable-next-line typescript/no-explicit-any -- same as pull(): the WriterOptions / Writer types live in node:stream/iter; stub returns any so the throw surfaces at call time.
     writer(_options?: any): any {
         throw new Error(
             'FileHandle.writer() is not implemented in @gjsify/fs yet — ' +

@@ -1,18 +1,22 @@
-// `gjsify fix` — runs biome's combined `check --write` mode.
+// `gjsify fix` — combined oxc fix pass.
 //
-// Equivalent to biome's `check` (format + safe-lint-fix + organize-imports).
-// Default writes fixes in-place; pass `--no-write` to report-only.
-// Naming: deliberately distinct from `gjsify check` (workspace TS check)
-// and `gjsify system-check` (system-dependency verifier).
+// Runs `oxfmt --write` (format JS/TS in place) followed by `oxlint --fix`
+// (apply safe lint fixes). Mirrors the one-shot ergonomics of the former
+// Biome `check --write`, now split across the two oxc tools.
+//
+// Naming: deliberately distinct from `gjsify check` (workspace TS check) and
+// `gjsify system-check` (system-dependency verifier).
 
 import { resolve } from 'node:path';
 import type { Command } from '../types/index.js';
 import {
-    BiomeNotFoundError,
-    findBiomeConfig,
-    printBiomeNotFound,
-    runBiome,
-} from '../utils/biome-resolve.js';
+    OxcNotFoundError,
+    findOxfmtConfig,
+    findOxlintConfig,
+    printOxcNotFound,
+    runOxfmt,
+    runOxlint,
+} from '../utils/oxc-resolve.js';
 
 interface FixOptions {
     paths?: string[];
@@ -23,8 +27,7 @@ interface FixOptions {
 
 export const fixCommand: Command<unknown, FixOptions> = {
     command: 'fix [paths..]',
-    description:
-        'Run Biome check --write — format + safe-lint-fix + organize-imports in one pass.',
+    description: 'Run oxfmt --write then oxlint --fix — format + safe lint fixes in one pass.',
     builder: (yargs) => {
         return yargs
             .positional('paths', {
@@ -38,38 +41,42 @@ export const fixCommand: Command<unknown, FixOptions> = {
                 default: true,
             })
             .option('config-path', {
-                description:
-                    'Path to a biome.json. Default: walks up from cwd to find one.',
+                description: 'Path to an .oxlintrc.json. Default: walks up from cwd to find one.',
                 type: 'string',
                 normalize: true,
             })
             .option('verbose', {
-                description: 'Echo the resolved biome binary + args before spawning.',
+                description: 'Echo the resolved oxc launchers + args before spawning.',
                 type: 'boolean',
                 default: false,
             });
     },
     handler: async (args) => {
         const cwd = process.cwd();
-        const paths = (args.paths as string[] | undefined)?.length
-            ? (args.paths as string[])
-            : ['.'];
-
-        const biomeArgs: string[] = ['check'];
-        if (args.write !== false) biomeArgs.push('--write');
-
-        const configPath =
-            (args.configPath as string | undefined) ?? findBiomeConfig(cwd) ?? undefined;
-        if (configPath) biomeArgs.push(`--config-path=${resolve(configPath, '..')}`);
-
-        biomeArgs.push(...paths);
+        const paths = (args.paths as string[] | undefined)?.length ? (args.paths as string[]) : ['.'];
+        const verbose = args.verbose ?? false;
+        const writeMode = args.write !== false;
 
         try {
-            const code = await runBiome(biomeArgs, { cwd, verbose: args.verbose });
-            process.exitCode = code;
+            // 1. Format JS/TS in place (or report drift when --no-write).
+            const fmtArgs: string[] = [writeMode ? '--write' : '--list-different'];
+            const fmtConfig = (args.configPath as string | undefined) ?? findOxfmtConfig(cwd) ?? undefined;
+            if (fmtConfig) fmtArgs.push('--config', resolve(fmtConfig));
+            fmtArgs.push(...paths);
+            const fmtCode = await runOxfmt(fmtArgs, { cwd, verbose });
+
+            // 2. Apply safe lint fixes (skipped in report-only mode).
+            const lintArgs: string[] = [];
+            if (writeMode) lintArgs.push('--fix');
+            const lintConfig = (args.configPath as string | undefined) ?? findOxlintConfig(cwd) ?? undefined;
+            if (lintConfig) lintArgs.push('--config', resolve(lintConfig));
+            lintArgs.push(...paths);
+            const lintCode = await runOxlint(lintArgs, { cwd, verbose });
+
+            process.exitCode = fmtCode || lintCode;
         } catch (err) {
-            if (err instanceof BiomeNotFoundError) {
-                printBiomeNotFound(err);
+            if (err instanceof OxcNotFoundError) {
+                printOxcNotFound(err);
                 process.exitCode = 1;
                 return;
             }

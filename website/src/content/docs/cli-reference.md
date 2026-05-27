@@ -984,69 +984,81 @@ Exits non-zero when nothing was removed (no matching install found).
 
 ## `gjsify format`
 
-Format source files via [Biome](https://biomejs.dev). gjsify resolves Biome's native binary from `node_modules/@biomejs/cli-<platform>-<arch>/biome` directly — skipping the Node-launcher in `@biomejs/biome/bin/biome` — so the toolchain stays Node-free (mirror of how `gjsify gettext` spawns `msgfmt` and `gjsify gresource` spawns `glib-compile-resources`).
+Format JS/TS source files via [oxfmt](https://oxc.rs/docs/guide/usage/formatter) (oxc's formatter). gjsify resolves oxfmt's npm package Node launcher from `node_modules/oxfmt/bin/oxfmt` and spawns it with the current Node executable. The per-platform native code ships as the `@oxfmt/binding-<target>` napi optionalDependency.
+
+> **CSS/JSON formatting is not supported.** oxfmt formats JS/TS (+TOML) only. The previous Biome toolchain formatted CSS and JSON too; that is intentionally dropped in the oxc migration and not replaced by another formatter.
 
 ```bash
-gjsify format --init             # write recommended biome.json
+gjsify format --init             # write recommended .oxlintrc.json + .oxfmtrc.json
 gjsify format --write src/       # apply formatter in place
 gjsify format --check src/       # CI mode — exit non-zero on drift
+gjsify format src/               # report drift without writing (list-different)
 ```
 
 | Option | Default | Description |
 |---|---|---|
 | `[paths..]` | `.` | Files/directories to format. |
 | `--write` | `false` | Apply changes in place. |
-| `--check` | `false` | CI-mode: report drift, exit non-zero (does not write). Equivalent to running biome without `--write`. |
-| `--config-path <path>` | walks up | Path to `biome.json`. Default: nearest `biome.json` / `biome.jsonc` from cwd or workspace root. |
-| `--init` | `false` | Write a recommended `biome.json` into cwd (skips if exists). |
-| `--force` | `false` | Used with `--init` to overwrite existing. |
-| `--verbose` | `false` | Echo the resolved biome binary + args before spawning. |
+| `--check` | `false` | CI-mode: report drift + stats, exit non-zero (does not write). |
+| `--config-path <path>` | walks up | Path to an `.oxfmtrc.json`. Default: nearest `.oxfmtrc.json` from cwd or workspace root. |
+| `--init` | `false` | Write recommended `.oxlintrc.json` + `.oxfmtrc.json` into cwd (skips existing unless `--force`). |
+| `--force` | `false` | Used with `--init` to overwrite existing config files. |
+| `--verbose` | `false` | Echo the resolved oxfmt launcher + args before spawning. |
 
-**Workspace-aware resolution** — when run from inside a sub-workspace, gjsify walks up to the workspace root to find `node_modules/@biomejs/cli-*/biome`. Single biome.json at the workspace root applies to all sub-workspaces (Biome v2 globbing handles this natively).
+With no `--write`/`--check`, `gjsify format` reports drift via oxfmt's `--list-different` without modifying files.
 
-**Standalone projects** — same shape, single `biome.json` at the project root.
+**Workspace-aware resolution** — when run from inside a sub-workspace, gjsify walks up to the workspace root to find `node_modules/oxfmt/bin/oxfmt`. A single `.oxfmtrc.json` at the workspace root applies everywhere oxfmt discovers it.
 
-### Recommended `biome.json` defaults
+**Standalone projects** — same shape, single `.oxfmtrc.json` at the project root.
 
-`gjsify format --init` writes a `biome.json` tuned for GJS/GNOME projects:
+### Recommended config defaults
 
-- **JS/TS:** 4-space indent, single quotes, semicolons-always, trailing commas, line width 120 (matches the gjsify codebase + GNOME Shell style guide)
-- **JSON / JSONC:** 2-space indent (matches Flathub manifest convention, Biome+Prettier defaults)
-- **CSS:** 2-space indent, single quotes (matches GTK4-CSS convention)
-- **Linter:** Biome's `recommended: true` + four GJS-specific opt-outs:
-  - `noNonNullAssertion: off` — `!` operator needed for `@girs/*` API surfaces
-  - `noExplicitAny: warn` (not error) — `as unknown as T` chains in cross-runtime polyfills
-  - `noConsole: off` — GJS apps log via `console.log` (no structured-logger convention)
-  - `useImportType: warn` — recommended but non-blocking
-- **Excludes** — generated artifacts (`dist`, `lib`, `cli.gjs.mjs`, `test.{gjs,node}.mjs`), Flatpak build dirs, `refs/` submodules, prebuilds, `.yarn/cache`, compiled `.metainfo.xml`.
+`gjsify format --init` writes two config files tuned for GJS/GNOME projects:
 
-**Errors when biome is missing:** prints `[gjsify biome] biome native binary not found.` with `gjsify install -D @biomejs/biome` as the install hint, exits 1.
+`.oxfmtrc.json` (formatter):
+- 4-space indent (spaces, not tabs), single quotes, semicolons-always, trailing commas `all`, arrow parens `always`, printWidth 120, bracket spacing on (matches the gjsify codebase + GNOME Shell style guide).
+- Excludes generated artifacts (`dist`, `lib`, `cli.gjs.mjs`, `test.{gjs,node}.mjs`), Flatpak build dirs, `refs/` submodules, prebuilds, compiled `.metainfo.xml`.
+
+`.oxlintrc.json` (linter):
+- `categories.correctness: "error"` (oxlint's correctness set) plus:
+  - `typescript/no-non-null-assertion: off` — `!` operator needed for `@girs/*` API surfaces
+  - `typescript/no-explicit-any: warn` (not error) — `as unknown as T` chains in cross-runtime polyfills
+  - `typescript/consistent-type-imports: warn`
+  - `unicorn/prefer-node-protocol: error` — enforce `node:` import protocol
+  - `eslint/no-unused-vars: warn`
+- Same exclude set as the formatter config.
+
+**Errors when oxfmt is missing:** prints `[gjsify oxc] oxfmt not found.` with `gjsify install -D oxfmt` as the install hint, exits 1.
 
 ## `gjsify lint`
 
-Run Biome's lint diagnostics. Default reports findings (exit non-zero); `--write` applies safe fixes in place.
+Run [oxlint](https://oxc.rs/docs/guide/usage/linter) diagnostics. Default reports findings (exit non-zero); `--fix` applies safe fixes in place. oxlint is spawned via its Node launcher (`node_modules/oxlint/bin/oxlint`) so its JS-plugin host — including gjsify's internal `gjsify/register-class-order` rule — is available.
 
 ```bash
 gjsify lint              # lint all
 gjsify lint src/         # lint specific paths
-gjsify lint --write      # apply safe fixes (skips unsafe)
+gjsify lint --fix        # apply safe fixes (skips unsafe)
 ```
 
 | Option | Default | Description |
 |---|---|---|
 | `[paths..]` | `.` | Files/directories to lint. |
-| `--write` | `false` | Apply safe lint fixes in place. |
-| `--config-path <path>` | walks up | biome.json path override. |
-| `--verbose` | `false` | Echo resolved biome binary + args. |
+| `--fix` | `false` | Apply safe lint fixes in place. |
+| `--config-path <path>` | walks up | `.oxlintrc.json` path override. |
+| `--verbose` | `false` | Echo resolved oxlint launcher + args. |
 
-Use `gjsify fix` for the combined format + safe-lint-fix + organize-imports pass.
+Use `gjsify fix` for the combined format + safe-lint-fix pass.
+
+### Internal lint rule: `gjsify/register-class-order`
+
+gjsify ships an internal oxlint JS plugin (`@gjsify/oxlint-plugin-gjsify`, not published to npm) with one rule, wired into the workspace `.oxlintrc.json` via `jsPlugins`. It flags `static` GObject metadata fields (`GTypeName`, `Properties`, `InternalChildren`, `Signals`, `Template`, `CssName`, …) declared **after** a `static { GObject.registerClass(…) }` block — where `registerClass` runs before the field is assigned, so the metadata is silently ignored — and autofixes by hoisting those fields above the static block. (GNOME/gjs#704, gjsify/ts-for-gir#410.)
 
 ## `gjsify fix`
 
-Combined `format + safe-lint-fix + organize-imports` (wraps Biome's `check --write`). Different from `gjsify system-check` (which verifies system dependencies).
+Combined fix pass: `oxfmt --write` (format JS/TS) followed by `oxlint --fix` (safe lint fixes). Different from `gjsify system-check` (which verifies system dependencies) and `gjsify check` (the tsc orchestrator).
 
 ```bash
-gjsify fix               # default: apply all safe fixes
+gjsify fix               # default: format + apply all safe lint fixes
 gjsify fix --no-write    # report only, don't modify
 ```
 
@@ -1054,8 +1066,8 @@ gjsify fix --no-write    # report only, don't modify
 |---|---|---|
 | `[paths..]` | `.` | Files/directories to process. |
 | `--write` | `true` | Apply fixes. Pass `--no-write` to report only. |
-| `--config-path <path>` | walks up | biome.json path override. |
-| `--verbose` | `false` | Echo resolved biome binary + args. |
+| `--config-path <path>` | walks up | `.oxlintrc.json` / `.oxfmtrc.json` path override. |
+| `--verbose` | `false` | Echo resolved oxc launchers + args. |
 
 ## `gjsify upgrade`
 

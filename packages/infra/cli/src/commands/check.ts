@@ -7,7 +7,7 @@
 // In a single package (or anywhere a `package.json` with a `check` script
 // is reachable from cwd): runs the local `check` script directly. This is
 // the natural "tsc --noEmit on the current scope" invocation, analogous to
-// `gjsify format` / `lint` / `fix` (which all wrap Biome workspace-wide).
+// `gjsify format` / `lint` / `fix` (which all wrap oxc workspace-wide).
 //
 // The legacy system-dep-check shape lives under `gjsify system-check` after
 // PR #254. The `check` alias on `system-check` stays valid for one release
