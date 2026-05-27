@@ -75,13 +75,13 @@ export default async () => {
             await it('GET /api/hello/:name returns greeting', async () => {
                 const { status, body } = await httpGetJson(`http://127.0.0.1:${PORT}/api/hello/world`);
                 expect(status).toBe(200);
-                expect(body.greeting).toBe('Hello, world!');
+                expect((body as Record<string, unknown>).greeting).toBe('Hello, world!');
             });
 
             await it('GET /api/time returns ISO timestamp', async () => {
                 const { status, body } = await httpGetJson(`http://127.0.0.1:${PORT}/api/time`);
                 expect(status).toBe(200);
-                expect(body.time).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+                expect((body as Record<string, unknown>).time).toMatch(/^\d{4}-\d{2}-\d{2}T/);
             });
         } finally {
             if (server) server.kill();

@@ -269,15 +269,16 @@ function connectControls(
         demo.render();
     });
 
-    for (const [row, key] of [
+    const toggleRows: Array<[AdwRow, 'lid' | 'body' | 'bottom' | 'fitLid' | 'nonblinn']> = [
         [lidRow, 'lid'],
         [bodyRow, 'body'],
         [bottomRow, 'bottom'],
         [fitLidRow, 'fitLid'],
         [nonblinnRow, 'nonblinn'],
-    ] as const) {
+    ];
+    for (const [row, key] of toggleRows) {
         row.addEventListener('notify::active', () => {
-            (demo.effectController as Record<string, unknown>)[key] = (row as AdwRow).active;
+            demo.effectController[key] = Boolean(row.active);
             demo.render();
         });
     }
