@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        
+        "src/fixtures.ts",
+        "src/basic-events.spec.ts",
+        "src/recursive-watch.spec.ts",
+        "src/ignored.spec.ts",
+        "src/await-write-finish.spec.ts"
+    ]
+}
