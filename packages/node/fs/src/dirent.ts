@@ -6,13 +6,13 @@ import { basename, dirname } from 'node:path';
 
 import type { Dirent as OriginalDirent } from 'node:fs'; // Types from @types/node
 
-// POSIX file type constants from stat mode bits (S_IFMT mask = 0o170000)
+// POSIX file type constants from stat mode bits (S_IFMT mask = 0o170000).
+// Only the SPECIAL-file subset (BLK / CHR / SOCK / FIFO) is read via
+// unix::mode below — regular files, directories and symlinks come
+// straight from `Gio.FileType` above and never need the bit pattern.
 const S_IFMT = 0o170000;
 const S_IFSOCK = 0o140000;
-const S_IFLNK = 0o120000;
-const S_IFREG = 0o100000;
 const S_IFBLK = 0o060000;
-const S_IFDIR = 0o040000;
 const S_IFCHR = 0o020000;
 const S_IFIFO = 0o010000;
 

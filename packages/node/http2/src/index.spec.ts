@@ -5,10 +5,17 @@ import { describe, it, expect } from '@gjsify/unit';
 import http2 from 'node:http2';
 
 // @types/node is missing some http2 constants that Node.js exports at runtime.
+// oxlint flags `declare module` namespace consts as unused values; they're type-
+// only augmentations that the assertions below (`constants.X`) consume — the
+// lint reads them as runtime declarations and can't see the consuming property
+// access on the imported namespace.
 declare module 'node:http2' {
     namespace constants {
+        // oxlint-disable-next-line eslint/no-unused-vars
         const NGHTTP2_SETTINGS_ENABLE_CONNECT_PROTOCOL: number;
+        // oxlint-disable-next-line eslint/no-unused-vars
         const DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE: number;
+        // oxlint-disable-next-line eslint/no-unused-vars
         const HTTP2_HEADER_PROTOCOL: string;
     }
 }
