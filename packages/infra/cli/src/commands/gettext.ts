@@ -135,7 +135,7 @@ function defaultFilename(domain: string, format: GettextFormat, metainfoTemplate
     }
 }
 
-export const gettextCommand: Command<any, GettextOptions> = {
+export const gettextCommand: Command<unknown, GettextOptions> = {
     command: 'gettext <poDir> <outDir>',
     description:
         'Compile gettext .po files to .mo (per-language locale tree) or substitute a metainfo template via msgfmt --xml.',
@@ -228,14 +228,15 @@ export const gettextCommand: Command<any, GettextOptions> = {
                     verbose,
                 });
             }
-        } catch (err: any) {
-            if (err?.code === 'ENOENT') {
+        } catch (err: unknown) {
+            const e = err as { code?: unknown; stderr?: string | Buffer };
+            if (e?.code === 'ENOENT') {
                 console.error('[gjsify gettext] msgfmt not found. Install it via your distro (package: gettext).');
             } else {
-                if (err?.stderr) process.stderr.write(err.stderr);
-                console.error(`[gjsify gettext] msgfmt failed${err?.code !== undefined ? ` (exit ${err.code})` : ''}`);
+                if (e?.stderr) process.stderr.write(e.stderr);
+                console.error(`[gjsify gettext] msgfmt failed${e?.code !== undefined ? ` (exit ${e.code})` : ''}`);
             }
-            process.exitCode = typeof err?.code === 'number' ? err.code : 1;
+            process.exitCode = typeof e?.code === 'number' ? e.code : 1;
         }
     },
 };

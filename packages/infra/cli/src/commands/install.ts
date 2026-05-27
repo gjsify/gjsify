@@ -49,7 +49,7 @@ interface InstallOptions {
     backend?: 'native' | 'npm';
 }
 
-export const installCommand: Command<any, InstallOptions> = {
+export const installCommand: Command<unknown, InstallOptions> = {
     command: 'install [packages..]',
     description:
         'Install npm dependencies in the current project (or globally with -g), then run gjsify-aware post-checks.',

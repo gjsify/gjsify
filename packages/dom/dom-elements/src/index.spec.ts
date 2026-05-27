@@ -333,7 +333,7 @@ export default async () => {
         await it('should getElementsByTagName', async () => {
             const root = new Element();
             const div = new Element();
-            (div as any)[Symbol.for ? Symbol.for('tagName') : 'tagName'] = 'DIV';
+            (div as unknown as Record<string | symbol, unknown>)[Symbol.for ? Symbol.for('tagName') : 'tagName'] = 'DIV';
             // Use internal symbol access via setting attribute approach
             // Instead, test with the proper API
             root.appendChild(div);
@@ -350,7 +350,7 @@ export default async () => {
                 listenerCalled = true;
             });
 
-            (el as any)[Symbol.for ? Symbol.for('propertyEventListeners') : 'propertyEventListeners'] = new Map();
+            (el as unknown as Record<string | symbol, unknown>)[Symbol.for ? Symbol.for('propertyEventListeners') : 'propertyEventListeners'] = new Map();
             // Use the propertyEventListeners through proper API in HTMLElement
             // For Element, test addEventListener only
             el.dispatchEvent(new Event('click'));
@@ -538,10 +538,10 @@ export default async () => {
             expect('onwheel' in el).toBe(true);
             expect(el.onwheel).toBeNull();
             let deltaY = 0;
-            el.onwheel = (ev: any) => {
-                deltaY = ev.deltaY;
+            el.onwheel = (ev: unknown) => {
+                deltaY = (ev as { deltaY: number }).deltaY;
             };
-            el.dispatchEvent(new Event('wheel') as any);
+            el.dispatchEvent(new Event('wheel') as unknown as import('@gjsify/dom-events').Event);
             // The handler fires even without a deltaY; verifies wiring
             expect(typeof el.onwheel).toBe('function');
             el.onwheel = null;

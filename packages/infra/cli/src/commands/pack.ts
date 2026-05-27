@@ -55,7 +55,7 @@ interface PackResult {
     absolutePath: string | null;
 }
 
-export const packCommand: Command<any, PackOptions> = {
+export const packCommand: Command<unknown, PackOptions> = {
     command: 'pack [path]',
     description:
         'Produce an npm-compatible .tgz tarball for the workspace at <path> (default: cwd). Rewrites workspace:^/~/* deps to resolved versions.',

@@ -40,9 +40,9 @@
  * `util.inherits`) and `instance instanceof Wrapped` all behave identically
  * to the underlying class.
  */
-export function makeCallable<T extends new (...args: any[]) => any>(Cls: T): T {
+export function makeCallable<T extends new (...args: unknown[]) => unknown>(Cls: T): T {
     return new Proxy(Cls, {
-        apply(target, thisArg: object | undefined | null, args: any[]) {
+        apply(target, thisArg: object | undefined | null, args: unknown[]) {
             // No-`new` invocation (`Cls(...)`): no usable receiver to mutate
             // — return a freshly constructed instance instead. globalThis is
             // also treated as "no receiver" because that is what a sloppy-
@@ -52,7 +52,7 @@ export function makeCallable<T extends new (...args: any[]) => any>(Cls: T): T {
             }
             // `Cls.call(thisArg, ...)`: transplant a fresh instance's own
             // properties onto the caller-supplied receiver.
-            const tmp = Reflect.construct(target, args, target);
+            const tmp = Reflect.construct(target, args, target) as object;
             for (const key of Reflect.ownKeys(tmp)) {
                 const desc = Object.getOwnPropertyDescriptor(tmp, key);
                 if (desc) Object.defineProperty(thisArg, key, desc);

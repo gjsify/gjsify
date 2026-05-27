@@ -16,6 +16,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchPackument, type Packument } from '@gjsify/npm-registry';
+import type { Argv } from 'yargs';
 import type { Command } from '../types/index.js';
 import { installPackages } from '../utils/install-backend.js';
 import { defaultGlobalLayout, linkGlobalBins } from '../utils/install-global.js';
@@ -28,7 +29,7 @@ interface SelfUpdateOptions {
 
 const PACKAGE_NAME = '@gjsify/cli';
 
-export const selfUpdateCommand: Command<any, SelfUpdateOptions> = {
+export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
     command: 'self-update',
     description: `Update the installed ${PACKAGE_NAME} to the latest release (or pinned --tag).`,
     builder: (yargs) =>
@@ -47,7 +48,7 @@ export const selfUpdateCommand: Command<any, SelfUpdateOptions> = {
                 description: 'npm dist-tag or pinned version to install (e.g. `latest`, `next`, `0.5.0`).',
                 type: 'string',
                 default: 'latest',
-            }) as any,
+            }) as Argv<SelfUpdateOptions>,
     handler: async (args: SelfUpdateOptions) => {
         const layout = defaultGlobalLayout();
         const installedPkgDir = join(layout.prefix, 'node_modules', PACKAGE_NAME);

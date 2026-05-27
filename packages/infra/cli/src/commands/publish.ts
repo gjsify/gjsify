@@ -56,7 +56,7 @@ interface PublishOptions {
     'check-trusted'?: boolean;
 }
 
-export const publishCommand: Command<any, PublishOptions> = {
+export const publishCommand: Command<unknown, PublishOptions> = {
     command: 'publish [path]',
     description:
         'Pack + upload the workspace at <path> (default: cwd) to its npm registry. Drop-in for `npm publish` with workspace:^ rewrite handled automatically.',

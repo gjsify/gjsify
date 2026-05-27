@@ -1,6 +1,6 @@
 import type { ArgumentsCamelCase, MiddlewareFunction, BuilderCallback } from 'yargs';
 
-export interface Command<T = any, U = T> {
+export interface Command<T = unknown, U = T> {
     command: string | ReadonlyArray<string>;
     description: string;
     builder?: BuilderCallback<T, U>;

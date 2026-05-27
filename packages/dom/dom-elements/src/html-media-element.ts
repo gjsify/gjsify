@@ -32,7 +32,7 @@ export const NETWORK_NO_SOURCE = 3;
 export class HTMLMediaElement extends HTMLElement {
     // -- Source --
     private _src = '';
-    private _srcObject: any = null;
+    private _srcObject: unknown = null;
 
     // -- Playback state --
     currentTime = 0;
@@ -74,10 +74,10 @@ export class HTMLMediaElement extends HTMLElement {
     }
 
     // -- srcObject property (MediaStream) --
-    get srcObject(): any {
+    get srcObject(): unknown {
         return this._srcObject;
     }
-    set srcObject(stream: any) {
+    set srcObject(stream: unknown) {
         this._srcObject = stream;
         this._src = '';
         this.dispatchEvent(new Event('srcobjectchange'));

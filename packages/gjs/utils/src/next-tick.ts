@@ -32,7 +32,7 @@ const YIELD_DELAY_MS = 1;
 const _queue: Array<() => void> = [];
 let _drainerArmed = false;
 
-function drainOnce(GLib: any): void {
+function drainOnce(GLib: GLibShape): void {
     // Process up to CHUNK_SIZE callbacks. Errors don't abort the queue —
     // Node's process.nextTick guarantees later ticks still run even if an
     // earlier one throws (the throw is delivered asynchronously via
@@ -49,7 +49,7 @@ function drainOnce(GLib: any): void {
                 GLib.log_default_handler(
                     'gjsify-nextTick',
                     GLib.LogLevelFlags.LEVEL_WARNING,
-                    String((err as any)?.stack || err),
+                    String((err as { stack?: string })?.stack || err),
                     null,
                 );
             } catch {
@@ -81,8 +81,10 @@ function drainOnce(GLib: any): void {
 // numeric source ID (no BoxedInstance, no GC race). GLib.idle_add has the same
 // GC-race hazard as the old GLib.Source BoxedInstance approach fixed in
 // @gjsify/node-globals timers.
+type GLibShape = { timeout_add: (priority: number, delay: number, cb: () => boolean) => number; PRIORITY_DEFAULT: number; LogLevelFlags: { LEVEL_WARNING: number }; log_default_handler: (domain: string, flags: number, msg: string, data: null) => void };
+
 function tryGLibTimeout(cb: () => void): boolean {
-    const GLib = (globalThis as any).imports?.gi?.GLib;
+    const GLib = (globalThis as Record<string, unknown> & { imports?: { gi?: { GLib?: GLibShape } } }).imports?.gi?.GLib;
     if (!GLib?.timeout_add) return false;
     _queue.push(cb);
     if (!_drainerArmed) {

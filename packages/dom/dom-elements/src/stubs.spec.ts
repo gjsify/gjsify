@@ -192,8 +192,8 @@ export default async () => {
         await it('cssText setter parses declarations into camelCase properties', async () => {
             const style = new CSSStyleDeclaration();
             style.cssText = 'background-color: rgba(0,0,0,0); color: red';
-            expect((style as any).backgroundColor).toBe('rgba(0,0,0,0)');
-            expect((style as any).color).toBe('red');
+            expect((style as unknown as Record<string, string>).backgroundColor).toBe('rgba(0,0,0,0)');
+            expect((style as unknown as Record<string, string>).color).toBe('red');
         });
 
         await it('cssText getter returns the last assigned value', async () => {
@@ -207,7 +207,7 @@ export default async () => {
             // then reads el.style.backgroundColor to detect rgba support.
             const style = new CSSStyleDeclaration();
             style.cssText = 'background-color:rgba(135,100,100,.5)';
-            const bg = (style as any).backgroundColor as string;
+            const bg = (style as unknown as Record<string, string>).backgroundColor;
             expect(typeof bg).toBe('string');
             expect(bg.length).toBeGreaterThan(0);
         });

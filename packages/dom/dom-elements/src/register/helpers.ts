@@ -9,7 +9,7 @@ export function defineGlobal(name: string, value: unknown): void {
 
 /** Only set the global if it hasn't already been defined. */
 export function defineGlobalIfMissing(name: string, value: unknown): void {
-    if (typeof (globalThis as any)[name] === 'undefined') {
+    if (typeof (globalThis as Record<string, unknown>)[name] === 'undefined') {
         defineGlobal(name, value);
     }
 }

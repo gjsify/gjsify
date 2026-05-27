@@ -7,7 +7,7 @@ interface InfoOptions {
     file?: string;
 }
 
-export const infoCommand: Command<any, InfoOptions> = {
+export const infoCommand: Command<unknown, InfoOptions> = {
     command: 'info [file]',
     description:
         'Show native gjsify packages detected in node_modules and the env vars needed to run a GJS bundle directly with gjs.',

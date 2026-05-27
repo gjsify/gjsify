@@ -2,7 +2,7 @@ import { Config } from '../config.js';
 import { BuildAction } from '../actions/build.js';
 import type { Command, CliBuildOptions } from '../types/index.js';
 
-export const buildCommand: Command<any, CliBuildOptions> = {
+export const buildCommand: Command<unknown, CliBuildOptions> = {
     command: 'build [entryPoints..]',
     description: 'Build and bundle your Gjs project',
     builder: (yargs) => {
