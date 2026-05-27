@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec accesses non-typed exports via `(Stream as any)`, duck-types dynamic objects, and exercises objectMode with mixed types
 import { describe, it, expect } from '@gjsify/unit';
 import Stream, {
     Readable,

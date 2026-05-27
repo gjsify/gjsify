@@ -3,6 +3,7 @@
 
 import type { EventEmitterOptions, OnOptions, OnceOptions } from 'node:events';
 
+// oxlint-disable-next-line typescript/no-explicit-any -- matches @types/node EventListener (...args: any[]) => void for drop-in compat
 type EventListener = (...args: any[]) => void;
 
 /** An EventListener that may have been wrapped by `once`, carrying the original listener. */
@@ -37,7 +38,7 @@ function onceWrapper(this: {
 }) {
     const { target, type, listener } = this;
     if (this.wrapperFn) target.removeListener(type, this.wrapperFn);
-    const result = listener.apply(target, arguments as any);
+    const result = listener.apply(target, Array.from(arguments) as unknown[]);
     return result;
 }
 
@@ -131,6 +132,7 @@ export class EventEmitter {
         return this._maxListeners ?? EventEmitter.defaultMaxListeners;
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- matches @types/node EventEmitter.emit(event, ...args: any[]) for drop-in compat
     emit(type: string | symbol, ...args: any[]): boolean {
         const events = this._events;
         let doError = type === 'error';
@@ -461,7 +463,7 @@ export class EventEmitter {
             // EventTarget support
             if (typeof (emitter as EventTarget).addEventListener === 'function') {
                 const eventTarget = emitter as EventTarget;
-                const handler = (...args: any[]) => {
+                const handler = (...args: unknown[]) => {
                     if (signal) {
                         signal.removeEventListener('abort', abortHandler);
                     }
@@ -491,7 +493,7 @@ export class EventEmitter {
 
             // EventEmitter support
             const ee = emitter as EventEmitter;
-            const eventHandler = (...args: any[]) => {
+            const eventHandler = (...args: unknown[]) => {
                 if (signal) {
                     signal.removeEventListener('abort', abortHandler);
                 }
@@ -553,7 +555,7 @@ export class EventEmitter {
         let finished = false;
         let paused = false;
 
-        const eventHandler = (...args: any[]) => {
+        const eventHandler = (...args: unknown[]) => {
             if (unconsumedPromises.length > 0) {
                 const { resolve } = unconsumedPromises.shift()!;
                 resolve({ value: args, done: false });
@@ -741,7 +743,7 @@ export class EventEmitter {
         'eventNames',
     ];
     for (const m of methods) {
-        const fn = (EventEmitter.prototype as any)[m];
+        const fn = (EventEmitter.prototype as Record<keyof EventEmitter, unknown>)[m];
         if (typeof fn === 'function') {
             Object.defineProperty(EventEmitter.prototype, m, {
                 enumerable: true,

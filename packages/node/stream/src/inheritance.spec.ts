@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec tests CJS/util.inherits patterns that require dynamic `this: any` function constructors
 // Stream and util.inherits inheritance tests.
 //
 // Ported from:

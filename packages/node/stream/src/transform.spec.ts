@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec exercises Transform with objectMode mixed types, error catching (`catch (e: any)`), and dynamic property access
 // Transform stream test suite.
 //
 // Ported from:

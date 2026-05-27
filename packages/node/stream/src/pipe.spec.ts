@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec tests legacy Stream.call/pipe patterns that require dynamic `(Stream as any).call()` idioms
 // pipe() test suite.
 //
 // Ported from:

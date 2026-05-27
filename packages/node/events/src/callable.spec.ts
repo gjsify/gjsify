@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec tests CJS/util.inherits/makeCallable patterns that require dynamic `this: any` function constructors and `(EventEmitter as any).call()` idioms
 // Legacy `.call(this)` + `util.inherits(Sub, EventEmitter)` compatibility tests.
 //
 // Regression coverage for the `makeCallable` Proxy wrapper in @gjsify/utils:
