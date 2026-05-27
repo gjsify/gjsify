@@ -57,6 +57,7 @@ interface PublishOptions {
     path?: string;
     tag?: string;
     access?: string;
+    otp?: string;
     'tolerate-republish'?: boolean;
     'tolerate-untrusted-new'?: boolean;
     provenance?: boolean;
@@ -79,6 +80,10 @@ export const publishCommand: Command<any, PublishOptions> = {
             })
             .option('access', {
                 description: 'Package access — `public` or `restricted` (required for first publish of scoped packages on the public registry).',
+                type: 'string',
+            })
+            .option('otp', {
+                description: 'npm 2FA one-time code; sent as the `npm-otp` header. Required for manual publishes from a 2FA-enabled account.',
                 type: 'string',
             })
             .option('tolerate-republish', {
@@ -125,6 +130,7 @@ export const publishCommand: Command<any, PublishOptions> = {
         const wsDir = resolve(args.path ?? process.cwd());
         const tag = args.tag ?? 'latest';
         const access = args.access;
+        const otp = args.otp;
         const tolerate = args['tolerate-republish'] === true;
         const tolerateUntrustedNew = args['tolerate-untrusted-new'] === true;
         const provenance = args.provenance === true;
@@ -272,6 +278,10 @@ export const publishCommand: Command<any, PublishOptions> = {
         const headers = buildHeaders(url, { npmrc });
         headers['content-type'] = 'application/json';
         headers['accept'] = '*/*';
+        // 2FA OTP — sent as the `npm-otp` header (npm-registry-fetch convention,
+        // verified in refs/npm-cli/node_modules/npm-registry-fetch/lib/index.js
+        // line ~243: `if (opts.otp) headers['npm-otp'] = opts.otp`).
+        if (otp) headers['npm-otp'] = otp;
 
         // Trusted Publishing path. `--trusted` forces OIDC (errors if env
         // vars are missing); the default `undefined` triggers auto-detect:
@@ -340,14 +350,61 @@ export const publishCommand: Command<any, PublishOptions> = {
             console.error(`gjsify publish: PUT ${url} (${packed.name}@${packed.version})`);
             console.error(`  auth-mode:     ${authMode}`);
             console.error(`  authorization: ${headers['authorization'] ? '(set)' : '(none)'}`);
+            console.error(`  otp:           ${headers['npm-otp'] ? '(set)' : '(none)'}`);
             console.error(`  payload size:  ${JSON.stringify(payload).length} bytes`);
         }
 
-        const res = await fetch(url, {
-            method: 'PUT',
-            headers,
-            body: JSON.stringify(payload),
-        });
+        const bodyStr = JSON.stringify(payload);
+
+        // Helper that PUTs with a given header set and returns the response.
+        async function doPut(reqHeaders: Record<string, string>): Promise<Response> {
+            return fetch(url, {
+                method: 'PUT',
+                headers: reqHeaders,
+                body: bodyStr,
+            });
+        }
+
+        let res = await doPut(headers);
+
+        // EOTP handling — mirrors npm's otplease.js (refs/npm-cli/lib/utils/auth.js).
+        // npm signals "OTP required" via:
+        //   - HTTP 401 + `www-authenticate` header containing "otp"
+        //     (refs/npm-cli/node_modules/npm-registry-fetch/lib/check-response.js
+        //     line ~83: `auth.indexOf('otp') !== -1` → HttpErrorAuthOTP)
+        //   - HTTP 401 + body containing "one-time pass" (heuristic for
+        //     malformed responses missing the www-authenticate header —
+        //     same check-response.js lines ~92-98)
+        // We check both shapes, exactly matching npm's logic.
+        // If the caller already supplied --otp we skip this (they set the
+        // header; if the registry still 401s that is a wrong-code error).
+        if (!otp && res.status === 401) {
+            const wwwAuth = res.headers.get('www-authenticate') ?? '';
+            const body401 = await res.text().catch(() => '');
+            const needsOtp =
+                wwwAuth.toLowerCase().split(/,\s*/).includes('otp') ||
+                /one-time pass/i.test(body401);
+            if (needsOtp) {
+                // Interactive path: if stdin is a TTY, prompt and retry once.
+                if (process.stdin.isTTY && process.stdout.isTTY) {
+                    process.stdout.write('This operation requires a one-time password.\nEnter OTP: ');
+                    const enteredOtp = await readLineFromStdin();
+                    if (enteredOtp) {
+                        const retryHeaders = { ...headers, 'npm-otp': enteredOtp };
+                        res = await doPut(retryHeaders);
+                    } else {
+                        console.error(`gjsify publish: no OTP entered — re-run with \`--otp <code>\``);
+                        process.exit(1);
+                    }
+                } else {
+                    // Non-interactive: give the maintainer a clear, actionable message.
+                    console.error(
+                        `gjsify publish: npm requires a 2FA one-time code — re-run with \`--otp <code>\``,
+                    );
+                    process.exit(1);
+                }
+            }
+        }
 
         if (res.ok) {
             const out = {
@@ -515,6 +572,46 @@ function base64Encode(bytes: Uint8Array): string {
         str += String.fromCharCode(...bytes.subarray(i, i + chunk));
     }
     return btoa(str);
+}
+
+/**
+ * Read a single line from stdin (blocking via async iterator). Used for the
+ * interactive OTP prompt path (mirrors npm's `read.otp()`). Resolves with the
+ * trimmed line or an empty string if stdin closed without input.
+ */
+async function readLineFromStdin(): Promise<string> {
+    return new Promise((resolve) => {
+        let buf = '';
+        const onData = (chunk: Buffer | string) => {
+            buf += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
+            const nl = buf.indexOf('\n');
+            if (nl >= 0) {
+                cleanup();
+                resolve(buf.slice(0, nl).trim());
+            }
+        };
+        const onEnd = () => {
+            cleanup();
+            resolve(buf.trim());
+        };
+        const onError = () => {
+            cleanup();
+            resolve('');
+        };
+        const cleanup = () => {
+            process.stdin.removeListener('data', onData);
+            process.stdin.removeListener('end', onEnd);
+            process.stdin.removeListener('error', onError);
+            if (typeof (process.stdin as NodeJS.ReadStream & { unref?: () => void }).unref === 'function') {
+                (process.stdin as NodeJS.ReadStream & { unref?: () => void }).unref?.();
+            }
+        };
+        process.stdin.setEncoding('utf-8');
+        if (process.stdin.isPaused()) process.stdin.resume();
+        process.stdin.once('data', onData);
+        process.stdin.once('end', onEnd);
+        process.stdin.once('error', onError);
+    });
 }
 
 function handleOidcFailure(err: unknown, packageName: string, asJson: boolean): void {
