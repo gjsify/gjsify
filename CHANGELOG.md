@@ -1,5 +1,80 @@
 # Changelog
 
+## [Unreleased] — feat/bundler-define-loaders (targeted 0.5.0, additive/backward-compatible)
+
+### Features
+
+* **cli:** top-level `bundler.define` auto-mapped to `transform.define` with a build-time warning ([pixelrpg/map-editor#56–#58](https://github.com/PixelRPG/map-editor/pull/58))
+* **rolldown-plugin-gjsify:** `loaders` now accepts `'dataurl'` in addition to `'text'`; MIME inferred from extension
+
+### Migration guide — esbuild → bundler
+
+#### `define` tokens
+
+**Before (esbuild):**
+```jsonc
+{
+  "gjsify": {
+    "esbuild": {
+      "define": { "__APPLICATION_ID__": "\"org.example.App\"" }
+    }
+  }
+}
+```
+
+**Flat rename — now accepted with a warning (auto-mapped):**
+```jsonc
+{
+  "gjsify": {
+    "bundler": {
+      "define": { "__APPLICATION_ID__": "\"org.example.App\"" }
+    }
+  }
+}
+```
+> `[gjsify] WARNING: 'bundler.define' is not a valid Rolldown option and would be silently ignored — it has been auto-mapped to 'bundler.transform.define'. Move 'define' under 'bundler.transform.define' in your config to suppress this warning…`
+
+**Canonical form (no warning):**
+```jsonc
+{
+  "gjsify": {
+    "bundler": {
+      "transform": {
+        "define": { "__APPLICATION_ID__": "\"org.example.App\"" }
+      }
+    }
+  }
+}
+```
+
+#### `loader` / asset loaders
+
+**Before (esbuild):**
+```jsonc
+{
+  "gjsify": {
+    "esbuild": {
+      "loader": { ".png": "dataurl", ".glsl": "text" }
+    }
+  }
+}
+```
+
+**After (top-level `loaders`):**
+```jsonc
+{
+  "gjsify": {
+    "loaders": { ".png": "dataurl", ".glsl": "text" }
+  }
+}
+```
+
+`'dataurl'` emits `export default "data:<mime>;base64,<b64>"`.  MIME is inferred from the extension:
+`.png` → `image/png`, `.jpg`/`.jpeg` → `image/jpeg`, `.gif` → `image/gif`,
+`.svg` → `image/svg+xml`, `.webp` → `image/webp`, `.wasm` → `application/wasm`,
+fallback: `application/octet-stream`.
+
+`'text'` emits `export default "<file-contents>"` (unchanged from before).
 ## [0.4.28](https://github.com/gjsify/gjsify/compare/v0.4.27...v0.4.28) (2026-05-27)
 
 ### Features

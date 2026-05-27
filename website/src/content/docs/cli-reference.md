@@ -72,6 +72,50 @@ gjsify build src/cli.entry.ts --app node --outfile dist/cli.mjs \
 
 `--external` is the right answer on Node. On GJS, `gjsify run` does not yet have a node_modules-style runtime resolver, so externalised packages fail with `ImportError: Module not found`. Bundling them is the only option on GJS today; the alternative is upstream switching to a `--define`-injected version constant.
 
+### `package.json#gjsify` config reference
+
+The `gjsify` field in `package.json` (or `.gjsifyrc.js` / `gjsify.config.mjs`) controls bundler behaviour declaratively.
+
+#### `bundler` — Rolldown options pass-through
+
+`bundler` is a `RolldownOptions` subset. The orchestrator applies platform-specific defaults on top.
+
+> **`define` placement:** `define` belongs under `bundler.transform.define`, **not** at the top level of `bundler`. If you write `bundler.define` (a common mistake when flat-renaming the old `esbuild` key), gjsify auto-maps it to `bundler.transform.define` and emits a build-time warning. To suppress the warning, move it:
+>
+> ```jsonc
+> // ❌ silently wrong without the alias — now warned + auto-fixed
+> { "gjsify": { "bundler": { "define": { "__APP_ID__": "\"org.example.App\"" } } } }
+>
+> // ✓ canonical
+> { "gjsify": { "bundler": { "transform": { "define": { "__APP_ID__": "\"org.example.App\"" } } } } }
+> ```
+
+#### `loaders` — custom extension → loader kind
+
+Map of file extension (with leading `.`) to a loader kind. Rolldown does not classify unknown extensions natively; without a loader it tries to parse them as JS and fails.
+
+```jsonc
+{
+  "gjsify": {
+    "loaders": {
+      ".glsl": "text",
+      ".ui":   "text",
+      ".asm":  "text",
+      ".png":  "dataurl"
+    }
+  }
+}
+```
+
+| Kind | Output | Use case |
+|---|---|---|
+| `'text'` | `export default "<file contents>"` | GLSL shaders, GtkBuilder `.ui` XML, assembly source, etc. |
+| `'dataurl'` | `export default "data:<mime>;base64,<b64>"` | Images for Excalibur `ImageSource`, any API that accepts a data: URL string |
+
+MIME inference for `'dataurl'`: `.png` → `image/png`, `.jpg`/`.jpeg` → `image/jpeg`, `.gif` → `image/gif`, `.svg` → `image/svg+xml`, `.webp` → `image/webp`, `.wasm` → `application/wasm`, all others → `application/octet-stream`.
+
+Replaces the legacy `esbuild.loader` option — migration: `esbuild: { loader: { '.png': 'dataurl', '.glsl': 'text' } }` → `loaders: { '.png': 'dataurl', '.glsl': 'text' }`.
+
 ### Globals
 
 The default `--globals auto` detects which globals your code needs from the bundled output. No configuration needed for most projects.
