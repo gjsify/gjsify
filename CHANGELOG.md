@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.29](https://github.com/gjsify/gjsify/compare/v0.4.28...v0.4.29) (2026-05-27)
+
+### Features
+
+* **bundler:** top-level define alias+warning + dataurl/text loaders ([#322](https://github.com/gjsify/gjsify/issues/322)) ([213ab57](https://github.com/gjsify/gjsify/commit/213ab57f033f2ebc150ed1e364d7f0e04dce8fcc)), closes [#58](https://github.com/gjsify/gjsify/issues/58)
+* **tooling:** migrate Biome → oxc (oxlint + oxfmt) + GObject.registerClass rule ([#328](https://github.com/gjsify/gjsify/issues/328)) ([331e26c](https://github.com/gjsify/gjsify/commit/331e26c617852cf88682c069155c65ec18fbbad4)), closes [GNOME/gjs#704](https://github.com/GNOME/gjs/issues/704)
+
+### Bug Fixes
+
+* **dom-elements:** wire clientWidth/clientHeight to GTK allocation ([#327](https://github.com/gjsify/gjsify/issues/327)) ([fbc90aa](https://github.com/gjsify/gjsify/commit/fbc90aa86bad65a7ada0ce4f5facb69b9d754d5d))
+* **dom-elements:** wire offsetWidth/Height + scrollWidth/Height too ([#329](https://github.com/gjsify/gjsify/issues/329)) ([b1abe38](https://github.com/gjsify/gjsify/commit/b1abe38d0e67d5f3e0e2ec2f9da2668f82e7f926))
+* **webgl:** per-ID matching for cancelAnimationFrame on WebGLBridge ([#330](https://github.com/gjsify/gjsify/issues/330)) ([2f4f9e0](https://github.com/gjsify/gjsify/commit/2f4f9e06a3ccf277e0671649b1c5a460c598ae99))
+
+### Maintenance
+
+* drop stale [Unreleased] changelog section ([995e3d5](https://github.com/gjsify/gjsify/commit/995e3d53a64b5a861767c2e71c1d812026994ebd))
+* **lint:** the last 6 no-unused-vars warnings ([c20c166](https://github.com/gjsify/gjsify/commit/c20c16658c6a5d11ad58b65c6801f79f6069a9ec)), closes [#331](https://github.com/gjsify/gjsify/issues/331) [#331](https://github.com/gjsify/gjsify/issues/331) [#331](https://github.com/gjsify/gjsify/issues/331)
+* **oxlint:** ignore build artifacts + standard `_`-prefix unused-vars ([#332](https://github.com/gjsify/gjsify/issues/332)) ([d7f3f0d](https://github.com/gjsify/gjsify/commit/d7f3f0d11608d7e824010ee14a829e2cf70945b1))
+* triage oxlint warnings (clean unused-vars/type-imports; trim easy any) ([#331](https://github.com/gjsify/gjsify/issues/331)) ([18c676a](https://github.com/gjsify/gjsify/commit/18c676afc7d801503d840a8825c1f61328a57bf9))
+
 ## [0.4.28](https://github.com/gjsify/gjsify/compare/v0.4.27...v0.4.28) (2026-05-27)
 
 ### Features
