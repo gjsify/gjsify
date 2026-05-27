@@ -98,7 +98,7 @@ export const testCommand: Command<unknown, TestOptions> = {
 
             // Build stage (skip if --no-build OR (not --rebuild AND outfile fresher than src)).
             if (args.build !== false) {
-                const needsBuild = args.rebuild || !isFresh(outfile, entry, cwd);
+                const needsBuild = args.rebuild || !isFresh(outfile, entry);
                 if (needsBuild) {
                     const buildStart = Date.now();
                     if (args.verbose) {
@@ -210,7 +210,7 @@ async function runTestBundle(outfile: string, runtime: Runtime): Promise<void> {
 }
 
 /** True when `outfile` exists and is newer than every `.ts`/`.mts` file under the entry's directory tree. */
-function isFresh(outfile: string, entry: string, cwd: string): boolean {
+function isFresh(outfile: string, entry: string): boolean {
     if (!existsSync(outfile)) return false;
     const outMtime = statSync(outfile).mtimeMs;
     const srcRoot = dirname(entry);
@@ -223,7 +223,6 @@ function isFresh(outfile: string, entry: string, cwd: string): boolean {
         // On any FS error, force rebuild to stay safe.
         return false;
     }
-    void cwd;
 }
 
 function newestMtimeUnder(path: string): number {

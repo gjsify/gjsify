@@ -71,7 +71,7 @@ export function keyExpansion(key: Uint8Array): Uint8Array[] {
   const nr = nk + 6; // 10, 12, or 14 rounds
   const nw = 4 * (nr + 1); // total 32-bit words
 
-  const w = new Array<Uint8Array>(nw);
+  const w = Array.from<Uint8Array>({ length: nw });
   for (let i = 0; i < nk; i++) {
     w[i] = new Uint8Array([key[4*i], key[4*i+1], key[4*i+2], key[4*i+3]]);
   }

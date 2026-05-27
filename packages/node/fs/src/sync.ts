@@ -246,7 +246,7 @@ export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions 
   }
 
   if (recursive) {
-    return mkdirSyncRecursive(path, mode as number);
+    return mkdirSyncRecursive(path);
   }
 
   // Non-recursive: create a single directory
@@ -263,7 +263,12 @@ export function mkdirSync(path: PathLike, options?: Mode | MakeDirectoryOptions 
  * Recursively creates directories, similar to `mkdir -p`.
  * Returns the first directory path created, or undefined if all directories already existed.
  */
-function mkdirSyncRecursive(pathStr: string, mode: number): string | undefined {
+// NOTE: `mode` is intentionally not threaded here — Gio's `make_directory` does
+// not take a mode and the existing implementation never applied one (the
+// non-recursive path ignores `mode` too). Honoring `mode` for recursive mkdir
+// is a separate behavior change (would need a post-create chmod). Tracked for
+// follow-up; current behavior preserved.
+function mkdirSyncRecursive(pathStr: string): string | undefined {
   const file = Gio.File.new_for_path(pathStr);
 
   // Try to create the directory directly
@@ -285,7 +290,7 @@ function mkdirSyncRecursive(pathStr: string, mode: number): string | undefined {
         // Reached root, cannot go further
         throw createNodeError(err, 'mkdir', pathStr);
       }
-      const firstCreated = mkdirSyncRecursive(resolvedParent, mode);
+      const firstCreated = mkdirSyncRecursive(resolvedParent);
       // Now create this directory
       const retryFile = Gio.File.new_for_path(pathStr);
       try {

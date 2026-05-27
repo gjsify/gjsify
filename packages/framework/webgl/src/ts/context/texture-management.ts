@@ -295,7 +295,7 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
             height = typeOrHeight;
             border = sourceOrBorder as GLint;
             format = _format;
-            type = type;
+            // `type` is already the 8th positional parameter in the 9-arg form — no remap needed.
             pixels = pixels as ArrayBufferView | null;
         }
 

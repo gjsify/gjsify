@@ -51,7 +51,7 @@ export class WebGLVertexArrayObjectState {
     _elementArrayBufferBinding: WebGLBuffer | null = null;
     constructor(ctx: WebGLContextBase) {
         const numAttribs = ctx.getParameter(ctx.MAX_VERTEX_ATTRIBS) as number;
-        this._attribs = new Array(numAttribs)
+        this._attribs = Array.from({ length: numAttribs })
         for (let i = 0; i < numAttribs; ++i) {
             this._attribs[i] = new WebGLVertexArrayObjectAttribute(ctx, i)
         }
@@ -143,7 +143,7 @@ export class WebGLVertexArrayGlobalState {
     _attribs: WebGLVertexArrayGlobalAttribute[];
     constructor(ctx: WebGLContextBase) {
         const numAttribs = ctx.getParameter(ctx.MAX_VERTEX_ATTRIBS) as number;
-        this._attribs = new Array(numAttribs)
+        this._attribs = Array.from({ length: numAttribs })
         for (let i = 0; i < numAttribs; ++i) {
             this._attribs[i] = new WebGLVertexArrayGlobalAttribute(i)
         }

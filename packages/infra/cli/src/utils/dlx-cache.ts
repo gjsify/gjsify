@@ -100,12 +100,8 @@ export function symlinkSwap(cacheDir: string, prepareDir: string): string {
     const tmpName = `pkg.tmp-${Date.now().toString(16)}-${process.pid.toString(16)}`;
     const tmpLink = join(cacheDir, tmpName);
 
-    try {
-        symlinkSync(prepareDir, tmpLink, 'dir');
-    } catch (err) {
-        // If we cannot even create the tmp link, give up.
-        throw err;
-    }
+    // If we cannot even create the tmp link, give up (the error propagates).
+    symlinkSync(prepareDir, tmpLink, 'dir');
 
     try {
         renameSync(tmpLink, linkPath);

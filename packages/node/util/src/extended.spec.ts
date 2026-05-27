@@ -281,6 +281,7 @@ export default async () => {
 
     await it('isPromise should detect Promise', async () => {
       expect(util.types.isPromise(Promise.resolve())).toBe(true);
+      // oxlint-disable-next-line no-thenable -- intentional: asserts a plain thenable is NOT a real Promise
       expect(util.types.isPromise({ then() {} })).toBe(false);
     });
 

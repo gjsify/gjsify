@@ -24,6 +24,7 @@ declare module 'gi://GjsifyLightningcss?version=1.0' {
      */
     class Engine extends GObject.Object {
       constructor(properties?: Partial<GObject.Object.ConstructorProperties>);
+      // oxlint-disable-next-line no-misused-new -- GObject `*_new()` static factory convention (matches @girs/* typings)
       static new(): Engine;
 
       /**

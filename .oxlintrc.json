@@ -8,6 +8,10 @@
         "typescript/consistent-type-imports": "warn",
         "typescript/no-explicit-any": "warn",
         "typescript/no-non-null-assertion": "off",
+        "typescript/no-this-alias": [
+            "error",
+            { "allowedNames": ["self", "el", "blob", "readable", "root", "node", "receivedThis"] }
+        ],
         "unicorn/prefer-node-protocol": "error",
         "eslint/no-unused-vars": "warn",
         "gjsify/register-class-order": "error"

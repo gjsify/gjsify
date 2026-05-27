@@ -135,7 +135,7 @@ async function main(): Promise<void> {
 
   // Collect per-worker timings (purely for the report — barrier is the real
   // completion signal).
-  const timings = new Array<number>(WORKER_COUNT).fill(0);
+  const timings = Array.from<number>({ length: WORKER_COUNT }).fill(0);
   workers.forEach((w, i) => w.once('message', (msg: { slot: number; ms: number }) => {
     timings[msg.slot ?? i] = msg.ms;
   }));

@@ -121,7 +121,8 @@ export class Http2ServerResponse extends Writable {
         if (existing === undefined) {
             this._headers.set(lower, value);
         } else if (Array.isArray(existing)) {
-            Array.isArray(value) ? existing.push(...value) : existing.push(value);
+            if (Array.isArray(value)) existing.push(...value);
+            else existing.push(value);
         } else {
             this._headers.set(lower, Array.isArray(value) ? [existing as string, ...value] : [existing as string, value]);
         }

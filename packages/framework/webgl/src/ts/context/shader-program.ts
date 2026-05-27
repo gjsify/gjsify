@@ -1022,7 +1022,7 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
 
         // Record attribute attributeLocations
         const numAttribs = this.getProgramParameter(program, this.ACTIVE_ATTRIBUTES) as number;
-        const names: string[] = new Array(numAttribs);
+        const names: string[] = Array.from({ length: numAttribs });
         program._attributes.length = numAttribs;
         for (let i = 0; i < numAttribs; ++i) {
             names[i] = this.getActiveAttrib(program, i)?.name;

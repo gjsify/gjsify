@@ -6,7 +6,7 @@ import type { ParsedUrlQuery } from 'node:querystring';
 import { Buffer } from "node:buffer";
 import { NodeURIError } from "./error.js";
 
-const hexTable = new Array(256);
+const hexTable = Array.from<string>({ length: 256 });
 for (let i = 0; i < 256; ++i) {
   hexTable[i] = "%" + ((i < 16 ? "0" : "") + i.toString(16)).toUpperCase();
 }
@@ -142,7 +142,7 @@ const isHexTable = new Int8Array([
 ]);
 
 function charCodes(str: string): number[] {
-  const ret = new Array(str.length);
+  const ret = Array.from<number>({ length: str.length });
   for (let i = 0; i < str.length; ++i) {
     ret[i] = str.charCodeAt(i);
   }

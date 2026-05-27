@@ -112,6 +112,7 @@ export class Bouncepad extends ex.Actor {
     topRightPoint.y += this.COMPRESS_DISTANCE
 
     // forces the collider to update
+    // oxlint-disable-next-line no-self-assign -- re-assigning triggers Excalibur's points setter to recompute the collider
     this.colliderShape.points = this.colliderShape.points
 
     for (const actor of this.touching.top) {
@@ -134,6 +135,7 @@ export class Bouncepad extends ex.Actor {
     topRightPoint.y -= this.COMPRESS_DISTANCE
 
     // forces the collider to update
+    // oxlint-disable-next-line no-self-assign -- re-assigning triggers Excalibur's points setter to recompute the collider
     this.colliderShape.points = this.colliderShape.points
 
     for (const actor of this.touching.top) {

@@ -70,6 +70,7 @@ export class Environment {
       if (this.pendingException) {
         let e = this.pendingException;
         this.pendingException = null;
+        // oxlint-disable-next-line no-unsafe-finally -- intentional: a pending NAPI exception must override the try result
         throw e;
       }
     }
@@ -269,6 +270,7 @@ export class Environment {
         if (env.pendingException) {
           let e = env.pendingException;
           env.pendingException = null;
+          // oxlint-disable-next-line no-unsafe-finally -- intentional: a pending NAPI exception must override the try result
           throw e;
         }
       }
@@ -735,7 +737,7 @@ export const napi = {
   },
   napi_create_array_with_length(env_id, length, result) {
     let env = environments[env_id];
-    return env.createValue(new Array(length), result);
+    return env.createValue(Array.from({ length }), result);
   },
   napi_set_element(env_id, object, index, value) {
     let env = environments[env_id];
@@ -792,7 +794,7 @@ export const napi = {
     let env = environments[env_id];
     let thisArg = env.get(recv);
     let fn = env.get(func);
-    let args = new Array(argc);
+    let args = Array.from({ length: argc });
     let mem = env.u32;
     for (let i = 0; i < argc; i++) {
       args[i] = env.get(mem[argv >> 2]);
@@ -810,7 +812,7 @@ export const napi = {
   napi_new_instance(env_id, cons, argc, argv, result) {
     let env = environments[env_id];
     let Class = env.get(cons);
-    let args = new Array(argc);
+    let args = Array.from({ length: argc });
     let mem = env.u32;
     for (let i = 0; i < argc; i++) {
       args[i] = env.get(mem[argv >> 2]);

@@ -427,7 +427,7 @@ export class Deserializer {
       case kBeginDenseArray: {
         const [len, p] = readVarint(this.buffer, this._pos);
         this._pos = p;
-        const arr: unknown[] = new Array(len);
+        const arr: unknown[] = Array.from({ length: len });
         this._seen.push(arr);
         for (let i = 0; i < len; i++) arr[i] = this.readValue();
         // read kEndDenseArray tag

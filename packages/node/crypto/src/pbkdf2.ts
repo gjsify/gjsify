@@ -87,12 +87,9 @@ export function pbkdf2(
   digest: string,
   callback: (err: Error | null, derivedKey?: Buffer) => void
 ): void {
-  try {
-    validateParameters(iterations, keylen);
-  } catch (err) {
-    // Match Node.js behavior: validation errors are thrown synchronously
-    throw err;
-  }
+  // Match Node.js behavior: validation errors are thrown synchronously
+  // (before the async compute below).
+  validateParameters(iterations, keylen);
 
   // Run in next tick to be truly async
   setTimeout(() => {

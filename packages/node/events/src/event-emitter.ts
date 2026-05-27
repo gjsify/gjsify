@@ -729,7 +729,7 @@ export class EventEmitter {
 }
 
 function unwrapListeners(arr: EventListener[]): EventListener[] {
-  const ret = new Array(arr.length);
+  const ret = Array.from<EventListener>({ length: arr.length });
   for (let i = 0; i < ret.length; ++i) {
     ret[i] = (arr[i] as WrappedEventListener).listener ?? arr[i];
   }

@@ -117,6 +117,7 @@ function inspectArray(arr: unknown[], opts: InspectOptions, depth: number): stri
     const indent = '  ';
     const indentLen = indent.length;
     // Calculate max item length (strip ANSI for measurement)
+    // oxlint-disable-next-line no-control-regex -- ESC (\x1b) is the ANSI SGR introducer we intentionally strip
     const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, '');
     const maxItemLen = Math.max(...items.map(item => stripAnsi(item).length));
     const biasedMax = Math.max(maxItemLen - 2, 1);

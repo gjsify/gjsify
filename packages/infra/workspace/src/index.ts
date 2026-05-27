@@ -309,7 +309,7 @@ export function filterWorkspaces(
         if (include && include.length > 0 && !include.some((re) => re.test(ws.name))) {
             return false;
         }
-        if (exclude && exclude.length > 0 && exclude.some((re) => re.test(ws.name))) {
+        if (exclude && exclude.some((re) => re.test(ws.name))) {
             return false;
         }
         return true;

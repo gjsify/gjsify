@@ -354,6 +354,7 @@ export class Element extends Node {
 		const set = this._resizeSubscribers;
 		if (!set || set.size === 0) return;
 		// Snapshot in case a subscriber synchronously disconnects mid-dispatch.
+		// oxlint-disable-next-line no-useless-spread -- the spread is the snapshot; iterating `set` directly would be mutation-unsafe
 		for (const cb of [...set]) {
 			try {
 				cb(width, height);

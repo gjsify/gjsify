@@ -54,7 +54,7 @@ export default async () => {
         const barrierSab = new SAB!(WORKER_COUNT * 4);
         const barrier = new Int32Array(barrierSab);
 
-        const partialHashes = new Array<Buffer>(WORKER_COUNT);
+        const partialHashes = Array.from<Buffer>({ length: WORKER_COUNT });
         const slice = SAB_BYTES / WORKER_COUNT;
 
         const workerCode = `

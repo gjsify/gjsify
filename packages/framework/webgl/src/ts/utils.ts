@@ -56,6 +56,7 @@ export function isTypedArray(data: TypedArray) {
 export function isValidString(str: string) {
     // Remove comments first
     const c = str.replace(/(?:\/\*(?:[\s\S]*?)\*\/)|(?:([\s;])+\/\/(?:.*)$)/gm, '')
+    // oxlint-disable-next-line no-control-regex -- NUL (\0) is a forbidden GLSL identifier char we deliberately reject
     return !(/["$`@\\'\0]/.test(c))
 }
 

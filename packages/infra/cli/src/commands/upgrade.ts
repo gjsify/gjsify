@@ -23,7 +23,6 @@ import {
     fetchPackument,
     parseNpmrc,
     type NpmrcConfig,
-    type Packument,
 } from "@gjsify/npm-registry";
 import type { Command } from "../types/index.js";
 
@@ -276,7 +275,6 @@ async function resolveCandidates(
                 if (verbose) console.warn(`  ${entry.name}: fetch failed (${(err as Error).message})`);
             }
         }
-        void packumentToString;
     }
     await Promise.all(Array.from({ length: cap }, () => worker()));
     results.sort((a, b) => a.name.localeCompare(b.name));
@@ -463,8 +461,4 @@ async function loadNpmrcLight(cwd: string): Promise<NpmrcConfig> {
         parsed.registry = process.env.npm_config_registry;
     }
     return parsed;
-}
-
-function packumentToString(p: Packument): string {
-    return `${p.name}@${p["dist-tags"]?.latest ?? "?"}`;
 }

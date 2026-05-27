@@ -160,6 +160,22 @@ export class StatementSync {
                 }
             }
 
+            // Reject keys in `namedArgs` that don't map to any known SQL parameter,
+            // unless explicitly allowed (matches Node's allowUnknownNamedParameters).
+            if (!this.#allowUnknownNamedParameters) {
+                const knownNames = new Set<string>();
+                for (const param of this.#paramMap) {
+                    if (param.position >= 0) continue;
+                    knownNames.add(param.originalName);
+                    knownNames.add(param.originalName.replace(/^[$:@]/, ''));
+                }
+                for (const key of Object.keys(namedArgs)) {
+                    if (!knownNames.has(key) && !knownNames.has(key.replace(/^[$:@]/, ''))) {
+                        throw new SqliteError(`Unknown named parameter '${key}'`, 0, `Unknown named parameter '${key}'`);
+                    }
+                }
+            }
+
             // Handle positional after named
             const positionalParams = this.#paramMap.filter(p => p.position >= 0);
             for (let i = 0; i < positionalArgs.length; i++) {

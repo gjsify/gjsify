@@ -53,6 +53,7 @@ interface RequestLike {
 };
 
 // @ts-expect-error — declaration merging with globalThis.Request for Fetch API compatibility
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: merge globalThis.Request into our Request class
 export interface Request extends globalThis.Request {}
 
 /** This Fetch API interface represents a resource request. */

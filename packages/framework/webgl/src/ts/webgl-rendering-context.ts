@@ -12,6 +12,7 @@ import type { WebGLConstants } from './types/index.js';
 // Re-export everything from the base so existing imports from this module still work
 export { WebGLContextBase } from './webgl-context-base.js';
 
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: merges the GL enum constants into the class
 export interface WebGLRenderingContext extends WebGLConstants { }
 
 export class WebGLRenderingContext extends WebGLContextBase implements WebGLRenderingContext {

@@ -93,7 +93,6 @@ export default class Demo extends ex.Scene {
           // .moveBy(200, -50, 500)
         )
     )
-    200
     this.add(platform)
 
     this.camera.strategy.lockToActor(player as any)

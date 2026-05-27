@@ -79,6 +79,7 @@ const availableExtensions: Record<string, ExtensionFactory> = {
  */
 type WebGLExtensionLike = Record<string, unknown>;
 
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: merges the GL enum constants into the class
 export interface WebGLContextBase extends WebGLConstants { }
 
 export abstract class WebGLContextBase {
@@ -218,7 +219,7 @@ export abstract class WebGLContextBase {
 
         // Initialize texture units
         const numTextures = this.getParameter(this.MAX_COMBINED_TEXTURE_IMAGE_UNITS) as number;
-        this._textureUnits = new Array(numTextures);
+        this._textureUnits = Array.from({ length: numTextures });
         for (let i = 0; i < numTextures; ++i) {
             this._textureUnits[i] = new WebGLTextureUnit(this, i);
         }

@@ -80,7 +80,7 @@ function blockMix(B: Uint32Array, r: number): void {
 
 function roMix(B: Uint32Array, N: number, r: number): void {
   const blockWords = 2 * r * 16;
-  const V = new Array<Uint32Array>(N);
+  const V = Array.from<Uint32Array>({ length: N });
 
   for (let i = 0; i < N; i++) {
     V[i] = new Uint32Array(B);

@@ -113,15 +113,15 @@ const indexLines = [
 writeFileSync(join(OUT_DIR, 'index.ts'), indexLines.join('\n'));
 
 // Check for duplicate export names across categories
-const seen = new Map<string, string>();
+const seenNames = new Map<string, string>();
 let dupes = 0;
 for (const [category, exports] of allExports) {
     for (const name of exports) {
-        if (seen.has(name)) {
-            console.warn(`  ⚠ Duplicate export "${name}" in ${category} (first in ${seen.get(name)})`);
+        if (seenNames.has(name)) {
+            console.warn(`  ⚠ Duplicate export "${name}" in ${category} (first in ${seenNames.get(name)})`);
             dupes++;
         } else {
-            seen.set(name, category);
+            seenNames.set(name, category);
         }
     }
 }

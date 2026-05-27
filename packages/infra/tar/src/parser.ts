@@ -88,10 +88,12 @@ export function parseTar(buf: Uint8Array): TarEntry[] {
             continue;
         }
         if (typeflag === "L") {
+            // oxlint-disable-next-line no-control-regex -- tar pads fields with NUL (\0); trim the padding
             pendingLongName = bytesToString(body).replace(/\0+$/, "");
             continue;
         }
         if (typeflag === "K") {
+            // oxlint-disable-next-line no-control-regex -- tar pads fields with NUL (\0); trim the padding
             pendingLongLink = bytesToString(body).replace(/\0+$/, "");
             continue;
         }

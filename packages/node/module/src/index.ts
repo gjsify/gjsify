@@ -389,6 +389,7 @@ function requireJsFile(filePath: string, cache: Record<string, unknown>): unknow
     // Evaluate the file via GJS imports system
     const { searchPath } = imports;
     searchPath.unshift(dir);
+    // oxlint-disable-next-line no-unused-expressions -- GJS: indexing `imports[name]` triggers the module load (side effect)
     imports[basename.replace(/\.(js|cjs)$/, '')];
     searchPath.shift();
 
