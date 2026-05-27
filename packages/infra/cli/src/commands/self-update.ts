@@ -110,11 +110,28 @@ export const selfUpdateCommand: Command<any, SelfUpdateOptions> = {
         }
 
         console.log(`Installing ${PACKAGE_NAME}@${target} ...`);
-        await installPackages({
-            prefix: layout.prefix,
-            specs: [`${PACKAGE_NAME}@${target}`],
-            verbose: false,
-        });
+        // `@gjsify/cli` is a self-contained GJS bundle: every workspace dep
+        // (`@gjsify/node-polyfills`, `@gjsify/v8`, …) is bundled into the
+        // published `dist/cli.gjs.mjs` artifact and must NOT be resolved as
+        // a separate npm package. `skipDeps: true` limits the native install
+        // backend to fetching the top-level tarball only, avoiding spurious
+        // packument requests for workspace-internal packages that are not
+        // published to the public registry (which previously caused a
+        // 406 Not Acceptable → fatal crash on the `@gjsify/v8` packument).
+        try {
+            await installPackages({
+                prefix: layout.prefix,
+                specs: [`${PACKAGE_NAME}@${target}`],
+                verbose: false,
+                skipDeps: true,
+            });
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(`self-update: install failed — ${msg}`);
+            console.error(`Re-run \`gjsify self-update\` to retry.`);
+            process.exit(1);
+            return;
+        }
         const linked = linkGlobalBins([PACKAGE_NAME], layout);
         if (linked.length === 0) {
             console.warn(
@@ -136,6 +153,22 @@ export const selfUpdateCommand: Command<any, SelfUpdateOptions> = {
  */
 function readCurrentVersion(): string | null {
     try {
+        // Escape hatch for tests: point GJSIFY_CLI_PACKAGE_JSON at a synthetic
+        // package.json to override the upward-walk discovery.  When set to a
+        // file whose `name` does not equal PACKAGE_NAME the function returns
+        // null, which is the correct production behaviour for "version unknown".
+        const override = process.env.GJSIFY_CLI_PACKAGE_JSON;
+        if (override) {
+            const pkg = JSON.parse(readFileSync(override, 'utf-8')) as {
+                name?: string;
+                version?: string;
+            };
+            if (pkg.name === PACKAGE_NAME && typeof pkg.version === 'string') {
+                return pkg.version;
+            }
+            return null;
+        }
+
         const here = fileURLToPath(import.meta.url);
         let dir = dirname(resolve(here));
         for (let i = 0; i < 8 && dir !== dirname(dir); i++) {

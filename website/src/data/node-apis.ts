@@ -41,7 +41,7 @@ export const nodeApiCategories: readonly NodeApiCategory[] = [
 			{ name: "dns", status: "full", backed: "Gio.Resolver" },
 			{ name: "http", status: "full", backed: "Soup 3.0", note: "Server + ClientRequest + Agent" },
 			{ name: "https", status: "full", backed: "Soup 3.0" },
-			{ name: "http2", status: "full", backed: "Soup 3.0", note: "h2 via ALPN; push/flow-control coming in Phase 2" },
+			{ name: "http2", status: "full", backed: "Soup 3.0", note: "h2 via ALPN; pushStream/respondWithFD/respondWithFile via @gjsify/http2-native (libnghttp2)" },
 			{ name: "tls", status: "full", backed: "Gio.TlsConnection" },
 			{ name: "ws", status: "partial", backed: "@gjsify/websocket", note: "npm ws drop-in; Autobahn 510 OK / 0 FAIL" },
 		],

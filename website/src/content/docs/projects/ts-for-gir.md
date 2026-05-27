@@ -122,6 +122,14 @@ The [Patterns](../../patterns/) section of this site documents the idioms that s
 - [**GObject classes**](../../patterns/gobject-classes/) — `GObject.registerClass()` forms, the static-block pattern, init-order rules behind [GNOME/gjs#704](https://gitlab.gnome.org/GNOME/gjs/-/work_items/704), and the `static override $gtype: GObject.GType<Foo>` declaration that narrows the statically-inherited `$gtype` from the base class.
 - [**Bridge widgets**](../../patterns/bridges/) — how `Canvas2DBridge` / `WebGLBridge` / `IFrameBridge` / `VideoBridge` pair a polyfill DOM element with a real GTK widget so browser-shaped code drives the GTK surface directly.
 
+## gjsify dogfoods its own bundler
+
+`@ts-for-gir/cli` is built with `gjsify build --app node` — a real-world Node CLI that bundles the TypeScript compiler, TypeDoc, shiki, yargs, ejs, and ~100 transitive npm dependencies into a single executable with `--shebang` (emitting `#!/usr/bin/env node`). This makes ts-for-gir a concrete proof point that gjsify can bundle and distribute production-grade Node.js CLIs:
+
+- Bundled deps that read their own data files at runtime (`typedoc` loading its theme assets, ejs loading templates) work correctly after install at any `node_modules` depth, because gjsify resolves those paths from the bundle's actual runtime location rather than a path baked at build time.
+- Yarn PnP-resident zip packages (the ~100 Yarn-cached deps) are resolved transparently by `@gjsify/module`'s PnP-aware `createRequire`.
+- The produced Node bundle is directly executable (`chmod +x`) and published to npm — no separate build wrapper script needed.
+
 ## Project structure
 
 | Package | Responsibility |

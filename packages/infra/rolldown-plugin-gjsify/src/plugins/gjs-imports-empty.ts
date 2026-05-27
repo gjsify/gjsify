@@ -6,6 +6,14 @@
 // Marking them external would leave bare specifiers in the bundle that the
 // browser cannot resolve at runtime; instead we resolve them to a virtual
 // empty ESM module so the bundle is self-contained.
+//
+// Portability note: the `filter: { id: ... }` below is a Rolldown fast-path
+// — Rolldown pre-filters which specifiers reach `handler`. Under Vite (which
+// also runs Rolldown for `build` but does NOT honor the Rolldown-specific
+// hook-level `filter` in every code path, e.g. esbuild dep prebundle or the
+// dev server) the handler may receive ALL ids. The internal guard below makes
+// the plugin correct regardless of whether the filter pre-filtered — it is
+// the load-bearing check; the `filter` is a defense-in-depth optimization.
 
 import type { Plugin } from 'rolldown';
 
@@ -17,7 +25,12 @@ export function gjsImportsEmptyPlugin(): Plugin {
         resolveId: {
             order: 'pre' as const,
             filter: { id: /^(@girs\/|gi:\/\/)/ },
-            handler(_source) {
+            handler(source) {
+                // Internal guard: do not rely solely on the Rolldown `filter`
+                // above (it may not pre-filter under Vite). Only intercept
+                // `@girs/*` and `gi://*` specifiers; let everything else fall
+                // through to the default resolver chain.
+                if (!/^(@girs\/|gi:\/\/)/.test(source)) return null;
                 return { id: GJSIMPORTS_VIRTUAL_ID };
             },
         },

@@ -2,7 +2,7 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.4.27, ESM-only, GNOME libs. Bootstraps via the committed `packages/infra/cli/dist/cli.gjs.mjs` GJS bundle — `gjsify install --immutable` is the supported install path (no yarn / no Node-only npm CLI required at runtime, see Phase D.7d). Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (21 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra.
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.4.28, ESM-only, GNOME libs. Bootstraps via the committed `packages/infra/cli/dist/cli.gjs.mjs` GJS bundle — `gjsify install --immutable` is the supported install path (no yarn / no Node-only npm CLI required at runtime, see Phase D.7d). Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (21 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra.
 
 ## Governance — non-negotiable
 
@@ -160,6 +160,15 @@ Key files: `packages/infra/rolldown-plugin-gjsify/src/app/{gjs,node,browser}.ts`
 **GJS target process bootstrap** (`packages/infra/rolldown-plugin-gjsify/src/plugins/process-stub.ts`): The GJS target always prepends a minimal synchronous `globalThis.process` stub via a `renderChunk(order:'post')` hook. This runs before any bundled module code. Required because packages like `glob` and `path-scurry` access `globalThis.process.platform` at top-level during `__esm` lazy init, before any import-triggered side effect can fire. The full `@gjsify/process` implementation is wired up afterwards by `--globals auto`. User banners from `.gjsifyrc.js` are composed after the process stub; a leading `#!shebang` is hoisted to byte 0 (SpiderMonkey 128+ rejects `#` anywhere else).
 
 **Blueprint** (`@gjsify/vite-plugin-blueprint`): `.blp` → XML string via `blueprint-compiler`. GJS+browser. `import T from './window.blp'` → string. Types: add `@gjsify/vite-plugin-blueprint/types` to tsconfig. Same plugin runs under Vite (sister apps) and Rolldown (CLI).
+
+**Vite-plugin track** (`@gjsify/vite-plugin-gjsify`): the dev-side mirror of `gjsify build --app browser`. A dual-target web app (the `examples/dom/*` / browser-showcase shape) builds for production with `gjsify build --app browser`, but develops under Vite (dev server + HMR). `gjsifyBrowser()` is the preset that makes the two match — spread it into your Vite config:
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite';
+import { gjsifyBrowser } from '@gjsify/vite-plugin-gjsify';
+export default defineConfig({ plugins: [...gjsifyBrowser({ reflection: false })] });
+```
+It composes the same browser-target pieces as `app/browser.ts`: `gjsImportsEmptyPlugin()` (`@girs/*`/`gi://` → empty module — these leak transitively via `@gjsify/unit` etc.), `blueprintPlugin()`, opt-in `deepkitPlugin({ reflection })`, plus a Vite `config()` hook that sets the browser polyfill aliases (`process`/`assert` → `@gjsify/empty`/`@gjsify/assert`, mergeable via `options.aliases`), `resolve.conditions: ['import','browser']`, `resolve.mainFields: ['browser','module','main']`, `define: { global/window: 'globalThis' }`, `build.target: 'esnext'`, and `optimizeDeps.exclude: ['@gjsify/unit', …]` (Vite's esbuild prebundle can't resolve `gi://`). Options: `{ reflection?, aliases?, optimizeDepsExclude? }`. **It does NOT include `cssAsStringPlugin`** — a browser app wants real CSS through Vite's native pipeline (HMR/extraction/PostCSS); css-as-string is a GJS/GTK build concern only. So the preset = Vite-dev parity with `--app browser`, minus css-as-string. Uses Vite's native `resolve.alias` instead of the CLI's (unexported) `aliasPlugin`.
 
 **CSS** (`@gjsify/rolldown-plugin-gjsify/plugins/css-as-string`): `.css` → JS string default export via a `load` hook (filter `/\.css$/`). Rolldown removed its experimental CSS bundling, so this plugin reads the file with lightningcss `bundleAsync` and emits `export default ${JSON.stringify(css)}` — bypassing Rolldown's CSS classification entirely. All targets. `import css from './app.css'` → string for `Gtk.CssProvider.load_from_string()`. **CSS `@import` resolution** is built in (lightningcss bundling). **GTK4 CSS lowering**: `--app gjs` passes `targets: { firefox: 60 << 16 }`, so nesting / modern selectors are flattened to the subset GTK4's CSS engine accepts. Browser/Node targets keep CSS pristine (no targets). Plugin opts: `cssAsStringPlugin({ targets, bundle })` — set `bundle:false` to keep raw `@import` strings (rare).
 
@@ -513,7 +522,7 @@ Scripts: `yarn test:integration[:node|:gjs]`. NOT part of `yarn test` — opt-in
 
 ## Package convention
 
-`packages/node/<name>/` → `@gjsify/<name>`, v0.4.27, `"type":"module"` | exports `./lib/esm/index.js` + `./lib/esm/register.js` (if globals) | `sideEffects:["./lib/esm/register.js"]` pinned to register-only | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`; devDep `@gjsify/unit`; workspace deps `workspace:^`
+`packages/node/<name>/` → `@gjsify/<name>`, v0.4.28, `"type":"module"` | exports `./lib/esm/index.js` + `./lib/esm/register.js` (if globals) | `sideEffects:["./lib/esm/register.js"]` pinned to register-only | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`; devDep `@gjsify/unit`; workspace deps `workspace:^`
 
 Layout: `src/index.ts` (pure named exports) | `src/register.ts` (side-effect globals) | `src/*.spec.ts` | `src/test.mts` (entry, imports `@gjsify/node-globals/register` + feature-specific `<pkg>/register`). Full rules: Tree-shakeable Globals section.
 
@@ -525,17 +534,17 @@ Shared utils: `@gjsify/utils` (`packages/gjs/utils/`). Check before duplicating;
 
 ### New `@gjsify/*` package: first-publish + Trusted Publisher bootstrap
 
-npm Trusted Publishing (OIDC) requires the package to **already exist** on npmjs.com — you cannot configure a Trusted Publisher for a name that has no published versions. This makes the **first publish a manual maintainer action**, not a CI release. Skipping this step breaks the entire serialized `npm:publish` loop in `release.yml`: every package alphabetically after the new name fails to publish because the OIDC exchange returns `404 — OIDC token exchange error - package not found` and the workflow exits 1 (incident on v0.4.27: `@gjsify/tls-native` was added in #242, no manual bootstrap → 60+ packages stuck at 0.4.19).
+npm Trusted Publishing (OIDC) requires the package to **already exist** on npmjs.com — you cannot configure a Trusted Publisher for a name that has no published versions. This makes the **first publish a manual maintainer action**, not a CI release. Skipping this step breaks the entire serialized `npm:publish` loop in `release.yml`: every package alphabetically after the new name fails to publish because the OIDC exchange returns `404 — OIDC token exchange error - package not found` and the workflow exits 1 (incident on v0.4.28: `@gjsify/tls-native` was added in #242, no manual bootstrap → 60+ packages stuck at 0.4.19).
 
 Run before the merge that adds the package (or immediately after, before the next release-it patch):
 
 1. Build the package locally: `gjsify workspace @gjsify/<name> build`
-2. **Manual first publish from a maintainer machine** with an npm account that has `@gjsify` scope publish access + 2FA OTP (or a granular access token with bypass-2fa enabled):
+2. **Manual first publish from a maintainer machine** with an npm account that has `@gjsify` scope publish access + 2FA OTP (or a granular access token with bypass-2fa enabled). `gjsify publish` now supports `--otp` natively, keeping the bootstrap entirely Node-free:
    ```bash
    cd packages/<pillar>/<name>
-   npm publish --access public --otp <code>
+   gjsify publish --access public --otp <code>
    ```
-   This creates the package record on npmjs.com.
+   This creates the package record on npmjs.com. The `npm-otp: <code>` header is forwarded on the PUT request; if OTP is required but `--otp` is omitted on a non-TTY, the CLI exits with a clear error pointing at `--otp`. On an interactive TTY it prompts once and retries (mirrors npm's `otplease` behavior — see `refs/npm-cli/lib/utils/auth.js`).
 3. **Configure Trusted Publisher** at `https://www.npmjs.com/package/@gjsify/<name>/access`:
    - Repository: `gjsify/gjsify`
    - Workflow: `release.yml`
@@ -639,6 +648,28 @@ Every impl → A or B. Every ported test → C. Original: `// <Module> for GJS �
 **Track deferred work in dedicated `Open TODOs` section.** Every "out of scope" / "follow-up" / "later" note from PR description / plan file / commit message must have a corresponding entry — otherwise forgotten. Resolved TODO → move to `### Completed` list (or delete if trivial).
 
 **Changelog entries ONLY in CHANGELOG.md.** STATUS.md = current state; CHANGELOG.md = what changed + when. Do NOT add dated "Latest:" lines, changelog highlights, or per-session summaries to STATUS.md. Update CHANGELOG.md after work sessions with dated entries describing what changed and why.
+
+## Commit conventions
+
+Conventional commits — `<type>[optional scope]: <description>`, imperative mood, ≤50 char subject.
+
+**All types surface in CHANGELOG.md** (configured via the `types` array in `.release-it.json`). Use the type that best describes the change — no type is silently dropped. Enforced by commitlint (`commitlint.config.cjs`) on every PR via `.github/workflows/commitlint.yml`.
+
+| Type | Changelog section | When to use |
+|---|---|---|
+| `feat` | Features | New user-visible feature or API |
+| `fix` | Bug Fixes | Bug fix |
+| `perf` | Performance Improvements | Performance improvement (no API change) |
+| `revert` | Reverts | Reverts a previous commit |
+| `docs` | Documentation | Docs-only change (website, AGENTS.md, comments) |
+| `refactor` | Code Refactoring | Code restructuring with no behavior change |
+| `build` | Build System | Build scripts, tooling, bundler config |
+| `ci` | Continuous Integration | CI workflow changes |
+| `chore` | Maintenance | Dependency bumps, submodule updates, version commits |
+| `test` | Tests | Adding or fixing tests (no production code change) |
+| `style` | _(hidden)_ | Whitespace / formatting only — omitted from changelog |
+
+**Scope** (optional): lowercase package name without `@gjsify/` prefix, e.g. `feat(fetch): …`, `fix(rolldown-plugin-gjsify): …`. Use `(e2e)` for end-to-end test suites. Omit scope when the change crosses multiple packages.
 
 ## Constraints
 

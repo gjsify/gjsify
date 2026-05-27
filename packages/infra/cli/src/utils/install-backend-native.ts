@@ -125,7 +125,7 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
         nodes = lockfileToNodes(existingLock);
     } else {
         log("install: resolving %d top-level spec(s) → %s", opts.specs.length, opts.prefix);
-        nodes = await resolveDeps(opts.specs, npmrc, log, opts.overrides);
+        nodes = await resolveDeps(opts.specs, npmrc, log, opts.overrides, opts.skipDeps);
         if (opts.lockfile) {
             writeLockfile(lockfilePath, opts.specs, nodes);
             log("install: wrote %s (%d entries)", LOCKFILE_NAME, nodes.length);
@@ -195,6 +195,7 @@ async function resolveDeps(
     npmrc: NpmrcConfig,
     log: Logger,
     overrides?: Record<string, string>,
+    skipDeps?: boolean,
 ): Promise<ResolvedNode[]> {
     const applyOverride = (name: string, range: string): string => {
         if (!overrides) return range;
@@ -299,11 +300,13 @@ async function resolveDeps(
                 installPath,
             );
 
-            for (const [depName, depRange] of Object.entries(node.dependencies)) {
-                queue.push({ from: installPath, name: depName, range: applyOverride(depName, depRange), required: true });
-            }
-            for (const [depName, depRange] of Object.entries(node.optionalDependencies)) {
-                queue.push({ from: installPath, name: depName, range: applyOverride(depName, depRange), required: false });
+            if (!skipDeps) {
+                for (const [depName, depRange] of Object.entries(node.dependencies)) {
+                    queue.push({ from: installPath, name: depName, range: applyOverride(depName, depRange), required: true });
+                }
+                for (const [depName, depRange] of Object.entries(node.optionalDependencies)) {
+                    queue.push({ from: installPath, name: depName, range: applyOverride(depName, depRange), required: false });
+                }
             }
         } catch (e) {
             // Optional deps that fail to resolve are skipped — yarn/npm

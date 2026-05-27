@@ -78,7 +78,7 @@ export default defineConfig({
         {
           label: 'Patterns',
           items: [
-            { slug: 'patterns' },
+            { slug: 'patterns', label: 'Overview' },
             { slug: 'patterns/gobject-classes' },
             { slug: 'patterns/bridges' },
           ],
@@ -92,7 +92,7 @@ export default defineConfig({
         {
           label: 'Showcases',
           items: [
-            { slug: 'showcases' },
+            { slug: 'showcases', label: 'Overview' },
             { slug: 'showcases/canvas2d-fireworks' },
             { slug: 'showcases/excalibur-jelly-jumper' },
             { slug: 'showcases/three-geometry-teapot' },

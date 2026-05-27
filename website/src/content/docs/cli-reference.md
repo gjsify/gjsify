@@ -5,7 +5,7 @@ description: All gjsify subcommands, flags and typical usage
 
 The `@gjsify/cli` package ships the `gjsify` binary. Run it via `npx @gjsify/cli <command>` or add it as a dev dependency.
 
-> **Tip:** `npx @gjsify/cli --help` lists all commands and flags.
+> **Tip:** `npx @gjsify/cli --help` lists all commands and flags. The output ends with a `Running on …` line showing the active runtime — `Running on Node.js v24.x.y` when invoked via the Node bin, or `Running on GJS 1.x.y (SpiderMonkey)` when running the GJS bundle.
 
 ## `gjsify create`
 
@@ -37,7 +37,7 @@ npx @gjsify/cli build src/index.ts --outfile dist/index.js
 | `--outdir`, `-d` | path | from `package.json` | Output directory (library mode) |
 | `--minify` | bool | `false` | Minify the output |
 | `--globals` | string | `"auto"` | Globals mode (see below) |
-| `--shebang` | bool | `false` | Prepend `#!/usr/bin/env -S gjs -m` to the outfile and chmod it `0o755`. Only with `--app gjs` and a single `--outfile`. |
+| `--shebang` | bool | `false` | Prepend a target-appropriate shebang to the outfile and chmod it `0o755`: `#!/usr/bin/env -S gjs -m` for `--app gjs`, `#!/usr/bin/env node` for `--app node`. Applies to GJS and Node app builds with a single `--outfile`. |
 | `--watch`, `-w` | bool | `false` | Watch source files and rebuild on change. Logs each rebuild with duration; SIGINT cleanly stops the watcher. Rejected with `--library`. Requires the npm `rolldown` engine — run under Node. |
 | `--verbose` | bool | `false` | Show detected globals and build details |
 
@@ -951,6 +951,7 @@ Pack + upload a workspace to its npm registry. Drop-in for `npm publish`. Uses [
 gjsify publish                                  # publish current workspace
 gjsify publish packages/infra/cli --tag latest
 gjsify publish --access public                  # required for first publish of scoped pkg
+gjsify publish --access public --otp 123456     # first publish with 2FA OTP (Node-free bootstrap)
 gjsify publish --tolerate-republish             # treat 409 conflict as success
 gjsify publish --dry-run                        # pack only, don't PUT
 ```
@@ -960,6 +961,7 @@ gjsify publish --dry-run                        # pack only, don't PUT
 | `[path]` | `cwd` | Workspace path to publish. |
 | `--tag <tag>` | `latest` | npm dist-tag. |
 | `--access <kind>` | — | `public` or `restricted` (required on first publish of scoped packages). |
+| `--otp <code>` | — | npm 2FA one-time code; forwarded as the `npm-otp` HTTP header on the PUT request. Required for manual publishes from a 2FA-enabled npm account. If the registry responds with `401 OTP-required` and `--otp` was not supplied: on an interactive TTY the CLI prompts once and retries; on a non-TTY it exits non-zero with an actionable message. |
 | `--tolerate-republish` | `false` | Treat a 409 conflict (version already published) as success. Matches `yarn --tolerate-republish`. |
 | `--provenance` | `false` | Recorded in payload but no signing happens (no sigstore signer yet). |
 | `--dry-run` | `false` | Pack only, do not PUT. |

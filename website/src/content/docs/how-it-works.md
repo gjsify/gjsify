@@ -155,6 +155,23 @@ Use `gjsify info` without `--export` for a human-readable report of every detect
 
 Node.js servers (`http.Server.listen()`, `net.Server.listen()`, `dgram.Socket.bind()`) need a running GLib MainLoop to drive the underlying Gio async I/O. GJSify starts it for you via an internal `ensureMainLoop()` helper — you do not need to call it from application code. GTK applications keep using `Gtk.Application.runAsync()` as usual.
 
+## Vite-plugin track (browser / web-content targets)
+
+gjsify's build plugins are Rollup-shaped, which means they run under both Rolldown (via the `gjsify build` CLI) and Vite (for HMR-enabled dev servers). For web-content targets — browser extensions, GJS-WebKit hybrid apps, or games running in a WebView — you can use Vite during development for fast module reloads, then switch to `gjsify build --app browser` for the production bundle.
+
+Two plugins that always work under Vite are already published:
+
+| Plugin | Purpose |
+|---|---|
+| `@gjsify/vite-plugin-blueprint` | `.blp` → XML string via `blueprint-compiler`; `import T from './window.blp'` works in both Vite dev and Rolldown prod |
+| `@gjsify/vite-plugin-gettext` | `xgettext` / `msgfmt` / `po2json` pipeline; same plugin in both environments |
+
+The same plugins are composed by `gjsify build` under the hood — there is no divergence between your dev and prod pipelines.
+
+## Location-independent published bundles
+
+GJS bundles built with gjsify resolve their bundled dependencies' data files at runtime from the bundle's actual on-disk location. A dep that loads its own `package.json`, i18n files, or templates via `import.meta.url` continues to work after the bundle is installed globally — even if the bundle ends up at a different `node_modules` depth than where it was built. This is handled transparently by `@gjsify/module`'s PnP-aware `createRequire`; no special configuration is required.
+
 ## Where to go next
 
 - [Getting Started](/gjsify/getting-started/) — scaffold and run your first app

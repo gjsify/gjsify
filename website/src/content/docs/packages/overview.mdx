@@ -3,8 +3,6 @@ title: Overview
 description: Summary of all GJSify packages
 ---
 
-import WebStandardsCoverage from '../../../components/WebStandardsCoverage.astro';
-import NodeApiCoverage from '../../../components/NodeApiCoverage.astro';
 import BridgesGrid from '../../../components/BridgesGrid.astro';
 
 GJSify is organised into four pillars, each implementing standard APIs on top of native GNOME libraries.
@@ -12,13 +10,11 @@ GJSify is organised into four pillars, each implementing standard APIs on top of
 | Category | Packages | Description |
 |---|---|---|
 | [Node.js Modules](./node) | 41 + 1 meta | `fs`, `net`, `http`, `crypto`, `stream`, `events`, `sqlite`, `ws`, and more |
-| [Web APIs](./web) | 18 + 1 meta | `fetch`, `XMLHttpRequest`, `WebSocket`, `WebRTC`, `WebAudio`, `Streams`, `DOMParser`, and more |
+| [Web APIs](./web) | 19 + 1 native bridge + 1 meta | `fetch`, `XMLHttpRequest`, `WebSocket`, `WebRTC`, `WebAudio`, `Streams`, `DOMParser`, `MessageChannel`, `WebAssembly`, and more |
 | [DOM & Bridges](./dom) | 2 DOM + 6 bridges | Canvas2D, WebGL, DOM elements; GTK-backed Canvas/WebGL/Video/IFrame bridges |
 | Adwaita for browser | 3 | `@gjsify/adwaita-web`, `@gjsify/adwaita-fonts`, `@gjsify/adwaita-icons` |
 
-<WebStandardsCoverage />
-
-<NodeApiCoverage />
+93% of Node modules and 58% of web standards covered — see the [Node.js Modules](./node) and [Web APIs](./web) subpages for the full interactive breakdown.
 
 <BridgesGrid />
 

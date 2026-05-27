@@ -75,6 +75,26 @@
 fallback: `application/octet-stream`.
 
 `'text'` emits `export default "<file-contents>"` (unchanged from before).
+## [0.4.28](https://github.com/gjsify/gjsify/compare/v0.4.27...v0.4.28) (2026-05-27)
+
+### Features
+
+* @gjsify/vite-plugin-gjsify (Vite-dev parity with --app browser) ([#319](https://github.com/gjsify/gjsify/issues/319)) ([5e3a6d6](https://github.com/gjsify/gjsify/commit/5e3a6d6e26f34c5517111519135e82f109c696c9))
+* **cli:** --help shows the active runtime (GJS/Node + version) ([#321](https://github.com/gjsify/gjsify/issues/321)) ([45d6bbc](https://github.com/gjsify/gjsify/commit/45d6bbc7d651fb63a59d2a9bd0922f3202751cd6))
+* **cli:** gjsify publish --otp (npm 2FA) for Node-free manual publishes ([#324](https://github.com/gjsify/gjsify/issues/324)) ([4a10e1e](https://github.com/gjsify/gjsify/commit/4a10e1e3a752bd3a28c7c746ccb3cce3afefaa91))
+
+### Bug Fixes
+
+* **cli:** self-update — drop stray packument fetch + make idempotent ([#326](https://github.com/gjsify/gjsify/issues/326)) ([7c6e83c](https://github.com/gjsify/gjsify/commit/7c6e83c3df4e514cd54b6f624cfa6b01624a82e1))
+* **website:** nicer showcase names, single chevron, coverage on subpages, live-demo chrome ([#320](https://github.com/gjsify/gjsify/issues/320)) ([ec9b462](https://github.com/gjsify/gjsify/commit/ec9b4625fb0236595fc12dc6d14792fb2a236dcc))
+
+### Maintenance
+
+* complete changelogs (all commit types) + commitlint ([#325](https://github.com/gjsify/gjsify/issues/325)) ([34abb13](https://github.com/gjsify/gjsify/commit/34abb13ea9c948d42107f6e0f1940d43c58dd30c))
+
+### Tests
+
+* **e2e:** add 4 CLI-coverage suites (app-browser, gresource, publish, self-update) ([#323](https://github.com/gjsify/gjsify/issues/323)) ([406f742](https://github.com/gjsify/gjsify/commit/406f74213fca00b7687f03ebfb37d9fec172c9ad)), closes [#315](https://github.com/gjsify/gjsify/issues/315) [#316](https://github.com/gjsify/gjsify/issues/316) [#317](https://github.com/gjsify/gjsify/issues/317) [#318](https://github.com/gjsify/gjsify/issues/318)
 
 ## [0.4.27](https://github.com/gjsify/gjsify/compare/v0.4.26...v0.4.27) (2026-05-26)
 
