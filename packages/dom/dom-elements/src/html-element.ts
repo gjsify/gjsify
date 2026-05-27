@@ -201,15 +201,29 @@ export class HTMLElement extends Element {
 		return this.contentEditable === 'true';
 	}
 
-	// -- Layout stubs (return 0 — no layout engine) --
+	// -- Layout stubs --
+	//
+	// `clientWidth` / `clientHeight` return the latest allocation
+	// pushed by a framework bridge via `notifyElementResize()`
+	// (which writes into the `_allocatedClient…` fields on Element).
+	// Everything else stays at 0 — no layout engine to compute
+	// borders / offsets / scroll positions, and no current
+	// consumer needs them.
+	//
+	// Why `clientWidth` / `clientHeight` get special treatment:
+	// Excalibur.js `DisplayMode.FillContainer` reads
+	// `canvas.parentElement.clientWidth` to compute its resolution.
+	// The polyfill returning 0 there meant Excalibur produced a
+	// 0×0 viewport on every resize → blank canvas. With
+	// bridge-driven values they get the real GTK allocation.
 
 	get offsetHeight(): number { return 0; }
 	get offsetWidth(): number { return 0; }
 	get offsetLeft(): number { return 0; }
 	get offsetTop(): number { return 0; }
 	get offsetParent(): Element | null { return null; }
-	get clientHeight(): number { return 0; }
-	get clientWidth(): number { return 0; }
+	get clientHeight(): number { return this._allocatedClientHeight; }
+	get clientWidth(): number { return this._allocatedClientWidth; }
 	get clientLeft(): number { return 0; }
 	get clientTop(): number { return 0; }
 	get scrollHeight(): number { return 0; }

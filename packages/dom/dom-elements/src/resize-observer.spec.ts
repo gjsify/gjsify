@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import { HTMLCanvasElement, ResizeObserver, document, notifyElementResize } from '@gjsify/dom-elements';
+import { HTMLCanvasElement, HTMLElement, ResizeObserver, document, notifyElementResize } from '@gjsify/dom-elements';
 import type { ResizeObserverEntry } from '@gjsify/dom-elements';
 
 // Microtask flush helper. ResizeObserver batches entries into a microtask
@@ -86,6 +86,46 @@ export default async () => {
 
             bodyObserver.disconnect();
             document.body.removeChild(canvas);
+        });
+
+        await it('updates clientWidth / clientHeight on target + ancestors', async () => {
+            // notifyElementResize is the one path that writes the
+            // GTK allocation into the polyfill's clientWidth /
+            // clientHeight fields. Without this Excalibur.js's
+            // `Screen.FillContainer` path reads 0 from
+            // `canvas.parentElement.clientWidth` even though its
+            // ResizeObserver callback got the right dimensions.
+            //
+            // Uses a fresh wrapper Element instead of document.body
+            // as the ancestor, because document.body is shared across
+            // tests and earlier resize-notify calls in this suite
+            // leave its cached client-size populated.
+            const wrapper = new HTMLElement();
+            const canvas = new HTMLCanvasElement();
+            wrapper.appendChild(canvas);
+            document.body.appendChild(wrapper);
+
+            // Fresh elements — no resize fired yet.
+            expect(canvas.clientWidth).toBe(0);
+            expect(canvas.clientHeight).toBe(0);
+            expect(wrapper.clientWidth).toBe(0);
+            expect(wrapper.clientHeight).toBe(0);
+
+            notifyElementResize(canvas, 1024, 768);
+
+            // Both the resized target + its ancestor see the new size.
+            expect(canvas.clientWidth).toBe(1024);
+            expect(canvas.clientHeight).toBe(768);
+            expect(wrapper.clientWidth).toBe(1024);
+            expect(wrapper.clientHeight).toBe(768);
+
+            // Subsequent resize overwrites the previous value
+            // (last-write-wins on shared ancestors — documented).
+            notifyElementResize(canvas, 640, 480);
+            expect(canvas.clientWidth).toBe(640);
+            expect(wrapper.clientWidth).toBe(640);
+
+            document.body.removeChild(wrapper);
         });
 
         await it('stops firing after unobserve()', async () => {

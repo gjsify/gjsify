@@ -32,15 +32,30 @@ import type { Node } from './node.js';
  * @param height  the widget's new allocated height (CSS pixels)
  */
 export function notifyElementResize(target: Element, width: number, height: number): void {
+	// Update the cached allocation on the target + its ancestors so
+	// `clientWidth` / `clientHeight` getters return the new size.
+	// Without this, consumers that read `parent.clientWidth` after
+	// the ResizeObserver fires (Excalibur.js's `Screen.FillContainer`
+	// path is the canonical case) would see 0 even though the
+	// callback fired with correct dimensions, defeating the whole
+	// pipeline.
+	target._allocatedClientWidth = width;
+	target._allocatedClientHeight = height;
 	target._fireResizeSubscribers(width, height);
 
-	// Walk up the parent chain. `_fireResizeSubscribers` is a no-op on
-	// elements with no subscribers, so this is cheap to do unconditionally
-	// — typical bridge consumers have at most one observer on the canvas
-	// and one on `document.body`.
+	// Walk up the parent chain. Both the dimension write + the
+	// subscriber dispatch happen at every ancestor — Excalibur's
+	// observer is on `canvas.parentElement` (i.e. `document.body`
+	// when the canvas is attached directly), and it reads that
+	// element's `clientWidth` in its resize-handler callback.
+	// Multi-bridge scenarios collapse on shared ancestors
+	// (last-write-wins on `document.body`); acceptable since the
+	// "one canvas filling the window" pattern is the dominant one.
 	let node: Node | null = target.parentNode;
 	while (node) {
 		if (node instanceof Element) {
+			node._allocatedClientWidth = width;
+			node._allocatedClientHeight = height;
 			node._fireResizeSubscribers(width, height);
 		}
 		node = node.parentNode;

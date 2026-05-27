@@ -261,11 +261,13 @@ Every pkg registering anything on `globalThis` MUST follow these rules.
 **Auto is the default.** If auto misses (value-flow indirection): `--globals auto,dom` or `auto,matchMedia,FontFace`. If auto injects false positive: switch to explicit list or file issue.
 
 ```bash
-# Root
-yarn build | yarn build:node | yarn build:web | yarn test | yarn check
-# Per-package
-yarn build:gjsify | yarn build:types
-yarn build:test:{gjs,node} | yarn test:{gjs,node}
+# Root (runs each script across all workspaces, topologically)
+gjsify foreach build | gjsify foreach build:node | gjsify foreach build:web | gjsify foreach test | gjsify foreach check
+# Per-package (in the package dir)
+gjsify run build:gjsify | gjsify run build:types
+gjsify run build:test:{gjs,node} | gjsify run test:{gjs,node}
+# One specific workspace from anywhere
+gjsify workspace @gjsify/<name> <script>
 ```
 
 ## GNOME Libs & Mappings — `node_modules/@girs/*`
@@ -503,7 +505,7 @@ tape→gjsify-unit: `t.equal`→`expect().toBe` | `t.deepEqual`→`toStrictEqual
 
 No `@gjsify/test-compat` shim today (manual rewrite keeps code idiomatic). Revisit when 2nd dialect (mocha+expect.js for socket.io) is added.
 
-Scripts: `yarn test:integration[:node|:gjs]`. NOT part of `yarn test` — opt-in to avoid blocking PRs on tracked gaps.
+Scripts: `gjsify foreach test:integration[:node|:gjs]`. NOT part of `gjsify foreach test` — opt-in to avoid blocking PRs on tracked gaps.
 
 **Current suites:**
 
@@ -575,7 +577,7 @@ Constants (dropdowns, defaults) in shared `.ts` — both `gjs/` + `browser/` imp
 
 ## Showcase — `gjsify showcase`
 
-Polished examples under `showcases/`. Published npm packages (`@gjsify/example-{dom,node}-<name>`), CLI deps. Self-contained + independently runnable (`gjsify showcase <name>`, `yarn start[:browser]`).
+Polished examples under `showcases/`. Published npm packages (`@gjsify/example-{dom,node}-<name>`), CLI deps. Self-contained + independently runnable (`gjsify showcase <name>`, `gjsify run start[:browser]`).
 
 Rules: CLI executable via `gjsify showcase <name>` | browser version embedded in website (imports as npm package: `import { mount } from '@gjsify/example-dom-three-postprocessing-pixel/browser'`) | full npm package — export browser entry + assets + package.json via `exports`, never reference internals via relative paths | self-contained | production-quality, not experiments.
 
