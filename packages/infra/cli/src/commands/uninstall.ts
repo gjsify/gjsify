@@ -16,6 +16,7 @@
 
 import { existsSync, readFileSync, readdirSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import type { Argv } from 'yargs';
 import type { Command } from '../types/index.js';
 import { defaultGlobalLayout, specToPackageName } from '../utils/install-global.js';
 
@@ -26,7 +27,7 @@ interface UninstallOptions {
     verbose?: boolean;
 }
 
-export const uninstallCommand: Command<any, UninstallOptions> = {
+export const uninstallCommand: Command<unknown, UninstallOptions> = {
     command: 'uninstall <packages..>',
     description: 'Uninstall a previously installed package. Currently only `--global` mode is supported.',
     builder: (yargs) =>
@@ -52,7 +53,7 @@ export const uninstallCommand: Command<any, UninstallOptions> = {
                 description: 'Verbose logging.',
                 type: 'boolean',
                 default: false,
-            }) as any,
+            }) as Argv<UninstallOptions>,
     handler: (args: UninstallOptions) => {
         if (!args.global) {
             console.error(

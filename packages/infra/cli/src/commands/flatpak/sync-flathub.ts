@@ -213,10 +213,10 @@ async function resolveCommitForTag(cwd: string, tag: string, verbose?: boolean):
         if (!sha) throw new Error(`empty rev-list output`);
         if (verbose) console.log(`[gjsify flatpak sync-flathub] resolved ${tag} → ${sha}`);
         return sha;
-    } catch (err: any) {
+    } catch (err: unknown) {
         throw new Error(
             `[gjsify flatpak sync-flathub] tag ${tag} not found locally. Run \`git fetch --tags\` or pass --commit <sha>.\n` +
-                `  underlying error: ${err?.message ?? err}`,
+                `  underlying error: ${err instanceof Error ? err.message : String(err)}`,
         );
     }
 }
@@ -245,8 +245,8 @@ async function ensureClone(cloneDir: string, flathubRepo: string, verbose?: bool
     if (verbose) console.log(`[gjsify flatpak sync-flathub] git clone ${url} ${cloneDir}`);
     try {
         await execFileAsync('git', ['clone', url, cloneDir]);
-    } catch (err: any) {
-        if (err?.code === 'ENOENT') {
+    } catch (err: unknown) {
+        if ((err as { code?: string })?.code === 'ENOENT') {
             throw new Error(
                 '[gjsify flatpak sync-flathub] `git` not found. Install git from your distro (Fedora: `dnf install git`, Debian: `apt install git`).',
             );

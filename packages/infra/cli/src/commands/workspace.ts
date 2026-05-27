@@ -15,7 +15,7 @@ interface WorkspaceCmdOptions {
     args?: string[];
 }
 
-export const workspaceCommand: Command<any, WorkspaceCmdOptions> = {
+export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
     command: 'workspace <name> <script> [args..]',
     description: 'Run a workspace script (`yarn workspace <name> run <script>` equivalent).',
     builder: (yargs) =>

@@ -16,22 +16,22 @@ import { HTMLElement } from './html-element.js';
 export class HTMLCanvasElement extends HTMLElement {
     // Context factory registry — packages register their context types here.
     // e.g. @gjsify/canvas2d registers '2d', @gjsify/webgl registers 'webgl'.
-    private static _contextFactories = new Map<string, (canvas: HTMLCanvasElement, options?: any) => any>();
+    private static _contextFactories = new Map<string, (canvas: HTMLCanvasElement, options?: unknown) => unknown>();
 
     /**
      * Register a rendering context factory for a given context type.
      * Called by packages like @gjsify/canvas2d and @gjsify/webgl to plug in their implementations.
      */
-    static registerContextFactory(contextId: string, factory: (canvas: HTMLCanvasElement, options?: any) => any): void {
+    static registerContextFactory(contextId: string, factory: (canvas: HTMLCanvasElement, options?: unknown) => unknown): void {
         HTMLCanvasElement._contextFactories.set(contextId, factory);
     }
 
     // WebGL context event handlers
-    oncontextlost: ((ev: Event) => any) | null = null;
-    oncontextrestored: ((ev: Event) => any) | null = null;
-    onwebglcontextcreationerror: ((ev: Event) => any) | null = null;
-    onwebglcontextlost: ((ev: Event) => any) | null = null;
-    onwebglcontextrestored: ((ev: Event) => any) | null = null;
+    oncontextlost: ((ev: Event) => unknown) | null = null;
+    oncontextrestored: ((ev: Event) => unknown) | null = null;
+    onwebglcontextcreationerror: ((ev: Event) => unknown) | null = null;
+    onwebglcontextlost: ((ev: Event) => unknown) | null = null;
+    onwebglcontextrestored: ((ev: Event) => unknown) | null = null;
 
     /** Returns the width of the canvas element. Default: 300. */
     get width(): number {
@@ -58,21 +58,21 @@ export class HTMLCanvasElement extends HTMLElement {
      * Checks the static context factory registry for a matching factory.
      * Subclasses (e.g. @gjsify/webgl) may override and fall through via super.getContext().
      */
-    getContext(contextId: string, options?: any): any {
+    getContext(contextId: string, options?: unknown): unknown {
         const factory = HTMLCanvasElement._contextFactories.get(contextId);
         if (factory) return factory(this, options);
         return null;
     }
 
     /** Returns a data URL representing the canvas image. Delegates to the active 2D context if available. */
-    toDataURL(type?: string, quality?: any): string {
-        const ctx = this.getContext('2d') as any;
+    toDataURL(type?: string, quality?: unknown): string {
+        const ctx = this.getContext('2d') as { _toDataURL?: (type?: string, quality?: unknown) => string } | null;
         if (ctx && typeof ctx._toDataURL === 'function') return ctx._toDataURL(type, quality);
         return '';
     }
 
     /** Converts the canvas to a Blob and passes it to the callback. Delegates to the active 2D context if available. */
-    toBlob(callback: (blob: Blob | null) => void, type?: string, quality?: any): void {
+    toBlob(callback: (blob: Blob | null) => void, type?: string, quality?: unknown): void {
         const dataUrl = this.toDataURL(type, quality);
         if (!dataUrl) {
             callback(null);
@@ -87,7 +87,7 @@ export class HTMLCanvasElement extends HTMLElement {
     }
 
     /** Returns a MediaStream capturing the canvas. Stub — returns empty object. */
-    captureStream(_frameRequestRate?: number): any {
+    captureStream(_frameRequestRate?: number): Record<string, never> {
         return {};
     }
 }

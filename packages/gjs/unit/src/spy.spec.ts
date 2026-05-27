@@ -41,7 +41,7 @@ export default async () => {
             const f = spy(() => {
                 throw 666; //eslint-disable-line no-throw-literal
             });
-            let error: any = undefined;
+            let error: unknown = undefined;
             try {
                 f();
             } catch (e) {
