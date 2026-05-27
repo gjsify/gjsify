@@ -8,8 +8,8 @@ export const kType = Symbol('kType');
 
 // ---- Brand checking ----
 
-export function isBrandCheck(brand: string) {
-    return (value: unknown): boolean => {
+export function isBrandCheck<T>(brand: string) {
+    return (value: unknown): value is T => {
         return (
             value != null &&
             typeof value === 'object' &&
@@ -21,22 +21,40 @@ export function isBrandCheck(brand: string) {
 
 // ---- Queue management ----
 
-export function dequeueValue(controller: any): any {
-    const { value, size } = controller[kState].queue.shift();
+/**
+ * Internal controller shape these queue helpers operate on. Each controller
+ * stores its pending chunks under `[kState].queue` (a list of `{ value, size }`
+ * records) together with a running `queueTotalSize`. The element type `T` is
+ * the chunk/value type and flows back out of `dequeueValue`/`peekQueueValue`.
+ */
+interface QueueState<T> {
+    queue: { value: T; size: number }[];
+    queueTotalSize: number;
+}
+type QueueController<T> = { [kState]: QueueState<T> };
+
+export function dequeueValue<T>(controller: QueueController<T>): T {
+    const entry = controller[kState].queue.shift();
+    if (entry === undefined) {
+        throw new Error('dequeueValue called on an empty queue');
+    }
+    const { value, size } = entry;
     controller[kState].queueTotalSize = Math.max(0, controller[kState].queueTotalSize - size);
     return value;
 }
 
-export function resetQueue(controller: any): void {
+// `resetQueue` only empties the queue, so it accepts any queue-entry shape
+// (default `{ value, size }` queues and byte-stream `{ buffer, … }` queues).
+export function resetQueue<E>(controller: { [kState]: { queue: E[]; queueTotalSize: number } }): void {
     controller[kState].queue = [];
     controller[kState].queueTotalSize = 0;
 }
 
-export function peekQueueValue(controller: any): any {
+export function peekQueueValue<T>(controller: QueueController<T>): T {
     return controller[kState].queue[0].value;
 }
 
-export function enqueueValueWithSize(controller: any, value: any, size: number): void {
+export function enqueueValueWithSize<T>(controller: QueueController<T>, value: T, size: number): void {
     size = +size;
     if (typeof size !== 'number' || size < 0 || Number.isNaN(size) || size === Infinity) {
         throw new RangeError(`Invalid size: ${size}`);
@@ -56,7 +74,7 @@ export function extractHighWaterMark(value: number | undefined, defaultHWM: numb
     return value;
 }
 
-export function extractSizeAlgorithm(size: ((chunk: any) => number) | undefined): (chunk: any) => number {
+export function extractSizeAlgorithm<T>(size: ((chunk: T) => number) | undefined): (chunk: T) => number {
     if (size === undefined) return () => 1;
     if (typeof size !== 'function') {
         throw new TypeError('strategy.size must be a function');

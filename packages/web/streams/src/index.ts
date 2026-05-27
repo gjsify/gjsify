@@ -20,7 +20,8 @@ import { TextDecoderStream } from './text-decoder-stream.js';
 function isNativeStreamUsable(Ctor: unknown, method: string): boolean {
     try {
         if (typeof Ctor !== 'function') return false;
-        return typeof (Ctor as any).prototype[method] === 'function';
+        const proto = (Ctor as { prototype?: Record<string, unknown> }).prototype;
+        return typeof proto?.[method] === 'function';
     } catch {
         return false;
     }

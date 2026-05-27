@@ -27,6 +27,7 @@ import {
     elementSizeByTag,
 } from './util.js';
 
+import type { WritableStream } from './writable-stream.js';
 import {
     WritableStreamDefaultWriter,
     isWritableStream,
@@ -62,9 +63,111 @@ interface PullIntoDescriptor {
     minimumFill: number;
     elementSize: number;
     // Typed-array-style constructor — `new (buffer, byteOffset, length)` —
-    // can be any of the TypedArray ctors, so we type as Function.
-    viewConstructor: Function;
+    // can be any of the TypedArray ctors or `DataView`.
+    viewConstructor: ViewCtor;
     readerType: 'byob' | 'default' | 'none';
+}
+
+/** Constructor shape shared by every TypedArray ctor and `DataView`:
+ *  `new (buffer, byteOffset?, length?)` producing an `ArrayBufferView`. */
+type ViewCtor = new (buffer: ArrayBufferLike, byteOffset?: number, length?: number) => ArrayBufferView;
+
+// ---- Internal state-bag shapes ----
+//
+// Every public class stores its mutable internals under the `kState` symbol.
+// These structural interfaces let the many internal helper functions be typed
+// against the concrete objects instead of `any`. Chunk/value types are
+// `unknown` — the polyfill is value-agnostic; lib.dom's ambient
+// `ReadableStream<R>` declaration provides the generic public surface.
+
+// Algorithm callables (from `createPromiseCallback`/`nonOp*`/`.bind`) —
+// variadic and promise-returning, typed without the `any` keyword.
+type PromiseAlgorithm = (...args: unknown[]) => Promise<unknown>;
+// The start algorithm may return synchronously; its result is always wrapped.
+type StartAlgorithm = (...args: unknown[]) => unknown;
+type SizeAlgorithm = (chunk: unknown) => number;
+
+/** A read request: the consumer-side sink that a controller fulfils via the
+ *  `kChunk`/`kClose`/`kError` symbol callbacks. Default and BYOB read requests
+ *  both satisfy this shape (BYOB passes an `ArrayBufferView`). */
+interface ReadRequest {
+    [kChunk](chunk: unknown): void;
+    [kClose](value?: unknown): void;
+    [kError](error: unknown): void;
+}
+
+interface CloseRecord {
+    promise: Promise<void> | undefined;
+    resolve: (() => void) | undefined;
+    reject: ((reason?: unknown) => void) | undefined;
+}
+
+type AnyController = ReadableStreamDefaultController | ReadableByteStreamController;
+type AnyReader = ReadableStreamDefaultReader | ReadableStreamBYOBReader;
+
+type ReadableStreamStateName = 'readable' | 'closed' | 'errored';
+
+interface ReadableStreamState {
+    disturbed: boolean;
+    reader: AnyReader | undefined;
+    state: ReadableStreamStateName;
+    storedError: unknown;
+    controller: AnyController | undefined;
+    closedPromise: PromiseWithResolvers<void>;
+}
+
+// Default and BYOB readers share one state shape. Each populates only the
+// request list relevant to its kind (`readRequests` for default reads,
+// `readIntoRequests` for BYOB reads); the other stays an empty, unused array.
+// Unifying them avoids union-narrowing churn at the many shared call sites
+// (`readableStreamClose`, `readableStreamError`, …) that runtime-dispatch on
+// reader kind via `readableStreamHasDefaultReader`/`...HasBYOBReader`.
+interface ReaderState {
+    readRequests: ReadRequest[];
+    readIntoRequests: ReadRequest[];
+    stream: ReadableStream | undefined;
+    close: CloseRecord;
+}
+
+interface DefaultControllerState {
+    cancelAlgorithm: PromiseAlgorithm | undefined;
+    closeRequested: boolean;
+    highWaterMark: number;
+    pullAgain: boolean;
+    pullAlgorithm: PromiseAlgorithm | undefined;
+    pulling: boolean;
+    queue: { value: unknown; size: number }[];
+    queueTotalSize: number;
+    started: boolean;
+    sizeAlgorithm: SizeAlgorithm | undefined;
+    stream: ReadableStream;
+}
+
+interface ByteQueueEntry {
+    buffer: ArrayBufferLike;
+    byteOffset: number;
+    byteLength: number;
+}
+
+interface ByteControllerState {
+    cancelAlgorithm: PromiseAlgorithm | undefined;
+    closeRequested: boolean;
+    highWaterMark: number;
+    pullAgain: boolean;
+    pullAlgorithm: PromiseAlgorithm | undefined;
+    pulling: boolean;
+    queue: ByteQueueEntry[];
+    queueTotalSize: number;
+    started: boolean;
+    stream: ReadableStream;
+    byobRequest: ReadableStreamBYOBRequest | null;
+    pendingPullIntos: PullIntoDescriptor[];
+    autoAllocateChunkSize: number | undefined;
+}
+
+interface BYOBRequestState {
+    controller: ReadableByteStreamController | undefined;
+    view: ArrayBufferView | null;
 }
 
 // ---- Lazy error singletons ----
@@ -99,13 +202,13 @@ import { queueMicrotask as _queueMicrotask } from '@gjsify/utils';
 
 // ---- ReadableStream state factory ----
 
-function createReadableStreamState() {
+function createReadableStreamState(): ReadableStreamState {
     return {
         disturbed: false,
-        reader: undefined as ReadableStreamDefaultReader | undefined,
-        state: 'readable' as string,
+        reader: undefined as AnyReader | undefined,
+        state: 'readable' as ReadableStreamStateName,
         storedError: undefined as unknown,
-        controller: undefined as ReadableStreamDefaultController | undefined,
+        controller: undefined as AnyController | undefined,
         // closedPromise tracks stream-level close for watchers (pipeTo, etc.)
         closedPromise: Promise.withResolvers<void>(),
     };
@@ -115,9 +218,9 @@ function createReadableStreamState() {
 
 class ReadableStream {
     [kType] = 'ReadableStream';
-    [kState]: any;
+    [kState]!: ReadableStreamState;
 
-    constructor(source: any = {}, strategy: any = {}) {
+    constructor(source: UnderlyingSource | null = {}, strategy: QueuingStrategy = {}) {
         if (source != null && typeof source !== 'object') {
             throw new TypeError('source must be an object');
         }
@@ -166,7 +269,7 @@ class ReadableStream {
         return readableStreamCancel(this, reason);
     }
 
-    getReader(options: any = {}): ReadableStreamDefaultReader | ReadableStreamBYOBReader {
+    getReader(options: ReadableStreamGetReaderOptions = {}): ReadableStreamDefaultReader | ReadableStreamBYOBReader {
         if (!isReadableStream(this)) throw new TypeError('Invalid this');
         if (options != null && typeof options !== 'object') {
             throw new TypeError('options must be an object');
@@ -177,13 +280,15 @@ class ReadableStream {
         throw new RangeError(`Invalid mode: ${mode}`);
     }
 
-    pipeThrough(transform: any, options: any = {}): ReadableStream {
+    pipeThrough(transform: ReadableWritablePair, options: StreamPipeOptions = {}): ReadableStream {
         if (!isReadableStream(this)) throw new TypeError('Invalid this');
-        const readable = transform?.readable;
+        // The pair members are validated to be polyfill streams via the brand
+        // checks below (which guard but do not narrow), so the casts are sound.
+        const readable = transform?.readable as unknown as ReadableStream;
         if (!isReadableStream(readable)) {
             throw new TypeError('transform.readable must be a ReadableStream');
         }
-        const writable = transform?.writable;
+        const writable = transform?.writable as unknown as WritableStream;
         if (!isWritableStream(writable)) {
             throw new TypeError('transform.writable must be a WritableStream');
         }
@@ -209,7 +314,7 @@ class ReadableStream {
         return readable;
     }
 
-    pipeTo(destination: any, options: any = {}): Promise<void> {
+    pipeTo(destination: WritableStream, options: StreamPipeOptions = {}): Promise<void> {
         try {
             if (!isReadableStream(this)) throw new TypeError('Invalid this');
             if (!isWritableStream(destination)) {
@@ -246,7 +351,7 @@ class ReadableStream {
         return readableStreamDefaultTee(this, false);
     }
 
-    values(options: any = {}): AsyncIterableIterator<any> {
+    values(options: ReadableStreamIteratorOptions = {}): AsyncIterableIterator<unknown> {
         if (!isReadableStream(this)) throw new TypeError('Invalid this');
         if (options != null && typeof options !== 'object') {
             throw new TypeError('options must be an object');
@@ -340,7 +445,7 @@ class ReadableStream {
         );
     }
 
-    [Symbol.asyncIterator](): AsyncIterableIterator<any> {
+    [Symbol.asyncIterator](): AsyncIterableIterator<unknown> {
         return this.values();
     }
 
@@ -386,12 +491,13 @@ class DefaultReadRequest {
 
 class ReadableStreamDefaultReader {
     [kType] = 'ReadableStreamDefaultReader';
-    [kState]: any;
+    [kState]!: ReaderState;
 
     constructor(stream: ReadableStream) {
         if (!isReadableStream(stream)) throw new TypeError('Expected a ReadableStream');
         this[kState] = {
             readRequests: [] as DefaultReadRequest[],
+            readIntoRequests: [],
             stream: undefined as ReadableStream | undefined,
             close: {
                 promise: undefined as Promise<void> | undefined,
@@ -402,7 +508,7 @@ class ReadableStreamDefaultReader {
         setupReadableStreamDefaultReader(this, stream);
     }
 
-    read(): Promise<{ value: any; done: boolean }> {
+    read(): Promise<{ value: unknown; done: boolean }> {
         if (!isReadableStreamDefaultReader(this)) return Promise.reject(new TypeError('Invalid this'));
         if (this[kState].stream === undefined) {
             return Promise.reject(new TypeError('The reader is not attached to a stream'));
@@ -465,7 +571,7 @@ class ReadableStreamDefaultReader {
 
 class ReadableStreamDefaultController {
     [kType] = 'ReadableStreamDefaultController';
-    [kState]: any = {};
+    [kState]!: DefaultControllerState;
 
     constructor(skipThrowSymbol?: symbol) {
         if (skipThrowSymbol !== kSkipThrow) {
@@ -483,7 +589,7 @@ class ReadableStreamDefaultController {
         readableStreamDefaultControllerClose(this);
     }
 
-    enqueue(chunk: any = undefined): void {
+    enqueue(chunk: unknown = undefined): void {
         if (!readableStreamDefaultControllerCanCloseOrEnqueue(this))
             throw new TypeError('Controller is already closed');
         readableStreamDefaultControllerEnqueue(this, chunk);
@@ -497,7 +603,7 @@ class ReadableStreamDefaultController {
         return readableStreamDefaultControllerCancelSteps(this, reason);
     }
 
-    [kPull](readRequest: any) {
+    [kPull](readRequest: ReadRequest) {
         readableStreamDefaultControllerPullSteps(this, readRequest);
     }
 
@@ -510,17 +616,17 @@ class ReadableStreamDefaultController {
 
 // ---- Brand checks ----
 
-const isReadableStream = isBrandCheck('ReadableStream');
-const isReadableStreamDefaultController = isBrandCheck('ReadableStreamDefaultController');
-const isReadableStreamDefaultReader = isBrandCheck('ReadableStreamDefaultReader');
+const isReadableStream = isBrandCheck<ReadableStream>('ReadableStream');
+const isReadableStreamDefaultController = isBrandCheck<ReadableStreamDefaultController>('ReadableStreamDefaultController');
+const isReadableStreamDefaultReader = isBrandCheck<ReadableStreamDefaultReader>('ReadableStreamDefaultReader');
 
 // ---- Stream state helpers ----
 
-function isReadableStreamLocked(stream: any): boolean {
+function isReadableStreamLocked(stream: ReadableStream): boolean {
     return stream[kState].reader !== undefined;
 }
 
-function readableStreamCancel(stream: any, reason: unknown): Promise<void> {
+function readableStreamCancel(stream: ReadableStream, reason: unknown): Promise<void> {
     stream[kState].disturbed = true;
     switch (stream[kState].state) {
         case 'closed':
@@ -543,7 +649,7 @@ function readableStreamCancel(stream: any, reason: unknown): Promise<void> {
     return stream[kState].controller[kCancel](reason).then(() => {});
 }
 
-function readableStreamClose(stream: any): void {
+function readableStreamClose(stream: ReadableStream): void {
     stream[kState].state = 'closed';
     stream[kState].closedPromise.resolve();
     const { reader } = stream[kState];
@@ -562,7 +668,7 @@ function readableStreamClose(stream: any): void {
     // descriptors are committed. So nothing to do here for BYOB.
 }
 
-function readableStreamError(stream: any, error: unknown): void {
+function readableStreamError(stream: ReadableStream, error: unknown): void {
     stream[kState].state = 'errored';
     stream[kState].storedError = error;
     setPromiseHandled(stream[kState].closedPromise.promise);
@@ -585,17 +691,17 @@ function readableStreamError(stream: any, error: unknown): void {
     }
 }
 
-function readableStreamHasDefaultReader(stream: any): boolean {
+function readableStreamHasDefaultReader(stream: ReadableStream): boolean {
     const { reader } = stream[kState];
     if (reader === undefined) return false;
     return reader[kState] !== undefined && reader[kType] === 'ReadableStreamDefaultReader';
 }
 
-function readableStreamGetNumReadRequests(stream: any): number {
+function readableStreamGetNumReadRequests(stream: ReadableStream): number {
     return stream[kState].reader[kState].readRequests.length;
 }
 
-function readableStreamFulfillReadRequest(stream: any, chunk: unknown, done: boolean): void {
+function readableStreamFulfillReadRequest(stream: ReadableStream, chunk: unknown, done: boolean): void {
     const { reader } = stream[kState];
     const readRequest = reader[kState].readRequests.shift();
 
@@ -603,18 +709,18 @@ function readableStreamFulfillReadRequest(stream: any, chunk: unknown, done: boo
     else readRequest[kChunk](chunk);
 }
 
-function readableStreamAddReadRequest(stream: any, readRequest: any): void {
+function readableStreamAddReadRequest(stream: ReadableStream, readRequest: ReadRequest): void {
     stream[kState].reader[kState].readRequests.push(readRequest);
 }
 
 // ---- Reader generic operations ----
 
-function readableStreamReaderGenericCancel(reader: any, reason: unknown): Promise<void> {
+function readableStreamReaderGenericCancel(reader: AnyReader, reason: unknown): Promise<void> {
     const { stream } = reader[kState];
     return readableStreamCancel(stream, reason);
 }
 
-function readableStreamReaderGenericInitialize(reader: any, stream: any): void {
+function readableStreamReaderGenericInitialize(reader: AnyReader, stream: ReadableStream): void {
     reader[kState].stream = stream;
     stream[kState].reader = reader;
     switch (stream[kState].state) {
@@ -639,7 +745,7 @@ function readableStreamReaderGenericInitialize(reader: any, stream: any): void {
     }
 }
 
-function readableStreamReaderGenericRelease(reader: any): void {
+function readableStreamReaderGenericRelease(reader: AnyReader): void {
     const { stream } = reader[kState];
 
     const releasedStateError = lazyReadableReleasedError();
@@ -660,19 +766,19 @@ function readableStreamReaderGenericRelease(reader: any): void {
     reader[kState].stream = undefined;
 }
 
-function readableStreamDefaultReaderRelease(reader: any): void {
+function readableStreamDefaultReaderRelease(reader: ReadableStreamDefaultReader): void {
     readableStreamReaderGenericRelease(reader);
     readableStreamDefaultReaderErrorReadRequests(reader, lazyReadableReleasingError());
 }
 
-function readableStreamDefaultReaderErrorReadRequests(reader: any, e: unknown): void {
+function readableStreamDefaultReaderErrorReadRequests(reader: ReadableStreamDefaultReader, e: unknown): void {
     for (let n = 0; n < reader[kState].readRequests.length; ++n) {
         reader[kState].readRequests[n][kError](e);
     }
     reader[kState].readRequests = [];
 }
 
-function readableStreamDefaultReaderRead(reader: any, readRequest: any): void {
+function readableStreamDefaultReaderRead(reader: ReadableStreamDefaultReader, readRequest: ReadRequest): void {
     const { stream } = reader[kState];
     stream[kState].disturbed = true;
     switch (stream[kState].state) {
@@ -688,7 +794,7 @@ function readableStreamDefaultReaderRead(reader: any, readRequest: any): void {
     }
 }
 
-function setupReadableStreamDefaultReader(reader: any, stream: any): void {
+function setupReadableStreamDefaultReader(reader: ReadableStreamDefaultReader, stream: ReadableStream): void {
     if (isReadableStreamLocked(stream)) throw new TypeError('ReadableStream is locked');
     readableStreamReaderGenericInitialize(reader, stream);
     reader[kState].readRequests = [];
@@ -696,7 +802,7 @@ function setupReadableStreamDefaultReader(reader: any, stream: any): void {
 
 // ---- Default controller internals ----
 
-function readableStreamDefaultControllerClose(controller: any): void {
+function readableStreamDefaultControllerClose(controller: ReadableStreamDefaultController): void {
     if (!readableStreamDefaultControllerCanCloseOrEnqueue(controller)) return;
     controller[kState].closeRequested = true;
     if (!controller[kState].queue.length) {
@@ -705,7 +811,7 @@ function readableStreamDefaultControllerClose(controller: any): void {
     }
 }
 
-function readableStreamDefaultControllerEnqueue(controller: any, chunk: any): void {
+function readableStreamDefaultControllerEnqueue(controller: ReadableStreamDefaultController, chunk: unknown): void {
     if (!readableStreamDefaultControllerCanCloseOrEnqueue(controller)) return;
 
     const { stream } = controller[kState];
@@ -724,12 +830,12 @@ function readableStreamDefaultControllerEnqueue(controller: any, chunk: any): vo
     readableStreamDefaultControllerCallPullIfNeeded(controller);
 }
 
-function readableStreamDefaultControllerCanCloseOrEnqueue(controller: any): boolean {
+function readableStreamDefaultControllerCanCloseOrEnqueue(controller: ReadableStreamDefaultController): boolean {
     const { stream } = controller[kState];
     return !controller[kState].closeRequested && stream[kState].state === 'readable';
 }
 
-function readableStreamDefaultControllerGetDesiredSize(controller: any): number | null {
+function readableStreamDefaultControllerGetDesiredSize(controller: ReadableStreamDefaultController): number | null {
     const { stream, highWaterMark, queueTotalSize } = controller[kState];
     switch (stream[kState].state) {
         case 'errored':
@@ -741,11 +847,11 @@ function readableStreamDefaultControllerGetDesiredSize(controller: any): number 
     }
 }
 
-function readableStreamDefaultControllerHasBackpressure(controller: any): boolean {
+function readableStreamDefaultControllerHasBackpressure(controller: ReadableStreamDefaultController): boolean {
     return !readableStreamDefaultControllerShouldCallPull(controller);
 }
 
-function readableStreamDefaultControllerShouldCallPull(controller: any): boolean {
+function readableStreamDefaultControllerShouldCallPull(controller: ReadableStreamDefaultController): boolean {
     const { stream } = controller[kState];
     if (!readableStreamDefaultControllerCanCloseOrEnqueue(controller) || !controller[kState].started) return false;
 
@@ -757,7 +863,7 @@ function readableStreamDefaultControllerShouldCallPull(controller: any): boolean
     return desiredSize !== null && desiredSize > 0;
 }
 
-function readableStreamDefaultControllerCallPullIfNeeded(controller: any): void {
+function readableStreamDefaultControllerCallPullIfNeeded(controller: ReadableStreamDefaultController): void {
     if (!readableStreamDefaultControllerShouldCallPull(controller)) return;
     if (controller[kState].pulling) {
         controller[kState].pullAgain = true;
@@ -776,13 +882,13 @@ function readableStreamDefaultControllerCallPullIfNeeded(controller: any): void 
     );
 }
 
-function readableStreamDefaultControllerClearAlgorithms(controller: any): void {
+function readableStreamDefaultControllerClearAlgorithms(controller: ReadableStreamDefaultController): void {
     controller[kState].pullAlgorithm = undefined;
     controller[kState].cancelAlgorithm = undefined;
     controller[kState].sizeAlgorithm = undefined;
 }
 
-function readableStreamDefaultControllerError(controller: any, error: unknown): void {
+function readableStreamDefaultControllerError(controller: ReadableStreamDefaultController, error: unknown): void {
     const { stream } = controller[kState];
     if (stream[kState].state === 'readable') {
         resetQueue(controller);
@@ -791,14 +897,17 @@ function readableStreamDefaultControllerError(controller: any, error: unknown): 
     }
 }
 
-function readableStreamDefaultControllerCancelSteps(controller: any, reason: unknown): Promise<void> {
+function readableStreamDefaultControllerCancelSteps(
+    controller: ReadableStreamDefaultController,
+    reason: unknown,
+): Promise<unknown> {
     resetQueue(controller);
-    const result = controller[kState].cancelAlgorithm(reason);
+    const result = controller[kState].cancelAlgorithm?.(reason) ?? Promise.resolve();
     readableStreamDefaultControllerClearAlgorithms(controller);
     return result;
 }
 
-function readableStreamDefaultControllerPullSteps(controller: any, readRequest: any): void {
+function readableStreamDefaultControllerPullSteps(controller: ReadableStreamDefaultController, readRequest: ReadRequest): void {
     const { stream, queue } = controller[kState];
     if (queue.length) {
         const chunk = dequeueValue(controller);
@@ -818,13 +927,13 @@ function readableStreamDefaultControllerPullSteps(controller: any, readRequest: 
 // ---- Setup functions ----
 
 function setupReadableStreamDefaultController(
-    stream: any,
-    controller: any,
-    startAlgorithm: Function,
-    pullAlgorithm: Function,
-    cancelAlgorithm: Function,
+    stream: ReadableStream,
+    controller: ReadableStreamDefaultController,
+    startAlgorithm: StartAlgorithm,
+    pullAlgorithm: PromiseAlgorithm,
+    cancelAlgorithm: PromiseAlgorithm,
     highWaterMark: number,
-    sizeAlgorithm: (chunk: any) => number,
+    sizeAlgorithm: (chunk: unknown) => number,
 ): void {
     controller[kState] = {
         cancelAlgorithm,
@@ -853,10 +962,10 @@ function setupReadableStreamDefaultController(
 }
 
 function setupReadableStreamDefaultControllerFromSource(
-    stream: any,
-    source: any,
+    stream: ReadableStream,
+    source: UnderlyingSource | null,
     highWaterMark: number,
-    sizeAlgorithm: (chunk: any) => number,
+    sizeAlgorithm: (chunk: unknown) => number,
 ): void {
     const controller = new ReadableStreamDefaultController(kSkipThrow);
     const start = source?.start;
@@ -880,11 +989,11 @@ function setupReadableStreamDefaultControllerFromSource(
 // ---- Internal factory (used by TransformStream and tee) ----
 
 function createReadableStream(
-    start: Function,
-    pull: Function,
-    cancel: Function,
+    start: StartAlgorithm,
+    pull: PromiseAlgorithm,
+    cancel: PromiseAlgorithm,
     highWaterMark = 1,
-    size: (chunk: any) => number = () => 1,
+    size: (chunk: unknown) => number = () => 1,
 ): ReadableStream {
     const stream = Object.create(ReadableStream.prototype);
     stream[kType] = 'ReadableStream';
@@ -898,7 +1007,7 @@ function createReadableStream(
 // ---- readableStreamFromIterable (static from()) ----
 
 function readableStreamFromIterable(iterable: unknown): ReadableStream {
-    let stream: any;
+    let stream: ReadableStream;
     const iteratorRecord = getIterator(iterable as Record<string | symbol, unknown>, 'async');
 
     const startAlgorithm = nonOpStart;
@@ -911,9 +1020,9 @@ function readableStreamFromIterable(iterable: unknown): ReadableStream {
                 throw new TypeError('The promise returned by the iterator.next() method must fulfill with an object');
             }
             if (iterResult.done) {
-                readableStreamDefaultControllerClose(stream[kState].controller);
+                readableStreamDefaultControllerClose(stream[kState].controller as ReadableStreamDefaultController);
             } else {
-                readableStreamDefaultControllerEnqueue(stream[kState].controller, iterResult.value);
+                readableStreamDefaultControllerEnqueue(stream[kState].controller as ReadableStreamDefaultController, iterResult.value);
             }
         });
     }
@@ -942,15 +1051,15 @@ function readableStreamFromIterable(iterable: unknown): ReadableStream {
 // ---- readableStreamPipeTo ----
 
 function readableStreamPipeTo(
-    source: any,
-    dest: any,
+    source: ReadableStream,
+    dest: WritableStream,
     preventClose: boolean,
     preventAbort: boolean,
     preventCancel: boolean,
-    signal: any,
+    signal: AbortSignal | undefined,
 ): Promise<void> {
-    let reader: any;
-    let writer: any;
+    let reader: ReadableStreamDefaultReader;
+    let writer: WritableStreamDefaultWriter;
 
     // Both of these can throw synchronously. We want to capture
     // the error and return a rejected promise instead.
@@ -1049,12 +1158,16 @@ function readableStreamPipeTo(
         shutdownWithAnAction(() => Promise.all(actions.map((action) => action())).then(() => undefined), true, error);
     }
 
-    function watchErrored(stream: any, watchPromise: Promise<unknown>, action: (error: unknown) => void) {
+    function watchErrored(
+        stream: ReadableStream | WritableStream,
+        watchPromise: Promise<unknown>,
+        action: (error: unknown) => void,
+    ) {
         if (stream[kState].state === 'errored') action(stream[kState].storedError);
         else watchPromise.then(undefined, action);
     }
 
-    function watchClosed(stream: any, watchPromise: Promise<unknown>, action: () => void) {
+    function watchClosed(stream: ReadableStream | WritableStream, watchPromise: Promise<unknown>, action: () => void) {
         if (stream[kState].state === 'closed') action();
         else watchPromise.then(action, () => {});
     }
@@ -1124,8 +1237,10 @@ function readableStreamPipeTo(
             // Trigger pull if needed after batch
             readableStreamDefaultControllerCallPullIfNeeded(controller);
 
-            // Check if stream closed during batch
-            if (source[kState].state === 'closed') {
+            // Check if stream closed during batch. The fast-path guard above
+            // narrowed `state` to 'readable'; the intervening writes/close can
+            // mutate it at runtime, so re-widen before re-checking.
+            if ((source[kState].state as ReadableStreamStateName) === 'closed') {
                 return true;
             }
 
@@ -1192,15 +1307,15 @@ function readableStreamPipeTo(
 
 // ---- readableStreamDefaultTee ----
 
-function readableStreamDefaultTee(stream: any, cloneForBranch2: boolean): [ReadableStream, ReadableStream] {
+function readableStreamDefaultTee(stream: ReadableStream, cloneForBranch2: boolean): [ReadableStream, ReadableStream] {
     const reader = new ReadableStreamDefaultReader(stream);
     let reading = false;
     let canceled1 = false;
     let canceled2 = false;
     let reason1: unknown;
     let reason2: unknown;
-    let branch1: any;
-    let branch2: any;
+    let branch1: ReadableStream;
+    let branch2: ReadableStream;
     const cancelPromise = Promise.withResolvers<unknown>();
 
     async function pullAlgorithm() {
@@ -1221,10 +1336,10 @@ function readableStreamDefaultTee(stream: any, cloneForBranch2: boolean): [Reada
                         }
                     }
                     if (!canceled1) {
-                        readableStreamDefaultControllerEnqueue(branch1[kState].controller, value1);
+                        readableStreamDefaultControllerEnqueue(branch1[kState].controller as ReadableStreamDefaultController, value1);
                     }
                     if (!canceled2) {
-                        readableStreamDefaultControllerEnqueue(branch2[kState].controller, value2);
+                        readableStreamDefaultControllerEnqueue(branch2[kState].controller as ReadableStreamDefaultController, value2);
                     }
                 });
             },
@@ -1234,8 +1349,8 @@ function readableStreamDefaultTee(stream: any, cloneForBranch2: boolean): [Reada
                 // queueMicrotask which is the closest equivalent in GJS.
                 _queueMicrotask(() => {
                     reading = false;
-                    if (!canceled1) readableStreamDefaultControllerClose(branch1[kState].controller);
-                    if (!canceled2) readableStreamDefaultControllerClose(branch2[kState].controller);
+                    if (!canceled1) readableStreamDefaultControllerClose(branch1[kState].controller as ReadableStreamDefaultController);
+                    if (!canceled2) readableStreamDefaultControllerClose(branch2[kState].controller as ReadableStreamDefaultController);
                     if (!canceled1 || !canceled2) cancelPromise.resolve(undefined);
                 });
             },
@@ -1270,8 +1385,8 @@ function readableStreamDefaultTee(stream: any, cloneForBranch2: boolean): [Reada
     branch2 = createReadableStream(nonOpStart, pullAlgorithm, cancel2Algorithm);
 
     reader[kState].close.promise.then(undefined, (error: unknown) => {
-        readableStreamDefaultControllerError(branch1[kState].controller, error);
-        readableStreamDefaultControllerError(branch2[kState].controller, error);
+        readableStreamDefaultControllerError(branch1[kState].controller as ReadableStreamDefaultController, error);
+        readableStreamDefaultControllerError(branch2[kState].controller as ReadableStreamDefaultController, error);
         if (!canceled1 || !canceled2) cancelPromise.resolve(undefined);
     });
 
@@ -1327,11 +1442,12 @@ class BYOBReadIntoRequest {
 
 class ReadableStreamBYOBReader {
     [kType] = 'ReadableStreamBYOBReader';
-    [kState]: any;
+    [kState]!: ReaderState;
 
     constructor(stream: ReadableStream) {
         if (!isReadableStream(stream)) throw new TypeError('Expected a ReadableStream');
         this[kState] = {
+            readRequests: [],
             readIntoRequests: [] as BYOBReadIntoRequest[],
             stream: undefined as ReadableStream | undefined,
             close: {
@@ -1417,7 +1533,7 @@ class ReadableStreamBYOBReader {
 
 class ReadableStreamBYOBRequest {
     [kType] = 'ReadableStreamBYOBRequest';
-    [kState]: any = {};
+    [kState]!: BYOBRequestState;
 
     constructor(skipThrowSymbol?: symbol) {
         if (skipThrowSymbol !== kSkipThrow) {
@@ -1469,7 +1585,7 @@ class ReadableStreamBYOBRequest {
 
 class ReadableByteStreamController {
     [kType] = 'ReadableByteStreamController';
-    [kState]: any = {};
+    [kState]!: ByteControllerState;
 
     constructor(skipThrowSymbol?: symbol) {
         if (skipThrowSymbol !== kSkipThrow) {
@@ -1528,7 +1644,7 @@ class ReadableByteStreamController {
         return readableByteStreamControllerCancelSteps(this, reason);
     }
 
-    [kPull](readRequest: any) {
+    [kPull](readRequest: ReadRequest) {
         readableByteStreamControllerPullSteps(this, readRequest);
     }
 
@@ -1549,34 +1665,34 @@ class ReadableByteStreamController {
 
 // ---- BYOB brand checks ----
 
-const isReadableByteStreamController = isBrandCheck('ReadableByteStreamController');
-const isReadableStreamBYOBReader = isBrandCheck('ReadableStreamBYOBReader');
-const isReadableStreamBYOBRequest = isBrandCheck('ReadableStreamBYOBRequest');
+const isReadableByteStreamController = isBrandCheck<ReadableByteStreamController>('ReadableByteStreamController');
+const isReadableStreamBYOBReader = isBrandCheck<ReadableStreamBYOBReader>('ReadableStreamBYOBReader');
+const isReadableStreamBYOBRequest = isBrandCheck<ReadableStreamBYOBRequest>('ReadableStreamBYOBRequest');
 
 // ---- BYOB stream/reader helpers ----
 
-function readableStreamHasBYOBReader(stream: any): boolean {
+function readableStreamHasBYOBReader(stream: ReadableStream): boolean {
     const { reader } = stream[kState];
     if (reader === undefined) return false;
     return reader[kState] !== undefined && reader[kType] === 'ReadableStreamBYOBReader';
 }
 
-function readableStreamGetNumReadIntoRequests(stream: any): number {
+function readableStreamGetNumReadIntoRequests(stream: ReadableStream): number {
     return stream[kState].reader[kState].readIntoRequests.length;
 }
 
-function readableStreamAddReadIntoRequest(stream: any, readIntoRequest: BYOBReadIntoRequest): void {
+function readableStreamAddReadIntoRequest(stream: ReadableStream, readIntoRequest: BYOBReadIntoRequest): void {
     stream[kState].reader[kState].readIntoRequests.push(readIntoRequest);
 }
 
-function readableStreamFulfillReadIntoRequest(stream: any, chunk: ArrayBufferView, done: boolean): void {
+function readableStreamFulfillReadIntoRequest(stream: ReadableStream, chunk: ArrayBufferView, done: boolean): void {
     const { reader } = stream[kState];
     const readIntoRequest = reader[kState].readIntoRequests.shift();
     if (done) readIntoRequest[kClose](chunk);
     else readIntoRequest[kChunk](chunk);
 }
 
-function setupReadableStreamBYOBReader(reader: any, stream: any): void {
+function setupReadableStreamBYOBReader(reader: ReadableStreamBYOBReader, stream: ReadableStream): void {
     if (isReadableStreamLocked(stream)) throw new TypeError('ReadableStream is locked');
     if (!isReadableByteStreamController(stream[kState].controller)) {
         throw new TypeError('Cannot use a BYOB reader with a non-byte stream');
@@ -1586,7 +1702,7 @@ function setupReadableStreamBYOBReader(reader: any, stream: any): void {
 }
 
 function readableStreamBYOBReaderRead(
-    reader: any,
+    reader: ReadableStreamBYOBReader,
     view: ArrayBufferView,
     min: number,
     readIntoRequest: BYOBReadIntoRequest,
@@ -1596,11 +1712,16 @@ function readableStreamBYOBReaderRead(
     if (stream[kState].state === 'errored') {
         readIntoRequest[kError](stream[kState].storedError);
     } else {
-        readableByteStreamControllerPullInto(stream[kState].controller, view, min, readIntoRequest);
+        readableByteStreamControllerPullInto(
+            stream[kState].controller as ReadableByteStreamController,
+            view,
+            min,
+            readIntoRequest,
+        );
     }
 }
 
-function readableStreamBYOBReaderRelease(reader: any): void {
+function readableStreamBYOBReaderRelease(reader: ReadableStreamBYOBReader): void {
     readableStreamReaderGenericRelease(reader);
     const e = new TypeError('Reader was released');
     for (let n = 0; n < reader[kState].readIntoRequests.length; n++) {
@@ -1611,17 +1732,17 @@ function readableStreamBYOBReaderRelease(reader: any): void {
 
 // ---- Byte controller internals ----
 
-function readableByteStreamControllerClearAlgorithms(controller: any): void {
+function readableByteStreamControllerClearAlgorithms(controller: ReadableByteStreamController): void {
     controller[kState].pullAlgorithm = undefined;
     controller[kState].cancelAlgorithm = undefined;
 }
 
-function readableByteStreamControllerClearPendingPullIntos(controller: any): void {
+function readableByteStreamControllerClearPendingPullIntos(controller: ReadableByteStreamController): void {
     readableByteStreamControllerInvalidateBYOBRequest(controller);
     controller[kState].pendingPullIntos = [];
 }
 
-function readableByteStreamControllerInvalidateBYOBRequest(controller: any): void {
+function readableByteStreamControllerInvalidateBYOBRequest(controller: ReadableByteStreamController): void {
     const req = controller[kState].byobRequest;
     if (req === null || req === undefined) return;
     req[kState].controller = undefined;
@@ -1629,7 +1750,7 @@ function readableByteStreamControllerInvalidateBYOBRequest(controller: any): voi
     controller[kState].byobRequest = null;
 }
 
-function readableByteStreamControllerError(controller: any, e: unknown): void {
+function readableByteStreamControllerError(controller: ReadableByteStreamController, e: unknown): void {
     const { stream } = controller[kState];
     if (stream[kState].state !== 'readable') return;
     readableByteStreamControllerClearPendingPullIntos(controller);
@@ -1638,14 +1759,14 @@ function readableByteStreamControllerError(controller: any, e: unknown): void {
     readableStreamError(stream, e);
 }
 
-function readableByteStreamControllerGetDesiredSize(controller: any): number | null {
+function readableByteStreamControllerGetDesiredSize(controller: ReadableByteStreamController): number | null {
     const state = controller[kState].stream[kState].state;
     if (state === 'errored') return null;
     if (state === 'closed') return 0;
     return controller[kState].highWaterMark - controller[kState].queueTotalSize;
 }
 
-function readableByteStreamControllerShouldCallPull(controller: any): boolean {
+function readableByteStreamControllerShouldCallPull(controller: ReadableByteStreamController): boolean {
     const { stream } = controller[kState];
     if (stream[kState].state !== 'readable' || controller[kState].closeRequested || !controller[kState].started) {
         return false;
@@ -1660,7 +1781,7 @@ function readableByteStreamControllerShouldCallPull(controller: any): boolean {
     return desiredSize !== null && desiredSize > 0;
 }
 
-function readableByteStreamControllerCallPullIfNeeded(controller: any): void {
+function readableByteStreamControllerCallPullIfNeeded(controller: ReadableByteStreamController): void {
     if (!readableByteStreamControllerShouldCallPull(controller)) return;
     if (controller[kState].pulling) {
         controller[kState].pullAgain = true;
@@ -1679,7 +1800,7 @@ function readableByteStreamControllerCallPullIfNeeded(controller: any): void {
     );
 }
 
-function readableByteStreamControllerHandleQueueDrain(controller: any): void {
+function readableByteStreamControllerHandleQueueDrain(controller: ReadableByteStreamController): void {
     if (controller[kState].queueTotalSize === 0 && controller[kState].closeRequested) {
         readableByteStreamControllerClearAlgorithms(controller);
         readableStreamClose(controller[kState].stream);
@@ -1689,7 +1810,7 @@ function readableByteStreamControllerHandleQueueDrain(controller: any): void {
 }
 
 function readableByteStreamControllerEnqueueChunkToQueue(
-    controller: any,
+    controller: ReadableByteStreamController,
     buffer: ArrayBufferLike,
     byteOffset: number,
     byteLength: number,
@@ -1699,7 +1820,7 @@ function readableByteStreamControllerEnqueueChunkToQueue(
 }
 
 function readableByteStreamControllerEnqueueClonedChunkToQueue(
-    controller: any,
+    controller: ReadableByteStreamController,
     buffer: ArrayBufferLike,
     byteOffset: number,
     byteLength: number,
@@ -1714,7 +1835,7 @@ function readableByteStreamControllerEnqueueClonedChunkToQueue(
     readableByteStreamControllerEnqueueChunkToQueue(controller, cloneResult, 0, byteLength);
 }
 
-function readableByteStreamControllerEnqueueDetachedPullIntoToQueue(controller: any, pullIntoDescriptor: any): void {
+function readableByteStreamControllerEnqueueDetachedPullIntoToQueue(controller: ReadableByteStreamController, pullIntoDescriptor: PullIntoDescriptor): void {
     if (pullIntoDescriptor.bytesFilled > 0) {
         readableByteStreamControllerEnqueueClonedChunkToQueue(
             controller,
@@ -1726,19 +1847,19 @@ function readableByteStreamControllerEnqueueDetachedPullIntoToQueue(controller: 
     readableByteStreamControllerShiftPendingPullInto(controller);
 }
 
-function readableByteStreamControllerShiftPendingPullInto(controller: any): any {
+function readableByteStreamControllerShiftPendingPullInto(controller: ReadableByteStreamController): PullIntoDescriptor | undefined {
     return controller[kState].pendingPullIntos.shift();
 }
 
 function readableByteStreamControllerFillHeadPullIntoDescriptor(
-    controller: any,
+    controller: ReadableByteStreamController,
     size: number,
-    pullIntoDescriptor: any,
+    pullIntoDescriptor: PullIntoDescriptor,
 ): void {
     pullIntoDescriptor.bytesFilled += size;
 }
 
-function readableByteStreamControllerConvertPullIntoDescriptor(pullIntoDescriptor: any): ArrayBufferView {
+function readableByteStreamControllerConvertPullIntoDescriptor(pullIntoDescriptor: PullIntoDescriptor): ArrayBufferView {
     const bytesFilled = pullIntoDescriptor.bytesFilled;
     const elementSize = pullIntoDescriptor.elementSize;
     const buffer = transferArrayBuffer(pullIntoDescriptor.buffer);
@@ -1746,7 +1867,7 @@ function readableByteStreamControllerConvertPullIntoDescriptor(pullIntoDescripto
     return new pullIntoDescriptor.viewConstructor(buffer, pullIntoDescriptor.byteOffset, bytesFilled / elementSize);
 }
 
-function readableByteStreamControllerCommitPullIntoDescriptor(stream: any, pullIntoDescriptor: any): void {
+function readableByteStreamControllerCommitPullIntoDescriptor(stream: ReadableStream, pullIntoDescriptor: PullIntoDescriptor): void {
     let done = false;
     if (stream[kState].state === 'closed') {
         done = true;
@@ -1760,8 +1881,8 @@ function readableByteStreamControllerCommitPullIntoDescriptor(stream: any, pullI
 }
 
 function readableByteStreamControllerFillPullIntoDescriptorFromQueue(
-    controller: any,
-    pullIntoDescriptor: any,
+    controller: ReadableByteStreamController,
+    pullIntoDescriptor: PullIntoDescriptor,
 ): boolean {
     const maxBytesToCopy = Math.min(
         controller[kState].queueTotalSize,
@@ -1797,7 +1918,7 @@ function readableByteStreamControllerFillPullIntoDescriptorFromQueue(
     return ready;
 }
 
-function readableByteStreamControllerFillReadRequestFromQueue(controller: any, readRequest: any): void {
+function readableByteStreamControllerFillReadRequestFromQueue(controller: ReadableByteStreamController, readRequest: ReadRequest): void {
     const entry = controller[kState].queue.shift();
     controller[kState].queueTotalSize -= entry.byteLength;
     readableByteStreamControllerHandleQueueDrain(controller);
@@ -1805,7 +1926,7 @@ function readableByteStreamControllerFillReadRequestFromQueue(controller: any, r
     readRequest[kChunk](view);
 }
 
-function readableByteStreamControllerProcessReadRequestsUsingQueue(controller: any): void {
+function readableByteStreamControllerProcessReadRequestsUsingQueue(controller: ReadableByteStreamController): void {
     const reader = controller[kState].stream[kState].reader;
     while (reader[kState].readRequests.length !== 0) {
         if (controller[kState].queueTotalSize === 0) return;
@@ -1814,7 +1935,7 @@ function readableByteStreamControllerProcessReadRequestsUsingQueue(controller: a
     }
 }
 
-function readableByteStreamControllerProcessPullIntoDescriptorsUsingQueue(controller: any): void {
+function readableByteStreamControllerProcessPullIntoDescriptorsUsingQueue(controller: ReadableByteStreamController): void {
     while (controller[kState].pendingPullIntos.length !== 0) {
         if (controller[kState].queueTotalSize === 0) return;
         const pullIntoDescriptor = controller[kState].pendingPullIntos[0];
@@ -1825,7 +1946,7 @@ function readableByteStreamControllerProcessPullIntoDescriptorsUsingQueue(contro
     }
 }
 
-function readableByteStreamControllerGetBYOBRequest(controller: any): ReadableStreamBYOBRequest | null {
+function readableByteStreamControllerGetBYOBRequest(controller: ReadableByteStreamController): ReadableStreamBYOBRequest | null {
     if (controller[kState].byobRequest === null && controller[kState].pendingPullIntos.length !== 0) {
         const firstDescriptor = controller[kState].pendingPullIntos[0];
         const view = new Uint8Array(
@@ -1840,7 +1961,7 @@ function readableByteStreamControllerGetBYOBRequest(controller: any): ReadableSt
     return controller[kState].byobRequest;
 }
 
-function readableByteStreamControllerEnqueue(controller: any, chunk: ArrayBufferView): void {
+function readableByteStreamControllerEnqueue(controller: ReadableByteStreamController, chunk: ArrayBufferView): void {
     const { stream } = controller[kState];
     if (controller[kState].closeRequested || stream[kState].state !== 'readable') {
         return;
@@ -1886,7 +2007,7 @@ function readableByteStreamControllerEnqueue(controller: any, chunk: ArrayBuffer
     readableByteStreamControllerCallPullIfNeeded(controller);
 }
 
-function readableByteStreamControllerClose(controller: any): void {
+function readableByteStreamControllerClose(controller: ReadableByteStreamController): void {
     const { stream } = controller[kState];
     if (controller[kState].closeRequested || stream[kState].state !== 'readable') return;
     if (controller[kState].queueTotalSize > 0) {
@@ -1906,14 +2027,14 @@ function readableByteStreamControllerClose(controller: any): void {
 }
 
 function readableByteStreamControllerPullInto(
-    controller: any,
+    controller: ReadableByteStreamController,
     view: ArrayBufferView,
     min: number,
     readIntoRequest: BYOBReadIntoRequest,
 ): void {
     const stream = controller[kState].stream;
     const tag = (view as unknown as { [Symbol.toStringTag]?: string })[Symbol.toStringTag];
-    let ctor: any;
+    let ctor: ViewCtor;
     let elementSize: number;
     if (tag === undefined || tag === 'DataView') {
         ctor = DataView;
@@ -1982,7 +2103,7 @@ function readableByteStreamControllerPullInto(
     readableByteStreamControllerCallPullIfNeeded(controller);
 }
 
-function readableByteStreamControllerRespond(controller: any, bytesWritten: number): void {
+function readableByteStreamControllerRespond(controller: ReadableByteStreamController, bytesWritten: number): void {
     const firstDescriptor = controller[kState].pendingPullIntos[0];
     const state = controller[kState].stream[kState].state;
     if (state === 'closed') {
@@ -2001,7 +2122,7 @@ function readableByteStreamControllerRespond(controller: any, bytesWritten: numb
     readableByteStreamControllerRespondInternal(controller, bytesWritten);
 }
 
-function readableByteStreamControllerRespondWithNewView(controller: any, view: ArrayBufferView): void {
+function readableByteStreamControllerRespondWithNewView(controller: ReadableByteStreamController, view: ArrayBufferView): void {
     const firstDescriptor = controller[kState].pendingPullIntos[0];
     const state = controller[kState].stream[kState].state;
     const byteLength = view.byteLength;
@@ -2032,7 +2153,7 @@ function readableByteStreamControllerRespondWithNewView(controller: any, view: A
     readableByteStreamControllerRespondInternal(controller, byteLength);
 }
 
-function readableByteStreamControllerRespondInternal(controller: any, bytesWritten: number): void {
+function readableByteStreamControllerRespondInternal(controller: ReadableByteStreamController, bytesWritten: number): void {
     const firstDescriptor = controller[kState].pendingPullIntos[0];
     readableByteStreamControllerInvalidateBYOBRequest(controller);
     const state = controller[kState].stream[kState].state;
@@ -2044,7 +2165,7 @@ function readableByteStreamControllerRespondInternal(controller: any, bytesWritt
     readableByteStreamControllerCallPullIfNeeded(controller);
 }
 
-function readableByteStreamControllerRespondInClosedState(controller: any, firstDescriptor: any): void {
+function readableByteStreamControllerRespondInClosedState(controller: ReadableByteStreamController, firstDescriptor: PullIntoDescriptor): void {
     if (firstDescriptor.readerType === 'none') {
         readableByteStreamControllerShiftPendingPullInto(controller);
     }
@@ -2058,9 +2179,9 @@ function readableByteStreamControllerRespondInClosedState(controller: any, first
 }
 
 function readableByteStreamControllerRespondInReadableState(
-    controller: any,
+    controller: ReadableByteStreamController,
     bytesWritten: number,
-    pullIntoDescriptor: any,
+    pullIntoDescriptor: PullIntoDescriptor,
 ): void {
     readableByteStreamControllerFillHeadPullIntoDescriptor(controller, bytesWritten, pullIntoDescriptor);
     if (pullIntoDescriptor.readerType === 'none') {
@@ -2087,15 +2208,18 @@ function readableByteStreamControllerRespondInReadableState(
     readableByteStreamControllerProcessPullIntoDescriptorsUsingQueue(controller);
 }
 
-function readableByteStreamControllerCancelSteps(controller: any, reason: unknown): Promise<void> {
+function readableByteStreamControllerCancelSteps(
+    controller: ReadableByteStreamController,
+    reason: unknown,
+): Promise<unknown> {
     readableByteStreamControllerClearPendingPullIntos(controller);
     resetQueue(controller);
-    const result = controller[kState].cancelAlgorithm(reason);
+    const result = controller[kState].cancelAlgorithm?.(reason) ?? Promise.resolve();
     readableByteStreamControllerClearAlgorithms(controller);
     return result;
 }
 
-function readableByteStreamControllerPullSteps(controller: any, readRequest: any): void {
+function readableByteStreamControllerPullSteps(controller: ReadableByteStreamController, readRequest: ReadRequest): void {
     const stream = controller[kState].stream;
     if (controller[kState].queueTotalSize > 0) {
         readableByteStreamControllerFillReadRequestFromQueue(controller, readRequest);
@@ -2130,11 +2254,11 @@ function readableByteStreamControllerPullSteps(controller: any, readRequest: any
 // ---- Byte controller setup ----
 
 function setupReadableByteStreamController(
-    stream: any,
-    controller: any,
-    startAlgorithm: Function,
-    pullAlgorithm: Function,
-    cancelAlgorithm: Function,
+    stream: ReadableStream,
+    controller: ReadableByteStreamController,
+    startAlgorithm: StartAlgorithm,
+    pullAlgorithm: PromiseAlgorithm,
+    cancelAlgorithm: PromiseAlgorithm,
     highWaterMark: number,
     autoAllocateChunkSize: number | undefined,
 ): void {
@@ -2165,7 +2289,11 @@ function setupReadableByteStreamController(
     );
 }
 
-function setupReadableByteStreamControllerFromSource(stream: any, source: any, highWaterMark: number): void {
+function setupReadableByteStreamControllerFromSource(
+    stream: ReadableStream,
+    source: UnderlyingSource | null,
+    highWaterMark: number,
+): void {
     const controller = new ReadableByteStreamController(kSkipThrow);
     const start = source?.start;
     const pull = source?.pull;
@@ -2198,7 +2326,7 @@ function setupReadableByteStreamControllerFromSource(stream: any, source: any, h
 // pending pull-into descriptors; we implement the simpler "default read"
 // branch which the spec allows when `cloneForBranch2` is false. Sufficient
 // for typical Fetch/ReadableStream consumers; full BYOB tee is a follow-up.
-function readableByteStreamTee(stream: any): [ReadableStream, ReadableStream] {
+function readableByteStreamTee(stream: ReadableStream): [ReadableStream, ReadableStream] {
     const reader = new ReadableStreamDefaultReader(stream);
     let reading = false;
     let canceled1 = false;
@@ -2209,8 +2337,8 @@ function readableByteStreamTee(stream: any): [ReadableStream, ReadableStream] {
 
     let branch1!: ReadableStream;
     let branch2!: ReadableStream;
-    let branch1Controller: any;
-    let branch2Controller: any;
+    let branch1Controller: ReadableByteStreamController;
+    let branch2Controller: ReadableByteStreamController;
 
     function pullAlgorithm(): Promise<void> {
         if (reading) return Promise.resolve();
@@ -2268,8 +2396,8 @@ function readableByteStreamTee(stream: any): [ReadableStream, ReadableStream] {
         },
     };
     branch2 = new ReadableStream(branch2Source);
-    branch1Controller = branch1[kState].controller;
-    branch2Controller = branch2[kState].controller;
+    branch1Controller = branch1[kState].controller as ReadableByteStreamController;
+    branch2Controller = branch2[kState].controller as ReadableByteStreamController;
 
     // Propagate stream errors to both branches.
     reader.closed.catch((e: unknown) => {

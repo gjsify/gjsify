@@ -2,7 +2,7 @@
 // Adapted from refs/node/lib/internal/webstreams/queuingstrategies.js
 // Copyright (c) Node.js contributors. MIT license.
 
-const byteSizeFunction = Object.defineProperty((chunk: any) => chunk.byteLength, 'name', { value: 'size' });
+const byteSizeFunction = Object.defineProperty((chunk: ArrayBufferView) => chunk.byteLength, 'name', { value: 'size' });
 
 const countSizeFunction = Object.defineProperty(() => 1, 'name', { value: 'size' });
 
@@ -23,7 +23,7 @@ export class ByteLengthQueuingStrategy {
         return this.#highWaterMark;
     }
 
-    get size(): (chunk: any) => number {
+    get size(): (chunk: ArrayBufferView) => number {
         return byteSizeFunction;
     }
 
@@ -49,6 +49,7 @@ export class CountQueuingStrategy {
         return this.#highWaterMark;
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- matches lib.dom CountQueuingStrategy.size (QueuingStrategySize<T = any>)
     get size(): (chunk: any) => number {
         return countSizeFunction;
     }
