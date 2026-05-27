@@ -6,7 +6,7 @@ import { KeyObject, createSecretKey, createPublicKey, createPrivateKey } from 'n
 import { Buffer } from 'node:buffer';
 
 // RSA test key pair (1024-bit for speed in tests)
-const RSA_PRIVATE_KEY = `-----BEGIN RSA PRIVATE KEY-----
+const _RSA_PRIVATE_KEY = `-----BEGIN RSA PRIVATE KEY-----
 MIICXQIBAAJBAMb7LAk/G+RHf+LrdZBMfDqqsdhldf7tOBDPBIyrGWE4MfSYJn
 t2sMPHjMbHGCP2ruZQyIjiSMNPB/2NPGodUCAwEAAQJBAJxQ9IkX0YkhINwriT1V
 c2gkMCBGfHk9E0JIETqHJMFN2EP2P4AEtJRbeFC9rHmSHO0gJfiCBSaFJuIUcfk
@@ -107,11 +107,11 @@ export default async () => {
     await describe('createPrivateKey', async () => {
         await it('should create a private key from PEM string', async () => {
             let key: KeyObject | null = null;
-            let error: Error | null = null;
+            let _error: Error | null = null;
             try {
                 key = createPrivateKey(testPrivateKeyPem);
             } catch (e) {
-                error = e as Error;
+                _error = e as Error;
             }
             // If the key parsed successfully, verify properties
             if (key) {

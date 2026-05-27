@@ -95,7 +95,7 @@ export default async () => {
                 storage.run('error-test', () => {
                     throw new Error('intentional');
                 });
-            } catch (e) {
+            } catch (_e) {
                 // Store should be restored after exception
                 expect(storage.getStore()).toBeUndefined();
             }

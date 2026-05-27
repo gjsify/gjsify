@@ -2,14 +2,12 @@
 // Used by RSA-PSS and RSA-OAEP
 
 import { Hash } from './hash.js';
-import { hashSize } from './crypto-utils.js';
 
 /**
  * MGF1 mask generation function.
  * Produces a mask of `length` bytes from `seed` using `hashAlgo`.
  */
 export function mgf1(hashAlgo: string, seed: Uint8Array, length: number): Uint8Array {
-    const hashLen = hashSize(hashAlgo);
     const mask = new Uint8Array(length);
     let offset = 0;
     let counter = 0;

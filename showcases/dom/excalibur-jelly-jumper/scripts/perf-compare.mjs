@@ -44,11 +44,6 @@ function avg(entries, key) {
     return entries.reduce((s, e) => s + (e[key] ?? 0), 0) / entries.length;
 }
 
-function min(entries, key) {
-    if (!entries.length) return 0;
-    return Math.min(...entries.map((e) => e[key] ?? 0));
-}
-
 const gjs = parsePerfLines(gjsFile);
 const browser = parsePerfLines(browserFile);
 

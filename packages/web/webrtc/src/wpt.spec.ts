@@ -751,7 +751,7 @@ export default async () => {
         });
 
         await it('bufferedAmount stays at 0 for empty string', async () => {
-            const [dc1, dc2, pc1, pc2] = await withTimeout(15000, createDataChannelPair({}), 'createDataChannelPair');
+            const [dc1, _dc2, pc1, pc2] = await withTimeout(15000, createDataChannelPair({}), 'createDataChannelPair');
             try {
                 dc1.send('');
                 expect(dc1.bufferedAmount).toBe(0);

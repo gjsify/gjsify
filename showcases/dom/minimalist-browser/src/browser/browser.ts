@@ -4,7 +4,7 @@
 // embed the showcase. Standalone runs through `browser-main.ts` which
 // calls `mount(document.body)`.
 
-import { BrowserCore, BUILTIN_PAGE_URLS, DEFAULT_HOME_URL } from '../browser-demo.js';
+import { BrowserCore, BUILTIN_PAGE_URLS, DEFAULT_HOME_URL, type IFrameHandle } from '../browser-demo.js';
 
 export interface MountOptions {
     /** Override the title in the header bar. */
@@ -152,7 +152,7 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     container.appendChild(root);
 
     // Wire the core.
-    const core = new BrowserCore(iframe as unknown as import('../browser-demo.js').IFrameHandle);
+    const core = new BrowserCore(iframe as unknown as IFrameHandle);
     let paused = false;
 
     core.onStateChange((state) => {

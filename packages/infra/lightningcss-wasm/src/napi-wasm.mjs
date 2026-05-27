@@ -424,7 +424,7 @@ export const napi = {
         let res = false;
         try {
             res = delete obj[name];
-        } catch (err) {}
+        } catch (_err) {}
         if (result) {
             env.memory[result] = res ? 1 : 0;
         }
@@ -472,7 +472,7 @@ export const napi = {
         let properties = Object.keys(obj);
         return env.createValue(properties, result);
     },
-    napi_get_all_property_names(env_id, object, key_mode, key_filter, key_conversion, result) {
+    napi_get_all_property_names(_env_id, _object, _key_mode, _key_filter, _key_conversion, _result) {
         throw new Error('not implemented');
     },
     napi_define_properties(env_id, object, property_count, properties) {
@@ -571,7 +571,7 @@ export const napi = {
     napi_remove_async_cleanup_hook() {
         return NAPI_OK;
     },
-    napi_set_instance_data(env_id, data, finalize_cb, finalize_hint) {
+    napi_set_instance_data(env_id, data, _finalize_cb, _finalize_hint) {
         let env = environments[env_id];
         env.instanceData = data;
         return NAPI_OK;
@@ -764,7 +764,7 @@ export const napi = {
         let res = false;
         try {
             res = delete obj[index];
-        } catch (err) {}
+        } catch (_err) {}
         if (result) {
             env.memory[result] = res ? 1 : 0;
         }
@@ -879,11 +879,11 @@ export const napi = {
     napi_acquire_threadsafe_function() {
         return NAPI_OK;
     },
-    napi_release_threadsafe_function(func, mode) {
+    napi_release_threadsafe_function(func, _mode) {
         threadsafeFunctions[func] = undefined;
         return NAPI_OK;
     },
-    napi_call_threadsafe_function(func, data, is_blocking) {
+    napi_call_threadsafe_function(func, data, _is_blocking) {
         let f = threadsafeFunctions[func];
         f.env.pushScope();
         try {
@@ -985,10 +985,10 @@ export const napi = {
         env.memory[result] = env.pendingException ? 1 : 0;
         return NAPI_OK;
     },
-    napi_fatal_exception(env_id, err) {
+    napi_fatal_exception(_env_id, _err) {
         throw new Error('not implemented');
     },
-    napi_fatal_error(location, location_len, message, message_len) {
+    napi_fatal_error(_location, _location_len, _message, _message_len) {
         throw new Error('not implemented');
     },
     napi_get_global(env_id, result) {
@@ -1068,7 +1068,7 @@ export const napi = {
         }
         return env.createValue(buf, result);
     },
-    napi_create_external_arraybuffer(env_id, data, length, finalize_cb, finalize_hint, result) {
+    napi_create_external_arraybuffer(_env_id, _data, _length, _finalize_cb, _finalize_hint, _result) {
         // There is no way to actually create an external ArrayBuffer without copying.
         // You can only create typed arrays as subarrays, not ArrayBuffer.
         return NAPI_NO_EXTERNAL_BUFFERS_ALLOWED;
@@ -1334,10 +1334,10 @@ export const napi = {
         env.wrappedObjects.delete(obj);
         return env.setPointer(result, native_object);
     },
-    napi_type_tag_object(env_id, js_object, type_tag) {
+    napi_type_tag_object(_env_id, _js_object, _type_tag) {
         throw new Error('not implemented');
     },
-    napi_check_object_type_tag(env_id, js_object, type_tag) {
+    napi_check_object_type_tag(_env_id, _js_object, _type_tag) {
         throw new Error('not implemented');
     },
     napi_add_finalizer(env_id, js_object, native_object, finalize_cb, finalize_hint, result) {

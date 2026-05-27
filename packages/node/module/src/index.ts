@@ -61,19 +61,6 @@ export function isBuiltin(name: string): boolean {
 // --- Private helpers for createRequire ---
 // Resolution logic ported from @gjsify/require, cleaned up for ESM-only use
 
-/** Walk up from startDir to find the nearest node_modules directory. */
-function findNodeModulesDir(startDir: string): string | null {
-    let dir = Gio.File.new_for_path(startDir);
-    while (dir.has_parent(null)) {
-        const nodeModules = dir.resolve_relative_path('node_modules');
-        if (nodeModules.query_exists(null)) {
-            return nodeModules.get_path();
-        }
-        dir = dir.get_parent()!;
-    }
-    return null;
-}
-
 /** Resolve symlinks for a Gio.File, returning the real path. */
 function resolveSymlink(file: Gio.File): string {
     const info = file.query_info('standard::', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);

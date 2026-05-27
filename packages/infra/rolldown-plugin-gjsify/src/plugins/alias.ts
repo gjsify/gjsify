@@ -29,7 +29,6 @@ export interface AliasPluginOptions {
 
 export function aliasPlugin(options: AliasPluginOptions): Plugin {
     const entries = options.entries;
-    const keys = Object.keys(entries);
 
     return {
         name: 'gjsify-alias',

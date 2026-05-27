@@ -11,16 +11,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-    mkdtempSync,
-    rmSync,
-    existsSync,
-    readFileSync,
-    writeFileSync,
-    mkdirSync,
-    lstatSync,
-    readlinkSync,
-} from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, lstatSync, readlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer } from 'node:http';

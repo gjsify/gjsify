@@ -13,7 +13,6 @@ import {
     RTCIceCandidate,
     RTCDtlsTransport,
     RTCIceTransport,
-    RTCSctpTransport,
     RTCDTMFSender,
     RTCCertificate,
     MediaStreamTrack,

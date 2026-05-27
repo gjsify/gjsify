@@ -5,7 +5,6 @@
 import type Gda from '@girs/gda-6.0';
 import type GObject from '@girs/gobject-2.0';
 import { InvalidArgTypeError, InvalidArgValueError, InvalidStateError, SqliteError } from './errors.ts';
-import type { SQLiteValue } from './types.ts';
 
 /**
  * GJS auto-converts plain JS primitives (`number`, `string`, `boolean`,

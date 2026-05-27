@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import * as gettextParser from 'gettext-parser';
 import type { GettextPo2JsonPluginOptions } from './types.js';
-import { checkDependencies, findAvailableLanguages, ensureDirectory } from './utils.js';
+import { findAvailableLanguages, ensureDirectory } from './utils.js';
 
 /**
  * Simplifies the gettext-parser output to a clean key-value object

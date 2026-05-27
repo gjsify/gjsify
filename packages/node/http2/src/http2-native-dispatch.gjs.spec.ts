@@ -485,7 +485,7 @@ export default async function () {
                 // GOAWAY frame is queued by `_closeConnection`'s submit_goaway +
                 // flushOutput → shutdown(write); whether the peer observes it
                 // versus the FIN first is a kernel/TCP-stack scheduling concern.
-                const { server: server1, port: port1 } = await startServer((_req, res) => {
+                const { server: server1, port: _port1 } = await startServer((_req, res) => {
                     res.end('hello');
                 });
 

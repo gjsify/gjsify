@@ -2,6 +2,7 @@
 // Reference: refs/node-canvas — Canvas 2D ImageData API.
 // Original: see canvas-rendering-context-2d.ts pre-split.
 
+import type GLib from '@girs/glib-2.0';
 import Cairo from 'cairo';
 import Gdk from 'gi://Gdk?version=4.0';
 import GdkPixbuf from 'gi://GdkPixbuf';
@@ -102,7 +103,7 @@ const pixelMethods: PixelMethods & ThisType<CanvasRenderingContext2D> = {
         }
 
         const pixbuf = GdkPixbuf.Pixbuf.new_from_bytes(
-            regionData as unknown as import('@girs/glib-2.0').default.Bytes,
+            regionData as unknown as GLib.Bytes,
             GdkPixbuf.Colorspace.RGB,
             true, // has_alpha
             8, // bits_per_sample

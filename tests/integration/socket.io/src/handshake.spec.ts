@@ -5,24 +5,10 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { Server } from 'socket.io';
-import { io as ioc } from 'socket.io-client';
 import type { AddressInfo } from 'node:net';
 
 function getPort(io: Server): number {
     return (io.httpServer.address() as AddressInfo).port;
-}
-
-function createClient(io: Server, nsp: string = '/', opts?: any) {
-    const port = getPort(io);
-    return ioc(`http://localhost:${port}${nsp}`, {
-        transports: ['polling', 'websocket'],
-        ...opts,
-    });
-}
-
-function cleanup(io: Server, ...clients: ReturnType<typeof ioc>[]) {
-    clients.forEach((c) => c.disconnect());
-    io.close();
 }
 
 export default async () => {

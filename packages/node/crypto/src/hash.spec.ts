@@ -52,7 +52,7 @@ export default async () => {
             let threw = false;
             try {
                 createHash('unknown');
-            } catch (e: any) {
+            } catch (_e: unknown) {
                 threw = true;
                 // Node.js may use different error formats; just verify it throws
             }

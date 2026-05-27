@@ -7,7 +7,7 @@ export const existsFD = (fd: number) => {
         stream.close(null);
         // File descriptor 12345 exists
         return true;
-    } catch (error) {
+    } catch (_error) {
         // File descriptor 12345 does not exist
         return false;
     }

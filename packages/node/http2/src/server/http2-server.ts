@@ -18,6 +18,8 @@ import { Http2ServerRequest } from './request.js';
 import { Http2ServerResponse, ServerHttp2Stream, type Http2NativeBackend } from './response.js';
 import { ServerHttp2Session } from './session.js';
 import type { Http2Settings } from '../protocol.js';
+import type * as NativeDispatcherModule from '../native-dispatcher.js';
+import type { Http2NativeDispatcher, NativeStreamEvent, NativeStreamBackend } from '../native-dispatcher.js';
 
 // GC guard — prevents server from being collected while listening
 const _activeServers = new Set<Http2Server>();
@@ -57,14 +59,14 @@ export class Http2Server extends EventEmitter {
     timeout = 0;
 
     protected _soupServer: Soup.Server | null = null;
-    protected _nativeDispatcher: import('../native-dispatcher.js').Http2NativeDispatcher | null = null;
+    protected _nativeDispatcher: Http2NativeDispatcher | null = null;
     protected _address: { port: number; family: string; address: string } | null = null;
     protected _options: ServerOptions;
 
     get soupServer(): Soup.Server | null {
         return this._soupServer;
     }
-    get nativeDispatcher(): import('../native-dispatcher.js').Http2NativeDispatcher | null {
+    get nativeDispatcher(): Http2NativeDispatcher | null {
         return this._nativeDispatcher;
     }
 
@@ -160,8 +162,7 @@ export class Http2Server extends EventEmitter {
     private _startNativeListen(port: number, hostname: string): void {
         // Lazy import keeps the module out of the Node bundle for createServer
         // consumers who never opt into the native path.
-        const { Http2NativeDispatcher } =
-            require('../native-dispatcher.js') as typeof import('../native-dispatcher.js');
+        const { Http2NativeDispatcher } = require('../native-dispatcher.js') as typeof NativeDispatcherModule;
         if (!Http2NativeDispatcher.available()) {
             throw new Error(
                 '@gjsify/http2-native prebuild is not loadable. createServer({ allowHTTP1: false }) ' +
@@ -177,14 +178,14 @@ export class Http2Server extends EventEmitter {
     }
 
     /** @internal Handler for streams arriving on the native dispatcher. */
-    private _handleNativeStream(event: import('../native-dispatcher.js').NativeStreamEvent): void {
+    private _handleNativeStream(event: NativeStreamEvent): void {
         const req = new Http2ServerRequest();
 
         // Build the http2-side Http2NativeBackend on top of the per-stream
         // dispatcher backend. Wraps the dispatcher API in the response-shaped
         // form `Http2ServerResponse` consumes. The closure recurses through
         // `pushPromise` so pushed streams get the same shape automatically.
-        const adapt = (b: import('../native-dispatcher.js').NativeStreamBackend): Http2NativeBackend => ({
+        const adapt = (b: NativeStreamBackend): Http2NativeBackend => ({
             streamId: b.streamId,
             submitResponse: (statusCode, _statusMessage, headers, endStream) => {
                 const responseHeaders: Record<string, string | number | string[]> = {

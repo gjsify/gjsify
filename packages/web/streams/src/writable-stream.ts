@@ -642,7 +642,7 @@ function writableStreamDefaultControllerProcessWrite(controller: any, chunk: any
 }
 
 function writableStreamDefaultControllerProcessClose(controller: any): void {
-    const { closeAlgorithm, queue, stream } = controller[kState];
+    const { closeAlgorithm, stream } = controller[kState];
     writableStreamMarkCloseRequestInFlight(stream);
     dequeueValue(controller);
     const sinkClosePromise = closeAlgorithm();
@@ -658,7 +658,7 @@ function writableStreamDefaultControllerGetDesiredSize(controller: any): number 
 }
 
 function writableStreamDefaultControllerGetChunkSize(controller: any, chunk: any): number {
-    const { stream, sizeAlgorithm } = controller[kState];
+    const { sizeAlgorithm } = controller[kState];
     if (sizeAlgorithm === undefined) return 1;
     try {
         return sizeAlgorithm(chunk);

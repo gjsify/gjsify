@@ -19,7 +19,7 @@ export class PhysicsActor extends ex.Actor {
         this.addComponent(new CarriableComponent());
     }
 
-    onInitialize(engine: ex.Engine): void {
+    onInitialize(_engine: ex.Engine): void {
         this.addComponent(this.touching);
 
         this.on('preupdate', () => {

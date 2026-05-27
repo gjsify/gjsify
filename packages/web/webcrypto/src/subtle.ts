@@ -7,7 +7,6 @@ import {
     CryptoKey,
     type CryptoKeyPair,
     type KeyUsage,
-    type KeyAlgorithm,
     type AlgorithmIdentifier,
     type AesKeyGenParams,
     type HmacKeyGenParams,
@@ -112,12 +111,6 @@ async function loadCrypto(): Promise<void> {
 
 // Eagerly start loading
 const cryptoReady = loadCrypto();
-
-function ensureCrypto(): void {
-    if (!_cryptoLoaded) {
-        throw new Error('crypto not yet loaded. Ensure module initialization is complete.');
-    }
-}
 
 /**
  * SubtleCrypto provides cryptographic primitives per the W3C WebCrypto API.

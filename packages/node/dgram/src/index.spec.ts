@@ -57,9 +57,9 @@ export default async () => {
             });
 
             await it('should create socket with callback option', async () => {
-                let called = false;
+                let _called = false;
                 const socket = createSocket({ type: 'udp4' }, () => {
-                    called = true;
+                    _called = true;
                 });
                 expect(socket).toBeDefined();
                 socket.close();
@@ -700,9 +700,9 @@ export default async () => {
 
             await it('should support error event listener', async () => {
                 const socket = createSocket('udp4');
-                let errorCalled = false;
+                let _errorCalled = false;
                 socket.on('error', () => {
-                    errorCalled = true;
+                    _errorCalled = true;
                 });
                 // Just verify the listener was registered without error
                 expect(typeof socket.listeners('error')).toBe('object');

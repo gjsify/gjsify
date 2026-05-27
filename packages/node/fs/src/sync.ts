@@ -416,7 +416,7 @@ export function accessSync(path: PathLike, mode?: number): void {
 export function appendFileSync(
     path: PathLike,
     data: string | Uint8Array,
-    options?: { encoding?: string; mode?: number; flag?: string } | string,
+    _options?: { encoding?: string; mode?: number; flag?: string } | string,
 ): void {
     const pathStr = normalizePath(path);
     const file = Gio.File.new_for_path(pathStr);

@@ -66,7 +66,7 @@ export default async () => {
                             server.close(() => resolve({ bytesReceived: received, timedOut: false }));
                         });
 
-                        client.on('error', (err) => {
+                        client.on('error', (_err) => {
                             clearTimeout(deadline);
                             server.close(() => resolve({ bytesReceived: received, timedOut: true }));
                         });

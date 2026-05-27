@@ -129,7 +129,7 @@ export class GstPlayer {
         return this._ended;
     }
 
-    private _restartPlayback(appsrc: any, pcmData: Uint8Array): void {
+    private _restartPlayback(_appsrc: any, _pcmData: Uint8Array): void {
         // For looping: seek pipeline to start
         if (this._pipeline) {
             this._pipeline.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, 0);

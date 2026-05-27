@@ -275,7 +275,7 @@ export default async () => {
 
         await it('should call start callback on construction', async () => {
             let startCalled = false;
-            const ws = new WritableStream({
+            const _ws = new WritableStream({
                 start() {
                     startCalled = true;
                 },
@@ -1166,7 +1166,7 @@ export default async () => {
 
         await it('should support start callback', async () => {
             let startCalled = false;
-            const ts = new TransformStream({
+            const _ts = new TransformStream({
                 start() {
                     startCalled = true;
                 },
@@ -1196,7 +1196,7 @@ export default async () => {
 
         await it('controller.desiredSize should reflect backpressure', async () => {
             let savedController: any;
-            const ts = new TransformStream({
+            const _ts = new TransformStream({
                 start(controller: any) {
                     savedController = controller;
                 },

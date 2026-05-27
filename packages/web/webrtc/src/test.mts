@@ -3,7 +3,7 @@ import wptSpec from './wpt.spec.js';
 import wptMediaSpec from './wpt-media.spec.js';
 import registerSpec from './register.spec.js';
 
-const results = {
+const _results = {
     webrtc: await webrtcSpec(),
     wpt: await wptSpec(),
     wptMedia: await wptMediaSpec(),

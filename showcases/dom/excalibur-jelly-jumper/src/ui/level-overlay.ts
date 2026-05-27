@@ -88,7 +88,7 @@ class CoinCounter extends ex.ScreenElement {
         this.addChild(icon);
     }
 
-    onPreUpdate(engine: ex.Engine<any>, elapsed: number): void {
+    onPreUpdate(_engine: ex.Engine<any>, _elapsed: number): void {
         this.label.text = GameManager.coins.toString();
     }
 }

@@ -3,7 +3,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { createInterface, Interface } from 'node:readline/promises';
-import { Readable, Writable, PassThrough } from 'node:stream';
+import { PassThrough } from 'node:stream';
 
 export default async () => {
     await describe('readline/promises', async () => {

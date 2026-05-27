@@ -8,7 +8,7 @@ export const ErrorHandlerTest = async () => {
         // TODO: FIXME
         await on([], async () => {
             await it('should dispatch an ErrorEvent if a listener threw an error', async () => {
-                const originalConsoleError = console.error;
+                const _originalConsoleError = console.error;
                 const f = spy((_message, _source, _lineno, _colno, _error) => {});
                 const consoleError = spy((..._: any[]) => {});
                 const target = new EventTarget();

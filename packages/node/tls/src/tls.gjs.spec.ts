@@ -11,6 +11,7 @@
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import { createServer, createSecureContext, TLSSocket } from 'node:tls';
+import type { Socket } from 'node:net';
 
 // A self-signed cert+key pair generated for the gjsify test suite.
 // `openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 3650
@@ -44,7 +45,7 @@ export default async () => {
                 });
 
                 await it('TLSSocket.alpnProtocol is false before handshake', async () => {
-                    const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                    const socket = new TLSSocket(undefined as unknown as Socket);
                     expect(socket.alpnProtocol).toBe(false);
                 });
             });
@@ -133,24 +134,24 @@ export default async () => {
             // ---------------- TLSSocket pre-handshake state ----------------
             await describe('TLSSocket pre-handshake', async () => {
                 await it('servername defaults to undefined', async () => {
-                    const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                    const socket = new TLSSocket(undefined as unknown as Socket);
                     expect(socket.servername).toBeUndefined();
                 });
 
                 await it('_tlsConnection is null before handshake', async () => {
-                    const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                    const socket = new TLSSocket(undefined as unknown as Socket);
                     expect((socket as unknown as { _tlsConnection?: unknown })._tlsConnection).toBeNull();
                 });
 
                 await it('getPeerCertificate(false) returns empty object', async () => {
-                    const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                    const socket = new TLSSocket(undefined as unknown as Socket);
                     const cert = socket.getPeerCertificate(false);
                     expect(typeof cert).toBe('object');
                     expect(Object.keys(cert).length).toBe(0);
                 });
 
                 await it('getPeerCertificate(true) returns empty object before handshake', async () => {
-                    const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                    const socket = new TLSSocket(undefined as unknown as Socket);
                     const cert = socket.getPeerCertificate(true);
                     expect(typeof cert).toBe('object');
                     expect(Object.keys(cert).length).toBe(0);

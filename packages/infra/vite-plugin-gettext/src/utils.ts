@@ -15,7 +15,7 @@ export async function checkDependencies(command: string, pluginName: string, ver
         if (verbose) {
             console.log(`[${pluginName}] Found ${command}`);
         }
-    } catch (error) {
+    } catch (_error) {
         throw new Error(
             `${command} not found. Please install gettext:\n` +
                 '  Ubuntu/Debian: sudo apt-get install gettext\n' +
@@ -47,7 +47,7 @@ export async function findAvailableLanguages(
         }
 
         return languages;
-    } catch (error) {
+    } catch (_error) {
         if (verbose) {
             console.log(`[${pluginName}] No PO directory found at ${poDirectory}`);
         }

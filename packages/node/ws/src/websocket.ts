@@ -18,7 +18,7 @@
 import { EventEmitter } from '@gjsify/events';
 import { Buffer } from '@gjsify/buffer';
 import { WebSocket as NativeWebSocket } from '@gjsify/websocket';
-import { BINARY_TYPES, CLOSED, CLOSING, CONNECTING, EMPTY_BUFFER, OPEN } from './constants.js';
+import { BINARY_TYPES, CLOSED, CLOSING, CONNECTING, OPEN } from './constants.js';
 
 export type BinaryType = 'nodebuffer' | 'arraybuffer' | 'fragments' | 'blob';
 
@@ -40,11 +40,6 @@ export interface ClientOptions {
     //   ciphers, secureProtocol, maxPayload, followRedirects, maxRedirects,
     //   skipUTF8Validation, allowSynchronousEvents
 }
-
-type MessageHandler = (data: unknown, isBinary: boolean) => void;
-
-/** Read-only getter type used below. */
-type Getter<T> = () => T;
 
 /** `ws.WebSocket` — EventEmitter-based WebSocket client.
  *

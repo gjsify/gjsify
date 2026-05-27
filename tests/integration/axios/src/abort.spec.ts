@@ -10,7 +10,7 @@ export default async () => {
     await describe('axios: request aborting', async () => {
         await it('CancelToken cancels in-flight request', async () => {
             const source = axios.CancelToken.source();
-            const srv = await startHTTPServer((req, res) => {
+            const srv = await startHTTPServer((_req, _res) => {
                 // Cancel as soon as the server receives the request
                 source.cancel('Operation has been canceled.');
             });
@@ -50,7 +50,7 @@ export default async () => {
 
         await it('AbortController.abort() cancels the request', async () => {
             const controller = new AbortController();
-            const srv = await startHTTPServer((req, res) => {
+            const srv = await startHTTPServer((_req, _res) => {
                 controller.abort();
             });
             try {

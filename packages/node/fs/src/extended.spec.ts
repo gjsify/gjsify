@@ -15,7 +15,6 @@ import {
     chmodSync,
     statSync,
     lstatSync,
-    mkdirSync,
     rmdirSync,
     createReadStream,
     createWriteStream,

@@ -1,5 +1,5 @@
 import gamepadSpec from './gamepad.spec.js';
 
-const results = {
+const _results = {
     gamepad: await gamepadSpec(),
 };

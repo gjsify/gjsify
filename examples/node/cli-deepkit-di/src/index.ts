@@ -20,7 +20,7 @@ class UserRepository {
 }
 
 class HttpClient implements HttpClientInterface {
-    async get(path: string) {
+    async get(_path: string) {
         return ['Pascal'];
     }
 }

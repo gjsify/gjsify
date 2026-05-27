@@ -19,6 +19,7 @@
 // detection in detect-free-globals.ts.
 
 import type { InputOptions, RolldownPluginOption, TransformOptions } from 'rolldown';
+import type * as Rolldown from 'rolldown';
 
 /**
  * In-memory bundle function — returns the per-entry chunk code strings.
@@ -40,7 +41,7 @@ const defaultBundler: AnalysisBundler = async ({ rolldownInput, format }) => {
     // Indirect specifier so the GJS bundle doesn't pull npm rolldown in
     // statically. Only reached when the caller doesn't override (Node).
     const specifier = 'rolldown';
-    const mod = (await import(/* @vite-ignore */ specifier)) as typeof import('rolldown');
+    const mod = (await import(/* @vite-ignore */ specifier)) as typeof Rolldown;
     const build = await mod.rolldown(rolldownInput);
     try {
         const result = await build.generate({ format, minify: false, sourcemap: false });

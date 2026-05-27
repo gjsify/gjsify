@@ -1,4 +1,4 @@
-import { validate, is, assert, serialize, deserialize, ValidatorError } from '@deepkit/type';
+import { validate, is, assert, ValidatorError } from '@deepkit/type';
 import type { Type, MinLength, MaxLength, Positive, Maximum, Minimum, Pattern, Email, Validate } from '@deepkit/type';
 
 const printGjs = (globalThis as unknown as { print?: (msg: string) => void }).print;
@@ -109,7 +109,7 @@ for (const err of userErrors) {
 
 log('\n=== 5. Custom Validators ===');
 
-function isEven(value: number, type: Type) {
+function isEven(value: number, _type: Type) {
     if (value % 2 !== 0) {
         return new ValidatorError('isEven', 'Value must be an even number');
     }

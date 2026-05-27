@@ -10,26 +10,6 @@
 import { describe, expect, it } from '@gjsify/unit';
 import ts from 'typescript';
 
-/** Build a minimal in-memory CompilerHost that serves a single file. */
-function makeInMemoryHost(filename: string, source: string): ts.CompilerHost {
-    const sourceFile = ts.createSourceFile(filename, source, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
-
-    return {
-        getSourceFile: (name) => (name === filename ? sourceFile : undefined),
-        writeFile: () => {
-            /* no-op — --noEmit */
-        },
-        getCurrentDirectory: () => '/',
-        getCanonicalFileName: (f) => f,
-        useCaseSensitiveFileNames: () => true,
-        getNewLine: () => '\n',
-        getDefaultLibFileName: (opts) => ts.getDefaultLibFileName(opts),
-        fileExists: (name) => name === filename,
-        readFile: (name) => (name === filename ? source : undefined),
-        getEnvironmentVariable: () => '',
-    };
-}
-
 /** Same shape but with the default-lib synthesised inline so the type
  *  checker can resolve `string` / `number` / `Array` etc. without
  *  needing to read TypeScript's lib.*.d.ts off disk (which would

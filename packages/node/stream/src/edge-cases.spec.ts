@@ -293,7 +293,7 @@ export default async () => {
                     cb();
                 },
             });
-            const result = await new Promise<string[]>((resolve) => {
+            const _result = await new Promise<string[]>((resolve) => {
                 const output: string[] = [];
                 transform.on('data', (chunk: Buffer) => output.push(chunk.toString()));
                 transform.on('end', () => resolve(output));

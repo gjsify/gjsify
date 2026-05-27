@@ -193,12 +193,12 @@ export default async () => {
 
     await describe('ReadableStreamBYOBRequest', async () => {
         await it('is exposed when a BYOB read is pending', async () => {
-            let ctrl: any;
+            let _ctrl: any;
             let observed: any = null;
             const stream = new (ReadableStream as any)({
                 type: 'bytes',
                 start(c: any) {
-                    ctrl = c;
+                    _ctrl = c;
                 },
                 pull(c: any) {
                     observed = c.byobRequest;
@@ -221,12 +221,12 @@ export default async () => {
         });
 
         await it('respond(bytesWritten) advances bytesFilled and resolves the read', async () => {
-            let ctrl: any;
+            let _ctrl: any;
             const pullCalls: any[] = [];
             const stream = new (ReadableStream as any)({
                 type: 'bytes',
                 start(c: any) {
-                    ctrl = c;
+                    _ctrl = c;
                 },
                 pull(c: any) {
                     pullCalls.push(c.byobRequest);
@@ -250,12 +250,12 @@ export default async () => {
         });
 
         await it('respondWithNewView replaces the view region', async () => {
-            let ctrl: any;
+            let _ctrl: any;
             const pullCalls: any[] = [];
             const stream = new (ReadableStream as any)({
                 type: 'bytes',
                 start(c: any) {
-                    ctrl = c;
+                    _ctrl = c;
                 },
                 pull(c: any) {
                     pullCalls.push(c.byobRequest);

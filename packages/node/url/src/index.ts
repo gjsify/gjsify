@@ -156,7 +156,7 @@ export class URL {
             } else {
                 this.#uri = GLib.Uri.parse(urlStr, PARSE_FLAGS);
             }
-        } catch (e: any) {
+        } catch (_e: unknown) {
             throw new TypeError(`Invalid URL: ${urlStr}`);
         }
 

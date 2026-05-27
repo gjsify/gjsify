@@ -20,7 +20,6 @@ import {
     createReadStream,
     createWriteStream,
     constants,
-    mkdirSync,
     rename,
     copyFile,
     access,

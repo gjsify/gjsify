@@ -320,7 +320,7 @@ export class DatabaseSync {
         return undefined;
     }
 
-    prepare(sql: unknown, options?: unknown): StatementSync {
+    prepare(sql: unknown, _options?: unknown): StatementSync {
         this.#ensureOpen();
         if (typeof sql !== 'string') {
             throw new InvalidArgTypeError('The "sql" argument must be a string.');

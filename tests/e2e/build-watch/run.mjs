@@ -126,7 +126,7 @@ describe('CLI build --watch E2E', { timeout: 2 * 60 * 1000 }, () => {
             assert.doesNotMatch(secondContent, /first/, 'second build should not contain stale source');
         } finally {
             child.kill('SIGINT');
-            const { code, signal } = await Promise.race([
+            const { signal } = await Promise.race([
                 exited,
                 new Promise((resolve) =>
                     setTimeout(() => {

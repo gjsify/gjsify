@@ -260,7 +260,7 @@ export class ClientRequest extends OutgoingMessage {
                 ) {
                     bodyChunks.push(Buffer.from(chunk));
                 }
-            } catch (readErr) {
+            } catch (_readErr) {
                 // Reading may fail if the connection was reset — still emit response with what we have
             }
 

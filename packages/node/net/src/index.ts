@@ -6,7 +6,7 @@ import Gio from '@girs/gio-2.0';
 export { Socket, type SocketConnectOptions } from './socket.js';
 export { Server, type ListenOptions } from './server.js';
 import { Socket, type SocketConnectOptions } from './socket.js';
-import { Server, type ListenOptions } from './server.js';
+import { Server } from './server.js';
 
 /** Check if input is a valid IP address. Returns 0, 4, or 6. */
 export function isIP(input: string): 0 | 4 | 6 {

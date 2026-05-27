@@ -81,7 +81,7 @@ export default async () => {
             });
 
             await it('GET /api/posts returns JSON', async () => {
-                const { status, headers, body } = await httpGetResponse(`http://127.0.0.1:${PORT}/api/posts`);
+                const { status, body } = await httpGetResponse(`http://127.0.0.1:${PORT}/api/posts`);
                 expect(status).toBe(200);
                 const json = JSON.parse(body);
                 expect(json.posts).toBeDefined();

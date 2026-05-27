@@ -9,7 +9,7 @@ import { Buffer } from 'node:buffer';
 // Self-signed test certificate generated with:
 // openssl req -x509 -newkey rsa:512 -keyout /dev/null -out /dev/stdout -days 36500 -nodes -subj "/CN=test.example.com/O=Test Org/C=US"
 // Note: 512-bit RSA is insecure but fast for tests
-const TEST_CERT = [
+const _TEST_CERT = [
     '-----BEGIN CERTIFICATE-----',
     'MIIBojCCAUmgAwIBAgIUV7q5k5VZz5XhYb6VUaRkxGEjzY0wDQYJKoZIhvcNAQEL',
     'BQAwPjEaMBgGA1UEAwwRdGVzdC5leGFtcGxlLmNvbTERMA8GA1UECgwIVGVzdCBP',

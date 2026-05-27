@@ -25,7 +25,6 @@ import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 
 import { Gst } from '../gst-init.js';
 import { w3cDirectionToGst } from '../gst-enum-maps.js';
-import { MediaStream } from '../media-stream.js';
 import { MediaStreamTrack } from '../media-stream-track.js';
 import { RTCRtpSender } from '../rtc-rtp-sender.js';
 import { RTCRtpReceiver } from '../rtc-rtp-receiver.js';

@@ -18,13 +18,7 @@ export {
     type Http2Settings,
 } from './protocol.js';
 
-import {
-    constants,
-    getDefaultSettings,
-    getPackedSettings,
-    getUnpackedSettings,
-    type Http2Settings,
-} from './protocol.js';
+import { constants, getDefaultSettings, getPackedSettings, getUnpackedSettings } from './protocol.js';
 
 // ─── Server-side classes ──────────────────────────────────────────────────────
 

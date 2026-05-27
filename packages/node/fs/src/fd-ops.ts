@@ -1,8 +1,6 @@
 // Reference: Node.js lib/fs.js (fd-based ops, readSync, writeSync, readv, writev, exists, openAsBlob)
 // Reimplemented for GJS using FileHandle + Gio streams
 
-import GLib from '@girs/glib-2.0';
-import Gio from '@girs/gio-2.0';
 import { FileHandle } from './file-handle.js';
 import type { Stats, BigIntStats } from './stats.js';
 import { statSync, truncateSync, chmodSync, chownSync, readFileSync } from './sync.js';

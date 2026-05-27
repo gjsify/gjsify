@@ -366,7 +366,7 @@ export default async () => {
     await describe('Transform: destroy()', async () => {
         await it('destroy() emits close, not end or finish', async () => {
             await new Promise<void>((resolve) => {
-                const transform = new Transform({ transform(_c, _e, cb) {} });
+                const transform = new Transform({ transform(_c, _e, _cb) {} });
                 transform.resume();
                 let endFired = false;
                 let finishFired = false;
@@ -387,7 +387,7 @@ export default async () => {
 
         await it('destroy(err) emits error then close', async () => {
             await new Promise<void>((resolve) => {
-                const transform = new Transform({ transform(_c, _e, cb) {} });
+                const transform = new Transform({ transform(_c, _e, _cb) {} });
                 transform.resume();
                 const expected = new Error('kaboom');
                 let errorReceived: Error | null = null;
@@ -412,7 +412,7 @@ export default async () => {
             await new Promise<void>((resolve) => {
                 const expected = new Error('kaboom');
                 let destroyCalled = false;
-                const transform = new Transform({ transform(_c, _e, cb) {} });
+                const transform = new Transform({ transform(_c, _e, _cb) {} });
                 transform._destroy = function (err, cb) {
                     destroyCalled = true;
                     expect(err).toBe(expected);
@@ -432,7 +432,7 @@ export default async () => {
                 const expected = new Error('kaboom');
                 let errorFired = false;
                 const transform = new Transform({
-                    transform(_c, _e, cb) {},
+                    transform(_c, _e, _cb) {},
                     destroy(_err, cb) {
                         cb();
                     }, // swallow the error
@@ -458,7 +458,7 @@ export default async () => {
         await it('_destroy with null error calls cb() cleanly', async () => {
             await new Promise<void>((resolve) => {
                 let destroyCalled = false;
-                const transform = new Transform({ transform(_c, _e, cb) {} });
+                const transform = new Transform({ transform(_c, _e, _cb) {} });
                 transform._destroy = function (err, cb) {
                     destroyCalled = true;
                     expect(err).toBe(null);

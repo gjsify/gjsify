@@ -1,4 +1,4 @@
-import { EventDispatcher, EventToken, DataEventToken, BaseEvent, DataEvent } from '@deepkit/event';
+import { EventDispatcher, EventToken, DataEventToken, BaseEvent } from '@deepkit/event';
 
 const printGjs = (globalThis as unknown as { print?: (msg: string) => void }).print;
 const log: (...args: unknown[]) => void = printGjs

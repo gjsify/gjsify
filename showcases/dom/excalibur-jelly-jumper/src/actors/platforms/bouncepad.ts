@@ -81,7 +81,7 @@ export class Bouncepad extends ex.Actor {
         this.addComponent(new OneWayCollisionComponent());
     }
 
-    onInitialize(engine: ex.Engine<any>): void {
+    onInitialize(_engine: ex.Engine<any>): void {
         this.graphics.use(this.animation.get('neutral'));
 
         this.animation.get('compressed').events.on('loop', () => {
@@ -139,7 +139,7 @@ export class Bouncepad extends ex.Actor {
         }
     }
 
-    onCollisionStart(self: ex.Collider, other: ex.Collider, side: ex.Side, contact: ex.CollisionContact): void {
+    onCollisionStart(self: ex.Collider, other: ex.Collider, side: ex.Side, _contact: ex.CollisionContact): void {
         if (side === ex.Side.Top && other.owner instanceof ex.Actor) {
             this.compress();
         }

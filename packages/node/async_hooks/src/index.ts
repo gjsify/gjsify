@@ -1,8 +1,6 @@
 // Reference: Node.js lib/async_hooks.js
 // Reimplemented for GJS
 
-import { EventEmitter } from 'node:events';
-
 let _id = 1;
 
 export function executionAsyncId(): number {

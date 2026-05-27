@@ -30,7 +30,7 @@ interface ResponseOptions {
     highWaterMark?: number;
 }
 
-interface ResponseInit {
+interface _ResponseInit {
     status?: number;
     statusText?: string;
     headers?: HeadersInit | Headers;
