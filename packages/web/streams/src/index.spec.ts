@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec deliberately passes wrong-typed inputs (`null as any`, `'10' as any`), duck-types inline underlying-source/transformer objects (`controller: any`, `reason: any`), and captures error/reason values whose runtime type is the test's concern
 // Tests for WHATWG Streams API
 // Ported from refs/wpt/streams/ and refs/deno/tests/unit/streams_test.ts
 // Original: 3-Clause BSD license (WPT), MIT license (Deno)

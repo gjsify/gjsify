@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec constructs byte streams via `(ReadableStream as any)`, duck-types inline byte-controller objects (`ctrl: any`, `start(c: any)`), and deliberately passes invalid inputs to exercise validation
 // Tests for WHATWG Streams BYOB / ReadableByteStreamController
 // Reference: refs/deno/tests/wpt/suite/streams/readable-byte-streams/
 // Original: 3-Clause BSD (WPT), MIT (Deno).
