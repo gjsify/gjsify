@@ -55,6 +55,37 @@ assertions are preserved — only the assertion dialect changes.
 `@gjsify/*` root cause — do not add platform guards or skip cases.
 (See `CLAUDE.md` → "Fix root causes immediately.")
 
+## Suites
+
+| Suite | Validates | STATUS section |
+|---|---|---|
+| `acorn/` | acorn + acorn-walk AST parser | `### acorn + acorn-walk` |
+| `autobahn/` | `@gjsify/ws` against the Autobahn WebSocket conformance pillar | `### autobahn` |
+| `axios/` | `@gjsify/http` + `@gjsify/fetch` consumer | `### axios` |
+| `cosmiconfig/` | `@gjsify/fs` + `@gjsify/path` + dynamic ESM `import(file://…)` | `### cosmiconfig` |
+| `deepkit-type-compiler/` | TypeScript compiler API (Phase D-1 W) | `### @deepkit/type-compiler` |
+| `dotenv/` | `@gjsify/process` (process.env Proxy round-trip through GLib.{get,set,unset}env) + `@gjsify/fs.readFileSync` | `### dotenv` |
+| `execa/` | `@gjsify/child_process` spawn + stdio + env forwarding | `### execa` |
+| `fast-glob/` | `@gjsify/fs` readdir + glob walk semantics | `### fast-glob` |
+| `gettext-parser/` | PO/MO byte-equality binary read/write | covered in suite README |
+| `lightningcss/` | byte-equality of CSS minify across native/wasm/npm backends | `### lightningcss` |
+| `loro-crdt/` | WASM CRDT round-trip | covered in suite README |
+| `mcp-inspector-cli/` | MCP server inspector CLI subprocess lifecycle | `### mcp-inspector-cli` |
+| `mcp-typescript-sdk/` | MCP TypeScript SDK transport layer | `### mcp-typescript-sdk` |
+| `minify-xml/` | RegExp engine parity for the heavy lookbehind chains | `### minify-xml` |
+| `pkg-types/` + `get-tsconfig/` | TypeScript config + extends-chain readers | `### pkg-types + get-tsconfig` |
+| `rolldown-native/` | `@gjsify/rolldown-native` Vala/Rust bundler bridge | covered in STATUS |
+| `rollup-pluginutils/` | `@rollup/pluginutils` helper toolkit | `### @rollup/pluginutils` |
+| `socket.io/` | `@gjsify/http` + `@gjsify/ws` (full Socket.IO server + client) | `### socket.io` |
+| `streamx/` | `@gjsify/stream` + queueMicrotask injection | `### streamx` |
+| `ts-for-gir/` | full ts-for-gir generator chain on GJS | `### ts-for-gir` |
+| `typescript-tsc/` | TypeScript `tsc` CLI on GJS | covered in STATUS |
+| `webtorrent/` | `@gjsify/fs` + `@gjsify/stream` + bittorrent-protocol | `### webtorrent` |
+| `worker-stress/` | `@gjsify/worker_threads` + `@gjsify/sab-native` | `### worker-stress` |
+| `yargs/` | yargs CLI parser | `### yargs` |
+
+Each suite's row in `STATUS.md` lists per-port test counts (Node / GJS / skipped) and any `@gjsify/*` root-cause fix landed alongside it.
+
 ## Running
 
 ```bash

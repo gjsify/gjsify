@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/declarations.d.ts",
+        "src/fixtures.ts",
+        "src/parse.spec.ts",
+        "src/parse-multiline.spec.ts",
+        "src/config.spec.ts",
+        "src/populate.spec.ts"
+    ]
+}
