@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec catches errors with `catch (err: any)` to access `.message` property
 // Tests for stream/promises module
 // Reference: Node.js lib/stream/promises.js
 

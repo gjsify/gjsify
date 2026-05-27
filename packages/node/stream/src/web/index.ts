@@ -29,4 +29,4 @@ export default {
     CountQueuingStrategy,
     TextEncoderStream,
     TextDecoderStream,
-} as Record<string, any>;
+} as Record<string, unknown>;

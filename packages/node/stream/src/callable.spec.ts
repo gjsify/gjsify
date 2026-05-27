@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec tests CJS/util.inherits/makeCallable patterns that require dynamic `this: any` + `(Cls as any).call()` idioms
 // Legacy `.call(this)` + `util.inherits(Sub, Parent)` compatibility tests.
 //
 // Ported from refs/node-test/parallel/test-util-inherits.js

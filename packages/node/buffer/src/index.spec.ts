@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec tests invalid inputs via `@ts-expect-error` and catches errors with `catch (e: any)` to check `.code` / `.message` properties
 import { describe, it, expect, on } from '@gjsify/unit';
 import { Buffer } from 'node:buffer';
 

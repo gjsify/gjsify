@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec catches errors with `catch (err: any)` and uses `received: any[]` for dynamic event args; `(EventEmitter as any).EventEmitter` for backward-compat access
 // Ported from refs/node-test/parallel/test-events-*.js
 // Original: MIT license, Node.js contributors
 

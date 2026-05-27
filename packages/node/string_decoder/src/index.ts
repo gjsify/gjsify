@@ -208,6 +208,14 @@ interface StringDecoderInstance {
     end(buf?: Uint8Array): string;
 }
 
+/** Internal state of a StringDecoder instance (not part of the public API). */
+interface StringDecoderState extends StringDecoderInstance {
+    _lastNeed: number;
+    _lastTotal: number;
+    _lastLeadByte: number;
+    _lastChar: Uint8Array;
+}
+
 interface StringDecoderConstructor {
     new (encoding?: string): StringDecoderInstance;
     (this: StringDecoderInstance, encoding?: string): void;
@@ -222,6 +230,7 @@ interface StringDecoderConstructor {
  * Implemented as a function constructor (not ES6 class) for compatibility
  * with legacy CJS patterns that use StringDecoder.call(this, enc).
  */
+// oxlint-disable-next-line typescript/no-explicit-any -- function-constructor pattern required for CJS compatibility (StringDecoder.call(this, enc)); ES6 class would break legacy consumers
 const StringDecoder = function StringDecoder(this: any, encoding?: string) {
     this.encoding = normalizeAndValidateEncoding(encoding);
     this._lastNeed = 0;
@@ -287,7 +296,7 @@ StringDecoder.prototype.end = function end(buf?: Uint8Array): string {
     return result;
 };
 
-function writeUtf8(self: any, buf: Uint8Array): string {
+function writeUtf8(self: StringDecoderState, buf: Uint8Array): string {
     let i = 0;
     let result = '';
 
@@ -358,7 +367,7 @@ function writeUtf8(self: any, buf: Uint8Array): string {
     return result;
 }
 
-function writeUtf16le(self: any, buf: Uint8Array): string {
+function writeUtf16le(self: StringDecoderState, buf: Uint8Array): string {
     let result = '';
     let i = 0;
 
@@ -445,7 +454,7 @@ function writeUtf16le(self: any, buf: Uint8Array): string {
     return result;
 }
 
-function writeBase64(self: any, buf: Uint8Array): string {
+function writeBase64(self: StringDecoderState, buf: Uint8Array): string {
     let start = 0;
 
     if (self._lastNeed > 0) {

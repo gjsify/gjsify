@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec uses `chunk as any` for Buffer.from(unknown), `results: any[]` for objectMode, and duck-type `(Readable as any).isDisturbed` checks
 // Ported from refs/node-test/parallel/test-stream-pipeline.js,
 // test-stream-finished.js, test-stream-transform-flush.js,
 // test-stream-readable-from.js
