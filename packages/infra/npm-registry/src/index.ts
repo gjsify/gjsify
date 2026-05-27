@@ -119,7 +119,14 @@ export async function fetchPackument(name: string, opts: FetchOptions = {}): Pro
 
     const res = await fetchWithRetry(url, { headers, signal: opts.signal }, opts);
     if (!res.ok) {
-        if (res.status === 404) throw new PackageNotFoundError(name, url);
+        // 404 = package not found. 406 = Not Acceptable — npm returns this
+        // when the URL path is unrecognised (e.g. `%40scope/name` is parsed
+        // as a sub-path of the synthetic `%40scope` resource rather than a
+        // scoped package name). Both indicate the package is not addressable
+        // in this registry and should surface as PackageNotFoundError so
+        // optional deps are silently skipped and required-dep errors are
+        // reported consistently.
+        if (res.status === 404 || res.status === 406) throw new PackageNotFoundError(name, url);
         throw new Error(`registry GET ${url} -> ${res.status} ${res.statusText}`);
     }
     const body = (await res.json()) as unknown;

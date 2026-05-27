@@ -27,6 +27,22 @@
 //     module's view of its own package.json), the current version reports as
 //     "(unknown)" — confirming the graceful fallback rather than a hard crash.
 //
+//  5. STRAY PACKUMENT FETCH REGRESSION — the mock registry records every
+//     packument path that the CLI requests. Only `@gjsify/cli` must be
+//     fetched; any request for `@gjsify/v8` or other non-`@gjsify/cli`
+//     packuments indicates a regression (the old bug where the native install
+//     backend walked transitive deps of `@gjsify/cli` and tried to resolve
+//     workspace-internal packages that don't exist on the public registry,
+//     causing a 406 Not Acceptable crash).
+//
+//  6. NO STRAY STDOUT NOISE — self-update must not emit `--help` usage text
+//     or a bare `{}` to stdout (regression guard for the old bundle behavior
+//     where an unhandled promise rejection from the install backend caused
+//     yargs to print usage before crashing).
+//
+//  7. IDEMPOTENCY — running self-update twice in a row must both succeed
+//     (exit 0 with "Already up to date" on the second run).
+//
 // Network mock strategy
 // ─────────────────────
 // `fetchPackument` from @gjsify/npm-registry calls `globalThis.fetch` (no
@@ -37,12 +53,20 @@
 // child via `GJSIFY_E2E_MOCK_FETCH_URL`, and the mock registry URL is passed
 // via `GJSIFY_E2E_REGISTRY_URL`.
 //
+// The mock registry:
+//   - Records every GET request path in a shared JSON file so the parent
+//     process can assert which packuments were fetched.
+//   - Serves the `@gjsify/cli` packument correctly (200).
+//   - Returns 406 for any other packument path — matching real npm registry
+//     behavior for unpublished workspace packages — so regression tests
+//     immediately surface if skipDeps is dropped or bypassed.
+//   - Returns 406 for tarball requests beyond `@gjsify/cli` (self-update
+//     uses skipDeps so no transitive tarballs should be requested either).
+//
 // Limitation: the full upgrade path (installPackages + linkGlobalBins) is NOT
-// exercised here because `installPackages` reaches into the native install
-// backend which requires a real network or a complete mock registry tarball
-// server — both are out of scope for a unit-level e2e. The test focuses on
-// everything BEFORE `installPackages` is called (the production-bug surface),
-// plus the `--check` exit-code path.
+// exercised here because `installPackages` with a real tarball server is out
+// of scope for a unit-level e2e. The test focuses on the packument-fetch
+// surface (the production-bug regression) plus the `--check` exit-code path.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -51,6 +75,7 @@ import {
     mkdirSync,
     rmSync,
     writeFileSync,
+    readFileSync,
     existsSync,
 } from 'node:fs';
 import { tmpdir, homedir } from 'node:os';
@@ -129,6 +154,11 @@ describe('gjsify self-update E2E', { timeout: 60_000 }, () => {
     // non-standard or first-time install path).
     let prefixEmpty;
 
+    // Path to the JSON file where the mock registry logs every requested
+    // packument path. Written by the in-process server; read by the parent
+    // after each test run.
+    let requestLogPath;
+
     before(async () => {
         if (!existsSync(CLI_ENTRY)) {
             throw new Error(
@@ -149,6 +179,11 @@ describe('gjsify self-update E2E', { timeout: 60_000 }, () => {
 
         tmpRoot = mkdtempSync(join(tmpdir(), 'gjsify-e2e-self-update-'));
 
+        // Path for the mock registry request log (written by in-process server,
+        // read by tests to assert which packument paths were requested).
+        requestLogPath = join(tmpRoot, 'registry-requests.json');
+        writeFileSync(requestLogPath, '[]');
+
         // Build a global prefix that looks like a real install (has @gjsify/cli).
         prefixWithCli = join(tmpRoot, 'global-with-cli');
         const cliPkgDir = join(prefixWithCli, 'node_modules', PACKAGE_NAME);
@@ -163,12 +198,35 @@ describe('gjsify self-update E2E', { timeout: 60_000 }, () => {
         mkdirSync(prefixEmpty, { recursive: true });
 
         // ── mock npm registry ─────────────────────────────────────────────
-        // Serves two packument variants (keyed by the `x-mock-latest` header
-        // that the preload injects based on GJSIFY_E2E_LATEST_VERSION env var).
+        // Serves the @gjsify/cli packument and records every request path.
+        // Returns 406 for any path that isn't the @gjsify/cli packument —
+        // matching real npm behavior for workspace-internal packages that are
+        // not published to the registry. This makes the stray-fetch regression
+        // immediately visible: any request for @gjsify/v8 (or similar) will
+        // both be logged AND return 406, causing the CLI to fail if skipDeps
+        // is not set.
         registryServer = createServer((req, res) => {
             try {
+                // Append the request path to the shared log file.  We do this
+                // synchronously so it's always flushed before the CLI exits.
+                const existing = JSON.parse(readFileSync(requestLogPath, 'utf-8'));
+                existing.push(req.url);
+                writeFileSync(requestLogPath, JSON.stringify(existing));
+
                 const latestOverride = req.headers['x-mock-latest'];
                 const latest = latestOverride ?? currentVersion;
+
+                // Only serve the @gjsify/cli packument — everything else gets
+                // a 406 (Not Acceptable), matching real npm registry behavior
+                // for scoped packages that don't exist.
+                const cliPath406Guard = ['/%40gjsify/cli', '/@gjsify%2Fcli', '/@gjsify/cli'];
+                const isCli = cliPath406Guard.some((p) => req.url === p || req.url?.startsWith(p + '?'));
+                if (!isCli) {
+                    res.writeHead(406, { 'content-type': 'text/plain' });
+                    res.end('Not Acceptable');
+                    return;
+                }
+
                 const p = makePackument(PACKAGE_NAME, [currentVersion, latest], latest);
                 res.writeHead(200, { 'content-type': 'application/json' });
                 res.end(JSON.stringify(p));
@@ -215,6 +273,15 @@ globalThis.fetch = async (input, init = {}) => {
             rmSync(tmpRoot, { recursive: true, force: true });
         }
     });
+
+    // Helper: reset the request log before each test that cares about it.
+    function clearRequestLog() {
+        writeFileSync(requestLogPath, '[]');
+    }
+
+    function readRequestLog() {
+        return JSON.parse(readFileSync(requestLogPath, 'utf-8'));
+    }
 
     // ── 1a. PREFIX DETECTION — accepted path ─────────────────────────────
 
@@ -402,5 +469,153 @@ globalThis.fetch = async (input, init = {}) => {
         // With unknown version, --check prints "Install required" (not "Update
         // available") and exits 1.
         assert.equal(result.status, 1, `Expected exit 1 (--check with unknown version):\n${combined}`);
+    });
+
+    // ── 6. STRAY PACKUMENT FETCH REGRESSION ───────────────────────────────
+    // Regression guard for the production bug where the native install backend
+    // walked the full transitive dep graph of @gjsify/cli, fetching packuments
+    // for workspace-internal packages like @gjsify/v8 that are NOT published
+    // to npm. The registry returned 406 Not Acceptable, causing a fatal crash.
+    //
+    // Fix: self-update.ts passes `skipDeps: true` to installPackages so the
+    // native backend only fetches the top-level @gjsify/cli tarball.
+    //
+    // This test verifies the fix by:
+    //   a. Asserting the mock registry never receives a request for any
+    //      non-@gjsify/cli packument (i.e., no @gjsify/v8, @gjsify/node-polyfills, etc.)
+    //   b. Asserting the mock registry never receives a request whose path
+    //      contains "/v8" (the specific package that caused the original crash)
+    //   c. The mock server returns 406 for non-@gjsify/cli packuments, so any
+    //      regression that re-introduces transitive fetches will also fail the
+    //      exit-code assertions in the "already up to date" test.
+
+    it('only requests @gjsify/cli packument — no stray @gjsify/v8 or transitive fetches', async () => {
+        clearRequestLog();
+
+        // Run with same version → exits early at "Already up to date", so the
+        // only registry call is the single fetchPackument('@gjsify/cli') call.
+        const result = await runSelfUpdate([], {
+            preloadPath,
+            env: {
+                GJSIFY_GLOBAL_PREFIX: prefixWithCli,
+                GJSIFY_GLOBAL_BIN_DIR: join(tmpRoot, 'bin-stray-check'),
+                GJSIFY_E2E_REGISTRY_URL: registryUrl,
+                GJSIFY_E2E_LATEST_VERSION: currentVersion,
+            },
+        });
+
+        const combined = result.stdout + result.stderr;
+        assert.equal(result.status, 0, `Expected exit 0:\n${combined}`);
+
+        const requestedPaths = readRequestLog();
+
+        // No path may contain "v8" as a package segment — the @gjsify/v8
+        // packument request was the root cause of the 406 crash.
+        const v8Requests = requestedPaths.filter(
+            (p) => p.includes('/v8') || p.includes('%2Fv8') || p.includes('%2fv8'),
+        );
+        assert.equal(
+            v8Requests.length,
+            0,
+            `Stray @gjsify/v8 packument request(s) detected — skipDeps regression:\n` +
+                `  Requests: ${JSON.stringify(requestedPaths, null, 2)}`,
+        );
+
+        // Every request path must be for @gjsify/cli only. Accept both
+        // %40gjsify/cli and @gjsify%2Fcli URL encodings.
+        const nonCliRequests = requestedPaths.filter((p) => {
+            return !p.includes('%40gjsify/cli') &&
+                   !p.includes('%40gjsify%2Fcli') &&
+                   !p.includes('@gjsify/cli') &&
+                   !p.includes('@gjsify%2Fcli');
+        });
+        assert.equal(
+            nonCliRequests.length,
+            0,
+            `Unexpected non-@gjsify/cli packument request(s) — transitive dep resolution leak:\n` +
+                `  Non-CLI paths: ${JSON.stringify(nonCliRequests)}\n` +
+                `  All paths: ${JSON.stringify(requestedPaths)}`,
+        );
+    });
+
+    // ── 7. NO STRAY STDOUT NOISE ──────────────────────────────────────────
+    // Regression guard for the old bundle behavior where an unhandled error
+    // from the install backend caused yargs to print usage/help text (because
+    // the command was re-parsed with empty argv after the crash) and a bare
+    // `{}` (yargs serializing the rejected Error object as JSON.stringify(err)).
+    //
+    // On current main: self-update wraps installPackages in try/catch and calls
+    // process.exit(1) cleanly on failure, so yargs never prints usage. The
+    // "Already up to date" short-circuit path means installPackages is never
+    // called here — this test is a belt-and-suspenders guard.
+
+    it('emits no --help usage dump or bare {} on stdout', async () => {
+        const result = await runSelfUpdate([], {
+            preloadPath,
+            env: {
+                GJSIFY_GLOBAL_PREFIX: prefixWithCli,
+                GJSIFY_GLOBAL_BIN_DIR: join(tmpRoot, 'bin-noise-check'),
+                GJSIFY_E2E_REGISTRY_URL: registryUrl,
+                GJSIFY_E2E_LATEST_VERSION: currentVersion,
+            },
+        });
+
+        // The stdout must not contain yargs usage patterns or bare `{}`.
+        // "Usage:" is the canonical first line of yargs help output.
+        assert.ok(
+            !result.stdout.includes('Usage:'),
+            `Stray --help/usage dump on stdout:\n${result.stdout}`,
+        );
+        assert.ok(
+            !result.stdout.includes('\n{}\n') && !result.stdout.endsWith('\n{}'),
+            `Stray bare {} on stdout (serialized Error regression):\n${result.stdout}`,
+        );
+        // Commands list from yargs help would include "self-update" — must not appear
+        // mid-output as noise (it's fine in the version line or log messages).
+        assert.ok(
+            !result.stdout.match(/\bCommands:\s*\n/),
+            `Stray "Commands:" section in stdout (yargs help bleed-through):\n${result.stdout}`,
+        );
+    });
+
+    // ── 8. IDEMPOTENCY ────────────────────────────────────────────────────
+    // Running self-update twice must both succeed. The first run short-circuits
+    // at "Already up to date" (versions match). The second run must also
+    // short-circuit cleanly — not crash because the first run left partial
+    // state, not re-install because a lockfile is stale, etc.
+
+    it('is idempotent — running twice both succeed with exit 0', async () => {
+        const env = {
+            GJSIFY_GLOBAL_PREFIX: prefixWithCli,
+            GJSIFY_GLOBAL_BIN_DIR: join(tmpRoot, 'bin-idempotent'),
+            GJSIFY_E2E_REGISTRY_URL: registryUrl,
+            GJSIFY_E2E_LATEST_VERSION: currentVersion,
+        };
+
+        const first = await runSelfUpdate([], { preloadPath, env });
+        const combined1 = first.stdout + first.stderr;
+        assert.equal(
+            first.status,
+            0,
+            `Expected exit 0 on first run:\n${combined1}`,
+        );
+        assert.match(
+            combined1,
+            /Already up to date/,
+            `Expected "Already up to date" on first run:\n${combined1}`,
+        );
+
+        const second = await runSelfUpdate([], { preloadPath, env });
+        const combined2 = second.stdout + second.stderr;
+        assert.equal(
+            second.status,
+            0,
+            `Expected exit 0 on second run (idempotency):\n${combined2}`,
+        );
+        assert.match(
+            combined2,
+            /Already up to date/,
+            `Expected "Already up to date" on second run (idempotency):\n${combined2}`,
+        );
     });
 });
