@@ -8,20 +8,20 @@ import { TransformStream } from '../index.js';
  * absent in the GJS bootstrap state.
  */
 interface _TransformStreamGlobals {
-  TransformStream?: typeof TransformStream;
+    TransformStream?: typeof TransformStream;
 }
 
 function isNativeStreamUsable(Ctor: unknown, method: string): boolean {
-  try {
-    if (typeof Ctor !== 'function') return false;
-    const proto = (Ctor as { prototype?: Record<string, unknown> }).prototype;
-    return typeof proto?.[method] === 'function';
-  } catch {
-    return false;
-  }
+    try {
+        if (typeof Ctor !== 'function') return false;
+        const proto = (Ctor as { prototype?: Record<string, unknown> }).prototype;
+        return typeof proto?.[method] === 'function';
+    } catch {
+        return false;
+    }
 }
 
 if (!isNativeStreamUsable(globalThis.TransformStream, 'readable')) {
-  const g = globalThis as unknown as _TransformStreamGlobals;
-  g.TransformStream = TransformStream;
+    const g = globalThis as unknown as _TransformStreamGlobals;
+    g.TransformStream = TransformStream;
 }

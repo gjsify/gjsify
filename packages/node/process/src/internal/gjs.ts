@@ -54,7 +54,17 @@ export function getGioNamespace(): GioNamespaceLike | null {
     const _gi = getGjsGlobal().imports?.gi;
     if (!_gi) return null;
     let gio: GioNamespaceLike | null = null;
-    try { gio = (_gi['GioUnix'] as GioNamespaceLike | undefined) ?? null; } catch { /* try Gio */ }
-    if (!gio) { try { gio = (_gi['Gio'] as GioNamespaceLike | undefined) ?? null; } catch { /* absent */ } }
+    try {
+        gio = (_gi['GioUnix'] as GioNamespaceLike | undefined) ?? null;
+    } catch {
+        /* try Gio */
+    }
+    if (!gio) {
+        try {
+            gio = (_gi['Gio'] as GioNamespaceLike | undefined) ?? null;
+        } catch {
+            /* absent */
+        }
+    }
     return gio;
 }

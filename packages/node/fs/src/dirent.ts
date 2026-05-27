@@ -7,14 +7,14 @@ import { basename, dirname } from 'node:path';
 import type { Dirent as OriginalDirent } from 'node:fs'; // Types from @types/node
 
 // POSIX file type constants from stat mode bits (S_IFMT mask = 0o170000)
-const S_IFMT   = 0o170000;
+const S_IFMT = 0o170000;
 const S_IFSOCK = 0o140000;
-const S_IFLNK  = 0o120000;
-const S_IFREG  = 0o100000;
-const S_IFBLK  = 0o060000;
-const S_IFDIR  = 0o040000;
-const S_IFCHR  = 0o020000;
-const S_IFIFO  = 0o010000;
+const S_IFLNK = 0o120000;
+const S_IFREG = 0o100000;
+const S_IFBLK = 0o060000;
+const S_IFDIR = 0o040000;
+const S_IFCHR = 0o020000;
+const S_IFIFO = 0o010000;
 
 /**
  * A representation of a directory entry, which can be a file or a subdirectory
@@ -26,7 +26,6 @@ const S_IFIFO  = 0o010000;
  * @since v10.10.0
  */
 export class Dirent implements OriginalDirent {
-
     /**
      * The file name that this `fs.Dirent` object refers to. The type of this
      * value is determined by the `options.encoding` passed to {@link readdir} or {@link readdirSync}.
@@ -78,7 +77,6 @@ export class Dirent implements OriginalDirent {
                 this._classifySpecialFile(path);
                 break;
         }
-
     }
 
     /**

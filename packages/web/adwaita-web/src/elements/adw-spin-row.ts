@@ -13,7 +13,9 @@ export class AdwSpinRow extends HTMLElement {
     private _value = 0;
     private _initialized = false;
 
-    static get observedAttributes() { return ['value', 'min', 'max', 'step']; }
+    static get observedAttributes() {
+        return ['value', 'min', 'max', 'step'];
+    }
 
     get value(): number {
         return this._value;
@@ -90,9 +92,15 @@ export class AdwSpinRow extends HTMLElement {
                     this._input.value = this._formatValue(this._value);
                 }
                 break;
-            case 'min': this._min = num; break;
-            case 'max': this._max = num; break;
-            case 'step': this._step = num; break;
+            case 'min':
+                this._min = num;
+                break;
+            case 'max':
+                this._max = num;
+                break;
+            case 'step':
+                this._step = num;
+                break;
         }
     }
 
@@ -102,10 +110,12 @@ export class AdwSpinRow extends HTMLElement {
     }
 
     private _emitChange() {
-        this.dispatchEvent(new CustomEvent('notify::value', {
-            bubbles: true,
-            detail: { value: this._value },
-        }));
+        this.dispatchEvent(
+            new CustomEvent('notify::value', {
+                bubbles: true,
+                detail: { value: this._value },
+            }),
+        );
     }
 
     private _countDecimals(n: number): number {

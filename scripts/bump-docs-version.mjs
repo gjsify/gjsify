@@ -46,10 +46,7 @@ function escapeRegex(str) {
 // substring of `0.1.150` etc.). Lookbehind/lookahead keep us off unrelated
 // numerics.
 const escaped = escapeRegex(latestVersion);
-const versionPattern = new RegExp(
-    `(?<=^|[^\\w.-])(v?)${escaped}(?=[^\\w.-]|$)`,
-    'gm',
-);
+const versionPattern = new RegExp(`(?<=^|[^\\w.-])(v?)${escaped}(?=[^\\w.-]|$)`, 'gm');
 
 let changedCount = 0;
 

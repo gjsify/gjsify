@@ -24,24 +24,16 @@ import {
     RTCErrorEvent,
 } from './index.js';
 
-import {
-    createDataChannelPair,
-    awaitMessage,
-    closePeerConnections,
-} from './wpt-helpers.js';
+import { createDataChannelPair, awaitMessage, closePeerConnections } from './wpt-helpers.js';
 
 Gst.init(null);
-const pipelineReady = Boolean(
-    Gst.ElementFactory.find('webrtcbin') && Gst.ElementFactory.find('nicesrc'),
-);
+const pipelineReady = Boolean(Gst.ElementFactory.find('webrtcbin') && Gst.ElementFactory.find('nicesrc'));
 
 /** Wrap a WPT-style `promise_test` body in a timeout. */
 function withTimeout<T>(ms: number, promise: Promise<T>, label: string): Promise<T> {
     return Promise.race([
         promise,
-        new Promise<T>((_, reject) =>
-            setTimeout(() => reject(new Error(`WPT timeout after ${ms}ms: ${label}`)), ms),
-        ),
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`WPT timeout after ${ms}ms: ${label}`)), ms)),
     ]);
 }
 
@@ -116,7 +108,11 @@ export default async () => {
             const pc = new RTCPeerConnection();
             const dc = pc.createDataChannel('wpt');
             let thrown: Error | null = null;
-            try { dc.binaryType = 'blob'; } catch (e: any) { thrown = e; }
+            try {
+                dc.binaryType = 'blob';
+            } catch (e: any) {
+                thrown = e;
+            }
             if (typeof (globalThis as any).Blob === 'undefined') {
                 // Our documented deviation: no Blob → NotSupportedError.
                 expect(thrown).toBeDefined();
@@ -280,10 +276,12 @@ export default async () => {
 
         await it('throws when both maxPacketLifeTime and maxRetransmits are set', async () => {
             const pc = new RTCPeerConnection();
-            expect(() => pc.createDataChannel('wpt', {
-                maxPacketLifeTime: 1000,
-                maxRetransmits: 5,
-            })).toThrow();
+            expect(() =>
+                pc.createDataChannel('wpt', {
+                    maxPacketLifeTime: 1000,
+                    maxRetransmits: 5,
+                }),
+            ).toThrow();
             pc.close();
         });
 
@@ -304,7 +302,11 @@ export default async () => {
             const pc = new RTCPeerConnection();
             pc.close();
             let thrown: any = null;
-            try { pc.createDataChannel('wpt'); } catch (e) { thrown = e; }
+            try {
+                pc.createDataChannel('wpt');
+            } catch (e) {
+                thrown = e;
+            }
             expect(thrown).toBeDefined();
         });
     });
@@ -339,33 +341,39 @@ export default async () => {
         });
 
         await it('throws SyntaxError for empty urls array', async () => {
-            expect(() =>
-                new RTCPeerConnection({ iceServers: [{ urls: [] }] })
-            ).toThrow();
+            expect(() => new RTCPeerConnection({ iceServers: [{ urls: [] }] })).toThrow();
         });
 
         await it('throws TypeError for TURN without credentials', async () => {
-            expect(() => new RTCPeerConnection({
-                iceServers: [{ urls: 'turn:turn.example.com' }],
-            } as any)).toThrow();
+            expect(
+                () =>
+                    new RTCPeerConnection({
+                        iceServers: [{ urls: 'turn:turn.example.com' }],
+                    } as any),
+            ).toThrow();
         });
 
         await it('accepts TURN with username + credential', async () => {
             const pc = new RTCPeerConnection({
-                iceServers: [{
-                    urls: 'turn:turn.example.com:3478',
-                    username: 'alice',
-                    credential: 'secret',
-                }],
+                iceServers: [
+                    {
+                        urls: 'turn:turn.example.com:3478',
+                        username: 'alice',
+                        credential: 'secret',
+                    },
+                ],
             });
             expect(pc).toBeDefined();
             pc.close();
         });
 
         await it('throws TypeError for unknown scheme', async () => {
-            expect(() => new RTCPeerConnection({
-                iceServers: [{ urls: 'wss://example.com' }],
-            })).toThrow();
+            expect(
+                () =>
+                    new RTCPeerConnection({
+                        iceServers: [{ urls: 'wss://example.com' }],
+                    }),
+            ).toThrow();
         });
     });
 
@@ -383,7 +391,7 @@ export default async () => {
             return;
         }
 
-        await it("createOffer() returns a plain object, not an RTCSessionDescription instance", async () => {
+        await it('createOffer() returns a plain object, not an RTCSessionDescription instance', async () => {
             const pc = new RTCPeerConnection();
             try {
                 const offer = await withTimeout(5000, pc.createOffer() as Promise<any>, 'createOffer');
@@ -407,7 +415,7 @@ export default async () => {
             }
         });
 
-        await it("createOffer() with a data channel produces m=application line", async () => {
+        await it('createOffer() with a data channel produces m=application line', async () => {
             const pc = new RTCPeerConnection();
             try {
                 pc.createDataChannel('wpt');
@@ -420,11 +428,15 @@ export default async () => {
             }
         });
 
-        await it("createOffer() after close() rejects with InvalidStateError", async () => {
+        await it('createOffer() after close() rejects with InvalidStateError', async () => {
             const pc = new RTCPeerConnection();
             pc.close();
             let thrown: any = null;
-            try { await pc.createOffer(); } catch (e) { thrown = e; }
+            try {
+                await pc.createOffer();
+            } catch (e) {
+                thrown = e;
+            }
             expect(thrown).toBeDefined();
             expect((thrown as any)?.name).toBe('InvalidStateError');
         });
@@ -473,7 +485,11 @@ export default async () => {
                 const pc = new RTCPeerConnection();
                 pc.close();
                 let thrown: any = null;
-                try { await fn(pc); } catch (e) { thrown = e; }
+                try {
+                    await fn(pc);
+                } catch (e) {
+                    thrown = e;
+                }
                 expect(thrown).toBeDefined();
                 expect((thrown as any)?.name).toBe('InvalidStateError');
             });
@@ -493,7 +509,7 @@ export default async () => {
             return;
         }
 
-        await it("getConfiguration() returns defaults when none were passed", async () => {
+        await it('getConfiguration() returns defaults when none were passed', async () => {
             const pc = new RTCPeerConnection();
             const cfg = pc.getConfiguration();
             // Default iceServers: not set (undefined) — spec allows either.
@@ -502,7 +518,7 @@ export default async () => {
             pc.close();
         });
 
-        await it("getConfiguration() preserves iceServers", async () => {
+        await it('getConfiguration() preserves iceServers', async () => {
             const pc = new RTCPeerConnection({
                 iceServers: [{ urls: 'stun:stun.example.com:19302' }],
             });
@@ -541,7 +557,7 @@ export default async () => {
             return;
         }
 
-        await it("id is null for non-negotiated channel before SCTP connects", async () => {
+        await it('id is null for non-negotiated channel before SCTP connects', async () => {
             const pc = new RTCPeerConnection();
             try {
                 const dc = pc.createDataChannel('wpt');
@@ -551,7 +567,7 @@ export default async () => {
             }
         });
 
-        await it("negotiated=true + id=42 preserves the user-provided id", async () => {
+        await it('negotiated=true + id=42 preserves the user-provided id', async () => {
             const pc = new RTCPeerConnection();
             try {
                 const dc = pc.createDataChannel('wpt', { negotiated: true, id: 42 });
@@ -561,7 +577,7 @@ export default async () => {
             }
         });
 
-        await it("negotiated=true + id=0 is allowed (0 is a valid id)", async () => {
+        await it('negotiated=true + id=0 is allowed (0 is a valid id)', async () => {
             const pc = new RTCPeerConnection();
             try {
                 const dc = pc.createDataChannel('wpt', { negotiated: true, id: 0 });
@@ -571,7 +587,7 @@ export default async () => {
             }
         });
 
-        await it("id=65535 throws TypeError (reserved per RFC 8832)", async () => {
+        await it('id=65535 throws TypeError (reserved per RFC 8832)', async () => {
             const pc = new RTCPeerConnection();
             try {
                 expect(() => pc.createDataChannel('wpt', { negotiated: true, id: 65535 })).toThrow();
@@ -616,11 +632,13 @@ export default async () => {
             }
         });
 
-        await it("close() does not fire additional signalingstatechange events", async () => {
+        await it('close() does not fire additional signalingstatechange events', async () => {
             const pc = new RTCPeerConnection();
             let eventsAfterClose = 0;
             pc.close();
-            pc.addEventListener('signalingstatechange', () => { eventsAfterClose++; });
+            pc.addEventListener('signalingstatechange', () => {
+                eventsAfterClose++;
+            });
             // Wait a tick for any queued events to drain.
             await new Promise((resolve) => setTimeout(resolve, 50));
             expect(pc.signalingState).toBe('closed');
@@ -662,10 +680,14 @@ export default async () => {
             }
         });
 
-        await it("setConfiguration throws NotSupportedError (not yet implemented)", async () => {
+        await it('setConfiguration throws NotSupportedError (not yet implemented)', async () => {
             const pc = new RTCPeerConnection();
             let thrown: any = null;
-            try { (pc as any).setConfiguration({ iceTransportPolicy: 'all' }); } catch (e) { thrown = e; }
+            try {
+                (pc as any).setConfiguration({ iceTransportPolicy: 'all' });
+            } catch (e) {
+                thrown = e;
+            }
             expect(thrown).toBeDefined();
             expect((thrown as any)?.name).toBe('NotSupportedError');
             pc.close();
@@ -695,11 +717,7 @@ export default async () => {
         const unicodeBytes = 12;
 
         await it('bufferedAmount starts at 0 for both peers', async () => {
-            const [dc1, dc2, pc1, pc2] = await withTimeout(
-                15000,
-                createDataChannelPair({}),
-                'createDataChannelPair',
-            );
+            const [dc1, dc2, pc1, pc2] = await withTimeout(15000, createDataChannelPair({}), 'createDataChannelPair');
             try {
                 expect(dc1.bufferedAmount).toBe(0);
                 expect(dc2.bufferedAmount).toBe(0);
@@ -709,11 +727,7 @@ export default async () => {
         });
 
         await it('bufferedAmount increases by UTF-8 byte length when sending a unicode string (not UTF-16 length)', async () => {
-            const [dc1, dc2, pc1, pc2] = await withTimeout(
-                15000,
-                createDataChannelPair({}),
-                'createDataChannelPair',
-            );
+            const [dc1, dc2, pc1, pc2] = await withTimeout(15000, createDataChannelPair({}), 'createDataChannelPair');
             try {
                 dc1.send(unicodeString);
                 // The CJK string has 4 UTF-16 code units but 12 UTF-8 bytes.
@@ -726,11 +740,7 @@ export default async () => {
         });
 
         await it('bufferedAmount increases by byte length when sending an ArrayBuffer', async () => {
-            const [dc1, dc2, pc1, pc2] = await withTimeout(
-                15000,
-                createDataChannelPair({}),
-                'createDataChannelPair',
-            );
+            const [dc1, dc2, pc1, pc2] = await withTimeout(15000, createDataChannelPair({}), 'createDataChannelPair');
             try {
                 dc1.send(helloBuffer.buffer);
                 expect(dc1.bufferedAmount).toBe(helloBuffer.byteLength);
@@ -741,11 +751,7 @@ export default async () => {
         });
 
         await it('bufferedAmount stays at 0 for empty string', async () => {
-            const [dc1, dc2, pc1, pc2] = await withTimeout(
-                15000,
-                createDataChannelPair({}),
-                'createDataChannelPair',
-            );
+            const [dc1, dc2, pc1, pc2] = await withTimeout(15000, createDataChannelPair({}), 'createDataChannelPair');
             try {
                 dc1.send('');
                 expect(dc1.bufferedAmount).toBe(0);
@@ -769,11 +775,7 @@ export default async () => {
         }
 
         await it("close() transitions readyState to 'closed' on the caller", async () => {
-            const [dc1, _dc2, pc1, pc2] = await withTimeout(
-                15000,
-                createDataChannelPair({}),
-                'createDataChannelPair',
-            );
+            const [dc1, _dc2, pc1, pc2] = await withTimeout(15000, createDataChannelPair({}), 'createDataChannelPair');
             try {
                 dc1.close();
                 expect(dc1.readyState).toBe('closed');
@@ -783,11 +785,7 @@ export default async () => {
         });
 
         await it("close() on one peer fires 'close' on the other (close propagates)", async () => {
-            const [dc1, dc2, pc1, pc2] = await withTimeout(
-                15000,
-                createDataChannelPair({}),
-                'createDataChannelPair',
-            );
+            const [dc1, dc2, pc1, pc2] = await withTimeout(15000, createDataChannelPair({}), 'createDataChannelPair');
             try {
                 const closedOnB = new Promise<void>((resolve) => {
                     if (dc2.readyState === 'closed') return resolve();
@@ -806,7 +804,11 @@ export default async () => {
             const dc = pc.createDataChannel('wpt');
             dc.close();
             let thrown: any = null;
-            try { dc.send('hi'); } catch (e) { thrown = e; }
+            try {
+                dc.send('hi');
+            } catch (e) {
+                thrown = e;
+            }
             expect(thrown).toBeDefined();
             expect((thrown as any)?.name).toBe('InvalidStateError');
             pc.close();
@@ -941,7 +943,9 @@ export default async () => {
                     chA.send('hello world');
                     const msg = await withTimeout(5000, awaitMessage<string>(chB), 'ASCII string');
                     expect(msg).toBe('hello world');
-                } finally { closePeerConnections(pcA, pcB); }
+                } finally {
+                    closePeerConnections(pcA, pcB);
+                }
             });
 
             await it('send/receive Unicode string', async () => {
@@ -951,7 +955,9 @@ export default async () => {
                     chA.send(unicode);
                     const msg = await withTimeout(5000, awaitMessage<string>(chB), 'Unicode string');
                     expect(msg).toBe(unicode);
-                } finally { closePeerConnections(pcA, pcB); }
+                } finally {
+                    closePeerConnections(pcA, pcB);
+                }
             });
 
             await it('send/receive empty string', async () => {
@@ -960,7 +966,9 @@ export default async () => {
                     chA.send('');
                     const msg = await withTimeout(5000, awaitMessage<string>(chB), 'empty string');
                     expect(msg).toBe('');
-                } finally { closePeerConnections(pcA, pcB); }
+                } finally {
+                    closePeerConnections(pcA, pcB);
+                }
             });
 
             await it('send/receive ArrayBuffer', async () => {
@@ -974,7 +982,9 @@ export default async () => {
                     expect(arr.length).toBe(5);
                     expect(arr[0]).toBe(1);
                     expect(arr[4]).toBe(5);
-                } finally { closePeerConnections(pcA, pcB); }
+                } finally {
+                    closePeerConnections(pcA, pcB);
+                }
             });
 
             await it('send/receive Uint8Array view', async () => {
@@ -988,7 +998,9 @@ export default async () => {
                     expect(arr.length).toBe(3);
                     expect(arr[0]).toBe(10);
                     expect(arr[2]).toBe(30);
-                } finally { closePeerConnections(pcA, pcB); }
+                } finally {
+                    closePeerConnections(pcA, pcB);
+                }
             });
 
             await it('send on connecting channel throws', async () => {
@@ -997,9 +1009,15 @@ export default async () => {
                     const ch = pc.createDataChannel('test');
                     expect(ch.readyState).toBe('connecting');
                     let threw = false;
-                    try { ch.send('data'); } catch { threw = true; }
+                    try {
+                        ch.send('data');
+                    } catch {
+                        threw = true;
+                    }
                     expect(threw).toBeTruthy();
-                } finally { pc.close(); }
+                } finally {
+                    pc.close();
+                }
             });
         }
     });
@@ -1023,7 +1041,9 @@ export default async () => {
 
                     await pc.setLocalDescription({ type: 'rollback', sdp: '' });
                     expect(pc.signalingState).toBe('stable');
-                } finally { pc.close(); }
+                } finally {
+                    pc.close();
+                }
             });
 
             await it('rollback clears pendingLocalDescription', async () => {
@@ -1036,7 +1056,9 @@ export default async () => {
 
                     await pc.setLocalDescription({ type: 'rollback', sdp: '' });
                     expect(pc.pendingLocalDescription).toBeNull();
-                } finally { pc.close(); }
+                } finally {
+                    pc.close();
+                }
             });
 
             await it('rollback fires signalingstatechange', async () => {
@@ -1047,10 +1069,14 @@ export default async () => {
                     await pc.setLocalDescription(offer);
 
                     let fired = false;
-                    pc.onsignalingstatechange = () => { fired = true; };
+                    pc.onsignalingstatechange = () => {
+                        fired = true;
+                    };
                     await pc.setLocalDescription({ type: 'rollback', sdp: '' });
                     expect(fired).toBeTruthy();
-                } finally { pc.close(); }
+                } finally {
+                    pc.close();
+                }
             });
 
             await it('rollback in stable state is a no-op or throws', async () => {
@@ -1065,7 +1091,9 @@ export default async () => {
                         expect(e.name === 'InvalidStateError' || e instanceof Error).toBeTruthy();
                     }
                     expect(pc.signalingState).toBe('stable');
-                } finally { pc.close(); }
+                } finally {
+                    pc.close();
+                }
             });
         }
     });
@@ -1092,7 +1120,9 @@ export default async () => {
                     expect(answer.type).toBe('answer');
                     expect(typeof answer.sdp).toBe('string');
                     expect(answer.sdp!.length).toBeGreaterThan(0);
-                } finally { closePeerConnections(pc1, pc2); }
+                } finally {
+                    closePeerConnections(pc1, pc2);
+                }
             });
 
             await it('createAnswer rejects in stable state', async () => {
@@ -1100,9 +1130,15 @@ export default async () => {
                 try {
                     expect(pc.signalingState).toBe('stable');
                     let threw = false;
-                    try { await pc.createAnswer(); } catch { threw = true; }
+                    try {
+                        await pc.createAnswer();
+                    } catch {
+                        threw = true;
+                    }
                     expect(threw).toBeTruthy();
-                } finally { pc.close(); }
+                } finally {
+                    pc.close();
+                }
             });
 
             await it('createAnswer SDP contains a= lines', async () => {
@@ -1115,7 +1151,9 @@ export default async () => {
                     const answer = await pc2.createAnswer();
                     // SDP must contain attribute lines
                     expect(answer.sdp).toContain('a=');
-                } finally { closePeerConnections(pc1, pc2); }
+                } finally {
+                    closePeerConnections(pc1, pc2);
+                }
             });
 
             await it('createAnswer rejects after close', async () => {
@@ -1127,9 +1165,15 @@ export default async () => {
                     await pc2.setRemoteDescription(offer);
                     pc2.close();
                     let threw = false;
-                    try { await pc2.createAnswer(); } catch { threw = true; }
+                    try {
+                        await pc2.createAnswer();
+                    } catch {
+                        threw = true;
+                    }
                     expect(threw).toBeTruthy();
-                } finally { pc1.close(); }
+                } finally {
+                    pc1.close();
+                }
             });
         }
     });

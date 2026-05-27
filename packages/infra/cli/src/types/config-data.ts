@@ -195,8 +195,8 @@ export interface ConfigData {
     flatpak?: ConfigDataFlatpak;
     /**
      * Format/lint config consumed by `gjsify format` / `gjsify lint` /
-     * `gjsify fix`. Thin shell — Biome's own `biome.json` is the real
-     * configuration file; we only need a pointer here.
+     * `gjsify fix`. Thin shell — oxc's own `.oxfmtrc.json` / `.oxlintrc.json`
+     * are the real configuration files; we only need a pointer here.
      */
     format?: ConfigDataFormat;
     /**
@@ -206,12 +206,12 @@ export interface ConfigData {
     test?: ConfigDataTest;
 }
 
-/** Optional pointer to a non-default biome.json. */
+/** Optional pointer to a non-default oxc config file. */
 export interface ConfigDataFormat {
     /**
-     * Path to biome.json. Default: walks up from cwd to find one;
-     * falls back to the recommended template shipped with `gjsify`
-     * (writable via `gjsify format --init`).
+     * Path to an `.oxfmtrc.json` / `.oxlintrc.json`. Default: walks up from
+     * cwd to find one; falls back to the recommended templates shipped with
+     * `gjsify` (writable via `gjsify format --init`).
      */
     configPath?: string;
 }
@@ -359,10 +359,12 @@ export interface ConfigDataFlatpak {
      *   declaring attributes explicitly even when they're `none` so the
      *   rating audit is auditable.
      */
-    contentRating?: string | {
-        type?: string;
-        attributes?: Record<string, 'none' | 'mild' | 'moderate' | 'intense'>;
-    };
+    contentRating?:
+        | string
+        | {
+              type?: string;
+              attributes?: Record<string, 'none' | 'mild' | 'moderate' | 'intense'>;
+          };
     /** Freedesktop Menu categories (e.g. `['Development', 'Utility']`). */
     categories?: string[];
     /** Search keywords for app stores. */

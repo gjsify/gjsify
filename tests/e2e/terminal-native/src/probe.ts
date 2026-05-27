@@ -7,18 +7,18 @@ import process from 'node:process';
 import { hasNativeTerminal } from '@gjsify/terminal-native';
 
 const stdout = process.stdout as any;
-const stdin  = process.stdin  as any;
+const stdin = process.stdin as any;
 
 const result = {
-    native_loaded:      hasNativeTerminal(),
-    isatty_stdout:      isatty(1),
+    native_loaded: hasNativeTerminal(),
+    isatty_stdout: isatty(1),
     isatty_result_type: typeof isatty(1),
-    columns:            typeof stdout.columns === 'number' ? stdout.columns : -1,
-    rows:               typeof stdout.rows    === 'number' ? stdout.rows    : -1,
-    columns_positive:   (stdout.columns ?? 0) > 0,
-    rows_positive:      (stdout.rows    ?? 0) > 0,
-    stdin_has_isTTY:    'isTTY'       in stdin,
-    stdin_has_setRaw:   typeof stdin.setRawMode === 'function',
+    columns: typeof stdout.columns === 'number' ? stdout.columns : -1,
+    rows: typeof stdout.rows === 'number' ? stdout.rows : -1,
+    columns_positive: (stdout.columns ?? 0) > 0,
+    rows_positive: (stdout.rows ?? 0) > 0,
+    stdin_has_isTTY: 'isTTY' in stdin,
+    stdin_has_setRaw: typeof stdin.setRawMode === 'function',
     set_raw_mode_ok: (() => {
         if (typeof stdin.setRawMode !== 'function') return 'no_setRawMode';
         try {

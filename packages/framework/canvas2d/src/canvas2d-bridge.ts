@@ -3,12 +3,12 @@
 // Pattern follows packages/dom/iframe/src/iframe-bridge.ts (IFrameBridge)
 
 import GObject from 'gi://GObject';
-import Gdk from 'gi://Gdk?version=4.0';
+import type Gdk from 'gi://Gdk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { HTMLCanvasElement as GjsifyHTMLCanvasElement, notifyElementResize } from '@gjsify/dom-elements';
 import { attachEventControllers } from '@gjsify/event-bridge';
-import { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
+import type { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
 import { Event } from '@gjsify/dom-events';
 
 type Canvas2DReadyCallback = (canvas: globalThis.HTMLCanvasElement, ctx: CanvasRenderingContext2D) => void;
@@ -188,8 +188,7 @@ export const Canvas2DBridge = GObject.registerClass(
             }
             const g = globalThis as unknown as _RafGlobals;
 
-            g.requestAnimationFrame = (cb: FrameRequestCallback) =>
-                this.requestAnimationFrame(cb);
+            g.requestAnimationFrame = (cb: FrameRequestCallback) => this.requestAnimationFrame(cb);
             // Install performance.now() on the same time origin as rAF timestamps.
             // Always override to ensure consistency — native GJS performance.now()
             // may use a different time origin than the frame clock.
@@ -199,7 +198,7 @@ export const Canvas2DBridge = GObject.registerClass(
                 timeOrigin: Date.now(),
             };
         }
-    }
+    },
 );
 
 // Export the instance type so callers can type-annotate their Canvas2DBridge variables

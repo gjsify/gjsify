@@ -16,9 +16,9 @@ import getTsconfigExtendsSuite from './get-tsconfig-extends.spec.js';
 import getTsconfigPathsSuite from './get-tsconfig-paths.spec.js';
 
 run({
-  pkgTypesReadSuite,
-  pkgTypesWriteSuite,
-  getTsconfigBasicSuite,
-  getTsconfigExtendsSuite,
-  getTsconfigPathsSuite,
+    pkgTypesReadSuite,
+    pkgTypesWriteSuite,
+    getTsconfigBasicSuite,
+    getTsconfigExtendsSuite,
+    getTsconfigPathsSuite,
 });

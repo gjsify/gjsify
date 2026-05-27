@@ -18,9 +18,9 @@ import cacheAndClearSuite from './cache-and-clear.spec.js';
 import transformSuite from './transform.spec.js';
 
 run({
-  jsonLoaderSuite,
-  jsLoaderSuite,
-  moduleNameSuite,
-  cacheAndClearSuite,
-  transformSuite,
+    jsonLoaderSuite,
+    jsLoaderSuite,
+    moduleNameSuite,
+    cacheAndClearSuite,
+    transformSuite,
 });

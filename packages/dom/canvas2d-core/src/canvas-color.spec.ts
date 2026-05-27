@@ -6,33 +6,44 @@ import { describe, it, expect } from '@gjsify/unit';
 import { parseColor } from './color.js';
 
 export default async () => {
-
     await describe('parseColor — hex and named', async () => {
         await it('parses #ffffff as white', async () => {
             const c = parseColor('#ffffff')!;
-            expect(c.r).toBe(1); expect(c.g).toBe(1); expect(c.b).toBe(1); expect(c.a).toBe(1);
+            expect(c.r).toBe(1);
+            expect(c.g).toBe(1);
+            expect(c.b).toBe(1);
+            expect(c.a).toBe(1);
         });
 
         await it('parses named "white" as white', async () => {
             const c = parseColor('white')!;
-            expect(c.r).toBe(1); expect(c.g).toBe(1); expect(c.b).toBe(1);
+            expect(c.r).toBe(1);
+            expect(c.g).toBe(1);
+            expect(c.b).toBe(1);
         });
 
         await it('parses "black" as black', async () => {
             const c = parseColor('black')!;
-            expect(c.r).toBe(0); expect(c.g).toBe(0); expect(c.b).toBe(0);
+            expect(c.r).toBe(0);
+            expect(c.g).toBe(0);
+            expect(c.b).toBe(0);
         });
     });
 
     await describe('parseColor — rgb()/rgba()', async () => {
         await it('parses rgb(255,0,0) as red', async () => {
             const c = parseColor('rgb(255, 0, 0)')!;
-            expect(c.r).toBe(1); expect(c.g).toBe(0); expect(c.b).toBe(0); expect(c.a).toBe(1);
+            expect(c.r).toBe(1);
+            expect(c.g).toBe(0);
+            expect(c.b).toBe(0);
+            expect(c.a).toBe(1);
         });
 
         await it('parses rgba(0,0,255,0.5) as semi-transparent blue', async () => {
             const c = parseColor('rgba(0, 0, 255, 0.5)')!;
-            expect(c.r).toBe(0); expect(c.b).toBe(1); expect(c.a).toBe(0.5);
+            expect(c.r).toBe(0);
+            expect(c.b).toBe(1);
+            expect(c.a).toBe(0.5);
         });
     });
 
@@ -48,7 +59,9 @@ export default async () => {
         await it('hsl(0, 0%, 0%) → black', async () => {
             const c = parseColor('hsl(0, 0%, 0%)')!;
             expect(c).toBeDefined();
-            expect(c.r).toBe(0); expect(c.g).toBe(0); expect(c.b).toBe(0);
+            expect(c.r).toBe(0);
+            expect(c.g).toBe(0);
+            expect(c.b).toBe(0);
         });
 
         await it('hsl(120, 100%, 50%) → green', async () => {
@@ -86,7 +99,9 @@ export default async () => {
         await it('hsla(0, 0, 0, 1) → black (Color.Black)', async () => {
             const c = parseColor('hsla(0, 0, 0, 1)')!;
             expect(c).toBeDefined();
-            expect(c.r).toBe(0); expect(c.g).toBe(0); expect(c.b).toBe(0);
+            expect(c.r).toBe(0);
+            expect(c.g).toBe(0);
+            expect(c.b).toBe(0);
             expect(c.a).toBe(1);
         });
 

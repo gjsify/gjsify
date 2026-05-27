@@ -23,11 +23,7 @@ export interface CandidateInfo {
 
 /** Parse RFC 5245 uint32 PRIORITY into type|local|component parts. */
 function formatPriority(priority: number): string {
-    return [
-        priority >> 24,
-        (priority >> 8) & 0xFFFF,
-        priority & 0xFF,
-    ].join(' | ');
+    return [priority >> 24, (priority >> 8) & 0xffff, priority & 0xff].join(' | ');
 }
 
 export async function runTrickleIceDemo(
@@ -67,7 +63,10 @@ export async function runTrickleIceDemo(
                     priority: formatPriority(c.priority ?? 0),
                 };
                 candidates.push(info);
-                log('candidate', `${info.type.padEnd(6)} ${info.protocol.padEnd(4)} ${info.address}:${info.port} (priority: ${info.priority}) [${elapsed}s]`);
+                log(
+                    'candidate',
+                    `${info.type.padEnd(6)} ${info.protocol.padEnd(4)} ${info.address}:${info.port} (priority: ${info.priority}) [${elapsed}s]`,
+                );
                 // Forward to pc2 for connectivity
                 pc2.addIceCandidate(c).catch(() => {});
             }
@@ -100,7 +99,10 @@ export async function runTrickleIceDemo(
             log('table', 'Type   Proto Address                Port   Priority');
             log('table', '──────────────────────────────────────────────────────────');
             for (const c of candidates) {
-                log('table', `${c.type.padEnd(6)} ${c.protocol.padEnd(5)} ${c.address.padEnd(22)} ${String(c.port).padEnd(6)} ${c.priority}`);
+                log(
+                    'table',
+                    `${c.type.padEnd(6)} ${c.protocol.padEnd(5)} ${c.address.padEnd(22)} ${String(c.port).padEnd(6)} ${c.priority}`,
+                );
             }
             log('table', '──────────────────────────────────────────────────────────');
             pc1.close();

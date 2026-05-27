@@ -22,17 +22,12 @@ export type LogFn = (tag: string, msg: string) => void;
 
 // The payload to seed — small enough for a quick test
 const SEED_DATA = new TextEncoder().encode(
-    'Hello from WebTorrent + WebRTC!\n' +
-    'This data was transferred peer-to-peer via WebRTC data channels.\n',
+    'Hello from WebTorrent + WebRTC!\n' + 'This data was transferred peer-to-peer via WebRTC data channels.\n',
 );
 const SEED_FILENAME = 'hello-gjsify.txt';
 
 // Public WebTorrent trackers for WebRTC signaling
-const TRACKERS = [
-    'wss://tracker.webtorrent.dev',
-    'wss://tracker.openwebtorrent.com',
-    'wss://tracker.btorrent.xyz',
-];
+const TRACKERS = ['wss://tracker.webtorrent.dev', 'wss://tracker.openwebtorrent.com', 'wss://tracker.btorrent.xyz'];
 
 // Common options: disable Node.js-only transports
 const CLIENT_OPTS = {
@@ -64,9 +59,10 @@ export async function runTorrentDemo(log: LogFn): Promise<void> {
     log('seeder', `Seeding ${SEED_DATA.byteLength} bytes as "${SEED_FILENAME}"...`);
 
     // Use Buffer with name property (avoids Blob.stream() which GJS lacks)
-    const seedInput = typeof Buffer !== 'undefined'
-        ? Object.assign(Buffer.from(SEED_DATA), { name: SEED_FILENAME })
-        : new File([SEED_DATA], SEED_FILENAME, { type: 'text/plain' });
+    const seedInput =
+        typeof Buffer !== 'undefined'
+            ? Object.assign(Buffer.from(SEED_DATA), { name: SEED_FILENAME })
+            : new File([SEED_DATA], SEED_FILENAME, { type: 'text/plain' });
 
     const torrent = await new Promise<any>((resolve, reject) => {
         const t = seeder.seed(seedInput, { announce: TRACKERS });
@@ -82,7 +78,9 @@ export async function runTorrentDemo(log: LogFn): Promise<void> {
             reject(err);
         });
 
-        t.on('warning', (err: Error | string) => log('seeder', `Torrent warn: ${err instanceof Error ? err.message : err}`));
+        t.on('warning', (err: Error | string) =>
+            log('seeder', `Torrent warn: ${err instanceof Error ? err.message : err}`),
+        );
         setTimeout(() => reject(new Error('Seed timeout (30s)')), 30000);
     });
 

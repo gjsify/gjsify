@@ -17,9 +17,9 @@ import walkRecursiveSuite from './walk-recursive.spec.js';
 import errorPositionsSuite from './error-positions.spec.js';
 
 run({
-  parseBasicSuite,
-  parseStrictSuite,
-  walkBasicSuite,
-  walkRecursiveSuite,
-  errorPositionsSuite,
+    parseBasicSuite,
+    parseStrictSuite,
+    walkBasicSuite,
+    walkRecursiveSuite,
+    errorPositionsSuite,
 });

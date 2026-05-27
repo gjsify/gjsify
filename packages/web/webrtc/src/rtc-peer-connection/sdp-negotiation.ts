@@ -23,7 +23,8 @@ import { DOMException } from '@gjsify/dom-exception';
 import { Gst } from '../gst-init.js';
 import { withGstPromise } from '../gst-utils.js';
 import { RTCSessionDescription, type RTCSessionDescriptionInit } from '../rtc-session-description.js';
-import { RTCIceCandidate, type RTCIceCandidateInit } from '../rtc-ice-candidate.js';
+import type { RTCIceCandidate } from '../rtc-ice-candidate.js';
+import { type RTCIceCandidateInit } from '../rtc-ice-candidate.js';
 import type { RTCPeerConnection, RTCOfferOptions, RTCAnswerOptions } from '../rtc-peer-connection.js';
 
 export interface SdpNegotiationMethods {
@@ -35,11 +36,10 @@ export interface SdpNegotiationMethods {
 }
 
 declare module '../rtc-peer-connection.js' {
-    interface RTCPeerConnection extends SdpNegotiationMethods { }
+    interface RTCPeerConnection extends SdpNegotiationMethods {}
 }
 
 const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection> = {
-
     async createOffer(this: RTCPeerConnection, _options?: RTCOfferOptions): Promise<RTCSessionDescriptionInit> {
         this._rejectIfClosed('createOffer');
         const opts = Gst.Structure.new_empty('offer-options');
@@ -112,7 +112,10 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
         }
     },
 
-    async addIceCandidate(this: RTCPeerConnection, candidate: RTCIceCandidateInit | RTCIceCandidate | null): Promise<void> {
+    async addIceCandidate(
+        this: RTCPeerConnection,
+        candidate: RTCIceCandidateInit | RTCIceCandidate | null,
+    ): Promise<void> {
         this._rejectIfClosed('addIceCandidate');
         if (!candidate) return; // end-of-candidates marker — webrtcbin handles implicitly
         const { candidate: cand, sdpMLineIndex } = candidate;

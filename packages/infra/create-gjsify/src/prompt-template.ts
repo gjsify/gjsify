@@ -3,11 +3,11 @@ import { emitKeypressEvents } from 'node:readline';
 import type { TemplateInfo } from './discover-templates.js';
 
 const c = {
-    reset:  '\x1b[0m',
-    bold:   '\x1b[1m',
-    dim:    '\x1b[2m',
-    cyan:   '\x1b[36m',
-    green:  '\x1b[32m',
+    reset: '\x1b[0m',
+    bold: '\x1b[1m',
+    dim: '\x1b[2m',
+    cyan: '\x1b[36m',
+    green: '\x1b[32m',
 };
 
 /**
@@ -40,7 +40,9 @@ export function promptTemplate(templates: TemplateInfo[]): Promise<TemplateInfo>
     return new Promise((resolve, reject) => {
         let selected = 0;
 
-        stdout.write(`${c.bold}Select a template${c.reset} ${c.dim}(↑/↓ to navigate, Enter to confirm, Ctrl+C to cancel)${c.reset}\n`);
+        stdout.write(
+            `${c.bold}Select a template${c.reset} ${c.dim}(↑/↓ to navigate, Enter to confirm, Ctrl+C to cancel)${c.reset}\n`,
+        );
         render(templates, selected, true);
 
         emitKeypressEvents(stdin);

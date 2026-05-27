@@ -9,7 +9,14 @@ export class AdwOverlaySplitView extends HTMLElement {
     private _backdropEl!: HTMLDivElement;
 
     static get observedAttributes() {
-        return ['show-sidebar', 'collapsed', 'sidebar-position', 'min-sidebar-width', 'max-sidebar-width', 'sidebar-width-fraction'];
+        return [
+            'show-sidebar',
+            'collapsed',
+            'sidebar-position',
+            'min-sidebar-width',
+            'max-sidebar-width',
+            'sidebar-width-fraction',
+        ];
     }
 
     get showSidebar(): boolean {
@@ -51,7 +58,7 @@ export class AdwOverlaySplitView extends HTMLElement {
         const contentChildren = Array.from(this.querySelectorAll('[slot="content"]'));
         // Any remaining unslotted children go to content
         const unslotted = Array.from(this.childNodes).filter(
-            n => !sidebarChildren.includes(n as Element) && !contentChildren.includes(n as Element),
+            (n) => !sidebarChildren.includes(n as Element) && !contentChildren.includes(n as Element),
         );
 
         // Clear children safely
@@ -60,13 +67,13 @@ export class AdwOverlaySplitView extends HTMLElement {
         // Sidebar container
         this._sidebarEl = document.createElement('div');
         this._sidebarEl.className = 'adw-osv-sidebar';
-        sidebarChildren.forEach(c => this._sidebarEl.appendChild(c));
+        sidebarChildren.forEach((c) => this._sidebarEl.appendChild(c));
 
         // Content container
         this._contentEl = document.createElement('div');
         this._contentEl.className = 'adw-osv-content';
-        contentChildren.forEach(c => this._contentEl.appendChild(c));
-        unslotted.forEach(c => this._contentEl.appendChild(c));
+        contentChildren.forEach((c) => this._contentEl.appendChild(c));
+        unslotted.forEach((c) => this._contentEl.appendChild(c));
 
         // Backdrop for overlay dismiss
         this._backdropEl = document.createElement('div');
@@ -100,9 +107,11 @@ export class AdwOverlaySplitView extends HTMLElement {
 
     toggleSidebar() {
         this.showSidebar = !this.showSidebar;
-        this.dispatchEvent(new CustomEvent('sidebar-toggled', {
-            detail: { isVisible: this.showSidebar },
-        }));
+        this.dispatchEvent(
+            new CustomEvent('sidebar-toggled', {
+                detail: { isVisible: this.showSidebar },
+            }),
+        );
     }
 
     private _syncClasses() {

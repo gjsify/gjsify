@@ -13,7 +13,7 @@ export function setupPrimary(_settings?: any): void {}
 export const setupMaster = setupPrimary;
 
 export function fork(_env?: any): any {
-  throw new Error('cluster.fork() is not supported in GJS');
+    throw new Error('cluster.fork() is not supported in GJS');
 }
 
 export function disconnect(_callback?: () => void): void {}
@@ -27,18 +27,18 @@ class ClusterEmitter extends EventEmitter {}
 const cluster = new ClusterEmitter();
 
 Object.assign(cluster, {
-  isPrimary,
-  isMaster,
-  isWorker,
-  workers,
-  settings,
-  setupPrimary,
-  setupMaster,
-  fork,
-  disconnect,
-  schedulingPolicy,
-  SCHED_NONE,
-  SCHED_RR,
+    isPrimary,
+    isMaster,
+    isWorker,
+    workers,
+    settings,
+    setupPrimary,
+    setupMaster,
+    fork,
+    disconnect,
+    schedulingPolicy,
+    SCHED_NONE,
+    SCHED_RR,
 });
 
 export default cluster;

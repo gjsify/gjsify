@@ -52,17 +52,17 @@ export class FakeBlob {
 
 function guessExt(url: string): string {
     const lower = url.toLowerCase();
-    if (lower.endsWith('.png'))  return '.png';
+    if (lower.endsWith('.png')) return '.png';
     if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return '.jpg';
-    if (lower.endsWith('.gif'))  return '.gif';
-    if (lower.endsWith('.svg'))  return '.svg';
-    if (lower.endsWith('.ttf'))  return '.ttf';
-    if (lower.endsWith('.otf'))  return '.otf';
+    if (lower.endsWith('.gif')) return '.gif';
+    if (lower.endsWith('.svg')) return '.svg';
+    if (lower.endsWith('.ttf')) return '.ttf';
+    if (lower.endsWith('.otf')) return '.otf';
     if (lower.endsWith('.woff')) return '.woff';
     if (lower.endsWith('.woff2')) return '.woff2';
-    if (lower.endsWith('.mp3'))  return '.mp3';
-    if (lower.endsWith('.wav'))  return '.wav';
-    if (lower.endsWith('.ogg'))  return '.ogg';
+    if (lower.endsWith('.mp3')) return '.mp3';
+    if (lower.endsWith('.wav')) return '.wav';
+    if (lower.endsWith('.ogg')) return '.ogg';
     if (lower.endsWith('.tmx') || lower.endsWith('.xml')) return '.xml';
     if (lower.endsWith('.json')) return '.json';
     return '.bin';
@@ -70,17 +70,17 @@ function guessExt(url: string): string {
 
 function guessMime(url: string): string {
     const lower = url.toLowerCase();
-    if (lower.endsWith('.png'))  return 'image/png';
+    if (lower.endsWith('.png')) return 'image/png';
     if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
-    if (lower.endsWith('.gif'))  return 'image/gif';
-    if (lower.endsWith('.svg'))  return 'image/svg+xml';
-    if (lower.endsWith('.ttf'))  return 'font/truetype';
-    if (lower.endsWith('.otf'))  return 'font/otf';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.svg')) return 'image/svg+xml';
+    if (lower.endsWith('.ttf')) return 'font/truetype';
+    if (lower.endsWith('.otf')) return 'font/otf';
     if (lower.endsWith('.woff')) return 'font/woff';
     if (lower.endsWith('.woff2')) return 'font/woff2';
-    if (lower.endsWith('.mp3'))  return 'audio/mpeg';
-    if (lower.endsWith('.wav'))  return 'audio/wav';
-    if (lower.endsWith('.ogg'))  return 'audio/ogg';
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    if (lower.endsWith('.ogg')) return 'audio/ogg';
     if (lower.endsWith('.json')) return 'application/json';
     return 'application/octet-stream';
 }
@@ -100,10 +100,7 @@ async function readFileUrl(url: string): Promise<ArrayBuffer> {
 
 /** Write bytes to a temp file and return the path. */
 function writeToTmp(bytes: Uint8Array, ext: string): string {
-    const tmpPath = GLib.build_filenamev([
-        GLib.get_tmp_dir(),
-        `gjsify-blob-${_blobCounter++}${ext}`,
-    ]);
+    const tmpPath = GLib.build_filenamev([GLib.get_tmp_dir(), `gjsify-blob-${_blobCounter++}${ext}`]);
     GLib.file_set_contents(tmpPath, bytes);
     return tmpPath;
 }
@@ -184,14 +181,13 @@ export class XMLHttpRequest {
             if (url.startsWith('file://')) {
                 return readFileUrl(url);
             }
-            return fetch(url, { method: this._method })
-                .then((r: any) => {
-                    if (DEBUG) console.log(`[xmlhttprequest] fetch ok ${url} status=${r.status}`);
-                    this.status = r.status === 0 ? 200 : r.status;
-                    this.statusText = r.statusText || 'OK';
-                    this.responseURL = r.url || url;
-                    return r.arrayBuffer();
-                });
+            return fetch(url, { method: this._method }).then((r: any) => {
+                if (DEBUG) console.log(`[xmlhttprequest] fetch ok ${url} status=${r.status}`);
+                this.status = r.status === 0 ? 200 : r.status;
+                this.statusText = r.statusText || 'OK';
+                this.responseURL = r.url || url;
+                return r.arrayBuffer();
+            });
         };
 
         this.readyState = this.LOADING;
@@ -200,7 +196,8 @@ export class XMLHttpRequest {
         // Wrap doFetch() in Promise.resolve().then(...) so synchronous throws
         // (e.g. new URL('/path') when fetch parses the input) propagate into
         // the .catch chain instead of escaping send() as an uncaught exception.
-        Promise.resolve().then(doFetch)
+        Promise.resolve()
+            .then(doFetch)
             .then((arrBuf: ArrayBuffer) => {
                 if (this._aborted) return;
 
@@ -255,7 +252,7 @@ export class XMLHttpRequest {
     }
 
     removeEventListener(type: string, fn: (e: any) => void): void {
-        this._listeners[type] = (this._listeners[type] ?? []).filter(f => f !== fn);
+        this._listeners[type] = (this._listeners[type] ?? []).filter((f) => f !== fn);
     }
 
     getResponseHeader(_name: string): string | null {
@@ -272,7 +269,9 @@ export class XMLHttpRequest {
         // `onprogress` / `ontimeout` / `onabort` / `onreadystatechange`
         // properties, but indexing by computed `'on' + type` defeats
         // structural typing. Cast through a typed view keyed on the union.
-        const handler = (this as unknown as Record<`on${XHREventType}`, ((e: unknown) => void) | undefined>)['on' + type as `on${XHREventType}`];
+        const handler = (this as unknown as Record<`on${XHREventType}`, ((e: unknown) => void) | undefined>)[
+            ('on' + type) as `on${XHREventType}`
+        ];
         if (typeof handler === 'function') handler.call(this, { type, ...event });
         for (const fn of this._listeners[type] ?? []) fn.call(this, { type, ...event });
     }
@@ -300,9 +299,7 @@ interface _URLObjectURLPatch {
 export function installObjectURLSupport(): void {
     const urlPatch = URL as unknown as _URLObjectURLPatch;
     // Only install if not already a real implementation
-    if (typeof urlPatch.createObjectURL !== 'function' ||
-        urlPatch.__gjsify_objecturl !== true) {
-
+    if (typeof urlPatch.createObjectURL !== 'function' || urlPatch.__gjsify_objecturl !== true) {
         const _objectURLPaths = new Map<string, string>();
 
         urlPatch.createObjectURL = function (blob: FakeBlob | Blob): string {

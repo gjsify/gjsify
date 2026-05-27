@@ -31,7 +31,9 @@ if (nativeTerminal) {
             process.stderr.emit('resize');
         });
         watcher.start();
-    } catch { /* ignore if ResizeWatcher instantiation fails */ }
+    } catch {
+        /* ignore if ResizeWatcher instantiation fails */
+    }
 }
 
 // Named re-exports — match `import { x } from 'node:process'` shape.

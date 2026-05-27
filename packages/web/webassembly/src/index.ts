@@ -69,10 +69,7 @@ export function instantiate(
     bytes: BufferSource,
     importObject?: WebAssembly.Imports,
 ): Promise<WebAssembly.WebAssemblyInstantiatedSource>;
-export function instantiate(
-    module: WAModule,
-    importObject?: WebAssembly.Imports,
-): Promise<WAInstance>;
+export function instantiate(module: WAModule, importObject?: WebAssembly.Imports): Promise<WAInstance>;
 export function instantiate(
     bytesOrModule: BufferSource | WAModule,
     importObject?: WebAssembly.Imports,
@@ -95,9 +92,7 @@ async function bufferFromSource(source: Response | PromiseLike<Response>): Promi
 }
 
 /** Polyfill for `WebAssembly.compileStreaming()`. */
-export async function compileStreaming(
-    source: Response | PromiseLike<Response>,
-): Promise<WAModule> {
+export async function compileStreaming(source: Response | PromiseLike<Response>): Promise<WAModule> {
     const buffer = await bufferFromSource(source);
     return compile(buffer);
 }

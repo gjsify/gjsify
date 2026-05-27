@@ -28,8 +28,26 @@ export default async () => {
         await it('.getHelp() lists registered commands', async () => {
             const help = await yargs([])
                 .scriptName('tool')
-                .command('build', 'build the project', () => {/* */}, () => {/* */})
-                .command('serve', 'serve the project', () => {/* */}, () => {/* */})
+                .command(
+                    'build',
+                    'build the project',
+                    () => {
+                        /* */
+                    },
+                    () => {
+                        /* */
+                    },
+                )
+                .command(
+                    'serve',
+                    'serve the project',
+                    () => {
+                        /* */
+                    },
+                    () => {
+                        /* */
+                    },
+                )
                 .getHelp();
             expect(help).toContain('build');
             expect(help).toContain('serve');
@@ -37,18 +55,12 @@ export default async () => {
         });
 
         await it('.version() registers a --version flag and exposes it in help', async () => {
-            const help = await yargs([])
-                .scriptName('vcli')
-                .version('1.2.3')
-                .getHelp();
+            const help = await yargs([]).scriptName('vcli').version('1.2.3').getHelp();
             expect(help).toContain('--version');
         });
 
         await it('.epilogue() appends the trailing message', async () => {
-            const help = await yargs([])
-                .scriptName('ecli')
-                .epilogue('See https://example.com for details.')
-                .getHelp();
+            const help = await yargs([]).scriptName('ecli').epilogue('See https://example.com for details.').getHelp();
             expect(help).toContain('See https://example.com for details.');
         });
 

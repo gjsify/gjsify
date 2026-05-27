@@ -28,213 +28,254 @@ const GIRS_DIR = join(PROJECT_ROOT, 'girs');
 const CLI_TEST_TIMEOUT_MS = 30_000;
 
 interface RuntimeBundle {
-  label: string;
-  cmd: string;
-  baseArgs: string[];
-  extraEnv: Record<string, string>;
+    label: string;
+    cmd: string;
+    baseArgs: string[];
+    extraEnv: Record<string, string>;
 }
 
 const NODE_BUNDLE: RuntimeBundle = {
-  label: 'Node bundle',
-  cmd: 'node',
-  baseArgs: [CLI_NODE_BUNDLE],
-  extraEnv: {},
+    label: 'Node bundle',
+    cmd: 'node',
+    baseArgs: [CLI_NODE_BUNDLE],
+    extraEnv: {},
 };
 
 const GJS_BUNDLE: RuntimeBundle = {
-  label: 'GJS bundle',
-  cmd: 'gjs',
-  baseArgs: ['-m', CLI_GJS_BUNDLE],
-  extraEnv: gjsEnv(),
+    label: 'GJS bundle',
+    cmd: 'gjs',
+    baseArgs: ['-m', CLI_GJS_BUNDLE],
+    extraEnv: gjsEnv(),
 };
 
 function gjsEnv(): Record<string, string> {
-  // The CLI bundle transitively pulls in @gjsify/http-soup-bridge, whose
-  // GjsifyHttpSoupBridge-1.0 typelib lives under its prebuilds dir. We don't
-  // need webgl/webrtc-native here but include them for symmetry with what
-  // `gjsify run` sets, so anything else added later picks up automatically.
-  const paths = [
-    join(REPO_ROOT, 'node_modules', '@gjsify', 'http-soup-bridge', 'prebuilds', 'linux-x86_64'),
-    join(REPO_ROOT, 'node_modules', '@gjsify', 'webgl', 'prebuilds', 'linux-x86_64'),
-    join(REPO_ROOT, 'node_modules', '@gjsify', 'webrtc-native', 'prebuilds', 'linux-x86_64'),
-  ].join(':');
-  return { LD_LIBRARY_PATH: paths, GI_TYPELIB_PATH: paths };
+    // The CLI bundle transitively pulls in @gjsify/http-soup-bridge, whose
+    // GjsifyHttpSoupBridge-1.0 typelib lives under its prebuilds dir. We don't
+    // need webgl/webrtc-native here but include them for symmetry with what
+    // `gjsify run` sets, so anything else added later picks up automatically.
+    const paths = [
+        join(REPO_ROOT, 'node_modules', '@gjsify', 'http-soup-bridge', 'prebuilds', 'linux-x86_64'),
+        join(REPO_ROOT, 'node_modules', '@gjsify', 'webgl', 'prebuilds', 'linux-x86_64'),
+        join(REPO_ROOT, 'node_modules', '@gjsify', 'webrtc-native', 'prebuilds', 'linux-x86_64'),
+    ].join(':');
+    return { LD_LIBRARY_PATH: paths, GI_TYPELIB_PATH: paths };
 }
 
 interface SpawnResult {
-  stdout: string;
-  stderr: string;
-  code: number | null;
+    stdout: string;
+    stderr: string;
+    code: number | null;
 }
 
 function runCli(bundle: RuntimeBundle, args: string[]): Promise<SpawnResult> {
-  const baseEnv = { ...(process.env as Record<string, string>) };
-  for (const [k, v] of Object.entries(bundle.extraEnv)) {
-    baseEnv[k] = v + (baseEnv[k] ? `:${baseEnv[k]}` : '');
-  }
-  return new Promise((resolve, reject) => {
-    const child = spawn(bundle.cmd, [...bundle.baseArgs, ...args], {
-      cwd: PROJECT_ROOT,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: baseEnv,
+    const baseEnv = { ...(process.env as Record<string, string>) };
+    for (const [k, v] of Object.entries(bundle.extraEnv)) {
+        baseEnv[k] = v + (baseEnv[k] ? `:${baseEnv[k]}` : '');
+    }
+    return new Promise((resolve, reject) => {
+        const child = spawn(bundle.cmd, [...bundle.baseArgs, ...args], {
+            cwd: PROJECT_ROOT,
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env: baseEnv,
+        });
+        let stdout = '';
+        let stderr = '';
+        child.stdout?.on('data', (chunk: Buffer) => {
+            stdout += chunk.toString('utf-8');
+        });
+        child.stderr?.on('data', (chunk: Buffer) => {
+            stderr += chunk.toString('utf-8');
+        });
+        child.on('error', reject);
+        child.on('close', (code) => resolve({ stdout, stderr, code }));
     });
-    let stdout = '';
-    let stderr = '';
-    child.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf-8'); });
-    child.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf-8'); });
-    child.on('error', reject);
-    child.on('close', (code) => resolve({ stdout, stderr, code }));
-  });
 }
 
 function describeForBundle(bundle: RuntimeBundle): () => Promise<void> {
-  return async () => {
+    return async () => {
+        await describe(`@ts-for-gir/cli — yargs surface (${bundle.label})`, async () => {
+            await it(
+                '--version prints the injected version',
+                async () => {
+                    const r = await runCli(bundle, ['--version']);
+                    expect(r.code).toBe(0);
+                    expect(r.stdout.trim()).toBe('4.0.0-rc.8');
+                },
+                { timeout: CLI_TEST_TIMEOUT_MS },
+            );
 
-    await describe(`@ts-for-gir/cli — yargs surface (${bundle.label})`, async () => {
+            await it(
+                '--help prints the command tree and the global options',
+                async () => {
+                    const r = await runCli(bundle, ['--help']);
+                    expect(r.code).toBe(0);
+                    // Top-level usage line from APP_USAGE.
+                    expect(r.stdout).toContain('TypeScript type definition generator');
+                    // Each command should appear in the help table.
+                    for (const cmd of ['analyze', 'create', 'generate', 'json', 'list', 'copy', 'doc']) {
+                        expect(r.stdout).toContain(`ts-for-gir ${cmd}`);
+                    }
+                    // yargs auto-options.
+                    expect(r.stdout).toContain('--version');
+                    expect(r.stdout).toContain('--help');
+                },
+                { timeout: CLI_TEST_TIMEOUT_MS },
+            );
 
-      await it('--version prints the injected version', async () => {
-        const r = await runCli(bundle, ['--version']);
-        expect(r.code).toBe(0);
-        expect(r.stdout.trim()).toBe('4.0.0-rc.8');
-      }, { timeout: CLI_TEST_TIMEOUT_MS });
+            await it(
+                'rejects an unknown command (yargs --strict in start.ts)',
+                async () => {
+                    const r = await runCli(bundle, ['this-command-does-not-exist']);
+                    // yargs --strict exits non-zero on unknown commands.
+                    expect(r.code).not.toBe(0);
+                    expect(r.stderr.length > 0 || r.stdout.length > 0).toBe(true);
+                },
+                { timeout: CLI_TEST_TIMEOUT_MS },
+            );
+        });
 
-      await it('--help prints the command tree and the global options', async () => {
-        const r = await runCli(bundle, ['--help']);
-        expect(r.code).toBe(0);
-        // Top-level usage line from APP_USAGE.
-        expect(r.stdout).toContain('TypeScript type definition generator');
-        // Each command should appear in the help table.
-        for (const cmd of ['analyze', 'create', 'generate', 'json', 'list', 'copy', 'doc']) {
-          expect(r.stdout).toContain(`ts-for-gir ${cmd}`);
-        }
-        // yargs auto-options.
-        expect(r.stdout).toContain('--version');
-        expect(r.stdout).toContain('--help');
-      }, { timeout: CLI_TEST_TIMEOUT_MS });
+        await describe(`@ts-for-gir/cli list (cosmiconfig + glob + colorette) on ${bundle.label}`, async () => {
+            await it(
+                'list --help prints the per-command options',
+                async () => {
+                    const r = await runCli(bundle, ['list', '--help']);
+                    expect(r.code).toBe(0);
+                    expect(r.stdout).toContain('Lists all available GIR modules');
+                    // Confirms cosmiconfig + the option builder loaded successfully.
+                    expect(r.stdout).toContain('--girDirectories');
+                    expect(r.stdout).toContain('--ignore');
+                    expect(r.stdout).toContain('--configName');
+                },
+                { timeout: CLI_TEST_TIMEOUT_MS },
+            );
 
-      await it('rejects an unknown command (yargs --strict in start.ts)', async () => {
-        const r = await runCli(bundle, ['this-command-does-not-exist']);
-        // yargs --strict exits non-zero on unknown commands.
-        expect(r.code).not.toBe(0);
-        expect(r.stderr.length > 0 || r.stdout.length > 0).toBe(true);
-      }, { timeout: CLI_TEST_TIMEOUT_MS });
-    });
+            await it(
+                'list -g <dir> discovers our local GIR fixtures',
+                async () => {
+                    const r = await runCli(bundle, ['list', '-g', GIRS_DIR]);
+                    expect(r.code).toBe(0);
+                    expect(r.stdout).toContain('Search for gir files in:');
+                    expect(r.stdout).toContain(GIRS_DIR);
+                    expect(r.stdout).toContain('Available Modules:');
+                    // Our three Vala-generated GIRs each appear with their full path —
+                    // proves glob found them and the renderer formatted them correctly.
+                    expect(r.stdout).toContain('Gwebgl-0.1');
+                    expect(r.stdout).toContain(`${GIRS_DIR}/Gwebgl-0.1.gir`);
+                    expect(r.stdout).toContain('GjsifyWebrtc-0.1');
+                    expect(r.stdout).toContain(`${GIRS_DIR}/GjsifyWebrtc-0.1.gir`);
+                    expect(r.stdout).toContain('GjsifyHttpSoupBridge-1.0');
+                    expect(r.stdout).toContain(`${GIRS_DIR}/GjsifyHttpSoupBridge-1.0.gir`);
+                },
+                { timeout: CLI_TEST_TIMEOUT_MS },
+            );
 
-    await describe(`@ts-for-gir/cli list (cosmiconfig + glob + colorette) on ${bundle.label}`, async () => {
+            // Regression: cosmiconfig's ESM `.js` loader does dynamic `import(filepath)`
+            // on an absolute path. Node tolerates that as a non-spec extension; GJS /
+            // SpiderMonkey rejects it with "Module not found: <abs-path>". Fix in
+            // ts-for-gir's config-loader (gjsify/ts-for-gir#385) converts via
+            // pathToFileURL — shipped in @ts-for-gir/cli@4.0.0-rc.13.
+            //
+            // Pass `-g GIRS_DIR` so the search is bounded to our fixtures (CLI override
+            // suppresses the system-default girDirectories list). The rc still loads
+            // and its `ignore: ['Gwebgl-0.1']` entry must filter the listing — that
+            // is what proves the dynamic import path actually executed.
+            await it(
+                'list --configName loads an ESM rc via cosmiconfig (file:// dynamic import)',
+                async () => {
+                    const r = await runCli(bundle, [
+                        'list',
+                        '-g',
+                        GIRS_DIR,
+                        '--configName',
+                        '.ts-for-girrc-fixture.js',
+                    ]);
+                    // GJS rejects absolute paths in dynamic import() per spec; the loader
+                    // must convert via pathToFileURL. Without it, GJS threw here.
+                    expect(r.stderr).not.toContain('Module not found');
+                    expect(r.code).toBe(0);
+                    expect(r.stdout).toContain('Search for gir files in:');
+                    expect(r.stdout).toContain(GIRS_DIR);
+                    // The two non-ignored fixtures are still listed.
+                    expect(r.stdout).toContain('GjsifyHttpSoupBridge-1.0');
+                    expect(r.stdout).toContain('GjsifyWebrtc-0.1');
+                    // rc.ignore: ['Gwebgl-0.1'] must take effect — proves the rc actually loaded.
+                    expect(r.stdout).not.toContain('Gwebgl-0.1');
+                },
+                { timeout: CLI_TEST_TIMEOUT_MS },
+            );
+        });
 
-      await it('list --help prints the per-command options', async () => {
-        const r = await runCli(bundle, ['list', '--help']);
-        expect(r.code).toBe(0);
-        expect(r.stdout).toContain('Lists all available GIR modules');
-        // Confirms cosmiconfig + the option builder loaded successfully.
-        expect(r.stdout).toContain('--girDirectories');
-        expect(r.stdout).toContain('--ignore');
-        expect(r.stdout).toContain('--configName');
-      }, { timeout: CLI_TEST_TIMEOUT_MS });
+        // Phase 9b: `create` short-circuits on the GJS bundle. The single-file binary
+        // shipped via install.js / @gjsify/cli does not include `dist-templates/`,
+        // so the create command's `findTemplatesRoot()` would otherwise throw a
+        // confusing "Could not locate templates directory" error. Upstream guard +
+        // build-time `__GJS_BUNDLE__=true` define (gjsify/ts-for-gir#386) make it
+        // print the actionable "use Node.js" message instead. The same define is
+        // mirrored in this suite's `scripts/build-cli-gjs.mjs` so the integration
+        // bundle behaves identically to the released one.
+        //
+        // Skipped on the Node bundle: there `create` actually works (templates
+        // resolve through node_modules) and is exercised by interactive E2E flows
+        // outside this regression suite.
+        await describe(`@ts-for-gir/cli create (Phase 9b — short-circuit on ${bundle.label})`, async () => {
+            const itGjsOnly = bundle.label === 'GJS bundle' ? it : it.skip;
+            await itGjsOnly(
+                'prints the "not yet supported in the GJS bundle" message and does not scaffold',
+                async () => {
+                    const r = await runCli(bundle, ['create', 'gjsify-create-test-noop']);
+                    // Build-time `__GJS_BUNDLE__=true` define makes the handler return
+                    // early with a `process.stderr.write(...)` to this exact message.
+                    expect(r.stderr).toContain('not yet supported in the GJS bundle');
+                    expect(r.stderr).toContain('npx @ts-for-gir/cli create');
+                    // Must NOT fall through to findTemplatesRoot() — that's the user-
+                    // reported confusing failure mode the define was added to suppress.
+                    expect(r.stderr).not.toContain('Could not locate templates directory');
+                    expect(r.stdout).not.toContain('Could not locate templates directory');
+                },
+                { timeout: CLI_TEST_TIMEOUT_MS },
+            );
+        });
 
-      await it('list -g <dir> discovers our local GIR fixtures', async () => {
-        const r = await runCli(bundle, ['list', '-g', GIRS_DIR]);
-        expect(r.code).toBe(0);
-        expect(r.stdout).toContain('Search for gir files in:');
-        expect(r.stdout).toContain(GIRS_DIR);
-        expect(r.stdout).toContain('Available Modules:');
-        // Our three Vala-generated GIRs each appear with their full path —
-        // proves glob found them and the renderer formatted them correctly.
-        expect(r.stdout).toContain('Gwebgl-0.1');
-        expect(r.stdout).toContain(`${GIRS_DIR}/Gwebgl-0.1.gir`);
-        expect(r.stdout).toContain('GjsifyWebrtc-0.1');
-        expect(r.stdout).toContain(`${GIRS_DIR}/GjsifyWebrtc-0.1.gir`);
-        expect(r.stdout).toContain('GjsifyHttpSoupBridge-1.0');
-        expect(r.stdout).toContain(`${GIRS_DIR}/GjsifyHttpSoupBridge-1.0.gir`);
-      }, { timeout: CLI_TEST_TIMEOUT_MS });
+        // Phase 6: TypeDoc generators — json + doc commands no longer stubbed on GJS.
+        // The import.meta.url rewrite in esbuild-plugin-gjsify makes TypeDoc's eager
+        // filesystem reads (package.json, locales, static assets) resolve into
+        // node_modules at runtime via gjsify's GLib-backed fs polyfill.
+        await describe(`@ts-for-gir/cli TypeDoc commands (Phase 6) on ${bundle.label}`, async () => {
+            await it(
+                'json --help prints the json command options',
+                async () => {
+                    const r = await runCli(bundle, ['json', '--help']);
+                    expect(r.code).toBe(0);
+                    expect(r.stdout).toContain('Generates JSON representation from GIR files');
+                    expect(r.stdout).toContain('--girDirectories');
+                    expect(r.stdout).toContain('--outdir');
+                    expect(r.stdout).toContain('--modules');
+                },
+                { timeout: CLI_TEST_TIMEOUT_MS },
+            );
 
-      // Regression: cosmiconfig's ESM `.js` loader does dynamic `import(filepath)`
-      // on an absolute path. Node tolerates that as a non-spec extension; GJS /
-      // SpiderMonkey rejects it with "Module not found: <abs-path>". Fix in
-      // ts-for-gir's config-loader (gjsify/ts-for-gir#385) converts via
-      // pathToFileURL — shipped in @ts-for-gir/cli@4.0.0-rc.13.
-      //
-      // Pass `-g GIRS_DIR` so the search is bounded to our fixtures (CLI override
-      // suppresses the system-default girDirectories list). The rc still loads
-      // and its `ignore: ['Gwebgl-0.1']` entry must filter the listing — that
-      // is what proves the dynamic import path actually executed.
-      await it('list --configName loads an ESM rc via cosmiconfig (file:// dynamic import)', async () => {
-        const r = await runCli(bundle, ['list', '-g', GIRS_DIR, '--configName', '.ts-for-girrc-fixture.js']);
-        // GJS rejects absolute paths in dynamic import() per spec; the loader
-        // must convert via pathToFileURL. Without it, GJS threw here.
-        expect(r.stderr).not.toContain('Module not found');
-        expect(r.code).toBe(0);
-        expect(r.stdout).toContain('Search for gir files in:');
-        expect(r.stdout).toContain(GIRS_DIR);
-        // The two non-ignored fixtures are still listed.
-        expect(r.stdout).toContain('GjsifyHttpSoupBridge-1.0');
-        expect(r.stdout).toContain('GjsifyWebrtc-0.1');
-        // rc.ignore: ['Gwebgl-0.1'] must take effect — proves the rc actually loaded.
-        expect(r.stdout).not.toContain('Gwebgl-0.1');
-      }, { timeout: CLI_TEST_TIMEOUT_MS });
-    });
-
-    // Phase 9b: `create` short-circuits on the GJS bundle. The single-file binary
-    // shipped via install.js / @gjsify/cli does not include `dist-templates/`,
-    // so the create command's `findTemplatesRoot()` would otherwise throw a
-    // confusing "Could not locate templates directory" error. Upstream guard +
-    // build-time `__GJS_BUNDLE__=true` define (gjsify/ts-for-gir#386) make it
-    // print the actionable "use Node.js" message instead. The same define is
-    // mirrored in this suite's `scripts/build-cli-gjs.mjs` so the integration
-    // bundle behaves identically to the released one.
-    //
-    // Skipped on the Node bundle: there `create` actually works (templates
-    // resolve through node_modules) and is exercised by interactive E2E flows
-    // outside this regression suite.
-    await describe(`@ts-for-gir/cli create (Phase 9b — short-circuit on ${bundle.label})`, async () => {
-
-      const itGjsOnly = bundle.label === 'GJS bundle' ? it : it.skip;
-      await itGjsOnly('prints the "not yet supported in the GJS bundle" message and does not scaffold', async () => {
-        const r = await runCli(bundle, ['create', 'gjsify-create-test-noop']);
-        // Build-time `__GJS_BUNDLE__=true` define makes the handler return
-        // early with a `process.stderr.write(...)` to this exact message.
-        expect(r.stderr).toContain('not yet supported in the GJS bundle');
-        expect(r.stderr).toContain('npx @ts-for-gir/cli create');
-        // Must NOT fall through to findTemplatesRoot() — that's the user-
-        // reported confusing failure mode the define was added to suppress.
-        expect(r.stderr).not.toContain('Could not locate templates directory');
-        expect(r.stdout).not.toContain('Could not locate templates directory');
-      }, { timeout: CLI_TEST_TIMEOUT_MS });
-    });
-
-    // Phase 6: TypeDoc generators — json + doc commands no longer stubbed on GJS.
-    // The import.meta.url rewrite in esbuild-plugin-gjsify makes TypeDoc's eager
-    // filesystem reads (package.json, locales, static assets) resolve into
-    // node_modules at runtime via gjsify's GLib-backed fs polyfill.
-    await describe(`@ts-for-gir/cli TypeDoc commands (Phase 6) on ${bundle.label}`, async () => {
-
-      await it('json --help prints the json command options', async () => {
-        const r = await runCli(bundle, ['json', '--help']);
-        expect(r.code).toBe(0);
-        expect(r.stdout).toContain('Generates JSON representation from GIR files');
-        expect(r.stdout).toContain('--girDirectories');
-        expect(r.stdout).toContain('--outdir');
-        expect(r.stdout).toContain('--modules');
-      }, { timeout: CLI_TEST_TIMEOUT_MS });
-
-      await it('doc --help prints the doc command options', async () => {
-        const r = await runCli(bundle, ['doc', '--help']);
-        expect(r.code).toBe(0);
-        expect(r.stdout).toContain('Generates HTML documentation from GIR files');
-        expect(r.stdout).toContain('--girDirectories');
-        expect(r.stdout).toContain('--outdir');
-        expect(r.stdout).toContain('--modules');
-      }, { timeout: CLI_TEST_TIMEOUT_MS });
-    });
-  };
+            await it(
+                'doc --help prints the doc command options',
+                async () => {
+                    const r = await runCli(bundle, ['doc', '--help']);
+                    expect(r.code).toBe(0);
+                    expect(r.stdout).toContain('Generates HTML documentation from GIR files');
+                    expect(r.stdout).toContain('--girDirectories');
+                    expect(r.stdout).toContain('--outdir');
+                    expect(r.stdout).toContain('--modules');
+                },
+                { timeout: CLI_TEST_TIMEOUT_MS },
+            );
+        });
+    };
 }
 
 export default async () => {
-  // Node bundle spawns `node <bundle>` — requires `node` in PATH, not
-  // guaranteed in a GNOME runtime. Run from Node parent only.
-  await on('Node.js', async () => {
-    await describeForBundle(NODE_BUNDLE)();
-  });
-  // GJS bundle: runs from both Node and GJS parents (Phase 5).
-  await describeForBundle(GJS_BUNDLE)();
+    // Node bundle spawns `node <bundle>` — requires `node` in PATH, not
+    // guaranteed in a GNOME runtime. Run from Node parent only.
+    await on('Node.js', async () => {
+        await describeForBundle(NODE_BUNDLE)();
+    });
+    // GJS bundle: runs from both Node and GJS parents (Phase 5).
+    await describeForBundle(GJS_BUNDLE)();
 };

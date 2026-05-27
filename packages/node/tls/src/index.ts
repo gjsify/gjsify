@@ -58,14 +58,12 @@
 
 export const DEFAULT_MIN_VERSION = 'TLSv1.2';
 export const DEFAULT_MAX_VERSION = 'TLSv1.3';
-export const DEFAULT_CIPHERS = 'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384';
+export const DEFAULT_CIPHERS =
+    'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384';
 
 /** Returns a list of supported TLS cipher names (subset; implementation-defined). */
 export function getCiphers(): string[] {
-    return [
-        'aes-128-gcm', 'aes-256-gcm', 'chacha20-poly1305',
-        'aes-128-cbc', 'aes-256-cbc',
-    ];
+    return ['aes-128-gcm', 'aes-256-gcm', 'chacha20-poly1305', 'aes-128-cbc', 'aes-256-cbc'];
 }
 
 export const rootCertificates: string[] = [];

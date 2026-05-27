@@ -94,11 +94,16 @@ export class TLSSocket extends Socket {
         try {
             const proto = this._tlsConnection.get_protocol_version();
             switch (proto) {
-                case Gio.TlsProtocolVersion.TLS_1_0: return 'TLSv1';
-                case Gio.TlsProtocolVersion.TLS_1_1: return 'TLSv1.1';
-                case Gio.TlsProtocolVersion.TLS_1_2: return 'TLSv1.2';
-                case Gio.TlsProtocolVersion.TLS_1_3: return 'TLSv1.3';
-                default: return null;
+                case Gio.TlsProtocolVersion.TLS_1_0:
+                    return 'TLSv1';
+                case Gio.TlsProtocolVersion.TLS_1_1:
+                    return 'TLSv1.1';
+                case Gio.TlsProtocolVersion.TLS_1_2:
+                    return 'TLSv1.2';
+                case Gio.TlsProtocolVersion.TLS_1_3:
+                    return 'TLSv1.3';
+                default:
+                    return null;
             }
         } catch {
             return null;

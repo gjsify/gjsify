@@ -18,10 +18,13 @@
 import { run } from '@gjsify/unit';
 import inspectorCliSuite from './inspector-cli.spec.js';
 
-run({
-  inspectorCliSuite,
-}, {
-  testTimeout: 60_000,
-  suiteTimeout: 600_000,
-  timeout: 600_000,
-});
+run(
+    {
+        inspectorCliSuite,
+    },
+    {
+        testTimeout: 60_000,
+        suiteTimeout: 600_000,
+        timeout: 600_000,
+    },
+);

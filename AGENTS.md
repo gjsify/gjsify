@@ -414,6 +414,18 @@ Native libs in `prebuilds/linux-<arch>/` (`.so`+`.typelib`). `package.json`: `"f
 
 **gi:// ordering:** `GIRepository.prepend_search_path()` must run before `gi://Foo` resolves. Static `gi://` imports resolve in ESM Linking (before code). Use `gjsify run` or two-file loader (loader calls prepend_search_path, then `await import('./bundle.js')`).
 
+## Lint & format — oxc (oxlint + oxfmt)
+
+`gjsify lint` / `gjsify format` / `gjsify fix` wrap **oxc** (`oxlint` for lint, `oxfmt` for format) — migrated from Biome (full replacement, no `--engine` fallback). `gjsify check` stays the **tsc** orchestrator, unrelated.
+
+- **Resolution:** `packages/infra/cli/src/utils/oxc-resolve.ts` resolves the `oxlint`/`oxfmt` npm **Node launchers** (`node_modules/<tool>/bin/<tool>`) and spawns them via `process.execPath`. NOT the bare napi binary — oxlint's JS-plugin host (the `gjsify/register-class-order` rule) lives in the launcher. Tools are on-demand devDeps (resolved cwd → workspace-root → parents); a clear install hint names the expected `@oxlint/binding-<target>` / `@oxfmt/binding-<target>` napi package.
+- **Config:** root `.oxlintrc.json` (correctness:error, typescript/consistent-type-imports, typescript/no-explicit-any:warn, unicorn/prefer-node-protocol:error, eslint/no-unused-vars:warn, typescript/no-this-alias with `allowedNames` for the legitimate `this`-capture idiom: `self`/`el`/`blob`/`readable`/`root`/`node`/`receivedThis`) + `.oxfmtrc.json` (printWidth 120, 4-space, singleQuote, semi, trailingComma all, arrowParens always). `gjsify format --init` writes both from `src/templates/{oxlintrc.json.tmpl,oxfmtrc.tmpl}` (loaded with the static-read-inliner `readFileSync(new URL(...))` shape so they bake into the bundle). `gjsify fix` = `oxfmt --write` then `oxlint --fix`.
+- **`gjsify lint` is clean (0 errors)** across the whole codebase. Findings were FIXED, not silenced — autofix for `prefer-node-protocol`/`consistent-type-imports`/spread, manual fixes for the `correctness` longtail (`no-new-array` → `Array.from({ length })`, redundant parameter-property assignments dropped, dead code removed, a duplicate top-level `const seen` renamed, sqlite `allowUnknownNamedParameters` enforcement implemented). Genuinely-intentional patterns (NUL/ESC control-char regexes, GObject `static new()` factories in `.d.ts`, deliberate class+interface merging, NAPI pending-exception rethrow in `finally`, Excalibur points-setter trigger, GJS `imports[name]` side-effecting access) carry a per-line `// oxlint-disable-next-line <rule> -- <reason>`. Do NOT blanket-disable rules.
+- **CSS/JSON formatting is DROPPED.** oxfmt formats JS/TS (+TOML) only. Biome's CSS/JSON formatting is NOT replaced — do not re-add Biome or another formatter for them.
+- **Internal lint rule:** `packages/infra/oxlint-plugin-gjsify/` — `definePlugin` exposing `gjsify/register-class-order` (hoists `static` GObject metadata fields above a `GObject.registerClass` static block, with autofix). Internal-only (NOT published to npm — no Trusted-Publisher bootstrap). Wired via `.oxlintrc.json` `jsPlugins` + `"gjsify/register-class-order":"error"`.
+- **oxfmt is pre-1.0** (0.51) — formatting output may churn across minor releases; budget a possible re-reformat per oxfmt minor until 1.0.
+- **`--globals auto` detection stays on acorn** — oxc's parser must NOT be repurposed for global detection (this migration is lint/format tooling only). See the Tree-shakeable globals invariants.
+
 ## Testing
 
 ### Framework `@gjsify/unit`

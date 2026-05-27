@@ -57,7 +57,12 @@ export default async () => {
         });
 
         await it('omits hooks that are not functions', () => {
-            const native = toNativePlugin({ name: 'p', load: 'not a function', transform: undefined, resolveId: 42 } as Record<string, unknown>);
+            const native = toNativePlugin({
+                name: 'p',
+                load: 'not a function',
+                transform: undefined,
+                resolveId: 42,
+            } as Record<string, unknown>);
             expect(native.load).toBe(undefined);
             expect(native.transform).toBe(undefined);
             expect(native.resolveId).toBe(undefined);
@@ -176,15 +181,35 @@ export default async () => {
             const stub = () => null;
             const native = toNativePlugin({
                 name: 'all',
-                load: stub, transform: stub, resolveId: stub, renderChunk: stub,
-                banner: stub, footer: stub, intro: stub, outro: stub,
-                buildStart: stub, buildEnd: stub,
-                generateBundle: stub, writeBundle: stub, closeBundle: stub,
+                load: stub,
+                transform: stub,
+                resolveId: stub,
+                renderChunk: stub,
+                banner: stub,
+                footer: stub,
+                intro: stub,
+                outro: stub,
+                buildStart: stub,
+                buildEnd: stub,
+                generateBundle: stub,
+                writeBundle: stub,
+                closeBundle: stub,
             });
-            for (const h of ['load', 'transform', 'resolveId', 'renderChunk',
-                             'banner', 'footer', 'intro', 'outro',
-                             'buildStart', 'buildEnd',
-                             'generateBundle', 'writeBundle', 'closeBundle'] as const) {
+            for (const h of [
+                'load',
+                'transform',
+                'resolveId',
+                'renderChunk',
+                'banner',
+                'footer',
+                'intro',
+                'outro',
+                'buildStart',
+                'buildEnd',
+                'generateBundle',
+                'writeBundle',
+                'closeBundle',
+            ] as const) {
                 expect(typeof native[h]).toBe('function');
             }
         });

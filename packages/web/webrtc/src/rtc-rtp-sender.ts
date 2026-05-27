@@ -113,17 +113,15 @@ export class RTCRtpSender {
     /** @internal — callback to notify RTCPeerConnection when pipeline changes (cross-pipeline fix) */
     _onPipelineChanged: ((newPipeline: GstNs.Pipeline) => void) | null = null;
 
-    constructor(
-        gstSender: GstWebRTC.WebRTCRTPSender | null,
-        pipeline?: GstNs.Pipeline,
-        webrtcbin?: GstNs.Element,
-    ) {
+    constructor(gstSender: GstWebRTC.WebRTCRTPSender | null, pipeline?: GstNs.Pipeline, webrtcbin?: GstNs.Element) {
         this._gstSender = gstSender;
         this._pipeline = pipeline ?? null;
         this._webrtcbin = webrtcbin ?? null;
     }
 
-    get track(): MediaStreamTrack | null { return this._track; }
+    get track(): MediaStreamTrack | null {
+        return this._track;
+    }
 
     /** Returns the DTMF sender for audio senders, null for video. */
     get dtmf(): RTCDTMFSender | null {
@@ -139,7 +137,9 @@ export class RTCRtpSender {
         }
         return this._dtmf;
     }
-    get transport(): RTCDtlsTransport | null { return this._transport; }
+    get transport(): RTCDtlsTransport | null {
+        return this._transport;
+    }
 
     /** @internal */
     _setTrack(track: MediaStreamTrack | null): void {
@@ -150,7 +150,9 @@ export class RTCRtpSender {
     }
 
     /** @internal — called by RTCPeerConnection._createTransceiverWrapper */
-    _setMlineIndex(index: number): void { this._mlineIndex = index; }
+    _setMlineIndex(index: number): void {
+        this._mlineIndex = index;
+    }
 
     /** @internal — build the outgoing encoder chain and link to webrtcbin */
     _wirePipeline(track: MediaStreamTrack): void {
@@ -192,9 +194,7 @@ export class RTCRtpSender {
             this._onPipelineChanged?.(sourcePipeline);
 
             // Request a new branch from the existing tee
-            const teeSrcPad = tee.request_pad_simple
-                ? tee.request_pad_simple('src_%u')
-                : tee.get_request_pad('src_%u');
+            const teeSrcPad = tee.request_pad_simple ? tee.request_pad_simple('src_%u') : tee.get_request_pad('src_%u');
             this._teeSrcPad = teeSrcPad;
             sourceForChain = null; // We'll link via pad below
         } else if (trackGst._teeMultiplexer) {
@@ -357,14 +357,18 @@ export class RTCRtpSender {
         if (this._teeSrcPad && this._track?._teeMultiplexer) {
             try {
                 (this._track._teeMultiplexer as TeeMultiplexer).releaseSrcPad(this._teeSrcPad);
-            } catch { /* ignore */ }
+            } catch {
+                /* ignore */
+            }
             this._teeSrcPad = null;
         }
         for (const el of [...this._elements].reverse()) {
             try {
                 el.set_state(Gst.State.NULL);
                 this._pipeline?.remove(el);
-            } catch { /* ignore cleanup errors */ }
+            } catch {
+                /* ignore cleanup errors */
+            }
         }
         this._elements = [];
         this._valve = null;
@@ -386,16 +390,10 @@ export class RTCRtpSender {
 
     async setParameters(params: RTCRtpSendParameters): Promise<void> {
         if (!this._lastParams) {
-            throw new DOMException(
-                'getParameters must be called before setParameters',
-                'InvalidStateError',
-            );
+            throw new DOMException('getParameters must be called before setParameters', 'InvalidStateError');
         }
         if (params.transactionId !== this._lastParams.transactionId) {
-            throw new DOMException(
-                'transactionId mismatch',
-                'InvalidModificationError',
-            );
+            throw new DOMException('transactionId mismatch', 'InvalidModificationError');
         }
         this._lastParams = null;
     }

@@ -44,18 +44,17 @@ export interface StatsAndConfigMethods {
 }
 
 declare module '../rtc-peer-connection.js' {
-    interface RTCPeerConnection extends StatsAndConfigMethods { }
+    interface RTCPeerConnection extends StatsAndConfigMethods {}
 }
 
 const statsAndConfigMethods: StatsAndConfigMethods & ThisType<RTCPeerConnection> = {
-
     async getStats(this: RTCPeerConnection, selector?: MediaStreamTrack | null): Promise<RTCStatsReport> {
         this._rejectIfClosed('getStats');
 
         // Validate selector — if a track is given, it must belong to a sender or receiver
         if (selector != null && selector instanceof MediaStreamTrack) {
-            const hasSender = this._senders.some(s => s.track === selector);
-            const hasReceiver = this._receivers.some(r => r.track === selector);
+            const hasSender = this._senders.some((s) => s.track === selector);
+            const hasReceiver = this._receivers.some((r) => r.track === selector);
             if (!hasSender && !hasReceiver) {
                 throw new DOMException(
                     'The selector track is not associated with a sender or receiver of this connection',
@@ -99,16 +98,10 @@ const statsAndConfigMethods: StatsAndConfigMethods & ThisType<RTCPeerConnection>
 
         // Per spec: bundlePolicy and rtcpMuxPolicy cannot change after construction
         if (configuration.bundlePolicy && configuration.bundlePolicy !== (this._conf.bundlePolicy ?? 'balanced')) {
-            throw new DOMException(
-                'setConfiguration: bundlePolicy cannot be changed',
-                'InvalidModificationError',
-            );
+            throw new DOMException('setConfiguration: bundlePolicy cannot be changed', 'InvalidModificationError');
         }
         if (configuration.rtcpMuxPolicy && configuration.rtcpMuxPolicy !== (this._conf.rtcpMuxPolicy ?? 'require')) {
-            throw new DOMException(
-                'setConfiguration: rtcpMuxPolicy cannot be changed',
-                'InvalidModificationError',
-            );
+            throw new DOMException('setConfiguration: rtcpMuxPolicy cannot be changed', 'InvalidModificationError');
         }
 
         // Apply new ICE servers
@@ -123,7 +116,9 @@ const statsAndConfigMethods: StatsAndConfigMethods & ThisType<RTCPeerConnection>
         this._conf = { ...this._conf, ...configuration };
     },
 
-    getConfiguration(this: RTCPeerConnection): RTCConfiguration { return { ...this._conf }; },
+    getConfiguration(this: RTCPeerConnection): RTCConfiguration {
+        return { ...this._conf };
+    },
 };
 
 /** Install stats + restartIce + setConfiguration / getConfiguration on RTCPeerConnection.prototype. */

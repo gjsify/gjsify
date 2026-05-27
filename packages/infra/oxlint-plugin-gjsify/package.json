@@ -1,0 +1,38 @@
+{
+    "name": "@gjsify/oxlint-plugin-gjsify",
+    "version": "0.4.28",
+    "description": "Internal oxlint JS plugin for gjsify — GObject.registerClass field-ordering rule. NOT published to npm.",
+    "private": true,
+    "type": "module",
+    "main": "src/index.ts",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "scripts": {
+        "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/oxlint-plugin-gjsify#readme",
+    "keywords": [
+        "oxlint",
+        "oxc",
+        "plugin",
+        "gjs",
+        "gobject"
+    ],
+    "license": "MIT",
+    "peerDependencies": {
+        "oxlint": "^1.66.0"
+    },
+    "devDependencies": {
+        "@types/node": "^25.9.1",
+        "typescript": "^6.0.3"
+    }
+}

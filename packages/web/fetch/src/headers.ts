@@ -66,8 +66,8 @@ export default class Headers implements Iterable<[string, string]> {
             }
         } else {
             throw new TypeError(
-                'Failed to construct \'Headers\': The provided value is not of type ' +
-                '\'(sequence<sequence<ByteString>> or record<ByteString, ByteString>)\''
+                "Failed to construct 'Headers': The provided value is not of type " +
+                    "'(sequence<sequence<ByteString>> or record<ByteString, ByteString>)'",
             );
         }
     }
@@ -188,7 +188,10 @@ export default class Headers implements Iterable<[string, string]> {
     /**
      * Create a Headers instance from a Soup.Message's headers.
      */
-    static _newFromSoupMessage(message: Soup.Message, type: Soup.MessageHeadersType = Soup.MessageHeadersType.RESPONSE): Headers {
+    static _newFromSoupMessage(
+        message: Soup.Message,
+        type: Soup.MessageHeadersType = Soup.MessageHeadersType.RESPONSE,
+    ): Headers {
         const headers = new Headers();
         let soupHeaders: Soup.MessageHeaders;
 
@@ -228,5 +231,5 @@ Object.defineProperties(
     ['get', 'entries', 'forEach', 'values'].reduce((result: PropertyDescriptorMap, property) => {
         result[property] = { enumerable: true };
         return result;
-    }, {})
+    }, {}),
 );

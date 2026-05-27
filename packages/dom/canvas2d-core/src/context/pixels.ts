@@ -15,31 +15,28 @@ export interface PixelMethods {
     getImageData(sx: number, sy: number, sw: number, sh: number): ImageData;
     putImageData(
         imageData: ImageData,
-        dx: number, dy: number,
-        dirtyX?: number, dirtyY?: number,
-        dirtyWidth?: number, dirtyHeight?: number,
+        dx: number,
+        dy: number,
+        dirtyX?: number,
+        dirtyY?: number,
+        dirtyWidth?: number,
+        dirtyHeight?: number,
     ): void;
 }
 
 declare module '../canvas-rendering-context-2d.js' {
-    interface CanvasRenderingContext2D extends PixelMethods { }
+    interface CanvasRenderingContext2D extends PixelMethods {}
 }
 
 const pixelMethods: PixelMethods & ThisType<CanvasRenderingContext2D> = {
-    createImageData(
-        this: CanvasRenderingContext2D,
-        swOrImageData: number | ImageData, sh?: number,
-    ): ImageData {
+    createImageData(this: CanvasRenderingContext2D, swOrImageData: number | ImageData, sh?: number): ImageData {
         if (typeof swOrImageData === 'number') {
             return new OurImageData(Math.abs(swOrImageData), Math.abs(sh!)) as unknown as ImageData;
         }
         return new OurImageData(swOrImageData.width, swOrImageData.height) as unknown as ImageData;
     },
 
-    getImageData(
-        this: CanvasRenderingContext2D,
-        sx: number, sy: number, sw: number, sh: number,
-    ): ImageData {
+    getImageData(this: CanvasRenderingContext2D, sx: number, sy: number, sw: number, sh: number): ImageData {
         this._ensureSurface();
         this._surface.flush();
 
@@ -59,7 +56,7 @@ const pixelMethods: PixelMethods & ThisType<CanvasRenderingContext2D> = {
             for (let x = 0; x < sw; x++) {
                 const srcIdx = y * rowstride + x * nChannels;
                 const dstIdx = (y * sw + x) * 4;
-                out[dstIdx] = pixels[srcIdx];         // R
+                out[dstIdx] = pixels[srcIdx]; // R
                 out[dstIdx + 1] = pixels[srcIdx + 1]; // G
                 out[dstIdx + 2] = pixels[srcIdx + 2]; // B
                 out[dstIdx + 3] = hasAlpha ? pixels[srcIdx + 3] : 255; // A
@@ -72,9 +69,12 @@ const pixelMethods: PixelMethods & ThisType<CanvasRenderingContext2D> = {
     putImageData(
         this: CanvasRenderingContext2D,
         imageData: ImageData,
-        dx: number, dy: number,
-        dirtyX?: number, dirtyY?: number,
-        dirtyWidth?: number, dirtyHeight?: number,
+        dx: number,
+        dy: number,
+        dirtyX?: number,
+        dirtyY?: number,
+        dirtyWidth?: number,
+        dirtyHeight?: number,
     ): void {
         this._ensureSurface();
 
@@ -105,7 +105,7 @@ const pixelMethods: PixelMethods & ThisType<CanvasRenderingContext2D> = {
             regionData as unknown as import('@girs/glib-2.0').default.Bytes,
             GdkPixbuf.Colorspace.RGB,
             true, // has_alpha
-            8,    // bits_per_sample
+            8, // bits_per_sample
             sw,
             sh,
             sw * 4, // rowstride

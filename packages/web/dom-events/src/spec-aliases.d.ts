@@ -5,18 +5,18 @@
 // a new ambient module rather than augmenting an existing one.
 
 declare module 'abort-controller' {
-	class AbortController {
-		readonly signal: AbortSignal;
-		abort(reason?: unknown): void;
-	}
-	class AbortSignal extends EventTarget {
-		readonly aborted: boolean;
-		readonly reason: unknown;
-		throwIfAborted(): void;
-		onabort: ((this: AbortSignal, ev: Event) => unknown) | null;
-		static abort(reason?: unknown): AbortSignal;
-		static timeout(milliseconds: number): AbortSignal;
-		static any(signals: AbortSignal[]): AbortSignal;
-	}
-	export { AbortController, AbortSignal };
+    class AbortController {
+        readonly signal: AbortSignal;
+        abort(reason?: unknown): void;
+    }
+    class AbortSignal extends EventTarget {
+        readonly aborted: boolean;
+        readonly reason: unknown;
+        throwIfAborted(): void;
+        onabort: ((this: AbortSignal, ev: Event) => unknown) | null;
+        static abort(reason?: unknown): AbortSignal;
+        static timeout(milliseconds: number): AbortSignal;
+        static any(signals: AbortSignal[]): AbortSignal;
+    }
+    export { AbortController, AbortSignal };
 }

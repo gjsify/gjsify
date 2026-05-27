@@ -36,11 +36,7 @@ export interface StartOptions {
 
 export type OnModelLoaded = (numBuildingSteps: number) => void;
 
-export function start(
-    canvas: HTMLCanvasElement,
-    options?: StartOptions,
-    onModelLoaded?: OnModelLoaded,
-): LDrawDemo {
+export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModelLoaded?: OnModelLoaded): LDrawDemo {
     const assetBase = options?.assetBase ?? './';
     const ldrawPath = `${assetBase}assets/models/ldraw/officialLibrary/`;
 
@@ -201,7 +197,11 @@ export function start(
         effectController,
         reloadObject,
         updateVisibility: updateObjectsVisibility,
-        get numBuildingSteps() { return numBuildingSteps; },
-        set numBuildingSteps(v) { numBuildingSteps = v; },
+        get numBuildingSteps() {
+            return numBuildingSteps;
+        },
+        set numBuildingSteps(v) {
+            numBuildingSteps = v;
+        },
     };
 }

@@ -24,7 +24,6 @@ const FS_TEX = `
 
 export default async () => {
     await on('Display', async () => {
-
         const setup = createGLSetup();
         if (!setup) {
             console.warn('WebGL context not available — skipping conformance/textures tests');
@@ -36,17 +35,32 @@ export default async () => {
         // ── texImage2D RGBA ────────────────────────────────────────────────────
 
         await describe('textures/texImage2D-rgba', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('upload 2×2 RGBA Uint8Array and sample it back', async () => {
-                const W = 2, H = 2;
+                const W = 2,
+                    H = 2;
                 const fbo = makeTestFBO(gl, W, H);
 
                 const data = new Uint8Array([
-                    255, 0, 0, 255,   // red
-                    0, 255, 0, 255,   // green
-                    0, 0, 255, 255,   // blue
-                    255, 255, 0, 255, // yellow
+                    255,
+                    0,
+                    0,
+                    255, // red
+                    0,
+                    255,
+                    0,
+                    255, // green
+                    0,
+                    0,
+                    255,
+                    255, // blue
+                    255,
+                    255,
+                    0,
+                    255, // yellow
                 ]);
                 const tex = gl.createTexture()!;
                 gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -71,8 +85,17 @@ export default async () => {
                 const tex = gl.createTexture()!;
                 expect(tex).toBeDefined();
                 gl.bindTexture(gl.TEXTURE_2D, tex);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
-                    new Uint8Array([128, 128, 128, 255]));
+                gl.texImage2D(
+                    gl.TEXTURE_2D,
+                    0,
+                    gl.RGBA,
+                    1,
+                    1,
+                    0,
+                    gl.RGBA,
+                    gl.UNSIGNED_BYTE,
+                    new Uint8Array([128, 128, 128, 255]),
+                );
                 expect(gl.getError()).toBe(gl.NO_ERROR);
                 gl.bindTexture(gl.TEXTURE_2D, null);
                 gl.deleteTexture(tex);
@@ -83,10 +106,13 @@ export default async () => {
         // ── alpha texture ──────────────────────────────────────────────────────
 
         await describe('textures/alpha-texture', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('ALPHA format texImage2D: RGB channels zero, alpha matches upload data', async () => {
-                const W = 4, H = 4;
+                const W = 4,
+                    H = 4;
                 const fbo = makeTestFBO(gl, W, H);
 
                 // Upload pattern: alpha = (i+j) % 255
@@ -143,10 +169,13 @@ export default async () => {
         // ── texSubImage2D ──────────────────────────────────────────────────────
 
         await describe('textures/texSubImage2D', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('texSubImage2D overwrites a sub-region of an RGBA texture', async () => {
-                const W = 4, H = 4;
+                const W = 4,
+                    H = 4;
                 const fbo = makeTestFBO(gl, W, H);
 
                 // Start with all-red texture
@@ -165,12 +194,7 @@ export default async () => {
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, redData);
 
                 // Overwrite top-left 2×2 with green
-                const greenPatch = new Uint8Array([
-                    0, 255, 0, 255,
-                    0, 255, 0, 255,
-                    0, 255, 0, 255,
-                    0, 255, 0, 255,
-                ]);
+                const greenPatch = new Uint8Array([0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255]);
                 gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE, greenPatch);
                 expect(gl.getError()).toBe(gl.NO_ERROR);
 
@@ -182,7 +206,9 @@ export default async () => {
         // ── texture parameters ─────────────────────────────────────────────────
 
         await describe('textures/parameters', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('getTexParameter returns set WRAP and FILTER values', async () => {
                 const tex = gl.createTexture()!;
@@ -227,7 +253,9 @@ export default async () => {
         // ── active texture units ───────────────────────────────────────────────
 
         await describe('textures/active-texture', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('activeTexture switches binding slot; each unit holds independent binding', async () => {
                 const tex0 = gl.createTexture()!;
@@ -268,7 +296,9 @@ export default async () => {
         // ── cubemap ────────────────────────────────────────────────────────────
 
         await describe('textures/cubemap', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('attach all 6 cubemap faces to FBO — no GL error', async () => {
                 const tex = gl.createTexture()!;
@@ -286,12 +316,22 @@ export default async () => {
 
                 for (let i = 0; i < 6; i++) {
                     gl.texImage2D(
-                        gl.TEXTURE_CUBE_MAP_POSITIVE_X + i, 0,
-                        gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, whitePixel
+                        gl.TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                        0,
+                        gl.RGBA,
+                        1,
+                        1,
+                        0,
+                        gl.RGBA,
+                        gl.UNSIGNED_BYTE,
+                        whitePixel,
                     );
                     gl.framebufferTexture2D(
-                        gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
-                        gl.TEXTURE_CUBE_MAP_POSITIVE_X + i, tex, 0
+                        gl.FRAMEBUFFER,
+                        gl.COLOR_ATTACHMENT0,
+                        gl.TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                        tex,
+                        0,
                     );
                 }
 
@@ -321,7 +361,9 @@ export default async () => {
         // ── luminance texture ──────────────────────────────────────────────────
 
         await describe('textures/luminance', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('LUMINANCE format texImage2D — no error', async () => {
                 const tex = gl.createTexture()!;
@@ -341,8 +383,18 @@ export default async () => {
                 gl.bindTexture(gl.TEXTURE_2D, tex);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-                const data = new Uint8Array([128, 255, 64, 128]);  // 2 LA pixels
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE_ALPHA, 2, 1, 0, gl.LUMINANCE_ALPHA, gl.UNSIGNED_BYTE, data);
+                const data = new Uint8Array([128, 255, 64, 128]); // 2 LA pixels
+                gl.texImage2D(
+                    gl.TEXTURE_2D,
+                    0,
+                    gl.LUMINANCE_ALPHA,
+                    2,
+                    1,
+                    0,
+                    gl.LUMINANCE_ALPHA,
+                    gl.UNSIGNED_BYTE,
+                    data,
+                );
                 expect(gl.getError()).toBe(gl.NO_ERROR);
                 gl.bindTexture(gl.TEXTURE_2D, null);
                 gl.deleteTexture(tex);
@@ -352,14 +404,17 @@ export default async () => {
         // ── generateMipmap ─────────────────────────────────────────────────────
 
         await describe('textures/generateMipmap', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('generateMipmap on power-of-two RGBA texture — no error', async () => {
                 const tex = gl.createTexture()!;
                 gl.bindTexture(gl.TEXTURE_2D, tex);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-                const W = 4, H = 4;
+                const W = 4,
+                    H = 4;
                 const data = new Uint8Array(W * H * 4).fill(255);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
                 gl.generateMipmap(gl.TEXTURE_2D);
@@ -372,7 +427,9 @@ export default async () => {
         // ── deleteTexture multi-FBO detach ─────────────────────────────────────
 
         await describe('textures/deleteTexture-multiFBO', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('detaches deleted texture from every framebuffer that referenced it', async () => {
                 // Two framebuffers sharing the same color texture. After
@@ -382,8 +439,17 @@ export default async () => {
                 gl.bindTexture(gl.TEXTURE_2D, tex);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
-                    new Uint8Array([255, 255, 255, 255]));
+                gl.texImage2D(
+                    gl.TEXTURE_2D,
+                    0,
+                    gl.RGBA,
+                    1,
+                    1,
+                    0,
+                    gl.RGBA,
+                    gl.UNSIGNED_BYTE,
+                    new Uint8Array([255, 255, 255, 255]),
+                );
 
                 const fb0 = gl.createFramebuffer()!;
                 gl.bindFramebuffer(gl.FRAMEBUFFER, fb0);
@@ -397,13 +463,21 @@ export default async () => {
                 expect(gl.getError()).toBe(gl.NO_ERROR);
 
                 // Verify both FBOs reference the texture before delete.
-                expect(gl.getFramebufferAttachmentParameter(
-                    gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
-                )).toBe(gl.TEXTURE);
+                expect(
+                    gl.getFramebufferAttachmentParameter(
+                        gl.FRAMEBUFFER,
+                        gl.COLOR_ATTACHMENT0,
+                        gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
+                    ),
+                ).toBe(gl.TEXTURE);
                 gl.bindFramebuffer(gl.FRAMEBUFFER, fb0);
-                expect(gl.getFramebufferAttachmentParameter(
-                    gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
-                )).toBe(gl.TEXTURE);
+                expect(
+                    gl.getFramebufferAttachmentParameter(
+                        gl.FRAMEBUFFER,
+                        gl.COLOR_ATTACHMENT0,
+                        gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
+                    ),
+                ).toBe(gl.TEXTURE);
 
                 // Re-bind fb1 so it is the currently active FBO when we delete.
                 gl.bindFramebuffer(gl.FRAMEBUFFER, fb1);
@@ -411,15 +485,23 @@ export default async () => {
                 gl.deleteTexture(tex);
 
                 // Active FBO (fb1) — detached.
-                expect(gl.getFramebufferAttachmentParameter(
-                    gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
-                )).toBe(gl.NONE);
+                expect(
+                    gl.getFramebufferAttachmentParameter(
+                        gl.FRAMEBUFFER,
+                        gl.COLOR_ATTACHMENT0,
+                        gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
+                    ),
+                ).toBe(gl.NONE);
 
                 // Inactive FBO (fb0) — must also be detached (the new behaviour).
                 gl.bindFramebuffer(gl.FRAMEBUFFER, fb0);
-                expect(gl.getFramebufferAttachmentParameter(
-                    gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
-                )).toBe(gl.NONE);
+                expect(
+                    gl.getFramebufferAttachmentParameter(
+                        gl.FRAMEBUFFER,
+                        gl.COLOR_ATTACHMENT0,
+                        gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
+                    ),
+                ).toBe(gl.NONE);
 
                 expect(gl.getError()).toBe(gl.NO_ERROR);
 
@@ -448,14 +530,22 @@ export default async () => {
                 gl.bindRenderbuffer(gl.RENDERBUFFER, null);
                 gl.deleteRenderbuffer(rb);
 
-                expect(gl.getFramebufferAttachmentParameter(
-                    gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
-                )).toBe(gl.NONE);
+                expect(
+                    gl.getFramebufferAttachmentParameter(
+                        gl.FRAMEBUFFER,
+                        gl.DEPTH_ATTACHMENT,
+                        gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
+                    ),
+                ).toBe(gl.NONE);
 
                 gl.bindFramebuffer(gl.FRAMEBUFFER, fb0);
-                expect(gl.getFramebufferAttachmentParameter(
-                    gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
-                )).toBe(gl.NONE);
+                expect(
+                    gl.getFramebufferAttachmentParameter(
+                        gl.FRAMEBUFFER,
+                        gl.DEPTH_ATTACHMENT,
+                        gl.FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
+                    ),
+                ).toBe(gl.NONE);
 
                 expect(gl.getError()).toBe(gl.NO_ERROR);
 
@@ -464,6 +554,5 @@ export default async () => {
                 gl.deleteFramebuffer(fb1);
             });
         });
-
     });
 };

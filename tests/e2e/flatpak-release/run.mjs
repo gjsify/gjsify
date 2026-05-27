@@ -9,13 +9,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import {
-    writeFileSync,
-    mkdirSync,
-    existsSync,
-    mkdtempSync,
-    rmSync,
-} from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -67,10 +61,9 @@ describe('CLI flatpak release E2E', { timeout: 5 * 60 * 1000 }, () => {
         const dir = join(tmpDir, 'plan-min');
         scaffold(dir, { appId: 'org.example.ReleaseMin' });
 
-        const out = runCli(
-            ['flatpak', 'release', 'v0.7.0', '--dry-run', '--skip-init', '--skip-check', '--skip-tag'],
-            { cwd: dir },
-        );
+        const out = runCli(['flatpak', 'release', 'v0.7.0', '--dry-run', '--skip-init', '--skip-check', '--skip-tag'], {
+            cwd: dir,
+        });
 
         assert.doesNotMatch(out, /init:/);
         assert.doesNotMatch(out, /check:/);

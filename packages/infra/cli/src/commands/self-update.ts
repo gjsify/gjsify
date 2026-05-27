@@ -30,25 +30,21 @@ const PACKAGE_NAME = '@gjsify/cli';
 
 export const selfUpdateCommand: Command<any, SelfUpdateOptions> = {
     command: 'self-update',
-    description:
-        `Update the installed ${PACKAGE_NAME} to the latest release (or pinned --tag).`,
+    description: `Update the installed ${PACKAGE_NAME} to the latest release (or pinned --tag).`,
     builder: (yargs) =>
         yargs
             .option('check', {
-                description:
-                    'Only check whether a newer version is available; do not install.',
+                description: 'Only check whether a newer version is available; do not install.',
                 type: 'boolean',
                 default: false,
             })
             .option('force', {
-                description:
-                    'Reinstall even when the current version already matches the target tag.',
+                description: 'Reinstall even when the current version already matches the target tag.',
                 type: 'boolean',
                 default: false,
             })
             .option('tag', {
-                description:
-                    'npm dist-tag or pinned version to install (e.g. `latest`, `next`, `0.5.0`).',
+                description: 'npm dist-tag or pinned version to install (e.g. `latest`, `next`, `0.5.0`).',
                 type: 'string',
                 default: 'latest',
             }) as any,
@@ -101,9 +97,7 @@ export const selfUpdateCommand: Command<any, SelfUpdateOptions> = {
 
         if (args.check) {
             console.log(
-                currentVersion
-                    ? `Update available: v${currentVersion} → v${target}`
-                    : `Install required: → v${target}`,
+                currentVersion ? `Update available: v${currentVersion} → v${target}` : `Install required: → v${target}`,
             );
             process.exit(1);
             return;

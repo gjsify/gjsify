@@ -15,8 +15,7 @@ interface GSettingsOptions {
 
 export const gsettingsCommand: Command<any, GSettingsOptions> = {
     command: 'gsettings <schemadir>',
-    description:
-        'Compile GSettings schema XML files into a binary gschemas.compiled (wraps `glib-compile-schemas`).',
+    description: 'Compile GSettings schema XML files into a binary gschemas.compiled (wraps `glib-compile-schemas`).',
     builder: (yargs) => {
         return yargs
             .positional('schemadir', {
@@ -27,14 +26,12 @@ export const gsettingsCommand: Command<any, GSettingsOptions> = {
             })
             .option('targetdir', {
                 alias: 't',
-                description:
-                    'Directory to write gschemas.compiled (default: <schemadir>)',
+                description: 'Directory to write gschemas.compiled (default: <schemadir>)',
                 type: 'string',
                 normalize: true,
             })
             .option('strict', {
-                description:
-                    'Abort on any schema warning (passes --strict to glib-compile-schemas)',
+                description: 'Abort on any schema warning (passes --strict to glib-compile-schemas)',
                 type: 'boolean',
                 default: true,
             })
@@ -46,9 +43,7 @@ export const gsettingsCommand: Command<any, GSettingsOptions> = {
     },
     handler: async (args) => {
         const schemadir = resolve(args.schemadir as string);
-        const targetdir = args.targetdir
-            ? resolve(args.targetdir as string)
-            : schemadir;
+        const targetdir = args.targetdir ? resolve(args.targetdir as string) : schemadir;
 
         const cmdArgs: string[] = [];
         if (args.strict) cmdArgs.push('--strict');

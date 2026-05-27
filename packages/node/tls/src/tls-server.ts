@@ -24,10 +24,7 @@ import { checkHostMatch, splitHost } from './internal/hostname.js';
 import { createSecureContext, type SecureContext, type SecureContextOptions } from './secure-context.js';
 import { TLSSocket, type SocketInternals } from './tls-socket.js';
 
-export type SNICallback = (
-    servername: string,
-    cb: (err: Error | null, ctx?: SecureContext) => void,
-) => void;
+export type SNICallback = (servername: string, cb: (err: Error | null, ctx?: SecureContext) => void) => void;
 
 export interface TlsServerOptions extends SecureContextOptions {
     requestCert?: boolean;
@@ -60,9 +57,11 @@ export class TLSServer extends Server {
 
         if (this._tlsOptions.cert && !this._tlsCertificate) {
             // PEM provided but failed to parse — emit error asynchronously.
-            deferEmit(this as unknown as NetServer, 'error', createNodeError(
-                new Error('Failed to parse TLS certificate'), 'createServer', {},
-            ));
+            deferEmit(
+                this as unknown as NetServer,
+                'error',
+                createNodeError(new Error('Failed to parse TLS certificate'), 'createServer', {}),
+            );
         }
     }
 
@@ -88,18 +87,30 @@ export class TLSServer extends Server {
      */
     private _resolveSniContext(servername: string | null, done: (ctx: SecureContext) => void): void {
         const fallback = this._secureContext;
-        if (!servername) { done(fallback); return; }
+        if (!servername) {
+            done(fallback);
+            return;
+        }
         const lower = servername.toLowerCase();
         const exact = this._sniContexts.get(lower);
-        if (exact) { done(exact); return; }
+        if (exact) {
+            done(exact);
+            return;
+        }
         const hostParts = splitHost(lower);
         for (const [pattern, ctx] of this._sniContexts) {
-            if (checkHostMatch(hostParts, pattern)) { done(ctx); return; }
+            if (checkHostMatch(hostParts, pattern)) {
+                done(ctx);
+                return;
+            }
         }
         if (this._tlsOptions.SNICallback) {
             try {
                 this._tlsOptions.SNICallback(servername, (err: Error | null, ctx?: SecureContext) => {
-                    if (err || !ctx) { done(fallback); return; }
+                    if (err || !ctx) {
+                        done(fallback);
+                        return;
+                    }
                     done(ctx);
                 });
                 return;
@@ -186,39 +197,42 @@ export class TLSServer extends Server {
                             inputStream: buffered,
                             outputStream,
                         });
-                        const tlsConn = Gio.TlsServerConnection.new(
-                            wrappedIo,
-                            certificate,
-                        );
+                        const tlsConn = Gio.TlsServerConnection.new(wrappedIo, certificate);
 
                         // Client-cert / mTLS configuration
                         if (this._tlsOptions.requestCert) {
-                            tlsConn.authenticationMode = this._tlsOptions.rejectUnauthorized !== false
-                                ? Gio.TlsAuthenticationMode.REQUIRED
-                                : Gio.TlsAuthenticationMode.REQUESTED;
+                            tlsConn.authenticationMode =
+                                this._tlsOptions.rejectUnauthorized !== false
+                                    ? Gio.TlsAuthenticationMode.REQUIRED
+                                    : Gio.TlsAuthenticationMode.REQUESTED;
                         } else {
                             tlsConn.authenticationMode = Gio.TlsAuthenticationMode.NONE;
                         }
 
-                        const requireClientCert = !!this._tlsOptions.requestCert
-                            && this._tlsOptions.rejectUnauthorized !== false;
+                        const requireClientCert =
+                            !!this._tlsOptions.requestCert && this._tlsOptions.rejectUnauthorized !== false;
                         const clientCAs = this._secureContext.caCertificates;
 
-                        tlsConn.connect('accept-certificate', (
-                            _conn: Gio.TlsConnection,
-                            peerCert: Gio.TlsCertificate,
-                            _errors: Gio.TlsCertificateFlags,
-                        ): boolean => {
-                            if (!requireClientCert) return true;
-                            if (clientCAs.length === 0) return false;
-                            for (const ca of clientCAs) {
-                                try {
-                                    const flags = peerCert.verify(null, ca);
-                                    if (flags === Gio.TlsCertificateFlags.NO_FLAGS) return true;
-                                } catch { /* try next */ }
-                            }
-                            return false;
-                        });
+                        tlsConn.connect(
+                            'accept-certificate',
+                            (
+                                _conn: Gio.TlsConnection,
+                                peerCert: Gio.TlsCertificate,
+                                _errors: Gio.TlsCertificateFlags,
+                            ): boolean => {
+                                if (!requireClientCert) return true;
+                                if (clientCAs.length === 0) return false;
+                                for (const ca of clientCAs) {
+                                    try {
+                                        const flags = peerCert.verify(null, ca);
+                                        if (flags === Gio.TlsCertificateFlags.NO_FLAGS) return true;
+                                    } catch {
+                                        /* try next */
+                                    }
+                                }
+                                return false;
+                            },
+                        );
 
                         // ALPN
                         if (this._tlsOptions.ALPNProtocols && this._tlsOptions.ALPNProtocols.length > 0) {
@@ -269,7 +283,10 @@ export class TLSServer extends Server {
 /**
  * Create a TLS server.
  */
-export function createServer(options?: TlsServerOptions, secureConnectionListener?: (socket: TLSSocket) => void): TLSServer;
+export function createServer(
+    options?: TlsServerOptions,
+    secureConnectionListener?: (socket: TLSSocket) => void,
+): TLSServer;
 export function createServer(secureConnectionListener?: (socket: TLSSocket) => void): TLSServer;
 export function createServer(
     optionsOrListener?: TlsServerOptions | ((socket: TLSSocket) => void),

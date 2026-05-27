@@ -57,7 +57,8 @@ interface PackResult {
 
 export const packCommand: Command<any, PackOptions> = {
     command: 'pack [path]',
-    description: 'Produce an npm-compatible .tgz tarball for the workspace at <path> (default: cwd). Rewrites workspace:^/~/* deps to resolved versions.',
+    description:
+        'Produce an npm-compatible .tgz tarball for the workspace at <path> (default: cwd). Rewrites workspace:^/~/* deps to resolved versions.',
     builder: (yargs) =>
         yargs
             .positional('path', {
@@ -175,18 +176,13 @@ export async function packWorkspace(wsDir: string, opts: PackWorkspaceOptions = 
     // package.json fields). Rare but legal — npm pack does the same.
     const sourceAfterScripts = readFileSync(pkgPath, 'utf-8');
     const pkgAfterScripts =
-        sourceAfterScripts === originalSource
-            ? pkg
-            : (JSON.parse(sourceAfterScripts) as Record<string, unknown>);
+        sourceAfterScripts === originalSource ? pkg : (JSON.parse(sourceAfterScripts) as Record<string, unknown>);
 
     // Rewrite workspace:^/~/* deps to resolved npm version ranges, mirroring
     // yarn's auto-rewrite at publish time. Done in-memory only — the source
     // package.json on disk is never mutated by `gjsify pack`.
-    const rewrittenPkg = opts.skipWorkspaceRewrite
-        ? pkgAfterScripts
-        : rewriteWorkspaceDeps(pkgAfterScripts, wsDir);
-    const rewrittenSource =
-        JSON.stringify(rewrittenPkg, null, indentOf(sourceAfterScripts)) + '\n';
+    const rewrittenPkg = opts.skipWorkspaceRewrite ? pkgAfterScripts : rewriteWorkspaceDeps(pkgAfterScripts, wsDir);
+    const rewrittenSource = JSON.stringify(rewrittenPkg, null, indentOf(sourceAfterScripts)) + '\n';
 
     // Collect files according to the package.json `files` field (or npm's
     // default set). The package.json itself is always included with the
@@ -214,9 +210,7 @@ export async function packWorkspace(wsDir: string, opts: PackWorkspaceOptions = 
     const gzipBytes = await gzip(tarBytes);
 
     // npm filename: scope replaced with leading dash. "@gjsify/foo" → "gjsify-foo".
-    const filenameBase = name.startsWith('@')
-        ? name.slice(1).replace('/', '-')
-        : name;
+    const filenameBase = name.startsWith('@') ? name.slice(1).replace('/', '-') : name;
     const filename = `${filenameBase}-${version}.tgz`;
 
     const sha1 = createHash('sha1').update(gzipBytes).digest('hex');
@@ -258,7 +252,9 @@ export async function packWorkspace(wsDir: string, opts: PackWorkspaceOptions = 
  */
 function collectFiles(wsDir: string, pkg: Record<string, unknown>): string[] {
     const always = forceIncluded(pkg);
-    const filesField = Array.isArray(pkg.files) ? (pkg.files as unknown[]).filter((f): f is string => typeof f === 'string') : null;
+    const filesField = Array.isArray(pkg.files)
+        ? (pkg.files as unknown[]).filter((f): f is string => typeof f === 'string')
+        : null;
 
     let candidates: string[];
     if (filesField) {
@@ -279,12 +275,34 @@ function collectFiles(wsDir: string, pkg: Record<string, unknown>): string[] {
     return [...out].sort();
 }
 
-const ALWAYS_INCLUDED_BASENAMES = new Set(['package.json', 'README', 'README.md', 'LICENSE', 'LICENSE.md', 'NOTICE', 'NOTICE.md']);
+const ALWAYS_INCLUDED_BASENAMES = new Set([
+    'package.json',
+    'README',
+    'README.md',
+    'LICENSE',
+    'LICENSE.md',
+    'NOTICE',
+    'NOTICE.md',
+]);
 const NEVER_INCLUDED_BASENAMES = new Set([
-    '.git', '.svn', '.hg', '.gitignore', '.gitattributes', '.npmrc',
-    'CVS', '.DS_Store', 'node_modules', '.npmignore', 'package-lock.json',
-    'gjsify-lock.json', 'yarn.lock', 'yarn-error.log', '.yarn',
-    '.pnp.cjs', '.pnp.loader.mjs', 'tsconfig.tsbuildinfo',
+    '.git',
+    '.svn',
+    '.hg',
+    '.gitignore',
+    '.gitattributes',
+    '.npmrc',
+    'CVS',
+    '.DS_Store',
+    'node_modules',
+    '.npmignore',
+    'package-lock.json',
+    'gjsify-lock.json',
+    'yarn.lock',
+    'yarn-error.log',
+    '.yarn',
+    '.pnp.cjs',
+    '.pnp.loader.mjs',
+    'tsconfig.tsbuildinfo',
 ]);
 
 function forceIncluded(pkg: Record<string, unknown>): string[] {
@@ -310,7 +328,11 @@ function walkAll(root: string, sub: string = ''): string[] {
     const out: string[] = [];
     const here = sub ? join(root, sub) : root;
     let entries: import('node:fs').Dirent[];
-    try { entries = readdirSync(here, { withFileTypes: true }); } catch { return out; }
+    try {
+        entries = readdirSync(here, { withFileTypes: true });
+    } catch {
+        return out;
+    }
     for (const entry of entries) {
         if (NEVER_INCLUDED_BASENAMES.has(entry.name)) continue;
         if (entry.name.startsWith('.tsbuildinfo')) continue;
@@ -342,7 +364,9 @@ function expandFilesPatterns(wsDir: string, patterns: readonly string[]): string
         // (lib, dist, prebuilds) — globs are rare. Surface a warning if the
         // pattern contains glob chars and didn't resolve.
         if (!existsSync(full) && /[*?[]/.test(pattern)) {
-            console.warn(`gjsify pack: files entry "${pattern}" looks like a glob but glob expansion isn't implemented — pass literal files/dirs`);
+            console.warn(
+                `gjsify pack: files entry "${pattern}" looks like a glob but glob expansion isn't implemented — pass literal files/dirs`,
+            );
         }
     }
     return [...out];
@@ -353,7 +377,7 @@ function loadIgnore(wsDir: string): (rel: string) => boolean {
     const npmIgnorePath = join(wsDir, '.npmignore');
     const gitIgnorePath = join(wsDir, '.gitignore');
     const patterns: RegExp[] = [];
-    const sourcePath = existsSync(npmIgnorePath) ? npmIgnorePath : (existsSync(gitIgnorePath) ? gitIgnorePath : null);
+    const sourcePath = existsSync(npmIgnorePath) ? npmIgnorePath : existsSync(gitIgnorePath) ? gitIgnorePath : null;
     if (sourcePath) {
         const lines = readFileSync(sourcePath, 'utf-8').split('\n');
         for (const raw of lines) {
@@ -377,7 +401,10 @@ function globToRegex(glob: string): RegExp {
     // Escape regex metachars except *,?,/
     pat = pat.replace(/[.+^${}()|[\]\\]/g, '\\$&');
     // ** → .*  *  → [^/]*  ? → [^/]
-    pat = pat.replace(/\*\*/g, '__DOUBLESTAR__').replace(/\*/g, '[^/]*').replace(/__DOUBLESTAR__/g, '.*');
+    pat = pat
+        .replace(/\*\*/g, '__DOUBLESTAR__')
+        .replace(/\*/g, '[^/]*')
+        .replace(/__DOUBLESTAR__/g, '.*');
     pat = pat.replace(/\?/g, '[^/]');
     return new RegExp(`^${pat}($|/)`);
 }
@@ -403,7 +430,9 @@ function rewriteWorkspaceDeps(pkg: Record<string, unknown>, wsDir: string): Reco
             if (typeof range !== 'string' || !range.startsWith('workspace:')) continue;
             const wsVer = siblings.get(name);
             if (!wsVer) {
-                throw new Error(`gjsify pack: ${cloned.name} declares workspace:^ on ${name} but no sibling workspace with that name exists in the monorepo at ${root}`);
+                throw new Error(
+                    `gjsify pack: ${cloned.name} declares workspace:^ on ${name} but no sibling workspace with that name exists in the monorepo at ${root}`,
+                );
             }
             const operator = range.slice('workspace:'.length);
             if (operator === '*' || operator === '') {

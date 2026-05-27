@@ -31,18 +31,15 @@ export function formDataToBlob(formData: FormData, boundary?: string): Blob {
 
     for (const [name, value] of formData.entries()) {
         if (typeof value === 'string') {
-            chunks.push(
-                `${prefix}${escape(name)}"\r\n\r\n${value.replace(/\r(?!\n)|(?<!\r)\n/g, '\r\n')}\r\n`
-            );
+            chunks.push(`${prefix}${escape(name)}"\r\n\r\n${value.replace(/\r(?!\n)|(?<!\r)\n/g, '\r\n')}\r\n`);
         } else {
             // File or Blob
-            const file = value instanceof File
-                ? value
-                : new File([value as Blob], 'blob', { type: (value as Blob).type });
+            const file =
+                value instanceof File ? value : new File([value as Blob], 'blob', { type: (value as Blob).type });
 
             chunks.push(
                 `${prefix}${escape(name)}"; filename="${escape(file.name)}"\r\n` +
-                `Content-Type: ${file.type || 'application/octet-stream'}\r\n\r\n`
+                    `Content-Type: ${file.type || 'application/octet-stream'}\r\n\r\n`,
             );
             chunks.push(file);
             chunks.push('\r\n');

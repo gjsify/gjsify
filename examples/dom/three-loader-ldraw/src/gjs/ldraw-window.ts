@@ -23,27 +23,41 @@ export class LDrawWindow extends Adw.ApplicationWindow {
     declare private _conditionalLinesRow: Adw.SwitchRow;
 
     static {
-        GObject.registerClass({
-            GTypeName: 'LDrawWindow',
-            Template,
-            InternalChildren: [
-                'glAreaContainer', 'modelRow', 'flatColorsRow', 'mergeModelRow',
-                'smoothNormalsRow', 'buildingStepRow', 'displayLinesRow', 'conditionalLinesRow',
-            ],
-        }, this);
+        GObject.registerClass(
+            {
+                GTypeName: 'LDrawWindow',
+                Template,
+                InternalChildren: [
+                    'glAreaContainer',
+                    'modelRow',
+                    'flatColorsRow',
+                    'mergeModelRow',
+                    'smoothNormalsRow',
+                    'buildingStepRow',
+                    'displayLinesRow',
+                    'conditionalLinesRow',
+                ],
+            },
+            this,
+        );
     }
 
     constructor(application: Adw.Application) {
         super({ application });
 
         // Model ComboRow
-        this._modelRow.set_model(Gtk.StringList.new(MODEL_LIST.map(m => m.name)));
+        this._modelRow.set_model(Gtk.StringList.new(MODEL_LIST.map((m) => m.name)));
         this._modelRow.set_selected(DEFAULT_MODEL_INDEX);
 
         // Building step SpinRow (initial range, updated on model load)
-        this._buildingStepRow.set_adjustment(new Gtk.Adjustment({
-            lower: 0, upper: 0, step_increment: 1, value: 0,
-        }));
+        this._buildingStepRow.set_adjustment(
+            new Gtk.Adjustment({
+                lower: 0,
+                upper: 0,
+                step_increment: 1,
+                value: 0,
+            }),
+        );
 
         // Create and insert WebGL widget
         const glArea = new WebGLBridge();

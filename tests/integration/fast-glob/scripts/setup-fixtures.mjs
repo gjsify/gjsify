@@ -54,16 +54,16 @@ await writeFile(join(dest, 'sub', 'deeper', 'e.ts'), 'export const e = 5;\n');
 // Symlinks (best-effort — non-POSIX may fail; we surface that as an error
 // because the symlinks suite requires them and on Linux we always have them).
 try {
-  await symlink('a.ts', join(dest, 'symlink-to-a.ts'));
-  await symlink('sub', join(dest, 'symlink-to-sub'), 'dir');
-  await symlink('./does-not-exist.ts', join(dest, 'dangling-symlink.ts'));
+    await symlink('a.ts', join(dest, 'symlink-to-a.ts'));
+    await symlink('sub', join(dest, 'symlink-to-sub'), 'dir');
+    await symlink('./does-not-exist.ts', join(dest, 'dangling-symlink.ts'));
 } catch (err) {
-  console.warn(`[setup-fixtures] symlink creation failed: ${err.message}`);
+    console.warn(`[setup-fixtures] symlink creation failed: ${err.message}`);
 }
 
 if (!existsSync(join(dest, 'a.ts'))) {
-  console.error(`[setup-fixtures] expected ${dest}/a.ts to exist`);
-  process.exit(1);
+    console.error(`[setup-fixtures] expected ${dest}/a.ts to exist`);
+    process.exit(1);
 }
 
 console.log(`[setup-fixtures] wrote tree → ${dest}`);

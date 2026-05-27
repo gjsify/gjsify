@@ -60,7 +60,7 @@ export interface StateMethods {
 }
 
 declare module '../webgl-context-base.js' {
-    interface WebGLContextBase extends StateMethods { }
+    interface WebGLContextBase extends StateMethods {}
 }
 
 const stateMethods: StateMethods & ThisType<WebGLContextBase> = {
@@ -70,8 +70,7 @@ const stateMethods: StateMethods & ThisType<WebGLContextBase> = {
 
     disable(this: WebGLContextBase, cap: GLenum = 0): void {
         this._gl.disable(cap);
-        if (cap === this.TEXTURE_2D ||
-            cap === this.TEXTURE_CUBE_MAP) {
+        if (cap === this.TEXTURE_2D || cap === this.TEXTURE_CUBE_MAP) {
             const active = this._getActiveTextureUnit();
             if (active._mode === cap) {
                 active._mode = 0;
@@ -136,19 +135,18 @@ const stateMethods: StateMethods & ThisType<WebGLContextBase> = {
     },
 
     hint(this: WebGLContextBase, target: GLenum = 0, mode: GLenum = 0): void {
-        if (!(
-            target === this.GENERATE_MIPMAP_HINT ||
-            (
-                this._extensions.oes_standard_derivatives && target === this._extensions.oes_standard_derivatives.FRAGMENT_SHADER_DERIVATIVE_HINT_OES
+        if (
+            !(
+                target === this.GENERATE_MIPMAP_HINT ||
+                (this._extensions.oes_standard_derivatives &&
+                    target === this._extensions.oes_standard_derivatives.FRAGMENT_SHADER_DERIVATIVE_HINT_OES)
             )
-        )) {
+        ) {
             this.setError(this.INVALID_ENUM);
             return;
         }
 
-        if (mode !== this.FASTEST &&
-            mode !== this.NICEST &&
-            mode !== this.DONT_CARE) {
+        if (mode !== this.FASTEST && mode !== this.NICEST && mode !== this.DONT_CARE) {
             this.setError(this.INVALID_ENUM);
             return;
         }
@@ -164,7 +162,13 @@ const stateMethods: StateMethods & ThisType<WebGLContextBase> = {
         this._gl.flush();
     },
 
-    blendColor(this: WebGLContextBase, red: GLclampf = 0, green: GLclampf = 0, blue: GLclampf = 0, alpha: GLclampf = 0): void {
+    blendColor(
+        this: WebGLContextBase,
+        red: GLclampf = 0,
+        green: GLclampf = 0,
+        blue: GLclampf = 0,
+        alpha: GLclampf = 0,
+    ): void {
         this._gl.blendColor(+red, +green, +blue, +alpha);
     },
 
@@ -185,8 +189,7 @@ const stateMethods: StateMethods & ThisType<WebGLContextBase> = {
     },
 
     blendFunc(this: WebGLContextBase, sfactor: GLenum = 0, dfactor: GLenum = 0): void {
-        if (!this._validBlendFunc(sfactor) ||
-            !this._validBlendFunc(dfactor)) {
+        if (!this._validBlendFunc(sfactor) || !this._validBlendFunc(dfactor)) {
             this.setError(this.INVALID_ENUM);
             return;
         }
@@ -197,26 +200,34 @@ const stateMethods: StateMethods & ThisType<WebGLContextBase> = {
         this._gl.blendFunc(sfactor, dfactor);
     },
 
-    blendFuncSeparate(this: WebGLContextBase, srcRGB: GLenum = 0, dstRGB: GLenum = 0, srcAlpha: GLenum = 0, dstAlpha: GLenum = 0): void {
-        if (!(this._validBlendFunc(srcRGB) &&
-            this._validBlendFunc(dstRGB) &&
-            this._validBlendFunc(srcAlpha) &&
-            this._validBlendFunc(dstAlpha))) {
+    blendFuncSeparate(
+        this: WebGLContextBase,
+        srcRGB: GLenum = 0,
+        dstRGB: GLenum = 0,
+        srcAlpha: GLenum = 0,
+        dstAlpha: GLenum = 0,
+    ): void {
+        if (
+            !(
+                this._validBlendFunc(srcRGB) &&
+                this._validBlendFunc(dstRGB) &&
+                this._validBlendFunc(srcAlpha) &&
+                this._validBlendFunc(dstAlpha)
+            )
+        ) {
             this.setError(this.INVALID_ENUM);
             return;
         }
 
-        if ((this._isConstantBlendFunc(srcRGB) && this._isConstantBlendFunc(dstRGB)) ||
-            (this._isConstantBlendFunc(srcAlpha) && this._isConstantBlendFunc(dstAlpha))) {
+        if (
+            (this._isConstantBlendFunc(srcRGB) && this._isConstantBlendFunc(dstRGB)) ||
+            (this._isConstantBlendFunc(srcAlpha) && this._isConstantBlendFunc(dstAlpha))
+        ) {
             this.setError(this.INVALID_OPERATION);
             return;
         }
 
-        this._gl.blendFuncSeparate(
-            srcRGB,
-            dstRGB,
-            srcAlpha,
-            dstAlpha);
+        this._gl.blendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
     },
 
     clear(this: WebGLContextBase, mask: GLbitfield = 0): void {
@@ -324,7 +335,8 @@ const stateMethods: StateMethods & ThisType<WebGLContextBase> = {
     },
 
     _validBlendFunc(this: WebGLContextBase, factor: GLenum): boolean {
-        return factor === this.ZERO ||
+        return (
+            factor === this.ZERO ||
             factor === this.ONE ||
             factor === this.SRC_COLOR ||
             factor === this.ONE_MINUS_SRC_COLOR ||
@@ -338,16 +350,19 @@ const stateMethods: StateMethods & ThisType<WebGLContextBase> = {
             factor === this.CONSTANT_COLOR ||
             factor === this.ONE_MINUS_CONSTANT_COLOR ||
             factor === this.CONSTANT_ALPHA ||
-            factor === this.ONE_MINUS_CONSTANT_ALPHA;
+            factor === this.ONE_MINUS_CONSTANT_ALPHA
+        );
     },
 
     _validBlendMode(this: WebGLContextBase, mode: GLenum): boolean {
-        return mode === this.FUNC_ADD ||
+        return (
+            mode === this.FUNC_ADD ||
             mode === this.FUNC_SUBTRACT ||
             mode === this.FUNC_REVERSE_SUBTRACT ||
-            (this._extensions.ext_blend_minmax && (
-                mode === this._extensions.ext_blend_minmax.MIN_EXT ||
-                mode === this._extensions.ext_blend_minmax.MAX_EXT));
+            (this._extensions.ext_blend_minmax &&
+                (mode === this._extensions.ext_blend_minmax.MIN_EXT ||
+                    mode === this._extensions.ext_blend_minmax.MAX_EXT))
+        );
     },
 
     _isConstantBlendFunc(this: WebGLContextBase, factor: GLenum): boolean {
@@ -355,7 +370,8 @@ const stateMethods: StateMethods & ThisType<WebGLContextBase> = {
             factor === this.CONSTANT_COLOR ||
             factor === this.ONE_MINUS_CONSTANT_COLOR ||
             factor === this.CONSTANT_ALPHA ||
-            factor === this.ONE_MINUS_CONSTANT_ALPHA);
+            factor === this.ONE_MINUS_CONSTANT_ALPHA
+        );
     },
 
     _saveError(this: WebGLContextBase): void {

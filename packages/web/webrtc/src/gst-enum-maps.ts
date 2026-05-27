@@ -97,11 +97,20 @@ export function w3cDirectionToGst(d: RTCRtpTransceiverDirection): GstWebRTC.WebR
 // ---- Stats type (GstWebRTC → W3C RTCStatsType string) -----------------------
 
 export type RTCStatsType =
-    | 'codec' | 'inbound-rtp' | 'outbound-rtp'
-    | 'remote-inbound-rtp' | 'remote-outbound-rtp'
-    | 'csrc' | 'peer-connection' | 'data-channel'
-    | 'stream' | 'transport' | 'candidate-pair'
-    | 'local-candidate' | 'remote-candidate' | 'certificate';
+    | 'codec'
+    | 'inbound-rtp'
+    | 'outbound-rtp'
+    | 'remote-inbound-rtp'
+    | 'remote-outbound-rtp'
+    | 'csrc'
+    | 'peer-connection'
+    | 'data-channel'
+    | 'stream'
+    | 'transport'
+    | 'candidate-pair'
+    | 'local-candidate'
+    | 'remote-candidate'
+    | 'certificate';
 
 const STATS_TYPE_MAP: Record<number, RTCStatsType> = {
     [GstWebRTC.WebRTCStatsType.CODEC]: 'codec',

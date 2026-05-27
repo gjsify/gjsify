@@ -13,14 +13,7 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 import { createServer } from 'node:http';
-import {
-    writeFileSync,
-    readFileSync,
-    mkdirSync,
-    existsSync,
-    mkdtempSync,
-    rmSync,
-} from 'node:fs';
+import { writeFileSync, readFileSync, mkdirSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -131,7 +124,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
         const { stdout } = await execFileAsync('node', [CLI_ENTRY, 'upgrade', ...args], {
             timeout: opts.timeout ?? 30 * 1000,
             cwd: opts.cwd,
-            env: { ...process.env, npm_config_registry: registryUrl, ...(opts.env ?? {}) },
+            env: { ...process.env, npm_config_registry: registryUrl, ...opts.env },
             encoding: 'utf8',
         });
         return stdout;

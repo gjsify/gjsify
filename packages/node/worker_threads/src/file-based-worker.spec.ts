@@ -195,8 +195,15 @@ export default async () => {
                 expect(result.closing?.type).toBe('closing');
                 expect(typeof result.exit).toBe('number');
             } finally {
-                if (!worker.threadId || worker.threadId === -1) return;
-                try { await worker.terminate(); } catch { /* already gone */ }
+                // Only terminate a worker that actually started — but never `return`
+                // from `finally` (it would swallow assertion failures from the try block).
+                if (worker.threadId && worker.threadId !== -1) {
+                    try {
+                        await worker.terminate();
+                    } catch {
+                        /* already gone */
+                    }
+                }
             }
         });
     });

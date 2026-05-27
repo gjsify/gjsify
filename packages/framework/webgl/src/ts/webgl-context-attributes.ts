@@ -9,14 +9,6 @@ export class WebGLContextAttributes implements WebGLContextAttributes {
         public premultipliedAlpha?: boolean,
         public preserveDrawingBuffer?: boolean,
         public preferLowPowerToHighPerformance?: boolean,
-        public failIfMajorPerformanceCaveat?: boolean) {
-        this.alpha = alpha
-        this.depth = depth
-        this.stencil = stencil
-        this.antialias = antialias
-        this.premultipliedAlpha = premultipliedAlpha
-        this.preserveDrawingBuffer = preserveDrawingBuffer
-        this.preferLowPowerToHighPerformance = preferLowPowerToHighPerformance
-        this.failIfMajorPerformanceCaveat = failIfMajorPerformanceCaveat
-    }
+        public failIfMajorPerformanceCaveat?: boolean,
+    ) {}
 }

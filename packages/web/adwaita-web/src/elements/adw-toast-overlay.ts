@@ -35,7 +35,9 @@ export class AdwToastOverlay extends HTMLElement {
             toast.classList.add('hiding');
             toast.addEventListener('transitionend', () => toast.remove(), { once: true });
             // Fallback if transitionend doesn't fire
-            setTimeout(() => { if (toast.parentNode) toast.remove(); }, 300);
+            setTimeout(() => {
+                if (toast.parentNode) toast.remove();
+            }, 300);
         }, timeout);
     }
 }

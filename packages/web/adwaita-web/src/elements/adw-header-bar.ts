@@ -9,10 +9,14 @@ export class AdwHeaderBar extends HTMLElement {
     private _endEl: HTMLDivElement | null = null;
 
     /** The start (left) section container — append buttons/widgets here. */
-    get startSection(): HTMLDivElement | null { return this._startEl; }
+    get startSection(): HTMLDivElement | null {
+        return this._startEl;
+    }
 
     /** The end (right) section container — append buttons/widgets here. */
-    get endSection(): HTMLDivElement | null { return this._endEl; }
+    get endSection(): HTMLDivElement | null {
+        return this._endEl;
+    }
 
     connectedCallback() {
         if (this._initialized) return;

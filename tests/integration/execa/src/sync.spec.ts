@@ -36,11 +36,9 @@ export default async () => {
         });
 
         await it('returns env-aware output (sync path)', () => {
-            const result = execaSync(
-                'node',
-                ['-e', 'process.stdout.write(String(process.env.SYNC_TOKEN))'],
-                { env: { SYNC_TOKEN: 'sync-abc' } },
-            );
+            const result = execaSync('node', ['-e', 'process.stdout.write(String(process.env.SYNC_TOKEN))'], {
+                env: { SYNC_TOKEN: 'sync-abc' },
+            });
             expect(result.stdout).toBe('sync-abc');
         });
     });

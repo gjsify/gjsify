@@ -65,10 +65,7 @@ export interface DiscoverWorkspacesOptions {
  * package.json is missing or malformed; silently skips glob-matched dirs
  * that don't have a package.json (matches yarn's behavior).
  */
-export function discoverWorkspaces(
-    root: string,
-    options: DiscoverWorkspacesOptions = {},
-): Workspace[] {
+export function discoverWorkspaces(root: string, options: DiscoverWorkspacesOptions = {}): Workspace[] {
     const rootManifestPath = join(root, 'package.json');
     if (!existsSync(rootManifestPath)) {
         throw new Error(`@gjsify/workspace: no package.json at ${root}`);
@@ -138,14 +135,13 @@ export function resolveWorkspaceProtocol(
 ): string | undefined {
     if (!spec.startsWith('workspace:')) return undefined;
     const value = spec.slice('workspace:'.length);
-    const map: ReadonlyMap<string, Workspace> = workspaces instanceof Map
-        ? workspaces
-        : indexByName(workspaces as readonly Workspace[]);
+    const map: ReadonlyMap<string, Workspace> =
+        workspaces instanceof Map ? workspaces : indexByName(workspaces as readonly Workspace[]);
     const target = map.get(pkgName);
     if (!target) {
         throw new Error(
             `@gjsify/workspace: workspace dep "${pkgName}" referenced as "${spec}" but no workspace ` +
-            `with that name was discovered`,
+                `with that name was discovered`,
         );
     }
     const version = target.version;
@@ -280,9 +276,7 @@ export function topologicalSort(graph: DependencyGraph): Workspace[] {
 
     if (out.length !== inDegree.size) {
         const remaining = [...inDegree.entries()].filter(([, d]) => d > 0).map(([n]) => n);
-        throw new Error(
-            `@gjsify/workspace: dependency cycle detected involving ${remaining.join(', ')}`,
-        );
+        throw new Error(`@gjsify/workspace: dependency cycle detected involving ${remaining.join(', ')}`);
     }
     return out;
 }
@@ -309,7 +303,7 @@ export function filterWorkspaces(
         if (include && include.length > 0 && !include.some((re) => re.test(ws.name))) {
             return false;
         }
-        if (exclude && exclude.length > 0 && exclude.some((re) => re.test(ws.name))) {
+        if (exclude && exclude.some((re) => re.test(ws.name))) {
             return false;
         }
         return true;
@@ -339,33 +333,47 @@ function expandPattern(root: string, pattern: string): string[] {
         for (const dir of current) {
             if (seg === '*') {
                 let entries: string[] = [];
-                try { entries = readdirSync(dir); } catch { continue; }
+                try {
+                    entries = readdirSync(dir);
+                } catch {
+                    continue;
+                }
                 for (const entry of entries) {
                     if (entry.startsWith('.')) continue;
                     const candidate = join(dir, entry);
                     try {
                         if (statSync(candidate).isDirectory()) next.push(candidate);
-                    } catch { /* dead symlink etc. */ }
+                    } catch {
+                        /* dead symlink etc. */
+                    }
                 }
             } else if (seg.includes('*')) {
                 // `pkg-*` style pattern: glob within a single segment.
                 const re = globToRegex(seg);
                 let entries: string[] = [];
-                try { entries = readdirSync(dir); } catch { continue; }
+                try {
+                    entries = readdirSync(dir);
+                } catch {
+                    continue;
+                }
                 for (const entry of entries) {
                     if (entry.startsWith('.')) continue;
                     if (!re.test(entry)) continue;
                     const candidate = join(dir, entry);
                     try {
                         if (statSync(candidate).isDirectory()) next.push(candidate);
-                    } catch { /* skip */ }
+                    } catch {
+                        /* skip */
+                    }
                 }
             } else {
                 const candidate = join(dir, seg);
                 if (existsSync(candidate)) {
                     try {
                         if (statSync(candidate).isDirectory()) next.push(candidate);
-                    } catch { /* skip */ }
+                    } catch {
+                        /* skip */
+                    }
                 }
             }
         }

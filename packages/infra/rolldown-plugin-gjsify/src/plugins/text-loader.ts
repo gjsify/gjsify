@@ -71,9 +71,7 @@ export function textLoaderPlugin(options: TextLoaderPluginOptions = {}): Plugin 
     const filter = new RegExp(`\\.(?:${escaped.join('|')})$`);
 
     // Index extensions → kind for fast lookup in the load hook.
-    const kindMap = new Map<string, LoaderKind>(
-        entries.map(([ext, kind]) => [ext.toLowerCase(), kind]),
-    );
+    const kindMap = new Map<string, LoaderKind>(entries.map(([ext, kind]) => [ext.toLowerCase(), kind]));
 
     // Use the function-form `load(id)` (Rollup-compatible) rather than the
     // newer `load: { filter, handler }` shape. The newer shape was observed

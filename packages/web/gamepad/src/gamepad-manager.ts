@@ -36,7 +36,7 @@ const MAX_GAMEPADS = 4;
  */
 export class GamepadManager {
     private _monitor: Manette.Monitor | null = null;
-    private _slots: (DeviceState | null)[] = new Array(MAX_GAMEPADS).fill(null);
+    private _slots: (DeviceState | null)[] = Array.from<DeviceState | null>({ length: MAX_GAMEPADS }).fill(null);
     private _monitorSignalIds: number[] = [];
     private _ManetteModule: typeof Manette | null = null;
     private _initPromise: Promise<void> | null = null;
@@ -107,7 +107,7 @@ export class GamepadManager {
             connected: true,
             timestamp: performance.now(),
             buttons: new Float64Array(W3C_BUTTON_COUNT),
-            buttonsPressed: new Array(W3C_BUTTON_COUNT).fill(false),
+            buttonsPressed: Array.from<boolean>({ length: W3C_BUTTON_COUNT }).fill(false),
             axes: new Float64Array(W3C_AXIS_COUNT),
             hapticActuator: new ManetteHapticActuator(device),
             signalIds: [],
@@ -156,7 +156,9 @@ export class GamepadManager {
 
         // Dispatch gamepaddisconnected event
         if (snapshot) {
-            globalThis.dispatchEvent?.(new GamepadEvent('gamepaddisconnected', { gamepad: snapshot }) as unknown as Event);
+            globalThis.dispatchEvent?.(
+                new GamepadEvent('gamepaddisconnected', { gamepad: snapshot }) as unknown as Event,
+            );
         }
     }
 
@@ -240,11 +242,13 @@ export class GamepadManager {
     private _createSnapshot(state: DeviceState): Gamepad {
         const buttons: GamepadButton[] = [];
         for (let i = 0; i < W3C_BUTTON_COUNT; i++) {
-            buttons.push(new GamepadButton(
-                state.buttonsPressed[i],
-                state.buttonsPressed[i] || state.buttons[i] > 0,
-                state.buttons[i],
-            ));
+            buttons.push(
+                new GamepadButton(
+                    state.buttonsPressed[i],
+                    state.buttonsPressed[i] || state.buttons[i] > 0,
+                    state.buttons[i],
+                ),
+            );
         }
 
         return new Gamepad({

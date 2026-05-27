@@ -38,16 +38,8 @@ export type {
 export { RTCError } from './rtc-error.js';
 export type { RTCErrorInit, RTCErrorDetailType } from './rtc-error.js';
 
-export {
-    RTCPeerConnectionIceEvent,
-    RTCDataChannelEvent,
-    RTCErrorEvent,
-} from './rtc-events.js';
-export type {
-    RTCPeerConnectionIceEventInit,
-    RTCDataChannelEventInit,
-    RTCErrorEventInit,
-} from './rtc-events.js';
+export { RTCPeerConnectionIceEvent, RTCDataChannelEvent, RTCErrorEvent } from './rtc-events.js';
+export type { RTCPeerConnectionIceEventInit, RTCDataChannelEventInit, RTCErrorEventInit } from './rtc-events.js';
 
 export { RTCRtpSender } from './rtc-rtp-sender.js';
 export type {

@@ -24,4 +24,23 @@ import testSuiteStatFs from './statfs.spec.js';
 import testSuiteUtimes from './utimes.spec.js';
 import testSuiteFdOps from './fd-ops.spec.js';
 
-run({testSuiteCallback, testSuiteFileHandle, testSuitePromise, testSuiteSync, testSuiteSymlink, testSuiteStat, testSuiteNewApis, testSuiteExtended, testSuiteErrors, testSuiteStreams, testSuiteCp, testSuiteDir, testSuiteGlob, testSuiteWatch, testSuiteWatchFile, testSuiteStatFs, testSuiteUtimes, testSuiteFdOps});
+run({
+    testSuiteCallback,
+    testSuiteFileHandle,
+    testSuitePromise,
+    testSuiteSync,
+    testSuiteSymlink,
+    testSuiteStat,
+    testSuiteNewApis,
+    testSuiteExtended,
+    testSuiteErrors,
+    testSuiteStreams,
+    testSuiteCp,
+    testSuiteDir,
+    testSuiteGlob,
+    testSuiteWatch,
+    testSuiteWatchFile,
+    testSuiteStatFs,
+    testSuiteUtimes,
+    testSuiteFdOps,
+});

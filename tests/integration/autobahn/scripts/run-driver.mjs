@@ -26,8 +26,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const [, , bundleArg, logArg] = process.argv;
 if (!bundleArg || !logArg) {
-  console.error('Usage: run-driver.mjs <bundle.gjs.mjs> <logfile>');
-  process.exit(2);
+    console.error('Usage: run-driver.mjs <bundle.gjs.mjs> <logfile>');
+    process.exit(2);
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -36,8 +36,8 @@ const logfile = path.resolve(here, '..', logArg);
 mkdirSync(path.dirname(logfile), { recursive: true });
 
 if (!existsSync(bundle)) {
-  console.error(`Bundle not found: ${bundle}`);
-  process.exit(2);
+    console.error(`Bundle not found: ${bundle}`);
+    process.exit(2);
 }
 
 // Truncate prior log so "Done." detection isn't fooled by a stale run.
@@ -47,32 +47,41 @@ const out = (await import('node:fs')).openSync(logfile, 'a');
 const child = spawn('gjs', ['-m', bundle], { stdio: ['ignore', out, out] });
 
 async function sawDone() {
-  try { return (await readFile(logfile, 'utf8')).includes('\nDone.'); }
-  catch { return false; }
+    try {
+        return (await readFile(logfile, 'utf8')).includes('\nDone.');
+    } catch {
+        return false;
+    }
 }
 
 let exited = false;
-child.on('exit', () => { exited = true; });
+child.on('exit', () => {
+    exited = true;
+});
 
 // Poll every 1s for either "Done." in the log or child exit.
 while (!exited) {
-  if (await sawDone()) break;
-  await delay(1000);
+    if (await sawDone()) break;
+    await delay(1000);
 }
 
 // Grace window for a clean exit, then SIGKILL.
 const GRACE_MS = 3000;
 const deadline = Date.now() + GRACE_MS;
 while (!exited && Date.now() < deadline) {
-  await delay(200);
+    await delay(200);
 }
 if (!exited) {
-  try { child.kill('SIGKILL'); } catch { /* ignore */ }
+    try {
+        child.kill('SIGKILL');
+    } catch {
+        /* ignore */
+    }
 }
 
 await new Promise((resolve) => {
-  if (exited) resolve();
-  else child.once('exit', () => resolve());
+    if (exited) resolve();
+    else child.once('exit', () => resolve());
 });
 
 process.exit((await sawDone()) ? 0 : 1);

@@ -10,12 +10,7 @@ export class MediaDeviceInfo {
     readonly label: string;
     readonly groupId: string;
 
-    constructor(init: {
-        deviceId: string;
-        kind: MediaDeviceKind;
-        label: string;
-        groupId?: string;
-    }) {
+    constructor(init: { deviceId: string; kind: MediaDeviceKind; label: string; groupId?: string }) {
         this.deviceId = init.deviceId;
         this.kind = init.kind;
         this.label = init.label;

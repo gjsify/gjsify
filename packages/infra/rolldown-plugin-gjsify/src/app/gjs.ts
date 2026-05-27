@@ -20,10 +20,7 @@ import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
 import type { PluginOptions } from '../types/plugin-options.js';
 import { getAliasesForGjs } from '../utils/alias.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
-import {
-    nodeModulesPathRewritePlugin,
-    getBundleDirFromOutput,
-} from '../plugins/rewrite-node-modules-paths.js';
+import { nodeModulesPathRewritePlugin, getBundleDirFromOutput } from '../plugins/rewrite-node-modules-paths.js';
 import { processStubPlugin } from '../plugins/process-stub.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { shebangPlugin, resolveShebangLine, inputShebangStripPlugin } from '../plugins/shebang.js';
@@ -38,7 +35,9 @@ function resolveConsoleShim(): string {
     try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         fs = require('node:fs') as typeof import('node:fs');
-    } catch { return relative; }
+    } catch {
+        return relative;
+    }
     if (fs.existsSync(relative)) return relative;
     // Fallback: when the orchestrator is bundled into a single .mjs
     // (GJS-CLI self-host loop) `_shimDir` collapses to the bundle's
@@ -112,8 +111,8 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     const aliasMap = {
         ...getAliasesForGjs({ external }),
         'unicorn-magic': unicornMagicShim,
-        ...(input.pluginOptions.aliases ?? {}),
-        ...(input.userAliases ?? {}),
+        ...input.pluginOptions.aliases,
+        ...input.userAliases,
     };
 
     // The console shim replaces all `console` references with print()/printerr()-
@@ -127,9 +126,7 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     // resolution lands at a non-existent location. Walk up via
     // createRequire's node_modules-aware resolver as a fallback.
     const consoleShimEnabled = input.pluginOptions.consoleShim !== false;
-    const consoleShimPath = consoleShimEnabled
-        ? resolveConsoleShim()
-        : null;
+    const consoleShimPath = consoleShimEnabled ? resolveConsoleShim() : null;
 
     // The auto-globals inject stub (when present) is side-effect-imported
     // via a virtual entry — its register modules write to globalThis, so
@@ -261,10 +258,7 @@ interface VirtualEntriesResult {
  * `\0`-prefixed ids are Rollup's convention for synthetic modules — Rolldown
  * recognises and treats them as not-from-disk, skipping the default loader.
  */
-function wrapInputWithSideEffects(
-    input: RolldownOptions['input'],
-    sideEffects: string[],
-): VirtualEntriesResult {
+function wrapInputWithSideEffects(input: RolldownOptions['input'], sideEffects: string[]): VirtualEntriesResult {
     if (sideEffects.length === 0 || input === undefined) {
         return { input, plugin: null };
     }
@@ -291,9 +285,7 @@ function wrapInputWithSideEffects(
         wrappedInput = out;
     }
 
-    const sideEffectImports = sideEffects
-        .map((p) => `import ${JSON.stringify(p)};`)
-        .join('\n');
+    const sideEffectImports = sideEffects.map((p) => `import ${JSON.stringify(p)};`).join('\n');
 
     // Resolved real-path targets from `userEntries` get their
     // moduleSideEffects forced to 'no-treeshake' so the user-entry's

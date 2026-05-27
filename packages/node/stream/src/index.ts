@@ -34,7 +34,15 @@ import { Duplex_ } from './duplex.js';
 import { Transform_ } from './transform.js';
 import { PassThrough_ } from './passthrough.js';
 import { pipeline } from './utils/pipeline.js';
-import { finished, addAbortSignal, isReadable, isWritable, isDestroyed, isDisturbed, isErrored } from './utils/finished.js';
+import {
+    finished,
+    addAbortSignal,
+    isReadable,
+    isWritable,
+    isDestroyed,
+    isDisturbed,
+    isErrored,
+} from './utils/finished.js';
 import { getDefaultHighWaterMark, setDefaultHighWaterMark } from './internal/state.js';
 
 // ---- Re-exports of internal helpers ----
@@ -71,22 +79,22 @@ export type PassThrough = PassThrough_;
 // legacy `util.inherits(Sub, require('stream'))` pattern keeps working.
 
 const _default = Object.assign(Stream, {
-  Stream,
-  Readable,
-  Writable,
-  Duplex,
-  Transform,
-  PassThrough,
-  pipeline,
-  finished,
-  addAbortSignal,
-  isReadable,
-  isWritable,
-  isDestroyed,
-  isDisturbed,
-  isErrored,
-  getDefaultHighWaterMark,
-  setDefaultHighWaterMark,
+    Stream,
+    Readable,
+    Writable,
+    Duplex,
+    Transform,
+    PassThrough,
+    pipeline,
+    finished,
+    addAbortSignal,
+    isReadable,
+    isWritable,
+    isDestroyed,
+    isDisturbed,
+    isErrored,
+    getDefaultHighWaterMark,
+    setDefaultHighWaterMark,
 });
 
 export default _default;

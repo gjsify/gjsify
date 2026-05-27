@@ -89,18 +89,12 @@ export default async () => {
         });
 
         await it('returns false when either env var is missing', () => {
-            withEnv(
-                { ACTIONS_ID_TOKEN_REQUEST_URL: 'x', ACTIONS_ID_TOKEN_REQUEST_TOKEN: undefined },
-                () => {
-                    expect(hasGithubOidcEnv()).toBe(false);
-                },
-            );
-            withEnv(
-                { ACTIONS_ID_TOKEN_REQUEST_URL: undefined, ACTIONS_ID_TOKEN_REQUEST_TOKEN: 't' },
-                () => {
-                    expect(hasGithubOidcEnv()).toBe(false);
-                },
-            );
+            withEnv({ ACTIONS_ID_TOKEN_REQUEST_URL: 'x', ACTIONS_ID_TOKEN_REQUEST_TOKEN: undefined }, () => {
+                expect(hasGithubOidcEnv()).toBe(false);
+            });
+            withEnv({ ACTIONS_ID_TOKEN_REQUEST_URL: undefined, ACTIONS_ID_TOKEN_REQUEST_TOKEN: 't' }, () => {
+                expect(hasGithubOidcEnv()).toBe(false);
+            });
         });
     });
 
@@ -176,7 +170,7 @@ export default async () => {
         });
 
         await it('throws OidcUnavailableError(no-id-token) when GitHub response lacks .value', async () => {
-            const stub = mockFetch(() => ({ status: 200, body: JSON.stringify({ }) }));
+            const stub = mockFetch(() => ({ status: 200, body: JSON.stringify({}) }));
             try {
                 await withEnv(
                     {

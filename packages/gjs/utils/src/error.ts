@@ -19,7 +19,7 @@ export const initErrorV8Methods = (ErrorConstructor: typeof Error) => {
          * A non-standard V8 function.
          * Creates a .stack property on targetObject, which when accessed returns a string representing the location in the code at which Error.captureStackTrace() was called.
          */
-        E.captureStackTrace = function(targetObject: object, constructorOpt?: Function) {
+        E.captureStackTrace = function (targetObject: object, constructorOpt?: Function) {
             const container = new Error();
 
             const target = constructorOpt || targetObject;
@@ -28,17 +28,17 @@ export const initErrorV8Methods = (ErrorConstructor: typeof Error) => {
                 configurable: true,
                 get: function getStack() {
                     var stack = container.stack;
-        
+
                     Object.defineProperty(this, 'stack', {
-                        value: stack
+                        value: stack,
                     });
-        
+
                     return stack;
-                }
+                },
             });
-        }
+        };
     }
 
     // TODO Error.stackTraceLimit()
     // TODO Error.prepareStackTrace()
-}
+};

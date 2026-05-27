@@ -12,13 +12,7 @@ import ts from 'typescript';
 
 /** Build a minimal in-memory CompilerHost that serves a single file. */
 function makeInMemoryHost(filename: string, source: string): ts.CompilerHost {
-    const sourceFile = ts.createSourceFile(
-        filename,
-        source,
-        ts.ScriptTarget.ESNext,
-        true,
-        ts.ScriptKind.TS,
-    );
+    const sourceFile = ts.createSourceFile(filename, source, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
 
     return {
         getSourceFile: (name) => (name === filename ? sourceFile : undefined),
@@ -44,10 +38,7 @@ function makeInMemoryHost(filename: string, source: string): ts.CompilerHost {
 function makeStandaloneHost(files: Record<string, string>): ts.CompilerHost {
     const sourceFiles = new Map<string, ts.SourceFile>();
     for (const [name, source] of Object.entries(files)) {
-        sourceFiles.set(
-            name,
-            ts.createSourceFile(name, source, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS),
-        );
+        sourceFiles.set(name, ts.createSourceFile(name, source, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS));
     }
     return {
         getSourceFile: (name) => sourceFiles.get(name),
@@ -154,9 +145,7 @@ export default async () => {
                 messageText: 'outer',
                 category: ts.DiagnosticCategory.Error,
                 code: 0,
-                next: [
-                    { messageText: 'inner', category: ts.DiagnosticCategory.Error, code: 0 },
-                ],
+                next: [{ messageText: 'inner', category: ts.DiagnosticCategory.Error, code: 0 }],
             };
             const flat = ts.flattenDiagnosticMessageText(chain, '\n');
             expect(flat).toContain('outer');

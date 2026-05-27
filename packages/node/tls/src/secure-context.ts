@@ -37,10 +37,14 @@ export function createSecureContext(options?: SecureContextOptions): SecureConte
     const opts = options ?? {};
     let certificate: Gio.TlsCertificate | null = null;
     if (opts.cert) {
-        try { certificate = buildGioCertificate(opts.cert, opts.key); } catch { certificate = null; }
+        try {
+            certificate = buildGioCertificate(opts.cert, opts.key);
+        } catch {
+            certificate = null;
+        }
     }
     const caCertificates = opts.ca ? buildCaCertificates(opts.ca) : [];
     const ctx = { certificate, caCertificates, options: opts } as SecureContext;
-    ctx.context = ctx;  // Node-compat self-reference
+    ctx.context = ctx; // Node-compat self-reference
     return ctx;
 }

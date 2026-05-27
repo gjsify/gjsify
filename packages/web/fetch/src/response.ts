@@ -11,7 +11,7 @@ import Body, { clone, extractContentType } from './body.js';
 import { isRedirect } from './utils/is-redirect.js';
 
 import { URL } from '@gjsify/url';
-import { Blob } from './utils/blob-from.js';
+import type { Blob } from './utils/blob-from.js';
 
 import type { Readable } from 'node:stream';
 
@@ -52,7 +52,6 @@ interface ResponseInit {
  * @param opts Response options
  */
 export class Response extends Body {
-
     [INTERNALS]: {
         type: ResponseType;
         url: string;
@@ -87,7 +86,7 @@ export class Response extends Body {
             statusText: options.statusText || '',
             headers,
             counter: options.counter,
-            highWaterMark: options.highWaterMark
+            highWaterMark: options.highWaterMark,
         };
     }
 
@@ -141,7 +140,7 @@ export class Response extends Body {
             ok: this.ok,
             redirected: this.redirected,
             size: this.size,
-            highWaterMark: this.highWaterMark
+            highWaterMark: this.highWaterMark,
         });
     }
 
@@ -157,9 +156,9 @@ export class Response extends Body {
 
         return new Response(null, {
             headers: {
-                location: new URL(url).toString()
+                location: new URL(url).toString(),
             },
-            status
+            status,
         });
     }
 
@@ -192,25 +191,31 @@ export class Response extends Body {
 
     async text(): Promise<string> {
         if (!this._inputStream) {
-          return super.text();
+            return super.text();
         }
 
         const outputStream = Gio.MemoryOutputStream.new_resizable();
 
         await new Promise<number>((resolve, reject) => {
-          outputStream.splice_async(this._inputStream, Gio.OutputStreamSpliceFlags.CLOSE_TARGET | Gio.OutputStreamSpliceFlags.CLOSE_SOURCE, GLib.PRIORITY_DEFAULT, null, (_self: Gio.OutputStream, res: Gio.AsyncResult) => {
-            try {
-              resolve(outputStream.splice_finish(res));
-            } catch (error) {
-              reject(error);
-            }
-          });
+            outputStream.splice_async(
+                this._inputStream,
+                Gio.OutputStreamSpliceFlags.CLOSE_TARGET | Gio.OutputStreamSpliceFlags.CLOSE_SOURCE,
+                GLib.PRIORITY_DEFAULT,
+                null,
+                (_self: Gio.OutputStream, res: Gio.AsyncResult) => {
+                    try {
+                        resolve(outputStream.splice_finish(res));
+                    } catch (error) {
+                        reject(error);
+                    }
+                },
+            );
         });
 
         const bytes = outputStream.steal_as_bytes();
 
         return new TextDecoder().decode(bytes.toArray());
-      }
+    }
 }
 
 Object.defineProperties(Response.prototype, {
@@ -221,7 +226,7 @@ Object.defineProperties(Response.prototype, {
     redirected: { enumerable: true },
     statusText: { enumerable: true },
     headers: { enumerable: true },
-    clone: { enumerable: true }
+    clone: { enumerable: true },
 });
 
 export default Response;

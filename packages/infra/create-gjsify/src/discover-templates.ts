@@ -12,12 +12,12 @@ export interface TemplateInfo {
 }
 
 const FALLBACK_DESCRIPTIONS: Record<string, string> = {
-    'gtk-minimal':        'Minimal GTK4 app — Gtk.Window + Gtk.Label (no Adwaita, no Blueprint).',
-    'cli':                'Command-line tool using yargs (Node.js + GJS).',
-    'adw-canvas2d':       'Adwaita app with HTML Canvas 2D rendering (Blueprint UI).',
-    'adw-webgl':          'Adwaita app with WebGL + three.js (Blueprint UI).',
-    'adw-game':           'Adwaita game shell using Excalibur.js, WebGL → Canvas2D fallback.',
-    'web-server-hono':    'HTTP server using Hono (Web-standard fetch-style API).',
+    'gtk-minimal': 'Minimal GTK4 app — Gtk.Window + Gtk.Label (no Adwaita, no Blueprint).',
+    cli: 'Command-line tool using yargs (Node.js + GJS).',
+    'adw-canvas2d': 'Adwaita app with HTML Canvas 2D rendering (Blueprint UI).',
+    'adw-webgl': 'Adwaita app with WebGL + three.js (Blueprint UI).',
+    'adw-game': 'Adwaita game shell using Excalibur.js, WebGL → Canvas2D fallback.',
+    'web-server-hono': 'HTTP server using Hono (Web-standard fetch-style API).',
     'web-server-express': 'HTTP server using Express (familiar Node.js stack).',
 };
 

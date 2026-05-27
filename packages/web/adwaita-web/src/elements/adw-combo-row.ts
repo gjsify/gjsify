@@ -12,7 +12,9 @@ export class AdwComboRow extends HTMLElement {
     private _items: string[] = [];
     private _initialized = false;
 
-    static get observedAttributes() { return ['selected']; }
+    static get observedAttributes() {
+        return ['selected'];
+    }
 
     get selected(): number {
         return this._select ? this._select.selectedIndex : parseInt(this.getAttribute('selected') || '0', 10);
@@ -60,10 +62,12 @@ export class AdwComboRow extends HTMLElement {
             const idx = this._select.selectedIndex;
             this._valueEl.textContent = this._items[idx] ?? '';
             this.setAttribute('selected', String(idx));
-            this.dispatchEvent(new CustomEvent('notify::selected', {
-                bubbles: true,
-                detail: { selected: idx },
-            }));
+            this.dispatchEvent(
+                new CustomEvent('notify::selected', {
+                    bubbles: true,
+                    detail: { selected: idx },
+                }),
+            );
         });
     }
 

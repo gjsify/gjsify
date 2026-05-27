@@ -12,10 +12,7 @@ export {
     shouldRewrite,
     nodeModulesPathRewritePlugin,
 } from './plugins/rewrite-node-modules-paths.js';
-export type {
-    NodeModulesPathRewriteOptions,
-    RewriteResult,
-} from './plugins/rewrite-node-modules-paths.js';
+export type { NodeModulesPathRewriteOptions, RewriteResult } from './plugins/rewrite-node-modules-paths.js';
 
 export { processStubPlugin, GJS_PROCESS_STUB, composeBanner } from './plugins/process-stub.js';
 export type { ProcessStubPluginOptions } from './plugins/process-stub.js';

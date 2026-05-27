@@ -12,8 +12,8 @@
 import { MessageChannel, MessagePort } from './index.js';
 
 if (typeof (globalThis as { MessageChannel?: unknown }).MessageChannel === 'undefined') {
-  (globalThis as { MessageChannel: unknown }).MessageChannel = MessageChannel;
+    (globalThis as { MessageChannel: unknown }).MessageChannel = MessageChannel;
 }
 if (typeof (globalThis as { MessagePort?: unknown }).MessagePort === 'undefined') {
-  (globalThis as { MessagePort: unknown }).MessagePort = MessagePort;
+    (globalThis as { MessagePort: unknown }).MessagePort = MessagePort;
 }

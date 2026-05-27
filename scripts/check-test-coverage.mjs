@@ -65,7 +65,7 @@ async function* walk(dir) {
 }
 
 function shouldSkip(filename) {
-    return SKIP_FILE_PATTERNS.some(re => re.test(filename));
+    return SKIP_FILE_PATTERNS.some((re) => re.test(filename));
 }
 
 /**
@@ -74,19 +74,14 @@ function shouldSkip(filename) {
  */
 async function isCoveredByImport(implPath, siblingSpecs, specCache) {
     const name = basename(implPath, '.ts');
-    const needles = [
-        `./${name}'`,
-        `./${name}.js'`,
-        `./${name}"`,
-        `./${name}.js"`,
-    ];
+    const needles = [`./${name}'`, `./${name}.js'`, `./${name}"`, `./${name}.js"`];
     for (const spec of siblingSpecs) {
         let body = specCache.get(spec);
         if (body === undefined) {
             body = await readFile(spec, 'utf8');
             specCache.set(spec, body);
         }
-        if (needles.some(n => body.includes(n))) return true;
+        if (needles.some((n) => body.includes(n))) return true;
     }
     return false;
 }
@@ -110,7 +105,7 @@ async function analysePackage(packageDir) {
     for (const path of allFiles) {
         const name = basename(path);
         const dir = dirname(path);
-        if (/\.spec\.ts$/.test(name)) {
+        if (name.endsWith('.spec.ts')) {
             const list = specsByDir.get(dir) ?? [];
             list.push(path);
             specsByDir.set(dir, list);
@@ -126,7 +121,7 @@ async function analysePackage(packageDir) {
         const dir = dirname(impl);
         const siblings = specsByDir.get(dir) ?? [];
 
-        const hasMatchingSpec = siblings.some(s => {
+        const hasMatchingSpec = siblings.some((s) => {
             const sn = basename(s);
             return sn === `${name}.spec.ts` || sn === `${name}.gjs.spec.ts` || sn === `${name}.browser.spec.ts`;
         });
@@ -164,7 +159,9 @@ async function main() {
 
     results.sort((a, b) => a.package.localeCompare(b.package));
 
-    let totalImpl = 0, totalSpec = 0, totalUncovered = 0;
+    let totalImpl = 0,
+        totalSpec = 0,
+        totalUncovered = 0;
     console.log('package                                          impl  spec  uncov  status');
     console.log('-------------------------------------------------------------------------');
     for (const r of results) {
@@ -191,7 +188,7 @@ async function main() {
     }
 }
 
-main().catch(err => {
+main().catch((err) => {
     console.error(err);
     process.exit(2);
 });

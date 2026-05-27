@@ -22,7 +22,7 @@ export class DOMNode {
 
     get textContent(): string {
         if (this.nodeType === 3 || this.nodeType === 4) return this.nodeValue ?? '';
-        return this.childNodes.map(c => c.textContent ?? '').join('');
+        return this.childNodes.map((c) => c.textContent ?? '').join('');
     }
 }
 
@@ -58,12 +58,14 @@ export class DOMElement extends DOMNode {
     }
 
     get innerHTML(): string {
-        return this.childNodes.map(n => {
-            if (n.nodeType === 1) return (n as DOMElement).outerHTML;
-            if (n.nodeType === 3) return n.nodeValue ?? '';
-            if (n.nodeType === 4) return '<![CDATA[' + (n.nodeValue ?? '') + ']]>';
-            return '';
-        }).join('');
+        return this.childNodes
+            .map((n) => {
+                if (n.nodeType === 1) return (n as DOMElement).outerHTML;
+                if (n.nodeType === 3) return n.nodeValue ?? '';
+                if (n.nodeType === 4) return '<![CDATA[' + (n.nodeValue ?? '') + ']]>';
+                return '';
+            })
+            .join('');
     }
 
     get outerHTML(): string {
@@ -107,7 +109,7 @@ export class DOMElement extends DOMNode {
 
     private _queryChildChain(parts: string[]): DOMElement | null {
         const [first, ...rest] = parts;
-        const matching = this.children.filter(c => c.tagName === first.trim().toLowerCase());
+        const matching = this.children.filter((c) => c.tagName === first.trim().toLowerCase());
         if (rest.length === 0) return matching[0] ?? null;
         for (const el of matching) {
             const found = el._queryChildChain(rest);
@@ -245,7 +247,10 @@ function parseXml(xml: string): DOMDocument {
 
         const wsIdx = inner.search(/\s/);
         const tagName = (wsIdx === -1 ? inner : inner.slice(0, wsIdx)).trim();
-        if (!tagName) { i = gtIdx + 1; continue; }
+        if (!tagName) {
+            i = gtIdx + 1;
+            continue;
+        }
 
         const el = new DOMElement(tagName);
         if (wsIdx !== -1) parseAttributes(inner.slice(wsIdx), el);
@@ -272,8 +277,14 @@ function findTagEnd(xml: string, start: number): number {
     let inDouble = false;
     for (let i = start; i < xml.length; i++) {
         const ch = xml[i];
-        if (ch === '"' && !inSingle) { inDouble = !inDouble; continue; }
-        if (ch === "'" && !inDouble) { inSingle = !inSingle; continue; }
+        if (ch === '"' && !inSingle) {
+            inDouble = !inDouble;
+            continue;
+        }
+        if (ch === "'" && !inDouble) {
+            inSingle = !inSingle;
+            continue;
+        }
         if (ch === '>' && !inSingle && !inDouble) return i;
     }
     return -1;

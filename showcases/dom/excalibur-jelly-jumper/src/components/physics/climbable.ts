@@ -1,4 +1,4 @@
-import * as ex from 'excalibur'
+import * as ex from 'excalibur';
 
 /**
  * Marks an entity as climbable by the player.

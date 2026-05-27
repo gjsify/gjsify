@@ -21,10 +21,16 @@ export class RTCStatsReport {
         this._map = new Map(entries);
     }
 
-    get size(): number { return this._map.size; }
+    get size(): number {
+        return this._map.size;
+    }
 
-    get(key: string): RTCStats | undefined { return this._map.get(key); }
-    has(key: string): boolean { return this._map.has(key); }
+    get(key: string): RTCStats | undefined {
+        return this._map.get(key);
+    }
+    has(key: string): boolean {
+        return this._map.has(key);
+    }
 
     forEach(callbackfn: (value: RTCStats, key: string, map: RTCStatsReport) => void, thisArg?: unknown): void {
         this._map.forEach((value, key) => {
@@ -32,8 +38,16 @@ export class RTCStatsReport {
         });
     }
 
-    entries(): IterableIterator<[string, RTCStats]> { return this._map.entries(); }
-    keys(): IterableIterator<string> { return this._map.keys(); }
-    values(): IterableIterator<RTCStats> { return this._map.values(); }
-    [Symbol.iterator](): IterableIterator<[string, RTCStats]> { return this._map.entries(); }
+    entries(): IterableIterator<[string, RTCStats]> {
+        return this._map.entries();
+    }
+    keys(): IterableIterator<string> {
+        return this._map.keys();
+    }
+    values(): IterableIterator<RTCStats> {
+        return this._map.values();
+    }
+    [Symbol.iterator](): IterableIterator<[string, RTCStats]> {
+        return this._map.entries();
+    }
 }

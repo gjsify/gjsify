@@ -11,7 +11,6 @@ import { createGLSetup } from './setup.js';
 
 export default async () => {
     await on('Display', async () => {
-
         const setup = createGLSetup();
         if (!setup) {
             console.warn('WebGL context not available — skipping conformance/attribs tests');
@@ -24,7 +23,9 @@ export default async () => {
         // "This test ensures WebGL implementations vertexAttrib can be set and read."
 
         await describe('conformance/attribs/gl-vertex-attrib: vertexAttrib round-trip', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('vertexAttrib1f stores value in slot 0 and defaults to [x,0,0,1]', async () => {
                 gl.vertexAttrib1f(0, 5);
@@ -116,7 +117,9 @@ export default async () => {
         });
 
         await describe('conformance/attribs/gl-vertex-attrib: out-of-range index', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('getVertexAttrib with out-of-range index generates INVALID_VALUE', async () => {
                 const numAttribs = gl.getParameter(gl.MAX_VERTEX_ATTRIBS) as number;
@@ -147,7 +150,9 @@ export default async () => {
         // "tests that turning on attribs that have no buffer bound fails to draw"
 
         await describe('conformance/attribs/gl-enable-vertex-attrib', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('drawArrays with enabled attrib that has no buffer bound generates INVALID_OPERATION', async () => {
                 const vsSrc = `attribute vec4 vPosition; void main() { gl_Position = vPosition; }`;
@@ -157,9 +162,11 @@ export default async () => {
 
                 const vertexObject = gl.createBuffer()!;
                 gl.bindBuffer(gl.ARRAY_BUFFER, vertexObject);
-                gl.bufferData(gl.ARRAY_BUFFER,
+                gl.bufferData(
+                    gl.ARRAY_BUFFER,
                     new Float32Array([0, 0.5, 0, -0.5, -0.5, 0, 0.5, -0.5, 0]),
-                    gl.STATIC_DRAW);
+                    gl.STATIC_DRAW,
+                );
                 gl.enableVertexAttribArray(0);
                 gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
 
@@ -181,7 +188,9 @@ export default async () => {
         // "Test repeated loading of programs involving bindAttribLocation calls"
 
         await describe('conformance/attribs/gl-bindAttribLocation-repeated', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('getAttribLocation returns the bound location after linkProgram', async () => {
                 const vsSrc = `attribute vec4 vPosition; void main() { gl_Position = vPosition; }`;
@@ -225,32 +234,28 @@ export default async () => {
         // Tests that attribute declaration order in GLSL does not affect rendering.
 
         await describe('conformance/attribs/attribute-weirdness', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
-            const W = 2, H = 2;
+            const W = 2,
+                H = 2;
 
             // Vertex buffer: interleaved (a_pos: SHORT x2, a_texture_pos: SHORT x2) × 4 vertices
             // a_pos values (0,0),(4,0),(0,4),(4,4) → clip positions (-1,-1),(3,-1),(-1,3),(3,3)
             // The triangle strip covers the entire clip space after GPU clipping.
-            const VDATA = new Int16Array([
-                0, 0, 0, 0,
-                4, 0, 1, 0,
-                0, 4, 0, 1,
-                4, 4, 1, 1,
-            ]);
+            const VDATA = new Int16Array([0, 0, 0, 0, 4, 0, 1, 0, 0, 4, 0, 1, 4, 4, 1, 1]);
 
             function renderAttribWeirdness(flipAttributes: boolean, flipLocations: boolean): Uint8Array {
                 const fbo = makeTestFBO(gl, W, H);
 
-                const attrs = [
-                    'attribute vec2 a_pos;',
-                    'attribute vec2 a_texture_pos;',
-                ];
+                const attrs = ['attribute vec2 a_pos;', 'attribute vec2 a_texture_pos;'];
                 if (flipAttributes) attrs.reverse();
 
                 const vsSrc = [
                     'precision mediump float;',
-                    attrs[0], attrs[1],
+                    attrs[0],
+                    attrs[1],
                     'varying vec2 v_pos0;',
                     'void main() {',
                     '  v_pos0 = a_texture_pos;',
@@ -283,7 +288,9 @@ export default async () => {
                 gl.enableVertexAttribArray(aTexPos);
 
                 if (flipLocations) {
-                    const tmp = aPos; aPos = aTexPos; aTexPos = tmp;
+                    const tmp = aPos;
+                    aPos = aTexPos;
+                    aTexPos = tmp;
                 }
 
                 gl.vertexAttribPointer(aPos, 2, gl.SHORT, false, 8, 0);
@@ -303,7 +310,10 @@ export default async () => {
                 const pixels = renderAttribWeirdness(false, false);
                 let ok = true;
                 for (let i = 3; i < W * H * 4; i += 4) {
-                    if (pixels[i] !== 255) { ok = false; break; }
+                    if (pixels[i] !== 255) {
+                        ok = false;
+                        break;
+                    }
                 }
                 expect(ok).toBe(true);
             });
@@ -312,7 +322,10 @@ export default async () => {
                 const pixels = renderAttribWeirdness(true, false);
                 let ok = true;
                 for (let i = 3; i < W * H * 4; i += 4) {
-                    if (pixels[i] !== 255) { ok = false; break; }
+                    if (pixels[i] !== 255) {
+                        ok = false;
+                        break;
+                    }
                 }
                 expect(ok).toBe(true);
             });
@@ -321,7 +334,10 @@ export default async () => {
                 const pixels = renderAttribWeirdness(false, true);
                 let hasNonAlpha = false;
                 for (let i = 3; i < W * H * 4; i += 4) {
-                    if (pixels[i] !== 255) { hasNonAlpha = true; break; }
+                    if (pixels[i] !== 255) {
+                        hasNonAlpha = true;
+                        break;
+                    }
                 }
                 expect(hasNonAlpha).toBe(true);
             });

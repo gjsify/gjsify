@@ -38,67 +38,67 @@ const proj1 = join(dest, 'proj1');
 await mkdir(join(proj1, 'src', 'nested'), { recursive: true });
 
 await writeFile(
-  join(proj1, 'package.json'),
-  JSON.stringify(
-    {
-      name: 'proj1',
-      version: '1.2.3',
-      description: 'Test fixture for pkg-types/get-tsconfig integration',
-      type: 'module',
-      main: './src/index.ts',
-      author: 'gjsify integration suite',
-      license: 'MIT',
-      scripts: {
-        build: 'tsc',
-        test: 'echo no tests',
-      },
-      dependencies: {
-        'left-pad': '1.3.0',
-      },
-      devDependencies: {
-        typescript: '^6.0.0',
-      },
-    },
-    null,
-    2,
-  ) + '\n',
-);
-
-await writeFile(
-  join(proj1, 'tsconfig.base.json'),
-  JSON.stringify(
-    {
-      compilerOptions: {
-        target: 'es2022',
-        module: 'esnext',
-        strict: true,
-        esModuleInterop: true,
-      },
-    },
-    null,
-    2,
-  ) + '\n',
-);
-
-await writeFile(
-  join(proj1, 'tsconfig.json'),
-  JSON.stringify(
-    {
-      extends: './tsconfig.base.json',
-      compilerOptions: {
-        outDir: 'dist',
-        baseUrl: '.',
-        paths: {
-          '@app/*': ['src/*'],
-          '@nested/*': ['src/nested/*'],
+    join(proj1, 'package.json'),
+    JSON.stringify(
+        {
+            name: 'proj1',
+            version: '1.2.3',
+            description: 'Test fixture for pkg-types/get-tsconfig integration',
+            type: 'module',
+            main: './src/index.ts',
+            author: 'gjsify integration suite',
+            license: 'MIT',
+            scripts: {
+                build: 'tsc',
+                test: 'echo no tests',
+            },
+            dependencies: {
+                'left-pad': '1.3.0',
+            },
+            devDependencies: {
+                typescript: '^6.0.0',
+            },
         },
-      },
-      include: ['src/**/*'],
-      exclude: ['dist'],
-    },
-    null,
-    2,
-  ) + '\n',
+        null,
+        2,
+    ) + '\n',
+);
+
+await writeFile(
+    join(proj1, 'tsconfig.base.json'),
+    JSON.stringify(
+        {
+            compilerOptions: {
+                target: 'es2022',
+                module: 'esnext',
+                strict: true,
+                esModuleInterop: true,
+            },
+        },
+        null,
+        2,
+    ) + '\n',
+);
+
+await writeFile(
+    join(proj1, 'tsconfig.json'),
+    JSON.stringify(
+        {
+            extends: './tsconfig.base.json',
+            compilerOptions: {
+                outDir: 'dist',
+                baseUrl: '.',
+                paths: {
+                    '@app/*': ['src/*'],
+                    '@nested/*': ['src/nested/*'],
+                },
+            },
+            include: ['src/**/*'],
+            exclude: ['dist'],
+        },
+        null,
+        2,
+    ) + '\n',
 );
 
 await writeFile(join(proj1, 'src', 'index.ts'), 'export const proj1 = 1;\n');
@@ -109,59 +109,59 @@ const proj2 = join(dest, 'proj2');
 await mkdir(join(proj2, 'configs'), { recursive: true });
 
 await writeFile(
-  join(proj2, 'package.json'),
-  JSON.stringify(
-    {
-      name: 'proj2',
-      version: '0.0.1',
-      private: true,
-    },
-    null,
-    2,
-  ) + '\n',
+    join(proj2, 'package.json'),
+    JSON.stringify(
+        {
+            name: 'proj2',
+            version: '0.0.1',
+            private: true,
+        },
+        null,
+        2,
+    ) + '\n',
 );
 
 await writeFile(
-  join(proj2, 'configs', 'tsconfig.shared.json'),
-  JSON.stringify(
-    {
-      compilerOptions: {
-        target: 'es2020',
-        module: 'commonjs',
-      },
-    },
-    null,
-    2,
-  ) + '\n',
+    join(proj2, 'configs', 'tsconfig.shared.json'),
+    JSON.stringify(
+        {
+            compilerOptions: {
+                target: 'es2020',
+                module: 'commonjs',
+            },
+        },
+        null,
+        2,
+    ) + '\n',
 );
 
 await writeFile(
-  join(proj2, 'configs', 'tsconfig.strict.json'),
-  JSON.stringify(
-    {
-      extends: './tsconfig.shared.json',
-      compilerOptions: {
-        strict: true,
-        noImplicitAny: true,
-      },
-    },
-    null,
-    2,
-  ) + '\n',
+    join(proj2, 'configs', 'tsconfig.strict.json'),
+    JSON.stringify(
+        {
+            extends: './tsconfig.shared.json',
+            compilerOptions: {
+                strict: true,
+                noImplicitAny: true,
+            },
+        },
+        null,
+        2,
+    ) + '\n',
 );
 
 await writeFile(
-  join(proj2, 'tsconfig.json'),
-  JSON.stringify(
-    {
-      extends: './configs/tsconfig.strict.json',
-      compilerOptions: {
-        declaration: true,
-      },
-    },
-    null,
-    2,
-  ) + '\n',
+    join(proj2, 'tsconfig.json'),
+    JSON.stringify(
+        {
+            extends: './configs/tsconfig.strict.json',
+            compilerOptions: {
+                declaration: true,
+            },
+        },
+        null,
+        2,
+    ) + '\n',
 );
 
 // ------------------------------------------------------------- write-target
@@ -169,15 +169,15 @@ const writeTarget = join(dest, 'write-target');
 await mkdir(writeTarget, { recursive: true });
 
 await writeFile(
-  join(writeTarget, 'package.json'),
-  JSON.stringify(
-    {
-      name: 'write-target',
-      version: '0.0.0',
-    },
-    null,
-    2,
-  ) + '\n',
+    join(writeTarget, 'package.json'),
+    JSON.stringify(
+        {
+            name: 'write-target',
+            version: '0.0.0',
+        },
+        null,
+        2,
+    ) + '\n',
 );
 
 console.log(`[setup-fixtures] wrote tree -> ${dest}`);

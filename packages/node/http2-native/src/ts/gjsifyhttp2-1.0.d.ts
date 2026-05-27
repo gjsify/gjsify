@@ -1,4 +1,3 @@
-
 /**
  * Type Definitions for Gjs (https://gjs.guide/)
  *
@@ -9,351 +8,378 @@
  */
 
 declare module 'gi://GjsifyHttp2?version=1.0' {
+    // Module dependencies
+    import type GLib from '@girs/glib-2.0';
+    import type GObject from '@girs/gobject-2.0';
 
-// Module dependencies
-import type GLib from '@girs/glib-2.0';
-import type GObject from '@girs/gobject-2.0';
+    export namespace GjsifyHttp2 {
+        /**
+         * GjsifyHttp2-1.0
+         */
 
-export namespace GjsifyHttp2 {
+        namespace FrameEncoder {
+            // Signal signatures
+            interface SignalSignatures extends GObject.Object.SignalSignatures {}
 
-    /**
-     * GjsifyHttp2-1.0
-     */
-
-
-    namespace FrameEncoder {
-        // Signal signatures
-        interface SignalSignatures extends GObject.Object.SignalSignatures {
+            // Constructor properties interface
+            interface ConstructorProps extends GObject.Object.ConstructorProps {}
         }
 
-        // Constructor properties interface
-        interface ConstructorProps extends GObject.Object.ConstructorProps {
-
-        }
-    }
-
-    /**
-     * @gir-type Class
-     */
-    class FrameEncoder extends GObject.Object {
-        static $gtype: GObject.GType<FrameEncoder>;
-
         /**
-         * Compile-time signal type information.
-         *
-         * This instance property is generated only for TypeScript type checking.
-         * It is not defined at runtime and should not be accessed in JS code.
-         * @internal
+         * @gir-type Class
          */
-        $signals: FrameEncoder.SignalSignatures;
+        class FrameEncoder extends GObject.Object {
+            static $gtype: GObject.GType<FrameEncoder>;
 
-        // Constructors
-        constructor(properties?: Partial<FrameEncoder.ConstructorProps>, ...args: any[]);
+            /**
+             * Compile-time signal type information.
+             *
+             * This instance property is generated only for TypeScript type checking.
+             * It is not defined at runtime and should not be accessed in JS code.
+             * @internal
+             */
+            $signals: FrameEncoder.SignalSignatures;
 
-        _init(...args: any[]): void;
+            // Constructors
+            constructor(properties?: Partial<FrameEncoder.ConstructorProps>, ...args: any[]);
 
-        static ["new"](): FrameEncoder;
+            _init(...args: any[]): void;
 
-        // Signals
-        /** @signal */
-        connect<K extends keyof FrameEncoder.SignalSignatures>(signal: K, callback: GObject.SignalCallback<this, FrameEncoder.SignalSignatures[K]>): number;
-        connect(signal: string, callback: (...args: any[]) => any): number;
+            static ['new'](): FrameEncoder;
 
-        /** @signal */
-        connect_after<K extends keyof FrameEncoder.SignalSignatures>(signal: K, callback: GObject.SignalCallback<this, FrameEncoder.SignalSignatures[K]>): number;
-        connect_after(signal: string, callback: (...args: any[]) => any): number;
+            // Signals
+            /** @signal */
+            connect<K extends keyof FrameEncoder.SignalSignatures>(
+                signal: K,
+                callback: GObject.SignalCallback<this, FrameEncoder.SignalSignatures[K]>,
+            ): number;
+            connect(signal: string, callback: (...args: any[]) => any): number;
 
-        /** @signal */
-        emit<K extends keyof FrameEncoder.SignalSignatures>(signal: K, ...args: GObject.GjsParameters<FrameEncoder.SignalSignatures[K]> extends [any, ...infer Q] ? Q : never): void;
-        emit(signal: string, ...args: any[]): void;
+            /** @signal */
+            connect_after<K extends keyof FrameEncoder.SignalSignatures>(
+                signal: K,
+                callback: GObject.SignalCallback<this, FrameEncoder.SignalSignatures[K]>,
+            ): number;
+            connect_after(signal: string, callback: (...args: any[]) => any): number;
 
-        // Methods
-        /**
-         * @param names 
-         * @param values 
-         */
-        encode_headers(names: string[], values: string[]): (GLib.Bytes | null);
+            /** @signal */
+            emit<K extends keyof FrameEncoder.SignalSignatures>(
+                signal: K,
+                ...args: GObject.GjsParameters<FrameEncoder.SignalSignatures[K]> extends [any, ...infer Q] ? Q : never
+            ): void;
+            emit(signal: string, ...args: any[]): void;
 
-        /**
-         * @param stream_id 
-         * @param end_stream 
-         * @param payload 
-         */
-        build_data_frame(stream_id: number, end_stream: boolean, payload: (GLib.Bytes | Uint8Array)): GLib.Bytes;
+            // Methods
+            /**
+             * @param names
+             * @param values
+             */
+            encode_headers(names: string[], values: string[]): GLib.Bytes | null;
 
-        /**
-         * @param stream_id 
-         * @param end_stream 
-         * @param end_headers 
-         * @param header_block 
-         */
-        build_headers_frame(stream_id: number, end_stream: boolean, end_headers: boolean, header_block: (GLib.Bytes | Uint8Array)): GLib.Bytes;
+            /**
+             * @param stream_id
+             * @param end_stream
+             * @param payload
+             */
+            build_data_frame(stream_id: number, end_stream: boolean, payload: GLib.Bytes | Uint8Array): GLib.Bytes;
 
-        /**
-         * @param associated_stream_id
-         * @param promised_stream_id
-         * @param header_block
-         */
-        build_push_promise(associated_stream_id: number, promised_stream_id: number, header_block: (GLib.Bytes | Uint8Array)): GLib.Bytes;
+            /**
+             * @param stream_id
+             * @param end_stream
+             * @param end_headers
+             * @param header_block
+             */
+            build_headers_frame(
+                stream_id: number,
+                end_stream: boolean,
+                end_headers: boolean,
+                header_block: GLib.Bytes | Uint8Array,
+            ): GLib.Bytes;
 
-        /**
-         * @param ack send a SETTINGS-ACK frame (empty payload)
-         * @param ids SETTINGS identifier array
-         * @param values matching values array
-         */
-        build_settings_frame(ack: boolean, ids: number[], values: number[]): GLib.Bytes;
+            /**
+             * @param associated_stream_id
+             * @param promised_stream_id
+             * @param header_block
+             */
+            build_push_promise(
+                associated_stream_id: number,
+                promised_stream_id: number,
+                header_block: GLib.Bytes | Uint8Array,
+            ): GLib.Bytes;
 
-        /**
-         * @param stream_id 0 for connection-level, > 0 for per-stream
-         * @param increment 31-bit window-size increment
-         */
-        build_window_update_frame(stream_id: number, increment: number): GLib.Bytes;
+            /**
+             * @param ack send a SETTINGS-ACK frame (empty payload)
+             * @param ids SETTINGS identifier array
+             * @param values matching values array
+             */
+            build_settings_frame(ack: boolean, ids: number[], values: number[]): GLib.Bytes;
 
-        /**
-         * @param ack send a PING-ACK frame (caller echoes payload)
-         * @param payload 8 bytes opaque data
-         */
-        build_ping_frame(ack: boolean, payload: (GLib.Bytes | Uint8Array | null)): GLib.Bytes;
+            /**
+             * @param stream_id 0 for connection-level, > 0 for per-stream
+             * @param increment 31-bit window-size increment
+             */
+            build_window_update_frame(stream_id: number, increment: number): GLib.Bytes;
 
-        /**
-         * @param stream_id stream to reset
-         * @param error_code RFC 7540 error code
-         */
-        build_rst_stream_frame(stream_id: number, error_code: number): GLib.Bytes;
+            /**
+             * @param ack send a PING-ACK frame (caller echoes payload)
+             * @param payload 8 bytes opaque data
+             */
+            build_ping_frame(ack: boolean, payload: GLib.Bytes | Uint8Array | null): GLib.Bytes;
 
-        /**
-         * @param last_stream_id highest stream id processed
-         * @param error_code RFC 7540 error code
-         * @param debug_data optional debug info
-         */
-        build_goaway_frame(last_stream_id: number, error_code: number, debug_data: (GLib.Bytes | Uint8Array | null)): GLib.Bytes;
+            /**
+             * @param stream_id stream to reset
+             * @param error_code RFC 7540 error code
+             */
+            build_rst_stream_frame(stream_id: number, error_code: number): GLib.Bytes;
 
-        nghttp2_version(): string;
-    }
+            /**
+             * @param last_stream_id highest stream id processed
+             * @param error_code RFC 7540 error code
+             * @param debug_data optional debug info
+             */
+            build_goaway_frame(
+                last_stream_id: number,
+                error_code: number,
+                debug_data: GLib.Bytes | Uint8Array | null,
+            ): GLib.Bytes;
 
-
-    namespace StreamIdAllocator {
-        // Signal signatures
-        interface SignalSignatures extends GObject.Object.SignalSignatures {
-            "notify::last-client-stream-id": (pspec: GObject.ParamSpec) => void;
-            "notify::remaining-pushes": (pspec: GObject.ParamSpec) => void;
-        }
-
-        // Constructor properties interface
-        interface ConstructorProps extends GObject.Object.ConstructorProps {
-            last_client_stream_id: number;
-            lastClientStreamId: number;
-            remaining_pushes: number;
-            remainingPushes: number;
-        }
-    }
-
-    /**
-     * @gir-type Class
-     */
-    class StreamIdAllocator extends GObject.Object {
-        static $gtype: GObject.GType<StreamIdAllocator>;
-
-        // Properties
-        /**
-         * @read-only
-         */
-        get last_client_stream_id(): number;
-
-        /**
-         * @read-only
-         */
-        get lastClientStreamId(): number;
-
-        /**
-         * @read-only
-         */
-        get remaining_pushes(): number;
-
-        /**
-         * @read-only
-         */
-        get remainingPushes(): number;
-
-        /**
-         * Compile-time signal type information.
-         *
-         * This instance property is generated only for TypeScript type checking.
-         * It is not defined at runtime and should not be accessed in JS code.
-         * @internal
-         */
-        $signals: StreamIdAllocator.SignalSignatures;
-
-        // Constructors
-        constructor(properties?: Partial<StreamIdAllocator.ConstructorProps>, ...args: any[]);
-
-        _init(...args: any[]): void;
-
-        static ["new"](): StreamIdAllocator;
-
-        // Signals
-        /** @signal */
-        connect<K extends keyof StreamIdAllocator.SignalSignatures>(signal: K, callback: GObject.SignalCallback<this, StreamIdAllocator.SignalSignatures[K]>): number;
-        connect(signal: string, callback: (...args: any[]) => any): number;
-
-        /** @signal */
-        connect_after<K extends keyof StreamIdAllocator.SignalSignatures>(signal: K, callback: GObject.SignalCallback<this, StreamIdAllocator.SignalSignatures[K]>): number;
-        connect_after(signal: string, callback: (...args: any[]) => any): number;
-
-        /** @signal */
-        emit<K extends keyof StreamIdAllocator.SignalSignatures>(signal: K, ...args: GObject.GjsParameters<StreamIdAllocator.SignalSignatures[K]> extends [any, ...infer Q] ? Q : never): void;
-        emit(signal: string, ...args: any[]): void;
-
-        // Methods
-        next_promised(): number;
-
-        /**
-         * @param id 
-         */
-        record_client_stream(id: number): void;
-
-        get_last_client_stream_id(): number;
-
-        get_remaining_pushes(): number;
-    }
-
-
-    namespace SessionBridge {
-        // Signal signatures
-        interface SignalSignatures extends GObject.Object.SignalSignatures {
-            "headers-received": (stream_id: number, headers: GLib.Variant, end_stream: boolean) => void;
-            "data-received": (stream_id: number, chunk: GLib.Bytes, end_stream: boolean) => void;
-            "stream-closed": (stream_id: number, error_code: number) => void;
-            "frame-send-ready": () => void;
-            "goaway-received": (last_stream_id: number, error_code: number) => void;
-            "settings-received": () => void;
-            "push-promise-received": (stream_id: number, promised_stream_id: number, headers: GLib.Variant) => void;
+            nghttp2_version(): string;
         }
 
-        // Constructor properties interface
-        interface ConstructorProps extends GObject.Object.ConstructorProps {
+        namespace StreamIdAllocator {
+            // Signal signatures
+            interface SignalSignatures extends GObject.Object.SignalSignatures {
+                'notify::last-client-stream-id': (pspec: GObject.ParamSpec) => void;
+                'notify::remaining-pushes': (pspec: GObject.ParamSpec) => void;
+            }
 
+            // Constructor properties interface
+            interface ConstructorProps extends GObject.Object.ConstructorProps {
+                last_client_stream_id: number;
+                lastClientStreamId: number;
+                remaining_pushes: number;
+                remainingPushes: number;
+            }
         }
-    }
-
-    /**
-     * @gir-type Class
-     */
-    class SessionBridge extends GObject.Object {
-        static $gtype: GObject.GType<SessionBridge>;
 
         /**
-         * Compile-time signal type information.
-         *
-         * This instance property is generated only for TypeScript type checking.
-         * It is not defined at runtime and should not be accessed in JS code.
-         * @internal
+         * @gir-type Class
          */
-        $signals: SessionBridge.SignalSignatures;
+        class StreamIdAllocator extends GObject.Object {
+            static $gtype: GObject.GType<StreamIdAllocator>;
 
-        // Constructors
-        constructor(properties?: Partial<SessionBridge.ConstructorProps>, ...args: any[]);
+            // Properties
+            /**
+             * @read-only
+             */
+            get last_client_stream_id(): number;
 
-        _init(...args: any[]): void;
+            /**
+             * @read-only
+             */
+            get lastClientStreamId(): number;
 
-        // Signals
-        /** @signal */
-        connect<K extends keyof SessionBridge.SignalSignatures>(signal: K, callback: GObject.SignalCallback<this, SessionBridge.SignalSignatures[K]>): number;
-        connect(signal: string, callback: (...args: any[]) => any): number;
+            /**
+             * @read-only
+             */
+            get remaining_pushes(): number;
 
-        /** @signal */
-        connect_after<K extends keyof SessionBridge.SignalSignatures>(signal: K, callback: GObject.SignalCallback<this, SessionBridge.SignalSignatures[K]>): number;
-        connect_after(signal: string, callback: (...args: any[]) => any): number;
+            /**
+             * @read-only
+             */
+            get remainingPushes(): number;
 
-        /** @signal */
-        emit<K extends keyof SessionBridge.SignalSignatures>(signal: K, ...args: GObject.GjsParameters<SessionBridge.SignalSignatures[K]> extends [any, ...infer Q] ? Q : never): void;
-        emit(signal: string, ...args: any[]): void;
+            /**
+             * Compile-time signal type information.
+             *
+             * This instance property is generated only for TypeScript type checking.
+             * It is not defined at runtime and should not be accessed in JS code.
+             * @internal
+             */
+            $signals: StreamIdAllocator.SignalSignatures;
 
-        // Static factories
-        static new_server(): SessionBridge | null;
-        static new_client(): SessionBridge | null;
+            // Constructors
+            constructor(properties?: Partial<StreamIdAllocator.ConstructorProps>, ...args: any[]);
 
-        // Static helpers
-        static is_client_preface(bytes: (GLib.Bytes | null)): boolean;
-        static preface_length(): number;
+            _init(...args: any[]): void;
 
-        // I/O
-        feed_input(input: GLib.Bytes): number;
-        drain_output(): GLib.Bytes;
-        want_read(): boolean;
-        want_write(): boolean;
+            static ['new'](): StreamIdAllocator;
 
-        // Submits
-        submit_settings(): number;
-        submit_response(stream_id: number, names: string[], values: string[], end_stream: boolean): number;
-        submit_request(names: string[], values: string[], end_stream: boolean): number;
-        submit_data(stream_id: number, data: GLib.Bytes, end_stream: boolean): number;
-        submit_push_promise(parent_id: number, names: string[], values: string[]): number;
-        submit_goaway(last_stream_id: number, error_code: number): number;
-        submit_rst_stream(stream_id: number, error_code: number): number;
+            // Signals
+            /** @signal */
+            connect<K extends keyof StreamIdAllocator.SignalSignatures>(
+                signal: K,
+                callback: GObject.SignalCallback<this, StreamIdAllocator.SignalSignatures[K]>,
+            ): number;
+            connect(signal: string, callback: (...args: any[]) => any): number;
 
-        // Synchronous event drain (test/dispatcher use).
-        dispatch_pending(): void;
+            /** @signal */
+            connect_after<K extends keyof StreamIdAllocator.SignalSignatures>(
+                signal: K,
+                callback: GObject.SignalCallback<this, StreamIdAllocator.SignalSignatures[K]>,
+            ): number;
+            connect_after(signal: string, callback: (...args: any[]) => any): number;
 
-        // Teardown.
-        close(): void;
+            /** @signal */
+            emit<K extends keyof StreamIdAllocator.SignalSignatures>(
+                signal: K,
+                ...args: GObject.GjsParameters<StreamIdAllocator.SignalSignatures[K]> extends [any, ...infer Q]
+                    ? Q
+                    : never
+            ): void;
+            emit(signal: string, ...args: any[]): void;
+
+            // Methods
+            next_promised(): number;
+
+            /**
+             * @param id
+             */
+            record_client_stream(id: number): void;
+
+            get_last_client_stream_id(): number;
+
+            get_remaining_pushes(): number;
+        }
+
+        namespace SessionBridge {
+            // Signal signatures
+            interface SignalSignatures extends GObject.Object.SignalSignatures {
+                'headers-received': (stream_id: number, headers: GLib.Variant, end_stream: boolean) => void;
+                'data-received': (stream_id: number, chunk: GLib.Bytes, end_stream: boolean) => void;
+                'stream-closed': (stream_id: number, error_code: number) => void;
+                'frame-send-ready': () => void;
+                'goaway-received': (last_stream_id: number, error_code: number) => void;
+                'settings-received': () => void;
+                'push-promise-received': (stream_id: number, promised_stream_id: number, headers: GLib.Variant) => void;
+            }
+
+            // Constructor properties interface
+            interface ConstructorProps extends GObject.Object.ConstructorProps {}
+        }
+
+        /**
+         * @gir-type Class
+         */
+        class SessionBridge extends GObject.Object {
+            static $gtype: GObject.GType<SessionBridge>;
+
+            /**
+             * Compile-time signal type information.
+             *
+             * This instance property is generated only for TypeScript type checking.
+             * It is not defined at runtime and should not be accessed in JS code.
+             * @internal
+             */
+            $signals: SessionBridge.SignalSignatures;
+
+            // Constructors
+            constructor(properties?: Partial<SessionBridge.ConstructorProps>, ...args: any[]);
+
+            _init(...args: any[]): void;
+
+            // Signals
+            /** @signal */
+            connect<K extends keyof SessionBridge.SignalSignatures>(
+                signal: K,
+                callback: GObject.SignalCallback<this, SessionBridge.SignalSignatures[K]>,
+            ): number;
+            connect(signal: string, callback: (...args: any[]) => any): number;
+
+            /** @signal */
+            connect_after<K extends keyof SessionBridge.SignalSignatures>(
+                signal: K,
+                callback: GObject.SignalCallback<this, SessionBridge.SignalSignatures[K]>,
+            ): number;
+            connect_after(signal: string, callback: (...args: any[]) => any): number;
+
+            /** @signal */
+            emit<K extends keyof SessionBridge.SignalSignatures>(
+                signal: K,
+                ...args: GObject.GjsParameters<SessionBridge.SignalSignatures[K]> extends [any, ...infer Q] ? Q : never
+            ): void;
+            emit(signal: string, ...args: any[]): void;
+
+            // Static factories
+            static new_server(): SessionBridge | null;
+            static new_client(): SessionBridge | null;
+
+            // Static helpers
+            static is_client_preface(bytes: GLib.Bytes | null): boolean;
+            static preface_length(): number;
+
+            // I/O
+            feed_input(input: GLib.Bytes): number;
+            drain_output(): GLib.Bytes;
+            want_read(): boolean;
+            want_write(): boolean;
+
+            // Submits
+            submit_settings(): number;
+            submit_response(stream_id: number, names: string[], values: string[], end_stream: boolean): number;
+            submit_request(names: string[], values: string[], end_stream: boolean): number;
+            submit_data(stream_id: number, data: GLib.Bytes, end_stream: boolean): number;
+            submit_push_promise(parent_id: number, names: string[], values: string[]): number;
+            submit_goaway(last_stream_id: number, error_code: number): number;
+            submit_rst_stream(stream_id: number, error_code: number): number;
+
+            // Synchronous event drain (test/dispatcher use).
+            dispatch_pending(): void;
+
+            // Teardown.
+            close(): void;
+        }
+
+        /**
+         * @gir-type Alias
+         */
+        type FrameEncoderClass = typeof FrameEncoder;
+
+        /**
+         * @gir-type Struct
+         */
+        abstract class FrameEncoderPrivate {
+            static $gtype: GObject.GType<FrameEncoderPrivate>;
+        }
+
+        /**
+         * @gir-type Alias
+         */
+        type StreamIdAllocatorClass = typeof StreamIdAllocator;
+
+        /**
+         * @gir-type Struct
+         */
+        abstract class StreamIdAllocatorPrivate {
+            static $gtype: GObject.GType<StreamIdAllocatorPrivate>;
+        }
+
+        /**
+         * @gir-type Alias
+         */
+        type SessionBridgeClass = typeof SessionBridge;
+
+        /**
+         * @gir-type Struct
+         */
+        abstract class SessionBridgePrivate {
+            static $gtype: GObject.GType<SessionBridgePrivate>;
+        }
+
+        /**
+         * Name of the imported GIR library
+         * `see` https://gitlab.gnome.org/GNOME/gjs/-/blob/master/gi/ns.cpp#L188
+         */
+        const __name__: string;
+
+        /**
+         * Version of the imported GIR library
+         * `see` https://gitlab.gnome.org/GNOME/gjs/-/blob/master/gi/ns.cpp#L189
+         */
+        const __version__: string;
     }
 
-
-    /**
-     * @gir-type Alias
-     */
-    type FrameEncoderClass = typeof FrameEncoder;
-
-    /**
-     * @gir-type Struct
-     */
-    abstract class FrameEncoderPrivate {
-        static $gtype: GObject.GType<FrameEncoderPrivate>;
-    }
-
-
-    /**
-     * @gir-type Alias
-     */
-    type StreamIdAllocatorClass = typeof StreamIdAllocator;
-
-    /**
-     * @gir-type Struct
-     */
-    abstract class StreamIdAllocatorPrivate {
-        static $gtype: GObject.GType<StreamIdAllocatorPrivate>;
-    }
-
-
-    /**
-     * @gir-type Alias
-     */
-    type SessionBridgeClass = typeof SessionBridge;
-
-    /**
-     * @gir-type Struct
-     */
-    abstract class SessionBridgePrivate {
-        static $gtype: GObject.GType<SessionBridgePrivate>;
-    }
-
-
-    /**
-     * Name of the imported GIR library
-     * `see` https://gitlab.gnome.org/GNOME/gjs/-/blob/master/gi/ns.cpp#L188
-     */
-    const __name__: string;
-
-    /**
-     * Version of the imported GIR library
-     * `see` https://gitlab.gnome.org/GNOME/gjs/-/blob/master/gi/ns.cpp#L189
-     */
-    const __version__: string;
-}
-
-export default GjsifyHttp2;
-
+    export default GjsifyHttp2;
 }
 
 declare module 'gi://GjsifyHttp2' {

@@ -25,7 +25,11 @@ const VIDEO_CAPABILITIES: RTCRtpCapabilities = {
     codecs: [
         { mimeType: 'video/VP8', clockRate: 90000 },
         { mimeType: 'video/rtx', clockRate: 90000 },
-        { mimeType: 'video/H264', clockRate: 90000, sdpFmtpLine: 'level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f' },
+        {
+            mimeType: 'video/H264',
+            clockRate: 90000,
+            sdpFmtpLine: 'level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f',
+        },
         { mimeType: 'video/VP9', clockRate: 90000 },
         { mimeType: 'video/red', clockRate: 90000 },
         { mimeType: 'video/ulpfec', clockRate: 90000 },

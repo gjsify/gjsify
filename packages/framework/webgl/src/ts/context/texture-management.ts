@@ -6,7 +6,7 @@ import * as bits from 'bit-twiddle';
 import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 import type { WebGLContextBase } from '../webgl-context-base.js';
 import { WebGLTexture } from '../webgl-texture.js';
-import { WebGLTextureUnit } from '../webgl-texture-unit.js';
+import type { WebGLTextureUnit } from '../webgl-texture-unit.js';
 import {
     Uint8ArrayToVariant,
     arrayToUint8Array,
@@ -27,14 +27,84 @@ export interface TextureManagementMethods {
     deleteTexture(texture: WebGLTexture | null): void;
     _detachTextureFromAllFramebuffers(texture: WebGLTexture): void;
     pixelStorei(pname?: GLenum, param?: GLint | GLboolean): void;
-    texImage2D(target: GLenum, level: GLint, internalFormat: GLint, width: GLsizei, height: GLsizei, border: GLint, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void;
-    texImage2D(target: GLenum, level: GLint, internalFormat: GLint, format: GLenum, type: GLenum, source: TexImageSource | GdkPixbuf.Pixbuf): void;
-    texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, width: GLsizei, height: GLsizei, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void;
-    texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, format: GLenum, type: GLenum, source: TexImageSource | GdkPixbuf.Pixbuf): void;
-    copyTexImage2D(target?: GLenum, level?: GLint, internalFormat?: GLenum, x?: GLint, y?: GLint, width?: GLsizei, height?: GLsizei, border?: GLint): void;
-    copyTexSubImage2D(target?: GLenum, level?: GLint, xoffset?: GLint, yoffset?: GLint, x?: GLint, y?: GLint, width?: GLsizei, height?: GLsizei): void;
-    compressedTexImage2D(target: GLenum, level: GLint, internalFormat: GLenum, width: GLsizei, height: GLsizei, border: GLint, data: TypedArray): void;
-    compressedTexSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, width: GLsizei, height: GLsizei, format: GLenum, data: TypedArray): void;
+    texImage2D(
+        target: GLenum,
+        level: GLint,
+        internalFormat: GLint,
+        width: GLsizei,
+        height: GLsizei,
+        border: GLint,
+        format: GLenum,
+        type: GLenum,
+        pixels: ArrayBufferView | null,
+    ): void;
+    texImage2D(
+        target: GLenum,
+        level: GLint,
+        internalFormat: GLint,
+        format: GLenum,
+        type: GLenum,
+        source: TexImageSource | GdkPixbuf.Pixbuf,
+    ): void;
+    texSubImage2D(
+        target: GLenum,
+        level: GLint,
+        xoffset: GLint,
+        yoffset: GLint,
+        width: GLsizei,
+        height: GLsizei,
+        format: GLenum,
+        type: GLenum,
+        pixels: ArrayBufferView | null,
+    ): void;
+    texSubImage2D(
+        target: GLenum,
+        level: GLint,
+        xoffset: GLint,
+        yoffset: GLint,
+        format: GLenum,
+        type: GLenum,
+        source: TexImageSource | GdkPixbuf.Pixbuf,
+    ): void;
+    copyTexImage2D(
+        target?: GLenum,
+        level?: GLint,
+        internalFormat?: GLenum,
+        x?: GLint,
+        y?: GLint,
+        width?: GLsizei,
+        height?: GLsizei,
+        border?: GLint,
+    ): void;
+    copyTexSubImage2D(
+        target?: GLenum,
+        level?: GLint,
+        xoffset?: GLint,
+        yoffset?: GLint,
+        x?: GLint,
+        y?: GLint,
+        width?: GLsizei,
+        height?: GLsizei,
+    ): void;
+    compressedTexImage2D(
+        target: GLenum,
+        level: GLint,
+        internalFormat: GLenum,
+        width: GLsizei,
+        height: GLsizei,
+        border: GLint,
+        data: TypedArray,
+    ): void;
+    compressedTexSubImage2D(
+        target: GLenum,
+        level: GLint,
+        xoffset: GLint,
+        yoffset: GLint,
+        width: GLsizei,
+        height: GLsizei,
+        format: GLenum,
+        data: TypedArray,
+    ): void;
     texParameterf(target?: GLenum, pname?: GLenum, param?: GLfloat): void;
     texParameteri(target?: GLenum, pname?: GLenum, param?: GLint): void;
     getTexParameter(target?: GLenum, pname?: GLenum): unknown;
@@ -52,7 +122,7 @@ export interface TextureManagementMethods {
 }
 
 declare module '../webgl-context-base.js' {
-    interface WebGLContextBase extends TextureManagementMethods { }
+    interface WebGLContextBase extends TextureManagementMethods {}
 }
 
 const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
@@ -81,8 +151,7 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         let textureId = 0;
         if (!texture) {
             texture = null;
-        } else if (texture instanceof WebGLTexture &&
-            texture._pendingDelete) {
+        } else if (texture instanceof WebGLTexture && texture._pendingDelete) {
             // Special case: error codes for deleted textures don't get set for some dumb reason
             return;
         } else if (this._checkWrapper(texture, WebGLTexture)) {
@@ -101,9 +170,7 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         }
 
         this._saveError();
-        this._gl.bindTexture(
-            target,
-            textureId);
+        this._gl.bindTexture(target, textureId);
         const error = this.getError();
         this._restoreError(error);
 
@@ -206,7 +273,8 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
                         attachment,
                         framebuffer._attachmentFace[attachment] || this.TEXTURE_2D,
                         0,
-                        framebuffer._attachmentLevel[attachment] || 0);
+                        framebuffer._attachmentLevel[attachment] || 0,
+                    );
                     // Clear JS-side bookkeeping (updates _refCount + _references).
                     framebuffer._setAttachment(null, attachment);
                 }
@@ -215,9 +283,7 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
 
         // Restore previous binding if we changed it.
         if (restoreActive) {
-            this._gl.bindFramebuffer(
-                this.FRAMEBUFFER,
-                activeFramebuffer ? activeFramebuffer._ | 0 : this._gtkFboId);
+            this._gl.bindFramebuffer(this.FRAMEBUFFER, activeFramebuffer ? activeFramebuffer._ | 0 : this._gtkFboId);
         }
     },
 
@@ -226,20 +292,14 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
             param = param === false ? 0 : 1;
         }
         if (pname === this.UNPACK_ALIGNMENT) {
-            if (param === 1 ||
-                param === 2 ||
-                param === 4 ||
-                param === 8) {
+            if (param === 1 || param === 2 || param === 4 || param === 8) {
                 this._unpackAlignment = param;
             } else {
                 this.setError(this.INVALID_VALUE);
                 return;
             }
         } else if (pname === this.PACK_ALIGNMENT) {
-            if (param === 1 ||
-                param === 2 ||
-                param === 4 ||
-                param === 8) {
+            if (param === 1 || param === 2 || param === 4 || param === 8) {
                 this._packAlignment = param;
             } else {
                 this.setError(this.INVALID_VALUE);
@@ -260,7 +320,18 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         this._gl.pixelStorei(pname, param);
     },
 
-    texImage2D(this: WebGLContextBase, target: GLenum = 0, level: GLint = 0, internalFormat: GLint = 0, formatOrWidth: GLenum | GLsizei = 0, typeOrHeight: GLenum | GLsizei = 0, sourceOrBorder: TexImageSource | GdkPixbuf.Pixbuf | GLint = 0, _format: GLenum = 0, type: GLenum = 0, pixels?: ArrayBufferView | null): void {
+    texImage2D(
+        this: WebGLContextBase,
+        target: GLenum = 0,
+        level: GLint = 0,
+        internalFormat: GLint = 0,
+        formatOrWidth: GLenum | GLsizei = 0,
+        typeOrHeight: GLenum | GLsizei = 0,
+        sourceOrBorder: TexImageSource | GdkPixbuf.Pixbuf | GLint = 0,
+        _format: GLenum = 0,
+        type: GLenum = 0,
+        pixels?: ArrayBufferView | null,
+    ): void {
         let width = 0;
         let height = 0;
         let format = 0;
@@ -283,7 +354,9 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
                 const imageData = extractImageData(source);
 
                 if (imageData == null) {
-                    throw new TypeError('texImage2D(GLenum, GLint, GLenum, GLint, GLenum, GLenum, ImageData | HTMLImageElement | HTMLCanvasElement | HTMLVideoElement)');
+                    throw new TypeError(
+                        'texImage2D(GLenum, GLint, GLenum, GLint, GLenum, GLenum, ImageData | HTMLImageElement | HTMLCanvasElement | HTMLVideoElement)',
+                    );
                 }
 
                 width = imageData.width;
@@ -295,7 +368,7 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
             height = typeOrHeight;
             border = sourceOrBorder as GLint;
             format = _format;
-            type = type;
+            // `type` is already the 8th positional parameter in the 9-arg form — no remap needed.
             pixels = pixels as ArrayBufferView | null;
         }
 
@@ -324,11 +397,7 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
             return;
         }
 
-        if (!this._checkDimensions(
-            target,
-            width,
-            height,
-            level)) {
+        if (!this._checkDimensions(target, width, height, level)) {
             return;
         }
 
@@ -341,8 +410,7 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
             return;
         }
 
-        if (border !== 0 ||
-            (validCubeTarget(this, target) && width !== height)) {
+        if (border !== 0 || (validCubeTarget(this, target) && width !== height)) {
             this.setError(this.INVALID_VALUE);
             return;
         }
@@ -369,7 +437,17 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         // Need to check for out of memory error
         this._saveError();
 
-        this._gl.texImage2D(target, level, internalFormat, width, height, border, format, type, Uint8ArrayToVariant(data));
+        this._gl.texImage2D(
+            target,
+            level,
+            internalFormat,
+            width,
+            height,
+            border,
+            format,
+            type,
+            Uint8ArrayToVariant(data),
+        );
 
         const error = this.getError();
         this._restoreError(error);
@@ -399,7 +477,18 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         }
     },
 
-    texSubImage2D(this: WebGLContextBase, target: GLenum = 0, level: GLint = 0, xoffset: GLint = 0, yoffset: GLint = 0, formatOrWidth: GLenum | GLsizei = 0, typeOrHeight: GLenum | GLsizei = 0, sourceOrFormat: TexImageSource | GdkPixbuf.Pixbuf | GLenum = 0, type: GLenum = 0, pixels?: ArrayBufferView | null): void {
+    texSubImage2D(
+        this: WebGLContextBase,
+        target: GLenum = 0,
+        level: GLint = 0,
+        xoffset: GLint = 0,
+        yoffset: GLint = 0,
+        formatOrWidth: GLenum | GLsizei = 0,
+        typeOrHeight: GLenum | GLsizei = 0,
+        sourceOrFormat: TexImageSource | GdkPixbuf.Pixbuf | GLenum = 0,
+        type: GLenum = 0,
+        pixels?: ArrayBufferView | null,
+    ): void {
         let width = 0;
         let height = 0;
         let format = 0;
@@ -421,7 +510,9 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
                 const imageData = extractImageData(source);
 
                 if (imageData == null) {
-                    throw new TypeError('texSubImage2D(GLenum, GLint, GLint, GLint, GLenum, GLenum, ImageData | HTMLImageElement | HTMLCanvasElement | HTMLVideoElement)');
+                    throw new TypeError(
+                        'texSubImage2D(GLenum, GLint, GLint, GLint, GLenum, GLenum, ImageData | HTMLImageElement | HTMLCanvasElement | HTMLVideoElement)',
+                    );
                 }
 
                 width = imageData.width;
@@ -454,11 +545,7 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
             return;
         }
 
-        if (!this._checkDimensions(
-            target,
-            width,
-            height,
-            level)) {
+        if (!this._checkDimensions(target, width, height, level)) {
             return;
         }
 
@@ -492,30 +579,33 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
             data = flipped;
         }
 
-        this._gl.texSubImage2D(
-            target,
-            level,
-            xoffset,
-            yoffset,
-            width,
-            height,
-            format,
-            type,
-            Uint8ArrayToVariant(data));
+        this._gl.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, Uint8ArrayToVariant(data));
     },
 
-    copyTexImage2D(this: WebGLContextBase, target: GLenum = 0, level: GLint = 0, internalFormat: GLenum = 0, x: GLint = 0, y: GLint = 0, width: GLsizei = 0, height: GLsizei = 0, border: GLint = 0): void {
+    copyTexImage2D(
+        this: WebGLContextBase,
+        target: GLenum = 0,
+        level: GLint = 0,
+        internalFormat: GLenum = 0,
+        x: GLint = 0,
+        y: GLint = 0,
+        width: GLsizei = 0,
+        height: GLsizei = 0,
+        border: GLint = 0,
+    ): void {
         const texture = this._getTexImage(target);
         if (!texture) {
             this.setError(this.INVALID_OPERATION);
             return;
         }
 
-        if (internalFormat !== this.RGBA &&
+        if (
+            internalFormat !== this.RGBA &&
             internalFormat !== this.RGB &&
             internalFormat !== this.ALPHA &&
             internalFormat !== this.LUMINANCE &&
-            internalFormat !== this.LUMINANCE_ALPHA) {
+            internalFormat !== this.LUMINANCE_ALPHA
+        ) {
             this.setError(this.INVALID_ENUM);
             return;
         }
@@ -531,15 +621,7 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         }
 
         this._saveError();
-        this._gl.copyTexImage2D(
-            target,
-            level,
-            internalFormat,
-            x,
-            y,
-            width,
-            height,
-            border);
+        this._gl.copyTexImage2D(target, level, internalFormat, x, y, width, height, border);
         const error = this.getError();
         this._restoreError(error);
 
@@ -551,7 +633,17 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         }
     },
 
-    copyTexSubImage2D(this: WebGLContextBase, target: GLenum = 0, level: GLint = 0, xoffset: GLint = 0, yoffset: GLint = 0, x: GLint = 0, y: GLint = 0, width: GLsizei = 0, height: GLsizei = 0): void {
+    copyTexSubImage2D(
+        this: WebGLContextBase,
+        target: GLenum = 0,
+        level: GLint = 0,
+        xoffset: GLint = 0,
+        yoffset: GLint = 0,
+        x: GLint = 0,
+        y: GLint = 0,
+        width: GLsizei = 0,
+        height: GLsizei = 0,
+    ): void {
         const texture = this._getTexImage(target);
         if (!texture) {
             this.setError(this.INVALID_OPERATION);
@@ -563,23 +655,51 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
             return;
         }
 
-        this._gl.copyTexSubImage2D(
+        this._gl.copyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
+    },
+
+    compressedTexImage2D(
+        this: WebGLContextBase,
+        target: GLenum,
+        level: GLint,
+        internalFormat: GLenum,
+        width: GLsizei,
+        height: GLsizei,
+        border: GLint,
+        data: TypedArray,
+    ): void {
+        this._gl.compressedTexImage2D(
+            target,
+            level,
+            internalFormat,
+            width,
+            height,
+            border,
+            Uint8ArrayToVariant(arrayToUint8Array(data)),
+        );
+    },
+
+    compressedTexSubImage2D(
+        this: WebGLContextBase,
+        target: GLenum,
+        level: GLint,
+        xoffset: GLint,
+        yoffset: GLint,
+        width: GLsizei,
+        height: GLsizei,
+        format: GLenum,
+        data: TypedArray,
+    ): void {
+        this._gl.compressedTexSubImage2D(
             target,
             level,
             xoffset,
             yoffset,
-            x,
-            y,
             width,
-            height);
-    },
-
-    compressedTexImage2D(this: WebGLContextBase, target: GLenum, level: GLint, internalFormat: GLenum, width: GLsizei, height: GLsizei, border: GLint, data: TypedArray): void {
-        this._gl.compressedTexImage2D(target, level, internalFormat, width, height, border, Uint8ArrayToVariant(arrayToUint8Array(data)));
-    },
-
-    compressedTexSubImage2D(this: WebGLContextBase, target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, width: GLsizei, height: GLsizei, format: GLenum, data: TypedArray): void {
-        this._gl.compressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, Uint8ArrayToVariant(arrayToUint8Array(data)));
+            height,
+            format,
+            Uint8ArrayToVariant(arrayToUint8Array(data)),
+        );
     },
 
     texParameterf(this: WebGLContextBase, target: GLenum = 0, pname: GLenum = 0, param: GLfloat): void {
@@ -595,7 +715,10 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
                     return;
             }
 
-            if (this._extensions.ext_texture_filter_anisotropic && pname === this._extensions.ext_texture_filter_anisotropic.TEXTURE_MAX_ANISOTROPY_EXT) {
+            if (
+                this._extensions.ext_texture_filter_anisotropic &&
+                pname === this._extensions.ext_texture_filter_anisotropic.TEXTURE_MAX_ANISOTROPY_EXT
+            ) {
                 this._gl.texParameterf(target, pname, param);
                 return;
             }
@@ -616,7 +739,10 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
                     return;
             }
 
-            if (this._extensions.ext_texture_filter_anisotropic && pname === this._extensions.ext_texture_filter_anisotropic.TEXTURE_MAX_ANISOTROPY_EXT) {
+            if (
+                this._extensions.ext_texture_filter_anisotropic &&
+                pname === this._extensions.ext_texture_filter_anisotropic.TEXTURE_MAX_ANISOTROPY_EXT
+            ) {
                 this._gl.texParameteri(target, pname, param);
                 return;
             }
@@ -631,8 +757,7 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         }
 
         const unit = this._getActiveTextureUnit();
-        if ((target === this.TEXTURE_2D && !unit._bind2D) ||
-            (target === this.TEXTURE_CUBE_MAP && !unit._bindCube)) {
+        if ((target === this.TEXTURE_2D && !unit._bind2D) || (target === this.TEXTURE_CUBE_MAP && !unit._bindCube)) {
             this.setError(this.INVALID_OPERATION);
             return null;
         }
@@ -645,7 +770,10 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
                 return this._getTexParameterDirect(target, pname);
         }
 
-        if (this._extensions.ext_texture_filter_anisotropic && pname === this._extensions.ext_texture_filter_anisotropic.TEXTURE_MAX_ANISOTROPY_EXT) {
+        if (
+            this._extensions.ext_texture_filter_anisotropic &&
+            pname === this._extensions.ext_texture_filter_anisotropic.TEXTURE_MAX_ANISOTROPY_EXT
+        ) {
             return this._getTexParameterDirect(target, pname);
         }
 
@@ -701,17 +829,18 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
     },
 
     _validTextureTarget(this: WebGLContextBase, target: GLenum): boolean {
-        return target === this.TEXTURE_2D ||
-            target === this.TEXTURE_CUBE_MAP;
+        return target === this.TEXTURE_2D || target === this.TEXTURE_CUBE_MAP;
     },
 
     _validCubeTarget(this: WebGLContextBase, target: GLenum): boolean {
-        return target === this.TEXTURE_CUBE_MAP_POSITIVE_X ||
+        return (
+            target === this.TEXTURE_CUBE_MAP_POSITIVE_X ||
             target === this.TEXTURE_CUBE_MAP_NEGATIVE_X ||
             target === this.TEXTURE_CUBE_MAP_POSITIVE_Y ||
             target === this.TEXTURE_CUBE_MAP_NEGATIVE_Y ||
             target === this.TEXTURE_CUBE_MAP_POSITIVE_Z ||
-            target === this.TEXTURE_CUBE_MAP_NEGATIVE_Z;
+            target === this.TEXTURE_CUBE_MAP_NEGATIVE_Z
+        );
     },
 
     _verifyTextureCompleteness(this: WebGLContextBase, target: GLenum, pname: GLenum, param: GLenum): void {
@@ -724,7 +853,17 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         }
 
         // oes_texture_float but not oes_texture_float_linear
-        if (this._extensions.oes_texture_float && !this._extensions.oes_texture_float_linear && texture && texture._type === this.FLOAT && (pname === this.TEXTURE_MAG_FILTER || pname === this.TEXTURE_MIN_FILTER) && (param === this.LINEAR || param === this.LINEAR_MIPMAP_NEAREST || param === this.NEAREST_MIPMAP_LINEAR || param === this.LINEAR_MIPMAP_LINEAR)) {
+        if (
+            this._extensions.oes_texture_float &&
+            !this._extensions.oes_texture_float_linear &&
+            texture &&
+            texture._type === this.FLOAT &&
+            (pname === this.TEXTURE_MAG_FILTER || pname === this.TEXTURE_MIN_FILTER) &&
+            (param === this.LINEAR ||
+                param === this.LINEAR_MIPMAP_NEAREST ||
+                param === this.NEAREST_MIPMAP_LINEAR ||
+                param === this.LINEAR_MIPMAP_LINEAR)
+        ) {
             texture._complete = false;
             this.bindTexture(target, texture);
             return;
@@ -774,23 +913,17 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
     },
 
     _checkDimensions(this: WebGLContextBase, target: GLenum, width: GLsizei, height: GLsizei, level: number): boolean {
-        if (level < 0 ||
-            width < 0 ||
-            height < 0) {
+        if (level < 0 || width < 0 || height < 0) {
             this.setError(this.INVALID_VALUE);
             return false;
         }
         if (target === this.TEXTURE_2D) {
-            if (width > this._maxTextureSize ||
-                height > this._maxTextureSize ||
-                level > this._maxTextureLevel) {
+            if (width > this._maxTextureSize || height > this._maxTextureSize || level > this._maxTextureLevel) {
                 this.setError(this.INVALID_VALUE);
                 return false;
             }
         } else if (this._validCubeTarget(target)) {
-            if (width > this._maxCubeMapSize ||
-                height > this._maxCubeMapSize ||
-                level > this._maxCubeMapLevel) {
+            if (width > this._maxCubeMapSize || height > this._maxCubeMapSize || level > this._maxCubeMapLevel) {
                 this.setError(this.INVALID_VALUE);
                 return false;
             }

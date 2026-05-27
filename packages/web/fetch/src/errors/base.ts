@@ -1,22 +1,21 @@
 export class FetchBaseError extends Error {
-
     type?: 'aborted' | string;
 
-	constructor(message: string, type?: string) {
-		super(message);
-		// Hide custom error implementation details from end-users
-		if (typeof Error.captureStackTrace === 'function') {
-			Error.captureStackTrace(this, this.constructor);
-		}
+    constructor(message: string, type?: string) {
+        super(message);
+        // Hide custom error implementation details from end-users
+        if (typeof Error.captureStackTrace === 'function') {
+            Error.captureStackTrace(this, this.constructor);
+        }
 
-		this.type = type;
-	}
+        this.type = type;
+    }
 
-	get name() {
-		return this.constructor.name;
-	}
+    get name() {
+        return this.constructor.name;
+    }
 
-	get [Symbol.toStringTag]() {
-		return this.constructor.name;
-	}
+    get [Symbol.toStringTag]() {
+        return this.constructor.name;
+    }
 }

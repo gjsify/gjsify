@@ -22,7 +22,7 @@ Document.registerElementFactory('iframe', () => new HTMLIFrameElement());
 
 // Register global constructor
 Object.defineProperty(globalThis, 'HTMLIFrameElement', {
-	value: HTMLIFrameElement,
-	writable: true,
-	configurable: true,
+    value: HTMLIFrameElement,
+    writable: true,
+    configurable: true,
 });

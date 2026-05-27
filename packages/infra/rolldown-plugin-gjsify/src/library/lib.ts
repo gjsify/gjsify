@@ -47,8 +47,8 @@ export const setupLib = async (input: LibFactoryInput): Promise<LibBuildConfig> 
     const preserveModulesRoot = computeCommonRoot(entryPoints);
 
     const aliasMap = {
-        ...(input.pluginOptions.aliases ?? {}),
-        ...(input.userAliases ?? {}),
+        ...input.pluginOptions.aliases,
+        ...input.userAliases,
     };
 
     // Library mode keeps all third-party / workspace imports as-is so the
@@ -104,14 +104,13 @@ export const setupLib = async (input: LibFactoryInput): Promise<LibBuildConfig> 
  * file paths. Falls back to `'src'` when there are no entries or the
  * entries don't share a meaningful prefix.
  */
-function computeCommonRoot(
-    entries: ReturnType<typeof globToEntryPoints> extends Promise<infer T> ? T : never,
-): string {
-    const paths: string[] = entries === undefined
-        ? []
-        : typeof entries === 'string'
-            ? [entries]
-            : Array.isArray(entries)
+function computeCommonRoot(entries: ReturnType<typeof globToEntryPoints> extends Promise<infer T> ? T : never): string {
+    const paths: string[] =
+        entries === undefined
+            ? []
+            : typeof entries === 'string'
+              ? [entries]
+              : Array.isArray(entries)
                 ? entries
                 : Object.values(entries);
     if (paths.length === 0) return 'src';

@@ -7,7 +7,7 @@
 //
 // Reference: refs/showtime/showtime/play.py (gtk4paintablesink + optional glsinkbin)
 
-import Gdk from 'gi://Gdk?version=4.0';
+import type Gdk from 'gi://Gdk?version=4.0';
 import { ensureGstInit, ensurePaintableSinkAvailable, Gst } from './gst-init.js';
 
 export interface PaintableSinkResult {
@@ -41,10 +41,11 @@ export function createPaintableSink(): PaintableSinkResult {
     interface _PaintableSink extends Gst.Element {
         paintable: Gdk.Paintable & { gl_context?: unknown };
     }
-    interface _GlSinkBin extends Gst.Element { sink: Gst.Element }
+    interface _GlSinkBin extends Gst.Element {
+        sink: Gst.Element;
+    }
 
-    const paintable: Gdk.Paintable & { gl_context?: unknown } =
-        (paintableSink as _PaintableSink).paintable;
+    const paintable: Gdk.Paintable & { gl_context?: unknown } = (paintableSink as _PaintableSink).paintable;
     if (!paintable) {
         throw new Error('gtk4paintablesink has no paintable property');
     }
@@ -136,7 +137,7 @@ export function buildMediaStreamPipeline(gstSource: any, gstPipeline: any): Medi
     };
     const teeSrcPad = tee.request_pad_simple
         ? tee.request_pad_simple('src_%u')
-        : teeWithLegacy.get_request_pad?.('src_%u') ?? null;
+        : (teeWithLegacy.get_request_pad?.('src_%u') ?? null);
     const queueSinkPad = queue.get_static_pad('sink');
     if (teeSrcPad && queueSinkPad) {
         teeSrcPad.link(queueSinkPad);
@@ -170,7 +171,10 @@ export function buildUriPipeline(uri: string): MediaStreamPipelineResult {
     }
 
     // playbin GObject properties — not surfaced on Gst.Element.
-    interface _Playbin extends Gst.Element { uri: string; video_sink: Gst.Element }
+    interface _Playbin extends Gst.Element {
+        uri: string;
+        video_sink: Gst.Element;
+    }
     (playbin as _Playbin).uri = uri;
     (playbin as _Playbin).video_sink = sink;
 

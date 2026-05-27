@@ -18,22 +18,13 @@ import type { ConfigDataFlatpak, DescriptionBlock } from '../../types/config-dat
  * into the GJS bundle at build time.
  */
 function loadDesktopTemplate(): string {
-    return readFileSync(
-        new URL('../../templates/flatpak/desktop.tmpl', import.meta.url),
-        'utf-8',
-    );
+    return readFileSync(new URL('../../templates/flatpak/desktop.tmpl', import.meta.url), 'utf-8');
 }
 function loadFlathubAppTemplate(): string {
-    return readFileSync(
-        new URL('../../templates/flatpak/flathub-app.json.tmpl', import.meta.url),
-        'utf-8',
-    );
+    return readFileSync(new URL('../../templates/flatpak/flathub-app.json.tmpl', import.meta.url), 'utf-8');
 }
 function loadFlathubCliTemplate(): string {
-    return readFileSync(
-        new URL('../../templates/flatpak/flathub-cli.json.tmpl', import.meta.url),
-        'utf-8',
-    );
+    return readFileSync(new URL('../../templates/flatpak/flathub-cli.json.tmpl', import.meta.url), 'utf-8');
 }
 
 export interface ScaffoldInputs {
@@ -104,9 +95,7 @@ export function renderMetainfoCli(inputs: ScaffoldInputs): string {
 export function renderDesktop(inputs: ScaffoldInputs): string {
     const f = inputs.flatpak;
     const categoriesLine = (f.categories ?? ['Utility']).join(';') + ';';
-    const keywordsLine = f.keywords?.length
-        ? `Keywords=${f.keywords.join(';')};\n`
-        : '';
+    const keywordsLine = f.keywords?.length ? `Keywords=${f.keywords.join(';')};\n` : '';
     return substitute(loadDesktopTemplate(), {
         NAME: inputs.name,
         SUMMARY: f.summary ?? inputs.name,
@@ -124,10 +113,7 @@ export function renderFlathubJson(kind: 'app' | 'cli'): string {
 
 // ─── MetaInfo XML builder ────────────────────────────────────────────────
 
-function renderMetainfo(
-    inputs: ScaffoldInputs,
-    kind: 'desktop-application' | 'console-application',
-): string {
+function renderMetainfo(inputs: ScaffoldInputs, kind: 'desktop-application' | 'console-application'): string {
     const f = inputs.flatpak;
     const year = new Date().getFullYear();
     const developerName = f.developer?.name ?? '';
@@ -301,13 +287,8 @@ function renderMetainfo(
 
 // ─── Description block renderer ──────────────────────────────────────────
 
-function renderDescriptionBlocks(
-    description: string | DescriptionBlock[],
-    indent: string,
-): string[] {
-    const blocks = typeof description === 'string'
-        ? stringToBlocks(description)
-        : description;
+function renderDescriptionBlocks(description: string | DescriptionBlock[], indent: string): string[] {
+    const blocks = typeof description === 'string' ? stringToBlocks(description) : description;
     const out: string[] = [];
     for (const block of blocks) {
         if ('p' in block) {
@@ -335,7 +316,7 @@ function stringToBlocks(s: string): DescriptionBlock[] {
     return s
         .trim()
         .split(/\n\n+/)
-        .map((para) => ({ p: para.trim().replace(/\s+/g, ' ') } as DescriptionBlock));
+        .map((para) => ({ p: para.trim().replace(/\s+/g, ' ') }) as DescriptionBlock);
 }
 
 function pushTranslatorHint(out: string[], hint: string | undefined, indent: string): void {
@@ -345,9 +326,10 @@ function pushTranslatorHint(out: string[], hint: string | undefined, indent: str
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
-function normaliseContentRating(
-    cr: ConfigDataFlatpak['contentRating'],
-): { type: string; attributes?: Record<string, string> } {
+function normaliseContentRating(cr: ConfigDataFlatpak['contentRating']): {
+    type: string;
+    attributes?: Record<string, string>;
+} {
     if (cr === undefined) return { type: 'oars-1.1' };
     if (typeof cr === 'string') return { type: cr };
     return { type: cr.type ?? 'oars-1.1', attributes: cr.attributes };
@@ -362,9 +344,5 @@ function substitute(template: string, tokens: Record<string, string>): string {
 }
 
 function escapeXml(value: string): string {
-    return value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+    return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

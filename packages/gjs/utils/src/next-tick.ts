@@ -33,30 +33,39 @@ const _queue: Array<() => void> = [];
 let _drainerArmed = false;
 
 function drainOnce(GLib: any): void {
-  // Process up to CHUNK_SIZE callbacks. Errors don't abort the queue —
-  // Node's process.nextTick guarantees later ticks still run even if an
-  // earlier one throws (the throw is delivered asynchronously via
-  // 'uncaughtException'). We keep the same contract by catching per-cb.
-  const end = Math.min(CHUNK_SIZE, _queue.length);
-  for (let i = 0; i < end; i++) {
-    const cb = _queue.shift()!;
-    try { cb(); }
-    catch (err) {
-      // Surface as an emitted error rather than swallow. In GJS there is no
-      // 'uncaughtException'; fall back to logging on stderr via GLib.
-      try { GLib.log_default_handler('gjsify-nextTick', GLib.LogLevelFlags.LEVEL_WARNING, String((err as any)?.stack || err), null); }
-      catch { /* best-effort */ }
+    // Process up to CHUNK_SIZE callbacks. Errors don't abort the queue —
+    // Node's process.nextTick guarantees later ticks still run even if an
+    // earlier one throws (the throw is delivered asynchronously via
+    // 'uncaughtException'). We keep the same contract by catching per-cb.
+    const end = Math.min(CHUNK_SIZE, _queue.length);
+    for (let i = 0; i < end; i++) {
+        const cb = _queue.shift()!;
+        try {
+            cb();
+        } catch (err) {
+            // Surface as an emitted error rather than swallow. In GJS there is no
+            // 'uncaughtException'; fall back to logging on stderr via GLib.
+            try {
+                GLib.log_default_handler(
+                    'gjsify-nextTick',
+                    GLib.LogLevelFlags.LEVEL_WARNING,
+                    String((err as any)?.stack || err),
+                    null,
+                );
+            } catch {
+                /* best-effort */
+            }
+        }
     }
-  }
-  if (_queue.length > 0) {
-    // More work remains — re-arm with a 1 ms yield so GTK events dispatch.
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, YIELD_DELAY_MS, () => {
-      drainOnce(GLib);
-      return false;
-    });
-  } else {
-    _drainerArmed = false;
-  }
+    if (_queue.length > 0) {
+        // More work remains — re-arm with a 1 ms yield so GTK events dispatch.
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, YIELD_DELAY_MS, () => {
+            drainOnce(GLib);
+            return false;
+        });
+    } else {
+        _drainerArmed = false;
+    }
 }
 
 // On GJS, nextTick goes through the GLib main loop instead of the JS
@@ -73,23 +82,23 @@ function drainOnce(GLib: any): void {
 // GC-race hazard as the old GLib.Source BoxedInstance approach fixed in
 // @gjsify/node-globals timers.
 function tryGLibTimeout(cb: () => void): boolean {
-  const GLib = (globalThis as any).imports?.gi?.GLib;
-  if (!GLib?.timeout_add) return false;
-  _queue.push(cb);
-  if (!_drainerArmed) {
-    _drainerArmed = true;
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
-      drainOnce(GLib);
-      return false;
-    });
-  }
-  return true;
+    const GLib = (globalThis as any).imports?.gi?.GLib;
+    if (!GLib?.timeout_add) return false;
+    _queue.push(cb);
+    if (!_drainerArmed) {
+        _drainerArmed = true;
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
+            drainOnce(GLib);
+            return false;
+        });
+    }
+    return true;
 }
 
 /** @internal Test helper: reset burst state. */
 export function __resetBurstStateForTests(): void {
-  _queue.length = 0;
-  _drainerArmed = false;
+    _queue.length = 0;
+    _drainerArmed = false;
 }
 
 /**
@@ -98,15 +107,15 @@ export function __resetBurstStateForTests(): void {
  * On Node.js: uses process.nextTick → queueMicrotask → Promise.resolve().then().
  */
 export const nextTick = (fn: (...args: unknown[]) => void, ...args: unknown[]): void => {
-  const cb = args.length > 0 ? () => fn(...args) : fn as () => void;
-  if (tryGLibTimeout(cb)) return;
-  if (typeof globalThis.process?.nextTick === 'function') {
-    globalThis.process.nextTick(fn, ...args);
-    return;
-  }
-  if (typeof queueMicrotask === 'function') {
-    queueMicrotask(cb);
-    return;
-  }
-  Promise.resolve().then(cb);
+    const cb = args.length > 0 ? () => fn(...args) : (fn as () => void);
+    if (tryGLibTimeout(cb)) return;
+    if (typeof globalThis.process?.nextTick === 'function') {
+        globalThis.process.nextTick(fn, ...args);
+        return;
+    }
+    if (typeof queueMicrotask === 'function') {
+        queueMicrotask(cb);
+        return;
+    }
+    Promise.resolve().then(cb);
 };

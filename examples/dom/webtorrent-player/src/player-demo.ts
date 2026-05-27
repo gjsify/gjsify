@@ -36,10 +36,7 @@ const formatSpeed = (bytesPerSec: number): string => `${formatBytes(bytesPerSec)
  * Start downloading/streaming a torrent and report events via callbacks.
  * Returns the WebTorrent client so the caller can destroy it on close.
  */
-export async function runPlayer(
-    torrentSource: string,
-    cb: PlayerCallbacks,
-): Promise<WebTorrent.Instance> {
+export async function runPlayer(torrentSource: string, cb: PlayerCallbacks): Promise<WebTorrent.Instance> {
     const client = new WebTorrent();
 
     // Force the Node HTTP server — WebTorrent defaults to a BrowserServer when

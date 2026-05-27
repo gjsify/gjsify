@@ -23,8 +23,11 @@ export class ServerHttp2Session extends EventEmitter {
     private _settings: Http2Settings;
     private _canPush = true;
     /** Lazy-initialised native bridge handles. */
-    private _frameEncoder: ReturnType<NonNullable<ReturnType<typeof loadNativeHttp2>>['FrameEncoder']['new']> | null = null;
-    private _streamIdAllocator: ReturnType<NonNullable<ReturnType<typeof loadNativeHttp2>>['StreamIdAllocator']['new']> | null = null;
+    private _frameEncoder: ReturnType<NonNullable<ReturnType<typeof loadNativeHttp2>>['FrameEncoder']['new']> | null =
+        null;
+    private _streamIdAllocator: ReturnType<
+        NonNullable<ReturnType<typeof loadNativeHttp2>>['StreamIdAllocator']['new']
+    > | null = null;
     /** Fallback id counter used when the native bridge is unavailable. */
     private _fallbackPushId = 2;
 
@@ -34,8 +37,12 @@ export class ServerHttp2Session extends EventEmitter {
     }
 
     /** Whether server-push is currently permitted on this session. */
-    get canPush(): boolean { return this._canPush; }
-    set canPush(v: boolean) { this._canPush = v; }
+    get canPush(): boolean {
+        return this._canPush;
+    }
+    set canPush(v: boolean) {
+        this._canPush = v;
+    }
 
     /** @internal Allocate the next promised (even) stream id for a push. */
     _allocatePushId(): number {
@@ -94,12 +101,24 @@ export class ServerHttp2Session extends EventEmitter {
         return null;
     }
 
-    get closed(): boolean { return this._closed; }
-    get destroyed(): boolean { return this._destroyed; }
-    get pendingSettingsAck(): boolean { return false; }
-    get localSettings(): Http2Settings { return { ...this._settings }; }
-    get remoteSettings(): Http2Settings { return getDefaultSettings(); }
-    get originSet(): string[] { return []; }
+    get closed(): boolean {
+        return this._closed;
+    }
+    get destroyed(): boolean {
+        return this._destroyed;
+    }
+    get pendingSettingsAck(): boolean {
+        return false;
+    }
+    get localSettings(): Http2Settings {
+        return { ...this._settings };
+    }
+    get remoteSettings(): Http2Settings {
+        return getDefaultSettings();
+    }
+    get originSet(): string[] {
+        return [];
+    }
 
     settings(settings: Http2Settings, callback?: () => void): void {
         Object.assign(this._settings, settings);
@@ -111,7 +130,10 @@ export class ServerHttp2Session extends EventEmitter {
         this.destroy();
     }
 
-    ping(_payload?: Uint8Array, callback?: (err: Error | null, duration: number, payload: Uint8Array) => void): boolean {
+    ping(
+        _payload?: Uint8Array,
+        callback?: (err: Error | null, duration: number, payload: Uint8Array) => void,
+    ): boolean {
         const buf = new Uint8Array(8);
         if (callback) Promise.resolve().then(() => callback(null, 0, buf));
         return true;

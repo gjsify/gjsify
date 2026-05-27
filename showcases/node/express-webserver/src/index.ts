@@ -22,11 +22,7 @@ const app = express();
 // --- HTML helpers -----------------------------------------------------------
 
 function escapeHtml(str: string): string {
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function renderContent(text: string): string {
@@ -83,7 +79,12 @@ app.get('/api/posts', (_req: Request, res: Response) => {
     res.json({
         count: posts.length,
         posts: posts.map(({ id, slug, title, author, date, excerpt }) => ({
-            id, slug, title, author, date, excerpt,
+            id,
+            slug,
+            title,
+            author,
+            date,
+            excerpt,
         })),
     });
 });
@@ -114,15 +115,23 @@ app.get('/api/runtime', (_req: Request, res: Response) => {
 app.get('/posts/:slug', (req: Request, res: Response) => {
     const post = posts.find((p) => p.slug === req.params.slug);
     if (!post) {
-        res.status(404).send(renderPage('Post not found', `
+        res.status(404).send(
+            renderPage(
+                'Post not found',
+                `
   <main class="post-detail">
     <a href="/" class="back-link">← Back to posts</a>
     <p class="loading">Post not found.</p>
-  </main>`));
+  </main>`,
+            ),
+        );
         return;
     }
 
-    res.send(renderPage(post.title, `
+    res.send(
+        renderPage(
+            post.title,
+            `
   <main class="post-detail">
     <a href="/" class="back-link">← Back to posts</a>
     <article>
@@ -135,7 +144,9 @@ app.get('/posts/:slug', (req: Request, res: Response) => {
         ${renderContent(post.content)}
       </div>
     </article>
-  </main>`));
+  </main>`,
+        ),
+    );
 });
 
 // --- Static frontend --------------------------------------------------------

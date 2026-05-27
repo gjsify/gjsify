@@ -13,9 +13,9 @@ import socketSuite from './socket.spec.js';
 import namespacesSuite from './namespaces.spec.js';
 
 run({
-  handshakeSuite,
-  socketMiddlewareSuite,
-  socketTimeoutSuite,
-  socketSuite,
-  namespacesSuite,
+    handshakeSuite,
+    socketMiddlewareSuite,
+    socketTimeoutSuite,
+    socketSuite,
+    namespacesSuite,
 });

@@ -36,7 +36,6 @@ export default async () => {
                         game = new ex.Engine({
                             canvasElement: canvas as any,
                             suppressPlayButton: true,
-
                         });
                     } catch (e) {
                         error = e;
@@ -76,7 +75,6 @@ export default async () => {
                         game = new ex.Engine({
                             canvasElement: canvas as any,
                             suppressPlayButton: true,
-
                         });
                     } catch (e) {
                         error = e;

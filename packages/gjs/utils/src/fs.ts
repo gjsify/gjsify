@@ -6,12 +6,12 @@ export const existsFD = (fd: number) => {
         let stream = GioUnix.InputStream.new(fd, false);
         stream.close(null);
         // File descriptor 12345 exists
-        return true
+        return true;
     } catch (error) {
         // File descriptor 12345 does not exist
-        return false
+        return false;
     }
-}
+};
 
 export function existsSync(path: string) {
     // TODO: accept buffer and URL too

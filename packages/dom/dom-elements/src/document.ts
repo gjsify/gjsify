@@ -2,7 +2,7 @@
 // Reference: refs/happy-dom/packages/happy-dom/src/nodes/document/Document.ts
 
 import { Node } from './node.js';
-import { Element } from './element.js';
+import type { Element } from './element.js';
 import { HTMLElement } from './html-element.js';
 import { HTMLImageElement } from './html-image-element.js';
 import { HTMLVideoElement } from './html-video-element.js';
@@ -48,9 +48,12 @@ export class Document extends Node {
     createElementNS(_namespace: string | null, tagName: string): HTMLElement {
         const tag = tagName.toLowerCase();
         switch (tag) {
-            case 'img': return new HTMLImageElement();
-            case 'video': return new HTMLVideoElement();
-            case 'canvas': return new HTMLCanvasElement();
+            case 'img':
+                return new HTMLImageElement();
+            case 'video':
+                return new HTMLVideoElement();
+            case 'canvas':
+                return new HTMLCanvasElement();
             default: {
                 const factory = Document._elementFactories.get(tag);
                 if (factory) return factory();

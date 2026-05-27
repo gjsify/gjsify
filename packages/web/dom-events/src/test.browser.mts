@@ -37,7 +37,9 @@ run({
             await it('dispatches and receives events', async () => {
                 const t = new EventTarget();
                 let received = '';
-                t.addEventListener('ping', (e) => { received = (e as CustomEvent).detail; });
+                t.addEventListener('ping', (e) => {
+                    received = (e as CustomEvent).detail;
+                });
                 t.dispatchEvent(new CustomEvent('ping', { detail: 'hello' }));
                 expect(received).toBe('hello');
             });
@@ -45,7 +47,9 @@ run({
             await it('removeEventListener stops receiving', async () => {
                 const t = new EventTarget();
                 let count = 0;
-                const handler = () => { count++; };
+                const handler = () => {
+                    count++;
+                };
                 t.addEventListener('click', handler);
                 t.dispatchEvent(new Event('click'));
                 t.removeEventListener('click', handler);
@@ -69,8 +73,12 @@ run({
         await describe('MouseEvent', async () => {
             await it('creates with init values', async () => {
                 const e = new MouseEvent('mousedown', {
-                    clientX: 100, clientY: 200, button: 2, buttons: 4,
-                    altKey: true, ctrlKey: true,
+                    clientX: 100,
+                    clientY: 200,
+                    button: 2,
+                    buttons: 4,
+                    altKey: true,
+                    ctrlKey: true,
                 });
                 expect(e.clientX).toBe(100);
                 expect(e.clientY).toBe(200);

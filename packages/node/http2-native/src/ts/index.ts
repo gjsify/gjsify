@@ -24,9 +24,9 @@ type SessionBridgeInstance = GjsifyHttp2NS.SessionBridge;
 type SessionBridgeStatic = typeof GjsifyHttp2NS.SessionBridge;
 
 export interface NativeHttp2Module {
-  FrameEncoder: FrameEncoderCtor;
-  StreamIdAllocator: StreamIdAllocatorCtor;
-  SessionBridge: SessionBridgeStatic;
+    FrameEncoder: FrameEncoderCtor;
+    StreamIdAllocator: StreamIdAllocatorCtor;
+    SessionBridge: SessionBridgeStatic;
 }
 
 export type { FrameEncoderInstance as FrameEncoder };
@@ -42,36 +42,36 @@ let _loadError: Error | null = null;
  * return the cached module (or `null` if the first call failed).
  */
 export function loadNativeHttp2(): NativeHttp2Module | null {
-  if (_loaded) return _native;
-  _loaded = true;
-  try {
-    // Static `gi://` resolution would happen during ESM linking,
-    // before LD_LIBRARY_PATH / GI_TYPELIB_PATH are set. Use the
-    // synchronous `imports.gi.*` form so resolution happens at runtime.
-    const gi = (globalThis as unknown as { imports?: { gi?: { GjsifyHttp2?: unknown } } }).imports?.gi;
-    if (!gi) {
-      _loadError = new Error('imports.gi not available — not running under GJS?');
-      return null;
+    if (_loaded) return _native;
+    _loaded = true;
+    try {
+        // Static `gi://` resolution would happen during ESM linking,
+        // before LD_LIBRARY_PATH / GI_TYPELIB_PATH are set. Use the
+        // synchronous `imports.gi.*` form so resolution happens at runtime.
+        const gi = (globalThis as unknown as { imports?: { gi?: { GjsifyHttp2?: unknown } } }).imports?.gi;
+        if (!gi) {
+            _loadError = new Error('imports.gi not available — not running under GJS?');
+            return null;
+        }
+        const mod = gi.GjsifyHttp2 as unknown;
+        if (!mod) {
+            _loadError = new Error('GjsifyHttp2 typelib not found on GI_TYPELIB_PATH');
+            return null;
+        }
+        _native = mod as NativeHttp2Module;
+        return _native;
+    } catch (err) {
+        _loadError = err instanceof Error ? err : new Error(String(err));
+        _native = null;
+        return null;
     }
-    const mod = gi.GjsifyHttp2 as unknown;
-    if (!mod) {
-      _loadError = new Error('GjsifyHttp2 typelib not found on GI_TYPELIB_PATH');
-      return null;
-    }
-    _native = mod as NativeHttp2Module;
-    return _native;
-  } catch (err) {
-    _loadError = err instanceof Error ? err : new Error(String(err));
-    _native = null;
-    return null;
-  }
 }
 
 /**
  * Returns `true` if the GjsifyHttp2 typelib is loadable (prebuild present).
  */
 export function hasNativeHttp2(): boolean {
-  return loadNativeHttp2() !== null;
+    return loadNativeHttp2() !== null;
 }
 
 /**
@@ -79,5 +79,5 @@ export function hasNativeHttp2(): boolean {
  * if loading succeeded or hasn't been attempted yet.
  */
 export function getLoadError(): Error | null {
-  return _loadError;
+    return _loadError;
 }

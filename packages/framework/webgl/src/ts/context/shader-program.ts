@@ -63,9 +63,27 @@ export interface ShaderProgramMethods {
 
     _checkLocation(location: WebGLUniformLocation | null): boolean;
     _checkLocationActive(location: WebGLUniformLocation | null): boolean;
-    _checkUniformValid(location: WebGLUniformLocation | null, v0: GLfloat, name: string, count: number, type: string): boolean;
-    _checkUniformValueValid(location: WebGLUniformLocation | null, value: Float32List | Int32List, name: string, count: number, type: string): boolean;
-    _checkUniformMatrix(location: WebGLUniformLocation | null, transpose: GLboolean, value: Float32List, name: string, count: number): boolean;
+    _checkUniformValid(
+        location: WebGLUniformLocation | null,
+        v0: GLfloat,
+        name: string,
+        count: number,
+        type: string,
+    ): boolean;
+    _checkUniformValueValid(
+        location: WebGLUniformLocation | null,
+        value: Float32List | Int32List,
+        name: string,
+        count: number,
+        type: string,
+    ): boolean;
+    _checkUniformMatrix(
+        location: WebGLUniformLocation | null,
+        transpose: GLboolean,
+        value: Float32List,
+        name: string,
+        count: number,
+    ): boolean;
     _checkShaderSource(shader: WebGLShader): boolean;
     _wrapShader(type: GLenum, source: string): string;
     _switchActiveProgram(active: WebGLProgram | null): void;
@@ -75,13 +93,12 @@ export interface ShaderProgramMethods {
 }
 
 declare module '../webgl-context-base.js' {
-    interface WebGLContextBase extends ShaderProgramMethods { }
+    interface WebGLContextBase extends ShaderProgramMethods {}
 }
 
 const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
     createShader(this: WebGLContextBase, type: GLenum = 0): WebGLShader | null {
-        if (type !== this.FRAGMENT_SHADER &&
-            type !== this.VERTEX_SHADER) {
+        if (type !== this.FRAGMENT_SHADER && type !== this.VERTEX_SHADER) {
             this.setError(this.INVALID_ENUM);
             return null;
         }
@@ -102,15 +119,12 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
         if (!checkObject(shader)) {
             throw new TypeError('compileShader(WebGLShader)');
         }
-        if (this._checkWrapper(shader, WebGLShader) &&
-            this._checkShaderSource(shader)) {
+        if (this._checkWrapper(shader, WebGLShader) && this._checkShaderSource(shader)) {
             const prevError = this.getError();
             this._gl.compileShader(shader._ | 0);
             shader._needsRecompile = false;
             const error = this.getError();
-            shader._compileStatus = !!this._gl.getShaderParameter(
-                shader._ | 0,
-                this.COMPILE_STATUS);
+            shader._compileStatus = !!this._gl.getShaderParameter(shader._ | 0, this.COMPILE_STATUS);
             shader._compileInfo = this._gl.getShaderInfoLog(shader._ | 0) || 'null';
             this.getError();
             this.setError(prevError || error);
@@ -162,15 +176,22 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
         return null;
     },
 
-    getShaderPrecisionFormat(this: WebGLContextBase, shaderType: GLenum = 0, precisionType: GLenum = 0): WebGLShaderPrecisionFormat | null {
-        if (!(shaderType === this.FRAGMENT_SHADER ||
-            shaderType === this.VERTEX_SHADER) ||
-            !(precisionType === this.LOW_FLOAT ||
+    getShaderPrecisionFormat(
+        this: WebGLContextBase,
+        shaderType: GLenum = 0,
+        precisionType: GLenum = 0,
+    ): WebGLShaderPrecisionFormat | null {
+        if (
+            !(shaderType === this.FRAGMENT_SHADER || shaderType === this.VERTEX_SHADER) ||
+            !(
+                precisionType === this.LOW_FLOAT ||
                 precisionType === this.MEDIUM_FLOAT ||
                 precisionType === this.HIGH_FLOAT ||
                 precisionType === this.LOW_INT ||
                 precisionType === this.MEDIUM_INT ||
-                precisionType === this.HIGH_INT)) {
+                precisionType === this.HIGH_INT
+            )
+        ) {
             this.setError(this.INVALID_ENUM);
             return null;
         }
@@ -193,22 +214,21 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
     },
 
     attachShader(this: WebGLContextBase, program: WebGLProgram, shader: WebGLShader): void {
-        if (!checkObject(program) ||
-            !checkObject(shader)) {
+        if (!checkObject(program) || !checkObject(shader)) {
             throw new TypeError('attachShader(WebGLProgram, WebGLShader)');
         }
         if (!program || !shader) {
             this.setError(this.INVALID_VALUE);
             return;
-        } else if (program instanceof WebGLProgram &&
+        } else if (
+            program instanceof WebGLProgram &&
             shader instanceof WebGLShader &&
             this._checkOwns(program) &&
-            this._checkOwns(shader)) {
+            this._checkOwns(shader)
+        ) {
             if (!program._linked(shader)) {
                 this._saveError();
-                this._gl.attachShader(
-                    program._ | 0,
-                    shader._ | 0);
+                this._gl.attachShader(program._ | 0, shader._ | 0);
                 const error = this.getError();
                 this._restoreError(error);
                 if (error === this.NO_ERROR) {
@@ -221,12 +241,10 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
     },
 
     detachShader(this: WebGLContextBase, program: WebGLProgram, shader: WebGLShader): void {
-        if (!checkObject(program) ||
-            !checkObject(shader)) {
+        if (!checkObject(program) || !checkObject(shader)) {
             throw new TypeError('detachShader(WebGLProgram, WebGLShader)');
         }
-        if (this._checkWrapper(program, WebGLProgram) &&
-            this._checkWrapper(shader, WebGLShader)) {
+        if (this._checkWrapper(program, WebGLProgram) && this._checkWrapper(shader, WebGLShader)) {
             if (program._linked(shader)) {
                 this._gl.detachShader(program._, shader._);
                 program._unlink(shader);
@@ -237,8 +255,7 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
     },
 
     bindAttribLocation(this: WebGLContextBase, program: WebGLProgram, index: GLuint, name: string): void {
-        if (!checkObject(program) ||
-            typeof name !== 'string') {
+        if (!checkObject(program) || typeof name !== 'string') {
             throw new TypeError('bindAttribLocation(WebGLProgram, GLint, String)');
         }
         name += '';
@@ -247,10 +264,7 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
         } else if (/^_?webgl_a/.test(name)) {
             this.setError(this.INVALID_OPERATION);
         } else if (this._checkWrapper(program, WebGLProgram)) {
-            this._gl.bindAttribLocation(
-                program._ | 0,
-                index | 0,
-                name);
+            this._gl.bindAttribLocation(program._ | 0, index | 0, name);
         }
     },
 
@@ -327,7 +341,8 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
         } else if (!program) {
             throw new TypeError('getActiveAttrib(WebGLProgram, GLuint)');
         } else if (this._checkWrapper(program, WebGLProgram)) {
-            const maxCount = program._linkStatus ? program._attributes.length
+            const maxCount = program._linkStatus
+                ? program._attributes.length
                 : (this._gl.getProgramParameter(program._ | 0, this.ACTIVE_ATTRIBUTES) as number);
             if (index >= maxCount) {
                 // Flush any pending native GL error so that our setError() call is not
@@ -351,7 +366,8 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
         } else if (!program) {
             throw new TypeError('getActiveUniform(WebGLProgram, GLuint)');
         } else if (this._checkWrapper(program, WebGLProgram)) {
-            const maxCount = program._linkStatus ? program._uniforms.length
+            const maxCount = program._linkStatus
+                ? program._uniforms.length
                 : (this._gl.getProgramParameter(program._ | 0, this.ACTIVE_UNIFORMS) as number);
             if (index >= maxCount) {
                 this.setError(this.INVALID_VALUE);
@@ -366,16 +382,16 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
     },
 
     getAttachedShaders(this: WebGLContextBase, program: WebGLProgram): WebGLShader[] | null {
-        if (!checkObject(program) ||
-            (typeof program === 'object' &&
-                program !== null &&
-                !(program instanceof WebGLProgram))) {
+        if (
+            !checkObject(program) ||
+            (typeof program === 'object' && program !== null && !(program instanceof WebGLProgram))
+        ) {
             throw new TypeError('getAttachedShaders(WebGLProgram)');
         }
         if (!program) {
             this.setError(this.INVALID_VALUE);
         } else if (this._checkWrapper(program, WebGLProgram)) {
-            return program._references.filter(r => r instanceof WebGLShader) as WebGLShader[];
+            return program._references.filter((r) => r instanceof WebGLShader) as WebGLShader[];
         }
         return null;
     },
@@ -394,8 +410,7 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
     },
 
     getUniform(this: WebGLContextBase, program: WebGLProgram, location: WebGLUniformLocation): unknown {
-        if (!checkObject(program) ||
-            !checkObject(location)) {
+        if (!checkObject(program) || !checkObject(location)) {
             throw new TypeError('getUniform(WebGLProgram, WebGLUniformLocation)');
         } else if (!program) {
             this.setError(this.INVALID_VALUE);
@@ -498,10 +513,7 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
                     info = { name: searchName, type: 0, size: 1 };
                 }
 
-                const result = new WebGLUniformLocation(
-                    loc,
-                    program,
-                    info);
+                const result = new WebGLUniformLocation(loc, program, info);
 
                 // Distinguish three cases for array uniforms, where info.name
                 // is always 'basename[0]' (per OpenGL spec for arrays):
@@ -511,7 +523,7 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
                 // Scalar uniforms (info.name has no '[0]') fall through without either.
                 const callerBracketMatch = name.match(/\[(\d+)\]$/);
                 const callerIndex = callerBracketMatch ? +callerBracketMatch[1] : -1;
-                const infoIsArray = /\[0\]$/.test(info.name);
+                const infoIsArray = info.name.endsWith('[0]');
 
                 if (infoIsArray && (callerIndex === -1 || callerIndex === 0)) {
                     // Cases A + B: populate full _array so uniform1fv/uniform1iv
@@ -520,9 +532,7 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
                     const arrayLocs: number[] = [];
                     this._saveError();
                     for (let i = 0; this.getError() === this.NO_ERROR; ++i) {
-                        const xloc = this._gl.getUniformLocation(
-                            program._ | 0,
-                            baseName + '[' + i + ']');
+                        const xloc = this._gl.getUniformLocation(program._ | 0, baseName + '[' + i + ']');
                         if (this.getError() !== this.NO_ERROR || xloc == null || xloc < 0) {
                             break;
                         }
@@ -571,10 +581,12 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
                 case this.ATTACHED_SHADERS:
                     return this._gl.getProgramParameter(program._, pname);
                 case this.ACTIVE_ATTRIBUTES:
-                    return program._linkStatus ? program._attributes.length
+                    return program._linkStatus
+                        ? program._attributes.length
                         : this._gl.getProgramParameter(program._, pname);
                 case this.ACTIVE_UNIFORMS:
-                    return program._linkStatus ? program._uniforms.length
+                    return program._linkStatus
+                        ? program._uniforms.length
                         : this._gl.getProgramParameter(program._, pname);
             }
             this.setError(this.INVALID_ENUM);
@@ -613,7 +625,14 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
         this._gl.uniform3i(location?._ || 0, x, y, z);
     },
 
-    uniform4f(this: WebGLContextBase, location: WebGLUniformLocation | null, x: GLfloat, y: GLfloat, z: GLfloat, w: GLfloat): void {
+    uniform4f(
+        this: WebGLContextBase,
+        location: WebGLUniformLocation | null,
+        x: GLfloat,
+        y: GLfloat,
+        z: GLfloat,
+        w: GLfloat,
+    ): void {
         if (!this._checkUniformValid(location, x, 'uniform4f', 4, 'f')) {
             console.error('uniform4f is not valid!');
             return;
@@ -621,7 +640,14 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
         this._gl.uniform4f(location?._ || 0, x, y, z, w);
     },
 
-    uniform4i(this: WebGLContextBase, location: WebGLUniformLocation | null, x: GLint, y: GLint, z: GLint, w: GLint): void {
+    uniform4i(
+        this: WebGLContextBase,
+        location: WebGLUniformLocation | null,
+        x: GLint,
+        y: GLint,
+        z: GLint,
+        w: GLint,
+    ): void {
         if (!this._checkUniformValid(location, x, 'uniform4i', 4, 'i')) return;
         this._gl.uniform4i(location?._ || 0, x, y, z, w);
     },
@@ -663,7 +689,7 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
             for (let i = 0; i < locs.length && 2 * i < v.length; ++i) {
                 const loc = locs[i];
                 if (loc != null) {
-                    this._gl.uniform2f(loc, v[2 * i], v[(2 * i) + 1]);
+                    this._gl.uniform2f(loc, v[2 * i], v[2 * i + 1]);
                 }
             }
             return;
@@ -746,31 +772,37 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
         this.uniform4i(location, v[0], v[1], v[2], v[3]);
     },
 
-    uniformMatrix2fv(this: WebGLContextBase, location: WebGLUniformLocation | null, transpose: GLboolean, value: Float32List): void {
+    uniformMatrix2fv(
+        this: WebGLContextBase,
+        location: WebGLUniformLocation | null,
+        transpose: GLboolean,
+        value: Float32List,
+    ): void {
         if (!this._checkUniformMatrix(location, transpose, value, 'uniformMatrix2fv', 2)) return;
         const data = new Float32Array(value);
-        this._gl.uniformMatrix2fv(
-            location?._ || 0,
-            !!transpose,
-            listToArray(data));
+        this._gl.uniformMatrix2fv(location?._ || 0, !!transpose, listToArray(data));
     },
 
-    uniformMatrix3fv(this: WebGLContextBase, location: WebGLUniformLocation | null, transpose: GLboolean, value: Float32List): void {
+    uniformMatrix3fv(
+        this: WebGLContextBase,
+        location: WebGLUniformLocation | null,
+        transpose: GLboolean,
+        value: Float32List,
+    ): void {
         if (!this._checkUniformMatrix(location, transpose, value, 'uniformMatrix3fv', 3)) return;
         const data = new Float32Array(value);
-        this._gl.uniformMatrix3fv(
-            location?._ || 0,
-            !!transpose,
-            listToArray(data));
+        this._gl.uniformMatrix3fv(location?._ || 0, !!transpose, listToArray(data));
     },
 
-    uniformMatrix4fv(this: WebGLContextBase, location: WebGLUniformLocation | null, transpose: GLboolean, value: Float32List): void {
+    uniformMatrix4fv(
+        this: WebGLContextBase,
+        location: WebGLUniformLocation | null,
+        transpose: GLboolean,
+        value: Float32List,
+    ): void {
         if (!this._checkUniformMatrix(location, transpose, value, 'uniformMatrix4fv', 4)) return;
         const data = new Float32Array(value);
-        this._gl.uniformMatrix4fv(
-            location?._ || 0,
-            !!transpose,
-            listToArray(data));
+        this._gl.uniformMatrix4fv(location?._ || 0, !!transpose, listToArray(data));
     },
 
     // ─── Internal validation helpers ────────────────────────────────────────
@@ -779,8 +811,7 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
         if (!(location instanceof WebGLUniformLocation)) {
             this.setError(this.INVALID_VALUE);
             return false;
-        } else if (location._program._ctx !== this ||
-            location._linkCount !== location._program._linkCount) {
+        } else if (location._program._ctx !== this || location._linkCount !== location._program._linkCount) {
             this.setError(this.INVALID_OPERATION);
             return false;
         }
@@ -799,7 +830,14 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
         return true;
     },
 
-    _checkUniformValid(this: WebGLContextBase, location: WebGLUniformLocation | null, v0: GLfloat, name: string, count: number, type: string): boolean {
+    _checkUniformValid(
+        this: WebGLContextBase,
+        location: WebGLUniformLocation | null,
+        v0: GLfloat,
+        name: string,
+        count: number,
+        type: string,
+    ): boolean {
         if (!checkObject(location)) {
             throw new TypeError(`${name}(WebGLUniformLocation, ...)`);
         } else if (!location) {
@@ -829,9 +867,15 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
         return false;
     },
 
-    _checkUniformValueValid(this: WebGLContextBase, location: WebGLUniformLocation | null, value: Float32List | Int32List, name: string, count: number, _type: string): boolean {
-        if (!checkObject(location) ||
-            !checkObject(value)) {
+    _checkUniformValueValid(
+        this: WebGLContextBase,
+        location: WebGLUniformLocation | null,
+        value: Float32List | Int32List,
+        name: string,
+        count: number,
+        _type: string,
+    ): boolean {
+        if (!checkObject(location) || !checkObject(value)) {
             throw new TypeError(`${name}v(WebGLUniformLocation, Array)`);
         } else if (!location) {
             return false;
@@ -856,15 +900,23 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
         return false;
     },
 
-    _checkUniformMatrix(this: WebGLContextBase, location: WebGLUniformLocation | null, transpose: GLboolean, value: Float32List, name: string, count: number): boolean {
-        if (!checkObject(location) ||
-            typeof value !== 'object') {
+    _checkUniformMatrix(
+        this: WebGLContextBase,
+        location: WebGLUniformLocation | null,
+        transpose: GLboolean,
+        value: Float32List,
+        name: string,
+        count: number,
+    ): boolean {
+        if (!checkObject(location) || typeof value !== 'object') {
             throw new TypeError(name + '(WebGLUniformLocation, Boolean, Array)');
-        } else if (!!transpose ||
+        } else if (
+            !!transpose ||
             typeof value !== 'object' ||
             value === null ||
             !value.length ||
-            value.length % count * count !== 0) {
+            (value.length % count) * count !== 0
+        ) {
             this.setError(this.INVALID_VALUE);
             return false;
         }
@@ -898,8 +950,7 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
                 case 'ident':
                     if (!this._validGLSLIdentifier(tok.data)) {
                         errorStatus = true;
-                        errorLog.push(tok.line + ':' + tok.column +
-                            ' invalid identifier - ' + tok.data);
+                        errorLog.push(tok.line + ':' + tok.column + ' invalid identifier - ' + tok.data);
                     }
                     break;
                 case 'preprocessor': {
@@ -913,8 +964,7 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
                         if (btok.type === 'ident' || btok.type === undefined) {
                             if (!this._validGLSLIdentifier(btok.data)) {
                                 errorStatus = true;
-                                errorLog.push(tok.line + ':' + btok.column +
-                                    ' invalid identifier - ' + btok.data);
+                                errorLog.push(tok.line + ':' + btok.column + ' invalid identifier - ' + btok.data);
                             }
                         }
                     }
@@ -991,9 +1041,7 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
                 const glArea = this.canvas.getGlArea();
                 const es = glArea.get_use_es();
                 const usesGlsl1Syntax = /\b(attribute|varying)\b/.test(source);
-                const version = usesGlsl1Syntax
-                    ? (es ? '100' : '120')
-                    : this._getGlslVersion(es);
+                const version = usesGlsl1Syntax ? (es ? '100' : '120') : this._getGlslVersion(es);
                 if (version) {
                     source = '#version ' + version + '\n' + preamble + source;
                 } else if (preamble) {
@@ -1022,7 +1070,7 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
 
         // Record attribute attributeLocations
         const numAttribs = this.getProgramParameter(program, this.ACTIVE_ATTRIBUTES) as number;
-        const names: string[] = new Array(numAttribs);
+        const names: string[] = Array.from({ length: numAttribs });
         program._attributes.length = numAttribs;
         for (let i = 0; i < numAttribs; ++i) {
             names[i] = this.getActiveAttrib(program, i)?.name;
@@ -1039,10 +1087,7 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
 
         for (let i = 0; i < numAttribs; ++i) {
             if (program._attributes[i] < 0) continue;
-            this._gl.bindAttribLocation(
-                program._ | 0,
-                program._attributes[i],
-                names[i]);
+            this._gl.bindAttribLocation(program._ | 0, program._attributes[i], names[i]);
         }
 
         this._gl.linkProgram(program._ | 0);
@@ -1072,12 +1117,16 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
         return true;
     },
 
-    _deleteLinkable(this: WebGLContextBase, name: string, object: WebGLProgram | WebGLShader | null, Type: typeof WebGLProgram | typeof WebGLShader): void {
+    _deleteLinkable(
+        this: WebGLContextBase,
+        name: string,
+        object: WebGLProgram | WebGLShader | null,
+        Type: typeof WebGLProgram | typeof WebGLShader,
+    ): void {
         if (!checkObject(object)) {
             throw new TypeError(name + '(' + Type.name + ')');
         }
-        if (object instanceof Type &&
-            this._checkOwns(object)) {
+        if (object instanceof Type && this._checkOwns(object)) {
             object._pendingDelete = true;
             object._checkDelete();
             return;

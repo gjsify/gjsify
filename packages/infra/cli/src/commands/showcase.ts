@@ -1,10 +1,6 @@
 import type { Command } from '../types/index.js';
 import { discoverShowcases, findShowcase } from '../utils/discover-showcases.js';
-import {
-    runMinimalChecks,
-    detectPackageManager,
-    buildInstallCommand,
-} from '../utils/check-system-deps.js';
+import { runMinimalChecks, detectPackageManager, buildInstallCommand } from '../utils/check-system-deps.js';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
@@ -55,7 +51,9 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
             }
 
             if (showcases.length === 0) {
-                console.log('No showcases found. The CLI ships a curated list in `showcases.json`; if it is missing the CLI install is incomplete.');
+                console.log(
+                    'No showcases found. The CLI ships a curated list in `showcases.json`; if it is missing the CLI install is incomplete.',
+                );
                 return;
             }
 
@@ -97,9 +95,7 @@ export const showcaseCommand: Command<any, ShowcaseOptions> = {
         // here would fail for `npx @gjsify/cli showcase` (no project
         // node_modules, CLI doesn't dep on the showcase libs).
         const results = runMinimalChecks();
-        const missingHard = results.filter(
-            (r) => !r.found && r.severity === 'required',
-        );
+        const missingHard = results.filter((r) => !r.found && r.severity === 'required');
         if (missingHard.length > 0) {
             console.error('Missing system dependencies:\n');
             for (const dep of missingHard) {

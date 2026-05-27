@@ -6,14 +6,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import {
-    writeFileSync,
-    mkdirSync,
-    chmodSync,
-    existsSync,
-    mkdtempSync,
-    rmSync,
-} from 'node:fs';
+import { writeFileSync, mkdirSync, chmodSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -56,11 +49,7 @@ describe('CLI flatpak diff E2E', { timeout: 5 * 60 * 1000 }, () => {
             commit: '1111111111111111111111111111111111111111',
         });
 
-        const out = runCli([
-            'flatpak', 'diff',
-            '--version', 'v1.0.0',
-            '--against', flathubPath,
-        ], { cwd: dir });
+        const out = runCli(['flatpak', 'diff', '--version', 'v1.0.0', '--against', flathubPath], { cwd: dir });
 
         assert.match(out, /flathub: tag=v1\.0\.0/);
         assert.match(out, /local:.*tag=v1\.0\.0/);
@@ -145,10 +134,12 @@ function writeFlathubFixture(tmpDir, suite, appId, { tag, commit }) {
         JSON.stringify(
             {
                 id: appId,
-                modules: [{
-                    name: appId.split('.').pop(),
-                    sources: [{ type: 'git', url: `https://github.com/example/${appId}.git`, tag, commit }],
-                }],
+                modules: [
+                    {
+                        name: appId.split('.').pop(),
+                        sources: [{ type: 'git', url: `https://github.com/example/${appId}.git`, tag, commit }],
+                    },
+                ],
             },
             null,
             2,

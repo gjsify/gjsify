@@ -20,7 +20,10 @@ function assertPixel(
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
-    r: number, g: number, b: number, a: number,
+    r: number,
+    g: number,
+    b: number,
+    a: number,
 ): void {
     const data = ctx.getImageData(x, y, 1, 1).data;
     expect(data[0]).toBe(r);
@@ -31,7 +34,6 @@ function assertPixel(
 
 export default async () => {
     await describe('CanvasRenderingContext2D — clearRect', async () => {
-
         await it('clears a red-filled canvas to transparent black', async () => {
             const ctx = makeCtx(20, 20);
             ctx.fillStyle = 'rgb(255, 0, 0)';

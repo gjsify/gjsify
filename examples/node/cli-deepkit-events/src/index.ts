@@ -98,21 +98,37 @@ const run = async () => {
     const dispatcher2 = new EventDispatcher();
 
     // Higher order = later execution. Default is 0.
-    dispatcher2.listen(onProcess, () => {
-        log('  [Order 100] Final cleanup');
-    }, 100);
+    dispatcher2.listen(
+        onProcess,
+        () => {
+            log('  [Order 100] Final cleanup');
+        },
+        100,
+    );
 
-    dispatcher2.listen(onProcess, () => {
-        log('  [Order -10] Pre-processing (runs first)');
-    }, -10);
+    dispatcher2.listen(
+        onProcess,
+        () => {
+            log('  [Order -10] Pre-processing (runs first)');
+        },
+        -10,
+    );
 
-    dispatcher2.listen(onProcess, () => {
-        log('  [Order 0] Main processing');
-    }, 0);
+    dispatcher2.listen(
+        onProcess,
+        () => {
+            log('  [Order 0] Main processing');
+        },
+        0,
+    );
 
-    dispatcher2.listen(onProcess, () => {
-        log('  [Order 50] Post-processing');
-    }, 50);
+    dispatcher2.listen(
+        onProcess,
+        () => {
+            log('  [Order 50] Post-processing');
+        },
+        50,
+    );
 
     await dispatcher2.dispatch(onProcess);
 
@@ -170,27 +186,39 @@ const run = async () => {
     const dispatcher4 = new EventDispatcher();
 
     // First handler: catch /api/* routes
-    dispatcher4.listen(onRequest, (event) => {
-        if (event.url.startsWith('/api/')) {
-            event.response = `API response for ${event.url}`;
-            event.handled = true;
-            event.stopImmediatePropagation(); // Don't call other listeners
-            log(`  [API Handler] Handled: ${event.url}`);
-        }
-    }, -10);
+    dispatcher4.listen(
+        onRequest,
+        (event) => {
+            if (event.url.startsWith('/api/')) {
+                event.response = `API response for ${event.url}`;
+                event.handled = true;
+                event.stopImmediatePropagation(); // Don't call other listeners
+                log(`  [API Handler] Handled: ${event.url}`);
+            }
+        },
+        -10,
+    );
 
     // Second handler: catch everything else
-    dispatcher4.listen(onRequest, (event) => {
-        if (!event.handled) {
-            event.response = `Page: ${event.url}`;
-            log(`  [Page Handler] Handled: ${event.url}`);
-        }
-    }, 0);
+    dispatcher4.listen(
+        onRequest,
+        (event) => {
+            if (!event.handled) {
+                event.response = `Page: ${event.url}`;
+                log(`  [Page Handler] Handled: ${event.url}`);
+            }
+        },
+        0,
+    );
 
     // Third handler: should NOT run for /api/* routes
-    dispatcher4.listen(onRequest, (event) => {
-        log(`  [Logger] Request completed: ${event.url} -> ${event.response}`);
-    }, 10);
+    dispatcher4.listen(
+        onRequest,
+        (event) => {
+            log(`  [Logger] Request completed: ${event.url} -> ${event.response}`);
+        },
+        10,
+    );
 
     const req1 = new RequestEvent('/api/users');
     await dispatcher4.dispatch(onRequest, req1);
@@ -254,16 +282,24 @@ const run = async () => {
     });
 
     await dispatcher6.dispatch(onNotification, {
-        type: 'info', message: 'System started', timestamp: new Date(),
+        type: 'info',
+        message: 'System started',
+        timestamp: new Date(),
     });
     await dispatcher6.dispatch(onNotification, {
-        type: 'warning', message: 'Memory usage high', timestamp: new Date(),
+        type: 'warning',
+        message: 'Memory usage high',
+        timestamp: new Date(),
     });
     await dispatcher6.dispatch(onNotification, {
-        type: 'error', message: 'Connection lost', timestamp: new Date(),
+        type: 'error',
+        message: 'Connection lost',
+        timestamp: new Date(),
     });
     await dispatcher6.dispatch(onNotification, {
-        type: 'info', message: 'Connection restored', timestamp: new Date(),
+        type: 'info',
+        message: 'Connection restored',
+        timestamp: new Date(),
     });
 
     log(`  Metrics: info=${metrics.info}, warning=${metrics.warning}, error=${metrics.error}`);

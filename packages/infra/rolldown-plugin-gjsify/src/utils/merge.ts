@@ -18,5 +18,10 @@ export function merge<T extends Record<string, any>>(target: T, ...sources: Reco
 }
 
 function isPlainObject(val: unknown): val is Record<string, any> {
-    return typeof val === 'object' && val !== null && !Array.isArray(val) && Object.getPrototypeOf(val) === Object.prototype;
+    return (
+        typeof val === 'object' &&
+        val !== null &&
+        !Array.isArray(val) &&
+        Object.getPrototypeOf(val) === Object.prototype
+    );
 }

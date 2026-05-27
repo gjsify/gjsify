@@ -24,19 +24,10 @@ import { dirname, join, relative } from 'node:path';
 import { spawn } from 'node:child_process';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
-import {
-    buildInstallCommand,
-    detectPackageManager,
-    runMinimalChecks,
-} from '../utils/check-system-deps.js';
+import { buildInstallCommand, detectPackageManager, runMinimalChecks } from '../utils/check-system-deps.js';
 import { detectNativePackages } from '../utils/detect-native-packages.js';
 import { installPackages } from '../utils/install-backend.js';
-import {
-    binDirOnPath,
-    defaultGlobalLayout,
-    linkGlobalBins,
-    specToPackageName,
-} from '../utils/install-global.js';
+import { binDirOnPath, defaultGlobalLayout, linkGlobalBins, specToPackageName } from '../utils/install-global.js';
 import {
     addDependencyEntry,
     defaultRangeFromVersion,
@@ -70,8 +61,7 @@ export const installCommand: Command<any, InstallOptions> = {
                 array: true,
             })
             .option('global', {
-                description:
-                    'Install into the user-global XDG location and symlink bins into ~/.local/bin.',
+                description: 'Install into the user-global XDG location and symlink bins into ~/.local/bin.',
                 type: 'boolean',
                 alias: 'g',
                 default: false,
@@ -104,7 +94,7 @@ export const installCommand: Command<any, InstallOptions> = {
             if (args.packages && args.packages.length > 0) {
                 console.error(
                     'gjsify install --immutable does not accept package arguments. ' +
-                    'Remove the package names or drop --immutable.',
+                        'Remove the package names or drop --immutable.',
                 );
                 process.exit(1);
             }
@@ -115,9 +105,7 @@ export const installCommand: Command<any, InstallOptions> = {
         }
         if (args.global) {
             if (!args.packages || args.packages.length === 0) {
-                console.error(
-                    'gjsify install --global requires at least one <pkg> argument.',
-                );
+                console.error('gjsify install --global requires at least one <pkg> argument.');
                 process.exit(1);
             }
             for (const flag of ['save-dev', 'save-peer', 'save-optional'] as const) {
@@ -187,13 +175,13 @@ async function projectInstallNative(args: InstallOptions): Promise<void> {
     if (pnpResidue.length > 0) {
         throw new Error(
             `gjsify install uses the node_modules linker and cannot run in a Yarn PnP ` +
-            `project (found ${pnpResidue.join(', ')} in ${cwd}).\n\n` +
-            `• If this project uses \`gjsify install\` to manage dependencies, these PnP ` +
-            `files are stale residue from an earlier \`yarn install\` — remove them and re-run:\n` +
-            `      rm -f .pnp.cjs .pnp.loader.mjs && rm -rf .yarn/cache .yarn/unplugged\n` +
-            `      gjsify install\n\n` +
-            `• If instead you want Yarn to manage dependencies, set \`nodeLinker: node-modules\` ` +
-            `in .yarnrc.yml and run \`yarn install\` (not \`gjsify install\`).`,
+                `project (found ${pnpResidue.join(', ')} in ${cwd}).\n\n` +
+                `• If this project uses \`gjsify install\` to manage dependencies, these PnP ` +
+                `files are stale residue from an earlier \`yarn install\` — remove them and re-run:\n` +
+                `      rm -f .pnp.cjs .pnp.loader.mjs && rm -rf .yarn/cache .yarn/unplugged\n` +
+                `      gjsify install\n\n` +
+                `• If instead you want Yarn to manage dependencies, set \`nodeLinker: node-modules\` ` +
+                `in .yarnrc.yml and run \`yarn install\` (not \`gjsify install\`).`,
         );
     }
 
@@ -308,7 +296,11 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
     }
     const byName = new Map(workspaces.map((w) => [w.name, w] as const));
     const externalSpecs = new Set<string>();
-    interface SymlinkPlan { fromWorkspaceName: string; depName: string; targetLocation: string; }
+    interface SymlinkPlan {
+        fromWorkspaceName: string;
+        depName: string;
+        targetLocation: string;
+    }
     const symlinks: SymlinkPlan[] = [];
 
     for (const ws of workspaces) {
@@ -323,7 +315,7 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
                     if (!target) {
                         throw new Error(
                             `gjsify install: ${ws.name} declares "${depName}: ${spec}" but ` +
-                            `no workspace with that name exists`,
+                                `no workspace with that name exists`,
                         );
                     }
                     symlinks.push({ fromWorkspaceName: ws.name, depName, targetLocation: target.location });
@@ -379,9 +371,11 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
         // `symlinkSync` would then refuse to overwrite).
         try {
             rmSync(linkPath, { recursive: true, force: true });
-        } catch { /* unexpected — Gio failure on a path we just lstat'd to
+        } catch {
+            /* unexpected — Gio failure on a path we just lstat'd to
                      decide we wanted to remove. The subsequent symlinkSync
-                     will surface the real reason if there is one. */ }
+                     will surface the real reason if there is one. */
+        }
         // Relative symlink so the repo is portable across checkout paths.
         const relTarget = relative(dirname(linkPath), link.targetLocation);
         symlinkSync(relTarget, linkPath);
@@ -423,7 +417,9 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
         try {
             lstatSync(linkPath);
             existsHere = true;
-        } catch { /* ENOENT */ }
+        } catch {
+            /* ENOENT */
+        }
         if (existsHere) continue;
         mkdirSync(dirname(linkPath), { recursive: true });
         const relTarget = relative(dirname(linkPath), ws.location);
@@ -471,8 +467,14 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
         mkdirSync(wsBinDir, { recursive: true });
         for (const [binName, { nodeTarget, gjsTarget }] of merged) {
             const linkPath = join(wsBinDir, binName);
-            try { rmSync(linkPath, { force: true }); } catch { /* fine */ }
-            writeFileSync(linkPath, buildBinShim(ws.location, nodeTarget, gjsTarget, nativePrebuildDirs), { mode: 0o755 });
+            try {
+                rmSync(linkPath, { force: true });
+            } catch {
+                /* fine */
+            }
+            writeFileSync(linkPath, buildBinShim(ws.location, nodeTarget, gjsTarget, nativePrebuildDirs), {
+                mode: 0o755,
+            });
             chmodSync(linkPath, 0o755);
             wsBinsCreated++;
         }
@@ -512,7 +514,9 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
  * Keys beginning with `_` are skipped (convention for documentation entries
  * like `"_comment_typescript"` used in the wild).
  */
-function extractOverrides(rootManifest: { overrides?: unknown; resolutions?: unknown } | undefined): Record<string, string> | undefined {
+function extractOverrides(
+    rootManifest: { overrides?: unknown; resolutions?: unknown } | undefined,
+): Record<string, string> | undefined {
     if (!rootManifest) return undefined;
     const out: Record<string, string> = {};
     const merge = (source: Record<string, unknown> | undefined, fieldName: string) => {
@@ -520,7 +524,9 @@ function extractOverrides(rootManifest: { overrides?: unknown; resolutions?: unk
         for (const [key, value] of Object.entries(source)) {
             if (key.startsWith('_')) continue;
             if (typeof value !== 'string') {
-                console.warn(`gjsify install: ${fieldName}["${key}"] is not a string — nested override shape isn't supported yet, skipping`);
+                console.warn(
+                    `gjsify install: ${fieldName}["${key}"] is not a string — nested override shape isn't supported yet, skipping`,
+                );
                 continue;
             }
             // Normalise pattern keys (`name@*`, `name@^range`) → bare name.
@@ -547,16 +553,17 @@ function buildBinShim(
     // GJS-only env preamble — Node ignores GI_TYPELIB_PATH so we scope the
     // export to the gjs branch, keeping the shim minimal when no native pkgs
     // exist or only the Node bin is in play.
-    const gjsPreamble = nativePrebuildDirs.length === 0
-        ? ''
-        : (() => {
-            const joined = `'${nativePrebuildDirs.join(':').replace(/'/g, `'\\''`)}'`;
-            return (
-                `GI_TYPELIB_PATH=${joined}\${GI_TYPELIB_PATH:+":$GI_TYPELIB_PATH"}\n` +
-                `LD_LIBRARY_PATH=${joined}\${LD_LIBRARY_PATH:+":$LD_LIBRARY_PATH"}\n` +
-                `export GI_TYPELIB_PATH LD_LIBRARY_PATH\n`
-            );
-        })();
+    const gjsPreamble =
+        nativePrebuildDirs.length === 0
+            ? ''
+            : (() => {
+                  const joined = `'${nativePrebuildDirs.join(':').replace(/'/g, `'\\''`)}'`;
+                  return (
+                      `GI_TYPELIB_PATH=${joined}\${GI_TYPELIB_PATH:+":$GI_TYPELIB_PATH"}\n` +
+                      `LD_LIBRARY_PATH=${joined}\${LD_LIBRARY_PATH:+":$LD_LIBRARY_PATH"}\n` +
+                      `export GI_TYPELIB_PATH LD_LIBRARY_PATH\n`
+                  );
+              })();
     if (nodeAbs && gjsAbs) {
         return `#!/bin/sh\nif [ -f "${nodeAbs}" ]; then\n  exec node "${nodeAbs}" "$@"\nfi\n${gjsPreamble}exec gjs -m "${gjsAbs}" "$@"\n`;
     }
@@ -580,7 +587,10 @@ function mergeWorkspaceBins(
     const baseName = pkgName.startsWith('@') ? pkgName.slice(pkgName.indexOf('/') + 1) : pkgName;
     const get = (key: string) => {
         let entry = out.get(key);
-        if (!entry) { entry = {}; out.set(key, entry); }
+        if (!entry) {
+            entry = {};
+            out.set(key, entry);
+        }
         return entry;
     };
     if (typeof nodeBin === 'string') {
@@ -621,9 +631,10 @@ async function spawnNpm(npmArgs: string[]): Promise<void> {
         });
         child.on('error', (err) => {
             const code = (err as NodeJS.ErrnoException).code;
-            const msg = code === 'ENOENT'
-                ? 'npm not found on PATH — install Node.js first.'
-                : `npm install failed: ${err.message}`;
+            const msg =
+                code === 'ENOENT'
+                    ? 'npm not found on PATH — install Node.js first.'
+                    : `npm install failed: ${err.message}`;
             reject(new Error(msg));
         });
     }).catch((err: Error) => {
@@ -632,10 +643,7 @@ async function spawnNpm(npmArgs: string[]): Promise<void> {
     });
 }
 
-async function installGlobalAndLink(
-    specs: string[],
-    opts: { verbose: boolean },
-): Promise<void> {
+async function installGlobalAndLink(specs: string[], opts: { verbose: boolean }): Promise<void> {
     const layout = defaultGlobalLayout();
     mkdirSync(layout.prefix, { recursive: true });
 
@@ -652,9 +660,7 @@ async function installGlobalAndLink(
     const created = linkGlobalBins(packageNames, layout);
 
     if (created.length === 0) {
-        console.warn(
-            '\nNo bins declared (neither `gjsify.bin` nor `bin` in package.json) — nothing was symlinked.',
-        );
+        console.warn('\nNo bins declared (neither `gjsify.bin` nor `bin` in package.json) — nothing was symlinked.');
     } else {
         console.log(`\nLinked ${created.length} bin(s):`);
         for (const e of created) {
@@ -692,9 +698,7 @@ async function runPostInstallChecks(): Promise<void> {
     //    will set LD_LIBRARY_PATH / GI_TYPELIB_PATH for these automatically.
     const native = detectNativePackages(process.cwd());
     if (native.length > 0) {
-        console.log(
-            `\nDetected ${native.length} @gjsify/* package(s) with native prebuilds:`,
-        );
+        console.log(`\nDetected ${native.length} @gjsify/* package(s) with native prebuilds:`);
         for (const pkg of native) {
             console.log(`  • ${pkg.name}`);
         }

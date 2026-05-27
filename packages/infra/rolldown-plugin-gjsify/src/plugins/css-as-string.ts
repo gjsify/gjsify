@@ -69,7 +69,8 @@ type Bundler = (filename: string, targets: import('lightningcss').Targets | unde
 let _bundlerPromise: Promise<Bundler> | null = null;
 
 async function pickBundler(): Promise<Bundler> {
-    const forced = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.GJSIFY_CSS_BACKEND;
+    const forced = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+        ?.GJSIFY_CSS_BACKEND;
 
     if (forced === 'npm') return loadNpmBundler();
     if (forced === 'native') {
@@ -175,9 +176,7 @@ const cssBundleResolver = {
     },
 };
 
-function targetsToBrowserslist(
-    targets: import('lightningcss').Targets | undefined,
-): string | undefined {
+function targetsToBrowserslist(targets: import('lightningcss').Targets | undefined): string | undefined {
     if (!targets) return undefined;
     const parts: string[] = [];
     for (const [browser, encoded] of Object.entries(targets) as [string, number | undefined][]) {

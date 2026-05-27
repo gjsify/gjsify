@@ -70,15 +70,8 @@ interface InlineContext {
  * Safe to call on any JS source. Files that don't reference `readFileSync` /
  * `readdirSync` / `existsSync` skip the AST parse entirely (cheap fast path).
  */
-export function inlineStaticReads(
-    src: string,
-    sourceFilePath: string,
-): { contents: string; inlined: number } {
-    if (
-        !src.includes('readFileSync') &&
-        !src.includes('readdirSync') &&
-        !src.includes('existsSync')
-    ) {
+export function inlineStaticReads(src: string, sourceFilePath: string): { contents: string; inlined: number } {
+    if (!src.includes('readFileSync') && !src.includes('readdirSync') && !src.includes('existsSync')) {
         return { contents: src, inlined: 0 };
     }
 
@@ -138,11 +131,7 @@ export function inlineStaticReads(
  * `undefined` if the call doesn't match an inlinable pattern or the path
  * couldn't be resolved or the file doesn't exist.
  */
-function tryInlineCall(
-    node: acorn.CallExpression,
-    ctx: InlineContext,
-    src: string,
-): Edit | undefined {
+function tryInlineCall(node: acorn.CallExpression, ctx: InlineContext, src: string): Edit | undefined {
     const callee = node.callee;
 
     // `JSON.parse(readFileSync(<path>, "utf8"))` — collapse the whole
@@ -152,8 +141,10 @@ function tryInlineCall(
     if (
         callee.type === 'MemberExpression' &&
         !callee.computed &&
-        callee.object.type === 'Identifier' && callee.object.name === 'JSON' &&
-        callee.property.type === 'Identifier' && callee.property.name === 'parse' &&
+        callee.object.type === 'Identifier' &&
+        callee.object.name === 'JSON' &&
+        callee.property.type === 'Identifier' &&
+        callee.property.name === 'parse' &&
         node.arguments.length >= 1 &&
         node.arguments[0].type === 'CallExpression'
     ) {
@@ -216,7 +207,6 @@ function tryInlineCall(
             };
         }
     }
-
 
     // `createRequire(<URL>)` from `node:module` returns a CJS-style require.
     // In a bundled GJS executable, the deps that the runtime require would
@@ -384,7 +374,11 @@ function evalExpr(node: acorn.AnyNode | undefined, ctx: InlineContext): EvalValu
                 if (typeof obj === 'string') {
                     if (prop === 'href') return obj; // already a URL string
                     if (prop === 'pathname') {
-                        try { return new URL(obj).pathname; } catch { return undefined; }
+                        try {
+                            return new URL(obj).pathname;
+                        } catch {
+                            return undefined;
+                        }
                     }
                 }
             }
@@ -399,12 +393,20 @@ function evalExpr(node: acorn.AnyNode | undefined, ctx: InlineContext): EvalValu
                 const first = evalExpr(ne.arguments[0], ctx);
                 if (typeof first !== 'string') return undefined;
                 if (ne.arguments.length === 1) {
-                    try { return new URL(first); } catch { return undefined; }
+                    try {
+                        return new URL(first);
+                    } catch {
+                        return undefined;
+                    }
                 }
                 const base = evalExpr(ne.arguments[1], ctx);
-                const baseStr = base instanceof URL ? base.href : (typeof base === 'string' ? base : undefined);
+                const baseStr = base instanceof URL ? base.href : typeof base === 'string' ? base : undefined;
                 if (!baseStr) return undefined;
-                try { return new URL(first, baseStr); } catch { return undefined; }
+                try {
+                    return new URL(first, baseStr);
+                } catch {
+                    return undefined;
+                }
             }
             return undefined;
         }
@@ -415,15 +417,23 @@ function evalExpr(node: acorn.AnyNode | undefined, ctx: InlineContext): EvalValu
 
             if (name === 'fileURLToPath') {
                 const arg = evalExpr(ce.arguments[0], ctx);
-                const url = arg instanceof URL ? arg.href : (typeof arg === 'string' ? arg : undefined);
+                const url = arg instanceof URL ? arg.href : typeof arg === 'string' ? arg : undefined;
                 if (!url) return undefined;
-                try { return fileURLToPath(url); } catch { return undefined; }
+                try {
+                    return fileURLToPath(url);
+                } catch {
+                    return undefined;
+                }
             }
 
             if (name === 'pathToFileURL') {
                 const arg = evalExpr(ce.arguments[0], ctx);
                 if (typeof arg !== 'string') return undefined;
-                try { return pathToFileURL(arg); } catch { return undefined; }
+                try {
+                    return pathToFileURL(arg);
+                } catch {
+                    return undefined;
+                }
             }
 
             if (name === 'join' || name === 'resolve') {
@@ -476,9 +486,12 @@ function evalEncodingExpr(node: acorn.AnyNode | undefined): string | undefined {
     if (node.type === 'ObjectExpression') {
         for (const p of (node as acorn.ObjectExpression).properties) {
             if (p.type !== 'Property' || p.computed) continue;
-            const key = p.key.type === 'Identifier'
-                ? (p.key as acorn.Identifier).name
-                : p.key.type === 'Literal' ? String((p.key as acorn.Literal).value) : undefined;
+            const key =
+                p.key.type === 'Identifier'
+                    ? (p.key as acorn.Identifier).name
+                    : p.key.type === 'Literal'
+                      ? String((p.key as acorn.Literal).value)
+                      : undefined;
             if (key !== 'encoding') continue;
             if (p.value.type === 'Literal' && typeof (p.value as acorn.Literal).value === 'string') {
                 return canonicalEncoding((p.value as acorn.Literal).value as string);
@@ -576,9 +589,17 @@ function jsStringLiteral(s: string): string {
 }
 
 function existsSyncSafe(path: string): boolean {
-    try { return existsSync(path); } catch { return false; }
+    try {
+        return existsSync(path);
+    } catch {
+        return false;
+    }
 }
 
 function isDirectorySafe(path: string): boolean {
-    try { return statSync(path).isDirectory(); } catch { return false; }
+    try {
+        return statSync(path).isDirectory();
+    } catch {
+        return false;
+    }
 }

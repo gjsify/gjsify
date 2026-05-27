@@ -44,29 +44,29 @@ import { performance, PerformanceObserver } from '@gjsify/perf_hooks';
  * site.
  */
 interface _RegisteredWebGlobals {
-  URL?: unknown;
-  URLSearchParams?: unknown;
-  FormData?: unknown;
-  performance?: unknown;
-  PerformanceObserver?: unknown;
+    URL?: unknown;
+    URLSearchParams?: unknown;
+    FormData?: unknown;
+    performance?: unknown;
+    PerformanceObserver?: unknown;
 }
 
 const g = globalThis as unknown as _RegisteredWebGlobals;
 
 if (typeof globalThis.URL !== 'function') {
-  g.URL = URL;
+    g.URL = URL;
 }
 if (typeof globalThis.URLSearchParams !== 'function') {
-  g.URLSearchParams = URLSearchParams;
+    g.URLSearchParams = URLSearchParams;
 }
 if (typeof globalThis.FormData !== 'function') {
-  g.FormData = FormData;
+    g.FormData = FormData;
 }
 if (typeof globalThis.performance === 'undefined') {
-  g.performance = performance;
+    g.performance = performance;
 }
 if (typeof g.PerformanceObserver !== 'function') {
-  g.PerformanceObserver = PerformanceObserver;
+    g.PerformanceObserver = PerformanceObserver;
 }
 
 // Web Audio API via GStreamer

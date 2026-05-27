@@ -72,9 +72,12 @@ export class HTMLCanvasElement extends HTMLElement {
     }
 
     /** Converts the canvas to a Blob and passes it to the callback. Delegates to the active 2D context if available. */
-    toBlob(callback: ((blob: Blob | null) => void), type?: string, quality?: any): void {
+    toBlob(callback: (blob: Blob | null) => void, type?: string, quality?: any): void {
         const dataUrl = this.toDataURL(type, quality);
-        if (!dataUrl) { callback(null); return; }
+        if (!dataUrl) {
+            callback(null);
+            return;
+        }
         const [header, b64] = dataUrl.split(',');
         const mime = header.split(':')[1].split(';')[0];
         const bytes = atob(b64);

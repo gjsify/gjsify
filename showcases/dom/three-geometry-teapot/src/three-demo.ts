@@ -9,8 +9,15 @@ import { TeapotGeometry } from 'three/addons/geometries/TeapotGeometry.js';
 export type ShadingMode = 'wireframe' | 'flat' | 'smooth' | 'glossy' | 'textured' | 'reflective';
 
 export const TESS_VALUES = [2, 3, 4, 5, 6, 8, 10, 15, 20, 30, 40, 50] as const;
-export const SHADING_VALUES: readonly ShadingMode[] = ['wireframe', 'flat', 'smooth', 'glossy', 'textured', 'reflective'];
-export const DEFAULT_TESS_INDEX = 7;    // "15"
+export const SHADING_VALUES: readonly ShadingMode[] = [
+    'wireframe',
+    'flat',
+    'smooth',
+    'glossy',
+    'textured',
+    'reflective',
+];
+export const DEFAULT_TESS_INDEX = 7; // "15"
 export const DEFAULT_SHADING_INDEX = 3; // "glossy"
 
 export interface TeapotEffectController {
@@ -57,13 +64,13 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
 
     // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xAAAAAA);
+    scene.background = new THREE.Color(0xaaaaaa);
 
     // Lights
     const ambientLight = new THREE.AmbientLight(0x7c7c7c, 2.0);
     scene.add(ambientLight);
 
-    const light = new THREE.DirectionalLight(0xFFFFFF, 2.0);
+    const light = new THREE.DirectionalLight(0xffffff, 2.0);
     light.position.set(0.32, 0.39, 0.7);
     scene.add(light);
 
@@ -80,12 +87,17 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
 
     // Materials
     const materials: Record<ShadingMode, THREE.Material> = {
-        'wireframe': new THREE.MeshBasicMaterial({ wireframe: true }),
-        'flat': new THREE.MeshPhongMaterial({ specular: 0x000000, flatShading: true, side: THREE.DoubleSide }),
-        'smooth': new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }),
-        'glossy': new THREE.MeshPhongMaterial({ color: 0xc0c0c0, specular: 0x404040, shininess: 300, side: THREE.DoubleSide }),
-        'textured': new THREE.MeshPhongMaterial({ map: textureMap, side: THREE.DoubleSide }),
-        'reflective': new THREE.MeshPhongMaterial({ envMap: textureCube, side: THREE.DoubleSide }),
+        wireframe: new THREE.MeshBasicMaterial({ wireframe: true }),
+        flat: new THREE.MeshPhongMaterial({ specular: 0x000000, flatShading: true, side: THREE.DoubleSide }),
+        smooth: new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }),
+        glossy: new THREE.MeshPhongMaterial({
+            color: 0xc0c0c0,
+            specular: 0x404040,
+            shininess: 300,
+            side: THREE.DoubleSide,
+        }),
+        textured: new THREE.MeshPhongMaterial({ map: textureMap, side: THREE.DoubleSide }),
+        reflective: new THREE.MeshPhongMaterial({ envMap: textureCube, side: THREE.DoubleSide }),
     };
 
     // OrbitControls
@@ -135,14 +147,15 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
 
     function doRender() {
         // Check if parameters changed
-        if (effectController.newTess !== tess ||
+        if (
+            effectController.newTess !== tess ||
             effectController.bottom !== bBottom ||
             effectController.lid !== bLid ||
             effectController.body !== bBody ||
             effectController.fitLid !== bFitLid ||
             effectController.nonblinn !== bNonBlinn ||
-            effectController.newShading !== shading) {
-
+            effectController.newShading !== shading
+        ) {
             tess = effectController.newTess;
             bBottom = effectController.bottom;
             bLid = effectController.lid;
@@ -199,7 +212,9 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
     return {
         effectController,
         render,
-        get isPaused() { return paused; },
+        get isPaused() {
+            return paused;
+        },
         pause() {
             if (paused) return;
             paused = true;

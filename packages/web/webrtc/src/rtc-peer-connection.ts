@@ -30,7 +30,7 @@ import { RTCRtpSender, type RTCRtpTransceiverDirection } from './rtc-rtp-sender.
 import { RTCRtpReceiver } from './rtc-rtp-receiver.js';
 import { RTCRtpTransceiver } from './rtc-rtp-transceiver.js';
 import { MediaStream } from './media-stream.js';
-import { MediaStreamTrack } from './media-stream-track.js';
+import type { MediaStreamTrack } from './media-stream-track.js';
 import { RTCTrackEvent } from './rtc-track-event.js';
 import { RTCIceTransport } from './rtc-ice-transport.js';
 import { RTCDtlsTransport } from './rtc-dtls-transport.js';
@@ -38,13 +38,21 @@ import { RTCSctpTransport } from './rtc-sctp-transport.js';
 import { RTCCertificate, generateCertificate, type AlgorithmIdentifier } from './rtc-certificate.js';
 
 export type RTCSignalingState =
-    | 'stable' | 'closed'
-    | 'have-local-offer' | 'have-remote-offer'
-    | 'have-local-pranswer' | 'have-remote-pranswer';
-export type RTCPeerConnectionState =
-    | 'new' | 'connecting' | 'connected' | 'disconnected' | 'failed' | 'closed';
+    | 'stable'
+    | 'closed'
+    | 'have-local-offer'
+    | 'have-remote-offer'
+    | 'have-local-pranswer'
+    | 'have-remote-pranswer';
+export type RTCPeerConnectionState = 'new' | 'connecting' | 'connected' | 'disconnected' | 'failed' | 'closed';
 export type RTCIceConnectionState =
-    | 'new' | 'checking' | 'connected' | 'completed' | 'failed' | 'disconnected' | 'closed';
+    | 'new'
+    | 'checking'
+    | 'connected'
+    | 'completed'
+    | 'failed'
+    | 'disconnected'
+    | 'closed';
 export type RTCIceGatheringState = 'new' | 'gathering' | 'complete';
 export type RTCIceTransportPolicy = 'all' | 'relay';
 export type RTCBundlePolicy = 'balanced' | 'max-compat' | 'max-bundle';
@@ -84,16 +92,13 @@ export interface RTCDataChannelInit {
     priority?: 'very-low' | 'low' | 'medium' | 'high';
 }
 
-type EventHandler<E extends Event = Event> =
-    ((this: RTCPeerConnection, ev: E) => any) | null;
-
+type EventHandler<E extends Event = Event> = ((this: RTCPeerConnection, ev: E) => any) | null;
 
 export interface RTCRtpTransceiverInit {
     direction?: RTCRtpTransceiverDirection;
     streams?: MediaStream[];
     sendEncodings?: Array<{ rid?: string; active?: boolean; maxBitrate?: number; scaleResolutionDownBy?: number }>;
 }
-
 
 let globalCounter = 0;
 
@@ -164,21 +169,17 @@ export class RTCPeerConnection extends EventTarget {
         this._bridge = new WebrtcbinBridge({ bin: this._webrtcbin });
         this._bridge.connect('negotiation-needed', () => this._handleNegotiationNeeded());
         this._bridge.connect('icecandidate', (_b, mlineIndex, candidate) =>
-            this._handleIceCandidate(mlineIndex, candidate));
-        this._bridge.connect('datachannel', (_b, channelBridge) =>
-            this._handleDataChannel(channelBridge));
-        this._bridge.connect('new-transceiver', (_b, gstTrans) =>
-            this._handleNewTransceiver(gstTrans));
-        this._bridge.connect('pad-added', (_b, pad) =>
-            this._handlePadAdded(pad));
-        this._bridge.connect('connection-state-changed', () =>
-            this._dispatchStateChange('connectionstatechange'));
+            this._handleIceCandidate(mlineIndex, candidate),
+        );
+        this._bridge.connect('datachannel', (_b, channelBridge) => this._handleDataChannel(channelBridge));
+        this._bridge.connect('new-transceiver', (_b, gstTrans) => this._handleNewTransceiver(gstTrans));
+        this._bridge.connect('pad-added', (_b, pad) => this._handlePadAdded(pad));
+        this._bridge.connect('connection-state-changed', () => this._dispatchStateChange('connectionstatechange'));
         this._bridge.connect('ice-connection-state-changed', () =>
-            this._dispatchStateChange('iceconnectionstatechange'));
-        this._bridge.connect('ice-gathering-state-changed', () =>
-            this._dispatchStateChange('icegatheringstatechange'));
-        this._bridge.connect('signaling-state-changed', () =>
-            this._dispatchStateChange('signalingstatechange'));
+            this._dispatchStateChange('iceconnectionstatechange'),
+        );
+        this._bridge.connect('ice-gathering-state-changed', () => this._dispatchStateChange('icegatheringstatechange'));
+        this._bridge.connect('signaling-state-changed', () => this._dispatchStateChange('signalingstatechange'));
 
         // webrtcbin needs PLAYING to exit its `is_closed` state before it accepts
         // createDataChannel/create-offer etc. (see GStreamer webrtcbin source).
@@ -230,74 +231,124 @@ export class RTCPeerConnection extends EventTarget {
 
     _applyIceTransportPolicy(policy?: RTCIceTransportPolicy): void {
         if (!policy) return;
-        const gstPolicy = policy === 'relay'
-            ? GstWebRTC.WebRTCICETransportPolicy.RELAY
-            : GstWebRTC.WebRTCICETransportPolicy.ALL;
-        try { asWebRtcBin(this._webrtcbin).ice_transport_policy = gstPolicy; } catch { /* ignore */ }
+        const gstPolicy =
+            policy === 'relay' ? GstWebRTC.WebRTCICETransportPolicy.RELAY : GstWebRTC.WebRTCICETransportPolicy.ALL;
+        try {
+            asWebRtcBin(this._webrtcbin).ice_transport_policy = gstPolicy;
+        } catch {
+            /* ignore */
+        }
     }
 
     private _applyBundlePolicy(policy?: RTCBundlePolicy): void {
         if (!policy) return;
         let gstPolicy: GstWebRTC.WebRTCBundlePolicy;
         switch (policy) {
-            case 'balanced':   gstPolicy = GstWebRTC.WebRTCBundlePolicy.BALANCED; break;
-            case 'max-compat': gstPolicy = GstWebRTC.WebRTCBundlePolicy.MAX_COMPAT; break;
-            case 'max-bundle': gstPolicy = GstWebRTC.WebRTCBundlePolicy.MAX_BUNDLE; break;
-            default: return;
+            case 'balanced':
+                gstPolicy = GstWebRTC.WebRTCBundlePolicy.BALANCED;
+                break;
+            case 'max-compat':
+                gstPolicy = GstWebRTC.WebRTCBundlePolicy.MAX_COMPAT;
+                break;
+            case 'max-bundle':
+                gstPolicy = GstWebRTC.WebRTCBundlePolicy.MAX_BUNDLE;
+                break;
+            default:
+                return;
         }
-        try { asWebRtcBin(this._webrtcbin).bundle_policy = gstPolicy; } catch { /* ignore */ }
+        try {
+            asWebRtcBin(this._webrtcbin).bundle_policy = gstPolicy;
+        } catch {
+            /* ignore */
+        }
     }
 
     // ---- Properties --------------------------------------------------------
 
     get signalingState(): RTCSignalingState {
         if (this._closed) return 'closed';
-        try { return gstToSignalingState(asWebRtcBin(this._webrtcbin).signaling_state); }
-        catch { return 'stable'; }
+        try {
+            return gstToSignalingState(asWebRtcBin(this._webrtcbin).signaling_state);
+        } catch {
+            return 'stable';
+        }
     }
 
     get connectionState(): RTCPeerConnectionState {
         if (this._closed) return 'closed';
-        try { return gstToConnectionState(asWebRtcBin(this._webrtcbin).connection_state); }
-        catch { return 'new'; }
+        try {
+            return gstToConnectionState(asWebRtcBin(this._webrtcbin).connection_state);
+        } catch {
+            return 'new';
+        }
     }
 
     get iceConnectionState(): RTCIceConnectionState {
         if (this._closed) return 'closed';
-        try { return gstToIceConnectionState(asWebRtcBin(this._webrtcbin).ice_connection_state); }
-        catch { return 'new'; }
+        try {
+            return gstToIceConnectionState(asWebRtcBin(this._webrtcbin).ice_connection_state);
+        } catch {
+            return 'new';
+        }
     }
 
     get iceGatheringState(): RTCIceGatheringState {
-        try { return gstToIceGatheringState(asWebRtcBin(this._webrtcbin).ice_gathering_state); }
-        catch { return 'new'; }
+        try {
+            return gstToIceGatheringState(asWebRtcBin(this._webrtcbin).ice_gathering_state);
+        } catch {
+            return 'new';
+        }
     }
 
     private _descProp(
-        prop: 'local_description' | 'remote_description'
-            | 'current_local_description' | 'current_remote_description'
-            | 'pending_local_description' | 'pending_remote_description',
+        prop:
+            | 'local_description'
+            | 'remote_description'
+            | 'current_local_description'
+            | 'current_remote_description'
+            | 'pending_local_description'
+            | 'pending_remote_description',
     ): RTCSessionDescription | null {
         try {
             const desc = asWebRtcBin(this._webrtcbin)[prop];
             if (!desc) return null;
             return RTCSessionDescription.fromGstDesc(desc);
-        } catch { return null; }
+        } catch {
+            return null;
+        }
     }
 
-    get localDescription(): RTCSessionDescription | null { return this._descProp('local_description'); }
-    get remoteDescription(): RTCSessionDescription | null { return this._descProp('remote_description'); }
-    get currentLocalDescription(): RTCSessionDescription | null { return this._descProp('current_local_description'); }
-    get currentRemoteDescription(): RTCSessionDescription | null { return this._descProp('current_remote_description'); }
-    get pendingLocalDescription(): RTCSessionDescription | null { return this._descProp('pending_local_description'); }
-    get pendingRemoteDescription(): RTCSessionDescription | null { return this._descProp('pending_remote_description'); }
+    get localDescription(): RTCSessionDescription | null {
+        return this._descProp('local_description');
+    }
+    get remoteDescription(): RTCSessionDescription | null {
+        return this._descProp('remote_description');
+    }
+    get currentLocalDescription(): RTCSessionDescription | null {
+        return this._descProp('current_local_description');
+    }
+    get currentRemoteDescription(): RTCSessionDescription | null {
+        return this._descProp('current_remote_description');
+    }
+    get pendingLocalDescription(): RTCSessionDescription | null {
+        return this._descProp('pending_local_description');
+    }
+    get pendingRemoteDescription(): RTCSessionDescription | null {
+        return this._descProp('pending_remote_description');
+    }
 
-    get sctp(): RTCSctpTransport | null { return this._sctpTransport; }
+    get sctp(): RTCSctpTransport | null {
+        return this._sctpTransport;
+    }
     get peerIdentity(): Promise<never> {
         return Promise.reject(new TypeError('peerIdentity assertions are not implemented'));
     }
-    get idpErrorInfo(): null { return null; }
-    get idpLoginUrl(): null { return null; }
+    get idpErrorInfo(): null {
+        return null;
+    }
+    get idpLoginUrl(): null {
+        return null;
+    }
 
     // ---- Core methods ------------------------------------------------------
 
@@ -308,10 +359,7 @@ export class RTCPeerConnection extends EventTarget {
 
     _rejectIfClosed(method: string): void {
         if (!this._closed) return;
-        throw new DOMException(
-            `RTCPeerConnection.${method}: connection is closed`,
-            'InvalidStateError',
-        );
+        throw new DOMException(`RTCPeerConnection.${method}: connection is closed`, 'InvalidStateError');
     }
 
     _setStructureField(
@@ -340,16 +388,32 @@ export class RTCPeerConnection extends EventTarget {
         if (this._closed) return;
         this._closed = true;
         GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            try { this._pipeline.set_state(Gst.State.NULL); } catch { /* ignore */ }
+            try {
+                this._pipeline.set_state(Gst.State.NULL);
+            } catch {
+                /* ignore */
+            }
             for (const ch of this._dataChannels.values()) {
-                try { ch._disconnectSignals(); } catch { /* ignore */ }
+                try {
+                    ch._disconnectSignals();
+                } catch {
+                    /* ignore */
+                }
             }
             this._dataChannels.clear();
             for (const s of this._senders) {
-                try { s._teardownPipeline(); } catch { /* ignore */ }
+                try {
+                    s._teardownPipeline();
+                } catch {
+                    /* ignore */
+                }
             }
             for (const r of this._receivers) {
-                try { r._dispose(); } catch { /* ignore */ }
+                try {
+                    r._dispose();
+                } catch {
+                    /* ignore */
+                }
             }
             this._transceivers.clear();
             this._senders.length = 0;
@@ -358,7 +422,11 @@ export class RTCPeerConnection extends EventTarget {
             if (this._dtlsTransport) this._dtlsTransport._setState('closed');
             if (this._iceTransport) this._iceTransport._setState('closed');
             if (this._sctpTransport) this._sctpTransport._setState('closed');
-            try { this._bridge.dispose_bridge(); } catch { /* ignore */ }
+            try {
+                this._bridge.dispose_bridge();
+            } catch {
+                /* ignore */
+            }
             return GLib.SOURCE_REMOVE;
         });
     }
@@ -415,7 +483,9 @@ export class RTCPeerConnection extends EventTarget {
         try {
             const gstKind = gstTrans.kind;
             if (gstKind === GstWebRTC.WebRTCKind.VIDEO) kind = 'video';
-        } catch { /* default audio */ }
+        } catch {
+            /* default audio */
+        }
 
         const gstReceiver = gstTrans.receiver ?? null;
         const gstSender = gstTrans.sender ?? null;
@@ -423,7 +493,9 @@ export class RTCPeerConnection extends EventTarget {
         const receiver = new RTCRtpReceiver(kind, gstReceiver, this._pipeline);
         const sender = new RTCRtpSender(gstSender, this._pipeline, this._webrtcbin);
         sender._kind = kind;
-        sender._onPipelineChanged = (newPipeline) => { this._pipeline = newPipeline; };
+        sender._onPipelineChanged = (newPipeline) => {
+            this._pipeline = newPipeline;
+        };
 
         // Wire stats delegation so sender.getStats() / receiver.getStats() work
         const statsDelegate = (track: MediaStreamTrack) => this.getStats(track);
@@ -441,7 +513,9 @@ export class RTCPeerConnection extends EventTarget {
             if (typeof mline === 'number' && mline >= 0) {
                 sender._setMlineIndex(mline);
             }
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
 
         const transceiver = new RTCRtpTransceiver(gstTrans, sender, receiver);
         sender._transceiver = transceiver;
@@ -531,10 +605,18 @@ export class RTCPeerConnection extends EventTarget {
 
         const ev = new Event(type);
         switch (type) {
-            case 'connectionstatechange':     this._onconnectionstatechange?.call(this, ev); break;
-            case 'iceconnectionstatechange':  this._oniceconnectionstatechange?.call(this, ev); break;
-            case 'icegatheringstatechange':   this._onicegatheringstatechange?.call(this, ev); break;
-            case 'signalingstatechange':      this._onsignalingstatechange?.call(this, ev); break;
+            case 'connectionstatechange':
+                this._onconnectionstatechange?.call(this, ev);
+                break;
+            case 'iceconnectionstatechange':
+                this._oniceconnectionstatechange?.call(this, ev);
+                break;
+            case 'icegatheringstatechange':
+                this._onicegatheringstatechange?.call(this, ev);
+                break;
+            case 'signalingstatechange':
+                this._onsignalingstatechange?.call(this, ev);
+                break;
         }
         this.dispatchEvent(ev);
     }
@@ -544,12 +626,12 @@ export class RTCPeerConnection extends EventTarget {
         if (!this._dtlsTransport) return;
         const pcState = this.connectionState;
         const dtlsMap: Record<string, 'new' | 'connecting' | 'connected' | 'closed' | 'failed'> = {
-            'new': 'new',
-            'connecting': 'connecting',
-            'connected': 'connected',
-            'disconnected': 'connected', // DTLS stays connected even if ICE disconnects
-            'failed': 'failed',
-            'closed': 'closed',
+            new: 'new',
+            connecting: 'connecting',
+            connected: 'connected',
+            disconnected: 'connected', // DTLS stays connected even if ICE disconnects
+            failed: 'failed',
+            closed: 'closed',
         };
         this._dtlsTransport._setState(dtlsMap[pcState] ?? 'new');
 
@@ -584,26 +666,62 @@ export class RTCPeerConnection extends EventTarget {
     private _onnegotiationneeded: EventHandler = null;
     private _onsignalingstatechange: EventHandler = null;
 
-    get onconnectionstatechange() { return this._onconnectionstatechange; }
-    set onconnectionstatechange(v: EventHandler) { this._onconnectionstatechange = v; }
-    get ondatachannel() { return this._ondatachannel; }
-    set ondatachannel(v: EventHandler<RTCDataChannelEvent>) { this._ondatachannel = v; }
-    get onicecandidate() { return this._onicecandidate; }
-    set onicecandidate(v: EventHandler<RTCPeerConnectionIceEvent>) { this._onicecandidate = v; }
-    get oniceconnectionstatechange() { return this._oniceconnectionstatechange; }
-    set oniceconnectionstatechange(v: EventHandler) { this._oniceconnectionstatechange = v; }
-    get onicegatheringstatechange() { return this._onicegatheringstatechange; }
-    set onicegatheringstatechange(v: EventHandler) { this._onicegatheringstatechange = v; }
-    get onnegotiationneeded() { return this._onnegotiationneeded; }
-    set onnegotiationneeded(v: EventHandler) { this._onnegotiationneeded = v; }
-    get onsignalingstatechange() { return this._onsignalingstatechange; }
-    set onsignalingstatechange(v: EventHandler) { this._onsignalingstatechange = v; }
+    get onconnectionstatechange() {
+        return this._onconnectionstatechange;
+    }
+    set onconnectionstatechange(v: EventHandler) {
+        this._onconnectionstatechange = v;
+    }
+    get ondatachannel() {
+        return this._ondatachannel;
+    }
+    set ondatachannel(v: EventHandler<RTCDataChannelEvent>) {
+        this._ondatachannel = v;
+    }
+    get onicecandidate() {
+        return this._onicecandidate;
+    }
+    set onicecandidate(v: EventHandler<RTCPeerConnectionIceEvent>) {
+        this._onicecandidate = v;
+    }
+    get oniceconnectionstatechange() {
+        return this._oniceconnectionstatechange;
+    }
+    set oniceconnectionstatechange(v: EventHandler) {
+        this._oniceconnectionstatechange = v;
+    }
+    get onicegatheringstatechange() {
+        return this._onicegatheringstatechange;
+    }
+    set onicegatheringstatechange(v: EventHandler) {
+        this._onicegatheringstatechange = v;
+    }
+    get onnegotiationneeded() {
+        return this._onnegotiationneeded;
+    }
+    set onnegotiationneeded(v: EventHandler) {
+        this._onnegotiationneeded = v;
+    }
+    get onsignalingstatechange() {
+        return this._onsignalingstatechange;
+    }
+    set onsignalingstatechange(v: EventHandler) {
+        this._onsignalingstatechange = v;
+    }
 
     private _ontrack: EventHandler<RTCTrackEvent> = null;
-    get ontrack() { return this._ontrack; }
-    set ontrack(v: EventHandler<RTCTrackEvent>) { this._ontrack = v; }
-    get onicecandidateerror(): EventHandler { return null; }
-    set onicecandidateerror(_v: EventHandler) { /* no-op */ }
+    get ontrack() {
+        return this._ontrack;
+    }
+    set ontrack(v: EventHandler<RTCTrackEvent>) {
+        this._ontrack = v;
+    }
+    get onicecandidateerror(): EventHandler {
+        return null;
+    }
+    set onicecandidateerror(_v: EventHandler) {
+        /* no-op */
+    }
 
     // ---- Certificate management (Phase 4.7) --------------------------------
 

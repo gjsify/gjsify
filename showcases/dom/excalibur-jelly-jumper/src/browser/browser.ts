@@ -127,36 +127,67 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
         if (game) return;
         if (canvasContainer.clientWidth === 0 || canvasContainer.clientHeight === 0) return;
         ro.disconnect();
-        const enablePerf = options?.enablePerf ?? (typeof location !== 'undefined' && new URLSearchParams(location.search).get('perf') === '1');
-        startGame(canvas, { startMuted: pendingMuted, assetBase: options?.assetBase, platform: 'browser', enablePerf }).then(g => {
-            game = g;
-            if (pendingPause) { game.pause(); pendingPause = false; }
-            updatePauseButton(game.isPaused);
-            updateAudioButton(game.isMuted);
-        }).catch(err => {
-            console.error('JellyJumper: startGame failed:', err);
-        });
+        const enablePerf =
+            options?.enablePerf ??
+            (typeof location !== 'undefined' && new URLSearchParams(location.search).get('perf') === '1');
+        startGame(canvas, { startMuted: pendingMuted, assetBase: options?.assetBase, platform: 'browser', enablePerf })
+            .then((g) => {
+                game = g;
+                if (pendingPause) {
+                    game.pause();
+                    pendingPause = false;
+                }
+                updatePauseButton(game.isPaused);
+                updateAudioButton(game.isMuted);
+            })
+            .catch((err) => {
+                console.error('JellyJumper: startGame failed:', err);
+            });
     });
     ro.observe(canvasContainer);
 
     return {
-        get isPaused() { return game ? game.isPaused : pendingPause; },
+        get isPaused() {
+            return game ? game.isPaused : pendingPause;
+        },
         pause() {
-            if (game) { game.pause();  updatePauseButton(true);  }
-            else { pendingPause = true;  updatePauseButton(true);  }
+            if (game) {
+                game.pause();
+                updatePauseButton(true);
+            } else {
+                pendingPause = true;
+                updatePauseButton(true);
+            }
         },
         resume() {
-            if (game) { game.resume(); updatePauseButton(false); }
-            else { pendingPause = false; updatePauseButton(false); }
+            if (game) {
+                game.resume();
+                updatePauseButton(false);
+            } else {
+                pendingPause = false;
+                updatePauseButton(false);
+            }
         },
-        get isMuted() { return game ? game.isMuted : pendingMuted; },
+        get isMuted() {
+            return game ? game.isMuted : pendingMuted;
+        },
         mute() {
-            if (game) { game.mute();   updateAudioButton(true);  }
-            else { pendingMuted = true;  updateAudioButton(true);  }
+            if (game) {
+                game.mute();
+                updateAudioButton(true);
+            } else {
+                pendingMuted = true;
+                updateAudioButton(true);
+            }
         },
         unmute() {
-            if (game) { game.unmute(); updateAudioButton(false); }
-            else { pendingMuted = false; updateAudioButton(false); }
+            if (game) {
+                game.unmute();
+                updateAudioButton(false);
+            } else {
+                pendingMuted = false;
+                updateAudioButton(false);
+            }
         },
     };
 }

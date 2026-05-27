@@ -17,8 +17,8 @@ export interface GstPlayerOptions {
     audioBuffer: AudioBuffer;
     volume: number;
     loop: boolean;
-    offset: number;      // start offset in seconds
-    duration?: number;    // play duration in seconds (undefined = full)
+    offset: number; // start offset in seconds
+    duration?: number; // play duration in seconds (undefined = full)
     playbackRate: number;
     onEnded: () => void;
 }
@@ -96,8 +96,10 @@ export class GstPlayer {
                 playbackRate,
                 Gst.Format.TIME,
                 Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE,
-                Gst.SeekType.SET, 0,
-                Gst.SeekType.NONE, -1
+                Gst.SeekType.SET,
+                0,
+                Gst.SeekType.NONE,
+                -1,
             );
         }
 
@@ -167,9 +169,8 @@ export class GstPlayer {
         const ch = buf.numberOfChannels;
         const startFrame = Math.min(Math.floor(offsetSec * buf.sampleRate), buf.length);
         const maxFrames = buf.length - startFrame;
-        const frames = durationSec !== undefined
-            ? Math.min(Math.floor(durationSec * buf.sampleRate), maxFrames)
-            : maxFrames;
+        const frames =
+            durationSec !== undefined ? Math.min(Math.floor(durationSec * buf.sampleRate), maxFrames) : maxFrames;
 
         if (frames <= 0) return new Uint8Array(0);
 

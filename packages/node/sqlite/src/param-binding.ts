@@ -2,8 +2,8 @@
 // Reference: Node.js lib/sqlite.js
 // Reimplemented for GJS using Gda-6.0
 
-import Gda from '@girs/gda-6.0';
-import GObject from '@girs/gobject-2.0';
+import type Gda from '@girs/gda-6.0';
+import type GObject from '@girs/gobject-2.0';
 import { InvalidArgTypeError, InvalidArgValueError, InvalidStateError, SqliteError } from './errors.ts';
 import type { SQLiteValue } from './types.ts';
 
@@ -27,9 +27,7 @@ function validateBindValue(value: unknown, paramIndex: number): void {
     if (t === 'number' || t === 'bigint' || t === 'string' || t === 'boolean') return;
     if (value instanceof Uint8Array || value instanceof ArrayBuffer) return;
     if (ArrayBuffer.isView(value)) return;
-    throw new InvalidArgTypeError(
-        `Provided value cannot be bound to SQLite parameter ${paramIndex}.`
-    );
+    throw new InvalidArgTypeError(`Provided value cannot be bound to SQLite parameter ${paramIndex}.`);
 }
 
 function setHolderValue(holder: Gda.Holder, value: unknown): void {
@@ -43,9 +41,7 @@ function setHolderValue(holder: Gda.Holder, value: unknown): void {
     }
     if (typeof value === 'bigint') {
         if (value > MAX_INT64 || value < MIN_INT64) {
-            throw new InvalidArgValueError(
-                `BigInt value is too large to bind.`
-            );
+            throw new InvalidArgValueError(`BigInt value is too large to bind.`);
         }
         setHolderPrim(holder, Number(value));
         return;
@@ -107,7 +103,7 @@ export function bindParameters(
 
             // Try bare name (without prefix)
             if (!found && ctx.allowBareNamedParameters) {
-                const bareName = id.replace(/^[\$:@]/, '');
+                const bareName = id.replace(/^[$:@]/, '');
                 if (bareName in namedArgs) {
                     value = namedArgs[bareName];
                     usedKeys.add(bareName);
@@ -117,7 +113,7 @@ export function bindParameters(
 
             if (!found && !ctx.allowBareNamedParameters) {
                 // Check if user passed bare name — error
-                const bareName = id.replace(/^[\$:@]/, '');
+                const bareName = id.replace(/^[$:@]/, '');
                 if (bareName in namedArgs) {
                     throw new InvalidStateError(`Unknown named parameter '${bareName}'`);
                 }
@@ -137,9 +133,9 @@ export function bindParameters(
             for (const key of Object.keys(namedArgs)) {
                 if (!usedKeys.has(key)) {
                     // Check if any holder matches this key with prefix
-                    const matchesHolder = holders.some(h => {
+                    const matchesHolder = holders.some((h) => {
                         const id = h.get_id();
-                        return id === key || id.replace(/^[\$:@]/, '') === key;
+                        return id === key || id.replace(/^[$:@]/, '') === key;
                     });
                     if (!matchesHolder) {
                         throw new InvalidStateError(`Unknown named parameter '${key}'`);

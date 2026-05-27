@@ -5,7 +5,9 @@
 
 import { XMLHttpRequest, installObjectURLSupport } from './index.js';
 
-interface _XhrGlobals { XMLHttpRequest?: typeof XMLHttpRequest }
+interface _XhrGlobals {
+    XMLHttpRequest?: typeof XMLHttpRequest;
+}
 const g = globalThis as unknown as _XhrGlobals;
 
 if (typeof g.XMLHttpRequest === 'undefined') {

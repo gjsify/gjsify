@@ -12,12 +12,12 @@
  * These are the SDL gamepad mapping indices, NOT Linux ABS_* hardware codes.
  */
 export const ManetteAxis = {
-    LEFT_X: 0,          // SDL leftx
-    LEFT_Y: 1,          // SDL lefty
-    RIGHT_X: 2,         // SDL rightx
-    RIGHT_Y: 3,         // SDL righty
-    LEFT_TRIGGER: 4,    // SDL lefttrigger
-    RIGHT_TRIGGER: 5,   // SDL righttrigger
+    LEFT_X: 0, // SDL leftx
+    LEFT_Y: 1, // SDL lefty
+    RIGHT_X: 2, // SDL rightx
+    RIGHT_Y: 3, // SDL righty
+    LEFT_TRIGGER: 4, // SDL lefttrigger
+    RIGHT_TRIGGER: 5, // SDL righttrigger
 } as const;
 
 /**
@@ -40,8 +40,8 @@ export const W3C_AXIS_COUNT = 4;
  * they are handled separately in gamepad-manager as buttons[6]/buttons[7].
  */
 export const MANETTE_TO_W3C_AXIS: ReadonlyMap<number, number> = new Map([
-    [ManetteAxis.LEFT_X,  W3CAxis.LEFT_STICK_X],
-    [ManetteAxis.LEFT_Y,  W3CAxis.LEFT_STICK_Y],
+    [ManetteAxis.LEFT_X, W3CAxis.LEFT_STICK_X],
+    [ManetteAxis.LEFT_Y, W3CAxis.LEFT_STICK_Y],
     [ManetteAxis.RIGHT_X, W3CAxis.RIGHT_STICK_X],
     [ManetteAxis.RIGHT_Y, W3CAxis.RIGHT_STICK_Y],
 ]);

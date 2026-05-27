@@ -70,17 +70,25 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
         console.log(`[webrtc-video] ${msg}`);
     }
 
-    startVideo(video, log).then((s) => {
-        stream = s;
-    }).catch((err: unknown) => {
-        const msg = (err as Error)?.message ?? String(err);
-        statusEl.textContent = `Error: ${msg}`;
-    });
+    startVideo(video, log)
+        .then((s) => {
+            stream = s;
+        })
+        .catch((err: unknown) => {
+            const msg = (err as Error)?.message ?? String(err);
+            statusEl.textContent = `Error: ${msg}`;
+        });
 
     return {
-        pause(): void { paused = true; },
-        resume(): void { paused = false; },
-        get isPaused(): boolean { return paused; },
+        pause(): void {
+            paused = true;
+        },
+        resume(): void {
+            paused = false;
+        },
+        get isPaused(): boolean {
+            return paused;
+        },
         stop(): void {
             paused = true;
             if (stream) {

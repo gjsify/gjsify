@@ -156,10 +156,7 @@ function activate(app: Gtk.Application) {
 }
 
 function main() {
-    const app = Gtk.Application.new(
-        'gjsify.examples.iframe-basic',
-        Gio.ApplicationFlags.FLAGS_NONE,
-    );
+    const app = Gtk.Application.new('gjsify.examples.iframe-basic', Gio.ApplicationFlags.FLAGS_NONE);
     app.connect('activate', () => activate(app));
     app.run([]);
 }

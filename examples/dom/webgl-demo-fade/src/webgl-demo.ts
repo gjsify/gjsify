@@ -86,16 +86,16 @@ function loadShader(gl: WebGLRenderingContext, type: number, source: string): We
 function initBuffers(gl: WebGLRenderingContext): Buffers {
     const positionBuffer = gl.createBuffer()!;
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-        0.8,  0.8,
-       -0.8,  0.8,
-        0.8, -0.8,
-       -0.8, -0.8,
-    ]), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0.8, 0.8, -0.8, 0.8, 0.8, -0.8, -0.8, -0.8]), gl.STATIC_DRAW);
     return { position: positionBuffer };
 }
 
-function drawScene(gl: WebGLRenderingContext, programInfo: ProgramInfo, buffers: Buffers, colourChanger: ColourChanger) {
+function drawScene(
+    gl: WebGLRenderingContext,
+    programInfo: ProgramInfo,
+    buffers: Buffers,
+    colourChanger: ColourChanger,
+) {
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clearDepth(1.0);
     gl.enable(gl.DEPTH_TEST);

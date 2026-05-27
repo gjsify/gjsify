@@ -32,14 +32,13 @@ function buildClientHello(host: string, opts?: { extraExtBefore?: Uint8Array }):
     sniExtData.set(sniEntry, 2);
 
     const sniExt = new Uint8Array(4 + sniExtData.length);
-    sniExt[0] = 0x00; sniExt[1] = 0x00; // ext_type = server_name
+    sniExt[0] = 0x00;
+    sniExt[1] = 0x00; // ext_type = server_name
     sniExt[2] = (sniExtData.length >> 8) & 0xff;
     sniExt[3] = sniExtData.length & 0xff;
     sniExt.set(sniExtData, 4);
 
-    const extensions = opts?.extraExtBefore
-        ? new Uint8Array([...opts.extraExtBefore, ...sniExt])
-        : sniExt;
+    const extensions = opts?.extraExtBefore ? new Uint8Array([...opts.extraExtBefore, ...sniExt]) : sniExt;
 
     const random = new Uint8Array(32); // all zeros — content irrelevant
     const ciphers = new Uint8Array([0x13, 0x01, 0x13, 0x02]); // 2 suites, 4 bytes
@@ -49,26 +48,34 @@ function buildClientHello(host: string, opts?: { extraExtBefore?: Uint8Array }):
     const extLen = new Uint8Array([(extensions.length >> 8) & 0xff, extensions.length & 0xff]);
 
     const helloBody = new Uint8Array([
-        0x03, 0x03,            // client_version TLS 1.2
+        0x03,
+        0x03, // client_version TLS 1.2
         ...random,
-        0x00,                  // session_id length = 0
-        ...ciphersLen, ...ciphers,
-        ...compLen, ...comp,
-        ...extLen, ...extensions,
+        0x00, // session_id length = 0
+        ...ciphersLen,
+        ...ciphers,
+        ...compLen,
+        ...comp,
+        ...extLen,
+        ...extensions,
     ]);
 
     const helloLen = helloBody.length;
     const handshake = new Uint8Array([
-        0x01,                                                  // ClientHello
-        (helloLen >> 16) & 0xff, (helloLen >> 8) & 0xff, helloLen & 0xff,
+        0x01, // ClientHello
+        (helloLen >> 16) & 0xff,
+        (helloLen >> 8) & 0xff,
+        helloLen & 0xff,
         ...helloBody,
     ]);
 
     const recordLen = handshake.length;
     const record = new Uint8Array([
-        0x16,                                                  // handshake content type
-        0x03, 0x01,                                            // record layer "TLS 1.0" (1.3 uses 1.2 here)
-        (recordLen >> 8) & 0xff, recordLen & 0xff,
+        0x16, // handshake content type
+        0x03,
+        0x01, // record layer "TLS 1.0" (1.3 uses 1.2 here)
+        (recordLen >> 8) & 0xff,
+        recordLen & 0xff,
         ...handshake,
     ]);
     return record;
@@ -162,10 +169,13 @@ export default async () => {
             for (let i = 0; i + target.length <= bytes.length; i++) {
                 let match = true;
                 for (let j = 0; j < target.length; j++) {
-                    if (bytes[i + j] !== target.charCodeAt(j)) { match = false; break; }
+                    if (bytes[i + j] !== target.charCodeAt(j)) {
+                        match = false;
+                        break;
+                    }
                 }
                 if (match) {
-                    bytes[i - 3] = 0xff;          // mutate name_type
+                    bytes[i - 3] = 0xff; // mutate name_type
                     break;
                 }
             }

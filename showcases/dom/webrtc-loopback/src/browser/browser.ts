@@ -104,9 +104,15 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     void runOnce();
 
     return {
-        pause(): void { paused = true; },
-        resume(): void { paused = false; },
-        get isPaused(): boolean { return paused; },
+        pause(): void {
+            paused = true;
+        },
+        resume(): void {
+            paused = false;
+        },
+        get isPaused(): boolean {
+            return paused;
+        },
         async restart(): Promise<void> {
             clearLog();
             await runOnce();

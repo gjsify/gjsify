@@ -3,13 +3,7 @@
 
 import { Buffer, SlowBuffer, kMaxLength, kStringMaxLength, constants } from './buffer.js';
 
-export {
-  Buffer,
-  SlowBuffer,
-  kMaxLength,
-  kStringMaxLength,
-  constants,
-};
+export { Buffer, SlowBuffer, kMaxLength, kStringMaxLength, constants };
 
 // Re-export encoding + base64 helpers that used to live in `@gjsify/utils`.
 // `@gjsify/string_decoder`, `@gjsify/crypto`, and other Buffer/encoding
@@ -32,14 +26,14 @@ export const btoa = globalThis.btoa;
 export const INSPECT_MAX_BYTES = 50;
 
 export default {
-  Buffer,
-  SlowBuffer,
-  Blob: BlobImpl,
-  File: FileImpl,
-  atob,
-  btoa,
-  kMaxLength,
-  kStringMaxLength,
-  constants,
-  INSPECT_MAX_BYTES,
+    Buffer,
+    SlowBuffer,
+    Blob: BlobImpl,
+    File: FileImpl,
+    atob,
+    btoa,
+    kMaxLength,
+    kStringMaxLength,
+    constants,
+    INSPECT_MAX_BYTES,
 };

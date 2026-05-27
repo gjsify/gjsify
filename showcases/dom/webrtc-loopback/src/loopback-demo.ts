@@ -91,9 +91,7 @@ export async function runLoopback(log: LogFn): Promise<void> {
     // Wait for echo round-trip or timeout
     await Promise.race([
         demoComplete,
-        new Promise<void>((_, reject) =>
-            setTimeout(() => reject(new Error('Timeout waiting for echo')), 15000),
-        ),
+        new Promise<void>((_, reject) => setTimeout(() => reject(new Error('Timeout waiting for echo')), 15000)),
     ]);
 
     log('main', 'demo complete — closing peer connections');

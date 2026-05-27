@@ -5,7 +5,11 @@ run({
         await describe('ReadableStream', async () => {
             await it('reads enqueued chunks', async () => {
                 const rs = new ReadableStream({
-                    start(ctrl) { ctrl.enqueue('a'); ctrl.enqueue('b'); ctrl.close(); },
+                    start(ctrl) {
+                        ctrl.enqueue('a');
+                        ctrl.enqueue('b');
+                        ctrl.close();
+                    },
                 });
                 const reader = rs.getReader();
                 expect((await reader.read()).value).toBe('a');
@@ -15,7 +19,11 @@ run({
 
             await it('supports async iteration', async () => {
                 const rs = new ReadableStream({
-                    start(ctrl) { ctrl.enqueue(1); ctrl.enqueue(2); ctrl.close(); },
+                    start(ctrl) {
+                        ctrl.enqueue(1);
+                        ctrl.enqueue(2);
+                        ctrl.close();
+                    },
                 });
                 const values: number[] = [];
                 for await (const v of rs) values.push(v);
@@ -24,7 +32,10 @@ run({
 
             await it('tee() creates two independent streams', async () => {
                 const rs = new ReadableStream({
-                    start(ctrl) { ctrl.enqueue('x'); ctrl.close(); },
+                    start(ctrl) {
+                        ctrl.enqueue('x');
+                        ctrl.close();
+                    },
                 });
                 const [a, b] = rs.tee();
                 expect((await a.getReader().read()).value).toBe('x');
@@ -34,9 +45,17 @@ run({
             await it('pipeTo() transfers all chunks', async () => {
                 const received: number[] = [];
                 const rs = new ReadableStream({
-                    start(ctrl) { ctrl.enqueue(1); ctrl.enqueue(2); ctrl.close(); },
+                    start(ctrl) {
+                        ctrl.enqueue(1);
+                        ctrl.enqueue(2);
+                        ctrl.close();
+                    },
                 });
-                const ws = new WritableStream({ write(c) { received.push(c); } });
+                const ws = new WritableStream({
+                    write(c) {
+                        received.push(c);
+                    },
+                });
                 await rs.pipeTo(ws);
                 expect(received).toStrictEqual([1, 2]);
             });
@@ -45,7 +64,11 @@ run({
         await describe('WritableStream', async () => {
             await it('writes chunks in order', async () => {
                 const written: string[] = [];
-                const ws = new WritableStream({ write(chunk) { written.push(chunk); } });
+                const ws = new WritableStream({
+                    write(chunk) {
+                        written.push(chunk);
+                    },
+                });
                 const writer = ws.getWriter();
                 await writer.write('a');
                 await writer.write('b');
@@ -58,7 +81,11 @@ run({
                 const writer = ws.getWriter();
                 writer.abort(new Error('aborted'));
                 let threw = false;
-                try { await writer.write('x'); } catch (_) { threw = true; }
+                try {
+                    await writer.write('x');
+                } catch (_) {
+                    threw = true;
+                }
                 expect(threw).toBe(true);
             });
         });
@@ -66,7 +93,9 @@ run({
         await describe('TransformStream', async () => {
             await it('transforms chunks', async () => {
                 const ts = new TransformStream<string, string>({
-                    transform(chunk, ctrl) { ctrl.enqueue(chunk.toUpperCase()); },
+                    transform(chunk, ctrl) {
+                        ctrl.enqueue(chunk.toUpperCase());
+                    },
                 });
                 const writer = ts.writable.getWriter();
                 writer.write('hello');

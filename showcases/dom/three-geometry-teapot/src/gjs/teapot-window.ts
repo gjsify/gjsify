@@ -5,7 +5,14 @@ import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import { WebGLBridge } from '@gjsify/webgl';
-import { start, TESS_VALUES, SHADING_VALUES, DEFAULT_TESS_INDEX, DEFAULT_SHADING_INDEX, type TeapotDemo } from '../three-demo.js';
+import {
+    start,
+    TESS_VALUES,
+    SHADING_VALUES,
+    DEFAULT_TESS_INDEX,
+    DEFAULT_SHADING_INDEX,
+    type TeapotDemo,
+} from '../three-demo.js';
 import Template from './teapot-window.blp';
 
 export class TeapotWindow extends Adw.ApplicationWindow {
@@ -25,15 +32,26 @@ export class TeapotWindow extends Adw.ApplicationWindow {
     private _demo: TeapotDemo | null = null;
 
     static {
-        GObject.registerClass({
-            GTypeName: 'TeapotWindow',
-            Template,
-            InternalChildren: [
-                'glAreaContainer', 'tessRow', 'lidRow', 'bodyRow',
-                'bottomRow', 'fitLidRow', 'nonblinnRow', 'shadingRow',
-                'splitView', 'sidebarToggleButton', 'pauseButton',
-            ],
-        }, this);
+        GObject.registerClass(
+            {
+                GTypeName: 'TeapotWindow',
+                Template,
+                InternalChildren: [
+                    'glAreaContainer',
+                    'tessRow',
+                    'lidRow',
+                    'bodyRow',
+                    'bottomRow',
+                    'fitLidRow',
+                    'nonblinnRow',
+                    'shadingRow',
+                    'splitView',
+                    'sidebarToggleButton',
+                    'pauseButton',
+                ],
+            },
+            this,
+        );
     }
 
     constructor(application: Adw.Application) {

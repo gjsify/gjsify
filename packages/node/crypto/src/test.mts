@@ -1,4 +1,3 @@
-
 import { run } from '@gjsify/unit';
 
 import testSuiteHash from './hash.spec.js';
@@ -16,4 +15,18 @@ import testSuiteX509 from './x509.spec.js';
 
 import testSuiteExtended from './extended.spec.js';
 
-run({ testSuiteHash, testSuiteHmac, testSuiteRandom, testSuitePbkdf2, testSuiteCipher, testSuiteScrypt, testSuiteDh, testSuiteEcdh, testSuiteGcm, testSuiteSign, testSuiteKeyObject, testSuiteX509, testSuiteExtended });
+run({
+    testSuiteHash,
+    testSuiteHmac,
+    testSuiteRandom,
+    testSuitePbkdf2,
+    testSuiteCipher,
+    testSuiteScrypt,
+    testSuiteDh,
+    testSuiteEcdh,
+    testSuiteGcm,
+    testSuiteSign,
+    testSuiteKeyObject,
+    testSuiteX509,
+    testSuiteExtended,
+});

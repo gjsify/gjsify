@@ -21,10 +21,7 @@ export function createPeerConnection(): RTCPeerConnection {
  * Mirror WPT's `exchangeOfferAnswer(pc1, pc2)` + `exchangeIceCandidates`.
  * Runs the full handshake to completion.
  */
-export async function exchangeOfferAnswer(
-    pc1: RTCPeerConnection,
-    pc2: RTCPeerConnection,
-): Promise<void> {
+export async function exchangeOfferAnswer(pc1: RTCPeerConnection, pc2: RTCPeerConnection): Promise<void> {
     // Late-arriving ICE candidates may fire after the other peer has already
     // been closed; swallow the InvalidStateError so it doesn't become an
     // unhandled rejection during test teardown.
@@ -61,11 +58,16 @@ export async function createDataChannelPair(
         const dc1 = pc1.createDataChannel(label, options);
         const dc2 = pc2.createDataChannel(label, options);
         pair = [dc1, dc2];
-        bothOpen = Promise.all(pair.map((dc) => new Promise<void>((res, rej) => {
-            if (dc.readyState === 'open') return res();
-            dc.onopen = () => res();
-            dc.onerror = (ev: any) => rej(ev?.error ?? new Error('onerror'));
-        })));
+        bothOpen = Promise.all(
+            pair.map(
+                (dc) =>
+                    new Promise<void>((res, rej) => {
+                        if (dc.readyState === 'open') return res();
+                        dc.onopen = () => res();
+                        dc.onerror = (ev: any) => rej(ev?.error ?? new Error('onerror'));
+                    }),
+            ),
+        );
     } else {
         const dc1 = pc1.createDataChannel(label, options);
         bothOpen = Promise.all([
@@ -81,7 +83,9 @@ export async function createDataChannelPair(
                     dc2.onopen = () => res(dc2);
                     dc2.onerror = (e: any) => rej(e?.error ?? new Error('onerror'));
                 };
-            }).then((dc2) => { pair[1] = dc2; }),
+            }).then((dc2) => {
+                pair[1] = dc2;
+            }),
         ]);
         pair = [dc1, undefined as unknown as RTCDataChannel];
     }
@@ -142,7 +146,9 @@ export class EventWatcher {
             if (matches) {
                 waiter.resolve();
             } else {
-                waiter.reject(new Error(`EventWatcher: expected ${JSON.stringify(waiter.types)}, got ${JSON.stringify(got)}`));
+                waiter.reject(
+                    new Error(`EventWatcher: expected ${JSON.stringify(waiter.types)}, got ${JSON.stringify(got)}`),
+                );
             }
         }
     }
@@ -151,6 +157,10 @@ export class EventWatcher {
 /** Close an array of RTCPeerConnection instances, ignoring errors. */
 export function closePeerConnections(...pcs: (RTCPeerConnection | undefined)[]): void {
     for (const pc of pcs) {
-        try { pc?.close(); } catch { /* ignore */ }
+        try {
+            pc?.close();
+        } catch {
+            /* ignore */
+        }
     }
 }

@@ -2,13 +2,12 @@
 // Extends the DOM-spec base from @gjsify/dom-elements with GTK.GLArea integration.
 
 import { HTMLCanvasElement as BaseHTMLCanvasElement } from '@gjsify/dom-elements';
-import Gtk from 'gi://Gtk?version=4.0';
+import type Gtk from 'gi://Gtk?version=4.0';
 // Circular import is intentional and safe in ESM (classes are only used at runtime, not at link time)
 import { WebGLRenderingContext as OurWebGLRenderingContext } from './webgl-rendering-context.js';
 import { WebGL2RenderingContext as OurWebGL2RenderingContext } from './webgl2-rendering-context.js';
 
 export class HTMLCanvasElement extends BaseHTMLCanvasElement {
-
     _webgl?: OurWebGLRenderingContext;
     _webgl2?: OurWebGL2RenderingContext;
 
@@ -21,14 +20,18 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
         return this.gtkGlArea.get_allocated_width();
     }
 
-    override set width(_width: number) { /* GTK manages size */ }
+    override set width(_width: number) {
+        /* GTK manages size */
+    }
 
     /** Height from the GTK GLArea allocated size (overrides DOM attr-backed getter). */
     override get height(): number {
         return this.gtkGlArea.get_allocated_height();
     }
 
-    override set height(_height: number) { /* GTK manages size */ }
+    override set height(_height: number) {
+        /* GTK manages size */
+    }
 
     get clientWidth(): number {
         return this.width;

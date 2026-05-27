@@ -44,7 +44,9 @@ export default async (): Promise<void> => {
                     const a = ws.find((w) => w.name === 'pkg-a')!;
                     expect(a.version).toBe('1.0.0');
                     expect(a.relativeLocation).toBe('packages/a');
-                } finally { rmSync(root, { recursive: true, force: true }); }
+                } finally {
+                    rmSync(root, { recursive: true, force: true });
+                }
             });
 
             await it('handles `{ packages: [...] }` shape (yarn classic)', () => {
@@ -56,7 +58,9 @@ export default async (): Promise<void> => {
                     const ws = discoverWorkspaces(root);
                     expect(ws.length).toBe(1);
                     expect(ws[0]?.name).toBe('x');
-                } finally { rmSync(root, { recursive: true, force: true }); }
+                } finally {
+                    rmSync(root, { recursive: true, force: true });
+                }
             });
 
             await it('skips dirs without package.json', () => {
@@ -70,7 +74,9 @@ export default async (): Promise<void> => {
                     const ws = discoverWorkspaces(root);
                     expect(ws.length).toBe(1);
                     expect(ws[0]?.name).toBe('good');
-                } finally { rmSync(root, { recursive: true, force: true }); }
+                } finally {
+                    rmSync(root, { recursive: true, force: true });
+                }
             });
 
             await it('flags `private: true` workspaces correctly', () => {
@@ -85,15 +91,14 @@ export default async (): Promise<void> => {
                     const priv = ws.find((w) => w.name === 'priv')!;
                     expect(pub.private).toBeFalsy();
                     expect(priv.private).toBe(true);
-                } finally { rmSync(root, { recursive: true, force: true }); }
+                } finally {
+                    rmSync(root, { recursive: true, force: true });
+                }
             });
         });
 
         await describe('resolveWorkspaceProtocol', async () => {
-            const ws: Workspace[] = [
-                makeWs('@gjsify/core', '1.2.3'),
-                makeWs('@gjsify/util', '0.4.0'),
-            ];
+            const ws: Workspace[] = [makeWs('@gjsify/core', '1.2.3'), makeWs('@gjsify/util', '0.4.0')];
 
             await it('expands workspace:^ to caret-range', () => {
                 expect(resolveWorkspaceProtocol('workspace:^', '@gjsify/core', ws)).toBe('^1.2.3');
@@ -135,7 +140,10 @@ export default async (): Promise<void> => {
 
             await it('excludes devDependencies by default (yarn --topological)', () => {
                 const ws: Workspace[] = [
-                    makeWs('lib', '1.0.0', { dependencies: { core: 'workspace:^' }, devDependencies: { tooling: 'workspace:^' } }),
+                    makeWs('lib', '1.0.0', {
+                        dependencies: { core: 'workspace:^' },
+                        devDependencies: { tooling: 'workspace:^' },
+                    }),
                     makeWs('core', '1.0.0'),
                     makeWs('tooling', '1.0.0'),
                 ];
@@ -196,12 +204,7 @@ export default async (): Promise<void> => {
     });
 };
 
-function makeWs(
-    name: string,
-    version: string,
-    manifest: Partial<Workspace['manifest']> = {},
-    priv = false,
-): Workspace {
+function makeWs(name: string, version: string, manifest: Partial<Workspace['manifest']> = {}, priv = false): Workspace {
     return {
         location: `/tmp/synthetic/${name}`,
         relativeLocation: name,

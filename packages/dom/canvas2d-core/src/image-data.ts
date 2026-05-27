@@ -23,10 +23,10 @@ export class OurImageData {
             // new ImageData(data, width[, height])
             this.data = swOrData;
             this.width = sh;
-            this.height = maybeHeight ?? (this.data.length / (4 * this.width));
+            this.height = maybeHeight ?? this.data.length / (4 * this.width);
             if (this.data.length !== this.width * this.height * 4) {
                 throw new RangeError(
-                    `Source data length ${this.data.length} is not a multiple of (4 * width=${this.width})`
+                    `Source data length ${this.data.length} is not a multiple of (4 * width=${this.width})`,
                 );
             }
         }

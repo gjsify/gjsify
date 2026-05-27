@@ -9,7 +9,8 @@ interface InfoOptions {
 
 export const infoCommand: Command<any, InfoOptions> = {
     command: 'info [file]',
-    description: 'Show native gjsify packages detected in node_modules and the env vars needed to run a GJS bundle directly with gjs.',
+    description:
+        'Show native gjsify packages detected in node_modules and the env vars needed to run a GJS bundle directly with gjs.',
     builder: (yargs) => {
         return yargs
             .positional('file', {

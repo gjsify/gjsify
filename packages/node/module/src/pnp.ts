@@ -52,10 +52,7 @@ interface PnpPackageInformation {
 
 interface PnpRuntimeState {
     packageRegistryData: ReadonlyArray<
-        readonly [
-            string | null,
-            ReadonlyArray<readonly [string | null, PnpPackageInformation]>,
-        ]
+        readonly [string | null, ReadonlyArray<readonly [string | null, PnpPackageInformation]>]
     >;
 }
 
@@ -67,15 +64,9 @@ export interface PnpManifest {
     /** Absolute path of the `.pnp.cjs` file's parent directory. */
     readonly rootDir: string;
     /** Map<packageName, Map<packageReference, info>> — null name = workspace root. */
-    readonly packages: Map<
-        string | null,
-        Map<string | null, PnpPackageInformation>
-    >;
+    readonly packages: Map<string | null, Map<string | null, PnpPackageInformation>>;
     /** Locator-by-location reverse index for "which package owns this path". */
-    readonly locatorsByLocation: Map<
-        string,
-        { name: string | null; reference: string | null }
-    >;
+    readonly locatorsByLocation: Map<string, { name: string | null; reference: string | null }>;
 }
 
 const manifestCache = new Map<string, PnpManifest | null>();
@@ -117,14 +108,8 @@ export function loadPnpManifest(pnpCjsPath: string): PnpManifest | null {
     }
 
     const rootDir = GLib.path_get_dirname(pnpCjsPath);
-    const packages = new Map<
-        string | null,
-        Map<string | null, PnpPackageInformation>
-    >();
-    const locatorsByLocation = new Map<
-        string,
-        { name: string | null; reference: string | null }
-    >();
+    const packages = new Map<string | null, Map<string | null, PnpPackageInformation>>();
+    const locatorsByLocation = new Map<string, { name: string | null; reference: string | null }>();
 
     for (const [name, store] of state.packageRegistryData) {
         const inner = new Map<string | null, PnpPackageInformation>();
@@ -150,7 +135,7 @@ export function loadPnpManifest(pnpCjsPath: string): PnpManifest | null {
 function extractRawRuntimeState(text: string): PnpRuntimeState | null {
     // The literal is `const RAW_RUNTIME_STATE =\n'<json-with-line-conts>';`
     // followed by another JS statement on a new line.  Match it directly.
-    const start = text.indexOf("const RAW_RUNTIME_STATE =");
+    const start = text.indexOf('const RAW_RUNTIME_STATE =');
     if (start < 0) return null;
     const openQuote = text.indexOf("'", start);
     if (openQuote < 0) return null;
@@ -225,11 +210,7 @@ export function findPackageOwning(
  * `id` is a bare specifier like `@scope/foo` or `@scope/foo/bar/baz.js`.
  * `callerPath` is the absolute path of the file doing the require.
  */
-export function resolveBareViaPnp(
-    manifest: PnpManifest,
-    id: string,
-    callerPath: string,
-): string | null {
+export function resolveBareViaPnp(manifest: PnpManifest, id: string, callerPath: string): string | null {
     const owner = findPackageOwning(manifest, callerPath);
     if (!owner) return null;
 
@@ -249,12 +230,8 @@ export function resolveBareViaPnp(
     // handles the join either way.
     const baseFile = target.packageLocation.startsWith('/')
         ? Gio.File.new_for_path(target.packageLocation)
-        : Gio.File.new_for_path(manifest.rootDir).resolve_relative_path(
-              stripLeadingDotSlash(target.packageLocation),
-          );
-    const finalFile = subPath
-        ? baseFile.resolve_relative_path(subPath)
-        : baseFile;
+        : Gio.File.new_for_path(manifest.rootDir).resolve_relative_path(stripLeadingDotSlash(target.packageLocation));
+    const finalFile = subPath ? baseFile.resolve_relative_path(subPath) : baseFile;
     return finalFile.get_path();
 }
 

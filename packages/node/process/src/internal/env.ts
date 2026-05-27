@@ -45,7 +45,9 @@ export function getEnvProxy(): Record<string, string | undefined> {
                 },
             });
         }
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
 
     return {};
 }
@@ -62,7 +64,9 @@ export function getArgv(): string[] {
             // 'gjs' so consumers like yargs' `hideBin()` (which slices(2)) work.
             return ['gjs', system.programInvocationName || '', ...system.programArgs];
         }
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
     return ['gjs'];
 }
 
@@ -73,7 +77,9 @@ export function getExecPath(): string {
     try {
         const system = getGjsGlobal().imports?.system;
         if (system?.programInvocationName) return system.programInvocationName;
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
     return '/usr/bin/gjs';
 }
 
@@ -83,7 +89,9 @@ export function getCwd(): string {
     try {
         const GLib = getGjsGlobal().imports?.gi?.GLib;
         if (GLib?.get_current_dir) return GLib.get_current_dir();
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
     return '/';
 }
 
@@ -93,7 +101,9 @@ export function chdir(directory: string): void {
         if (GLib?.chdir) {
             // Check if directory exists first
             if (!GLib.file_test(directory, 16 /* G_FILE_TEST_EXISTS */)) {
-                const err = new Error(`ENOENT: no such file or directory, chdir '${directory}'`) as NodeJS.ErrnoException;
+                const err = new Error(
+                    `ENOENT: no such file or directory, chdir '${directory}'`,
+                ) as NodeJS.ErrnoException;
                 err.code = 'ENOENT';
                 err.syscall = 'chdir';
                 err.path = directory;

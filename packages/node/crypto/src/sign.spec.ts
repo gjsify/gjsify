@@ -46,115 +46,114 @@ cQIDAQAB
 -----END PUBLIC KEY-----`;
 
 export default async () => {
+    await describe('crypto.createSign', async () => {
+        await it('should be a function', async () => {
+            expect(typeof createSign).toBe('function');
+        });
 
-  await describe('crypto.createSign', async () => {
-    await it('should be a function', async () => {
-      expect(typeof createSign).toBe('function');
+        await it('should create a Sign instance', async () => {
+            const sign = createSign('SHA256');
+            expect(sign).toBeDefined();
+            expect(typeof sign.update).toBe('function');
+            expect(typeof sign.sign).toBe('function');
+        });
+
+        await it('should sign data with RSA-SHA256', async () => {
+            const sign = createSign('SHA256');
+            sign.update('Hello, World!');
+            const signature = sign.sign(RSA_PRIVATE_KEY);
+            expect(Buffer.isBuffer(signature)).toBe(true);
+            expect(signature.length).toBeGreaterThan(0);
+        });
+
+        await it('should produce different signatures for different data', async () => {
+            const sign1 = createSign('SHA256');
+            sign1.update('data1');
+            const sig1 = sign1.sign(RSA_PRIVATE_KEY);
+
+            const sign2 = createSign('SHA256');
+            sign2.update('data2');
+            const sig2 = sign2.sign(RSA_PRIVATE_KEY);
+
+            expect(sig1.toString('hex')).not.toBe(sig2.toString('hex'));
+        });
     });
 
-    await it('should create a Sign instance', async () => {
-      const sign = createSign('SHA256');
-      expect(sign).toBeDefined();
-      expect(typeof sign.update).toBe('function');
-      expect(typeof sign.sign).toBe('function');
+    await describe('crypto.createVerify', async () => {
+        await it('should be a function', async () => {
+            expect(typeof createVerify).toBe('function');
+        });
+
+        await it('should verify a valid signature', async () => {
+            const data = 'test data for signing';
+
+            const sign = createSign('SHA256');
+            sign.update(data);
+            const signature = sign.sign(RSA_PRIVATE_KEY);
+
+            const verify = createVerify('SHA256');
+            verify.update(data);
+            const isValid = verify.verify(RSA_PUBLIC_KEY, signature);
+            expect(isValid).toBe(true);
+        });
+
+        await it('should reject invalid signature', async () => {
+            const sign = createSign('SHA256');
+            sign.update('original data');
+            const signature = sign.sign(RSA_PRIVATE_KEY);
+
+            const verify = createVerify('SHA256');
+            verify.update('tampered data');
+            const isValid = verify.verify(RSA_PUBLIC_KEY, signature);
+            expect(isValid).toBe(false);
+        });
+
+        await it('should support multiple update calls', async () => {
+            const sign = createSign('SHA256');
+            sign.update('part1');
+            sign.update('part2');
+            const signature = sign.sign(RSA_PRIVATE_KEY);
+
+            const verify = createVerify('SHA256');
+            verify.update('part1');
+            verify.update('part2');
+            expect(verify.verify(RSA_PUBLIC_KEY, signature)).toBe(true);
+        });
+
+        await it('should support hex encoding for signature', async () => {
+            const sign = createSign('SHA256');
+            sign.update('test');
+            const sigHex = sign.sign(RSA_PRIVATE_KEY, 'hex');
+            expect(typeof sigHex).toBe('string');
+
+            const verify = createVerify('SHA256');
+            verify.update('test');
+            expect(verify.verify(RSA_PUBLIC_KEY, sigHex, 'hex')).toBe(true);
+        });
     });
 
-    await it('should sign data with RSA-SHA256', async () => {
-      const sign = createSign('SHA256');
-      sign.update('Hello, World!');
-      const signature = sign.sign(RSA_PRIVATE_KEY);
-      expect(Buffer.isBuffer(signature)).toBe(true);
-      expect(signature.length).toBeGreaterThan(0);
+    await describe('crypto.publicEncrypt / privateDecrypt', async () => {
+        await it('should be functions', async () => {
+            expect(typeof publicEncrypt).toBe('function');
+            expect(typeof privateDecrypt).toBe('function');
+        });
+
+        await it('should encrypt and decrypt round-trip', async () => {
+            const plaintext = Buffer.from('secret message');
+            const encrypted = publicEncrypt(RSA_PUBLIC_KEY, plaintext);
+            expect(Buffer.isBuffer(encrypted)).toBe(true);
+            expect(encrypted.length).toBeGreaterThan(0);
+
+            const decrypted = privateDecrypt(RSA_PRIVATE_KEY, encrypted);
+            expect(decrypted.toString()).toBe('secret message');
+        });
+
+        await it('should produce different ciphertext each time (PKCS#1 random padding)', async () => {
+            const plaintext = Buffer.from('test');
+            const enc1 = publicEncrypt(RSA_PUBLIC_KEY, plaintext);
+            const enc2 = publicEncrypt(RSA_PUBLIC_KEY, plaintext);
+            // Due to random padding, ciphertexts should differ
+            expect(enc1.toString('hex')).not.toBe(enc2.toString('hex'));
+        });
     });
-
-    await it('should produce different signatures for different data', async () => {
-      const sign1 = createSign('SHA256');
-      sign1.update('data1');
-      const sig1 = sign1.sign(RSA_PRIVATE_KEY);
-
-      const sign2 = createSign('SHA256');
-      sign2.update('data2');
-      const sig2 = sign2.sign(RSA_PRIVATE_KEY);
-
-      expect(sig1.toString('hex')).not.toBe(sig2.toString('hex'));
-    });
-  });
-
-  await describe('crypto.createVerify', async () => {
-    await it('should be a function', async () => {
-      expect(typeof createVerify).toBe('function');
-    });
-
-    await it('should verify a valid signature', async () => {
-      const data = 'test data for signing';
-
-      const sign = createSign('SHA256');
-      sign.update(data);
-      const signature = sign.sign(RSA_PRIVATE_KEY);
-
-      const verify = createVerify('SHA256');
-      verify.update(data);
-      const isValid = verify.verify(RSA_PUBLIC_KEY, signature);
-      expect(isValid).toBe(true);
-    });
-
-    await it('should reject invalid signature', async () => {
-      const sign = createSign('SHA256');
-      sign.update('original data');
-      const signature = sign.sign(RSA_PRIVATE_KEY);
-
-      const verify = createVerify('SHA256');
-      verify.update('tampered data');
-      const isValid = verify.verify(RSA_PUBLIC_KEY, signature);
-      expect(isValid).toBe(false);
-    });
-
-    await it('should support multiple update calls', async () => {
-      const sign = createSign('SHA256');
-      sign.update('part1');
-      sign.update('part2');
-      const signature = sign.sign(RSA_PRIVATE_KEY);
-
-      const verify = createVerify('SHA256');
-      verify.update('part1');
-      verify.update('part2');
-      expect(verify.verify(RSA_PUBLIC_KEY, signature)).toBe(true);
-    });
-
-    await it('should support hex encoding for signature', async () => {
-      const sign = createSign('SHA256');
-      sign.update('test');
-      const sigHex = sign.sign(RSA_PRIVATE_KEY, 'hex');
-      expect(typeof sigHex).toBe('string');
-
-      const verify = createVerify('SHA256');
-      verify.update('test');
-      expect(verify.verify(RSA_PUBLIC_KEY, sigHex, 'hex')).toBe(true);
-    });
-  });
-
-  await describe('crypto.publicEncrypt / privateDecrypt', async () => {
-    await it('should be functions', async () => {
-      expect(typeof publicEncrypt).toBe('function');
-      expect(typeof privateDecrypt).toBe('function');
-    });
-
-    await it('should encrypt and decrypt round-trip', async () => {
-      const plaintext = Buffer.from('secret message');
-      const encrypted = publicEncrypt(RSA_PUBLIC_KEY, plaintext);
-      expect(Buffer.isBuffer(encrypted)).toBe(true);
-      expect(encrypted.length).toBeGreaterThan(0);
-
-      const decrypted = privateDecrypt(RSA_PRIVATE_KEY, encrypted);
-      expect(decrypted.toString()).toBe('secret message');
-    });
-
-    await it('should produce different ciphertext each time (PKCS#1 random padding)', async () => {
-      const plaintext = Buffer.from('test');
-      const enc1 = publicEncrypt(RSA_PUBLIC_KEY, plaintext);
-      const enc2 = publicEncrypt(RSA_PUBLIC_KEY, plaintext);
-      // Due to random padding, ciphertexts should differ
-      expect(enc1.toString('hex')).not.toBe(enc2.toString('hex'));
-    });
-  });
 };

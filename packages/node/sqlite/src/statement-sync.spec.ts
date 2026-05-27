@@ -11,11 +11,15 @@ let cnt = 0;
 const testDir = join(tmpdir(), 'gjsify-sqlite-stmt-test-' + Date.now());
 
 function setup() {
-    try { mkdirSync(testDir, { recursive: true }); } catch {}
+    try {
+        mkdirSync(testDir, { recursive: true });
+    } catch {}
 }
 
 function cleanup() {
-    try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+    try {
+        rmSync(testDir, { recursive: true, force: true });
+    } catch {}
 }
 
 function nextDb(): string {

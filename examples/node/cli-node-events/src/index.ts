@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 
 console.log('=== @gjsify/events example ===\n');
 
@@ -6,7 +6,7 @@ console.log('=== @gjsify/events example ===\n');
 const emitter = new EventEmitter();
 
 emitter.on('greet', (name: string) => {
-  console.log(`Hello, ${name}!`);
+    console.log(`Hello, ${name}!`);
 });
 
 console.log('--- Basic emit ---');
@@ -16,7 +16,7 @@ emitter.emit('greet', 'World');
 // once listener
 console.log('\n--- once listener ---');
 emitter.once('startup', () => {
-  console.log('This fires only once');
+    console.log('This fires only once');
 });
 emitter.emit('startup');
 emitter.emit('startup'); // silent, listener was removed
@@ -42,7 +42,7 @@ console.log('After removeListener, count:', ee.listenerCount('temp'));
 console.log('\n--- Error event ---');
 const safe = new EventEmitter();
 safe.on('error', (err: Error) => {
-  console.log('Caught error:', err.message);
+    console.log('Caught error:', err.message);
 });
 safe.emit('error', new Error('something went wrong'));
 

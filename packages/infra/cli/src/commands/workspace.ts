@@ -44,7 +44,9 @@ export const workspaceCommand: Command<any, WorkspaceCmdOptions> = {
         const workspaces = discoverWorkspaces(root);
         const target = workspaces.find((w) => w.name === args.name);
         if (!target) {
-            console.error(`gjsify workspace: no workspace named "${args.name}" — discovered ${workspaces.length} workspace(s)`);
+            console.error(
+                `gjsify workspace: no workspace named "${args.name}" — discovered ${workspaces.length} workspace(s)`,
+            );
             process.exit(1);
         }
         const scripts = (target.manifest.scripts as Record<string, string> | undefined) ?? {};
@@ -53,18 +55,17 @@ export const workspaceCommand: Command<any, WorkspaceCmdOptions> = {
             process.exit(1);
         }
         const runner = detectPackageManager();
-        const argv = runner === 'gjsify'
-            ? ['run', args.script, ...(args.args ?? [])]
-            : ['run', args.script, ...(args.args && args.args.length > 0 ? ['--', ...args.args] : [])];
+        const argv =
+            runner === 'gjsify'
+                ? ['run', args.script, ...(args.args ?? [])]
+                : ['run', args.script, ...(args.args && args.args.length > 0 ? ['--', ...args.args] : [])];
         // Default FORCE_COLOR=1 unless the user explicitly opted out (matches
         // yarn / npm / gjsify run behaviour) — without this, tools that key
         // on isTTY (chalk, picocolors, biome) drop colors when stdout is a
         // pipe, including GitHub Actions where the log viewer renders ANSI
         // fine.
         const colorEnv =
-            process.env.FORCE_COLOR !== undefined || process.env.NO_COLOR !== undefined
-                ? {}
-                : { FORCE_COLOR: '1' };
+            process.env.FORCE_COLOR !== undefined || process.env.NO_COLOR !== undefined ? {} : { FORCE_COLOR: '1' };
         await new Promise<void>((resolve, reject) => {
             const child = spawn(runner, argv, {
                 cwd: target.location,

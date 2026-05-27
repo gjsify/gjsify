@@ -8,23 +8,23 @@ import type { EventEmitter } from '@gjsify/events';
 
 /** Base options accepted by the Stream constructor (superset used by subclass options). */
 export interface StreamOptions {
-  highWaterMark?: number;
-  objectMode?: boolean;
-  signal?: AbortSignal;
-  captureRejections?: boolean;
+    highWaterMark?: number;
+    objectMode?: boolean;
+    signal?: AbortSignal;
+    captureRejections?: boolean;
 }
 
 /** A stream-like emitter that may have `pause` and `resume` methods (duck-typed). */
 export interface StreamLike extends EventEmitter {
-  pause?(): void;
-  resume?(): void;
+    pause?(): void;
+    resume?(): void;
 }
 
 /** Internal write-buffer entry shared by Writable and Duplex queues. */
 export interface BufferedWrite {
-  chunk: unknown;
-  encoding: string;
-  callback: (error?: Error | null) => void;
+    chunk: unknown;
+    encoding: string;
+    callback: (error?: Error | null) => void;
 }
 
 /** Generic node-style error callback. */

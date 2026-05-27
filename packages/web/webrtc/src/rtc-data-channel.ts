@@ -121,11 +121,21 @@ export class RTCDataChannel extends EventTarget {
 
     // ---- Properties --------------------------------------------------------
 
-    get label(): string { return this._native.label; }
-    get ordered(): boolean { return this._native.ordered; }
-    get protocol(): string { return this._native.protocol; }
-    get negotiated(): boolean { return this._native.negotiated; }
-    get id(): number | null { return this._native.id >= 0 ? this._native.id : null; }
+    get label(): string {
+        return this._native.label;
+    }
+    get ordered(): boolean {
+        return this._native.ordered;
+    }
+    get protocol(): string {
+        return this._native.protocol;
+    }
+    get negotiated(): boolean {
+        return this._native.negotiated;
+    }
+    get id(): number | null {
+        return this._native.id >= 0 ? this._native.id : null;
+    }
 
     get maxPacketLifeTime(): number | null {
         const v = this._native.max_packet_lifetime;
@@ -157,7 +167,9 @@ export class RTCDataChannel extends EventTarget {
         this._native.buffered_amount_low_threshold = v;
     }
 
-    get binaryType(): BinaryType { return this._binaryType; }
+    get binaryType(): BinaryType {
+        return this._binaryType;
+    }
     set binaryType(v: BinaryType) {
         // W3C §6.2 (and WPT RTCDataChannel-binaryType tests): invalid
         // values must be silently ignored — keep the previous value.
@@ -171,18 +183,42 @@ export class RTCDataChannel extends EventTarget {
 
     // ---- on<event> attribute accessors -------------------------------------
 
-    get onopen() { return this._onopen; }
-    set onopen(h: EventHandler) { this._onopen = h; }
-    get onclose() { return this._onclose; }
-    set onclose(h: EventHandler) { this._onclose = h; }
-    get onclosing() { return this._onclosing; }
-    set onclosing(h: EventHandler) { this._onclosing = h; }
-    get onerror() { return this._onerror; }
-    set onerror(h: EventHandler<RTCErrorEvent>) { this._onerror = h; }
-    get onmessage() { return this._onmessage; }
-    set onmessage(h: EventHandler<MessageEvent>) { this._onmessage = h; }
-    get onbufferedamountlow() { return this._onbufferedamountlow; }
-    set onbufferedamountlow(h: EventHandler) { this._onbufferedamountlow = h; }
+    get onopen() {
+        return this._onopen;
+    }
+    set onopen(h: EventHandler) {
+        this._onopen = h;
+    }
+    get onclose() {
+        return this._onclose;
+    }
+    set onclose(h: EventHandler) {
+        this._onclose = h;
+    }
+    get onclosing() {
+        return this._onclosing;
+    }
+    set onclosing(h: EventHandler) {
+        this._onclosing = h;
+    }
+    get onerror() {
+        return this._onerror;
+    }
+    set onerror(h: EventHandler<RTCErrorEvent>) {
+        this._onerror = h;
+    }
+    get onmessage() {
+        return this._onmessage;
+    }
+    set onmessage(h: EventHandler<MessageEvent>) {
+        this._onmessage = h;
+    }
+    get onbufferedamountlow() {
+        return this._onbufferedamountlow;
+    }
+    set onbufferedamountlow(h: EventHandler) {
+        this._onbufferedamountlow = h;
+    }
 
     // ---- Methods -----------------------------------------------------------
 
@@ -232,14 +268,22 @@ export class RTCDataChannel extends EventTarget {
 
     close(): void {
         if (this._closed) return;
-        try { this._native.close(); } catch { /* ignore */ }
+        try {
+            this._native.close();
+        } catch {
+            /* ignore */
+        }
         this._disconnectSignals();
         this._closed = true;
     }
 
     /** @internal */
     _disconnectSignals(): void {
-        try { this._bridge.dispose_bridge(); } catch { /* ignore */ }
+        try {
+            this._bridge.dispose_bridge();
+        } catch {
+            /* ignore */
+        }
     }
 
     // ---- Signal → event translators ---------------------------------------
@@ -259,10 +303,7 @@ export class RTCDataChannel extends EventTarget {
     }
 
     private _handleError(message: string): void {
-        const rtcErr = new RTCError(
-            { errorDetail: 'data-channel-failure' },
-            message || 'RTCDataChannel error',
-        );
+        const rtcErr = new RTCError({ errorDetail: 'data-channel-failure' }, message || 'RTCDataChannel error');
         const ev = new RTCErrorEvent('error', { error: rtcErr });
         this._onerror?.call(this, ev);
         this.dispatchEvent(ev);
@@ -277,8 +318,7 @@ export class RTCDataChannel extends EventTarget {
     private _handleData(bytes: GLib.Bytes): void {
         if (!bytes) return;
         const buf = bytesToArrayBuffer(bytes);
-        const data: ArrayBuffer | Blob =
-            this._binaryType === 'blob' ? new Blob([buf]) : buf;
+        const data: ArrayBuffer | Blob = this._binaryType === 'blob' ? new Blob([buf]) : buf;
         const ev = new MessageEvent('message', { data });
         this._onmessage?.call(this, ev);
         this.dispatchEvent(ev);

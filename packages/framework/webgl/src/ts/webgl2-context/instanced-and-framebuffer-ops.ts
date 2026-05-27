@@ -15,7 +15,7 @@
 // Original: see webgl2-rendering-context.ts pre-split.
 
 import type { WebGL2RenderingContext } from '../webgl2-rendering-context.js';
-import { WebGLTexture } from '../webgl-texture.js';
+import type { WebGLTexture } from '../webgl-texture.js';
 import { vertexCount } from '../utils.js';
 
 /** Internal debug counters attached to the context instance — opt-in via `globalThis.__GJSIFY_DEBUG_GL = true`. */
@@ -36,52 +36,115 @@ export interface InstancedAndFramebufferOpsMethods {
     vertexAttribIPointer(index: GLuint, size: GLint, type: GLenum, stride: GLsizei, offset: GLintptr): void;
     drawBuffers(buffers: GLenum[]): void;
     drawRangeElements(mode: GLenum, start: GLuint, end: GLuint, count: GLsizei, type: GLenum, offset: GLintptr): void;
-    blitFramebuffer(srcX0: GLint, srcY0: GLint, srcX1: GLint, srcY1: GLint, dstX0: GLint, dstY0: GLint, dstX1: GLint, dstY1: GLint, mask: GLbitfield, filter: GLenum): void;
-    framebufferTextureLayer(target: GLenum, attachment: GLenum, texture: WebGLTexture | null, level: GLint, layer: GLint): void;
+    blitFramebuffer(
+        srcX0: GLint,
+        srcY0: GLint,
+        srcX1: GLint,
+        srcY1: GLint,
+        dstX0: GLint,
+        dstY0: GLint,
+        dstX1: GLint,
+        dstY1: GLint,
+        mask: GLbitfield,
+        filter: GLenum,
+    ): void;
+    framebufferTextureLayer(
+        target: GLenum,
+        attachment: GLenum,
+        texture: WebGLTexture | null,
+        level: GLint,
+        layer: GLint,
+    ): void;
     invalidateFramebuffer(target: GLenum, attachments: GLenum[]): void;
-    invalidateSubFramebuffer(target: GLenum, attachments: GLenum[], x: GLint, y: GLint, width: GLsizei, height: GLsizei): void;
+    invalidateSubFramebuffer(
+        target: GLenum,
+        attachments: GLenum[],
+        x: GLint,
+        y: GLint,
+        width: GLsizei,
+        height: GLsizei,
+    ): void;
     readBuffer(src: GLenum): void;
-    renderbufferStorageMultisample(target: GLenum, samples: GLsizei, internalFormat: GLenum, width: GLsizei, height: GLsizei): void;
+    renderbufferStorageMultisample(
+        target: GLenum,
+        samples: GLsizei,
+        internalFormat: GLenum,
+        width: GLsizei,
+        height: GLsizei,
+    ): void;
 }
 
 declare module '../webgl2-rendering-context.js' {
-    interface WebGL2RenderingContext extends InstancedAndFramebufferOpsMethods { }
+    interface WebGL2RenderingContext extends InstancedAndFramebufferOpsMethods {}
 }
 
 const instancedAndFramebufferOpsMethods: InstancedAndFramebufferOpsMethods & ThisType<WebGL2RenderingContext> = {
-
     // ─── Instancing & Advanced Draw ───────────────────────────────────────
 
-    drawArraysInstanced(this: WebGL2RenderingContext, mode: GLenum, first: GLint, count: GLsizei, instanceCount: GLsizei): void {
-        if (first < 0 || count < 0 || instanceCount < 0) { this.setError(this.INVALID_VALUE); return; }
+    drawArraysInstanced(
+        this: WebGL2RenderingContext,
+        mode: GLenum,
+        first: GLint,
+        count: GLsizei,
+        instanceCount: GLsizei,
+    ): void {
+        if (first < 0 || count < 0 || instanceCount < 0) {
+            this.setError(this.INVALID_VALUE);
+            return;
+        }
         if (!this._checkStencilState()) return;
         const rc = vertexCount(this, mode, count);
-        if (rc < 0) { this.setError(this.INVALID_ENUM); return; }
+        if (rc < 0) {
+            this.setError(this.INVALID_ENUM);
+            return;
+        }
         if (!this._framebufferOk()) return;
         if (count === 0 || instanceCount === 0) return;
         if (!this._checkVertexAttribState((count + first - 1) >>> 0)) return;
         if (debugGlEnabled()) {
             const dbg = this as DebugCounters;
-            const n = dbg.__drawInstCount = (dbg.__drawInstCount | 0) + 1;
-            if (n <= 5 || n % 100 === 0) console.log(`[WebGL] drawArraysInstanced #${n} count=${rc} instances=${instanceCount} fbo=${this._activeFramebuffer?._ ?? '_gtkFbo'}`);
+            const n = (dbg.__drawInstCount = (dbg.__drawInstCount | 0) + 1);
+            if (n <= 5 || n % 100 === 0)
+                console.log(
+                    `[WebGL] drawArraysInstanced #${n} count=${rc} instances=${instanceCount} fbo=${this._activeFramebuffer?._ ?? '_gtkFbo'}`,
+                );
         }
         this._native2.drawArraysInstanced(mode, first, rc, instanceCount);
     },
 
-    drawElementsInstanced(this: WebGL2RenderingContext, mode: GLenum, count: GLsizei, type: GLenum, offset: GLintptr, instanceCount: GLsizei): void {
-        if (count < 0 || offset < 0 || instanceCount < 0) { this.setError(this.INVALID_VALUE); return; }
+    drawElementsInstanced(
+        this: WebGL2RenderingContext,
+        mode: GLenum,
+        count: GLsizei,
+        type: GLenum,
+        offset: GLintptr,
+        instanceCount: GLsizei,
+    ): void {
+        if (count < 0 || offset < 0 || instanceCount < 0) {
+            this.setError(this.INVALID_VALUE);
+            return;
+        }
         if (!this._checkStencilState()) return;
         const elementBuffer = this._vertexObjectState._elementArrayBufferBinding;
-        if (!elementBuffer) { this.setError(this.INVALID_OPERATION); return; }
+        if (!elementBuffer) {
+            this.setError(this.INVALID_OPERATION);
+            return;
+        }
 
         let elementData: Uint8Array | Uint16Array | Uint32Array | null = null;
         let adjustedOffset = offset;
         if (type === this.UNSIGNED_SHORT) {
-            if (adjustedOffset % 2) { this.setError(this.INVALID_OPERATION); return; }
+            if (adjustedOffset % 2) {
+                this.setError(this.INVALID_OPERATION);
+                return;
+            }
             adjustedOffset >>= 1;
             elementData = new Uint16Array(elementBuffer._elements.buffer);
         } else if (type === this.UNSIGNED_INT) {
-            if (adjustedOffset % 4) { this.setError(this.INVALID_OPERATION); return; }
+            if (adjustedOffset % 4) {
+                this.setError(this.INVALID_OPERATION);
+                return;
+            }
             adjustedOffset >>= 2;
             elementData = new Uint32Array(elementBuffer._elements.buffer);
         } else if (type === this.UNSIGNED_BYTE) {
@@ -93,14 +156,27 @@ const instancedAndFramebufferOpsMethods: InstancedAndFramebufferOpsMethods & Thi
 
         let reducedCount = count;
         switch (mode) {
-            case this.TRIANGLES: if (count % 3) reducedCount -= (count % 3); break;
-            case this.LINES: if (count % 2) reducedCount -= (count % 2); break;
-            case this.POINTS: break;
-            case this.LINE_LOOP: case this.LINE_STRIP:
-                if (count < 2) { this.setError(this.INVALID_OPERATION); return; }
+            case this.TRIANGLES:
+                if (count % 3) reducedCount -= count % 3;
                 break;
-            case this.TRIANGLE_FAN: case this.TRIANGLE_STRIP:
-                if (count < 3) { this.setError(this.INVALID_OPERATION); return; }
+            case this.LINES:
+                if (count % 2) reducedCount -= count % 2;
+                break;
+            case this.POINTS:
+                break;
+            case this.LINE_LOOP:
+            case this.LINE_STRIP:
+                if (count < 2) {
+                    this.setError(this.INVALID_OPERATION);
+                    return;
+                }
+                break;
+            case this.TRIANGLE_FAN:
+            case this.TRIANGLE_STRIP:
+                if (count < 3) {
+                    this.setError(this.INVALID_OPERATION);
+                    return;
+                }
                 break;
             default:
                 this.setError(this.INVALID_ENUM);
@@ -108,7 +184,10 @@ const instancedAndFramebufferOpsMethods: InstancedAndFramebufferOpsMethods & Thi
         }
 
         if (!this._framebufferOk()) return;
-        if (reducedCount === 0 || instanceCount === 0) { this._checkVertexAttribState(0); return; }
+        if (reducedCount === 0 || instanceCount === 0) {
+            this._checkVertexAttribState(0);
+            return;
+        }
         if ((reducedCount + adjustedOffset) >>> 0 > elementData.length) {
             this.setError(this.INVALID_OPERATION);
             return;
@@ -127,7 +206,14 @@ const instancedAndFramebufferOpsMethods: InstancedAndFramebufferOpsMethods & Thi
         this._native2.vertexAttribDivisor(index, divisor);
     },
 
-    vertexAttribIPointer(this: WebGL2RenderingContext, index: GLuint, size: GLint, type: GLenum, stride: GLsizei, offset: GLintptr): void {
+    vertexAttribIPointer(
+        this: WebGL2RenderingContext,
+        index: GLuint,
+        size: GLint,
+        type: GLenum,
+        stride: GLsizei,
+        offset: GLintptr,
+    ): void {
         this._native2.vertexAttribIPointer(index, size, type, stride, offset);
     },
 
@@ -137,24 +223,53 @@ const instancedAndFramebufferOpsMethods: InstancedAndFramebufferOpsMethods & Thi
         // Map GL_BACK → GL_COLOR_ATTACHMENT0 which is the attachment GTK's FBO uses.
         let hasBack = false;
         for (let i = 0; i < buffers.length; i++) {
-            if (buffers[i] === 0x0405) { hasBack = true; break; }
+            if (buffers[i] === 0x0405) {
+                hasBack = true;
+                break;
+            }
         }
         if (!hasBack) {
             this._native2.drawBuffers(buffers);
             return;
         }
-        this._native2.drawBuffers(buffers.map(b => b === 0x0405 /* GL_BACK */ ? this.COLOR_ATTACHMENT0 : b));
+        this._native2.drawBuffers(buffers.map((b) => (b === 0x0405 /* GL_BACK */ ? this.COLOR_ATTACHMENT0 : b)));
     },
 
-    drawRangeElements(this: WebGL2RenderingContext, mode: GLenum, start: GLuint, end: GLuint, count: GLsizei, type: GLenum, offset: GLintptr): void {
-        if (count < 0 || offset < 0) { this.setError(this.INVALID_VALUE); return; }
-        if (end < start) { this.setError(this.INVALID_VALUE); return; }
+    drawRangeElements(
+        this: WebGL2RenderingContext,
+        mode: GLenum,
+        start: GLuint,
+        end: GLuint,
+        count: GLsizei,
+        type: GLenum,
+        offset: GLintptr,
+    ): void {
+        if (count < 0 || offset < 0) {
+            this.setError(this.INVALID_VALUE);
+            return;
+        }
+        if (end < start) {
+            this.setError(this.INVALID_VALUE);
+            return;
+        }
         // Delegate to drawElements for full validation.
         // drawRangeElements is just a hint to the driver about the index range.
         this.drawElements(mode, count, type, offset);
     },
 
-    blitFramebuffer(this: WebGL2RenderingContext, srcX0: GLint, srcY0: GLint, srcX1: GLint, srcY1: GLint, dstX0: GLint, dstY0: GLint, dstX1: GLint, dstY1: GLint, mask: GLbitfield, filter: GLenum): void {
+    blitFramebuffer(
+        this: WebGL2RenderingContext,
+        srcX0: GLint,
+        srcY0: GLint,
+        srcX1: GLint,
+        srcY1: GLint,
+        dstX0: GLint,
+        dstY0: GLint,
+        dstX1: GLint,
+        dstY1: GLint,
+        mask: GLbitfield,
+        filter: GLenum,
+    ): void {
         if (debugGlEnabled()) {
             // Check GL error before blit to isolate issues
             const errBefore = this._gl.getError();
@@ -164,20 +279,44 @@ const instancedAndFramebufferOpsMethods: InstancedAndFramebufferOpsMethods & Thi
         if (debugGlEnabled()) {
             const err = this._gl.getError();
             const dbg = this as DebugCounters;
-            const n = dbg.__blitCount = (dbg.__blitCount | 0) + 1;
-            if (n <= 5) console.log(`[WebGL] blitFramebuffer #${n} src=(${srcX0},${srcY0},${srcX1},${srcY1}) readFbo=${this._activeReadFramebuffer?._ ?? '_gtkFbo'} err=${err === 0 ? 'OK' : '0x' + err.toString(16)}`);
+            const n = (dbg.__blitCount = (dbg.__blitCount | 0) + 1);
+            if (n <= 5)
+                console.log(
+                    `[WebGL] blitFramebuffer #${n} src=(${srcX0},${srcY0},${srcX1},${srcY1}) readFbo=${this._activeReadFramebuffer?._ ?? '_gtkFbo'} err=${err === 0 ? 'OK' : '0x' + err.toString(16)}`,
+                );
         }
     },
 
-    framebufferTextureLayer(this: WebGL2RenderingContext, target: GLenum, attachment: GLenum, texture: WebGLTexture | null, level: GLint, layer: GLint): void {
-        this._native2.framebufferTextureLayer(target, attachment, texture ? (texture as unknown as WebGLTexture)._ : 0, level, layer);
+    framebufferTextureLayer(
+        this: WebGL2RenderingContext,
+        target: GLenum,
+        attachment: GLenum,
+        texture: WebGLTexture | null,
+        level: GLint,
+        layer: GLint,
+    ): void {
+        this._native2.framebufferTextureLayer(
+            target,
+            attachment,
+            texture ? (texture as unknown as WebGLTexture)._ : 0,
+            level,
+            layer,
+        );
     },
 
     invalidateFramebuffer(this: WebGL2RenderingContext, target: GLenum, attachments: GLenum[]): void {
         this._native2.invalidateFramebuffer(target, attachments);
     },
 
-    invalidateSubFramebuffer(this: WebGL2RenderingContext, target: GLenum, attachments: GLenum[], x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
+    invalidateSubFramebuffer(
+        this: WebGL2RenderingContext,
+        target: GLenum,
+        attachments: GLenum[],
+        x: GLint,
+        y: GLint,
+        width: GLsizei,
+        height: GLsizei,
+    ): void {
         this._native2.invalidateSubFramebuffer(target, attachments, x, y, width, height);
     },
 
@@ -185,7 +324,14 @@ const instancedAndFramebufferOpsMethods: InstancedAndFramebufferOpsMethods & Thi
         this._native2.readBuffer(src);
     },
 
-    renderbufferStorageMultisample(this: WebGL2RenderingContext, target: GLenum, samples: GLsizei, internalFormat: GLenum, width: GLsizei, height: GLsizei): void {
+    renderbufferStorageMultisample(
+        this: WebGL2RenderingContext,
+        target: GLenum,
+        samples: GLsizei,
+        internalFormat: GLenum,
+        width: GLsizei,
+        height: GLsizei,
+    ): void {
         if (target !== this.RENDERBUFFER) {
             this.setError(this.INVALID_ENUM);
             return;

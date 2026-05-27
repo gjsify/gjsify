@@ -7,7 +7,6 @@ import { run, describe, it, expect } from '@gjsify/unit';
 
 run({
     async DomElementsTest() {
-
         // -- Node constants --
 
         await describe('Node constants', async () => {
@@ -238,7 +237,9 @@ run({
             await it('event dispatch via addEventListener', async () => {
                 const el = document.createElement('div');
                 let fired = false;
-                el.addEventListener('click', () => { fired = true; });
+                el.addEventListener('click', () => {
+                    fired = true;
+                });
                 el.dispatchEvent(new Event('click'));
                 expect(fired).toBe(true);
             });
@@ -379,7 +380,9 @@ run({
             await it('onclick handler fires on click()', async () => {
                 const el = document.createElement('div');
                 let clicked = false;
-                el.onclick = () => { clicked = true; };
+                el.onclick = () => {
+                    clicked = true;
+                };
                 el.click();
                 expect(clicked).toBe(true);
             });
@@ -387,7 +390,9 @@ run({
             await it('onload handler fires on dispatchEvent', async () => {
                 const el = document.createElement('div');
                 let called = false;
-                el.onload = () => { called = true; };
+                el.onload = () => {
+                    called = true;
+                };
                 el.dispatchEvent(new Event('load'));
                 expect(called).toBe(true);
             });
@@ -401,8 +406,12 @@ run({
             await it('both addEventListener and on* handler fire', async () => {
                 const el = document.createElement('div');
                 const calls: string[] = [];
-                el.addEventListener('load', () => { calls.push('listener'); });
-                el.onload = () => { calls.push('handler'); };
+                el.addEventListener('load', () => {
+                    calls.push('listener');
+                });
+                el.onload = () => {
+                    calls.push('handler');
+                };
                 el.dispatchEvent(new Event('load'));
                 expect(calls.length).toBe(2);
                 expect(calls).toContain('listener');
@@ -412,7 +421,9 @@ run({
             await it('clearing on* handler stops it from firing', async () => {
                 const el = document.createElement('div');
                 let called = false;
-                el.onload = () => { called = true; };
+                el.onload = () => {
+                    called = true;
+                };
                 el.onload = null;
                 el.dispatchEvent(new Event('load'));
                 expect(called).toBe(false);
@@ -527,7 +538,7 @@ run({
             });
 
             await it('16-element 3D array sets is2D=false', async () => {
-                const m = new DOMMatrix([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]);
+                const m = new DOMMatrix([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
                 expect(m.m11).toBe(1);
                 expect(m.m44).toBe(16);
                 expect(m.is2D).toBe(false);

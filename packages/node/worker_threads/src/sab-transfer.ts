@@ -25,17 +25,17 @@ import type { SharedBuffer } from '@gjsify/sab-native';
  * SCM_RIGHTS message), with the original byteLength.
  */
 export interface SharedBufferPlaceholder {
-  readonly __sab: number;
-  readonly size: number;
+    readonly __sab: number;
+    readonly size: number;
 }
 
 export function isSharedBufferPlaceholder(value: unknown): value is SharedBufferPlaceholder {
-  return (
-    typeof value === 'object'
-    && value !== null
-    && typeof (value as { __sab?: unknown }).__sab === 'number'
-    && typeof (value as { size?: unknown }).size === 'number'
-  );
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        typeof (value as { __sab?: unknown }).__sab === 'number' &&
+        typeof (value as { size?: unknown }).size === 'number'
+    );
 }
 
 /**
@@ -46,11 +46,11 @@ export function isSharedBufferPlaceholder(value: unknown): value is SharedBuffer
  * message payload.
  */
 export function isSharedBuffer(value: unknown): value is SharedBuffer {
-  return (
-    typeof value === 'object'
-    && value !== null
-    && (value as { constructor?: { name?: string } }).constructor?.name === 'SharedBuffer'
-  );
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        (value as { constructor?: { name?: string } }).constructor?.name === 'SharedBuffer'
+    );
 }
 
 /**
@@ -68,53 +68,53 @@ export function isSharedBuffer(value: unknown): value is SharedBuffer {
  * single FdChannel pair's lifetime (4 G tags = 2³² = plenty).
  */
 export function extractSharedBuffers(
-  value: unknown,
-  startTag: number,
+    value: unknown,
+    startTag: number,
 ): { value: unknown; table: { tag: number; buffer: SharedBuffer }[]; nextTag: number } {
-  const table: { tag: number; buffer: SharedBuffer }[] = [];
-  const bufferToTag = new Map<SharedBuffer, number>();
-  let nextTag = startTag;
+    const table: { tag: number; buffer: SharedBuffer }[] = [];
+    const bufferToTag = new Map<SharedBuffer, number>();
+    let nextTag = startTag;
 
-  function walk(v: unknown, seen: Map<object, unknown>): unknown {
-    if (v === null || typeof v !== 'object') return v;
+    function walk(v: unknown, seen: Map<object, unknown>): unknown {
+        if (v === null || typeof v !== 'object') return v;
 
-    if (isSharedBuffer(v)) {
-      let tag = bufferToTag.get(v);
-      if (tag === undefined) {
-        tag = nextTag++;
-        bufferToTag.set(v, tag);
-        table.push({ tag, buffer: v });
-      }
-      const placeholder: SharedBufferPlaceholder = { __sab: tag, size: v.byteLength };
-      return placeholder;
+        if (isSharedBuffer(v)) {
+            let tag = bufferToTag.get(v);
+            if (tag === undefined) {
+                tag = nextTag++;
+                bufferToTag.set(v, tag);
+                table.push({ tag, buffer: v });
+            }
+            const placeholder: SharedBufferPlaceholder = { __sab: tag, size: v.byteLength };
+            return placeholder;
+        }
+
+        if (seen.has(v)) return seen.get(v);
+
+        if (Array.isArray(v)) {
+            const out: unknown[] = [];
+            seen.set(v, out);
+            for (let i = 0; i < v.length; i++) {
+                if (i in v) out[i] = walk(v[i], seen);
+            }
+            return out;
+        }
+
+        const tag = Object.prototype.toString.call(v).slice(8, -1);
+        if (tag === 'Object') {
+            const out: Record<string, unknown> = {};
+            seen.set(v, out);
+            for (const k of Object.keys(v as Record<string, unknown>)) {
+                out[k] = walk((v as Record<string, unknown>)[k], seen);
+            }
+            return out;
+        }
+
+        return v;
     }
 
-    if (seen.has(v)) return seen.get(v);
-
-    if (Array.isArray(v)) {
-      const out: unknown[] = [];
-      seen.set(v, out);
-      for (let i = 0; i < v.length; i++) {
-        if (i in v) out[i] = walk(v[i], seen);
-      }
-      return out;
-    }
-
-    const tag = Object.prototype.toString.call(v).slice(8, -1);
-    if (tag === 'Object') {
-      const out: Record<string, unknown> = {};
-      seen.set(v, out);
-      for (const k of Object.keys(v as Record<string, unknown>)) {
-        out[k] = walk((v as Record<string, unknown>)[k], seen);
-      }
-      return out;
-    }
-
-    return v;
-  }
-
-  const substituted = walk(value, new Map());
-  return { value: substituted, table, nextTag };
+    const substituted = walk(value, new Map());
+    return { value: substituted, table, nextTag };
 }
 
 /**
@@ -132,34 +132,34 @@ export function extractSharedBuffers(
  * ordering.
  */
 export function materializeSharedBuffers(
-  value: unknown,
-  resolveTag: (tag: number, size: number) => SharedBuffer,
+    value: unknown,
+    resolveTag: (tag: number, size: number) => SharedBuffer,
 ): unknown {
-  function walk(v: unknown, seen: Map<object, unknown>): unknown {
-    if (v === null || typeof v !== 'object') return v;
-    if (isSharedBufferPlaceholder(v)) {
-      return resolveTag(v.__sab, v.size);
-    }
-    if (seen.has(v)) return seen.get(v);
+    function walk(v: unknown, seen: Map<object, unknown>): unknown {
+        if (v === null || typeof v !== 'object') return v;
+        if (isSharedBufferPlaceholder(v)) {
+            return resolveTag(v.__sab, v.size);
+        }
+        if (seen.has(v)) return seen.get(v);
 
-    if (Array.isArray(v)) {
-      seen.set(v, v);
-      for (let i = 0; i < v.length; i++) {
-        if (i in v) v[i] = walk(v[i], seen);
-      }
-      return v;
+        if (Array.isArray(v)) {
+            seen.set(v, v);
+            for (let i = 0; i < v.length; i++) {
+                if (i in v) v[i] = walk(v[i], seen);
+            }
+            return v;
+        }
+
+        const tag = Object.prototype.toString.call(v).slice(8, -1);
+        if (tag === 'Object') {
+            seen.set(v, v);
+            for (const k of Object.keys(v as Record<string, unknown>)) {
+                (v as Record<string, unknown>)[k] = walk((v as Record<string, unknown>)[k], seen);
+            }
+            return v;
+        }
+        return v;
     }
 
-    const tag = Object.prototype.toString.call(v).slice(8, -1);
-    if (tag === 'Object') {
-      seen.set(v, v);
-      for (const k of Object.keys(v as Record<string, unknown>)) {
-        (v as Record<string, unknown>)[k] = walk((v as Record<string, unknown>)[k], seen);
-      }
-      return v;
-    }
-    return v;
-  }
-
-  return walk(value, new Map());
+    return walk(value, new Map());
 }

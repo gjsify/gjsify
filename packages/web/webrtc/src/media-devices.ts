@@ -49,8 +49,12 @@ function isDeviceMonitorSafe(): boolean {
 export class MediaDevices extends EventTarget {
     private _ondevicechange: ((ev: Event) => void) | null = null;
 
-    get ondevicechange(): ((ev: Event) => void) | null { return this._ondevicechange; }
-    set ondevicechange(v: ((ev: Event) => void) | null) { this._ondevicechange = v; }
+    get ondevicechange(): ((ev: Event) => void) | null {
+        return this._ondevicechange;
+    }
+    set ondevicechange(v: ((ev: Event) => void) | null) {
+        this._ondevicechange = v;
+    }
 
     async getUserMedia(constraints?: MediaStreamConstraints): Promise<MediaStream> {
         if (!constraints) {
@@ -127,7 +131,9 @@ export class MediaDevices extends EventTarget {
                             }
                         }
                     }
-                } catch { /* properties may not be available */ }
+                } catch {
+                    /* properties may not be available */
+                }
 
                 // Fallback deviceId from display name hash
                 if (!deviceId) {
@@ -137,21 +143,25 @@ export class MediaDevices extends EventTarget {
                 // Per W3C: before getUserMedia permission, expose only empty
                 // deviceId/label/groupId (one device per kind max).
                 if (_permissionGranted) {
-                    result.push(new MediaDeviceInfo({
-                        deviceId,
-                        kind,
-                        label: displayName,
-                        groupId,
-                    }));
+                    result.push(
+                        new MediaDeviceInfo({
+                            deviceId,
+                            kind,
+                            label: displayName,
+                            groupId,
+                        }),
+                    );
                 } else {
                     // Check if we already have a device of this kind
-                    if (!result.some(d => d.kind === kind)) {
-                        result.push(new MediaDeviceInfo({
-                            deviceId: '',
-                            kind,
-                            label: '',
-                            groupId: '',
-                        }));
+                    if (!result.some((d) => d.kind === kind)) {
+                        result.push(
+                            new MediaDeviceInfo({
+                                deviceId: '',
+                                kind,
+                                label: '',
+                                groupId: '',
+                            }),
+                        );
                     }
                 }
             }
@@ -159,7 +169,11 @@ export class MediaDevices extends EventTarget {
             // DeviceMonitor or device enumeration crashed — return whatever we have
             return result;
         } finally {
-            try { monitor?.stop(); } catch { /* ignore stop errors */ }
+            try {
+                monitor?.stop();
+            } catch {
+                /* ignore stop errors */
+            }
         }
 
         // W3C ordering: audioinput first, then videoinput, then audiooutput

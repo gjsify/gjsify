@@ -10,7 +10,7 @@ import '@gjsify/dom-events/register/event-target';
 
 import GLib from 'gi://GLib?version=2.0';
 
-import { MediaStreamTrack } from './media-stream-track.js';
+import type { MediaStreamTrack } from './media-stream-track.js';
 
 export class MediaStream extends EventTarget {
     readonly id: string;
@@ -41,10 +41,18 @@ export class MediaStream extends EventTarget {
         return false;
     }
 
-    get onaddtrack(): ((ev: Event) => void) | null { return this._onaddtrack; }
-    set onaddtrack(v: ((ev: Event) => void) | null) { this._onaddtrack = v; }
-    get onremovetrack(): ((ev: Event) => void) | null { return this._onremovetrack; }
-    set onremovetrack(v: ((ev: Event) => void) | null) { this._onremovetrack = v; }
+    get onaddtrack(): ((ev: Event) => void) | null {
+        return this._onaddtrack;
+    }
+    set onaddtrack(v: ((ev: Event) => void) | null) {
+        this._onaddtrack = v;
+    }
+    get onremovetrack(): ((ev: Event) => void) | null {
+        return this._onremovetrack;
+    }
+    set onremovetrack(v: ((ev: Event) => void) | null) {
+        this._onremovetrack = v;
+    }
 
     getTracks(): MediaStreamTrack[] {
         return [...this._tracks.values()];

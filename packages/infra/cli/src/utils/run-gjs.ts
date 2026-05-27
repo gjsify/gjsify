@@ -37,10 +37,7 @@ export function computeNativeEnvForBundle(
     const bundlePackages = detectNativePackages(dirname(resolvedBundle));
 
     const seen = new Set(cwdPackages.map((p) => p.name));
-    const nativePackages = [
-        ...cwdPackages,
-        ...bundlePackages.filter((p) => !seen.has(p.name)),
-    ];
+    const nativePackages = [...cwdPackages, ...bundlePackages.filter((p) => !seen.has(p.name))];
 
     const env = buildNativeEnv(nativePackages);
     const envPrefix = Object.entries(env)

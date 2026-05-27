@@ -18,8 +18,12 @@ function nearlyEqual(a: number, b: number, eps = 1e-6): boolean {
 
 function assertPixel(
     ctx: CanvasRenderingContext2D,
-    x: number, y: number,
-    r: number, g: number, b: number, a: number,
+    x: number,
+    y: number,
+    r: number,
+    g: number,
+    b: number,
+    a: number,
 ): void {
     const data = ctx.getImageData(x, y, 1, 1).data;
     expect(data[0]).toBe(r);
@@ -30,7 +34,6 @@ function assertPixel(
 
 run({
     async Canvas2dCoreTest() {
-
         // -- clearRect --
 
         await describe('clearRect', async () => {
@@ -384,9 +387,15 @@ run({
                 ctx.fillStyle = 'rgb(0, 0, 255)';
                 ctx.fillRect(2, 0, 1, 1);
                 const data = ctx.getImageData(0, 0, 3, 1).data;
-                expect(data[0]).toBe(255); expect(data[1]).toBe(0);   expect(data[2]).toBe(0);
-                expect(data[4]).toBe(0);   expect(data[5]).toBe(255); expect(data[6]).toBe(0);
-                expect(data[8]).toBe(0);   expect(data[9]).toBe(0);   expect(data[10]).toBe(255);
+                expect(data[0]).toBe(255);
+                expect(data[1]).toBe(0);
+                expect(data[2]).toBe(0);
+                expect(data[4]).toBe(0);
+                expect(data[5]).toBe(255);
+                expect(data[6]).toBe(0);
+                expect(data[8]).toBe(0);
+                expect(data[9]).toBe(0);
+                expect(data[10]).toBe(255);
             });
 
             await it('putImageData round-trips get → clear → put → get', async () => {
@@ -469,14 +478,18 @@ run({
                 const ctx = makeCtx(200, 50);
                 ctx.font = '16px sans-serif';
                 ctx.fillStyle = 'black';
-                expect(() => { ctx.fillText('Hello', 10, 30); }).not.toThrow();
+                expect(() => {
+                    ctx.fillText('Hello', 10, 30);
+                }).not.toThrow();
             });
 
             await it('strokeText does not throw', async () => {
                 const ctx = makeCtx(200, 50);
                 ctx.font = '16px sans-serif';
                 ctx.strokeStyle = 'black';
-                expect(() => { ctx.strokeText('Hi', 10, 30); }).not.toThrow();
+                expect(() => {
+                    ctx.strokeText('Hi', 10, 30);
+                }).not.toThrow();
             });
         });
 
@@ -511,15 +524,37 @@ run({
             await it('all standard composite ops can be set without error', async () => {
                 const ctx = makeCtx();
                 const ops: GlobalCompositeOperation[] = [
-                    'source-over', 'source-in', 'source-out', 'source-atop',
-                    'destination-over', 'destination-in', 'destination-out', 'destination-atop',
-                    'lighter', 'copy', 'xor', 'multiply', 'screen', 'overlay',
-                    'darken', 'lighten', 'color-dodge', 'color-burn', 'hard-light',
-                    'soft-light', 'difference', 'exclusion', 'hue', 'saturation',
-                    'color', 'luminosity',
+                    'source-over',
+                    'source-in',
+                    'source-out',
+                    'source-atop',
+                    'destination-over',
+                    'destination-in',
+                    'destination-out',
+                    'destination-atop',
+                    'lighter',
+                    'copy',
+                    'xor',
+                    'multiply',
+                    'screen',
+                    'overlay',
+                    'darken',
+                    'lighten',
+                    'color-dodge',
+                    'color-burn',
+                    'hard-light',
+                    'soft-light',
+                    'difference',
+                    'exclusion',
+                    'hue',
+                    'saturation',
+                    'color',
+                    'luminosity',
                 ];
                 for (const op of ops) {
-                    expect(() => { ctx.globalCompositeOperation = op; }).not.toThrow();
+                    expect(() => {
+                        ctx.globalCompositeOperation = op;
+                    }).not.toThrow();
                     expect(ctx.globalCompositeOperation).toBe(op);
                 }
             });
@@ -530,7 +565,8 @@ run({
         await describe('drawImage (canvas source)', async () => {
             await it('3-arg: copies source canvas pixels to destination', async () => {
                 const src = document.createElement('canvas');
-                src.width = 10; src.height = 10;
+                src.width = 10;
+                src.height = 10;
                 const srcCtx = src.getContext('2d')!;
                 srcCtx.fillStyle = 'rgb(200, 50, 100)';
                 srcCtx.fillRect(0, 0, 10, 10);
@@ -543,7 +579,8 @@ run({
 
             await it('5-arg: draws with destination width/height scaling', async () => {
                 const src = document.createElement('canvas');
-                src.width = 10; src.height = 10;
+                src.width = 10;
+                src.height = 10;
                 const srcCtx = src.getContext('2d')!;
                 srcCtx.fillStyle = 'rgb(0, 200, 0)';
                 srcCtx.fillRect(0, 0, 10, 10);
@@ -556,7 +593,8 @@ run({
 
             await it('9-arg: source crop and destination placement', async () => {
                 const src = document.createElement('canvas');
-                src.width = 20; src.height = 10;
+                src.width = 20;
+                src.height = 10;
                 const srcCtx = src.getContext('2d')!;
                 srcCtx.fillStyle = 'rgb(255, 0, 0)';
                 srcCtx.fillRect(0, 0, 10, 10);

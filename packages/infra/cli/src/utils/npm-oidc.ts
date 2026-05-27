@@ -37,7 +37,10 @@ export interface OidcExchangeResult {
 }
 
 export class OidcUnavailableError extends Error {
-    constructor(message: string, public readonly reason: 'no-env' | 'fetch-id-token' | 'no-id-token') {
+    constructor(
+        message: string,
+        public readonly reason: 'no-env' | 'fetch-id-token' | 'no-id-token',
+    ) {
         super(message);
         this.name = 'OidcUnavailableError';
     }
@@ -61,9 +64,7 @@ export class OidcExchangeError extends Error {
  * decide between OIDC and token-based auth in auto-detect mode.
  */
 export function hasGithubOidcEnv(): boolean {
-    return Boolean(
-        process.env.ACTIONS_ID_TOKEN_REQUEST_URL && process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
-    );
+    return Boolean(process.env.ACTIONS_ID_TOKEN_REQUEST_URL && process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN);
 }
 
 /**
@@ -71,10 +72,7 @@ export function hasGithubOidcEnv(): boolean {
  * Throws `OidcUnavailableError` when the required env vars are missing
  * (caller can fall back to token auth) or when GitHub rejects the request.
  */
-export async function fetchGithubOidcToken(
-    audience: string,
-    log?: (msg: string) => void,
-): Promise<string> {
+export async function fetchGithubOidcToken(audience: string, log?: (msg: string) => void): Promise<string> {
     const url = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
     const bearer = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
     if (!url || !bearer) {
@@ -108,10 +106,7 @@ export async function fetchGithubOidcToken(
 
     const json = (await res.json().catch(() => ({}))) as { value?: string };
     if (!json.value) {
-        throw new OidcUnavailableError(
-            'GitHub OIDC response missing `value` field',
-            'no-id-token',
-        );
+        throw new OidcUnavailableError('GitHub OIDC response missing `value` field', 'no-id-token');
     }
 
     return json.value;
@@ -125,9 +120,7 @@ export async function fetchGithubOidcToken(
  * a repo/workflow that doesn't match, the exchange returns a 4xx with
  * a descriptive body which we propagate as `OidcExchangeError`.
  */
-export async function exchangeOidcForNpmToken(
-    args: OidcExchangeOptions & { idToken: string },
-): Promise<string> {
+export async function exchangeOidcForNpmToken(args: OidcExchangeOptions & { idToken: string }): Promise<string> {
     const { packageName, registry, idToken, log } = args;
     const registryClean = registry.endsWith('/') ? registry.slice(0, -1) : registry;
 
@@ -195,9 +188,7 @@ export async function exchangeOidcForNpmToken(
  * End-to-end: probe env → fetch id-token → exchange for npm token.
  * One-shot convenience for `gjsify publish` and the verification command.
  */
-export async function getNpmTrustedToken(
-    opts: OidcExchangeOptions,
-): Promise<OidcExchangeResult> {
+export async function getNpmTrustedToken(opts: OidcExchangeOptions): Promise<OidcExchangeResult> {
     const audience = `npm:${new URL(opts.registry).hostname}`;
     const idToken = await fetchGithubOidcToken(audience, opts.log);
     const token = await exchangeOidcForNpmToken({ ...opts, idToken });

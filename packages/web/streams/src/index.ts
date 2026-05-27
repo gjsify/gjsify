@@ -18,36 +18,34 @@ import { TextDecoderStream } from './text-decoder-stream.js';
 // GJS may expose stream constructors that return objects missing core methods
 // (e.g. ReadableStream exists but instances lack getReader()).
 function isNativeStreamUsable(Ctor: unknown, method: string): boolean {
-  try {
-    if (typeof Ctor !== 'function') return false;
-    return typeof (Ctor as any).prototype[method] === 'function';
-  } catch {
-    return false;
-  }
+    try {
+        if (typeof Ctor !== 'function') return false;
+        return typeof (Ctor as any).prototype[method] === 'function';
+    } catch {
+        return false;
+    }
 }
 
 // Use native if available and functional (Node.js 18+), polyfill otherwise
 const _ReadableStream = isNativeStreamUsable(globalThis.ReadableStream, 'getReader')
-  ? globalThis.ReadableStream
-  : ReadableStream;
+    ? globalThis.ReadableStream
+    : ReadableStream;
 const _WritableStream = isNativeStreamUsable(globalThis.WritableStream, 'getWriter')
-  ? globalThis.WritableStream
-  : WritableStream;
+    ? globalThis.WritableStream
+    : WritableStream;
 const _TransformStream = isNativeStreamUsable(globalThis.TransformStream, 'readable')
-  ? globalThis.TransformStream
-  : TransformStream;
-const _ByteLengthQueuingStrategy = typeof globalThis.ByteLengthQueuingStrategy === 'function'
-  ? globalThis.ByteLengthQueuingStrategy
-  : ByteLengthQueuingStrategy;
-const _CountQueuingStrategy = typeof globalThis.CountQueuingStrategy === 'function'
-  ? globalThis.CountQueuingStrategy
-  : CountQueuingStrategy;
-const _TextEncoderStream = typeof globalThis.TextEncoderStream === 'function'
-  ? globalThis.TextEncoderStream
-  : TextEncoderStream;
-const _TextDecoderStream = typeof globalThis.TextDecoderStream === 'function'
-  ? globalThis.TextDecoderStream
-  : TextDecoderStream;
+    ? globalThis.TransformStream
+    : TransformStream;
+const _ByteLengthQueuingStrategy =
+    typeof globalThis.ByteLengthQueuingStrategy === 'function'
+        ? globalThis.ByteLengthQueuingStrategy
+        : ByteLengthQueuingStrategy;
+const _CountQueuingStrategy =
+    typeof globalThis.CountQueuingStrategy === 'function' ? globalThis.CountQueuingStrategy : CountQueuingStrategy;
+const _TextEncoderStream =
+    typeof globalThis.TextEncoderStream === 'function' ? globalThis.TextEncoderStream : TextEncoderStream;
+const _TextDecoderStream =
+    typeof globalThis.TextDecoderStream === 'function' ? globalThis.TextDecoderStream : TextDecoderStream;
 
 // Note: globals are no longer registered at import time. Use the `/register`
 // subpath (`import '@gjsify/web-streams/register'`) if you need the stream
@@ -55,65 +53,62 @@ const _TextDecoderStream = typeof globalThis.TextDecoderStream === 'function'
 // implementations on GJS).
 
 export {
-  _WritableStream as WritableStream,
-  _ReadableStream as ReadableStream,
-  _TransformStream as TransformStream,
-  _ByteLengthQueuingStrategy as ByteLengthQueuingStrategy,
-  _CountQueuingStrategy as CountQueuingStrategy,
-  _TextEncoderStream as TextEncoderStream,
-  _TextDecoderStream as TextDecoderStream,
+    _WritableStream as WritableStream,
+    _ReadableStream as ReadableStream,
+    _TransformStream as TransformStream,
+    _ByteLengthQueuingStrategy as ByteLengthQueuingStrategy,
+    _CountQueuingStrategy as CountQueuingStrategy,
+    _TextEncoderStream as TextEncoderStream,
+    _TextDecoderStream as TextDecoderStream,
 };
 
 // Re-export class types for direct import
 export { WritableStreamDefaultWriter, WritableStreamDefaultController } from './writable-stream.js';
 export {
-  ReadableStreamDefaultReader,
-  ReadableStreamDefaultController,
-  ReadableStreamBYOBReader,
-  ReadableStreamBYOBRequest,
-  ReadableByteStreamController,
+    ReadableStreamDefaultReader,
+    ReadableStreamDefaultController,
+    ReadableStreamBYOBReader,
+    ReadableStreamBYOBRequest,
+    ReadableByteStreamController,
 } from './readable-stream.js';
 export { TransformStreamDefaultController } from './transform-stream.js';
 
 // Re-export internals needed by other packages
 export {
-  isWritableStream,
-  isWritableStreamLocked,
-  writableStreamAbort,
-  writableStreamClose,
-  writableStreamCloseQueuedOrInFlight,
-  writableStreamDefaultWriterCloseWithErrorPropagation,
-  writableStreamDefaultControllerErrorIfNeeded,
-  createWritableStream,
+    isWritableStream,
+    isWritableStreamLocked,
+    writableStreamAbort,
+    writableStreamClose,
+    writableStreamCloseQueuedOrInFlight,
+    writableStreamDefaultWriterCloseWithErrorPropagation,
+    writableStreamDefaultControllerErrorIfNeeded,
+    createWritableStream,
 } from './writable-stream.js';
 
 export {
-  isReadableStream,
-  isReadableStreamLocked,
-  readableStreamCancel,
-  readableStreamClose,
-  readableStreamError,
-  readableStreamDefaultControllerClose,
-  readableStreamDefaultControllerEnqueue,
-  readableStreamDefaultControllerError,
-  readableStreamDefaultControllerGetDesiredSize,
-  readableStreamDefaultControllerCanCloseOrEnqueue,
-  readableStreamDefaultControllerHasBackpressure,
-  setupReadableStreamDefaultController,
-  createReadableStream,
+    isReadableStream,
+    isReadableStreamLocked,
+    readableStreamCancel,
+    readableStreamClose,
+    readableStreamError,
+    readableStreamDefaultControllerClose,
+    readableStreamDefaultControllerEnqueue,
+    readableStreamDefaultControllerError,
+    readableStreamDefaultControllerGetDesiredSize,
+    readableStreamDefaultControllerCanCloseOrEnqueue,
+    readableStreamDefaultControllerHasBackpressure,
+    setupReadableStreamDefaultController,
+    createReadableStream,
 } from './readable-stream.js';
 
-export {
-  isTransformStream,
-  isTransformStreamDefaultController,
-} from './transform-stream.js';
+export { isTransformStream, isTransformStreamDefaultController } from './transform-stream.js';
 
 export default {
-  WritableStream: _WritableStream,
-  ReadableStream: _ReadableStream,
-  TransformStream: _TransformStream,
-  ByteLengthQueuingStrategy: _ByteLengthQueuingStrategy,
-  CountQueuingStrategy: _CountQueuingStrategy,
-  TextEncoderStream: _TextEncoderStream,
-  TextDecoderStream: _TextDecoderStream,
+    WritableStream: _WritableStream,
+    ReadableStream: _ReadableStream,
+    TransformStream: _TransformStream,
+    ByteLengthQueuingStrategy: _ByteLengthQueuingStrategy,
+    CountQueuingStrategy: _CountQueuingStrategy,
+    TextEncoderStream: _TextEncoderStream,
+    TextDecoderStream: _TextDecoderStream,
 };

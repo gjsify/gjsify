@@ -1,4 +1,4 @@
-import { URL, URLSearchParams, parse, format, fileURLToPath, pathToFileURL } from 'url';
+import { URL, URLSearchParams, parse, format, fileURLToPath, pathToFileURL } from 'node:url';
 
 console.log('=== @gjsify/url example ===\n');
 
@@ -35,7 +35,7 @@ console.log('After set/delete:', params.toString());
 console.log('\n--- URLSearchParams iteration ---');
 const iterParams = new URLSearchParams('a=1&b=2&c=3');
 for (const [key, value] of iterParams) {
-  console.log(`  ${key} = ${value}`);
+    console.log(`  ${key} = ${value}`);
 }
 
 // Legacy parse

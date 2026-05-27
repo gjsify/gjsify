@@ -41,11 +41,10 @@ export interface TrackMethods {
 }
 
 declare module '../rtc-peer-connection.js' {
-    interface RTCPeerConnection extends TrackMethods { }
+    interface RTCPeerConnection extends TrackMethods {}
 }
 
 const trackMethods: TrackMethods & ThisType<RTCPeerConnection> = {
-
     addTrack(this: RTCPeerConnection, track: MediaStreamTrack, ..._streams: MediaStream[]): RTCRtpSender {
         this._rejectIfClosed('addTrack');
 
@@ -56,12 +55,9 @@ const trackMethods: TrackMethods & ThisType<RTCPeerConnection> = {
         }
 
         // Check if this track is already assigned to a sender
-        const existing = this._senders.find(s => s.track === track);
+        const existing = this._senders.find((s) => s.track === track);
         if (existing) {
-            throw new DOMException(
-                'Track already exists in a sender of this connection',
-                'InvalidAccessError',
-            );
+            throw new DOMException('Track already exists in a sender of this connection', 'InvalidAccessError');
         }
 
         // Look for a reusable transceiver (matching kind, no track, recvonly/inactive)
@@ -102,17 +98,20 @@ const trackMethods: TrackMethods & ThisType<RTCPeerConnection> = {
     removeTrack(this: RTCPeerConnection, sender: RTCRtpSender): void {
         this._rejectIfClosed('removeTrack');
         if (!this._senders.includes(sender)) {
-            throw new DOMException(
-                'sender was not created by this connection',
-                'InvalidAccessError',
-            );
+            throw new DOMException('sender was not created by this connection', 'InvalidAccessError');
         }
         sender._setTrack(null);
     },
 
-    getSenders(this: RTCPeerConnection): RTCRtpSender[] { return [...this._senders]; },
-    getReceivers(this: RTCPeerConnection): RTCRtpReceiver[] { return [...this._receivers]; },
-    getTransceivers(this: RTCPeerConnection): RTCRtpTransceiver[] { return [...this._transceivers.values()]; },
+    getSenders(this: RTCPeerConnection): RTCRtpSender[] {
+        return [...this._senders];
+    },
+    getReceivers(this: RTCPeerConnection): RTCRtpReceiver[] {
+        return [...this._receivers];
+    },
+    getTransceivers(this: RTCPeerConnection): RTCRtpTransceiver[] {
+        return [...this._transceivers.values()];
+    },
 };
 
 /** Install track-management methods on RTCPeerConnection.prototype. */

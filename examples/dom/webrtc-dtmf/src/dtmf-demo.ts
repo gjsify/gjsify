@@ -11,8 +11,8 @@
 export type LogFn = (tag: string, msg: string) => void;
 
 const TONES = '1234#';
-const TONE_DURATION = 100;  // ms per tone
-const TONE_GAP = 70;        // ms between tones
+const TONE_DURATION = 100; // ms per tone
+const TONE_GAP = 70; // ms between tones
 
 export async function runDtmfDemo(log: LogFn): Promise<void> {
     log('main', 'Starting DTMF tone demo');
@@ -108,9 +108,7 @@ export async function runDtmfDemo(log: LogFn): Promise<void> {
     // Wait for all tones or timeout
     await Promise.race([
         dtmfComplete,
-        new Promise<void>((_, reject) =>
-            setTimeout(() => reject(new Error('DTMF timeout (10s)')), 10000),
-        ),
+        new Promise<void>((_, reject) => setTimeout(() => reject(new Error('DTMF timeout (10s)')), 10000)),
     ]);
 
     const sentStr = tonesReceived.join('');

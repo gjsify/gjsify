@@ -43,7 +43,8 @@ export const foreachCommand: Command<any, ForeachOptions> = {
     builder: (yargs) =>
         yargs
             .positional('script', {
-                description: 'Script name to run in each workspace (`run <name>`-equivalent). With --exec, the command to run instead.',
+                description:
+                    'Script name to run in each workspace (`run <name>`-equivalent). With --exec, the command to run instead.',
                 type: 'string',
             })
             .positional('args', {
@@ -64,7 +65,7 @@ export const foreachCommand: Command<any, ForeachOptions> = {
                 default: false,
             })
             .option('topological', {
-                description: 'Wait for each workspace\'s deps to finish before starting it (production deps only).',
+                description: "Wait for each workspace's deps to finish before starting it (production deps only).",
                 type: 'boolean',
                 alias: 't',
                 default: false,
@@ -103,7 +104,8 @@ export const foreachCommand: Command<any, ForeachOptions> = {
                 alias: 'j',
             })
             .option('exec', {
-                description: 'Treat <script> [args..] as an arbitrary command (yarn `workspaces foreach exec`-equivalent) instead of a package.json script lookup. Workspace filtering by script presence is skipped. Use `-- <cmd> <args...>` to pass flags to the command without yargs intercepting them.',
+                description:
+                    'Treat <script> [args..] as an arbitrary command (yarn `workspaces foreach exec`-equivalent) instead of a package.json script lookup. Workspace filtering by script presence is skipped. Use `-- <cmd> <args...>` to pass flags to the command without yargs intercepting them.',
                 type: 'boolean',
                 default: false,
             })
@@ -133,8 +135,9 @@ export const foreachCommand: Command<any, ForeachOptions> = {
             // With populate--:true, anything after the literal `--`
             // separator lands in top-level args['--']. yargs DOES NOT
             // attach it to args._ — it's a sibling array.
-            const fromDoubleDash = (((args as Record<string, unknown>)['--'] as unknown[]) ?? [])
-                .filter((v): v is string => typeof v === 'string');
+            const fromDoubleDash = (((args as Record<string, unknown>)['--'] as unknown[]) ?? []).filter(
+                (v): v is string => typeof v === 'string',
+            );
             if (fromDoubleDash.length > 0) {
                 if (!cmd) {
                     cmd = fromDoubleDash[0]!;
@@ -144,7 +147,9 @@ export const foreachCommand: Command<any, ForeachOptions> = {
                 }
             }
             if (!cmd) {
-                console.error('gjsify foreach --exec: missing command. Pass it after `--`, e.g. `gjsify foreach --exec -- npm publish --tag latest`.');
+                console.error(
+                    'gjsify foreach --exec: missing command. Pass it after `--`, e.g. `gjsify foreach --exec -- npm publish --tag latest`.',
+                );
                 process.exit(1);
             }
         }
@@ -162,7 +167,9 @@ export const foreachCommand: Command<any, ForeachOptions> = {
         // (yarn's `workspaces foreach exec` semantics).
         if (!exec) {
             if (!cmd) {
-                console.error('gjsify foreach: missing <script> positional. Pass --exec to run an arbitrary command instead.');
+                console.error(
+                    'gjsify foreach: missing <script> positional. Pass --exec to run an arbitrary command instead.',
+                );
                 process.exit(1);
             }
             const scriptName = cmd;
@@ -173,7 +180,9 @@ export const foreachCommand: Command<any, ForeachOptions> = {
         }
 
         if (selected.length === 0) {
-            console.log(`gjsify foreach: no workspaces match (${exec ? 'exec' : 'script'}="${cmd}", include=${JSON.stringify(args.include ?? [])}, exclude=${JSON.stringify(args.exclude ?? [])})`);
+            console.log(
+                `gjsify foreach: no workspaces match (${exec ? 'exec' : 'script'}="${cmd}", include=${JSON.stringify(args.include ?? [])}, exclude=${JSON.stringify(args.exclude ?? [])})`,
+            );
             return;
         }
 
@@ -198,7 +207,15 @@ export const foreachCommand: Command<any, ForeachOptions> = {
                 // deps (in the selected set) have finished. Yarn calls this
                 // "topological order with concurrency"; we cap at --jobs.
                 const jobs = args.jobs && args.jobs > 0 ? args.jobs : cpus().length;
-                await runTopologicalParallel(selected, finalCmd, cmdArgs, jobs, verbose, args['topological-dev'] === true, exec);
+                await runTopologicalParallel(
+                    selected,
+                    finalCmd,
+                    cmdArgs,
+                    jobs,
+                    verbose,
+                    args['topological-dev'] === true,
+                    exec,
+                );
             } else {
                 await runSequential(selected, finalCmd, cmdArgs, verbose, exec);
             }
@@ -236,12 +253,14 @@ async function runParallel(
     let cursor = 0;
     const workers: Promise<void>[] = [];
     for (let w = 0; w < concurrency; w++) {
-        workers.push((async () => {
-            while (cursor < workspaces.length) {
-                const i = cursor++;
-                await runOne(workspaces[i]!, script, args, /* prefixOutput */ true, verbose, exec);
-            }
-        })());
+        workers.push(
+            (async () => {
+                while (cursor < workspaces.length) {
+                    const i = cursor++;
+                    await runOne(workspaces[i]!, script, args, /* prefixOutput */ true, verbose, exec);
+                }
+            })(),
+        );
     }
     await Promise.all(workers);
 }
@@ -260,11 +279,7 @@ async function runTopologicalParallel(
     for (const ws of workspaces) {
         const wsDeps = new Set<string>();
         const m = ws.manifest;
-        for (const block of [
-            m.dependencies,
-            includeDev ? m.devDependencies : undefined,
-            m.optionalDependencies,
-        ]) {
+        for (const block of [m.dependencies, includeDev ? m.devDependencies : undefined, m.optionalDependencies]) {
             if (!block) continue;
             for (const [name, spec] of Object.entries(block)) {
                 if (typeof spec !== 'string') continue;
@@ -309,9 +324,11 @@ async function runTopologicalParallel(
                     });
             }
             if (remaining.size > 0 && inflight === 0 && !error) {
-                reject(new Error(
-                    `gjsify foreach --topological: stuck — workspaces ${[...remaining.keys()].join(', ')} have unsatisfied deps in the selected set`,
-                ));
+                reject(
+                    new Error(
+                        `gjsify foreach --topological: stuck — workspaces ${[...remaining.keys()].join(', ')} have unsatisfied deps in the selected set`,
+                    ),
+                );
             }
         };
         pump();
@@ -342,9 +359,8 @@ async function runOne(
     // when nothing is detectable; the script-runner (D.5) will replace
     // this once `gjsify run` ships.
     const runner = detectPackageManager();
-    const argv = runner === 'gjsify'
-        ? ['run', script, ...args]
-        : ['run', script, ...(args.length > 0 ? ['--', ...args] : [])];
+    const argv =
+        runner === 'gjsify' ? ['run', script, ...args] : ['run', script, ...(args.length > 0 ? ['--', ...args] : [])];
     if (verbose) {
         console.error(`[${ws.name}] $ ${runner} ${argv.join(' ')}`);
     }
@@ -361,19 +377,12 @@ function detectPackageManager(): 'yarn' | 'npm' | 'gjsify' {
     return 'npm';
 }
 
-function spawnPrefixed(
-    cmd: string,
-    args: readonly string[],
-    cwd: string,
-    prefix: string | null,
-): Promise<void> {
+function spawnPrefixed(cmd: string, args: readonly string[], cwd: string, prefix: string | null): Promise<void> {
     // Default FORCE_COLOR=1 unless the user explicitly opted out, so tools
     // that key on `process.stdout.isTTY` (chalk, picocolors, …) still emit
     // ANSI colors when run under gjsify foreach. Mirrors yarn / npm.
     const colorEnv =
-        process.env.FORCE_COLOR !== undefined || process.env.NO_COLOR !== undefined
-            ? {}
-            : { FORCE_COLOR: '1' };
+        process.env.FORCE_COLOR !== undefined || process.env.NO_COLOR !== undefined ? {} : { FORCE_COLOR: '1' };
     return new Promise((resolve, reject) => {
         const child = spawn(cmd, args, {
             cwd,
@@ -392,11 +401,7 @@ function spawnPrefixed(
     });
 }
 
-function prefixLines(
-    src: NodeJS.ReadableStream,
-    sink: NodeJS.WritableStream,
-    prefix: string,
-): void {
+function prefixLines(src: NodeJS.ReadableStream, sink: NodeJS.WritableStream, prefix: string): void {
     let buf = '';
     src.setEncoding('utf-8');
     src.on('data', (chunk: string) => {

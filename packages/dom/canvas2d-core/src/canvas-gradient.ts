@@ -10,12 +10,7 @@ import { parseColor } from './color.js';
 export class CanvasGradient {
     private _pattern: Cairo.LinearGradient | Cairo.RadialGradient;
 
-    constructor(
-        type: 'linear' | 'radial',
-        x0: number, y0: number,
-        x1: number, y1: number,
-        r0?: number, r1?: number,
-    ) {
+    constructor(type: 'linear' | 'radial', x0: number, y0: number, x1: number, y1: number, r0?: number, r1?: number) {
         if (type === 'radial') {
             this._pattern = new Cairo.RadialGradient(x0, y0, r0!, x1, y1, r1!);
         } else {

@@ -19,16 +19,14 @@ export type LogFn = (tag: string, msg: string) => void;
 function generatePayload(): Uint8Array {
     const lines: string[] = [];
     for (let i = 1; i <= 200; i++) {
-        lines.push(`Line ${String(i).padStart(3, '0')}: The quick brown fox jumps over the lazy dog. [${crypto.randomUUID().slice(0, 8)}]`);
+        lines.push(
+            `Line ${String(i).padStart(3, '0')}: The quick brown fox jumps over the lazy dog. [${crypto.randomUUID().slice(0, 8)}]`,
+        );
     }
     return new TextEncoder().encode(lines.join('\n') + '\n');
 }
 
-const TRACKERS = [
-    'wss://tracker.webtorrent.dev',
-    'wss://tracker.openwebtorrent.com',
-    'wss://tracker.btorrent.xyz',
-];
+const TRACKERS = ['wss://tracker.webtorrent.dev', 'wss://tracker.openwebtorrent.com', 'wss://tracker.btorrent.xyz'];
 
 const CLIENT_OPTS = {
     dht: false,
@@ -64,9 +62,10 @@ export async function runStreamDemo(log: LogFn): Promise<void> {
     seeder.on('error', (err: Error) => log('seeder', `ERROR: ${err.message}`));
 
     const filename = 'stream-data.txt';
-    const seedInput = typeof Buffer !== 'undefined'
-        ? Object.assign(Buffer.from(payload), { name: filename })
-        : new File([payload as any], filename, { type: 'text/plain' });
+    const seedInput =
+        typeof Buffer !== 'undefined'
+            ? Object.assign(Buffer.from(payload), { name: filename })
+            : new File([payload as any], filename, { type: 'text/plain' });
 
     const torrent = await new Promise<any>((resolve, reject) => {
         const t = seeder.seed(seedInput, { announce: TRACKERS });
@@ -106,7 +105,7 @@ export async function runStreamDemo(log: LogFn): Promise<void> {
 
             const buf = await file.arrayBuffer();
             const text = new TextDecoder().decode(buf);
-            const lines = text.split('\n').filter(l => l.length > 0);
+            const lines = text.split('\n').filter((l) => l.length > 0);
 
             // Simulate streaming output: print in chunks of 20 lines
             const chunkSize = 20;
@@ -117,7 +116,10 @@ export async function runStreamDemo(log: LogFn): Promise<void> {
                 totalBytes += new TextEncoder().encode(chunkText).byteLength;
                 const from = i + 1;
                 const to = Math.min(i + chunkSize, lines.length);
-                log('stream', `Chunk ${Math.floor(i / chunkSize) + 1}: lines ${from}–${to} (${formatBytes(totalBytes)} so far)`);
+                log(
+                    'stream',
+                    `Chunk ${Math.floor(i / chunkSize) + 1}: lines ${from}–${to} (${formatBytes(totalBytes)} so far)`,
+                );
                 // Print first and last line of this chunk as preview
                 log('stream', `  first: ${chunk[0].slice(0, 80)}`);
                 if (chunk.length > 1) {

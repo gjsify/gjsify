@@ -15,20 +15,29 @@ export interface RTCSessionDescriptionInit {
 
 function sdpTypeToGst(type: RTCSdpType): GstWebRTC.WebRTCSDPType {
     switch (type) {
-        case 'offer':    return GstWebRTC.WebRTCSDPType.OFFER;
-        case 'pranswer': return GstWebRTC.WebRTCSDPType.PRANSWER;
-        case 'answer':   return GstWebRTC.WebRTCSDPType.ANSWER;
-        case 'rollback': return GstWebRTC.WebRTCSDPType.ROLLBACK;
+        case 'offer':
+            return GstWebRTC.WebRTCSDPType.OFFER;
+        case 'pranswer':
+            return GstWebRTC.WebRTCSDPType.PRANSWER;
+        case 'answer':
+            return GstWebRTC.WebRTCSDPType.ANSWER;
+        case 'rollback':
+            return GstWebRTC.WebRTCSDPType.ROLLBACK;
     }
 }
 
 function sdpTypeFromGst(type: GstWebRTC.WebRTCSDPType): RTCSdpType {
     switch (type) {
-        case GstWebRTC.WebRTCSDPType.OFFER:    return 'offer';
-        case GstWebRTC.WebRTCSDPType.PRANSWER: return 'pranswer';
-        case GstWebRTC.WebRTCSDPType.ANSWER:   return 'answer';
-        case GstWebRTC.WebRTCSDPType.ROLLBACK: return 'rollback';
-        default: return 'offer';
+        case GstWebRTC.WebRTCSDPType.OFFER:
+            return 'offer';
+        case GstWebRTC.WebRTCSDPType.PRANSWER:
+            return 'pranswer';
+        case GstWebRTC.WebRTCSDPType.ANSWER:
+            return 'answer';
+        case GstWebRTC.WebRTCSDPType.ROLLBACK:
+            return 'rollback';
+        default:
+            return 'offer';
     }
 }
 

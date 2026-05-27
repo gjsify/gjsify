@@ -12,12 +12,7 @@ import { mkdtemp, readdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, expect, on } from '@gjsify/unit';
-import {
-    DependencyManager,
-    GirModule,
-    NSRegistry,
-    type OptionsGeneration,
-} from '@ts-for-gir/lib';
+import { DependencyManager, GirModule, NSRegistry, type OptionsGeneration } from '@ts-for-gir/lib';
 import { JsonDefinitionGenerator } from '@ts-for-gir/generator-json';
 import { HtmlDocGenerator } from '@ts-for-gir/generator-html-doc';
 
@@ -92,48 +87,60 @@ const TYPEDOC_TIMEOUT_MS = 120_000;
 
 export default async () => {
     await describe('@ts-for-gir/generator-json — JsonDefinitionGenerator', async () => {
-        await it('generates Foo-1.0.json in the output directory', async () => {
-            const outdir = await mkdtemp(join(tmpdir(), 'ts4gir-json-'));
-            const config = makeConfig(outdir);
-            const { mod, registry } = await loadFooModule(config);
+        await it(
+            'generates Foo-1.0.json in the output directory',
+            async () => {
+                const outdir = await mkdtemp(join(tmpdir(), 'ts4gir-json-'));
+                const config = makeConfig(outdir);
+                const { mod, registry } = await loadFooModule(config);
 
-            const gen = new JsonDefinitionGenerator(config, registry);
-            await gen.start();
-            await gen.generate(mod);
-            await gen.finish([mod]);
+                const gen = new JsonDefinitionGenerator(config, registry);
+                await gen.start();
+                await gen.generate(mod);
+                await gen.finish([mod]);
 
-            const files = await readdir(outdir);
-            expect(files.includes('Foo-1.0.json')).toBeTruthy();
-        }, { timeout: TYPEDOC_TIMEOUT_MS });
+                const files = await readdir(outdir);
+                expect(files.includes('Foo-1.0.json')).toBeTruthy();
+            },
+            { timeout: TYPEDOC_TIMEOUT_MS },
+        );
 
-        await it('generated Foo-1.0.json is parseable and has a name field', async () => {
-            const outdir = await mkdtemp(join(tmpdir(), 'ts4gir-json-'));
-            const config = makeConfig(outdir);
-            const { mod, registry } = await loadFooModule(config);
+        await it(
+            'generated Foo-1.0.json is parseable and has a name field',
+            async () => {
+                const outdir = await mkdtemp(join(tmpdir(), 'ts4gir-json-'));
+                const config = makeConfig(outdir);
+                const { mod, registry } = await loadFooModule(config);
 
-            const gen = new JsonDefinitionGenerator(config, registry);
-            await gen.start();
-            await gen.generate(mod);
-            await gen.finish([mod]);
+                const gen = new JsonDefinitionGenerator(config, registry);
+                await gen.start();
+                await gen.generate(mod);
+                await gen.finish([mod]);
 
-            const raw = await readFile(join(outdir, 'Foo-1.0.json'), 'utf8');
-            const json = JSON.parse(raw) as Record<string, unknown>;
-            expect(typeof json.name).toBe('string');
-        }, { timeout: TYPEDOC_TIMEOUT_MS });
+                const raw = await readFile(join(outdir, 'Foo-1.0.json'), 'utf8');
+                const json = JSON.parse(raw) as Record<string, unknown>;
+                expect(typeof json.name).toBe('string');
+            },
+            { timeout: TYPEDOC_TIMEOUT_MS },
+        );
 
-        await it('generated Foo-1.0.json contains the Greeter symbol', async () => {
-            const outdir = await mkdtemp(join(tmpdir(), 'ts4gir-json-'));
-            const config = makeConfig(outdir);
-            const { mod, registry } = await loadFooModule(config);
+        await it(
+            'generated Foo-1.0.json contains the Greeter symbol',
+            async () => {
+                const outdir = await mkdtemp(join(tmpdir(), 'ts4gir-json-'));
+                const config = makeConfig(outdir);
+                const { mod, registry } = await loadFooModule(config);
 
-            const gen = new JsonDefinitionGenerator(config, registry);
-            await gen.start();
-            await gen.generate(mod);
-            await gen.finish([mod]);
+                const gen = new JsonDefinitionGenerator(config, registry);
+                await gen.start();
+                await gen.generate(mod);
+                await gen.finish([mod]);
 
-            const raw = await readFile(join(outdir, 'Foo-1.0.json'), 'utf8');
-            expect(raw).toContain('Greeter');
-        }, { timeout: TYPEDOC_TIMEOUT_MS });
+                const raw = await readFile(join(outdir, 'Foo-1.0.json'), 'utf8');
+                expect(raw).toContain('Greeter');
+            },
+            { timeout: TYPEDOC_TIMEOUT_MS },
+        );
     });
 
     // HTML generation uses TypeDoc's shiki syntax highlighter which requires
@@ -141,36 +148,44 @@ export default async () => {
     // so HTML generation only works on Node. Tracked: STATUS.md "Open TODOs".
     await on('Node.js', async () => {
         await describe('@ts-for-gir/generator-html-doc — HtmlDocGenerator', async () => {
-            await it('generates Foo-1.0/index.html in the output directory', async () => {
-                const outdir = await mkdtemp(join(tmpdir(), 'ts4gir-html-'));
-                const config = makeConfig(outdir);
-                const { mod, registry } = await loadFooModule(config);
+            await it(
+                'generates Foo-1.0/index.html in the output directory',
+                async () => {
+                    const outdir = await mkdtemp(join(tmpdir(), 'ts4gir-html-'));
+                    const config = makeConfig(outdir);
+                    const { mod, registry } = await loadFooModule(config);
 
-                const gen = new HtmlDocGenerator(config, registry);
-                await gen.start();
-                await gen.generate(mod);
-                await gen.finish([mod]);
+                    const gen = new HtmlDocGenerator(config, registry);
+                    await gen.start();
+                    await gen.generate(mod);
+                    await gen.finish([mod]);
 
-                const subdirs = await readdir(outdir);
-                expect(subdirs.includes('Foo-1.0')).toBeTruthy();
-                const htmlFiles = await readdir(join(outdir, 'Foo-1.0'));
-                expect(htmlFiles.includes('index.html')).toBeTruthy();
-            }, { timeout: TYPEDOC_TIMEOUT_MS });
+                    const subdirs = await readdir(outdir);
+                    expect(subdirs.includes('Foo-1.0')).toBeTruthy();
+                    const htmlFiles = await readdir(join(outdir, 'Foo-1.0'));
+                    expect(htmlFiles.includes('index.html')).toBeTruthy();
+                },
+                { timeout: TYPEDOC_TIMEOUT_MS },
+            );
 
-            await it('generates classes/Foo.Greeter.html for the Greeter record', async () => {
-                const outdir = await mkdtemp(join(tmpdir(), 'ts4gir-html-'));
-                const config = makeConfig(outdir);
-                const { mod, registry } = await loadFooModule(config);
+            await it(
+                'generates classes/Foo.Greeter.html for the Greeter record',
+                async () => {
+                    const outdir = await mkdtemp(join(tmpdir(), 'ts4gir-html-'));
+                    const config = makeConfig(outdir);
+                    const { mod, registry } = await loadFooModule(config);
 
-                const gen = new HtmlDocGenerator(config, registry);
-                await gen.start();
-                await gen.generate(mod);
-                await gen.finish([mod]);
+                    const gen = new HtmlDocGenerator(config, registry);
+                    await gen.start();
+                    await gen.generate(mod);
+                    await gen.finish([mod]);
 
-                // TypeDoc places class docs in classes/<Namespace>.<Name>.html
-                const classFiles = await readdir(join(outdir, 'Foo-1.0', 'classes'));
-                expect(classFiles.some(f => f.includes('Greeter'))).toBeTruthy();
-            }, { timeout: TYPEDOC_TIMEOUT_MS });
+                    // TypeDoc places class docs in classes/<Namespace>.<Name>.html
+                    const classFiles = await readdir(join(outdir, 'Foo-1.0', 'classes'));
+                    expect(classFiles.some((f) => f.includes('Greeter'))).toBeTruthy();
+                },
+                { timeout: TYPEDOC_TIMEOUT_MS },
+            );
         });
     });
 };

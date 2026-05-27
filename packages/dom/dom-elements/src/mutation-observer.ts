@@ -6,13 +6,13 @@
 import type { Node } from './node.js';
 
 interface MutationObserverOptions {
-	childList?: boolean;
-	attributes?: boolean;
-	characterData?: boolean;
-	subtree?: boolean;
-	attributeOldValue?: boolean;
-	characterDataOldValue?: boolean;
-	attributeFilter?: string[];
+    childList?: boolean;
+    attributes?: boolean;
+    characterData?: boolean;
+    subtree?: boolean;
+    attributeOldValue?: boolean;
+    characterDataOldValue?: boolean;
+    attributeFilter?: string[];
 }
 
 /**
@@ -23,17 +23,17 @@ interface MutationObserverOptions {
  * Reference: https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver
  */
 export class MutationObserver {
-	constructor(_callback: (...args: unknown[]) => void) {}
+    constructor(_callback: (...args: unknown[]) => void) {}
 
-	observe(_target: Node, _options?: MutationObserverOptions): void {
-		// Stub — no actual mutation tracking
-	}
+    observe(_target: Node, _options?: MutationObserverOptions): void {
+        // Stub — no actual mutation tracking
+    }
 
-	disconnect(): void {
-		// Stub
-	}
+    disconnect(): void {
+        // Stub
+    }
 
-	takeRecords(): unknown[] {
-		return [];
-	}
+    takeRecords(): unknown[] {
+        return [];
+    }
 }

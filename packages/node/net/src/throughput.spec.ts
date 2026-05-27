@@ -16,61 +16,68 @@ import { Buffer } from 'node:buffer';
 import process from 'node:process';
 
 const CHUNK_SIZE = 16_384; // 16 KB — matches socket read buffer and typical BitTorrent block size
-const NUM_CHUNKS = 128;   // 2 MB total
+const NUM_CHUNKS = 128; // 2 MB total
 const TIMEOUT_MS = 10_000;
 
 export default async () => {
-  await describe('net Socket throughput', async () => {
-    await it('transfers 2MB over loopback using process.nextTick-driven writes without stalling', async () => {
-      const { bytesReceived, timedOut } = await new Promise<{ bytesReceived: number; timedOut: boolean }>((resolve) => {
-        const deadline = setTimeout(() => resolve({ bytesReceived: -1, timedOut: true }), TIMEOUT_MS);
+    await describe('net Socket throughput', async () => {
+        await it('transfers 2MB over loopback using process.nextTick-driven writes without stalling', async () => {
+            const { bytesReceived, timedOut } = await new Promise<{ bytesReceived: number; timedOut: boolean }>(
+                (resolve) => {
+                    const deadline = setTimeout(() => resolve({ bytesReceived: -1, timedOut: true }), TIMEOUT_MS);
 
-        const server = createServer((conn) => {
-          let sent = 0;
-          const chunk = Buffer.alloc(CHUNK_SIZE, 0x42);
+                    const server = createServer((conn) => {
+                        let sent = 0;
+                        const chunk = Buffer.alloc(CHUNK_SIZE, 0x42);
 
-          // Mirrors bittorrent-protocol: schedule each successive write via nextTick
-          // so that the write loop yields between chunks rather than blocking.
-          function sendNext() {
-            if (sent >= NUM_CHUNKS) { conn.end(); return; }
-            const ok = conn.write(chunk);
-            sent++;
-            if (ok) process.nextTick(sendNext);
-            else conn.once('drain', sendNext);
-          }
-          sendNext();
+                        // Mirrors bittorrent-protocol: schedule each successive write via nextTick
+                        // so that the write loop yields between chunks rather than blocking.
+                        function sendNext() {
+                            if (sent >= NUM_CHUNKS) {
+                                conn.end();
+                                return;
+                            }
+                            const ok = conn.write(chunk);
+                            sent++;
+                            if (ok) process.nextTick(sendNext);
+                            else conn.once('drain', sendNext);
+                        }
+                        sendNext();
 
-          conn.on('error', () => {});
+                        conn.on('error', () => {});
+                    });
+
+                    server.listen(0, '127.0.0.1', () => {
+                        const { port } = server.address() as { port: number };
+                        let received = 0;
+
+                        const client = connect(port, '127.0.0.1');
+
+                        client.on('data', (chunk) => {
+                            received += chunk.length;
+                            // Simulate protocol-layer processing scheduled via nextTick (bittorrent-protocol pattern).
+                            process.nextTick(() => {
+                                /* parse */
+                            });
+                        });
+
+                        client.on('end', () => {
+                            clearTimeout(deadline);
+                            server.close(() => resolve({ bytesReceived: received, timedOut: false }));
+                        });
+
+                        client.on('error', (err) => {
+                            clearTimeout(deadline);
+                            server.close(() => resolve({ bytesReceived: received, timedOut: true }));
+                        });
+                    });
+
+                    server.on('error', () => resolve({ bytesReceived: -1, timedOut: true }));
+                },
+            );
+
+            expect(timedOut).toBeFalsy();
+            expect(bytesReceived).toBe(CHUNK_SIZE * NUM_CHUNKS);
         });
-
-        server.listen(0, '127.0.0.1', () => {
-          const { port } = (server.address() as { port: number });
-          let received = 0;
-
-          const client = connect(port, '127.0.0.1');
-
-          client.on('data', (chunk) => {
-            received += chunk.length;
-            // Simulate protocol-layer processing scheduled via nextTick (bittorrent-protocol pattern).
-            process.nextTick(() => { /* parse */ });
-          });
-
-          client.on('end', () => {
-            clearTimeout(deadline);
-            server.close(() => resolve({ bytesReceived: received, timedOut: false }));
-          });
-
-          client.on('error', (err) => {
-            clearTimeout(deadline);
-            server.close(() => resolve({ bytesReceived: received, timedOut: true }));
-          });
-        });
-
-        server.on('error', () => resolve({ bytesReceived: -1, timedOut: true }));
-      });
-
-      expect(timedOut).toBeFalsy();
-      expect(bytesReceived).toBe(CHUNK_SIZE * NUM_CHUNKS);
     });
-  });
 };

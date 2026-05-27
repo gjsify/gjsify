@@ -1,4 +1,3 @@
-
 import 'abort-controller/register'; // register AbortController/AbortSignal globals on GJS (no-op on Node)
 import { run } from '@gjsify/unit';
 
@@ -10,4 +9,12 @@ import timeoutTestSuite from './timeout.spec.js';
 import upgradeTestSuite from './upgrade.spec.js';
 import listenErrorTestSuite from './listen-error.spec.js';
 
-run({testSuite, clientTestSuite, extendedTestSuite, streamingTestSuite, timeoutTestSuite, upgradeTestSuite, listenErrorTestSuite});
+run({
+    testSuite,
+    clientTestSuite,
+    extendedTestSuite,
+    streamingTestSuite,
+    timeoutTestSuite,
+    upgradeTestSuite,
+    listenErrorTestSuite,
+});

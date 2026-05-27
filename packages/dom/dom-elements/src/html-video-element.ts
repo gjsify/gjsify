@@ -17,12 +17,12 @@ import { secondsToGstTime, gstTimeToSeconds } from './gst-time.js';
 // Gst.State / Gst.Format / Gst.SeekFlags / Gst.SeekType numeric values, hardcoded
 // to avoid a runtime `gi://Gst` import. Cross-checked against the GStreamer GIR.
 const GST_STATE_PLAYING = 4;
-const GST_STATE_PAUSED  = 3;
-const GST_FORMAT_TIME        = 3;
-const GST_SEEK_FLAG_FLUSH    = 1;
+const GST_STATE_PAUSED = 3;
+const GST_FORMAT_TIME = 3;
+const GST_SEEK_FLAG_FLUSH = 1;
 const GST_SEEK_FLAG_KEY_UNIT = 4;
-const GST_SEEK_TYPE_SET      = 1;
-const GST_SEEK_TYPE_NONE     = 0;
+const GST_SEEK_TYPE_SET = 1;
+const GST_SEEK_TYPE_NONE = 0;
 
 type Playbin = Gst.Element & { volume?: number; mute?: boolean };
 
@@ -96,7 +96,9 @@ export class HTMLVideoElement extends HTMLMediaElement {
         });
 
         Object.defineProperty(this, 'volume', {
-            get(): number { return self._playbin()?.volume ?? 1.0; },
+            get(): number {
+                return self._playbin()?.volume ?? 1.0;
+            },
             set(v: number) {
                 const pb = self._playbin();
                 if (pb) pb.volume = Math.max(0, Math.min(1, v));
@@ -106,7 +108,9 @@ export class HTMLVideoElement extends HTMLMediaElement {
         });
 
         Object.defineProperty(this, 'muted', {
-            get(): boolean { return self._playbin()?.mute ?? false; },
+            get(): boolean {
+                return self._playbin()?.mute ?? false;
+            },
             set(v: boolean) {
                 const pb = self._playbin();
                 if (pb) pb.mute = v;
@@ -128,14 +132,24 @@ export class HTMLVideoElement extends HTMLMediaElement {
     }
 
     /** Intrinsic width of the video (set by bridge when media metadata loads). */
-    get videoWidth(): number { return this._videoWidth; }
-    set videoWidth(value: number) { this._videoWidth = value; }
+    get videoWidth(): number {
+        return this._videoWidth;
+    }
+    set videoWidth(value: number) {
+        this._videoWidth = value;
+    }
 
     /** Intrinsic height of the video (set by bridge when media metadata loads). */
-    get videoHeight(): number { return this._videoHeight; }
-    set videoHeight(value: number) { this._videoHeight = value; }
+    get videoHeight(): number {
+        return this._videoHeight;
+    }
+    set videoHeight(value: number) {
+        this._videoHeight = value;
+    }
 
-    get [Symbol.toStringTag](): string { return 'HTMLVideoElement'; }
+    get [Symbol.toStringTag](): string {
+        return 'HTMLVideoElement';
+    }
 
     private _playbin(): Playbin | null {
         return (this._pipeline?.get_by_name('playbin') as Playbin | null) ?? null;

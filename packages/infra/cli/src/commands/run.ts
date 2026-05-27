@@ -34,7 +34,8 @@ export const runCommand: Command<any, RunOptions> = {
     builder: (yargs) =>
         yargs
             .positional('target', {
-                description: 'Either a script name (looked up in package.json `scripts`) or a path to a GJS bundle (e.g. dist/gjs.js).',
+                description:
+                    'Either a script name (looked up in package.json `scripts`) or a path to a GJS bundle (e.g. dist/gjs.js).',
                 type: 'string',
                 demandOption: true,
             })
@@ -77,7 +78,9 @@ function looksLikeFile(target: string): boolean {
     try {
         const st = statSync(target);
         return st.isFile();
-    } catch { return false; }
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -102,9 +105,7 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
     const literal = scripts[script];
     if (typeof literal !== 'string') {
         const available = Object.keys(scripts).join(', ') || '<none>';
-        console.error(
-            `gjsify run: no script "${script}" in ${pkgPath} (available: ${available})`,
-        );
+        console.error(`gjsify run: no script "${script}" in ${pkgPath} (available: ${available})`);
         process.exit(1);
     }
 
@@ -121,9 +122,7 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
     // fine). Respect user overrides: FORCE_COLOR=0 or NO_COLOR keeps
     // colors off.
     const colorEnv =
-        process.env.FORCE_COLOR !== undefined || process.env.NO_COLOR !== undefined
-            ? {}
-            : { FORCE_COLOR: '1' };
+        process.env.FORCE_COLOR !== undefined || process.env.NO_COLOR !== undefined ? {} : { FORCE_COLOR: '1' };
     const env = {
         ...process.env,
         ...colorEnv,
@@ -133,9 +132,7 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
         npm_package_version: pkg.version ?? '',
     };
 
-    const fullCmd = extraArgs.length > 0
-        ? `${literal} ${extraArgs.map(shellEscape).join(' ')}`
-        : literal;
+    const fullCmd = extraArgs.length > 0 ? `${literal} ${extraArgs.map(shellEscape).join(' ')}` : literal;
     // ensureMainLoop() (called inside spawn) keeps GJS alive after the
     // child exits — without an explicit process.exit() the success path
     // would park the loop forever. The error path already exits.

@@ -64,73 +64,70 @@ export const flatpakSyncFlathubCommand: Command<unknown, SyncFlathubOptions> = {
     description:
         'Update the per-app Flathub tracking-repo manifest to a new git tag + commit. Clones, edits, commits, optionally opens a PR.',
     builder: (yargs) => {
-        return yargs
-            // Disable yargs' built-in `--version` (which would otherwise
-            // print the package version) so this command's `--version
-            // <tag>` flag works.
-            .version(false)
-            .option('version', {
-                description: 'Git tag to sync to. Default: `git describe --tags --abbrev=0` in cwd.',
-                type: 'string',
-            })
-            .option('app-id', {
-                description: 'Reverse-DNS app id. Default: `gjsify.flatpak.appId`.',
-                type: 'string',
-            })
-            .option('flathub-repo', {
-                description: 'Flathub tracking-repo (owner/name). Default: `flathub/<appId>`.',
-                type: 'string',
-            })
-            .option('commit', {
-                description: 'Commit SHA to pin. Default: resolved via `git rev-list -n 1 <version>` in cwd.',
-                type: 'string',
-            })
-            .option('branch', {
-                description: 'Branch name in the flathub-repo. Default: `update-to-<version>`.',
-                type: 'string',
-            })
-            .option('source-index', {
-                description:
-                    'Index into modules[0].sources[] to update (when manifest has multiple sources). Default: first `type: git` source.',
-                type: 'number',
-            })
-            .option('pr', {
-                description:
-                    'After commit + push, open a PR via `gh pr create`. Pass `--no-pr` to skip and stop after push.',
-                type: 'boolean',
-                default: true,
-            })
-            .option('dry-run', {
-                description: 'Show what would be edited; touch no files, run no git commands.',
-                type: 'boolean',
-                default: false,
-            })
-            .option('verbose', {
-                description: 'Echo every git / gh invocation before running.',
-                type: 'boolean',
-                default: false,
-            });
+        return (
+            yargs
+                // Disable yargs' built-in `--version` (which would otherwise
+                // print the package version) so this command's `--version
+                // <tag>` flag works.
+                .version(false)
+                .option('version', {
+                    description: 'Git tag to sync to. Default: `git describe --tags --abbrev=0` in cwd.',
+                    type: 'string',
+                })
+                .option('app-id', {
+                    description: 'Reverse-DNS app id. Default: `gjsify.flatpak.appId`.',
+                    type: 'string',
+                })
+                .option('flathub-repo', {
+                    description: 'Flathub tracking-repo (owner/name). Default: `flathub/<appId>`.',
+                    type: 'string',
+                })
+                .option('commit', {
+                    description: 'Commit SHA to pin. Default: resolved via `git rev-list -n 1 <version>` in cwd.',
+                    type: 'string',
+                })
+                .option('branch', {
+                    description: 'Branch name in the flathub-repo. Default: `update-to-<version>`.',
+                    type: 'string',
+                })
+                .option('source-index', {
+                    description:
+                        'Index into modules[0].sources[] to update (when manifest has multiple sources). Default: first `type: git` source.',
+                    type: 'number',
+                })
+                .option('pr', {
+                    description:
+                        'After commit + push, open a PR via `gh pr create`. Pass `--no-pr` to skip and stop after push.',
+                    type: 'boolean',
+                    default: true,
+                })
+                .option('dry-run', {
+                    description: 'Show what would be edited; touch no files, run no git commands.',
+                    type: 'boolean',
+                    default: false,
+                })
+                .option('verbose', {
+                    description: 'Echo every git / gh invocation before running.',
+                    type: 'boolean',
+                    default: false,
+                })
+        );
     },
     handler: async (args) => {
         const cwd = process.cwd();
         const cfg = new Config();
-        const configData = await cfg.forBuild({} as never).catch(() => ({} as ConfigData));
+        const configData = await cfg.forBuild({} as never).catch(() => ({}) as ConfigData);
         const flatpak = configData.flatpak ?? {};
 
         const appId =
-            (args.appId as string | undefined) ??
-            flatpak.appId ??
-            (readPackageJson(cwd).name as string | undefined);
+            (args.appId as string | undefined) ?? flatpak.appId ?? (readPackageJson(cwd).name as string | undefined);
         if (!appId) {
             throw new Error(
                 '[gjsify flatpak sync-flathub] no app id available — pass --app-id or set gjsify.flatpak.appId.',
             );
         }
 
-        const flathubRepo =
-            (args.flathubRepo as string | undefined) ??
-            flatpak.flathubRepo ??
-            `flathub/${appId}`;
+        const flathubRepo = (args.flathubRepo as string | undefined) ?? flatpak.flathubRepo ?? `flathub/${appId}`;
 
         const version = (args.version as string | undefined) ?? (await resolveLatestTag(cwd, args.verbose));
         if (!version) {
@@ -185,7 +182,9 @@ export const flatpakSyncFlathubCommand: Command<unknown, SyncFlathubOptions> = {
         await gitInRepo(cloneDir, ['commit', '-m', `Update to ${version}`], args.verbose);
 
         if (args.pr === false) {
-            console.log(`[gjsify flatpak sync-flathub] --no-pr set; branch ${branch} committed locally in ${cloneDir}.`);
+            console.log(
+                `[gjsify flatpak sync-flathub] --no-pr set; branch ${branch} committed locally in ${cloneDir}.`,
+            );
             return;
         }
 
@@ -278,11 +277,7 @@ function gitInRepo(cwd: string, args: string[], verbose?: boolean): Promise<void
         const child = spawn('git', args, { cwd, stdio: 'inherit' });
         child.on('error', (err: NodeJS.ErrnoException) => {
             if (err.code === 'ENOENT') {
-                rej(
-                    new Error(
-                        '[gjsify flatpak sync-flathub] `git` not found. Install it from your distro.',
-                    ),
-                );
+                rej(new Error('[gjsify flatpak sync-flathub] `git` not found. Install it from your distro.'));
             } else {
                 rej(err);
             }
@@ -342,10 +337,7 @@ function ghCreate(
  * by parsing through JSON.parse + re-stringifying with the detected
  * indent.
  */
-export function editManifest(
-    original: string,
-    args: { tag: string; commit: string; sourceIndex?: number },
-): string {
+export function editManifest(original: string, args: { tag: string; commit: string; sourceIndex?: number }): string {
     const manifest: FlathubManifest = JSON.parse(original);
     const modules = manifest.modules ?? [];
     if (modules.length === 0) {

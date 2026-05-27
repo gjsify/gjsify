@@ -38,7 +38,7 @@ export function mount(container: HTMLElement, options?: MountOptions) {
 
     const modelRow = document.createElement('adw-combo-row');
     modelRow.setAttribute('title', 'Model');
-    modelRow.setAttribute('items', JSON.stringify(MODEL_LIST.map(m => m.name)));
+    modelRow.setAttribute('items', JSON.stringify(MODEL_LIST.map((m) => m.name)));
     modelRow.setAttribute('selected', String(DEFAULT_MODEL_INDEX));
 
     modelGroup.append(modelRow);
@@ -113,14 +113,27 @@ export function mount(container: HTMLElement, options?: MountOptions) {
         (buildingStepRow as any).value = numSteps - 1;
     });
 
-    connectControls(demo, modelRow, flatColorsRow, mergeModelRow, smoothNormalsRow,
-        buildingStepRow, displayLinesRow, conditionalLinesRow);
+    connectControls(
+        demo,
+        modelRow,
+        flatColorsRow,
+        mergeModelRow,
+        smoothNormalsRow,
+        buildingStepRow,
+        displayLinesRow,
+        conditionalLinesRow,
+    );
 }
 
 function connectControls(
     demo: LDrawDemo,
-    modelRow: any, flatColorsRow: any, mergeModelRow: any, smoothNormalsRow: any,
-    buildingStepRow: any, displayLinesRow: any, conditionalLinesRow: any,
+    modelRow: any,
+    flatColorsRow: any,
+    mergeModelRow: any,
+    smoothNormalsRow: any,
+    buildingStepRow: any,
+    displayLinesRow: any,
+    conditionalLinesRow: any,
 ) {
     modelRow.addEventListener('notify::selected', () => {
         demo.effectController.modelIndex = modelRow.selected;

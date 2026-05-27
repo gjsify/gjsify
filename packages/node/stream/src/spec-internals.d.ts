@@ -6,23 +6,23 @@
 // shape is visible to specs without leaking into the public package types.
 
 declare module 'node:stream' {
-	interface Readable {
-		_readableState: {
-			highWaterMark: number;
-			objectMode: boolean;
-			pipes: Writable[];
-			ended?: boolean;
-			endEmitted?: boolean;
-			reading?: boolean;
-			constructed?: boolean;
-		};
-	}
-	interface Writable {
-		_writableState: {
-			highWaterMark: number;
-			objectMode: boolean;
-		};
-	}
+    interface Readable {
+        _readableState: {
+            highWaterMark: number;
+            objectMode: boolean;
+            pipes: Writable[];
+            ended?: boolean;
+            endEmitted?: boolean;
+            reading?: boolean;
+            constructed?: boolean;
+        };
+    }
+    interface Writable {
+        _writableState: {
+            highWaterMark: number;
+            objectMode: boolean;
+        };
+    }
 }
 
 export {};

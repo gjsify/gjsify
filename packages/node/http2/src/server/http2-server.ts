@@ -15,11 +15,7 @@ import { EventEmitter } from 'node:events';
 import { Buffer } from 'node:buffer';
 import { deferEmit, ensureMainLoop } from '@gjsify/utils';
 import { Http2ServerRequest } from './request.js';
-import {
-    Http2ServerResponse,
-    ServerHttp2Stream,
-    type Http2NativeBackend,
-} from './response.js';
+import { Http2ServerResponse, ServerHttp2Stream, type Http2NativeBackend } from './response.js';
 import { ServerHttp2Session } from './session.js';
 import type { Http2Settings } from '../protocol.js';
 
@@ -65,12 +61,17 @@ export class Http2Server extends EventEmitter {
     protected _address: { port: number; family: string; address: string } | null = null;
     protected _options: ServerOptions;
 
-    get soupServer(): Soup.Server | null { return this._soupServer; }
+    get soupServer(): Soup.Server | null {
+        return this._soupServer;
+    }
     get nativeDispatcher(): import('../native-dispatcher.js').Http2NativeDispatcher | null {
         return this._nativeDispatcher;
     }
 
-    constructor(options?: ServerOptions | ((req: Http2ServerRequest, res: Http2ServerResponse) => void), handler?: (req: Http2ServerRequest, res: Http2ServerResponse) => void) {
+    constructor(
+        options?: ServerOptions | ((req: Http2ServerRequest, res: Http2ServerResponse) => void),
+        handler?: (req: Http2ServerRequest, res: Http2ServerResponse) => void,
+    ) {
         super();
         if (typeof options === 'function') {
             handler = options;
@@ -102,14 +103,12 @@ export class Http2Server extends EventEmitter {
             // we MUST use the native dispatcher. `nativeDispatcher: 'force'` is a
             // test escape hatch.
             const mode = this._options.nativeDispatcher ?? 'auto';
-            const wantsNative =
-                mode === 'force' ||
-                (mode === 'auto' && this._options.allowHTTP1 === false);
+            const wantsNative = mode === 'force' || (mode === 'auto' && this._options.allowHTTP1 === false);
 
             if (mode === 'off' && this._options.allowHTTP1 === false) {
                 throw new Error(
                     'createServer({ allowHTTP1: false }) requires the native dispatcher; ' +
-                    'nativeDispatcher cannot be "off" in this configuration',
+                        'nativeDispatcher cannot be "off" in this configuration',
                 );
             }
 
@@ -161,11 +160,12 @@ export class Http2Server extends EventEmitter {
     private _startNativeListen(port: number, hostname: string): void {
         // Lazy import keeps the module out of the Node bundle for createServer
         // consumers who never opt into the native path.
-        const { Http2NativeDispatcher } = require('../native-dispatcher.js') as typeof import('../native-dispatcher.js');
+        const { Http2NativeDispatcher } =
+            require('../native-dispatcher.js') as typeof import('../native-dispatcher.js');
         if (!Http2NativeDispatcher.available()) {
             throw new Error(
                 '@gjsify/http2-native prebuild is not loadable. createServer({ allowHTTP1: false }) ' +
-                'requires the native HTTP/2 dispatcher. Ensure GjsifyHttp2-1.0.typelib is installed.',
+                    'requires the native HTTP/2 dispatcher. Ensure GjsifyHttp2-1.0.typelib is installed.',
             );
         }
         this._nativeDispatcher = new Http2NativeDispatcher({
@@ -210,7 +210,7 @@ export class Http2Server extends EventEmitter {
 
         // Populate request metadata from the pseudo-headers.
         const headers = event.headers;
-        req.method = String((headers[':method'] ?? 'GET'));
+        req.method = String(headers[':method'] ?? 'GET');
         const path = String(headers[':path'] ?? '/');
         req.url = path;
         req.authority = String(headers[':authority'] ?? '');
@@ -305,7 +305,7 @@ export class Http2Server extends EventEmitter {
         // Remote address info
         const remoteHost = soupMsg.get_remote_host() ?? '127.0.0.1';
         const remoteAddr = soupMsg.get_remote_address();
-        const remotePort = (remoteAddr instanceof Gio.InetSocketAddress) ? remoteAddr.get_port() : 0;
+        const remotePort = remoteAddr instanceof Gio.InetSocketAddress ? remoteAddr.get_port() : 0;
         req.socket = {
             remoteAddress: remoteHost,
             remotePort,
@@ -445,8 +445,12 @@ function _createTlsCertificate(certPem: string, keyPem: string): Gio.TlsCertific
             const tlsCert = Gio.TlsCertificate.new_from_files(certPath, keyPath);
             return tlsCert;
         } finally {
-            try { Gio.File.new_for_path(certPath).delete(null); } catch {}
-            try { Gio.File.new_for_path(keyPath).delete(null); } catch {}
+            try {
+                Gio.File.new_for_path(certPath).delete(null);
+            } catch {}
+            try {
+                Gio.File.new_for_path(keyPath).delete(null);
+            } catch {}
         }
     }
 }

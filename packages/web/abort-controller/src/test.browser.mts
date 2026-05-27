@@ -23,7 +23,9 @@ run({
             await it('abort() fires abort event on signal', async () => {
                 const ac = new AbortController();
                 let fired = false;
-                ac.signal.addEventListener('abort', () => { fired = true; });
+                ac.signal.addEventListener('abort', () => {
+                    fired = true;
+                });
                 ac.abort();
                 expect(fired).toBe(true);
             });

@@ -108,16 +108,14 @@ export function mount(container: HTMLElement): ShowcaseHandle {
     container.append(win);
 
     // Append toggle button to header bar start section AFTER DOM connection
-    const startSection = headerBar.startSection
-        ?? headerBar.querySelector('.adw-header-bar-start');
+    const startSection = headerBar.startSection ?? headerBar.querySelector('.adw-header-bar-start');
     if (startSection) {
         startSection.appendChild(toggleBtn);
     } else {
         headerBar.prepend(toggleBtn);
     }
 
-    const endSection = headerBar.endSection
-        ?? headerBar.querySelector('.adw-header-bar-end');
+    const endSection = headerBar.endSection ?? headerBar.querySelector('.adw-header-bar-end');
     if (endSection) {
         endSection.appendChild(pauseBtn);
     } else {
@@ -197,7 +195,9 @@ export function mount(container: HTMLElement): ShowcaseHandle {
     });
 
     return {
-        get isPaused() { return demo ? demo.isPaused : pendingPause; },
+        get isPaused() {
+            return demo ? demo.isPaused : pendingPause;
+        },
         pause() {
             if (demo) {
                 demo.pause();
@@ -221,7 +221,10 @@ export function mount(container: HTMLElement): ShowcaseHandle {
 
 function connectControls(
     demo: FireworksDemo,
-    particleCountRow: any, autoIntervalRow: any, maxBurstRadiusRow: any, autoFireworksRow: any,
+    particleCountRow: any,
+    autoIntervalRow: any,
+    maxBurstRadiusRow: any,
+    autoFireworksRow: any,
 ) {
     particleCountRow.addEventListener('notify::value', () => {
         demo.effectController.particleCount = particleCountRow.value;

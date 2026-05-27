@@ -1,1 +1,1 @@
-export interface ResolveAliasOptions { }
+export interface ResolveAliasOptions {}

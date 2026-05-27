@@ -42,14 +42,18 @@ export function exitProcess(code: number): never {
         // Park the JS continuation forever — the idle source will exit the
         // process before this Promise can resolve. Cast satisfies the
         // `never` return type without taking down the synchronous control flow.
-        return new Promise<never>(() => { /* never */ }) as unknown as never;
+        return new Promise<never>(() => {
+            /* never */
+        }) as unknown as never;
     }
 
     // GJS without GLib (extremely unlikely) — direct syscall, may deadlock
     // a parked loop but at least exits when no loop is running.
     try {
         if (system?.exit) system.exit(code);
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
 
     const nativeProcess = globalThis.process;
     if (nativeProcess && typeof nativeProcess.exit === 'function') {

@@ -1,0 +1,43 @@
+{
+    "$schema": "./node_modules/oxlint/configuration_schema.json",
+    "jsPlugins": ["./packages/infra/oxlint-plugin-gjsify/src/index.ts"],
+    "categories": {
+        "correctness": "error"
+    },
+    "rules": {
+        "typescript/consistent-type-imports": "warn",
+        "typescript/no-explicit-any": "warn",
+        "typescript/no-non-null-assertion": "off",
+        "typescript/no-this-alias": [
+            "error",
+            { "allowedNames": ["self", "el", "blob", "readable", "root", "node", "receivedThis"] }
+        ],
+        "unicorn/prefer-node-protocol": "error",
+        "eslint/no-unused-vars": "warn",
+        "gjsify/register-class-order": "error"
+    },
+    "ignorePatterns": [
+        "**/node_modules",
+        "**/dist",
+        "**/lib",
+        "**/build",
+        "**/build-dir",
+        "**/builddir",
+        "**/flatpak-build",
+        "**/.flatpak-builder",
+        "**/repo",
+        "**/coverage",
+        "**/refs",
+        "**/@types",
+        "**/templates",
+        "**/prebuilds",
+        "**/.yarn/cache",
+        "**/.yarn/install-state.gz",
+        "**/cli.gjs.mjs",
+        "**/test.gjs.mjs",
+        "**/test.node.mjs",
+        "**/*.gresource",
+        "**/*.compiled",
+        "**/*.metainfo.xml"
+    ]
+}

@@ -15,13 +15,13 @@ import type { ClientRequestOptions } from './client-request.js';
 import { URL } from 'node:url';
 
 export interface AgentOptions {
-  keepAlive?: boolean;
-  keepAliveMsecs?: number;
-  maxSockets?: number;
-  maxTotalSockets?: number;
-  maxFreeSockets?: number;
-  timeout?: number;
-  scheduling?: 'fifo' | 'lifo';
+    keepAlive?: boolean;
+    keepAliveMsecs?: number;
+    maxSockets?: number;
+    maxTotalSockets?: number;
+    maxFreeSockets?: number;
+    timeout?: number;
+    scheduling?: 'fifo' | 'lifo';
 }
 
 /**
@@ -30,44 +30,44 @@ export interface AgentOptions {
  * This class provides the Node.js-compatible API surface for frameworks.
  */
 export class Agent {
-  defaultPort = 80;
-  protocol = 'http:';
-  maxSockets: number;
-  maxTotalSockets: number;
-  maxFreeSockets: number;
-  keepAliveMsecs: number;
-  keepAlive: boolean;
-  scheduling: 'fifo' | 'lifo';
+    defaultPort = 80;
+    protocol = 'http:';
+    maxSockets: number;
+    maxTotalSockets: number;
+    maxFreeSockets: number;
+    keepAliveMsecs: number;
+    keepAlive: boolean;
+    scheduling: 'fifo' | 'lifo';
 
-  /** Pending requests per host (compatibility — Soup manages internally). */
-  readonly requests: Record<string, unknown[]> = {};
-  /** Active sockets per host (compatibility — Soup manages internally). */
-  readonly sockets: Record<string, unknown[]> = {};
-  /** Idle sockets per host (compatibility — Soup manages internally). */
-  readonly freeSockets: Record<string, unknown[]> = {};
+    /** Pending requests per host (compatibility — Soup manages internally). */
+    readonly requests: Record<string, unknown[]> = {};
+    /** Active sockets per host (compatibility — Soup manages internally). */
+    readonly sockets: Record<string, unknown[]> = {};
+    /** Idle sockets per host (compatibility — Soup manages internally). */
+    readonly freeSockets: Record<string, unknown[]> = {};
 
-  constructor(options?: AgentOptions) {
-    this.keepAlive = options?.keepAlive ?? false;
-    this.keepAliveMsecs = options?.keepAliveMsecs ?? 1000;
-    this.maxSockets = options?.maxSockets ?? Infinity;
-    this.maxTotalSockets = options?.maxTotalSockets ?? Infinity;
-    this.maxFreeSockets = options?.maxFreeSockets ?? 256;
-    this.scheduling = options?.scheduling ?? 'lifo';
-  }
+    constructor(options?: AgentOptions) {
+        this.keepAlive = options?.keepAlive ?? false;
+        this.keepAliveMsecs = options?.keepAliveMsecs ?? 1000;
+        this.maxSockets = options?.maxSockets ?? Infinity;
+        this.maxTotalSockets = options?.maxTotalSockets ?? Infinity;
+        this.maxFreeSockets = options?.maxFreeSockets ?? 256;
+        this.scheduling = options?.scheduling ?? 'lifo';
+    }
 
-  /** Destroy the agent and close idle connections. */
-  destroy(): void {
-    // Soup.Session handles cleanup on GC.
-  }
+    /** Destroy the agent and close idle connections. */
+    destroy(): void {
+        // Soup.Session handles cleanup on GC.
+    }
 
-  /** Return a connection pool key for the given options. */
-  getName(options: { host?: string; port?: number; localAddress?: string; family?: number }): string {
-    let name = options.host || 'localhost';
-    if (options.port) name += ':' + options.port;
-    if (options.localAddress) name += ':' + options.localAddress;
-    if (options.family === 4 || options.family === 6) name += ':' + options.family;
-    return name;
-  }
+    /** Return a connection pool key for the given options. */
+    getName(options: { host?: string; port?: number; localAddress?: string; family?: number }): string {
+        let name = options.host || 'localhost';
+        if (options.port) name += ':' + options.port;
+        if (options.localAddress) name += ':' + options.localAddress;
+        if (options.family === 4 || options.family === 6) name += ':' + options.family;
+        return name;
+    }
 }
 
 export const globalAgent = new Agent();
@@ -75,11 +75,14 @@ export const globalAgent = new Agent();
 /**
  * Create an HTTP server.
  */
-export function createServer(options?: Record<string, unknown> | ((req: IncomingMessage, res: ServerResponse) => void), requestListener?: (req: IncomingMessage, res: ServerResponse) => void): Server {
-  if (typeof options === 'function') {
-    return new Server(options);
-  }
-  return new Server(requestListener);
+export function createServer(
+    options?: Record<string, unknown> | ((req: IncomingMessage, res: ServerResponse) => void),
+    requestListener?: (req: IncomingMessage, res: ServerResponse) => void,
+): Server {
+    if (typeof options === 'function') {
+        return new Server(options);
+    }
+    return new Server(requestListener);
 }
 
 /**
@@ -89,32 +92,41 @@ export function createServer(options?: Record<string, unknown> | ((req: Incoming
  * @param options Request options (if url is string/URL)
  * @param callback Response callback
  */
-export function request(url: string | URL | ClientRequestOptions, options?: ClientRequestOptions | ((res: IncomingMessage) => void), callback?: (res: IncomingMessage) => void): ClientRequest {
-  return new ClientRequest(url, options, callback);
+export function request(
+    url: string | URL | ClientRequestOptions,
+    options?: ClientRequestOptions | ((res: IncomingMessage) => void),
+    callback?: (res: IncomingMessage) => void,
+): ClientRequest {
+    return new ClientRequest(url, options, callback);
 }
 
 /**
  * Make an HTTP GET request (convenience wrapper that calls req.end() automatically).
  */
-export function get(url: string | URL | ClientRequestOptions, options?: ClientRequestOptions | ((res: IncomingMessage) => void), callback?: (res: IncomingMessage) => void): ClientRequest {
-  // Normalize arguments
-  let opts: ClientRequestOptions;
-  let cb: ((res: IncomingMessage) => void) | undefined = callback;
+export function get(
+    url: string | URL | ClientRequestOptions,
+    options?: ClientRequestOptions | ((res: IncomingMessage) => void),
+    callback?: (res: IncomingMessage) => void,
+): ClientRequest {
+    // Normalize arguments
+    let opts: ClientRequestOptions;
+    let cb: ((res: IncomingMessage) => void) | undefined = callback;
 
-  if (typeof url === 'string' || url instanceof URL) {
-    opts = typeof options === 'object' ? { ...options, method: 'GET' } : { method: 'GET' };
-    if (typeof options === 'function') cb = options;
-  } else {
-    opts = { ...url, method: 'GET' };
-    if (typeof options === 'function') cb = options;
-    url = opts as ClientRequestOptions;
-  }
+    if (typeof url === 'string' || url instanceof URL) {
+        opts = typeof options === 'object' ? { ...options, method: 'GET' } : { method: 'GET' };
+        if (typeof options === 'function') cb = options;
+    } else {
+        opts = { ...url, method: 'GET' };
+        if (typeof options === 'function') cb = options;
+        url = opts as ClientRequestOptions;
+    }
 
-  const req = typeof url === 'string' || url instanceof URL
-    ? new ClientRequest(url, { ...opts, method: 'GET' }, cb)
-    : new ClientRequest({ ...opts, method: 'GET' }, cb);
-  req.end();
-  return req;
+    const req =
+        typeof url === 'string' || url instanceof URL
+            ? new ClientRequest(url, { ...opts, method: 'GET' }, cb)
+            : new ClientRequest({ ...opts, method: 'GET' }, cb);
+    req.end();
+    return req;
 }
 
 /** Max header size in bytes. */
@@ -130,20 +142,20 @@ export function setMaxIdleHTTPParsers(_max: number): void {}
 import { STATUS_CODES as _STATUS_CODES, METHODS as _METHODS } from './constants.js';
 
 export default {
-  STATUS_CODES: _STATUS_CODES,
-  METHODS: _METHODS,
-  Server,
-  IncomingMessage,
-  OutgoingMessage,
-  ServerResponse,
-  ClientRequest,
-  Agent,
-  globalAgent,
-  createServer,
-  request,
-  get,
-  validateHeaderName,
-  validateHeaderValue,
-  maxHeaderSize,
-  setMaxIdleHTTPParsers,
+    STATUS_CODES: _STATUS_CODES,
+    METHODS: _METHODS,
+    Server,
+    IncomingMessage,
+    OutgoingMessage,
+    ServerResponse,
+    ClientRequest,
+    Agent,
+    globalAgent,
+    createServer,
+    request,
+    get,
+    validateHeaderName,
+    validateHeaderValue,
+    maxHeaderSize,
+    setMaxIdleHTTPParsers,
 };

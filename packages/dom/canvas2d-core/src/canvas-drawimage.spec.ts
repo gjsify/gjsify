@@ -24,11 +24,7 @@ function makeCtx(width = 50, height = 50): CanvasRenderingContext2D {
  * (canvas-rendering-context-2d.ts:822-834), avoiding the need for PNG
  * fixtures on disk.
  */
-function createTestImage(
-    width: number,
-    height: number,
-    draw: (ctx: CanvasRenderingContext2D) => void,
-): any {
+function createTestImage(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void): any {
     const ctx = makeCtx(width, height);
     draw(ctx);
     return {
@@ -74,7 +70,6 @@ function assertPixelExact(
 
 export default async () => {
     await describe('CanvasRenderingContext2D — drawImage', async () => {
-
         await describe('3-argument form: drawImage(image, dx, dy)', async () => {
             await it('draws a full canvas source at the given destination', async () => {
                 const src = createTestImage(10, 10, (c) => {
@@ -266,10 +261,14 @@ export default async () => {
                 // 2×2 image: red (top-left), green (top-right),
                 //            blue (bottom-left), white (bottom-right).
                 const src = createTestImage(2, 2, (c) => {
-                    c.fillStyle = 'rgb(255, 0, 0)';   c.fillRect(0, 0, 1, 1);
-                    c.fillStyle = 'rgb(0, 255, 0)';   c.fillRect(1, 0, 1, 1);
-                    c.fillStyle = 'rgb(0, 0, 255)';   c.fillRect(0, 1, 1, 1);
-                    c.fillStyle = 'rgb(255, 255, 255)'; c.fillRect(1, 1, 1, 1);
+                    c.fillStyle = 'rgb(255, 0, 0)';
+                    c.fillRect(0, 0, 1, 1);
+                    c.fillStyle = 'rgb(0, 255, 0)';
+                    c.fillRect(1, 0, 1, 1);
+                    c.fillStyle = 'rgb(0, 0, 255)';
+                    c.fillRect(0, 1, 1, 1);
+                    c.fillStyle = 'rgb(255, 255, 255)';
+                    c.fillRect(1, 1, 1, 1);
                 });
                 const dst = makeCtx(20, 20);
                 dst.imageSmoothingEnabled = false;
@@ -286,10 +285,14 @@ export default async () => {
 
             await it('imageSmoothingEnabled=true: bilinear bleeding at boundaries', async () => {
                 const src = createTestImage(2, 2, (c) => {
-                    c.fillStyle = 'rgb(255, 0, 0)';   c.fillRect(0, 0, 1, 1);
-                    c.fillStyle = 'rgb(0, 255, 0)';   c.fillRect(1, 0, 1, 1);
-                    c.fillStyle = 'rgb(0, 0, 255)';   c.fillRect(0, 1, 1, 1);
-                    c.fillStyle = 'rgb(255, 255, 255)'; c.fillRect(1, 1, 1, 1);
+                    c.fillStyle = 'rgb(255, 0, 0)';
+                    c.fillRect(0, 0, 1, 1);
+                    c.fillStyle = 'rgb(0, 255, 0)';
+                    c.fillRect(1, 0, 1, 1);
+                    c.fillStyle = 'rgb(0, 0, 255)';
+                    c.fillRect(0, 1, 1, 1);
+                    c.fillStyle = 'rgb(255, 255, 255)';
+                    c.fillRect(1, 1, 1, 1);
                 });
                 const dst = makeCtx(20, 20);
                 dst.imageSmoothingEnabled = true;

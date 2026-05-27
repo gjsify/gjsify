@@ -38,34 +38,26 @@ interface GenerateInstallerOptions {
 // itself, which would then ENOENT on the not-yet-copied template file.
 // The static-read-inliner can still detect this shape inside the handler.
 function loadInstallerTemplate(): string {
-    return readFileSync(
-        new URL('../templates/install.mjs.tmpl', import.meta.url),
-        'utf-8',
-    );
+    return readFileSync(new URL('../templates/install.mjs.tmpl', import.meta.url), 'utf-8');
 }
 
-const DEFAULT_BOOTSTRAP_URL =
-    'https://github.com/gjsify/gjsify/releases/latest/download/cli.gjs.mjs';
+const DEFAULT_BOOTSTRAP_URL = 'https://github.com/gjsify/gjsify/releases/latest/download/cli.gjs.mjs';
 
 export const generateInstallerCommand: Command<any, GenerateInstallerOptions> = {
     command: 'generate-installer [target]',
-    description:
-        'Scaffold an install.mjs in the current directory for a GJS-runnable npm package.',
+    description: 'Scaffold an install.mjs in the current directory for a GJS-runnable npm package.',
     builder: (yargs) =>
         yargs
             .positional('target', {
-                description:
-                    'Npm package name to install (default: current package.json name).',
+                description: 'Npm package name to install (default: current package.json name).',
                 type: 'string',
             })
             .option('bin-name', {
-                description:
-                    'Bin name produced by the installer (default: first key of `gjsify.bin` or `bin`).',
+                description: 'Bin name produced by the installer (default: first key of `gjsify.bin` or `bin`).',
                 type: 'string',
             })
             .option('bootstrap-url', {
-                description:
-                    'Override the cli.gjs.mjs bootstrap bundle URL (default: gjsify GitHub releases/latest).',
+                description: 'Override the cli.gjs.mjs bootstrap bundle URL (default: gjsify GitHub releases/latest).',
                 type: 'string',
             })
             .option('output', {
@@ -109,14 +101,8 @@ export const generateInstallerCommand: Command<any, GenerateInstallerOptions> = 
         const bootstrapUrl = args['bootstrap-url'] ?? DEFAULT_BOOTSTRAP_URL;
 
         const rendered = loadInstallerTemplate()
-            .replace(
-                /const DEFAULT_TARGET = '[^']+';/,
-                `const DEFAULT_TARGET = ${JSON.stringify(target)};`,
-            )
-            .replace(
-                /const DEFAULT_BIN_NAME = '[^']+';/,
-                `const DEFAULT_BIN_NAME = ${JSON.stringify(binName)};`,
-            )
+            .replace(/const DEFAULT_TARGET = '[^']+';/, `const DEFAULT_TARGET = ${JSON.stringify(target)};`)
+            .replace(/const DEFAULT_BIN_NAME = '[^']+';/, `const DEFAULT_BIN_NAME = ${JSON.stringify(binName)};`)
             .replace(
                 /const DEFAULT_BOOTSTRAP_URL =\s*'[^']+';/,
                 `const DEFAULT_BOOTSTRAP_URL = ${JSON.stringify(bootstrapUrl)};`,
@@ -126,9 +112,7 @@ export const generateInstallerCommand: Command<any, GenerateInstallerOptions> = 
         console.log(`Wrote ${args.output} (target=${target}, bin=${binName}).`);
         console.log('');
         console.log('Install one-liner for your README:');
-        console.log(
-            `  curl -fsSL https://github.com/<you>/<repo>/raw/main/${args.output} -o /tmp/i.mjs \\`,
-        );
+        console.log(`  curl -fsSL https://github.com/<you>/<repo>/raw/main/${args.output} -o /tmp/i.mjs \\`);
         console.log('    && gjs -m /tmp/i.mjs && rm /tmp/i.mjs');
     },
 };

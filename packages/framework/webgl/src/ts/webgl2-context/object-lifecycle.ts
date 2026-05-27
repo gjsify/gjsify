@@ -12,7 +12,7 @@
 import { warnNotImplemented } from '@gjsify/utils';
 import type { WebGL2RenderingContext } from '../webgl2-rendering-context.js';
 import { WebGLActiveInfo } from '../webgl-active-info.js';
-import { WebGLProgram as OurWebGLProgram } from '../webgl-program.js';
+import type { WebGLProgram as OurWebGLProgram } from '../webgl-program.js';
 import { WebGLQuery } from '../webgl-query.js';
 import { WebGLSampler } from '../webgl-sampler.js';
 import { WebGLSync } from '../webgl-sync.js';
@@ -62,11 +62,10 @@ export interface ObjectLifecycleMethods {
 }
 
 declare module '../webgl2-rendering-context.js' {
-    interface WebGL2RenderingContext extends ObjectLifecycleMethods { }
+    interface WebGL2RenderingContext extends ObjectLifecycleMethods {}
 }
 
 const objectLifecycleMethods: ObjectLifecycleMethods & ThisType<WebGL2RenderingContext> = {
-
     // ─── Vertex Array Objects ─────────────────────────────────────────────
 
     createVertexArray(this: WebGL2RenderingContext): WebGLVertexArrayObject | null {
@@ -178,7 +177,7 @@ const objectLifecycleMethods: ObjectLifecycleMethods & ThisType<WebGL2RenderingC
     getSamplerParameter(this: WebGL2RenderingContext, sampler: WebGLSampler, pname: GLenum): any {
         if (!(sampler instanceof WebGLSampler)) return null;
         // Float params: TEXTURE_MIN_LOD, TEXTURE_MAX_LOD
-        if (pname === 0x813A || pname === 0x813B) {
+        if (pname === 0x813a || pname === 0x813b) {
             return this._native2.getSamplerParameterf(sampler._, pname);
         }
         return this._native2.getSamplerParameteri(sampler._, pname);
@@ -206,7 +205,7 @@ const objectLifecycleMethods: ObjectLifecycleMethods & ThisType<WebGL2RenderingC
     },
 
     clientWaitSync(this: WebGL2RenderingContext, sync: WebGLSync, flags: GLbitfield, timeout: GLuint64): GLenum {
-        if (!(sync instanceof WebGLSync)) return 0x911C; // WAIT_FAILED
+        if (!(sync instanceof WebGLSync)) return 0x911c; // WAIT_FAILED
         return this._native2.clientWaitSync(sync._, flags, timeout as unknown as number);
     },
 
@@ -261,12 +260,22 @@ const objectLifecycleMethods: ObjectLifecycleMethods & ThisType<WebGL2RenderingC
         this._native2.resumeTransformFeedback();
     },
 
-    transformFeedbackVaryings(this: WebGL2RenderingContext, program: WebGLProgram, varyings: string[], bufferMode: GLenum): void {
+    transformFeedbackVaryings(
+        this: WebGL2RenderingContext,
+        program: WebGLProgram,
+        varyings: string[],
+        bufferMode: GLenum,
+    ): void {
         this._native2.transformFeedbackVaryings((program as unknown as OurWebGLProgram)._, varyings, bufferMode);
     },
 
-    getTransformFeedbackVarying(this: WebGL2RenderingContext, program: WebGLProgram, index: GLuint): WebGLActiveInfo | null {
-        const result = this._native2.getTransformFeedbackVarying((program as unknown as OurWebGLProgram)._, index)
+    getTransformFeedbackVarying(
+        this: WebGL2RenderingContext,
+        program: WebGLProgram,
+        index: GLuint,
+    ): WebGLActiveInfo | null {
+        const result = this._native2
+            .getTransformFeedbackVarying((program as unknown as OurWebGLProgram)._, index)
             .deepUnpack<{ name: string; size: number; type: number }>();
         return new WebGLActiveInfo({ size: result.size, type: result.type, name: result.name });
     },

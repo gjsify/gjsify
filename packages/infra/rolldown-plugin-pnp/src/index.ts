@@ -111,9 +111,7 @@ export async function pnpPlugin(opts: PnpPluginOptions = {}): Promise<Plugin | n
                 if (!importer) return null;
 
                 // Importer may be a file URL string or an absolute path.
-                const importerPath = importer.startsWith('file://')
-                    ? fileURLToPath(importer)
-                    : importer;
+                const importerPath = importer.startsWith('file://') ? fileURLToPath(importer) : importer;
 
                 // Fast path: resolve from the importer's own context.
                 try {
@@ -173,8 +171,10 @@ export async function pnpPlugin(opts: PnpPluginOptions = {}): Promise<Plugin | n
 }
 
 function isUndeclaredDependency(err: unknown): boolean {
-    return typeof err === 'object'
-        && err !== null
-        && 'pnpCode' in err
-        && (err as { pnpCode?: unknown }).pnpCode === 'UNDECLARED_DEPENDENCY';
+    return (
+        typeof err === 'object' &&
+        err !== null &&
+        'pnpCode' in err &&
+        (err as { pnpCode?: unknown }).pnpCode === 'UNDECLARED_DEPENDENCY'
+    );
 }

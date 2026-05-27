@@ -14,49 +14,49 @@ import { TransformStream } from './transform-stream.js';
  * are emitted.
  */
 export class TextEncoderStream {
-  #pendingHighSurrogate: string | null = null;
-  #encoder = new TextEncoder();
-  #transform: TransformStream;
+    #pendingHighSurrogate: string | null = null;
+    #encoder = new TextEncoder();
+    #transform: TransformStream;
 
-  constructor() {
-    this.#transform = new TransformStream({
-      transform: (chunk: string, controller) => {
-        chunk = String(chunk);
-        if (chunk === '') {
-          return;
-        }
-        if (this.#pendingHighSurrogate !== null) {
-          chunk = this.#pendingHighSurrogate + chunk;
-        }
-        const lastCodeUnit = chunk.charCodeAt(chunk.length - 1);
-        if (0xD800 <= lastCodeUnit && lastCodeUnit <= 0xDBFF) {
-          this.#pendingHighSurrogate = chunk.slice(-1);
-          chunk = chunk.slice(0, -1);
-        } else {
-          this.#pendingHighSurrogate = null;
-        }
-        if (chunk) {
-          controller.enqueue(this.#encoder.encode(chunk));
-        }
-      },
-      flush: (controller) => {
-        if (this.#pendingHighSurrogate !== null) {
-          // U+FFFD replacement character in UTF-8
-          controller.enqueue(new Uint8Array([0xEF, 0xBF, 0xBD]));
-        }
-      },
-    });
-  }
+    constructor() {
+        this.#transform = new TransformStream({
+            transform: (chunk: string, controller) => {
+                chunk = String(chunk);
+                if (chunk === '') {
+                    return;
+                }
+                if (this.#pendingHighSurrogate !== null) {
+                    chunk = this.#pendingHighSurrogate + chunk;
+                }
+                const lastCodeUnit = chunk.charCodeAt(chunk.length - 1);
+                if (0xd800 <= lastCodeUnit && lastCodeUnit <= 0xdbff) {
+                    this.#pendingHighSurrogate = chunk.slice(-1);
+                    chunk = chunk.slice(0, -1);
+                } else {
+                    this.#pendingHighSurrogate = null;
+                }
+                if (chunk) {
+                    controller.enqueue(this.#encoder.encode(chunk));
+                }
+            },
+            flush: (controller) => {
+                if (this.#pendingHighSurrogate !== null) {
+                    // U+FFFD replacement character in UTF-8
+                    controller.enqueue(new Uint8Array([0xef, 0xbf, 0xbd]));
+                }
+            },
+        });
+    }
 
-  get encoding(): string {
-    return 'utf-8';
-  }
+    get encoding(): string {
+        return 'utf-8';
+    }
 
-  get readable(): ReadableStream<Uint8Array> {
-    return this.#transform.readable;
-  }
+    get readable(): ReadableStream<Uint8Array> {
+        return this.#transform.readable;
+    }
 
-  get writable(): WritableStream<string> {
-    return this.#transform.writable;
-  }
+    get writable(): WritableStream<string> {
+        return this.#transform.writable;
+    }
 }

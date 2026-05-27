@@ -3,31 +3,32 @@
 // Uses https://jsonplaceholder.typicode.com (a free fake REST API) so the demo
 // exercises real HTTPS, JSON parsing, and concurrent requests on Node.js + GJS.
 
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import type { AxiosInstance, AxiosError } from 'axios';
+import axios from 'axios';
 
 interface Post {
-  userId: number;
-  id: number;
-  title: string;
-  body: string;
+    userId: number;
+    id: number;
+    title: string;
+    body: string;
 }
 
 interface User {
-  id: number;
-  name: string;
-  username: string;
-  email: string;
+    id: number;
+    name: string;
+    username: string;
+    email: string;
 }
 
 const api: AxiosInstance = axios.create({
-  baseURL: 'https://jsonplaceholder.typicode.com',
-  timeout: 10_000,
-  headers: { 'Accept': 'application/json' },
+    baseURL: 'https://jsonplaceholder.typicode.com',
+    timeout: 10_000,
+    headers: { Accept: 'application/json' },
 });
 
 api.interceptors.request.use((config) => {
-  console.log(`→ ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
-  return config;
+    console.log(`→ ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+    return config;
 });
 
 // GET — fetch a single post
@@ -40,18 +41,18 @@ console.log(`GET /posts?userId=1 → ${userPosts.data.length} posts`);
 
 // POST — create a new post
 const created = await api.post<Post>('/posts', {
-  userId: 1,
-  title: 'gjsify demo',
-  body: 'hello from axios on GJS + Node.js',
+    userId: 1,
+    title: 'gjsify demo',
+    body: 'hello from axios on GJS + Node.js',
 });
 console.log(`POST /posts → ${created.status} id=${created.data.id}`);
 
 // PUT — replace a post
 const updated = await api.put<Post>('/posts/1', {
-  id: 1,
-  userId: 1,
-  title: 'updated title',
-  body: 'updated body',
+    id: 1,
+    userId: 1,
+    title: 'updated title',
+    body: 'updated body',
 });
 console.log(`PUT /posts/1 → ${updated.status} title="${updated.data.title}"`);
 
@@ -61,17 +62,14 @@ console.log(`DELETE /posts/1 → ${deleted.status}`);
 
 // Error handling — 404
 try {
-  await api.get('/posts/0');
+    await api.get('/posts/0');
 } catch (err) {
-  const e = err as AxiosError;
-  console.log(`GET /posts/0 → caught AxiosError status=${e.response?.status}`);
+    const e = err as AxiosError;
+    console.log(`GET /posts/0 → caught AxiosError status=${e.response?.status}`);
 }
 
 // Concurrent requests — fetch a post and its author in parallel
-const [postRes, authorRes] = await Promise.all([
-  api.get<Post>('/posts/2'),
-  api.get<User>('/users/1'),
-]);
+const [postRes, authorRes] = await Promise.all([api.get<Post>('/posts/2'), api.get<User>('/users/1')]);
 console.log(`Concurrent → post="${postRes.data.title}" by ${authorRes.data.name} <${authorRes.data.email}>`);
 
 console.log('Done.');

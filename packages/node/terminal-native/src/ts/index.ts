@@ -19,7 +19,7 @@ export interface NativeTerminal {
 }
 
 export interface NativeResizeWatcherClass {
-    new(): NativeResizeWatcher;
+    new (): NativeResizeWatcher;
 }
 
 export interface NativeResizeWatcher {

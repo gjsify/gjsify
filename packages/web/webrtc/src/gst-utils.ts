@@ -25,9 +25,7 @@ import { PromiseBridge } from '@gjsify/webrtc-native';
  *     webrtcbin.emit('create-offer', options, promise);
  *   });
  */
-export function withGstPromise(
-    emit: (promise: Gst.Promise) => void,
-): Promise<Gst.Structure | null> {
+export function withGstPromise(emit: (promise: Gst.Promise) => void): Promise<Gst.Structure | null> {
     return new Promise((resolve, reject) => {
         const bridge = new PromiseBridge();
         bridge.connect('replied', (_b: unknown, reply: Gst.Structure | null) => {

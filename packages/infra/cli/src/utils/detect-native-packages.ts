@@ -141,7 +141,7 @@ export function detectNativePackages(startDir: string): NativePackage[] {
  * Prepends the new paths to any existing values from the environment.
  */
 export function buildNativeEnv(packages: NativePackage[]): { LD_LIBRARY_PATH: string; GI_TYPELIB_PATH: string } {
-    const dirs = packages.map(p => p.prebuildsDir);
+    const dirs = packages.map((p) => p.prebuildsDir);
 
     const existing_ld = process.env['LD_LIBRARY_PATH'] ?? '';
     const existing_gi = process.env['GI_TYPELIB_PATH'] ?? '';

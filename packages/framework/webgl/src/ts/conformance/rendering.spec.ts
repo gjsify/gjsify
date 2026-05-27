@@ -4,9 +4,12 @@
 
 import { describe, it, expect, beforeEach, on } from '@gjsify/unit';
 import {
-    makeProgram, drawTriangle,
-    makeTestFBO, destroyTestFBO,
-    makeTestFBOWithDepth, destroyTestFBOWithDepth,
+    makeProgram,
+    drawTriangle,
+    makeTestFBO,
+    destroyTestFBO,
+    makeTestFBOWithDepth,
+    destroyTestFBOWithDepth,
     pixelClose,
 } from '../test-utils.js';
 import { createGLSetup } from './setup.js';
@@ -28,7 +31,6 @@ const FS_COLOR = `
 
 export default async () => {
     await on('Display', async () => {
-
         const setup = createGLSetup();
         if (!setup) {
             console.warn('WebGL context not available — skipping conformance/rendering tests');
@@ -40,9 +42,12 @@ export default async () => {
         // ── blending ───────────────────────────────────────────────────────────
 
         await describe('rendering/blending', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
-            const W = 2, H = 2;
+            const W = 2,
+                H = 2;
 
             interface BlendTest {
                 name: string;
@@ -79,7 +84,7 @@ export default async () => {
                 gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
                 destroyTestFBO(gl, fbo);
 
-                const expected255 = t.expected.map(v => Math.round(v * 255)) as [number, number, number, number];
+                const expected255 = t.expected.map((v) => Math.round(v * 255)) as [number, number, number, number];
                 for (let i = 0; i < W * H * 4; i += 4) {
                     if (!pixelClose(pixels.subarray(i, i + 4) as unknown as Uint8Array, expected255, 4)) {
                         return false;
@@ -89,67 +94,77 @@ export default async () => {
             }
 
             await it('FUNC_ADD ONE ONE: dst=[0.5,0.5,0.5,1] + src=[0.5,0.5,0.5,1] = [1,1,1,1]', async () => {
-                expect(runBlendTest({
-                    name: 'ADD ONE ONE',
-                    equation: gl.FUNC_ADD,
-                    srcFactor: gl.ONE,
-                    dstFactor: gl.ONE,
-                    dstColor: [0.5, 0.5, 0.5, 1.0],
-                    srcColor: [0.5, 0.5, 0.5, 1.0],
-                    expected: [1.0, 1.0, 1.0, 1.0],
-                })).toBe(true);
+                expect(
+                    runBlendTest({
+                        name: 'ADD ONE ONE',
+                        equation: gl.FUNC_ADD,
+                        srcFactor: gl.ONE,
+                        dstFactor: gl.ONE,
+                        dstColor: [0.5, 0.5, 0.5, 1.0],
+                        srcColor: [0.5, 0.5, 0.5, 1.0],
+                        expected: [1.0, 1.0, 1.0, 1.0],
+                    }),
+                ).toBe(true);
                 expect(gl.getError()).toBe(gl.NO_ERROR);
             });
 
             await it('FUNC_ADD ONE ZERO: dst=[0.5,0.5,0.5,0.5] + src=[0.2,0.2,0.2,1] = [0.2,0.2,0.2,1]', async () => {
-                expect(runBlendTest({
-                    name: 'ADD ONE ZERO',
-                    equation: gl.FUNC_ADD,
-                    srcFactor: gl.ONE,
-                    dstFactor: gl.ZERO,
-                    dstColor: [0.5, 0.5, 0.5, 0.5],
-                    srcColor: [0.2, 0.2, 0.2, 1.0],
-                    expected: [0.2, 0.2, 0.2, 1.0],
-                })).toBe(true);
+                expect(
+                    runBlendTest({
+                        name: 'ADD ONE ZERO',
+                        equation: gl.FUNC_ADD,
+                        srcFactor: gl.ONE,
+                        dstFactor: gl.ZERO,
+                        dstColor: [0.5, 0.5, 0.5, 0.5],
+                        srcColor: [0.2, 0.2, 0.2, 1.0],
+                        expected: [0.2, 0.2, 0.2, 1.0],
+                    }),
+                ).toBe(true);
                 expect(gl.getError()).toBe(gl.NO_ERROR);
             });
 
             await it('FUNC_ADD ZERO SRC_COLOR: dst=[0.8,0.8,0.8,1] * src=[0.5,0.5,0.5,0.5] = [0.4,0.4,0.4,0.5]', async () => {
-                expect(runBlendTest({
-                    name: 'ADD ZERO SRC_COLOR',
-                    equation: gl.FUNC_ADD,
-                    srcFactor: gl.ZERO,
-                    dstFactor: gl.SRC_COLOR,
-                    dstColor: [0.8, 0.8, 0.8, 1.0],
-                    srcColor: [0.5, 0.5, 0.5, 0.5],
-                    expected: [0.4, 0.4, 0.4, 0.5],
-                })).toBe(true);
+                expect(
+                    runBlendTest({
+                        name: 'ADD ZERO SRC_COLOR',
+                        equation: gl.FUNC_ADD,
+                        srcFactor: gl.ZERO,
+                        dstFactor: gl.SRC_COLOR,
+                        dstColor: [0.8, 0.8, 0.8, 1.0],
+                        srcColor: [0.5, 0.5, 0.5, 0.5],
+                        expected: [0.4, 0.4, 0.4, 0.5],
+                    }),
+                ).toBe(true);
                 expect(gl.getError()).toBe(gl.NO_ERROR);
             });
 
             await it('FUNC_ADD DST_COLOR ZERO: dst=[0.8,0.8,0.8,1] src=[0.5,0.5,0.5,0.5] = [0.4,0.4,0.4,0.5]', async () => {
-                expect(runBlendTest({
-                    name: 'ADD DST_COLOR ZERO',
-                    equation: gl.FUNC_ADD,
-                    srcFactor: gl.DST_COLOR,
-                    dstFactor: gl.ZERO,
-                    dstColor: [0.8, 0.8, 0.8, 1.0],
-                    srcColor: [0.5, 0.5, 0.5, 0.5],
-                    expected: [0.4, 0.4, 0.4, 0.5],
-                })).toBe(true);
+                expect(
+                    runBlendTest({
+                        name: 'ADD DST_COLOR ZERO',
+                        equation: gl.FUNC_ADD,
+                        srcFactor: gl.DST_COLOR,
+                        dstFactor: gl.ZERO,
+                        dstColor: [0.8, 0.8, 0.8, 1.0],
+                        srcColor: [0.5, 0.5, 0.5, 0.5],
+                        expected: [0.4, 0.4, 0.4, 0.5],
+                    }),
+                ).toBe(true);
                 expect(gl.getError()).toBe(gl.NO_ERROR);
             });
 
             await it('FUNC_ADD SRC_ALPHA ONE_MINUS_SRC_ALPHA: alpha=0.5 blend', async () => {
-                expect(runBlendTest({
-                    name: 'ADD SRC_ALPHA ONE_MINUS_SRC_ALPHA',
-                    equation: gl.FUNC_ADD,
-                    srcFactor: gl.SRC_ALPHA,
-                    dstFactor: gl.ONE_MINUS_SRC_ALPHA,
-                    dstColor: [0.5, 0.0, 0.5, 1.0],
-                    srcColor: [0.5, 1.0, 0.0, 0.5],
-                    expected: [0.5, 0.5, 0.25, 0.75],
-                })).toBe(true);
+                expect(
+                    runBlendTest({
+                        name: 'ADD SRC_ALPHA ONE_MINUS_SRC_ALPHA',
+                        equation: gl.FUNC_ADD,
+                        srcFactor: gl.SRC_ALPHA,
+                        dstFactor: gl.ONE_MINUS_SRC_ALPHA,
+                        dstColor: [0.5, 0.0, 0.5, 1.0],
+                        srcColor: [0.5, 1.0, 0.0, 0.5],
+                        expected: [0.5, 0.5, 0.25, 0.75],
+                    }),
+                ).toBe(true);
                 expect(gl.getError()).toBe(gl.NO_ERROR);
             });
         });
@@ -157,10 +172,13 @@ export default async () => {
         // ── depth-buffer ───────────────────────────────────────────────────────
 
         await describe('rendering/depth-buffer', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('DEPTH_TEST NOTEQUAL: both passes render because depths differ', async () => {
-                const W = 50, H = 50;
+                const W = 50,
+                    H = 50;
                 const fbo = makeTestFBOWithDepth(gl, W, H);
 
                 gl.clearColor(0, 0, 0, 0);
@@ -193,8 +211,7 @@ export default async () => {
 
                 let allGreen = true;
                 for (let i = 0; i < W * H * 4; i += 4) {
-                    if (!pixelClose(pixels.subarray(i, i + 4) as unknown as Uint8Array,
-                            [0, 255, 0, 255], 3)) {
+                    if (!pixelClose(pixels.subarray(i, i + 4) as unknown as Uint8Array, [0, 255, 0, 255], 3)) {
                         allGreen = false;
                         break;
                     }
@@ -204,7 +221,8 @@ export default async () => {
             });
 
             await it('DEPTH_TEST LESS: closer triangle overwrites farther', async () => {
-                const W = 20, H = 20;
+                const W = 20,
+                    H = 20;
                 const fbo = makeTestFBOWithDepth(gl, W, H);
 
                 gl.clearColor(0, 0, 0, 0);
@@ -240,8 +258,7 @@ export default async () => {
 
                 let allGreen = true;
                 for (let i = 0; i < W * H * 4; i += 4) {
-                    if (!pixelClose(pixels.subarray(i, i + 4) as unknown as Uint8Array,
-                            [0, 255, 0, 255], 3)) {
+                    if (!pixelClose(pixels.subarray(i, i + 4) as unknown as Uint8Array, [0, 255, 0, 255], 3)) {
                         allGreen = false;
                         break;
                     }
@@ -251,7 +268,8 @@ export default async () => {
             });
 
             await it('depthMask(false) prevents depth writes', async () => {
-                const W = 10, H = 10;
+                const W = 10,
+                    H = 10;
                 const fbo = makeTestFBOWithDepth(gl, W, H);
 
                 gl.clearColor(0, 0, 0, 0);
@@ -285,8 +303,7 @@ export default async () => {
 
                 let allGreen = true;
                 for (let i = 0; i < W * H * 4; i += 4) {
-                    if (!pixelClose(pixels.subarray(i, i + 4) as unknown as Uint8Array,
-                            [0, 255, 0, 255], 3)) {
+                    if (!pixelClose(pixels.subarray(i, i + 4) as unknown as Uint8Array, [0, 255, 0, 255], 3)) {
                         allGreen = false;
                         break;
                     }
@@ -299,10 +316,13 @@ export default async () => {
         // ── scissor ────────────────────────────────────────────────────────────
 
         await describe('rendering/scissor', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('scissor test clips rendering to specified rectangle', async () => {
-                const W = 20, H = 20;
+                const W = 20,
+                    H = 20;
                 const fbo = makeTestFBO(gl, W, H);
 
                 // Fill everything red
@@ -327,9 +347,15 @@ export default async () => {
                         const i = (y * W + x) * 4;
                         const pix = pixels.subarray(i, i + 4) as unknown as Uint8Array;
                         if (x < W / 2) {
-                            if (!pixelClose(pix, [0, 255, 0, 255])) { ok = false; break; }
+                            if (!pixelClose(pix, [0, 255, 0, 255])) {
+                                ok = false;
+                                break;
+                            }
                         } else {
-                            if (!pixelClose(pix, [255, 0, 0, 255])) { ok = false; break; }
+                            if (!pixelClose(pix, [255, 0, 0, 255])) {
+                                ok = false;
+                                break;
+                            }
                         }
                     }
                     if (!ok) break;
@@ -345,10 +371,13 @@ export default async () => {
         // Tests depthRange(near, far) mapping of NDC z to window-space depth.
 
         await describe('rendering/mapbox-ansis', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('depthRange: green at range(0,0.1) survives blue at range(0.9,1) with LEQUAL', async () => {
-                const W = 4, H = 4;
+                const W = 4,
+                    H = 4;
 
                 const vsSrc = `
                     precision mediump float;
@@ -393,10 +422,11 @@ export default async () => {
                 const buf = gl.createBuffer()!;
                 gl.bindBuffer(gl.ARRAY_BUFFER, buf);
                 // Full-screen quad: 2 triangles covering [-1,1]² clip space
-                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-                    -1, -1,  1, -1, -1, 1,
-                    -1,  1,  1, -1,  1, 1,
-                ]), gl.STATIC_DRAW);
+                gl.bufferData(
+                    gl.ARRAY_BUFFER,
+                    new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+                    gl.STATIC_DRAW,
+                );
                 const aPos = gl.getAttribLocation(prog, 'a_position');
                 gl.enableVertexAttribArray(aPos);
                 gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
@@ -440,8 +470,7 @@ export default async () => {
                 // All pixels should be green (blue failed depth test)
                 let allGreen = true;
                 for (let i = 0; i < W * H * 4; i += 4) {
-                    if (pixels[i] !== 0 || pixels[i + 1] !== 255 ||
-                        pixels[i + 2] !== 0 || pixels[i + 3] !== 255) {
+                    if (pixels[i] !== 0 || pixels[i + 1] !== 255 || pixels[i + 2] !== 0 || pixels[i + 3] !== 255) {
                         allGreen = false;
                         break;
                     }
@@ -453,10 +482,13 @@ export default async () => {
         // ── viewport ───────────────────────────────────────────────────────────
 
         await describe('rendering/viewport', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('viewport restricts rendering region', async () => {
-                const W = 20, H = 20;
+                const W = 20,
+                    H = 20;
                 const fbo = makeTestFBO(gl, W, H);
 
                 gl.clearColor(1, 0, 0, 1);
@@ -485,9 +517,15 @@ export default async () => {
                         const i = (y * W + x) * 4;
                         const pix = pixels.subarray(i, i + 4) as unknown as Uint8Array;
                         if (x < HW && y < H / 2) {
-                            if (!pixelClose(pix, [0, 255, 0, 255])) { ok = false; break; }
+                            if (!pixelClose(pix, [0, 255, 0, 255])) {
+                                ok = false;
+                                break;
+                            }
                         } else {
-                            if (!pixelClose(pix, [255, 0, 0, 255])) { ok = false; break; }
+                            if (!pixelClose(pix, [255, 0, 0, 255])) {
+                                ok = false;
+                                break;
+                            }
                         }
                     }
                     if (!ok) break;
@@ -509,6 +547,5 @@ export default async () => {
                 expect(gl.getError()).toBe(gl.NO_ERROR);
             });
         });
-
     });
 };

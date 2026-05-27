@@ -4,9 +4,7 @@
 // Reference: Node.js lib/internal/process/* (init, signal, per_thread, ...).
 
 import { EventEmitter } from '@gjsify/events';
-import {
-    detectArch, detectPlatform, detectPpid, detectVersionInfo, getPid,
-} from './internal/detect.js';
+import { detectArch, detectPlatform, detectPpid, detectVersionInfo, getPid } from './internal/detect.js';
 import { chdir, getArgv, getCwd, getEnvProxy, getExecPath } from './internal/env.js';
 import { exitProcess } from './internal/exit.js';
 import { hrtime as hrtimeImpl, hrtimeBigint } from './internal/hrtime.js';
@@ -44,7 +42,10 @@ export class Process extends EventEmitter {
         this.argv0 = this.argv[0] || 'gjs';
         this.execPath = getExecPath();
         this.execArgv = globalThis.process?.execArgv ?? [];
-        this.config = (globalThis.process?.config as unknown as Record<string, unknown>) ?? { target_defaults: {}, variables: {} };
+        this.config = (globalThis.process?.config as unknown as Record<string, unknown>) ?? {
+            target_defaults: {},
+            variables: {},
+        };
         this.pid = getPid();
         this.ppid = detectPpid();
         const versionInfo = detectVersionInfo();
@@ -107,7 +108,9 @@ export class Process extends EventEmitter {
     }
 
     // no-op stubs for compatibility
-    umask(_mask?: number): number { return 0o22; }
+    umask(_mask?: number): number {
+        return 0o22;
+    }
     emitWarning(warning: string | Error, name?: string): void {
         if (typeof warning === 'string') {
             console.warn(`(${name || 'Warning'}): ${warning}`);
@@ -120,6 +123,6 @@ export class Process extends EventEmitter {
 // Attach `.bigint` to Process.prototype.hrtime so
 // `import { hrtime } from 'node:process'; hrtime.bigint()` works after
 // `index.ts` re-binds the method.
-(Process.prototype.hrtime as unknown as Record<string, () => bigint>).bigint = function(): bigint {
+(Process.prototype.hrtime as unknown as Record<string, () => bigint>).bigint = function (): bigint {
     return hrtimeBigint();
 };

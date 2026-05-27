@@ -6,7 +6,8 @@
 import { URLSearchParams } from '@gjsify/url';
 import { Blob } from './utils/blob-from.js';
 
-import { PassThrough, pipeline as pipelineCb, Readable, Stream, Writable } from 'node:stream';
+import type { Writable } from 'node:stream';
+import { PassThrough, pipeline as pipelineCb, Readable, Stream } from 'node:stream';
 import { Buffer } from 'node:buffer';
 
 import { FormData, formDataToBlob } from '@gjsify/formdata';
@@ -30,8 +31,7 @@ const pipeline = (source: Readable, dest: Writable): Promise<void> =>
 const INTERNALS = Symbol('Body internals');
 
 function isAnyArrayBuffer(val: unknown): val is ArrayBuffer {
-    return val instanceof ArrayBuffer ||
-        (typeof SharedArrayBuffer !== 'undefined' && val instanceof SharedArrayBuffer);
+    return val instanceof ArrayBuffer || (typeof SharedArrayBuffer !== 'undefined' && val instanceof SharedArrayBuffer);
 }
 
 function isBoxedPrimitive(val: unknown): boolean {
@@ -44,21 +44,20 @@ function isBoxedPrimitive(val: unknown): boolean {
     );
 }
 
- /**
-  * Body mixin
-  *
-  * Ref: https://fetch.spec.whatwg.org/#body
-  *
-  * @param body Readable stream
-  * @param opts Response options
-  */
+/**
+ * Body mixin
+ *
+ * Ref: https://fetch.spec.whatwg.org/#body
+ *
+ * @param body Readable stream
+ * @param opts Response options
+ */
 export default class Body {
-
     [INTERNALS]: {
         body: null | Buffer | Readable | Blob;
         stream: Readable | null;
         boundary: string;
-        disturbed: boolean,
+        disturbed: boolean;
         error: null | FetchBaseError;
     } = {
         body: null,
@@ -66,18 +65,21 @@ export default class Body {
         boundary: '',
         disturbed: false,
         error: null,
-    }
+    };
 
     size = 0;
 
-    constructor(body: BodyInit | Readable | Blob | Buffer | null, options: { size?: number; headers?: unknown } = { size: 0 }) {
+    constructor(
+        body: BodyInit | Readable | Blob | Buffer | null,
+        options: { size?: number; headers?: unknown } = { size: 0 },
+    ) {
         this.size = options.size || 0;
         if (body === null || body === undefined) {
             // Body is undefined or null
             this[INTERNALS].body = null;
         } else if (isURLSearchParameters(body)) {
             // Body is a URLSearchParams
-            this[INTERNALS].body = Buffer.from(body.toString())
+            this[INTERNALS].body = Buffer.from(body.toString());
         } else if (isBlob(body)) {
             // Body is blob
             this[INTERNALS].body = body as Blob;
@@ -101,10 +103,10 @@ export default class Body {
             const blob = formDataToBlob(body) as Blob & globalThis.Blob;
             this[INTERNALS].body = blob;
             this[INTERNALS].boundary = blob.type?.split('boundary=')?.[1] ?? '';
-        } else if (typeof body === 'string'){
+        } else if (typeof body === 'string') {
             // String body
             this[INTERNALS].body = Buffer.from(body);
-        } else if (body instanceof URLSearchParams){
+        } else if (body instanceof URLSearchParams) {
             this[INTERNALS].body = Buffer.from(body.toString());
         } else {
             console.warn(`Unknown body type "${typeof body}", try to parse the body to string!`);
@@ -123,9 +125,14 @@ export default class Body {
 
         if (b instanceof Stream) {
             b.on('error', (error_: Error) => {
-                const error = error_ instanceof FetchBaseError
-                    ? error_
-                    : new FetchError(`Invalid response body while trying to fetch ${(this as unknown as Request).url}: ${error_.message}`, 'system', error_ as unknown as SystemError);
+                const error =
+                    error_ instanceof FetchBaseError
+                        ? error_
+                        : new FetchError(
+                              `Invalid response body while trying to fetch ${(this as unknown as Request).url}: ${error_.message}`,
+                              'system',
+                              error_ as unknown as SystemError,
+                          );
                 this[INTERNALS].error = error;
             });
         }
@@ -144,7 +151,9 @@ export default class Body {
                         if (closed) return;
                         try {
                             controller.enqueue(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk));
-                        } catch { /* consumer cancelled — drop */ }
+                        } catch {
+                            /* consumer cancelled — drop */
+                        }
                     });
                     stream.on('end', () => {
                         if (closed) return;
@@ -152,18 +161,26 @@ export default class Body {
                         // Defensive: consumer may have cancelled the stream already,
                         // in which case .close() throws TypeError. Don't surface that
                         // as an unhandled error in the nextTick queue.
-                        try { controller.close(); } catch { /* already closed/cancelled */ }
+                        try {
+                            controller.close();
+                        } catch {
+                            /* already closed/cancelled */
+                        }
                     });
                     stream.on('error', (err: Error) => {
                         if (closed) return;
                         closed = true;
-                        try { controller.error(err); } catch { /* already closed/cancelled */ }
+                        try {
+                            controller.error(err);
+                        } catch {
+                            /* already closed/cancelled */
+                        }
                     });
                 },
                 cancel() {
                     closed = true;
                     stream.destroy();
-                }
+                },
             });
         }
 
@@ -191,7 +208,7 @@ export default class Body {
      * Decode response as ArrayBuffer
      */
     async arrayBuffer(): Promise<ArrayBuffer> {
-        const {buffer, byteOffset, byteLength} = await consumeBody(this);
+        const { buffer, byteOffset, byteLength } = await consumeBody(this);
         return buffer.slice(byteOffset, byteOffset + byteLength) as ArrayBuffer;
     }
 
@@ -209,7 +226,7 @@ export default class Body {
             return formData;
         }
 
-        const {toFormData} = await import('./utils/multipart-parser.js');
+        const { toFormData } = await import('./utils/multipart-parser.js');
         return toFormData(this.body, ct);
     }
 
@@ -217,11 +234,14 @@ export default class Body {
      * Return raw response as Blob
      */
     async blob(): Promise<Blob> {
-        const ct = ((this as unknown as Request).headers?.get('content-type')) || (this[INTERNALS].body && (this[INTERNALS].body as Blob).type) || '';
+        const ct =
+            (this as unknown as Request).headers?.get('content-type') ||
+            (this[INTERNALS].body && (this[INTERNALS].body as Blob).type) ||
+            '';
         const buf = await this.arrayBuffer();
 
         return new Blob([buf], {
-            type: ct
+            type: ct,
         });
     }
 
@@ -244,12 +264,12 @@ export default class Body {
 
 // In browsers, all properties are enumerable.
 Object.defineProperties(Body.prototype, {
-    body: {enumerable: true},
-    bodyUsed: {enumerable: true},
-    arrayBuffer: {enumerable: true},
-    blob: {enumerable: true},
-    json: {enumerable: true},
-    text: {enumerable: true},
+    body: { enumerable: true },
+    bodyUsed: { enumerable: true },
+    arrayBuffer: { enumerable: true },
+    blob: { enumerable: true },
+    json: { enumerable: true },
+    text: { enumerable: true },
 });
 
 /**
@@ -294,19 +314,30 @@ async function consumeBody(data: Body & { url?: string }): Promise<Buffer> {
         }
     } catch (error: unknown) {
         const err = error instanceof Error ? error : new Error(String(error));
-        const error_ = error instanceof FetchBaseError ? error : new FetchError(`Invalid response body while trying to fetch ${data.url}: ${err.message}`, 'system', err as unknown as SystemError);
+        const error_ =
+            error instanceof FetchBaseError
+                ? error
+                : new FetchError(
+                      `Invalid response body while trying to fetch ${data.url}: ${err.message}`,
+                      'system',
+                      err as unknown as SystemError,
+                  );
         throw error_;
     }
 
     try {
-        if (accum.every(c => typeof c === 'string')) {
+        if (accum.every((c) => typeof c === 'string')) {
             return Buffer.from((accum as unknown as string[]).join(''));
         }
 
         return Buffer.concat(accum as Buffer[], accumBytes);
     } catch (error: unknown) {
         const err = error instanceof Error ? error : new Error(String(error));
-        throw new FetchError(`Could not create Buffer from response body for ${data.url}: ${err.message}`, 'system', err as unknown as SystemError);
+        throw new FetchError(
+            `Could not create Buffer from response body for ${data.url}: ${err.message}`,
+            'system',
+            err as unknown as SystemError,
+        );
     }
 }
 
@@ -316,15 +347,15 @@ async function consumeBody(data: Body & { url?: string }): Promise<Buffer> {
 export const clone = <T extends Request | Response>(instance: T, highWaterMark?: number) => {
     let p1: PassThrough;
     let p2: PassThrough;
-    let {body} = instance[INTERNALS];
+    let { body } = instance[INTERNALS];
 
     if (instance.bodyUsed) {
         throw new Error('cannot clone body after it is used');
     }
 
-    if ((body instanceof Stream) && (typeof (body as unknown as Record<string, unknown>).getBoundary !== 'function')) {
-        p1 = new PassThrough({highWaterMark});
-        p2 = new PassThrough({highWaterMark});
+    if (body instanceof Stream && typeof (body as unknown as Record<string, unknown>).getBoundary !== 'function') {
+        p1 = new PassThrough({ highWaterMark });
+        p2 = new PassThrough({ highWaterMark });
         body.pipe(p1);
         body.pipe(p2);
         instance[INTERNALS].stream = p1;
@@ -337,7 +368,10 @@ export const clone = <T extends Request | Response>(instance: T, highWaterMark?:
 /**
  * Extract a Content-Type value from a body.
  */
-export const extractContentType = (body: BodyInit | Readable | Blob | Buffer | null, request: Request | Response): string | null => {
+export const extractContentType = (
+    body: BodyInit | Readable | Blob | Buffer | null,
+    request: Request | Response,
+): string | null => {
     if (body === null) {
         return null;
     }
@@ -398,7 +432,7 @@ export const getTotalBytes = (request: Request): number | null => {
 /**
  * Write a Body to a Node.js WritableStream.
  */
-export const writeToStream = async (dest: Writable, {body}: {body: Readable | null}): Promise<void> => {
+export const writeToStream = async (dest: Writable, { body }: { body: Readable | null }): Promise<void> => {
     if (body === null) {
         dest.end();
     } else {
@@ -426,7 +460,7 @@ function readableStreamToReadable(webStream: ReadableStream): Readable {
         },
         destroy(_err, callback) {
             reader.cancel().then(() => callback(null), callback);
-        }
+        },
     });
 }
 

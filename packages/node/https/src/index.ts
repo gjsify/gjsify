@@ -2,7 +2,8 @@
 // Thin wrapper — Soup.Session handles HTTPS natively via GnuTLS.
 // Reference: Node.js lib/https.js
 
-import { request as httpRequest, get as httpGet, ClientRequest, IncomingMessage, Server as HttpServer } from 'node:http';
+import type { ClientRequest, IncomingMessage } from 'node:http';
+import { request as httpRequest, get as httpGet, Server as HttpServer } from 'node:http';
 import { TLSSocket, createSecureContext } from 'node:tls';
 import type { TlsOptions } from 'node:tls';
 import { URL } from 'node:url';
@@ -10,34 +11,34 @@ import { URL } from 'node:url';
 export { TLSSocket, createSecureContext };
 
 export interface RequestOptions {
-  protocol?: string;
-  hostname?: string;
-  host?: string;
-  port?: number | string;
-  path?: string;
-  method?: string;
-  headers?: Record<string, string | number | string[]>;
-  timeout?: number;
-  agent?: unknown;
-  setHost?: boolean;
-  ca?: string | Buffer | Array<string | Buffer>;
-  cert?: string | Buffer | Array<string | Buffer>;
-  key?: string | Buffer | Array<string | Buffer>;
-  rejectUnauthorized?: boolean;
+    protocol?: string;
+    hostname?: string;
+    host?: string;
+    port?: number | string;
+    path?: string;
+    method?: string;
+    headers?: Record<string, string | number | string[]>;
+    timeout?: number;
+    agent?: unknown;
+    setHost?: boolean;
+    ca?: string | Buffer | Array<string | Buffer>;
+    cert?: string | Buffer | Array<string | Buffer>;
+    key?: string | Buffer | Array<string | Buffer>;
+    rejectUnauthorized?: boolean;
 }
 
 /**
  * HTTPS Agent for connection pooling (stub — Soup.Session handles TLS internally).
  */
 export class Agent {
-  defaultPort = 443;
-  protocol = 'https:';
-  maxSockets = Infinity;
-  maxFreeSockets = 256;
+    defaultPort = 443;
+    protocol = 'https:';
+    maxSockets = Infinity;
+    maxFreeSockets = 256;
 
-  constructor(_options?: Record<string, unknown>) {}
+    constructor(_options?: Record<string, unknown>) {}
 
-  destroy(): void {}
+    destroy(): void {}
 }
 
 export const globalAgent = new Agent();
@@ -46,52 +47,60 @@ export const globalAgent = new Agent();
  * Make an HTTPS request.
  * Soup.Session handles TLS natively — we just ensure protocol is https:.
  */
-export function request(url: string | URL | RequestOptions, options?: RequestOptions | ((res: IncomingMessage) => void), callback?: (res: IncomingMessage) => void): ClientRequest {
-  if (typeof url === 'string') {
-    if (url.startsWith('https://') || url.startsWith('http://')) {
-      return httpRequest(url, options as unknown as Record<string, unknown>, callback);
+export function request(
+    url: string | URL | RequestOptions,
+    options?: RequestOptions | ((res: IncomingMessage) => void),
+    callback?: (res: IncomingMessage) => void,
+): ClientRequest {
+    if (typeof url === 'string') {
+        if (url.startsWith('https://') || url.startsWith('http://')) {
+            return httpRequest(url, options as unknown as Record<string, unknown>, callback);
+        }
+        const opts: RequestOptions = { hostname: url, protocol: 'https:', port: 443 };
+        if (typeof options === 'object') Object.assign(opts, options);
+        if (typeof options === 'function') callback = options;
+        return httpRequest(opts as unknown as Record<string, unknown>, callback);
     }
-    const opts: RequestOptions = { hostname: url, protocol: 'https:', port: 443 };
-    if (typeof options === 'object') Object.assign(opts, options);
+
+    if (url instanceof URL) {
+        return httpRequest(url, options as unknown as Record<string, unknown>, callback);
+    }
+
+    // url is RequestOptions
+    const opts = { protocol: 'https:', port: 443, ...url };
     if (typeof options === 'function') callback = options;
     return httpRequest(opts as unknown as Record<string, unknown>, callback);
-  }
-
-  if (url instanceof URL) {
-    return httpRequest(url, options as unknown as Record<string, unknown>, callback);
-  }
-
-  // url is RequestOptions
-  const opts = { protocol: 'https:', port: 443, ...url };
-  if (typeof options === 'function') callback = options;
-  return httpRequest(opts as unknown as Record<string, unknown>, callback);
 }
 
 /**
  * Make an HTTPS GET request (convenience wrapper).
  */
-export function get(url: string | URL | RequestOptions, options?: RequestOptions | ((res: IncomingMessage) => void), callback?: (res: IncomingMessage) => void): ClientRequest {
-  if (typeof url === 'string') {
-    if (url.startsWith('https://') || url.startsWith('http://')) {
-      return httpGet(url, options as unknown as Record<string, unknown>, callback) as ClientRequest;
+export function get(
+    url: string | URL | RequestOptions,
+    options?: RequestOptions | ((res: IncomingMessage) => void),
+    callback?: (res: IncomingMessage) => void,
+): ClientRequest {
+    if (typeof url === 'string') {
+        if (url.startsWith('https://') || url.startsWith('http://')) {
+            return httpGet(url, options as unknown as Record<string, unknown>, callback) as ClientRequest;
+        }
+        const opts: RequestOptions = { hostname: url, protocol: 'https:', port: 443 };
+        if (typeof options === 'object') Object.assign(opts, options);
+        if (typeof options === 'function') callback = options;
+        return httpGet(opts as unknown as Record<string, unknown>, callback) as ClientRequest;
     }
-    const opts: RequestOptions = { hostname: url, protocol: 'https:', port: 443 };
-    if (typeof options === 'object') Object.assign(opts, options);
+
+    if (url instanceof URL) {
+        return httpGet(url, options as unknown as Record<string, unknown>, callback) as ClientRequest;
+    }
+
+    const opts = { protocol: 'https:', port: 443, ...url, method: 'GET' };
     if (typeof options === 'function') callback = options;
     return httpGet(opts as unknown as Record<string, unknown>, callback) as ClientRequest;
-  }
-
-  if (url instanceof URL) {
-    return httpGet(url, options as unknown as Record<string, unknown>, callback) as ClientRequest;
-  }
-
-  const opts = { protocol: 'https:', port: 443, ...url, method: 'GET' };
-  if (typeof options === 'function') callback = options;
-  return httpGet(opts as unknown as Record<string, unknown>, callback) as ClientRequest;
 }
 
 export interface HttpsServerOptions extends RequestOptions {
-  requestCert?: boolean;
+    requestCert?: boolean;
 }
 
 /**
@@ -100,9 +109,9 @@ export interface HttpsServerOptions extends RequestOptions {
  * requests on top.
  */
 export class Server extends HttpServer {
-  constructor(options?: HttpsServerOptions, requestListener?: (req: IncomingMessage, res: unknown) => void) {
-    super(requestListener);
-  }
+    constructor(options?: HttpsServerOptions, requestListener?: (req: IncomingMessage, res: unknown) => void) {
+        super(requestListener);
+    }
 }
 
 /**
@@ -111,25 +120,28 @@ export class Server extends HttpServer {
  * a TLS certificate. For API compatibility, this wraps the TLS server
  * infrastructure.
  */
-export function createServer(options?: HttpsServerOptions, requestListener?: (req: IncomingMessage, res: unknown) => void): Server;
+export function createServer(
+    options?: HttpsServerOptions,
+    requestListener?: (req: IncomingMessage, res: unknown) => void,
+): Server;
 export function createServer(requestListener?: (req: IncomingMessage, res: unknown) => void): Server;
 export function createServer(
-  optionsOrListener?: HttpsServerOptions | ((req: IncomingMessage, res: unknown) => void),
-  requestListener?: (req: IncomingMessage, res: unknown) => void,
+    optionsOrListener?: HttpsServerOptions | ((req: IncomingMessage, res: unknown) => void),
+    requestListener?: (req: IncomingMessage, res: unknown) => void,
 ): Server {
-  if (typeof optionsOrListener === 'function') {
-    return new Server(undefined, optionsOrListener);
-  }
-  return new Server(optionsOrListener, requestListener);
+    if (typeof optionsOrListener === 'function') {
+        return new Server(undefined, optionsOrListener);
+    }
+    return new Server(optionsOrListener, requestListener);
 }
 
 export default {
-  Agent,
-  globalAgent,
-  Server,
-  request,
-  get,
-  createServer,
-  TLSSocket,
-  createSecureContext,
+    Agent,
+    globalAgent,
+    Server,
+    request,
+    get,
+    createServer,
+    TLSSocket,
+    createSecureContext,
 };

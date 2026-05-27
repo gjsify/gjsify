@@ -18,7 +18,7 @@ import '@girs/gdkpixbuf-2.0';
 import * as bits from 'bit-twiddle';
 import Gwebgl from '@girs/gwebgl-0.1';
 import { WebGLContextAttributes } from './webgl-context-attributes.js';
-import { HTMLCanvasElement } from './html-canvas-element.js';
+import type { HTMLCanvasElement } from './html-canvas-element.js';
 import { flag } from './utils.js';
 
 // Extension factories
@@ -37,13 +37,13 @@ import { getEXTTextureFilterAnisotropic } from './extensions/ext-texture-filter-
 import { getOESTextureHalfFloat } from './extensions/oes-texture-half-float.js';
 // import { getOESVertexArrayObject } from './extensions/oes-vertex-array-object.js';
 
-import { WebGLBuffer } from './webgl-buffer.js';
-import { WebGLDrawingBufferWrapper } from './webgl-drawing-buffer-wrapper.js';
-import { WebGLFramebuffer } from './webgl-framebuffer.js';
-import { WebGLProgram } from './webgl-program.js';
-import { WebGLRenderbuffer } from './webgl-renderbuffer.js';
-import { WebGLShader } from './webgl-shader.js';
-import { WebGLTexture } from './webgl-texture.js';
+import type { WebGLBuffer } from './webgl-buffer.js';
+import type { WebGLDrawingBufferWrapper } from './webgl-drawing-buffer-wrapper.js';
+import type { WebGLFramebuffer } from './webgl-framebuffer.js';
+import type { WebGLProgram } from './webgl-program.js';
+import type { WebGLRenderbuffer } from './webgl-renderbuffer.js';
+import type { WebGLShader } from './webgl-shader.js';
+import type { WebGLTexture } from './webgl-texture.js';
 import { WebGLTextureUnit } from './webgl-texture-unit.js';
 import { WebGLVertexArrayObjectState, WebGLVertexArrayGlobalState } from './webgl-vertex-attribute.js';
 
@@ -79,7 +79,8 @@ const availableExtensions: Record<string, ExtensionFactory> = {
  */
 type WebGLExtensionLike = Record<string, unknown>;
 
-export interface WebGLContextBase extends WebGLConstants { }
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: merges the GL enum constants into the class
+export interface WebGLContextBase extends WebGLConstants {}
 
 export abstract class WebGLContextBase {
     canvas: HTMLCanvasElement;
@@ -170,7 +171,10 @@ export abstract class WebGLContextBase {
     _textureUnits: WebGLTextureUnit[] = [];
     _drawingBuffer: WebGLDrawingBufferWrapper | null = null;
 
-    protected constructor(canvas: HTMLCanvasElement | null, options: Partial<Gwebgl.WebGLRenderingContext.ConstructorProps> & WebGLContextAttributes = {} as never) {
+    protected constructor(
+        canvas: HTMLCanvasElement | null,
+        options: Partial<Gwebgl.WebGLRenderingContext.ConstructorProps> & WebGLContextAttributes = {} as never,
+    ) {
         this.canvas = canvas;
 
         this._contextAttributes = new WebGLContextAttributes(
@@ -185,7 +189,8 @@ export abstract class WebGLContextBase {
         );
 
         // Can only use premultipliedAlpha if alpha is set
-        this._contextAttributes.premultipliedAlpha = this._contextAttributes.premultipliedAlpha && this._contextAttributes.alpha;
+        this._contextAttributes.premultipliedAlpha =
+            this._contextAttributes.premultipliedAlpha && this._contextAttributes.alpha;
     }
 
     /**
@@ -197,7 +202,7 @@ export abstract class WebGLContextBase {
         // signal has already bound its own FBO (never FBO 0). We need this ID so that
         // bindFramebuffer(target, null) restores the right FBO instead of binding 0.
         // 0x8CA6 = GL_DRAW_FRAMEBUFFER_BINDING / GL_FRAMEBUFFER_BINDING (same enum value).
-        const gtkFboVariant = this._gl.getParameterx(0x8CA6);
+        const gtkFboVariant = this._gl.getParameterx(0x8ca6);
         this._gtkFboId = (gtkFboVariant?.deepUnpack() as number) | 0;
 
         this._initGLConstants();
@@ -218,7 +223,7 @@ export abstract class WebGLContextBase {
 
         // Initialize texture units
         const numTextures = this.getParameter(this.MAX_COMBINED_TEXTURE_IMAGE_UNITS) as number;
-        this._textureUnits = new Array(numTextures);
+        this._textureUnits = Array.from({ length: numTextures });
         for (let i = 0; i < numTextures; ++i) {
             this._textureUnits[i] = new WebGLTextureUnit(this, i);
         }
@@ -293,8 +298,7 @@ export abstract class WebGLContextBase {
     // ─── Foundational helpers used across multiple split modules ──────────
 
     _checkOwns(object: unknown): boolean {
-        return typeof object === 'object' && object !== null &&
-            (object as { _ctx?: unknown })._ctx === this;
+        return typeof object === 'object' && object !== null && (object as { _ctx?: unknown })._ctx === this;
     }
 
     _checkValid(object: unknown, Type: { new (...args: unknown[]): unknown }): boolean {
@@ -313,8 +317,7 @@ export abstract class WebGLContextBase {
     }
 
     _isObject(object: unknown, method: string, Wrapper: { new (...args: unknown[]): unknown }): boolean {
-        if (!(object === null || object === undefined) &&
-            !(object instanceof Wrapper)) {
+        if (!(object === null || object === undefined) && !(object instanceof Wrapper)) {
             throw new TypeError(method + '(' + Wrapper.name + ')');
         }
         if (this._checkValid(object, Wrapper) && this._checkOwns(object)) {
@@ -329,12 +332,11 @@ export abstract class WebGLContextBase {
         }
         this._checkStencil = false;
         this._stencilState = true;
-        if (this.getParameter(this.STENCIL_WRITEMASK) !==
-            this.getParameter(this.STENCIL_BACK_WRITEMASK) ||
-            this.getParameter(this.STENCIL_VALUE_MASK) !==
-            this.getParameter(this.STENCIL_BACK_VALUE_MASK) ||
-            this.getParameter(this.STENCIL_REF) !==
-            this.getParameter(this.STENCIL_BACK_REF)) {
+        if (
+            this.getParameter(this.STENCIL_WRITEMASK) !== this.getParameter(this.STENCIL_BACK_WRITEMASK) ||
+            this.getParameter(this.STENCIL_VALUE_MASK) !== this.getParameter(this.STENCIL_BACK_VALUE_MASK) ||
+            this.getParameter(this.STENCIL_REF) !== this.getParameter(this.STENCIL_BACK_REF)
+        ) {
             this.setError(this.INVALID_OPERATION);
             this._stencilState = false;
         }
@@ -342,9 +344,7 @@ export abstract class WebGLContextBase {
     }
 
     _validGLSLIdentifier(str: string): boolean {
-        return !(str.indexOf('webgl_') === 0 ||
-            str.indexOf('_webgl_') === 0 ||
-            str.length > 256);
+        return !(str.indexOf('webgl_') === 0 || str.indexOf('_webgl_') === 0 || str.length > 256);
     }
 
     _getParameterDirect(pname: GLenum): unknown {
@@ -375,11 +375,7 @@ export abstract class WebGLContextBase {
     }
 
     getSupportedExtensions(): string[] {
-        const exts = [
-            'ANGLE_instanced_arrays',
-            'STACKGL_resize_drawingbuffer',
-            'STACKGL_destroy_context',
-        ];
+        const exts = ['ANGLE_instanced_arrays', 'STACKGL_resize_drawingbuffer', 'STACKGL_destroy_context'];
 
         const supportedExts = this._gl.getSupportedExtensions();
 
@@ -391,10 +387,16 @@ export abstract class WebGLContextBase {
         if (supportedExts.indexOf('GL_OES_standard_derivatives') >= 0) exts.push('OES_standard_derivatives');
         if (supportedExts.indexOf('GL_OES_texture_float') >= 0) exts.push('OES_texture_float');
         if (supportedExts.indexOf('GL_OES_texture_float_linear') >= 0) exts.push('OES_texture_float_linear');
-        if (supportedExts.indexOf('GL_OES_texture_half_float') >= 0 ||
-            supportedExts.indexOf('GL_ARB_half_float_pixel') >= 0) exts.push('OES_texture_half_float');
-        if (supportedExts.indexOf('GL_EXT_color_buffer_float') >= 0 ||
-            supportedExts.indexOf('GL_ARB_color_buffer_float') >= 0) exts.push('EXT_color_buffer_float');
+        if (
+            supportedExts.indexOf('GL_OES_texture_half_float') >= 0 ||
+            supportedExts.indexOf('GL_ARB_half_float_pixel') >= 0
+        )
+            exts.push('OES_texture_half_float');
+        if (
+            supportedExts.indexOf('GL_EXT_color_buffer_float') >= 0 ||
+            supportedExts.indexOf('GL_ARB_color_buffer_float') >= 0
+        )
+            exts.push('EXT_color_buffer_float');
         if (supportedExts.indexOf('GL_EXT_color_buffer_half_float') >= 0) exts.push('EXT_color_buffer_half_float');
         if (supportedExts.indexOf('EXT_draw_buffers') >= 0) exts.push('WEBGL_draw_buffers');
         if (supportedExts.indexOf('EXT_blend_minmax') >= 0) exts.push('EXT_blend_minmax');
@@ -567,15 +569,24 @@ export abstract class WebGLContextBase {
                     }
                 }
 
-                if (this._extensions.oes_standard_derivatives && pname === this._extensions.oes_standard_derivatives.FRAGMENT_SHADER_DERIVATIVE_HINT_OES) {
+                if (
+                    this._extensions.oes_standard_derivatives &&
+                    pname === this._extensions.oes_standard_derivatives.FRAGMENT_SHADER_DERIVATIVE_HINT_OES
+                ) {
                     return this._getParameterDirect(pname);
                 }
 
-                if (this._extensions.ext_texture_filter_anisotropic && pname === this._extensions.ext_texture_filter_anisotropic.MAX_TEXTURE_MAX_ANISOTROPY_EXT) {
+                if (
+                    this._extensions.ext_texture_filter_anisotropic &&
+                    pname === this._extensions.ext_texture_filter_anisotropic.MAX_TEXTURE_MAX_ANISOTROPY_EXT
+                ) {
                     return this._getParameterDirect(pname);
                 }
 
-                if (this._extensions.oes_vertex_array_object && pname === this._extensions.oes_vertex_array_object.VERTEX_ARRAY_BINDING_OES) {
+                if (
+                    this._extensions.oes_vertex_array_object &&
+                    pname === this._extensions.oes_vertex_array_object.VERTEX_ARRAY_BINDING_OES
+                ) {
                     return this._extensions.oes_vertex_array_object._activeVertexArrayObject;
                 }
 

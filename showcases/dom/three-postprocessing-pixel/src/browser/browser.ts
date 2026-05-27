@@ -116,8 +116,7 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
 
     // Append toggle button to header bar start section AFTER DOM connection
     // (connectedCallback has already created the .adw-header-bar-start wrapper)
-    const startSection = headerBar.startSection
-        ?? headerBar.querySelector('.adw-header-bar-start');
+    const startSection = headerBar.startSection ?? headerBar.querySelector('.adw-header-bar-start');
     if (startSection) {
         startSection.appendChild(toggleBtn);
     } else {
@@ -125,8 +124,7 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
         headerBar.prepend(toggleBtn);
     }
 
-    const endSection = headerBar.endSection
-        ?? headerBar.querySelector('.adw-header-bar-end');
+    const endSection = headerBar.endSection ?? headerBar.querySelector('.adw-header-bar-end');
     if (endSection) {
         endSection.appendChild(pauseBtn);
     } else {
@@ -208,7 +206,9 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     });
 
     return {
-        get isPaused() { return demo ? demo.isPaused : pendingPause; },
+        get isPaused() {
+            return demo ? demo.isPaused : pendingPause;
+        },
         pause() {
             if (demo) {
                 demo.pause();
@@ -232,7 +232,10 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
 
 function connectControls(
     demo: PixelDemo,
-    pixelSizeRow: any, normalEdgeRow: any, depthEdgeRow: any, pixelAlignRow: any,
+    pixelSizeRow: any,
+    normalEdgeRow: any,
+    depthEdgeRow: any,
+    pixelAlignRow: any,
 ) {
     pixelSizeRow.addEventListener('notify::value', () => {
         demo.effectController.pixelSize = pixelSizeRow.value;

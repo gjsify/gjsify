@@ -48,7 +48,9 @@ export function start(canvas: HTMLCanvasElement): SnesDemo {
     requestAnimationFrame(loop);
 
     return {
-        get state() { return currentState; },
+        get state() {
+            return currentState;
+        },
     };
 }
 

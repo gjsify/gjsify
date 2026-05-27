@@ -15,12 +15,7 @@ export const DEFAULT_GNOME_RUNTIME_VERSION = '50';
 export const DEFAULT_FREEDESKTOP_RUNTIME_VERSION = '24.08';
 
 /** Permissive GUI defaults for GTK4 + Adwaita apps. */
-export const DEFAULT_GUI_FINISH_ARGS = [
-    '--device=dri',
-    '--share=ipc',
-    '--socket=fallback-x11',
-    '--socket=wayland',
-];
+export const DEFAULT_GUI_FINISH_ARGS = ['--device=dri', '--share=ipc', '--socket=fallback-x11', '--socket=wayland'];
 
 /** Lean defaults for headless CLI tools — no display, no GPU. */
 export const DEFAULT_CLI_FINISH_ARGS: string[] = [];

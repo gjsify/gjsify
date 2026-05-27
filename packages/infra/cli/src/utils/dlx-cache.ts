@@ -60,10 +60,7 @@ export function makePrepareDir(cacheDir: string): string {
  * realpath. Returns undefined when the link doesn't exist, isn't a symlink,
  * has been removed, or has expired.
  */
-export function getValidCachedPkg(
-    cacheDir: string,
-    maxAgeMinutes: number = DEFAULT_TTL_MIN,
-): string | undefined {
+export function getValidCachedPkg(cacheDir: string, maxAgeMinutes: number = DEFAULT_TTL_MIN): string | undefined {
     const linkPath = join(cacheDir, 'pkg');
     let stats: Stats;
     try {
@@ -100,12 +97,8 @@ export function symlinkSwap(cacheDir: string, prepareDir: string): string {
     const tmpName = `pkg.tmp-${Date.now().toString(16)}-${process.pid.toString(16)}`;
     const tmpLink = join(cacheDir, tmpName);
 
-    try {
-        symlinkSync(prepareDir, tmpLink, 'dir');
-    } catch (err) {
-        // If we cannot even create the tmp link, give up.
-        throw err;
-    }
+    // If we cannot even create the tmp link, give up (the error propagates).
+    symlinkSync(prepareDir, tmpLink, 'dir');
 
     try {
         renameSync(tmpLink, linkPath);
@@ -113,7 +106,9 @@ export function symlinkSwap(cacheDir: string, prepareDir: string): string {
         const code = (err as NodeJS.ErrnoException).code;
         if (code === 'EBUSY' || code === 'EPERM' || code === 'EEXIST') {
             // Race lost — clean up our tmp and use whoever won.
-            try { rmSync(tmpLink); } catch {}
+            try {
+                rmSync(tmpLink);
+            } catch {}
             return realpathSync(linkPath);
         }
         throw err;

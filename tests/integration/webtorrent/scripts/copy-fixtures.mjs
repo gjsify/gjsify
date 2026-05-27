@@ -19,8 +19,8 @@ const fixturesRoot = dirname(fixturesPkgPath);
 const srcDir = join(fixturesRoot, 'fixtures');
 
 if (!existsSync(srcDir)) {
-  console.error(`[copy-fixtures] Source not found: ${srcDir}`);
-  process.exit(1);
+    console.error(`[copy-fixtures] Source not found: ${srcDir}`);
+    process.exit(1);
 }
 
 await rm(destDir, { recursive: true, force: true });

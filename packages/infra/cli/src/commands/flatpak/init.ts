@@ -31,11 +31,7 @@ import {
     type ScaffoldInputs,
 } from './scaffold.js';
 import { Config } from '../../config.js';
-import {
-    BiomeNotFoundError,
-    hasBiomeDevDep,
-    runBiome,
-} from '../../utils/biome-resolve.js';
+import { OxcNotFoundError, hasOxcDevDep, runOxfmt } from '../../utils/oxc-resolve.js';
 
 interface FlatpakInitOptions {
     appId?: string;
@@ -57,8 +53,7 @@ interface FlatpakInitOptions {
 
 export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
     command: 'init',
-    description:
-        'Generate Flatpak manifest + MetaInfo XML + .desktop + flathub.json from `gjsify.flatpak` config.',
+    description: 'Generate Flatpak manifest + MetaInfo XML + .desktop + flathub.json from `gjsify.flatpak` config.',
     builder: (yargs) => {
         return yargs
             .option('app-id', {
@@ -128,15 +123,16 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
             })
             .option('format', {
                 description:
-                    'Run `gjsify format --write` on the generated files when `@biomejs/biome` is detected in the project. ' +
-                    'Default: true. Pass --no-format to skip.',
+                    'Run `oxfmt --write` on the generated JS/TS files when `oxfmt` is detected in the project. ' +
+                    'Default: true. Pass --no-format to skip. Note: oxfmt formats JS/TS only — the JSON/XML/.desktop ' +
+                    'manifests generated here are not reformatted (CSS/JSON formatting was dropped in the oxc migration).',
                 type: 'boolean',
                 default: true,
             });
     },
     handler: async (args) => {
         const cfg = new Config();
-        const configData = await cfg.forBuild({} as never).catch(() => ({} as ConfigData));
+        const configData = await cfg.forBuild({} as never).catch(() => ({}) as ConfigData);
         const flatpak: ConfigDataFlatpak = configData.flatpak ?? {};
         const cwd = process.cwd();
         const pkg = readPackageJson(cwd);
@@ -153,9 +149,7 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
         }
 
         const kind: 'app' | 'cli' =
-            (args.kind as 'app' | 'cli' | undefined) ??
-            flatpak.kind ??
-            (args.cliOnly ? 'cli' : 'app');
+            (args.kind as 'app' | 'cli' | undefined) ?? flatpak.kind ?? (args.cliOnly ? 'cli' : 'app');
 
         const { runtime, runtimeId, sdk, runtimeVersion } = resolveRuntime(flatpak, {
             runtime: args.runtime,
@@ -170,8 +164,7 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
         const finishArgs =
             explicitFinishArgs !== undefined
                 ? explicitFinishArgs
-                : flatpak.finishArgs ??
-                  (kind === 'cli' ? DEFAULT_CLI_FINISH_ARGS : DEFAULT_GUI_FINISH_ARGS);
+                : (flatpak.finishArgs ?? (kind === 'cli' ? DEFAULT_CLI_FINISH_ARGS : DEFAULT_GUI_FINISH_ARGS));
 
         const manifest: Record<string, unknown> = {
             id: appId,
@@ -218,7 +211,9 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
 
         const manifestOut = (args.manifest as string | undefined) ?? `${appId}.json`;
         const manifestPath = resolve(cwd, manifestOut);
-        trackWrite(writeIfFresh(manifestPath, JSON.stringify(manifest, null, 2) + '\n', args.force ?? false, 'manifest'));
+        trackWrite(
+            writeIfFresh(manifestPath, JSON.stringify(manifest, null, 2) + '\n', args.force ?? false, 'manifest'),
+        );
 
         const pkgName = (pkg.name as string | undefined) ?? appId;
         const scaffold: ScaffoldInputs = {
@@ -237,16 +232,15 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
                 '\nFill these fields in package.json#gjsify.flatpak (or .gjsifyrc.*) and re-run with --force.',
             );
         } else {
-            const metainfoXml =
-                kind === 'cli' ? renderMetainfoCli(scaffold) : renderMetainfoApp(scaffold);
-            const metainfoOut =
-                (args.metainfo as string | undefined) ?? `data/${appId}.metainfo.xml.in`;
+            const metainfoXml = kind === 'cli' ? renderMetainfoCli(scaffold) : renderMetainfoApp(scaffold);
+            const metainfoOut = (args.metainfo as string | undefined) ?? `data/${appId}.metainfo.xml.in`;
             trackWrite(writeIfFresh(resolve(cwd, metainfoOut), metainfoXml, args.force ?? false, 'metainfo'));
 
             if (kind === 'app') {
-                const desktopOut =
-                    (args.desktop as string | undefined) ?? `data/${appId}.desktop.in`;
-                trackWrite(writeIfFresh(resolve(cwd, desktopOut), renderDesktop(scaffold), args.force ?? false, 'desktop'));
+                const desktopOut = (args.desktop as string | undefined) ?? `data/${appId}.desktop.in`;
+                trackWrite(
+                    writeIfFresh(resolve(cwd, desktopOut), renderDesktop(scaffold), args.force ?? false, 'desktop'),
+                );
 
                 if (!flatpak.icon) {
                     console.warn(
@@ -257,23 +251,27 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
             }
 
             const flathubOut = (args.flathubJson as string | undefined) ?? 'flathub.json';
-            trackWrite(writeIfFresh(resolve(cwd, flathubOut), renderFlathubJson(kind), args.force ?? false, 'flathub.json'));
+            trackWrite(
+                writeIfFresh(resolve(cwd, flathubOut), renderFlathubJson(kind), args.force ?? false, 'flathub.json'),
+            );
         }
 
-        // Optional post-format: when biome is configured in the project,
-        // run `biome format --write` on the generated files so they match
-        // the project's prettier/biome style. Default behaviour (2-space
-        // JSON) already matches biome/prettier/Flathub defaults; this
-        // step harmonises edge-case fields (line endings, trailing commas
-        // in JSONC, key sort order if biome's organize-imports has rules).
-        if (writtenFiles.length > 0 && args.format !== false && hasBiomeDevDep(cwd)) {
+        // Optional post-format: when oxfmt is configured in the project, run
+        // `oxfmt --write` on any generated JS/TS files. oxfmt formats JS/TS
+        // (+TOML) only — the manifest/MetaInfo/.desktop/flathub outputs are
+        // JSON/XML/INI and are therefore left untouched (CSS/JSON formatting
+        // was dropped in the Biome → oxc migration). In practice flatpak init
+        // emits no JS/TS, so this is usually a no-op; it remains as a hook for
+        // any future JS/TS scaffold output.
+        const jsLikeFiles = writtenFiles.filter((p) => /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(p));
+        if (jsLikeFiles.length > 0 && args.format !== false && hasOxcDevDep(cwd)) {
             try {
-                await runBiome(['format', '--write', ...writtenFiles], { cwd });
+                await runOxfmt(['--write', ...jsLikeFiles], { cwd });
             } catch (err) {
-                if (err instanceof BiomeNotFoundError) {
-                    // Biome configured but binary missing — non-fatal warning.
+                if (err instanceof OxcNotFoundError) {
+                    // oxfmt configured but binding missing — non-fatal warning.
                     console.warn(
-                        `[gjsify flatpak init] post-format skipped: @biomejs/biome declared but binary not installed. ` +
+                        `[gjsify flatpak init] post-format skipped: oxfmt declared but binding not installed. ` +
                             `Run \`gjsify install\` then re-run with --force, or pass --no-format.`,
                     );
                 } else {

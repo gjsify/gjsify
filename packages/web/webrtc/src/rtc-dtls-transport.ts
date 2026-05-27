@@ -8,7 +8,7 @@
 
 import '@gjsify/dom-events/register/event-target';
 
-import { RTCIceTransport } from './rtc-ice-transport.js';
+import type { RTCIceTransport } from './rtc-ice-transport.js';
 
 export type RTCDtlsTransportState = 'new' | 'connecting' | 'connected' | 'closed' | 'failed';
 
@@ -26,14 +26,26 @@ export class RTCDtlsTransport extends EventTarget {
         this.iceTransport = iceTransport;
     }
 
-    get state(): RTCDtlsTransportState { return this._state; }
+    get state(): RTCDtlsTransportState {
+        return this._state;
+    }
 
-    get onstatechange(): EventHandler { return this._onstatechange; }
-    set onstatechange(v: EventHandler) { this._onstatechange = v; }
-    get onerror(): EventHandler { return this._onerror; }
-    set onerror(v: EventHandler) { this._onerror = v; }
+    get onstatechange(): EventHandler {
+        return this._onstatechange;
+    }
+    set onstatechange(v: EventHandler) {
+        this._onstatechange = v;
+    }
+    get onerror(): EventHandler {
+        return this._onerror;
+    }
+    set onerror(v: EventHandler) {
+        this._onerror = v;
+    }
 
-    getRemoteCertificates(): ArrayBuffer[] { return []; }
+    getRemoteCertificates(): ArrayBuffer[] {
+        return [];
+    }
 
     // ---- Internal setters (called by RTCPeerConnection) ---------------------
 

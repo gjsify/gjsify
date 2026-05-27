@@ -102,7 +102,7 @@ export function start(canvas: HTMLCanvasElement): void {
         xpos = w > 0 ? e.clientX / w : 0.5;
     });
 
-    const getWind = () => hasMouse ? xpos : 0.5 + 0.3 * Math.sin(time * 0.001);
+    const getWind = () => (hasMouse ? xpos : 0.5 + 0.3 * Math.sin(time * 0.001));
 
     // Create confetti particles
     const confetti: Confetti[] = [];

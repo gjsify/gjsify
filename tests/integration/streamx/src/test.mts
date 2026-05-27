@@ -18,10 +18,10 @@ import duplexSuite from './duplex.spec.js';
 import throughputSuite from './throughput.spec.js';
 
 run({
-  readableSuite,
-  writableSuite,
-  transformSuite,
-  pipelineSuite,
-  duplexSuite,
-  throughputSuite,
+    readableSuite,
+    writableSuite,
+    transformSuite,
+    pipelineSuite,
+    duplexSuite,
+    throughputSuite,
 });

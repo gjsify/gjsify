@@ -28,9 +28,9 @@ import type { StringDecoder } from 'node:string_decoder';
  * + `typeof stream.method === 'function'` before calling.
  */
 export interface GjsReadableTty extends Readable {
-  isRaw?: boolean;
-  isTTY?: boolean;
-  setRawMode?(enable: boolean): this;
+    isRaw?: boolean;
+    isTTY?: boolean;
+    setRawMode?(enable: boolean): this;
 }
 
 /**
@@ -39,11 +39,11 @@ export interface GjsReadableTty extends Readable {
  * All members are optional for the same reason as `GjsReadableTty`.
  */
 export interface GjsWritableTty extends Writable {
-  columns?: number;
-  rows?: number;
-  isTTY?: boolean;
-  getColorDepth?(env?: NodeJS.ProcessEnv): number;
-  hasColors?(count?: number, env?: NodeJS.ProcessEnv): boolean;
+    columns?: number;
+    rows?: number;
+    isTTY?: boolean;
+    getColorDepth?(env?: NodeJS.ProcessEnv): number;
+    hasColors?(count?: number, env?: NodeJS.ProcessEnv): boolean;
 }
 
 /**
@@ -59,7 +59,7 @@ export interface GjsWritableTty extends Writable {
  * would conflict with a narrow union signature.
  */
 export type KeypressTaggedStream = Readable & {
-  [key: symbol]: StringDecoder | Generator<void, void, string> | undefined;
+    [key: symbol]: StringDecoder | Generator<void, void, string> | undefined;
 };
 
 /**
@@ -68,5 +68,5 @@ export type KeypressTaggedStream = Readable & {
  * this via its `EventEmitter` ancestry.
  */
 export interface KeypressEmitter {
-  emit(event: string | symbol, ...args: unknown[]): boolean;
+    emit(event: string | symbol, ...args: unknown[]): boolean;
 }

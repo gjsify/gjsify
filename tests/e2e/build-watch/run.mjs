@@ -7,14 +7,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import {
-    writeFileSync,
-    readFileSync,
-    mkdirSync,
-    existsSync,
-    mkdtempSync,
-    rmSync,
-} from 'node:fs';
+import { writeFileSync, readFileSync, mkdirSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -53,17 +46,7 @@ describe('CLI build --watch E2E', { timeout: 2 * 60 * 1000 }, () => {
 
         const child = spawn(
             'node',
-            [
-                CLI_ENTRY,
-                'build',
-                'src/index.ts',
-                '--app',
-                'node',
-                '--outfile',
-                outfilePath,
-                '--watch',
-                '--no-minify',
-            ],
+            [CLI_ENTRY, 'build', 'src/index.ts', '--app', 'node', '--outfile', outfilePath, '--watch', '--no-minify'],
             {
                 cwd: projectDir,
                 stdio: ['ignore', 'pipe', 'pipe'],
@@ -162,24 +145,27 @@ describe('CLI build --watch E2E', { timeout: 2 * 60 * 1000 }, () => {
         mkdirSync(join(projectDir, 'src'), { recursive: true });
         writeFileSync(
             join(projectDir, 'package.json'),
-            JSON.stringify({
-                name: 'watch-library-reject',
-                version: '1.0.0',
-                type: 'module',
-                private: true,
-                main: 'lib/index.js',
-                module: 'lib/index.js',
-            }, null, 2) + '\n',
+            JSON.stringify(
+                {
+                    name: 'watch-library-reject',
+                    version: '1.0.0',
+                    type: 'module',
+                    private: true,
+                    main: 'lib/index.js',
+                    module: 'lib/index.js',
+                },
+                null,
+                2,
+            ) + '\n',
             'utf-8',
         );
         writeFileSync(join(projectDir, 'src', 'index.ts'), 'export const x = 1;\n', 'utf-8');
 
         const result = await new Promise((resolve) => {
-            const child = spawn(
-                'node',
-                [CLI_ENTRY, 'build', 'src/index.ts', '--library', '--watch'],
-                { cwd: projectDir, stdio: ['ignore', 'pipe', 'pipe'] },
-            );
+            const child = spawn('node', [CLI_ENTRY, 'build', 'src/index.ts', '--library', '--watch'], {
+                cwd: projectDir,
+                stdio: ['ignore', 'pipe', 'pipe'],
+            });
             let buf = '';
             child.stdout.on('data', (c) => (buf += c.toString()));
             child.stderr.on('data', (c) => (buf += c.toString()));

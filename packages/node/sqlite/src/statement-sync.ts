@@ -20,9 +20,7 @@ function validateBindValue(value: unknown, paramIndex: number): void {
     if (t === 'number' || t === 'bigint' || t === 'string' || t === 'boolean') return;
     if (value instanceof Uint8Array || value instanceof ArrayBuffer) return;
     if (ArrayBuffer.isView(value)) return;
-    throw new InvalidArgTypeError(
-        `Provided value cannot be bound to SQLite parameter ${paramIndex}.`
-    );
+    throw new InvalidArgTypeError(`Provided value cannot be bound to SQLite parameter ${paramIndex}.`);
 }
 
 // Escape a JS value for inline SQL. This is safe because only values are
@@ -63,7 +61,14 @@ export class StatementSync {
     #allowUnknownNamedParameters: boolean;
     #parser: Gda.SqlParser;
 
-    constructor(sentinel: symbol, connection: Gda.Connection, sql: string, options: StatementSyncOptions, paramMap: ParamInfo[], parser: Gda.SqlParser) {
+    constructor(
+        sentinel: symbol,
+        connection: Gda.Connection,
+        sql: string,
+        options: StatementSyncOptions,
+        paramMap: ParamInfo[],
+        parser: Gda.SqlParser,
+    ) {
         if (sentinel !== INTERNAL) {
             throw new IllegalConstructorError();
         }
@@ -78,7 +83,13 @@ export class StatementSync {
     }
 
     /** @internal */
-    static _create(connection: Gda.Connection, sql: string, options: StatementSyncOptions, paramMap: ParamInfo[], parser: Gda.SqlParser): StatementSync {
+    static _create(
+        connection: Gda.Connection,
+        sql: string,
+        options: StatementSyncOptions,
+        paramMap: ParamInfo[],
+        parser: Gda.SqlParser,
+    ): StatementSync {
         return new StatementSync(INTERNAL, connection, sql, options, paramMap, parser);
     }
 
@@ -102,7 +113,12 @@ export class StatementSync {
     #buildSql(args: unknown[]): string {
         if (this.#paramMap.length === 0) {
             if (args.length > 0) {
-                const hasNamedArg = args.length > 0 && args[0] !== null && typeof args[0] === 'object' && !(args[0] instanceof Uint8Array) && !ArrayBuffer.isView(args[0]);
+                const hasNamedArg =
+                    args.length > 0 &&
+                    args[0] !== null &&
+                    typeof args[0] === 'object' &&
+                    !(args[0] instanceof Uint8Array) &&
+                    !ArrayBuffer.isView(args[0]);
                 if (!hasNamedArg) {
                     throw new SqliteError('column index out of range', 25, 'column index out of range');
                 }
@@ -114,7 +130,13 @@ export class StatementSync {
         let namedArgs: Record<string, unknown> | null = null;
         let positionalArgs: unknown[] = args;
 
-        if (args.length > 0 && args[0] !== null && typeof args[0] === 'object' && !(args[0] instanceof Uint8Array) && !ArrayBuffer.isView(args[0])) {
+        if (
+            args.length > 0 &&
+            args[0] !== null &&
+            typeof args[0] === 'object' &&
+            !(args[0] instanceof Uint8Array) &&
+            !ArrayBuffer.isView(args[0])
+        ) {
             namedArgs = args[0] as Record<string, unknown>;
             positionalArgs = args.slice(1);
         }
@@ -138,7 +160,7 @@ export class StatementSync {
 
                 // Bare name
                 if (!found && this.#allowBareNamedParameters) {
-                    const bareName = origName.replace(/^[\$:@]/, '');
+                    const bareName = origName.replace(/^[$:@]/, '');
                     if (bareName in namedArgs) {
                         value = namedArgs[bareName];
                         found = true;
@@ -146,9 +168,13 @@ export class StatementSync {
                 }
 
                 if (!found && !this.#allowBareNamedParameters) {
-                    const bareName = origName.replace(/^[\$:@]/, '');
+                    const bareName = origName.replace(/^[$:@]/, '');
                     if (bareName in namedArgs) {
-                        throw new SqliteError(`Unknown named parameter '${bareName}'`, 0, `Unknown named parameter '${bareName}'`);
+                        throw new SqliteError(
+                            `Unknown named parameter '${bareName}'`,
+                            0,
+                            `Unknown named parameter '${bareName}'`,
+                        );
                     }
                 }
 
@@ -160,8 +186,28 @@ export class StatementSync {
                 }
             }
 
+            // Reject keys in `namedArgs` that don't map to any known SQL parameter,
+            // unless explicitly allowed (matches Node's allowUnknownNamedParameters).
+            if (!this.#allowUnknownNamedParameters) {
+                const knownNames = new Set<string>();
+                for (const param of this.#paramMap) {
+                    if (param.position >= 0) continue;
+                    knownNames.add(param.originalName);
+                    knownNames.add(param.originalName.replace(/^[$:@]/, ''));
+                }
+                for (const key of Object.keys(namedArgs)) {
+                    if (!knownNames.has(key) && !knownNames.has(key.replace(/^[$:@]/, ''))) {
+                        throw new SqliteError(
+                            `Unknown named parameter '${key}'`,
+                            0,
+                            `Unknown named parameter '${key}'`,
+                        );
+                    }
+                }
+            }
+
             // Handle positional after named
-            const positionalParams = this.#paramMap.filter(p => p.position >= 0);
+            const positionalParams = this.#paramMap.filter((p) => p.position >= 0);
             for (let i = 0; i < positionalArgs.length; i++) {
                 if (i >= positionalParams.length) {
                     throw new SqliteError('column index out of range', 25, 'column index out of range');
@@ -171,7 +217,7 @@ export class StatementSync {
             }
         } else {
             // Pure positional binding
-            const positionalParams = this.#paramMap.filter(p => p.position >= 0);
+            const positionalParams = this.#paramMap.filter((p) => p.position >= 0);
             if (positionalArgs.length > positionalParams.length && positionalParams.length > 0) {
                 throw new SqliteError('column index out of range', 25, 'column index out of range');
             }
@@ -191,7 +237,9 @@ export class StatementSync {
         let result = this.#sql;
 
         // Replace named params ($name, :name, @name) — longest first to avoid partial matches
-        const namedParams = this.#paramMap.filter(p => p.position < 0).sort((a, b) => b.originalName.length - a.originalName.length);
+        const namedParams = this.#paramMap
+            .filter((p) => p.position < 0)
+            .sort((a, b) => b.originalName.length - a.originalName.length);
         for (const param of namedParams) {
             const escaped = values.get(param.originalName) ?? 'NULL';
             result = result.split(param.originalName).join(escaped);
@@ -207,7 +255,10 @@ export class StatementSync {
                     const start = i;
                     i++;
                     while (i < result.length && result[i] !== "'") {
-                        if (result[i] === "'" && result[i + 1] === "'") { i += 2; continue; }
+                        if (result[i] === "'" && result[i + 1] === "'") {
+                            i += 2;
+                            continue;
+                        }
                         i++;
                     }
                     if (i < result.length) i++;
@@ -223,7 +274,7 @@ export class StatementSync {
                     }
                     const pos = numStr ? parseInt(numStr, 10) - 1 : pIdx;
                     pIdx = numStr ? pIdx : pIdx + 1;
-                    out += (pos in positionalValues) ? positionalValues[pos] : 'NULL';
+                    out += pos in positionalValues ? positionalValues[pos] : 'NULL';
                     continue;
                 }
                 out += result[i];
@@ -266,14 +317,18 @@ export class StatementSync {
             if (chModel && chModel.get_n_rows() > 0) {
                 changes = chModel.get_value_at(0, 0) as unknown as number;
             }
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
 
         try {
             const ridModel = this.#connection.execute_select_command('SELECT last_insert_rowid()');
             if (ridModel && ridModel.get_n_rows() > 0) {
                 lastInsertRowid = ridModel.get_value_at(0, 0) as unknown as number;
             }
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
 
         if (this.#readBigInts) {
             changes = BigInt(changes);

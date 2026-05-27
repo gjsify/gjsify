@@ -27,15 +27,16 @@ const showcases = [
     {
         dest: 'public/demos/teapot',
         assets: [
-            { src: '@gjsify/example-dom-three-geometry-teapot/assets/uv_grid_opengl.jpg', dest: 'assets/uv_grid_opengl.jpg' },
+            {
+                src: '@gjsify/example-dom-three-geometry-teapot/assets/uv_grid_opengl.jpg',
+                dest: 'assets/uv_grid_opengl.jpg',
+            },
             { src: '@gjsify/example-dom-three-geometry-teapot/assets/pisa', dest: 'assets/pisa', recursive: true },
         ],
     },
     {
         dest: 'public/demos/jelly-jumper',
-        assets: [
-            { src: '@gjsify/example-dom-excalibur-jelly-jumper/assets', dest: 'res', recursive: true },
-        ],
+        assets: [{ src: '@gjsify/example-dom-excalibur-jelly-jumper/assets', dest: 'res', recursive: true }],
     },
 ];
 

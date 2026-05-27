@@ -5,13 +5,7 @@
 // === GLib.Checksum-based implementations ===
 export { Hash, getHashes, hash } from './hash.js';
 export { Hmac } from './hmac.js';
-export {
-  randomBytes,
-  randomFill,
-  randomFillSync,
-  randomUUID,
-  randomInt,
-} from './random.js';
+export { randomBytes, randomFill, randomFillSync, randomUUID, randomInt } from './random.js';
 export { timingSafeEqual } from './timing-safe-equal.js';
 export { constants } from './constants.js';
 
@@ -25,12 +19,12 @@ import { Hmac } from './hmac.js';
 
 /** Create a Hash object for the given algorithm. */
 export function createHash(algorithm: string): Hash {
-  return new Hash(algorithm);
+    return new Hash(algorithm);
 }
 
 /** Create an Hmac object for the given algorithm and key. */
 export function createHmac(algorithm: string, key: string | Buffer | Uint8Array): Hmac {
-  return new Hmac(algorithm, key);
+    return new Hmac(algorithm, key);
 }
 
 // === Browserify pure-JS wrappers (lazy-loaded to break circular deps) ===
@@ -40,7 +34,13 @@ export function createHmac(algorithm: string, key: string | Buffer | Uint8Array)
 
 export { createCipher, createCipheriv, createDecipher, createDecipheriv, getCiphers } from './cipher.js';
 export { Sign, Verify, createSign, createVerify } from './sign.js';
-export { createDiffieHellman, getDiffieHellman, DiffieHellman, DiffieHellmanGroup, createDiffieHellmanGroup } from './dh.js';
+export {
+    createDiffieHellman,
+    getDiffieHellman,
+    DiffieHellman,
+    DiffieHellmanGroup,
+    createDiffieHellmanGroup,
+} from './dh.js';
 export { createECDH, getCurves } from './ecdh.js';
 export { ecdsaSign, ecdsaVerify } from './ecdsa.js';
 export { publicEncrypt, privateDecrypt, privateEncrypt, publicDecrypt } from './public-encrypt.js';
@@ -59,7 +59,13 @@ import { hkdf, hkdfSync } from './hkdf.js';
 import { scrypt, scryptSync } from './scrypt.js';
 import { createCipher, createCipheriv, createDecipher, createDecipheriv, getCiphers } from './cipher.js';
 import { Sign, Verify, createSign, createVerify } from './sign.js';
-import { createDiffieHellman, getDiffieHellman, DiffieHellman, DiffieHellmanGroup, createDiffieHellmanGroup } from './dh.js';
+import {
+    createDiffieHellman,
+    getDiffieHellman,
+    DiffieHellman,
+    DiffieHellmanGroup,
+    createDiffieHellmanGroup,
+} from './dh.js';
 import { createECDH, getCurves } from './ecdh.js';
 import { ecdsaSign, ecdsaVerify } from './ecdsa.js';
 import { publicEncrypt, privateDecrypt, privateEncrypt, publicDecrypt } from './public-encrypt.js';
@@ -70,24 +76,55 @@ import { KeyObject, createSecretKey, createPublicKey, createPrivateKey } from '.
 import { X509Certificate } from './x509.js';
 
 export default {
-  Hash, getHashes, hash,
-  Hmac,
-  randomBytes, randomFill, randomFillSync, randomUUID, randomInt,
-  timingSafeEqual,
-  constants,
-  pbkdf2, pbkdf2Sync,
-  hkdf, hkdfSync,
-  scrypt, scryptSync,
-  createHash, createHmac,
-  createCipher, createCipheriv, createDecipher, createDecipheriv, getCiphers,
-  Sign, Verify, createSign, createVerify,
-  createDiffieHellman, getDiffieHellman, DiffieHellman, DiffieHellmanGroup, createDiffieHellmanGroup,
-  createECDH, getCurves,
-  ecdsaSign, ecdsaVerify,
-  publicEncrypt, privateDecrypt, privateEncrypt, publicDecrypt,
-  rsaPssSign, rsaPssVerify,
-  rsaOaepEncrypt, rsaOaepDecrypt,
-  mgf1,
-  KeyObject, createSecretKey, createPublicKey, createPrivateKey,
-  X509Certificate,
+    Hash,
+    getHashes,
+    hash,
+    Hmac,
+    randomBytes,
+    randomFill,
+    randomFillSync,
+    randomUUID,
+    randomInt,
+    timingSafeEqual,
+    constants,
+    pbkdf2,
+    pbkdf2Sync,
+    hkdf,
+    hkdfSync,
+    scrypt,
+    scryptSync,
+    createHash,
+    createHmac,
+    createCipher,
+    createCipheriv,
+    createDecipher,
+    createDecipheriv,
+    getCiphers,
+    Sign,
+    Verify,
+    createSign,
+    createVerify,
+    createDiffieHellman,
+    getDiffieHellman,
+    DiffieHellman,
+    DiffieHellmanGroup,
+    createDiffieHellmanGroup,
+    createECDH,
+    getCurves,
+    ecdsaSign,
+    ecdsaVerify,
+    publicEncrypt,
+    privateDecrypt,
+    privateEncrypt,
+    publicDecrypt,
+    rsaPssSign,
+    rsaPssVerify,
+    rsaOaepEncrypt,
+    rsaOaepDecrypt,
+    mgf1,
+    KeyObject,
+    createSecretKey,
+    createPublicKey,
+    createPrivateKey,
+    X509Certificate,
 };

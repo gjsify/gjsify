@@ -67,9 +67,7 @@ export async function runLifecycleScript(
     // (CI logs, redirected output) because `process.stdout.isTTY` is
     // false for the spawned child.
     const colorEnv =
-        process.env.FORCE_COLOR !== undefined || process.env.NO_COLOR !== undefined
-            ? {}
-            : { FORCE_COLOR: '1' };
+        process.env.FORCE_COLOR !== undefined || process.env.NO_COLOR !== undefined ? {} : { FORCE_COLOR: '1' };
 
     const env: Record<string, string | undefined> = {
         ...process.env,
@@ -78,7 +76,7 @@ export async function runLifecycleScript(
         npm_lifecycle_event: name,
         npm_package_name: (pkg.name as string | undefined) ?? '',
         npm_package_version: (pkg.version as string | undefined) ?? '',
-        ...(opts.env ?? {}),
+        ...opts.env,
     };
 
     // `'inherit-stderr'` is our extension on top of node's stdio modes —
@@ -87,10 +85,7 @@ export async function runLifecycleScript(
     // prepack's log lines don't get interleaved with the JSON we emit on
     // parent stdout. `spawn`'s `stdio` accepts numeric fds in array form
     // and routes the child's matching stream to that fd.
-    const stdioConfig =
-        opts.stdio === 'inherit-stderr'
-            ? (['inherit', 2, 2] as const)
-            : (opts.stdio ?? 'inherit');
+    const stdioConfig = opts.stdio === 'inherit-stderr' ? (['inherit', 2, 2] as const) : (opts.stdio ?? 'inherit');
 
     await new Promise<void>((resolveOk, reject) => {
         const child = spawn(literal, [], {
@@ -102,11 +97,7 @@ export async function runLifecycleScript(
         child.on('close', (code) => {
             if (code === 0) resolveOk();
             else {
-                reject(
-                    new Error(
-                        `gjsify lifecycle-script: "${name}" in ${wsDir} exited with code ${code}`,
-                    ),
-                );
+                reject(new Error(`gjsify lifecycle-script: "${name}" in ${wsDir} exited with code ${code}`));
             }
         });
         child.on('error', reject);

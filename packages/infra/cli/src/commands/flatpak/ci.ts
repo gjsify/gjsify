@@ -74,13 +74,11 @@ export const flatpakCiCommand: Command<unknown, FlatpakCiOptions> = {
     handler: async (args) => {
         const cwd = process.cwd();
         const cfg = new Config();
-        const configData = await cfg.forBuild({} as never).catch(() => ({} as ConfigData));
+        const configData = await cfg.forBuild({} as never).catch(() => ({}) as ConfigData);
         const flatpak: ConfigDataFlatpak = configData.flatpak ?? {};
         const pkg = readPackageJson(cwd);
 
-        const appId =
-            flatpak.appId ??
-            (looksLikeAppId(pkg.name) ? (pkg.name as string) : undefined);
+        const appId = flatpak.appId ?? (looksLikeAppId(pkg.name) ? (pkg.name as string) : undefined);
         if (!appId) {
             throw new Error(
                 'gjsify flatpak ci: no app id available. Set gjsify.flatpak.appId in package.json ' +
@@ -109,9 +107,7 @@ export const flatpakCiCommand: Command<unknown, FlatpakCiOptions> = {
                 console.log(`[gjsify flatpak ci] ${out} already up to date`);
                 return;
             }
-            throw new Error(
-                `gjsify flatpak ci: ${out} exists with different content. Pass --force to overwrite.`,
-            );
+            throw new Error(`gjsify flatpak ci: ${out} exists with different content. Pass --force to overwrite.`);
         }
 
         const content = renderWorkflow({ manifest, bundle, runtimeImage, branches, cacheKey });
@@ -119,9 +115,7 @@ export const flatpakCiCommand: Command<unknown, FlatpakCiOptions> = {
         writeFileSync(out, content, 'utf-8');
 
         if (args.verbose) {
-            console.log(
-                `[gjsify flatpak ci] runtime-image=${runtimeImage} manifest=${manifest} bundle=${bundle}`,
-            );
+            console.log(`[gjsify flatpak ci] runtime-image=${runtimeImage} manifest=${manifest} bundle=${bundle}`);
         }
         console.log(`[gjsify flatpak ci] wrote ${out}`);
     },

@@ -14,11 +14,16 @@ export default async () => {
         await it('invokes the handler when the command name matches argv[0]', async () => {
             let called = 0;
             await yargs(['build'])
-                .command('build', 'build the project', () => {
-                    /* no builder */
-                }, () => {
-                    called += 1;
-                })
+                .command(
+                    'build',
+                    'build the project',
+                    () => {
+                        /* no builder */
+                    },
+                    () => {
+                        called += 1;
+                    },
+                )
                 .parse();
             expect(called).toBe(1);
         });
@@ -43,7 +48,16 @@ export default async () => {
         await it('marks unknown commands as failures under .strictCommands()', async () => {
             let failMsg: string | null = null;
             const parser = yargs(['no-such-cmd'])
-                .command('build', 'build', () => {/* */}, () => {/* */})
+                .command(
+                    'build',
+                    'build',
+                    () => {
+                        /* */
+                    },
+                    () => {
+                        /* */
+                    },
+                )
                 .strictCommands()
                 .fail((msg) => {
                     failMsg = msg;
@@ -58,12 +72,26 @@ export default async () => {
             await yargs(['db', 'migrate'])
                 .command('db', 'database tools', (y) =>
                     y
-                        .command('migrate', 'run migrations', () => {/* */}, () => {
-                            calls.push('migrate');
-                        })
-                        .command('seed', 'seed data', () => {/* */}, () => {
-                            calls.push('seed');
-                        }),
+                        .command(
+                            'migrate',
+                            'run migrations',
+                            () => {
+                                /* */
+                            },
+                            () => {
+                                calls.push('migrate');
+                            },
+                        )
+                        .command(
+                            'seed',
+                            'seed data',
+                            () => {
+                                /* */
+                            },
+                            () => {
+                                calls.push('seed');
+                            },
+                        ),
                 )
                 .parse();
             expect(calls).toStrictEqual(['migrate']);
@@ -75,7 +103,9 @@ export default async () => {
                 .command(
                     '*',
                     'fallback',
-                    () => {/* */},
+                    () => {
+                        /* */
+                    },
                     () => {
                         invoked = true;
                     },
@@ -87,12 +117,26 @@ export default async () => {
         await it('routes between sibling commands by name', async () => {
             const calls: string[] = [];
             const parser = yargs([])
-                .command('build', 'build', () => {/* */}, () => {
-                    calls.push('build');
-                })
-                .command('serve', 'serve', () => {/* */}, () => {
-                    calls.push('serve');
-                });
+                .command(
+                    'build',
+                    'build',
+                    () => {
+                        /* */
+                    },
+                    () => {
+                        calls.push('build');
+                    },
+                )
+                .command(
+                    'serve',
+                    'serve',
+                    () => {
+                        /* */
+                    },
+                    () => {
+                        calls.push('serve');
+                    },
+                );
             await parser.parse(['build']);
             await parser.parse(['serve']);
             expect(calls).toStrictEqual(['build', 'serve']);

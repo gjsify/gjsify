@@ -12,12 +12,29 @@
  */
 export class DOMMatrix {
     // 2D components
-    a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+    a = 1;
+    b = 0;
+    c = 0;
+    d = 1;
+    e = 0;
+    f = 0;
     // 3D components (column-major)
-    m11 = 1; m12 = 0; m13 = 0; m14 = 0;
-    m21 = 0; m22 = 1; m23 = 0; m24 = 0;
-    m31 = 0; m32 = 0; m33 = 1; m34 = 0;
-    m41 = 0; m42 = 0; m43 = 0; m44 = 1;
+    m11 = 1;
+    m12 = 0;
+    m13 = 0;
+    m14 = 0;
+    m21 = 0;
+    m22 = 1;
+    m23 = 0;
+    m24 = 0;
+    m31 = 0;
+    m32 = 0;
+    m33 = 1;
+    m34 = 0;
+    m41 = 0;
+    m42 = 0;
+    m43 = 0;
+    m44 = 1;
     is2D = true;
     isIdentity = true;
 
@@ -34,18 +51,32 @@ export class DOMMatrix {
                 this.is2D = true;
             } else if (init.length === 16) {
                 // 3D: column-major 4x4
-                this.m11 = init[0];  this.m12 = init[1];  this.m13 = init[2];  this.m14 = init[3];
-                this.m21 = init[4];  this.m22 = init[5];  this.m23 = init[6];  this.m24 = init[7];
-                this.m31 = init[8];  this.m32 = init[9];  this.m33 = init[10]; this.m34 = init[11];
-                this.m41 = init[12]; this.m42 = init[13]; this.m43 = init[14]; this.m44 = init[15];
-                this.a = this.m11; this.b = this.m12;
-                this.c = this.m21; this.d = this.m22;
-                this.e = this.m41; this.f = this.m42;
+                this.m11 = init[0];
+                this.m12 = init[1];
+                this.m13 = init[2];
+                this.m14 = init[3];
+                this.m21 = init[4];
+                this.m22 = init[5];
+                this.m23 = init[6];
+                this.m24 = init[7];
+                this.m31 = init[8];
+                this.m32 = init[9];
+                this.m33 = init[10];
+                this.m34 = init[11];
+                this.m41 = init[12];
+                this.m42 = init[13];
+                this.m43 = init[14];
+                this.m44 = init[15];
+                this.a = this.m11;
+                this.b = this.m12;
+                this.c = this.m21;
+                this.d = this.m22;
+                this.e = this.m41;
+                this.f = this.m42;
                 this.is2D = false;
             }
             this.isIdentity =
-                this.a === 1 && this.b === 0 && this.c === 0 &&
-                this.d === 1 && this.e === 0 && this.f === 0;
+                this.a === 1 && this.b === 0 && this.c === 0 && this.d === 1 && this.e === 0 && this.f === 0;
         }
     }
 
@@ -68,12 +99,18 @@ export class DOMMatrix {
     /** In-place multiply; returns this. */
     multiplySelf(other: { a: number; b: number; c: number; d: number; e: number; f: number }): DOMMatrix {
         const result = this.multiply(other);
-        this.a = result.a; this.b = result.b;
-        this.c = result.c; this.d = result.d;
-        this.e = result.e; this.f = result.f;
-        this.m11 = this.a; this.m12 = this.b;
-        this.m21 = this.c; this.m22 = this.d;
-        this.m41 = this.e; this.m42 = this.f;
+        this.a = result.a;
+        this.b = result.b;
+        this.c = result.c;
+        this.d = result.d;
+        this.e = result.e;
+        this.f = result.f;
+        this.m11 = this.a;
+        this.m12 = this.b;
+        this.m21 = this.c;
+        this.m22 = this.d;
+        this.m41 = this.e;
+        this.m42 = this.f;
         this.isIdentity = false;
         return this;
     }

@@ -80,9 +80,7 @@ if (process.stdout.isTTY) {
     let resizeCount = 0;
     process.stdout.on('resize', () => {
         resizeCount++;
-        console.log(
-            `[resize #${resizeCount}] columns=${process.stdout.columns} rows=${process.stdout.rows}`
-        );
+        console.log(`[resize #${resizeCount}] columns=${process.stdout.columns} rows=${process.stdout.rows}`);
     });
 
     // On GJS the GLib main loop must run for signals to be delivered.
@@ -97,7 +95,6 @@ if (process.stdout.isTTY) {
             process.exit(0);
         }
     }, 1_000);
-
 } else {
     console.log('\n=== process example complete ===');
 }

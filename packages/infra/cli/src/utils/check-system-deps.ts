@@ -56,7 +56,7 @@ function checkBinary(
 ): DepCheck {
     const out = tryExecFile(binary, versionArgs);
     if (out === null) return { id, name, found: false, severity, requiredBy };
-    const version = parseVersion ? parseVersion(out) : out.split('\n')[0] ?? out;
+    const version = parseVersion ? parseVersion(out) : (out.split('\n')[0] ?? out);
     return { id, name, found: true, version, severity, requiredBy };
 }
 
@@ -91,7 +91,9 @@ function checkNpmPackage(
         const requireFromCwd = createRequire(pathToFileURL(join(cwd, '_check_.js')).href);
         requireFromCwd.resolve(packageName);
         return { id, name, found: true, severity, requiredBy };
-    } catch { /* not in project, try CLI fallback */ }
+    } catch {
+        /* not in project, try CLI fallback */
+    }
 
     // 2. Fallback: CLI's own node_modules
     try {
@@ -135,22 +137,22 @@ interface OptionalDep {
 
 /** Optional system deps keyed by their DepCheck id. */
 const OPTIONAL_DEPS: Record<string, OptionalDep> = {
-    manette:    { id: 'manette',    name: 'libmanette',     pkgName: 'manette-0.2' },
-    gstreamer:  { id: 'gstreamer',  name: 'GStreamer',      pkgName: 'gstreamer-1.0' },
-    'gst-app':  { id: 'gst-app',    name: 'GStreamer App',  pkgName: 'gstreamer-app-1.0' },
-    'gdk-pixbuf':{ id: 'gdk-pixbuf', name: 'GdkPixbuf',     pkgName: 'gdk-pixbuf-2.0' },
-    pango:      { id: 'pango',      name: 'Pango',          pkgName: 'pango' },
-    pangocairo: { id: 'pangocairo', name: 'PangoCairo',     pkgName: 'pangocairo' },
-    webkitgtk:  { id: 'webkitgtk',  name: 'WebKitGTK',      pkgName: 'webkitgtk-6.0' },
-    cairo:      { id: 'cairo',      name: 'Cairo',          pkgName: 'cairo' },
+    manette: { id: 'manette', name: 'libmanette', pkgName: 'manette-0.2' },
+    gstreamer: { id: 'gstreamer', name: 'GStreamer', pkgName: 'gstreamer-1.0' },
+    'gst-app': { id: 'gst-app', name: 'GStreamer App', pkgName: 'gstreamer-app-1.0' },
+    'gdk-pixbuf': { id: 'gdk-pixbuf', name: 'GdkPixbuf', pkgName: 'gdk-pixbuf-2.0' },
+    pango: { id: 'pango', name: 'Pango', pkgName: 'pango' },
+    pangocairo: { id: 'pangocairo', name: 'PangoCairo', pkgName: 'pangocairo' },
+    webkitgtk: { id: 'webkitgtk', name: 'WebKitGTK', pkgName: 'webkitgtk-6.0' },
+    cairo: { id: 'cairo', name: 'Cairo', pkgName: 'cairo' },
     // Build-time deps for @gjsify/*-native Vala prebuilds. End-users with
     // installed prebuilds don't need the -devel package — only contributors
     // rebuilding from source via `yarn build:prebuilds`. We still surface
     // them in the optional set so the "missing" diagnostic catches build-
     // time failures with an actionable install-hint instead of a meson
     // `Run-time dependency X found: NO` error mid-build.
-    gnutls:     { id: 'gnutls',     name: 'GnuTLS',         pkgName: 'gnutls' },
-    nghttp2:    { id: 'nghttp2',    name: 'libnghttp2',     pkgName: 'libnghttp2' },
+    gnutls: { id: 'gnutls', name: 'GnuTLS', pkgName: 'gnutls' },
+    nghttp2: { id: 'nghttp2', name: 'libnghttp2', pkgName: 'libnghttp2' },
 };
 
 /**
@@ -161,23 +163,23 @@ const OPTIONAL_DEPS: Record<string, OptionalDep> = {
  * Used to compute the set of optional deps to check for a given project.
  */
 const PACKAGE_DEPS: Record<string, string[]> = {
-    '@gjsify/gamepad':       ['manette'],
-    '@gjsify/webaudio':      ['gstreamer', 'gst-app'],
-    '@gjsify/iframe':        ['webkitgtk'],
-    '@gjsify/canvas2d':      ['gdk-pixbuf', 'pango', 'pangocairo', 'cairo'],
+    '@gjsify/gamepad': ['manette'],
+    '@gjsify/webaudio': ['gstreamer', 'gst-app'],
+    '@gjsify/iframe': ['webkitgtk'],
+    '@gjsify/canvas2d': ['gdk-pixbuf', 'pango', 'pangocairo', 'cairo'],
     '@gjsify/canvas2d-core': ['gdk-pixbuf', 'pango', 'pangocairo', 'cairo'],
-    '@gjsify/dom-elements':  ['gdk-pixbuf'],
+    '@gjsify/dom-elements': ['gdk-pixbuf'],
     // @gjsify/webgl needs the gwebgl npm package (Vala prebuild) — handled
     // as a special-case checkNpmPackage rather than checkPkgConfig in
     // runOptionalChecks. Mapping it here so its presence in the project's
     // dep tree triggers the check.
-    '@gjsify/webgl':         ['gwebgl'],
+    '@gjsify/webgl': ['gwebgl'],
     // Native Vala bridges with `dependency('gnutls')` / `dependency('libnghttp2')`
     // in their meson.build. Optional because the shipped prebuild covers the
     // common-arch user path; only contributors rebuilding from source hit the
     // build-time dep.
-    '@gjsify/tls-native':    ['gnutls'],
-    '@gjsify/http2-native':  ['nghttp2'],
+    '@gjsify/tls-native': ['gnutls'],
+    '@gjsify/http2-native': ['nghttp2'],
     // @gjsify/event-bridge only needs gtk4/gdk which are already in the
     // required set, so it doesn't need an optional entry.
 };
@@ -219,7 +221,9 @@ function discoverGjsifyPackages(cwd: string): Set<string> | null {
     let topPkg: Record<string, unknown> = {};
     try {
         topPkg = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
 
     const directDeps = {
         ...(topPkg.dependencies as Record<string, string> | undefined),
@@ -233,7 +237,9 @@ function discoverGjsifyPackages(cwd: string): Set<string> | null {
                 found.add(`@gjsify/${entry.name}`);
             }
         }
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
 
     // Also include direct deps even if node_modules walk failed
     for (const dep of Object.keys(directDeps)) {
@@ -285,8 +291,16 @@ export function runMinimalChecks(): DepCheck[] {
     results.push({ id: 'nodejs', name: 'Node.js', found: true, version: process.version, severity: 'required' });
 
     // GJS
-    results.push(checkBinary('gjs', 'GJS', 'gjs', ['--version'], 'required',
-        (out) => out.replace(/^GJS\s+/i, '').split('\n')[0] ?? out));
+    results.push(
+        checkBinary(
+            'gjs',
+            'GJS',
+            'gjs',
+            ['--version'],
+            'required',
+            (out) => out.replace(/^GJS\s+/i, '').split('\n')[0] ?? out,
+        ),
+    );
 
     return results;
 }
@@ -306,8 +320,9 @@ function runRequiredChecks(_cwd: string): DepCheck[] {
     const results: DepCheck[] = [];
 
     // Build toolchain
-    results.push(checkBinary('blueprint-compiler', 'Blueprint Compiler',
-        'blueprint-compiler', ['--version'], 'required'));
+    results.push(
+        checkBinary('blueprint-compiler', 'Blueprint Compiler', 'blueprint-compiler', ['--version'], 'required'),
+    );
     results.push(checkBinary('pkg-config', 'pkg-config', 'pkg-config', ['--version'], 'required'));
     results.push(checkBinary('meson', 'Meson', 'meson', ['--version'], 'required'));
 
@@ -315,8 +330,9 @@ function runRequiredChecks(_cwd: string): DepCheck[] {
     results.push(checkPkgConfig('gtk4', 'GTK4', 'gtk4', 'required'));
     results.push(checkPkgConfig('libadwaita', 'libadwaita', 'libadwaita-1', 'required'));
     results.push(checkPkgConfig('libsoup3', 'libsoup3', 'libsoup-3.0', 'required'));
-    results.push(checkPkgConfig('gobject-introspection', 'GObject Introspection',
-        'gobject-introspection-1.0', 'required'));
+    results.push(
+        checkPkgConfig('gobject-introspection', 'GObject Introspection', 'gobject-introspection-1.0', 'required'),
+    );
 
     return results;
 }

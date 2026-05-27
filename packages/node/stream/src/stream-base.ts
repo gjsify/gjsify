@@ -23,15 +23,15 @@ let pipeImpl: <T extends Writable_>(source: Stream_, dest: T, opts?: { end?: boo
 
 /** @internal Wired by ./utils/pipe.js (side-effect import in ./readable.ts). */
 export function _setPipeImpl(fn: typeof pipeImpl): void {
-  pipeImpl = fn;
+    pipeImpl = fn;
 }
 
 export class Stream_ extends EventEmitter {
-  constructor(opts?: StreamOptions) {
-    super(opts);
-  }
+    constructor(opts?: StreamOptions) {
+        super(opts);
+    }
 
-  pipe<T extends Writable_>(destination: T, options?: { end?: boolean }): T {
-    return pipeImpl(this, destination, options);
-  }
+    pipe<T extends Writable_>(destination: T, options?: { end?: boolean }): T {
+        return pipeImpl(this, destination, options);
+    }
 }

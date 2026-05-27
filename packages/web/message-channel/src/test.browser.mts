@@ -74,10 +74,10 @@ run({
                 });
                 ch.port2.start();
                 ch.port1.postMessage('before-close');
-                await new Promise(r => setTimeout(r, 10));
+                await new Promise((r) => setTimeout(r, 10));
                 ch.port2.close();
                 ch.port1.postMessage('after-close');
-                await new Promise(r => setTimeout(r, 10));
+                await new Promise((r) => setTimeout(r, 10));
                 expect(received.length).toBe(1);
                 expect(received[0]).toBe('before-close');
             });
@@ -104,10 +104,14 @@ run({
                 const ch = new MessageChannel();
                 let count1 = 0;
                 let count2 = 0;
-                ch.port2.onmessage = () => { count1++; };
-                ch.port2.onmessage = () => { count2++; };
+                ch.port2.onmessage = () => {
+                    count1++;
+                };
+                ch.port2.onmessage = () => {
+                    count2++;
+                };
                 ch.port1.postMessage('a');
-                await new Promise(r => setTimeout(r, 10));
+                await new Promise((r) => setTimeout(r, 10));
                 expect(count1).toBe(0);
                 expect(count2).toBe(1);
             });
@@ -115,10 +119,12 @@ run({
             await it('onmessage = null detaches the handler', async () => {
                 const ch = new MessageChannel();
                 let count = 0;
-                ch.port2.onmessage = () => { count++; };
+                ch.port2.onmessage = () => {
+                    count++;
+                };
                 ch.port2.onmessage = null;
                 ch.port1.postMessage('ignored');
-                await new Promise(r => setTimeout(r, 10));
+                await new Promise((r) => setTimeout(r, 10));
                 expect(count).toBe(0);
             });
 
@@ -136,11 +142,13 @@ run({
             await it('dispatch is async (not synchronous from postMessage)', async () => {
                 const ch = new MessageChannel();
                 let dispatched = false;
-                ch.port2.onmessage = () => { dispatched = true; };
+                ch.port2.onmessage = () => {
+                    dispatched = true;
+                };
                 ch.port1.postMessage('async-check');
                 // After postMessage returns, dispatch has NOT happened yet.
                 expect(dispatched).toBe(false);
-                await new Promise(r => setTimeout(r, 10));
+                await new Promise((r) => setTimeout(r, 10));
                 expect(dispatched).toBe(true);
             });
         });

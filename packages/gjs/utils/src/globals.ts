@@ -7,8 +7,8 @@
  * This is a no-op in environments where the global is already defined (e.g. Node.js).
  */
 export function registerGlobal(name: string, value: unknown): void {
-  const g = globalThis as unknown as Record<string, unknown>;
-  if (typeof g[name] === 'undefined') {
-    g[name] = value;
-  }
+    const g = globalThis as unknown as Record<string, unknown>;
+    if (typeof g[name] === 'undefined') {
+        g[name] = value;
+    }
 }

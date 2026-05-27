@@ -9,14 +9,11 @@
 // shape + createSecureContext PEM acceptance. Complements index.spec.ts.
 
 import { describe, it, expect, on } from '@gjsify/unit';
-import {
-  checkServerIdentity,
-  createSecureContext,
-} from 'node:tls';
+import { checkServerIdentity, createSecureContext } from 'node:tls';
 import type { PeerCertificate } from 'node:tls';
 
 function fakeCert(parts: Record<string, unknown>): PeerCertificate {
-  return parts as unknown as PeerCertificate;
+    return parts as unknown as PeerCertificate;
 }
 
 // Self-signed PEM (cert + key) minted with `openssl req -x509 -newkey rsa:2048
@@ -73,158 +70,192 @@ fUZ521uRyKXnpzj1HTz5WVp0
 -----END PRIVATE KEY-----`;
 
 export default async () => {
-  await describe('tls — RFC 6125 + cert extraction', async () => {
+    await describe('tls — RFC 6125 + cert extraction', async () => {
+        // ---------------- RFC 6125 wildcard depth rules ----------------
+        await describe('RFC 6125 wildcard depth', async () => {
+            await it('rejects two-label wildcard *.com', async () => {
+                const err = checkServerIdentity(
+                    'foo.com',
+                    fakeCert({
+                        subject: {},
+                        subjectaltname: 'DNS:*.com',
+                    }),
+                );
+                expect(err instanceof Error).toBe(true);
+            });
 
-    // ---------------- RFC 6125 wildcard depth rules ----------------
-    await describe('RFC 6125 wildcard depth', async () => {
-      await it('rejects two-label wildcard *.com', async () => {
-        const err = checkServerIdentity('foo.com', fakeCert({
-          subject: {},
-          subjectaltname: 'DNS:*.com',
-        }));
-        expect(err instanceof Error).toBe(true);
-      });
+            await it('rejects single-label wildcard *', async () => {
+                const err = checkServerIdentity(
+                    'foo',
+                    fakeCert({
+                        subject: {},
+                        subjectaltname: 'DNS:*',
+                    }),
+                );
+                expect(err instanceof Error).toBe(true);
+            });
 
-      await it('rejects single-label wildcard *', async () => {
-        const err = checkServerIdentity('foo', fakeCert({
-          subject: {},
-          subjectaltname: 'DNS:*',
-        }));
-        expect(err instanceof Error).toBe(true);
-      });
+            await it('accepts three-label wildcard *.example.com matching foo.example.com', async () => {
+                const ok = checkServerIdentity(
+                    'foo.example.com',
+                    fakeCert({
+                        subject: {},
+                        subjectaltname: 'DNS:*.example.com',
+                    }),
+                );
+                expect(ok).toBeUndefined();
+            });
 
-      await it('accepts three-label wildcard *.example.com matching foo.example.com', async () => {
-        const ok = checkServerIdentity('foo.example.com', fakeCert({
-          subject: {},
-          subjectaltname: 'DNS:*.example.com',
-        }));
-        expect(ok).toBeUndefined();
-      });
-
-      await it('rejects empty wildcard label .x.example.com', async () => {
-        const err = checkServerIdentity('foo.x.example.com', fakeCert({
-          subject: {},
-          subjectaltname: 'DNS:.x.example.com',
-        }));
-        expect(err instanceof Error).toBe(true);
-      });
-    });
-
-    // ---------------- RFC 6125 wildcard prefix/suffix ----------------
-    await describe('RFC 6125 wildcard prefix/suffix', async () => {
-      await it('matches f*.example.com against foo.example.com', async () => {
-        const ok = checkServerIdentity('foo.example.com', fakeCert({
-          subject: {},
-          subjectaltname: 'DNS:f*.example.com',
-        }));
-        expect(ok).toBeUndefined();
-      });
-
-      await it('rejects f*.example.com against bar.example.com', async () => {
-        const err = checkServerIdentity('bar.example.com', fakeCert({
-          subject: {},
-          subjectaltname: 'DNS:f*.example.com',
-        }));
-        expect(err instanceof Error).toBe(true);
-      });
-
-      await it('matches *foo.example.com against barfoo.example.com', async () => {
-        const ok = checkServerIdentity('barfoo.example.com', fakeCert({
-          subject: {},
-          subjectaltname: 'DNS:*foo.example.com',
-        }));
-        expect(ok).toBeUndefined();
-      });
-
-      await it('rejects f*r.example.com against bar.example.com (prefix mismatch)', async () => {
-        const err = checkServerIdentity('bar.example.com', fakeCert({
-          subject: {},
-          subjectaltname: 'DNS:f*r.example.com',
-        }));
-        expect(err instanceof Error).toBe(true);
-      });
-    });
-
-    // ---------------- IDN / xn-- handling ----------------
-    await describe('Punycode / IDN', async () => {
-      await it('treats xn-- labels as exact-match (no wildcard expansion)', async () => {
-        // pattern is the punycoded form; hostname must match exactly.
-        const ok = checkServerIdentity('xn--bcher-kva.example.com', fakeCert({
-          subject: {},
-          subjectaltname: 'DNS:xn--bcher-kva.example.com',
-        }));
-        expect(ok).toBeUndefined();
-      });
-
-      await it('rejects wildcard expansion against xn-- A-label leftmost', async () => {
-        // *xn--bcher-kva matched against bcher-kva: per RFC 6125 the wildcard
-        // is not allowed to expand into A-label content.
-        const err = checkServerIdentity('foo.example.com', fakeCert({
-          subject: {},
-          subjectaltname: 'DNS:xn--*.example.com',
-        }));
-        expect(err instanceof Error).toBe(true);
-      });
-    });
-
-    // ---------------- Error code shape (Node-compat) ----------------
-    await describe('error.code', async () => {
-      await it('returns ERR_TLS_CERT_ALTNAME_INVALID code on mismatch', async () => {
-        const err = checkServerIdentity('a.com', fakeCert({
-          subject: { CN: 'b.com' },
-        }));
-        expect(err instanceof Error).toBe(true);
-        const e = err as { code?: string };
-        // Node: ERR_TLS_CERT_ALTNAME_INVALID. Our impl: same.
-        expect(e.code).toBe('ERR_TLS_CERT_ALTNAME_INVALID');
-      });
-    });
-
-    // ---------------- createSecureContext PEM acceptance ----------------
-    await describe('createSecureContext', async () => {
-      await it('accepts string PEM material (cert + key)', async () => {
-        const ctx = createSecureContext({ cert: SAMPLE_CERT_PEM, key: SAMPLE_KEY_PEM });
-        expect(ctx).toBeDefined();
-      });
-
-      await it('accepts Buffer PEM material', async () => {
-        const Buffer = (globalThis as { Buffer?: { from(s: string): unknown } }).Buffer;
-        if (!Buffer) return;  // skip if Buffer unavailable
-        const ctx = createSecureContext({
-          cert: Buffer.from(SAMPLE_CERT_PEM) as never,
-          key: Buffer.from(SAMPLE_KEY_PEM) as never,
+            await it('rejects empty wildcard label .x.example.com', async () => {
+                const err = checkServerIdentity(
+                    'foo.x.example.com',
+                    fakeCert({
+                        subject: {},
+                        subjectaltname: 'DNS:.x.example.com',
+                    }),
+                );
+                expect(err instanceof Error).toBe(true);
+            });
         });
-        expect(ctx).toBeDefined();
-      });
 
-      await it('accepts array of PEM blocks for ca', async () => {
-        const ctx = createSecureContext({ ca: [SAMPLE_CERT_PEM, SAMPLE_CERT_PEM] });
-        expect(ctx).toBeDefined();
-      });
+        // ---------------- RFC 6125 wildcard prefix/suffix ----------------
+        await describe('RFC 6125 wildcard prefix/suffix', async () => {
+            await it('matches f*.example.com against foo.example.com', async () => {
+                const ok = checkServerIdentity(
+                    'foo.example.com',
+                    fakeCert({
+                        subject: {},
+                        subjectaltname: 'DNS:f*.example.com',
+                    }),
+                );
+                expect(ok).toBeUndefined();
+            });
 
-      await it('returns ctx.context self-reference (Node-compat)', async () => {
-        const ctx = createSecureContext();
-        const ref = (ctx as unknown as { context?: unknown }).context;
-        expect(ref !== undefined).toBe(true);
-      });
+            await it('rejects f*.example.com against bar.example.com', async () => {
+                const err = checkServerIdentity(
+                    'bar.example.com',
+                    fakeCert({
+                        subject: {},
+                        subjectaltname: 'DNS:f*.example.com',
+                    }),
+                );
+                expect(err instanceof Error).toBe(true);
+            });
 
-      // Our impl preserves the user-supplied options on the SecureContext;
-      // Node does not, so this is a GJS-specific guarantee we lean on for
-      // diagnostics + integration debugging.
-      await on('Gjs', async () => {
-        await it('preserves passed-through options (ciphers/minVersion/maxVersion)', async () => {
-          const ctx = createSecureContext({
-            ciphers: 'TLS_AES_128_GCM_SHA256',
-            minVersion: 'TLSv1.2',
-            maxVersion: 'TLSv1.3',
-          });
-          const o = (ctx as unknown as { options?: { ciphers?: string; minVersion?: string; maxVersion?: string } }).options;
-          expect(o).toBeDefined();
-          expect(o!.ciphers).toBe('TLS_AES_128_GCM_SHA256');
-          expect(o!.minVersion).toBe('TLSv1.2');
-          expect(o!.maxVersion).toBe('TLSv1.3');
+            await it('matches *foo.example.com against barfoo.example.com', async () => {
+                const ok = checkServerIdentity(
+                    'barfoo.example.com',
+                    fakeCert({
+                        subject: {},
+                        subjectaltname: 'DNS:*foo.example.com',
+                    }),
+                );
+                expect(ok).toBeUndefined();
+            });
+
+            await it('rejects f*r.example.com against bar.example.com (prefix mismatch)', async () => {
+                const err = checkServerIdentity(
+                    'bar.example.com',
+                    fakeCert({
+                        subject: {},
+                        subjectaltname: 'DNS:f*r.example.com',
+                    }),
+                );
+                expect(err instanceof Error).toBe(true);
+            });
         });
-      });
+
+        // ---------------- IDN / xn-- handling ----------------
+        await describe('Punycode / IDN', async () => {
+            await it('treats xn-- labels as exact-match (no wildcard expansion)', async () => {
+                // pattern is the punycoded form; hostname must match exactly.
+                const ok = checkServerIdentity(
+                    'xn--bcher-kva.example.com',
+                    fakeCert({
+                        subject: {},
+                        subjectaltname: 'DNS:xn--bcher-kva.example.com',
+                    }),
+                );
+                expect(ok).toBeUndefined();
+            });
+
+            await it('rejects wildcard expansion against xn-- A-label leftmost', async () => {
+                // *xn--bcher-kva matched against bcher-kva: per RFC 6125 the wildcard
+                // is not allowed to expand into A-label content.
+                const err = checkServerIdentity(
+                    'foo.example.com',
+                    fakeCert({
+                        subject: {},
+                        subjectaltname: 'DNS:xn--*.example.com',
+                    }),
+                );
+                expect(err instanceof Error).toBe(true);
+            });
+        });
+
+        // ---------------- Error code shape (Node-compat) ----------------
+        await describe('error.code', async () => {
+            await it('returns ERR_TLS_CERT_ALTNAME_INVALID code on mismatch', async () => {
+                const err = checkServerIdentity(
+                    'a.com',
+                    fakeCert({
+                        subject: { CN: 'b.com' },
+                    }),
+                );
+                expect(err instanceof Error).toBe(true);
+                const e = err as { code?: string };
+                // Node: ERR_TLS_CERT_ALTNAME_INVALID. Our impl: same.
+                expect(e.code).toBe('ERR_TLS_CERT_ALTNAME_INVALID');
+            });
+        });
+
+        // ---------------- createSecureContext PEM acceptance ----------------
+        await describe('createSecureContext', async () => {
+            await it('accepts string PEM material (cert + key)', async () => {
+                const ctx = createSecureContext({ cert: SAMPLE_CERT_PEM, key: SAMPLE_KEY_PEM });
+                expect(ctx).toBeDefined();
+            });
+
+            await it('accepts Buffer PEM material', async () => {
+                const Buffer = (globalThis as { Buffer?: { from(s: string): unknown } }).Buffer;
+                if (!Buffer) return; // skip if Buffer unavailable
+                const ctx = createSecureContext({
+                    cert: Buffer.from(SAMPLE_CERT_PEM) as never,
+                    key: Buffer.from(SAMPLE_KEY_PEM) as never,
+                });
+                expect(ctx).toBeDefined();
+            });
+
+            await it('accepts array of PEM blocks for ca', async () => {
+                const ctx = createSecureContext({ ca: [SAMPLE_CERT_PEM, SAMPLE_CERT_PEM] });
+                expect(ctx).toBeDefined();
+            });
+
+            await it('returns ctx.context self-reference (Node-compat)', async () => {
+                const ctx = createSecureContext();
+                const ref = (ctx as unknown as { context?: unknown }).context;
+                expect(ref !== undefined).toBe(true);
+            });
+
+            // Our impl preserves the user-supplied options on the SecureContext;
+            // Node does not, so this is a GJS-specific guarantee we lean on for
+            // diagnostics + integration debugging.
+            await on('Gjs', async () => {
+                await it('preserves passed-through options (ciphers/minVersion/maxVersion)', async () => {
+                    const ctx = createSecureContext({
+                        ciphers: 'TLS_AES_128_GCM_SHA256',
+                        minVersion: 'TLSv1.2',
+                        maxVersion: 'TLSv1.3',
+                    });
+                    const o = (
+                        ctx as unknown as { options?: { ciphers?: string; minVersion?: string; maxVersion?: string } }
+                    ).options;
+                    expect(o).toBeDefined();
+                    expect(o!.ciphers).toBe('TLS_AES_128_GCM_SHA256');
+                    expect(o!.minVersion).toBe('TLSv1.2');
+                    expect(o!.maxVersion).toBe('TLSv1.3');
+                });
+            });
+        });
     });
-  });
 };

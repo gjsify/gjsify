@@ -10,15 +10,15 @@
 export const BLOCK_SIZE = 512;
 
 export type TarEntryType =
-    | "file"
-    | "directory"
-    | "symlink"
-    | "hardlink"
-    | "pax-header"
-    | "pax-global"
-    | "gnu-longname"
-    | "gnu-longlink"
-    | "unknown";
+    | 'file'
+    | 'directory'
+    | 'symlink'
+    | 'hardlink'
+    | 'pax-header'
+    | 'pax-global'
+    | 'gnu-longname'
+    | 'gnu-longlink'
+    | 'unknown';
 
 export interface TarEntry {
     name: string;
@@ -55,9 +55,7 @@ export function parseTar(buf: Uint8Array): TarEntry[] {
         }
 
         if (!validateChecksum(header)) {
-            throw new TarParseError(
-                `Bad header checksum at offset ${offset} — file is not a valid tar archive`,
-            );
+            throw new TarParseError(`Bad header checksum at offset ${offset} — file is not a valid tar archive`);
         }
 
         const rawName = readString(header, 0, 100);
@@ -78,26 +76,28 @@ export function parseTar(buf: Uint8Array): TarEntry[] {
         // PAX/GNU placeholder entries describe the *next* real entry. They
         // never produce a TarEntry of their own — fold their info forward and
         // continue the loop.
-        if (typeflag === "x") {
+        if (typeflag === 'x') {
             pendingPaxHeader = parsePaxRecords(body);
             continue;
         }
-        if (typeflag === "g") {
+        if (typeflag === 'g') {
             // Global PAX — applies to remainder of stream. Not used by npm
             // tarballs in practice; stash but never expose.
             continue;
         }
-        if (typeflag === "L") {
-            pendingLongName = bytesToString(body).replace(/\0+$/, "");
+        if (typeflag === 'L') {
+            // oxlint-disable-next-line no-control-regex -- tar pads fields with NUL (\0); trim the padding
+            pendingLongName = bytesToString(body).replace(/\0+$/, '');
             continue;
         }
-        if (typeflag === "K") {
-            pendingLongLink = bytesToString(body).replace(/\0+$/, "");
+        if (typeflag === 'K') {
+            // oxlint-disable-next-line no-control-regex -- tar pads fields with NUL (\0); trim the padding
+            pendingLongLink = bytesToString(body).replace(/\0+$/, '');
             continue;
         }
 
         let name = rawName;
-        if (magic === "ustar" && prefix !== "") {
+        if (magic === 'ustar' && prefix !== '') {
             name = `${prefix}/${rawName}`;
         }
         if (pendingLongName !== null) {
@@ -110,11 +110,11 @@ export function parseTar(buf: Uint8Array): TarEntry[] {
             pendingLongLink = null;
         }
         if (pendingPaxHeader !== null) {
-            const paxName = pendingPaxHeader.get("path");
+            const paxName = pendingPaxHeader.get('path');
             if (paxName !== undefined) name = paxName;
-            const paxLink = pendingPaxHeader.get("linkpath");
+            const paxLink = pendingPaxHeader.get('linkpath');
             if (paxLink !== undefined) resolvedLink = paxLink;
-            const paxSize = pendingPaxHeader.get("size");
+            const paxSize = pendingPaxHeader.get('size');
             if (paxSize !== undefined) {
                 // PAX size override — re-read body with the wider size.
                 const overrideSize = Number(paxSize);
@@ -162,27 +162,27 @@ function buildEntry(
 
 function typeflagToType(typeflag: string, name: string): TarEntryType {
     switch (typeflag) {
-        case "0":
-        case "\0":
-        case "":
+        case '0':
+        case '\0':
+        case '':
             // Some implementations encode trailing slash on dirs as type 0.
-            return name.endsWith("/") ? "directory" : "file";
-        case "1":
-            return "hardlink";
-        case "2":
-            return "symlink";
-        case "5":
-            return "directory";
-        case "x":
-            return "pax-header";
-        case "g":
-            return "pax-global";
-        case "L":
-            return "gnu-longname";
-        case "K":
-            return "gnu-longlink";
+            return name.endsWith('/') ? 'directory' : 'file';
+        case '1':
+            return 'hardlink';
+        case '2':
+            return 'symlink';
+        case '5':
+            return 'directory';
+        case 'x':
+            return 'pax-header';
+        case 'g':
+            return 'pax-global';
+        case 'L':
+            return 'gnu-longname';
+        case 'K':
+            return 'gnu-longlink';
         default:
-            return "unknown";
+            return 'unknown';
     }
 }
 
@@ -204,7 +204,7 @@ function parsePaxRecords(body: Uint8Array): Map<string, string> {
         if (recordEnd > body.length) break;
         const recBytes = body.subarray(space + 1, recordEnd - 1); // -1 for trailing \n
         const recText = bytesToString(recBytes);
-        const eq = recText.indexOf("=");
+        const eq = recText.indexOf('=');
         if (eq > 0) {
             const key = recText.slice(0, eq);
             const value = recText.slice(eq + 1);
@@ -224,7 +224,7 @@ function readString(buf: Uint8Array, start: number, len: number): string {
 
 function bytesToString(buf: Uint8Array): string {
     // Tar headers are 7-bit ASCII. PAX values are UTF-8.
-    return new TextDecoder("utf-8", { fatal: false }).decode(buf);
+    return new TextDecoder('utf-8', { fatal: false }).decode(buf);
 }
 
 function parseOctal(buf: Uint8Array, start: number, len: number): number {
@@ -235,13 +235,13 @@ function parseOctal(buf: Uint8Array, start: number, len: number): number {
         for (let i = 1; i < len; i++) n = n * 256 + buf[start + i];
         return n;
     }
-    let s = "";
+    let s = '';
     for (let i = 0; i < len; i++) {
         const c = buf[start + i];
         if (c === 0 || c === 0x20) continue;
         s += String.fromCharCode(c);
     }
-    if (s === "") return 0;
+    if (s === '') return 0;
     return parseInt(s, 8);
 }
 
@@ -271,6 +271,6 @@ function validateChecksum(header: Uint8Array): boolean {
 export class TarParseError extends Error {
     constructor(msg: string) {
         super(msg);
-        this.name = "TarParseError";
+        this.name = 'TarParseError';
     }
 }

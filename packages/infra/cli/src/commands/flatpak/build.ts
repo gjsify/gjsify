@@ -105,19 +105,17 @@ export const flatpakBuildCommand: Command<unknown, FlatpakBuildOptions> = {
         await runFlatpakBuilder([...sharedFlags, buildDir, manifest], { verbose: args.verbose });
 
         if (args.install) {
-            await runFlatpakBuilder(
-                ['--user', '--install', '--force-clean', buildDir, manifest],
-                { verbose: args.verbose },
-            );
+            await runFlatpakBuilder(['--user', '--install', '--force-clean', buildDir, manifest], {
+                verbose: args.verbose,
+            });
         }
 
         if (args.repo) {
             const repoPath = resolve(cwd, args.repo);
             mkdirSync(dirname(repoPath), { recursive: true });
-            await runFlatpakBuilder(
-                [`--repo=${repoPath}`, '--force-clean', buildDir, manifest],
-                { verbose: args.verbose },
-            );
+            await runFlatpakBuilder([`--repo=${repoPath}`, '--force-clean', buildDir, manifest], {
+                verbose: args.verbose,
+            });
         }
 
         if (args.bundle) {
@@ -130,10 +128,7 @@ export const flatpakBuildCommand: Command<unknown, FlatpakBuildOptions> = {
             mkdirSync(dirname(bundlePath), { recursive: true });
             const repoPath = resolve(cwd, args.repo);
             const appId = readManifestAppId(manifest);
-            await runFlatpak(
-                ['build-bundle', repoPath, bundlePath, appId],
-                { verbose: args.verbose },
-            );
+            await runFlatpak(['build-bundle', repoPath, bundlePath, appId], { verbose: args.verbose });
         }
 
         if (args.tarball) {

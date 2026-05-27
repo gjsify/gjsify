@@ -47,8 +47,26 @@ async function loadNpmRolldown(): Promise<typeof import('rolldown').rolldown> {
 interface BundleResult {
     warnings: string[];
     output: Array<
-        | { type: 'chunk'; fileName: string; name: string; isEntry: boolean; isDynamicEntry: boolean; code: string; map?: string; sourcemapFilename?: string; imports: string[]; dynamicImports: string[] }
-        | { type: 'asset'; fileName: string; names: string[]; originalFileNames: string[]; sourceText?: string; sourceBytesLen: number }
+        | {
+              type: 'chunk';
+              fileName: string;
+              name: string;
+              isEntry: boolean;
+              isDynamicEntry: boolean;
+              code: string;
+              map?: string;
+              sourcemapFilename?: string;
+              imports: string[];
+              dynamicImports: string[];
+          }
+        | {
+              type: 'asset';
+              fileName: string;
+              names: string[];
+              originalFileNames: string[];
+              sourceText?: string;
+              sourceBytesLen: number;
+          }
     >;
 }
 
@@ -58,7 +76,11 @@ interface NativeRolldownSurface {
 }
 
 export interface NativePluginContext {
-    resolve(specifier: string, importer?: string, opts?: { skipSelf?: boolean; isEntry?: boolean }): Promise<{ id: string; external: boolean } | null>;
+    resolve(
+        specifier: string,
+        importer?: string,
+        opts?: { skipSelf?: boolean; isEntry?: boolean },
+    ): Promise<{ id: string; external: boolean } | null>;
     warn(message: string): void;
     error(message: string): never;
 }
@@ -68,8 +90,17 @@ export interface NativePlugin {
     idFilter?: { load?: string; transform?: string; resolveId?: string };
     load?: (this: NativePluginContext, id: string) => unknown;
     transform?: (this: NativePluginContext, code: string, id: string, moduleType: string) => unknown;
-    resolveId?: (this: NativePluginContext, specifier: string, importer: string | undefined, opts: { isEntry: boolean }) => unknown;
-    renderChunk?: (this: NativePluginContext, code: string, chunk: { fileName: string; name: string; isEntry: boolean }) => unknown;
+    resolveId?: (
+        this: NativePluginContext,
+        specifier: string,
+        importer: string | undefined,
+        opts: { isEntry: boolean },
+    ) => unknown;
+    renderChunk?: (
+        this: NativePluginContext,
+        code: string,
+        chunk: { fileName: string; name: string; isEntry: boolean },
+    ) => unknown;
     banner?: (this: NativePluginContext, chunk: { fileName: string; name: string; isEntry: boolean }) => unknown;
     footer?: (this: NativePluginContext, chunk: { fileName: string; name: string; isEntry: boolean }) => unknown;
     intro?: (this: NativePluginContext, chunk: { fileName: string; name: string; isEntry: boolean }) => unknown;
@@ -100,16 +131,15 @@ export async function bundleToChunks(input: {
         for (const p of rawPlugins) {
             if (isPluginObject(p)) nativePlugins.push(toNativePlugin(p));
         }
-        const opts = liftTransformExtras(stripUnserializable({
-            ...input.rolldownInput,
-            input: normalizeInputForNative(input.rolldownInput.input),
-            format: input.format,
-        }));
-        delete (opts as { plugins?: unknown }).plugins;
-        const result = await native.bundleWithPlugins(
-            opts as unknown as Record<string, unknown>,
-            nativePlugins,
+        const opts = liftTransformExtras(
+            stripUnserializable({
+                ...input.rolldownInput,
+                input: normalizeInputForNative(input.rolldownInput.input),
+                format: input.format,
+            }),
         );
+        delete (opts as { plugins?: unknown }).plugins;
+        const result = await native.bundleWithPlugins(opts as unknown as Record<string, unknown>, nativePlugins);
         const codes: string[] = [];
         for (const item of result.output) {
             if (item.type === 'chunk') codes.push(item.code);
@@ -136,9 +166,7 @@ export async function bundleToChunks(input: {
  * Returns the watcher; the caller registers `event` / `close` listeners
  * and is responsible for invoking `watcher.close()` on shutdown.
  */
-export async function runWatch(
-    finalOpts: BundlerOptions,
-): Promise<import('rolldown').RolldownWatcher> {
+export async function runWatch(finalOpts: BundlerOptions): Promise<import('rolldown').RolldownWatcher> {
     if (await shouldUseNative()) {
         throw new Error(
             '`gjsify build --watch` requires the npm `rolldown` engine. The native engine ' +
@@ -180,7 +208,9 @@ export async function shouldUseNative(): Promise<boolean> {
     if (choice === 'native') {
         const native = await tryLoadNative();
         if (!native) {
-            throw new Error('GJSIFY_BUNDLER=native but @gjsify/rolldown-native is not loadable (no prebuild for this architecture, or not running under GJS).');
+            throw new Error(
+                'GJSIFY_BUNDLER=native but @gjsify/rolldown-native is not loadable (no prebuild for this architecture, or not running under GJS).',
+            );
         }
         return true;
     }
@@ -251,14 +281,23 @@ async function runNativeBundle(finalOpts: BundlerOptions): Promise<RolldownOutpu
     // expected `InputItem[]` shape, and flatten `output: { … }` (npm
     // rolldown's JS-side shape) into the top-level keys the Rust
     // BundlerOptions deserializer expects.
-    const { output: outputOpts, plugins: _droppedPlugins, ...rest } = finalOpts as unknown as Record<string, unknown> & { output?: Record<string, unknown> };
+    const {
+        output: outputOpts,
+        plugins: _droppedPlugins,
+        ...rest
+    } = finalOpts as unknown as Record<string, unknown> & { output?: Record<string, unknown> };
     void _droppedPlugins;
-    const bundlerOpts = liftTransformExtras(stripUnserializable({
-        ...rest,
-        ...(outputOpts ?? {}),
-        input: normalizeInputForNative(finalOpts.input as import('rolldown').InputOptions['input']),
-    }));
-    if ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.GJSIFY_DEBUG_NATIVE_OPTS) {
+    const bundlerOpts = liftTransformExtras(
+        stripUnserializable({
+            ...rest,
+            ...outputOpts,
+            input: normalizeInputForNative(finalOpts.input as import('rolldown').InputOptions['input']),
+        }),
+    );
+    if (
+        (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+            ?.GJSIFY_DEBUG_NATIVE_OPTS
+    ) {
         // Debug switch to inspect the shape we ship to the native facade —
         // mismatches surface as Rust serde parse errors that point at column
         // numbers in this JSON.
@@ -274,9 +313,8 @@ async function runNativeBundle(finalOpts: BundlerOptions): Promise<RolldownOutpu
     if (outDir) await fs.mkdir(outDir, { recursive: true });
     for (const item of result.output) {
         if (item.type === 'chunk') {
-            const target = outputCfg.file && result.output.length === 1
-                ? outputCfg.file
-                : path.join(outDir, item.fileName);
+            const target =
+                outputCfg.file && result.output.length === 1 ? outputCfg.file : path.join(outDir, item.fileName);
             await fs.writeFile(target, item.code, 'utf8');
         }
     }
@@ -339,9 +377,7 @@ function liftTransformExtras<T extends Record<string, unknown>>(opts: T): T {
     } as T;
 }
 
-function mapToInjectArray(
-    map: Record<string, string | [string, string]>,
-): Array<Record<string, string>> {
+function mapToInjectArray(map: Record<string, string | [string, string]>): Array<Record<string, string>> {
     const out: Array<Record<string, string>> = [];
     for (const [alias, value] of Object.entries(map)) {
         if (typeof value === 'string') {
@@ -368,9 +404,7 @@ function normalizeInputForNative(
     if (input === undefined) return [];
     if (typeof input === 'string') return [{ import: input }];
     if (Array.isArray(input)) {
-        return input.map((v) =>
-            typeof v === 'string' ? { import: v } : (v as { name?: string; import: string }),
-        );
+        return input.map((v) => (typeof v === 'string' ? { import: v } : (v as { name?: string; import: string })));
     }
     return Object.entries(input as Record<string, string>).map(([name, file]) => ({ name, import: file }));
 }
@@ -381,12 +415,15 @@ export function isPluginObject(p: unknown): p is PluginRecord {
     return p !== null && typeof p === 'object' && !Array.isArray(p);
 }
 
-interface RolldownHookFilter { id?: RegExp | string | Array<RegExp | string> }
-interface RolldownHookObject { filter?: RolldownHookFilter; handler: (...args: never[]) => unknown }
+interface RolldownHookFilter {
+    id?: RegExp | string | Array<RegExp | string>;
+}
+interface RolldownHookObject {
+    filter?: RolldownHookFilter;
+    handler: (...args: never[]) => unknown;
+}
 
-function pickHook<F extends (...args: never[]) => unknown>(
-    raw: unknown,
-): { fn: F; idFilter?: string } | undefined {
+function pickHook<F extends (...args: never[]) => unknown>(raw: unknown): { fn: F; idFilter?: string } | undefined {
     if (typeof raw === 'function') return { fn: raw as F };
     if (raw !== null && typeof raw === 'object' && 'handler' in raw) {
         const obj = raw as RolldownHookObject;
@@ -424,11 +461,20 @@ export function toNativePlugin(p: PluginRecord): NativePlugin {
     const idFilter: { load?: string; transform?: string; resolveId?: string } = {};
 
     const load = pickHook(p.load);
-    if (load) { out.load = load.fn as NativePlugin['load']; if (load.idFilter) idFilter.load = load.idFilter; }
+    if (load) {
+        out.load = load.fn as NativePlugin['load'];
+        if (load.idFilter) idFilter.load = load.idFilter;
+    }
     const transform = pickHook(p.transform);
-    if (transform) { out.transform = transform.fn as NativePlugin['transform']; if (transform.idFilter) idFilter.transform = transform.idFilter; }
+    if (transform) {
+        out.transform = transform.fn as NativePlugin['transform'];
+        if (transform.idFilter) idFilter.transform = transform.idFilter;
+    }
     const resolveId = pickHook(p.resolveId);
-    if (resolveId) { out.resolveId = resolveId.fn as NativePlugin['resolveId']; if (resolveId.idFilter) idFilter.resolveId = resolveId.idFilter; }
+    if (resolveId) {
+        out.resolveId = resolveId.fn as NativePlugin['resolveId'];
+        if (resolveId.idFilter) idFilter.resolveId = resolveId.idFilter;
+    }
     const renderChunk = pickHook(p.renderChunk);
     if (renderChunk) out.renderChunk = renderChunk.fn as NativePlugin['renderChunk'];
     const banner = pickHook(p.banner);

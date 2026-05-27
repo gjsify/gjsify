@@ -1,4 +1,3 @@
-
 import { run } from '@gjsify/unit';
 
 import testSuiteDatabaseSync from './database-sync.spec.js';

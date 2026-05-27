@@ -1,4 +1,4 @@
-import path from 'path';
+import path from 'node:path';
 
 console.log('=== @gjsify/path example ===\n');
 
@@ -30,7 +30,10 @@ console.log('path.isAbsolute("bar"):', path.isAbsolute('bar'));
 console.log('path.normalize("/foo/bar//baz/asdf/quux/.."):', path.normalize('/foo/bar//baz/asdf/quux/..'));
 
 // path.relative
-console.log('path.relative("/data/orandea/test/aaa", "/data/orandea/impl/bbb"):', path.relative('/data/orandea/test/aaa', '/data/orandea/impl/bbb'));
+console.log(
+    'path.relative("/data/orandea/test/aaa", "/data/orandea/impl/bbb"):',
+    path.relative('/data/orandea/test/aaa', '/data/orandea/impl/bbb'),
+);
 
 // path.sep and path.delimiter
 console.log('path.sep:', JSON.stringify(path.sep));

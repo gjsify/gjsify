@@ -1,20 +1,16 @@
-import type { ConfigData, BundlerOptions } from "../types/index.js";
-import type { App, PluginOptions } from "@gjsify/rolldown-plugin-gjsify";
-import type { RolldownOutput, RolldownPluginOption } from "rolldown";
-import { runBundle, runWatch, bundleToChunks } from "../bundler-pick.js";
-import { gjsifyPlugin, textLoaderPlugin, resolveShebangLine, NODE_SHEBANG } from "@gjsify/rolldown-plugin-gjsify";
-import { resolveUserPlugins } from "../utils/resolve-plugin-by-name.js";
-import {
-    resolveGlobalsList,
-    writeRegisterInjectFile,
-    detectAutoGlobals,
-} from "@gjsify/rolldown-plugin-gjsify/globals";
-import { pnpPlugin } from "@gjsify/rolldown-plugin-pnp";
-import { dirname, extname } from "node:path";
-import { chmod, readFile, writeFile } from "node:fs/promises";
-import { normalizeBundlerOptions, mergeBundlerOptions } from "../utils/normalize-bundler-options.js";
+import type { ConfigData, BundlerOptions } from '../types/index.js';
+import type { App, PluginOptions } from '@gjsify/rolldown-plugin-gjsify';
+import type { RolldownOutput, RolldownPluginOption } from 'rolldown';
+import { runBundle, runWatch, bundleToChunks } from '../bundler-pick.js';
+import { gjsifyPlugin, textLoaderPlugin, resolveShebangLine, NODE_SHEBANG } from '@gjsify/rolldown-plugin-gjsify';
+import { resolveUserPlugins } from '../utils/resolve-plugin-by-name.js';
+import { resolveGlobalsList, writeRegisterInjectFile, detectAutoGlobals } from '@gjsify/rolldown-plugin-gjsify/globals';
+import { pnpPlugin } from '@gjsify/rolldown-plugin-pnp';
+import { dirname, extname } from 'node:path';
+import { chmod, readFile, writeFile } from 'node:fs/promises';
+import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize-bundler-options.js';
 
-const DEFAULT_GJS_SHEBANG = "#!/usr/bin/env -S gjs -m";
+const DEFAULT_GJS_SHEBANG = '#!/usr/bin/env -S gjs -m';
 
 /**
  * `true` when `path` points at a location that's unsafe to use as a build
@@ -24,7 +20,7 @@ const DEFAULT_GJS_SHEBANG = "#!/usr/bin/env -S gjs -m";
  */
 function isUnsafeDefaultOutput(path: string): boolean {
     if (/\.[cm]?tsx?$/i.test(path)) return true;
-    const norm = path.replace(/\\/g, "/");
+    const norm = path.replace(/\\/g, '/');
     if (/(?:^|\/)src\//.test(norm)) return true;
     return false;
 }
@@ -55,11 +51,10 @@ export class BuildAction {
         const moduleOutdir = lib.module ? dirname(lib.module) : undefined;
         const mainOutdir = lib.main ? dirname(lib.main) : undefined;
 
-        const moduleOutExt = lib.module ? extname(lib.module) : ".js";
-        const mainOutExt = lib.main ? extname(lib.main) : ".js";
+        const moduleOutExt = lib.module ? extname(lib.module) : '.js';
+        const mainOutExt = lib.main ? extname(lib.main) : '.js';
 
-        const multipleBuilds =
-            moduleOutdir && mainOutdir && moduleOutdir !== mainOutdir;
+        const multipleBuilds = moduleOutdir && mainOutdir && moduleOutdir !== mainOutdir;
 
         const pnp = await buildPnpPlugin();
         const pnpPlugins: RolldownPluginOption[] = pnp ? [pnp] : [];
@@ -67,10 +62,8 @@ export class BuildAction {
         const results: RolldownOutput[] = [];
 
         if (multipleBuilds) {
-            const moduleFormat: "esm" | "cjs" =
-                moduleOutdir.includes("/cjs") || moduleOutExt === ".cjs"
-                    ? "cjs"
-                    : "esm";
+            const moduleFormat: 'esm' | 'cjs' =
+                moduleOutdir.includes('/cjs') || moduleOutExt === '.cjs' ? 'cjs' : 'esm';
             results.push(
                 await runOneLibraryBuild({
                     pluginOpts: {
@@ -87,8 +80,7 @@ export class BuildAction {
                 }),
             );
 
-            const mainFormat: "esm" | "cjs" =
-                mainOutdir.includes("/cjs") || mainOutExt === ".cjs" ? "cjs" : "esm";
+            const mainFormat: 'esm' | 'cjs' = mainOutdir.includes('/cjs') || mainOutExt === '.cjs' ? 'cjs' : 'esm';
             results.push(
                 await runOneLibraryBuild({
                     pluginOpts: {
@@ -105,14 +97,12 @@ export class BuildAction {
                 }),
             );
         } else {
-            const outfilePath =
-                userBundler.output?.file ?? lib.module ?? lib.main;
-            const outExt = outfilePath ? extname(outfilePath) : ".js";
-            const outdir =
-                userBundler.output?.dir ?? (outfilePath ? dirname(outfilePath) : undefined);
-            const format: "esm" | "cjs" =
-                (userBundler.output?.format as "esm" | "cjs" | undefined) ??
-                (outdir?.includes("/cjs") || outExt === ".cjs" ? "cjs" : "esm");
+            const outfilePath = userBundler.output?.file ?? lib.module ?? lib.main;
+            const outExt = outfilePath ? extname(outfilePath) : '.js';
+            const outdir = userBundler.output?.dir ?? (outfilePath ? dirname(outfilePath) : undefined);
+            const format: 'esm' | 'cjs' =
+                (userBundler.output?.format as 'esm' | 'cjs' | undefined) ??
+                (outdir?.includes('/cjs') || outExt === '.cjs' ? 'cjs' : 'esm');
             results.push(
                 await runOneLibraryBuild({
                     pluginOpts: {
@@ -145,16 +135,15 @@ export class BuildAction {
         autoMode: boolean;
         extras: string;
     } {
-        if (value === undefined) return { autoMode: true, extras: "" };
-        if (value === "none" || value === "")
-            return { autoMode: false, extras: "" };
+        if (value === undefined) return { autoMode: true, extras: '' };
+        if (value === 'none' || value === '') return { autoMode: false, extras: '' };
 
         const tokens = value
-            .split(",")
+            .split(',')
             .map((t) => t.trim())
             .filter(Boolean);
-        const hasAuto = tokens.includes("auto");
-        const extras = tokens.filter((t) => t !== "auto").join(",");
+        const hasAuto = tokens.includes('auto');
+        const extras = tokens.filter((t) => t !== 'auto').join(',');
 
         return { autoMode: hasAuto, extras };
     }
@@ -172,16 +161,13 @@ export class BuildAction {
         globals: string,
         verbose: boolean | undefined,
     ): Promise<string | undefined> {
-        if (app !== "gjs") return undefined;
+        if (app !== 'gjs') return undefined;
         if (!globals) return undefined;
 
         const registerPaths = resolveGlobalsList(globals);
         if (registerPaths.size === 0) return undefined;
 
-        const injectPath = await writeRegisterInjectFile(
-            registerPaths,
-            process.cwd(),
-        );
+        const injectPath = await writeRegisterInjectFile(registerPaths, process.cwd());
         if (verbose && injectPath) {
             console.debug(
                 `[gjsify] globals: injected ${registerPaths.size} register module(s) from --globals ${globals}`,
@@ -201,66 +187,43 @@ export class BuildAction {
      * user-supplied banners that out-ordered it) plus the chmod. For Node
      * there is no in-bundle plugin, so this hook is the sole injection point.
      */
-    private async applyShebang(
-        app: App,
-        outfile: string | undefined,
-        verbose: boolean | undefined,
-    ): Promise<void> {
+    private async applyShebang(app: App, outfile: string | undefined, verbose: boolean | undefined): Promise<void> {
         if (!outfile) {
-            if (verbose)
-                console.warn(
-                    "[gjsify] --shebang skipped: no single outfile (use --outfile for executables)",
-                );
+            if (verbose) console.warn('[gjsify] --shebang skipped: no single outfile (use --outfile for executables)');
             return;
         }
 
-        const defaultLine = app === "node" ? NODE_SHEBANG : DEFAULT_GJS_SHEBANG;
+        const defaultLine = app === 'node' ? NODE_SHEBANG : DEFAULT_GJS_SHEBANG;
         const line = resolveShebangLine(this.configData.shebang, defaultLine) ?? defaultLine;
 
-        const content = await readFile(outfile, "utf-8");
-        if (content.startsWith("#!")) {
-            if (verbose)
-                console.debug(
-                    `[gjsify] --shebang skipped: ${outfile} already starts with a shebang`,
-                );
+        const content = await readFile(outfile, 'utf-8');
+        if (content.startsWith('#!')) {
+            if (verbose) console.debug(`[gjsify] --shebang skipped: ${outfile} already starts with a shebang`);
         } else {
-            await writeFile(outfile, line + "\n" + content);
+            await writeFile(outfile, line + '\n' + content);
         }
         await chmod(outfile, 0o755);
-        if (verbose)
-            console.debug(
-                `[gjsify] --shebang: wrote ${line} + chmod 0o755 to ${outfile}`,
-            );
+        if (verbose) console.debug(`[gjsify] --shebang: wrote ${line} + chmod 0o755 to ${outfile}`);
     }
 
     /** Application mode */
-    async buildApp(app: App = "gjs", opts: { watch?: boolean } = {}): Promise<RolldownOutput[]> {
-        const {
-            verbose,
-            typescript,
-            exclude,
-            library: pkg,
-            aliases,
-            excludeGlobals,
-        } = this.configData;
+    async buildApp(app: App = 'gjs', opts: { watch?: boolean } = {}): Promise<RolldownOutput[]> {
+        const { verbose, typescript, exclude, library: pkg, aliases, excludeGlobals } = this.configData;
 
         const userBundler = normalizeBundlerOptions(this.configData);
 
         const formatRaw =
-            (userBundler.output?.format as "esm" | "cjs" | "iife" | undefined) ??
-            (userBundler.output?.file?.endsWith(".cjs") ? "cjs" : "esm");
+            (userBundler.output?.format as 'esm' | 'cjs' | 'iife' | undefined) ??
+            (userBundler.output?.file?.endsWith('.cjs') ? 'cjs' : 'esm');
         // The orchestrator only handles esm/cjs (iife is not a GJS / Node /
         // browser-bundle target we support). Coerce.
-        const format: "esm" | "cjs" = formatRaw === "iife" ? "esm" : formatRaw;
+        const format: 'esm' | 'cjs' = formatRaw === 'iife' ? 'esm' : formatRaw;
 
         // Set default outfile if no outdir is set
         let outfile = userBundler.output?.file;
         let outdir = userBundler.output?.dir;
         if (!outfile && !outdir && (pkg?.main || pkg?.module)) {
-            const candidate =
-                format === "cjs"
-                    ? pkg.main ?? pkg.module
-                    : pkg.module ?? pkg.main;
+            const candidate = format === 'cjs' ? (pkg.main ?? pkg.module) : (pkg.module ?? pkg.main);
             if (candidate && isUnsafeDefaultOutput(candidate)) {
                 throw new Error(
                     `gjsify build: refusing to default --outfile to ${candidate} ` +
@@ -273,12 +236,9 @@ export class BuildAction {
 
         const { consoleShim, globals } = this.configData;
 
-        const userExternal = Array.isArray(userBundler.external)
-            ? (userBundler.external as string[])
-            : undefined;
-        const userBanner = typeof userBundler.output?.banner === "string"
-            ? (userBundler.output.banner as string)
-            : undefined;
+        const userExternal = Array.isArray(userBundler.external) ? (userBundler.external as string[]) : undefined;
+        const userBanner =
+            typeof userBundler.output?.banner === 'string' ? (userBundler.output.banner as string) : undefined;
 
         const pluginOpts: PluginOptions = {
             debug: verbose,
@@ -316,7 +276,7 @@ export class BuildAction {
         }
 
         // --- Auto mode (with optional extras): iterative multi-pass build ---
-        if (app === "gjs" && autoMode) {
+        if (app === 'gjs' && autoMode) {
             // Return the full orchestrator config (options + plugins) so
             // auto-globals can reuse the per-app `resolve.conditionNames` /
             // `mainFields` / `external` / `treeshake` for the in-memory
@@ -356,11 +316,7 @@ export class BuildAction {
 
             pluginOpts.autoGlobalsInject = injectPath;
         } else if (extras) {
-            pluginOpts.autoGlobalsInject = await this.resolveGlobalsInject(
-                app,
-                extras,
-                verbose,
-            );
+            pluginOpts.autoGlobalsInject = await this.resolveGlobalsInject(app, extras, verbose);
         }
 
         // Final build: orchestrator → rolldown → write
@@ -395,7 +351,7 @@ export class BuildAction {
 
         const writeResult = await runBundle(finalOpts);
 
-        if ((app === "gjs" || app === "node") && this.configData.shebang) {
+        if ((app === 'gjs' || app === 'node') && this.configData.shebang) {
             await this.applyShebang(app, outfile, verbose);
         }
 
@@ -417,46 +373,46 @@ export class BuildAction {
         const watcher = await runWatch(finalOpts);
 
         const closed = new Promise<void>((resolve) => {
-            watcher.on("close", () => resolve());
+            watcher.on('close', () => resolve());
         });
 
         let closing = false;
         const shutdown = async () => {
             if (closing) return;
             closing = true;
-            console.log("\n[gjsify build --watch] stopping watcher…");
+            console.log('\n[gjsify build --watch] stopping watcher…');
             try {
                 await watcher.close();
             } catch (err) {
-                console.error("[gjsify build --watch] watcher close error:", err);
+                console.error('[gjsify build --watch] watcher close error:', err);
             }
         };
-        process.on("SIGINT", shutdown);
-        process.on("SIGTERM", shutdown);
+        process.on('SIGINT', shutdown);
+        process.on('SIGTERM', shutdown);
 
-        watcher.on("event", async (event) => {
+        watcher.on('event', async (event) => {
             switch (event.code) {
-                case "START":
-                    if (verbose) console.log("[gjsify build --watch] rebuild start");
+                case 'START':
+                    if (verbose) console.log('[gjsify build --watch] rebuild start');
                     break;
-                case "BUNDLE_START":
-                    console.log("[gjsify build --watch] building…");
+                case 'BUNDLE_START':
+                    console.log('[gjsify build --watch] building…');
                     break;
-                case "BUNDLE_END":
+                case 'BUNDLE_END':
                     console.log(`[gjsify build --watch] built in ${event.duration}ms`);
                     try {
-                        if ((app === "gjs" || app === "node") && this.configData.shebang) {
+                        if ((app === 'gjs' || app === 'node') && this.configData.shebang) {
                             await this.applyShebang(app, outfile, verbose);
                         }
                     } finally {
                         await event.result.close();
                     }
                     break;
-                case "END":
-                    console.log("[gjsify build --watch] waiting for changes…");
+                case 'END':
+                    console.log('[gjsify build --watch] waiting for changes…');
                     break;
-                case "ERROR":
-                    console.error("[gjsify build --watch] build failed:", event.error?.message ?? event.error);
+                case 'ERROR':
+                    console.error('[gjsify build --watch] build failed:', event.error?.message ?? event.error);
                     if (verbose && event.error?.stack) console.error(event.error.stack);
                     try {
                         await event.result.close();
@@ -468,7 +424,7 @@ export class BuildAction {
         });
 
         if (verbose) {
-            watcher.on("change", (id, change) => {
+            watcher.on('change', (id, change) => {
                 console.log(`[gjsify build --watch] ${change.event}: ${id}`);
             });
         }
@@ -476,13 +432,11 @@ export class BuildAction {
         await closed;
     }
 
-    async start(
-        buildType: { library?: boolean; app?: App; watch?: boolean } = { app: "gjs" },
-    ) {
+    async start(buildType: { library?: boolean; app?: App; watch?: boolean } = { app: 'gjs' }) {
         if (buildType.library) {
             if (buildType.watch) {
                 throw new Error(
-                    "gjsify build: --watch is not supported with --library (library mode would emit watcher rebuilds for every produced format; use --app gjs|node|browser instead).",
+                    'gjsify build: --watch is not supported with --library (library mode would emit watcher rebuilds for every produced format; use --app gjs|node|browser instead).',
                 );
             }
             return await this.buildLibrary();

@@ -24,7 +24,7 @@ export class AdwPreferencesGroup extends HTMLElement {
         // Build boxed list container and move children into it
         const listbox = document.createElement('div');
         listbox.className = 'adw-preferences-group-listbox';
-        children.forEach(child => listbox.appendChild(child));
+        children.forEach((child) => listbox.appendChild(child));
 
         this.appendChild(header);
         this.appendChild(listbox);

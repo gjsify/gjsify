@@ -87,7 +87,7 @@ async function applyExcludeGlobals(
     for (const id of excludeGlobals) detected.delete(id);
     const filtered = detectedToRegisterPaths(detected);
     for (const p of extraRegisterPaths) filtered.add(p);
-    const injectPath = filtered.size > 0 ? (await writeRegisterInjectFile(filtered)) ?? undefined : undefined;
+    const injectPath = filtered.size > 0 ? ((await writeRegisterInjectFile(filtered)) ?? undefined) : undefined;
     return { detected, injectPath };
 }
 
@@ -154,17 +154,11 @@ export interface AnalysisOptions {
  * to different module-resolution conditions and the bundled output (and
  * therefore the detected free-global set) diverges between engines.
  */
-type GjsifyFactoryReturn =
-    | RolldownPluginOption
-    | { options: InputOptions; plugins: RolldownPluginOption[] };
+type GjsifyFactoryReturn = RolldownPluginOption | { options: InputOptions; plugins: RolldownPluginOption[] };
 
-type GjsifyPluginFactory = (
-    options: PluginOptions,
-) => GjsifyFactoryReturn | Promise<GjsifyFactoryReturn>;
+type GjsifyPluginFactory = (options: PluginOptions) => GjsifyFactoryReturn | Promise<GjsifyFactoryReturn>;
 
-function isFullConfig(
-    v: GjsifyFactoryReturn,
-): v is { options: InputOptions; plugins: RolldownPluginOption[] } {
+function isFullConfig(v: GjsifyFactoryReturn): v is { options: InputOptions; plugins: RolldownPluginOption[] } {
     return v !== null && typeof v === 'object' && !Array.isArray(v) && 'plugins' in v && 'options' in v;
 }
 
@@ -260,9 +254,7 @@ export async function detectAutoGlobals(
         // shape: caller plugins first (PnP, user text-loaders), then the
         // gjsify chain (which may be either a single RolldownPluginOption
         // or an array of them depending on the factory shape).
-        const gjsifyPluginsArray = Array.isArray(gjsifyInstance)
-            ? gjsifyInstance
-            : [gjsifyInstance];
+        const gjsifyPluginsArray = Array.isArray(gjsifyInstance) ? gjsifyInstance : [gjsifyInstance];
 
         const chunkCodes = await bundler({
             rolldownInput: {
@@ -292,14 +284,21 @@ export async function detectAutoGlobals(
             try {
                 for (const id of detectFreeGlobals(code)) newDetected.add(id);
             } catch (e) {
-                if ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.GJSIFY_DEBUG_AUTO_GLOBALS) {
+                if (
+                    (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+                        ?.GJSIFY_DEBUG_AUTO_GLOBALS
+                ) {
                     const path = `/tmp/gjsify-auto-globals-failed-chunk-${i}.mjs`;
                     try {
                         // eslint-disable-next-line @typescript-eslint/no-require-imports
                         const fs = await import('node:fs');
                         fs.writeFileSync(path, code);
-                        console.error(`[gjsify-auto-globals] parse failed on chunk #${i} — wrote ${path} for inspection`);
-                    } catch { /* ignore */ }
+                        console.error(
+                            `[gjsify-auto-globals] parse failed on chunk #${i} — wrote ${path} for inspection`,
+                        );
+                    } catch {
+                        /* ignore */
+                    }
                 }
                 throw e;
             }
@@ -320,7 +319,8 @@ export async function detectAutoGlobals(
         if (setsEqual(detected, newDetected)) {
             if (verbose) {
                 const sorted = [...detected].sort();
-                const extras = extraRegisterPaths.size > 0 ? ` (+ ${extraRegisterPaths.size} extra register module(s))` : '';
+                const extras =
+                    extraRegisterPaths.size > 0 ? ` (+ ${extraRegisterPaths.size} extra register module(s))` : '';
                 console.debug(
                     `[gjsify] --globals auto: converged after ${iteration - 1} iteration(s), ${detected.size} global(s)${sorted.length ? ': ' + sorted.join(', ') : ''}${extras}`,
                 );
@@ -347,9 +347,7 @@ export async function detectAutoGlobals(
     }
 
     if (verbose) {
-        console.debug(
-            `[gjsify] --globals auto: hit max iterations (${MAX_ITERATIONS}), using last detected set`,
-        );
+        console.debug(`[gjsify] --globals auto: hit max iterations (${MAX_ITERATIONS}), using last detected set`);
     }
     return applyExcludeGlobals(detected, currentInject, extraRegisterPaths, options.excludeGlobals);
 }
@@ -360,10 +358,7 @@ export async function detectAutoGlobals(
  * The new entry is given the synthetic name `__gjsify_inject` when the
  * record form is used so it doesn't collide with user-named outputs.
  */
-function appendInjectAsEntry(
-    input: InputOptions['input'],
-    injectPath: string,
-): InputOptions['input'] {
+function appendInjectAsEntry(input: InputOptions['input'], injectPath: string): InputOptions['input'] {
     if (input === undefined) return [injectPath];
     if (typeof input === 'string') return [input, injectPath];
     if (Array.isArray(input)) {

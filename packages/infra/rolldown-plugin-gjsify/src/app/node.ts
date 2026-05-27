@@ -14,10 +14,7 @@ import { EXTERNALS_NODE } from '@gjsify/resolve-npm';
 import type { PluginOptions } from '../types/plugin-options.js';
 import { getAliasesForNode } from '../utils/alias.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
-import {
-    nodeModulesPathRewritePlugin,
-    getBundleDirFromOutput,
-} from '../plugins/rewrite-node-modules-paths.js';
+import { nodeModulesPathRewritePlugin, getBundleDirFromOutput } from '../plugins/rewrite-node-modules-paths.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 
 export interface NodeBuildConfig {
@@ -43,11 +40,7 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     // way esbuild's did (`gi://*`, `@girs/*`). We use a function predicate
     // instead so the gi:// URI scheme and the @girs/ namespace are matched
     // by prefix.
-    const exactExternal = [
-        ...EXTERNALS_NODE as string[],
-        'node-datachannel',
-        ...userExternal,
-    ];
+    const exactExternal = [...(EXTERNALS_NODE as string[]), 'node-datachannel', ...userExternal];
     const external = (id: string): boolean => {
         if (id.startsWith('gi://')) return true;
         if (id.startsWith('@girs/')) return true;
@@ -61,8 +54,8 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
 
     const aliasMap = {
         ...getAliasesForNode({ external }),
-        ...(input.pluginOptions.aliases ?? {}),
-        ...(input.userAliases ?? {}),
+        ...input.pluginOptions.aliases,
+        ...input.userAliases,
     };
 
     const bundleDir = getBundleDirFromOutput(input.output);

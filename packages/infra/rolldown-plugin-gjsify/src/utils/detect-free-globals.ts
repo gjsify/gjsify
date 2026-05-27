@@ -36,11 +36,11 @@ const METHOD_MARKERS: Record<string, string> = {
     // any reference to these methods needs the `@gjsify/webassembly` polyfill.
     // The register entry replaces the stubs with wrappers around the working
     // synchronous `new WebAssembly.{Module,Instance}` constructors.
-    'WebAssembly.compile':              'WebAssembly',
-    'WebAssembly.compileStreaming':     'WebAssembly',
-    'WebAssembly.instantiate':          'WebAssembly',
+    'WebAssembly.compile': 'WebAssembly',
+    'WebAssembly.compileStreaming': 'WebAssembly',
+    'WebAssembly.instantiate': 'WebAssembly',
     'WebAssembly.instantiateStreaming': 'WebAssembly',
-    'WebAssembly.validate':             'WebAssembly',
+    'WebAssembly.validate': 'WebAssembly',
     // Note: URL.createObjectURL / URL.revokeObjectURL don't need markers —
     // they are first-class static methods on @gjsify/url's URL class, so the
     // free `URL` identifier (detected directly, maps to
@@ -121,11 +121,7 @@ function extractBindingNames(node: acorn.AnyNode): string[] {
             );
         case 'ArrayPattern':
             return (node as acorn.ArrayPattern).elements.flatMap((e) =>
-                e
-                    ? e.type === 'RestElement'
-                        ? extractBindingNames(e.argument)
-                        : extractBindingNames(e)
-                    : [],
+                e ? (e.type === 'RestElement' ? extractBindingNames(e.argument) : extractBindingNames(e)) : [],
             );
         case 'AssignmentPattern':
             return extractBindingNames((node as acorn.AssignmentPattern).left);

@@ -172,10 +172,7 @@ function buildLauncherEnvPreamble(prebuildsDirs: string[]): string {
     );
 }
 
-function pickBinMap(
-    pkgName: string,
-    pkgJson: Record<string, unknown>,
-): Map<string, string> | null {
+function pickBinMap(pkgName: string, pkgJson: Record<string, unknown>): Map<string, string> | null {
     const gjsifyEntry = pkgJson.gjsify as { bin?: string | Record<string, string> } | undefined;
     if (gjsifyEntry?.bin !== undefined) {
         return normalizeBin(pkgName, gjsifyEntry.bin);
@@ -187,15 +184,10 @@ function pickBinMap(
     return null;
 }
 
-function normalizeBin(
-    pkgName: string,
-    bin: string | Record<string, string>,
-): Map<string, string> {
+function normalizeBin(pkgName: string, bin: string | Record<string, string>): Map<string, string> {
     const out = new Map<string, string>();
     if (typeof bin === 'string') {
-        const baseName = pkgName.startsWith('@')
-            ? pkgName.slice(pkgName.indexOf('/') + 1)
-            : pkgName;
+        const baseName = pkgName.startsWith('@') ? pkgName.slice(pkgName.indexOf('/') + 1) : pkgName;
         out.set(baseName, bin);
         return out;
     }

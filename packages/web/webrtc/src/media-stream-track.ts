@@ -16,8 +16,8 @@ import { Gst } from './gst-init.js';
 
 /** @internal GStreamer backing for tracks created by getUserMedia */
 export interface MediaStreamTrackGstInit {
-    source: any;       // Gst.Element
-    pipeline: any;     // Gst.Pipeline
+    source: any; // Gst.Element
+    pipeline: any; // Gst.Pipeline
 }
 
 export interface MediaStreamTrackInit {
@@ -67,7 +67,9 @@ export class MediaStreamTrack extends EventTarget {
         }
     }
 
-    get enabled(): boolean { return this._enabled; }
+    get enabled(): boolean {
+        return this._enabled;
+    }
     set enabled(v: boolean) {
         const val = !!v;
         if (this._enabled === val) return;
@@ -75,11 +77,17 @@ export class MediaStreamTrack extends EventTarget {
         this._enableCallback?.(val);
     }
 
-    get muted(): boolean { return this._muted; }
+    get muted(): boolean {
+        return this._muted;
+    }
 
-    get readyState(): 'live' | 'ended' { return this._ended ? 'ended' : 'live'; }
+    get readyState(): 'live' | 'ended' {
+        return this._ended ? 'ended' : 'live';
+    }
 
-    get contentHint(): string { return this._contentHint; }
+    get contentHint(): string {
+        return this._contentHint;
+    }
     set contentHint(v: string) {
         if (this.kind === 'audio') {
             if (v !== '' && v !== 'speech' && v !== 'speech-recognition' && v !== 'music') return;
@@ -89,12 +97,24 @@ export class MediaStreamTrack extends EventTarget {
         this._contentHint = v;
     }
 
-    get onended(): ((ev: Event) => void) | null { return this._onended; }
-    set onended(v: ((ev: Event) => void) | null) { this._onended = v; }
-    get onmute(): ((ev: Event) => void) | null { return this._onmute; }
-    set onmute(v: ((ev: Event) => void) | null) { this._onmute = v; }
-    get onunmute(): ((ev: Event) => void) | null { return this._onunmute; }
-    set onunmute(v: ((ev: Event) => void) | null) { this._onunmute = v; }
+    get onended(): ((ev: Event) => void) | null {
+        return this._onended;
+    }
+    set onended(v: ((ev: Event) => void) | null) {
+        this._onended = v;
+    }
+    get onmute(): ((ev: Event) => void) | null {
+        return this._onmute;
+    }
+    set onmute(v: ((ev: Event) => void) | null) {
+        this._onmute = v;
+    }
+    get onunmute(): ((ev: Event) => void) | null {
+        return this._onunmute;
+    }
+    set onunmute(v: ((ev: Event) => void) | null) {
+        this._onunmute = v;
+    }
 
     clone(): MediaStreamTrack {
         const cloned = new MediaStreamTrack({
@@ -115,10 +135,14 @@ export class MediaStreamTrack extends EventTarget {
             try {
                 // Set pipeline to NULL first (this stops all children)
                 this._gstPipeline?.set_state(Gst.State.NULL);
-            } catch { /* ignore */ }
+            } catch {
+                /* ignore */
+            }
             try {
                 this._gstSource?.set_state(Gst.State.NULL);
-            } catch { /* ignore */ }
+            } catch {
+                /* ignore */
+            }
             this._gstSource = null;
             this._gstPipeline = null;
         }
@@ -128,15 +152,18 @@ export class MediaStreamTrack extends EventTarget {
         this.dispatchEvent(ev);
     }
 
-    getCapabilities(): Record<string, unknown> { return {}; }
-    getConstraints(): Record<string, unknown> { return {}; }
-    getSettings(): Record<string, unknown> { return {}; }
+    getCapabilities(): Record<string, unknown> {
+        return {};
+    }
+    getConstraints(): Record<string, unknown> {
+        return {};
+    }
+    getSettings(): Record<string, unknown> {
+        return {};
+    }
 
     applyConstraints(_constraints?: unknown): Promise<void> {
-        return Promise.reject(new DOMException(
-            'applyConstraints is not supported',
-            'NotSupportedError',
-        ));
+        return Promise.reject(new DOMException('applyConstraints is not supported', 'NotSupportedError'));
     }
 
     /** @internal — used by RTCRtpReceiver to toggle mute state */

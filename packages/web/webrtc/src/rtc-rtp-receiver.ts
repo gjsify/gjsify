@@ -11,16 +11,18 @@
 import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 import type Gst from 'gi://Gst?version=1.0';
 
-import {
-    ReceiverBridge,
-    type ReceiverBridge as ReceiverBridgeType,
-} from '@gjsify/webrtc-native';
+import { ReceiverBridge, type ReceiverBridge as ReceiverBridgeType } from '@gjsify/webrtc-native';
 
 import { MediaStreamTrack } from './media-stream-track.js';
 import { getRtpCapabilities } from './rtp-capabilities.js';
 import type { RTCStatsReport } from './rtc-stats-report.js';
 import type { RTCDtlsTransport } from './rtc-dtls-transport.js';
-import type { RTCRtpCapabilities, RTCRtpCodecParameters, RTCRtpHeaderExtensionParameters, RTCRtcpParameters } from './rtc-rtp-sender.js';
+import type {
+    RTCRtpCapabilities,
+    RTCRtpCodecParameters,
+    RTCRtpHeaderExtensionParameters,
+    RTCRtcpParameters,
+} from './rtc-rtp-sender.js';
 
 export interface RTCRtpReceiveParameters {
     codecs: RTCRtpCodecParameters[];
@@ -71,17 +73,27 @@ export class RTCRtpReceiver {
 
     /** @internal — called from RTCPeerConnection.close() */
     _dispose(): void {
-        try { this._receiverBridge?.dispose_bridge(); } catch { /* ignore */ }
+        try {
+            this._receiverBridge?.dispose_bridge();
+        } catch {
+            /* ignore */
+        }
         this._receiverBridge = null;
     }
 
     /** @internal — set by RTCPeerConnection */
     _transport: RTCDtlsTransport | null = null;
 
-    get track(): MediaStreamTrack { return this._track; }
-    get transport(): RTCDtlsTransport | null { return this._transport; }
+    get track(): MediaStreamTrack {
+        return this._track;
+    }
+    get transport(): RTCDtlsTransport | null {
+        return this._transport;
+    }
 
-    get jitterBufferTarget(): number | null { return this._jitterBufferTarget; }
+    get jitterBufferTarget(): number | null {
+        return this._jitterBufferTarget;
+    }
     set jitterBufferTarget(v: number | null) {
         if (v === null) {
             this._jitterBufferTarget = null;
@@ -92,7 +104,9 @@ export class RTCRtpReceiver {
             throw new RangeError(`Failed to set jitterBufferTarget: ${v} is negative or not finite`);
         }
         if (n > MAX_JITTER_BUFFER_TARGET) {
-            throw new RangeError(`Failed to set jitterBufferTarget: ${v} exceeds maximum of ${MAX_JITTER_BUFFER_TARGET}`);
+            throw new RangeError(
+                `Failed to set jitterBufferTarget: ${v} exceeds maximum of ${MAX_JITTER_BUFFER_TARGET}`,
+            );
         }
         this._jitterBufferTarget = n;
     }
@@ -105,8 +119,12 @@ export class RTCRtpReceiver {
         };
     }
 
-    getContributingSources(): RTCRtpContributingSource[] { return []; }
-    getSynchronizationSources(): RTCRtpSynchronizationSource[] { return []; }
+    getContributingSources(): RTCRtpContributingSource[] {
+        return [];
+    }
+    getSynchronizationSources(): RTCRtpSynchronizationSource[] {
+        return [];
+    }
 
     async getStats(): Promise<RTCStatsReport> {
         if (this._getStatsForTrack && this._track) {

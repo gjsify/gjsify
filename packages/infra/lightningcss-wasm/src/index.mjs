@@ -30,16 +30,16 @@ const wasmModule = new WebAssembly.Module(wasmBytes);
 
 let env;
 const instance = new WebAssembly.Instance(wasmModule, {
-  env: {
-    ...napi,
-    await_promise_sync,
-    __getrandom_v03_custom: (ptr, len) => {
-      const buf = env.memory.subarray(ptr, ptr + len);
-      // globalThis.crypto from @gjsify/webcrypto/register on GJS;
-      // node:crypto webcrypto on Node 19+.
-      globalThis.crypto.getRandomValues(buf);
+    env: {
+        ...napi,
+        await_promise_sync,
+        __getrandom_v03_custom: (ptr, len) => {
+            const buf = env.memory.subarray(ptr, ptr + len);
+            // globalThis.crypto from @gjsify/webcrypto/register on GJS;
+            // node:crypto webcrypto on Node 19+.
+            globalThis.crypto.getRandomValues(buf);
+        },
     },
-  },
 });
 instance.exports.register_module();
 env = new Environment(instance);
@@ -47,62 +47,62 @@ const wasm = env.exports;
 const bundleAsyncInternal = createBundleAsync(env);
 
 export default async function init() {
-  // No-op. Kept for API compatibility with the npm `lightningcss-wasm`
-  // package whose browser-side loader needs an explicit init().
+    // No-op. Kept for API compatibility with the npm `lightningcss-wasm`
+    // package whose browser-side loader needs an explicit init().
 }
 
 export function transform(options) {
-  return wrap(wasm.transform, options);
+    return wrap(wasm.transform, options);
 }
 
 export function transformStyleAttribute(options) {
-  return wrap(wasm.transformStyleAttribute, options);
+    return wrap(wasm.transformStyleAttribute, options);
 }
 
 export function bundle(options) {
-  return wrap(wasm.bundle, {
-    ...options,
-    resolver: {
-      read: (filePath) => fs.readFileSync(filePath, 'utf8'),
-    },
-  });
+    return wrap(wasm.bundle, {
+        ...options,
+        resolver: {
+            read: (filePath) => fs.readFileSync(filePath, 'utf8'),
+        },
+    });
 }
 
 export async function bundleAsync(options) {
-  if (!options.resolver?.read) {
-    options.resolver = {
-      ...options.resolver,
-      read: (filePath) => fs.readFileSync(filePath, 'utf8'),
-    };
-  }
-  return wrap(bundleAsyncInternal, options);
+    if (!options.resolver?.read) {
+        options.resolver = {
+            ...options.resolver,
+            read: (filePath) => fs.readFileSync(filePath, 'utf8'),
+        };
+    }
+    return wrap(bundleAsyncInternal, options);
 }
 
 function wrap(call, options) {
-  if (typeof options.visitor === 'function') {
-    let deps = [];
-    options.visitor = options.visitor({
-      addDependency(dep) {
-        deps.push(dep);
-      },
-    });
+    if (typeof options.visitor === 'function') {
+        let deps = [];
+        options.visitor = options.visitor({
+            addDependency(dep) {
+                deps.push(dep);
+            },
+        });
 
-    let result = call(options);
-    if (result instanceof Promise) {
-      result = result.then((res) => {
-        if (deps.length) {
-          res.dependencies ??= [];
-          res.dependencies.push(...deps);
+        let result = call(options);
+        if (result instanceof Promise) {
+            result = result.then((res) => {
+                if (deps.length) {
+                    res.dependencies ??= [];
+                    res.dependencies.push(...deps);
+                }
+                return res;
+            });
+        } else if (deps.length) {
+            result.dependencies ??= [];
+            result.dependencies.push(...deps);
         }
-        return res;
-      });
-    } else if (deps.length) {
-      result.dependencies ??= [];
-      result.dependencies.push(...deps);
+        return result;
     }
-    return result;
-  }
-  return call(options);
+    return call(options);
 }
 
 export { browserslistToTargets } from './browserslistToTargets.js';

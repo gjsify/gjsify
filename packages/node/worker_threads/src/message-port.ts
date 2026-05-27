@@ -65,319 +65,330 @@ import { isSharedBuffer } from './sab-transfer.js';
  * structuredClone returns.
  */
 interface TransferredPortPlaceholder {
-  readonly __gjsifyTransferredPort: true;
-  /** Index into the materialisation array — unique per transfer. */
-  readonly index: number;
+    readonly __gjsifyTransferredPort: true;
+    /** Index into the materialisation array — unique per transfer. */
+    readonly index: number;
 }
 
 function isTransferredPortPlaceholder(value: unknown): value is TransferredPortPlaceholder {
-  return (
-    typeof value === 'object'
-    && value !== null
-    && (value as { __gjsifyTransferredPort?: unknown }).__gjsifyTransferredPort === true
-  );
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        (value as { __gjsifyTransferredPort?: unknown }).__gjsifyTransferredPort === true
+    );
 }
 
 export class MessagePort extends EventEmitter {
-  private _closed = false;
-  private _detached = false;
-  /** @internal Linked port for in-process communication */
-  _otherPort: MessagePort | null = null;
-  /** @internal W3C-surface delegate from `@gjsify/message-channel`. Owns the
-   *  canonical started/queue/closed state — the wrapper mirrors lifecycle
-   *  events to the EventEmitter side. */
-  _inner: SharedMessagePort = new SharedMessagePort();
+    private _closed = false;
+    private _detached = false;
+    /** @internal Linked port for in-process communication */
+    _otherPort: MessagePort | null = null;
+    /** @internal W3C-surface delegate from `@gjsify/message-channel`. Owns the
+     *  canonical started/queue/closed state — the wrapper mirrors lifecycle
+     *  events to the EventEmitter side. */
+    _inner: SharedMessagePort = new SharedMessagePort();
 
-  start(): void {
-    if (this._closed || this._inner._started) return;
-    // Snapshot queue BEFORE inner.start() drains it. The shared MP drains to
-    // its W3C listeners via microtask; we mirror to EventEmitter listeners
-    // via the same microtask scheduling so timing matches pre-refactor
-    // behaviour for `port.on('message')` consumers.
-    const queued = this._inner._queue.slice();
-    this._inner.start();
-    for (const msg of queued) this._dispatchEmit(msg);
-  }
-
-  close(): void {
-    if (this._closed) return;
-    this._closed = true;
-    const other = this._otherPort;
-    this._otherPort = null;
-    if (other) other._otherPort = null;
-    this._inner.close();
-    this.emit('close');
-    this.removeAllListeners();
-  }
-
-  postMessage(value: unknown, transferList?: unknown[]): void {
-    if (this._closed) return;
-    const target = this._otherPort;
-
-    // Cross-process branch: in-process partner gone, but a
-    // SubprocessPortTransport is attached to `_inner._transport`. The
-    // surviving end routes outbound messages over the worker IPC wire
-    // (parent ↔ child stdin/stdout) instead of an in-process partner.
-    // transferList is intentionally restricted on the cross-process path
-    // in v1 — port-in-port-in-port chains and ArrayBuffer-over-wire are
-    // separate workstreams (see STATUS.md Open TODOs).
-    if (!target && this._inner._transport !== null) {
-      if (transferList && transferList.length > 0) {
-        throw createDataCloneError('transferList is not supported on cross-process MessagePort yet');
-      }
-      this._inner.postMessage(value);
-      return;
+    start(): void {
+        if (this._closed || this._inner._started) return;
+        // Snapshot queue BEFORE inner.start() drains it. The shared MP drains to
+        // its W3C listeners via microtask; we mirror to EventEmitter listeners
+        // via the same microtask scheduling so timing matches pre-refactor
+        // behaviour for `port.on('message')` consumers.
+        const queued = this._inner._queue.slice();
+        this._inner.start();
+        for (const msg of queued) this._dispatchEmit(msg);
     }
 
-    if (!target) return;
+    close(): void {
+        if (this._closed) return;
+        this._closed = true;
+        const other = this._otherPort;
+        this._otherPort = null;
+        if (other) other._otherPort = null;
+        this._inner.close();
+        this.emit('close');
+        this.removeAllListeners();
+    }
 
-    // --- Transfer-list pre-flight ---
-    // Validate transferable entries up front. Per HTML spec, validation must
-    // happen before any side effects (no partial transfer on error).
-    const arrayBufferTransfers: ArrayBuffer[] = [];
-    const portTransfers: MessagePort[] = [];
+    postMessage(value: unknown, transferList?: unknown[]): void {
+        if (this._closed) return;
+        const target = this._otherPort;
 
-    if (transferList && transferList.length > 0) {
-      const seenInList = new Set<unknown>();
-      for (const item of transferList) {
-        if (seenInList.has(item)) {
-          throw createDataCloneError('Transfer list contains duplicate entries');
-        }
-        seenInList.add(item);
-
-        if (item instanceof MessagePort) {
-          if (item === this) {
-            throw createDataCloneError('Cannot transfer source port');
-          }
-          if (item._closed || item._detached) {
-            throw createDataCloneError('MessagePort in transfer list is already detached');
-          }
-          portTransfers.push(item);
-          continue;
+        // Cross-process branch: in-process partner gone, but a
+        // SubprocessPortTransport is attached to `_inner._transport`. The
+        // surviving end routes outbound messages over the worker IPC wire
+        // (parent ↔ child stdin/stdout) instead of an in-process partner.
+        // transferList is intentionally restricted on the cross-process path
+        // in v1 — port-in-port-in-port chains and ArrayBuffer-over-wire are
+        // separate workstreams (see STATUS.md Open TODOs).
+        if (!target && this._inner._transport !== null) {
+            if (transferList && transferList.length > 0) {
+                throw createDataCloneError('transferList is not supported on cross-process MessagePort yet');
+            }
+            this._inner.postMessage(value);
+            return;
         }
 
-        // ArrayBuffer
-        const tag = Object.prototype.toString.call(item).slice(8, -1);
-        if (tag === 'ArrayBuffer') {
-          const buf = item as ArrayBuffer & { detached?: boolean };
-          if (buf.detached === true) {
-            throw createDataCloneError('ArrayBuffer in transfer list is detached');
-          }
-          arrayBufferTransfers.push(buf);
-          continue;
+        if (!target) return;
+
+        // --- Transfer-list pre-flight ---
+        // Validate transferable entries up front. Per HTML spec, validation must
+        // happen before any side effects (no partial transfer on error).
+        const arrayBufferTransfers: ArrayBuffer[] = [];
+        const portTransfers: MessagePort[] = [];
+
+        if (transferList && transferList.length > 0) {
+            const seenInList = new Set<unknown>();
+            for (const item of transferList) {
+                if (seenInList.has(item)) {
+                    throw createDataCloneError('Transfer list contains duplicate entries');
+                }
+                seenInList.add(item);
+
+                if (item instanceof MessagePort) {
+                    if (item === this) {
+                        throw createDataCloneError('Cannot transfer source port');
+                    }
+                    if (item._closed || item._detached) {
+                        throw createDataCloneError('MessagePort in transfer list is already detached');
+                    }
+                    portTransfers.push(item);
+                    continue;
+                }
+
+                // ArrayBuffer
+                const tag = Object.prototype.toString.call(item).slice(8, -1);
+                if (tag === 'ArrayBuffer') {
+                    const buf = item as ArrayBuffer & { detached?: boolean };
+                    if (buf.detached === true) {
+                        throw createDataCloneError('ArrayBuffer in transfer list is detached');
+                    }
+                    arrayBufferTransfers.push(buf);
+                    continue;
+                }
+
+                // SharedArrayBuffer must NOT appear in transfer list — it shares.
+                if (tag === 'SharedArrayBuffer') {
+                    throw createDataCloneError(
+                        'SharedArrayBuffer cannot appear in transfer list (it is shared, not transferred)',
+                    );
+                }
+
+                // @gjsify/sab-native SharedBuffer — same "shared, not transferred"
+                // semantics as SAB. In-process MessagePort.postMessage doesn't need
+                // fd-passing (both ports share a JS heap), so we treat the entry as
+                // a no-op pass-through: the SharedBuffer reaches the receiver intact
+                // via structuredClone's SharedBuffer branch. The cross-process worker
+                // path in worker.ts is what actually consumes the entry and routes
+                // the fd over SCM_RIGHTS.
+                if (isSharedBuffer(item)) {
+                    continue;
+                }
+
+                throw createDataCloneError(
+                    `Value at index ${transferList.indexOf(item)} of transfer list is not transferable`,
+                );
+            }
         }
 
-        // SharedArrayBuffer must NOT appear in transfer list — it shares.
-        if (tag === 'SharedArrayBuffer') {
-          throw createDataCloneError('SharedArrayBuffer cannot appear in transfer list (it is shared, not transferred)');
+        // --- Substitute MessagePort placeholders before clone ---
+        // The structured-clone layer doesn't know about MessagePort; we walk the
+        // value tree and replace each transferred port instance with a placeholder
+        // (so the cloned tree reuses the same placeholder objects), then swap the
+        // placeholders back to fresh local MessagePorts on the receiver side.
+        const portMaterialisationOrder = portTransfers.slice();
+        let substituted: unknown = value;
+        if (portTransfers.length > 0) {
+            substituted = substitutePortsWithPlaceholders(value, portTransfers);
         }
 
-        // @gjsify/sab-native SharedBuffer — same "shared, not transferred"
-        // semantics as SAB. In-process MessagePort.postMessage doesn't need
-        // fd-passing (both ports share a JS heap), so we treat the entry as
-        // a no-op pass-through: the SharedBuffer reaches the receiver intact
-        // via structuredClone's SharedBuffer branch. The cross-process worker
-        // path in worker.ts is what actually consumes the entry and routes
-        // the fd over SCM_RIGHTS.
-        if (isSharedBuffer(item)) {
-          continue;
+        // --- Clone (with ArrayBuffer transfer) ---
+        let cloned: unknown;
+        try {
+            cloned = structuredClone(substituted, {
+                transfer: arrayBufferTransfers.length > 0 ? arrayBufferTransfers : undefined,
+            });
+        } catch (err) {
+            this.emit('messageerror', err instanceof Error ? err : new Error('Could not clone message'));
+            return;
         }
 
-        throw createDataCloneError(`Value at index ${transferList.indexOf(item)} of transfer list is not transferable`);
-      }
+        // --- Materialise transferred MessagePorts on the receiver ---
+        // For each transferred port: detach the source MessagePort locally, then
+        // create a new MessagePort on the receiver side that takes over the
+        // surviving end of the channel.
+        let receiverMessage = cloned;
+        if (portMaterialisationOrder.length > 0) {
+            const newPorts = portMaterialisationOrder.map((sourcePort) => {
+                // The source port is being moved. Steal its channel partner.
+                const partner = sourcePort._otherPort;
+                sourcePort._otherPort = null;
+                sourcePort._detached = true;
+                // Mark closed locally — the original port is no longer usable.
+                sourcePort._closed = true;
+
+                const newPort = new MessagePort();
+                newPort._otherPort = partner;
+                if (partner) partner._otherPort = newPort;
+                return newPort;
+            });
+            receiverMessage = replacePlaceholdersWithPorts(cloned, newPorts);
+        }
+
+        target._receiveMessage(receiverMessage);
     }
 
-    // --- Substitute MessagePort placeholders before clone ---
-    // The structured-clone layer doesn't know about MessagePort; we walk the
-    // value tree and replace each transferred port instance with a placeholder
-    // (so the cloned tree reuses the same placeholder objects), then swap the
-    // placeholders back to fresh local MessagePorts on the receiver side.
-    const portMaterialisationOrder = portTransfers.slice();
-    let substituted: unknown = value;
-    if (portTransfers.length > 0) {
-      substituted = substitutePortsWithPlaceholders(value, portTransfers);
+    ref(): this {
+        return this;
+    }
+    unref(): this {
+        return this;
     }
 
-    // --- Clone (with ArrayBuffer transfer) ---
-    let cloned: unknown;
-    try {
-      cloned = structuredClone(substituted, {
-        transfer: arrayBufferTransfers.length > 0 ? arrayBufferTransfers : undefined,
-      });
-    } catch (err) {
-      this.emit('messageerror', err instanceof Error ? err : new Error('Could not clone message'));
-      return;
+    _receiveMessage(message: unknown): void {
+        if (this._closed) return;
+        // Inner handles W3C-side: queues until started, then microtask-dispatches
+        // a MessageEvent to addEventListener('message') / onmessage handlers.
+        this._inner._receive(message);
+        // EventEmitter side: only fire when started (matches old behaviour where
+        // unstarted ports buffer; `receiveMessageOnPort` can pull from the buffer
+        // without dispatching).
+        if (this._inner._started) this._dispatchEmit(message);
     }
 
-    // --- Materialise transferred MessagePorts on the receiver ---
-    // For each transferred port: detach the source MessagePort locally, then
-    // create a new MessagePort on the receiver side that takes over the
-    // surviving end of the channel.
-    let receiverMessage = cloned;
-    if (portMaterialisationOrder.length > 0) {
-      const newPorts = portMaterialisationOrder.map((sourcePort) => {
-        // The source port is being moved. Steal its channel partner.
-        const partner = sourcePort._otherPort;
-        sourcePort._otherPort = null;
-        sourcePort._detached = true;
-        // Mark closed locally — the original port is no longer usable.
-        sourcePort._closed = true;
-
-        const newPort = new MessagePort();
-        newPort._otherPort = partner;
-        if (partner) partner._otherPort = newPort;
-        return newPort;
-      });
-      receiverMessage = replacePlaceholdersWithPorts(cloned, newPorts);
+    get _hasQueuedMessages(): boolean {
+        return this._inner._queue.length > 0;
     }
 
-    target._receiveMessage(receiverMessage);
-  }
-
-  ref(): this { return this; }
-  unref(): this { return this; }
-
-  _receiveMessage(message: unknown): void {
-    if (this._closed) return;
-    // Inner handles W3C-side: queues until started, then microtask-dispatches
-    // a MessageEvent to addEventListener('message') / onmessage handlers.
-    this._inner._receive(message);
-    // EventEmitter side: only fire when started (matches old behaviour where
-    // unstarted ports buffer; `receiveMessageOnPort` can pull from the buffer
-    // without dispatching).
-    if (this._inner._started) this._dispatchEmit(message);
-  }
-
-  get _hasQueuedMessages(): boolean {
-    return this._inner._queue.length > 0;
-  }
-
-  _dequeueMessage(): unknown | undefined {
-    return this._inner._queue.shift();
-  }
-
-  /** @internal Has this port been transferred elsewhere? */
-  get _wasTransferred(): boolean {
-    return this._detached;
-  }
-
-  private _dispatchEmit(message: unknown): void {
-    Promise.resolve().then(() => {
-      if (!this._closed) {
-        this.emit('message', message);
-      }
-    });
-  }
-
-  /**
-   * Web-compatible addEventListener. For `'message'` (and `'messageerror'`),
-   * routes through the inner shared MessagePort which dispatches a
-   * MessageEvent. For Node-only signals like `'close'`, routes to the
-   * EventEmitter side so `port.emit('close')` reaches the listener.
-   *
-   * Does NOT auto-start the port — matches Node + W3C HTML §9.4.4. Use
-   * `port.start()` explicitly, or attach via `port.on('message')` /
-   * `port.onmessage = fn` (both auto-start).
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  addEventListener(type: string, listener: any, options?: any): void {
-    if (!listener) return;
-    if (type === 'message' || type === 'messageerror') {
-      // Bypass shared-MP's addEventListener (which auto-starts the port — a
-      // developer-friendly deviation that Node + worker_threads tests don't
-      // want). Walk up the prototype chain to EventTarget's addEventListener
-      // and call it on the inner directly.
-      const eventTargetProto = Object.getPrototypeOf(Object.getPrototypeOf(this._inner)) as {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        addEventListener(type: string, listener: any, options?: any): void;
-      };
-      eventTargetProto.addEventListener.call(this._inner, type, listener, options);
-      return;
+    _dequeueMessage(): unknown | undefined {
+        return this._inner._queue.shift();
     }
-    // Non-MessagePort-spec events (`'close'`, custom): use EventEmitter.
-    super.on(type, listener);
-  }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  removeEventListener(type: string, listener: any, options?: any): void {
-    if (!listener) return;
-    if (type === 'message' || type === 'messageerror') {
-      const eventTargetProto = Object.getPrototypeOf(Object.getPrototypeOf(this._inner)) as {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        removeEventListener(type: string, listener: any, options?: any): void;
-      };
-      eventTargetProto.removeEventListener.call(this._inner, type, listener, options);
-      return;
+    /** @internal Has this port been transferred elsewhere? */
+    get _wasTransferred(): boolean {
+        return this._detached;
     }
-    super.off(type, listener);
-  }
 
-  /** W3C `onmessage` IDL attribute — delegated to the inner. Assigning a
-   *  non-null handler auto-starts both surfaces (matches W3C HTML spec). */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  get onmessage(): any {
-    return this._inner.onmessage;
-  }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  set onmessage(fn: any) {
-    // Shared MP's onmessage setter internally calls addEventListener which
-    // auto-starts the inner port + drains its queue to W3C listeners.
-    // Mirror that to the EventEmitter side by snapshotting the queue first
-    // and replaying it after the inner has started.
-    if (fn !== null && !this._inner._started) {
-      const queued = this._inner._queue.slice();
-      this._inner.onmessage = fn;
-      for (const msg of queued) this._dispatchEmit(msg);
-    } else {
-      this._inner.onmessage = fn;
+    private _dispatchEmit(message: unknown): void {
+        Promise.resolve().then(() => {
+            if (!this._closed) {
+                this.emit('message', message);
+            }
+        });
     }
-  }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  get onmessageerror(): any {
-    return this._inner.onmessageerror;
-  }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  set onmessageerror(fn: any) {
-    this._inner.onmessageerror = fn;
-  }
+    /**
+     * Web-compatible addEventListener. For `'message'` (and `'messageerror'`),
+     * routes through the inner shared MessagePort which dispatches a
+     * MessageEvent. For Node-only signals like `'close'`, routes to the
+     * EventEmitter side so `port.emit('close')` reaches the listener.
+     *
+     * Does NOT auto-start the port — matches Node + W3C HTML §9.4.4. Use
+     * `port.start()` explicitly, or attach via `port.on('message')` /
+     * `port.onmessage = fn` (both auto-start).
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    addEventListener(type: string, listener: any, options?: any): void {
+        if (!listener) return;
+        if (type === 'message' || type === 'messageerror') {
+            // Bypass shared-MP's addEventListener (which auto-starts the port — a
+            // developer-friendly deviation that Node + worker_threads tests don't
+            // want). Walk up the prototype chain to EventTarget's addEventListener
+            // and call it on the inner directly.
+            const eventTargetProto = Object.getPrototypeOf(Object.getPrototypeOf(this._inner)) as {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                addEventListener(type: string, listener: any, options?: any): void;
+            };
+            eventTargetProto.addEventListener.call(this._inner, type, listener, options);
+            return;
+        }
+        // Non-MessagePort-spec events (`'close'`, custom): use EventEmitter.
+        super.on(type, listener);
+    }
 
-  on(event: string | symbol, listener: (...args: unknown[]) => void): this {
-    super.on(event, listener);
-    if (event === 'message') this.start();
-    return this;
-  }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    removeEventListener(type: string, listener: any, options?: any): void {
+        if (!listener) return;
+        if (type === 'message' || type === 'messageerror') {
+            const eventTargetProto = Object.getPrototypeOf(Object.getPrototypeOf(this._inner)) as {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                removeEventListener(type: string, listener: any, options?: any): void;
+            };
+            eventTargetProto.removeEventListener.call(this._inner, type, listener, options);
+            return;
+        }
+        super.off(type, listener);
+    }
 
-  addListener(event: string | symbol, listener: (...args: unknown[]) => void): this {
-    return this.on(event, listener);
-  }
+    /** W3C `onmessage` IDL attribute — delegated to the inner. Assigning a
+     *  non-null handler auto-starts both surfaces (matches W3C HTML spec). */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    get onmessage(): any {
+        return this._inner.onmessage;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    set onmessage(fn: any) {
+        // Shared MP's onmessage setter internally calls addEventListener which
+        // auto-starts the inner port + drains its queue to W3C listeners.
+        // Mirror that to the EventEmitter side by snapshotting the queue first
+        // and replaying it after the inner has started.
+        if (fn !== null && !this._inner._started) {
+            const queued = this._inner._queue.slice();
+            this._inner.onmessage = fn;
+            for (const msg of queued) this._dispatchEmit(msg);
+        } else {
+            this._inner.onmessage = fn;
+        }
+    }
 
-  once(event: string | symbol, listener: (...args: unknown[]) => void): this {
-    super.once(event, listener);
-    if (event === 'message') this.start();
-    return this;
-  }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    get onmessageerror(): any {
+        return this._inner.onmessageerror;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    set onmessageerror(fn: any) {
+        this._inner.onmessageerror = fn;
+    }
+
+    on(event: string | symbol, listener: (...args: unknown[]) => void): this {
+        super.on(event, listener);
+        if (event === 'message') this.start();
+        return this;
+    }
+
+    addListener(event: string | symbol, listener: (...args: unknown[]) => void): this {
+        return this.on(event, listener);
+    }
+
+    once(event: string | symbol, listener: (...args: unknown[]) => void): this {
+        super.once(event, listener);
+        if (event === 'message') this.start();
+        return this;
+    }
 }
 
 // --- Helpers ---
 
 function createDataCloneError(message: string): Error {
-  const DOMExceptionCtor = (globalThis as Record<string, unknown>).DOMException as
-    (new (message: string, name: string) => Error) | undefined;
-  if (typeof DOMExceptionCtor === 'function') {
-    const err = new DOMExceptionCtor(message, 'DataCloneError');
-    // Ensure the `code` property matches Node/W3C (25 = DATA_CLONE_ERR).
-    if ((err as { code?: number }).code === undefined) {
-      try {
-        Object.defineProperty(err, 'code', { value: 25, configurable: true });
-      } catch { /* ignore */ }
+    const DOMExceptionCtor = (globalThis as Record<string, unknown>).DOMException as
+        | (new (message: string, name: string) => Error)
+        | undefined;
+    if (typeof DOMExceptionCtor === 'function') {
+        const err = new DOMExceptionCtor(message, 'DataCloneError');
+        // Ensure the `code` property matches Node/W3C (25 = DATA_CLONE_ERR).
+        if ((err as { code?: number }).code === undefined) {
+            try {
+                Object.defineProperty(err, 'code', { value: 25, configurable: true });
+            } catch {
+                /* ignore */
+            }
+        }
+        return err;
     }
+    const err = new Error(message);
+    err.name = 'DataCloneError';
+    (err as { code?: number }).code = 25;
     return err;
-  }
-  const err = new Error(message);
-  err.name = 'DataCloneError';
-  (err as { code?: number }).code = 25;
-  return err;
 }
 
 /**
@@ -391,46 +402,46 @@ function createDataCloneError(message: string): Error {
  * that we don't expand the walk for them. (Node accepts the same constraint.)
  */
 function substitutePortsWithPlaceholders(value: unknown, ports: MessagePort[]): unknown {
-  const portToIndex = new Map<MessagePort, number>();
-  for (let i = 0; i < ports.length; i++) portToIndex.set(ports[i]!, i);
+    const portToIndex = new Map<MessagePort, number>();
+    for (let i = 0; i < ports.length; i++) portToIndex.set(ports[i]!, i);
 
-  function walk(v: unknown, seen: Map<object, unknown>): unknown {
-    if (v === null || typeof v !== 'object') return v;
+    function walk(v: unknown, seen: Map<object, unknown>): unknown {
+        if (v === null || typeof v !== 'object') return v;
 
-    // MessagePort substitution
-    if (v instanceof MessagePort) {
-      const idx = portToIndex.get(v);
-      if (idx === undefined) return v; // not transferred
-      const placeholder: TransferredPortPlaceholder = { __gjsifyTransferredPort: true, index: idx };
-      return placeholder;
+        // MessagePort substitution
+        if (v instanceof MessagePort) {
+            const idx = portToIndex.get(v);
+            if (idx === undefined) return v; // not transferred
+            const placeholder: TransferredPortPlaceholder = { __gjsifyTransferredPort: true, index: idx };
+            return placeholder;
+        }
+
+        if (seen.has(v)) return seen.get(v);
+
+        if (Array.isArray(v)) {
+            const out: unknown[] = [];
+            seen.set(v, out);
+            for (let i = 0; i < v.length; i++) {
+                if (i in v) out[i] = walk(v[i], seen);
+            }
+            return out;
+        }
+
+        const tag = Object.prototype.toString.call(v).slice(8, -1);
+        if (tag === 'Object') {
+            const out: Record<string, unknown> = {};
+            seen.set(v, out);
+            for (const k of Object.keys(v as Record<string, unknown>)) {
+                out[k] = walk((v as Record<string, unknown>)[k], seen);
+            }
+            return out;
+        }
+
+        // Other tagged types: leave intact for structuredClone to handle.
+        return v;
     }
 
-    if (seen.has(v)) return seen.get(v);
-
-    if (Array.isArray(v)) {
-      const out: unknown[] = [];
-      seen.set(v, out);
-      for (let i = 0; i < v.length; i++) {
-        if (i in v) out[i] = walk(v[i], seen);
-      }
-      return out;
-    }
-
-    const tag = Object.prototype.toString.call(v).slice(8, -1);
-    if (tag === 'Object') {
-      const out: Record<string, unknown> = {};
-      seen.set(v, out);
-      for (const k of Object.keys(v as Record<string, unknown>)) {
-        out[k] = walk((v as Record<string, unknown>)[k], seen);
-      }
-      return out;
-    }
-
-    // Other tagged types: leave intact for structuredClone to handle.
-    return v;
-  }
-
-  return walk(value, new Map());
+    return walk(value, new Map());
 }
 
 /**
@@ -438,30 +449,30 @@ function substitutePortsWithPlaceholders(value: unknown, ports: MessagePort[]): 
  * receiver-side MessagePort.
  */
 function replacePlaceholdersWithPorts(value: unknown, newPorts: MessagePort[]): unknown {
-  function walk(v: unknown, seen: Map<object, unknown>): unknown {
-    if (v === null || typeof v !== 'object') return v;
-    if (isTransferredPortPlaceholder(v)) {
-      return newPorts[v.index];
-    }
-    if (seen.has(v)) return seen.get(v);
+    function walk(v: unknown, seen: Map<object, unknown>): unknown {
+        if (v === null || typeof v !== 'object') return v;
+        if (isTransferredPortPlaceholder(v)) {
+            return newPorts[v.index];
+        }
+        if (seen.has(v)) return seen.get(v);
 
-    if (Array.isArray(v)) {
-      seen.set(v, v);
-      for (let i = 0; i < v.length; i++) {
-        if (i in v) v[i] = walk(v[i], seen);
-      }
-      return v;
-    }
+        if (Array.isArray(v)) {
+            seen.set(v, v);
+            for (let i = 0; i < v.length; i++) {
+                if (i in v) v[i] = walk(v[i], seen);
+            }
+            return v;
+        }
 
-    const tag = Object.prototype.toString.call(v).slice(8, -1);
-    if (tag === 'Object') {
-      seen.set(v, v);
-      for (const k of Object.keys(v as Record<string, unknown>)) {
-        (v as Record<string, unknown>)[k] = walk((v as Record<string, unknown>)[k], seen);
-      }
-      return v;
+        const tag = Object.prototype.toString.call(v).slice(8, -1);
+        if (tag === 'Object') {
+            seen.set(v, v);
+            for (const k of Object.keys(v as Record<string, unknown>)) {
+                (v as Record<string, unknown>)[k] = walk((v as Record<string, unknown>)[k], seen);
+            }
+            return v;
+        }
+        return v;
     }
-    return v;
-  }
-  return walk(value, new Map());
+    return walk(value, new Map());
 }

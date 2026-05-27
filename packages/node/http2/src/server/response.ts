@@ -33,7 +33,12 @@ import type { ServerHttp2Session } from './session.js';
  */
 export interface Http2NativeBackend {
     streamId: number;
-    submitResponse(statusCode: number, statusMessage: string, headers: Map<string, string | string[]>, endStream: boolean): void;
+    submitResponse(
+        statusCode: number,
+        statusMessage: string,
+        headers: Map<string, string | string[]>,
+        endStream: boolean,
+    ): void;
     submitData(chunk: Buffer, endStream: boolean): void;
     reset(errorCode: number): void;
     /** Allocate a pushed stream-id; returns a child backend or null on error. */
@@ -56,18 +61,28 @@ export class Http2ServerResponse extends Writable {
     /** Detached responses (PUSH_PROMISE children) buffer their output. */
     private _detachedBody: Buffer[] | null = null;
 
-    get stream(): ServerHttp2Stream | null { return this._stream; }
-    get socket(): null { return null; }
+    get stream(): ServerHttp2Stream | null {
+        return this._stream;
+    }
+    get socket(): null {
+        return null;
+    }
     /** Whether this response is detached from a Soup connection (push streams). */
-    get isDetached(): boolean { return this._soupMsg === null && this._nativeBackend === null; }
+    get isDetached(): boolean {
+        return this._soupMsg === null && this._nativeBackend === null;
+    }
     /** Buffered body bytes for detached (push) responses — null on regular responses. */
     get detachedBody(): Buffer | null {
         return this._detachedBody ? Buffer.concat(this._detachedBody) : null;
     }
     /** Whether this response routes through the native HTTP/2 dispatcher. */
-    get isNative(): boolean { return this._nativeBackend !== null; }
+    get isNative(): boolean {
+        return this._nativeBackend !== null;
+    }
     /** @internal — used by `ServerHttp2Stream.pushStream()` to allocate a pushed child backend. */
-    get nativeBackend(): Http2NativeBackend | null { return this._nativeBackend; }
+    get nativeBackend(): Http2NativeBackend | null {
+        return this._nativeBackend;
+    }
 
     // Called by Http2Server after stream is created
     _setStream(stream: ServerHttp2Stream): void {
@@ -121,9 +136,13 @@ export class Http2ServerResponse extends Writable {
         if (existing === undefined) {
             this._headers.set(lower, value);
         } else if (Array.isArray(existing)) {
-            Array.isArray(value) ? existing.push(...value) : existing.push(value);
+            if (Array.isArray(value)) existing.push(...value);
+            else existing.push(value);
         } else {
-            this._headers.set(lower, Array.isArray(value) ? [existing as string, ...value] : [existing as string, value]);
+            this._headers.set(
+                lower,
+                Array.isArray(value) ? [existing as string, ...value] : [existing as string, value],
+            );
         }
         return this;
     }
@@ -132,7 +151,11 @@ export class Http2ServerResponse extends Writable {
         if (!this.headersSent) this.headersSent = true;
     }
 
-    writeHead(statusCode: number, statusMessage?: string | Record<string, string | string[]>, headers?: Record<string, string | string[]>): this {
+    writeHead(
+        statusCode: number,
+        statusMessage?: string | Record<string, string | string[]>,
+        headers?: Record<string, string | string[]>,
+    ): this {
         this.statusCode = statusCode;
         if (typeof statusMessage === 'object') {
             headers = statusMessage;
@@ -363,7 +386,11 @@ export class Http2ServerResponse extends Writable {
         options:
             | { parent?: number; weight?: number; exclusive?: boolean }
             | ((err: Error | null, pushStream: ServerHttp2Stream, headers: Record<string, string | string[]>) => void),
-        callback?: (err: Error | null, pushStream: ServerHttp2Stream, headers: Record<string, string | string[]>) => void,
+        callback?: (
+            err: Error | null,
+            pushStream: ServerHttp2Stream,
+            headers: Record<string, string | string[]>,
+        ) => void,
     ): void {
         if (typeof options === 'function') {
             callback = options;
@@ -426,21 +453,37 @@ export class ServerHttp2Stream extends EventEmitter {
     /** Push request headers (`:method`, `:path`, …). */
     private _pushRequestHeaders: Record<string, string | string[]> | null = null;
 
-    get session(): ServerHttp2Session | null { return this._session; }
-    get headersSent(): boolean { return this._res.headersSent; }
-    get closed(): boolean { return this._res.writableEnded; }
-    get destroyed(): boolean { return this._res.destroyed; }
-    get pending(): boolean { return false; }
+    get session(): ServerHttp2Session | null {
+        return this._session;
+    }
+    get headersSent(): boolean {
+        return this._res.headersSent;
+    }
+    get closed(): boolean {
+        return this._res.writableEnded;
+    }
+    get destroyed(): boolean {
+        return this._res.destroyed;
+    }
+    get pending(): boolean {
+        return false;
+    }
     get state(): number {
         return this.closed ? constants.NGHTTP2_STREAM_STATE_CLOSED : constants.NGHTTP2_STREAM_STATE_OPEN;
     }
 
     /** Bytes of the PUSH_PROMISE frame this stream was reserved with (push streams only). */
-    get pushPromiseFrame(): Uint8Array | null { return this._pushPromiseFrame; }
+    get pushPromiseFrame(): Uint8Array | null {
+        return this._pushPromiseFrame;
+    }
     /** Request headers the push was promised with (push streams only). */
-    get pushRequestHeaders(): Record<string, string | string[]> | null { return this._pushRequestHeaders; }
+    get pushRequestHeaders(): Record<string, string | string[]> | null {
+        return this._pushRequestHeaders;
+    }
     /** Push streams created from this stream. */
-    get pushedChildren(): ReadonlyArray<ServerHttp2Stream> { return this._pushedChildren; }
+    get pushedChildren(): ReadonlyArray<ServerHttp2Stream> {
+        return this._pushedChildren;
+    }
 
     constructor(
         res: Http2ServerResponse,
@@ -478,11 +521,7 @@ export class ServerHttp2Stream extends EventEmitter {
         encoding?: BufferEncoding | (() => void),
         callback?: () => void,
     ): boolean {
-        return this._res.write(
-            chunk,
-            encoding as BufferEncoding,
-            callback,
-        );
+        return this._res.write(chunk, encoding as BufferEncoding, callback);
     }
 
     end(
@@ -490,11 +529,7 @@ export class ServerHttp2Stream extends EventEmitter {
         encoding?: BufferEncoding | (() => void),
         callback?: () => void,
     ): this {
-        this._res.end(
-            chunk,
-            encoding as BufferEncoding,
-            callback,
-        );
+        this._res.end(chunk, encoding as BufferEncoding, callback);
         return this;
     }
 
@@ -509,7 +544,9 @@ export class ServerHttp2Stream extends EventEmitter {
         // bridge owns the wire I/O; flushing happens inside submit_rst_stream.
         const backend = this._res.nativeBackend;
         if (backend) {
-            try { backend.reset(code ?? constants.NGHTTP2_NO_ERROR); } catch {}
+            try {
+                backend.reset(code ?? constants.NGHTTP2_NO_ERROR);
+            } catch {}
         }
         this._res.end();
     }
@@ -560,7 +597,11 @@ export class ServerHttp2Stream extends EventEmitter {
         options:
             | { parent?: number; weight?: number; exclusive?: boolean }
             | ((err: Error | null, pushStream: ServerHttp2Stream, headers: Record<string, string | string[]>) => void),
-        callback?: (err: Error | null, pushStream: ServerHttp2Stream, headers: Record<string, string | string[]>) => void,
+        callback?: (
+            err: Error | null,
+            pushStream: ServerHttp2Stream,
+            headers: Record<string, string | string[]>,
+        ) => void,
     ): void {
         if (typeof options === 'function') {
             callback = options;
@@ -705,7 +746,12 @@ function _respondFromFD(
     res: Http2ServerResponse,
     fdOrHandle: number | { fd: number },
     headers: Record<string, string | string[] | number> | undefined,
-    options: { offset?: number; length?: number; statCheck?: (stat: any, headers: any, statOptions: any) => void; onError?: (err: Error) => void },
+    options: {
+        offset?: number;
+        length?: number;
+        statCheck?: (stat: any, headers: any, statOptions: any) => void;
+        onError?: (err: Error) => void;
+    },
     closeFd: boolean,
 ): void {
     // Both raw numeric fds and `@gjsify/fs` FileHandle wrappers (which carry
@@ -717,7 +763,7 @@ function _respondFromFD(
     // table — passing the wrapper object itself fails the lookup
     // (object → "[object Object]" string key).
     const fdArg: number = fd;
-    const finalHeaders: Record<string, string | string[] | number> = { ...(headers ?? {}) };
+    const finalHeaders: Record<string, string | string[] | number> = { ...headers };
 
     // statCheck — mirrors Node's contract: lets the app mutate headers based
     // on stat results without hand-writing fstat boilerplate.
@@ -793,7 +839,11 @@ function _respondFromFD(
     const finish = (): void => {
         res.end();
         if (closeFd) {
-            try { closeSync(fdArg); } catch { /* ignore */ }
+            try {
+                closeSync(fdArg);
+            } catch {
+                /* ignore */
+            }
         }
     };
 
@@ -801,7 +851,11 @@ function _respondFromFD(
         if (options.onError) options.onError(err);
         else res.destroy(err);
         if (closeFd) {
-            try { closeSync(fdArg); } catch { /* ignore */ }
+            try {
+                closeSync(fdArg);
+            } catch {
+                /* ignore */
+            }
         }
     };
 

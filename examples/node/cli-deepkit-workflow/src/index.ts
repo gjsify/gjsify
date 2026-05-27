@@ -45,9 +45,7 @@ class VerifyEvent extends WorkflowEvent {
 }
 
 class ErrorEvent extends WorkflowEvent {
-    constructor(
-        public readonly reason: string = '',
-    ) {
+    constructor(public readonly reason: string = '') {
         super();
     }
 }
@@ -62,25 +60,29 @@ class ErrorEvent extends WorkflowEvent {
 //      ↓
 //  removing → removed
 //
-const appWorkflow = createWorkflow('app', {
-    requested:   AppRequestEvent,
-    downloading: DownloadEvent,
-    verifying:   VerifyEvent,
-    installing:  WorkflowEvent,
-    installed:   WorkflowEvent,
-    updating:    DownloadEvent,
-    removing:    WorkflowEvent,
-    removed:     WorkflowEvent,
-    failed:      ErrorEvent,
-}, {
-    requested:   'downloading',
-    downloading: ['verifying', 'failed'],
-    verifying:   ['installing', 'failed'],
-    installing:  ['installed', 'failed'],
-    installed:   ['updating', 'removing'],
-    updating:    'installed',
-    removing:    'removed',
-});
+const appWorkflow = createWorkflow(
+    'app',
+    {
+        requested: AppRequestEvent,
+        downloading: DownloadEvent,
+        verifying: VerifyEvent,
+        installing: WorkflowEvent,
+        installed: WorkflowEvent,
+        updating: DownloadEvent,
+        removing: WorkflowEvent,
+        removed: WorkflowEvent,
+        failed: ErrorEvent,
+    },
+    {
+        requested: 'downloading',
+        downloading: ['verifying', 'failed'],
+        verifying: ['installing', 'failed'],
+        installing: ['installed', 'failed'],
+        installed: ['updating', 'removing'],
+        updating: 'installed',
+        removing: 'removed',
+    },
+);
 
 const run = async () => {
     // ---------------------------------------------------------------------------
@@ -118,9 +120,7 @@ const run = async () => {
 
     const app1 = appWorkflow.create('requested', dispatcher1, stopwatch);
 
-    await app1.apply('requested', new AppRequestEvent(
-        'org.gnome.TextEditor', 'Text Editor', '47.2', 12,
-    ));
+    await app1.apply('requested', new AppRequestEvent('org.gnome.TextEditor', 'Text Editor', '47.2', 12));
 
     log(`  State: ${app1.state.get()}`);
     log(`  Can download? ${app1.can('downloading')}`);
@@ -155,9 +155,7 @@ const run = async () => {
 
     const app2 = appWorkflow.create('requested', dispatcher2, stopwatch);
 
-    await app2.apply('requested', new AppRequestEvent(
-        'org.gnome.Loupe', 'Image Viewer', '47.0', 8,
-    ));
+    await app2.apply('requested', new AppRequestEvent('org.gnome.Loupe', 'Image Viewer', '47.0', 8));
     await app2.apply('downloading', new DownloadEvent('flathub', 'app/org.gnome.Loupe/x86_64/stable'));
 
     log(`  Can fail? ${app2.can('failed')}`);
@@ -174,9 +172,7 @@ const run = async () => {
     const dispatcher3 = new EventDispatcher();
     const app3 = appWorkflow.create('requested', dispatcher3, stopwatch);
 
-    await app3.apply('requested', new AppRequestEvent(
-        'org.gnome.Calculator', 'Calculator', '47.0', 4,
-    ));
+    await app3.apply('requested', new AppRequestEvent('org.gnome.Calculator', 'Calculator', '47.0', 4));
 
     try {
         // Try to skip download and go directly to installing
@@ -223,9 +219,7 @@ const run = async () => {
     const app4 = appWorkflow.create('requested', dispatcher4, stopwatch);
 
     // Single apply() runs the full pipeline
-    await app4.apply('requested', new AppRequestEvent(
-        'org.gnome.Maps', 'Maps', '47.1', 24,
-    ));
+    await app4.apply('requested', new AppRequestEvent('org.gnome.Maps', 'Maps', '47.1', 24));
 
     log(`  Final state: ${app4.state.get()}`);
 
@@ -285,8 +279,17 @@ const run = async () => {
 
     log('\n--- Transition Map ---\n');
 
-    const states = ['requested', 'downloading', 'verifying', 'installing',
-                    'installed', 'updating', 'removing', 'removed', 'failed'] as const;
+    const states = [
+        'requested',
+        'downloading',
+        'verifying',
+        'installing',
+        'installed',
+        'updating',
+        'removing',
+        'removed',
+        'failed',
+    ] as const;
 
     for (const state of states) {
         const transitions = appWorkflow.getTransitionsFrom(state);

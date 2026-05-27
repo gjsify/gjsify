@@ -81,11 +81,7 @@ export class Stats extends Dirent implements NodeStats {
      */
     constructor(info: Gio.FileInfo, path: PathLike, filename?: string);
     constructor(path: PathLike, filename?: string);
-    constructor(
-        infoOrPath: Gio.FileInfo | PathLike,
-        pathOrFilename?: PathLike | string,
-        filename?: string
-    ) {
+    constructor(infoOrPath: Gio.FileInfo | PathLike, pathOrFilename?: PathLike | string, filename?: string) {
         let info: Gio.FileInfo;
         let pathStr: string;
 
@@ -157,11 +153,7 @@ export class BigIntStats extends Dirent implements NodeBigIntStats {
 
     constructor(info: Gio.FileInfo, path: PathLike, filename?: string);
     constructor(path: PathLike, filename?: string);
-    constructor(
-        infoOrPath: Gio.FileInfo | PathLike,
-        pathOrFilename?: PathLike | string,
-        filename?: string
-    ) {
+    constructor(infoOrPath: Gio.FileInfo | PathLike, pathOrFilename?: PathLike | string, filename?: string) {
         let info: Gio.FileInfo;
         let pathStr: string;
 

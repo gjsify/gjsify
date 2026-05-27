@@ -47,37 +47,37 @@ const AGENT = 'gjsify-websocket';
 const WS_OPTS = { perMessageDeflate: true };
 
 function connect(path: string): Promise<WebSocket> {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`${AUTOBAHN_URL}${path}`, undefined, WS_OPTS);
-    ws.binaryType = 'arraybuffer';
-    ws.addEventListener('open', () => resolve(ws), { once: true });
-    ws.addEventListener('error', (ev: any) => reject(
-      new Error(`WebSocket error: ${ev?.message ?? 'unknown'}`),
-    ), { once: true });
-  });
+    return new Promise((resolve, reject) => {
+        const ws = new WebSocket(`${AUTOBAHN_URL}${path}`, undefined, WS_OPTS);
+        ws.binaryType = 'arraybuffer';
+        ws.addEventListener('open', () => resolve(ws), { once: true });
+        ws.addEventListener('error', (ev: any) => reject(new Error(`WebSocket error: ${ev?.message ?? 'unknown'}`)), {
+            once: true,
+        });
+    });
 }
 
 function waitClose(ws: WebSocket): Promise<void> {
-  return new Promise((resolve) => {
-    ws.addEventListener('close', () => resolve(), { once: true });
-  });
+    return new Promise((resolve) => {
+        ws.addEventListener('close', () => resolve(), { once: true });
+    });
 }
 
 function getCaseCount(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`${AUTOBAHN_URL}/getCaseCount`, undefined, WS_OPTS);
-    let count = -1;
-    ws.addEventListener('message', (ev: any) => {
-      count = parseInt(String(ev?.data ?? ''), 10);
+    return new Promise((resolve, reject) => {
+        const ws = new WebSocket(`${AUTOBAHN_URL}/getCaseCount`, undefined, WS_OPTS);
+        let count = -1;
+        ws.addEventListener('message', (ev: any) => {
+            count = parseInt(String(ev?.data ?? ''), 10);
+        });
+        ws.addEventListener('close', () => {
+            if (count > 0) resolve(count);
+            else reject(new Error('Autobahn returned no case count — is the fuzzingserver running on port 9001?'));
+        });
+        ws.addEventListener('error', (ev: any) =>
+            reject(new Error(`Failed to query case count: ${ev?.message ?? 'unknown'}`)),
+        );
     });
-    ws.addEventListener('close', () => {
-      if (count > 0) resolve(count);
-      else reject(new Error('Autobahn returned no case count — is the fuzzingserver running on port 9001?'));
-    });
-    ws.addEventListener('error', (ev: any) => reject(
-      new Error(`Failed to query case count: ${ev?.message ?? 'unknown'}`),
-    ));
-  });
 }
 
 // Upper bound per case. Most cases complete in < 1 s. Exceptions:
@@ -92,67 +92,78 @@ function getCaseCount(): Promise<number> {
 const CASE_TIMEOUT_MS = 480_000;
 
 function waitCloseWithTimeout(ws: WebSocket, timeoutMs: number): Promise<'ok' | 'timeout'> {
-  return new Promise((resolve) => {
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      try { ws.close(1001, 'autobahn driver case timeout'); } catch { /* ignore */ }
-      resolve('timeout');
-    }, timeoutMs);
+    return new Promise((resolve) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            try {
+                ws.close(1001, 'autobahn driver case timeout');
+            } catch {
+                /* ignore */
+            }
+            resolve('timeout');
+        }, timeoutMs);
 
-    ws.addEventListener('close', () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve('ok');
-    }, { once: true });
-  });
+        ws.addEventListener(
+            'close',
+            () => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                resolve('ok');
+            },
+            { once: true },
+        );
+    });
 }
 
 async function runCase(n: number, total: number): Promise<void> {
-  // One line per case — lots of output but trivially grep-able and keeps
-  // stuck cases obvious in CI logs.
-  process.stdout.write(`[${n}/${total}] `);
-  const ws = await connect(`/runCase?case=${n}&agent=${AGENT}`);
-  ws.addEventListener('message', (ev: any) => {
-    // Echo back exactly as received — Autobahn checks we preserve frame type,
-    // payload bytes, and honor fragmentation/control-frame invariants.
-    try { ws.send(ev.data); }
-    catch { /* send after close — Autobahn is already moving to the next case */ }
-  });
-  const result = await waitCloseWithTimeout(ws, CASE_TIMEOUT_MS);
-  process.stdout.write(result === 'ok' ? 'done\n' : `timeout after ${CASE_TIMEOUT_MS}ms\n`);
+    // One line per case — lots of output but trivially grep-able and keeps
+    // stuck cases obvious in CI logs.
+    process.stdout.write(`[${n}/${total}] `);
+    const ws = await connect(`/runCase?case=${n}&agent=${AGENT}`);
+    ws.addEventListener('message', (ev: any) => {
+        // Echo back exactly as received — Autobahn checks we preserve frame type,
+        // payload bytes, and honor fragmentation/control-frame invariants.
+        try {
+            ws.send(ev.data);
+        } catch {
+            /* send after close — Autobahn is already moving to the next case */
+        }
+    });
+    const result = await waitCloseWithTimeout(ws, CASE_TIMEOUT_MS);
+    process.stdout.write(result === 'ok' ? 'done\n' : `timeout after ${CASE_TIMEOUT_MS}ms\n`);
 }
 
 async function updateReports(): Promise<void> {
-  const ws = await connect(`/updateReports?agent=${AGENT}`);
-  await waitClose(ws);
+    const ws = await connect(`/updateReports?agent=${AGENT}`);
+    await waitClose(ws);
 }
 
 async function main() {
-  process.stdout.write(`Autobahn fuzzingclient driver — agent="${AGENT}"\n`);
-  const total = await getCaseCount();
-  process.stdout.write(`Running ${total} cases against ${AUTOBAHN_URL}\n`);
+    process.stdout.write(`Autobahn fuzzingclient driver — agent="${AGENT}"\n`);
+    const total = await getCaseCount();
+    process.stdout.write(`Running ${total} cases against ${AUTOBAHN_URL}\n`);
 
-  for (let i = 1; i <= total; i++) {
-    try {
-      await runCase(i, total);
-    } catch (err) {
-      // Individual case failure must not abort the whole run — Autobahn
-      // records the failure in its own report and we want a full matrix.
-      process.stdout.write(`failed: ${(err as Error).message}\n`);
+    for (let i = 1; i <= total; i++) {
+        try {
+            await runCase(i, total);
+        } catch (err) {
+            // Individual case failure must not abort the whole run — Autobahn
+            // records the failure in its own report and we want a full matrix.
+            process.stdout.write(`failed: ${(err as Error).message}\n`);
+        }
     }
-  }
 
-  process.stdout.write('Triggering report generation...\n');
-  await updateReports();
-  process.stdout.write('Done. Reports under reports/output/clients/\n');
+    process.stdout.write('Triggering report generation...\n');
+    await updateReports();
+    process.stdout.write('Done. Reports under reports/output/clients/\n');
 }
 
 main()
-  .then(() => systemExit(0))
-  .catch((err) => {
-    process.stderr.write(`driver failed: ${(err as Error).message}\n`);
-    systemExit(1);
-  });
+    .then(() => systemExit(0))
+    .catch((err) => {
+        process.stderr.write(`driver failed: ${(err as Error).message}\n`);
+        systemExit(1);
+    });
