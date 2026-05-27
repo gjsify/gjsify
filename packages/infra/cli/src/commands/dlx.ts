@@ -38,8 +38,7 @@ interface DlxOptions {
 
 export const dlxCommand: Command<any, DlxOptions> = {
     command: 'dlx <spec> [binOrArg] [extraArgs..]',
-    description:
-        'Run the GJS bundle of an npm-published package without installing it locally.',
+    description: 'Run the GJS bundle of an npm-published package without installing it locally.',
     builder: (yargs) =>
         yargs
             // Collect everything after `--` into argv['--'] so callers can
@@ -50,8 +49,7 @@ export const dlxCommand: Command<any, DlxOptions> = {
             // the gjsify level and the bundle never sees it.
             .parserConfiguration({ 'populate--': true })
             .positional('spec', {
-                description:
-                    'Package spec (`name`, `name@version`, `@scope/name@spec`, or local path).',
+                description: 'Package spec (`name`, `name@version`, `@scope/name@spec`, or local path).',
                 type: 'string',
                 demandOption: true,
             })
@@ -61,19 +59,18 @@ export const dlxCommand: Command<any, DlxOptions> = {
                 type: 'string',
             })
             .positional('extraArgs', {
-                description: 'Extra args forwarded to `gjs -m <bundle>`. Use `--` before flags to bypass gjsify-level parsing (`gjsify dlx <pkg> -- --help --verbose`).',
+                description:
+                    'Extra args forwarded to `gjs -m <bundle>`. Use `--` before flags to bypass gjsify-level parsing (`gjsify dlx <pkg> -- --help --verbose`).',
                 type: 'string',
                 array: true,
             })
             .option('cache-max-age', {
-                description:
-                    'Cache TTL in minutes. Defaults to 7 days. Use 0 to bypass cache.',
+                description: 'Cache TTL in minutes. Defaults to 7 days. Use 0 to bypass cache.',
                 type: 'number',
                 default: 60 * 24 * 7,
             })
             .option('reinstall', {
-                description:
-                    'Bypass the cache for this run (alias for --cache-max-age=0).',
+                description: 'Bypass the cache for this run (alias for --cache-max-age=0).',
                 type: 'boolean',
                 default: false,
             })
@@ -118,11 +115,7 @@ export const dlxCommand: Command<any, DlxOptions> = {
             String(v),
         );
         const extraArgsCombined = [...(args.extraArgs ?? []), ...passthroughDoubleDash];
-        const { binName, extraArgs } = splitBinAndArgs(
-            pkgDir,
-            args.binOrArg,
-            extraArgsCombined,
-        );
+        const { binName, extraArgs } = splitBinAndArgs(pkgDir, args.binOrArg, extraArgsCombined);
 
         const entry = resolveGjsEntry(pkgDir, binName);
         if (entry.fromFallback) {

@@ -16,28 +16,41 @@
  *   D-pad: Up=12, Down=13, Left=14, Right=15
  */
 export const BUTTON_MAP: Record<number, string> = {
-    0:  'button-b',       // Face1 → B (SNES bottom)
-    1:  'button-a',       // Face2 → A (SNES right)
-    2:  'button-y',       // Face3 → Y (SNES left)
-    3:  'button-x',       // Face4 → X (SNES top)
-    4:  'button-l',       // Left bumper → L
-    5:  'button-r',       // Right bumper → R
-    6:  'button-lt',      // Left trigger → LT
-    7:  'button-rt',      // Right trigger → RT
-    8:  'button-select',  // Select
-    9:  'button-start',   // Start
-    12: 'button-up',      // D-pad up
-    13: 'button-down',    // D-pad down
-    14: 'button-left',    // D-pad left
-    15: 'button-right',   // D-pad right
+    0: 'button-b', // Face1 → B (SNES bottom)
+    1: 'button-a', // Face2 → A (SNES right)
+    2: 'button-y', // Face3 → Y (SNES left)
+    3: 'button-x', // Face4 → X (SNES top)
+    4: 'button-l', // Left bumper → L
+    5: 'button-r', // Right bumper → R
+    6: 'button-lt', // Left trigger → LT
+    7: 'button-rt', // Right trigger → RT
+    8: 'button-select', // Select
+    9: 'button-start', // Start
+    12: 'button-up', // D-pad up
+    13: 'button-down', // D-pad down
+    14: 'button-left', // D-pad left
+    15: 'button-right', // D-pad right
 };
 
 /** W3C standard button names for display. */
 export const W3C_BUTTON_NAMES: Record<number, string> = {
-    0: 'B (Face1)', 1: 'A (Face2)', 2: 'Y (Face3)', 3: 'X (Face4)',
-    4: 'L', 5: 'R', 6: 'LT', 7: 'RT',
-    8: 'Select', 9: 'Start', 10: 'L3', 11: 'R3',
-    12: 'D-Up', 13: 'D-Down', 14: 'D-Left', 15: 'D-Right', 16: 'Home',
+    0: 'B (Face1)',
+    1: 'A (Face2)',
+    2: 'Y (Face3)',
+    3: 'X (Face4)',
+    4: 'L',
+    5: 'R',
+    6: 'LT',
+    7: 'RT',
+    8: 'Select',
+    9: 'Start',
+    10: 'L3',
+    11: 'R3',
+    12: 'D-Up',
+    13: 'D-Down',
+    14: 'D-Left',
+    15: 'D-Right',
+    16: 'Home',
 };
 
 /** Snapshot of live gamepad state passed to callbacks. */

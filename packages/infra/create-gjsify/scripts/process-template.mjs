@@ -28,9 +28,7 @@ const EXCLUDE_EXT = /\.tsbuildinfo$/;
 function buildVersionMap() {
     const map = new Map();
     const rootPkg = JSON.parse(readFileSync(join(monoRepoRoot, 'package.json'), 'utf8'));
-    const patterns = Array.isArray(rootPkg.workspaces)
-        ? rootPkg.workspaces
-        : (rootPkg.workspaces?.packages ?? []);
+    const patterns = Array.isArray(rootPkg.workspaces) ? rootPkg.workspaces : (rootPkg.workspaces?.packages ?? []);
     for (const pattern of patterns) {
         for (const dir of expandGlob(monoRepoRoot, pattern)) {
             try {
@@ -38,7 +36,9 @@ function buildVersionMap() {
                 if (pkg.name && typeof pkg.version === 'string') {
                     map.set(pkg.name, pkg.version);
                 }
-            } catch { /* not a workspace */ }
+            } catch {
+                /* not a workspace */
+            }
         }
     }
     return map;
@@ -69,7 +69,7 @@ function resolveWorkspaceDeps(deps, versionMap, templateName) {
                 if (!version) {
                     throw new Error(
                         `process-template: workspace package "${name}" referenced by template "${templateName}" not found in monorepo. ` +
-                        `Ensure it is registered in root package.json workspaces and "yarn install" has been run.`,
+                            `Ensure it is registered in root package.json workspaces and "yarn install" has been run.`,
                     );
                 }
                 if (spec === 'workspace:^' || spec === 'workspace:*') {

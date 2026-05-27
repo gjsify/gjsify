@@ -23,7 +23,7 @@ export const runtimeName: string = isGJS ? 'GJS' : isNode ? 'Node.js' : 'Unknown
  * `undefined` if the runtime cannot be detected.
  */
 export const runtimeVersion: string | undefined = isGJS
-  ? process.versions.gjs
-  : isNode
-    ? process.versions.node
-    : undefined;
+    ? process.versions.gjs
+    : isNode
+      ? process.versions.node
+      : undefined;

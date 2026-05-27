@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import yargs from 'yargs'
-import { hideBin } from 'yargs/helpers'
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 
 import {
     buildCommand as build,
@@ -32,8 +32,8 @@ import {
     fixCommand as fix,
     upgradeCommand as upgrade,
     barrelsCommand as barrels,
-} from './commands/index.js'
-import { APP_NAME } from './constants.js'
+} from './commands/index.js';
+import { APP_NAME } from './constants.js';
 
 // Detect which runtime is executing the CLI (GJS or Node.js).
 // GJS MUST be checked first because @gjsify/process sets
@@ -46,7 +46,9 @@ function runtimeLabel(): string {
             const v = Number(sys.version);
             return `GJS ${Math.floor(v / 10000)}.${Math.floor((v % 10000) / 100)}.${v % 100} (SpiderMonkey)`;
         }
-    } catch { /* not GJS */ }
+    } catch {
+        /* not GJS */
+    }
     if (typeof process !== 'undefined' && typeof process.versions?.node === 'string') {
         return `Node.js ${process.version}`;
     }
@@ -61,13 +63,13 @@ function runtimeLabel(): string {
 //   - bundled (install -g):         dist/cli.gjs.mjs → ../package.json
 function readBundleVersion(): string {
     try {
-        const here = dirname(fileURLToPath(import.meta.url))
+        const here = dirname(fileURLToPath(import.meta.url));
         const pkg = JSON.parse(readFileSync(join(here, '..', 'package.json'), 'utf8')) as {
-            version?: unknown
-        }
-        return typeof pkg.version === 'string' ? pkg.version : 'unknown'
+            version?: unknown;
+        };
+        return typeof pkg.version === 'string' ? pkg.version : 'unknown';
     } catch {
-        return 'unknown'
+        return 'unknown';
     }
 }
 
@@ -109,7 +111,12 @@ await cli
     .command(pack.command, pack.description, pack.builder, pack.handler)
     .command(publish.command, publish.description, publish.builder, publish.handler)
     .command(selfUpdate.command, selfUpdate.description, selfUpdate.builder, selfUpdate.handler)
-    .command(generateInstaller.command, generateInstaller.description, generateInstaller.builder, generateInstaller.handler)
+    .command(
+        generateInstaller.command,
+        generateInstaller.description,
+        generateInstaller.builder,
+        generateInstaller.handler,
+    )
     .command(uninstall.command, uninstall.description, uninstall.builder, uninstall.handler)
     .command(upgrade.command, upgrade.description, upgrade.builder, upgrade.handler)
     .command(format.command, format.description, format.builder, format.handler)
@@ -119,4 +126,4 @@ await cli
     .demandCommand(1)
     .epilogue(`Running on ${runtimeLabel()}`)
     .help()
-    .parseAsync()
+    .parseAsync();

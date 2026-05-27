@@ -13,9 +13,9 @@ import promptSuite from './prompt.spec.js';
 import streamableHttpSuite from './streamable-http.spec.js';
 
 run({
-  protocolSuite,
-  toolSuite,
-  resourceSuite,
-  promptSuite,
-  streamableHttpSuite,
+    protocolSuite,
+    toolSuite,
+    resourceSuite,
+    promptSuite,
+    streamableHttpSuite,
 });

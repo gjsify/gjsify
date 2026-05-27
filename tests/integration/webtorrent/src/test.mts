@@ -19,12 +19,12 @@ import clientAddSuite from './client-add.spec.js';
 import wireTransferSuite from './wire-transfer.spec.js';
 
 run({
-  selectionsSuite,
-  rarityMapSuite,
-  clientDestroySuite,
-  bitfieldSuite,
-  fileBufferSuite,
-  iteratorSuite,
-  clientAddSuite,
-  wireTransferSuite,
+    selectionsSuite,
+    rarityMapSuite,
+    clientDestroySuite,
+    bitfieldSuite,
+    fileBufferSuite,
+    iteratorSuite,
+    clientAddSuite,
+    wireTransferSuite,
 });

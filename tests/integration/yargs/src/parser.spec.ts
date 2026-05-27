@@ -37,9 +37,7 @@ export default async () => {
         });
 
         await it('honours -- to terminate option parsing into _', async () => {
-            const argv = await yargs(['-x', '1', '--', 'a', '-b'])
-                .parserConfiguration({ 'populate--': true })
-                .parse();
+            const argv = await yargs(['-x', '1', '--', 'a', '-b']).parserConfiguration({ 'populate--': true }).parse();
             expect(argv.x).toBe(1);
             expect(argv['--']).toStrictEqual(['a', '-b']);
         });
@@ -63,9 +61,7 @@ export default async () => {
         });
 
         await it('keeps --string values as strings when declared', async () => {
-            const argv = await yargs(['--id', '0007'])
-                .string('id')
-                .parse();
+            const argv = await yargs(['--id', '0007']).string('id').parse();
             expect(argv.id).toBe('0007');
         });
     });

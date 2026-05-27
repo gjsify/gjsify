@@ -41,7 +41,10 @@ function parseCell(raw) {
 }
 
 const pillars = rows.map((row) => {
-    const cols = row.split('|').slice(1, -1).map((c) => c.trim());
+    const cols = row
+        .split('|')
+        .slice(1, -1)
+        .map((c) => c.trim());
     const [category, total, full, partial, stub] = cols;
     return {
         category,

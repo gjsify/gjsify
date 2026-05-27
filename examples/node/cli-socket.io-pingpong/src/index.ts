@@ -11,60 +11,60 @@ const MAX_ROUNDTRIPS = 5;
 
 const httpServer = createServer();
 const ioServer = new Server(httpServer, {
-  httpCompression: false,
+    httpCompression: false,
 });
 
 ioServer.on('connection', (socket) => {
-  console.log(`[server] client connected   id=${socket.id}`);
+    console.log(`[server] client connected   id=${socket.id}`);
 
-  socket.on('roundtrip', (n: number, ack: (n: number) => void) => {
-    console.log(`[server] roundtrip #${n}`);
-    ack(n);
-  });
+    socket.on('roundtrip', (n: number, ack: (n: number) => void) => {
+        console.log(`[server] roundtrip #${n}`);
+        ack(n);
+    });
 
-  socket.on('disconnect', (reason) => {
-    console.log(`[server] client disconnected reason=${reason}`);
-  });
+    socket.on('disconnect', (reason) => {
+        console.log(`[server] client disconnected reason=${reason}`);
+    });
 });
 
 httpServer.listen(0, () => {
-  const addr = httpServer.address();
-  const port = typeof addr === 'object' && addr ? addr.port : 0;
-  console.log(`[server] listening on port ${port}\n`);
+    const addr = httpServer.address();
+    const port = typeof addr === 'object' && addr ? addr.port : 0;
+    console.log(`[server] listening on port ${port}\n`);
 
-  const socket = ioc(`http://localhost:${port}`);
+    const socket = ioc(`http://localhost:${port}`);
 
-  let count = 0;
+    let count = 0;
 
-  socket.on('connect', () => {
-    console.log(`[client] connected   id=${socket.id}\n`);
-    sendNext();
-  });
-
-  socket.on('connect_error', (err: Error) => {
-    console.error(`[client] connect error: ${err.message}`);
-  });
-
-  socket.on('disconnect', (reason: string) => {
-    console.log(`\n[client] disconnected reason=${reason}`);
-  });
-
-  function sendNext() {
-    const n = ++count;
-    const start = Date.now();
-
-    socket.emit('roundtrip', n, (_echo: number) => {
-      const ms = Date.now() - start;
-      console.log(`[client] roundtrip #${n} complete   latency=${ms}ms`);
-
-      if (count < MAX_ROUNDTRIPS) {
-        setTimeout(sendNext, 300);
-      } else {
-        console.log(`\n[client] ${MAX_ROUNDTRIPS} roundtrips complete — shutting down`);
-        socket.disconnect();
-        ioServer.close();
-        httpServer.close();
-      }
+    socket.on('connect', () => {
+        console.log(`[client] connected   id=${socket.id}\n`);
+        sendNext();
     });
-  }
+
+    socket.on('connect_error', (err: Error) => {
+        console.error(`[client] connect error: ${err.message}`);
+    });
+
+    socket.on('disconnect', (reason: string) => {
+        console.log(`\n[client] disconnected reason=${reason}`);
+    });
+
+    function sendNext() {
+        const n = ++count;
+        const start = Date.now();
+
+        socket.emit('roundtrip', n, (_echo: number) => {
+            const ms = Date.now() - start;
+            console.log(`[client] roundtrip #${n} complete   latency=${ms}ms`);
+
+            if (count < MAX_ROUNDTRIPS) {
+                setTimeout(sendNext, 300);
+            } else {
+                console.log(`\n[client] ${MAX_ROUNDTRIPS} roundtrips complete — shutting down`);
+                socket.disconnect();
+                ioServer.close();
+                httpServer.close();
+            }
+        });
+    }
 });

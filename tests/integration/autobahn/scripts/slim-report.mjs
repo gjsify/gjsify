@@ -11,21 +11,21 @@ import { readFileSync } from 'node:fs';
 
 const inPath = process.argv[2];
 if (!inPath) {
-  console.error('Usage: slim-report.mjs <index.json>');
-  process.exit(2);
+    console.error('Usage: slim-report.mjs <index.json>');
+    process.exit(2);
 }
 
 const data = JSON.parse(readFileSync(inPath, 'utf8'));
 const slim = {};
 for (const [agent, cases] of Object.entries(data)) {
-  slim[agent] = {};
-  for (const [caseId, info] of Object.entries(cases)) {
-    slim[agent][caseId] = {
-      behavior: info.behavior,
-      behaviorClose: info.behaviorClose,
-      remoteCloseCode: info.remoteCloseCode,
-    };
-  }
+    slim[agent] = {};
+    for (const [caseId, info] of Object.entries(cases)) {
+        slim[agent][caseId] = {
+            behavior: info.behavior,
+            behaviorClose: info.behaviorClose,
+            remoteCloseCode: info.remoteCloseCode,
+        };
+    }
 }
 
 // Two-space indent keeps baseline files diff-friendly.

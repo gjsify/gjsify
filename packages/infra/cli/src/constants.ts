@@ -1,1 +1,1 @@
-export const APP_NAME = 'gjsify'
+export const APP_NAME = 'gjsify';

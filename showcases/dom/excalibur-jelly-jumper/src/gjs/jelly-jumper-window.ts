@@ -19,11 +19,14 @@ export class JellyJumperWindow extends Adw.ApplicationWindow {
     private _game: GameHandle | null = null;
 
     static {
-        GObject.registerClass({
-            GTypeName: 'JellyJumperWindow',
-            Template,
-            InternalChildren: ['canvasContainer', 'pauseButton', 'audioButton'],
-        }, this);
+        GObject.registerClass(
+            {
+                GTypeName: 'JellyJumperWindow',
+                Template,
+                InternalChildren: ['canvasContainer', 'pauseButton', 'audioButton'],
+            },
+            this,
+        );
     }
 
     constructor(application: Adw.Application) {
@@ -64,12 +67,22 @@ export class JellyJumperWindow extends Adw.ApplicationWindow {
                 enablePerf: true,
                 fixedUpdateFps: 30, // reduces accumulator cascade on GLib-delayed frames
             })
-                .then(game => { this._game = game; })
-                .catch(err => {
+                .then((game) => {
+                    this._game = game;
+                })
+                .catch((err) => {
                     if (useFallback) {
-                        console.error('JellyJumper: Canvas 2D fallback also failed:', err?.message ?? err, err?.stack ?? '');
+                        console.error(
+                            'JellyJumper: Canvas 2D fallback also failed:',
+                            err?.message ?? err,
+                            err?.stack ?? '',
+                        );
                     } else {
-                        console.error('JellyJumper: WebGL start failed, trying Canvas 2D fallback:', err?.message ?? err, err?.stack ?? '');
+                        console.error(
+                            'JellyJumper: WebGL start failed, trying Canvas 2D fallback:',
+                            err?.message ?? err,
+                            err?.stack ?? '',
+                        );
                         this._startWithWidget(true);
                     }
                 });

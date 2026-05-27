@@ -20,9 +20,9 @@ import attachScopesSuite from './attach-scopes.spec.js';
 import extractAssignedNamesSuite from './extract-assigned-names.spec.js';
 
 run({
-  createFilterSuite,
-  dataToEsmSuite,
-  makeLegalIdentifierSuite,
-  attachScopesSuite,
-  extractAssignedNamesSuite,
+    createFilterSuite,
+    dataToEsmSuite,
+    makeLegalIdentifierSuite,
+    attachScopesSuite,
+    extractAssignedNamesSuite,
 });

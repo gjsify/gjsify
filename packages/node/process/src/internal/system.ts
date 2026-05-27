@@ -16,12 +16,14 @@ export function killPid(pid: number, signal?: string | number): boolean {
     try {
         const GLib = getGjsGlobal().imports?.gi?.GLib;
         if (GLib) {
-            const sig = typeof signal === 'number' ? String(signal) : (signal || 'SIGTERM');
+            const sig = typeof signal === 'number' ? String(signal) : signal || 'SIGTERM';
             const sigArg = sig.startsWith('SIG') ? `-${sig.slice(3)}` : `-${sig}`;
             GLib.spawn_command_line_sync(`kill ${sigArg} ${pid}`);
             return true;
         }
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
 
     if (!isGjs()) {
         const nativeProcess = globalThis.process;
@@ -52,7 +54,9 @@ export function memoryUsage(): MemoryUsage {
                 return { rss, heapTotal: rss, heapUsed: rss, external: 0, arrayBuffers: 0 };
             }
         }
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
 
     // Delegate to native process.memoryUsage on Node.js. Gated on !isGjs
     // because globalThis.process IS this module under GJS — would recurse.
@@ -66,7 +70,10 @@ export function memoryUsage(): MemoryUsage {
     return { rss: 0, heapTotal: 0, heapUsed: 0, external: 0, arrayBuffers: 0 };
 }
 
-export interface CpuUsage { user: number; system: number; }
+export interface CpuUsage {
+    user: number;
+    system: number;
+}
 
 export function cpuUsage(previousValue?: CpuUsage): CpuUsage {
     // Delegate to native process.cpuUsage on Node.js. No GJS equivalent yet —

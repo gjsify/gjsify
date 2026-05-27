@@ -11,24 +11,18 @@ import yargs from 'yargs/yargs';
 export default async () => {
     await describe('yargs option configuration', async () => {
         await it('respects .alias() — both names resolve to the same value', async () => {
-            const argv = await yargs(['-f', 'in.txt'])
-                .alias('f', 'file')
-                .parse();
+            const argv = await yargs(['-f', 'in.txt']).alias('f', 'file').parse();
             expect(argv.f).toBe('in.txt');
             expect(argv.file).toBe('in.txt');
         });
 
         await it('applies .default() when the flag is missing', async () => {
-            const argv = await yargs([])
-                .default('port', 3000)
-                .parse();
+            const argv = await yargs([]).default('port', 3000).parse();
             expect(argv.port).toBe(3000);
         });
 
         await it('skips .default() when an explicit value is provided', async () => {
-            const argv = await yargs(['--port', '9999'])
-                .default('port', 3000)
-                .parse();
+            const argv = await yargs(['--port', '9999']).default('port', 3000).parse();
             expect(argv.port).toBe(9999);
         });
 
@@ -42,16 +36,12 @@ export default async () => {
         });
 
         await it('accepts in-set choices', async () => {
-            const argv = await yargs(['--mode', 'dev'])
-                .choices('mode', ['dev', 'prod'])
-                .parse();
+            const argv = await yargs(['--mode', 'dev']).choices('mode', ['dev', 'prod']).parse();
             expect(argv.mode).toBe('dev');
         });
 
         await it('counts repeated boolean flags via .count()', async () => {
-            const argv = await yargs(['-vvv'])
-                .count('v')
-                .parse();
+            const argv = await yargs(['-vvv']).count('v').parse();
             expect(argv.v).toBe(3);
         });
 
@@ -63,16 +53,12 @@ export default async () => {
         });
 
         await it('treats .array() values as arrays even with a single item', async () => {
-            const argv = await yargs(['--items', 'one'])
-                .array('items')
-                .parse();
+            const argv = await yargs(['--items', 'one']).array('items').parse();
             expect(argv.items).toStrictEqual(['one']);
         });
 
         await it('collects multiple .array() values', async () => {
-            const argv = await yargs(['--items', 'a', '--items', 'b', '--items', 'c'])
-                .array('items')
-                .parse();
+            const argv = await yargs(['--items', 'a', '--items', 'b', '--items', 'c']).array('items').parse();
             expect(argv.items).toStrictEqual(['a', 'b', 'c']);
         });
 

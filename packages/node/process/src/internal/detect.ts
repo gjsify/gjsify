@@ -17,7 +17,9 @@ export function detectGjsVersion(): string | undefined {
             const patch = v % 100;
             return `${major}.${minor}.${patch}`;
         }
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
     return undefined;
 }
 
@@ -74,7 +76,9 @@ export function detectPpid(): number {
                 if (match) return parseInt(match[1], 10);
             }
         }
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
     return 0;
 }
 
@@ -85,7 +89,9 @@ export function detectPlatform(): ProcessPlatform {
             const osInfo = GLib.get_os_info('ID');
             if (osInfo) return 'linux';
         }
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
 
     if (typeof getGjsGlobal().imports?.system !== 'undefined') {
         return 'linux';
@@ -120,6 +126,8 @@ export function getPid(): number {
                 if (!isNaN(pid)) return pid;
             }
         }
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
     return 0;
 }

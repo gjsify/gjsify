@@ -45,11 +45,19 @@ export class RTCDTMFSender extends EventTarget {
     _isStopped: () => boolean = () => false;
     _getCurrentDirection: () => string | null = () => null;
 
-    get toneBuffer(): string { return this._toneBuffer; }
-    get canInsertDTMF(): boolean { return this._canInsert; }
+    get toneBuffer(): string {
+        return this._toneBuffer;
+    }
+    get canInsertDTMF(): boolean {
+        return this._canInsert;
+    }
 
-    get ontonechange(): EventHandler { return this._ontonechange; }
-    set ontonechange(v: EventHandler) { this._ontonechange = v; }
+    get ontonechange(): EventHandler {
+        return this._ontonechange;
+    }
+    set ontonechange(v: EventHandler) {
+        this._ontonechange = v;
+    }
 
     insertDTMF(tones: string, duration?: number, interToneGap?: number): void {
         // Step 3: If transceiver.stopped is true, throw InvalidStateError
@@ -80,7 +88,7 @@ export class RTCDTMFSender extends EventTarget {
         }
 
         // Normalize a-d to uppercase
-        tones = tones.replace(/[a-d]/g, c => c.toUpperCase());
+        tones = tones.replace(/[a-d]/g, (c) => c.toUpperCase());
 
         // Clamp duration to [40, 6000]
         const d = duration ?? DEFAULT_DURATION;
@@ -124,7 +132,7 @@ export class RTCDTMFSender extends EventTarget {
         this._fireToneChange(tone);
 
         // Schedule next tone after duration + interToneGap (comma = 2s delay)
-        const delay = tone === ',' ? COMMA_DELAY : (this._duration + this._interToneGap);
+        const delay = tone === ',' ? COMMA_DELAY : this._duration + this._interToneGap;
         this._scheduleNextTone(delay);
     }
 

@@ -18,9 +18,9 @@ import compileMoSuite from './compile-mo.spec.js';
 import pluralFormsSuite from './plural-forms.spec.js';
 
 run({
-  parsePoSuite,
-  parseMoSuite,
-  compilePoSuite,
-  compileMoSuite,
-  pluralFormsSuite,
+    parsePoSuite,
+    parseMoSuite,
+    compilePoSuite,
+    compileMoSuite,
+    pluralFormsSuite,
 });

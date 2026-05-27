@@ -17,12 +17,7 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, existsSync, readFileSync, cpSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
-import {
-  createTestEnvironment,
-  cleanupTestEnvironment,
-  setupProject,
-  hasCommand,
-} from '../helpers.mjs';
+import { createTestEnvironment, cleanupTestEnvironment, setupProject, hasCommand } from '../helpers.mjs';
 
 /**
  * Drop a tiny `node_modules/@fixture/reads-via-url` package that exercises
@@ -30,126 +25,155 @@ import {
  * + `JSON.parse(readFileSync(new URL("./package.json", ...), "utf8"))`.
  */
 function createFixture(projectDir) {
-  const pkgDir = join(projectDir, 'node_modules', '@fixture', 'reads-via-url');
-  mkdirSync(pkgDir, { recursive: true });
-  writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({
-    name: '@fixture/reads-via-url',
-    version: '4.2.0',
-    type: 'module',
-    main: './index.js',
-    exports: { '.': './index.js' },
-  }, null, 2));
-  writeFileSync(join(pkgDir, 'data.json'),
-    JSON.stringify({ secret: 'inlined-at-build-time' }) + '\n'
-  );
-  writeFileSync(join(pkgDir, 'index.js'),
-    `import { readFileSync } from 'node:fs';\n` +
-    `\n` +
-    `// Inliner pattern A: readFileSync(new URL(<lit>, import.meta.url), "utf8")\n` +
-    `const dataText = readFileSync(new URL("./data.json", import.meta.url), "utf8");\n` +
-    `const data = JSON.parse(dataText);\n` +
-    `\n` +
-    `// Inliner pattern B: JSON.parse(readFileSync(new URL(<lit>, import.meta.url), "utf8"))\n` +
-    `const pkg = JSON.parse(\n` +
-    `  readFileSync(new URL("./package.json", import.meta.url), "utf8")\n` +
-    `);\n` +
-    `\n` +
-    `export function getReport() {\n` +
-    `  return data.secret + ":" + pkg.name + "@" + pkg.version;\n` +
-    `}\n`
-  );
+    const pkgDir = join(projectDir, 'node_modules', '@fixture', 'reads-via-url');
+    mkdirSync(pkgDir, { recursive: true });
+    writeFileSync(
+        join(pkgDir, 'package.json'),
+        JSON.stringify(
+            {
+                name: '@fixture/reads-via-url',
+                version: '4.2.0',
+                type: 'module',
+                main: './index.js',
+                exports: { '.': './index.js' },
+            },
+            null,
+            2,
+        ),
+    );
+    writeFileSync(join(pkgDir, 'data.json'), JSON.stringify({ secret: 'inlined-at-build-time' }) + '\n');
+    writeFileSync(
+        join(pkgDir, 'index.js'),
+        `import { readFileSync } from 'node:fs';\n` +
+            `\n` +
+            `// Inliner pattern A: readFileSync(new URL(<lit>, import.meta.url), "utf8")\n` +
+            `const dataText = readFileSync(new URL("./data.json", import.meta.url), "utf8");\n` +
+            `const data = JSON.parse(dataText);\n` +
+            `\n` +
+            `// Inliner pattern B: JSON.parse(readFileSync(new URL(<lit>, import.meta.url), "utf8"))\n` +
+            `const pkg = JSON.parse(\n` +
+            `  readFileSync(new URL("./package.json", import.meta.url), "utf8")\n` +
+            `);\n` +
+            `\n` +
+            `export function getReport() {\n` +
+            `  return data.secret + ":" + pkg.name + "@" + pkg.version;\n` +
+            `}\n`,
+    );
 }
 
 describe('Inline static reads E2E', { timeout: 10 * 60 * 1000 }, () => {
-  let tmpDir;
-  let tarballsDir;
-  let tarballMap;
-  let projectDir;
+    let tmpDir;
+    let tarballsDir;
+    let tarballMap;
+    let projectDir;
 
-  before(() => {
-    const env = createTestEnvironment('gjsify-e2e-inline-static-reads-');
-    tmpDir = env.tmpDir;
-    tarballsDir = env.tarballsDir;
-    tarballMap = env.tarballMap;
+    before(() => {
+        const env = createTestEnvironment('gjsify-e2e-inline-static-reads-');
+        tmpDir = env.tmpDir;
+        tarballsDir = env.tarballsDir;
+        tarballMap = env.tarballMap;
 
-    projectDir = join(tmpDir, 'project');
-    mkdirSync(join(projectDir, 'src'), { recursive: true });
+        projectDir = join(tmpDir, 'project');
+        mkdirSync(join(projectDir, 'src'), { recursive: true });
 
-    setupProject(projectDir, {
-      name: 'test-inline-static-reads',
-      version: '0.1.0',
-      type: 'module',
-      private: true,
-      dependencies: {
-        '@gjsify/cli': '^0.1.0',
-      },
-    }, tarballsDir, tarballMap);
+        setupProject(
+            projectDir,
+            {
+                name: 'test-inline-static-reads',
+                version: '0.1.0',
+                type: 'module',
+                private: true,
+                dependencies: {
+                    '@gjsify/cli': '^0.1.0',
+                },
+            },
+            tarballsDir,
+            tarballMap,
+        );
 
-    createFixture(projectDir);
+        createFixture(projectDir);
 
-    writeFileSync(join(projectDir, 'src', 'app.ts'),
-      `import { getReport } from '@fixture/reads-via-url';\n` +
-      `console.log('OK:' + getReport());\n`
-    );
-  });
+        writeFileSync(
+            join(projectDir, 'src', 'app.ts'),
+            `import { getReport } from '@fixture/reads-via-url';\n` + `console.log('OK:' + getReport());\n`,
+        );
+    });
 
-  after(() => {
-    cleanupTestEnvironment(tmpDir);
-  });
+    after(() => {
+        cleanupTestEnvironment(tmpDir);
+    });
 
-  it('bundle inlines static readFileSync calls and stays portable', () => {
-    const outDir = join(projectDir, 'dist');
-    mkdirSync(outDir, { recursive: true });
-    const bundlePath = join(outDir, 'app.js');
-    // --no-minify: this test asserts inlined fixture content via substring
-    // matches against object-literal property names. With the default-on
-    // minifier those names get mangled and the asserts can't survive.
-    execFileSync('npx', ['gjsify', 'build', 'src/app.ts',
-      '--app', 'node',
-      '--outfile', bundlePath,
-      '--no-minify',
-    ], { cwd: projectDir, stdio: 'pipe', timeout: 60 * 1000 });
+    it('bundle inlines static readFileSync calls and stays portable', () => {
+        const outDir = join(projectDir, 'dist');
+        mkdirSync(outDir, { recursive: true });
+        const bundlePath = join(outDir, 'app.js');
+        // --no-minify: this test asserts inlined fixture content via substring
+        // matches against object-literal property names. With the default-on
+        // minifier those names get mangled and the asserts can't survive.
+        execFileSync(
+            'npx',
+            ['gjsify', 'build', 'src/app.ts', '--app', 'node', '--outfile', bundlePath, '--no-minify'],
+            { cwd: projectDir, stdio: 'pipe', timeout: 60 * 1000 },
+        );
 
-    assert.ok(existsSync(bundlePath), 'bundle missing');
+        assert.ok(existsSync(bundlePath), 'bundle missing');
 
-    const bundle = readFileSync(bundlePath, 'utf-8');
-    // The fixture's literal data string should appear in the bundle source —
-    // proving the read was evaluated at build time.
-    assert.ok(bundle.includes('inlined-at-build-time'),
-      'bundle does not contain the fixture data — inliner did not fire');
-    assert.ok(bundle.includes('"@fixture/reads-via-url"') || bundle.includes(`"name":"@fixture/reads-via-url"`),
-      'bundle does not contain the fixture package.json — JSON.parse pattern did not fire');
+        const bundle = readFileSync(bundlePath, 'utf-8');
+        // The fixture's literal data string should appear in the bundle source —
+        // proving the read was evaluated at build time.
+        assert.ok(
+            bundle.includes('inlined-at-build-time'),
+            'bundle does not contain the fixture data — inliner did not fire',
+        );
+        assert.ok(
+            bundle.includes('"@fixture/reads-via-url"') || bundle.includes(`"name":"@fixture/reads-via-url"`),
+            'bundle does not contain the fixture package.json — JSON.parse pattern did not fire',
+        );
 
-    // Bundle should NOT contain a runtime call to readFileSync against the
-    // fixture's URL (proves the inlining replaced the call rather than just
-    // rewriting the URL).
-    assert.ok(!/readFileSync\(\s*new URL\(\s*["']\.\/(data\.json|package\.json)["']/m.test(bundle),
-      'bundle still has a runtime readFileSync(new URL("./data.json"|"./package.json")) call');
+        // Bundle should NOT contain a runtime call to readFileSync against the
+        // fixture's URL (proves the inlining replaced the call rather than just
+        // rewriting the URL).
+        assert.ok(
+            !/readFileSync\(\s*new URL\(\s*["']\.\/(data\.json|package\.json)["']/m.test(bundle),
+            'bundle still has a runtime readFileSync(new URL("./data.json"|"./package.json")) call',
+        );
 
-    if (!hasCommand('node')) return;
+        if (!hasCommand('node')) return;
 
-    // Run from build location.
-    const out1 = execFileSync('node', [bundlePath], { stdio: 'pipe', timeout: 30 * 1000 }).toString();
-    assert.match(out1, /^OK:inlined-at-build-time:@fixture\/reads-via-url@4\.2\.0/,
-      `bundle produced unexpected output. Got: ${out1}`);
+        // Run from build location.
+        const out1 = execFileSync('node', [bundlePath], { stdio: 'pipe', timeout: 30 * 1000 }).toString();
+        assert.match(
+            out1,
+            /^OK:inlined-at-build-time:@fixture\/reads-via-url@4\.2\.0/,
+            `bundle produced unexpected output. Got: ${out1}`,
+        );
 
-    // Move the entire bundle and re-run — proves the bundle no longer
-    // depends on `node_modules/@fixture/reads-via-url/` existing in any
-    // particular relative location.
-    const movedDir = join(projectDir, 'moved');
-    cpSync(outDir, movedDir, { recursive: true });
-    const out2 = execFileSync('node', [join(movedDir, 'app.js')], { stdio: 'pipe', timeout: 30 * 1000 }).toString();
-    assert.match(out2, /^OK:inlined-at-build-time:@fixture\/reads-via-url@4\.2\.0/,
-      `moved bundle failed — bundle is not self-contained. Got: ${out2}`);
+        // Move the entire bundle and re-run — proves the bundle no longer
+        // depends on `node_modules/@fixture/reads-via-url/` existing in any
+        // particular relative location.
+        const movedDir = join(projectDir, 'moved');
+        cpSync(outDir, movedDir, { recursive: true });
+        const out2 = execFileSync('node', [join(movedDir, 'app.js')], { stdio: 'pipe', timeout: 30 * 1000 }).toString();
+        assert.match(
+            out2,
+            /^OK:inlined-at-build-time:@fixture\/reads-via-url@4\.2\.0/,
+            `moved bundle failed — bundle is not self-contained. Got: ${out2}`,
+        );
 
-    // Even from a path that doesn't have node_modules anywhere upward.
-    const isolatedDir = '/tmp/gjsify-inline-isolated-' + Date.now();
-    mkdirSync(isolatedDir, { recursive: true });
-    cpSync(bundlePath, join(isolatedDir, 'app.js'));
-    const out3 = execFileSync('node', [join(isolatedDir, 'app.js')], { stdio: 'pipe', timeout: 30 * 1000 }).toString();
-    assert.match(out3, /^OK:inlined-at-build-time:@fixture\/reads-via-url@4\.2\.0/,
-      `bundle in isolated dir failed — bundle is not self-contained. Got: ${out3}`);
-    rmSync(isolatedDir, { recursive: true, force: true });
-    rmSync(movedDir, { recursive: true, force: true });
-  });
+        // Even from a path that doesn't have node_modules anywhere upward.
+        const isolatedDir = '/tmp/gjsify-inline-isolated-' + Date.now();
+        mkdirSync(isolatedDir, { recursive: true });
+        cpSync(bundlePath, join(isolatedDir, 'app.js'));
+        const out3 = execFileSync('node', [join(isolatedDir, 'app.js')], {
+            stdio: 'pipe',
+            timeout: 30 * 1000,
+        }).toString();
+        assert.match(
+            out3,
+            /^OK:inlined-at-build-time:@fixture\/reads-via-url@4\.2\.0/,
+            `bundle in isolated dir failed — bundle is not self-contained. Got: ${out3}`,
+        );
+        rmSync(isolatedDir, { recursive: true, force: true });
+        rmSync(movedDir, { recursive: true, force: true });
+    });
 });

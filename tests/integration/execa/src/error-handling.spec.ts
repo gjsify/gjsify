@@ -50,10 +50,7 @@ export default async () => {
         await it('captures stderr alongside the throw payload', async () => {
             let caught: unknown = undefined;
             try {
-                await execa('node', [
-                    '-e',
-                    'process.stderr.write("diagnostic"); process.exit(2);',
-                ]);
+                await execa('node', ['-e', 'process.stderr.write("diagnostic"); process.exit(2);']);
             } catch (err) {
                 caught = err;
             }

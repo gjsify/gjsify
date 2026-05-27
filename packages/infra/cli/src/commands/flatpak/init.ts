@@ -53,8 +53,7 @@ interface FlatpakInitOptions {
 
 export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
     command: 'init',
-    description:
-        'Generate Flatpak manifest + MetaInfo XML + .desktop + flathub.json from `gjsify.flatpak` config.',
+    description: 'Generate Flatpak manifest + MetaInfo XML + .desktop + flathub.json from `gjsify.flatpak` config.',
     builder: (yargs) => {
         return yargs
             .option('app-id', {
@@ -133,7 +132,7 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
     },
     handler: async (args) => {
         const cfg = new Config();
-        const configData = await cfg.forBuild({} as never).catch(() => ({} as ConfigData));
+        const configData = await cfg.forBuild({} as never).catch(() => ({}) as ConfigData);
         const flatpak: ConfigDataFlatpak = configData.flatpak ?? {};
         const cwd = process.cwd();
         const pkg = readPackageJson(cwd);
@@ -150,9 +149,7 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
         }
 
         const kind: 'app' | 'cli' =
-            (args.kind as 'app' | 'cli' | undefined) ??
-            flatpak.kind ??
-            (args.cliOnly ? 'cli' : 'app');
+            (args.kind as 'app' | 'cli' | undefined) ?? flatpak.kind ?? (args.cliOnly ? 'cli' : 'app');
 
         const { runtime, runtimeId, sdk, runtimeVersion } = resolveRuntime(flatpak, {
             runtime: args.runtime,
@@ -167,8 +164,7 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
         const finishArgs =
             explicitFinishArgs !== undefined
                 ? explicitFinishArgs
-                : flatpak.finishArgs ??
-                  (kind === 'cli' ? DEFAULT_CLI_FINISH_ARGS : DEFAULT_GUI_FINISH_ARGS);
+                : (flatpak.finishArgs ?? (kind === 'cli' ? DEFAULT_CLI_FINISH_ARGS : DEFAULT_GUI_FINISH_ARGS));
 
         const manifest: Record<string, unknown> = {
             id: appId,
@@ -215,7 +211,9 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
 
         const manifestOut = (args.manifest as string | undefined) ?? `${appId}.json`;
         const manifestPath = resolve(cwd, manifestOut);
-        trackWrite(writeIfFresh(manifestPath, JSON.stringify(manifest, null, 2) + '\n', args.force ?? false, 'manifest'));
+        trackWrite(
+            writeIfFresh(manifestPath, JSON.stringify(manifest, null, 2) + '\n', args.force ?? false, 'manifest'),
+        );
 
         const pkgName = (pkg.name as string | undefined) ?? appId;
         const scaffold: ScaffoldInputs = {
@@ -234,16 +232,15 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
                 '\nFill these fields in package.json#gjsify.flatpak (or .gjsifyrc.*) and re-run with --force.',
             );
         } else {
-            const metainfoXml =
-                kind === 'cli' ? renderMetainfoCli(scaffold) : renderMetainfoApp(scaffold);
-            const metainfoOut =
-                (args.metainfo as string | undefined) ?? `data/${appId}.metainfo.xml.in`;
+            const metainfoXml = kind === 'cli' ? renderMetainfoCli(scaffold) : renderMetainfoApp(scaffold);
+            const metainfoOut = (args.metainfo as string | undefined) ?? `data/${appId}.metainfo.xml.in`;
             trackWrite(writeIfFresh(resolve(cwd, metainfoOut), metainfoXml, args.force ?? false, 'metainfo'));
 
             if (kind === 'app') {
-                const desktopOut =
-                    (args.desktop as string | undefined) ?? `data/${appId}.desktop.in`;
-                trackWrite(writeIfFresh(resolve(cwd, desktopOut), renderDesktop(scaffold), args.force ?? false, 'desktop'));
+                const desktopOut = (args.desktop as string | undefined) ?? `data/${appId}.desktop.in`;
+                trackWrite(
+                    writeIfFresh(resolve(cwd, desktopOut), renderDesktop(scaffold), args.force ?? false, 'desktop'),
+                );
 
                 if (!flatpak.icon) {
                     console.warn(
@@ -254,7 +251,9 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
             }
 
             const flathubOut = (args.flathubJson as string | undefined) ?? 'flathub.json';
-            trackWrite(writeIfFresh(resolve(cwd, flathubOut), renderFlathubJson(kind), args.force ?? false, 'flathub.json'));
+            trackWrite(
+                writeIfFresh(resolve(cwd, flathubOut), renderFlathubJson(kind), args.force ?? false, 'flathub.json'),
+            );
         }
 
         // Optional post-format: when oxfmt is configured in the project, run

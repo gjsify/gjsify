@@ -23,7 +23,7 @@ export function isPrintableAscii(s: string): boolean {
     // U+0021 ('!') through U+007E ('~')
     for (let i = 0; i < s.length; i++) {
         const c = s.charCodeAt(i);
-        if (c < 0x21 || c > 0x7E) return false;
+        if (c < 0x21 || c > 0x7e) return false;
     }
     return true;
 }
@@ -100,7 +100,7 @@ export function checkServerIdentity(hostname: string, cert: PeerCertificate): Ce
     const isIPv4 = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname);
     const isIPv6 = hostname.includes(':');
     if (isIPv4 || isIPv6) {
-        valid = ips.some(ip => ip.toLowerCase() === hostname.toLowerCase());
+        valid = ips.some((ip) => ip.toLowerCase() === hostname.toLowerCase());
         if (!valid) {
             reason = `IP: ${hostname} is not in the cert's list: ${ips.join(', ')}`;
         }
@@ -108,14 +108,14 @@ export function checkServerIdentity(hostname: string, cert: PeerCertificate): Ce
         const hostParts = splitHost(hostname);
 
         if (dnsNames.length > 0) {
-            valid = dnsNames.some(pattern => checkHostMatch(hostParts, pattern.trim()));
+            valid = dnsNames.some((pattern) => checkHostMatch(hostParts, pattern.trim()));
             if (!valid) {
                 reason = `Host: ${hostname}. is not in the cert's altnames: ${altNames}`;
             }
         } else {
             const cn = subject?.CN;
             if (Array.isArray(cn)) {
-                valid = cn.some(c => checkHostMatch(hostParts, c));
+                valid = cn.some((c) => checkHostMatch(hostParts, c));
             } else if (cn) {
                 valid = checkHostMatch(hostParts, cn);
             }

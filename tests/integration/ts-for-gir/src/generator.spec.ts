@@ -21,13 +21,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, expect } from '@gjsify/unit';
-import {
-  DependencyManager,
-  GirModule,
-  NSRegistry,
-  IntrospectedRecord,
-  type OptionsGeneration,
-} from '@ts-for-gir/lib';
+import { DependencyManager, GirModule, NSRegistry, IntrospectedRecord, type OptionsGeneration } from '@ts-for-gir/lib';
 import { ModuleGenerator } from '@ts-for-gir/generator-typescript';
 
 // Minimal GIR: one record with two methods and one constant, no <include> deps.
@@ -66,23 +60,23 @@ const GIR_PATH = join(GIR_DIR, 'Foo-1.0.gir');
 writeFileSync(GIR_PATH, MINIMAL_GIR, 'utf8');
 
 const config: OptionsGeneration = {
-  verbose: false,
-  reporter: false,
-  reporterOutput: '',
-  root: '/tmp',
-  outdir: null,
-  girDirectories: [GIR_DIR],
-  noNamespace: false,
-  noComments: true,
-  promisify: false,
-  npmScope: '@girs',
-  workspace: false,
-  noAdvancedVariants: false,
-  onlyVersionPrefix: false,
-  noPrettyPrint: true,
-  package: false,
-  externalDeps: false,
-  allowMissingDeps: true,
+    verbose: false,
+    reporter: false,
+    reporterOutput: '',
+    root: '/tmp',
+    outdir: null,
+    girDirectories: [GIR_DIR],
+    noNamespace: false,
+    noComments: true,
+    promisify: false,
+    npmScope: '@girs',
+    workspace: false,
+    noAdvancedVariants: false,
+    onlyVersionPrefix: false,
+    noPrettyPrint: true,
+    package: false,
+    externalDeps: false,
+    allowMissingDeps: true,
 };
 
 // Shared pipeline state; populated in setup() before tests run.
@@ -90,112 +84,112 @@ let registry: NSRegistry;
 let girModule: GirModule;
 
 async function setup() {
-  registry = new NSRegistry();
-  const dep = await DependencyManager.getInstance(config).get('Foo', '1.0');
-  girModule = await GirModule.load(dep, config, registry);
+    registry = new NSRegistry();
+    const dep = await DependencyManager.getInstance(config).get('Foo', '1.0');
+    girModule = await GirModule.load(dep, config, registry);
 }
 
 export default async () => {
-  await setup();
+    await setup();
 
-  await describe('@ts-for-gir/lib — DependencyManager.get(namespace, version)', async () => {
-    await it('creates a Dependency for Foo-1.0 from the GIR file', async () => {
-      const dep = await DependencyManager.getInstance(config).get('Foo', '1.0');
-      expect(dep).toBeDefined();
-      expect(dep.namespace).toBe('Foo');
-      expect(dep.version).toBe('1.0');
-      expect(dep.packageName).toBe('Foo-1.0');
+    await describe('@ts-for-gir/lib — DependencyManager.get(namespace, version)', async () => {
+        await it('creates a Dependency for Foo-1.0 from the GIR file', async () => {
+            const dep = await DependencyManager.getInstance(config).get('Foo', '1.0');
+            expect(dep).toBeDefined();
+            expect(dep.namespace).toBe('Foo');
+            expect(dep.version).toBe('1.0');
+            expect(dep.packageName).toBe('Foo-1.0');
+        });
+
+        await it('Dependency carries the parsed GirXML', async () => {
+            const dep = await DependencyManager.getInstance(config).get('Foo', '1.0');
+            expect(dep.girXML).toBeDefined();
+            expect(Array.isArray(dep.girXML!.repository)).toBeTruthy();
+        });
     });
 
-    await it('Dependency carries the parsed GirXML', async () => {
-      const dep = await DependencyManager.getInstance(config).get('Foo', '1.0');
-      expect(dep.girXML).toBeDefined();
-      expect(Array.isArray(dep.girXML!.repository)).toBeTruthy();
-    });
-  });
+    await describe('@ts-for-gir/lib — GirModule.load()', async () => {
+        await it('returns a GirModule with correct namespace and version', async () => {
+            expect(girModule.namespace).toBe('Foo');
+            expect(girModule.version).toBe('1.0');
+            expect(girModule.packageName).toBe('Foo-1.0');
+        });
 
-  await describe('@ts-for-gir/lib — GirModule.load()', async () => {
-    await it('returns a GirModule with correct namespace and version', async () => {
-      expect(girModule.namespace).toBe('Foo');
-      expect(girModule.version).toBe('1.0');
-      expect(girModule.packageName).toBe('Foo-1.0');
-    });
+        await it('registers itself in the NSRegistry', async () => {
+            const ns = registry.mapping.get('Foo', '1.0');
+            expect(ns).toBeDefined();
+            expect(ns!.namespace).toBe('Foo');
+        });
 
-    await it('registers itself in the NSRegistry', async () => {
-      const ns = registry.mapping.get('Foo', '1.0');
-      expect(ns).toBeDefined();
-      expect(ns!.namespace).toBe('Foo');
-    });
-
-    await it('members map is empty before parse()', async () => {
-      const freshReg = new NSRegistry();
-      const dep = await DependencyManager.getInstance(config).get('Foo', '1.0');
-      const fresh = await GirModule.load(dep, config, freshReg);
-      expect(fresh.members.size).toBe(0);
-    });
-  });
-
-  await describe('@ts-for-gir/lib — GirModule.parse()', async () => {
-    await it('populates members after parse()', async () => {
-      girModule.parse();
-      expect(girModule.members.size > 0).toBeTruthy();
+        await it('members map is empty before parse()', async () => {
+            const freshReg = new NSRegistry();
+            const dep = await DependencyManager.getInstance(config).get('Foo', '1.0');
+            const fresh = await GirModule.load(dep, config, freshReg);
+            expect(fresh.members.size).toBe(0);
+        });
     });
 
-    await it('finds the Greeter record in members', async () => {
-      const greeter = girModule.members.get('Greeter');
-      expect(greeter).toBeDefined();
-      expect(greeter instanceof IntrospectedRecord).toBeTruthy();
+    await describe('@ts-for-gir/lib — GirModule.parse()', async () => {
+        await it('populates members after parse()', async () => {
+            girModule.parse();
+            expect(girModule.members.size > 0).toBeTruthy();
+        });
+
+        await it('finds the Greeter record in members', async () => {
+            const greeter = girModule.members.get('Greeter');
+            expect(greeter).toBeDefined();
+            expect(greeter instanceof IntrospectedRecord).toBeTruthy();
+        });
+
+        await it('Greeter has the greet method', async () => {
+            const greeter = girModule.members.get('Greeter') as IntrospectedRecord;
+            const greet = greeter.members.find((m: any) => m.name === 'greet');
+            expect(greet).toBeDefined();
+        });
+
+        await it('Greeter has the get_count method', async () => {
+            const greeter = girModule.members.get('Greeter') as IntrospectedRecord;
+            const getCount = greeter.members.find((m: any) => m.name === 'get_count');
+            expect(getCount).toBeDefined();
+        });
+
+        await it('VERSION constant is present in members', async () => {
+            const version = girModule.members.get('VERSION');
+            expect(version).toBeDefined();
+        });
     });
 
-    await it('Greeter has the greet method', async () => {
-      const greeter = girModule.members.get('Greeter') as IntrospectedRecord;
-      const greet = greeter.members.find((m: any) => m.name === 'greet');
-      expect(greet).toBeDefined();
-    });
+    await describe('@ts-for-gir/generator-typescript — ModuleGenerator.generateModule()', async () => {
+        await it('generates non-empty TypeScript output', async () => {
+            await girModule.initTransitiveDependencies([]);
+            const generator = new ModuleGenerator(girModule, config, registry);
+            const output = await generator.generateModule(girModule);
+            expect(Array.isArray(output)).toBeTruthy();
+            expect(output.length > 0).toBeTruthy();
+        });
 
-    await it('Greeter has the get_count method', async () => {
-      const greeter = girModule.members.get('Greeter') as IntrospectedRecord;
-      const getCount = greeter.members.find((m: any) => m.name === 'get_count');
-      expect(getCount).toBeDefined();
-    });
+        await it('output contains the Greeter name', async () => {
+            await girModule.initTransitiveDependencies([]);
+            const generator = new ModuleGenerator(girModule, config, registry);
+            const output = await generator.generateModule(girModule);
+            const joined = output.join('\n');
+            expect(joined).toContain('Greeter');
+        });
 
-    await it('VERSION constant is present in members', async () => {
-      const version = girModule.members.get('VERSION');
-      expect(version).toBeDefined();
-    });
-  });
+        await it('output contains the greet method', async () => {
+            await girModule.initTransitiveDependencies([]);
+            const generator = new ModuleGenerator(girModule, config, registry);
+            const output = await generator.generateModule(girModule);
+            const joined = output.join('\n');
+            expect(joined).toContain('greet');
+        });
 
-  await describe('@ts-for-gir/generator-typescript — ModuleGenerator.generateModule()', async () => {
-    await it('generates non-empty TypeScript output', async () => {
-      await girModule.initTransitiveDependencies([]);
-      const generator = new ModuleGenerator(girModule, config, registry);
-      const output = await generator.generateModule(girModule);
-      expect(Array.isArray(output)).toBeTruthy();
-      expect(output.length > 0).toBeTruthy();
+        await it('output contains the VERSION constant', async () => {
+            await girModule.initTransitiveDependencies([]);
+            const generator = new ModuleGenerator(girModule, config, registry);
+            const output = await generator.generateModule(girModule);
+            const joined = output.join('\n');
+            expect(joined).toContain('VERSION');
+        });
     });
-
-    await it('output contains the Greeter name', async () => {
-      await girModule.initTransitiveDependencies([]);
-      const generator = new ModuleGenerator(girModule, config, registry);
-      const output = await generator.generateModule(girModule);
-      const joined = output.join('\n');
-      expect(joined).toContain('Greeter');
-    });
-
-    await it('output contains the greet method', async () => {
-      await girModule.initTransitiveDependencies([]);
-      const generator = new ModuleGenerator(girModule, config, registry);
-      const output = await generator.generateModule(girModule);
-      const joined = output.join('\n');
-      expect(joined).toContain('greet');
-    });
-
-    await it('output contains the VERSION constant', async () => {
-      await girModule.initTransitiveDependencies([]);
-      const generator = new ModuleGenerator(girModule, config, registry);
-      const output = await generator.generateModule(girModule);
-      const joined = output.join('\n');
-      expect(joined).toContain('VERSION');
-    });
-  });
 };

@@ -22,32 +22,55 @@ export class FireworksWindow extends Adw.ApplicationWindow {
     private _demo: FireworksDemo | null = null;
 
     static {
-        GObject.registerClass({
-            GTypeName: 'FireworksWindow',
-            Template,
-            InternalChildren: [
-                'canvasContainer', 'particleCountRow', 'autoIntervalRow',
-                'maxBurstRadiusRow', 'autoFireworksRow', 'splitView',
-                'sidebarToggleButton', 'pauseButton',
-            ],
-        }, this);
+        GObject.registerClass(
+            {
+                GTypeName: 'FireworksWindow',
+                Template,
+                InternalChildren: [
+                    'canvasContainer',
+                    'particleCountRow',
+                    'autoIntervalRow',
+                    'maxBurstRadiusRow',
+                    'autoFireworksRow',
+                    'splitView',
+                    'sidebarToggleButton',
+                    'pauseButton',
+                ],
+            },
+            this,
+        );
     }
 
     constructor(application: Adw.Application) {
         super({ application });
 
         // Set up SpinRow adjustments
-        this._particleCountRow.set_adjustment(new Gtk.Adjustment({
-            lower: 10, upper: 100, step_increment: 1, value: 30,
-        }));
+        this._particleCountRow.set_adjustment(
+            new Gtk.Adjustment({
+                lower: 10,
+                upper: 100,
+                step_increment: 1,
+                value: 30,
+            }),
+        );
 
-        this._autoIntervalRow.set_adjustment(new Gtk.Adjustment({
-            lower: 50, upper: 1000, step_increment: 50, value: 200,
-        }));
+        this._autoIntervalRow.set_adjustment(
+            new Gtk.Adjustment({
+                lower: 50,
+                upper: 1000,
+                step_increment: 50,
+                value: 200,
+            }),
+        );
 
-        this._maxBurstRadiusRow.set_adjustment(new Gtk.Adjustment({
-            lower: 50, upper: 300, step_increment: 10, value: 160,
-        }));
+        this._maxBurstRadiusRow.set_adjustment(
+            new Gtk.Adjustment({
+                lower: 50,
+                upper: 300,
+                step_increment: 10,
+                value: 160,
+            }),
+        );
 
         // Create and insert Canvas 2D widget
         const canvasWidget = new Canvas2DBridge();

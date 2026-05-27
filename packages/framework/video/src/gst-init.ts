@@ -24,9 +24,9 @@ export function ensurePaintableSinkAvailable(): void {
     if (!factory) {
         throwNotSupported(
             'GStreamer element "gtk4paintablesink" not available. Install gst-plugins-rs:\n' +
-            '  Fedora:        dnf install gstreamer1-plugin-gtk4\n' +
-            '  Ubuntu/Debian: apt install gstreamer1.0-gtk4\n' +
-            '  Verify with:   gst-inspect-1.0 gtk4paintablesink',
+                '  Fedora:        dnf install gstreamer1-plugin-gtk4\n' +
+                '  Ubuntu/Debian: apt install gstreamer1.0-gtk4\n' +
+                '  Verify with:   gst-inspect-1.0 gtk4paintablesink',
         );
     }
 }

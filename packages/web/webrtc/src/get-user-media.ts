@@ -43,9 +43,7 @@ export async function getUserMedia(constraints: MediaStreamConstraints): Promise
     ensureGstInit();
 
     if (!constraints.audio && !constraints.video) {
-        throw new TypeError(
-            "Failed to execute 'getUserMedia': At least one of audio or video must be requested",
-        );
+        throw new TypeError("Failed to execute 'getUserMedia': At least one of audio or video must be requested");
     }
 
     const tracks: MediaStreamTrack[] = [];
@@ -65,11 +63,13 @@ export async function getUserMedia(constraints: MediaStreamConstraints): Promise
             source.link(capsfilter);
         }
 
-        tracks.push(new MediaStreamTrack({
-            kind: 'audio',
-            label: source.name ?? 'audio',
-            _gst: { source, pipeline },
-        }));
+        tracks.push(
+            new MediaStreamTrack({
+                kind: 'audio',
+                label: source.name ?? 'audio',
+                _gst: { source, pipeline },
+            }),
+        );
     }
 
     if (constraints.video) {
@@ -87,11 +87,13 @@ export async function getUserMedia(constraints: MediaStreamConstraints): Promise
             source.link(capsfilter);
         }
 
-        tracks.push(new MediaStreamTrack({
-            kind: 'video',
-            label: source.name ?? 'video',
-            _gst: { source, pipeline },
-        }));
+        tracks.push(
+            new MediaStreamTrack({
+                kind: 'video',
+                label: source.name ?? 'video',
+                _gst: { source, pipeline },
+            }),
+        );
     }
 
     return new MediaStream(tracks);
@@ -121,7 +123,11 @@ function _createAudioSource(): Gst.Element {
     for (const name of ['pipewiresrc', 'pulsesrc', 'autoaudiosrc']) {
         const el = Gst.ElementFactory.make(name, null);
         if (el) {
-            try { (el as _GstElementProps).is_live = true; } catch { /* not all sources have is-live */ }
+            try {
+                (el as _GstElementProps).is_live = true;
+            } catch {
+                /* not all sources have is-live */
+            }
             return el;
         }
     }

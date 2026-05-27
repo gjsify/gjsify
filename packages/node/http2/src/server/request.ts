@@ -23,7 +23,9 @@ export class Http2ServerRequest extends Readable {
     private _stream: ServerHttp2Stream | null = null;
     private _timeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
-    get stream(): ServerHttp2Stream | null { return this._stream; }
+    get stream(): ServerHttp2Stream | null {
+        return this._stream;
+    }
 
     // Called by Http2Server after stream is created
     _setStream(stream: ServerHttp2Stream): void {

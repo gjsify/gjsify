@@ -28,8 +28,7 @@ interface UninstallOptions {
 
 export const uninstallCommand: Command<any, UninstallOptions> = {
     command: 'uninstall <packages..>',
-    description:
-        'Uninstall a previously installed package. Currently only `--global` mode is supported.',
+    description: 'Uninstall a previously installed package. Currently only `--global` mode is supported.',
     builder: (yargs) =>
         yargs
             .positional('packages', {
@@ -39,8 +38,7 @@ export const uninstallCommand: Command<any, UninstallOptions> = {
                 demandOption: true,
             })
             .option('global', {
-                description:
-                    'Uninstall from the user-global XDG location (the install -g target).',
+                description: 'Uninstall from the user-global XDG location (the install -g target).',
                 type: 'boolean',
                 alias: 'g',
                 default: false,
@@ -151,9 +149,7 @@ function findBinShimsForPackage(binDir: string, pkgDir: string, verbose: boolean
             // Find the `exec [gjs -m] '<target>' "$@"` line; the path may
             // contain `:` from the optional prebuild preamble lines, which
             // is why we anchor to `exec ` rather than the first quoted run.
-            const execLine = content
-                .split('\n')
-                .find((line) => /^exec (?:gjs -m )?'/.test(line));
+            const execLine = content.split('\n').find((line) => /^exec (?:gjs -m )?'/.test(line));
             if (!execLine) continue;
             const m = execLine.match(/'([^']+)'/);
             if (!m) continue;

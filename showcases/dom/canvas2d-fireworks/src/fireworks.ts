@@ -73,7 +73,7 @@ function createBurst(x: number, y: number, now: number, controller: FireworksEff
     const particules: Particule[] = [];
     const count = Math.max(1, Math.floor(controller.particleCount));
     for (let i = 0; i < count; i++) {
-        const angle = random(0, 360) * Math.PI / 180;
+        const angle = (random(0, 360) * Math.PI) / 180;
         const value = random(50, 180);
         const sign = [-1, 1][random(0, 1)];
         const dist = sign * value;
@@ -161,7 +161,7 @@ export function start(canvas: HTMLCanvasElement): FireworksDemo {
     let paused = false;
 
     canvas.addEventListener('mousedown', (e: any) => {
-        const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
         // Translate event coords into canvas-pixel coords (handles CSS scaling).
         const rect = canvas.getBoundingClientRect?.();
         const scaleX = rect && rect.width ? canvas.width / rect.width : 1;
@@ -193,12 +193,14 @@ export function start(canvas: HTMLCanvasElement): FireworksDemo {
                 lastAutoTime = now;
                 const cx = w / 2;
                 const cy = h / 2;
-                bursts.push(createBurst(
-                    random(Math.floor(cx - 50), Math.floor(cx + 50)),
-                    random(Math.floor(cy - 50), Math.floor(cy + 50)),
-                    now,
-                    effectController,
-                ));
+                bursts.push(
+                    createBurst(
+                        random(Math.floor(cx - 50), Math.floor(cx + 50)),
+                        random(Math.floor(cy - 50), Math.floor(cy + 50)),
+                        now,
+                        effectController,
+                    ),
+                );
             }
         }
 
@@ -214,7 +216,9 @@ export function start(canvas: HTMLCanvasElement): FireworksDemo {
 
     return {
         effectController,
-        get isPaused() { return paused; },
+        get isPaused() {
+            return paused;
+        },
         pause() {
             if (paused) return;
             paused = true;

@@ -38,7 +38,9 @@ export function findWorkspaceRoot(start: string): string | null {
                 try {
                     const ws = discoverWorkspaces(dir);
                     if (dir === start || ws.some((w) => w.location === start)) return dir;
-                } catch { /* not a usable workspace root */ }
+                } catch {
+                    /* not a usable workspace root */
+                }
             }
         }
         const parent = resolve(dir, '..');

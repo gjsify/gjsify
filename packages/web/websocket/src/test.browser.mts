@@ -5,7 +5,6 @@
 import { run, describe, it, expect } from '@gjsify/unit';
 
 const testSuite = async () => {
-
     await describe('WebSocket (static)', async () => {
         await it('should be a constructor', async () => {
             expect(typeof WebSocket).toBe('function');

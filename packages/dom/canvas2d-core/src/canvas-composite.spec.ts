@@ -19,8 +19,12 @@ function makeCtx(width = 30, height = 30): CanvasRenderingContext2D {
 
 function assertPixel(
     ctx: CanvasRenderingContext2D,
-    x: number, y: number,
-    r: number, g: number, b: number, a: number,
+    x: number,
+    y: number,
+    r: number,
+    g: number,
+    b: number,
+    a: number,
     tol = 2,
 ): void {
     const data = ctx.getImageData(x, y, 1, 1).data;
@@ -46,7 +50,6 @@ function setupAndDraw(ctx: CanvasRenderingContext2D, mode: GlobalCompositeOperat
 
 export default async () => {
     await describe('CanvasRenderingContext2D — globalCompositeOperation', async () => {
-
         await describe('source-over (default)', async () => {
             await it('green overlay replaces red in the overlap region', async () => {
                 const ctx = makeCtx();

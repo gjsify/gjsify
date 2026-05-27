@@ -13,14 +13,7 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 import { createServer } from 'node:http';
-import {
-    writeFileSync,
-    readFileSync,
-    mkdirSync,
-    existsSync,
-    mkdtempSync,
-    rmSync,
-} from 'node:fs';
+import { writeFileSync, readFileSync, mkdirSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';

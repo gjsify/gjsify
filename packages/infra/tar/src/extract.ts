@@ -1,10 +1,10 @@
 // `extractTarball()` — decompress + parse + write to disk. Cross-platform
 // (Node + GJS) — node:fs is polyfilled by @gjsify/fs on GJS.
 
-import * as fs from "node:fs";
-import * as path from "node:path";
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
-import { type TarEntry, parseTar } from "./parser.js";
+import { type TarEntry, parseTar } from './parser.js';
 
 export interface ExtractOptions {
     /**
@@ -48,31 +48,29 @@ export async function extractTarball(
 
     for (const entry of entries) {
         const stripped = stripComponents(entry.name, strip);
-        if (stripped === null || stripped === "") {
+        if (stripped === null || stripped === '') {
             result.skipped++;
             continue;
         }
         const resolved = path.resolve(destDir, stripped);
         if (preventEscape && !isInside(resolved, destDir)) {
-            throw new Error(
-                `tar: refusing to extract ${entry.name} outside ${destDir} (resolved=${resolved})`,
-            );
+            throw new Error(`tar: refusing to extract ${entry.name} outside ${destDir} (resolved=${resolved})`);
         }
         if (opts.filter && !opts.filter(entry, resolved)) {
             result.skipped++;
             continue;
         }
 
-        if (entry.type === "directory") {
+        if (entry.type === 'directory') {
             fs.mkdirSync(resolved, { recursive: true });
             result.directories.push(resolved);
             continue;
         }
-        if (entry.type === "file") {
+        if (entry.type === 'file') {
             fs.mkdirSync(path.dirname(resolved), { recursive: true });
             fs.writeFileSync(resolved, entry.body);
             const overrideMode = opts.chmod?.(entry, resolved);
-            const finalMode = overrideMode ?? (entry.mode & 0o777);
+            const finalMode = overrideMode ?? entry.mode & 0o777;
             if (finalMode > 0) {
                 try {
                     fs.chmodSync(resolved, finalMode);
@@ -83,7 +81,7 @@ export async function extractTarball(
             result.files.push(resolved);
             continue;
         }
-        if (entry.type === "symlink") {
+        if (entry.type === 'symlink') {
             fs.mkdirSync(path.dirname(resolved), { recursive: true });
             try {
                 fs.symlinkSync(entry.linkname, resolved);
@@ -106,29 +104,27 @@ export async function extractTarball(
 
 /** Decompress a gzip buffer using Web DecompressionStream (cross-platform). */
 export async function gunzip(input: Uint8Array): Promise<Uint8Array> {
-    const Decomp = (globalThis as { DecompressionStream?: typeof DecompressionStream })
-        .DecompressionStream;
-    if (typeof Decomp !== "function") {
+    const Decomp = (globalThis as { DecompressionStream?: typeof DecompressionStream }).DecompressionStream;
+    if (typeof Decomp !== 'function') {
         throw new Error(
-            "@gjsify/tar: globalThis.DecompressionStream is not available — " +
+            '@gjsify/tar: globalThis.DecompressionStream is not available — ' +
                 "import '@gjsify/compression-streams/register' on GJS to register it",
         );
     }
-    const stream = new Blob([new Uint8Array(input)]).stream().pipeThrough(new Decomp("gzip"));
+    const stream = new Blob([new Uint8Array(input)]).stream().pipeThrough(new Decomp('gzip'));
     return drainStream(stream);
 }
 
 /** Compress a buffer to gzip using Web CompressionStream (cross-platform). */
 export async function gzip(input: Uint8Array): Promise<Uint8Array> {
-    const Comp = (globalThis as { CompressionStream?: typeof CompressionStream })
-        .CompressionStream;
-    if (typeof Comp !== "function") {
+    const Comp = (globalThis as { CompressionStream?: typeof CompressionStream }).CompressionStream;
+    if (typeof Comp !== 'function') {
         throw new Error(
-            "@gjsify/tar: globalThis.CompressionStream is not available — " +
+            '@gjsify/tar: globalThis.CompressionStream is not available — ' +
                 "import '@gjsify/compression-streams/register' on GJS to register it",
         );
     }
-    const stream = new Blob([new Uint8Array(input)]).stream().pipeThrough(new Comp("gzip"));
+    const stream = new Blob([new Uint8Array(input)]).stream().pipeThrough(new Comp('gzip'));
     return drainStream(stream);
 }
 
@@ -154,12 +150,12 @@ async function drainStream(stream: ReadableStream<Uint8Array>): Promise<Uint8Arr
 
 function stripComponents(name: string, n: number): string | null {
     if (n <= 0) return name;
-    const parts = name.split("/").filter((s) => s !== "");
+    const parts = name.split('/').filter((s) => s !== '');
     if (parts.length <= n) return null;
-    return parts.slice(n).join("/");
+    return parts.slice(n).join('/');
 }
 
 function isInside(child: string, parent: string): boolean {
     const rel = path.relative(parent, child);
-    return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+    return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
 }

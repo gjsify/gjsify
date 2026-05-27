@@ -8,5 +8,5 @@ declare const imports: { byteArray: { fromGBytes(input: GLib.Bytes): Uint8Array 
  * with proper typing to eliminate `as any` casts throughout the codebase.
  */
 export function gbytesToUint8Array(bytes: GLib.Bytes): Uint8Array {
-  return imports.byteArray.fromGBytes(bytes);
+    return imports.byteArray.fromGBytes(bytes);
 }

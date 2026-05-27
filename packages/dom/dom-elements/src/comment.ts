@@ -12,20 +12,20 @@ import * as PS from './property-symbol.js';
  * Reference: https://developer.mozilla.org/en-US/docs/Web/API/Comment
  */
 export class Comment extends CharacterData {
-	constructor(data = '') {
-		super(data);
-		this[PS.nodeType] = NodeType.COMMENT_NODE;
-	}
+    constructor(data = '') {
+        super(data);
+        this[PS.nodeType] = NodeType.COMMENT_NODE;
+    }
 
-	get nodeName(): string {
-		return '#comment';
-	}
+    get nodeName(): string {
+        return '#comment';
+    }
 
-	cloneNode(_deep = false): Comment {
-		return new Comment(this.data);
-	}
+    cloneNode(_deep = false): Comment {
+        return new Comment(this.data);
+    }
 
-	get [Symbol.toStringTag](): string {
-		return 'Comment';
-	}
+    get [Symbol.toStringTag](): string {
+        return 'Comment';
+    }
 }

@@ -52,16 +52,15 @@ export class AudioContext {
     decodeAudioData(
         arrayBuffer: ArrayBuffer,
         successCallback?: (buffer: AudioBuffer) => void,
-        errorCallback?: (error: DOMException) => void
+        errorCallback?: (error: DOMException) => void,
     ): Promise<AudioBuffer> {
         try {
             const buffer = decodeAudioDataSync(arrayBuffer);
             successCallback?.(buffer);
             return Promise.resolve(buffer);
         } catch (err) {
-            const domErr = err instanceof DOMException
-                ? err
-                : new DOMException('Unable to decode audio data', 'EncodingError');
+            const domErr =
+                err instanceof DOMException ? err : new DOMException('Unable to decode audio data', 'EncodingError');
             errorCallback?.(domErr);
             return Promise.reject(domErr);
         }
@@ -91,11 +90,21 @@ export class AudioContext {
         };
     }
 
-    createDynamicsCompressor(): AudioNode { return new AudioNode(); }
-    createBiquadFilter(): any { return new AudioNode(); }
-    createConvolver(): AudioNode { return new AudioNode(); }
-    createPanner(): AudioNode { return new AudioNode(); }
-    createStereoPanner(): AudioNode { return new AudioNode(); }
+    createDynamicsCompressor(): AudioNode {
+        return new AudioNode();
+    }
+    createBiquadFilter(): any {
+        return new AudioNode();
+    }
+    createConvolver(): AudioNode {
+        return new AudioNode();
+    }
+    createPanner(): AudioNode {
+        return new AudioNode();
+    }
+    createStereoPanner(): AudioNode {
+        return new AudioNode();
+    }
 
     addEventListener(_type: string, _listener: any): void {}
     removeEventListener(_type: string, _listener: any): void {}

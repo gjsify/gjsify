@@ -33,8 +33,12 @@ export function start(canvas: HTMLCanvasElement) {
         shape: THREE.Shape,
         extrudeSettings: THREE.ExtrudeGeometryOptions,
         color: number,
-        x: number, y: number, z: number,
-        rx: number, ry: number, rz: number,
+        x: number,
+        y: number,
+        z: number,
+        rx: number,
+        ry: number,
+        rz: number,
         s: number,
     ) {
         // Flat shape with texture
@@ -67,8 +71,12 @@ export function start(canvas: HTMLCanvasElement) {
     function addLineShape(
         shape: THREE.Shape | THREE.Path,
         color: number,
-        x: number, y: number, z: number,
-        rx: number, ry: number, rz: number,
+        x: number,
+        y: number,
+        z: number,
+        rx: number,
+        ry: number,
+        rz: number,
         s: number,
     ) {
         // Lines
@@ -139,14 +147,11 @@ export function start(canvas: HTMLCanvasElement) {
     const californiaShape = new THREE.Shape(californiaPts);
 
     // Triangle
-    const triangleShape = new THREE.Shape()
-        .moveTo(80, 20)
-        .lineTo(40, 80)
-        .lineTo(120, 80)
-        .lineTo(80, 20);
+    const triangleShape = new THREE.Shape().moveTo(80, 20).lineTo(40, 80).lineTo(120, 80).lineTo(80, 20);
 
     // Heart
-    const hx = 0, hy = 0;
+    const hx = 0,
+        hy = 0;
     const heartShape = new THREE.Shape()
         .moveTo(hx + 25, hy + 25)
         .bezierCurveTo(hx + 25, hy + 25, hx + 20, hy, hx, hy)
@@ -206,24 +211,14 @@ export function start(canvas: HTMLCanvasElement) {
         .quadraticCurveTo(hx + 50, hy + 80, hx, hy);
 
     // Arc circle with hole
-    const arcShape = new THREE.Shape()
-        .moveTo(50, 10)
-        .absarc(10, 10, 40, 0, Math.PI * 2, false);
-    const holePath = new THREE.Path()
-        .moveTo(20, 10)
-        .absarc(10, 10, 10, 0, Math.PI * 2, true);
+    const arcShape = new THREE.Shape().moveTo(50, 10).absarc(10, 10, 40, 0, Math.PI * 2, false);
+    const holePath = new THREE.Path().moveTo(20, 10).absarc(10, 10, 10, 0, Math.PI * 2, true);
     arcShape.holes.push(holePath);
 
     // Smiley with holes
-    const smileyShape = new THREE.Shape()
-        .moveTo(80, 40)
-        .absarc(40, 40, 40, 0, Math.PI * 2, false);
-    const smileyEye1Path = new THREE.Path()
-        .moveTo(35, 20)
-        .absellipse(25, 20, 10, 10, 0, Math.PI * 2, true);
-    const smileyEye2Path = new THREE.Path()
-        .moveTo(65, 20)
-        .absarc(55, 20, 10, 0, Math.PI * 2, true);
+    const smileyShape = new THREE.Shape().moveTo(80, 40).absarc(40, 40, 40, 0, Math.PI * 2, false);
+    const smileyEye1Path = new THREE.Path().moveTo(35, 20).absellipse(25, 20, 10, 10, 0, Math.PI * 2, true);
+    const smileyEye2Path = new THREE.Path().moveTo(65, 20).absarc(55, 20, 10, 0, Math.PI * 2, true);
     const smileyMouthPath = new THREE.Path()
         .moveTo(20, 40)
         .quadraticCurveTo(40, 60, 60, 40)
@@ -240,9 +235,7 @@ export function start(canvas: HTMLCanvasElement) {
     splinepts.push(new THREE.Vector2(80, 90));
     splinepts.push(new THREE.Vector2(-30, 70));
     splinepts.push(new THREE.Vector2(0, 0));
-    const splineShape = new THREE.Shape()
-        .moveTo(0, 0)
-        .splineThru(splinepts);
+    const splineShape = new THREE.Shape().moveTo(0, 0).splineThru(splinepts);
 
     // --- Add all shapes ---
 

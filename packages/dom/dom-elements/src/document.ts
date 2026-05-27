@@ -48,9 +48,12 @@ export class Document extends Node {
     createElementNS(_namespace: string | null, tagName: string): HTMLElement {
         const tag = tagName.toLowerCase();
         switch (tag) {
-            case 'img': return new HTMLImageElement();
-            case 'video': return new HTMLVideoElement();
-            case 'canvas': return new HTMLCanvasElement();
+            case 'img':
+                return new HTMLImageElement();
+            case 'video':
+                return new HTMLVideoElement();
+            case 'canvas':
+                return new HTMLCanvasElement();
             default: {
                 const factory = Document._elementFactories.get(tag);
                 if (factory) return factory();

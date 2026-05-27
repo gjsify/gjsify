@@ -27,7 +27,9 @@ export default async () => {
                 writeFile(`${dir}/main.mjs`, 'import {x} from "virtual:foo";\nexport const y = x + 1;');
 
                 const calls: Record<string, number> = {};
-                const bump = (h: string): void => { calls[h] = (calls[h] ?? 0) + 1; };
+                const bump = (h: string): void => {
+                    calls[h] = (calls[h] ?? 0) + 1;
+                };
 
                 const plugin: NativePlugin = {
                     name: 'multi-hook',
@@ -41,15 +43,39 @@ export default async () => {
                         if (id === '\0virtual:foo') return 'export const x = 41;';
                         return null;
                     },
-                    transform() { bump('transform'); return null; },
-                    renderChunk(code) { bump('renderChunk'); return '/* renderChunk-prefix */\n' + code; },
-                    banner() { bump('banner'); return '// banner-line'; },
-                    footer() { bump('footer'); return '// footer-line'; },
-                    intro() { bump('intro'); return null; },
-                    outro() { bump('outro'); return null; },
-                    buildStart() { bump('buildStart'); },
-                    buildEnd() { bump('buildEnd'); },
-                    generateBundle() { bump('generateBundle'); },
+                    transform() {
+                        bump('transform');
+                        return null;
+                    },
+                    renderChunk(code) {
+                        bump('renderChunk');
+                        return '/* renderChunk-prefix */\n' + code;
+                    },
+                    banner() {
+                        bump('banner');
+                        return '// banner-line';
+                    },
+                    footer() {
+                        bump('footer');
+                        return '// footer-line';
+                    },
+                    intro() {
+                        bump('intro');
+                        return null;
+                    },
+                    outro() {
+                        bump('outro');
+                        return null;
+                    },
+                    buildStart() {
+                        bump('buildStart');
+                    },
+                    buildEnd() {
+                        bump('buildEnd');
+                    },
+                    generateBundle() {
+                        bump('generateBundle');
+                    },
                 };
 
                 const result = await bundleWithPlugins(
@@ -82,7 +108,10 @@ export default async () => {
 
             await it('idFilter.load short-circuits non-matching ids (B.2)', async () => {
                 const dir = tmpdir('rdn-int-b2filter');
-                writeFile(`${dir}/main.mjs`, 'import a from "./a.mjs";\nimport b from "./b.txt";\nexport const v = a + b.length;');
+                writeFile(
+                    `${dir}/main.mjs`,
+                    'import a from "./a.mjs";\nimport b from "./b.txt";\nexport const v = a + b.length;',
+                );
                 writeFile(`${dir}/a.mjs`, 'export default 41;');
                 writeFile(`${dir}/b.txt`, 'hello');
 
@@ -100,7 +129,10 @@ export default async () => {
                 };
                 const noFilter: NativePlugin = {
                     name: 'no-filter',
-                    load(id) { noFilterCalls.push(id); return null; },
+                    load(id) {
+                        noFilterCalls.push(id);
+                        return null;
+                    },
                 };
 
                 await bundleWithPlugins(
@@ -156,7 +188,7 @@ export default async () => {
                 expect(result.warnings.includes('probe load saw main')).toBe(true);
             });
 
-            await it('this.resolve() from one plugin triggers another plugin\'s resolveId (B.3 re-entrancy)', async () => {
+            await it("this.resolve() from one plugin triggers another plugin's resolveId (B.3 re-entrancy)", async () => {
                 const dir = tmpdir('rdn-int-b3re');
                 writeFile(`${dir}/main.mjs`, 'export const v = 1;');
                 writeFile(`${dir}/aliased.mjs`, 'export const a = 99;');
@@ -336,7 +368,10 @@ export default async () => {
                 let callCount = 0;
                 const noop: NativePlugin = {
                     name: 'b4-skip',
-                    transform() { callCount++; return null; },
+                    transform() {
+                        callCount++;
+                        return null;
+                    },
                 };
 
                 const result = await bundleWithPlugins(
@@ -392,7 +427,9 @@ export default async () => {
                         // load hook claims it AND tags the output as JS.
                         // Mirrors the real cssAsStringPlugin's
                         // `moduleType: 'js'` return.
-                        const text = new (globalThis as unknown as { TextDecoder: new () => { decode(b: Uint8Array): string } }).TextDecoder().decode(bytes);
+                        const text = new (
+                            globalThis as unknown as { TextDecoder: new () => { decode(b: Uint8Array): string } }
+                        ).TextDecoder().decode(bytes);
                         return {
                             code: `export default ${JSON.stringify(text)};`,
                             moduleType: 'js',

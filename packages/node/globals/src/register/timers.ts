@@ -77,7 +77,9 @@ class GjsifyTimeout {
             } catch (err) {
                 // Surface uncaught timer exceptions without killing the main loop,
                 // matching Node.js's `setTimeout(() => { throw… }, 0)` behavior.
-                setTimeout(() => { throw err; }, 0);
+                setTimeout(() => {
+                    throw err;
+                }, 0);
             }
             if (this._repeat) return GLib.SOURCE_CONTINUE;
             this._id = null;
@@ -85,9 +87,17 @@ class GjsifyTimeout {
         });
     }
 
-    ref(): this { this._refed = true; return this; }
-    unref(): this { this._refed = false; return this; }
-    hasRef(): boolean { return this._refed; }
+    ref(): this {
+        this._refed = true;
+        return this;
+    }
+    unref(): this {
+        this._refed = false;
+        return this;
+    }
+    hasRef(): boolean {
+        return this._refed;
+    }
 
     refresh(): this {
         this._cancel();
@@ -97,12 +107,20 @@ class GjsifyTimeout {
 
     _cancel(): void {
         if (this._id === null) return;
-        try { getGLib()?.Source.remove(this._id); } catch { /* already removed */ }
+        try {
+            getGLib()?.Source.remove(this._id);
+        } catch {
+            /* already removed */
+        }
         this._id = null;
     }
 
-    [Symbol.toPrimitive](): number | null { return this._id; }
-    [Symbol.dispose]?(): void { this._cancel(); }
+    [Symbol.toPrimitive](): number | null {
+        return this._id;
+    }
+    [Symbol.dispose]?(): void {
+        this._cancel();
+    }
 }
 
 function removeById(timeout: unknown): void {
@@ -112,7 +130,11 @@ function removeById(timeout: unknown): void {
         // Legacy: GJS's native setTimeout returned a source whose numeric ID was
         // recoverable via `+timer`. Accept bare numbers for callers still holding
         // a pre-patch reference.
-        try { getGLib()?.Source.remove(timeout); } catch { /* ignore */ }
+        try {
+            getGLib()?.Source.remove(timeout);
+        } catch {
+            /* ignore */
+        }
     }
 }
 
@@ -130,27 +152,27 @@ if (_isGjsTimer) {
 }
 
 function setImmediate<T extends unknown[]>(callback: (...args: T) => void, ...args: T): ReturnType<typeof setTimeout> {
-  return setTimeout(callback, 0, ...args);
+    return setTimeout(callback, 0, ...args);
 }
 
 function clearImmediate(id: ReturnType<typeof setTimeout>): void {
-  clearTimeout(id);
+    clearTimeout(id);
 }
 
 if (!('setImmediate' in globalThis)) {
-  Object.defineProperty(globalThis, 'setImmediate', {
-    value: setImmediate,
-    enumerable: true,
-    writable: true,
-    configurable: true,
-  });
+    Object.defineProperty(globalThis, 'setImmediate', {
+        value: setImmediate,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+    });
 }
 
 if (!('clearImmediate' in globalThis)) {
-  Object.defineProperty(globalThis, 'clearImmediate', {
-    value: clearImmediate,
-    enumerable: true,
-    writable: true,
-    configurable: true,
-  });
+    Object.defineProperty(globalThis, 'clearImmediate', {
+        value: clearImmediate,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+    });
 }

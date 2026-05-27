@@ -32,13 +32,19 @@ export interface DrawingMethods {
     drawImage(image: unknown, dx: number, dy: number, dw: number, dh: number): void;
     drawImage(
         image: unknown,
-        sx: number, sy: number, sw: number, sh: number,
-        dx: number, dy: number, dw: number, dh: number,
+        sx: number,
+        sy: number,
+        sw: number,
+        sh: number,
+        dx: number,
+        dy: number,
+        dw: number,
+        dh: number,
     ): void;
 }
 
 declare module '../canvas-rendering-context-2d.js' {
-    interface CanvasRenderingContext2D extends DrawingMethods { }
+    interface CanvasRenderingContext2D extends DrawingMethods {}
 }
 
 function getDrawImageSource(image: unknown): { pixbuf: GdkPixbuf.Pixbuf; imgWidth: number; imgHeight: number } | null {
@@ -177,26 +183,29 @@ const drawingMethods: DrawingMethods & ThisType<CanvasRenderingContext2D> = {
 
     isPointInPath(
         this: CanvasRenderingContext2D,
-        pathOrX: Path2D | number, xOrY: number,
-        fillRuleOrY?: CanvasFillRule | number, fillRule?: CanvasFillRule,
+        pathOrX: Path2D | number,
+        xOrY: number,
+        fillRuleOrY?: CanvasFillRule | number,
+        fillRule?: CanvasFillRule,
     ): boolean {
         this._ensureSurface();
         let x: number, y: number, rule: CanvasFillRule | undefined;
         if (pathOrX instanceof Path2D) {
             this._ctx.newPath();
             pathOrX._replayOnCairo(this._ctx);
-            x = xOrY; y = fillRuleOrY as number; rule = fillRule;
+            x = xOrY;
+            y = fillRuleOrY as number;
+            rule = fillRule;
         } else {
-            x = pathOrX; y = xOrY; rule = fillRuleOrY as CanvasFillRule | undefined;
+            x = pathOrX;
+            y = xOrY;
+            rule = fillRuleOrY as CanvasFillRule | undefined;
         }
         this._ctx.setFillRule(rule === 'evenodd' ? Cairo.FillRule.EVEN_ODD : Cairo.FillRule.WINDING);
         return this._ctx.inFill(x, y);
     },
 
-    isPointInStroke(
-        this: CanvasRenderingContext2D,
-        pathOrX: Path2D | number, xOrY: number, y?: number,
-    ): boolean {
+    isPointInStroke(this: CanvasRenderingContext2D, pathOrX: Path2D | number, xOrY: number, y?: number): boolean {
         this._ensureSurface();
         this._applyLineStyle();
         if (pathOrX instanceof Path2D) {
@@ -210,10 +219,14 @@ const drawingMethods: DrawingMethods & ThisType<CanvasRenderingContext2D> = {
     drawImage(
         this: CanvasRenderingContext2D,
         image: unknown,
-        a1: number, a2: number,
-        a3?: number, a4?: number,
-        a5?: number, a6?: number,
-        a7?: number, a8?: number,
+        a1: number,
+        a2: number,
+        a3?: number,
+        a4?: number,
+        a5?: number,
+        a6?: number,
+        a7?: number,
+        a8?: number,
     ): void {
         this._ensureSurface();
         this._applyCompositing();
@@ -228,16 +241,34 @@ const drawingMethods: DrawingMethods & ThisType<CanvasRenderingContext2D> = {
 
         if (a3 === undefined) {
             // drawImage(image, dx, dy)
-            sx = 0; sy = 0; sw = imgWidth; sh = imgHeight;
-            dx = a1; dy = a2; dw = imgWidth; dh = imgHeight;
+            sx = 0;
+            sy = 0;
+            sw = imgWidth;
+            sh = imgHeight;
+            dx = a1;
+            dy = a2;
+            dw = imgWidth;
+            dh = imgHeight;
         } else if (a5 === undefined) {
             // drawImage(image, dx, dy, dw, dh)
-            sx = 0; sy = 0; sw = imgWidth; sh = imgHeight;
-            dx = a1; dy = a2; dw = a3; dh = a4!;
+            sx = 0;
+            sy = 0;
+            sw = imgWidth;
+            sh = imgHeight;
+            dx = a1;
+            dy = a2;
+            dw = a3;
+            dh = a4!;
         } else {
             // drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh)
-            sx = a1; sy = a2; sw = a3; sh = a4!;
-            dx = a5; dy = a6!; dw = a7!; dh = a8!;
+            sx = a1;
+            sy = a2;
+            sw = a3;
+            sh = a4!;
+            dx = a5;
+            dy = a6!;
+            dw = a7!;
+            dh = a8!;
         }
 
         // Spec: drawImage with any zero-width/height source or destination
@@ -252,11 +283,18 @@ const drawingMethods: DrawingMethods & ThisType<CanvasRenderingContext2D> = {
         // them the same as 0: spec-correct, and avoids cascading Cairo
         // matrix failures that abort frames mid-paint.
         if (
-            !Number.isFinite(sx) || !Number.isFinite(sy) ||
-            !Number.isFinite(sw) || !Number.isFinite(sh) ||
-            !Number.isFinite(dx) || !Number.isFinite(dy) ||
-            !Number.isFinite(dw) || !Number.isFinite(dh) ||
-            sw === 0 || sh === 0 || dw === 0 || dh === 0
+            !Number.isFinite(sx) ||
+            !Number.isFinite(sy) ||
+            !Number.isFinite(sw) ||
+            !Number.isFinite(sh) ||
+            !Number.isFinite(dx) ||
+            !Number.isFinite(dy) ||
+            !Number.isFinite(dw) ||
+            !Number.isFinite(dh) ||
+            sw === 0 ||
+            sh === 0 ||
+            dw === 0 ||
+            dh === 0
         ) {
             return;
         }

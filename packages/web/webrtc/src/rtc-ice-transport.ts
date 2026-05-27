@@ -13,8 +13,13 @@ import { RTCIceCandidate, type RTCIceCandidateInit } from './rtc-ice-candidate.j
 export type RTCIceRole = 'unknown' | 'controlling' | 'controlled';
 export type RTCIceComponent = 'rtp' | 'rtcp';
 export type RTCIceTransportState =
-    | 'new' | 'checking' | 'connected' | 'completed'
-    | 'disconnected' | 'failed' | 'closed';
+    | 'new'
+    | 'checking'
+    | 'connected'
+    | 'completed'
+    | 'disconnected'
+    | 'failed'
+    | 'closed';
 
 export interface RTCIceParameters {
     usernameFragment?: string;
@@ -42,23 +47,53 @@ export class RTCIceTransport extends EventTarget {
     private _ongatheringstatechange: EventHandler = null;
     private _onselectedcandidatepairchange: EventHandler = null;
 
-    get state(): RTCIceTransportState { return this._state; }
-    get gatheringState(): RTCIceGatheringState { return this._gatheringState; }
-    get role(): RTCIceRole { return this._role; }
-    get component(): RTCIceComponent { return this._component; }
+    get state(): RTCIceTransportState {
+        return this._state;
+    }
+    get gatheringState(): RTCIceGatheringState {
+        return this._gatheringState;
+    }
+    get role(): RTCIceRole {
+        return this._role;
+    }
+    get component(): RTCIceComponent {
+        return this._component;
+    }
 
-    get onstatechange(): EventHandler { return this._onstatechange; }
-    set onstatechange(v: EventHandler) { this._onstatechange = v; }
-    get ongatheringstatechange(): EventHandler { return this._ongatheringstatechange; }
-    set ongatheringstatechange(v: EventHandler) { this._ongatheringstatechange = v; }
-    get onselectedcandidatepairchange(): EventHandler { return this._onselectedcandidatepairchange; }
-    set onselectedcandidatepairchange(v: EventHandler) { this._onselectedcandidatepairchange = v; }
+    get onstatechange(): EventHandler {
+        return this._onstatechange;
+    }
+    set onstatechange(v: EventHandler) {
+        this._onstatechange = v;
+    }
+    get ongatheringstatechange(): EventHandler {
+        return this._ongatheringstatechange;
+    }
+    set ongatheringstatechange(v: EventHandler) {
+        this._ongatheringstatechange = v;
+    }
+    get onselectedcandidatepairchange(): EventHandler {
+        return this._onselectedcandidatepairchange;
+    }
+    set onselectedcandidatepairchange(v: EventHandler) {
+        this._onselectedcandidatepairchange = v;
+    }
 
-    getLocalCandidates(): RTCIceCandidate[] { return [...this._localCandidates]; }
-    getRemoteCandidates(): RTCIceCandidate[] { return [...this._remoteCandidates]; }
-    getSelectedCandidatePair(): RTCIceCandidatePair | null { return null; }
-    getLocalParameters(): RTCIceParameters | null { return this._localParams; }
-    getRemoteParameters(): RTCIceParameters | null { return this._remoteParams; }
+    getLocalCandidates(): RTCIceCandidate[] {
+        return [...this._localCandidates];
+    }
+    getRemoteCandidates(): RTCIceCandidate[] {
+        return [...this._remoteCandidates];
+    }
+    getSelectedCandidatePair(): RTCIceCandidatePair | null {
+        return null;
+    }
+    getLocalParameters(): RTCIceParameters | null {
+        return this._localParams;
+    }
+    getRemoteParameters(): RTCIceParameters | null {
+        return this._remoteParams;
+    }
 
     // ---- Internal setters (called by RTCPeerConnection) ---------------------
 

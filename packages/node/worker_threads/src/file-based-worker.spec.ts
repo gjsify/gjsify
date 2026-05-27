@@ -198,7 +198,11 @@ export default async () => {
                 // Only terminate a worker that actually started — but never `return`
                 // from `finally` (it would swallow assertion failures from the try block).
                 if (worker.threadId && worker.threadId !== -1) {
-                    try { await worker.terminate(); } catch { /* already gone */ }
+                    try {
+                        await worker.terminate();
+                    } catch {
+                        /* already gone */
+                    }
                 }
             }
         });

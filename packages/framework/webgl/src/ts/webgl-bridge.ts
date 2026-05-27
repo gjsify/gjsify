@@ -99,7 +99,10 @@ export const WebGLBridge = GObject.registerClass(
                 const gl = this._canvas.getContext('webgl') as OurWebGLRenderingContext | null;
                 if (gl) {
                     for (const cb of this._readyCallbacks) {
-                        cb(this._canvas as unknown as globalThis.HTMLCanvasElement, gl as unknown as globalThis.WebGLRenderingContext);
+                        cb(
+                            this._canvas as unknown as globalThis.HTMLCanvasElement,
+                            gl as unknown as globalThis.WebGLRenderingContext,
+                        );
                     }
                     this._readyCallbacks = [];
                 }
@@ -185,7 +188,10 @@ export const WebGLBridge = GObject.registerClass(
             if (this._canvas) {
                 const gl = this._canvas.getContext('webgl') as OurWebGLRenderingContext | null;
                 if (gl) {
-                    cb(this._canvas as unknown as globalThis.HTMLCanvasElement, gl as unknown as globalThis.WebGLRenderingContext);
+                    cb(
+                        this._canvas as unknown as globalThis.HTMLCanvasElement,
+                        gl as unknown as globalThis.WebGLRenderingContext,
+                    );
                     return;
                 }
             }
@@ -242,8 +248,7 @@ export const WebGLBridge = GObject.registerClass(
             }
             const g = globalThis as unknown as _RafGlobals;
 
-            g.requestAnimationFrame = (cb: FrameRequestCallback) =>
-                this.requestAnimationFrame(cb);
+            g.requestAnimationFrame = (cb: FrameRequestCallback) => this.requestAnimationFrame(cb);
             g.cancelAnimationFrame = (_id: number) => {
                 // Cancel is not yet fully implemented — clear pending frame callback.
                 this._frameCallback = null;
@@ -257,7 +262,7 @@ export const WebGLBridge = GObject.registerClass(
                 timeOrigin: Date.now(),
             };
         }
-    }
+    },
 );
 
 // Export the instance type so callers can type-annotate their WebGLBridge variables

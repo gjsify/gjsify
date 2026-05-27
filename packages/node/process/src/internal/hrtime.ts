@@ -17,7 +17,9 @@ export function getMonotonicTime(): bigint {
             // GLib returns microseconds, convert to nanoseconds
             return BigInt(GLib.get_monotonic_time()) * 1000n;
         }
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
     if (typeof performance?.now === 'function') {
         return BigInt(Math.round(performance.now() * 1e6));
     }

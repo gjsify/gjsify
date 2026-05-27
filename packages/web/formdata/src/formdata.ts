@@ -52,23 +52,23 @@ export class FormData {
 
     delete(name: string): void {
         const n = String(name);
-        this[_entries] = this[_entries].filter(e => e.name !== n);
+        this[_entries] = this[_entries].filter((e) => e.name !== n);
     }
 
     get(name: string): FormDataEntryValue | null {
         const n = String(name);
-        const entry = this[_entries].find(e => e.name === n);
+        const entry = this[_entries].find((e) => e.name === n);
         return entry ? entry.value : null;
     }
 
     getAll(name: string): FormDataEntryValue[] {
         const n = String(name);
-        return this[_entries].filter(e => e.name === n).map(e => e.value);
+        return this[_entries].filter((e) => e.name === n).map((e) => e.value);
     }
 
     has(name: string): boolean {
         const n = String(name);
-        return this[_entries].some(e => e.name === n);
+        return this[_entries].some((e) => e.name === n);
     }
 
     set(name: string, value: string): void;
@@ -77,7 +77,7 @@ export class FormData {
         const n = String(name);
         const normalized = normalizeValue(n, value as FormDataEntryValue | Blob, filename);
         let found = false;
-        this[_entries] = this[_entries].filter(e => {
+        this[_entries] = this[_entries].filter((e) => {
             if (e.name === n) {
                 if (!found) {
                     found = true;

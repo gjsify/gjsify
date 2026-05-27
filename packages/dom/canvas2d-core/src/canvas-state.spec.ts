@@ -23,7 +23,6 @@ function nearlyEqual(a: number, b: number, eps = 1e-9): boolean {
 
 export default async () => {
     await describe('CanvasRenderingContext2D — state save/restore', async () => {
-
         await describe('style properties', async () => {
             await it('save/restore round-trips fillStyle string colors', async () => {
                 const ctx = makeCtx();

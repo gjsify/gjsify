@@ -12,7 +12,17 @@ type PathOp =
     | { type: 'bezierCurveTo'; cp1x: number; cp1y: number; cp2x: number; cp2y: number; x: number; y: number }
     | { type: 'quadraticCurveTo'; cpx: number; cpy: number; x: number; y: number }
     | { type: 'arc'; x: number; y: number; radius: number; startAngle: number; endAngle: number; ccw: boolean }
-    | { type: 'ellipse'; x: number; y: number; rx: number; ry: number; rotation: number; startAngle: number; endAngle: number; ccw: boolean }
+    | {
+          type: 'ellipse';
+          x: number;
+          y: number;
+          rx: number;
+          ry: number;
+          rotation: number;
+          startAngle: number;
+          endAngle: number;
+          ccw: boolean;
+      }
     | { type: 'rect'; x: number; y: number; w: number; h: number }
     | { type: 'roundRect'; x: number; y: number; w: number; h: number; radii: number | number[] };
 
@@ -58,9 +68,28 @@ export class Path2D {
         this._ops.push({ type: 'arc', x, y, radius, startAngle, endAngle, ccw: counterclockwise });
     }
 
-    ellipse(x: number, y: number, radiusX: number, radiusY: number, rotation: number, startAngle: number, endAngle: number, counterclockwise = false): void {
+    ellipse(
+        x: number,
+        y: number,
+        radiusX: number,
+        radiusY: number,
+        rotation: number,
+        startAngle: number,
+        endAngle: number,
+        counterclockwise = false,
+    ): void {
         if (radiusX < 0 || radiusY < 0) throw new RangeError('The radii provided are negative');
-        this._ops.push({ type: 'ellipse', x, y, rx: radiusX, ry: radiusY, rotation, startAngle, endAngle, ccw: counterclockwise });
+        this._ops.push({
+            type: 'ellipse',
+            x,
+            y,
+            rx: radiusX,
+            ry: radiusY,
+            rotation,
+            startAngle,
+            endAngle,
+            ccw: counterclockwise,
+        });
     }
 
     rect(x: number, y: number, w: number, h: number): void {
@@ -75,29 +104,34 @@ export class Path2D {
      * @internal Replay all recorded path operations onto a Cairo context.
      */
     _replayOnCairo(ctx: import('cairo').default.Context): void {
-        let lastX = 0, lastY = 0;
+        let lastX = 0,
+            lastY = 0;
 
         for (const op of this._ops) {
             switch (op.type) {
                 case 'moveTo':
                     ctx.moveTo(op.x, op.y);
-                    lastX = op.x; lastY = op.y;
+                    lastX = op.x;
+                    lastY = op.y;
                     break;
                 case 'lineTo':
                     ctx.lineTo(op.x, op.y);
-                    lastX = op.x; lastY = op.y;
+                    lastX = op.x;
+                    lastY = op.y;
                     break;
                 case 'closePath':
                     ctx.closePath();
                     break;
                 case 'bezierCurveTo':
                     ctx.curveTo(op.cp1x, op.cp1y, op.cp2x, op.cp2y, op.x, op.y);
-                    lastX = op.x; lastY = op.y;
+                    lastX = op.x;
+                    lastY = op.y;
                     break;
                 case 'quadraticCurveTo': {
                     const { cp1x, cp1y, cp2x, cp2y } = quadraticToCubic(lastX, lastY, op.cpx, op.cpy, op.x, op.y);
                     ctx.curveTo(cp1x, cp1y, cp2x, cp2y, op.x, op.y);
-                    lastX = op.x; lastY = op.y;
+                    lastX = op.x;
+                    lastY = op.y;
                     break;
                 }
                 case 'arc':

@@ -5,17 +5,17 @@
 import { spawnSync } from 'node:child_process';
 
 function has(cmd) {
-  const r = spawnSync('/usr/bin/env', ['sh', '-c', `command -v "$1"`, '--', cmd], { stdio: 'ignore' });
-  return r.status === 0;
+    const r = spawnSync('/usr/bin/env', ['sh', '-c', `command -v "$1"`, '--', cmd], { stdio: 'ignore' });
+    return r.status === 0;
 }
 
 function pickRuntime() {
-  const pref = process.env.CONTAINER_RUNTIME;
-  if (pref === 'docker' || pref === 'podman') return pref;
-  if (has('podman')) return 'podman';
-  if (has('docker')) return 'docker';
-  console.error('Neither podman nor docker found in PATH.');
-  process.exit(2);
+    const pref = process.env.CONTAINER_RUNTIME;
+    if (pref === 'docker' || pref === 'podman') return pref;
+    if (has('podman')) return 'podman';
+    if (has('docker')) return 'docker';
+    console.error('Neither podman nor docker found in PATH.');
+    process.exit(2);
 }
 
 const runtime = pickRuntime();

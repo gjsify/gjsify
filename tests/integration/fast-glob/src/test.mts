@@ -16,9 +16,9 @@ import dotAndHiddenSuite from './dot-and-hidden.spec.js';
 import symlinksSuite from './symlinks.spec.js';
 
 run({
-  basicPatternsSuite,
-  globVsStreamSuite,
-  cwdAndAbsoluteSuite,
-  dotAndHiddenSuite,
-  symlinksSuite,
+    basicPatternsSuite,
+    globVsStreamSuite,
+    cwdAndAbsoluteSuite,
+    dotAndHiddenSuite,
+    symlinksSuite,
 });

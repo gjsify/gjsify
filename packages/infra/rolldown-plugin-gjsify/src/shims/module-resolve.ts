@@ -77,7 +77,7 @@ function bundleAnchorUrl(): string {
     if (!anchor) {
         throw new Error(
             'gjsify: __gjsifyBundleUrl is not set — the bundle-URL banner did not run. ' +
-            'The module-resolve shim is only valid in single-file app builds (gjsify build --app gjs|node).',
+                'The module-resolve shim is only valid in single-file app builds (gjsify build --app gjs|node).',
         );
     }
     return anchor;

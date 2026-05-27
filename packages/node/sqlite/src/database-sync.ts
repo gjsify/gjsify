@@ -19,7 +19,7 @@ function parsePath(path: unknown): string {
     if (typeof path === 'string') {
         if (path.includes('\0')) {
             throw new InvalidArgTypeError(
-                'The "path" argument must be a string, Uint8Array, or URL without null bytes.'
+                'The "path" argument must be a string, Uint8Array, or URL without null bytes.',
             );
         }
         return path;
@@ -31,7 +31,7 @@ function parsePath(path: unknown): string {
         const filePath = path.pathname;
         if (filePath.includes('\0')) {
             throw new InvalidArgTypeError(
-                'The "path" argument must be a string, Uint8Array, or URL without null bytes.'
+                'The "path" argument must be a string, Uint8Array, or URL without null bytes.',
             );
         }
         return filePath;
@@ -40,15 +40,13 @@ function parsePath(path: unknown): string {
         for (let i = 0; i < path.length; i++) {
             if (path[i] === 0) {
                 throw new InvalidArgTypeError(
-                    'The "path" argument must be a string, Uint8Array, or URL without null bytes.'
+                    'The "path" argument must be a string, Uint8Array, or URL without null bytes.',
                 );
             }
         }
         return new TextDecoder().decode(path);
     }
-    throw new InvalidArgTypeError(
-        'The "path" argument must be a string, Uint8Array, or URL without null bytes.'
-    );
+    throw new InvalidArgTypeError('The "path" argument must be a string, Uint8Array, or URL without null bytes.');
 }
 
 function validateOptions(options: unknown): DatabaseSyncOptions {
@@ -150,7 +148,10 @@ function convertParameterSyntax(sql: string): [string, ParamInfo[]] {
             const start = i;
             i++;
             while (i < sql.length && sql[i] !== "'") {
-                if (sql[i] === "'" && sql[i + 1] === "'") { i += 2; continue; }
+                if (sql[i] === "'" && sql[i + 1] === "'") {
+                    i += 2;
+                    continue;
+                }
                 i++;
             }
             if (i < sql.length) i++; // closing quote
@@ -175,7 +176,11 @@ function convertParameterSyntax(sql: string): [string, ParamInfo[]] {
         }
 
         // Named parameter: $name, :name, @name
-        if ((sql[i] === '$' || sql[i] === ':' || sql[i] === '@') && i + 1 < sql.length && /[a-zA-Z_]/.test(sql[i + 1])) {
+        if (
+            (sql[i] === '$' || sql[i] === ':' || sql[i] === '@') &&
+            i + 1 < sql.length &&
+            /[a-zA-Z_]/.test(sql[i + 1])
+        ) {
             const prefix = sql[i];
             i++;
             let name = '';
@@ -245,27 +250,21 @@ export class DatabaseSync {
                     'SQLite',
                     'DB_DIR=;DB_NAME=:memory:',
                     null,
-                    Gda.ConnectionOptions.NONE
+                    Gda.ConnectionOptions.NONE,
                 );
             } else {
                 const lastSlash = this.#path.lastIndexOf('/');
                 const dir = lastSlash >= 0 ? this.#path.substring(0, lastSlash) : '.';
                 const name = lastSlash >= 0 ? this.#path.substring(lastSlash + 1) : this.#path;
                 const cncString = `DB_DIR=${dir};DB_NAME=${name}`;
-                const connOpts = this.#options.readOnly
-                    ? Gda.ConnectionOptions.READ_ONLY
-                    : Gda.ConnectionOptions.NONE;
+                const connOpts = this.#options.readOnly ? Gda.ConnectionOptions.READ_ONLY : Gda.ConnectionOptions.NONE;
 
-                this.#connection = Gda.Connection.new_from_string(
-                    'SQLite', cncString, null, connOpts
-                );
+                this.#connection = Gda.Connection.new_from_string('SQLite', cncString, null, connOpts);
             }
             this.#connection!.open();
         } catch (e: unknown) {
             this.#connection = null;
-            throw new SqliteError(
-                e instanceof Error ? e.message : String(e)
-            );
+            throw new SqliteError(e instanceof Error ? e.message : String(e));
         }
 
         this.#parser = this.#connection!.create_parser() ?? new Gda.SqlParser();
@@ -312,9 +311,7 @@ export class DatabaseSync {
             if (e instanceof SqliteError || e instanceof InvalidStateError || e instanceof InvalidArgTypeError) {
                 throw e;
             }
-            throw new SqliteError(
-                e instanceof Error ? e.message : String(e)
-            );
+            throw new SqliteError(e instanceof Error ? e.message : String(e));
         }
 
         // Track transaction state
@@ -334,9 +331,10 @@ export class DatabaseSync {
 
         // Validate the SQL by parsing it (with params replaced by literals)
         try {
-            const testSql = paramMap.length > 0
-                ? sql.replace(/\?(\d+)?/g, 'NULL').replace(/[$:@][a-zA-Z_][a-zA-Z0-9_]*/g, 'NULL')
-                : sql;
+            const testSql =
+                paramMap.length > 0
+                    ? sql.replace(/\?(\d+)?/g, 'NULL').replace(/[$:@][a-zA-Z_][a-zA-Z0-9_]*/g, 'NULL')
+                    : sql;
             const [stmt] = this.#parser!.parse_string(testSql);
             if (!stmt) {
                 throw new SqliteError('Failed to parse SQL statement');
@@ -345,9 +343,7 @@ export class DatabaseSync {
             if (e instanceof SqliteError || e instanceof InvalidArgTypeError) {
                 throw e;
             }
-            throw new SqliteError(
-                e instanceof Error ? e.message : String(e)
-            );
+            throw new SqliteError(e instanceof Error ? e.message : String(e));
         }
 
         const stmtOptions: StatementSyncOptions = {
@@ -373,7 +369,11 @@ export class DatabaseSync {
 
     [Symbol.dispose](): void {
         if (this.isOpen) {
-            try { this.close(); } catch { /* ignore */ }
+            try {
+                this.close();
+            } catch {
+                /* ignore */
+            }
         }
     }
 

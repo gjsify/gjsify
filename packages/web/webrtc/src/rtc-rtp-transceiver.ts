@@ -19,11 +19,7 @@ export class RTCRtpTransceiver {
     private _stopped = false;
     private _codecPreferences: RTCRtpCodecCapability[] = [];
 
-    constructor(
-        gstTrans: GstWebRTC.WebRTCRTPTransceiver,
-        sender: RTCRtpSender,
-        receiver: RTCRtpReceiver,
-    ) {
+    constructor(gstTrans: GstWebRTC.WebRTCRTPTransceiver, sender: RTCRtpSender, receiver: RTCRtpReceiver) {
         this._gstTrans = gstTrans;
         this.sender = sender;
         this.receiver = receiver;
@@ -32,7 +28,7 @@ export class RTCRtpTransceiver {
     get mid(): string | null {
         if (this._stopped) return null;
         const m = this._gstTrans.mid;
-        return (m === '' || m == null) ? null : String(m);
+        return m === '' || m == null ? null : String(m);
     }
 
     get direction(): RTCRtpTransceiverDirection {
@@ -42,17 +38,18 @@ export class RTCRtpTransceiver {
 
     set direction(d: RTCRtpTransceiverDirection) {
         if (this._stopped) {
-            throw new DOMException(
-                "Cannot set direction on a stopped transceiver",
-                'InvalidStateError',
-            );
+            throw new DOMException('Cannot set direction on a stopped transceiver', 'InvalidStateError');
         }
         if (d === 'stopped') {
-            throw new TypeError("The provided value 'stopped' is not a valid enum value of type RTCRtpTransceiverDirection.");
+            throw new TypeError(
+                "The provided value 'stopped' is not a valid enum value of type RTCRtpTransceiverDirection.",
+            );
         }
         const valid: RTCRtpTransceiverDirection[] = ['sendrecv', 'sendonly', 'recvonly', 'inactive'];
         if (!valid.includes(d)) {
-            throw new TypeError(`The provided value '${d}' is not a valid enum value of type RTCRtpTransceiverDirection.`);
+            throw new TypeError(
+                `The provided value '${d}' is not a valid enum value of type RTCRtpTransceiverDirection.`,
+            );
         }
         this._gstTrans.direction = w3cDirectionToGst(d);
     }
@@ -107,11 +104,12 @@ export class RTCRtpTransceiver {
             const isResiliency = /\/(rtx|red|ulpfec)$/i.test(codec.mimeType);
             if (isResiliency) continue;
 
-            const match = allCaps.find((c) =>
-                c.mimeType.toLowerCase() === codec.mimeType.toLowerCase() &&
-                c.clockRate === codec.clockRate &&
-                (codec.channels === undefined || c.channels === codec.channels) &&
-                (codec.sdpFmtpLine === undefined || c.sdpFmtpLine === codec.sdpFmtpLine)
+            const match = allCaps.find(
+                (c) =>
+                    c.mimeType.toLowerCase() === codec.mimeType.toLowerCase() &&
+                    c.clockRate === codec.clockRate &&
+                    (codec.channels === undefined || c.channels === codec.channels) &&
+                    (codec.sdpFmtpLine === undefined || c.sdpFmtpLine === codec.sdpFmtpLine),
             );
             if (!match) {
                 throw new DOMException(

@@ -5,12 +5,11 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 export default async () => {
-	await describe('fs.statSync', async () => {
-
-		await it('Should return the file stat', async () => {
-			const dir = mkdtempSync(join(tmpdir(), 'fs-stat-'));
-			const filePath = join(dir, 'test.txt');
-			writeFileSync(filePath, 'stat test data');
+    await describe('fs.statSync', async () => {
+        await it('Should return the file stat', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'fs-stat-'));
+            const filePath = join(dir, 'test.txt');
+            writeFileSync(filePath, 'stat test data');
 
             const s = statSync(filePath);
 
@@ -40,17 +39,16 @@ export default async () => {
             expect(s.isSocket()).toBeFalsy();
             expect(s.isSymbolicLink()).toBeFalsy();
 
-			rmSync(filePath);
-			rmdirSync(dir);
-		});
-	});
+            rmSync(filePath);
+            rmdirSync(dir);
+        });
+    });
 
-	await describe('fs.stat (promise)', async () => {
-
-		await it('Should return the file stat', async () => {
-			const dir = mkdtempSync(join(tmpdir(), 'fs-pstat-'));
-			const filePath = join(dir, 'test.txt');
-			writeFileSync(filePath, 'stat test data');
+    await describe('fs.stat (promise)', async () => {
+        await it('Should return the file stat', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'fs-pstat-'));
+            const filePath = join(dir, 'test.txt');
+            writeFileSync(filePath, 'stat test data');
 
             const s = await stat(filePath);
 
@@ -80,8 +78,8 @@ export default async () => {
             expect(s.isSocket()).toBeFalsy();
             expect(s.isSymbolicLink()).toBeFalsy();
 
-			rmSync(filePath);
-			rmdirSync(dir);
-		});
-	});
-}
+            rmSync(filePath);
+            rmdirSync(dir);
+        });
+    });
+};

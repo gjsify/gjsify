@@ -31,12 +31,7 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 import { createServer } from 'node:http';
-import {
-    writeFileSync,
-    mkdirSync,
-    mkdtempSync,
-    rmSync,
-} from 'node:fs';
+import { writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -77,7 +72,9 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
             if (req.method === 'PUT') {
                 let body = '';
                 req.setEncoding('utf-8');
-                req.on('data', (chunk) => { body += chunk; });
+                req.on('data', (chunk) => {
+                    body += chunk;
+                });
                 req.on('end', () => {
                     capturedPuts.push({
                         url: req.url,
@@ -85,7 +82,13 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
                         contentType: req.headers['content-type'] ?? null,
                         // Capture the npm-otp header for OTP e2e assertions.
                         otpHeader: req.headers['npm-otp'] ?? null,
-                        body: (() => { try { return JSON.parse(body); } catch { return null; } })(),
+                        body: (() => {
+                            try {
+                                return JSON.parse(body);
+                            } catch {
+                                return null;
+                            }
+                        })(),
                     });
                     res.setHeader('content-type', 'application/json');
                     res.statusCode = 200;
@@ -109,11 +112,7 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
         // ignored).  Use the mock registry's actual host:port so buildHeaders()
         // picks up the token for every PUT to that registry.
         fakeNpmrcPath = join(tmpDir, 'auth.npmrc');
-        writeFileSync(
-            fakeNpmrcPath,
-            `//127.0.0.1:${addr.port}/:_authToken=${FAKE_TOKEN}\n`,
-            'utf-8',
-        );
+        writeFileSync(fakeNpmrcPath, `//127.0.0.1:${addr.port}/:_authToken=${FAKE_TOKEN}\n`, 'utf-8');
     });
 
     after(() => {
@@ -191,11 +190,7 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
         mkdirSync(cliDir, { recursive: true });
         writeFileSync(
             join(cliDir, 'package.json'),
-            JSON.stringify(
-                { name: '@gjsify/cli', version: '0.4.27' },
-                null,
-                2,
-            ) + '\n',
+            JSON.stringify({ name: '@gjsify/cli', version: '0.4.27' }, null, 2) + '\n',
             'utf-8',
         );
 
@@ -234,29 +229,25 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
     async function runPublish(fixtureDir, extraEnv = {}) {
         // We pass the workspace root as cwd so gjsify can locate sibling
         // workspaces for workspace:^ resolution.
-        const { stdout, stderr } = await execFileAsync(
-            'node',
-            [CLI_ENTRY, 'publish', fixtureDir],
-            {
-                timeout: 90 * 1000,
-                cwd: MONOREPO_ROOT,
-                encoding: 'utf-8',
-                env: {
-                    ...process.env,
-                    // Registry override (publish.ts line ~233).
-                    npm_config_registry: registryUrl,
-                    // Auth file override (publish.ts loadNpmrc, lines ~455-461).
-                    NPM_CONFIG_USERCONFIG: fakeNpmrcPath,
-                    // Suppress OIDC auto-detect so the test doesn't try GitHub
-                    // id-token exchange (which would fail outside CI).
-                    // Unset GitHub OIDC env so auto-detect falls back to token.
-                    ACTIONS_ID_TOKEN_REQUEST_URL: '',
-                    ACTIONS_ID_TOKEN_REQUEST_TOKEN: '',
-                    NODE_AUTH_TOKEN: '',
-                    ...extraEnv,
-                },
+        const { stdout, stderr } = await execFileAsync('node', [CLI_ENTRY, 'publish', fixtureDir], {
+            timeout: 90 * 1000,
+            cwd: MONOREPO_ROOT,
+            encoding: 'utf-8',
+            env: {
+                ...process.env,
+                // Registry override (publish.ts line ~233).
+                npm_config_registry: registryUrl,
+                // Auth file override (publish.ts loadNpmrc, lines ~455-461).
+                NPM_CONFIG_USERCONFIG: fakeNpmrcPath,
+                // Suppress OIDC auto-detect so the test doesn't try GitHub
+                // id-token exchange (which would fail outside CI).
+                // Unset GitHub OIDC env so auto-detect falls back to token.
+                ACTIONS_ID_TOKEN_REQUEST_URL: '',
+                ACTIONS_ID_TOKEN_REQUEST_TOKEN: '',
+                NODE_AUTH_TOKEN: '',
+                ...extraEnv,
             },
-        );
+        });
         return { stdout, stderr };
     }
 
@@ -268,10 +259,7 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
 
         await runPublish(fixtureDir);
 
-        assert.ok(
-            capturedPuts.length > beforeCount,
-            'mock registry received no PUT — publish did not fire',
-        );
+        assert.ok(capturedPuts.length > beforeCount, 'mock registry received no PUT — publish did not fire');
         const put = capturedPuts[capturedPuts.length - 1];
 
         // Expect: /@gjsify%2fe2e-pub-url  (literal @ + lowercase %2f)
@@ -281,10 +269,7 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
             put.url.includes('%2f') || put.url.includes('%2F'),
             `PUT URL must use URL-encoded slash; got: ${put.url}`,
         );
-        assert.ok(
-            put.url.includes('%2f'),
-            `PUT URL must use LOWERCASE %2f (not uppercase %2F); got: ${put.url}`,
-        );
+        assert.ok(put.url.includes('%2f'), `PUT URL must use LOWERCASE %2f (not uppercase %2F); got: ${put.url}`);
         assert.ok(
             put.url.startsWith('/@gjsify%2fe2e-pub-url'),
             `PUT URL must start with /@gjsify%2fe2e-pub-url; got: ${put.url}`,
@@ -306,10 +291,7 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
         //   wireFilename = "e2e-pub-wire-2.3.4.tgz"
         const attachments = put.body._attachments ?? {};
         const attachmentKeys = Object.keys(attachments);
-        assert.ok(
-            attachmentKeys.length > 0,
-            '_attachments must not be empty',
-        );
+        assert.ok(attachmentKeys.length > 0, '_attachments must not be empty');
         const wireFilename = attachmentKeys[0];
         assert.equal(
             wireFilename,
@@ -386,10 +368,7 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
             `@gjsify/cli dep must not leak workspace: prefix; got: ${cliRange}`,
         );
         // Must be a semver range (starts with ^ or ~ or a digit).
-        assert.ok(
-            /^[\^~>=\d]/.test(cliRange),
-            `@gjsify/cli dep must be a resolved semver range; got: ${cliRange}`,
-        );
+        assert.ok(/^[\^~>=\d]/.test(cliRange), `@gjsify/cli dep must be a resolved semver range; got: ${cliRange}`);
     });
 
     it('--dry-run exits 0 and does NOT PUT to the registry', async () => {
@@ -399,35 +378,23 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
         const beforeCount = capturedPuts.length;
 
         // Invoke publish with --dry-run directly via execFile.
-        const { stdout } = await execFileAsync(
-            'node',
-            [CLI_ENTRY, 'publish', fixtureDir, '--dry-run'],
-            {
-                timeout: 90 * 1000,
-                cwd: MONOREPO_ROOT,
-                encoding: 'utf-8',
-                env: {
-                    ...process.env,
-                    npm_config_registry: registryUrl,
-                    NPM_CONFIG_USERCONFIG: fakeNpmrcPath,
-                    ACTIONS_ID_TOKEN_REQUEST_URL: '',
-                    ACTIONS_ID_TOKEN_REQUEST_TOKEN: '',
-                    NODE_AUTH_TOKEN: '',
-                },
+        const { stdout } = await execFileAsync('node', [CLI_ENTRY, 'publish', fixtureDir, '--dry-run'], {
+            timeout: 90 * 1000,
+            cwd: MONOREPO_ROOT,
+            encoding: 'utf-8',
+            env: {
+                ...process.env,
+                npm_config_registry: registryUrl,
+                NPM_CONFIG_USERCONFIG: fakeNpmrcPath,
+                ACTIONS_ID_TOKEN_REQUEST_URL: '',
+                ACTIONS_ID_TOKEN_REQUEST_TOKEN: '',
+                NODE_AUTH_TOKEN: '',
             },
-        );
+        });
 
         // No new PUTs should have arrived.
-        assert.equal(
-            capturedPuts.length,
-            beforeCount,
-            '--dry-run must not PUT to the registry',
-        );
-        assert.match(
-            stdout,
-            /dry-run/i,
-            '--dry-run output should mention dry-run',
-        );
+        assert.equal(capturedPuts.length, beforeCount, '--dry-run must not PUT to the registry');
+        assert.match(stdout, /dry-run/i, '--dry-run output should mention dry-run');
     });
 
     it('--tolerate-republish exits 0 on 409 Conflict', async () => {
@@ -454,23 +421,19 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
             const version = '0.0.2';
             const fixtureDir = scaffoldFixture('tolerate-republish', pkgName, version);
 
-            const { stdout } = await execFileAsync(
-                'node',
-                [CLI_ENTRY, 'publish', fixtureDir, '--tolerate-republish'],
-                {
-                    timeout: 90 * 1000,
-                    cwd: MONOREPO_ROOT,
-                    encoding: 'utf-8',
-                    env: {
-                        ...process.env,
-                        npm_config_registry: conflictUrl,
-                        NPM_CONFIG_USERCONFIG: fakeNpmrcPath,
-                        ACTIONS_ID_TOKEN_REQUEST_URL: '',
-                        ACTIONS_ID_TOKEN_REQUEST_TOKEN: '',
-                        NODE_AUTH_TOKEN: '',
-                    },
+            const { stdout } = await execFileAsync('node', [CLI_ENTRY, 'publish', fixtureDir, '--tolerate-republish'], {
+                timeout: 90 * 1000,
+                cwd: MONOREPO_ROOT,
+                encoding: 'utf-8',
+                env: {
+                    ...process.env,
+                    npm_config_registry: conflictUrl,
+                    NPM_CONFIG_USERCONFIG: fakeNpmrcPath,
+                    ACTIONS_ID_TOKEN_REQUEST_URL: '',
+                    ACTIONS_ID_TOKEN_REQUEST_TOKEN: '',
+                    NODE_AUTH_TOKEN: '',
                 },
-            );
+            });
             assert.match(
                 stdout,
                 /already published|tolerated|republish/i,
@@ -498,36 +461,25 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
         const fixtureDir = scaffoldFixture('otp-header', pkgName, version);
         const beforeCount = capturedPuts.length;
 
-        await execFileAsync(
-            'node',
-            [CLI_ENTRY, 'publish', fixtureDir, '--otp', '123456'],
-            {
-                timeout: 90 * 1000,
-                cwd: MONOREPO_ROOT,
-                encoding: 'utf-8',
-                env: {
-                    ...process.env,
-                    npm_config_registry: registryUrl,
-                    NPM_CONFIG_USERCONFIG: fakeNpmrcPath,
-                    ACTIONS_ID_TOKEN_REQUEST_URL: '',
-                    ACTIONS_ID_TOKEN_REQUEST_TOKEN: '',
-                    NODE_AUTH_TOKEN: '',
-                },
+        await execFileAsync('node', [CLI_ENTRY, 'publish', fixtureDir, '--otp', '123456'], {
+            timeout: 90 * 1000,
+            cwd: MONOREPO_ROOT,
+            encoding: 'utf-8',
+            env: {
+                ...process.env,
+                npm_config_registry: registryUrl,
+                NPM_CONFIG_USERCONFIG: fakeNpmrcPath,
+                ACTIONS_ID_TOKEN_REQUEST_URL: '',
+                ACTIONS_ID_TOKEN_REQUEST_TOKEN: '',
+                NODE_AUTH_TOKEN: '',
             },
-        );
+        });
 
-        assert.ok(
-            capturedPuts.length > beforeCount,
-            'mock registry received no PUT — publish did not fire',
-        );
+        assert.ok(capturedPuts.length > beforeCount, 'mock registry received no PUT — publish did not fire');
         const put = capturedPuts[capturedPuts.length - 1];
 
         // The OTP must be forwarded as the `npm-otp` HTTP header.
-        assert.equal(
-            put.otpHeader,
-            '123456',
-            `PUT must carry npm-otp: 123456; got: ${put.otpHeader ?? '(none)'}`,
-        );
+        assert.equal(put.otpHeader, '123456', `PUT must carry npm-otp: 123456; got: ${put.otpHeader ?? '(none)'}`);
     });
 
     it('EOTP: 401+www-authenticate:OTP without --otp exits non-zero with actionable message (non-TTY)', async () => {
@@ -565,23 +517,19 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
             let exitCode = null;
             let stderr = '';
             try {
-                await execFileAsync(
-                    'node',
-                    [CLI_ENTRY, 'publish', fixtureDir],
-                    {
-                        timeout: 90 * 1000,
-                        cwd: MONOREPO_ROOT,
-                        encoding: 'utf-8',
-                        env: {
-                            ...process.env,
-                            npm_config_registry: otpUrl,
-                            NPM_CONFIG_USERCONFIG: fakeNpmrcPath,
-                            ACTIONS_ID_TOKEN_REQUEST_URL: '',
-                            ACTIONS_ID_TOKEN_REQUEST_TOKEN: '',
-                            NODE_AUTH_TOKEN: '',
-                        },
+                await execFileAsync('node', [CLI_ENTRY, 'publish', fixtureDir], {
+                    timeout: 90 * 1000,
+                    cwd: MONOREPO_ROOT,
+                    encoding: 'utf-8',
+                    env: {
+                        ...process.env,
+                        npm_config_registry: otpUrl,
+                        NPM_CONFIG_USERCONFIG: fakeNpmrcPath,
+                        ACTIONS_ID_TOKEN_REQUEST_URL: '',
+                        ACTIONS_ID_TOKEN_REQUEST_TOKEN: '',
+                        NODE_AUTH_TOKEN: '',
                     },
-                );
+                });
                 // If it resolves without error, the command exited 0 — that's wrong.
                 exitCode = 0;
             } catch (err) {
@@ -590,11 +538,7 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
             }
 
             assert.notEqual(exitCode, 0, 'CLI must exit non-zero when OTP is required and not supplied');
-            assert.match(
-                stderr,
-                /--otp/i,
-                'stderr must mention --otp so the maintainer knows how to fix it',
-            );
+            assert.match(stderr, /--otp/i, 'stderr must mention --otp so the maintainer knows how to fix it');
         } finally {
             otpRequiredServer.close();
         }
@@ -616,7 +560,9 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
                 const otpHeader = req.headers['npm-otp'] ?? null;
                 let body = '';
                 req.setEncoding('utf-8');
-                req.on('data', (chunk) => { body += chunk; });
+                req.on('data', (chunk) => {
+                    body += chunk;
+                });
                 req.on('end', () => {
                     retryPuts.push({ otpHeader });
                     if (!firstCallSeen.value && !otpHeader) {
@@ -648,23 +594,19 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 2 * 60 * 1000 },
 
             // Pass --otp so the publish immediately sends npm-otp on the first try.
             // The mock accepts any PUT that has the npm-otp header.
-            const { stdout } = await execFileAsync(
-                'node',
-                [CLI_ENTRY, 'publish', fixtureDir, '--otp', '654321'],
-                {
-                    timeout: 90 * 1000,
-                    cwd: MONOREPO_ROOT,
-                    encoding: 'utf-8',
-                    env: {
-                        ...process.env,
-                        npm_config_registry: twoStageUrl,
-                        NPM_CONFIG_USERCONFIG: fakeNpmrcPath,
-                        ACTIONS_ID_TOKEN_REQUEST_URL: '',
-                        ACTIONS_ID_TOKEN_REQUEST_TOKEN: '',
-                        NODE_AUTH_TOKEN: '',
-                    },
+            const { stdout } = await execFileAsync('node', [CLI_ENTRY, 'publish', fixtureDir, '--otp', '654321'], {
+                timeout: 90 * 1000,
+                cwd: MONOREPO_ROOT,
+                encoding: 'utf-8',
+                env: {
+                    ...process.env,
+                    npm_config_registry: twoStageUrl,
+                    NPM_CONFIG_USERCONFIG: fakeNpmrcPath,
+                    ACTIONS_ID_TOKEN_REQUEST_URL: '',
+                    ACTIONS_ID_TOKEN_REQUEST_TOKEN: '',
+                    NODE_AUTH_TOKEN: '',
                 },
-            );
+            });
 
             assert.ok(retryPuts.length > 0, 'mock registry received no PUT');
             // The PUT that succeeded must have had the otp header.

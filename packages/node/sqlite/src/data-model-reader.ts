@@ -18,9 +18,7 @@ function convertValue(value: unknown, readBigInts: boolean): unknown {
     if (typeof value === 'number') {
         if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
             if (!readBigInts) {
-                throw new OutOfRangeError(
-                    `Value is too large to be represented as a JavaScript number: ${value}`
-                );
+                throw new OutOfRangeError(`Value is too large to be represented as a JavaScript number: ${value}`);
             }
             return BigInt(value);
         }
@@ -32,9 +30,7 @@ function convertValue(value: unknown, readBigInts: boolean): unknown {
     if (typeof value === 'bigint') {
         if (!readBigInts) {
             if (value > BigInt(Number.MAX_SAFE_INTEGER) || value < BigInt(-Number.MAX_SAFE_INTEGER)) {
-                throw new OutOfRangeError(
-                    `Value is too large to be represented as a JavaScript number: ${value}`
-                );
+                throw new OutOfRangeError(`Value is too large to be represented as a JavaScript number: ${value}`);
             }
             return Number(value);
         }
@@ -81,10 +77,7 @@ export function readRow(
     return obj;
 }
 
-export function readAllRows(
-    model: Gda.DataModel,
-    options: ReadOptions,
-): (Record<string, unknown> | unknown[])[] {
+export function readAllRows(model: Gda.DataModel, options: ReadOptions): (Record<string, unknown> | unknown[])[] {
     const nRows = model.get_n_rows();
     const rows: (Record<string, unknown> | unknown[])[] = [];
     for (let row = 0; row < nRows; row++) {

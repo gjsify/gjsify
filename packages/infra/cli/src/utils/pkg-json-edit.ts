@@ -12,11 +12,7 @@
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
-export type DependencyKind =
-    | 'dependencies'
-    | 'devDependencies'
-    | 'peerDependencies'
-    | 'optionalDependencies';
+export type DependencyKind = 'dependencies' | 'devDependencies' | 'peerDependencies' | 'optionalDependencies';
 
 export interface PackageJson {
     name?: string;
@@ -94,12 +90,7 @@ export function projectSpecsFromPackageJson(pkg: PackageJson): string[] {
  * a range, callers fill in the installed version after resolution and
  * call this again with `installedVersion` set.
  */
-export function addDependencyEntry(
-    pkg: PackageJson,
-    name: string,
-    range: string,
-    kind: DependencyKind,
-): void {
+export function addDependencyEntry(pkg: PackageJson, name: string, range: string, kind: DependencyKind): void {
     if (pkg[kind] === undefined) {
         pkg[kind] = {} as Record<string, string>;
     }
@@ -116,17 +107,10 @@ export function defaultRangeFromVersion(version: string): string {
 
 function sortKnownDepFields(pkg: PackageJson): PackageJson {
     const out: PackageJson = { ...pkg };
-    for (const kind of [
-        'dependencies',
-        'devDependencies',
-        'peerDependencies',
-        'optionalDependencies',
-    ] as const) {
+    for (const kind of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const) {
         const block = out[kind];
         if (!block) continue;
-        out[kind] = Object.fromEntries(
-            Object.entries(block).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
-        );
+        out[kind] = Object.fromEntries(Object.entries(block).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
     }
     return out;
 }

@@ -16,8 +16,8 @@ const contextSymbol = Symbol('vm.context');
  * Equivalent to eval() but matches Node.js vm.runInThisContext() API.
  */
 export function runInThisContext(code: string, _options?: Record<string, unknown>): unknown {
-  // eslint-disable-next-line no-eval
-  return eval(code);
+    // eslint-disable-next-line no-eval
+    return eval(code);
 }
 
 /**
@@ -26,25 +26,33 @@ export function runInThisContext(code: string, _options?: Record<string, unknown
  * NOTE: This is NOT a security sandbox — code can still access globalThis.
  * This matches Node.js vm module behavior which also does not provide true isolation.
  */
-export function runInNewContext(code: string, context?: Record<string, unknown>, _options?: Record<string, unknown>): unknown {
-  const sandbox = context || {};
-  const keys = Object.keys(sandbox);
-  const values = keys.map(k => sandbox[k]);
+export function runInNewContext(
+    code: string,
+    context?: Record<string, unknown>,
+    _options?: Record<string, unknown>,
+): unknown {
+    const sandbox = context || {};
+    const keys = Object.keys(sandbox);
+    const values = keys.map((k) => sandbox[k]);
 
-  // Build a function that receives sandbox values as parameters
-  // and evaluates the code with those names in scope.
-  // This is the standard way to implement vm.runInNewContext without V8 internals.
-  // eslint-disable-next-line no-new-func
-  const fn = new Function(...keys, `return eval(${JSON.stringify(code)})`);
-  return fn(...values);
+    // Build a function that receives sandbox values as parameters
+    // and evaluates the code with those names in scope.
+    // This is the standard way to implement vm.runInNewContext without V8 internals.
+    // eslint-disable-next-line no-new-func
+    const fn = new Function(...keys, `return eval(${JSON.stringify(code)})`);
+    return fn(...values);
 }
 
 /**
  * Run code in a previously created context.
  * Since we don't have real VM contexts, this delegates to runInNewContext.
  */
-export function runInContext(code: string, context: Record<string, unknown>, _options?: Record<string, unknown>): unknown {
-  return runInNewContext(code, context);
+export function runInContext(
+    code: string,
+    context: Record<string, unknown>,
+    _options?: Record<string, unknown>,
+): unknown {
+    return runInNewContext(code, context);
 }
 
 /**
@@ -52,9 +60,9 @@ export function runInContext(code: string, context: Record<string, unknown>, _op
  * In real Node.js, this creates a V8 Context. Here it just marks an object.
  */
 export function createContext(context?: Record<string, unknown>): Record<string, unknown> {
-  const ctx = context || {};
-  Object.defineProperty(ctx, contextSymbol, { value: true, enumerable: false });
-  return ctx;
+    const ctx = context || {};
+    Object.defineProperty(ctx, contextSymbol, { value: true, enumerable: false });
+    return ctx;
 }
 
 /**
@@ -62,12 +70,12 @@ export function createContext(context?: Record<string, unknown>): Record<string,
  * Throws TypeError for non-object arguments, matching Node.js behavior.
  */
 export function isContext(context: unknown): boolean {
-  if (typeof context !== 'object' || context === null) {
-    throw new TypeError(
-      `The "object" argument must be of type object. Received ${context === null ? 'null' : `type ${typeof context}`}`
-    );
-  }
-  return (context as Record<symbol, unknown>)[contextSymbol] === true;
+    if (typeof context !== 'object' || context === null) {
+        throw new TypeError(
+            `The "object" argument must be of type object. Received ${context === null ? 'null' : `type ${typeof context}`}`,
+        );
+    }
+    return (context as Record<symbol, unknown>)[contextSymbol] === true;
 }
 
 /**
@@ -76,50 +84,50 @@ export function isContext(context: unknown): boolean {
  * eslint-disable-next-line no-new-func — intentional: vm module implements code evaluation
  */
 export function compileFunction(
-  code: string,
-  params?: string[],
-  _options?: { parsingContext?: Record<string, unknown>; contextExtensions?: object[] },
+    code: string,
+    params?: string[],
+    _options?: { parsingContext?: Record<string, unknown>; contextExtensions?: object[] },
 ): Function {
-  const paramNames = params || [];
-  // eslint-disable-next-line no-new-func
-  return new Function(...paramNames, code);
+    const paramNames = params || [];
+    // eslint-disable-next-line no-new-func
+    return new Function(...paramNames, code);
 }
 
 /**
  * Script class — compiles code for repeated execution.
  */
 export class Script {
-  private _code: string;
+    private _code: string;
 
-  constructor(code: string, _options?: Record<string, unknown>) {
-    this._code = code;
-  }
+    constructor(code: string, _options?: Record<string, unknown>) {
+        this._code = code;
+    }
 
-  runInThisContext(_options?: Record<string, unknown>): unknown {
-    // eslint-disable-next-line no-eval
-    return eval(this._code);
-  }
+    runInThisContext(_options?: Record<string, unknown>): unknown {
+        // eslint-disable-next-line no-eval
+        return eval(this._code);
+    }
 
-  runInNewContext(context?: Record<string, unknown>, _options?: Record<string, unknown>): unknown {
-    return runInNewContext(this._code, context);
-  }
+    runInNewContext(context?: Record<string, unknown>, _options?: Record<string, unknown>): unknown {
+        return runInNewContext(this._code, context);
+    }
 
-  runInContext(context: Record<string, unknown>, _options?: Record<string, unknown>): unknown {
-    return runInNewContext(this._code, context);
-  }
+    runInContext(context: Record<string, unknown>, _options?: Record<string, unknown>): unknown {
+        return runInNewContext(this._code, context);
+    }
 
-  createCachedData(): Uint8Array {
-    // No real cached data in our implementation
-    return new Uint8Array(0);
-  }
+    createCachedData(): Uint8Array {
+        // No real cached data in our implementation
+        return new Uint8Array(0);
+    }
 }
 
 export default {
-  runInThisContext,
-  runInNewContext,
-  runInContext,
-  createContext,
-  isContext,
-  compileFunction,
-  Script,
+    runInThisContext,
+    runInNewContext,
+    runInContext,
+    createContext,
+    isContext,
+    compileFunction,
+    Script,
 };

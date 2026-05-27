@@ -11,7 +11,15 @@ export interface DrawingMethods {
     drawElements(mode?: GLenum, count?: GLsizei, type?: GLenum, ioffset?: GLintptr): void;
     viewport(x: GLint, y: GLint, width: GLsizei, height: GLsizei): void;
     scissor(x: GLint, y: GLint, width: GLsizei, height: GLsizei): void;
-    readPixels(x: GLint | undefined, y: GLint | undefined, width: GLsizei | undefined, height: GLsizei | undefined, format: GLenum | undefined, type: GLenum | undefined, pixels: TypedArray | null): void;
+    readPixels(
+        x: GLint | undefined,
+        y: GLint | undefined,
+        width: GLsizei | undefined,
+        height: GLsizei | undefined,
+        format: GLenum | undefined,
+        type: GLenum | undefined,
+        pixels: TypedArray | null,
+    ): void;
     enableVertexAttribArray(index: GLuint): void;
     disableVertexAttribArray(index?: GLuint): void;
     vertexAttrib1f(index: GLuint, x: GLfloat): void;
@@ -22,7 +30,14 @@ export interface DrawingMethods {
     vertexAttrib3fv(index: GLuint, values: Float32List): void;
     vertexAttrib4f(index: GLuint | undefined, x: GLfloat, y: GLfloat, z: GLfloat, w: GLfloat): void;
     vertexAttrib4fv(index: GLuint, values: Float32List): void;
-    vertexAttribPointer(index?: GLuint, size?: GLint, type?: GLenum, normalized?: GLboolean, stride?: GLsizei, offset?: GLintptr): void;
+    vertexAttribPointer(
+        index?: GLuint,
+        size?: GLint,
+        type?: GLenum,
+        normalized?: GLboolean,
+        stride?: GLsizei,
+        offset?: GLintptr,
+    ): void;
     getVertexAttrib(index?: GLuint, pname?: GLenum): unknown;
     getVertexAttribOffset(index?: GLuint, pname?: GLenum): GLintptr;
     _checkVertexAttribState(maxIndex: number): boolean;
@@ -30,7 +45,7 @@ export interface DrawingMethods {
 }
 
 declare module '../webgl-context-base.js' {
-    interface WebGLContextBase extends DrawingMethods { }
+    interface WebGLContextBase extends DrawingMethods {}
 }
 
 const drawingMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
@@ -67,7 +82,13 @@ const drawingMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         }
     },
 
-    drawElements(this: WebGLContextBase, mode: GLenum = 0, count: GLsizei = 0, type: GLenum = 0, ioffset: GLintptr = 0): void {
+    drawElements(
+        this: WebGLContextBase,
+        mode: GLenum = 0,
+        count: GLsizei = 0,
+        type: GLenum = 0,
+        ioffset: GLintptr = 0,
+    ): void {
         if (count < 0 || ioffset < 0) {
             this.setError(this.INVALID_VALUE);
             return;
@@ -111,12 +132,12 @@ const drawingMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         switch (mode) {
             case this.TRIANGLES:
                 if (count % 3) {
-                    reducedCount -= (count % 3);
+                    reducedCount -= count % 3;
                 }
                 break;
             case this.LINES:
                 if (count % 2) {
-                    reducedCount -= (count % 2);
+                    reducedCount -= count % 2;
                 }
                 break;
             case this.POINTS:
@@ -188,13 +209,20 @@ const drawingMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         this._gl.scissor(x | 0, y | 0, width | 0, height | 0);
     },
 
-    readPixels(this: WebGLContextBase, x: GLint = 0, y: GLint = 0, width: GLsizei = 0, height: GLsizei = 0, format: GLenum = 0, type: GLenum = 0, pixels: TypedArray | null): void {
+    readPixels(
+        this: WebGLContextBase,
+        x: GLint = 0,
+        y: GLint = 0,
+        width: GLsizei = 0,
+        height: GLsizei = 0,
+        format: GLenum = 0,
+        type: GLenum = 0,
+        pixels: TypedArray | null,
+    ): void {
         if (!pixels) return;
 
         if (!(this._extensions.oes_texture_float && type === this.FLOAT && format === this.RGBA)) {
-            if (format === this.RGB ||
-                format === this.ALPHA ||
-                type !== this.UNSIGNED_BYTE) {
+            if (format === this.RGB || format === this.ALPHA || type !== this.UNSIGNED_BYTE) {
                 this.setError(this.INVALID_OPERATION);
                 return;
             } else if (format !== this.RGBA) {
@@ -237,13 +265,11 @@ const drawingMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
 
         const pixelData = arrayToUint8Array(pixels);
 
-        if (x >= viewWidth || x + width <= 0 ||
-            y >= viewHeight || y + height <= 0) {
+        if (x >= viewWidth || x + width <= 0 || y >= viewHeight || y + height <= 0) {
             for (let i = 0; i < pixelData.length; ++i) {
                 pixelData[i] = 0;
             }
-        } else if (x < 0 || x + width > viewWidth ||
-            y < 0 || y + height > viewHeight) {
+        } else if (x < 0 || x + width > viewWidth || y < 0 || y + height > viewHeight) {
             for (let i = 0; i < pixelData.length; ++i) {
                 pixelData[i] = 0;
             }
@@ -281,28 +307,21 @@ const drawingMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
                     nHeight,
                     format,
                     type,
-                    Uint8ArrayToVariant(subPixels));
+                    Uint8ArrayToVariant(subPixels),
+                );
 
                 const src = result && result.length > 0 ? result : subPixels;
                 const offset = 4 * (nx - x) + (ny - y) * rowStride;
                 for (let j = 0; j < nHeight; ++j) {
                     for (let i = 0; i < nWidth; ++i) {
                         for (let k = 0; k < 4; ++k) {
-                            pixelData[offset + j * rowStride + 4 * i + k] =
-                                src[j * nRowStride + 4 * i + k];
+                            pixelData[offset + j * rowStride + 4 * i + k] = src[j * nRowStride + 4 * i + k];
                         }
                     }
                 }
             }
         } else {
-            const result = this._gl.readPixels(
-                x,
-                y,
-                width,
-                height,
-                format,
-                type,
-                Uint8ArrayToVariant(pixelData));
+            const result = this._gl.readPixels(x, y, width, height, format, type, Uint8ArrayToVariant(pixelData));
             if (result && result.length > 0) {
                 pixelData.set(result);
             }
@@ -431,16 +450,27 @@ const drawingMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         this._gl.vertexAttrib4f(index | 0, +values[0], +values[1], +values[2], +values[3]);
     },
 
-    vertexAttribPointer(this: WebGLContextBase, index: GLuint = 0, size: GLint = 0, type: GLenum = 0, normalized: GLboolean = false, stride: GLsizei = 0, offset: GLintptr = 0): void {
+    vertexAttribPointer(
+        this: WebGLContextBase,
+        index: GLuint = 0,
+        size: GLint = 0,
+        type: GLenum = 0,
+        normalized: GLboolean = false,
+        stride: GLsizei = 0,
+        offset: GLintptr = 0,
+    ): void {
         if (stride < 0 || offset < 0) {
             this.setError(this.INVALID_VALUE);
             return;
         }
 
-        if (stride < 0 ||
+        if (
+            stride < 0 ||
             offset < 0 ||
-            index < 0 || index >= this._vertexObjectState._attribs.length ||
-            !(size === 1 || size === 2 || size === 3 || size === 4)) {
+            index < 0 ||
+            index >= this._vertexObjectState._attribs.length ||
+            !(size === 1 || size === 2 || size === 3 || size === 4)
+        ) {
             this.setError(this.INVALID_VALUE);
             return;
         }
@@ -452,9 +482,7 @@ const drawingMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
 
         // fixed, int and unsigned int aren't allowed in WebGL
         const byteSize = typeSize(this, type);
-        if (byteSize === 0 ||
-            type === this.INT ||
-            type === this.UNSIGNED_INT) {
+        if (byteSize === 0 || type === this.INT || type === this.UNSIGNED_INT) {
             this.setError(this.INVALID_ENUM);
             return;
         }
@@ -465,8 +493,7 @@ const drawingMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         }
 
         // stride and offset must be multiples of size
-        if ((stride % byteSize) !== 0 ||
-            (offset % byteSize) !== 0) {
+        if (stride % byteSize !== 0 || offset % byteSize !== 0) {
             this.setError(this.INVALID_OPERATION);
             return;
         }
@@ -480,7 +507,7 @@ const drawingMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
             /* index */ index,
             /* pointerSize */ size * byteSize,
             /* pointerOffset */ offset,
-            /* pointerStride */ stride || (size * byteSize),
+            /* pointerStride */ stride || size * byteSize,
             /* pointerType */ type,
             /* pointerNormal */ normalized,
             /* inputStride */ stride,
@@ -555,12 +582,9 @@ const drawingMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
                 if (program._attributes.indexOf(i) >= 0) {
                     let maxByte = 0;
                     if (attrib._divisor) {
-                        maxByte = attrib._pointerSize +
-                            attrib._pointerOffset;
+                        maxByte = attrib._pointerSize + attrib._pointerOffset;
                     } else {
-                        maxByte = attrib._pointerStride * maxIndex +
-                            attrib._pointerSize +
-                            attrib._pointerOffset;
+                        maxByte = attrib._pointerStride * maxIndex + attrib._pointerSize + attrib._pointerOffset;
                     }
                     if (maxByte > buffer._size) {
                         this.setError(this.INVALID_OPERATION);

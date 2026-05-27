@@ -27,7 +27,10 @@ HTMLCanvasElement.registerContextFactory('2d', (canvas, options) => {
     // CanvasRenderingContext2D's ctor accepts `HTMLCanvasElement` (its own
     // structural shape, which the GJS dom HTMLCanvasElement matches at
     // runtime). One `as unknown as` boundary cast — better than `as any`.
-    const ctx = new CanvasRenderingContext2D(canvas as unknown as ConstructorParameters<typeof CanvasRenderingContext2D>[0], options);
+    const ctx = new CanvasRenderingContext2D(
+        canvas as unknown as ConstructorParameters<typeof CanvasRenderingContext2D>[0],
+        options,
+    );
     slot[CANVAS2D_KEY] = ctx;
     return ctx;
 });

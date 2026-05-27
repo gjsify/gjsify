@@ -52,15 +52,13 @@ function parseCandidate(line: string): Partial<ParsedCandidate> {
         foundation: parts[0],
         component: componentId === 1 ? 'rtp' : componentId === 2 ? 'rtcp' : null,
         priority: Number(parts[3]) || null,
-        protocol: (protocolRaw === 'udp' || protocolRaw === 'tcp') ? protocolRaw : null,
+        protocol: protocolRaw === 'udp' || protocolRaw === 'tcp' ? protocolRaw : null,
         address: parts[4] ?? null,
         port: Number(parts[5]) || null,
-        type: (typeRaw === 'host' || typeRaw === 'srflx' || typeRaw === 'prflx' || typeRaw === 'relay') ? typeRaw : null,
-        relatedAddress: raddrIdx >= 0 ? parts[raddrIdx + 1] ?? null : null,
+        type: typeRaw === 'host' || typeRaw === 'srflx' || typeRaw === 'prflx' || typeRaw === 'relay' ? typeRaw : null,
+        relatedAddress: raddrIdx >= 0 ? (parts[raddrIdx + 1] ?? null) : null,
         relatedPort: rportIdx >= 0 ? Number(parts[rportIdx + 1]) || null : null,
-        tcpType: tcpTypeIdx >= 0
-            ? (parts[tcpTypeIdx + 1] as RTCIceTcpCandidateType)
-            : null,
+        tcpType: tcpTypeIdx >= 0 ? (parts[tcpTypeIdx + 1] as RTCIceTcpCandidateType) : null,
     };
 }
 
@@ -82,9 +80,7 @@ export class RTCIceCandidate {
 
     constructor(init: RTCIceCandidateInit = {}) {
         if (init.sdpMid == null && init.sdpMLineIndex == null) {
-            throw new TypeError(
-                'RTCIceCandidate requires either sdpMid or sdpMLineIndex',
-            );
+            throw new TypeError('RTCIceCandidate requires either sdpMid or sdpMLineIndex');
         }
         this.candidate = init.candidate ?? '';
         this.sdpMid = init.sdpMid ?? null;

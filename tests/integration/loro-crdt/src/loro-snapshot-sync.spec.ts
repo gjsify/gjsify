@@ -60,9 +60,18 @@ export default async () => {
         });
 
         await it('three docs converge under pairwise snapshot exchange', async () => {
-            const a = new LoroDoc(); a.setPeerId('1'); a.getText('t').insert(0, 'A'); a.commit();
-            const b = new LoroDoc(); b.setPeerId('2'); b.getText('t').insert(0, 'B'); b.commit();
-            const c = new LoroDoc(); c.setPeerId('3'); c.getText('t').insert(0, 'C'); c.commit();
+            const a = new LoroDoc();
+            a.setPeerId('1');
+            a.getText('t').insert(0, 'A');
+            a.commit();
+            const b = new LoroDoc();
+            b.setPeerId('2');
+            b.getText('t').insert(0, 'B');
+            b.commit();
+            const c = new LoroDoc();
+            c.setPeerId('3');
+            c.getText('t').insert(0, 'C');
+            c.commit();
 
             // A ↔ B
             a.import(b.export({ mode: 'snapshot' }));

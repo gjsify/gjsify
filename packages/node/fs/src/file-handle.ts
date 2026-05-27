@@ -2,9 +2,9 @@
 // Reimplemented for GJS using Gio.File
 
 import { warnNotImplemented, notImplemented } from '@gjsify/utils';
-import { ReadStream } from "./read-stream.js";
-import { WriteStream } from "./write-stream.js";
-import { Stats, BigIntStats, STAT_ATTRIBUTES } from "./stats.js";
+import { ReadStream } from './read-stream.js';
+import { WriteStream } from './write-stream.js';
+import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 import { normalizePath } from './utils.js';
 import { chmodSync, chownSync } from './sync.js';
@@ -15,16 +15,11 @@ import { createInterface } from 'node:readline';
 // Type-only import for ReadableStream — the runtime constructor is resolved
 // via globalThis inside readableWebStream() to avoid bundling the entire
 // WHATWG streams implementation for apps that never call this method.
-import type { ReadableStream } from "node:stream/web";
-import { Buffer } from "node:buffer";
+import type { ReadableStream } from 'node:stream/web';
+import { Buffer } from 'node:buffer';
 
 import type { Abortable } from 'node:events';
-import type {
-    FlagAndOpenMode,
-    FileReadResult,
-    FileReadOptions,
-    OpenFlags,
-} from './types/index.js';
+import type { FlagAndOpenMode, FileReadResult, FileReadOptions, OpenFlags } from './types/index.js';
 import type { FileHandle as IFileHandle, CreateReadStreamOptions, CreateWriteStreamOptions } from 'node:fs/promises';
 import type {
     ObjectEncodingOptions,
@@ -39,7 +34,6 @@ import type {
 import type { Interface as ReadlineInterface } from 'node:readline';
 
 export class FileHandle implements IFileHandle {
-
     /** Not part of the default implementation, used internal by gjsify */
     private _file: GLib.IOChannel;
 
@@ -65,14 +59,16 @@ export class FileHandle implements IFileHandle {
     private _ioLock: Promise<unknown> = Promise.resolve();
 
     /** Not part of the default implementation, used internal by gjsify */
-    private static instances: {[fd: number]: FileHandle} = {};
+    private static instances: { [fd: number]: FileHandle } = {};
 
-    constructor(readonly options: {
-        path: PathLike,
-        flags?: OpenFlags | number,
-        mode?: Mode
-    }) {
-        this.options.flags ||= "r";
+    constructor(
+        readonly options: {
+            path: PathLike;
+            flags?: OpenFlags | number;
+            mode?: Mode;
+        },
+    ) {
+        this.options.flags ||= 'r';
         this.options.mode ||= 0o666;
         const pathStr = normalizePath(options.path);
         const creat = shouldCreate(options.flags);
@@ -141,7 +137,6 @@ export class FileHandle implements IFileHandle {
         return next;
     }
 
-
     /**
      * The numeric file descriptor managed by the {FileHandle} object.
      * @since v10.0.0
@@ -151,8 +146,8 @@ export class FileHandle implements IFileHandle {
     /** Not part of the default implementation, used internal by gjsify */
     static getInstance(fd: number) {
         const instance = FileHandle.instances[fd];
-        if(!instance) {
-            throw new Error("No instance found for fd!");
+        if (!instance) {
+            throw new Error('No instance found for fd!');
         }
         return FileHandle.instances[fd];
     }
@@ -165,7 +160,10 @@ export class FileHandle implements IFileHandle {
      * @since v10.0.0
      * @return Fulfills with `undefined` upon success.
      */
-    async appendFile(data: string | Uint8Array, options?: (ObjectEncodingOptions & FlagAndOpenMode) | BufferEncoding | null): Promise<void> {
+    async appendFile(
+        data: string | Uint8Array,
+        options?: (ObjectEncodingOptions & FlagAndOpenMode) | BufferEncoding | null,
+    ): Promise<void> {
         const encoding = getEncodingFromOptions(options);
         if (typeof data === 'string') {
             data = Buffer.from(data);
@@ -175,10 +173,9 @@ export class FileHandle implements IFileHandle {
 
         const [status, written] = this._file.write_chars(data, data.length);
 
-        if(status === GLib.IOStatus.ERROR) {
-            throw new Error("Error on append to file!")
+        if (status === GLib.IOStatus.ERROR) {
+            throw new Error('Error on append to file!');
         }
-
     }
     /**
      * Changes the ownership of the file. A wrapper for [`chown(2)`](http://man7.org/linux/man-pages/man2/chown.2.html).
@@ -308,8 +305,13 @@ export class FileHandle implements IFileHandle {
      * integer, the current file position will remain unchanged.
      * @return Fulfills upon success with an object with two properties:
      */
-    async read<T extends NodeJS.ArrayBufferView>(buffer: T, offset?: number | null, length?: number | null, position?: ReadPosition | null): Promise<FileReadResult<T>>
-    async read<T extends NodeJS.ArrayBufferView = Buffer>(options?: FileReadOptions<T>): Promise<FileReadResult<T>>
+    async read<T extends NodeJS.ArrayBufferView>(
+        buffer: T,
+        offset?: number | null,
+        length?: number | null,
+        position?: ReadPosition | null,
+    ): Promise<FileReadResult<T>>;
+    async read<T extends NodeJS.ArrayBufferView = Buffer>(options?: FileReadOptions<T>): Promise<FileReadResult<T>>;
 
     async read<T extends NodeJS.ArrayBufferView = Buffer>(...args: any[]): Promise<FileReadResult<T>> {
         let buffer: T | undefined;
@@ -405,8 +407,8 @@ export class FileHandle implements IFileHandle {
         options?: {
             encoding?: null | undefined;
             flag?: OpenMode | undefined;
-        } | null
-    ): Promise<Buffer<ArrayBuffer>>
+        } | null,
+    ): Promise<Buffer<ArrayBuffer>>;
     /**
      * Asynchronously reads the entire contents of a file. The underlying file will _not_ be closed automatically.
      * The `FileHandle` must have been opened for reading.
@@ -419,8 +421,8 @@ export class FileHandle implements IFileHandle {
                   encoding: BufferEncoding;
                   flag?: OpenMode | undefined;
               }
-            | BufferEncoding
-    ): Promise<string>
+            | BufferEncoding,
+    ): Promise<string>;
     /**
      * Asynchronously reads the entire contents of a file. The underlying file will _not_ be closed automatically.
      * The `FileHandle` must have been opened for reading.
@@ -433,15 +435,15 @@ export class FileHandle implements IFileHandle {
                   flag?: OpenMode | undefined;
               })
             | BufferEncoding
-            | null
+            | null,
     ): Promise<string | Buffer<ArrayBuffer>> {
         const encoding = getEncodingFromOptions(options, 'buffer');
         if (encoding) this._file.set_encoding(encoding);
 
         const [status, buf] = this._file.read_to_end();
 
-        if(status === GLib.IOStatus.ERROR) {
-            throw new Error("Error on read from file!")
+        if (status === GLib.IOStatus.ERROR) {
+            throw new Error('Error on read from file!');
         }
 
         const res = encodeUint8Array(encoding, buf);
@@ -474,23 +476,31 @@ export class FileHandle implements IFileHandle {
     async stat(
         opts?: StatOptions & {
             bigint?: false | undefined;
-        }
-    ): Promise<Stats>
+        },
+    ): Promise<Stats>;
     async stat(
         opts: StatOptions & {
             bigint: true;
-        }
-    ): Promise<BigIntStats>
+        },
+    ): Promise<BigIntStats>;
     async stat(opts?: StatOptions): Promise<Stats | BigIntStats> {
         const info = await new Promise<Gio.FileInfo>((resolve, reject) => {
-            this._gFile.query_info_async(STAT_ATTRIBUTES, Gio.FileQueryInfoFlags.NONE, GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
-                try { resolve(this._gFile.query_info_finish(res)); } catch (e) { reject(e); }
-            });
+            this._gFile.query_info_async(
+                STAT_ATTRIBUTES,
+                Gio.FileQueryInfoFlags.NONE,
+                GLib.PRIORITY_DEFAULT,
+                null,
+                (_s: unknown, res: Gio.AsyncResult) => {
+                    try {
+                        resolve(this._gFile.query_info_finish(res));
+                    } catch (e) {
+                        reject(e);
+                    }
+                },
+            );
         });
         const pathStr = normalizePath(this.options.path);
-        return opts?.bigint
-            ? new BigIntStats(info, pathStr)
-            : new Stats(info, pathStr);
+        return opts?.bigint ? new BigIntStats(info, pathStr) : new Stats(info, pathStr);
     }
     /**
      * Truncates the file.
@@ -554,7 +564,10 @@ export class FileHandle implements IFileHandle {
      * beginning of the file.
      * @since v10.0.0
      */
-    async writeFile(data: string | Uint8Array, options?: (ObjectEncodingOptions & FlagAndOpenMode & Abortable) | BufferEncoding | null): Promise<void> {
+    async writeFile(
+        data: string | Uint8Array,
+        options?: (ObjectEncodingOptions & FlagAndOpenMode & Abortable) | BufferEncoding | null,
+    ): Promise<void> {
         const encoding = getEncodingFromOptions(options);
         let buf: Uint8Array;
         if (typeof data === 'string') {
@@ -565,7 +578,7 @@ export class FileHandle implements IFileHandle {
         this._file.seek_position(0, GLib.SeekType.SET);
         const [status] = this._file.write_chars(buf, buf.length);
         if (status === GLib.IOStatus.ERROR) {
-            throw new Error("Error writing to file!");
+            throw new Error('Error writing to file!');
         }
         this._file.flush();
     }
@@ -591,7 +604,7 @@ export class FileHandle implements IFileHandle {
         buffer: TBuffer,
         offset?: number | null,
         length?: number | null,
-        position?: number | null
+        position?: number | null,
     ): Promise<{
         bytesWritten: number;
         buffer: TBuffer;
@@ -606,24 +619,24 @@ export class FileHandle implements IFileHandle {
     async write(
         data: string,
         position?: number | null,
-        encoding?: BufferEncoding | null
+        encoding?: BufferEncoding | null,
     ): Promise<{
         bytesWritten: number;
         buffer: string;
-    }>
+    }>;
     async write<TBuffer extends NodeJS.ArrayBufferView>(
         data: string | TBuffer,
         ...args: any[]
     ): Promise<{
-    bytesWritten: number;
-    buffer: string | TBuffer;
+        bytesWritten: number;
+        buffer: string | TBuffer;
     }> {
         let position: number | null = null;
         let encoding: BufferEncoding | 'buffer' | null = null;
         let offset: number | null = null;
         let length: number | null = null;
 
-        if(typeof data === 'string') {
+        if (typeof data === 'string') {
             position = args[0];
             encoding = args[1];
         } else {
@@ -642,7 +655,7 @@ export class FileHandle implements IFileHandle {
             writeBuf = data as unknown as Uint8Array;
         }
         const bufOffset = offset ?? 0;
-        const writeLength = length ?? (writeBuf.byteLength - bufOffset);
+        const writeLength = length ?? writeBuf.byteLength - bufOffset;
         const writeSlice = writeBuf.slice(bufOffset, bufOffset + writeLength);
         const writePos = position ?? 0;
 
@@ -656,15 +669,27 @@ export class FileHandle implements IFileHandle {
             stream.seek(BigInt(writePos), GLib.SeekType.SET, null);
             const output = stream.get_output_stream();
             const written = await new Promise<number>((resolve, reject) => {
-                output.write_bytes_async(new GLib.Bytes(writeSlice), GLib.PRIORITY_DEFAULT, null, (_source, asyncResult) => {
-                    try { resolve(output.write_bytes_finish(asyncResult)); }
-                    catch (err) { reject(err); }
-                });
+                output.write_bytes_async(
+                    new GLib.Bytes(writeSlice),
+                    GLib.PRIORITY_DEFAULT,
+                    null,
+                    (_source, asyncResult) => {
+                        try {
+                            resolve(output.write_bytes_finish(asyncResult));
+                        } catch (err) {
+                            reject(err);
+                        }
+                    },
+                );
             });
             await new Promise<void>((resolve, reject) => {
                 output.flush_async(GLib.PRIORITY_DEFAULT, null, (_source, asyncResult) => {
-                    try { output.flush_finish(asyncResult); resolve(); }
-                    catch (err) { reject(err); }
+                    try {
+                        output.flush_finish(asyncResult);
+                        resolve();
+                    } catch (err) {
+                        reject(err);
+                    }
                 });
             });
             return written;
@@ -672,10 +697,9 @@ export class FileHandle implements IFileHandle {
 
         return {
             bytesWritten,
-            buffer: data
-        }
+            buffer: data,
+        };
     }
-      
 
     /**
      * Write an array of [ArrayBufferView](https://developer.mozilla.org/en-US/docs/Web/API/ArrayBufferView) s to the file.
@@ -692,14 +716,14 @@ export class FileHandle implements IFileHandle {
      * @param position The offset from the beginning of the file where the data from `buffers` should be written. If `position` is not a `number`, the data will be written at the current
      * position.
      */
-    async writev<TBuffers extends readonly NodeJS.ArrayBufferView[]>(buffers: TBuffers, position?: number): Promise<WriteVResult<TBuffers>> {
+    async writev<TBuffers extends readonly NodeJS.ArrayBufferView[]>(
+        buffers: TBuffers,
+        position?: number,
+    ): Promise<WriteVResult<TBuffers>> {
         let bytesWritten = 0;
         for (const buf of buffers) {
             const b = Buffer.from(buf.buffer, buf.byteOffset, buf.byteLength);
-            const res = await this.write(
-                b, 0, b.byteLength,
-                position != null ? position + bytesWritten : null,
-            );
+            const res = await this.write(b, 0, b.byteLength, position != null ? position + bytesWritten : null);
             bytesWritten += res.bytesWritten;
         }
         return { bytesWritten, buffers: buffers as unknown as TBuffers };
@@ -710,7 +734,10 @@ export class FileHandle implements IFileHandle {
      * @param position The offset from the beginning of the file where the data should be read from. If `position` is not a `number`, the data will be read from the current position.
      * @return Fulfills upon success an object containing two properties:
      */
-    async readv<TBuffers extends readonly NodeJS.ArrayBufferView[]>(buffers: TBuffers, position?: number): Promise<ReadVResult<TBuffers>> {
+    async readv<TBuffers extends readonly NodeJS.ArrayBufferView[]>(
+        buffers: TBuffers,
+        position?: number,
+    ): Promise<ReadVResult<TBuffers>> {
         let bytesRead = 0;
         for (const buf of buffers) {
             const res = await this.read({
@@ -727,11 +754,23 @@ export class FileHandle implements IFileHandle {
     }
 
     /** @internal */ _closeSync(): void {
-        try { this._ioStream?.close(null); } catch { /* best-effort */ }
-        try { this._readStream?.close(null); } catch { /* best-effort */ }
+        try {
+            this._ioStream?.close(null);
+        } catch {
+            /* best-effort */
+        }
+        try {
+            this._readStream?.close(null);
+        } catch {
+            /* best-effort */
+        }
         this._ioStream = null;
         this._readStream = null;
-        try { this._file.shutdown(true); } catch { /* best-effort */ }
+        try {
+            this._file.shutdown(true);
+        } catch {
+            /* best-effort */
+        }
         // `instances` is declared `private static` on FileHandle; same-module
         // access is allowed via a typed view of the constructor without
         // dropping into `as any`.
@@ -739,7 +778,12 @@ export class FileHandle implements IFileHandle {
         delete _ctor.instances[this.fd];
     }
 
-    /** @internal */ _readSync(buffer: NodeJS.ArrayBufferView, offset: number, length: number, position: number | null): number {
+    /** @internal */ _readSync(
+        buffer: NodeJS.ArrayBufferView,
+        offset: number,
+        length: number,
+        position: number | null,
+    ): number {
         const stream = this._gFile.read(null);
         try {
             if (position !== null && position >= 0) {
@@ -791,11 +835,23 @@ export class FileHandle implements IFileHandle {
         // fd — safe to call even if the Gio streams already released theirs,
         // but guarded here so a throw from shutdown doesn't strand the stream
         // references in a "closed but still pinned" state.
-        try { this._ioStream?.close(null); } catch { /* best-effort */ }
-        try { this._readStream?.close(null); } catch { /* best-effort */ }
+        try {
+            this._ioStream?.close(null);
+        } catch {
+            /* best-effort */
+        }
+        try {
+            this._readStream?.close(null);
+        } catch {
+            /* best-effort */
+        }
         this._ioStream = null;
         this._readStream = null;
-        try { this._file.shutdown(true); } catch { /* best-effort */ }
+        try {
+            this._file.shutdown(true);
+        } catch {
+            /* best-effort */
+        }
     }
 
     async [Symbol.asyncDispose](): Promise<void> {

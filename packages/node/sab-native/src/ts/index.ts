@@ -30,7 +30,7 @@ export interface NativeSharedBuffer {
     set_u64_le(offset: number, v: bigint): void;
 
     read_bytes(offset: number, length: number): unknown; // GLib.Bytes
-    write_bytes(offset: number, data: unknown): void;   // GLib.Bytes
+    write_bytes(offset: number, data: unknown): void; // GLib.Bytes
 
     atomic_add_i32(offset: number, v: number): number;
     atomic_sub_i32(offset: number, v: number): number;
@@ -99,7 +99,8 @@ export function hasNativeSab(): boolean {
 
 /* ── Public JS façade ───────────────────────────────────────────────────── */
 
-const PREBUILD_MISSING = '@gjsify/sab-native prebuild is not loaded — ' +
+const PREBUILD_MISSING =
+    '@gjsify/sab-native prebuild is not loaded — ' +
     'install the package on a Linux system with the prebuild available, ' +
     'or build locally via `meson compile` in packages/node/sab-native/.';
 
@@ -183,7 +184,9 @@ export class SharedBuffer {
     }
 
     /** True if this region has been released via close(). */
-    get closed(): boolean { return this._native === null; }
+    get closed(): boolean {
+        return this._native === null;
+    }
 
     /**
      * Release the underlying memfd + mmap explicitly. Idempotent. The
@@ -199,17 +202,33 @@ export class SharedBuffer {
 
     /* ── Plain read / write ─────────────────────────────────────────────── */
 
-    getUint8(offset: number): number   { return this._assertOpen().get_u8(offset); }
-    setUint8(offset: number, v: number): void  {     this._assertOpen().set_u8(offset, v & 0xff); }
+    getUint8(offset: number): number {
+        return this._assertOpen().get_u8(offset);
+    }
+    setUint8(offset: number, v: number): void {
+        this._assertOpen().set_u8(offset, v & 0xff);
+    }
 
-    getUint32LE(offset: number): number { return this._assertOpen().get_u32_le(offset); }
-    setUint32LE(offset: number, v: number): void {  this._assertOpen().set_u32_le(offset, v >>> 0); }
+    getUint32LE(offset: number): number {
+        return this._assertOpen().get_u32_le(offset);
+    }
+    setUint32LE(offset: number, v: number): void {
+        this._assertOpen().set_u32_le(offset, v >>> 0);
+    }
 
-    getInt32LE(offset: number): number  { return this._assertOpen().get_i32_le(offset); }
-    setInt32LE(offset: number, v: number): void  {  this._assertOpen().set_i32_le(offset, v | 0); }
+    getInt32LE(offset: number): number {
+        return this._assertOpen().get_i32_le(offset);
+    }
+    setInt32LE(offset: number, v: number): void {
+        this._assertOpen().set_i32_le(offset, v | 0);
+    }
 
-    getBigUint64LE(offset: number): bigint  { return this._assertOpen().get_u64_le(offset); }
-    setBigUint64LE(offset: number, v: bigint): void  {  this._assertOpen().set_u64_le(offset, v); }
+    getBigUint64LE(offset: number): bigint {
+        return this._assertOpen().get_u64_le(offset);
+    }
+    setBigUint64LE(offset: number, v: bigint): void {
+        this._assertOpen().set_u64_le(offset, v);
+    }
 
     /**
      * Read a byte range out as a Uint8Array. ONE-TIME COPY — modifications
@@ -285,17 +304,19 @@ export class SharedBuffer {
      * @param length byte length. Defaults to `byteLength - offset`.
      */
     toBuffer<T extends Uint8Array = Uint8Array>(offset = 0, length?: number): T {
-        const len = length ?? (this.byteLength - offset);
+        const len = length ?? this.byteLength - offset;
         const view = this.viewBytes(offset, len);
         // Buffer is registered globally by `@gjsify/buffer/register`. We
         // type the structural `Buffer.from(ArrayBuffer, …)` overload via
         // the runtime-globals view.
-        interface _BufferStatic { from(buffer: ArrayBufferLike, byteOffset?: number, length?: number): unknown }
+        interface _BufferStatic {
+            from(buffer: ArrayBufferLike, byteOffset?: number, length?: number): unknown;
+        }
         const BufferCtor = (_runtime as unknown as { Buffer?: _BufferStatic }).Buffer;
         if (typeof BufferCtor?.from !== 'function') {
             throw new Error(
                 'SharedBuffer.toBuffer: globalThis.Buffer is not registered. ' +
-                'Import "@gjsify/buffer/register" or rely on --globals auto.'
+                    'Import "@gjsify/buffer/register" or rely on --globals auto.',
             );
         }
         // Buffer.from(ArrayBuffer, byteOffset, length) is zero-copy in
@@ -315,8 +336,10 @@ export class SharedBuffer {
             bytes = byteArray.toGBytes(data);
         } else {
             // Fallback: GLib.Bytes from a Uint8Array via global GLib.
-            interface _GLibBytesCtor { Bytes?: new (data: Uint8Array) => unknown }
-            const GLib = (_runtime.imports?.gi?.GLib as _GLibBytesCtor | undefined);
+            interface _GLibBytesCtor {
+                Bytes?: new (data: Uint8Array) => unknown;
+            }
+            const GLib = _runtime.imports?.gi?.GLib as _GLibBytesCtor | undefined;
             bytes = GLib?.Bytes ? new GLib.Bytes(data) : data;
         }
         this._assertOpen().write_bytes(offset, bytes);
@@ -378,9 +401,14 @@ export const atomics = {
      *   - `'timed-out'`  — timeout expired before any wake.
      *   - `'interrupted'` — interrupted by signal (EINTR); caller may retry.
      */
-    wait32(sb: SharedBuffer, offset: number, expected: number, timeoutMs: number): 'ok' | 'not-equal' | 'timed-out' | 'interrupted' {
+    wait32(
+        sb: SharedBuffer,
+        offset: number,
+        expected: number,
+        timeoutMs: number,
+    ): 'ok' | 'not-equal' | 'timed-out' | 'interrupted' {
         const r = sb._nativeHandle.futex_wait(offset, expected | 0, timeoutMs | 0);
-        if (r === 0)  return 'ok';
+        if (r === 0) return 'ok';
         if (r === -1) return 'not-equal';
         if (r === -2) return 'timed-out';
         if (r === -3) return 'interrupted';
@@ -401,36 +429,38 @@ export const atomics = {
  * cross-process SharedBuffer transfer at `Worker` spawn time. Direct
  * consumers should use `Worker.postMessage(value, [sb])` instead.
  */
-export const fdChannel = _mod ? {
-    makePair(): { parentFd: number; childFd: number } {
-        const [ok, parent_fd, child_fd] = _mod!.FdChannel.make_pair();
-        if (!ok) throw new Error('socketpair() failed');
-        return { parentFd: parent_fd, childFd: child_fd };
-    },
-    /**
-     * Send one fd over an open SOCK_SEQPACKET pair via SCM_RIGHTS. Returns
-     * `true` on success, `false` on `sendmsg()` failure (errno preserved on
-     * the calling thread — caller surfaces the error in whatever shape
-     * makes sense for the situation).
-     */
-    sendFd(socketFd: number, fdToSend: number, tag: number): boolean {
-        return _mod!.FdChannel.send_fd(socketFd, fdToSend, tag >>> 0);
-    },
-    /**
-     * Blocking recv of one fd. Returns the received fd + tag, or null on
-     * orderly EOF.
-     */
-    recvFd(socketFd: number): { fd: number; tag: number } | null {
-        const [fd, tag] = _mod!.FdChannel.recv_fd(socketFd);
-        if (fd === 0)  return null;       // orderly EOF
-        if (fd < 0)    throw new Error('recvmsg failed');
-        return { fd, tag: tag >>> 0 };
-    },
-    /**
-     * close(2) on a fd previously created by `makePair()` (or any fd, really).
-     * Idempotent — closing an already-closed fd is fine.
-     */
-    closeFd(fd: number): void {
-        _mod!.FdChannel.close_fd(fd);
-    },
-} : null;
+export const fdChannel = _mod
+    ? {
+          makePair(): { parentFd: number; childFd: number } {
+              const [ok, parent_fd, child_fd] = _mod!.FdChannel.make_pair();
+              if (!ok) throw new Error('socketpair() failed');
+              return { parentFd: parent_fd, childFd: child_fd };
+          },
+          /**
+           * Send one fd over an open SOCK_SEQPACKET pair via SCM_RIGHTS. Returns
+           * `true` on success, `false` on `sendmsg()` failure (errno preserved on
+           * the calling thread — caller surfaces the error in whatever shape
+           * makes sense for the situation).
+           */
+          sendFd(socketFd: number, fdToSend: number, tag: number): boolean {
+              return _mod!.FdChannel.send_fd(socketFd, fdToSend, tag >>> 0);
+          },
+          /**
+           * Blocking recv of one fd. Returns the received fd + tag, or null on
+           * orderly EOF.
+           */
+          recvFd(socketFd: number): { fd: number; tag: number } | null {
+              const [fd, tag] = _mod!.FdChannel.recv_fd(socketFd);
+              if (fd === 0) return null; // orderly EOF
+              if (fd < 0) throw new Error('recvmsg failed');
+              return { fd, tag: tag >>> 0 };
+          },
+          /**
+           * close(2) on a fd previously created by `makePair()` (or any fd, really).
+           * Idempotent — closing an already-closed fd is fine.
+           */
+          closeFd(fd: number): void {
+              _mod!.FdChannel.close_fd(fd);
+          },
+      }
+    : null;

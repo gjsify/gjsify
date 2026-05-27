@@ -102,7 +102,8 @@ async function installViaNpm({ prefix, specs, verbose, registry }: InstallOption
         '--no-package-lock',
         '--no-audit',
         '--no-fund',
-        '--prefix', prefix,
+        '--prefix',
+        prefix,
         ...(verbose ? ['--loglevel', 'verbose'] : ['--loglevel', 'warn']),
         ...specs,
     ];
@@ -114,9 +115,10 @@ async function installViaNpm({ prefix, specs, verbose, registry }: InstallOption
             else reject(new Error(`npm install exited with code ${code}`));
         });
         child.on('error', (err) => {
-            const msg = (err as NodeJS.ErrnoException).code === 'ENOENT'
-                ? 'npm not found on PATH — install Node.js or set GJSIFY_INSTALL_BACKEND=native (not yet supported)'
-                : `npm install failed: ${err.message}`;
+            const msg =
+                (err as NodeJS.ErrnoException).code === 'ENOENT'
+                    ? 'npm not found on PATH — install Node.js or set GJSIFY_INSTALL_BACKEND=native (not yet supported)'
+                    : `npm install failed: ${err.message}`;
             reject(new Error(msg));
         });
     });

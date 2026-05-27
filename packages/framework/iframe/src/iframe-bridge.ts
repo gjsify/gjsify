@@ -35,175 +35,175 @@ import type { IFrameBridgeOptions, IFrameReadyCallback } from './types/index.js'
  * ```
  */
 export const IFrameBridge = GObject.registerClass(
-	{ GTypeName: 'GjsifyIFrameBridge' },
-	class IFrameBridge extends WebKit.WebView {
-		_iframe: HTMLIFrameElement;
-		_messageBridge: MessageBridge;
-		_readyCallbacks: IFrameReadyCallback[] = [];
-		_options: IFrameBridgeOptions;
+    { GTypeName: 'GjsifyIFrameBridge' },
+    class IFrameBridge extends WebKit.WebView {
+        _iframe: HTMLIFrameElement;
+        _messageBridge: MessageBridge;
+        _readyCallbacks: IFrameReadyCallback[] = [];
+        _options: IFrameBridgeOptions;
 
-		constructor(options?: IFrameBridgeOptions & Partial<WebKit.WebView.ConstructorProps>) {
-			const { enableDeveloperExtras, enableJavascript, ...webViewProps } = options ?? {};
+        constructor(options?: IFrameBridgeOptions & Partial<WebKit.WebView.ConstructorProps>) {
+            const { enableDeveloperExtras, enableJavascript, ...webViewProps } = options ?? {};
 
-			const userContentManager = new WebKit.UserContentManager();
-			const settings = new WebKit.Settings();
-			settings.enable_javascript = enableJavascript ?? true;
-			settings.enable_developer_extras = enableDeveloperExtras ?? true;
+            const userContentManager = new WebKit.UserContentManager();
+            const settings = new WebKit.Settings();
+            settings.enable_javascript = enableJavascript ?? true;
+            settings.enable_developer_extras = enableDeveloperExtras ?? true;
 
-			super({
-				...webViewProps,
-				user_content_manager: userContentManager,
-				settings,
-			});
+            super({
+                ...webViewProps,
+                user_content_manager: userContentManager,
+                settings,
+            });
 
-			this._options = { enableDeveloperExtras, enableJavascript };
+            this._options = { enableDeveloperExtras, enableJavascript };
 
-			// Create the DOM element and link it to this widget
-			this._iframe = new HTMLIFrameElement();
-			this._iframe[PS.iframeWidget] = this as unknown as import('./iframe-bridge.js').IFrameBridge;
+            // Create the DOM element and link it to this widget
+            this._iframe = new HTMLIFrameElement();
+            this._iframe[PS.iframeWidget] = this as unknown as import('./iframe-bridge.js').IFrameBridge;
 
-			// Set up the message bridge
-			this._messageBridge = new MessageBridge(this);
+            // Set up the message bridge
+            this._messageBridge = new MessageBridge(this);
 
-			// Create the window proxy and connect it
-			const windowProxy = new IFrameWindowProxy(this._messageBridge);
-			this._iframe[PS.windowProxy] = windowProxy;
-			this._messageBridge.setWindowProxy(windowProxy);
+            // Create the window proxy and connect it
+            const windowProxy = new IFrameWindowProxy(this._messageBridge);
+            this._iframe[PS.windowProxy] = windowProxy;
+            this._messageBridge.setWindowProxy(windowProxy);
 
-			// Track load state
-			this.connect('load-changed', (_webView: WebKit.WebView, event: WebKit.LoadEvent) => {
-				switch (event) {
-					case WebKit.LoadEvent.COMMITTED: {
-						const uri = this.get_uri();
-						if (uri) this._messageBridge.updateUri(uri);
-						break;
-					}
-					case WebKit.LoadEvent.FINISHED:
-						this._iframe._onLoad();
-						for (const cb of this._readyCallbacks) {
-							cb(this._iframe as unknown as globalThis.HTMLIFrameElement);
-						}
-						this._readyCallbacks = [];
-						break;
-				}
-			});
+            // Track load state
+            this.connect('load-changed', (_webView: WebKit.WebView, event: WebKit.LoadEvent) => {
+                switch (event) {
+                    case WebKit.LoadEvent.COMMITTED: {
+                        const uri = this.get_uri();
+                        if (uri) this._messageBridge.updateUri(uri);
+                        break;
+                    }
+                    case WebKit.LoadEvent.FINISHED:
+                        this._iframe._onLoad();
+                        for (const cb of this._readyCallbacks) {
+                            cb(this._iframe as unknown as globalThis.HTMLIFrameElement);
+                        }
+                        this._readyCallbacks = [];
+                        break;
+                }
+            });
 
-			this.connect('load-failed', () => {
-				this._iframe._onError();
-				return false;
-			});
+            this.connect('load-failed', () => {
+                this._iframe._onError();
+                return false;
+            });
 
-			// Surface WebKit.WebView allocation changes to any ResizeObserver
-			// observing the paired HTMLIFrameElement (or any ancestor of it —
-			// see notifyElementResize for the ancestor-walk rationale).
-			this.connect('resize', () => {
-				const width = this.get_allocated_width();
-				const height = this.get_allocated_height();
-				notifyElementResize(this._iframe, width, height);
-			});
+            // Surface WebKit.WebView allocation changes to any ResizeObserver
+            // observing the paired HTMLIFrameElement (or any ancestor of it —
+            // see notifyElementResize for the ancestor-walk rationale).
+            this.connect('resize', () => {
+                const width = this.get_allocated_width();
+                const height = this.get_allocated_height();
+                notifyElementResize(this._iframe, width, height);
+            });
 
-			this.connect('unrealize', () => {
-				this._messageBridge.destroy();
-				const proxy = this._iframe[PS.windowProxy];
-				if (proxy) {
-					proxy._close();
-				}
-				this._iframe[PS.iframeWidget] = null;
-				this._iframe[PS.windowProxy] = null;
-			});
-		}
+            this.connect('unrealize', () => {
+                this._messageBridge.destroy();
+                const proxy = this._iframe[PS.windowProxy];
+                if (proxy) {
+                    proxy._close();
+                }
+                this._iframe[PS.iframeWidget] = null;
+                this._iframe[PS.windowProxy] = null;
+            });
+        }
 
-		/** The HTMLIFrameElement wrapping this WebView. */
-		get iframeElement(): HTMLIFrameElement {
-			return this._iframe;
-		}
+        /** The HTMLIFrameElement wrapping this WebView. */
+        get iframeElement(): HTMLIFrameElement {
+            return this._iframe;
+        }
 
-		/**
-		 * Register a callback to be invoked when content has loaded.
-		 * If content is already loaded, the callback fires on next load.
-		 */
-		onReady(cb: IFrameReadyCallback): void {
-			this._readyCallbacks.push(cb);
-		}
+        /**
+         * Register a callback to be invoked when content has loaded.
+         * If content is already loaded, the callback fires on next load.
+         */
+        onReady(cb: IFrameReadyCallback): void {
+            this._readyCallbacks.push(cb);
+        }
 
-		/**
-		 * Load a URI into the WebView.
-		 * Also updates the iframe element's src attribute.
-		 */
-		loadUri(uri: string): void {
-			this._iframe.setAttribute('src', uri);
-			this.load_uri(uri);
-		}
+        /**
+         * Load a URI into the WebView.
+         * Also updates the iframe element's src attribute.
+         */
+        loadUri(uri: string): void {
+            this._iframe.setAttribute('src', uri);
+            this.load_uri(uri);
+        }
 
-		/**
-		 * Load inline HTML into the WebView.
-		 * Also updates the iframe element's srcdoc attribute.
-		 */
-		loadHtml(html: string, baseUri?: string): void {
-			this._iframe.setAttribute('srcdoc', html);
-			this.load_html(html, baseUri ?? 'about:srcdoc');
-		}
+        /**
+         * Load inline HTML into the WebView.
+         * Also updates the iframe element's srcdoc attribute.
+         */
+        loadHtml(html: string, baseUri?: string): void {
+            this._iframe.setAttribute('srcdoc', html);
+            this.load_html(html, baseUri ?? 'about:srcdoc');
+        }
 
-		/**
-		 * Send a message to the WebView content via the standard postMessage API.
-		 * Equivalent to `this.iframeElement.contentWindow.postMessage(message, targetOrigin)`.
-		 */
-		postMessage(message: unknown, targetOrigin = '*'): void {
-			this._messageBridge.sendToWebView(message, targetOrigin);
-		}
+        /**
+         * Send a message to the WebView content via the standard postMessage API.
+         * Equivalent to `this.iframeElement.contentWindow.postMessage(message, targetOrigin)`.
+         */
+        postMessage(message: unknown, targetOrigin = '*'): void {
+            this._messageBridge.sendToWebView(message, targetOrigin);
+        }
 
-		/**
-		 * Navigate the embedded WebView back one entry in its internal
-		 * history list. No-op when `canGoBack` is false.
-		 *
-		 * Note: reflects WebKit's own navigation history (independent of
-		 * any application-level history the embedder maintains). The
-		 * browser `<iframe>` element has no equivalent — cross-origin
-		 * iframes cannot be navigated programmatically by the parent. For
-		 * cross-variant (browser + GJS) parity, embedders typically track
-		 * URLs themselves and call `loadUri(url)`; the methods here exist
-		 * for apps that DO want to expose the WebKit-internal back/forward
-		 * list directly (e.g. a "WebView with browser-like UX").
-		 */
-		goBack(): void {
-			this.go_back();
-		}
+        /**
+         * Navigate the embedded WebView back one entry in its internal
+         * history list. No-op when `canGoBack` is false.
+         *
+         * Note: reflects WebKit's own navigation history (independent of
+         * any application-level history the embedder maintains). The
+         * browser `<iframe>` element has no equivalent — cross-origin
+         * iframes cannot be navigated programmatically by the parent. For
+         * cross-variant (browser + GJS) parity, embedders typically track
+         * URLs themselves and call `loadUri(url)`; the methods here exist
+         * for apps that DO want to expose the WebKit-internal back/forward
+         * list directly (e.g. a "WebView with browser-like UX").
+         */
+        goBack(): void {
+            this.go_back();
+        }
 
-		/** Navigate forward in the WebView's internal history. No-op when
-		 *  `canGoForward` is false. See `goBack()` for caveats. */
-		goForward(): void {
-			this.go_forward();
-		}
+        /** Navigate forward in the WebView's internal history. No-op when
+         *  `canGoForward` is false. See `goBack()` for caveats. */
+        goForward(): void {
+            this.go_forward();
+        }
 
-		// `reload()` is inherited from WebKit.WebView verbatim — no
-		// camelCase rewrap needed (the GIR-generated method name already
-		// matches the convention). Apps call `iframeWidget.reload()`
-		// directly.
+        // `reload()` is inherited from WebKit.WebView verbatim — no
+        // camelCase rewrap needed (the GIR-generated method name already
+        // matches the convention). Apps call `iframeWidget.reload()`
+        // directly.
 
-		/** True when the WebView has prior entries in its internal history.
-		 *  Reflects WebKit's `can-go-back` state, NOT any application-level
-		 *  history stack. */
-		get canGoBack(): boolean {
-			return this.can_go_back();
-		}
+        /** True when the WebView has prior entries in its internal history.
+         *  Reflects WebKit's `can-go-back` state, NOT any application-level
+         *  history stack. */
+        get canGoBack(): boolean {
+            return this.can_go_back();
+        }
 
-		/** True when the WebView has forward entries in its internal history.
-		 *  Reflects WebKit's `can-go-forward` state. */
-		get canGoForward(): boolean {
-			return this.can_go_forward();
-		}
+        /** True when the WebView has forward entries in its internal history.
+         *  Reflects WebKit's `can-go-forward` state. */
+        get canGoForward(): boolean {
+            return this.can_go_forward();
+        }
 
-		/**
-		 * Set `globalThis.HTMLIFrameElement` to the gjsify implementation.
-		 */
-		installGlobals(): void {
-			Object.defineProperty(globalThis, 'HTMLIFrameElement', {
-				value: HTMLIFrameElement,
-				writable: true,
-				configurable: true,
-			});
-		}
-	},
+        /**
+         * Set `globalThis.HTMLIFrameElement` to the gjsify implementation.
+         */
+        installGlobals(): void {
+            Object.defineProperty(globalThis, 'HTMLIFrameElement', {
+                value: HTMLIFrameElement,
+                writable: true,
+                configurable: true,
+            });
+        }
+    },
 );
 
 export type IFrameBridge = InstanceType<typeof IFrameBridge>;

@@ -15,14 +15,9 @@
 // should gate with hasOcspSupport() and fall back to whatever the
 // no-OCSP path is (typically: skip the extra revocation check).
 
-export type {
-    OcspResponseInfo,
-} from '@gjsify/tls-native';
+export type { OcspResponseInfo } from '@gjsify/tls-native';
 
-export {
-    OcspCertStatus,
-    OcspResponseStatus,
-} from '@gjsify/tls-native';
+export { OcspCertStatus, OcspResponseStatus } from '@gjsify/tls-native';
 
 import {
     parseOcspResponse as _parseOcspResponse,

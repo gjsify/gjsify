@@ -14,7 +14,6 @@ import { KeyboardEvent as OurKeyboardEvent } from '@gjsify/dom-events';
 
 export default async () => {
     await on('Gjs', async () => {
-
         await describe('globalThis FontFace / document.fonts', async () => {
             // Excalibur's FontSource.load() uses these via globalThis (no import).
             await it('FontFace is available as a constructor on globalThis', async () => {
@@ -42,7 +41,11 @@ export default async () => {
                 const face = new FF('Round9x13', 'url(/res/fonts/Round9x13.ttf)');
                 await face.load();
                 let threw = false;
-                try { (globalThis as any).document.fonts.add(face); } catch { threw = true; }
+                try {
+                    (globalThis as any).document.fonts.add(face);
+                } catch {
+                    threw = true;
+                }
                 expect(threw).toBe(false);
             });
         });
@@ -75,7 +78,10 @@ export default async () => {
                     received.push(e.key);
                 });
                 const evt = new OurKeyboardEvent('keydown', {
-                    key: 'ArrowRight', code: 'ArrowRight', bubbles: true, cancelable: true,
+                    key: 'ArrowRight',
+                    code: 'ArrowRight',
+                    bubbles: true,
+                    cancelable: true,
                 });
                 (globalThis as any).__gjsify_globalEventTarget.dispatchEvent(evt);
                 expect(received).toContain('ArrowRight');
@@ -131,6 +137,5 @@ export default async () => {
                 expect(Number.isFinite(pageX)).toBe(true);
             });
         });
-
     });
 };

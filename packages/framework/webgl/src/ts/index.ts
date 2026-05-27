@@ -5,8 +5,8 @@ import { WebGLRenderingContext } from './webgl-rendering-context.js';
 import { WebGL2RenderingContext } from './webgl2-rendering-context.js';
 
 interface _WebGLGlobals {
-  WebGLRenderingContext?: typeof WebGLRenderingContext;
-  WebGL2RenderingContext?: typeof WebGL2RenderingContext;
+    WebGLRenderingContext?: typeof WebGLRenderingContext;
+    WebGL2RenderingContext?: typeof WebGL2RenderingContext;
 }
 const _g = globalThis as unknown as _WebGLGlobals;
 _g.WebGLRenderingContext = WebGLRenderingContext;

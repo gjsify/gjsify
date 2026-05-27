@@ -28,12 +28,22 @@ export class RTCSctpTransport extends EventTarget {
         this.transport = dtlsTransport;
     }
 
-    get state(): RTCSctpTransportState { return this._state; }
-    get maxMessageSize(): number { return this._maxMessageSize; }
-    get maxChannels(): number | null { return this._maxChannels; }
+    get state(): RTCSctpTransportState {
+        return this._state;
+    }
+    get maxMessageSize(): number {
+        return this._maxMessageSize;
+    }
+    get maxChannels(): number | null {
+        return this._maxChannels;
+    }
 
-    get onstatechange(): EventHandler { return this._onstatechange; }
-    set onstatechange(v: EventHandler) { this._onstatechange = v; }
+    get onstatechange(): EventHandler {
+        return this._onstatechange;
+    }
+    set onstatechange(v: EventHandler) {
+        this._onstatechange = v;
+    }
 
     // ---- Internal setters (called by RTCPeerConnection) ---------------------
 

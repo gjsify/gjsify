@@ -18,7 +18,6 @@ function arrClose(a: Float32Array | Int32Array | number[], b: number[], tol = 0.
 
 export default async () => {
     await on('Display', async () => {
-
         const setup = createGLSetup();
         if (!setup) {
             console.warn('WebGL context not available — skipping conformance/state tests');
@@ -30,7 +29,9 @@ export default async () => {
         // ── gl-getstring ───────────────────────────────────────────────────────
 
         await describe('conformance/state/gl-getstring', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('VERSION starts with "WebGL 1.0"', async () => {
                 const v = gl.getParameter(gl.VERSION) as string;
@@ -59,7 +60,9 @@ export default async () => {
         // ── gl-initial-state ───────────────────────────────────────────────────
 
         await describe('conformance/state/gl-initial-state — blend', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('BLEND_SRC_RGB initial value is ONE', async () => {
                 expect(gl.getParameter(gl.BLEND_SRC_RGB)).toBe(gl.ONE);
@@ -94,7 +97,9 @@ export default async () => {
         // ── gl-get-calls — initial state ───────────────────────────────────────
 
         await describe('conformance/state/gl-get-calls — initial state', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('ACTIVE_TEXTURE initial value is TEXTURE0', async () => {
                 expect(gl.getParameter(gl.ACTIVE_TEXTURE)).toBe(gl.TEXTURE0);
@@ -287,7 +292,9 @@ export default async () => {
         // ── gl-get-calls — state change round-trip ─────────────────────────────
 
         await describe('conformance/state/gl-get-calls — state changes', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('clearColor updates COLOR_CLEAR_VALUE', async () => {
                 gl.clearColor(0.1, 0.2, 0.3, 0.4);
@@ -329,12 +336,20 @@ export default async () => {
         // ── gl-enable-enum-test ────────────────────────────────────────────────
 
         await describe('conformance/state/gl-enable-enum-test', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             const validCaps = [
-                'BLEND', 'CULL_FACE', 'DEPTH_TEST', 'DITHER',
-                'POLYGON_OFFSET_FILL', 'SAMPLE_ALPHA_TO_COVERAGE',
-                'SAMPLE_COVERAGE', 'SCISSOR_TEST', 'STENCIL_TEST',
+                'BLEND',
+                'CULL_FACE',
+                'DEPTH_TEST',
+                'DITHER',
+                'POLYGON_OFFSET_FILL',
+                'SAMPLE_ALPHA_TO_COVERAGE',
+                'SAMPLE_COVERAGE',
+                'SCISSOR_TEST',
+                'STENCIL_TEST',
             ] as const;
 
             for (const cap of validCaps) {
@@ -349,12 +364,13 @@ export default async () => {
                     expect(gl.isEnabled(val)).toBe(false);
                     expect(gl.getError()).toBe(gl.NO_ERROR);
                     // restore
-                    if (was) gl.enable(val); else gl.disable(val);
+                    if (was) gl.enable(val);
+                    else gl.disable(val);
                 });
             }
 
             await it('enable with invalid enum generates INVALID_ENUM', async () => {
-                gl.enable(0x0BC0); // GL_ALPHA_TEST — desktop-only
+                gl.enable(0x0bc0); // GL_ALPHA_TEST — desktop-only
                 expect(gl.getError()).toBe(gl.INVALID_ENUM);
             });
         });
@@ -362,10 +378,12 @@ export default async () => {
         // ── gl-geterror ────────────────────────────────────────────────────────
 
         await describe('conformance/state/gl-geterror', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('enable(ALPHA_TEST desktop enum) generates INVALID_ENUM', async () => {
-                gl.enable(0x0BC0);
+                gl.enable(0x0bc0);
                 expect(gl.getError()).toBe(gl.INVALID_ENUM);
             });
 
@@ -381,7 +399,9 @@ export default async () => {
         // ── gl-object-get-calls — getBufferParameter ───────────────────────────
 
         await describe('conformance/state/gl-object-get-calls — getBufferParameter', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('getBufferParameter BUFFER_SIZE returns correct size after bufferData', async () => {
                 gl.getError(); // flush any stale error from previous tests
@@ -407,7 +427,9 @@ export default async () => {
         // ── gl-object-get-calls — getRenderbufferParameter ────────────────────
 
         await describe('conformance/state/gl-object-get-calls — getRenderbufferParameter', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('getRenderbufferParameter returns correct width/height/format', async () => {
                 const rb = gl.createRenderbuffer()!;
@@ -415,8 +437,7 @@ export default async () => {
                 gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA4, 64, 32);
                 expect(gl.getRenderbufferParameter(gl.RENDERBUFFER, gl.RENDERBUFFER_WIDTH)).toBe(64);
                 expect(gl.getRenderbufferParameter(gl.RENDERBUFFER, gl.RENDERBUFFER_HEIGHT)).toBe(32);
-                expect(gl.getRenderbufferParameter(gl.RENDERBUFFER, gl.RENDERBUFFER_INTERNAL_FORMAT))
-                    .toBe(gl.RGBA4);
+                expect(gl.getRenderbufferParameter(gl.RENDERBUFFER, gl.RENDERBUFFER_INTERNAL_FORMAT)).toBe(gl.RGBA4);
                 expect(gl.getError()).toBe(gl.NO_ERROR);
                 gl.bindRenderbuffer(gl.RENDERBUFFER, null);
                 gl.deleteRenderbuffer(rb);

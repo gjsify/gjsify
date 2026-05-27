@@ -20,12 +20,7 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, existsSync, readFileSync, cpSync } from 'node:fs';
 import { join } from 'node:path';
 
-import {
-  createTestEnvironment,
-  cleanupTestEnvironment,
-  setupProject,
-  hasCommand,
-} from '../helpers.mjs';
+import { createTestEnvironment, cleanupTestEnvironment, setupProject, hasCommand } from '../helpers.mjs';
 
 /**
  * A `node_modules/@fixture/dynamic-reader` package whose entry reads its own
@@ -35,117 +30,137 @@ import {
  * the dep's real on-disk location wherever the bundle ends up.
  */
 function createFixture(projectDir) {
-  const pkgDir = join(projectDir, 'node_modules', '@fixture', 'dynamic-reader');
-  mkdirSync(pkgDir, { recursive: true });
-  writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({
-    name: '@fixture/dynamic-reader',
-    version: '4.2.0',
-    type: 'module',
-    main: './index.js',
-    exports: { '.': './index.js' },
-  }, null, 2));
-  writeFileSync(join(pkgDir, 'data.json'),
-    JSON.stringify({ secret: 'resolved-at-runtime' }) + '\n'
-  );
-  writeFileSync(join(pkgDir, 'index.js'),
-    `import { readFileSync } from 'node:fs';\n` +
-    `import { fileURLToPath } from 'node:url';\n` +
-    `\n` +
-    `// Dynamic name → NOT statically inlinable → import.meta.url is rewritten\n` +
-    `// to the runtime resolver, which must find this file wherever installed.\n` +
-    `function load(name) {\n` +
-    `  const p = fileURLToPath(new URL('./' + name + '.json', import.meta.url));\n` +
-    `  return JSON.parse(readFileSync(p, 'utf8'));\n` +
-    `}\n` +
-    `\n` +
-    `export function getSecret() {\n` +
-    `  return load('data').secret;\n` +
-    `}\n`
-  );
-  return pkgDir;
+    const pkgDir = join(projectDir, 'node_modules', '@fixture', 'dynamic-reader');
+    mkdirSync(pkgDir, { recursive: true });
+    writeFileSync(
+        join(pkgDir, 'package.json'),
+        JSON.stringify(
+            {
+                name: '@fixture/dynamic-reader',
+                version: '4.2.0',
+                type: 'module',
+                main: './index.js',
+                exports: { '.': './index.js' },
+            },
+            null,
+            2,
+        ),
+    );
+    writeFileSync(join(pkgDir, 'data.json'), JSON.stringify({ secret: 'resolved-at-runtime' }) + '\n');
+    writeFileSync(
+        join(pkgDir, 'index.js'),
+        `import { readFileSync } from 'node:fs';\n` +
+            `import { fileURLToPath } from 'node:url';\n` +
+            `\n` +
+            `// Dynamic name → NOT statically inlinable → import.meta.url is rewritten\n` +
+            `// to the runtime resolver, which must find this file wherever installed.\n` +
+            `function load(name) {\n` +
+            `  const p = fileURLToPath(new URL('./' + name + '.json', import.meta.url));\n` +
+            `  return JSON.parse(readFileSync(p, 'utf8'));\n` +
+            `}\n` +
+            `\n` +
+            `export function getSecret() {\n` +
+            `  return load('data').secret;\n` +
+            `}\n`,
+    );
+    return pkgDir;
 }
 
 describe('Published-bundle runtime resolve E2E', { timeout: 10 * 60 * 1000 }, () => {
-  let tmpDir;
-  let tarballsDir;
-  let tarballMap;
-  let projectDir;
+    let tmpDir;
+    let tarballsDir;
+    let tarballMap;
+    let projectDir;
 
-  before(() => {
-    const env = createTestEnvironment('gjsify-e2e-published-bundle-reads-');
-    tmpDir = env.tmpDir;
-    tarballsDir = env.tarballsDir;
-    tarballMap = env.tarballMap;
+    before(() => {
+        const env = createTestEnvironment('gjsify-e2e-published-bundle-reads-');
+        tmpDir = env.tmpDir;
+        tarballsDir = env.tarballsDir;
+        tarballMap = env.tarballMap;
 
-    projectDir = join(tmpDir, 'project');
-    mkdirSync(join(projectDir, 'src'), { recursive: true });
+        projectDir = join(tmpDir, 'project');
+        mkdirSync(join(projectDir, 'src'), { recursive: true });
 
-    setupProject(projectDir, {
-      name: 'test-published-bundle-reads',
-      version: '0.1.0',
-      type: 'module',
-      private: true,
-      dependencies: { '@gjsify/cli': '^0.1.0' },
-    }, tarballsDir, tarballMap);
+        setupProject(
+            projectDir,
+            {
+                name: 'test-published-bundle-reads',
+                version: '0.1.0',
+                type: 'module',
+                private: true,
+                dependencies: { '@gjsify/cli': '^0.1.0' },
+            },
+            tarballsDir,
+            tarballMap,
+        );
 
-    createFixture(projectDir);
+        createFixture(projectDir);
 
-    writeFileSync(join(projectDir, 'src', 'app.ts'),
-      `import { getSecret } from '@fixture/dynamic-reader';\n` +
-      `console.log('OK:' + getSecret());\n`
-    );
-  });
+        writeFileSync(
+            join(projectDir, 'src', 'app.ts'),
+            `import { getSecret } from '@fixture/dynamic-reader';\n` + `console.log('OK:' + getSecret());\n`,
+        );
+    });
 
-  after(() => {
-    cleanupTestEnvironment(tmpDir);
-  });
+    after(() => {
+        cleanupTestEnvironment(tmpDir);
+    });
 
-  it('rewrites a dynamic dep read to runtime resolution and survives relocation', () => {
-    const outDir = join(projectDir, 'dist');
-    mkdirSync(outDir, { recursive: true });
-    const bundlePath = join(outDir, 'app.gjs.mjs');
-    execFileSync('npx', ['gjsify', 'build', 'src/app.ts',
-      '--app', 'gjs',
-      '--outfile', bundlePath,
-      '--no-minify',
-    ], { cwd: projectDir, stdio: 'pipe', timeout: 120 * 1000 });
+    it('rewrites a dynamic dep read to runtime resolution and survives relocation', () => {
+        const outDir = join(projectDir, 'dist');
+        mkdirSync(outDir, { recursive: true });
+        const bundlePath = join(outDir, 'app.gjs.mjs');
+        execFileSync('npx', ['gjsify', 'build', 'src/app.ts', '--app', 'gjs', '--outfile', bundlePath, '--no-minify'], {
+            cwd: projectDir,
+            stdio: 'pipe',
+            timeout: 120 * 1000,
+        });
 
-    assert.ok(existsSync(bundlePath), 'bundle missing');
-    const bundle = readFileSync(bundlePath, 'utf-8');
+        assert.ok(existsSync(bundlePath), 'bundle missing');
+        const bundle = readFileSync(bundlePath, 'utf-8');
 
-    // The dep's import.meta.url must be rewritten to the runtime resolver
-    // keyed by the dep's package-qualified spec — NOT a build-relative path.
-    assert.ok(bundle.includes('__gjsifyModuleUrl("@fixture/dynamic-reader/index.js")'),
-      'bundle does not route the dep read through the runtime resolver');
-    assert.ok(bundle.includes('globalThis.__gjsifyBundleUrl'),
-      'bundle is missing the bundle-URL anchor banner');
-    // The build-relative path the old rewriter baked must be gone.
-    assert.ok(!bundle.includes('../../../node_modules/@fixture/dynamic-reader'),
-      'bundle still bakes a build-relative path to the dep (the publish bug)');
+        // The dep's import.meta.url must be rewritten to the runtime resolver
+        // keyed by the dep's package-qualified spec — NOT a build-relative path.
+        assert.ok(
+            bundle.includes('__gjsifyModuleUrl("@fixture/dynamic-reader/index.js")'),
+            'bundle does not route the dep read through the runtime resolver',
+        );
+        assert.ok(bundle.includes('globalThis.__gjsifyBundleUrl'), 'bundle is missing the bundle-URL anchor banner');
+        // The build-relative path the old rewriter baked must be gone.
+        assert.ok(
+            !bundle.includes('../../../node_modules/@fixture/dynamic-reader'),
+            'bundle still bakes a build-relative path to the dep (the publish bug)',
+        );
 
-    if (!hasCommand('gjs')) return;
+        if (!hasCommand('gjs')) return;
 
-    // Build-site run (sanity).
-    const out0 = execFileSync('gjs', ['-m', bundlePath], { stdio: 'pipe', timeout: 30 * 1000 }).toString();
-    assert.match(out0, /^OK:resolved-at-runtime/, `build-site run failed. Got: ${out0}`);
+        // Build-site run (sanity).
+        const out0 = execFileSync('gjs', ['-m', bundlePath], { stdio: 'pipe', timeout: 30 * 1000 }).toString();
+        assert.match(out0, /^OK:resolved-at-runtime/, `build-site run failed. Got: ${out0}`);
 
-    // Simulate PUBLISH: place the bundle at a DIFFERENT node_modules depth
-    // (node_modules/@app/cli/bin/<bundle>) with the dep installed alongside
-    // (node_modules/@fixture/dynamic-reader/). This is the exact layout the
-    // build-relative path got wrong. createRequire must walk up from the
-    // bundle and find the dep here.
-    const installRoot = join(tmpDir, 'installed');
-    const binDir = join(installRoot, 'node_modules', '@app', 'cli', 'bin');
-    mkdirSync(binDir, { recursive: true });
-    cpSync(bundlePath, join(binDir, 'app.gjs.mjs'));
-    cpSync(
-      join(projectDir, 'node_modules', '@fixture', 'dynamic-reader'),
-      join(installRoot, 'node_modules', '@fixture', 'dynamic-reader'),
-      { recursive: true },
-    );
+        // Simulate PUBLISH: place the bundle at a DIFFERENT node_modules depth
+        // (node_modules/@app/cli/bin/<bundle>) with the dep installed alongside
+        // (node_modules/@fixture/dynamic-reader/). This is the exact layout the
+        // build-relative path got wrong. createRequire must walk up from the
+        // bundle and find the dep here.
+        const installRoot = join(tmpDir, 'installed');
+        const binDir = join(installRoot, 'node_modules', '@app', 'cli', 'bin');
+        mkdirSync(binDir, { recursive: true });
+        cpSync(bundlePath, join(binDir, 'app.gjs.mjs'));
+        cpSync(
+            join(projectDir, 'node_modules', '@fixture', 'dynamic-reader'),
+            join(installRoot, 'node_modules', '@fixture', 'dynamic-reader'),
+            { recursive: true },
+        );
 
-    const out1 = execFileSync('gjs', ['-m', join(binDir, 'app.gjs.mjs')], { stdio: 'pipe', timeout: 30 * 1000 }).toString();
-    assert.match(out1, /^OK:resolved-at-runtime/,
-      `relocated (published-layout) bundle failed to resolve the dep read. Got: ${out1}`);
-  });
+        const out1 = execFileSync('gjs', ['-m', join(binDir, 'app.gjs.mjs')], {
+            stdio: 'pipe',
+            timeout: 30 * 1000,
+        }).toString();
+        assert.match(
+            out1,
+            /^OK:resolved-at-runtime/,
+            `relocated (published-layout) bundle failed to resolve the dep read. Got: ${out1}`,
+        );
+    });
 });

@@ -13,7 +13,7 @@ export type EventEmitter = EventEmitter_;
 // makeCallable-wrapped version, not the raw inner class. Typed-view rather
 // than `(EventEmitter as any).EventEmitter`.
 interface _EventEmitterCjsCompat {
-  EventEmitter: typeof EventEmitter;
+    EventEmitter: typeof EventEmitter;
 }
 (EventEmitter as unknown as _EventEmitterCjsCompat).EventEmitter = EventEmitter;
 

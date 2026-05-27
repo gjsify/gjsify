@@ -72,26 +72,48 @@ export class FontFaceSet {
 
     addEventListener(_type: string, _listener: unknown): void {}
     removeEventListener(_type: string, _listener: unknown): void {}
-    dispatchEvent(_event: unknown): boolean { return true; }
+    dispatchEvent(_event: unknown): boolean {
+        return true;
+    }
 
     add(face: FontFace): FontFaceSet {
         this._faces.add(face);
         return this;
     }
-    delete(face: FontFace): boolean { return this._faces.delete(face); }
-    clear(): void { this._faces.clear(); }
-    has(face: FontFace): boolean { return this._faces.has(face); }
-    check(_font: string, _text?: string): boolean { return false; }
-    load(_font: string, _text?: string): Promise<FontFace[]> { return Promise.resolve([]); }
-    forEach(callback: (value: FontFace, key: FontFace, parent: FontFaceSet) => void): void {
-        this._faces.forEach(f => callback(f, f, this));
+    delete(face: FontFace): boolean {
+        return this._faces.delete(face);
     }
-    values(): IterableIterator<FontFace> { return this._faces.values(); }
-    keys(): IterableIterator<FontFace> { return this._faces.values(); }
+    clear(): void {
+        this._faces.clear();
+    }
+    has(face: FontFace): boolean {
+        return this._faces.has(face);
+    }
+    check(_font: string, _text?: string): boolean {
+        return false;
+    }
+    load(_font: string, _text?: string): Promise<FontFace[]> {
+        return Promise.resolve([]);
+    }
+    forEach(callback: (value: FontFace, key: FontFace, parent: FontFaceSet) => void): void {
+        this._faces.forEach((f) => callback(f, f, this));
+    }
+    values(): IterableIterator<FontFace> {
+        return this._faces.values();
+    }
+    keys(): IterableIterator<FontFace> {
+        return this._faces.values();
+    }
     entries(): IterableIterator<[FontFace, FontFace]> {
         const faces = Array.from(this._faces);
-        return faces.map(f => [f, f] as [FontFace, FontFace])[Symbol.iterator]() as IterableIterator<[FontFace, FontFace]>;
+        return faces.map((f) => [f, f] as [FontFace, FontFace])[Symbol.iterator]() as IterableIterator<
+            [FontFace, FontFace]
+        >;
     }
-    [Symbol.iterator](): Iterator<FontFace> { return this._faces[Symbol.iterator](); }
-    get size(): number { return this._faces.size; }
+    [Symbol.iterator](): Iterator<FontFace> {
+        return this._faces[Symbol.iterator]();
+    }
+    get size(): number {
+        return this._faces.size;
+    }
 }

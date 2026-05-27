@@ -151,8 +151,8 @@ export interface TestFBOFloat {
  * Used for testing Three.js post-processing render target patterns.
  */
 export function makeTestFBOFloat(gl: WebGL2RenderingContext, width = 4, height = 4): TestFBOFloat {
-    const RGBA16F = 0x881A;
-    const HALF_FLOAT = 0x140B;
+    const RGBA16F = 0x881a;
+    const HALF_FLOAT = 0x140b;
     const fb = gl.createFramebuffer()!;
     const colorTex = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, colorTex);
@@ -174,8 +174,12 @@ export interface TestFBOWithDepthTexture extends TestFBO {
  * Create a w×h RGBA8 FBO with a DEPTH_COMPONENT24 texture attachment.
  * Three.js uses depth textures (not renderbuffers) for RenderPixelatedPass.
  */
-export function makeTestFBOWithDepthTexture(gl: WebGL2RenderingContext, width = 4, height = 4): TestFBOWithDepthTexture {
-    const DEPTH_COMPONENT24 = 0x81A6;
+export function makeTestFBOWithDepthTexture(
+    gl: WebGL2RenderingContext,
+    width = 4,
+    height = 4,
+): TestFBOWithDepthTexture {
+    const DEPTH_COMPONENT24 = 0x81a6;
     const DEPTH_COMPONENT = 0x1902;
     const UNSIGNED_INT = 0x1405;
 

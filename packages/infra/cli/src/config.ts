@@ -1,4 +1,4 @@
-import { APP_NAME } from  './constants.js';
+import { APP_NAME } from './constants.js';
 import { cosmiconfig, type Options as LoadOptions } from 'cosmiconfig';
 
 /** Default cosmiconfig search places for a given module name (matches cosmiconfig defaults). */
@@ -42,7 +42,12 @@ function merge<T extends Record<string, any>>(target: T, ...sources: Record<stri
 }
 
 function isPlainObject(val: unknown): val is Record<string, any> {
-    return typeof val === 'object' && val !== null && !Array.isArray(val) && Object.getPrototypeOf(val) === Object.prototype;
+    return (
+        typeof val === 'object' &&
+        val !== null &&
+        !Array.isArray(val) &&
+        Object.getPrototypeOf(val) === Object.prototype
+    );
 }
 
 /**
@@ -61,15 +66,20 @@ function readDottedPath(obj: Record<string, unknown>, path: string): unknown {
     return cursor;
 }
 
-import type { CliBuildOptions, ConfigData, CosmiconfigResult, ConfigDataTypescript, ConfigDataLibrary} from './types/index.js';
+import type {
+    CliBuildOptions,
+    ConfigData,
+    CosmiconfigResult,
+    ConfigDataTypescript,
+    ConfigDataLibrary,
+} from './types/index.js';
 import type { ArgumentsCamelCase } from 'yargs';
 
 export class Config {
-
-    readonly loadOptions: Partial<LoadOptions> = {}
+    readonly loadOptions: Partial<LoadOptions> = {};
 
     constructor(loadOptions: Partial<LoadOptions> = {}) {
-        if(Object.keys(loadOptions).length) {
+        if (Object.keys(loadOptions).length) {
             this.loadOptions = loadOptions;
         }
     }
@@ -92,14 +102,15 @@ export class Config {
         //      package.json#gjsify exists.
         const fileExplorer = cosmiconfig(APP_NAME, {
             ...this.loadOptions,
-            searchPlaces: (this.loadOptions.searchPlaces ?? defaultSearchPlaces(APP_NAME))
-                .filter((p) => p !== 'package.json'),
+            searchPlaces: (this.loadOptions.searchPlaces ?? defaultSearchPlaces(APP_NAME)).filter(
+                (p) => p !== 'package.json',
+            ),
         });
-        const fileResult = await fileExplorer.search(searchFrom) as CosmiconfigResult<ConfigData> | null;
+        const fileResult = (await fileExplorer.search(searchFrom)) as CosmiconfigResult<ConfigData> | null;
 
         const merged: ConfigData = {};
         try {
-            const pkg = await this.readPackageJSON(searchFrom) as { gjsify?: ConfigData };
+            const pkg = (await this.readPackageJSON(searchFrom)) as { gjsify?: ConfigData };
             if (isPlainObject(pkg?.gjsify)) merge(merged, pkg.gjsify);
         } catch {
             // Missing or unreadable package.json — skip.
@@ -120,24 +131,24 @@ export class Config {
     }
 
     /** Loads package.json of the current project */
-    private async readPackageJSON(dirPath?: string) {   
-        dirPath = await resolvePackageJSON(dirPath)     
+    private async readPackageJSON(dirPath?: string) {
+        dirPath = await resolvePackageJSON(dirPath);
         const pkg = await readPackageJSON(dirPath);
         return pkg;
     }
 
     /** Loads tsconfig.json of the current project */
-    private async readTSConfig(dirPath?: string) {     
+    private async readTSConfig(dirPath?: string) {
         const tsconfig = getTsconfig(dirPath)?.config || {};
         return tsconfig;
     }
 
     async forBuild(cliArgs: ArgumentsCamelCase<CliBuildOptions>) {
         const configFile = await this.load(process.cwd());
-        const configData: ConfigData = {...configFile.config};
+        const configData: ConfigData = { ...configFile.config };
         const configFilePath = configFile.filepath || process.cwd();
-        const pkg = await this.readPackageJSON(configFilePath) as ConfigDataLibrary;
-        const tsConfig = await this.readTSConfig(configFilePath) as ConfigDataTypescript;
+        const pkg = (await this.readPackageJSON(configFilePath)) as ConfigDataLibrary;
+        const tsConfig = (await this.readTSConfig(configFilePath)) as ConfigDataTypescript;
 
         tsConfig.reflection ||= cliArgs.reflection;
 
@@ -151,12 +162,15 @@ export class Config {
             const raw = Array.isArray(cliArgs.excludeGlobals)
                 ? cliArgs.excludeGlobals.join(',')
                 : String(cliArgs.excludeGlobals);
-            const ids = raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+            const ids = raw
+                .split(',')
+                .map((s: string) => s.trim())
+                .filter(Boolean);
             if (ids.length) configData.excludeGlobals = [...(configData.excludeGlobals ?? []), ...ids];
         }
 
-        merge(configData.library ??= {}, pkg, configData.library);
-        merge(configData.typescript ??= {}, tsConfig, configData.typescript);
+        merge((configData.library ??= {}), pkg, configData.library);
+        merge((configData.typescript ??= {}), tsConfig, configData.typescript);
 
         // Parse `KEY=VALUE` style flags into Record<string, string>.
         // - `--define`: VALUE is a JS expression (string literals must be
@@ -195,9 +209,7 @@ export class Config {
         if (configData.defineFromPackageJson) {
             for (const [name, spec] of Object.entries(configData.defineFromPackageJson)) {
                 if (!spec || typeof spec.field !== 'string' || !spec.field) {
-                    throw new Error(
-                        `gjsify config: defineFromPackageJson["${name}"] is missing a "field" string`,
-                    );
+                    throw new Error(`gjsify config: defineFromPackageJson["${name}"] is missing a "field" string`);
                 }
                 const value = readDottedPath(pkg as Record<string, unknown>, spec.field);
                 fromPkgDefines[name] = value === undefined ? 'undefined' : JSON.stringify(value);
@@ -207,9 +219,7 @@ export class Config {
         if (configData.defineFromEnv) {
             for (const [name, spec] of Object.entries(configData.defineFromEnv)) {
                 if (!spec || typeof spec.env !== 'string' || !spec.env) {
-                    throw new Error(
-                        `gjsify config: defineFromEnv["${name}"] is missing an "env" string`,
-                    );
+                    throw new Error(`gjsify config: defineFromEnv["${name}"] is missing an "env" string`);
                 }
                 const raw = process.env[spec.env];
                 const value = raw !== undefined ? raw : spec.default;
@@ -307,9 +317,8 @@ export class Config {
             };
         }
 
-        if(configData.verbose) console.debug("configData", configData);
+        if (configData.verbose) console.debug('configData', configData);
 
         return configData;
-
     }
 }

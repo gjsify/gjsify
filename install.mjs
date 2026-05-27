@@ -45,14 +45,17 @@ Gio._promisify(Gio.Subprocess.prototype, 'wait_check_async');
 // Substituted by `gjsify generate-installer` for end-user apps.
 const DEFAULT_TARGET = '@gjsify/cli';
 const DEFAULT_BIN_NAME = 'gjsify';
-const DEFAULT_BOOTSTRAP_URL =
-    'https://github.com/gjsify/gjsify/releases/latest/download/cli.gjs.mjs';
+const DEFAULT_BOOTSTRAP_URL = 'https://github.com/gjsify/gjsify/releases/latest/download/cli.gjs.mjs';
 const DEFAULT_BOOTSTRAP_SHA256_URL = `${DEFAULT_BOOTSTRAP_URL}.sha256`;
 
 const USER_AGENT = 'gjsify-installer/1.0';
 
-function info(msg) { print(`[gjsify] ${msg}`); }
-function error(msg) { printerr(`[gjsify] ERROR: ${msg}`); }
+function info(msg) {
+    print(`[gjsify] ${msg}`);
+}
+function error(msg) {
+    printerr(`[gjsify] ERROR: ${msg}`);
+}
 
 function parseArgs() {
     const argv = system?.programArgs ?? [];
@@ -63,9 +66,8 @@ function parseArgs() {
     let bootstrapUrl = GLib.getenv('GJSIFY_INSTALL_BOOTSTRAP_URL') || DEFAULT_BOOTSTRAP_URL;
     let bootstrapSha256Url = GLib.getenv('GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL');
     if (bootstrapSha256Url === null || bootstrapSha256Url === undefined) {
-        bootstrapSha256Url = bootstrapUrl === DEFAULT_BOOTSTRAP_URL
-            ? DEFAULT_BOOTSTRAP_SHA256_URL
-            : `${bootstrapUrl}.sha256`;
+        bootstrapSha256Url =
+            bootstrapUrl === DEFAULT_BOOTSTRAP_URL ? DEFAULT_BOOTSTRAP_SHA256_URL : `${bootstrapUrl}.sha256`;
     }
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i];
@@ -154,8 +156,7 @@ function sha256Hex(bytes) {
 function cacheDir() {
     const override = GLib.getenv('GJSIFY_INSTALL_BOOTSTRAP_CACHE');
     if (override) return override;
-    const xdg = GLib.getenv('XDG_CACHE_HOME') ||
-        GLib.build_filenamev([GLib.get_home_dir(), '.cache']);
+    const xdg = GLib.getenv('XDG_CACHE_HOME') || GLib.build_filenamev([GLib.get_home_dir(), '.cache']);
     return GLib.build_filenamev([xdg, 'gjsify', 'bootstrap']);
 }
 
@@ -164,9 +165,7 @@ function ensureDir(dir) {
 }
 
 function writeBytes(path, bytes) {
-    Gio.File.new_for_path(path).replace_contents(
-        bytes, null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null,
-    );
+    Gio.File.new_for_path(path).replace_contents(bytes, null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null);
 }
 
 async function downloadBootstrap(session, bootstrapUrl, sha256Url) {
@@ -190,7 +189,11 @@ async function downloadBootstrap(session, bootstrapUrl, sha256Url) {
         }
     }
     const dir = cacheDir();
-    try { ensureDir(dir); } catch { /* exists */ }
+    try {
+        ensureDir(dir);
+    } catch {
+        /* exists */
+    }
     const bundlePath = GLib.build_filenamev([dir, 'cli.gjs.mjs']);
     writeBytes(bundlePath, bundleBytes);
     info(`Bootstrap cached at ${bundlePath} (${bundleBytes.length} bytes)`);
@@ -220,7 +223,10 @@ async function runInstall(bundlePath, spec) {
 
 async function main() {
     const opts = parseArgs();
-    if (opts.help) { printUsage(); exit(0); }
+    if (opts.help) {
+        printUsage();
+        exit(0);
+    }
     checkGjsVersion();
 
     const session = new Soup.Session();

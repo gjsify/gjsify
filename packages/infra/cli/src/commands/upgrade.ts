@@ -13,20 +13,15 @@
 // install` resolves them locally. Only external npm specs get checked
 // against the registry.
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { homedir } from "node:os";
-import { createInterface } from "node:readline/promises";
-import { parse } from "@gjsify/semver";
-import {
-    DEFAULT_REGISTRY,
-    fetchPackument,
-    parseNpmrc,
-    type NpmrcConfig,
-} from "@gjsify/npm-registry";
-import type { Command } from "../types/index.js";
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { createInterface } from 'node:readline/promises';
+import { parse } from '@gjsify/semver';
+import { DEFAULT_REGISTRY, fetchPackument, parseNpmrc, type NpmrcConfig } from '@gjsify/npm-registry';
+import type { Command } from '../types/index.js';
 
-type ReleaseType = "major" | "minor" | "patch" | "prerelease" | "none";
+type ReleaseType = 'major' | 'minor' | 'patch' | 'prerelease' | 'none';
 
 interface UpgradeOptions {
     latest?: boolean;
@@ -41,7 +36,7 @@ interface UpgradeOptions {
 
 interface DepEntry {
     name: string;
-    field: "dependencies" | "devDependencies" | "optionalDependencies" | "peerDependencies";
+    field: 'dependencies' | 'devDependencies' | 'optionalDependencies' | 'peerDependencies';
     currentRange: string;
     /** Parsed current version (the max-satisfying numeric from the range). */
     currentVersion: string | null;
@@ -55,109 +50,108 @@ interface UpgradeCandidate extends DepEntry {
 }
 
 export const upgradeCommand: Command<unknown, UpgradeOptions> = {
-    command: "upgrade",
+    command: 'upgrade',
     description:
-        "Check the npm registry for newer versions of declared dependencies and update package.json. Interactive by default; `--latest` / `--minor` / `--patch` switch to non-interactive bulk-update mode.",
+        'Check the npm registry for newer versions of declared dependencies and update package.json. Interactive by default; `--latest` / `--minor` / `--patch` switch to non-interactive bulk-update mode.',
     builder: (yargs) => {
         return yargs
-            .option("latest", {
+            .option('latest', {
+                description: 'Non-interactive: bump every dependency to its latest version (allows major).',
+                type: 'boolean',
+                default: false,
+            })
+            .option('minor', {
                 description:
-                    "Non-interactive: bump every dependency to its latest version (allows major).",
-                type: "boolean",
+                    'Non-interactive: bump every dependency to the latest within the same major (semver-minor + semver-patch).',
+                type: 'boolean',
                 default: false,
             })
-            .option("minor", {
+            .option('patch', {
                 description:
-                    "Non-interactive: bump every dependency to the latest within the same major (semver-minor + semver-patch).",
-                type: "boolean",
+                    'Non-interactive: bump every dependency to the latest within the same minor (semver-patch only).',
+                type: 'boolean',
                 default: false,
             })
-            .option("patch", {
+            .option('filter', {
                 description:
-                    "Non-interactive: bump every dependency to the latest within the same minor (semver-patch only).",
-                type: "boolean",
+                    'Only consider packages whose name matches this substring (case-insensitive). Repeatable; comma-separated values are split.',
+                type: 'string',
+            })
+            .option('dry-run', {
+                description: 'Print the upgrade plan without writing package.json.',
+                type: 'boolean',
                 default: false,
             })
-            .option("filter", {
-                description:
-                    "Only consider packages whose name matches this substring (case-insensitive). Repeatable; comma-separated values are split.",
-                type: "string",
+            .option('cwd', {
+                description: 'Project directory. Default: process.cwd().',
+                type: 'string',
             })
-            .option("dry-run", {
-                description: "Print the upgrade plan without writing package.json.",
-                type: "boolean",
+            .option('yes', {
+                alias: 'y',
+                description: 'Interactive mode: select all without prompting.',
+                type: 'boolean',
                 default: false,
             })
-            .option("cwd", {
-                description: "Project directory. Default: process.cwd().",
-                type: "string",
-            })
-            .option("yes", {
-                alias: "y",
-                description: "Interactive mode: select all without prompting.",
-                type: "boolean",
-                default: false,
-            })
-            .option("verbose", {
-                description: "Print extra resolution details.",
-                type: "boolean",
+            .option('verbose', {
+                description: 'Print extra resolution details.',
+                type: 'boolean',
                 default: false,
             });
     },
     handler: async (args) => {
         const cwd = resolve((args.cwd as string | undefined) ?? process.cwd());
-        const pkgJsonPath = join(cwd, "package.json");
+        const pkgJsonPath = join(cwd, 'package.json');
         if (!existsSync(pkgJsonPath)) {
             throw new Error(`[gjsify upgrade] no package.json at ${pkgJsonPath}`);
         }
-        const rawPkg = readFileSync(pkgJsonPath, "utf-8");
+        const rawPkg = readFileSync(pkgJsonPath, 'utf-8');
         const pkg = JSON.parse(rawPkg) as Record<string, unknown>;
 
         const filters = args.filter
             ? (args.filter as string)
-                  .split(",")
+                  .split(',')
                   .map((s) => s.trim().toLowerCase())
                   .filter(Boolean)
             : [];
 
         const entries = collectExternalDeps(pkg, filters);
         if (entries.length === 0) {
-            console.log("[gjsify upgrade] no external npm dependencies to check.");
+            console.log('[gjsify upgrade] no external npm dependencies to check.');
             return;
         }
 
         const npmrc = await loadNpmrcLight(cwd);
 
-        const mode: "latest" | "minor" | "patch" | "interactive" = args.latest
-            ? "latest"
+        const mode: 'latest' | 'minor' | 'patch' | 'interactive' = args.latest
+            ? 'latest'
             : args.minor
-              ? "minor"
+              ? 'minor'
               : args.patch
-                ? "patch"
-                : "interactive";
+                ? 'patch'
+                : 'interactive';
 
         console.log(`[gjsify upgrade] checking ${entries.length} dependencies against ${npmrc.registry}…`);
         const candidates = await resolveCandidates(entries, npmrc, args.verbose ?? false, mode);
 
         if (candidates.length === 0) {
-            console.log("✅ all dependencies are up to date");
+            console.log('✅ all dependencies are up to date');
             return;
         }
 
         printTable(candidates);
 
         let selected: UpgradeCandidate[];
-        if (mode === "interactive" && !args.yes) {
+        if (mode === 'interactive' && !args.yes) {
             selected = await promptSelection(candidates);
-        } else if (args.yes && mode === "interactive") {
-            console.log("[gjsify upgrade] -y / --yes: selecting all");
+        } else if (args.yes && mode === 'interactive') {
+            console.log('[gjsify upgrade] -y / --yes: selecting all');
             selected = candidates;
         } else {
             selected = candidates;
         }
 
         if (selected.length === 0) {
-            console.log("[gjsify upgrade] nothing selected; package.json unchanged.");
+            console.log('[gjsify upgrade] nothing selected; package.json unchanged.');
             return;
         }
 
@@ -167,45 +161,35 @@ export const upgradeCommand: Command<unknown, UpgradeOptions> = {
         }
 
         writePackageJson(pkgJsonPath, rawPkg, pkg, selected);
-        console.log(
-            `✏️  updated ${selected.length} dependencies in ${pkgJsonPath}. Run \`gjsify install\` to apply.`,
-        );
+        console.log(`✏️  updated ${selected.length} dependencies in ${pkgJsonPath}. Run \`gjsify install\` to apply.`);
     },
 };
 
 // ─── Resolution ─────────────────────────────────────────────────────────
 
-const DEP_FIELDS = [
-    "dependencies",
-    "devDependencies",
-    "optionalDependencies",
-    "peerDependencies",
-] as const;
+const DEP_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const;
 
-function collectExternalDeps(
-    pkg: Record<string, unknown>,
-    filters: string[],
-): DepEntry[] {
+function collectExternalDeps(pkg: Record<string, unknown>, filters: string[]): DepEntry[] {
     const out: DepEntry[] = [];
     for (const field of DEP_FIELDS) {
         const map = pkg[field];
-        if (!map || typeof map !== "object") continue;
+        if (!map || typeof map !== 'object') continue;
         for (const [name, raw] of Object.entries(map as Record<string, string>)) {
-            if (typeof raw !== "string") continue;
+            if (typeof raw !== 'string') continue;
             if (filters.length && !filters.some((f) => name.toLowerCase().includes(f))) {
                 continue;
             }
             // Skip workspace-protocol + file: + link: + git: + http(s): specs.
             if (
-                raw.startsWith("workspace:") ||
-                raw.startsWith("file:") ||
-                raw.startsWith("link:") ||
-                raw.startsWith("git+") ||
-                raw.startsWith("git:") ||
-                raw.startsWith("http") ||
-                raw.startsWith("npm:") || // e.g. `foo: npm:@scope/foo@^1`
-                raw === "*" ||
-                raw === "latest"
+                raw.startsWith('workspace:') ||
+                raw.startsWith('file:') ||
+                raw.startsWith('link:') ||
+                raw.startsWith('git+') ||
+                raw.startsWith('git:') ||
+                raw.startsWith('http') ||
+                raw.startsWith('npm:') || // e.g. `foo: npm:@scope/foo@^1`
+                raw === '*' ||
+                raw === 'latest'
             ) {
                 continue;
             }
@@ -229,8 +213,8 @@ function collectExternalDeps(
  */
 function splitRange(range: string): { prefix: string; version: string | null } {
     const m = range.match(/^(\^|~|>=|<=|>|<|=)?\s*([0-9].*)$/);
-    if (!m) return { prefix: "", version: null };
-    const prefix = m[1] ?? "";
+    if (!m) return { prefix: '', version: null };
+    const prefix = m[1] ?? '';
     const version = m[2]?.split(/\s|[|&,]/)[0] ?? null; // strip range modifiers (`||`, ` - `, etc.)
     const parsed = version ? parse(version) : null;
     return { prefix, version: parsed?.version ?? null };
@@ -240,7 +224,7 @@ async function resolveCandidates(
     entries: DepEntry[],
     npmrc: NpmrcConfig,
     verbose: boolean,
-    mode: "latest" | "minor" | "patch" | "interactive",
+    mode: 'latest' | 'minor' | 'patch' | 'interactive',
 ): Promise<UpgradeCandidate[]> {
     const results: UpgradeCandidate[] = [];
     // Parallel fetch with a small concurrency cap.
@@ -253,7 +237,7 @@ async function resolveCandidates(
             const entry = entries[i]!;
             try {
                 const packument = await fetchPackument(entry.name, { npmrc });
-                const latest = packument["dist-tags"]?.latest;
+                const latest = packument['dist-tags']?.latest;
                 if (!latest) {
                     if (verbose) console.warn(`  ${entry.name}: no dist-tags.latest, skipping`);
                     continue;
@@ -263,9 +247,9 @@ async function resolveCandidates(
                     continue;
                 }
                 const diff = classifyDiff(entry.currentVersion, latest);
-                if (diff === "none") continue;
-                if (mode === "minor" && diff === "major") continue;
-                if (mode === "patch" && (diff === "major" || diff === "minor")) continue;
+                if (diff === 'none') continue;
+                if (mode === 'minor' && diff === 'major') continue;
+                if (mode === 'patch' && (diff === 'major' || diff === 'minor')) continue;
                 results.push({
                     ...entry,
                     latestVersion: latest,
@@ -284,38 +268,38 @@ async function resolveCandidates(
 function classifyDiff(current: string, latest: string): ReleaseType {
     const c = parse(current);
     const l = parse(latest);
-    if (!c || !l) return "none";
-    if (c.major !== l.major) return l.major > c.major ? "major" : "none";
-    if (c.minor !== l.minor) return l.minor > c.minor ? "minor" : "none";
-    if (c.patch !== l.patch) return l.patch > c.patch ? "patch" : "none";
-    if ((c.prerelease ?? []).join(".") !== (l.prerelease ?? []).join(".")) return "prerelease";
-    return "none";
+    if (!c || !l) return 'none';
+    if (c.major !== l.major) return l.major > c.major ? 'major' : 'none';
+    if (c.minor !== l.minor) return l.minor > c.minor ? 'minor' : 'none';
+    if (c.patch !== l.patch) return l.patch > c.patch ? 'patch' : 'none';
+    if ((c.prerelease ?? []).join('.') !== (l.prerelease ?? []).join('.')) return 'prerelease';
+    return 'none';
 }
 
 // ─── Output / Interaction ──────────────────────────────────────────────
 
 const ANSI = {
-    reset: "\x1b[0m",
-    bold: "\x1b[1m",
-    dim: "\x1b[2m",
-    red: "\x1b[31m",
-    yellow: "\x1b[33m",
-    green: "\x1b[32m",
-    cyan: "\x1b[36m",
+    reset: '\x1b[0m',
+    bold: '\x1b[1m',
+    dim: '\x1b[2m',
+    red: '\x1b[31m',
+    yellow: '\x1b[33m',
+    green: '\x1b[32m',
+    cyan: '\x1b[36m',
 };
 
 function colorForDiff(diff: ReleaseType): string {
     switch (diff) {
-        case "major":
+        case 'major':
             return ANSI.red;
-        case "minor":
+        case 'minor':
             return ANSI.yellow;
-        case "patch":
+        case 'patch':
             return ANSI.green;
-        case "prerelease":
+        case 'prerelease':
             return ANSI.cyan;
         default:
-            return "";
+            return '';
     }
 }
 
@@ -326,18 +310,18 @@ function printTable(candidates: UpgradeCandidate[]): void {
     const idxW = String(candidates.length).length + 2;
 
     const head =
-        " ".repeat(idxW) +
+        ' '.repeat(idxW) +
         ANSI.bold +
-        "name".padEnd(nameW) +
-        "  " +
-        "current".padEnd(curW) +
-        "  " +
-        "latest".padEnd(newW) +
-        "  " +
-        "kind" +
+        'name'.padEnd(nameW) +
+        '  ' +
+        'current'.padEnd(curW) +
+        '  ' +
+        'latest'.padEnd(newW) +
+        '  ' +
+        'kind' +
         ANSI.reset;
     console.log(head);
-    console.log(" ".repeat(idxW) + ANSI.dim + "─".repeat(nameW + curW + newW + 12) + ANSI.reset);
+    console.log(' '.repeat(idxW) + ANSI.dim + '─'.repeat(nameW + curW + newW + 12) + ANSI.reset);
     for (let i = 0; i < candidates.length; i++) {
         const c = candidates[i]!;
         const idx = `${i + 1}.`.padEnd(idxW);
@@ -345,15 +329,15 @@ function printTable(candidates: UpgradeCandidate[]): void {
         console.log(
             idx +
                 c.name.padEnd(nameW) +
-                "  " +
+                '  ' +
                 ANSI.dim +
                 c.currentRange.padEnd(curW) +
                 ANSI.reset +
-                "  " +
+                '  ' +
                 color +
                 c.latestVersion.padEnd(newW) +
                 ANSI.reset +
-                "  " +
+                '  ' +
                 color +
                 c.diff +
                 ANSI.reset,
@@ -364,30 +348,30 @@ function printTable(candidates: UpgradeCandidate[]): void {
 async function promptSelection(candidates: UpgradeCandidate[]): Promise<UpgradeCandidate[]> {
     if (!process.stdin.isTTY) {
         console.log(
-            "[gjsify upgrade] non-TTY stdin: pass --latest / --minor / --patch (or --yes for interactive-all) to upgrade non-interactively.",
+            '[gjsify upgrade] non-TTY stdin: pass --latest / --minor / --patch (or --yes for interactive-all) to upgrade non-interactively.',
         );
         return [];
     }
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     try {
         console.log(
-            "\nSelect upgrades: comma- or space-separated indices, " +
+            '\nSelect upgrades: comma- or space-separated indices, ' +
                 ANSI.bold +
-                "a" +
+                'a' +
                 ANSI.reset +
-                " for all, ranges like " +
+                ' for all, ranges like ' +
                 ANSI.bold +
-                "1-3" +
+                '1-3' +
                 ANSI.reset +
-                ", or " +
+                ', or ' +
                 ANSI.bold +
-                "ENTER" +
+                'ENTER' +
                 ANSI.reset +
-                " to skip:",
+                ' to skip:',
         );
-        const answer = (await rl.question("> ")).trim();
+        const answer = (await rl.question('> ')).trim();
         if (!answer) return [];
-        if (answer.toLowerCase() === "a" || answer.toLowerCase() === "all") return candidates;
+        if (answer.toLowerCase() === 'a' || answer.toLowerCase() === 'all') return candidates;
         const picked = new Set<number>();
         for (const token of answer.split(/[\s,]+/).filter(Boolean)) {
             const range = token.match(/^(\d+)-(\d+)$/);
@@ -399,9 +383,7 @@ async function promptSelection(candidates: UpgradeCandidate[]): Promise<UpgradeC
                 picked.add(Number(token) - 1);
             }
         }
-        return [...picked]
-            .filter((i) => i >= 0 && i < candidates.length)
-            .map((i) => candidates[i]!);
+        return [...picked].filter((i) => i >= 0 && i < candidates.length).map((i) => candidates[i]!);
     } finally {
         rl.close();
     }
@@ -422,7 +404,7 @@ function writePackageJson(
         map[c.name] = c.prefix + c.latestVersion;
     }
     const indent = detectIndent(rawText);
-    writeFileSync(path, JSON.stringify(parsed, null, indent) + (rawText.endsWith("\n") ? "\n" : ""), "utf-8");
+    writeFileSync(path, JSON.stringify(parsed, null, indent) + (rawText.endsWith('\n') ? '\n' : ''), 'utf-8');
 }
 
 function detectIndent(json: string): number {
@@ -444,10 +426,10 @@ async function loadNpmrcLight(cwd: string): Promise<NpmrcConfig> {
     // as install-backend-native, except env-var `npm_config_registry` wins
     // over file values (matches npm's real semantics, lets the test harness
     // point at a mock registry without touching `~/.npmrc`).
-    for (const candidate of [join(homedir(), ".npmrc"), join(cwd, ".npmrc")]) {
+    for (const candidate of [join(homedir(), '.npmrc'), join(cwd, '.npmrc')]) {
         if (!existsSync(candidate)) continue;
         try {
-            const proj = parseNpmrc(readFileSync(candidate, "utf-8"));
+            const proj = parseNpmrc(readFileSync(candidate, 'utf-8'));
             parsed = {
                 ...parsed,
                 ...proj,

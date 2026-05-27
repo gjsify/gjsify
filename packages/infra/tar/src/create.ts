@@ -10,7 +10,7 @@
 // shouldn't need them, but a file path longer than 100/255 chars will throw
 // rather than silently producing a broken archive.
 
-import { BLOCK_SIZE } from "./parser.js";
+import { BLOCK_SIZE } from './parser.js';
 
 export interface TarFileEntry {
     /** Path inside the archive, e.g. `package/lib/index.js`. */
@@ -49,9 +49,7 @@ export function createTarball(entries: readonly TarWriteEntry[]): Uint8Array {
             continue;
         }
         const file = entry as TarFileEntry;
-        const bodyBytes = typeof file.body === 'string'
-            ? new TextEncoder().encode(file.body)
-            : file.body;
+        const bodyBytes = typeof file.body === 'string' ? new TextEncoder().encode(file.body) : file.body;
         const mode = file.mode ?? defaultFileMode(bodyBytes);
         chunks.push(buildHeader(file.name, bodyBytes.byteLength, '0', mode, file.mtime ?? 0));
         chunks.push(bodyBytes);
@@ -67,11 +65,16 @@ function buildHeader(name: string, size: number, typeflag: '0' | '5', mode: numb
     const { prefix, basename } = splitPathForUstar(name);
     const buf = new Uint8Array(BLOCK_SIZE);
     writeAscii(buf, basename, 0, 100);
-    writeOctal(buf, mode & 0o7777, 100, 7);  buf[107] = 0;
-    writeOctal(buf, 0, 108, 7);               buf[115] = 0;  // uid
-    writeOctal(buf, 0, 116, 7);               buf[123] = 0;  // gid
-    writeOctal(buf, size, 124, 11);           buf[135] = 0;
-    writeOctal(buf, mtime, 136, 11);          buf[147] = 0;
+    writeOctal(buf, mode & 0o7777, 100, 7);
+    buf[107] = 0;
+    writeOctal(buf, 0, 108, 7);
+    buf[115] = 0; // uid
+    writeOctal(buf, 0, 116, 7);
+    buf[123] = 0; // gid
+    writeOctal(buf, size, 124, 11);
+    buf[135] = 0;
+    writeOctal(buf, mtime, 136, 11);
+    buf[147] = 0;
     // Checksum placeholder — spaces, recomputed below.
     for (let i = 148; i < 156; i++) buf[i] = 0x20;
     buf[156] = typeflag.charCodeAt(0);
@@ -99,7 +102,9 @@ function splitPathForUstar(name: string): { prefix: string; basename: string } {
             return { prefix: name.slice(0, i), basename: name.slice(i + 1) };
         }
     }
-    throw new Error(`createTarball: cannot split path into ustar prefix+basename (basename slot is 100 chars): ${name}`);
+    throw new Error(
+        `createTarball: cannot split path into ustar prefix+basename (basename slot is 100 chars): ${name}`,
+    );
 }
 
 function writeAscii(buf: Uint8Array, s: string, offset: number, maxLen: number): void {
@@ -135,6 +140,9 @@ function concatChunks(chunks: readonly Uint8Array[]): Uint8Array {
     for (const c of chunks) total += c.byteLength;
     const out = new Uint8Array(total);
     let off = 0;
-    for (const c of chunks) { out.set(c, off); off += c.byteLength; }
+    for (const c of chunks) {
+        out.set(c, off);
+        off += c.byteLength;
+    }
     return out;
 }

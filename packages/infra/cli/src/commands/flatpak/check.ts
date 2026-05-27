@@ -28,8 +28,7 @@ interface FlatpakCheckOptions {
 
 export const flatpakCheckCommand: Command<unknown, FlatpakCheckOptions> = {
     command: 'check [manifest]',
-    description:
-        'Run Flathub pre-submission linters: appstreamcli validate + flatpak-builder-lint.',
+    description: 'Run Flathub pre-submission linters: appstreamcli validate + flatpak-builder-lint.',
     builder: (yargs) => {
         return yargs
             .positional('manifest', {
@@ -65,14 +64,13 @@ export const flatpakCheckCommand: Command<unknown, FlatpakCheckOptions> = {
     },
     handler: async (args) => {
         const cfg = new Config();
-        const configData = await cfg.forBuild({} as never).catch(() => ({} as ConfigData));
+        const configData = await cfg.forBuild({} as never).catch(() => ({}) as ConfigData);
         const flatpak: ConfigDataFlatpak = configData.flatpak ?? {};
         const cwd = process.cwd();
 
         const appId = resolveAppId(args.manifest as string | undefined, flatpak, cwd);
         const manifestPath = resolveManifestPath(args.manifest as string | undefined, appId, cwd);
-        const metainfoPath =
-            (args.metainfo as string | undefined) ?? `data/${appId ?? 'unknown'}.metainfo.xml.in`;
+        const metainfoPath = (args.metainfo as string | undefined) ?? `data/${appId ?? 'unknown'}.metainfo.xml.in`;
         const metainfoAbs = resolve(cwd, metainfoPath);
 
         let failures = 0;
@@ -81,7 +79,11 @@ export const flatpakCheckCommand: Command<unknown, FlatpakCheckOptions> = {
             if (!existsSync(metainfoAbs)) {
                 console.warn(`[gjsify flatpak check] skipping appstreamcli — ${metainfoAbs} not found`);
             } else {
-                const ok = await runLinter('appstreamcli', ['validate', '--strict', metainfoAbs], args.verbose ?? false);
+                const ok = await runLinter(
+                    'appstreamcli',
+                    ['validate', '--strict', metainfoAbs],
+                    args.verbose ?? false,
+                );
                 if (!ok) failures++;
             }
         }
@@ -110,16 +112,14 @@ export const flatpakCheckCommand: Command<unknown, FlatpakCheckOptions> = {
     },
 };
 
-function resolveAppId(
-    explicit: string | undefined,
-    flatpak: ConfigDataFlatpak,
-    cwd: string,
-): string | undefined {
+function resolveAppId(explicit: string | undefined, flatpak: ConfigDataFlatpak, cwd: string): string | undefined {
     if (flatpak.appId) return flatpak.appId;
     try {
         const pkg = readPackageJson(cwd);
         if (looksLikeAppId(pkg.name)) return pkg.name as string;
-    } catch { /* no pkg.json */ }
+    } catch {
+        /* no pkg.json */
+    }
     if (explicit) {
         // strip `.json` extension if present
         return explicit.replace(/\.json$/, '');
@@ -149,8 +149,12 @@ function runLinter(bin: string, args: string[], verbose: boolean): Promise<boole
         if (!verbose) {
             child.stdout?.setEncoding('utf-8');
             child.stderr?.setEncoding('utf-8');
-            child.stdout?.on('data', (c) => { stdout += c; });
-            child.stderr?.on('data', (c) => { stderr += c; });
+            child.stdout?.on('data', (c) => {
+                stdout += c;
+            });
+            child.stderr?.on('data', (c) => {
+                stderr += c;
+            });
         }
         child.on('error', (err) => {
             const e = err as NodeJS.ErrnoException;

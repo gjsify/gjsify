@@ -31,20 +31,17 @@ function writeFixturePng(): void {
     // 2×2 RGBA raw pixel buffer:
     //   (0,0) red   (1,0) green
     //   (0,1) blue  (1,1) white
-    const pixels = new Uint8Array([
-        255, 0, 0, 255,    0, 255, 0, 255,
-        0, 0, 255, 255,  255, 255, 255, 255,
-    ]);
+    const pixels = new Uint8Array([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255]);
     // GdkPixbuf.Pixbuf.new_from_bytes expects row-major, w*4 stride for RGBA.
     const bytes = GLib.Bytes.new(pixels);
     const pixbuf = GdkPixbuf.Pixbuf.new_from_bytes(
         bytes,
         GdkPixbuf.Colorspace.RGB,
-        true,  // has_alpha
-        8,     // bits_per_sample
-        2,     // width
-        2,     // height
-        8,     // rowstride (2 px * 4 bytes)
+        true, // has_alpha
+        8, // bits_per_sample
+        2, // width
+        2, // height
+        8, // rowstride (2 px * 4 bytes)
     );
     pixbuf.savev(FIXTURE_PATH, 'png', [], []);
 }
@@ -53,7 +50,6 @@ writeFixturePng();
 
 export default async () => {
     await describe('HTMLImageElement', async () => {
-
         await describe('constructor + static Image alias', async () => {
             await it('new HTMLImageElement() creates an empty image', async () => {
                 const img = new HTMLImageElement();
@@ -82,7 +78,9 @@ export default async () => {
             await it('fires the load event (sync dispatch)', async () => {
                 const img = new HTMLImageElement();
                 let loaded = false;
-                img.addEventListener('load', () => { loaded = true; });
+                img.addEventListener('load', () => {
+                    loaded = true;
+                });
                 img.src = FIXTURE_URI;
                 expect(loaded).toBe(true);
             });
@@ -90,7 +88,9 @@ export default async () => {
             await it('fires the error event for non-existent files', async () => {
                 const img = new HTMLImageElement();
                 let errored = false;
-                img.addEventListener('error', () => { errored = true; });
+                img.addEventListener('error', () => {
+                    errored = true;
+                });
                 img.src = 'file:///nonexistent/definitely/not/here.png';
                 expect(errored).toBe(true);
                 expect(img.complete).toBe(true);
@@ -100,7 +100,9 @@ export default async () => {
             await it('fires error immediately for http:// URLs (not supported in GJS)', async () => {
                 const img = new HTMLImageElement();
                 let errored = false;
-                img.addEventListener('error', () => { errored = true; });
+                img.addEventListener('error', () => {
+                    errored = true;
+                });
                 img.src = 'http://example.com/img.png';
                 expect(errored).toBe(true);
                 expect(img.complete).toBe(true);
@@ -132,7 +134,9 @@ export default async () => {
                 img.src = FIXTURE_URI;
                 expect(img.complete).toBe(true);
                 let fired = false;
-                img.onload = () => { fired = true; };
+                img.onload = () => {
+                    fired = true;
+                };
                 // Give microtasks a chance to fire (they won't).
                 await new Promise<void>((r) => r());
                 expect(fired).toBe(false);
@@ -197,7 +201,9 @@ export default async () => {
             await it('fires load event for a base64 PNG data URI', async () => {
                 const img = new HTMLImageElement();
                 let loaded = false;
-                img.addEventListener('load', () => { loaded = true; });
+                img.addEventListener('load', () => {
+                    loaded = true;
+                });
                 img.src = makeDataUri();
                 expect(loaded).toBe(true);
             });
@@ -216,7 +222,9 @@ export default async () => {
             await it('fires error for a malformed data URI (no comma)', async () => {
                 const img = new HTMLImageElement();
                 let errored = false;
-                img.addEventListener('error', () => { errored = true; });
+                img.addEventListener('error', () => {
+                    errored = true;
+                });
                 img.src = 'data:image/png;base64';
                 expect(errored).toBe(true);
                 expect(img.complete).toBe(true);

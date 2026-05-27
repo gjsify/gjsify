@@ -3,12 +3,7 @@
 // Original: see canvas-rendering-context-2d.ts pre-split.
 
 import type { CanvasRenderingContext2D } from '../canvas-rendering-context-2d.js';
-import {
-    quadraticToCubic,
-    cairoArcTo,
-    cairoEllipse,
-    cairoRoundRect,
-} from '../cairo-utils.js';
+import { quadraticToCubic, cairoArcTo, cairoEllipse, cairoRoundRect } from '../cairo-utils.js';
 
 export interface PathMethods {
     beginPath(): void;
@@ -20,10 +15,13 @@ export interface PathMethods {
     arc(x: number, y: number, radius: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void;
     arcTo(x1: number, y1: number, x2: number, y2: number, radius: number): void;
     ellipse(
-        x: number, y: number,
-        radiusX: number, radiusY: number,
+        x: number,
+        y: number,
+        radiusX: number,
+        radiusY: number,
         rotation: number,
-        startAngle: number, endAngle: number,
+        startAngle: number,
+        endAngle: number,
         counterclockwise?: boolean,
     ): void;
     rect(x: number, y: number, w: number, h: number): void;
@@ -31,7 +29,7 @@ export interface PathMethods {
 }
 
 declare module '../canvas-rendering-context-2d.js' {
-    interface CanvasRenderingContext2D extends PathMethods { }
+    interface CanvasRenderingContext2D extends PathMethods {}
 }
 
 const pathMethods: PathMethods & ThisType<CanvasRenderingContext2D> = {
@@ -57,16 +55,18 @@ const pathMethods: PathMethods & ThisType<CanvasRenderingContext2D> = {
 
     bezierCurveTo(
         this: CanvasRenderingContext2D,
-        cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number,
+        cp1x: number,
+        cp1y: number,
+        cp2x: number,
+        cp2y: number,
+        x: number,
+        y: number,
     ): void {
         this._ensureSurface();
         this._ctx.curveTo(cp1x, cp1y, cp2x, cp2y, x, y);
     },
 
-    quadraticCurveTo(
-        this: CanvasRenderingContext2D,
-        cpx: number, cpy: number, x: number, y: number,
-    ): void {
+    quadraticCurveTo(this: CanvasRenderingContext2D, cpx: number, cpy: number, x: number, y: number): void {
         this._ensureSurface();
         let cx: number, cy: number;
         if (this._ctx.hasCurrentPoint()) {
@@ -81,8 +81,12 @@ const pathMethods: PathMethods & ThisType<CanvasRenderingContext2D> = {
 
     arc(
         this: CanvasRenderingContext2D,
-        x: number, y: number, radius: number,
-        startAngle: number, endAngle: number, counterclockwise = false,
+        x: number,
+        y: number,
+        radius: number,
+        startAngle: number,
+        endAngle: number,
+        counterclockwise = false,
     ): void {
         this._ensureSurface();
         // Browsers draw a full circle when |endAngle - startAngle| >= 2π,
@@ -100,10 +104,7 @@ const pathMethods: PathMethods & ThisType<CanvasRenderingContext2D> = {
         }
     },
 
-    arcTo(
-        this: CanvasRenderingContext2D,
-        x1: number, y1: number, x2: number, y2: number, radius: number,
-    ): void {
+    arcTo(this: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, radius: number): void {
         this._ensureSurface();
         let x0: number, y0: number;
         if (this._ctx.hasCurrentPoint()) {
@@ -118,10 +119,13 @@ const pathMethods: PathMethods & ThisType<CanvasRenderingContext2D> = {
 
     ellipse(
         this: CanvasRenderingContext2D,
-        x: number, y: number,
-        radiusX: number, radiusY: number,
+        x: number,
+        y: number,
+        radiusX: number,
+        radiusY: number,
         rotation: number,
-        startAngle: number, endAngle: number,
+        startAngle: number,
+        endAngle: number,
         counterclockwise = false,
     ): void {
         this._ensureSurface();
@@ -138,7 +142,11 @@ const pathMethods: PathMethods & ThisType<CanvasRenderingContext2D> = {
 
     roundRect(
         this: CanvasRenderingContext2D,
-        x: number, y: number, w: number, h: number, radii: number | number[] = 0,
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        radii: number | number[] = 0,
     ): void {
         this._ensureSurface();
         cairoRoundRect(this._ctx, x, y, w, h, radii);

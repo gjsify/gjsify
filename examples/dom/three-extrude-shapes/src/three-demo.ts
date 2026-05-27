@@ -35,7 +35,7 @@ export function start(canvas: HTMLCanvasElement) {
     const count = 3;
     for (let i = 0; i < count; i++) {
         const l = 20;
-        const a = (2 * i / count) * Math.PI;
+        const a = ((2 * i) / count) * Math.PI;
         pts1.push(new THREE.Vector2(Math.cos(a) * l, Math.sin(a) * l));
     }
 
@@ -53,11 +53,9 @@ export function start(canvas: HTMLCanvasElement) {
     // Mesh 2: Star cross-section extruded along a random CatmullRom spline
     const randomPoints: THREE.Vector3[] = [];
     for (let i = 0; i < 10; i++) {
-        randomPoints.push(new THREE.Vector3(
-            (i - 4.5) * 50,
-            THREE.MathUtils.randFloat(-50, 50),
-            THREE.MathUtils.randFloat(-50, 50),
-        ));
+        randomPoints.push(
+            new THREE.Vector3((i - 4.5) * 50, THREE.MathUtils.randFloat(-50, 50), THREE.MathUtils.randFloat(-50, 50)),
+        );
     }
     const randomSpline = new THREE.CatmullRomCurve3(randomPoints);
 

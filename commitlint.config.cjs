@@ -5,26 +5,14 @@
 'use strict';
 
 module.exports = {
-  extends: ['@commitlint/config-conventional'],
-  rules: {
-    // Keep the same type list as the `types` array in .release-it.json.
-    // `style` is intentionally omitted (hidden from changelog by design).
-    'type-enum': [
-      2,
-      'always',
-      [
-        'feat',
-        'fix',
-        'perf',
-        'revert',
-        'docs',
-        'refactor',
-        'build',
-        'ci',
-        'chore',
-        'test',
-        'style',
-      ],
-    ],
-  },
+    extends: ['@commitlint/config-conventional'],
+    rules: {
+        // Keep the same type list as the `types` array in .release-it.json.
+        // `style` is intentionally omitted (hidden from changelog by design).
+        'type-enum': [
+            2,
+            'always',
+            ['feat', 'fix', 'perf', 'revert', 'docs', 'refactor', 'build', 'ci', 'chore', 'test', 'style'],
+        ],
+    },
 };

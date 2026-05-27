@@ -26,14 +26,14 @@ function createGeometry(): THREE.BoxGeometry {
         const z = positionAttribute.getZ(i);
 
         spherePositions.push(
-            x * Math.sqrt(1 - (y * y / 2) - (z * z / 2) + (y * y * z * z / 3)),
-            y * Math.sqrt(1 - (z * z / 2) - (x * x / 2) + (z * z * x * x / 3)),
-            z * Math.sqrt(1 - (x * x / 2) - (y * y / 2) + (x * x * y * y / 3)),
+            x * Math.sqrt(1 - (y * y) / 2 - (z * z) / 2 + (y * y * z * z) / 3),
+            y * Math.sqrt(1 - (z * z) / 2 - (x * x) / 2 + (z * z * x * x) / 3),
+            z * Math.sqrt(1 - (x * x) / 2 - (y * y) / 2 + (x * x * y * y) / 3),
         );
 
         // Stretch along x-axis so the twist is more visible
         vertex.set(x * 2, y, z);
-        vertex.applyAxisAngle(direction, Math.PI * x / 2).toArray(twistPositions, twistPositions.length);
+        vertex.applyAxisAngle(direction, (Math.PI * x) / 2).toArray(twistPositions, twistPositions.length);
     }
 
     geometry.morphAttributes.position[0] = new THREE.Float32BufferAttribute(spherePositions, 3);
@@ -47,13 +47,13 @@ export function start(canvas: HTMLCanvasElement) {
     renderer.setSize(canvas.width, canvas.height);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x8FBCD4);
+    scene.background = new THREE.Color(0x8fbcd4);
 
     const camera = new THREE.PerspectiveCamera(45, canvas.width / canvas.height, 1, 20);
     camera.position.z = 10;
     scene.add(camera);
 
-    scene.add(new THREE.AmbientLight(0x8FBCD4, 1.5));
+    scene.add(new THREE.AmbientLight(0x8fbcd4, 1.5));
 
     const pointLight = new THREE.PointLight(0xffffff, 200);
     camera.add(pointLight);
@@ -74,7 +74,7 @@ export function start(canvas: HTMLCanvasElement) {
         const elapsed = clock.getElapsedTime();
 
         // Animate morph targets with sine waves (0..1 range)
-        mesh.morphTargetInfluences![0] = (Math.sin(elapsed * 0.5) + 1) / 2;   // Spherify
+        mesh.morphTargetInfluences![0] = (Math.sin(elapsed * 0.5) + 1) / 2; // Spherify
         mesh.morphTargetInfluences![1] = (Math.sin(elapsed * 0.3 + 1.5) + 1) / 2; // Twist
 
         // Slow auto-rotation

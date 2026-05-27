@@ -36,13 +36,11 @@ interface BarrelsOptions {
 
 export const barrelsCommand: Command<unknown, BarrelsOptions> = {
     command: 'barrels [paths..]',
-    description:
-        'Regenerate `index.ts` barrel files for the given directories. Drop-in replacement for `barrelsby`.',
+    description: 'Regenerate `index.ts` barrel files for the given directories. Drop-in replacement for `barrelsby`.',
     builder: (yargs) => {
         return yargs
             .positional('paths', {
-                description:
-                    'Directories whose `index.ts` to (re)generate. May also be passed via `--paths`.',
+                description: 'Directories whose `index.ts` to (re)generate. May also be passed via `--paths`.',
                 type: 'string',
                 array: true,
             })
@@ -53,8 +51,7 @@ export const barrelsCommand: Command<unknown, BarrelsOptions> = {
                 array: true,
             })
             .option('ext', {
-                description:
-                    'Import-specifier extension. Default: `none` (bundler-mode resolution).',
+                description: 'Import-specifier extension. Default: `none` (bundler-mode resolution).',
                 type: 'string',
                 choices: ['js', 'ts', 'none'] as const,
                 default: 'none' as BarrelExtension,
@@ -75,20 +72,17 @@ export const barrelsCommand: Command<unknown, BarrelsOptions> = {
                 type: 'string',
             })
             .option('semicolon', {
-                description:
-                    'Emit trailing `;` on each export line. Negate with `--no-semicolon`. Default: omitted.',
+                description: 'Emit trailing `;` on each export line. Negate with `--no-semicolon`. Default: omitted.',
                 type: 'boolean',
                 default: false,
             })
             .option('single-quotes', {
-                description:
-                    'Use `\'` for import specifiers. Default: true. Pass `--no-single-quotes` for `"`.',
+                description: 'Use `\'` for import specifiers. Default: true. Pass `--no-single-quotes` for `"`.',
                 type: 'boolean',
                 default: true,
             })
             .option('check', {
-                description:
-                    'Report drift without modifying files; exit non-zero if any barrel is stale.',
+                description: 'Report drift without modifying files; exit non-zero if any barrel is stale.',
                 type: 'boolean',
                 default: false,
             })
@@ -105,15 +99,16 @@ export const barrelsCommand: Command<unknown, BarrelsOptions> = {
         const paths = Array.from(new Set(((args.paths as string[] | undefined) ?? []).filter(Boolean)));
 
         if (paths.length === 0) {
-            console.error('[gjsify barrels] no paths provided. Pass directories as positional arguments or via --paths.');
+            console.error(
+                '[gjsify barrels] no paths provided. Pass directories as positional arguments or via --paths.',
+            );
             process.exitCode = 1;
             return;
         }
 
-        const excludePatterns =
-            (args.exclude as string[] | undefined)?.length
-                ? (args.exclude as string[])
-                : [...DEFAULT_BARRELS_EXCLUDES];
+        const excludePatterns = (args.exclude as string[] | undefined)?.length
+            ? (args.exclude as string[])
+            : [...DEFAULT_BARRELS_EXCLUDES];
 
         const drift = await generateBarrels({
             paths,

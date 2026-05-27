@@ -23,9 +23,7 @@ import {
 } from '@gjsify/dom-elements';
 
 export default async () => {
-
     await describe('DOMMatrix', async () => {
-
         await describe('constructor', async () => {
             await it('creates an identity matrix by default', async () => {
                 const m = new DOMMatrix();
@@ -61,12 +59,7 @@ export default async () => {
             });
 
             await it('accepts a 16-element 3D array and sets is2D=false', async () => {
-                const m = new DOMMatrix([
-                    1, 2, 3, 4,
-                    5, 6, 7, 8,
-                    9, 10, 11, 12,
-                    13, 14, 15, 16,
-                ]);
+                const m = new DOMMatrix([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
                 expect(m.m11).toBe(1);
                 expect(m.m44).toBe(16);
                 expect(m.is2D).toBe(false);
@@ -280,5 +273,4 @@ export default async () => {
             expect(location.toString()).toBe(location.href);
         });
     });
-
 };

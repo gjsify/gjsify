@@ -7,20 +7,20 @@ interface CheckOptions {
 
 export const systemCheckCommand: Command<any, CheckOptions> = {
     command: 'system-check',
-    description: 'Check that required system dependencies (GJS, GTK4, libsoup3, …) are installed. Optional dependencies are detected only when their @gjsify/* package is in your project. (Previously called `gjsify check`; the bare name now runs TypeScript checks across the workspace — see `gjsify check --help`.)',
+    description:
+        'Check that required system dependencies (GJS, GTK4, libsoup3, …) are installed. Optional dependencies are detected only when their @gjsify/* package is in your project. (Previously called `gjsify check`; the bare name now runs TypeScript checks across the workspace — see `gjsify check --help`.)',
     builder: (yargs) => {
-        return yargs
-            .option('json', {
-                description: 'Output results as JSON',
-                type: 'boolean',
-                default: false,
-            });
+        return yargs.option('json', {
+            description: 'Output results as JSON',
+            type: 'boolean',
+            default: false,
+        });
     },
     handler: async (args) => {
         const results = runAllChecks(process.cwd());
         const pm = detectPackageManager();
-        const missingRequired = results.filter(r => !r.found && r.severity === 'required');
-        const missingOptional = results.filter(r => !r.found && r.severity === 'optional');
+        const missingRequired = results.filter((r) => !r.found && r.severity === 'required');
+        const missingOptional = results.filter((r) => !r.found && r.severity === 'optional');
         const allMissing = [...missingRequired, ...missingOptional];
 
         if (args.json) {
@@ -32,8 +32,8 @@ export const systemCheckCommand: Command<any, CheckOptions> = {
 
         console.log('System dependency check\n');
 
-        const required = results.filter(r => r.severity === 'required');
-        const optional = results.filter(r => r.severity === 'optional');
+        const required = results.filter((r) => r.severity === 'required');
+        const optional = results.filter((r) => r.severity === 'optional');
 
         if (required.length > 0) {
             console.log('Required:');
@@ -50,9 +50,8 @@ export const systemCheckCommand: Command<any, CheckOptions> = {
                 // ⚠ for missing-but-needed-by-installed-packages, ○ for missing-but-not-needed (shouldn't appear in conditional mode)
                 const icon = dep.found ? '✓' : '⚠';
                 const ver = dep.version ? `  (${dep.version})` : '';
-                const requiredBy = dep.requiredBy && dep.requiredBy.length > 0
-                    ? `  — needed by ${dep.requiredBy.join(', ')}`
-                    : '';
+                const requiredBy =
+                    dep.requiredBy && dep.requiredBy.length > 0 ? `  — needed by ${dep.requiredBy.join(', ')}` : '';
                 console.log(`  ${icon}  ${dep.name}${ver}${requiredBy}`);
             }
         }
@@ -65,10 +64,10 @@ export const systemCheckCommand: Command<any, CheckOptions> = {
         }
 
         if (missingRequired.length > 0) {
-            console.log(`\nMissing required: ${missingRequired.map(d => d.name).join(', ')}`);
+            console.log(`\nMissing required: ${missingRequired.map((d) => d.name).join(', ')}`);
         }
         if (missingOptional.length > 0) {
-            console.log(`Missing optional: ${missingOptional.map(d => d.name).join(', ')}`);
+            console.log(`Missing optional: ${missingOptional.map((d) => d.name).join(', ')}`);
         }
 
         const cmd = buildInstallCommand(pm, allMissing);

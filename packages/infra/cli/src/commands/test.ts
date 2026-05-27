@@ -53,8 +53,7 @@ export const testCommand: Command<unknown, TestOptions> = {
                 default: false,
             })
             .option('build', {
-                description:
-                    'Build before running. Default: true (use --no-build to skip when bundles already exist).',
+                description: 'Build before running. Default: true (use --no-build to skip when bundles already exist).',
                 type: 'boolean',
                 default: true,
             })
@@ -69,7 +68,7 @@ export const testCommand: Command<unknown, TestOptions> = {
 
         // Resolve config: gjsify.test.{entry,outdir,runtimes}.
         const cfg = new Config();
-        const configData = await cfg.forBuild({} as never).catch(() => ({} as Record<string, unknown>));
+        const configData = await cfg.forBuild({} as never).catch(() => ({}) as Record<string, unknown>);
         const testCfg = (configData as { test?: { entry?: string; outdir?: string; runtimes?: Runtime[] } }).test ?? {};
 
         const entry = resolve(cwd, args.entry ?? testCfg.entry ?? 'src/test.mts');
@@ -89,7 +88,9 @@ export const testCommand: Command<unknown, TestOptions> = {
                 ? ['gjs']
                 : args.runtime === 'node'
                   ? ['node']
-                  : (testCfg.runtimes && testCfg.runtimes.length > 0 ? testCfg.runtimes : ['gjs', 'node']);
+                  : testCfg.runtimes && testCfg.runtimes.length > 0
+                    ? testCfg.runtimes
+                    : ['gjs', 'node'];
 
         const results: Array<{ runtime: Runtime; ok: boolean; durationMs: number; error?: string }> = [];
 
@@ -107,9 +108,7 @@ export const testCommand: Command<unknown, TestOptions> = {
                     try {
                         await buildTestBundle(entry, outfile, runtime, args.verbose);
                         if (args.verbose) {
-                            console.log(
-                                `[gjsify test] built ${runtime} in ${Date.now() - buildStart}ms`,
-                            );
+                            console.log(`[gjsify test] built ${runtime} in ${Date.now() - buildStart}ms`);
                         }
                     } catch (err) {
                         console.error(`[gjsify test] build failed for ${runtime}:`, (err as Error).message);
@@ -230,7 +229,12 @@ function newestMtimeUnder(path: string): number {
     if (st.isFile()) return st.mtimeMs;
     let max = st.mtimeMs;
     for (const entry of readdirSync(path, { withFileTypes: true })) {
-        if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'lib' || entry.name.startsWith('.')) {
+        if (
+            entry.name === 'node_modules' ||
+            entry.name === 'dist' ||
+            entry.name === 'lib' ||
+            entry.name.startsWith('.')
+        ) {
             continue;
         }
         const child = join(path, entry.name);

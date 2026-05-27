@@ -210,18 +210,15 @@ export class CanvasRenderingContext2D {
      */
     _deviceToUserDistance(dx: number, dy: number): [number, number] {
         const origin = this._ctx.userToDevice(0, 0);
-        const xAxis  = this._ctx.userToDevice(1, 0);
-        const yAxis  = this._ctx.userToDevice(0, 1);
+        const xAxis = this._ctx.userToDevice(1, 0);
+        const yAxis = this._ctx.userToDevice(0, 1);
         const a = (xAxis[0] ?? 0) - (origin[0] ?? 0);
         const b = (xAxis[1] ?? 0) - (origin[1] ?? 0);
         const c = (yAxis[0] ?? 0) - (origin[0] ?? 0);
         const d = (yAxis[1] ?? 0) - (origin[1] ?? 0);
         const det = a * d - b * c;
         if (Math.abs(det) < 1e-10) return [dx, dy]; // degenerate transform — no conversion
-        return [
-            ( d * dx - c * dy) / det,
-            (-b * dx + a * dy) / det,
-        ];
+        return [(d * dx - c * dy) / det, (-b * dx + a * dy) / det];
     }
 
     /**
@@ -294,31 +291,41 @@ export class CanvasRenderingContext2D {
         }
     }
 
-    get lineWidth(): number { return this._state.lineWidth; }
+    get lineWidth(): number {
+        return this._state.lineWidth;
+    }
     set lineWidth(value: number) {
         if (value > 0 && isFinite(value)) this._state.lineWidth = value;
     }
 
-    get lineCap(): CanvasLineCap { return this._state.lineCap; }
+    get lineCap(): CanvasLineCap {
+        return this._state.lineCap;
+    }
     set lineCap(value: CanvasLineCap) {
         if (value === 'butt' || value === 'round' || value === 'square') {
             this._state.lineCap = value;
         }
     }
 
-    get lineJoin(): CanvasLineJoin { return this._state.lineJoin; }
+    get lineJoin(): CanvasLineJoin {
+        return this._state.lineJoin;
+    }
     set lineJoin(value: CanvasLineJoin) {
         if (value === 'miter' || value === 'round' || value === 'bevel') {
             this._state.lineJoin = value;
         }
     }
 
-    get miterLimit(): number { return this._state.miterLimit; }
+    get miterLimit(): number {
+        return this._state.miterLimit;
+    }
     set miterLimit(value: number) {
         if (value > 0 && isFinite(value)) this._state.miterLimit = value;
     }
 
-    get globalAlpha(): number { return this._state.globalAlpha; }
+    get globalAlpha(): number {
+        return this._state.globalAlpha;
+    }
     set globalAlpha(value: number) {
         if (value >= 0 && value <= 1 && isFinite(value)) this._state.globalAlpha = value;
     }
@@ -333,10 +340,16 @@ export class CanvasRenderingContext2D {
         }
     }
 
-    get imageSmoothingEnabled(): boolean { return this._state.imageSmoothingEnabled; }
-    set imageSmoothingEnabled(value: boolean) { this._state.imageSmoothingEnabled = !!value; }
+    get imageSmoothingEnabled(): boolean {
+        return this._state.imageSmoothingEnabled;
+    }
+    set imageSmoothingEnabled(value: boolean) {
+        this._state.imageSmoothingEnabled = !!value;
+    }
 
-    get imageSmoothingQuality(): ImageSmoothingQuality { return this._state.imageSmoothingQuality; }
+    get imageSmoothingQuality(): ImageSmoothingQuality {
+        return this._state.imageSmoothingQuality;
+    }
     set imageSmoothingQuality(value: ImageSmoothingQuality) {
         if (value === 'low' || value === 'medium' || value === 'high') {
             this._state.imageSmoothingQuality = value;
@@ -346,7 +359,7 @@ export class CanvasRenderingContext2D {
     // Line dash
     setLineDash(segments: number[]): void {
         // Per spec, ignore if any value is negative or non-finite
-        if (segments.some(v => v < 0 || !isFinite(v))) return;
+        if (segments.some((v) => v < 0 || !isFinite(v))) return;
         this._state.lineDash = [...segments];
     }
 
@@ -354,30 +367,64 @@ export class CanvasRenderingContext2D {
         return [...this._state.lineDash];
     }
 
-    get lineDashOffset(): number { return this._state.lineDashOffset; }
+    get lineDashOffset(): number {
+        return this._state.lineDashOffset;
+    }
     set lineDashOffset(value: number) {
         if (isFinite(value)) this._state.lineDashOffset = value;
     }
 
     // ---- Shadow properties (stored in state, rendering in text-rendering.ts) ----
-    get shadowColor(): string { return this._state.shadowColor; }
-    set shadowColor(value: string) { this._state.shadowColor = value; }
-    get shadowBlur(): number { return this._state.shadowBlur; }
-    set shadowBlur(value: number) { if (value >= 0 && isFinite(value)) this._state.shadowBlur = value; }
-    get shadowOffsetX(): number { return this._state.shadowOffsetX; }
-    set shadowOffsetX(value: number) { if (isFinite(value)) this._state.shadowOffsetX = value; }
-    get shadowOffsetY(): number { return this._state.shadowOffsetY; }
-    set shadowOffsetY(value: number) { if (isFinite(value)) this._state.shadowOffsetY = value; }
+    get shadowColor(): string {
+        return this._state.shadowColor;
+    }
+    set shadowColor(value: string) {
+        this._state.shadowColor = value;
+    }
+    get shadowBlur(): number {
+        return this._state.shadowBlur;
+    }
+    set shadowBlur(value: number) {
+        if (value >= 0 && isFinite(value)) this._state.shadowBlur = value;
+    }
+    get shadowOffsetX(): number {
+        return this._state.shadowOffsetX;
+    }
+    set shadowOffsetX(value: number) {
+        if (isFinite(value)) this._state.shadowOffsetX = value;
+    }
+    get shadowOffsetY(): number {
+        return this._state.shadowOffsetY;
+    }
+    set shadowOffsetY(value: number) {
+        if (isFinite(value)) this._state.shadowOffsetY = value;
+    }
 
     // ---- Text properties (state-only — rendering lives in text-rendering.ts) ----
-    get font(): string { return this._state.font; }
-    set font(value: string) { this._state.font = value; }
-    get textAlign(): CanvasTextAlign { return this._state.textAlign; }
-    set textAlign(value: CanvasTextAlign) { this._state.textAlign = value; }
-    get textBaseline(): CanvasTextBaseline { return this._state.textBaseline; }
-    set textBaseline(value: CanvasTextBaseline) { this._state.textBaseline = value; }
-    get direction(): CanvasDirection { return this._state.direction; }
-    set direction(value: CanvasDirection) { this._state.direction = value; }
+    get font(): string {
+        return this._state.font;
+    }
+    set font(value: string) {
+        this._state.font = value;
+    }
+    get textAlign(): CanvasTextAlign {
+        return this._state.textAlign;
+    }
+    set textAlign(value: CanvasTextAlign) {
+        this._state.textAlign = value;
+    }
+    get textBaseline(): CanvasTextBaseline {
+        return this._state.textBaseline;
+    }
+    set textBaseline(value: CanvasTextBaseline) {
+        this._state.textBaseline = value;
+    }
+    get direction(): CanvasDirection {
+        return this._state.direction;
+    }
+    set direction(value: CanvasDirection) {
+        this._state.direction = value;
+    }
 
     // ---- toDataURL/toBlob support ----
 
@@ -403,7 +450,11 @@ export class CanvasRenderingContext2D {
             const base64 = GLib.base64_encode(contents);
             return `data:image/png;base64,${base64}`;
         } finally {
-            try { GLib.unlink(tempPath); } catch (_e) { /* ignore */ }
+            try {
+                GLib.unlink(tempPath);
+            } catch (_e) {
+                /* ignore */
+            }
         }
     }
 

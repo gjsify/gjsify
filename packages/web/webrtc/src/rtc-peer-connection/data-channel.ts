@@ -49,17 +49,13 @@ export interface DataChannelMethods {
 }
 
 declare module '../rtc-peer-connection.js' {
-    interface RTCPeerConnection extends DataChannelMethods { }
+    interface RTCPeerConnection extends DataChannelMethods {}
 }
 
 const dataChannelMethods: DataChannelMethods & ThisType<RTCPeerConnection> = {
-
     createDataChannel(this: RTCPeerConnection, label: string, options: RTCDataChannelInit = {}): RTCDataChannel {
         if (this._closed) {
-            throw new DOMException(
-                'Cannot create a data channel on a closed RTCPeerConnection',
-                'InvalidStateError',
-            );
+            throw new DOMException('Cannot create a data channel on a closed RTCPeerConnection', 'InvalidStateError');
         }
         if (typeof label !== 'string') {
             throw new TypeError('createDataChannel: label must be a string');
@@ -73,15 +69,13 @@ const dataChannelMethods: DataChannelMethods & ThisType<RTCPeerConnection> = {
         // then range-checked against [0, 65535]; any value that can't be
         // represented exactly as an unsigned short throws TypeError. Also
         // handles WPT's `0` edge case (number) vs `undefined` (no value).
-        const maxPacketLifeTime = options.maxPacketLifeTime == null
-            ? undefined
-            : coerceUnsignedShort('maxPacketLifeTime', options.maxPacketLifeTime);
-        const maxRetransmits = options.maxRetransmits == null
-            ? undefined
-            : coerceUnsignedShort('maxRetransmits', options.maxRetransmits);
-        const id = options.id == null
-            ? undefined
-            : coerceUnsignedShort('id', options.id);
+        const maxPacketLifeTime =
+            options.maxPacketLifeTime == null
+                ? undefined
+                : coerceUnsignedShort('maxPacketLifeTime', options.maxPacketLifeTime);
+        const maxRetransmits =
+            options.maxRetransmits == null ? undefined : coerceUnsignedShort('maxRetransmits', options.maxRetransmits);
+        const id = options.id == null ? undefined : coerceUnsignedShort('id', options.id);
 
         if (maxPacketLifeTime !== undefined && maxRetransmits !== undefined) {
             throw new TypeError('createDataChannel: maxPacketLifeTime and maxRetransmits are mutually exclusive');
@@ -108,7 +102,11 @@ const dataChannelMethods: DataChannelMethods & ThisType<RTCPeerConnection> = {
             // a `GstWebRTCDataChannel`. The GIR-generated `emit()` overloads
             // declare a `void` return for action signals, but at runtime the
             // value flows back. Cast through `unknown` to acknowledge the gap.
-            native = this._webrtcbin.emit('create-data-channel', label, gstOpts) as unknown as GstWebRTC.WebRTCDataChannel | null;
+            native = this._webrtcbin.emit(
+                'create-data-channel',
+                label,
+                gstOpts,
+            ) as unknown as GstWebRTC.WebRTCDataChannel | null;
         } catch (err: any) {
             throw new Error(`create-data-channel failed: ${err?.message ?? err}`);
         }

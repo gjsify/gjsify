@@ -10,13 +10,13 @@ import { TransformStream } from './transform-stream.js';
 
 /** Check if TextDecoder supports the `stream` option */
 function hasStreamingSupport(): boolean {
-  try {
-    const td = new TextDecoder();
-    td.decode(new Uint8Array([0xC3]), { stream: true });
-    return true;
-  } catch {
-    return false;
-  }
+    try {
+        const td = new TextDecoder();
+        td.decode(new Uint8Array([0xc3]), { stream: true });
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 const supportsStreaming = hasStreamingSupport();
@@ -27,44 +27,44 @@ const supportsStreaming = hasStreamingSupport();
  * multi-byte sequence. Returns 0 if the buffer ends on a complete character.
  */
 function incompleteUtf8Tail(buf: Uint8Array): number {
-  const len = buf.length;
-  if (len === 0) return 0;
+    const len = buf.length;
+    if (len === 0) return 0;
 
-  // Check last byte: is it a continuation byte or a start byte?
-  // Start bytes:
-  //   0xxxxxxx (0x00-0x7F) — single byte, complete
-  //   110xxxxx (0xC0-0xDF) — starts 2-byte sequence
-  //   1110xxxx (0xE0-0xEF) — starts 3-byte sequence
-  //   11110xxx (0xF0-0xF7) — starts 4-byte sequence
-  // Continuation: 10xxxxxx (0x80-0xBF)
+    // Check last byte: is it a continuation byte or a start byte?
+    // Start bytes:
+    //   0xxxxxxx (0x00-0x7F) — single byte, complete
+    //   110xxxxx (0xC0-0xDF) — starts 2-byte sequence
+    //   1110xxxx (0xE0-0xEF) — starts 3-byte sequence
+    //   11110xxx (0xF0-0xF7) — starts 4-byte sequence
+    // Continuation: 10xxxxxx (0x80-0xBF)
 
-  // Scan back up to 3 bytes to find the start of the last multi-byte sequence
-  for (let i = 1; i <= Math.min(3, len); i++) {
-    const b = buf[len - i];
-    if ((b & 0x80) === 0) {
-      // ASCII byte — everything before is complete, this byte is complete
-      return 0;
+    // Scan back up to 3 bytes to find the start of the last multi-byte sequence
+    for (let i = 1; i <= Math.min(3, len); i++) {
+        const b = buf[len - i];
+        if ((b & 0x80) === 0) {
+            // ASCII byte — everything before is complete, this byte is complete
+            return 0;
+        }
+        if ((b & 0xc0) !== 0x80) {
+            // This is a start byte
+            let expectedLen: number;
+            if ((b & 0xe0) === 0xc0) expectedLen = 2;
+            else if ((b & 0xf0) === 0xe0) expectedLen = 3;
+            else if ((b & 0xf8) === 0xf0) expectedLen = 4;
+            else return 0; // Invalid start byte, treat as complete
+
+            if (i < expectedLen) {
+                // We have fewer bytes than the sequence needs — incomplete
+                return i;
+            }
+            // Sequence is complete
+            return 0;
+        }
+        // Continuation byte — keep scanning back
     }
-    if ((b & 0xC0) !== 0x80) {
-      // This is a start byte
-      let expectedLen: number;
-      if ((b & 0xE0) === 0xC0) expectedLen = 2;
-      else if ((b & 0xF0) === 0xE0) expectedLen = 3;
-      else if ((b & 0xF8) === 0xF0) expectedLen = 4;
-      else return 0; // Invalid start byte, treat as complete
-
-      if (i < expectedLen) {
-        // We have fewer bytes than the sequence needs — incomplete
-        return i;
-      }
-      // Sequence is complete
-      return 0;
-    }
-    // Continuation byte — keep scanning back
-  }
-  // If we scanned back 3 continuation bytes without finding a start byte,
-  // something is wrong; treat as complete to avoid infinite buffering
-  return 0;
+    // If we scanned back 3 continuation bytes without finding a start byte,
+    // something is wrong; treat as complete to avoid infinite buffering
+    return 0;
 }
 
 /**
@@ -75,109 +75,109 @@ function incompleteUtf8Tail(buf: Uint8Array): number {
  * multi-byte UTF-8 sequences across chunks.
  */
 export class TextDecoderStream {
-  #decoder: TextDecoder;
-  #transform: TransformStream;
+    #decoder: TextDecoder;
+    #transform: TransformStream;
 
-  constructor(label?: string, options?: TextDecoderOptions) {
-    this.#decoder = new TextDecoder(label, options);
+    constructor(label?: string, options?: TextDecoderOptions) {
+        this.#decoder = new TextDecoder(label, options);
 
-    if (supportsStreaming) {
-      // Native streaming support (Node.js, modern browsers)
-      this.#transform = new TransformStream({
-        transform: (chunk, controller) => {
-          const bytes = toUint8Array(chunk);
-          const decoded = this.#decoder.decode(bytes, { stream: true });
-          if (decoded) {
-            controller.enqueue(decoded);
-          }
-        },
-        flush: (controller) => {
-          const final = this.#decoder.decode();
-          if (final) {
-            controller.enqueue(final);
-          }
-        },
-        cancel: () => {
-          this.#decoder.decode();
-        },
-      });
-    } else {
-      // GJS fallback: manually buffer incomplete UTF-8 sequences
-      let pendingBytes = new Uint8Array(0);
+        if (supportsStreaming) {
+            // Native streaming support (Node.js, modern browsers)
+            this.#transform = new TransformStream({
+                transform: (chunk, controller) => {
+                    const bytes = toUint8Array(chunk);
+                    const decoded = this.#decoder.decode(bytes, { stream: true });
+                    if (decoded) {
+                        controller.enqueue(decoded);
+                    }
+                },
+                flush: (controller) => {
+                    const final = this.#decoder.decode();
+                    if (final) {
+                        controller.enqueue(final);
+                    }
+                },
+                cancel: () => {
+                    this.#decoder.decode();
+                },
+            });
+        } else {
+            // GJS fallback: manually buffer incomplete UTF-8 sequences
+            let pendingBytes = new Uint8Array(0);
 
-      this.#transform = new TransformStream({
-        transform: (chunk, controller) => {
-          const incoming = toUint8Array(chunk);
+            this.#transform = new TransformStream({
+                transform: (chunk, controller) => {
+                    const incoming = toUint8Array(chunk);
 
-          // Merge pending bytes with new data
-          let combined: Uint8Array;
-          if (pendingBytes.length > 0) {
-            combined = new Uint8Array(pendingBytes.length + incoming.length);
-            combined.set(pendingBytes, 0);
-            combined.set(incoming, pendingBytes.length);
-          } else {
-            combined = incoming;
-          }
+                    // Merge pending bytes with new data
+                    let combined: Uint8Array;
+                    if (pendingBytes.length > 0) {
+                        combined = new Uint8Array(pendingBytes.length + incoming.length);
+                        combined.set(pendingBytes, 0);
+                        combined.set(incoming, pendingBytes.length);
+                    } else {
+                        combined = incoming;
+                    }
 
-          // Check for incomplete multi-byte sequence at the end
-          const tail = incompleteUtf8Tail(combined);
-          let decodable: Uint8Array;
-          if (tail > 0) {
-            decodable = combined.slice(0, combined.length - tail);
-            pendingBytes = combined.slice(combined.length - tail);
-          } else {
-            decodable = combined;
-            pendingBytes = new Uint8Array(0);
-          }
+                    // Check for incomplete multi-byte sequence at the end
+                    const tail = incompleteUtf8Tail(combined);
+                    let decodable: Uint8Array;
+                    if (tail > 0) {
+                        decodable = combined.slice(0, combined.length - tail);
+                        pendingBytes = combined.slice(combined.length - tail);
+                    } else {
+                        decodable = combined;
+                        pendingBytes = new Uint8Array(0);
+                    }
 
-          if (decodable.length > 0) {
-            const decoded = this.#decoder.decode(decodable);
-            if (decoded) {
-              controller.enqueue(decoded);
-            }
-          }
-        },
-        flush: (controller) => {
-          if (pendingBytes.length > 0) {
-            // Decode remaining bytes (may produce replacement characters)
-            const decoded = this.#decoder.decode(pendingBytes);
-            if (decoded) {
-              controller.enqueue(decoded);
-            }
-            pendingBytes = new Uint8Array(0);
-          }
-        },
-        cancel: () => {
-          pendingBytes = new Uint8Array(0);
-        },
-      });
+                    if (decodable.length > 0) {
+                        const decoded = this.#decoder.decode(decodable);
+                        if (decoded) {
+                            controller.enqueue(decoded);
+                        }
+                    }
+                },
+                flush: (controller) => {
+                    if (pendingBytes.length > 0) {
+                        // Decode remaining bytes (may produce replacement characters)
+                        const decoded = this.#decoder.decode(pendingBytes);
+                        if (decoded) {
+                            controller.enqueue(decoded);
+                        }
+                        pendingBytes = new Uint8Array(0);
+                    }
+                },
+                cancel: () => {
+                    pendingBytes = new Uint8Array(0);
+                },
+            });
+        }
     }
-  }
 
-  get encoding(): string {
-    return this.#decoder.encoding;
-  }
+    get encoding(): string {
+        return this.#decoder.encoding;
+    }
 
-  get fatal(): boolean {
-    return this.#decoder.fatal;
-  }
+    get fatal(): boolean {
+        return this.#decoder.fatal;
+    }
 
-  get ignoreBOM(): boolean {
-    return this.#decoder.ignoreBOM;
-  }
+    get ignoreBOM(): boolean {
+        return this.#decoder.ignoreBOM;
+    }
 
-  get readable(): ReadableStream<string> {
-    return this.#transform.readable;
-  }
+    get readable(): ReadableStream<string> {
+        return this.#transform.readable;
+    }
 
-  get writable(): WritableStream<BufferSource> {
-    return this.#transform.writable;
-  }
+    get writable(): WritableStream<BufferSource> {
+        return this.#transform.writable;
+    }
 }
 
 function toUint8Array(chunk: BufferSource): Uint8Array {
-  if (chunk instanceof Uint8Array) return chunk;
-  if (chunk instanceof ArrayBuffer) return new Uint8Array(chunk);
-  if (ArrayBuffer.isView(chunk)) return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
-  throw new TypeError('chunk must be a BufferSource');
+    if (chunk instanceof Uint8Array) return chunk;
+    if (chunk instanceof ArrayBuffer) return new Uint8Array(chunk);
+    if (ArrayBuffer.isView(chunk)) return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+    throw new TypeError('chunk must be a BufferSource');
 }

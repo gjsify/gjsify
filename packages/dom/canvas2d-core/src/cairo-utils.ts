@@ -12,9 +12,12 @@ import type Cairo from 'cairo';
  *   cp2 = end + 2/3 * (cp - end)
  */
 export function quadraticToCubic(
-    cx: number, cy: number,
-    cpx: number, cpy: number,
-    x: number, y: number,
+    cx: number,
+    cy: number,
+    cpx: number,
+    cpy: number,
+    x: number,
+    y: number,
 ): { cp1x: number; cp1y: number; cp2x: number; cp2y: number } {
     return {
         cp1x: cx + (2 / 3) * (cpx - cx),
@@ -32,11 +35,24 @@ export function quadraticToCubic(
  * Returns the two tangent points and arc center, or null if degenerate (collinear points).
  */
 export function computeArcTo(
-    x0: number, y0: number,
-    x1: number, y1: number,
-    x2: number, y2: number,
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
     radius: number,
-): { tx0: number; ty0: number; tx1: number; ty1: number; cx: number; cy: number; startAngle: number; endAngle: number; counterclockwise: boolean } | null {
+): {
+    tx0: number;
+    ty0: number;
+    tx1: number;
+    ty1: number;
+    cx: number;
+    cy: number;
+    startAngle: number;
+    endAngle: number;
+    counterclockwise: boolean;
+} | null {
     // Direction vectors
     const dx0 = x0 - x1;
     const dy0 = y0 - y1;
@@ -95,9 +111,12 @@ export function computeArcTo(
  */
 export function cairoArcTo(
     ctx: Cairo.Context,
-    x0: number, y0: number,
-    x1: number, y1: number,
-    x2: number, y2: number,
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
     radius: number,
 ): void {
     const result = computeArcTo(x0, y0, x1, y1, x2, y2, radius);
@@ -127,10 +146,13 @@ export function cairoArcTo(
  */
 export function cairoEllipse(
     ctx: Cairo.Context,
-    x: number, y: number,
-    radiusX: number, radiusY: number,
+    x: number,
+    y: number,
+    radiusX: number,
+    radiusY: number,
     rotation: number,
-    startAngle: number, endAngle: number,
+    startAngle: number,
+    endAngle: number,
     counterclockwise: boolean,
 ): void {
     ctx.save();
@@ -153,8 +175,10 @@ export function cairoEllipse(
  */
 export function cairoRoundRect(
     ctx: Cairo.Context,
-    x: number, y: number,
-    w: number, h: number,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
     radii: number | number[],
 ): void {
     // Normalize radii to [topLeft, topRight, bottomRight, bottomLeft]
@@ -211,44 +235,44 @@ export function cairoRoundRect(
  *   HSL_COLOR=27, HSL_LUMINOSITY=28
  */
 export const COMPOSITE_OP_MAP: Record<string, number> = {
-    'source-over': 2,      // OVER
-    'source-in': 3,        // IN
-    'source-out': 4,       // OUT
-    'source-atop': 5,      // ATOP
+    'source-over': 2, // OVER
+    'source-in': 3, // IN
+    'source-out': 4, // OUT
+    'source-atop': 5, // ATOP
     'destination-over': 7, // DEST_OVER
-    'destination-in': 8,   // DEST_IN
-    'destination-out': 9,  // DEST_OUT
-    'destination-atop': 10,// DEST_ATOP
-    'lighter': 12,         // ADD
-    'copy': 1,             // SOURCE
-    'xor': 11,             // XOR
-    'multiply': 14,        // MULTIPLY
-    'screen': 15,          // SCREEN
-    'overlay': 16,         // OVERLAY
-    'darken': 17,          // DARKEN
-    'lighten': 18,         // LIGHTEN
-    'color-dodge': 19,     // COLOR_DODGE
-    'color-burn': 20,      // COLOR_BURN
-    'hard-light': 21,      // HARD_LIGHT
-    'soft-light': 22,      // SOFT_LIGHT
-    'difference': 23,      // DIFFERENCE
-    'exclusion': 24,       // EXCLUSION
-    'hue': 25,             // HSL_HUE
-    'saturation': 26,      // HSL_SATURATION
-    'color': 27,           // HSL_COLOR
-    'luminosity': 28,      // HSL_LUMINOSITY
+    'destination-in': 8, // DEST_IN
+    'destination-out': 9, // DEST_OUT
+    'destination-atop': 10, // DEST_ATOP
+    lighter: 12, // ADD
+    copy: 1, // SOURCE
+    xor: 11, // XOR
+    multiply: 14, // MULTIPLY
+    screen: 15, // SCREEN
+    overlay: 16, // OVERLAY
+    darken: 17, // DARKEN
+    lighten: 18, // LIGHTEN
+    'color-dodge': 19, // COLOR_DODGE
+    'color-burn': 20, // COLOR_BURN
+    'hard-light': 21, // HARD_LIGHT
+    'soft-light': 22, // SOFT_LIGHT
+    difference: 23, // DIFFERENCE
+    exclusion: 24, // EXCLUSION
+    hue: 25, // HSL_HUE
+    saturation: 26, // HSL_SATURATION
+    color: 27, // HSL_COLOR
+    luminosity: 28, // HSL_LUMINOSITY
 };
 
 /** Map Canvas lineCap to Cairo.LineCap values */
 export const LINE_CAP_MAP: Record<string, number> = {
-    'butt': 0,
-    'round': 1,
-    'square': 2,
+    butt: 0,
+    round: 1,
+    square: 2,
 };
 
 /** Map Canvas lineJoin to Cairo.LineJoin values */
 export const LINE_JOIN_MAP: Record<string, number> = {
-    'miter': 0,
-    'round': 1,
-    'bevel': 2,
+    miter: 0,
+    round: 1,
+    bevel: 2,
 };

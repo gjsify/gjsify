@@ -161,7 +161,9 @@ function rewriteOnDiskEsmLegacy(src: string, path: string, bundleDir: string, fl
 
     const preamble: string[] = [];
     if (needsDirnameDecl(src, flags)) {
-        preamble.push(`var __dirname = new URL(${JSON.stringify(relDirWithSlash)}, import.meta.url).pathname.replace(/\\/$/, "");`);
+        preamble.push(
+            `var __dirname = new URL(${JSON.stringify(relDirWithSlash)}, import.meta.url).pathname.replace(/\\/$/, "");`,
+        );
     }
     if (needsFilenameDecl(src, flags)) {
         preamble.push(`var __filename = new URL(${JSON.stringify(relPath)}, import.meta.url).pathname;`);

@@ -116,9 +116,7 @@ export const registerClassOrderRule: Rule = {
                 // pass and removes them (plus trailing whitespace, so no blank gap
                 // is left behind).
                 const combinedFix = (fixer: Fixer) => {
-                    const hoisted = offending
-                        .map((f) => context.sourceCode.getText(f))
-                        .join('\n\n    ');
+                    const hoisted = offending.map((f) => context.sourceCode.getText(f)).join('\n\n    ');
                     const fixes = [fixer.insertTextBefore(blockNode, `${hoisted}\n\n    `)];
                     for (const f of offending) {
                         let removeEnd = f.end;

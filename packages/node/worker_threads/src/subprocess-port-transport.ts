@@ -40,34 +40,34 @@ export type WireWriter = (line: string) => void;
 export interface CrossProcessPortRegistry extends Map<number, any> {}
 
 export class SubprocessPortTransport implements MessagePortTransport {
-  /**
-   * @param sendLine writes a JSON-line to the wire (parent: child.stdin;
-   *                 child: process.stdout).
-   * @param registry the local registry the port is registered in; on
-   *                 `close()` we drop the entry to keep the registry from
-   *                 growing unbounded across spawn/transfer/terminate
-   *                 cycles.
-   */
-  constructor(
-    private readonly _sendLine: WireWriter,
-    private readonly _registry: CrossProcessPortRegistry,
-  ) {}
+    /**
+     * @param sendLine writes a JSON-line to the wire (parent: child.stdin;
+     *                 child: process.stdout).
+     * @param registry the local registry the port is registered in; on
+     *                 `close()` we drop the entry to keep the registry from
+     *                 growing unbounded across spawn/transfer/terminate
+     *                 cycles.
+     */
+    constructor(
+        private readonly _sendLine: WireWriter,
+        private readonly _registry: CrossProcessPortRegistry,
+    ) {}
 
-  send(portId: number, data: unknown): void {
-    const line = JSON.stringify({ __msgport: portId, op: 'send', data }) + '\n';
-    this._sendLine(line);
-  }
-
-  close(portId: number): void {
-    const line = JSON.stringify({ __msgport: portId, op: 'close' }) + '\n';
-    try {
-      this._sendLine(line);
-    } catch {
-      // Wire may already be closed (worker terminated); the close-line is a
-      // best-effort notification. Registry cleanup below still runs.
+    send(portId: number, data: unknown): void {
+        const line = JSON.stringify({ __msgport: portId, op: 'send', data }) + '\n';
+        this._sendLine(line);
     }
-    this._registry.delete(portId);
-  }
+
+    close(portId: number): void {
+        const line = JSON.stringify({ __msgport: portId, op: 'close' }) + '\n';
+        try {
+            this._sendLine(line);
+        } catch {
+            // Wire may already be closed (worker terminated); the close-line is a
+            // best-effort notification. Registry cleanup below still runs.
+        }
+        this._registry.delete(portId);
+    }
 }
 
 /** Monotonic id generator for cross-process port ids. Parent allocates odd
@@ -78,31 +78,31 @@ let _nextParentPortId = 1;
 let _nextChildPortId = 2;
 
 export function nextParentPortId(): number {
-  const id = _nextParentPortId;
-  _nextParentPortId += 2;
-  return id;
+    const id = _nextParentPortId;
+    _nextParentPortId += 2;
+    return id;
 }
 
 export function nextChildPortId(): number {
-  const id = _nextChildPortId;
-  _nextChildPortId += 2;
-  return id;
+    const id = _nextChildPortId;
+    _nextChildPortId += 2;
+    return id;
 }
 
 /** Cross-process MessagePort placeholder. Distinct from the in-process
  *  `{ index }` form so the receiver-side materialiser can dispatch on shape. */
 export interface CrossProcessPortPlaceholder {
-  readonly __gjsifyTransferredPort: true;
-  /** Stable id used by both sides' registries to route subsequent
-   *  `{ __msgport, op }` lines back to the right local port. */
-  readonly portId: number;
+    readonly __gjsifyTransferredPort: true;
+    /** Stable id used by both sides' registries to route subsequent
+     *  `{ __msgport, op }` lines back to the right local port. */
+    readonly portId: number;
 }
 
 export function isCrossProcessPortPlaceholder(value: unknown): value is CrossProcessPortPlaceholder {
-  return (
-    typeof value === 'object'
-    && value !== null
-    && (value as { __gjsifyTransferredPort?: unknown }).__gjsifyTransferredPort === true
-    && typeof (value as { portId?: unknown }).portId === 'number'
-  );
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        (value as { __gjsifyTransferredPort?: unknown }).__gjsifyTransferredPort === true &&
+        typeof (value as { portId?: unknown }).portId === 'number'
+    );
 }

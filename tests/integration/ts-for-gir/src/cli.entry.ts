@@ -19,34 +19,34 @@ import yargs, { type CommandModule } from 'yargs';
 import { hideBin } from 'yargs/helpers';
 
 try {
-  await yargs(hideBin(process.argv))
-    .scriptName(APP_NAME)
-    .strict()
-    .usage(APP_USAGE)
-    .version(APP_VERSION)
-    // `.exitProcess(false)` keeps yargs from calling `process.exit`
-    // synchronously for `--help`/`--version`/validation failures — we route
-    // every outcome through `parseAsync` + a single explicit `process.exit`
-    // call below. `.fail(false)` makes yargs throw validation errors instead
-    // of swallowing them when exitProcess is off.
-    .exitProcess(false)
-    .fail(false)
-    .command(analyze as unknown as CommandModule)
-    .command(create as unknown as CommandModule)
-    .command(generate as unknown as CommandModule)
-    .command(json as unknown as CommandModule)
-    .command(list as unknown as CommandModule)
-    .command(copy as unknown as CommandModule)
-    .command(doc as unknown as CommandModule)
-    .demandCommand(1)
-    .help()
-    .parseAsync();
-  process.exit(0);
+    await yargs(hideBin(process.argv))
+        .scriptName(APP_NAME)
+        .strict()
+        .usage(APP_USAGE)
+        .version(APP_VERSION)
+        // `.exitProcess(false)` keeps yargs from calling `process.exit`
+        // synchronously for `--help`/`--version`/validation failures — we route
+        // every outcome through `parseAsync` + a single explicit `process.exit`
+        // call below. `.fail(false)` makes yargs throw validation errors instead
+        // of swallowing them when exitProcess is off.
+        .exitProcess(false)
+        .fail(false)
+        .command(analyze as unknown as CommandModule)
+        .command(create as unknown as CommandModule)
+        .command(generate as unknown as CommandModule)
+        .command(json as unknown as CommandModule)
+        .command(list as unknown as CommandModule)
+        .command(copy as unknown as CommandModule)
+        .command(doc as unknown as CommandModule)
+        .demandCommand(1)
+        .help()
+        .parseAsync();
+    process.exit(0);
 } catch (err) {
-  // Print just the message — passing the whole instance to `console.error`
-  // triggers a slow JSON-stringify path on GJS that can stall for tens of
-  // seconds before exit.
-  const message = err instanceof Error ? err.message : String(err);
-  process.stderr.write(`${message}\n`);
-  process.exit(1);
+    // Print just the message — passing the whole instance to `console.error`
+    // triggers a slow JSON-stringify path on GJS that can stall for tens of
+    // seconds before exit.
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`${message}\n`);
+    process.exit(1);
 }

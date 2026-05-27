@@ -21,8 +21,8 @@ const STUBS = join(SUITE_ROOT, 'src', 'stubs');
 // path calculations (package.json, locales, static assets) resolve at runtime
 // into node_modules, where gjsify's GLib-backed fs polyfill handles the I/O.
 const aliases = [
-  `@inquirer/prompts=${join(STUBS, 'inquirer-prompts.ts')}`,
-  `inquirer=${join(STUBS, 'inquirer-prompts.ts')}`,
+    `@inquirer/prompts=${join(STUBS, 'inquirer-prompts.ts')}`,
+    `inquirer=${join(STUBS, 'inquirer-prompts.ts')}`,
 ].join(',');
 
 // __GJS_BUNDLE__=true mirrors upstream `@ts-for-gir/cli`'s build-gjs.mjs
@@ -33,13 +33,18 @@ const aliases = [
 // the guard's `typeof !== "undefined"` check is dead code and the user
 // sees a confusing "Could not locate templates directory" error.
 const args = [
-  'build',
-  'src/cli.entry.ts',
-  '--app', 'gjs',
-  '--outfile', 'dist/cli.gjs.mjs',
-  '--define', '__TS_FOR_GIR_VERSION__="4.0.0-rc.8"',
-  '--define', '__GJS_BUNDLE__=true',
-  '--alias', aliases,
+    'build',
+    'src/cli.entry.ts',
+    '--app',
+    'gjs',
+    '--outfile',
+    'dist/cli.gjs.mjs',
+    '--define',
+    '__TS_FOR_GIR_VERSION__="4.0.0-rc.8"',
+    '--define',
+    '__GJS_BUNDLE__=true',
+    '--alias',
+    aliases,
 ];
 
 const result = spawnSync('gjsify', args, { cwd: SUITE_ROOT, stdio: 'inherit' });

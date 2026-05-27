@@ -9,7 +9,6 @@ import { createGLSetup } from './setup.js';
 
 export default async () => {
     await on('Display', async () => {
-
         const setup = createGLSetup();
         if (!setup) {
             console.warn('WebGL context not available — skipping conformance/buffers tests');
@@ -22,7 +21,9 @@ export default async () => {
         // "Checks a buffer can only be bound to 1 target."
 
         await describe('conformance/buffers/buffer-bind-test', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('should be able to bind and unbind an ARRAY_BUFFER', async () => {
                 const buf = gl.createBuffer()!;
@@ -65,7 +66,9 @@ export default async () => {
         // "Test bufferData/bufferSubData with or without ArrayBuffer input"
 
         await describe('conformance/buffers/buffer-data-and-buffer-sub-data', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('bufferData with no buffer bound generates INVALID_OPERATION', async () => {
                 gl.bufferData(gl.ARRAY_BUFFER, 4, gl.STATIC_DRAW);
@@ -172,7 +175,7 @@ export default async () => {
                 gl.bufferData(gl.ARRAY_BUFFER, 128, gl.STATIC_DRAW);
                 gl.getError(); // clear
                 expect(() => (gl as any).bufferSubData(gl.ARRAY_BUFFER, 0, 42)).toThrow();
-                expect(() => (gl as any).bufferSubData(gl.ARRAY_BUFFER, 0, "5.5")).toThrow();
+                expect(() => (gl as any).bufferSubData(gl.ARRAY_BUFFER, 0, '5.5')).toThrow();
                 expect(() => (gl as any).bufferSubData(gl.ARRAY_BUFFER, 10, null)).toThrow();
                 expect(gl.getError()).toBe(gl.NO_ERROR);
                 gl.bindBuffer(gl.ARRAY_BUFFER, null);
@@ -184,7 +187,9 @@ export default async () => {
         // Regression: delete + recreate element array buffer, then drawElements
 
         await describe('conformance/buffers/element-array-buffer-delete-recreate', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('drawElements succeeds after deleting and recreating the element array buffer', async () => {
                 const vsSrc = `attribute vec2 position; void main() { gl_Position = vec4(position, 0.0, 1.0); }`;
@@ -196,9 +201,7 @@ export default async () => {
 
                 const vertexBuffer = gl.createBuffer()!;
                 gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-                    -1, -1,  1, -1,  -1, 1,  1, 1,
-                ]), gl.STATIC_DRAW);
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
                 gl.enableVertexAttribArray(0);
                 gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
 

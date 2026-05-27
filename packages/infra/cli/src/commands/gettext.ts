@@ -56,13 +56,7 @@ async function compileBulkXml(opts: {
     const outputFile = join(opts.outDir, opts.filename);
     await ensureDir(opts.outDir);
 
-    const args = [
-        `--output-file=${outputFile}`,
-        '--xml',
-        `--template=${opts.template}`,
-        '-d',
-        opts.poDir,
-    ];
+    const args = [`--output-file=${outputFile}`, '--xml', `--template=${opts.template}`, '-d', opts.poDir];
 
     if (opts.verbose) {
         console.log(`[gjsify gettext] msgfmt ${args.join(' ')}`);
@@ -96,10 +90,7 @@ async function compilePerLanguage(opts: {
 
     for (const lang of languages) {
         const poFile = join(opts.poDir, `${lang}.po`);
-        const langDir =
-            opts.format === 'mo'
-                ? join(opts.outDir, lang, 'LC_MESSAGES')
-                : join(opts.outDir, lang);
+        const langDir = opts.format === 'mo' ? join(opts.outDir, lang, 'LC_MESSAGES') : join(opts.outDir, lang);
         await ensureDir(langDir);
         const outputFile = join(langDir, opts.filename);
 
@@ -119,9 +110,7 @@ async function compilePerLanguage(opts: {
     }
 
     if (opts.verbose) {
-        console.log(
-            `[gjsify gettext] compiled ${languages.length} language(s) into ${opts.outDir}`,
-        );
+        console.log(`[gjsify gettext] compiled ${languages.length} language(s) into ${opts.outDir}`);
     }
 }
 
@@ -159,8 +148,7 @@ export const gettextCommand: Command<any, GettextOptions> = {
                 demandOption: true,
             })
             .positional('outDir', {
-                description:
-                    'Output directory (locale tree for --format=mo, plain dir for xml/desktop/json)',
+                description: 'Output directory (locale tree for --format=mo, plain dir for xml/desktop/json)',
                 type: 'string',
                 normalize: true,
                 demandOption: true,
@@ -178,8 +166,7 @@ export const gettextCommand: Command<any, GettextOptions> = {
                 default: 'mo' as const,
             })
             .option('metainfo', {
-                description:
-                    'For --format=xml: path to the template (`.metainfo.xml.in`) used as msgfmt --template',
+                description: 'For --format=xml: path to the template (`.metainfo.xml.in`) used as msgfmt --template',
                 type: 'string',
                 normalize: true,
             })
@@ -243,14 +230,10 @@ export const gettextCommand: Command<any, GettextOptions> = {
             }
         } catch (err: any) {
             if (err?.code === 'ENOENT') {
-                console.error(
-                    '[gjsify gettext] msgfmt not found. Install it via your distro (package: gettext).',
-                );
+                console.error('[gjsify gettext] msgfmt not found. Install it via your distro (package: gettext).');
             } else {
                 if (err?.stderr) process.stderr.write(err.stderr);
-                console.error(
-                    `[gjsify gettext] msgfmt failed${err?.code !== undefined ? ` (exit ${err.code})` : ''}`,
-                );
+                console.error(`[gjsify gettext] msgfmt failed${err?.code !== undefined ? ` (exit ${err.code})` : ''}`);
             }
             process.exitCode = typeof err?.code === 'number' ? err.code : 1;
         }

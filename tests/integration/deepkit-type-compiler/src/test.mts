@@ -16,6 +16,6 @@ import loaderSuite from './loader.spec.js';
 import transformSuite from './transform.spec.js';
 
 run({
-  loaderSuite,
-  transformSuite,
+    loaderSuite,
+    transformSuite,
 });

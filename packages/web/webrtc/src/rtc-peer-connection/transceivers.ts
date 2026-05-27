@@ -37,11 +37,10 @@ export interface TransceiverMethods {
 }
 
 declare module '../rtc-peer-connection.js' {
-    interface RTCPeerConnection extends TransceiverMethods { }
+    interface RTCPeerConnection extends TransceiverMethods {}
 }
 
 const transceiverMethods: TransceiverMethods & ThisType<RTCPeerConnection> = {
-
     addTransceiver(
         this: RTCPeerConnection,
         trackOrKind: MediaStreamTrack | string,
@@ -69,7 +68,12 @@ const transceiverMethods: TransceiverMethods & ThisType<RTCPeerConnection> = {
             const rids = new Set<string>();
             for (const enc of init.sendEncodings) {
                 if (enc.rid !== undefined) {
-                    if (typeof enc.rid !== 'string' || enc.rid.length === 0 || enc.rid.length > 16 || !/^[a-zA-Z0-9]+$/.test(enc.rid)) {
+                    if (
+                        typeof enc.rid !== 'string' ||
+                        enc.rid.length === 0 ||
+                        enc.rid.length > 16 ||
+                        !/^[a-zA-Z0-9]+$/.test(enc.rid)
+                    ) {
                         throw new TypeError(`Invalid RID value: ${enc.rid}`);
                     }
                     if (rids.has(enc.rid)) {
@@ -107,7 +111,9 @@ const transceiverMethods: TransceiverMethods & ThisType<RTCPeerConnection> = {
             const sender = new RTCRtpSender(null, this._pipeline, this._webrtcbin);
             sender._kind = kind;
             // Allow sender to update our pipeline if it migrates to a VideoBridge pipeline
-            sender._onPipelineChanged = (newPipeline) => { this._pipeline = newPipeline; };
+            sender._onPipelineChanged = (newPipeline) => {
+                this._pipeline = newPipeline;
+            };
             sender._setTrack(track);
             sender._wirePipeline(track);
 
@@ -144,13 +150,16 @@ const transceiverMethods: TransceiverMethods & ThisType<RTCPeerConnection> = {
             const caps = Gst.Caps.from_string(`application/x-rtp,media=${kind}`);
             // webrtcbin doesn't accept NONE for add-transceiver; use SENDRECV
             // and override to inactive after creation.
-            const createDirection = direction === 'inactive'
-                ? w3cDirectionToGst('sendrecv')
-                : w3cDirectionToGst(direction);
+            const createDirection =
+                direction === 'inactive' ? w3cDirectionToGst('sendrecv') : w3cDirectionToGst(direction);
 
             // `add-transceiver` is an action signal returning the new
             // GstWebRTCRTPTransceiver — see comment on `create-data-channel` above.
-            const result = this._webrtcbin.emit('add-transceiver', createDirection, caps) as unknown as GstWebRTC.WebRTCRTPTransceiver | null;
+            const result = this._webrtcbin.emit(
+                'add-transceiver',
+                createDirection,
+                caps,
+            ) as unknown as GstWebRTC.WebRTCRTPTransceiver | null;
             if (!result) {
                 throw new Error('webrtcbin did not create a transceiver');
             }

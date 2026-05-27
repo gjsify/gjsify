@@ -9,15 +9,15 @@ import { Event, EventTarget } from '../index.js';
  * bootstrap state.
  */
 interface _EventTargetGlobals {
-  Event?: typeof Event;
-  EventTarget?: typeof EventTarget;
+    Event?: typeof Event;
+    EventTarget?: typeof EventTarget;
 }
 
 const g = globalThis as unknown as _EventTargetGlobals;
 
 if (typeof g.Event === 'undefined') {
-  Object.defineProperty(globalThis, 'Event', { value: Event, writable: true, configurable: true });
+    Object.defineProperty(globalThis, 'Event', { value: Event, writable: true, configurable: true });
 }
 if (typeof g.EventTarget === 'undefined') {
-  Object.defineProperty(globalThis, 'EventTarget', { value: EventTarget, writable: true, configurable: true });
+    Object.defineProperty(globalThis, 'EventTarget', { value: EventTarget, writable: true, configurable: true });
 }

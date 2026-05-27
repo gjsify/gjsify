@@ -38,13 +38,13 @@ export type IFrameMessageChannel = MessageChannel;
  * @internal
  */
 export class BridgePortTransport implements MessagePortTransport {
-	constructor(private _bridge: MessageBridge) {}
+    constructor(private _bridge: MessageBridge) {}
 
-	send(portId: number, data: unknown): void {
-		this._bridge._sendPortMessage(portId, data);
-	}
+    send(portId: number, data: unknown): void {
+        this._bridge._sendPortMessage(portId, data);
+    }
 
-	close(portId: number): void {
-		this._bridge._closePort(portId);
-	}
+    close(portId: number): void {
+        this._bridge._closePort(portId);
+    }
 }

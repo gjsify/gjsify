@@ -47,7 +47,11 @@ export function parseDistinguishedName(dn: string | null): CertSubject {
 /** Format a GLib.DateTime as an OpenSSL-style validity string. */
 export function formatCertDate(dt: GLib.DateTime | null): string {
     if (!dt) return '';
-    try { return dt.format('%b %d %H:%M:%S %Y GMT') ?? ''; } catch { return ''; }
+    try {
+        return dt.format('%b %d %H:%M:%S %Y GMT') ?? '';
+    } catch {
+        return '';
+    }
 }
 
 /** Build the "subjectaltname" string from DNS names + IP addresses (Node format). */
@@ -62,11 +66,15 @@ export function formatAltNames(cert: Gio.TlsCertificate): string {
                 parts.push(`DNS:${new TextDecoder('utf-8').decode(data)}`);
             }
         }
-    } catch { /* not all backends support this */ }
+    } catch {
+        /* not all backends support this */
+    }
     try {
         const ips = cert.get_ip_addresses();
         if (ips) for (const ip of ips) parts.push(`IP Address:${ip.to_string()}`);
-    } catch { /* same */ }
+    } catch {
+        /* same */
+    }
     return parts.join(', ');
 }
 
@@ -88,13 +96,23 @@ export function fingerprintFromBytes(bytes: Uint8Array, algo: GLib.ChecksumType)
 /** Convert a single TlsCertificate to the Node `getPeerCertificate()` shape. */
 export function tlsCertToPeerCert(cert: Gio.TlsCertificate, detailed: boolean): PeerCertificate {
     const out: PeerCertificate = {};
-    try { out.subject = parseDistinguishedName(cert.get_subject_name()); } catch { /* */ }
-    try { out.issuer = parseDistinguishedName(cert.get_issuer_name()); } catch { /* */ }
+    try {
+        out.subject = parseDistinguishedName(cert.get_subject_name());
+    } catch {
+        /* */
+    }
+    try {
+        out.issuer = parseDistinguishedName(cert.get_issuer_name());
+    } catch {
+        /* */
+    }
     out.subjectaltname = formatAltNames(cert);
     try {
         out.valid_from = formatCertDate(cert.get_not_valid_before());
         out.valid_to = formatCertDate(cert.get_not_valid_after());
-    } catch { /* */ }
+    } catch {
+        /* */
+    }
     try {
         const c = cert as unknown as { certificate_pem?: string; certificatePem?: string };
         const pemProp = c.certificate_pem ?? c.certificatePem;
@@ -104,16 +122,20 @@ export function tlsCertToPeerCert(cert: Gio.TlsCertificate, detailed: boolean): 
             out.fingerprint = fingerprintFromBytes(der, GLib.ChecksumType.SHA1);
             out.fingerprint256 = fingerprintFromBytes(der, GLib.ChecksumType.SHA256);
         }
-    } catch { /* */ }
+    } catch {
+        /* */
+    }
     if (detailed) {
         try {
             const issuerCert = cert.get_issuer();
             if (issuerCert && !issuerCert.is_same(cert)) {
                 out.issuerCertificate = tlsCertToPeerCert(issuerCert, true);
             } else if (issuerCert) {
-                out.issuerCertificate = out;  // self-signed: Node returns self-ref
+                out.issuerCertificate = out; // self-signed: Node returns self-ref
             }
-        } catch { /* */ }
+        } catch {
+            /* */
+        }
     }
     return out;
 }

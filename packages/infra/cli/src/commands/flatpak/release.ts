@@ -38,50 +38,52 @@ export const flatpakReleaseCommand: Command<unknown, ReleaseOptions> = {
     description:
         'Cut a release end-to-end: regenerate Flathub assets, run linters, create + push the git tag, then open the Flathub PR. Each step delegates to the equivalent `gjsify flatpak <sub>` command.',
     builder: (yargs) => {
-        return yargs
-            // yargs' built-in `--version` flag would otherwise consume the
-            // positional value.
-            .version(false)
-            .positional('version', {
-                description: 'Release tag, e.g. `v0.6.6`.',
-                type: 'string',
-                demandOption: true,
-            })
-            .option('skip-init', {
-                description: 'Skip the `flatpak init --force` regen step.',
-                type: 'boolean',
-                default: false,
-            })
-            .option('skip-check', {
-                description: 'Skip the `flatpak check` linter step.',
-                type: 'boolean',
-                default: false,
-            })
-            .option('skip-tag', {
-                description:
-                    'Skip the `git tag` + `git push --tags` step (use when the tag was already created out-of-band).',
-                type: 'boolean',
-                default: false,
-            })
-            .option('push-tag', {
-                description: 'Push the created tag after creating it. Default: true.',
-                type: 'boolean',
-                default: true,
-            })
-            .option('flathub-repo', {
-                description: 'Flathub tracking-repo override forwarded to sync-flathub.',
-                type: 'string',
-            })
-            .option('dry-run', {
-                description: 'Print each step that would run without executing any of them.',
-                type: 'boolean',
-                default: false,
-            })
-            .option('verbose', {
-                description: 'Echo every sub-command invocation.',
-                type: 'boolean',
-                default: false,
-            });
+        return (
+            yargs
+                // yargs' built-in `--version` flag would otherwise consume the
+                // positional value.
+                .version(false)
+                .positional('version', {
+                    description: 'Release tag, e.g. `v0.6.6`.',
+                    type: 'string',
+                    demandOption: true,
+                })
+                .option('skip-init', {
+                    description: 'Skip the `flatpak init --force` regen step.',
+                    type: 'boolean',
+                    default: false,
+                })
+                .option('skip-check', {
+                    description: 'Skip the `flatpak check` linter step.',
+                    type: 'boolean',
+                    default: false,
+                })
+                .option('skip-tag', {
+                    description:
+                        'Skip the `git tag` + `git push --tags` step (use when the tag was already created out-of-band).',
+                    type: 'boolean',
+                    default: false,
+                })
+                .option('push-tag', {
+                    description: 'Push the created tag after creating it. Default: true.',
+                    type: 'boolean',
+                    default: true,
+                })
+                .option('flathub-repo', {
+                    description: 'Flathub tracking-repo override forwarded to sync-flathub.',
+                    type: 'string',
+                })
+                .option('dry-run', {
+                    description: 'Print each step that would run without executing any of them.',
+                    type: 'boolean',
+                    default: false,
+                })
+                .option('verbose', {
+                    description: 'Echo every sub-command invocation.',
+                    type: 'boolean',
+                    default: false,
+                })
+        );
     },
     handler: async (args) => {
         const version = typeof args.version === 'string' ? args.version.trim() : '';
@@ -107,7 +109,10 @@ export const flatpakReleaseCommand: Command<unknown, ReleaseOptions> = {
         if (args.dryRun) {
             console.log('[gjsify flatpak release] --dry-run set; printing plan only:');
             for (const s of steps) console.log(`  · ${s.name}: node ${s.args.join(' ')}`);
-            if (!args.skipTag) console.log(`  · tag: git tag ${version}${args.pushTag !== false ? ' && git push origin ' + version : ''}`);
+            if (!args.skipTag)
+                console.log(
+                    `  · tag: git tag ${version}${args.pushTag !== false ? ' && git push origin ' + version : ''}`,
+                );
             console.log(`  · sync: node ${syncArgs.join(' ')}`);
             return;
         }

@@ -25,7 +25,6 @@ export default async () => {
         Gtk.init();
 
         await describe('Canvas2D → WebGL texture pipeline', async () => {
-
             await it('texImage2D with Canvas2D element as source — no GL error', async () => {
                 // This is the exact path Excalibur uses for all text rendering.
                 // If this fails, labels/coin-counter will be invisible even if fillText works.
@@ -104,7 +103,8 @@ export default async () => {
                         const gl = (canvas as any).getContext('webgl2') as WebGL2RenderingContext;
 
                         // Draw a solid red square to the offscreen canvas
-                        const W = 4, H = 4;
+                        const W = 4,
+                            H = 4;
                         const offscreen = document.createElement('canvas') as HTMLCanvasElement;
                         offscreen.width = W;
                         offscreen.height = H;
@@ -127,7 +127,7 @@ export default async () => {
                         gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
 
                         // At least one pixel must have non-zero red or alpha
-                        hasNonZeroPixel = pixels.some(v => v > 0);
+                        hasNonZeroPixel = pixels.some((v) => v > 0);
 
                         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
                         gl.deleteFramebuffer(fb);
@@ -174,7 +174,9 @@ export default async () => {
 
                         // Compile the OutlineMaterial fragment shader verbatim
                         const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
-                        gl.shaderSource(fs, `#version 300 es
+                        gl.shaderSource(
+                            fs,
+                            `#version 300 es
                             precision mediump float;
                             uniform sampler2D u_graphic;
                             in vec2 v_uv;
@@ -183,7 +185,8 @@ export default async () => {
                                 vec2 aspect = 1.0 / vec2(textureSize(u_graphic, 0));
                                 fragColor = texture(u_graphic, v_uv);
                             }
-                        `);
+                        `,
+                        );
                         gl.compileShader(fs);
                         shaderCompiles = gl.getShaderParameter(fs, gl.COMPILE_STATUS) as boolean;
                         if (!shaderCompiles) {
@@ -206,7 +209,6 @@ export default async () => {
                 expect(glslVersion).toMatch(/3\./);
                 expect(shaderCompiles).toBe(true);
             });
-
         });
     });
 };

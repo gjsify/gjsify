@@ -71,10 +71,7 @@ export async function generateCertificate(keygenAlgorithm: AlgorithmIdentifier):
     } else if (keygenAlgorithm && typeof keygenAlgorithm === 'object' && typeof keygenAlgorithm.name === 'string') {
         name = (keygenAlgorithm.name as string).toLowerCase();
     } else {
-        throw new DOMException(
-            'generateCertificate: algorithm must have a name property',
-            'NotSupportedError',
-        );
+        throw new DOMException('generateCertificate: algorithm must have a name property', 'NotSupportedError');
     }
 
     const fields = (typeof keygenAlgorithm === 'object' ? keygenAlgorithm : {}) as _KeygenAlgorithmFields;
@@ -83,10 +80,7 @@ export async function generateCertificate(keygenAlgorithm: AlgorithmIdentifier):
     if (name === 'ecdsa') {
         const curve = fields.namedCurve;
         if (curve && curve !== 'P-256') {
-            throw new DOMException(
-                `generateCertificate: unsupported ECDSA curve '${curve}'`,
-                'NotSupportedError',
-            );
+            throw new DOMException(`generateCertificate: unsupported ECDSA curve '${curve}'`, 'NotSupportedError');
         }
     } else if (name === 'rsassa-pkcs1-v1_5') {
         const hash = fields.hash;
@@ -98,10 +92,7 @@ export async function generateCertificate(keygenAlgorithm: AlgorithmIdentifier):
             );
         }
     } else {
-        throw new DOMException(
-            `generateCertificate: unsupported algorithm '${name}'`,
-            'NotSupportedError',
-        );
+        throw new DOMException(`generateCertificate: unsupported algorithm '${name}'`, 'NotSupportedError');
     }
 
     // Generate a pseudo-random fingerprint using GLib
@@ -111,14 +102,9 @@ export async function generateCertificate(keygenAlgorithm: AlgorithmIdentifier):
     const fingerprintHex = checksum!.get_string()!;
 
     // Format as colon-separated hex pairs (sha-256 fingerprint format)
-    const formatted = fingerprintHex.slice(0, 64)
-        .match(/.{2}/g)!
-        .join(':')
-        .toUpperCase();
+    const formatted = fingerprintHex.slice(0, 64).match(/.{2}/g)!.join(':').toUpperCase();
 
     const expires = Date.now() + DEFAULT_EXPIRY_MS;
 
-    return new RTCCertificate(name, expires, [
-        { algorithm: 'sha-256', value: formatted },
-    ]);
+    return new RTCCertificate(name, expires, [{ algorithm: 'sha-256', value: formatted }]);
 }

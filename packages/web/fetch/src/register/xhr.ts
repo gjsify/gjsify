@@ -13,8 +13,8 @@
 import { XMLHttpRequest, XMLHttpRequestUpload } from '../xhr.js';
 
 if (typeof globalThis.XMLHttpRequest === 'undefined') {
-  globalThis.XMLHttpRequest = XMLHttpRequest as unknown as typeof globalThis.XMLHttpRequest;
+    globalThis.XMLHttpRequest = XMLHttpRequest as unknown as typeof globalThis.XMLHttpRequest;
 }
 if (typeof globalThis.XMLHttpRequestUpload === 'undefined') {
-  globalThis.XMLHttpRequestUpload = XMLHttpRequestUpload as unknown as typeof globalThis.XMLHttpRequestUpload;
+    globalThis.XMLHttpRequestUpload = XMLHttpRequestUpload as unknown as typeof globalThis.XMLHttpRequestUpload;
 }

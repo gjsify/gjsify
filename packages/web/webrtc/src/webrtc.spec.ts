@@ -6,9 +6,7 @@
 import Gst from 'gi://Gst?version=1.0';
 import { describe, it, expect } from '@gjsify/unit';
 
-import type {
-    RTCDataChannel,
-    RTCDTMFToneChangeEvent} from './index.js';
+import type { RTCDataChannel, RTCDTMFToneChangeEvent } from './index.js';
 import {
     RTCPeerConnection,
     RTCSessionDescription,
@@ -28,14 +26,12 @@ import {
 // of failing — the RTCPeerConnection constructor already throws the full
 // install hint via ensureWebrtcbinAvailable().
 Gst.init(null);
-const webrtcbinReady = Boolean(
-    Gst.ElementFactory.find('webrtcbin') && Gst.ElementFactory.find('nicesrc'),
-);
+const webrtcbinReady = Boolean(Gst.ElementFactory.find('webrtcbin') && Gst.ElementFactory.find('nicesrc'));
 if (!webrtcbinReady) {
     // eslint-disable-next-line no-console
     console.log(
         '  ⚠ webrtcbin/nicesrc not installed — skipping pipeline tests.\n' +
-        '    Install: dnf install libnice-gstreamer1 (Fedora) | apt install gstreamer1.0-nice (Ubuntu)',
+            '    Install: dnf install libnice-gstreamer1 (Fedora) | apt install gstreamer1.0-nice (Ubuntu)',
     );
 }
 
@@ -54,18 +50,21 @@ function waitFor<T = void>(ms: number, promise: Promise<T>, label: string): Prom
 }
 
 function awaitEvent(target: EventTarget, type: string, timeoutMs = 10000): Promise<Event> {
-    return waitFor(timeoutMs, new Promise<Event>((resolve) => {
-        const handler = (ev: Event) => {
-            target.removeEventListener(type, handler);
-            resolve(ev);
-        };
-        target.addEventListener(type, handler);
-    }), `${type} event`);
+    return waitFor(
+        timeoutMs,
+        new Promise<Event>((resolve) => {
+            const handler = (ev: Event) => {
+                target.removeEventListener(type, handler);
+                resolve(ev);
+            };
+            target.addEventListener(type, handler);
+        }),
+        `${type} event`,
+    );
 }
 
 export default async () => {
     await describe('@gjsify/webrtc', async () => {
-
         await describe('RTCPeerConnection construction', async () => {
             if (!webrtcbinReady) {
                 await it('(skipped — webrtcbin/nicesrc missing)', async () => {
@@ -240,7 +239,7 @@ export default async () => {
                 await pcA.setRemoteDescription(answer);
 
                 // Wait for B's incoming data channel, then both opens.
-                const dcEvent = await awaitEvent(pcB, 'datachannel') as any;
+                const dcEvent = (await awaitEvent(pcB, 'datachannel')) as any;
                 const channelB = dcEvent.channel as RTCDataChannel;
 
                 await Promise.all([
@@ -410,7 +409,10 @@ export default async () => {
                 // Wait for track event on pcB
                 const trackPromise = new Promise<any>((resolve, reject) => {
                     const timeout = setTimeout(() => reject(new Error('track event timeout')), 15000);
-                    pcB.ontrack = (ev: any) => { clearTimeout(timeout); resolve(ev); };
+                    pcB.ontrack = (ev: any) => {
+                        clearTimeout(timeout);
+                        resolve(ev);
+                    };
                 });
 
                 // Offer/answer exchange
@@ -488,7 +490,9 @@ export default async () => {
                     await pc.setLocalDescription(offer);
                     const report = await pc.getStats();
                     let count = 0;
-                    report.forEach(() => { count++; });
+                    report.forEach(() => {
+                        count++;
+                    });
                     expect(count).toBe(report.size);
                     pc.close();
                 });
@@ -565,7 +569,7 @@ export default async () => {
                     // Whether it fires negotiationneeded is GStreamer-version-dependent:
                     // older webrtcbin does not fire, newer versions may.
                     pc.restartIce();
-                    await new Promise(r => setTimeout(r, 50));
+                    await new Promise((r) => setTimeout(r, 50));
                     expect(pc.signalingState).toBe('stable');
                     pc.close();
                 });
@@ -615,8 +619,7 @@ export default async () => {
                     await pc2.setLocalDescription(answer);
                     await pc1.setRemoteDescription(answer);
 
-                    const getUfrags = (sdp: string) =>
-                        sdp.split('\r\n').filter(l => l.startsWith('a=ice-ufrag:'));
+                    const getUfrags = (sdp: string) => sdp.split('\r\n').filter((l) => l.startsWith('a=ice-ufrag:'));
                     const oldSdp = pc1.localDescription!.sdp;
                     const oldUfrags = getUfrags(oldSdp);
 
@@ -848,7 +851,7 @@ export default async () => {
                     const dtls = tc.sender.transport!;
                     pc.close();
                     // close() is async via idle_add — wait a tick
-                    await new Promise(r => setTimeout(r, 100));
+                    await new Promise((r) => setTimeout(r, 100));
                     expect(dtls.state).toBe('closed');
                 });
 
@@ -1148,10 +1151,16 @@ export default async () => {
                 const pc = new RTCPeerConnection();
                 pc.close();
                 let fired = false;
-                pc.onnegotiationneeded = () => { fired = true; };
+                pc.onnegotiationneeded = () => {
+                    fired = true;
+                };
                 // addTransceiver on closed connection should throw
-                try { pc.addTransceiver('audio'); } catch { /* expected */ }
-                await new Promise(r => setTimeout(r, 100));
+                try {
+                    pc.addTransceiver('audio');
+                } catch {
+                    /* expected */
+                }
+                await new Promise((r) => setTimeout(r, 100));
                 expect(fired).toBeFalsy();
             });
 

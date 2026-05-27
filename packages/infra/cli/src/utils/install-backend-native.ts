@@ -14,16 +14,11 @@
 // Out of scope (still deferred): peerDependencies validation,
 // lifecycle scripts, git/file specs.
 
-import * as fs from "node:fs";
-import * as path from "node:path";
-import * as os from "node:os";
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
 
-import {
-    Range,
-    SemVer,
-    maxSatisfying,
-    satisfies,
-} from "@gjsify/semver";
+import { Range, SemVer, maxSatisfying, satisfies } from '@gjsify/semver';
 import {
     DEFAULT_REGISTRY,
     fetchPackument,
@@ -32,12 +27,12 @@ import {
     type NpmrcConfig,
     type Packument,
     type PackumentVersion,
-} from "@gjsify/npm-registry";
-import { extractTarball } from "@gjsify/tar";
+} from '@gjsify/npm-registry';
+import { extractTarball } from '@gjsify/tar';
 
-import type { InstallOptions } from "./install-backend.ts";
+import type { InstallOptions } from './install-backend.ts';
 
-const DEFAULT_CONCURRENCY = Number(process.env.GJSIFY_INSTALL_CONCURRENCY ?? "8") || 8;
+const DEFAULT_CONCURRENCY = Number(process.env.GJSIFY_INSTALL_CONCURRENCY ?? '8') || 8;
 
 interface ParsedSpec {
     name: string;
@@ -61,7 +56,7 @@ interface ResolvedNode {
     bin?: string | Record<string, string>;
 }
 
-const LOCKFILE_NAME = "gjsify-lock.json";
+const LOCKFILE_NAME = 'gjsify-lock.json';
 const LOCKFILE_VERSION = 2;
 
 interface LockfileEntry {
@@ -88,7 +83,7 @@ export interface InstalledTopLevel {
 
 export async function installPackagesNative(opts: InstallOptions): Promise<InstalledTopLevel[]> {
     if (opts.specs.length === 0) {
-        throw new Error("installPackagesNative: empty specs list");
+        throw new Error('installPackagesNative: empty specs list');
     }
 
     fs.mkdirSync(opts.prefix, { recursive: true });
@@ -108,34 +103,34 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
         if (!existingLock) {
             throw new Error(
                 `install: --immutable requires ${LOCKFILE_NAME} at ${opts.prefix} — none found. ` +
-                `Run \`gjsify install\` (without --immutable) to generate one and commit it.`,
+                    `Run \`gjsify install\` (without --immutable) to generate one and commit it.`,
             );
         }
         const drift = describeLockfileDrift(existingLock, opts.specs);
         if (drift) {
             throw new Error(
                 `install: --immutable but ${lockfilePath} is stale.\n${drift}\n` +
-                `Re-run \`gjsify install\` (without --immutable) to refresh the lockfile.`,
+                    `Re-run \`gjsify install\` (without --immutable) to refresh the lockfile.`,
             );
         }
-        log("install: --immutable, using lockfile (%d package(s))", Object.keys(existingLock.packages).length);
+        log('install: --immutable, using lockfile (%d package(s))', Object.keys(existingLock.packages).length);
         nodes = lockfileToNodes(existingLock);
     } else if (existingLock && lockfileMatchesRequest(existingLock, opts.specs)) {
-        log("install: using lockfile (%d package(s))", Object.keys(existingLock.packages).length);
+        log('install: using lockfile (%d package(s))', Object.keys(existingLock.packages).length);
         nodes = lockfileToNodes(existingLock);
     } else {
-        log("install: resolving %d top-level spec(s) → %s", opts.specs.length, opts.prefix);
+        log('install: resolving %d top-level spec(s) → %s', opts.specs.length, opts.prefix);
         nodes = await resolveDeps(opts.specs, npmrc, log, opts.overrides, opts.skipDeps);
         if (opts.lockfile) {
             writeLockfile(lockfilePath, opts.specs, nodes);
-            log("install: wrote %s (%d entries)", LOCKFILE_NAME, nodes.length);
+            log('install: wrote %s (%d entries)', LOCKFILE_NAME, nodes.length);
         }
     }
 
-    log("install: downloading %d tarball(s)", nodes.length);
+    log('install: downloading %d tarball(s)', nodes.length);
     await downloadAndExtractAll(nodes, opts.prefix, npmrc, log);
     await linkBins(nodes, opts.prefix, log);
-    log("install: done");
+    log('install: done');
 
     // Surface the top-level requested packages so callers can update
     // package.json with the resolved version (mirrors `npm install --save`
@@ -165,13 +160,13 @@ function topLevelResolutions(specs: string[], nodes: ResolvedNode[]): InstalledT
 }
 
 function parseSpecName(spec: string): string {
-    if (spec.startsWith("@")) {
-        const slash = spec.indexOf("/");
+    if (spec.startsWith('@')) {
+        const slash = spec.indexOf('/');
         if (slash === -1) return spec;
-        const at = spec.indexOf("@", slash + 1);
+        const at = spec.indexOf('@', slash + 1);
         return at === -1 ? spec : spec.slice(0, at);
     }
-    const at = spec.indexOf("@");
+    const at = spec.indexOf('@');
     return at === -1 ? spec : spec.slice(0, at);
 }
 
@@ -202,7 +197,7 @@ async function resolveDeps(
         const override = overrides[name];
         if (typeof override !== 'string' || override.length === 0) return range;
         if (override === range) return range;
-        log("install: override %s %s → %s", name, range, override);
+        log('install: override %s %s → %s', name, range, override);
         return override;
     };
     const packumentCache = new Map<string, Promise<Packument>>();
@@ -212,7 +207,7 @@ async function resolveDeps(
         const fresh = fetchPackument(name, {
             npmrc,
             onRetry: ({ attempt, error, delayMs }) => {
-                log("packument %s: retry %d after %dms (%s)", name, attempt, delayMs, errMsg(error));
+                log('packument %s: retry %d after %dms (%s)', name, attempt, delayMs, errMsg(error));
             },
         });
         packumentCache.set(name, fresh);
@@ -259,15 +254,11 @@ async function resolveDeps(
             version = pickVersion(packument, edge.range);
             if (!version) {
                 if (!edge.required) continue;
-                throw new Error(
-                    `No version of ${edge.name} satisfies ${edge.range}`,
-                );
+                throw new Error(`No version of ${edge.name} satisfies ${edge.range}`);
             }
             const v = packument.versions[version];
             if (!v) {
-                throw new Error(
-                    `Packument for ${edge.name} promised ${version} but no entry exists`,
-                );
+                throw new Error(`Packument for ${edge.name} promised ${version} but no entry exists`);
             }
 
             // Decision: hoist to root, or nest under the requester?
@@ -292,32 +283,31 @@ async function resolveDeps(
             if (installPath === `node_modules/${edge.name}`) {
                 root.set(edge.name, node);
             }
-            log(
-                "resolve: %s@%s ← %s (at %s)",
-                edge.name,
-                version,
-                edge.range,
-                installPath,
-            );
+            log('resolve: %s@%s ← %s (at %s)', edge.name, version, edge.range, installPath);
 
             if (!skipDeps) {
                 for (const [depName, depRange] of Object.entries(node.dependencies)) {
-                    queue.push({ from: installPath, name: depName, range: applyOverride(depName, depRange), required: true });
+                    queue.push({
+                        from: installPath,
+                        name: depName,
+                        range: applyOverride(depName, depRange),
+                        required: true,
+                    });
                 }
                 for (const [depName, depRange] of Object.entries(node.optionalDependencies)) {
-                    queue.push({ from: installPath, name: depName, range: applyOverride(depName, depRange), required: false });
+                    queue.push({
+                        from: installPath,
+                        name: depName,
+                        range: applyOverride(depName, depRange),
+                        required: false,
+                    });
                 }
             }
         } catch (e) {
             // Optional deps that fail to resolve are skipped — yarn/npm
             // behavior. Required deps re-throw.
             if (!edge.required) {
-                log(
-                    "resolve: optional dep %s@%s skipped (%s)",
-                    edge.name,
-                    edge.range,
-                    (e as Error).message,
-                );
+                log('resolve: optional dep %s@%s skipped (%s)', edge.name, edge.range, (e as Error).message);
                 continue;
             }
             throw e;
@@ -354,11 +344,11 @@ function findVisible(
         // eslint-disable-next-line no-constant-condition
         while (true) {
             // Find the deepest `/node_modules/<pkg>` in `p`, strip it.
-            const idx = p.lastIndexOf("/node_modules/");
+            const idx = p.lastIndexOf('/node_modules/');
             if (idx < 0) break;
             p = p.slice(0, idx);
             candidates.push(`${p}/node_modules/${name}`);
-            if (p === "") break;
+            if (p === '') break;
         }
     }
     // The root `node_modules/<name>` is the final candidate (covers the
@@ -412,9 +402,9 @@ function satisfiesRange(version: string, range: string): boolean {
 function readLockfile(lockfilePath: string): Lockfile | null {
     if (!fs.existsSync(lockfilePath)) return null;
     try {
-        const parsed = JSON.parse(fs.readFileSync(lockfilePath, "utf-8")) as Lockfile;
+        const parsed = JSON.parse(fs.readFileSync(lockfilePath, 'utf-8')) as Lockfile;
         if (parsed.lockfileVersion !== LOCKFILE_VERSION) return null;
-        if (!parsed.packages || typeof parsed.packages !== "object") return null;
+        if (!parsed.packages || typeof parsed.packages !== 'object') return null;
         return parsed;
     } catch {
         return null;
@@ -432,8 +422,7 @@ function writeLockfile(lockfilePath: string, specs: string[], nodes: ResolvedNod
             version: node.version,
             resolved: node.tarballUrl,
             integrity: node.integrity,
-            dependencies:
-                Object.keys(node.dependencies).length > 0 ? node.dependencies : undefined,
+            dependencies: Object.keys(node.dependencies).length > 0 ? node.dependencies : undefined,
             bin: node.bin,
         };
     }
@@ -442,7 +431,7 @@ function writeLockfile(lockfilePath: string, specs: string[], nodes: ResolvedNod
         requested: [...specs],
         packages,
     };
-    fs.writeFileSync(lockfilePath, JSON.stringify(lockfile, null, 2) + "\n");
+    fs.writeFileSync(lockfilePath, JSON.stringify(lockfile, null, 2) + '\n');
 }
 
 function lockfileToNodes(lockfile: Lockfile): ResolvedNode[] {
@@ -463,8 +452,9 @@ function lockfileToNodes(lockfile: Lockfile): ResolvedNode[] {
 function nameFromInstallPath(installPath: string): string {
     // Last `node_modules/` boundary, then the rest is the package name
     // (single segment unscoped, or `@scope/pkg` scoped).
-    const idx = installPath.lastIndexOf("/node_modules/");
-    const after = idx < 0 ? installPath.replace(/^node_modules\//, "") : installPath.slice(idx + "/node_modules/".length);
+    const idx = installPath.lastIndexOf('/node_modules/');
+    const after =
+        idx < 0 ? installPath.replace(/^node_modules\//, '') : installPath.slice(idx + '/node_modules/'.length);
     return after;
 }
 
@@ -490,9 +480,9 @@ function describeLockfileDrift(lockfile: Lockfile, specs: string[]): string | nu
     for (const s of lockSet) if (!liveSet.has(s)) removed.push(s);
     if (added.length === 0 && removed.length === 0) return null;
     const lines: string[] = [];
-    if (added.length > 0) lines.push(`  + ${added.sort().join("\n  + ")}`);
-    if (removed.length > 0) lines.push(`  - ${removed.sort().join("\n  - ")}`);
-    return lines.join("\n");
+    if (added.length > 0) lines.push(`  + ${added.sort().join('\n  + ')}`);
+    if (removed.length > 0) lines.push(`  - ${removed.sort().join('\n  - ')}`);
+    return lines.join('\n');
 }
 
 // Exported for unit-testing — keep the function name + signature
@@ -509,22 +499,22 @@ export function parseSpec(raw: string): ParsedSpec {
     // shipped only prereleases (4.0.0-rc.17 is the `latest` tag, no
     // stable 4.x yet) and `*` was selecting the abandoned 3.3.0
     // instead.
-    if (raw.startsWith("@")) {
-        const slash = raw.indexOf("/");
+    if (raw.startsWith('@')) {
+        const slash = raw.indexOf('/');
         if (slash < 0) throw new Error(`Invalid spec (scoped name without slash): ${raw}`);
-        const at = raw.indexOf("@", slash);
-        if (at < 0) return { name: raw, range: "latest" };
-        return { name: raw.slice(0, at), range: raw.slice(at + 1) || "latest" };
+        const at = raw.indexOf('@', slash);
+        if (at < 0) return { name: raw, range: 'latest' };
+        return { name: raw.slice(0, at), range: raw.slice(at + 1) || 'latest' };
     }
-    const at = raw.indexOf("@");
-    if (at < 0) return { name: raw, range: "latest" };
-    return { name: raw.slice(0, at), range: raw.slice(at + 1) || "latest" };
+    const at = raw.indexOf('@');
+    if (at < 0) return { name: raw, range: 'latest' };
+    return { name: raw.slice(0, at), range: raw.slice(at + 1) || 'latest' };
 }
 
 // Exported for unit-testing. Internal API.
 export function pickVersion(packument: Packument, range: string): string | null {
     // dist-tag fast path: `latest`, `next`, ...
-    if (packument["dist-tags"][range]) return packument["dist-tags"][range];
+    if (packument['dist-tags'][range]) return packument['dist-tags'][range];
 
     // Validate range early so a typo fails loudly.
     let parsedRange: Range;
@@ -554,9 +544,8 @@ async function downloadAndExtractAll(
     // Sort by install-path depth ascending so parents extract before
     // children. Extracting a parent on top of an existing child would
     // wipe out the child.
-    const queue = [...nodes].sort((a, b) =>
-        depth(a.installPath) - depth(b.installPath) ||
-        (a.installPath < b.installPath ? -1 : 1),
+    const queue = [...nodes].sort(
+        (a, b) => depth(a.installPath) - depth(b.installPath) || (a.installPath < b.installPath ? -1 : 1),
     );
     const workers: Array<Promise<void>> = [];
     const concurrency = Math.max(1, Math.min(DEFAULT_CONCURRENCY, queue.length));
@@ -576,32 +565,29 @@ async function downloadAndExtractAll(
 
     // Concurrent nested pass.
     for (let i = 0; i < concurrency; i++) {
-        workers.push((async () => {
-            while (true) {
-                const idx = cursor++;
-                if (idx >= queue.length) return;
-                const node = queue[idx];
-                if (!node) return;
-                await extractOne(node, prefix, npmrc, log);
-            }
-        })());
+        workers.push(
+            (async () => {
+                while (true) {
+                    const idx = cursor++;
+                    if (idx >= queue.length) return;
+                    const node = queue[idx];
+                    if (!node) return;
+                    await extractOne(node, prefix, npmrc, log);
+                }
+            })(),
+        );
     }
     await Promise.all(workers);
 }
 
-async function extractOne(
-    node: ResolvedNode,
-    prefix: string,
-    npmrc: NpmrcConfig,
-    log: Logger,
-): Promise<void> {
+async function extractOne(node: ResolvedNode, prefix: string, npmrc: NpmrcConfig, log: Logger): Promise<void> {
     const dest = path.join(prefix, node.installPath);
-    log("fetch: %s@%s ← %s (→ %s)", node.name, node.version, node.tarballUrl, node.installPath);
+    log('fetch: %s@%s ← %s (→ %s)', node.name, node.version, node.tarballUrl, node.installPath);
     const bytes = await fetchTarball(node.tarballUrl, {
         npmrc,
         integrity: node.integrity,
         onRetry: ({ attempt, error, delayMs }) => {
-            log("tarball %s@%s: retry %d after %dms (%s)", node.name, node.version, attempt, delayMs, errMsg(error));
+            log('tarball %s@%s: retry %d after %dms (%s)', node.name, node.version, attempt, delayMs, errMsg(error));
         },
     });
     fs.rmSync(dest, { recursive: true, force: true });
@@ -612,7 +598,7 @@ async function extractOne(
 function depth(installPath: string): number {
     // Count `node_modules/` segments to know nesting depth.
     // `node_modules/foo` = 1, `node_modules/foo/node_modules/bar` = 2, etc.
-    return installPath.split("/node_modules/").length;
+    return installPath.split('/node_modules/').length;
 }
 
 async function linkBins(nodes: ResolvedNode[], prefix: string, log: Logger): Promise<void> {
@@ -621,7 +607,7 @@ async function linkBins(nodes: ResolvedNode[], prefix: string, log: Logger): Pro
     // direct dependents through the nested .bin (npm matches this) — we
     // omit nested-bin linking for now since no consumer of the install
     // backend depends on it (gjsify's own use cases all hit root bins).
-    const binDir = path.join(prefix, "node_modules", ".bin");
+    const binDir = path.join(prefix, 'node_modules', '.bin');
     let created = 0;
     for (const node of nodes) {
         if (!node.bin) continue;
@@ -650,16 +636,14 @@ async function linkBins(nodes: ResolvedNode[], prefix: string, log: Logger): Pro
             }
         }
     }
-    if (created > 0) log("bin: linked %d entry(ies) under .bin/", created);
+    if (created > 0) log('bin: linked %d entry(ies) under .bin/', created);
 }
 
 function normalizeBin(pkgName: string, bin: string | Record<string, string>): Map<string, string> {
     const out = new Map<string, string>();
-    if (typeof bin === "string") {
+    if (typeof bin === 'string') {
         // String form is shorthand for `{ <last-segment-of-pkgName>: <bin> }`.
-        const baseName = pkgName.startsWith("@")
-            ? pkgName.slice(pkgName.indexOf("/") + 1)
-            : pkgName;
+        const baseName = pkgName.startsWith('@') ? pkgName.slice(pkgName.indexOf('/') + 1) : pkgName;
         out.set(baseName, bin);
         return out;
     }
@@ -680,10 +664,10 @@ async function loadNpmrc(opts: InstallOptions): Promise<NpmrcConfig> {
     // workspace-root one too; the gjsify project-local case is what users
     // hit most often (mock-registry tests, scoped-registry overrides), so
     // we cover that explicitly.
-    for (const candidate of [path.join(home, ".npmrc"), path.join(opts.prefix, ".npmrc")]) {
+    for (const candidate of [path.join(home, '.npmrc'), path.join(opts.prefix, '.npmrc')]) {
         if (!fs.existsSync(candidate)) continue;
         try {
-            const projectParsed = parseNpmrc(fs.readFileSync(candidate, "utf-8"));
+            const projectParsed = parseNpmrc(fs.readFileSync(candidate, 'utf-8'));
             parsed = { ...parsed, ...projectParsed, scopes: { ...parsed.scopes, ...projectParsed.scopes } };
         } catch (e) {
             console.warn(`gjsify install: ignoring malformed ${candidate}: ${(e as Error).message}`);

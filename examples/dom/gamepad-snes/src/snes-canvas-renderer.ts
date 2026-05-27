@@ -11,15 +11,19 @@ interface ButtonDef {
     id: string;
     type: 'circle' | 'rect' | 'dpad-arrow' | 'line';
     color: string;
-    x: number; y: number;
+    x: number;
+    y: number;
     // circle
     r?: number;
     // rect
-    w?: number; h?: number; rx?: number;
+    w?: number;
+    h?: number;
+    rx?: number;
     // dpad-arrow: direction
     dir?: 'up' | 'down' | 'left' | 'right';
     // line (select/start)
-    x2?: number; y2?: number;
+    x2?: number;
+    y2?: number;
 }
 
 /** Shoulder + trigger buttons — drawn BEHIND the controller body. */
@@ -41,11 +45,11 @@ const BUTTONS: ButtonDef[] = [
     { id: 'button-b', type: 'circle', color: '#ccbb00', x: 202, y: 82, r: 10 },
     // Select / Start
     { id: 'button-select', type: 'line', color: '#444', x: 100, y: 70, x2: 110, y2: 60 },
-    { id: 'button-start',  type: 'line', color: '#444', x: 125, y: 70, x2: 135, y2: 60 },
+    { id: 'button-start', type: 'line', color: '#444', x: 125, y: 70, x2: 135, y2: 60 },
     // D-pad arrows
-    { id: 'button-up',    type: 'dpad-arrow', color: '#333', x: 50, y: 46, dir: 'up' },
-    { id: 'button-down',  type: 'dpad-arrow', color: '#333', x: 50, y: 74, dir: 'down' },
-    { id: 'button-left',  type: 'dpad-arrow', color: '#333', x: 36, y: 60, dir: 'left' },
+    { id: 'button-up', type: 'dpad-arrow', color: '#333', x: 50, y: 46, dir: 'up' },
+    { id: 'button-down', type: 'dpad-arrow', color: '#333', x: 50, y: 74, dir: 'down' },
+    { id: 'button-left', type: 'dpad-arrow', color: '#333', x: 36, y: 60, dir: 'left' },
     { id: 'button-right', type: 'dpad-arrow', color: '#333', x: 64, y: 60, dir: 'right' },
 ];
 
@@ -55,7 +59,7 @@ const LABELS: { text: string; x: number; y: number; color: string; size: number 
     { text: 'A', x: 235, y: 51, color: '#cfcfcd', size: 8 },
     { text: 'Y', x: 167, y: 77, color: '#cfcfcd', size: 8 },
     { text: 'B', x: 190, y: 99, color: '#cfcfcd', size: 8 },
-    { text: 'START',  x: 130, y: 82, color: '#999', size: 6 },
+    { text: 'START', x: 130, y: 82, color: '#999', size: 6 },
     { text: 'SELECT', x: 105, y: 82, color: '#999', size: 6 },
     { text: 'LT', x: 55, y: 6, color: '#666', size: 5 },
     { text: 'RT', x: 195, y: 6, color: '#666', size: 5 },
@@ -150,18 +154,29 @@ function drawControllerBody(ctx: CanvasRenderingContext2D): void {
     ctx.lineWidth = 25;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(180, 60); ctx.lineTo(200, 40);
+    ctx.moveTo(180, 60);
+    ctx.lineTo(200, 40);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(202, 82); ctx.lineTo(222, 62);
+    ctx.moveTo(202, 82);
+    ctx.lineTo(222, 62);
     ctx.stroke();
 
     // D-pad cross
     ctx.fillStyle = '#444';
     ctx.beginPath();
-    ctx.moveTo(43, 53); ctx.lineTo(43, 39); ctx.lineTo(57, 39); ctx.lineTo(57, 53);
-    ctx.lineTo(71, 53); ctx.lineTo(71, 67); ctx.lineTo(57, 67); ctx.lineTo(57, 81);
-    ctx.lineTo(43, 81); ctx.lineTo(43, 67); ctx.lineTo(29, 67); ctx.lineTo(29, 53);
+    ctx.moveTo(43, 53);
+    ctx.lineTo(43, 39);
+    ctx.lineTo(57, 39);
+    ctx.lineTo(57, 53);
+    ctx.lineTo(71, 53);
+    ctx.lineTo(71, 67);
+    ctx.lineTo(57, 67);
+    ctx.lineTo(57, 81);
+    ctx.lineTo(43, 81);
+    ctx.lineTo(43, 67);
+    ctx.lineTo(29, 67);
+    ctx.lineTo(29, 53);
     ctx.closePath();
     ctx.fill();
 
@@ -213,16 +228,24 @@ function drawArrow(ctx: CanvasRenderingContext2D, cx: number, cy: number, dir: s
     ctx.beginPath();
     switch (dir) {
         case 'up':
-            ctx.moveTo(cx - 5, cy + 5); ctx.lineTo(cx, cy - 5); ctx.lineTo(cx + 5, cy + 5);
+            ctx.moveTo(cx - 5, cy + 5);
+            ctx.lineTo(cx, cy - 5);
+            ctx.lineTo(cx + 5, cy + 5);
             break;
         case 'down':
-            ctx.moveTo(cx - 5, cy - 5); ctx.lineTo(cx, cy + 5); ctx.lineTo(cx + 5, cy - 5);
+            ctx.moveTo(cx - 5, cy - 5);
+            ctx.lineTo(cx, cy + 5);
+            ctx.lineTo(cx + 5, cy - 5);
             break;
         case 'left':
-            ctx.moveTo(cx + 5, cy - 5); ctx.lineTo(cx - 5, cy); ctx.lineTo(cx + 5, cy + 5);
+            ctx.moveTo(cx + 5, cy - 5);
+            ctx.lineTo(cx - 5, cy);
+            ctx.lineTo(cx + 5, cy + 5);
             break;
         case 'right':
-            ctx.moveTo(cx - 5, cy - 5); ctx.lineTo(cx + 5, cy); ctx.lineTo(cx - 5, cy + 5);
+            ctx.moveTo(cx - 5, cy - 5);
+            ctx.lineTo(cx + 5, cy);
+            ctx.lineTo(cx - 5, cy + 5);
             break;
     }
     ctx.closePath();
@@ -241,7 +264,8 @@ function drawLabels(ctx: CanvasRenderingContext2D): void {
 
 function drawInfoPanel(
     ctx: CanvasRenderingContext2D,
-    width: number, height: number,
+    width: number,
+    height: number,
     panelH: number,
     state: GamepadState,
 ): void {
@@ -273,8 +297,7 @@ function drawInfoPanel(
 
         // Value
         ctx.fillStyle = label === 'Name' ? '#ddd' : label === 'Pressed' ? HIGHLIGHT_COLOR : '#aaa';
-        ctx.font = label === 'Axes' || label === 'Timestamp'
-            ? '10px monospace' : '11px system-ui, sans-serif';
+        ctx.font = label === 'Axes' || label === 'Timestamp' ? '10px monospace' : '11px system-ui, sans-serif';
         ctx.fillText(value, valueX, y);
 
         // Extra column
@@ -286,10 +309,7 @@ function drawInfoPanel(
     }
 }
 
-function roundRect(
-    ctx: CanvasRenderingContext2D,
-    x: number, y: number, w: number, h: number, r: number,
-): void {
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
     ctx.beginPath();
     ctx.moveTo(x + r, y);
     ctx.lineTo(x + w - r, y);

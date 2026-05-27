@@ -32,23 +32,23 @@ const IMAGE = 'docker.io/crossbario/autobahn-testsuite';
 const PORT = 9001;
 
 function has(cmd) {
-  const r = spawnSync('/usr/bin/env', ['sh', '-c', `command -v "$1"`, '--', cmd], { stdio: 'ignore' });
-  return r.status === 0;
+    const r = spawnSync('/usr/bin/env', ['sh', '-c', `command -v "$1"`, '--', cmd], { stdio: 'ignore' });
+    return r.status === 0;
 }
 
 function pickRuntime() {
-  const pref = process.env.CONTAINER_RUNTIME;
-  if (pref === 'docker' || pref === 'podman') return pref;
-  if (has('podman')) return 'podman';
-  if (has('docker')) return 'docker';
-  console.error('Neither podman nor docker found in PATH.');
-  console.error('Install one, or set CONTAINER_RUNTIME=<docker|podman>.');
-  process.exit(2);
+    const pref = process.env.CONTAINER_RUNTIME;
+    if (pref === 'docker' || pref === 'podman') return pref;
+    if (has('podman')) return 'podman';
+    if (has('docker')) return 'docker';
+    console.error('Neither podman nor docker found in PATH.');
+    console.error('Install one, or set CONTAINER_RUNTIME=<docker|podman>.');
+    process.exit(2);
 }
 
 if (!existsSync(configFile)) {
-  console.error(`Missing ${configFile}`);
-  process.exit(2);
+    console.error(`Missing ${configFile}`);
+    process.exit(2);
 }
 
 const runtime = pickRuntime();
@@ -58,20 +58,28 @@ const runtime = pickRuntime();
 spawnSync(runtime, ['rm', '-f', CONTAINER_NAME], { stdio: 'ignore' });
 
 const runArgs = [
-  'run',
-  '-d',                              // detached
-  '--rm',                            // auto-remove on stop (with --detach only honored on new podman; we also `rm -f` explicitly on teardown)
-  '--name', CONTAINER_NAME,
-  '-p', `${PORT}:${PORT}`,
-  '-v', `${configFile}:/config/fuzzingserver.json:ro,Z`,
-  '-v', `${reportsDir}:/reports:Z`,  // :Z relabels for SELinux on Fedora/RHEL; no-op on other OSes
-  IMAGE,
-  'wstest', '--mode', 'fuzzingserver', '--spec', '/config/fuzzingserver.json',
+    'run',
+    '-d', // detached
+    '--rm', // auto-remove on stop (with --detach only honored on new podman; we also `rm -f` explicitly on teardown)
+    '--name',
+    CONTAINER_NAME,
+    '-p',
+    `${PORT}:${PORT}`,
+    '-v',
+    `${configFile}:/config/fuzzingserver.json:ro,Z`,
+    '-v',
+    `${reportsDir}:/reports:Z`, // :Z relabels for SELinux on Fedora/RHEL; no-op on other OSes
+    IMAGE,
+    'wstest',
+    '--mode',
+    'fuzzingserver',
+    '--spec',
+    '/config/fuzzingserver.json',
 ];
 
 console.log(`Starting ${CONTAINER_NAME} via ${runtime}...`);
 const r = spawnSync(runtime, runArgs, { stdio: 'inherit' });
 if (r.status !== 0) {
-  console.error(`${runtime} run failed with exit ${r.status}`);
-  process.exit(r.status ?? 1);
+    console.error(`${runtime} run failed with exit ${r.status}`);
+    process.exit(r.status ?? 1);
 }

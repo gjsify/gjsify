@@ -52,24 +52,31 @@ export class TeeMultiplexer {
         if (!srcPad) return;
         try {
             // Block data on the pad before unlinking
-            srcPad.add_probe(
-                Gst.PadProbeType.BLOCK_DOWNSTREAM,
-                () => Gst.PadProbeReturn.DROP,
-            );
-        } catch { /* ignore if probe fails */ }
+            srcPad.add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, () => Gst.PadProbeReturn.DROP);
+        } catch {
+            /* ignore if probe fails */
+        }
         try {
             const peer = srcPad.get_peer();
             if (peer) srcPad.unlink(peer);
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
         try {
             this._tee.release_request_pad(srcPad);
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
         this._branchCount--;
     }
 
     /** Number of active branches. */
-    get branchCount(): number { return this._branchCount; }
+    get branchCount(): number {
+        return this._branchCount;
+    }
 
     /** The tee element (for pipeline queries). */
-    get element(): any { return this._tee; }
+    get element(): any {
+        return this._tee;
+    }
 }

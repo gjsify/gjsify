@@ -10,10 +10,10 @@ export { isNotFoundError };
  * Create a Node.js-style ErrnoException from a Gio error, with fs-specific path/dest fields.
  */
 export function createNodeError(err: any, syscall: string, path: PathLike, dest?: PathLike): NodeJS.ErrnoException {
-  const pathStr = path.toString();
-  const error = createNodeErrorGeneric(err, syscall, {
-    path: pathStr,
-    dest: dest?.toString(),
-  });
-  return error;
+    const pathStr = path.toString();
+    const error = createNodeErrorGeneric(err, syscall, {
+        path: pathStr,
+        dest: dest?.toString(),
+    });
+    return error;
 }

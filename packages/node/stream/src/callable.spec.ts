@@ -14,183 +14,203 @@ import { Stream, Readable, Writable, Duplex, Transform, PassThrough } from 'node
 import { inherits } from 'node:util';
 
 export default async () => {
-	await describe('makeCallable: new invocation still works', async () => {
-		await it('new Stream() returns a valid instance', async () => {
-			const s = new Stream();
-			expect(typeof (s as any).pipe).toBe('function');
-			expect(s instanceof Stream).toBe(true);
-		});
+    await describe('makeCallable: new invocation still works', async () => {
+        await it('new Stream() returns a valid instance', async () => {
+            const s = new Stream();
+            expect(typeof (s as any).pipe).toBe('function');
+            expect(s instanceof Stream).toBe(true);
+        });
 
-		await it('new Readable() initialises readable state', async () => {
-			const r = new Readable({ read() {} });
-			expect(r.readable).toBe(true);
-			expect(r instanceof Readable).toBe(true);
-			expect(r instanceof Stream).toBe(true);
-		});
+        await it('new Readable() initialises readable state', async () => {
+            const r = new Readable({ read() {} });
+            expect(r.readable).toBe(true);
+            expect(r instanceof Readable).toBe(true);
+            expect(r instanceof Stream).toBe(true);
+        });
 
-		await it('new Transform() initialises both readable + writable state', async () => {
-			const t = new Transform({ transform(chunk, _enc, cb) { cb(null, chunk); } });
-			expect(t.readable).toBe(true);
-			expect(t.writable).toBe(true);
-			expect(t instanceof Transform).toBe(true);
-			expect(t instanceof Duplex).toBe(true);
-			expect(t instanceof Readable).toBe(true);
-		});
+        await it('new Transform() initialises both readable + writable state', async () => {
+            const t = new Transform({
+                transform(chunk, _enc, cb) {
+                    cb(null, chunk);
+                },
+            });
+            expect(t.readable).toBe(true);
+            expect(t.writable).toBe(true);
+            expect(t instanceof Transform).toBe(true);
+            expect(t instanceof Duplex).toBe(true);
+            expect(t instanceof Readable).toBe(true);
+        });
 
-		await it('Stream.prototype is accessible via the wrapper', async () => {
-			expect(typeof (Stream as any).prototype).toBe('object');
-			expect(typeof (Stream as any).prototype.pipe).toBe('function');
-		});
-	});
+        await it('Stream.prototype is accessible via the wrapper', async () => {
+            expect(typeof (Stream as any).prototype).toBe('object');
+            expect(typeof (Stream as any).prototype.pipe).toBe('function');
+        });
+    });
 
-	await describe('makeCallable: no-new invocation (legacy stream constructors)', async () => {
-		// Regression: Node's stream constructors guard against missing-new
-		// with `if (!(this instanceof Cls)) return new Cls(...)`. Consumers
-		// like `merge2` (used by `fast-glob`) call `Stream.PassThrough(opts)`
-		// without `new` and rely on the result being a real instance. The
-		// makeCallable apply trap must auto-construct in that case rather
-		// than try to mutate `undefined`/`globalThis`.
-		await it('PassThrough(opts) without new returns an instance', async () => {
-			const pt: any = (PassThrough as any)({});
-			expect(pt instanceof PassThrough).toBe(true);
-			expect(pt instanceof Transform).toBe(true);
-			expect(typeof pt.pipe).toBe('function');
-		});
+    await describe('makeCallable: no-new invocation (legacy stream constructors)', async () => {
+        // Regression: Node's stream constructors guard against missing-new
+        // with `if (!(this instanceof Cls)) return new Cls(...)`. Consumers
+        // like `merge2` (used by `fast-glob`) call `Stream.PassThrough(opts)`
+        // without `new` and rely on the result being a real instance. The
+        // makeCallable apply trap must auto-construct in that case rather
+        // than try to mutate `undefined`/`globalThis`.
+        await it('PassThrough(opts) without new returns an instance', async () => {
+            const pt: any = (PassThrough as any)({});
+            expect(pt instanceof PassThrough).toBe(true);
+            expect(pt instanceof Transform).toBe(true);
+            expect(typeof pt.pipe).toBe('function');
+        });
 
-		await it('Readable({read}) without new returns an instance', async () => {
-			const r: any = (Readable as any)({ read() {} });
-			expect(r instanceof Readable).toBe(true);
-			expect(r.readable).toBe(true);
-		});
+        await it('Readable({read}) without new returns an instance', async () => {
+            const r: any = (Readable as any)({ read() {} });
+            expect(r instanceof Readable).toBe(true);
+            expect(r.readable).toBe(true);
+        });
 
-		await it('Writable({write}) without new returns an instance', async () => {
-			const w: any = (Writable as any)({ write(_c: any, _e: any, cb: any) { cb(); } });
-			expect(w instanceof Writable).toBe(true);
-			expect(w.writable).toBe(true);
-		});
+        await it('Writable({write}) without new returns an instance', async () => {
+            const w: any = (Writable as any)({
+                write(_c: any, _e: any, cb: any) {
+                    cb();
+                },
+            });
+            expect(w instanceof Writable).toBe(true);
+            expect(w.writable).toBe(true);
+        });
 
-		await it('PassThrough() pipes data through a no-new instance', async () => {
-			const pt: any = (PassThrough as any)();
-			const chunks: Buffer[] = [];
-			await new Promise<void>((resolve, reject) => {
-				pt.on('data', (c: Buffer) => chunks.push(c));
-				pt.on('end', resolve);
-				pt.on('error', reject);
-				pt.end(Buffer.from('hello'));
-			});
-			expect(Buffer.concat(chunks).toString()).toBe('hello');
-		});
-	});
+        await it('PassThrough() pipes data through a no-new instance', async () => {
+            const pt: any = (PassThrough as any)();
+            const chunks: Buffer[] = [];
+            await new Promise<void>((resolve, reject) => {
+                pt.on('data', (c: Buffer) => chunks.push(c));
+                pt.on('end', resolve);
+                pt.on('error', reject);
+                pt.end(Buffer.from('hello'));
+            });
+            expect(Buffer.concat(chunks).toString()).toBe('hello');
+        });
+    });
 
-	await describe('makeCallable: legacy Stream.call(this) + util.inherits', async () => {
-		await it('Stream.call(plainObject) assigns EventEmitter bookkeeping', async () => {
-			// Plain object promoted to a Stream via .call()
-			const plain: any = Object.create(Stream.prototype);
-			(Stream as any).call(plain);
-			// EventEmitter state is now present
-			plain.on('ping', function(this: any, msg: string) { this.received = msg; });
-			plain.emit('ping', 'hi');
-			expect(plain.received).toBe('hi');
-		});
+    await describe('makeCallable: legacy Stream.call(this) + util.inherits', async () => {
+        await it('Stream.call(plainObject) assigns EventEmitter bookkeeping', async () => {
+            // Plain object promoted to a Stream via .call()
+            const plain: any = Object.create(Stream.prototype);
+            (Stream as any).call(plain);
+            // EventEmitter state is now present
+            plain.on('ping', function (this: any, msg: string) {
+                this.received = msg;
+            });
+            plain.emit('ping', 'hi');
+            expect(plain.received).toBe('hi');
+        });
 
-		await it('legacy subclass pattern (function + inherits + .call) works', async () => {
-			function SubStream(this: any) {
-				(Stream as any).call(this);
-				this.foo = 42;
-			}
-			inherits(SubStream as any, Stream as any);
-			(SubStream.prototype as any).greet = function() { return 'hello'; };
+        await it('legacy subclass pattern (function + inherits + .call) works', async () => {
+            function SubStream(this: any) {
+                (Stream as any).call(this);
+                this.foo = 42;
+            }
+            inherits(SubStream as any, Stream as any);
+            (SubStream.prototype as any).greet = function () {
+                return 'hello';
+            };
 
-			const s: any = new (SubStream as any)();
-			expect(s.foo).toBe(42);
-			expect(s.greet()).toBe('hello');
-			// Inherited from Stream.prototype
-			expect(typeof s.pipe).toBe('function');
-			expect(s instanceof Stream).toBe(true);
-		});
+            const s: any = new (SubStream as any)();
+            expect(s.foo).toBe(42);
+            expect(s.greet()).toBe('hello');
+            // Inherited from Stream.prototype
+            expect(typeof s.pipe).toBe('function');
+            expect(s instanceof Stream).toBe(true);
+        });
 
-		await it('multi-level inherits (A.call -> B.call -> C) works', async () => {
-			function A(this: any) {
-				(Stream as any).call(this);
-				this._a = 'a';
-			}
-			inherits(A as any, Stream as any);
-			(A.prototype as any).a = function() { return this._a; };
+        await it('multi-level inherits (A.call -> B.call -> C) works', async () => {
+            function A(this: any) {
+                (Stream as any).call(this);
+                this._a = 'a';
+            }
+            inherits(A as any, Stream as any);
+            (A.prototype as any).a = function () {
+                return this._a;
+            };
 
-			function B(this: any) {
-				(A as any).call(this);
-				this._b = 'b';
-			}
-			inherits(B as any, A as any);
-			(B.prototype as any).b = function() { return this._b; };
+            function B(this: any) {
+                (A as any).call(this);
+                this._b = 'b';
+            }
+            inherits(B as any, A as any);
+            (B.prototype as any).b = function () {
+                return this._b;
+            };
 
-			const b: any = new (B as any)();
-			expect(b.a()).toBe('a');
-			expect(b.b()).toBe('b');
-			expect(b instanceof A).toBe(true);
-			expect(b instanceof Stream).toBe(true);
-		});
-	});
+            const b: any = new (B as any)();
+            expect(b.a()).toBe('a');
+            expect(b.b()).toBe('b');
+            expect(b instanceof A).toBe(true);
+            expect(b instanceof Stream).toBe(true);
+        });
+    });
 
-	await describe('makeCallable: Readable / Writable / Transform .call(this)', async () => {
-		await it('Readable.call(plain) sets up readable state', async () => {
-			const r: any = Object.create(Readable.prototype);
-			(Readable as any).call(r, { read() {} });
-			expect(r.readable).toBe(true);
-			expect(typeof r.readableHighWaterMark).toBe('number');
-			// pipe is inherited from Stream.prototype through Readable.prototype
-			expect(typeof r.pipe).toBe('function');
-		});
+    await describe('makeCallable: Readable / Writable / Transform .call(this)', async () => {
+        await it('Readable.call(plain) sets up readable state', async () => {
+            const r: any = Object.create(Readable.prototype);
+            (Readable as any).call(r, { read() {} });
+            expect(r.readable).toBe(true);
+            expect(typeof r.readableHighWaterMark).toBe('number');
+            // pipe is inherited from Stream.prototype through Readable.prototype
+            expect(typeof r.pipe).toBe('function');
+        });
 
-		await it('Writable.call(plain) sets up writable state', async () => {
-			const w: any = Object.create(Writable.prototype);
-			(Writable as any).call(w, { write(_c: any, _e: any, cb: any) { cb(); } });
-			expect(w.writable).toBe(true);
-			expect(typeof w.writableHighWaterMark).toBe('number');
-		});
+        await it('Writable.call(plain) sets up writable state', async () => {
+            const w: any = Object.create(Writable.prototype);
+            (Writable as any).call(w, {
+                write(_c: any, _e: any, cb: any) {
+                    cb();
+                },
+            });
+            expect(w.writable).toBe(true);
+            expect(typeof w.writableHighWaterMark).toBe('number');
+        });
 
-		await it('Transform.call(plain) sets up both readable and writable state', async () => {
-			// This is the exact pattern used by @gjsify/crypto Hash.copy():
-			//   const copy = Object.create(Hash.prototype);
-			//   Transform.call(copy);
-			const copy: any = Object.create(Transform.prototype);
-			(Transform as any).call(copy);
-			expect(copy.readable).toBe(true);
-			expect(copy.writable).toBe(true);
-			// The Transform should be usable after .call() initialization —
-			// field initializers from all ancestors ran on copy.
-			expect(typeof copy.readableHighWaterMark).toBe('number');
-			expect(typeof copy.writableHighWaterMark).toBe('number');
-		});
+        await it('Transform.call(plain) sets up both readable and writable state', async () => {
+            // This is the exact pattern used by @gjsify/crypto Hash.copy():
+            //   const copy = Object.create(Hash.prototype);
+            //   Transform.call(copy);
+            const copy: any = Object.create(Transform.prototype);
+            (Transform as any).call(copy);
+            expect(copy.readable).toBe(true);
+            expect(copy.writable).toBe(true);
+            // The Transform should be usable after .call() initialization —
+            // field initializers from all ancestors ran on copy.
+            expect(typeof copy.readableHighWaterMark).toBe('number');
+            expect(typeof copy.writableHighWaterMark).toBe('number');
+        });
 
-		await it('PassThrough.call(plain) inherits the full chain', async () => {
-			const pt: any = Object.create(PassThrough.prototype);
-			(PassThrough as any).call(pt);
-			expect(pt.readable).toBe(true);
-			expect(pt.writable).toBe(true);
-		});
-	});
+        await it('PassThrough.call(plain) inherits the full chain', async () => {
+            const pt: any = Object.create(PassThrough.prototype);
+            (PassThrough as any).call(pt);
+            expect(pt.readable).toBe(true);
+            expect(pt.writable).toBe(true);
+        });
+    });
 
-	await describe('makeCallable: integration with util.inherits', async () => {
-		await it('inherits(Sub, Readable) + Readable.call(this) yields a working Readable subclass', async () => {
-			function SimpleSrc(this: any, items: number[]) {
-				(Readable as any).call(this, { objectMode: true });
-				this._items = items;
-			}
-			inherits(SimpleSrc as any, Readable as any);
-			(SimpleSrc.prototype as any)._read = function() {
-				const item = this._items.shift();
-				this.push(item !== undefined ? item : null);
-			};
+    await describe('makeCallable: integration with util.inherits', async () => {
+        await it('inherits(Sub, Readable) + Readable.call(this) yields a working Readable subclass', async () => {
+            function SimpleSrc(this: any, items: number[]) {
+                (Readable as any).call(this, { objectMode: true });
+                this._items = items;
+            }
+            inherits(SimpleSrc as any, Readable as any);
+            (SimpleSrc.prototype as any)._read = function () {
+                const item = this._items.shift();
+                this.push(item !== undefined ? item : null);
+            };
 
-			const src: any = new (SimpleSrc as any)([1, 2, 3]);
-			const out: number[] = [];
-			await new Promise<void>((resolve, reject) => {
-				src.on('data', (chunk: number) => out.push(chunk));
-				src.on('end', resolve);
-				src.on('error', reject);
-			});
-			expect(out).toEqualArray([1, 2, 3]);
-		});
-	});
+            const src: any = new (SimpleSrc as any)([1, 2, 3]);
+            const out: number[] = [];
+            await new Promise<void>((resolve, reject) => {
+                src.on('data', (chunk: number) => out.push(chunk));
+                src.on('end', resolve);
+                src.on('error', reject);
+            });
+            expect(out).toEqualArray([1, 2, 3]);
+        });
+    });
 };

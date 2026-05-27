@@ -9,252 +9,255 @@ import GLib from '@girs/glib-2.0';
 import { nativeTerminal } from '@gjsify/terminal-native';
 
 export class ReadStream extends Readable {
-  isRaw = false;
-  readonly fd: number;
+    isRaw = false;
+    readonly fd: number;
 
-  constructor(fd: number = 0) {
-    super();
-    this.fd = fd;
-  }
-
-  get isTTY() {
-    return isatty(this.fd);
-  }
-
-  setRawMode(mode: boolean) {
-    if (nativeTerminal) {
-      nativeTerminal.Terminal.set_raw_mode(this.fd, mode);
+    constructor(fd: number = 0) {
+        super();
+        this.fd = fd;
     }
-    if (this.isRaw !== mode) {
-      this.isRaw = mode;
-      this.emit('modeChange');
+
+    get isTTY() {
+        return isatty(this.fd);
     }
-    return this;
-  }
+
+    setRawMode(mode: boolean) {
+        if (nativeTerminal) {
+            nativeTerminal.Terminal.set_raw_mode(this.fd, mode);
+        }
+        if (this.isRaw !== mode) {
+            this.isRaw = mode;
+            this.emit('modeChange');
+        }
+        return this;
+    }
 }
 
 export class WriteStream extends Writable {
-  isRaw = false;
-  readonly fd: number;
+    isRaw = false;
+    readonly fd: number;
 
-  protected _print = console.log;
+    protected _print = console.log;
 
-  // Mutable backing fields — updated by _detectSize() and _changeColumns/Rows.
-  private _columns = 80;
-  private _rows = 24;
+    // Mutable backing fields — updated by _detectSize() and _changeColumns/Rows.
+    private _columns = 80;
+    private _rows = 24;
 
-  constructor(fd: number) {
-    super();
-    this.fd = fd;
-    this._detectSize();
-  }
-
-  get isTTY() {
-    return isatty(this.fd);
-  }
-
-  get columns(): number {
-    if (nativeTerminal) {
-      const [ok, , cols] = nativeTerminal.Terminal.get_size(this.fd);
-      if (ok && cols > 0) return cols;
-    }
-    return this._columns;
-  }
-
-  set columns(v: number) {
-    this._columns = v;
-  }
-
-  get rows(): number {
-    if (nativeTerminal) {
-      const [ok, rows] = nativeTerminal.Terminal.get_size(this.fd);
-      if (ok && rows > 0) return rows;
-    }
-    return this._rows;
-  }
-
-  set rows(v: number) {
-    this._rows = v;
-  }
-
-  /** Detect terminal size from environment or native ioctl. */
-  private _detectSize(): void {
-    if (nativeTerminal) {
-      const [ok, rows, cols] = nativeTerminal.Terminal.get_size(this.fd);
-      if (ok && cols > 0) {
-        this._columns = cols;
-        this._rows = rows;
-        return;
-      }
-    }
-    // Typed view over the process.env reads. The runtime fallback (GLib.getenv)
-    // is invoked when process.env is absent — i.e. when the polyfill chain
-    // has not yet attached @gjsify/process — so we cannot rely on
-    // @types/node having injected `process` globally.
-    const _env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
-    const cols = parseInt(
-      _env?.COLUMNS ||
-      (typeof GLib !== 'undefined' ? GLib.getenv('COLUMNS') : '') || '0',
-      10,
-    );
-    const rows = parseInt(
-      _env?.LINES ||
-      (typeof GLib !== 'undefined' ? GLib.getenv('LINES') : '') || '0',
-      10,
-    );
-    if (cols > 0) this._columns = cols;
-    if (rows > 0) this._rows = rows;
-  }
-
-  /**
-   * Clear the current line.
-   * dir: -1 = left of cursor, 0 = entire line, 1 = right of cursor
-   */
-  clearLine(dir: number, callback?: () => void): boolean {
-    let seq: string;
-    if (dir === -1) {
-      seq = '\x1b[1K'; // clear left
-    } else if (dir === 1) {
-      seq = '\x1b[0K'; // clear right
-    } else {
-      seq = '\x1b[2K'; // clear entire line
-    }
-    return this.write(seq, callback);
-  }
-
-  /** Clear the screen from the cursor down. */
-  clearScreenDown(callback?: () => void): boolean {
-    return this.write('\x1b[0J', callback);
-  }
-
-  /**
-   * Move cursor to absolute position (x, y).
-   * If y is omitted, only move horizontally.
-   */
-  cursorTo(x: number, y?: number | (() => void), callback?: () => void): boolean {
-    if (typeof y === 'function') {
-      callback = y;
-      y = undefined;
+    constructor(fd: number) {
+        super();
+        this.fd = fd;
+        this._detectSize();
     }
 
-    let seq: string;
-    if (y == null) {
-      seq = `\x1b[${x + 1}G`; // move to column x
-    } else {
-      seq = `\x1b[${(y as number) + 1};${x + 1}H`; // move to row;col
-    }
-    return this.write(seq, callback);
-  }
-
-  /**
-   * Move cursor relative to its current position.
-   */
-  moveCursor(dx: number, dy: number, callback?: () => void): boolean {
-    let seq = '';
-    if (dx > 0) seq += `\x1b[${dx}C`;      // right
-    else if (dx < 0) seq += `\x1b[${-dx}D`; // left
-    if (dy > 0) seq += `\x1b[${dy}B`;       // down
-    else if (dy < 0) seq += `\x1b[${-dy}A`; // up
-
-    if (seq.length === 0) {
-      if (callback) callback();
-      return true;
-    }
-    return this.write(seq, callback);
-  }
-
-  /**
-   * Get the color depth of the terminal.
-   * Returns 1 (no color), 4 (16 colors), 8 (256 colors), or 24 (true color).
-   */
-  getColorDepth(env?: Record<string, string>): number {
-    const e = env
-      || (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
-      || {};
-
-    // FORCE_COLOR takes precedence
-    if ('FORCE_COLOR' in e) {
-      const force = e.FORCE_COLOR;
-      if (force === '0' || force === 'false') return 1;
-      if (force === '1') return 4;
-      if (force === '2') return 8;
-      if (force === '3') return 24;
-      return 4; // truthy value
+    get isTTY() {
+        return isatty(this.fd);
     }
 
-    if ('NO_COLOR' in e) return 1;
-
-    const term = e.TERM || '';
-    const colorterm = e.COLORTERM || '';
-
-    if (colorterm === 'truecolor' || colorterm === '24bit') return 24;
-    if (term === 'xterm-256color' || term.endsWith('-256color')) return 8;
-    if (colorterm) return 4;
-    if (term === 'dumb') return 1;
-    if (term.startsWith('xterm') || term.startsWith('screen') || term.startsWith('vt100') || term.startsWith('linux')) return 4;
-
-    return 1;
-  }
-
-  /** Get the terminal window size as [columns, rows]. */
-  getWindowSize(): [number, number] {
-    return [this.columns, this.rows];
-  }
-
-  /**
-   * Check if the terminal supports the given number of colors.
-   */
-  hasColors(count?: number | Record<string, string>, env?: Record<string, string>): boolean {
-    let _count: number;
-    let _env: Record<string, string> | undefined;
-
-    if (typeof count === 'object') {
-      _env = count;
-      _count = 16;
-    } else {
-      _count = count ?? 16;
-      _env = env;
+    get columns(): number {
+        if (nativeTerminal) {
+            const [ok, , cols] = nativeTerminal.Terminal.get_size(this.fd);
+            if (ok && cols > 0) return cols;
+        }
+        return this._columns;
     }
 
-    const depth = this.getColorDepth(_env);
-    switch (depth) {
-      case 1: return _count >= 2;
-      case 4: return _count >= 16;
-      case 8: return _count >= 256;
-      case 24: return _count >= 16777216;
-      default: return false;
+    set columns(v: number) {
+        this._columns = v;
     }
-  }
 
-  setRawMode(mode: boolean) {
-    if (nativeTerminal) {
-      nativeTerminal.Terminal.set_raw_mode(this.fd, mode);
+    get rows(): number {
+        if (nativeTerminal) {
+            const [ok, rows] = nativeTerminal.Terminal.get_size(this.fd);
+            if (ok && rows > 0) return rows;
+        }
+        return this._rows;
     }
-    if (this.isRaw !== mode) {
-      this.isRaw = mode;
-      this.emit('modeChange');
-    }
-    return this;
-  }
 
-  override _write(chunk: any, enc: string, cb: Function) {
-    this._print(enc === 'buffer' ? chunk.toString('utf-8') : chunk);
-    cb(null);
-  }
-
-  _changeColumns(columns: number) {
-    if (columns !== this._columns) {
-      this._columns = columns;
-      this.emit('resize');
+    set rows(v: number) {
+        this._rows = v;
     }
-  }
 
-  _changeRows(rows: number) {
-    if (rows !== this._rows) {
-      this._rows = rows;
-      this.emit('resize');
+    /** Detect terminal size from environment or native ioctl. */
+    private _detectSize(): void {
+        if (nativeTerminal) {
+            const [ok, rows, cols] = nativeTerminal.Terminal.get_size(this.fd);
+            if (ok && cols > 0) {
+                this._columns = cols;
+                this._rows = rows;
+                return;
+            }
+        }
+        // Typed view over the process.env reads. The runtime fallback (GLib.getenv)
+        // is invoked when process.env is absent — i.e. when the polyfill chain
+        // has not yet attached @gjsify/process — so we cannot rely on
+        // @types/node having injected `process` globally.
+        const _env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+        const cols = parseInt(_env?.COLUMNS || (typeof GLib !== 'undefined' ? GLib.getenv('COLUMNS') : '') || '0', 10);
+        const rows = parseInt(_env?.LINES || (typeof GLib !== 'undefined' ? GLib.getenv('LINES') : '') || '0', 10);
+        if (cols > 0) this._columns = cols;
+        if (rows > 0) this._rows = rows;
     }
-  }
+
+    /**
+     * Clear the current line.
+     * dir: -1 = left of cursor, 0 = entire line, 1 = right of cursor
+     */
+    clearLine(dir: number, callback?: () => void): boolean {
+        let seq: string;
+        if (dir === -1) {
+            seq = '\x1b[1K'; // clear left
+        } else if (dir === 1) {
+            seq = '\x1b[0K'; // clear right
+        } else {
+            seq = '\x1b[2K'; // clear entire line
+        }
+        return this.write(seq, callback);
+    }
+
+    /** Clear the screen from the cursor down. */
+    clearScreenDown(callback?: () => void): boolean {
+        return this.write('\x1b[0J', callback);
+    }
+
+    /**
+     * Move cursor to absolute position (x, y).
+     * If y is omitted, only move horizontally.
+     */
+    cursorTo(x: number, y?: number | (() => void), callback?: () => void): boolean {
+        if (typeof y === 'function') {
+            callback = y;
+            y = undefined;
+        }
+
+        let seq: string;
+        if (y == null) {
+            seq = `\x1b[${x + 1}G`; // move to column x
+        } else {
+            seq = `\x1b[${(y as number) + 1};${x + 1}H`; // move to row;col
+        }
+        return this.write(seq, callback);
+    }
+
+    /**
+     * Move cursor relative to its current position.
+     */
+    moveCursor(dx: number, dy: number, callback?: () => void): boolean {
+        let seq = '';
+        if (dx > 0)
+            seq += `\x1b[${dx}C`; // right
+        else if (dx < 0) seq += `\x1b[${-dx}D`; // left
+        if (dy > 0)
+            seq += `\x1b[${dy}B`; // down
+        else if (dy < 0) seq += `\x1b[${-dy}A`; // up
+
+        if (seq.length === 0) {
+            if (callback) callback();
+            return true;
+        }
+        return this.write(seq, callback);
+    }
+
+    /**
+     * Get the color depth of the terminal.
+     * Returns 1 (no color), 4 (16 colors), 8 (256 colors), or 24 (true color).
+     */
+    getColorDepth(env?: Record<string, string>): number {
+        const e = env || (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env || {};
+
+        // FORCE_COLOR takes precedence
+        if ('FORCE_COLOR' in e) {
+            const force = e.FORCE_COLOR;
+            if (force === '0' || force === 'false') return 1;
+            if (force === '1') return 4;
+            if (force === '2') return 8;
+            if (force === '3') return 24;
+            return 4; // truthy value
+        }
+
+        if ('NO_COLOR' in e) return 1;
+
+        const term = e.TERM || '';
+        const colorterm = e.COLORTERM || '';
+
+        if (colorterm === 'truecolor' || colorterm === '24bit') return 24;
+        if (term === 'xterm-256color' || term.endsWith('-256color')) return 8;
+        if (colorterm) return 4;
+        if (term === 'dumb') return 1;
+        if (
+            term.startsWith('xterm') ||
+            term.startsWith('screen') ||
+            term.startsWith('vt100') ||
+            term.startsWith('linux')
+        )
+            return 4;
+
+        return 1;
+    }
+
+    /** Get the terminal window size as [columns, rows]. */
+    getWindowSize(): [number, number] {
+        return [this.columns, this.rows];
+    }
+
+    /**
+     * Check if the terminal supports the given number of colors.
+     */
+    hasColors(count?: number | Record<string, string>, env?: Record<string, string>): boolean {
+        let _count: number;
+        let _env: Record<string, string> | undefined;
+
+        if (typeof count === 'object') {
+            _env = count;
+            _count = 16;
+        } else {
+            _count = count ?? 16;
+            _env = env;
+        }
+
+        const depth = this.getColorDepth(_env);
+        switch (depth) {
+            case 1:
+                return _count >= 2;
+            case 4:
+                return _count >= 16;
+            case 8:
+                return _count >= 256;
+            case 24:
+                return _count >= 16777216;
+            default:
+                return false;
+        }
+    }
+
+    setRawMode(mode: boolean) {
+        if (nativeTerminal) {
+            nativeTerminal.Terminal.set_raw_mode(this.fd, mode);
+        }
+        if (this.isRaw !== mode) {
+            this.isRaw = mode;
+            this.emit('modeChange');
+        }
+        return this;
+    }
+
+    override _write(chunk: any, enc: string, cb: Function) {
+        this._print(enc === 'buffer' ? chunk.toString('utf-8') : chunk);
+        cb(null);
+    }
+
+    _changeColumns(columns: number) {
+        if (columns !== this._columns) {
+            this._columns = columns;
+            this.emit('resize');
+        }
+    }
+
+    _changeRows(rows: number) {
+        if (rows !== this._rows) {
+            this._rows = rows;
+            this.emit('resize');
+        }
+    }
 }
 
 /**
@@ -263,20 +266,20 @@ export class WriteStream extends Writable {
  * Falls back to GLib.log_writer_supports_color() as a reliable TTY proxy.
  */
 export function isatty(fd: number | ReadStream | WriteStream): boolean {
-  if (fd instanceof ReadStream || fd instanceof WriteStream) {
-    return isatty(fd.fd);
-  }
-  if (typeof fd === 'number') {
-    if (nativeTerminal) {
-      return nativeTerminal.Terminal.is_tty(fd);
+    if (fd instanceof ReadStream || fd instanceof WriteStream) {
+        return isatty(fd.fd);
     }
-    return GLib.log_writer_supports_color(fd);
-  }
-  return false;
+    if (typeof fd === 'number') {
+        if (nativeTerminal) {
+            return nativeTerminal.Terminal.is_tty(fd);
+        }
+        return GLib.log_writer_supports_color(fd);
+    }
+    return false;
 }
 
 export default {
-  isatty,
-  WriteStream,
-  ReadStream,
+    isatty,
+    WriteStream,
+    ReadStream,
 };

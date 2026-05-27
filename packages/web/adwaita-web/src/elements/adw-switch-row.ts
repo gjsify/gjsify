@@ -9,7 +9,9 @@ export class AdwSwitchRow extends HTMLElement {
     private _checkbox!: HTMLInputElement;
     private _initialized = false;
 
-    static get observedAttributes() { return ['active']; }
+    static get observedAttributes() {
+        return ['active'];
+    }
 
     get active(): boolean {
         return this.hasAttribute('active');
@@ -52,10 +54,12 @@ export class AdwSwitchRow extends HTMLElement {
         this._checkbox = input;
         this._checkbox.addEventListener('change', () => {
             this.toggleAttribute('active', this._checkbox.checked);
-            this.dispatchEvent(new CustomEvent('notify::active', {
-                bubbles: true,
-                detail: { active: this._checkbox.checked },
-            }));
+            this.dispatchEvent(
+                new CustomEvent('notify::active', {
+                    bubbles: true,
+                    detail: { active: this._checkbox.checked },
+                }),
+            );
         });
     }
 

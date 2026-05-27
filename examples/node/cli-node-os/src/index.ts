@@ -22,11 +22,11 @@ console.log('uid:', info.uid);
 console.log('\n--- cpus ---');
 const cpuList = cpus();
 if (cpuList && cpuList.length > 0) {
-  console.log('Number of CPUs:', cpuList.length);
-  console.log('First CPU model:', cpuList[0].model);
-  console.log('First CPU speed:', cpuList[0].speed, 'MHz');
+    console.log('Number of CPUs:', cpuList.length);
+    console.log('First CPU model:', cpuList[0].model);
+    console.log('First CPU speed:', cpuList[0].speed, 'MHz');
 } else {
-  console.log('CPU info not available on this platform');
+    console.log('CPU info not available on this platform');
 }
 
 console.log('\n=== os example complete ===');

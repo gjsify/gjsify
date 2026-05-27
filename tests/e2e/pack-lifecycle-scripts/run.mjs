@@ -21,14 +21,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import {
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    rmSync,
-    readFileSync,
-    writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -80,10 +73,7 @@ describe('gjsify pack — lifecycle scripts', () => {
         try {
             const result = runPack(dir);
             assert.equal(result.status, 0, `pack failed:\n${result.stderr}`);
-            assert.ok(
-                existsSync(join(dir, 'generated.txt')),
-                'prepack should have written generated.txt',
-            );
+            assert.ok(existsSync(join(dir, 'generated.txt')), 'prepack should have written generated.txt');
             const entries = listTarball(dir, 'lifecycle-prepack-1.0.0.tgz');
             assert.ok(
                 entries.includes('package/generated.txt'),
@@ -127,11 +117,7 @@ describe('gjsify pack — lifecycle scripts', () => {
             const result = runPack(dir);
             assert.notEqual(result.status, 0, 'pack should have failed when prepack exits non-zero');
             const combined = `${result.stdout}\n${result.stderr}`;
-            assert.match(
-                combined,
-                /prepack/,
-                'failure message should mention the failing script name',
-            );
+            assert.match(combined, /prepack/, 'failure message should mention the failing script name');
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

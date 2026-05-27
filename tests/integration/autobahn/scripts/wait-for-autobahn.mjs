@@ -18,24 +18,27 @@ const POLL_INTERVAL_MS = 500;
 const start = Date.now();
 
 function probe() {
-  return new Promise((resolve) => {
-    const sock = net.connect({ host: HOST, port: PORT });
-    sock.once('connect', () => { sock.destroy(); resolve(true); });
-    sock.once('error', () => resolve(false));
-  });
+    return new Promise((resolve) => {
+        const sock = net.connect({ host: HOST, port: PORT });
+        sock.once('connect', () => {
+            sock.destroy();
+            resolve(true);
+        });
+        sock.once('error', () => resolve(false));
+    });
 }
 
 async function main() {
-  process.stdout.write(`Waiting for Autobahn fuzzingserver on ${HOST}:${PORT}... `);
-  while (Date.now() - start < DEADLINE_MS) {
-    if (await probe()) {
-      process.stdout.write(`ready (${Date.now() - start} ms)\n`);
-      return;
+    process.stdout.write(`Waiting for Autobahn fuzzingserver on ${HOST}:${PORT}... `);
+    while (Date.now() - start < DEADLINE_MS) {
+        if (await probe()) {
+            process.stdout.write(`ready (${Date.now() - start} ms)\n`);
+            return;
+        }
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
     }
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-  }
-  process.stderr.write(`timeout after ${DEADLINE_MS} ms\n`);
-  process.exit(1);
+    process.stderr.write(`timeout after ${DEADLINE_MS} ms\n`);
+    process.exit(1);
 }
 
 main();

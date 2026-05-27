@@ -12,41 +12,41 @@ import { gbytesToUint8Array, deferEmit, ensureMainLoop } from '@gjsify/utils';
 // Wraps a Gio.InputStream as a Node.js Readable so proc.stdout/stderr work
 // with standard stream consumers (.on('data', ...), pipe, async iteration).
 class GioInputStreamReadable extends Readable {
-  private _stream: Gio.InputStream;
-  private _cancellable = new Gio.Cancellable();
+    private _stream: Gio.InputStream;
+    private _cancellable = new Gio.Cancellable();
 
-  constructor(stream: Gio.InputStream) {
-    super();
-    this._stream = stream;
-  }
+    constructor(stream: Gio.InputStream) {
+        super();
+        this._stream = stream;
+    }
 
-  override _read(size: number): void {
-    this._stream.read_bytes_async(
-      Math.max(size, 4096),
-      GLib.PRIORITY_DEFAULT,
-      this._cancellable,
-      (_source, result) => {
-        try {
-          const gbytes = this._stream.read_bytes_finish(result);
-          const data = gbytes.get_data();
-          if (!data || data.length === 0) {
-            this.push(null);
-          } else {
-            this.push(Buffer.from(data));
-          }
-        } catch (err) {
-          if (!this._cancellable.is_cancelled()) {
-            this.destroy(err as Error);
-          }
-        }
-      },
-    );
-  }
+    override _read(size: number): void {
+        this._stream.read_bytes_async(
+            Math.max(size, 4096),
+            GLib.PRIORITY_DEFAULT,
+            this._cancellable,
+            (_source, result) => {
+                try {
+                    const gbytes = this._stream.read_bytes_finish(result);
+                    const data = gbytes.get_data();
+                    if (!data || data.length === 0) {
+                        this.push(null);
+                    } else {
+                        this.push(Buffer.from(data));
+                    }
+                } catch (err) {
+                    if (!this._cancellable.is_cancelled()) {
+                        this.destroy(err as Error);
+                    }
+                }
+            },
+        );
+    }
 
-  override _destroy(error: Error | null, callback: (err?: Error | null) => void): void {
-    this._cancellable.cancel();
-    callback(error);
-  }
+    override _destroy(error: Error | null, callback: (err?: Error | null) => void): void {
+        this._cancellable.cancel();
+        callback(error);
+    }
 }
 
 /**
@@ -62,151 +62,156 @@ class GioInputStreamReadable extends Readable {
  * landing the async-side path that had been missing.
  */
 class GioOutputStreamWritable extends Writable {
-  private _stream: Gio.OutputStream;
-  private _cancellable = new Gio.Cancellable();
-  private _closed = false;
+    private _stream: Gio.OutputStream;
+    private _cancellable = new Gio.Cancellable();
+    private _closed = false;
 
-  constructor(stream: Gio.OutputStream) {
-    super();
-    this._stream = stream;
-  }
-
-  override _write(
-    chunk: Buffer | Uint8Array | string,
-    _encoding: BufferEncoding,
-    callback: (err?: Error | null) => void,
-  ): void {
-    if (this._closed) {
-      callback(new Error('write after end'));
-      return;
+    constructor(stream: Gio.OutputStream) {
+        super();
+        this._stream = stream;
     }
-    // Node's `_write` already coerces string chunks to Buffer when the
-    // stream isn't in objectMode (default). Be defensive anyway — execa
-    // passes ArrayBufferView for its `input` option.
-    const bytes: Uint8Array = typeof chunk === 'string'
-      ? Buffer.from(chunk)
-      : chunk instanceof Uint8Array
-        ? chunk
-        : Buffer.from(chunk as unknown as ArrayLike<number>);
-    // `new GLib.Bytes(uint8array)` copies into a GBytes; the GIO write
-    // pipeline owns the lifetime. Doing it sync would require
-    // `write_bytes(...)` which blocks the main loop — `_async` keeps
-    // GTK + the timer queue responsive.
-    this._stream.write_bytes_async(
-      new GLib.Bytes(bytes),
-      GLib.PRIORITY_DEFAULT,
-      this._cancellable,
-      (_source: unknown, result: Gio.AsyncResult) => {
-        try {
-          this._stream.write_bytes_finish(result);
-          callback();
-        } catch (err) {
-          if (this._cancellable.is_cancelled()) {
-            // Treat post-cancel finish as silent completion — destroy()
-            // already informed downstream listeners.
-            callback();
-          } else {
-            callback(err as Error);
-          }
+
+    override _write(
+        chunk: Buffer | Uint8Array | string,
+        _encoding: BufferEncoding,
+        callback: (err?: Error | null) => void,
+    ): void {
+        if (this._closed) {
+            callback(new Error('write after end'));
+            return;
         }
-      },
-    );
-  }
+        // Node's `_write` already coerces string chunks to Buffer when the
+        // stream isn't in objectMode (default). Be defensive anyway — execa
+        // passes ArrayBufferView for its `input` option.
+        const bytes: Uint8Array =
+            typeof chunk === 'string'
+                ? Buffer.from(chunk)
+                : chunk instanceof Uint8Array
+                  ? chunk
+                  : Buffer.from(chunk as unknown as ArrayLike<number>);
+        // `new GLib.Bytes(uint8array)` copies into a GBytes; the GIO write
+        // pipeline owns the lifetime. Doing it sync would require
+        // `write_bytes(...)` which blocks the main loop — `_async` keeps
+        // GTK + the timer queue responsive.
+        this._stream.write_bytes_async(
+            new GLib.Bytes(bytes),
+            GLib.PRIORITY_DEFAULT,
+            this._cancellable,
+            (_source: unknown, result: Gio.AsyncResult) => {
+                try {
+                    this._stream.write_bytes_finish(result);
+                    callback();
+                } catch (err) {
+                    if (this._cancellable.is_cancelled()) {
+                        // Treat post-cancel finish as silent completion — destroy()
+                        // already informed downstream listeners.
+                        callback();
+                    } else {
+                        callback(err as Error);
+                    }
+                }
+            },
+        );
+    }
 
-  override _final(callback: (err?: Error | null) => void): void {
-    if (this._closed) {
-      callback();
-      return;
+    override _final(callback: (err?: Error | null) => void): void {
+        if (this._closed) {
+            callback();
+            return;
+        }
+        this._closed = true;
+        // Close the stdin pipe so the child sees EOF — symmetrical to Node's
+        // `child.stdin.end()` -> `close()` on the underlying file descriptor.
+        // Use sync `close()` here intentionally: `close_async()` on a pipe
+        // whose read-end is held by an already-exited subprocess can hang
+        // indefinitely because the kernel keeps the dispatch chain alive
+        // until both ends agree. The sync close just flips fcntl + returns,
+        // which is what Node's `child.stdin.end()` semantically promises.
+        try {
+            this._stream.close(null);
+        } catch {
+            // Already closed (subprocess exited and the kernel collapsed the
+            // pipe end before us). Node's Writable contract is that the
+            // `_final` callback resolves once EOF has been signalled; it has
+            // been, even if via a different path.
+        }
+        callback();
     }
-    this._closed = true;
-    // Close the stdin pipe so the child sees EOF — symmetrical to Node's
-    // `child.stdin.end()` -> `close()` on the underlying file descriptor.
-    // Use sync `close()` here intentionally: `close_async()` on a pipe
-    // whose read-end is held by an already-exited subprocess can hang
-    // indefinitely because the kernel keeps the dispatch chain alive
-    // until both ends agree. The sync close just flips fcntl + returns,
-    // which is what Node's `child.stdin.end()` semantically promises.
-    try {
-      this._stream.close(null);
-    } catch {
-      // Already closed (subprocess exited and the kernel collapsed the
-      // pipe end before us). Node's Writable contract is that the
-      // `_final` callback resolves once EOF has been signalled; it has
-      // been, even if via a different path.
-    }
-    callback();
-  }
 
-  override _destroy(error: Error | null, callback: (err?: Error | null) => void): void {
-    this._cancellable.cancel();
-    // Best-effort close — `_destroy` may fire before `_final` if the
-    // consumer called `.destroy()` directly. Skip the async dance and use
-    // the sync `close` to avoid leaving the stream open in error paths.
-    if (!this._closed) {
-      this._closed = true;
-      try { this._stream.close(null); } catch { /* already closed */ }
+    override _destroy(error: Error | null, callback: (err?: Error | null) => void): void {
+        this._cancellable.cancel();
+        // Best-effort close — `_destroy` may fire before `_final` if the
+        // consumer called `.destroy()` directly. Skip the async dance and use
+        // the sync `close` to avoid leaving the stream open in error paths.
+        if (!this._closed) {
+            this._closed = true;
+            try {
+                this._stream.close(null);
+            } catch {
+                /* already closed */
+            }
+        }
+        callback(error);
     }
-    callback(error);
-  }
 }
 
 interface ExecError extends Error {
-  status?: number;
-  code?: number | string;
-  killed?: boolean;
-  stdout?: string;
-  stderr?: string;
+    status?: number;
+    code?: number | string;
+    killed?: boolean;
+    stdout?: string;
+    stderr?: string;
 }
 
 export interface ExecOptions {
-  cwd?: string;
-  env?: Record<string, string>;
-  encoding?: BufferEncoding | 'buffer';
-  shell?: string | boolean;
-  timeout?: number;
-  maxBuffer?: number;
-  killSignal?: string | number;
-  uid?: number;
-  gid?: number;
-  windowsHide?: boolean;
+    cwd?: string;
+    env?: Record<string, string>;
+    encoding?: BufferEncoding | 'buffer';
+    shell?: string | boolean;
+    timeout?: number;
+    maxBuffer?: number;
+    killSignal?: string | number;
+    uid?: number;
+    gid?: number;
+    windowsHide?: boolean;
 }
 
 export interface ExecSyncOptions {
-  cwd?: string;
-  env?: Record<string, string>;
-  encoding?: BufferEncoding | 'buffer';
-  shell?: string | boolean;
-  timeout?: number;
-  maxBuffer?: number;
-  killSignal?: string | number;
-  stdio?: string | string[];
-  input?: string | Buffer | Uint8Array;
+    cwd?: string;
+    env?: Record<string, string>;
+    encoding?: BufferEncoding | 'buffer';
+    shell?: string | boolean;
+    timeout?: number;
+    maxBuffer?: number;
+    killSignal?: string | number;
+    stdio?: string | string[];
+    input?: string | Buffer | Uint8Array;
 }
 
 export interface SpawnOptions {
-  cwd?: string;
-  env?: Record<string, string>;
-  stdio?: string | string[];
-  shell?: string | boolean;
-  timeout?: number;
-  killSignal?: string | number;
-  /**
-   * Allows aborting the child process via an `AbortController`. When the
-   * signal fires, the child is killed with `killSignal` (default `SIGTERM`)
-   * and an `error` event with `name: 'AbortError'` is emitted.
-   * Reference: https://nodejs.org/api/child_process.html#child_processspawncommand-args-options
-   */
-  signal?: AbortSignal;
+    cwd?: string;
+    env?: Record<string, string>;
+    stdio?: string | string[];
+    shell?: string | boolean;
+    timeout?: number;
+    killSignal?: string | number;
+    /**
+     * Allows aborting the child process via an `AbortController`. When the
+     * signal fires, the child is killed with `killSignal` (default `SIGTERM`)
+     * and an `error` event with `name: 'AbortError'` is emitted.
+     * Reference: https://nodejs.org/api/child_process.html#child_processspawncommand-args-options
+     */
+    signal?: AbortSignal;
 }
 
 export interface SpawnSyncResult {
-  pid: number;
-  output: (Buffer | string | null)[];
-  stdout: Buffer | string;
-  stderr: Buffer | string;
-  status: number | null;
-  signal: string | null;
-  error?: Error;
+    pid: number;
+    output: (Buffer | string | null)[];
+    stdout: Buffer | string;
+    stderr: Buffer | string;
+    status: number | null;
+    signal: string | null;
+    error?: Error;
 }
 
 // GC guard — GJS garbage-collects objects with no JS references.
@@ -218,171 +223,173 @@ const _activeProcesses = new Set<ChildProcess>();
  * ChildProcess — EventEmitter wrapping Gio.Subprocess.
  */
 export class ChildProcess extends EventEmitter {
-  pid?: number;
-  exitCode: number | null = null;
-  signalCode: string | null = null;
-  killed = false;
-  connected = false;
-  stdin: Writable | null = null;
-  stdout: Readable | null = null;
-  stderr: Readable | null = null;
+    pid?: number;
+    exitCode: number | null = null;
+    signalCode: string | null = null;
+    killed = false;
+    connected = false;
+    stdin: Writable | null = null;
+    stdout: Readable | null = null;
+    stderr: Readable | null = null;
 
-  /**
-   * Node-compatible `stdio` tuple — `[stdin, stdout, stderr, ...extraFds]`.
-   * Index 0/1/2 mirror the named streams above. Slots 3+ are reserved for
-   * `options.stdio = ['pipe', 'pipe', 'pipe', 'pipe']` extra fds, which we
-   * don't surface yet — `null` placeholders match Node's shape when extras
-   * weren't requested. Consumers like execa iterate this array (e.g. to
-   * dispose streams on subprocess exit), so the property MUST exist even
-   * when nothing was piped.
-   */
-  get stdio(): Array<Writable | Readable | null> {
-    return [this.stdin, this.stdout, this.stderr];
-  }
-
-  private _subprocess: Gio.Subprocess | null = null;
-
-  /** @internal Set the underlying Gio.Subprocess and extract PID. */
-  _setSubprocess(proc: Gio.Subprocess): void {
-    this._subprocess = proc;
-    const pid = proc.get_identifier();
-    if (pid) this.pid = parseInt(pid, 10);
-  }
-
-  /** Send a signal to the child process. */
-  kill(signal?: string | number): boolean {
-    if (!this._subprocess) return false;
-    try {
-      if (signal === 'SIGKILL' || signal === 9) {
-        this._subprocess.force_exit();
-      } else {
-        this._subprocess.send_signal(typeof signal === 'number' ? signal : 15);
-      }
-      this.killed = true;
-      return true;
-    } catch {
-      return false;
+    /**
+     * Node-compatible `stdio` tuple — `[stdin, stdout, stderr, ...extraFds]`.
+     * Index 0/1/2 mirror the named streams above. Slots 3+ are reserved for
+     * `options.stdio = ['pipe', 'pipe', 'pipe', 'pipe']` extra fds, which we
+     * don't surface yet — `null` placeholders match Node's shape when extras
+     * weren't requested. Consumers like execa iterate this array (e.g. to
+     * dispose streams on subprocess exit), so the property MUST exist even
+     * when nothing was piped.
+     */
+    get stdio(): Array<Writable | Readable | null> {
+        return [this.stdin, this.stdout, this.stderr];
     }
-  }
 
-  ref(): this { return this; }
-  unref(): this { return this; }
+    private _subprocess: Gio.Subprocess | null = null;
+
+    /** @internal Set the underlying Gio.Subprocess and extract PID. */
+    _setSubprocess(proc: Gio.Subprocess): void {
+        this._subprocess = proc;
+        const pid = proc.get_identifier();
+        if (pid) this.pid = parseInt(pid, 10);
+    }
+
+    /** Send a signal to the child process. */
+    kill(signal?: string | number): boolean {
+        if (!this._subprocess) return false;
+        try {
+            if (signal === 'SIGKILL' || signal === 9) {
+                this._subprocess.force_exit();
+            } else {
+                this._subprocess.send_signal(typeof signal === 'number' ? signal : 15);
+            }
+            this.killed = true;
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    ref(): this {
+        return this;
+    }
+    unref(): this {
+        return this;
+    }
 }
 
 // Create a Gio.Subprocess with cwd and env support via SubprocessLauncher.
 function _spawnSubprocess(
-  argv: string[],
-  flags: Gio.SubprocessFlags,
-  options?: { cwd?: string; env?: Record<string, string> }
+    argv: string[],
+    flags: Gio.SubprocessFlags,
+    options?: { cwd?: string; env?: Record<string, string> },
 ): Gio.Subprocess {
-  const launcher = new Gio.SubprocessLauncher({ flags });
-  if (options?.cwd) {
-    launcher.set_cwd(options.cwd);
-  }
-  if (options?.env) {
-    for (const [key, value] of Object.entries(options.env)) {
-      launcher.setenv(key, value, true);
+    const launcher = new Gio.SubprocessLauncher({ flags });
+    if (options?.cwd) {
+        launcher.set_cwd(options.cwd);
     }
-  }
-  return launcher.spawnv(argv);
+    if (options?.env) {
+        for (const [key, value] of Object.entries(options.env)) {
+            launcher.setenv(key, value, true);
+        }
+    }
+    return launcher.spawnv(argv);
 }
 
 // Execute a command in a shell and buffer the output (sync).
 export function execSync(command: string, options?: ExecSyncOptions): Buffer | string {
-  const encoding = options?.encoding;
-  const input = options?.input;
+    const encoding = options?.encoding;
+    const input = options?.input;
 
-  const flags = Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
-    | (input ? Gio.SubprocessFlags.STDIN_PIPE : Gio.SubprocessFlags.NONE);
+    const flags =
+        Gio.SubprocessFlags.STDOUT_PIPE |
+        Gio.SubprocessFlags.STDERR_PIPE |
+        (input ? Gio.SubprocessFlags.STDIN_PIPE : Gio.SubprocessFlags.NONE);
 
-  const shell = typeof options?.shell === 'string' ? options.shell : '/bin/sh';
-  const proc = _spawnSubprocess([shell, '-c', command], flags, options);
+    const shell = typeof options?.shell === 'string' ? options.shell : '/bin/sh';
+    const proc = _spawnSubprocess([shell, '-c', command], flags, options);
 
-  const stdinBytes = input
-    ? new GLib.Bytes(typeof input === 'string' ? new TextEncoder().encode(input) : input)
-    : null;
+    const stdinBytes = input
+        ? new GLib.Bytes(typeof input === 'string' ? new TextEncoder().encode(input) : input)
+        : null;
 
-  const [, stdoutBytes, stderrBytes] = proc.communicate(stdinBytes, null);
+    const [, stdoutBytes, stderrBytes] = proc.communicate(stdinBytes, null);
 
-  const status = proc.get_exit_status();
-  if (status !== 0) {
-    const stderrStr = stderrBytes
-      ? new TextDecoder().decode(gbytesToUint8Array(stderrBytes))
-      : '';
-    const error = new Error(`Command failed: ${command}\n${stderrStr}`) as ExecError;
-    error.status = status;
-    error.stderr = stderrStr;
-    error.stdout = stdoutBytes
-      ? new TextDecoder().decode(gbytesToUint8Array(stdoutBytes))
-      : '';
-    throw error;
-  }
+    const status = proc.get_exit_status();
+    if (status !== 0) {
+        const stderrStr = stderrBytes ? new TextDecoder().decode(gbytesToUint8Array(stderrBytes)) : '';
+        const error = new Error(`Command failed: ${command}\n${stderrStr}`) as ExecError;
+        error.status = status;
+        error.stderr = stderrStr;
+        error.stdout = stdoutBytes ? new TextDecoder().decode(gbytesToUint8Array(stdoutBytes)) : '';
+        throw error;
+    }
 
-  if (!stdoutBytes) return encoding && encoding !== 'buffer' ? '' : Buffer.alloc(0);
-  const data = gbytesToUint8Array(stdoutBytes);
-  if (encoding && encoding !== 'buffer') {
-    return new TextDecoder().decode(data);
-  }
-  return Buffer.from(data);
+    if (!stdoutBytes) return encoding && encoding !== 'buffer' ? '' : Buffer.alloc(0);
+    const data = gbytesToUint8Array(stdoutBytes);
+    if (encoding && encoding !== 'buffer') {
+        return new TextDecoder().decode(data);
+    }
+    return Buffer.from(data);
 }
 
 /**
  * Execute a command in a shell (async with callback).
  */
 function _exec(
-  command: string,
-  options?: ExecOptions | ((error: Error | null, stdout: string, stderr: string) => void),
-  callback?: (error: Error | null, stdout: string, stderr: string) => void,
+    command: string,
+    options?: ExecOptions | ((error: Error | null, stdout: string, stderr: string) => void),
+    callback?: (error: Error | null, stdout: string, stderr: string) => void,
 ): ChildProcess {
-  if (typeof options === 'function') {
-    callback = options;
-    options = {};
-  }
-  const opts = (options || {}) as ExecOptions;
-  const child = new ChildProcess();
+    if (typeof options === 'function') {
+        callback = options;
+        options = {};
+    }
+    const opts = (options || {}) as ExecOptions;
+    const child = new ChildProcess();
 
-  const shell = typeof opts.shell === 'string' ? opts.shell : '/bin/sh';
-  const flags = Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE;
+    const shell = typeof opts.shell === 'string' ? opts.shell : '/bin/sh';
+    const flags = Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE;
 
-  try {
-    const proc = _spawnSubprocess([shell, '-c', command], flags, opts);
-    child._setSubprocess(proc);
-    ensureMainLoop();
+    try {
+        const proc = _spawnSubprocess([shell, '-c', command], flags, opts);
+        child._setSubprocess(proc);
+        ensureMainLoop();
 
-    proc.communicate_utf8_async(null, null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
-      try {
-        const [, stdout, stderr] = proc.communicate_utf8_finish(result);
-        const exitStatus = proc.get_exit_status();
-        child.exitCode = exitStatus;
+        proc.communicate_utf8_async(null, null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
+            try {
+                const [, stdout, stderr] = proc.communicate_utf8_finish(result);
+                const exitStatus = proc.get_exit_status();
+                child.exitCode = exitStatus;
 
-        if (exitStatus !== 0) {
-          const error = new Error(`Command failed: ${command}`) as ExecError;
-          error.code = exitStatus;
-          error.killed = child.killed;
-          error.stdout = stdout || '';
-          error.stderr = stderr || '';
-          if (callback) callback(error, stdout || '', stderr || '');
-        } else {
-          if (callback) callback(null, stdout || '', stderr || '');
-        }
+                if (exitStatus !== 0) {
+                    const error = new Error(`Command failed: ${command}`) as ExecError;
+                    error.code = exitStatus;
+                    error.killed = child.killed;
+                    error.stdout = stdout || '';
+                    error.stderr = stderr || '';
+                    if (callback) callback(error, stdout || '', stderr || '');
+                } else {
+                    if (callback) callback(null, stdout || '', stderr || '');
+                }
 
-        child.emit('close', exitStatus, null);
-        child.emit('exit', exitStatus, null);
-      } catch (err: unknown) {
+                child.emit('close', exitStatus, null);
+                child.emit('exit', exitStatus, null);
+            } catch (err: unknown) {
+                const error = err instanceof Error ? err : new Error(String(err));
+                if (callback) callback(error, '', '');
+                child.emit('error', error);
+            }
+        });
+    } catch (err: unknown) {
         const error = err instanceof Error ? err : new Error(String(err));
-        if (callback) callback(error, '', '');
-        child.emit('error', error);
-      }
-    });
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    setTimeout(() => {
-      if (callback) callback(error, '', '');
-      child.emit('error', error);
-    }, 0);
-  }
+        setTimeout(() => {
+            if (callback) callback(error, '', '');
+            child.emit('error', error);
+        }, 0);
+    }
 
-  return child;
+    return child;
 }
 
 export { _exec as exec };
@@ -391,106 +398,106 @@ export { _exec as exec };
  * Execute a file directly without shell (async).
  */
 export function execFile(
-  file: string,
-  args?: string[] | ((error: Error | null, stdout: string, stderr: string) => void),
-  options?: ExecOptions | ((error: Error | null, stdout: string, stderr: string) => void),
-  callback?: (error: Error | null, stdout: string, stderr: string) => void,
+    file: string,
+    args?: string[] | ((error: Error | null, stdout: string, stderr: string) => void),
+    options?: ExecOptions | ((error: Error | null, stdout: string, stderr: string) => void),
+    callback?: (error: Error | null, stdout: string, stderr: string) => void,
 ): ChildProcess {
-  let _args: string[] = [];
-  let _opts: ExecOptions = {};
-  let _callback: ((error: Error | null, stdout: string, stderr: string) => void) | undefined;
+    let _args: string[] = [];
+    let _opts: ExecOptions = {};
+    let _callback: ((error: Error | null, stdout: string, stderr: string) => void) | undefined;
 
-  if (typeof args === 'function') {
-    _callback = args;
-  } else if (Array.isArray(args)) {
-    _args = args;
-    if (typeof options === 'function') {
-      _callback = options;
-    } else {
-      _opts = options || {};
-      _callback = callback;
-    }
-  }
-
-  const child = new ChildProcess();
-  const flags = Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE;
-
-  try {
-    const proc = _spawnSubprocess([file, ..._args], flags, _opts);
-    child._setSubprocess(proc);
-    ensureMainLoop();
-
-    proc.communicate_utf8_async(null, null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
-      try {
-        const [, stdout, stderr] = proc.communicate_utf8_finish(result);
-        const exitStatus = proc.get_exit_status();
-        child.exitCode = exitStatus;
-
-        if (exitStatus !== 0) {
-          const error = new Error(`Command failed: ${file}`) as ExecError;
-          error.code = exitStatus;
-          error.stdout = stdout || '';
-          error.stderr = stderr || '';
-          if (_callback) _callback(error, stdout || '', stderr || '');
+    if (typeof args === 'function') {
+        _callback = args;
+    } else if (Array.isArray(args)) {
+        _args = args;
+        if (typeof options === 'function') {
+            _callback = options;
         } else {
-          if (_callback) _callback(null, stdout || '', stderr || '');
+            _opts = options || {};
+            _callback = callback;
         }
+    }
 
-        child.emit('close', exitStatus, null);
-        child.emit('exit', exitStatus, null);
-      } catch (err: unknown) {
+    const child = new ChildProcess();
+    const flags = Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE;
+
+    try {
+        const proc = _spawnSubprocess([file, ..._args], flags, _opts);
+        child._setSubprocess(proc);
+        ensureMainLoop();
+
+        proc.communicate_utf8_async(null, null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
+            try {
+                const [, stdout, stderr] = proc.communicate_utf8_finish(result);
+                const exitStatus = proc.get_exit_status();
+                child.exitCode = exitStatus;
+
+                if (exitStatus !== 0) {
+                    const error = new Error(`Command failed: ${file}`) as ExecError;
+                    error.code = exitStatus;
+                    error.stdout = stdout || '';
+                    error.stderr = stderr || '';
+                    if (_callback) _callback(error, stdout || '', stderr || '');
+                } else {
+                    if (_callback) _callback(null, stdout || '', stderr || '');
+                }
+
+                child.emit('close', exitStatus, null);
+                child.emit('exit', exitStatus, null);
+            } catch (err: unknown) {
+                const error = err instanceof Error ? err : new Error(String(err));
+                if (_callback) _callback(error, '', '');
+                child.emit('error', error);
+            }
+        });
+    } catch (err: unknown) {
         const error = err instanceof Error ? err : new Error(String(err));
-        if (_callback) _callback(error, '', '');
-        child.emit('error', error);
-      }
-    });
-  } catch (err: unknown) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    setTimeout(() => {
-      if (_callback) _callback(error, '', '');
-      child.emit('error', error);
-    }, 0);
-  }
+        setTimeout(() => {
+            if (_callback) _callback(error, '', '');
+            child.emit('error', error);
+        }, 0);
+    }
 
-  return child;
+    return child;
 }
 
 /**
  * Execute a file directly without shell (sync).
  */
 export function execFileSync(file: string, args?: string[], options?: ExecSyncOptions): Buffer | string {
-  const _args = args || [];
-  const encoding = options?.encoding;
-  const input = options?.input;
+    const _args = args || [];
+    const encoding = options?.encoding;
+    const input = options?.input;
 
-  const flags = Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
-    | (input ? Gio.SubprocessFlags.STDIN_PIPE : Gio.SubprocessFlags.NONE);
+    const flags =
+        Gio.SubprocessFlags.STDOUT_PIPE |
+        Gio.SubprocessFlags.STDERR_PIPE |
+        (input ? Gio.SubprocessFlags.STDIN_PIPE : Gio.SubprocessFlags.NONE);
 
-  const proc = _spawnSubprocess([file, ..._args], flags, options);
+    const proc = _spawnSubprocess([file, ..._args], flags, options);
 
-  const stdinBytes = input
-    ? new GLib.Bytes(typeof input === 'string' ? new TextEncoder().encode(input) : input)
-    : null;
+    const stdinBytes = input
+        ? new GLib.Bytes(typeof input === 'string' ? new TextEncoder().encode(input) : input)
+        : null;
 
-  const [, stdoutBytes, stderrBytes] = proc.communicate(stdinBytes, null);
+    const [, stdoutBytes, stderrBytes] = proc.communicate(stdinBytes, null);
 
-  const status = proc.get_exit_status();
-  if (status !== 0) {
-    const stderrStr = stderrBytes
-      ? new TextDecoder().decode(gbytesToUint8Array(stderrBytes))
-      : '';
-    const error = new Error(`Command failed: ${file} ${_args.join(' ')}`) as ExecError;
-    error.status = status;
-    error.stderr = stderrStr;
-    throw error;
-  }
+    const status = proc.get_exit_status();
+    if (status !== 0) {
+        const stderrStr = stderrBytes ? new TextDecoder().decode(gbytesToUint8Array(stderrBytes)) : '';
+        const error = new Error(`Command failed: ${file} ${_args.join(' ')}`) as ExecError;
+        error.status = status;
+        error.stderr = stderrStr;
+        throw error;
+    }
 
-  if (!stdoutBytes) return encoding && encoding !== 'buffer' ? '' : Buffer.alloc(0);
-  const data = gbytesToUint8Array(stdoutBytes);
-  if (encoding && encoding !== 'buffer') {
-    return new TextDecoder().decode(data);
-  }
-  return Buffer.from(data);
+    if (!stdoutBytes) return encoding && encoding !== 'buffer' ? '' : Buffer.alloc(0);
+    const data = gbytesToUint8Array(stdoutBytes);
+    if (encoding && encoding !== 'buffer') {
+        return new TextDecoder().decode(data);
+    }
+    return Buffer.from(data);
 }
 
 /**
@@ -502,147 +509,147 @@ export function execFileSync(file: string, args?: string[], options?: ExecSyncOp
  * don't get the options object spread into argv.
  */
 export function spawn(
-  command: string,
-  argsOrOptions?: string[] | SpawnOptions,
-  maybeOptions?: SpawnOptions,
+    command: string,
+    argsOrOptions?: string[] | SpawnOptions,
+    maybeOptions?: SpawnOptions,
 ): ChildProcess {
-  let args: string[] | undefined;
-  let options: SpawnOptions | undefined;
-  if (Array.isArray(argsOrOptions)) {
-    args = argsOrOptions;
-    options = maybeOptions;
-  } else {
-    args = undefined;
-    options = argsOrOptions;
-  }
-  const _args = args || [];
-  const child = new ChildProcess();
-  const useShell = options?.shell;
+    let args: string[] | undefined;
+    let options: SpawnOptions | undefined;
+    if (Array.isArray(argsOrOptions)) {
+        args = argsOrOptions;
+        options = maybeOptions;
+    } else {
+        args = undefined;
+        options = argsOrOptions;
+    }
+    const _args = args || [];
+    const child = new ChildProcess();
+    const useShell = options?.shell;
 
-  let argv: string[];
-  if (useShell) {
-    const shell = typeof useShell === 'string' ? useShell : '/bin/sh';
-    const fullCmd = [command, ..._args].join(' ');
-    argv = [shell, '-c', fullCmd];
-  } else {
-    argv = [command, ..._args];
-  }
-
-  // Honour `stdio` (subset of Node's API): `'inherit'` → no PIPE flag so the
-  // child writes directly to the parent's fd; `'ignore'` → no PIPE either,
-  // child output is silently dropped at the kernel level; `'pipe'` (default)
-  // → PIPE flag set so child output flows through GioInputStreamReadable.
-  // Three-tuple form `['inherit'|'pipe'|'ignore', ..., ...]` is normalised
-  // per-fd so callers can mix-and-match (e.g. ['ignore','pipe','pipe']).
-  const stdioOpt = options?.stdio;
-  const stdioTriple: [string, string, string] = Array.isArray(stdioOpt)
-    ? [
-        typeof stdioOpt[0] === 'string' ? stdioOpt[0] : 'pipe',
-        typeof stdioOpt[1] === 'string' ? stdioOpt[1] : 'pipe',
-        typeof stdioOpt[2] === 'string' ? stdioOpt[2] : 'pipe',
-      ]
-    : typeof stdioOpt === 'string'
-      ? [stdioOpt, stdioOpt, stdioOpt]
-      : ['pipe', 'pipe', 'pipe'];
-  let flags = Gio.SubprocessFlags.NONE;
-  // stdin asymmetry vs stdout/stderr: Gio.Subprocess defaults stdin to
-  // /dev/null when neither STDIN_PIPE nor STDIN_INHERIT is set, while
-  // stdout/stderr default to *inherited* (only PIPE / SILENCE flip them).
-  // So `stdio: 'inherit'` must explicitly request STDIN_INHERIT — without
-  // it, TTY-aware children (release-it / enquirer prompts, password
-  // readers, …) see closed stdin and bail with "0 null" before any user
-  // input is possible.
-  if (stdioTriple[0] === 'pipe') flags |= Gio.SubprocessFlags.STDIN_PIPE;
-  else if (stdioTriple[0] === 'inherit') flags |= Gio.SubprocessFlags.STDIN_INHERIT;
-  if (stdioTriple[1] === 'pipe') flags |= Gio.SubprocessFlags.STDOUT_PIPE;
-  if (stdioTriple[1] === 'ignore') flags |= Gio.SubprocessFlags.STDOUT_SILENCE;
-  if (stdioTriple[2] === 'pipe') flags |= Gio.SubprocessFlags.STDERR_PIPE;
-  if (stdioTriple[2] === 'ignore') flags |= Gio.SubprocessFlags.STDERR_SILENCE;
-
-  try {
-    const proc = _spawnSubprocess(argv, flags, options);
-    child._setSubprocess(proc);
-    _activeProcesses.add(child);
-
-    // Stdin: wire the pipe as a Writable when caller asked for 'pipe'
-    // (default when stdio[0] is unspecified). Otherwise leave
-    // `child.stdin = null` — matches Node for `'inherit'` / `'ignore'`
-    // shapes where the child uses the parent's fd directly or has stdin
-    // silenced at spawn time.
-    if (stdioTriple[0] === 'pipe') {
-      const stdinPipe = proc.get_stdin_pipe();
-      if (stdinPipe) child.stdin = new GioOutputStreamWritable(stdinPipe);
+    let argv: string[];
+    if (useShell) {
+        const shell = typeof useShell === 'string' ? useShell : '/bin/sh';
+        const fullCmd = [command, ..._args].join(' ');
+        argv = [shell, '-c', fullCmd];
+    } else {
+        argv = [command, ..._args];
     }
 
-    const stdoutPipe = proc.get_stdout_pipe();
-    if (stdoutPipe) child.stdout = new GioInputStreamReadable(stdoutPipe);
+    // Honour `stdio` (subset of Node's API): `'inherit'` → no PIPE flag so the
+    // child writes directly to the parent's fd; `'ignore'` → no PIPE either,
+    // child output is silently dropped at the kernel level; `'pipe'` (default)
+    // → PIPE flag set so child output flows through GioInputStreamReadable.
+    // Three-tuple form `['inherit'|'pipe'|'ignore', ..., ...]` is normalised
+    // per-fd so callers can mix-and-match (e.g. ['ignore','pipe','pipe']).
+    const stdioOpt = options?.stdio;
+    const stdioTriple: [string, string, string] = Array.isArray(stdioOpt)
+        ? [
+              typeof stdioOpt[0] === 'string' ? stdioOpt[0] : 'pipe',
+              typeof stdioOpt[1] === 'string' ? stdioOpt[1] : 'pipe',
+              typeof stdioOpt[2] === 'string' ? stdioOpt[2] : 'pipe',
+          ]
+        : typeof stdioOpt === 'string'
+          ? [stdioOpt, stdioOpt, stdioOpt]
+          : ['pipe', 'pipe', 'pipe'];
+    let flags = Gio.SubprocessFlags.NONE;
+    // stdin asymmetry vs stdout/stderr: Gio.Subprocess defaults stdin to
+    // /dev/null when neither STDIN_PIPE nor STDIN_INHERIT is set, while
+    // stdout/stderr default to *inherited* (only PIPE / SILENCE flip them).
+    // So `stdio: 'inherit'` must explicitly request STDIN_INHERIT — without
+    // it, TTY-aware children (release-it / enquirer prompts, password
+    // readers, …) see closed stdin and bail with "0 null" before any user
+    // input is possible.
+    if (stdioTriple[0] === 'pipe') flags |= Gio.SubprocessFlags.STDIN_PIPE;
+    else if (stdioTriple[0] === 'inherit') flags |= Gio.SubprocessFlags.STDIN_INHERIT;
+    if (stdioTriple[1] === 'pipe') flags |= Gio.SubprocessFlags.STDOUT_PIPE;
+    if (stdioTriple[1] === 'ignore') flags |= Gio.SubprocessFlags.STDOUT_SILENCE;
+    if (stdioTriple[2] === 'pipe') flags |= Gio.SubprocessFlags.STDERR_PIPE;
+    if (stdioTriple[2] === 'ignore') flags |= Gio.SubprocessFlags.STDERR_SILENCE;
 
-    const stderrPipe = proc.get_stderr_pipe();
-    if (stderrPipe) child.stderr = new GioInputStreamReadable(stderrPipe);
+    try {
+        const proc = _spawnSubprocess(argv, flags, options);
+        child._setSubprocess(proc);
+        _activeProcesses.add(child);
 
-    // AbortSignal wiring — the documented Node behavior is to kill the
-    // child on abort (with `killSignal` if provided) and emit an `error`
-    // event whose `name` is `'AbortError'`. We register `{ once: true }`
-    // because the listener is no longer interesting after either abort
-    // OR child-exit, and we explicitly remove it from the exit handler so
-    // a late abort never fires after the child is already gone.
-    const abortSignal = options?.signal;
-    let onAbort: (() => void) | null = null;
-    const emitAbortError = () => {
-      const killSig = options?.killSignal ?? 'SIGTERM';
-      child.kill(killSig);
-      const err = new Error('The operation was aborted');
-      err.name = 'AbortError';
-      child.emit('error', err);
-    };
-    if (abortSignal) {
-      if (abortSignal.aborted) {
-        // Already aborted before spawn returned — kill + emit AbortError on
-        // the next microtask so subscribers attached after `spawn()` returns
-        // still receive the event (matches Node's documented behaviour).
-        queueMicrotask(emitAbortError);
-      } else {
-        onAbort = emitAbortError;
-        abortSignal.addEventListener('abort', onAbort, { once: true });
-      }
+        // Stdin: wire the pipe as a Writable when caller asked for 'pipe'
+        // (default when stdio[0] is unspecified). Otherwise leave
+        // `child.stdin = null` — matches Node for `'inherit'` / `'ignore'`
+        // shapes where the child uses the parent's fd directly or has stdin
+        // silenced at spawn time.
+        if (stdioTriple[0] === 'pipe') {
+            const stdinPipe = proc.get_stdin_pipe();
+            if (stdinPipe) child.stdin = new GioOutputStreamWritable(stdinPipe);
+        }
+
+        const stdoutPipe = proc.get_stdout_pipe();
+        if (stdoutPipe) child.stdout = new GioInputStreamReadable(stdoutPipe);
+
+        const stderrPipe = proc.get_stderr_pipe();
+        if (stderrPipe) child.stderr = new GioInputStreamReadable(stderrPipe);
+
+        // AbortSignal wiring — the documented Node behavior is to kill the
+        // child on abort (with `killSignal` if provided) and emit an `error`
+        // event whose `name` is `'AbortError'`. We register `{ once: true }`
+        // because the listener is no longer interesting after either abort
+        // OR child-exit, and we explicitly remove it from the exit handler so
+        // a late abort never fires after the child is already gone.
+        const abortSignal = options?.signal;
+        let onAbort: (() => void) | null = null;
+        const emitAbortError = () => {
+            const killSig = options?.killSignal ?? 'SIGTERM';
+            child.kill(killSig);
+            const err = new Error('The operation was aborted');
+            err.name = 'AbortError';
+            child.emit('error', err);
+        };
+        if (abortSignal) {
+            if (abortSignal.aborted) {
+                // Already aborted before spawn returned — kill + emit AbortError on
+                // the next microtask so subscribers attached after `spawn()` returns
+                // still receive the event (matches Node's documented behaviour).
+                queueMicrotask(emitAbortError);
+            } else {
+                onAbort = emitAbortError;
+                abortSignal.addEventListener('abort', onAbort, { once: true });
+            }
+        }
+
+        ensureMainLoop();
+        proc.wait_async(null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
+            try {
+                proc.wait_finish(result);
+                const exitStatus = proc.get_if_exited() ? proc.get_exit_status() : null;
+                const signal = proc.get_if_signaled() ? 'SIGTERM' : null;
+                child.exitCode = exitStatus;
+                child.signalCode = signal;
+                if (abortSignal && onAbort) {
+                    abortSignal.removeEventListener('abort', onAbort);
+                }
+                // Match Node's `child_process` behaviour: when the subprocess
+                // exits, destroy `child.stdin` if it's still open. Without this,
+                // consumers that await `stream.finished(child.stdin)` (e.g.
+                // execa's `waitForStdioStreams`) hang indefinitely because no
+                // one has called `end()` or `destroy()` on the Writable. Node's
+                // own impl does the same at
+                // https://github.com/nodejs/node/blob/main/lib/internal/child_process.js
+                // (search for `this.stdin.destroy()` on the exit path).
+                if (child.stdin && !child.stdin.destroyed) {
+                    child.stdin.destroy();
+                }
+                child.emit('exit', exitStatus, signal);
+                child.emit('close', exitStatus, signal);
+            } catch (err: unknown) {
+                child.emit('error', err instanceof Error ? err : new Error(String(err)));
+            }
+            _activeProcesses.delete(child);
+        });
+
+        deferEmit(child, 'spawn');
+    } catch (err: unknown) {
+        deferEmit(child, 'error', err instanceof Error ? err : new Error(String(err)));
     }
 
-    ensureMainLoop();
-    proc.wait_async(null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
-      try {
-        proc.wait_finish(result);
-        const exitStatus = proc.get_if_exited() ? proc.get_exit_status() : null;
-        const signal = proc.get_if_signaled() ? 'SIGTERM' : null;
-        child.exitCode = exitStatus;
-        child.signalCode = signal;
-        if (abortSignal && onAbort) {
-          abortSignal.removeEventListener('abort', onAbort);
-        }
-        // Match Node's `child_process` behaviour: when the subprocess
-        // exits, destroy `child.stdin` if it's still open. Without this,
-        // consumers that await `stream.finished(child.stdin)` (e.g.
-        // execa's `waitForStdioStreams`) hang indefinitely because no
-        // one has called `end()` or `destroy()` on the Writable. Node's
-        // own impl does the same at
-        // https://github.com/nodejs/node/blob/main/lib/internal/child_process.js
-        // (search for `this.stdin.destroy()` on the exit path).
-        if (child.stdin && !child.stdin.destroyed) {
-          child.stdin.destroy();
-        }
-        child.emit('exit', exitStatus, signal);
-        child.emit('close', exitStatus, signal);
-      } catch (err: unknown) {
-        child.emit('error', err instanceof Error ? err : new Error(String(err)));
-      }
-      _activeProcesses.delete(child);
-    });
-
-    deferEmit(child, 'spawn');
-  } catch (err: unknown) {
-    deferEmit(child, 'error', err instanceof Error ? err : new Error(String(err)));
-  }
-
-  return child;
+    return child;
 }
 
 /**
@@ -652,83 +659,87 @@ export function spawn(
  * `(command, options)`.
  */
 export function spawnSync(
-  command: string,
-  argsOrOptions?: string[] | ExecSyncOptions,
-  maybeOptions?: ExecSyncOptions,
+    command: string,
+    argsOrOptions?: string[] | ExecSyncOptions,
+    maybeOptions?: ExecSyncOptions,
 ): SpawnSyncResult {
-  let args: string[] | undefined;
-  let options: ExecSyncOptions | undefined;
-  if (Array.isArray(argsOrOptions)) {
-    args = argsOrOptions;
-    options = maybeOptions;
-  } else {
-    args = undefined;
-    options = argsOrOptions;
-  }
-  const _args = args || [];
-  const useShell = options?.shell;
-  const input = options?.input;
+    let args: string[] | undefined;
+    let options: ExecSyncOptions | undefined;
+    if (Array.isArray(argsOrOptions)) {
+        args = argsOrOptions;
+        options = maybeOptions;
+    } else {
+        args = undefined;
+        options = argsOrOptions;
+    }
+    const _args = args || [];
+    const useShell = options?.shell;
+    const input = options?.input;
 
-  let argv: string[];
-  if (useShell) {
-    const shell = typeof useShell === 'string' ? useShell : '/bin/sh';
-    const fullCmd = [command, ..._args].join(' ');
-    argv = [shell, '-c', fullCmd];
-  } else {
-    argv = [command, ..._args];
-  }
+    let argv: string[];
+    if (useShell) {
+        const shell = typeof useShell === 'string' ? useShell : '/bin/sh';
+        const fullCmd = [command, ..._args].join(' ');
+        argv = [shell, '-c', fullCmd];
+    } else {
+        argv = [command, ..._args];
+    }
 
-  const flags = Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
-    | (input ? Gio.SubprocessFlags.STDIN_PIPE : Gio.SubprocessFlags.NONE);
+    const flags =
+        Gio.SubprocessFlags.STDOUT_PIPE |
+        Gio.SubprocessFlags.STDERR_PIPE |
+        (input ? Gio.SubprocessFlags.STDIN_PIPE : Gio.SubprocessFlags.NONE);
 
-  try {
-    const proc = _spawnSubprocess(argv, flags, options);
-    const pid = proc.get_identifier();
+    try {
+        const proc = _spawnSubprocess(argv, flags, options);
+        const pid = proc.get_identifier();
 
-    const stdinBytes = input
-      ? new GLib.Bytes(typeof input === 'string' ? new TextEncoder().encode(input) : input)
-      : null;
+        const stdinBytes = input
+            ? new GLib.Bytes(typeof input === 'string' ? new TextEncoder().encode(input) : input)
+            : null;
 
-    const [, stdoutBytes, stderrBytes] = proc.communicate(stdinBytes, null);
+        const [, stdoutBytes, stderrBytes] = proc.communicate(stdinBytes, null);
 
-    const stdoutBuf = stdoutBytes ? Buffer.from(gbytesToUint8Array(stdoutBytes)) : Buffer.alloc(0);
-    const stderrBuf = stderrBytes ? Buffer.from(gbytesToUint8Array(stderrBytes)) : Buffer.alloc(0);
+        const stdoutBuf = stdoutBytes ? Buffer.from(gbytesToUint8Array(stdoutBytes)) : Buffer.alloc(0);
+        const stderrBuf = stderrBytes ? Buffer.from(gbytesToUint8Array(stderrBytes)) : Buffer.alloc(0);
 
-    const encoding = options?.encoding;
-    const stdoutData: Buffer | string = encoding && encoding !== 'buffer' ? new TextDecoder().decode(stdoutBuf) : stdoutBuf;
-    const stderrData: Buffer | string = encoding && encoding !== 'buffer' ? new TextDecoder().decode(stderrBuf) : stderrBuf;
+        const encoding = options?.encoding;
+        const stdoutData: Buffer | string =
+            encoding && encoding !== 'buffer' ? new TextDecoder().decode(stdoutBuf) : stdoutBuf;
+        const stderrData: Buffer | string =
+            encoding && encoding !== 'buffer' ? new TextDecoder().decode(stderrBuf) : stderrBuf;
 
-    const status = proc.get_if_exited() ? proc.get_exit_status() : null;
-    const signal = proc.get_if_signaled() ? 'SIGTERM' : null;
+        const status = proc.get_if_exited() ? proc.get_exit_status() : null;
+        const signal = proc.get_if_signaled() ? 'SIGTERM' : null;
 
-    return {
-      pid: pid ? parseInt(pid, 10) : 0,
-      output: [null, stdoutData, stderrData],
-      stdout: stdoutData,
-      stderr: stderrData,
-      status,
-      signal,
-    };
-  } catch (err: unknown) {
-    const empty: Buffer | string = options?.encoding && options.encoding !== 'buffer' ? '' : Buffer.alloc(0);
-    return {
-      pid: 0,
-      output: [null, empty, empty],
-      stdout: empty,
-      stderr: empty,
-      status: null,
-      signal: null,
-      error: err instanceof Error ? err : new Error(String(err)),
-    };
-  }
+        return {
+            pid: pid ? parseInt(pid, 10) : 0,
+            output: [null, stdoutData, stderrData],
+            stdout: stdoutData,
+            stderr: stderrData,
+            status,
+            signal,
+        };
+    } catch (err: unknown) {
+        const empty: Buffer | string = options?.encoding && options.encoding !== 'buffer' ? '' : Buffer.alloc(0);
+        return {
+            pid: 0,
+            output: [null, empty, empty],
+            stdout: empty,
+            stderr: empty,
+            status: null,
+            signal: null,
+            error: err instanceof Error ? err : new Error(String(err)),
+        };
+    }
 }
 
 export default {
-  ChildProcess,
-  exec: _exec,
-  execSync,
-  execFile,
-  execFileSync,
-  spawn,
-  spawnSync,
+    ChildProcess,
+    exec: _exec,
+    execSync,
+    execFile,
+    execFileSync,
+    spawn,
+    spawnSync,
 };

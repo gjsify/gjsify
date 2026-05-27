@@ -26,7 +26,10 @@ export function normalizeBundlerOptions(configData: ConfigData): BundlerOptions 
     // ignored. Detect it, warn once, and move it into `transform.define` so the
     // user's flat esbuild→bundler rename of `define` Just Works.
     let fromBundler: BundlerOptions = raw;
-    if (typeof (raw as Record<string, unknown>)['define'] === 'object' && (raw as Record<string, unknown>)['define'] !== null) {
+    if (
+        typeof (raw as Record<string, unknown>)['define'] === 'object' &&
+        (raw as Record<string, unknown>)['define'] !== null
+    ) {
         if (!warnedDefineOnce) {
             warnedDefineOnce = true;
             // eslint-disable-next-line no-console
@@ -34,7 +37,7 @@ export function normalizeBundlerOptions(configData: ConfigData): BundlerOptions 
                 "[gjsify] WARNING: 'bundler.define' is not a valid Rolldown option and would be " +
                     "silently ignored — it has been auto-mapped to 'bundler.transform.define'. " +
                     "Move 'define' under 'bundler.transform.define' in your config to suppress " +
-                    "this warning and avoid a ReferenceError at GJS load time.",
+                    'this warning and avoid a ReferenceError at GJS load time.',
             );
         }
         const { define: topLevelDefine, ...rest } = raw as BundlerOptions & { define: Record<string, string> };
@@ -99,10 +102,7 @@ function legacyEsbuildToRolldown(esb: LegacyEsbuildOptions): BundlerOptions {
     if (esb.minify !== undefined) output.minify = esb.minify;
     if (esb.sourcemap !== undefined) {
         // esbuild has 'external' / 'both' which Rolldown doesn't — coerce to boolean.
-        output.sourcemap =
-            esb.sourcemap === 'inline'
-                ? 'inline'
-                : Boolean(esb.sourcemap);
+        output.sourcemap = esb.sourcemap === 'inline' ? 'inline' : Boolean(esb.sourcemap);
     }
     if (esb.banner?.js !== undefined) output.banner = esb.banner.js;
 
@@ -144,10 +144,7 @@ function legacyEsbuildToRolldown(esb: LegacyEsbuildOptions): BundlerOptions {
  * unresolved glob patterns into the final Rolldown call. Same for `external`,
  * which the orchestrator concatenates with platform defaults already.
  */
-export function mergeBundlerOptions(
-    base: BundlerOptions,
-    overrides: BundlerOptions,
-): BundlerOptions {
+export function mergeBundlerOptions(base: BundlerOptions, overrides: BundlerOptions): BundlerOptions {
     // Strip fields the orchestrator owns authoritatively — the user has
     // already had their say via the orchestrator's `userExternal` / input
     // expansion; merging the raw values back on top would clobber the

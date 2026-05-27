@@ -5,7 +5,14 @@ import '@gjsify/adwaita-web';
 import '@gjsify/adwaita-web/style.css';
 import type { AdwOverlaySplitView, AdwHeaderBar } from '@gjsify/adwaita-web';
 import { mediaPlaybackPauseSymbolic, mediaPlaybackStartSymbolic } from '@gjsify/adwaita-icons/actions';
-import { start, TESS_VALUES, SHADING_VALUES, DEFAULT_TESS_INDEX, DEFAULT_SHADING_INDEX, type TeapotDemo } from '../three-demo.js';
+import {
+    start,
+    TESS_VALUES,
+    SHADING_VALUES,
+    DEFAULT_TESS_INDEX,
+    DEFAULT_SHADING_INDEX,
+    type TeapotDemo,
+} from '../three-demo.js';
 
 export interface MountOptions {
     /** Base path for loading texture assets (forwarded to three-demo). */
@@ -126,16 +133,14 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     container.append(win);
 
     // Append toggle button to header bar start section AFTER DOM connection
-    const startSection = headerBar.startSection
-        ?? headerBar.querySelector('.adw-header-bar-start');
+    const startSection = headerBar.startSection ?? headerBar.querySelector('.adw-header-bar-start');
     if (startSection) {
         startSection.appendChild(toggleBtn);
     } else {
         headerBar.prepend(toggleBtn);
     }
 
-    const endSection = headerBar.endSection
-        ?? headerBar.querySelector('.adw-header-bar-end');
+    const endSection = headerBar.endSection ?? headerBar.querySelector('.adw-header-bar-end');
     if (endSection) {
         endSection.appendChild(pauseBtn);
     } else {
@@ -208,7 +213,9 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     });
 
     return {
-        get isPaused() { return demo ? demo.isPaused : pendingPause; },
+        get isPaused() {
+            return demo ? demo.isPaused : pendingPause;
+        },
         pause() {
             if (demo) {
                 demo.pause();
@@ -232,9 +239,13 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
 
 function connectControls(
     demo: TeapotDemo,
-    tessRow: any, shadingRow: any,
-    lidRow: any, bodyRow: any, bottomRow: any,
-    fitLidRow: any, nonblinnRow: any,
+    tessRow: any,
+    shadingRow: any,
+    lidRow: any,
+    bodyRow: any,
+    bottomRow: any,
+    fitLidRow: any,
+    nonblinnRow: any,
 ) {
     tessRow.addEventListener('notify::selected', () => {
         demo.effectController.newTess = TESS_VALUES[tessRow.selected];
@@ -247,8 +258,11 @@ function connectControls(
     });
 
     for (const [row, key] of [
-        [lidRow, 'lid'], [bodyRow, 'body'], [bottomRow, 'bottom'],
-        [fitLidRow, 'fitLid'], [nonblinnRow, 'nonblinn'],
+        [lidRow, 'lid'],
+        [bodyRow, 'body'],
+        [bottomRow, 'bottom'],
+        [fitLidRow, 'fitLid'],
+        [nonblinnRow, 'nonblinn'],
     ] as const) {
         row.addEventListener('notify::active', () => {
             (demo.effectController as any)[key] = row.active;

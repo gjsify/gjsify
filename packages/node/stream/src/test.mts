@@ -15,12 +15,12 @@ import pipeTestSuite from './pipe.spec.js';
 import inheritanceTestSuite from './inheritance.spec.js';
 
 run({
-	testSuite,
-	callableTestSuite,
-	consumersTestSuite,
-	promisesTestSuite,
-	edgeCasesTestSuite,
-	transformTestSuite,
-	pipeTestSuite,
-	inheritanceTestSuite,
+    testSuite,
+    callableTestSuite,
+    consumersTestSuite,
+    promisesTestSuite,
+    edgeCasesTestSuite,
+    transformTestSuite,
+    pipeTestSuite,
+    inheritanceTestSuite,
 });

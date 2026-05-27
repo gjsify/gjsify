@@ -19,7 +19,7 @@ export interface BufferBindingMethods {
 }
 
 declare module '../webgl-context-base.js' {
-    interface WebGLContextBase extends BufferBindingMethods { }
+    interface WebGLContextBase extends BufferBindingMethods {}
 }
 
 const bufferBindingMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
@@ -27,8 +27,7 @@ const bufferBindingMethods: ThisType<WebGLContextBase> & Record<string, Function
         if (!checkObject(buffer)) {
             throw new TypeError('bindBuffer(GLenum, WebGLBuffer)');
         }
-        if (target !== this.ARRAY_BUFFER &&
-            target !== this.ELEMENT_ARRAY_BUFFER) {
+        if (target !== this.ARRAY_BUFFER && target !== this.ELEMENT_ARRAY_BUFFER) {
             this.setError(this.INVALID_ENUM);
             return;
         }
@@ -59,7 +58,12 @@ const bufferBindingMethods: ThisType<WebGLContextBase> & Record<string, Function
         }
     },
 
-    bufferData(this: WebGLContextBase, target: GLenum = 0, dataOrSize: GLsizeiptr | BufferSource | null, usage: GLenum = 0): void {
+    bufferData(
+        this: WebGLContextBase,
+        target: GLenum = 0,
+        dataOrSize: GLsizeiptr | BufferSource | null,
+        usage: GLenum = 0,
+    ): void {
         let size = 0;
         let data: BufferSource | null = null;
 
@@ -69,15 +73,12 @@ const bufferBindingMethods: ThisType<WebGLContextBase> & Record<string, Function
             data = dataOrSize;
         }
 
-        if (usage !== this.STREAM_DRAW &&
-            usage !== this.STATIC_DRAW &&
-            usage !== this.DYNAMIC_DRAW) {
+        if (usage !== this.STREAM_DRAW && usage !== this.STATIC_DRAW && usage !== this.DYNAMIC_DRAW) {
             this.setError(this.INVALID_ENUM);
             return;
         }
 
-        if (target !== this.ARRAY_BUFFER &&
-            target !== this.ELEMENT_ARRAY_BUFFER) {
+        if (target !== this.ARRAY_BUFFER && target !== this.ELEMENT_ARRAY_BUFFER) {
             this.setError(this.INVALID_ENUM);
             return;
         }
@@ -99,10 +100,7 @@ const bufferBindingMethods: ThisType<WebGLContextBase> & Record<string, Function
 
             this._saveError();
 
-            this._gl.bufferData(
-                target,
-                Uint8ArrayToVariant(u8Data),
-                usage);
+            this._gl.bufferData(target, Uint8ArrayToVariant(u8Data), usage);
             const error = this.getError();
             this._restoreError(error);
             if (error !== this.NO_ERROR) {
@@ -120,10 +118,7 @@ const bufferBindingMethods: ThisType<WebGLContextBase> & Record<string, Function
             }
 
             this._saveError();
-            this._gl.bufferDataSizeOnly(
-                target,
-                size,
-                usage);
+            this._gl.bufferDataSizeOnly(target, size, usage);
             const error = this.getError();
             this._restoreError(error);
             if (error !== this.NO_ERROR) {
@@ -140,8 +135,7 @@ const bufferBindingMethods: ThisType<WebGLContextBase> & Record<string, Function
     },
 
     bufferSubData(this: WebGLContextBase, target: GLenum = 0, offset: GLintptr = 0, data: BufferSource): void {
-        if (target !== this.ARRAY_BUFFER &&
-            target !== this.ELEMENT_ARRAY_BUFFER) {
+        if (target !== this.ARRAY_BUFFER && target !== this.ELEMENT_ARRAY_BUFFER) {
             this.setError(this.INVALID_ENUM);
             return;
         }
@@ -190,13 +184,11 @@ const bufferBindingMethods: ThisType<WebGLContextBase> & Record<string, Function
     },
 
     deleteBuffer(this: WebGLContextBase, buffer: WebGLBuffer | null): void {
-        if (!checkObject(buffer) ||
-            (buffer !== null && !(buffer instanceof WebGLBuffer))) {
+        if (!checkObject(buffer) || (buffer !== null && !(buffer instanceof WebGLBuffer))) {
             throw new TypeError('deleteBuffer(WebGLBuffer)');
         }
 
-        if (!(buffer instanceof WebGLBuffer &&
-            this._checkOwns(buffer))) {
+        if (!(buffer instanceof WebGLBuffer && this._checkOwns(buffer))) {
             this.setError(this.INVALID_OPERATION);
             return;
         }
@@ -219,8 +211,7 @@ const bufferBindingMethods: ThisType<WebGLContextBase> & Record<string, Function
     },
 
     getBufferParameter(this: WebGLContextBase, target: GLenum = 0, pname: GLenum = 0): unknown {
-        if (target !== this.ARRAY_BUFFER &&
-            target !== this.ELEMENT_ARRAY_BUFFER) {
+        if (target !== this.ARRAY_BUFFER && target !== this.ELEMENT_ARRAY_BUFFER) {
             this.setError(this.INVALID_ENUM);
             return null;
         }

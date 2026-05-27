@@ -5,14 +5,7 @@
 export const DEFAULT_WIDTH = 620;
 export const DEFAULT_HEIGHT = 400;
 
-const BASELINES: CanvasTextBaseline[] = [
-    'top',
-    'hanging',
-    'middle',
-    'alphabetic',
-    'ideographic',
-    'bottom',
-];
+const BASELINES: CanvasTextBaseline[] = ['top', 'hanging', 'middle', 'alphabetic', 'ideographic', 'bottom'];
 
 /**
  * Render the baseline comparison demo onto the given canvas.

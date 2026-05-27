@@ -14,11 +14,7 @@ import type { Packument } from '@gjsify/npm-registry';
 import { parseSpec, pickVersion } from './utils/install-backend-native.js';
 
 // Minimal synthetic Packument — only the fields pickVersion reads.
-function synthPackument(opts: {
-    name: string;
-    distTags: Record<string, string>;
-    versions: string[];
-}): Packument {
+function synthPackument(opts: { name: string; distTags: Record<string, string>; versions: string[] }): Packument {
     const versions: Record<string, unknown> = {};
     for (const v of opts.versions) {
         versions[v] = { name: opts.name, version: v };
@@ -32,7 +28,6 @@ function synthPackument(opts: {
 
 export default async () => {
     await describe('parseSpec', async () => {
-
         await it('returns name+range=latest for bare scoped name', async () => {
             expect(parseSpec('@ts-for-gir/cli')).toStrictEqual({
                 name: '@ts-for-gir/cli',
@@ -93,11 +88,9 @@ export default async () => {
         await it('rejects a scoped name without a slash', async () => {
             expect(() => parseSpec('@gjsify')).toThrow();
         });
-
     });
 
     await describe('pickVersion (regression: ts-for-gir-style prerelease-as-latest)', async () => {
-
         await it('picks dist-tags.latest when range="latest", even if it is a prerelease', async () => {
             // ts-for-gir reproducer: only prereleases on the current major
             // (4.0.0-rc.17 tagged `latest`) plus an abandoned earlier major
@@ -143,6 +136,5 @@ export default async () => {
             });
             expect(pickVersion(p, '4.0.0-rc.15')).toBe('4.0.0-rc.15');
         });
-
     });
 };

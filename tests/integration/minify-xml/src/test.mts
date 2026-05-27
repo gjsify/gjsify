@@ -17,7 +17,7 @@ import optionsSuite from './options.spec.js';
 import edgeCasesSuite from './edge-cases.spec.js';
 
 run({
-  basicSuite,
-  optionsSuite,
-  edgeCasesSuite,
+    basicSuite,
+    optionsSuite,
+    edgeCasesSuite,
 });

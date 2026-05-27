@@ -47,12 +47,7 @@ function findGreenRowBounds(data: Uint8ClampedArray, width: number, height: numb
  * @param width    Canvas width
  * @param height   Canvas height
  */
-function drawAndMeasure(
-    baseline: CanvasTextBaseline,
-    yCoord: number,
-    width = 300,
-    height = 100,
-) {
+function drawAndMeasure(baseline: CanvasTextBaseline, yCoord: number, width = 300, height = 100) {
     const ctx = makeCtx(width, height);
 
     // Red background
@@ -73,15 +68,13 @@ function drawAndMeasure(
 // --- Tests ---
 
 export default async () => {
-
     await describe('CanvasRenderingContext2D.fillText — textBaseline positioning', async () => {
-
         // textBaseline='top': text top edge is at the provided y coordinate.
         // With y=5, the first green row must appear near y=5 (within ±8px).
         await it("textBaseline='top': text starts near y", async () => {
             const { first, last } = drawAndMeasure('top', 5);
             expect(first).toBeGreaterThan(-1); // text was rendered
-            expect(first).toBeLessThan(15);    // top edge close to y=5
+            expect(first).toBeLessThan(15); // top edge close to y=5
             expect(last).toBeGreaterThan(first); // text has height
         });
 
@@ -89,9 +82,9 @@ export default async () => {
         // the last green row must appear near y=95 (within ±8px).
         await it("textBaseline='bottom': text ends near y", async () => {
             const { first, last } = drawAndMeasure('bottom', 95, 300, 100);
-            expect(last).toBeGreaterThan(-1);  // text was rendered
-            expect(last).toBeGreaterThan(85);  // bottom edge close to y=95
-            expect(first).toBeLessThan(last);  // text has height
+            expect(last).toBeGreaterThan(-1); // text was rendered
+            expect(last).toBeGreaterThan(85); // bottom edge close to y=95
+            expect(first).toBeLessThan(last); // text has height
         });
 
         // textBaseline='middle': the vertical midpoint of the text is at y.
@@ -100,8 +93,8 @@ export default async () => {
         await it("textBaseline='middle': text is centered on y", async () => {
             const { first, last } = drawAndMeasure('middle', 50, 300, 100);
             expect(first).toBeGreaterThan(-1);
-            expect(first).toBeLessThan(50);    // text extends above center
-            expect(last).toBeGreaterThan(50);  // text extends below center
+            expect(first).toBeLessThan(50); // text extends above center
+            expect(last).toBeGreaterThan(50); // text extends below center
         });
 
         // textBaseline='alphabetic': the baseline (a reference Latin line) is at y.
@@ -123,8 +116,8 @@ export default async () => {
             const imageData = ctx.getImageData(0, 0, 300, 100);
             const { first, last } = findGreenRowBounds(imageData.data, 300, 100);
             expect(first).toBeGreaterThan(-1);
-            expect(first).toBeLessThan(50);    // text extends above y
-            expect(last).toBeGreaterThan(50);  // descent below y
+            expect(first).toBeLessThan(50); // text extends above y
+            expect(last).toBeGreaterThan(50); // descent below y
         });
 
         // textBaseline='hanging': the hanging baseline is at y (used for Devanagari etc.).
@@ -144,7 +137,7 @@ export default async () => {
         await it("textBaseline='ideographic': most text is above y", async () => {
             const { first, last } = drawAndMeasure('ideographic', 70, 300, 100);
             expect(first).toBeGreaterThan(-1);
-            expect(first).toBeLessThan(70);  // text extends above y
+            expect(first).toBeLessThan(70); // text extends above y
             // last may be ≥ 70 (descent below ideographic line) or ≤ 70
             expect(last).toBeGreaterThan(first);
         });
@@ -162,7 +155,7 @@ export default async () => {
         // Before fix, yOff=0 put the layout TOP at y=40, so all text was below y=40.
         await it("textBaseline='alphabetic' regression: text extends above y, not only below", async () => {
             const { first } = drawAndMeasure('alphabetic', 40, 300, 80);
-            expect(first).toBeLessThan(40);  // ascent extends above y=40
+            expect(first).toBeLessThan(40); // ascent extends above y=40
         });
 
         // Regression: 'middle' at y=40 with 24px font → text spans ~28..52
@@ -175,7 +168,6 @@ export default async () => {
     });
 
     await describe('CanvasRenderingContext2D.fillText — textAlign positioning', async () => {
-
         await it("textAlign='center': text is centered on x", async () => {
             const width = 200;
             const height = 60;
@@ -190,7 +182,8 @@ export default async () => {
 
             const imageData = ctx.getImageData(0, 0, width, height);
             // Find leftmost and rightmost green column
-            let leftCol = -1, rightCol = -1;
+            let leftCol = -1,
+                rightCol = -1;
             for (let x = 0; x < width; x++) {
                 for (let y = 0; y < height; y++) {
                     const i = (y * width + x) * 4;

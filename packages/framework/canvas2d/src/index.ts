@@ -2,7 +2,14 @@
 // Core classes live in @gjsify/canvas2d-core; this package adds Canvas2DBridge (GTK).
 // Reimplemented for GJS using Cairo (built-in) and GdkPixbuf for pixel I/O.
 
-export { CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData, parseColor } from '@gjsify/canvas2d-core';
+export {
+    CanvasRenderingContext2D,
+    CanvasGradient,
+    CanvasPattern,
+    Path2D,
+    ImageData,
+    parseColor,
+} from '@gjsify/canvas2d-core';
 export { Canvas2DBridge } from './canvas2d-bridge.js';
 
 // Side-effect: register the '2d' context factory on HTMLCanvasElement.

@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 
 // G-Buffer pass: write diffuse color + normals into two render targets
-const gbufferVS = /* glsl */`
+const gbufferVS = /* glsl */ `
 in vec3 position;
 in vec3 normal;
 in vec2 uv;
@@ -25,7 +25,7 @@ void main() {
     gl_Position = projectionMatrix * mvPosition;
 }`;
 
-const gbufferFS = /* glsl */`
+const gbufferFS = /* glsl */ `
 precision highp float;
 precision highp int;
 
@@ -44,7 +44,7 @@ void main() {
 }`;
 
 // Screen-space pass: read G-Buffer, split left=diffuse / right=normals
-const renderVS = /* glsl */`
+const renderVS = /* glsl */ `
 in vec3 position;
 in vec2 uv;
 
@@ -58,7 +58,7 @@ void main() {
     gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
 }`;
 
-const renderFS = /* glsl */`
+const renderFS = /* glsl */ `
 precision highp float;
 precision highp int;
 
@@ -89,14 +89,11 @@ export function start(canvas: HTMLCanvasElement) {
     renderer.debug.checkShaderErrors = true;
 
     // G-Buffer render target with 2 color attachments (diffuse + normal)
-    const renderTarget = new THREE.WebGLRenderTarget(
-        canvas.width, canvas.height,
-        {
-            count: 2,
-            minFilter: THREE.NearestFilter,
-            magFilter: THREE.NearestFilter,
-        }
-    );
+    const renderTarget = new THREE.WebGLRenderTarget(canvas.width, canvas.height, {
+        count: 2,
+        minFilter: THREE.NearestFilter,
+        magFilter: THREE.NearestFilter,
+    });
     renderTarget.textures[0].name = 'diffuse';
     renderTarget.textures[1].name = 'normal';
 
@@ -114,7 +111,7 @@ export function start(canvas: HTMLCanvasElement) {
             vertexShader: gbufferVS,
             fragmentShader: gbufferFS,
             glslVersion: THREE.GLSL3,
-        })
+        }),
     );
     scene.add(mesh);
 
@@ -122,19 +119,21 @@ export function start(canvas: HTMLCanvasElement) {
     const postScene = new THREE.Scene();
     const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-    postScene.add(new THREE.Mesh(
-        new THREE.PlaneGeometry(2, 2),
-        new THREE.RawShaderMaterial({
-            name: 'Post-FX Shader',
-            vertexShader: renderVS,
-            fragmentShader: renderFS,
-            uniforms: {
-                tDiffuse: { value: renderTarget.textures[0] },
-                tNormal:  { value: renderTarget.textures[1] },
-            },
-            glslVersion: THREE.GLSL3,
-        })
-    ));
+    postScene.add(
+        new THREE.Mesh(
+            new THREE.PlaneGeometry(2, 2),
+            new THREE.RawShaderMaterial({
+                name: 'Post-FX Shader',
+                vertexShader: renderVS,
+                fragmentShader: renderFS,
+                uniforms: {
+                    tDiffuse: { value: renderTarget.textures[0] },
+                    tNormal: { value: renderTarget.textures[1] },
+                },
+                glslVersion: THREE.GLSL3,
+            }),
+        ),
+    );
 
     let currentWidth = canvas.width;
     let currentHeight = canvas.height;

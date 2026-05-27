@@ -34,8 +34,12 @@ function compileShader(gl: WebGLRenderingContext, type: number, src: string): We
     return s;
 }
 
-function linkProgram(gl: WebGLRenderingContext, vsSrc: string, fsSrc: string,
-                     attribBindings?: [string, number][]): WebGLProgram | null {
+function linkProgram(
+    gl: WebGLRenderingContext,
+    vsSrc: string,
+    fsSrc: string,
+    attribBindings?: [string, number][],
+): WebGLProgram | null {
     const vs = compileShader(gl, gl.VERTEX_SHADER, vsSrc);
     const fs = compileShader(gl, gl.FRAGMENT_SHADER, fsSrc);
     const prog = gl.createProgram()!;
@@ -49,8 +53,11 @@ function linkProgram(gl: WebGLRenderingContext, vsSrc: string, fsSrc: string,
 }
 
 /** Fill the current FBO with a fullscreen triangle and return the center pixel. */
-function drawFullscreenAndRead(gl: WebGLRenderingContext, prog: WebGLProgram,
-                                posAttrib: string | number = 'a_position'): Uint8Array {
+function drawFullscreenAndRead(
+    gl: WebGLRenderingContext,
+    prog: WebGLProgram,
+    posAttrib: string | number = 'a_position',
+): Uint8Array {
     const loc = typeof posAttrib === 'string' ? gl.getAttribLocation(prog, posAttrib) : posAttrib;
     const buf = gl.createBuffer()!;
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -66,7 +73,6 @@ function drawFullscreenAndRead(gl: WebGLRenderingContext, prog: WebGLProgram,
 
 export default async () => {
     await on('Display', async () => {
-
         const setup = createGLSetup();
         if (!setup) {
             console.warn('WebGL context not available — skipping conformance/programs tests');
@@ -79,26 +85,33 @@ export default async () => {
         // "Tests that program compiling/linking/using works correctly."
 
         await describe('conformance/programs/program-test: compileShader', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('good vertex shader should compile', async () => {
-                const vs = compileShader(gl, gl.VERTEX_SHADER,
-                    'attribute vec4 aVertex; void main() { gl_Position = aVertex; }');
+                const vs = compileShader(
+                    gl,
+                    gl.VERTEX_SHADER,
+                    'attribute vec4 aVertex; void main() { gl_Position = aVertex; }',
+                );
                 expect(gl.getShaderParameter(vs, gl.COMPILE_STATUS)).toBeTruthy();
                 gl.deleteShader(vs);
             });
 
             await it('good fragment shader should compile', async () => {
-                const fs = compileShader(gl, gl.FRAGMENT_SHADER,
-                    'precision mediump float; void main() { gl_FragColor = vec4(1.0); }');
+                const fs = compileShader(
+                    gl,
+                    gl.FRAGMENT_SHADER,
+                    'precision mediump float; void main() { gl_FragColor = vec4(1.0); }',
+                );
                 expect(gl.getShaderParameter(fs, gl.COMPILE_STATUS)).toBeTruthy();
                 gl.deleteShader(fs);
             });
 
             await it('getShaderParameter with desktop-only INFO_LOG_LENGTH returns null and INVALID_ENUM', async () => {
-                const vs = compileShader(gl, gl.VERTEX_SHADER,
-                    'attribute vec4 v; void main() { gl_Position = v; }');
-                const INFO_LOG_LENGTH = 0x8B84; // desktop GL constant not valid in WebGL
+                const vs = compileShader(gl, gl.VERTEX_SHADER, 'attribute vec4 v; void main() { gl_Position = v; }');
+                const INFO_LOG_LENGTH = 0x8b84; // desktop GL constant not valid in WebGL
                 const result = gl.getShaderParameter(vs, INFO_LOG_LENGTH);
                 expect(result).toBeNull();
                 expect(gl.getError()).toBe(gl.INVALID_ENUM);
@@ -107,7 +120,9 @@ export default async () => {
         });
 
         await describe('conformance/programs/program-test: attachShader / detachShader', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('attaching a vertex shader succeeds', async () => {
                 const vs = compileShader(gl, gl.VERTEX_SHADER, VS_COLOR_ATTRIB);
@@ -131,8 +146,11 @@ export default async () => {
 
             await it('attaching two vertex shaders to same program generates INVALID_OPERATION', async () => {
                 const vs1 = compileShader(gl, gl.VERTEX_SHADER, VS_COLOR_ATTRIB);
-                const vs2 = compileShader(gl, gl.VERTEX_SHADER,
-                    'attribute vec4 v; void main() { gl_Position = v * 0.5; }');
+                const vs2 = compileShader(
+                    gl,
+                    gl.VERTEX_SHADER,
+                    'attribute vec4 v; void main() { gl_Position = v * 0.5; }',
+                );
                 const prog = gl.createProgram()!;
                 gl.attachShader(prog, vs1);
                 gl.getError(); // clear
@@ -168,7 +186,9 @@ export default async () => {
         });
 
         await describe('conformance/programs/program-test: getAttachedShaders', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('empty program returns empty list', async () => {
                 const prog = gl.createProgram()!;
@@ -209,11 +229,15 @@ export default async () => {
         });
 
         await describe('conformance/programs/program-test: linkProgram / useProgram', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('valid program should link', async () => {
-                const prog = linkProgram(gl, VS_COLOR_ATTRIB, FS_VARYING_COLOR,
-                    [['aVertex', 0], ['aColor', 1]])!;
+                const prog = linkProgram(gl, VS_COLOR_ATTRIB, FS_VARYING_COLOR, [
+                    ['aVertex', 0],
+                    ['aColor', 1],
+                ])!;
                 expect(gl.getProgramParameter(prog, gl.LINK_STATUS)).toBeTruthy();
                 expect(typeof gl.getProgramInfoLog(prog)).toBe('string');
                 gl.deleteProgram(prog);
@@ -240,8 +264,10 @@ export default async () => {
             });
 
             await it('using a valid program should succeed', async () => {
-                const prog = linkProgram(gl, VS_COLOR_ATTRIB, FS_VARYING_COLOR,
-                    [['aVertex', 0], ['aColor', 1]])!;
+                const prog = linkProgram(gl, VS_COLOR_ATTRIB, FS_VARYING_COLOR, [
+                    ['aVertex', 0],
+                    ['aColor', 1],
+                ])!;
                 gl.useProgram(prog);
                 expect(gl.getError()).toBe(gl.NO_ERROR);
                 gl.useProgram(null);
@@ -264,8 +290,7 @@ export default async () => {
                 const fbo = makeTestFBO(gl, 2, 2);
                 const buf = gl.createBuffer()!;
                 gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-                gl.bufferData(gl.ARRAY_BUFFER,
-                    new Float32Array([0, 0, 1, 0, 0, 1]), gl.STATIC_DRAW);
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1]), gl.STATIC_DRAW);
                 gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
                 gl.enableVertexAttribArray(0);
                 gl.useProgram(null);
@@ -279,7 +304,9 @@ export default async () => {
         });
 
         await describe('conformance/programs/program-test: deleteProgram / deleteShader', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('deleting the current program does not affect the current rendering state', async () => {
                 const prog = linkProgram(gl, VS_POSITION, FS_RED, [['a_position', 0]])!;
@@ -324,7 +351,9 @@ export default async () => {
         });
 
         await describe('conformance/programs/program-test: relink updates rendering', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('relinking with a new fragment shader updates the program output', async () => {
                 const fbo = makeTestFBO(gl, 2, 2);
@@ -398,10 +427,12 @@ export default async () => {
         // at link time (not the source present during the last compileShader call).
 
         await describe('conformance/programs/gl-shader-test', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('creating a GEOMETRY shader should return null', async () => {
-                const GEOMETRY_SHADER_ARB = 0x8DD9;
+                const GEOMETRY_SHADER_ARB = 0x8dd9;
                 const shader = gl.createShader(GEOMETRY_SHADER_ARB);
                 expect(shader).toBeNull();
             });
@@ -409,8 +440,11 @@ export default async () => {
             await it('deferred compilation: shader linked with source set after first compile', async () => {
                 const fbo = makeTestFBO(gl, 2, 2);
 
-                const vs = compileShader(gl, gl.VERTEX_SHADER,
-                    'attribute vec4 vPosition; void main() { gl_Position = vPosition; }');
+                const vs = compileShader(
+                    gl,
+                    gl.VERTEX_SHADER,
+                    'attribute vec4 vPosition; void main() { gl_Position = vPosition; }',
+                );
                 const fs = compileShader(gl, gl.FRAGMENT_SHADER, FS_GREEN);
                 // Set red source AFTER compiling green — link should use red
                 gl.shaderSource(fs, FS_RED);
@@ -439,7 +473,9 @@ export default async () => {
         // (2 attribs: a_vertex FLOAT_VEC4, a_normal FLOAT_VEC3; 1 uniform: u_modelViewProjMatrix FLOAT_MAT4)
 
         await describe('conformance/programs/get-active-test: getActiveAttrib', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('getActiveAttrib returns correct info for standard attribs', async () => {
                 const prog = linkProgram(gl, VS_STANDARD, FS_STANDARD)!;
@@ -455,15 +491,15 @@ export default async () => {
                     infos.push(info!);
                 }
 
-                const names = infos.map(i => i.name).sort();
+                const names = infos.map((i) => i.name).sort();
                 expect(names).toContain('a_vertex');
                 expect(names).toContain('a_normal');
 
-                const vertexInfo = infos.find(i => i.name === 'a_vertex')!;
+                const vertexInfo = infos.find((i) => i.name === 'a_vertex')!;
                 expect(vertexInfo.type).toBe(gl.FLOAT_VEC4);
                 expect(vertexInfo.size).toBe(1);
 
-                const normalInfo = infos.find(i => i.name === 'a_normal')!;
+                const normalInfo = infos.find((i) => i.name === 'a_normal')!;
                 expect(normalInfo.type).toBe(gl.FLOAT_VEC3);
                 expect(normalInfo.size).toBe(1);
 
@@ -485,7 +521,9 @@ export default async () => {
         });
 
         await describe('conformance/programs/get-active-test: getActiveUniform', async () => {
-            beforeEach(async () => { glArea.make_current(); });
+            beforeEach(async () => {
+                glArea.make_current();
+            });
 
             await it('getActiveUniform returns correct info for u_modelViewProjMatrix', async () => {
                 const prog = linkProgram(gl, VS_STANDARD, FS_STANDARD)!;

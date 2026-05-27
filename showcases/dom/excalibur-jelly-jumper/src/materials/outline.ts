@@ -1,13 +1,13 @@
-import * as ex from 'excalibur'
+import * as ex from 'excalibur';
 
 /**
  * Outlines the graphic with a black border
  */
 export class OutlineMaterial extends ex.Material {
-  constructor(ctx: ex.ExcaliburGraphicsContext, thickness: number = 1) {
-    super({
-      name: 'outline-material',
-      fragmentSource: /*glsl*/ `#version 300 es
+    constructor(ctx: ex.ExcaliburGraphicsContext, thickness: number = 1) {
+        super({
+            name: 'outline-material',
+            fragmentSource: /*glsl*/ `#version 300 es
         precision mediump float;
         
         uniform float u_time_ms;
@@ -43,7 +43,7 @@ export class OutlineMaterial extends ex.Material {
           fragColor = mix(fragColor, mat, factor);
         }
       `,
-      graphicsContext: ctx,
-    })
-  }
+            graphicsContext: ctx,
+        });
+    }
 }

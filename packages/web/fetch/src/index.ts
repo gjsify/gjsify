@@ -19,10 +19,7 @@ import { isRedirect } from './utils/is-redirect.js';
 import { FormData } from '@gjsify/formdata';
 import { isDomainOrSubdomain, isSameProtocol } from './utils/is.js';
 import { parseReferrerPolicyFromHeader } from './utils/referrer.js';
-import {
-  Blob,
-  File,
-} from './utils/blob-from.js';
+import { Blob, File } from './utils/blob-from.js';
 
 import { URL } from '@gjsify/url';
 
@@ -53,29 +50,27 @@ const supportedSchemas = new Set(['data:', 'http:', 'https:', 'file:']);
  * `programPath` / `programInvocationName` before any `@girs/*` resolves.
  */
 interface _FetchRuntimeGlobals {
-  __GJSIFY_DEBUG_FETCH?: boolean;
-  imports?: { system?: { programPath?: string; programInvocationName?: string } };
+    __GJSIFY_DEBUG_FETCH?: boolean;
+    imports?: { system?: { programPath?: string; programInvocationName?: string } };
 }
 
 function rewriteRootRelativeUrl(input: RequestInfo | URL | Request): RequestInfo | URL | Request {
-  if (typeof input !== 'string') return input;
-  if (!input.startsWith('/') || input.startsWith('//')) return input;
-  const _g = globalThis as unknown as _FetchRuntimeGlobals;
-  const DEBUG = _g.__GJSIFY_DEBUG_FETCH === true;
-  try {
-    // GJS-only: derive program dir from System.programInvocationName.
-    const programPath = _g.imports?.system?.programPath
-      ?? _g.imports?.system?.programInvocationName
-      ?? '';
-    if (!programPath) return input;
-    const dir = GLib.path_get_dirname(programPath);
-    const rewritten = `file://${dir}${input}`;
-    if (DEBUG) console.log(`[fetch] rewrite ${input} → ${rewritten}`);
-    return rewritten;
-  } catch (err) {
-    if (DEBUG) console.warn(`[fetch] rewrite FAILED: ${err instanceof Error ? err.message : String(err)}`);
-    return input;
-  }
+    if (typeof input !== 'string') return input;
+    if (!input.startsWith('/') || input.startsWith('//')) return input;
+    const _g = globalThis as unknown as _FetchRuntimeGlobals;
+    const DEBUG = _g.__GJSIFY_DEBUG_FETCH === true;
+    try {
+        // GJS-only: derive program dir from System.programInvocationName.
+        const programPath = _g.imports?.system?.programPath ?? _g.imports?.system?.programInvocationName ?? '';
+        if (!programPath) return input;
+        const dir = GLib.path_get_dirname(programPath);
+        const rewritten = `file://${dir}${input}`;
+        if (DEBUG) console.log(`[fetch] rewrite ${input} → ${rewritten}`);
+        return rewritten;
+    } catch (err) {
+        if (DEBUG) console.warn(`[fetch] rewrite FAILED: ${err instanceof Error ? err.message : String(err)}`);
+        return input;
+    }
 }
 
 /**
@@ -85,240 +80,267 @@ function rewriteRootRelativeUrl(input: RequestInfo | URL | Request): RequestInfo
  * @param init Fetch options
  */
 export default async function fetch(url: RequestInfo | URL | Request, init: RequestInit = {}): Promise<Response> {
-  // Rewrite root-relative URLs before Request constructor parses them
-  url = rewriteRootRelativeUrl(url);
+    // Rewrite root-relative URLs before Request constructor parses them
+    url = rewriteRootRelativeUrl(url);
 
-  // Build request object
-  const request = new Request(url, init);
-  const { parsedURL, options } = getSoupRequestOptions(request);
-  if (!supportedSchemas.has(parsedURL.protocol)) {
-    throw new TypeError(`@gjsify/fetch cannot load ${url}. URL scheme "${parsedURL.protocol.replace(/:$/, '')}" is not supported.`);
-  }
+    // Build request object
+    const request = new Request(url, init);
+    const { parsedURL, options } = getSoupRequestOptions(request);
+    if (!supportedSchemas.has(parsedURL.protocol)) {
+        throw new TypeError(
+            `@gjsify/fetch cannot load ${url}. URL scheme "${parsedURL.protocol.replace(/:$/, '')}" is not supported.`,
+        );
+    }
 
-  // Handle data: URIs
-  if (parsedURL.protocol === 'data:') {
-    const { buffer, typeFull } = parseDataUri(request.url);
-    const response = new Response(Buffer.from(buffer), { headers: { 'Content-Type': typeFull } });
-    return response;
-  }
+    // Handle data: URIs
+    if (parsedURL.protocol === 'data:') {
+        const { buffer, typeFull } = parseDataUri(request.url);
+        const response = new Response(Buffer.from(buffer), { headers: { 'Content-Type': typeFull } });
+        return response;
+    }
 
-  // Handle file:// URIs via GLib direct read (no Soup needed).
-  if (parsedURL.protocol === 'file:') {
-    const DEBUG = (globalThis as unknown as _FetchRuntimeGlobals).__GJSIFY_DEBUG_FETCH === true;
-    if (DEBUG) console.log(`[fetch] file:// ${request.url}`);
+    // Handle file:// URIs via GLib direct read (no Soup needed).
+    if (parsedURL.protocol === 'file:') {
+        const DEBUG = (globalThis as unknown as _FetchRuntimeGlobals).__GJSIFY_DEBUG_FETCH === true;
+        if (DEBUG) console.log(`[fetch] file:// ${request.url}`);
+        try {
+            const path = GLib.filename_from_uri(request.url)[0];
+            if (DEBUG) console.log(`[fetch] file:// path=${path}`);
+            const [ok, contents] = GLib.file_get_contents(path);
+            if (DEBUG) console.log(`[fetch] file:// ok=${ok} bytes=${contents?.byteLength ?? '?'}`);
+            if (!ok) {
+                throw new FetchError(`Failed to read file: ${path}`, 'system');
+            }
+            const bytes = contents as Uint8Array;
+            // Copy to a fresh Uint8Array backed by its own ArrayBuffer so the
+            // Response body owns the memory independently of GLib's buffer.
+            const body = new Uint8Array(bytes.byteLength);
+            body.set(bytes);
+            const resp = new Response(body);
+            if (DEBUG) console.log(`[fetch] file:// response created`);
+            return resp;
+        } catch (error: unknown) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            if (DEBUG) console.warn(`[fetch] file:// FAIL: ${err.message}`);
+            throw new FetchError(
+                `request to ${request.url} failed, reason: ${err.message}`,
+                'system',
+                err as unknown as SystemError,
+            );
+        }
+    }
+
+    const { signal } = request;
+
+    // Check if already aborted
+    if (signal && signal.aborted) {
+        throw new AbortError('The operation was aborted.');
+    }
+
+    // Send HTTP request via Soup
+    let readable: Stream.Readable;
+    let cancellable: Gio.Cancellable;
+
     try {
-      const path = GLib.filename_from_uri(request.url)[0];
-      if (DEBUG) console.log(`[fetch] file:// path=${path}`);
-      const [ok, contents] = GLib.file_get_contents(path);
-      if (DEBUG) console.log(`[fetch] file:// ok=${ok} bytes=${contents?.byteLength ?? '?'}`);
-      if (!ok) {
-        throw new FetchError(`Failed to read file: ${path}`, 'system');
-      }
-      const bytes = contents as Uint8Array;
-      // Copy to a fresh Uint8Array backed by its own ArrayBuffer so the
-      // Response body owns the memory independently of GLib's buffer.
-      const body = new Uint8Array(bytes.byteLength);
-      body.set(bytes);
-      const resp = new Response(body);
-      if (DEBUG) console.log(`[fetch] file:// response created`);
-      return resp;
+        const sendRes = await request._send(options);
+        readable = sendRes.readable;
+        cancellable = sendRes.cancellable;
     } catch (error: unknown) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      if (DEBUG) console.warn(`[fetch] file:// FAIL: ${err.message}`);
-      throw new FetchError(`request to ${request.url} failed, reason: ${err.message}`, 'system', err as unknown as SystemError);
+        const err = error instanceof Error ? error : new Error(String(error));
+        throw new FetchError(
+            `request to ${request.url} failed, reason: ${err.message}`,
+            'system',
+            err as unknown as SystemError,
+        );
     }
-  }
 
-  const { signal } = request;
+    // Wire up abort signal to cancellable
+    const abortHandler = () => {
+        cancellable.cancel();
+    };
 
-  // Check if already aborted
-  if (signal && signal.aborted) {
-    throw new AbortError('The operation was aborted.');
-  }
-
-  // Send HTTP request via Soup
-  let readable: Stream.Readable;
-  let cancellable: Gio.Cancellable;
-
-  try {
-    const sendRes = await request._send(options);
-    readable = sendRes.readable;
-    cancellable = sendRes.cancellable;
-  } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error(String(error));
-    throw new FetchError(`request to ${request.url} failed, reason: ${err.message}`, 'system', err as unknown as SystemError);
-  }
-
-  // Wire up abort signal to cancellable
-  const abortHandler = () => {
-    cancellable.cancel();
-  };
-
-  if (signal) {
-    signal.addEventListener('abort', abortHandler, { once: true });
-  }
-
-  const finalize = () => {
     if (signal) {
-      signal.removeEventListener('abort', abortHandler);
-    }
-  };
-
-  // Listen for cancellation.
-  // Gio.Cancellable.connect() is g_cancellable_connect() — pass callback + DestroyNotify (or null).
-  // NOT a GObject signal: do NOT pass a signal name as the first argument.
-  cancellable.connect(() => {
-    readable.destroy(new AbortError('The operation was aborted.'));
-  });
-
-  // Handle stream errors
-  readable.on('error', (error: SystemError) => {
-    finalize();
-    // Error is consumed by the body when read
-  });
-
-  const message = request._message;
-  const headers = Headers._newFromSoupMessage(message);
-  const statusCode = message.status_code;
-  const statusMessage = message.get_reason_phrase();
-
-  // HTTP fetch step 5 — handle redirects
-  if (isRedirect(statusCode)) {
-    const location = headers.get('Location');
-
-    let locationURL: URL | null = null;
-    try {
-      locationURL = location === null ? null : new URL(location, request.url);
-    } catch {
-      if (request.redirect !== 'manual') {
-        finalize();
-        throw new FetchError(`uri requested responds with an invalid redirect URL: ${location}`, 'invalid-redirect');
-      }
+        signal.addEventListener('abort', abortHandler, { once: true });
     }
 
-    switch (request.redirect) {
-      case 'error':
+    const finalize = () => {
+        if (signal) {
+            signal.removeEventListener('abort', abortHandler);
+        }
+    };
+
+    // Listen for cancellation.
+    // Gio.Cancellable.connect() is g_cancellable_connect() — pass callback + DestroyNotify (or null).
+    // NOT a GObject signal: do NOT pass a signal name as the first argument.
+    cancellable.connect(() => {
+        readable.destroy(new AbortError('The operation was aborted.'));
+    });
+
+    // Handle stream errors
+    readable.on('error', (error: SystemError) => {
         finalize();
-        throw new FetchError(`uri requested responds with a redirect, redirect mode is set to error: ${request.url}`, 'no-redirect');
+        // Error is consumed by the body when read
+    });
 
-      case 'manual':
-        // Nothing to do — return opaque redirect response
-        break;
+    const message = request._message;
+    const headers = Headers._newFromSoupMessage(message);
+    const statusCode = message.status_code;
+    const statusMessage = message.get_reason_phrase();
 
-      case 'follow': {
-        if (locationURL === null) {
-          break;
+    // HTTP fetch step 5 — handle redirects
+    if (isRedirect(statusCode)) {
+        const location = headers.get('Location');
+
+        let locationURL: URL | null = null;
+        try {
+            locationURL = location === null ? null : new URL(location, request.url);
+        } catch {
+            if (request.redirect !== 'manual') {
+                finalize();
+                throw new FetchError(
+                    `uri requested responds with an invalid redirect URL: ${location}`,
+                    'invalid-redirect',
+                );
+            }
         }
 
-        if (request.counter >= request.follow) {
-          finalize();
-          throw new FetchError(`maximum redirect reached at: ${request.url}`, 'max-redirect');
+        switch (request.redirect) {
+            case 'error':
+                finalize();
+                throw new FetchError(
+                    `uri requested responds with a redirect, redirect mode is set to error: ${request.url}`,
+                    'no-redirect',
+                );
+
+            case 'manual':
+                // Nothing to do — return opaque redirect response
+                break;
+
+            case 'follow': {
+                if (locationURL === null) {
+                    break;
+                }
+
+                if (request.counter >= request.follow) {
+                    finalize();
+                    throw new FetchError(`maximum redirect reached at: ${request.url}`, 'max-redirect');
+                }
+
+                const requestOptions: Omit<RequestInit, 'headers'> & {
+                    headers: Headers;
+                    follow: number;
+                    counter: number;
+                    agent: string | ((url: URL) => string);
+                    compress: boolean;
+                    size: number;
+                } = {
+                    headers: new Headers(request.headers),
+                    follow: request.follow,
+                    counter: request.counter + 1,
+                    agent: request.agent,
+                    compress: request.compress,
+                    method: request.method,
+                    body: clone(request) as unknown as BodyInit | null,
+                    signal: request.signal,
+                    size: request.size,
+                    referrer: request.referrer,
+                    referrerPolicy: request.referrerPolicy,
+                };
+
+                // Don't forward sensitive headers to different domains/protocols
+                if (!isDomainOrSubdomain(request.url, locationURL) || !isSameProtocol(request.url, locationURL)) {
+                    for (const name of ['authorization', 'www-authenticate', 'cookie', 'cookie2']) {
+                        requestOptions.headers.delete(name);
+                    }
+                }
+
+                // Cannot follow redirect with body being a readable stream
+                if (statusCode !== 303 && request.body && init.body instanceof Stream.Readable) {
+                    finalize();
+                    throw new FetchError(
+                        'Cannot follow redirect with body being a readable stream',
+                        'unsupported-redirect',
+                    );
+                }
+
+                // 303 or POST→GET conversion
+                if (statusCode === 303 || ((statusCode === 301 || statusCode === 302) && request.method === 'POST')) {
+                    requestOptions.method = 'GET';
+                    requestOptions.body = undefined;
+                    requestOptions.headers.delete('content-length');
+                }
+
+                // Update referrer policy from response
+                const responseReferrerPolicy = parseReferrerPolicyFromHeader(headers);
+                if (responseReferrerPolicy) {
+                    requestOptions.referrerPolicy = responseReferrerPolicy;
+                }
+
+                finalize();
+                return fetch(new Request(locationURL, requestOptions as unknown as RequestInit));
+            }
+
+            default:
+                throw new TypeError(`Redirect option '${request.redirect}' is not a valid value of RequestRedirect`);
         }
-
-        const requestOptions: Omit<RequestInit, 'headers'> & {
-          headers: Headers;
-          follow: number;
-          counter: number;
-          agent: string | ((url: URL) => string);
-          compress: boolean;
-          size: number;
-        } = {
-          headers: new Headers(request.headers),
-          follow: request.follow,
-          counter: request.counter + 1,
-          agent: request.agent,
-          compress: request.compress,
-          method: request.method,
-          body: clone(request) as unknown as BodyInit | null,
-          signal: request.signal,
-          size: request.size,
-          referrer: request.referrer,
-          referrerPolicy: request.referrerPolicy
-        };
-
-        // Don't forward sensitive headers to different domains/protocols
-        if (!isDomainOrSubdomain(request.url, locationURL) || !isSameProtocol(request.url, locationURL)) {
-          for (const name of ['authorization', 'www-authenticate', 'cookie', 'cookie2']) {
-            requestOptions.headers.delete(name);
-          }
-        }
-
-        // Cannot follow redirect with body being a readable stream
-        if (statusCode !== 303 && request.body && init.body instanceof Stream.Readable) {
-          finalize();
-          throw new FetchError('Cannot follow redirect with body being a readable stream', 'unsupported-redirect');
-        }
-
-        // 303 or POST→GET conversion
-        if (statusCode === 303 || ((statusCode === 301 || statusCode === 302) && request.method === 'POST')) {
-          requestOptions.method = 'GET';
-          requestOptions.body = undefined;
-          requestOptions.headers.delete('content-length');
-        }
-
-        // Update referrer policy from response
-        const responseReferrerPolicy = parseReferrerPolicyFromHeader(headers);
-        if (responseReferrerPolicy) {
-          requestOptions.referrerPolicy = responseReferrerPolicy;
-        }
-
-        finalize();
-        return fetch(new Request(locationURL, requestOptions as unknown as RequestInit));
-      }
-
-      default:
-        throw new TypeError(`Redirect option '${request.redirect}' is not a valid value of RequestRedirect`);
     }
-  }
 
-  // Build response
-  const responseOptions = {
-    url: request.url,
-    status: statusCode,
-    statusText: statusMessage,
-    headers,
-    size: request.size,
-    counter: request.counter,
-    highWaterMark: request.highWaterMark
-  };
+    // Build response
+    const responseOptions = {
+        url: request.url,
+        status: statusCode,
+        statusText: statusMessage,
+        headers,
+        size: request.size,
+        counter: request.counter,
+        highWaterMark: request.highWaterMark,
+    };
 
-  // Handle content encoding (decompression)
-  const codings = headers.get('Content-Encoding');
+    // Handle content encoding (decompression)
+    const codings = headers.get('Content-Encoding');
 
-  // Skip decompression when:
-  // 1. compression support is disabled
-  // 2. HEAD request
-  // 3. no Content-Encoding header
-  // 4. no content response (204)
-  // 5. content not modified response (304)
-  if (!request.compress || request.method === 'HEAD' || codings === null || statusCode === 204 || statusCode === 304) {
+    // Skip decompression when:
+    // 1. compression support is disabled
+    // 2. HEAD request
+    // 3. no Content-Encoding header
+    // 4. no content response (204)
+    // 5. content not modified response (304)
+    if (
+        !request.compress ||
+        request.method === 'HEAD' ||
+        codings === null ||
+        statusCode === 204 ||
+        statusCode === 304
+    ) {
+        finalize();
+        return new Response(readable, responseOptions);
+    }
+
+    // Try to use DecompressionStream Web API (available in modern SpiderMonkey)
+    if (typeof DecompressionStream !== 'undefined') {
+        let format: CompressionFormat | null = null;
+
+        if (codings === 'gzip' || codings === 'x-gzip') {
+            format = 'gzip';
+        } else if (codings === 'deflate' || codings === 'x-deflate') {
+            format = 'deflate';
+        }
+
+        if (format) {
+            const webBody = new Response(readable, responseOptions).body;
+            if (webBody) {
+                const decompressed = webBody.pipeThrough(
+                    new DecompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>,
+                );
+                finalize();
+                return new Response(decompressed as unknown as ReadableStream, responseOptions);
+            }
+        }
+    }
+
+    // Fallback: return the body as-is (no streaming decompression available)
     finalize();
     return new Response(readable, responseOptions);
-  }
-
-  // Try to use DecompressionStream Web API (available in modern SpiderMonkey)
-  if (typeof DecompressionStream !== 'undefined') {
-    let format: CompressionFormat | null = null;
-
-    if (codings === 'gzip' || codings === 'x-gzip') {
-      format = 'gzip';
-    } else if (codings === 'deflate' || codings === 'x-deflate') {
-      format = 'deflate';
-    }
-
-    if (format) {
-      const webBody = new Response(readable, responseOptions).body;
-      if (webBody) {
-        const decompressed = webBody.pipeThrough(new DecompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>);
-        finalize();
-        return new Response(decompressed as unknown as ReadableStream, responseOptions);
-      }
-    }
-  }
-
-  // Fallback: return the body as-is (no streaming decompression available)
-  finalize();
-  return new Response(readable, responseOptions);
 }
 
 // Note: globals are no longer registered at import time. Use the `/register`

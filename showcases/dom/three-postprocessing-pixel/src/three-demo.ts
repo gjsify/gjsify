@@ -81,10 +81,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     const boxMaterial = new THREE.MeshPhongMaterial({ map: texChecker2 });
 
     function addBox(boxSideLength: number, x: number, z: number, rotation: number) {
-        const mesh = new THREE.Mesh(
-            new THREE.BoxGeometry(boxSideLength, boxSideLength, boxSideLength),
-            boxMaterial,
-        );
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(boxSideLength, boxSideLength, boxSideLength), boxMaterial);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         mesh.rotation.y = rotation;
@@ -194,16 +191,20 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     }
 
     function pixelAlignFrustum(
-        cam: THREE.OrthographicCamera, ar: number,
-        pixelsPerScreenWidth: number, pixelsPerScreenHeight: number,
+        cam: THREE.OrthographicCamera,
+        ar: number,
+        pixelsPerScreenWidth: number,
+        pixelsPerScreenHeight: number,
     ) {
         const worldScreenWidth = (cam.right - cam.left) / cam.zoom;
         const worldScreenHeight = (cam.top - cam.bottom) / cam.zoom;
         const pixelWidth = worldScreenWidth / pixelsPerScreenWidth;
         const pixelHeight = worldScreenHeight / pixelsPerScreenHeight;
 
-        const camPos = new THREE.Vector3(); cam.getWorldPosition(camPos);
-        const camRot = new THREE.Quaternion(); cam.getWorldQuaternion(camRot);
+        const camPos = new THREE.Vector3();
+        cam.getWorldPosition(camPos);
+        const camRot = new THREE.Quaternion();
+        cam.getWorldQuaternion(camRot);
         const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camRot);
         const camUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camRot);
 
@@ -252,7 +253,8 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
         const ar = rendererSize.x / rendererSize.y;
         if (effectController.pixelAlignedPanning) {
             pixelAlignFrustum(
-                camera, ar,
+                camera,
+                ar,
                 Math.floor(rendererSize.x / effectController.pixelSize),
                 Math.floor(rendererSize.y / effectController.pixelSize),
             );
@@ -292,7 +294,9 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     return {
         effectController,
         render,
-        get isPaused() { return paused; },
+        get isPaused() {
+            return paused;
+        },
         pause() {
             if (paused) return;
             paused = true;

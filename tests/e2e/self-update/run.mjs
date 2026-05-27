@@ -70,14 +70,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-    mkdtempSync,
-    mkdirSync,
-    rmSync,
-    writeFileSync,
-    readFileSync,
-    existsSync,
-} from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir, homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -353,11 +346,7 @@ globalThis.fetch = async (input, init = {}) => {
 
         const combined = result.stdout + result.stderr;
         assert.equal(result.status, 0, `Expected exit 0:\n${combined}`);
-        assert.match(
-            combined,
-            /Already up to date/,
-            `Expected "Already up to date" in output:\n${combined}`,
-        );
+        assert.match(combined, /Already up to date/, `Expected "Already up to date" in output:\n${combined}`);
     });
 
     // ── 3. --check WITH NEWER VERSION AVAILABLE ───────────────────────────
@@ -382,11 +371,7 @@ globalThis.fetch = async (input, init = {}) => {
 
         // `--check` exits 1 when an update is available (per self-update.ts).
         assert.equal(result.status, 1, `Expected exit 1 for --check with newer version:\n${combined}`);
-        assert.match(
-            combined,
-            /Update available/,
-            `Expected "Update available" in output:\n${combined}`,
-        );
+        assert.match(combined, /Update available/, `Expected "Update available" in output:\n${combined}`);
         assert.match(
             combined,
             new RegExp(newerVersion.replace(/\./g, '\\.')),
@@ -436,10 +421,7 @@ globalThis.fetch = async (input, init = {}) => {
         // throws TypeError.  The env-var approach is the canonical escape
         // hatch used by GJSIFY_GLOBAL_PREFIX / GJSIFY_GLOBAL_BIN_DIR.)
         const fakeCliPkgJson = join(tmpRoot, 'fake-cli-package.json');
-        writeFileSync(
-            fakeCliPkgJson,
-            JSON.stringify({ name: '@not-gjsify/cli', version: '0.0.0' }) + '\n',
-        );
+        writeFileSync(fakeCliPkgJson, JSON.stringify({ name: '@not-gjsify/cli', version: '0.0.0' }) + '\n');
 
         // Use --check so that when currentVersion=(unknown) != target, the
         // command exits 1 without calling installPackages (which needs a real
@@ -460,11 +442,7 @@ globalThis.fetch = async (input, init = {}) => {
         const combined = result.stdout + result.stderr;
 
         // The CLI must report "(unknown)" for the current version.
-        assert.match(
-            combined,
-            /\(unknown\)/,
-            `Expected "(unknown)" when version discovery fails:\n${combined}`,
-        );
+        assert.match(combined, /\(unknown\)/, `Expected "(unknown)" when version discovery fails:\n${combined}`);
 
         // With unknown version, --check prints "Install required" (not "Update
         // available") and exits 1.
@@ -524,10 +502,12 @@ globalThis.fetch = async (input, init = {}) => {
         // Every request path must be for @gjsify/cli only. Accept both
         // %40gjsify/cli and @gjsify%2Fcli URL encodings.
         const nonCliRequests = requestedPaths.filter((p) => {
-            return !p.includes('%40gjsify/cli') &&
-                   !p.includes('%40gjsify%2Fcli') &&
-                   !p.includes('@gjsify/cli') &&
-                   !p.includes('@gjsify%2Fcli');
+            return (
+                !p.includes('%40gjsify/cli') &&
+                !p.includes('%40gjsify%2Fcli') &&
+                !p.includes('@gjsify/cli') &&
+                !p.includes('@gjsify%2Fcli')
+            );
         });
         assert.equal(
             nonCliRequests.length,
@@ -562,10 +542,7 @@ globalThis.fetch = async (input, init = {}) => {
 
         // The stdout must not contain yargs usage patterns or bare `{}`.
         // "Usage:" is the canonical first line of yargs help output.
-        assert.ok(
-            !result.stdout.includes('Usage:'),
-            `Stray --help/usage dump on stdout:\n${result.stdout}`,
-        );
+        assert.ok(!result.stdout.includes('Usage:'), `Stray --help/usage dump on stdout:\n${result.stdout}`);
         assert.ok(
             !result.stdout.includes('\n{}\n') && !result.stdout.endsWith('\n{}'),
             `Stray bare {} on stdout (serialized Error regression):\n${result.stdout}`,
@@ -594,24 +571,12 @@ globalThis.fetch = async (input, init = {}) => {
 
         const first = await runSelfUpdate([], { preloadPath, env });
         const combined1 = first.stdout + first.stderr;
-        assert.equal(
-            first.status,
-            0,
-            `Expected exit 0 on first run:\n${combined1}`,
-        );
-        assert.match(
-            combined1,
-            /Already up to date/,
-            `Expected "Already up to date" on first run:\n${combined1}`,
-        );
+        assert.equal(first.status, 0, `Expected exit 0 on first run:\n${combined1}`);
+        assert.match(combined1, /Already up to date/, `Expected "Already up to date" on first run:\n${combined1}`);
 
         const second = await runSelfUpdate([], { preloadPath, env });
         const combined2 = second.stdout + second.stderr;
-        assert.equal(
-            second.status,
-            0,
-            `Expected exit 0 on second run (idempotency):\n${combined2}`,
-        );
+        assert.equal(second.status, 0, `Expected exit 0 on second run (idempotency):\n${combined2}`);
         assert.match(
             combined2,
             /Already up to date/,

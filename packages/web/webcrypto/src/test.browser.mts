@@ -59,21 +59,19 @@ run({
 
         await describe('SubtleCrypto AES-GCM', async () => {
             await it('generateKey returns a CryptoKey', async () => {
-                const key = await crypto.subtle.generateKey(
-                    { name: 'AES-GCM', length: 256 },
-                    false,
-                    ['encrypt', 'decrypt'],
-                );
+                const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+                    'encrypt',
+                    'decrypt',
+                ]);
                 expect(key).toBeDefined();
                 expect((key as CryptoKey).type).toBe('secret');
             });
 
             await it('encrypt/decrypt round-trip', async () => {
-                const key = await crypto.subtle.generateKey(
-                    { name: 'AES-GCM', length: 256 },
-                    false,
-                    ['encrypt', 'decrypt'],
-                ) as CryptoKey;
+                const key = (await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+                    'encrypt',
+                    'decrypt',
+                ])) as CryptoKey;
                 const iv = crypto.getRandomValues(new Uint8Array(12));
                 const plaintext = new TextEncoder().encode('secret message');
                 const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
@@ -84,11 +82,10 @@ run({
 
         await describe('SubtleCrypto HMAC', async () => {
             await it('sign and verify round-trip', async () => {
-                const key = await crypto.subtle.generateKey(
-                    { name: 'HMAC', hash: 'SHA-256' },
-                    false,
-                    ['sign', 'verify'],
-                ) as CryptoKey;
+                const key = (await crypto.subtle.generateKey({ name: 'HMAC', hash: 'SHA-256' }, false, [
+                    'sign',
+                    'verify',
+                ])) as CryptoKey;
                 const data = new TextEncoder().encode('test data');
                 const signature = await crypto.subtle.sign('HMAC', key, data);
                 const valid = await crypto.subtle.verify('HMAC', key, signature, data);
@@ -99,9 +96,10 @@ run({
         await describe('SubtleCrypto importKey / exportKey', async () => {
             await it('imports and exports raw AES key', async () => {
                 const raw = crypto.getRandomValues(new Uint8Array(32));
-                const key = await crypto.subtle.importKey(
-                    'raw', raw, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt'],
-                );
+                const key = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM', length: 256 }, true, [
+                    'encrypt',
+                    'decrypt',
+                ]);
                 const exported = new Uint8Array(await crypto.subtle.exportKey('raw', key));
                 expect(exported.toString()).toBe(raw.toString());
             });

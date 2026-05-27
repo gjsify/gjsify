@@ -23,7 +23,6 @@ function nearlyEqual(actual: number, expected: number, eps = 1e-9): boolean {
 
 export default async () => {
     await describe('CanvasRenderingContext2D — transforms', async () => {
-
         await describe('getTransform initial state', async () => {
             await it('returns identity for a fresh context', async () => {
                 const ctx = makeCtx();
@@ -169,12 +168,20 @@ export default async () => {
                 // code path runs end-to-end.
                 if (typeof (globalThis as any).DOMMatrix === 'undefined') {
                     class TestDOMMatrix {
-                        a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+                        a = 1;
+                        b = 0;
+                        c = 0;
+                        d = 1;
+                        e = 0;
+                        f = 0;
                         constructor(init?: number[]) {
                             if (Array.isArray(init) && init.length === 6) {
-                                this.a = init[0]; this.b = init[1];
-                                this.c = init[2]; this.d = init[3];
-                                this.e = init[4]; this.f = init[5];
+                                this.a = init[0];
+                                this.b = init[1];
+                                this.c = init[2];
+                                this.d = init[3];
+                                this.e = init[4];
+                                this.f = init[5];
                             }
                         }
                         multiply(o: { a: number; b: number; c: number; d: number; e: number; f: number }) {

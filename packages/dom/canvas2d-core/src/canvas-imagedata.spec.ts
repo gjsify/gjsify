@@ -18,7 +18,6 @@ function makeCtx(width = 20, height = 20): CanvasRenderingContext2D {
 
 export default async () => {
     await describe('CanvasRenderingContext2D — ImageData', async () => {
-
         await describe('createImageData', async () => {
             await it('createImageData(w, h) returns an RGBA Uint8ClampedArray of w*h*4 bytes', async () => {
                 const ctx = makeCtx();

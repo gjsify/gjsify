@@ -4,13 +4,13 @@ export class WebGLUniformLocation implements WebGLUniformLocation {
     _: number;
     _program: WebGLProgram;
     _linkCount = 0;
-    _activeInfo: {size: GLsizei, type: GLenum, name: string };
-    _array: Array<number | null> | null = null
-    constructor (_: number, program: WebGLProgram, info: {size: GLsizei, type: GLenum, name: string }) {
-      this._ = _
-      this._program = program
-      this._linkCount = program._linkCount
-      this._activeInfo = info
-      this._array = null
+    _activeInfo: { size: GLsizei; type: GLenum; name: string };
+    _array: Array<number | null> | null = null;
+    constructor(_: number, program: WebGLProgram, info: { size: GLsizei; type: GLenum; name: string }) {
+        this._ = _;
+        this._program = program;
+        this._linkCount = program._linkCount;
+        this._activeInfo = info;
+        this._array = null;
     }
 }

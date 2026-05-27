@@ -6,10 +6,7 @@
 
 export type LogFn = (msg: string) => void;
 
-export async function startVideo(
-    video: HTMLVideoElement,
-    log: LogFn = console.log,
-): Promise<MediaStream> {
+export async function startVideo(video: HTMLVideoElement, log: LogFn = console.log): Promise<MediaStream> {
     log('Requesting webcam...');
 
     const stream = await navigator.mediaDevices.getUserMedia({

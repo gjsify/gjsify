@@ -8,15 +8,15 @@ import { TextEncoderStream, TextDecoderStream } from '../index.js';
  * during early bootstrap.
  */
 interface _TextStreamsGlobals {
-  TextEncoderStream?: typeof TextEncoderStream;
-  TextDecoderStream?: typeof TextDecoderStream;
+    TextEncoderStream?: typeof TextEncoderStream;
+    TextDecoderStream?: typeof TextDecoderStream;
 }
 
 const g = globalThis as unknown as _TextStreamsGlobals;
 
 if (typeof globalThis.TextEncoderStream === 'undefined') {
-  g.TextEncoderStream = TextEncoderStream;
+    g.TextEncoderStream = TextEncoderStream;
 }
 if (typeof globalThis.TextDecoderStream === 'undefined') {
-  g.TextDecoderStream = TextDecoderStream;
+    g.TextDecoderStream = TextDecoderStream;
 }

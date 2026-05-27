@@ -18,15 +18,14 @@ export type LogFn = (tag: string, msg: string) => void;
 // Multiple files to seed — demonstrates multi-file torrent handling
 const FILES = [
     { name: 'readme.txt', content: 'WebTorrent multi-file download demo.\nTransferred via WebRTC data channels.\n' },
-    { name: 'data.json', content: JSON.stringify({ framework: 'gjsify', transport: 'WebRTC', peers: 2 }, null, 2) + '\n' },
+    {
+        name: 'data.json',
+        content: JSON.stringify({ framework: 'gjsify', transport: 'WebRTC', peers: 2 }, null, 2) + '\n',
+    },
     { name: 'notes/hello.md', content: '# Hello\n\nThis file lives in a subdirectory inside the torrent.\n' },
 ];
 
-const TRACKERS = [
-    'wss://tracker.webtorrent.dev',
-    'wss://tracker.openwebtorrent.com',
-    'wss://tracker.btorrent.xyz',
-];
+const TRACKERS = ['wss://tracker.webtorrent.dev', 'wss://tracker.openwebtorrent.com', 'wss://tracker.btorrent.xyz'];
 
 const CLIENT_OPTS = {
     dht: false,
@@ -64,7 +63,7 @@ export async function runDownloadDemo(log: LogFn): Promise<void> {
 
     // Cast to Buffer[] — Buffer is always available in GJS; File is the browser fallback.
     // Mixed (Buffer | File)[] doesn't match WebTorrent's seed() overloads.
-    const seedInputs = FILES.map(f => {
+    const seedInputs = FILES.map((f) => {
         const data = new TextEncoder().encode(f.content);
         return typeof Buffer !== 'undefined'
             ? Object.assign(Buffer.from(data), { name: f.name })
@@ -121,9 +120,7 @@ export async function runDownloadDemo(log: LogFn): Promise<void> {
             const peers = dl.numPeers;
 
             // Per-file progress
-            const fileProgress = dl.files
-                .map((f: any) => `${f.name}: ${(f.progress * 100).toFixed(0)}%`)
-                .join(', ');
+            const fileProgress = dl.files.map((f: any) => `${f.name}: ${(f.progress * 100).toFixed(0)}%`).join(', ');
 
             log('leecher', `${pct}% (${down}) @ ${speed} | ${peers} peer(s) | ${fileProgress}`);
         });
@@ -137,7 +134,7 @@ export async function runDownloadDemo(log: LogFn): Promise<void> {
                 const file = dl.files[i] as TorrentFileWithBuffer;
                 const buf = await file.arrayBuffer();
                 const text = new TextDecoder().decode(buf);
-                const expected = FILES.find(f => file.path.endsWith(f.name));
+                const expected = FILES.find((f) => file.path.endsWith(f.name));
 
                 if (expected && text === expected.content) {
                     log('verify', `${file.name} — OK`);
@@ -153,7 +150,8 @@ export async function runDownloadDemo(log: LogFn): Promise<void> {
 
         dl.on('error', reject);
         setTimeout(() => {
-            if (dl.progress < 1) reject(new Error(`Download timeout — ${dl.numPeers} peers, ${(dl.progress * 100).toFixed(1)}%`));
+            if (dl.progress < 1)
+                reject(new Error(`Download timeout — ${dl.numPeers} peers, ${(dl.progress * 100).toFixed(1)}%`));
         }, 60000);
     });
 

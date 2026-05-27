@@ -1,3 +1,3 @@
-import * as ex from 'excalibur'
+import * as ex from 'excalibur';
 
-export const GRAVITY = new ex.Vector(0, 1450)
+export const GRAVITY = new ex.Vector(0, 1450);

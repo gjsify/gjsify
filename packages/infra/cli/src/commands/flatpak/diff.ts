@@ -55,8 +55,7 @@ export const flatpakDiffCommand: Command<unknown, DiffOptions> = {
         return yargs
             .version(false)
             .option('version', {
-                description:
-                    'Local version to compare against. Default: `git describe --tags --abbrev=0` in cwd.',
+                description: 'Local version to compare against. Default: `git describe --tags --abbrev=0` in cwd.',
                 type: 'string',
             })
             .option('app-id', {
@@ -74,14 +73,12 @@ export const flatpakDiffCommand: Command<unknown, DiffOptions> = {
                 type: 'string',
             })
             .option('detail', {
-                description:
-                    'Also print the full Flathub manifest source entry alongside the resolved local version.',
+                description: 'Also print the full Flathub manifest source entry alongside the resolved local version.',
                 type: 'boolean',
                 default: false,
             })
             .option('source-index', {
-                description:
-                    'Index into modules[0].sources[] to inspect (when the manifest has multiple sources).',
+                description: 'Index into modules[0].sources[] to inspect (when the manifest has multiple sources).',
                 type: 'number',
             })
             .option('verbose', {
@@ -93,26 +90,18 @@ export const flatpakDiffCommand: Command<unknown, DiffOptions> = {
     handler: async (args) => {
         const cwd = process.cwd();
         const cfg = new Config();
-        const configData = await cfg.forBuild({} as never).catch(() => ({} as ConfigData));
+        const configData = await cfg.forBuild({} as never).catch(() => ({}) as ConfigData);
         const flatpak = configData.flatpak ?? {};
 
         const appId =
-            (args.appId as string | undefined) ??
-            flatpak.appId ??
-            (readPackageJson(cwd).name as string | undefined);
+            (args.appId as string | undefined) ?? flatpak.appId ?? (readPackageJson(cwd).name as string | undefined);
         if (!appId) {
-            throw new Error(
-                '[gjsify flatpak diff] no app id available — pass --app-id or set gjsify.flatpak.appId.',
-            );
+            throw new Error('[gjsify flatpak diff] no app id available — pass --app-id or set gjsify.flatpak.appId.');
         }
 
-        const flathubRepo =
-            (args.flathubRepo as string | undefined) ??
-            flatpak.flathubRepo ??
-            `flathub/${appId}`;
+        const flathubRepo = (args.flathubRepo as string | undefined) ?? flatpak.flathubRepo ?? `flathub/${appId}`;
 
-        const localVersion =
-            (args.version as string | undefined) ?? (await resolveLatestTag(cwd, args.verbose));
+        const localVersion = (args.version as string | undefined) ?? (await resolveLatestTag(cwd, args.verbose));
 
         const remoteSource = await loadFlathubSource(
             { appId, flathubRepo, against: args.against, verbose: args.verbose },
@@ -124,7 +113,9 @@ export const flatpakDiffCommand: Command<unknown, DiffOptions> = {
 
         console.log(`[gjsify flatpak diff] appId=${appId}`);
         console.log(`[gjsify flatpak diff] flathubRepo=${flathubRepo}`);
-        console.log(`[gjsify flatpak diff] flathub: tag=${remoteTag ?? '(missing)'} commit=${remoteCommit ?? '(missing)'}`);
+        console.log(
+            `[gjsify flatpak diff] flathub: tag=${remoteTag ?? '(missing)'} commit=${remoteCommit ?? '(missing)'}`,
+        );
         console.log(`[gjsify flatpak diff] local:   tag=${localVersion ?? '(none)'}`);
 
         if (args.detail && remoteSource) {
@@ -141,9 +132,7 @@ export const flatpakDiffCommand: Command<unknown, DiffOptions> = {
             return;
         }
         if (!remoteTag) {
-            console.warn(
-                '[gjsify flatpak diff] flathub manifest has no `tag` field on the inspected source.',
-            );
+            console.warn('[gjsify flatpak diff] flathub manifest has no `tag` field on the inspected source.');
             process.exit(1);
         }
 
@@ -153,9 +142,7 @@ export const flatpakDiffCommand: Command<unknown, DiffOptions> = {
         }
 
         console.log(`❌ drift detected — flathub=${remoteTag} vs local=${localVersion}`);
-        console.log(
-            `   run \`gjsify flatpak sync-flathub --version ${localVersion}\` to update the Flathub manifest.`,
-        );
+        console.log(`   run \`gjsify flatpak sync-flathub --version ${localVersion}\` to update the Flathub manifest.`);
         process.exit(1);
     },
 };
@@ -182,9 +169,7 @@ async function loadFlathubSource(
     try {
         manifest = JSON.parse(raw) as FlathubManifest;
     } catch (err) {
-        throw new Error(
-            `[gjsify flatpak diff] failed to parse Flathub manifest as JSON: ${(err as Error).message}`,
-        );
+        throw new Error(`[gjsify flatpak diff] failed to parse Flathub manifest as JSON: ${(err as Error).message}`);
     }
     const modules = manifest.modules ?? [];
     const sources = modules[0]?.sources ?? [];
@@ -194,11 +179,7 @@ async function loadFlathubSource(
     return sources[idx] ?? null;
 }
 
-async function fetchFlathubManifest(
-    flathubRepo: string,
-    appId: string,
-    verbose: boolean | undefined,
-): Promise<string> {
+async function fetchFlathubManifest(flathubRepo: string, appId: string, verbose: boolean | undefined): Promise<string> {
     for (const branch of ['master', 'main']) {
         const url = `https://raw.githubusercontent.com/${flathubRepo}/${branch}/${appId}.json`;
         if (verbose) console.log(`[gjsify flatpak diff] fetch ${url}`);
@@ -210,9 +191,7 @@ async function fetchFlathubManifest(
             if (verbose) console.log(`[gjsify flatpak diff] ${branch} fetch error: ${(err as Error).message}`);
         }
     }
-    throw new Error(
-        `[gjsify flatpak diff] could not fetch flathub manifest from ${flathubRepo} on master or main`,
-    );
+    throw new Error(`[gjsify flatpak diff] could not fetch flathub manifest from ${flathubRepo} on master or main`);
 }
 
 async function resolveLatestTag(cwd: string, verbose: boolean | undefined): Promise<string | null> {

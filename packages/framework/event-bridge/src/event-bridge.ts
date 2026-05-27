@@ -60,9 +60,9 @@ function gtkButtonToDom(gtkButton: number): number {
 function buttonsFromModifiers(controller: Gtk.EventController): number {
     const mods = controller.get_current_event_state() as number;
     let buttons = 0;
-    if (mods & Gdk.ModifierType.BUTTON1_MASK) buttons |= 1;  // primary
-    if (mods & Gdk.ModifierType.BUTTON3_MASK) buttons |= 2;  // secondary
-    if (mods & Gdk.ModifierType.BUTTON2_MASK) buttons |= 4;  // auxiliary
+    if (mods & Gdk.ModifierType.BUTTON1_MASK) buttons |= 1; // primary
+    if (mods & Gdk.ModifierType.BUTTON3_MASK) buttons |= 2; // secondary
+    if (mods & Gdk.ModifierType.BUTTON2_MASK) buttons |= 4; // auxiliary
     return buttons;
 }
 
@@ -120,9 +120,25 @@ export function attachEventControllers(
         const movementY = cy - state.lastY;
         const mods = extractModifiers(motionCtrl);
         const buttons = buttonsFromModifiers(motionCtrl);
-        const init = { ...mods, clientX: cx, clientY: cy, offsetX: cx, offsetY: cy, screenX: cx, screenY: cy, movementX, movementY, buttons, button: 0, bubbles: true, cancelable: true };
+        const init = {
+            ...mods,
+            clientX: cx,
+            clientY: cy,
+            offsetX: cx,
+            offsetY: cy,
+            screenX: cx,
+            screenY: cy,
+            movementX,
+            movementY,
+            buttons,
+            button: 0,
+            bubbles: true,
+            cancelable: true,
+        };
 
-        el.dispatchEvent(new OurPointerEvent('pointermove', { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+        el.dispatchEvent(
+            new OurPointerEvent('pointermove', { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true }),
+        );
         el.dispatchEvent(new OurMouseEvent('mousemove', init));
 
         state.lastX = cx;
@@ -135,9 +151,21 @@ export function attachEventControllers(
         state.lastX = x;
         state.lastY = y;
         const mods = extractModifiers(motionCtrl);
-        const init = { ...mods, clientX: x, clientY: y, offsetX: x, offsetY: y, screenX: x, screenY: y, bubbles: false, cancelable: false };
+        const init = {
+            ...mods,
+            clientX: x,
+            clientY: y,
+            offsetX: x,
+            offsetY: y,
+            screenX: x,
+            screenY: y,
+            bubbles: false,
+            cancelable: false,
+        };
 
-        el.dispatchEvent(new OurPointerEvent('pointerenter', { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+        el.dispatchEvent(
+            new OurPointerEvent('pointerenter', { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true }),
+        );
         el.dispatchEvent(new OurMouseEvent('mouseenter', init));
         el.dispatchEvent(new OurMouseEvent('mouseover', { ...init, bubbles: true }));
     });
@@ -148,7 +176,9 @@ export function attachEventControllers(
         const mods = extractModifiers(motionCtrl);
         const init = { ...mods, clientX: state.lastX, clientY: state.lastY, bubbles: false, cancelable: false };
 
-        el.dispatchEvent(new OurPointerEvent('pointerleave', { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+        el.dispatchEvent(
+            new OurPointerEvent('pointerleave', { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true }),
+        );
         el.dispatchEvent(new OurMouseEvent('mouseleave', init));
         el.dispatchEvent(new OurMouseEvent('mouseout', { ...init, bubbles: true }));
     });
@@ -165,10 +195,25 @@ export function attachEventControllers(
         const gtkButton = clickCtrl.get_current_button();
         const domButton = gtkButtonToDom(gtkButton);
         const mods = extractModifiers(clickCtrl);
-        state.buttonsPressed |= (1 << domButton);
-        const init = { ...mods, clientX: x, clientY: y, offsetX: x, offsetY: y, screenX: x, screenY: y, button: domButton, buttons: state.buttonsPressed, detail: nPress, bubbles: true, cancelable: true };
+        state.buttonsPressed |= 1 << domButton;
+        const init = {
+            ...mods,
+            clientX: x,
+            clientY: y,
+            offsetX: x,
+            offsetY: y,
+            screenX: x,
+            screenY: y,
+            button: domButton,
+            buttons: state.buttonsPressed,
+            detail: nPress,
+            bubbles: true,
+            cancelable: true,
+        };
 
-        el.dispatchEvent(new OurPointerEvent('pointerdown', { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+        el.dispatchEvent(
+            new OurPointerEvent('pointerdown', { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true }),
+        );
         el.dispatchEvent(new OurMouseEvent('mousedown', init));
 
         // Grab focus on click so keyboard events work
@@ -182,9 +227,24 @@ export function attachEventControllers(
         const domButton = gtkButtonToDom(gtkButton);
         const mods = extractModifiers(clickCtrl);
         state.buttonsPressed &= ~(1 << domButton);
-        const init = { ...mods, clientX: x, clientY: y, offsetX: x, offsetY: y, screenX: x, screenY: y, button: domButton, buttons: state.buttonsPressed, detail: nPress, bubbles: true, cancelable: true };
+        const init = {
+            ...mods,
+            clientX: x,
+            clientY: y,
+            offsetX: x,
+            offsetY: y,
+            screenX: x,
+            screenY: y,
+            button: domButton,
+            buttons: state.buttonsPressed,
+            detail: nPress,
+            bubbles: true,
+            cancelable: true,
+        };
 
-        el.dispatchEvent(new OurPointerEvent('pointerup', { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+        el.dispatchEvent(
+            new OurPointerEvent('pointerup', { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true }),
+        );
         el.dispatchEvent(new OurMouseEvent('mouseup', init));
 
         // click event (left button only per spec)
@@ -213,7 +273,21 @@ export function attachEventControllers(
         const mods = extractModifiers(scrollCtrl);
         // GTK scroll: discrete ticks are ±1.0 per notch. Scale to ~100px to match browser behavior.
         const scale = 100;
-        const init = { ...mods, clientX: state.lastX, clientY: state.lastY, offsetX: state.lastX, offsetY: state.lastY, screenX: state.lastX, screenY: state.lastY, deltaX: dx * scale, deltaY: dy * scale, deltaZ: 0, deltaMode: 0, bubbles: true, cancelable: true };
+        const init = {
+            ...mods,
+            clientX: state.lastX,
+            clientY: state.lastY,
+            offsetX: state.lastX,
+            offsetY: state.lastY,
+            screenX: state.lastX,
+            screenY: state.lastY,
+            deltaX: dx * scale,
+            deltaY: dy * scale,
+            deltaZ: 0,
+            deltaMode: 0,
+            bubbles: true,
+            cancelable: true,
+        };
 
         el.dispatchEvent(new OurWheelEvent('wheel', init));
         return false;
@@ -224,60 +298,74 @@ export function attachEventControllers(
     // ---- Key controller ----
     const keyCtrl = new Gtk.EventControllerKey();
 
-    keyCtrl.connect('key-pressed', (_ctrl: Gtk.EventControllerKey, keyval: number, _keycode: number, modifiers: number) => {
-        const el = getElement();
-        if (!el) return false;
+    keyCtrl.connect(
+        'key-pressed',
+        (_ctrl: Gtk.EventControllerKey, keyval: number, _keycode: number, modifiers: number) => {
+            const el = getElement();
+            if (!el) return false;
 
-        const repeat = state.pressedKeys.has(keyval);
-        state.pressedKeys.add(keyval);
+            const repeat = state.pressedKeys.has(keyval);
+            state.pressedKeys.add(keyval);
 
-        const key = gdkKeyvalToKey(keyval);
-        const code = gdkKeyvalToCode(keyval);
-        const location = gdkKeyvalToLocation(keyval);
-        const init = {
-            key, code, location, repeat,
-            altKey: !!(modifiers & Gdk.ModifierType.ALT_MASK),
-            ctrlKey: !!(modifiers & Gdk.ModifierType.CONTROL_MASK),
-            metaKey: !!(modifiers & Gdk.ModifierType.SUPER_MASK),
-            shiftKey: !!(modifiers & Gdk.ModifierType.SHIFT_MASK),
-            keyCode: key.length === 1 ? key.toUpperCase().charCodeAt(0) : 0,
-            which: key.length === 1 ? key.toUpperCase().charCodeAt(0) : 0,
-            bubbles: true, cancelable: true,
-        };
-        const keydownEvent = new OurKeyboardEvent('keydown', init);
-        el.dispatchEvent(keydownEvent);
-        // Also dispatch on globalThis so window-level listeners (e.g. Excalibur's
-        // Keyboard.init) receive the event — matches browser behaviour where
-        // keydown/keyup bubble to window scope.
-        getGlobalEventTarget()?.dispatchEvent(new OurKeyboardEvent('keydown', init) as unknown as Event);
-        // Return true to consume the event and prevent GTK focus traversal
-        // (e.g. arrow keys moving focus away from the canvas). Required for
-        // game canvases where all keys must stay in the app.
-        return options?.captureKeys === true ? true : false;
-    });
+            const key = gdkKeyvalToKey(keyval);
+            const code = gdkKeyvalToCode(keyval);
+            const location = gdkKeyvalToLocation(keyval);
+            const init = {
+                key,
+                code,
+                location,
+                repeat,
+                altKey: !!(modifiers & Gdk.ModifierType.ALT_MASK),
+                ctrlKey: !!(modifiers & Gdk.ModifierType.CONTROL_MASK),
+                metaKey: !!(modifiers & Gdk.ModifierType.SUPER_MASK),
+                shiftKey: !!(modifiers & Gdk.ModifierType.SHIFT_MASK),
+                keyCode: key.length === 1 ? key.toUpperCase().charCodeAt(0) : 0,
+                which: key.length === 1 ? key.toUpperCase().charCodeAt(0) : 0,
+                bubbles: true,
+                cancelable: true,
+            };
+            const keydownEvent = new OurKeyboardEvent('keydown', init);
+            el.dispatchEvent(keydownEvent);
+            // Also dispatch on globalThis so window-level listeners (e.g. Excalibur's
+            // Keyboard.init) receive the event — matches browser behaviour where
+            // keydown/keyup bubble to window scope.
+            getGlobalEventTarget()?.dispatchEvent(new OurKeyboardEvent('keydown', init) as unknown as Event);
+            // Return true to consume the event and prevent GTK focus traversal
+            // (e.g. arrow keys moving focus away from the canvas). Required for
+            // game canvases where all keys must stay in the app.
+            return options?.captureKeys === true ? true : false;
+        },
+    );
 
-    keyCtrl.connect('key-released', (_ctrl: Gtk.EventControllerKey, keyval: number, _keycode: number, modifiers: number) => {
-        const el = getElement();
-        if (!el) return;
+    keyCtrl.connect(
+        'key-released',
+        (_ctrl: Gtk.EventControllerKey, keyval: number, _keycode: number, modifiers: number) => {
+            const el = getElement();
+            if (!el) return;
 
-        state.pressedKeys.delete(keyval);
+            state.pressedKeys.delete(keyval);
 
-        const key = gdkKeyvalToKey(keyval);
-        const code = gdkKeyvalToCode(keyval);
-        const location = gdkKeyvalToLocation(keyval);
-        const init = {
-            key, code, location, repeat: false,
-            altKey: !!(modifiers & Gdk.ModifierType.ALT_MASK),
-            ctrlKey: !!(modifiers & Gdk.ModifierType.CONTROL_MASK),
-            metaKey: !!(modifiers & Gdk.ModifierType.SUPER_MASK),
-            shiftKey: !!(modifiers & Gdk.ModifierType.SHIFT_MASK),
-            keyCode: key.length === 1 ? key.toUpperCase().charCodeAt(0) : 0,
-            which: key.length === 1 ? key.toUpperCase().charCodeAt(0) : 0,
-            bubbles: true, cancelable: true,
-        };
-        el.dispatchEvent(new OurKeyboardEvent('keyup', init));
-        getGlobalEventTarget()?.dispatchEvent(new OurKeyboardEvent('keyup', init) as unknown as Event);
-    });
+            const key = gdkKeyvalToKey(keyval);
+            const code = gdkKeyvalToCode(keyval);
+            const location = gdkKeyvalToLocation(keyval);
+            const init = {
+                key,
+                code,
+                location,
+                repeat: false,
+                altKey: !!(modifiers & Gdk.ModifierType.ALT_MASK),
+                ctrlKey: !!(modifiers & Gdk.ModifierType.CONTROL_MASK),
+                metaKey: !!(modifiers & Gdk.ModifierType.SUPER_MASK),
+                shiftKey: !!(modifiers & Gdk.ModifierType.SHIFT_MASK),
+                keyCode: key.length === 1 ? key.toUpperCase().charCodeAt(0) : 0,
+                which: key.length === 1 ? key.toUpperCase().charCodeAt(0) : 0,
+                bubbles: true,
+                cancelable: true,
+            };
+            el.dispatchEvent(new OurKeyboardEvent('keyup', init));
+            getGlobalEventTarget()?.dispatchEvent(new OurKeyboardEvent('keyup', init) as unknown as Event);
+        },
+    );
 
     widget.add_controller(keyCtrl);
 
@@ -299,7 +387,9 @@ export function attachEventControllers(
         el.dispatchEvent(new OurFocusEvent('focusout', { bubbles: true, cancelable: false }));
         // Excalibur's Keyboard.init() listens for 'blur' on globalThis to clear
         // pressed keys when the window loses focus.
-        getGlobalEventTarget()?.dispatchEvent(new OurFocusEvent('blur', { bubbles: false, cancelable: false }) as unknown as Event);
+        getGlobalEventTarget()?.dispatchEvent(
+            new OurFocusEvent('blur', { bubbles: false, cancelable: false }) as unknown as Event,
+        );
     });
 
     widget.add_controller(focusCtrl);

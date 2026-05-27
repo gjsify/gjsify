@@ -12,8 +12,19 @@ import { Uint8ArrayToVariant, checkObject } from '../utils.js';
 export interface FramebufferMethods {
     bindFramebuffer(target: GLenum, framebuffer: WebGLFramebuffer | null): void;
     bindRenderbuffer(target: GLenum, renderbuffer: WebGLRenderbuffer | null): void;
-    framebufferRenderbuffer(target: GLenum, attachment: GLenum, renderbufferTarget: GLenum, renderbuffer: WebGLRenderbuffer | null): void;
-    framebufferTexture2D(target: GLenum, attachment: GLenum, textarget: GLenum, texture: WebGLTexture | null, level?: GLint): void;
+    framebufferRenderbuffer(
+        target: GLenum,
+        attachment: GLenum,
+        renderbufferTarget: GLenum,
+        renderbuffer: WebGLRenderbuffer | null,
+    ): void;
+    framebufferTexture2D(
+        target: GLenum,
+        attachment: GLenum,
+        textarget: GLenum,
+        texture: WebGLTexture | null,
+        level?: GLint,
+    ): void;
     createFramebuffer(): WebGLFramebuffer | null;
     deleteFramebuffer(framebuffer: WebGLFramebuffer | null): void;
     createRenderbuffer(): WebGLRenderbuffer | null;
@@ -36,7 +47,7 @@ export interface FramebufferMethods {
 }
 
 declare module '../webgl-context-base.js' {
-    interface WebGLContextBase extends FramebufferMethods { }
+    interface WebGLContextBase extends FramebufferMethods {}
 }
 
 const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
@@ -53,9 +64,7 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
         } else if (framebuffer._pendingDelete) {
             return;
         } else if (this._checkWrapper(framebuffer, WebGLFramebuffer)) {
-            this._gl.bindFramebuffer(
-                this.FRAMEBUFFER,
-                framebuffer._ | 0);
+            this._gl.bindFramebuffer(this.FRAMEBUFFER, framebuffer._ | 0);
         } else {
             return;
         }
@@ -86,15 +95,11 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
         }
 
         if (!renderbuffer) {
-            this._gl.bindRenderbuffer(
-                target | 0,
-                0);
+            this._gl.bindRenderbuffer(target | 0, 0);
         } else if (renderbuffer._pendingDelete) {
             return;
         } else if (this._checkWrapper(renderbuffer, WebGLRenderbuffer)) {
-            this._gl.bindRenderbuffer(
-                target | 0,
-                renderbuffer._ | 0);
+            this._gl.bindRenderbuffer(target | 0, renderbuffer._ | 0);
         } else {
             return;
         }
@@ -111,14 +116,22 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
         this._activeRenderbuffer = renderbuffer;
     },
 
-    framebufferRenderbuffer(this: WebGLContextBase, target: GLenum, attachment: GLenum, renderbufferTarget: GLenum, renderbuffer: WebGLRenderbuffer | null): void {
+    framebufferRenderbuffer(
+        this: WebGLContextBase,
+        target: GLenum,
+        attachment: GLenum,
+        renderbufferTarget: GLenum,
+        renderbuffer: WebGLRenderbuffer | null,
+    ): void {
         if (!checkObject(renderbuffer)) {
             throw new TypeError('framebufferRenderbuffer(GLenum, GLenum, GLenum, WebGLRenderbuffer)');
         }
 
-        if (target !== this.FRAMEBUFFER ||
+        if (
+            target !== this.FRAMEBUFFER ||
             !this._validFramebufferAttachment(attachment) ||
-            renderbufferTarget !== this.RENDERBUFFER) {
+            renderbufferTarget !== this.RENDERBUFFER
+        ) {
             this.setError(this.INVALID_ENUM);
             return;
         }
@@ -137,7 +150,14 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
         this._updateFramebufferAttachments(framebuffer);
     },
 
-    framebufferTexture2D(this: WebGLContextBase, target: GLenum, attachment: GLenum, textarget: GLenum, texture: WebGLTexture | null, level: GLint = 0): void {
+    framebufferTexture2D(
+        this: WebGLContextBase,
+        target: GLenum,
+        attachment: GLenum,
+        textarget: GLenum,
+        texture: WebGLTexture | null,
+        level: GLint = 0,
+    ): void {
         target |= 0;
         attachment |= 0;
         textarget |= 0;
@@ -147,8 +167,7 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
         }
 
         // Check parameters are ok
-        if (target !== this.FRAMEBUFFER ||
-            !this._validFramebufferAttachment(attachment)) {
+        if (target !== this.FRAMEBUFFER || !this._validFramebufferAttachment(attachment)) {
             this.setError(this.INVALID_ENUM);
             return;
         }
@@ -205,8 +224,7 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
             throw new TypeError('deleteFramebuffer(WebGLFramebuffer)');
         }
 
-        if (!(framebuffer instanceof WebGLFramebuffer &&
-            this._checkOwns(framebuffer))) {
+        if (!(framebuffer instanceof WebGLFramebuffer && this._checkOwns(framebuffer))) {
             this.setError(this.INVALID_OPERATION);
             return;
         }
@@ -234,8 +252,7 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
             throw new TypeError('deleteRenderbuffer(WebGLRenderbuffer)');
         }
 
-        if (!(renderbuffer instanceof WebGLRenderbuffer &&
-            this._checkOwns(renderbuffer))) {
+        if (!(renderbuffer instanceof WebGLRenderbuffer && this._checkOwns(renderbuffer))) {
             this.setError(this.INVALID_OPERATION);
             return;
         }
@@ -254,7 +271,13 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
         renderbuffer._checkDelete();
     },
 
-    renderbufferStorage(this: WebGLContextBase, target: GLenum = 0, internalFormat: GLenum = 0, width: GLsizei = 0, height: GLsizei = 0): void {
+    renderbufferStorage(
+        this: WebGLContextBase,
+        target: GLenum = 0,
+        internalFormat: GLenum = 0,
+        width: GLsizei = 0,
+        height: GLsizei = 0,
+    ): void {
         if (target !== this.RENDERBUFFER) {
             this.setError(this.INVALID_ENUM);
             return;
@@ -266,23 +289,21 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
             return;
         }
 
-        if (internalFormat !== this.RGBA4 &&
+        if (
+            internalFormat !== this.RGBA4 &&
             internalFormat !== this.RGB565 &&
             internalFormat !== this.RGB5_A1 &&
             internalFormat !== this.DEPTH_COMPONENT16 &&
             internalFormat !== this.STENCIL_INDEX &&
             internalFormat !== this.STENCIL_INDEX8 &&
-            internalFormat !== this.DEPTH_STENCIL) {
+            internalFormat !== this.DEPTH_STENCIL
+        ) {
             this.setError(this.INVALID_ENUM);
             return;
         }
 
         this._saveError();
-        this._gl.renderbufferStorage(
-            target,
-            internalFormat,
-            width,
-            height);
+        this._gl.renderbufferStorage(target, internalFormat, width, height);
         const error = this.getError();
         this._restoreError(error);
         if (error !== this.NO_ERROR) {
@@ -309,9 +330,13 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
         }
     },
 
-    getFramebufferAttachmentParameter(this: WebGLContextBase, target: GLenum = 0, attachment: GLenum = 0, pname: GLenum = 0): unknown {
-        if (target !== this.FRAMEBUFFER ||
-            !this._validFramebufferAttachment(attachment)) {
+    getFramebufferAttachmentParameter(
+        this: WebGLContextBase,
+        target: GLenum = 0,
+        attachment: GLenum = 0,
+        pname: GLenum = 0,
+    ): unknown {
+        if (target !== this.FRAMEBUFFER || !this._validFramebufferAttachment(attachment)) {
             this.setError(this.INVALID_ENUM);
             return null;
         }
@@ -412,8 +437,10 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
         const depthStencilAttachment = attachments[this.DEPTH_STENCIL_ATTACHMENT];
         const stencilAttachment = attachments[this.STENCIL_ATTACHMENT];
 
-        if ((depthStencilAttachment && (stencilAttachment || depthAttachment)) ||
-            (stencilAttachment && depthAttachment)) {
+        if (
+            (depthStencilAttachment && (stencilAttachment || depthAttachment)) ||
+            (stencilAttachment && depthAttachment)
+        ) {
             return this.FRAMEBUFFER_UNSUPPORTED;
         }
 
@@ -462,8 +489,10 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
         for (let i = 0; i < colorAttachments.length; ++i) {
             const colorAttachment = attachments[colorAttachments[i]];
             if (colorAttachment instanceof WebGLTexture) {
-                if (colorAttachment._format !== this.RGBA ||
-                    !(colorAttachment._type === this.UNSIGNED_BYTE || colorAttachment._type === this.FLOAT)) {
+                if (
+                    colorAttachment._format !== this.RGBA ||
+                    !(colorAttachment._type === this.UNSIGNED_BYTE || colorAttachment._type === this.FLOAT)
+                ) {
                     return this.FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
                 }
                 colorAttached = true;
@@ -473,9 +502,7 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
                 height.push(colorAttachment._levelHeight[level]);
             } else if (colorAttachment instanceof WebGLRenderbuffer) {
                 const format = colorAttachment._format;
-                if (format !== this.RGBA4 &&
-                    format !== this.RGB565 &&
-                    format !== this.RGB5_A1) {
+                if (format !== this.RGBA4 && format !== this.RGB565 && format !== this.RGB5_A1) {
                     return this.FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
                 }
                 colorAttached = true;
@@ -484,10 +511,7 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
             }
         }
 
-        if (!colorAttached &&
-            !stencilAttachment &&
-            !depthAttachment &&
-            !depthStencilAttachment) {
+        if (!colorAttached && !stencilAttachment && !depthAttachment && !depthStencilAttachment) {
             return this.FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT;
         }
 
@@ -496,8 +520,7 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
         }
 
         for (let i = 1; i < width.length; ++i) {
-            if (width[i - 1] !== width[i] ||
-                height[i - 1] !== height[i]) {
+            if (width[i - 1] !== width[i] || height[i - 1] !== height[i]) {
                 return this.FRAMEBUFFER_INCOMPLETE_DIMENSIONS;
             }
         }
@@ -514,8 +537,7 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
 
     _framebufferOk(this: WebGLContextBase): boolean {
         const framebuffer = this._activeFramebuffer;
-        if (framebuffer &&
-            this._preCheckFramebufferStatus(framebuffer) !== this.FRAMEBUFFER_COMPLETE) {
+        if (framebuffer && this._preCheckFramebufferStatus(framebuffer) !== this.FRAMEBUFFER_COMPLETE) {
             this.setError(this.INVALID_FRAMEBUFFER_OPERATION);
             return false;
         }
@@ -533,7 +555,7 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
 
         if (this._extensions.webgl_draw_buffers) {
             const { webgl_draw_buffers } = this._extensions;
-            return attachment < (webgl_draw_buffers.COLOR_ATTACHMENT0_WEBGL + webgl_draw_buffers._maxDrawBuffers);
+            return attachment < webgl_draw_buffers.COLOR_ATTACHMENT0_WEBGL + webgl_draw_buffers._maxDrawBuffers;
         }
 
         return false;
@@ -555,7 +577,8 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
                         attachmentEnum,
                         framebuffer._attachmentFace[attachmentEnum] || 0,
                         0,
-                        framebuffer._attachmentLevel[attachmentEnum] || 0);
+                        framebuffer._attachmentLevel[attachmentEnum] || 0,
+                    );
                 }
             }
             return;
@@ -568,7 +591,8 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
                 attachmentEnum,
                 framebuffer._attachmentFace[attachmentEnum] || 0,
                 0,
-                framebuffer._attachmentLevel[attachmentEnum] || 0);
+                framebuffer._attachmentLevel[attachmentEnum] || 0,
+            );
         }
 
         for (let i = 0; i < attachments.length; ++i) {
@@ -580,13 +604,10 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
                     attachmentEnum,
                     framebuffer._attachmentFace[attachmentEnum] || 0,
                     attachment._ | 0,
-                    framebuffer._attachmentLevel[attachmentEnum] || 0);
+                    framebuffer._attachmentLevel[attachmentEnum] || 0,
+                );
             } else if (attachment instanceof WebGLRenderbuffer) {
-                this._gl.framebufferRenderbuffer(
-                    this.FRAMEBUFFER,
-                    attachmentEnum,
-                    this.RENDERBUFFER,
-                    attachment._ | 0);
+                this._gl.framebufferRenderbuffer(this.FRAMEBUFFER, attachmentEnum, this.RENDERBUFFER, attachment._ | 0);
             }
         }
     },
@@ -594,16 +615,16 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
     // Detach the renderbuffer from a single framebuffer (assumed currently bound
     // when `framebuffer === this._activeFramebuffer`). Kept as a primitive; the
     // multi-FBO walk lives in `_detachRenderbufferFromAllFramebuffers`.
-    _tryDetachFramebuffer(this: WebGLContextBase, framebuffer: WebGLFramebuffer | null, renderbuffer: WebGLRenderbuffer): void {
+    _tryDetachFramebuffer(
+        this: WebGLContextBase,
+        framebuffer: WebGLFramebuffer | null,
+        renderbuffer: WebGLRenderbuffer,
+    ): void {
         if (framebuffer && framebuffer._linked(renderbuffer)) {
             const attachments = this._getAttachments();
             for (let i = 0; i < attachments.length; ++i) {
                 if (framebuffer._attachments[attachments[i]] === renderbuffer) {
-                    this.framebufferTexture2D(
-                        this.FRAMEBUFFER,
-                        attachments[i] | 0,
-                        this.TEXTURE_2D,
-                        null);
+                    this.framebufferTexture2D(this.FRAMEBUFFER, attachments[i] | 0, this.TEXTURE_2D, null);
                 }
             }
         }
@@ -627,29 +648,27 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
                 const attachment = attachments[i];
                 if (framebuffer._attachments[attachment] === renderbuffer) {
                     // Clear native attachment via framebufferRenderbuffer(NULL).
-                    this._gl.framebufferRenderbuffer(
-                        this.FRAMEBUFFER,
-                        attachment,
-                        this.RENDERBUFFER,
-                        0);
+                    this._gl.framebufferRenderbuffer(this.FRAMEBUFFER, attachment, this.RENDERBUFFER, 0);
                     framebuffer._setAttachment(null, attachment);
                 }
             }
         }
 
         if (restoreActive) {
-            this._gl.bindFramebuffer(
-                this.FRAMEBUFFER,
-                activeFramebuffer ? activeFramebuffer._ | 0 : this._gtkFboId);
+            this._gl.bindFramebuffer(this.FRAMEBUFFER, activeFramebuffer ? activeFramebuffer._ | 0 : this._gtkFboId);
         }
     },
 
     _getAttachments(this: WebGLContextBase): number[] {
-        return this._extensions.webgl_draw_buffers ? this._extensions.webgl_draw_buffers._ALL_ATTACHMENTS : this.DEFAULT_ATTACHMENTS;
+        return this._extensions.webgl_draw_buffers
+            ? this._extensions.webgl_draw_buffers._ALL_ATTACHMENTS
+            : this.DEFAULT_ATTACHMENTS;
     },
 
     _getColorAttachments(this: WebGLContextBase): number[] {
-        return this._extensions.webgl_draw_buffers ? this._extensions.webgl_draw_buffers._ALL_COLOR_ATTACHMENTS : this.DEFAULT_COLOR_ATTACHMENTS;
+        return this._extensions.webgl_draw_buffers
+            ? this._extensions.webgl_draw_buffers._ALL_COLOR_ATTACHMENTS
+            : this.DEFAULT_COLOR_ATTACHMENTS;
     },
 
     _resizeDrawingBuffer(this: WebGLContextBase, width: number, height: number): void {
@@ -666,12 +685,7 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
         const attachments = this._getAttachments();
         // Clear all attachments
         for (let i = 0; i < attachments.length; ++i) {
-            this._gl.framebufferTexture2D(
-                this.FRAMEBUFFER,
-                attachments[i],
-                this.TEXTURE_2D,
-                0,
-                0);
+            this._gl.framebufferTexture2D(this.FRAMEBUFFER, attachments[i], this.TEXTURE_2D, 0, 0);
         }
 
         // Update color attachment
@@ -688,7 +702,8 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
             0,
             colorFormat,
             this.UNSIGNED_BYTE,
-            Uint8ArrayToVariant(null));
+            Uint8ArrayToVariant(null),
+        );
         this._gl.texParameteri(this.TEXTURE_2D, this.TEXTURE_MIN_FILTER, this.NEAREST);
         this._gl.texParameteri(this.TEXTURE_2D, this.TEXTURE_MAG_FILTER, this.NEAREST);
         if (drawingBuffer?._color) {
@@ -697,9 +712,9 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
                 this.COLOR_ATTACHMENT0,
                 this.TEXTURE_2D,
                 drawingBuffer?._color,
-                0);
+                0,
+            );
         }
-
 
         // Update depth-stencil attachments if needed
         let storage = 0;
@@ -708,7 +723,7 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
             storage = this.DEPTH_STENCIL;
             attachment = this.DEPTH_STENCIL_ATTACHMENT;
         } else if (contextAttributes.depth) {
-            storage = 0x81A7;
+            storage = 0x81a7;
             attachment = this.DEPTH_ATTACHMENT;
         } else if (contextAttributes.stencil) {
             storage = this.STENCIL_INDEX8;
@@ -717,21 +732,16 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
 
         if (storage) {
             if (drawingBuffer?._depthStencil) {
-                this._gl.bindRenderbuffer(
-                    this.RENDERBUFFER,
-                    drawingBuffer?._depthStencil);
+                this._gl.bindRenderbuffer(this.RENDERBUFFER, drawingBuffer?._depthStencil);
             }
-            this._gl.renderbufferStorage(
-                this.RENDERBUFFER,
-                storage,
-                width,
-                height);
+            this._gl.renderbufferStorage(this.RENDERBUFFER, storage, width, height);
             if (drawingBuffer?._depthStencil) {
                 this._gl.framebufferRenderbuffer(
                     this.FRAMEBUFFER,
                     attachment,
                     this.RENDERBUFFER,
-                    drawingBuffer?._depthStencil);
+                    drawingBuffer?._depthStencil,
+                );
             }
         }
 
@@ -745,7 +755,8 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
         this._drawingBuffer = new WebGLDrawingBufferWrapper(
             this._gl.createFramebuffer(),
             this._gl.createTexture(),
-            this._gl.createRenderbuffer());
+            this._gl.createRenderbuffer(),
+        );
 
         this._resizeDrawingBuffer(width, height);
     },
@@ -755,8 +766,7 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
         height = height | 0;
         if (!(width > 0 && height > 0)) {
             throw new Error('Invalid surface dimensions');
-        } else if (width !== this.drawingBufferWidth ||
-            height !== this.drawingBufferHeight) {
+        } else if (width !== this.drawingBufferWidth || height !== this.drawingBufferHeight) {
             this._resizeDrawingBuffer(width, height);
         }
     },

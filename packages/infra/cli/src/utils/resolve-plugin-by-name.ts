@@ -83,9 +83,7 @@ export async function resolveUserPlugins(
         const factory = (mod as Record<string, unknown>)[exportName];
 
         if (typeof factory !== 'function') {
-            const available = Object.keys(mod).filter(
-                (k) => typeof (mod as Record<string, unknown>)[k] === 'function',
-            );
+            const available = Object.keys(mod).filter((k) => typeof (mod as Record<string, unknown>)[k] === 'function');
             throw new Error(
                 `gjsify config: plugin "${entry.name}" has no function export "${exportName}". ` +
                     `Available function exports: ${available.length ? available.join(', ') : '(none)'}.`,

@@ -4,7 +4,7 @@
 import type { WebGLContextBase } from '../webgl-context-base.js';
 
 export class OESTextureHalfFloat {
-    readonly HALF_FLOAT_OES = 0x8D61;
+    readonly HALF_FLOAT_OES = 0x8d61;
 }
 
 export function getOESTextureHalfFloat(context: WebGLContextBase) {

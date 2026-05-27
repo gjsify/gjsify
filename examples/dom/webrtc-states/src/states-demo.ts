@@ -87,14 +87,12 @@ export async function runStatesDemo(
     // ICE trickle
     pc1.onicecandidate = (ev) => {
         if (ev.candidate) {
-            pc2.addIceCandidate(ev.candidate).catch((e) =>
-                log('pc1', `addIceCandidate error: ${e.message}`));
+            pc2.addIceCandidate(ev.candidate).catch((e) => log('pc1', `addIceCandidate error: ${e.message}`));
         }
     };
     pc2.onicecandidate = (ev) => {
         if (ev.candidate) {
-            pc1.addIceCandidate(ev.candidate).catch((e) =>
-                log('pc2', `addIceCandidate error: ${e.message}`));
+            pc1.addIceCandidate(ev.candidate).catch((e) => log('pc2', `addIceCandidate error: ${e.message}`));
         }
     };
 

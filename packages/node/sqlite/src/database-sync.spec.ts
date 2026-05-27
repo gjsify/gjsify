@@ -11,11 +11,15 @@ let cnt = 0;
 const testDir = join(tmpdir(), 'gjsify-sqlite-test-' + Date.now());
 
 function setup() {
-    try { mkdirSync(testDir, { recursive: true }); } catch {}
+    try {
+        mkdirSync(testDir, { recursive: true });
+    } catch {}
 }
 
 function cleanup() {
-    try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+    try {
+        rmSync(testDir, { recursive: true, force: true });
+    } catch {}
 }
 
 function nextDb(): string {
@@ -58,7 +62,7 @@ export default async () => {
 
         await it('throws if options.timeout is provided but is not an integer', async () => {
             expect(() => {
-                new (DatabaseSync as any)('foo', { timeout: .99 });
+                new (DatabaseSync as any)('foo', { timeout: 0.99 });
             }).toThrow();
         });
 
@@ -107,7 +111,9 @@ export default async () => {
             const dbPath = nextDb();
             const db = new DatabaseSync(dbPath);
             expect(db.isOpen).toBe(true);
-            expect(() => { db.open(); }).toThrow();
+            expect(() => {
+                db.open();
+            }).toThrow();
             db.close();
         });
     });
@@ -123,7 +129,9 @@ export default async () => {
         await it('throws if database is not open', async () => {
             const db = new DatabaseSync(nextDb(), { open: false });
             expect(db.isOpen).toBe(false);
-            expect(() => { db.close(); }).toThrow();
+            expect(() => {
+                db.close();
+            }).toThrow();
         });
     });
 
@@ -152,12 +160,16 @@ export default async () => {
 
         await it('throws if database is not open', async () => {
             const db = new DatabaseSync(nextDb(), { open: false });
-            expect(() => { db.exec('SELECT 1'); }).toThrow();
+            expect(() => {
+                db.exec('SELECT 1');
+            }).toThrow();
         });
 
         await it('throws if sql is not a string', async () => {
             const db = new DatabaseSync(nextDb());
-            expect(() => { (db as any).exec(); }).toThrow();
+            expect(() => {
+                (db as any).exec();
+            }).toThrow();
             db.close();
         });
     });
@@ -172,12 +184,16 @@ export default async () => {
 
         await it('throws if database is not open', async () => {
             const db = new DatabaseSync(nextDb(), { open: false });
-            expect(() => { (db as any).prepare(); }).toThrow();
+            expect(() => {
+                (db as any).prepare();
+            }).toThrow();
         });
 
         await it('throws if sql is not a string', async () => {
             const db = new DatabaseSync(nextDb());
-            expect(() => { (db as any).prepare(); }).toThrow();
+            expect(() => {
+                (db as any).prepare();
+            }).toThrow();
             db.close();
         });
     });
@@ -221,7 +237,9 @@ export default async () => {
     await describe('DatabaseSync.prototype.location()', async () => {
         await it('throws if database is not open', async () => {
             const db = new DatabaseSync(nextDb(), { open: false });
-            expect(() => { db.location(); }).toThrow();
+            expect(() => {
+                db.location();
+            }).toThrow();
         });
 
         await it('returns null for in-memory database', async () => {

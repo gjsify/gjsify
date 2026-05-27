@@ -25,8 +25,7 @@ function defaultTargetFor(xmlPath: string): string {
 
 export const gresourceCommand: Command<any, GResourceOptions> = {
     command: 'gresource <xml>',
-    description:
-        'Compile a GResource XML descriptor into a binary .gresource bundle (wraps `glib-compile-resources`).',
+    description: 'Compile a GResource XML descriptor into a binary .gresource bundle (wraps `glib-compile-resources`).',
     builder: (yargs) => {
         return yargs
             .positional('xml', {
@@ -55,15 +54,9 @@ export const gresourceCommand: Command<any, GResourceOptions> = {
     handler: async (args) => {
         const xmlPath = resolve(args.xml as string);
         const target = args.target ? resolve(args.target as string) : defaultTargetFor(xmlPath);
-        const sourcedir = args.sourcedir
-            ? resolve(args.sourcedir as string)
-            : dirname(xmlPath);
+        const sourcedir = args.sourcedir ? resolve(args.sourcedir as string) : dirname(xmlPath);
 
-        const cmdArgs = [
-            `--sourcedir=${sourcedir}`,
-            `--target=${target}`,
-            xmlPath,
-        ];
+        const cmdArgs = [`--sourcedir=${sourcedir}`, `--target=${target}`, xmlPath];
 
         if (args.verbose) {
             console.log(`[gjsify gresource] glib-compile-resources ${cmdArgs.join(' ')}`);

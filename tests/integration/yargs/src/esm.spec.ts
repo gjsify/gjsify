@@ -47,8 +47,7 @@ export default async () => {
         });
 
         await it('Yargs parser instance is reusable across multiple .parse() calls', async () => {
-            const parser = yargsFactory()
-                .option('count', { type: 'number', default: 1 });
+            const parser = yargsFactory().option('count', { type: 'number', default: 1 });
             const a = await parser.parse(['--count', '5']);
             const b = await parser.parse(['--count', '10']);
             expect(a.count).toBe(5);

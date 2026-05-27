@@ -5,29 +5,25 @@ export function open(_port?: number, _host?: string, _wait?: boolean): void {}
 export function close(): void {}
 
 export function url(): string | undefined {
-  return undefined;
+    return undefined;
 }
 
 export function waitForDebugger(): void {}
 
 export class Session {
-  connect(): void {}
+    connect(): void {}
 
-  connectToMainThread(): void {}
+    connectToMainThread(): void {}
 
-  disconnect(): void {}
+    disconnect(): void {}
 
-  post(
-    _method: string,
-    _params?: any,
-    _callback?: (err: Error | null, result?: any) => void,
-  ): void {
-    if (_callback) _callback(null);
-  }
+    post(_method: string, _params?: any, _callback?: (err: Error | null, result?: any) => void): void {
+        if (_callback) _callback(null);
+    }
 
-  on(_event: string, _listener: Function): this {
-    return this;
-  }
+    on(_event: string, _listener: Function): this {
+        return this;
+    }
 }
 
 const _console = { ...globalThis.console };

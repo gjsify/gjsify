@@ -9,7 +9,6 @@ import { DOMParser } from '@gjsify/domparser';
 
 export default async () => {
     await describe('DOMParser', async () => {
-
         await describe('parseFromString — basic XML', async () => {
             await it('parses a simple element with no children', async () => {
                 const doc = new DOMParser().parseFromString('<root/>', 'application/xml');
@@ -89,7 +88,10 @@ export default async () => {
 
         await describe('parseFromString — self-closing tags', async () => {
             await it('handles self-closing tag with attributes', async () => {
-                const doc = new DOMParser().parseFromString('<image source="foo.png" width="16" height="16"/>', 'application/xml');
+                const doc = new DOMParser().parseFromString(
+                    '<image source="foo.png" width="16" height="16"/>',
+                    'application/xml',
+                );
                 const img = doc.documentElement!;
                 expect(img.tagName).toBe('image');
                 expect(img.children.length).toBe(0);

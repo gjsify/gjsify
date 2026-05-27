@@ -41,66 +41,66 @@ export class MyWidget extends Gtk.Widget {
 `;
 
 describe('oxlint plugin gjsify/register-class-order E2E', { timeout: 5 * 60 * 1000 }, () => {
-  let tmpDir;
-  let configPath;
+    let tmpDir;
+    let configPath;
 
-  before(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-oxc-plugin-'));
-    configPath = join(tmpDir, '.oxlintrc.json');
-    writeFileSync(
-      configPath,
-      JSON.stringify(
-        {
-          jsPlugins: [PLUGIN_ENTRY],
-          rules: { 'gjsify/register-class-order': 'error' },
-        },
-        null,
-        2,
-      ) + '\n',
-    );
-  });
-
-  after(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  function runOxlint(file, extraArgs = []) {
-    return spawnSync(process.execPath, [OXLINT_BIN, '--config', configPath, ...extraArgs, file], {
-      encoding: 'utf-8',
-      timeout: 60 * 1000,
+    before(() => {
+        tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-oxc-plugin-'));
+        configPath = join(tmpDir, '.oxlintrc.json');
+        writeFileSync(
+            configPath,
+            JSON.stringify(
+                {
+                    jsPlugins: [PLUGIN_ENTRY],
+                    rules: { 'gjsify/register-class-order': 'error' },
+                },
+                null,
+                2,
+            ) + '\n',
+        );
     });
-  }
 
-  it('reports one diagnostic per static GObject metadata field declared after the registerClass block', () => {
-    const file = join(tmpDir, 'report.ts');
-    writeFileSync(file, FIXTURE);
+    after(() => {
+        rmSync(tmpDir, { recursive: true, force: true });
+    });
 
-    const res = runOxlint(file);
-    const out = (res.stdout ?? '') + (res.stderr ?? '');
-    const matches = out.match(/gjsify\(register-class-order\)/g) ?? [];
-    assert.equal(matches.length, 2, `expected 2 diagnostics, got ${matches.length}:\n${out}`);
-    assert.match(out, /static GTypeName/);
-    assert.match(out, /static Properties/);
-  });
+    function runOxlint(file, extraArgs = []) {
+        return spawnSync(process.execPath, [OXLINT_BIN, '--config', configPath, ...extraArgs, file], {
+            encoding: 'utf-8',
+            timeout: 60 * 1000,
+        });
+    }
 
-  it('--fix hoists all offending fields above the static block in a single pass', () => {
-    const file = join(tmpDir, 'fix.ts');
-    writeFileSync(file, FIXTURE);
+    it('reports one diagnostic per static GObject metadata field declared after the registerClass block', () => {
+        const file = join(tmpDir, 'report.ts');
+        writeFileSync(file, FIXTURE);
 
-    runOxlint(file, ['--fix']);
-    const fixed = readFileSync(file, 'utf-8');
+        const res = runOxlint(file);
+        const out = (res.stdout ?? '') + (res.stderr ?? '');
+        const matches = out.match(/gjsify\(register-class-order\)/g) ?? [];
+        assert.equal(matches.length, 2, `expected 2 diagnostics, got ${matches.length}:\n${out}`);
+        assert.match(out, /static GTypeName/);
+        assert.match(out, /static Properties/);
+    });
 
-    // Both metadata fields must now appear BEFORE the static block.
-    const gtypeIdx = fixed.indexOf('static GTypeName');
-    const propsIdx = fixed.indexOf('static Properties');
-    const blockIdx = fixed.indexOf('static {');
-    assert.ok(gtypeIdx !== -1 && propsIdx !== -1 && blockIdx !== -1, `unexpected fixed output:\n${fixed}`);
-    assert.ok(gtypeIdx < blockIdx, 'static GTypeName should be hoisted above the static block');
-    assert.ok(propsIdx < blockIdx, 'static Properties should be hoisted above the static block');
+    it('--fix hoists all offending fields above the static block in a single pass', () => {
+        const file = join(tmpDir, 'fix.ts');
+        writeFileSync(file, FIXTURE);
 
-    // And the rule should no longer report on the fixed source.
-    const res = runOxlint(file);
-    const out = (res.stdout ?? '') + (res.stderr ?? '');
-    assert.doesNotMatch(out, /register-class-order/, `rule still reports after --fix:\n${out}`);
-  });
+        runOxlint(file, ['--fix']);
+        const fixed = readFileSync(file, 'utf-8');
+
+        // Both metadata fields must now appear BEFORE the static block.
+        const gtypeIdx = fixed.indexOf('static GTypeName');
+        const propsIdx = fixed.indexOf('static Properties');
+        const blockIdx = fixed.indexOf('static {');
+        assert.ok(gtypeIdx !== -1 && propsIdx !== -1 && blockIdx !== -1, `unexpected fixed output:\n${fixed}`);
+        assert.ok(gtypeIdx < blockIdx, 'static GTypeName should be hoisted above the static block');
+        assert.ok(propsIdx < blockIdx, 'static Properties should be hoisted above the static block');
+
+        // And the rule should no longer report on the fixed source.
+        const res = runOxlint(file);
+        const out = (res.stdout ?? '') + (res.stderr ?? '');
+        assert.doesNotMatch(out, /register-class-order/, `rule still reports after --fix:\n${out}`);
+    });
 });

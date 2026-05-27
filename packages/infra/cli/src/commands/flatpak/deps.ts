@@ -63,19 +63,13 @@ export const flatpakDepsCommand: Command<unknown, FlatpakDepsOptions> = {
     },
     handler: async (args) => {
         const cwd = process.cwd();
-        const lockfile = resolve(
-            cwd,
-            (args.lockfile as string | undefined) ?? detectLockfile(cwd),
-        );
+        const lockfile = resolve(cwd, (args.lockfile as string | undefined) ?? detectLockfile(cwd));
         if (!existsSync(lockfile)) {
-            throw new Error(
-                `gjsify flatpak deps: lockfile ${lockfile} not found (use --lockfile to override)`,
-            );
+            throw new Error(`gjsify flatpak deps: lockfile ${lockfile} not found (use --lockfile to override)`);
         }
 
         const type =
-            (args.type as 'yarn' | 'npm' | undefined) ??
-            (lockfile.endsWith('package-lock.json') ? 'npm' : 'yarn');
+            (args.type as 'yarn' | 'npm' | undefined) ?? (lockfile.endsWith('package-lock.json') ? 'npm' : 'yarn');
 
         const out = resolve(cwd, args.out ?? 'flatpak-node-sources.json');
         mkdirSync(dirname(out), { recursive: true });

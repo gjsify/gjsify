@@ -15,18 +15,18 @@ const NAME = Symbol.toStringTag;
  * @param {*} object - Object to check for
  * @return {boolean}
  */
-export const isURLSearchParameters = object => {
-	return (
-		typeof object === 'object' &&
-		typeof object.append === 'function' &&
-		typeof object.delete === 'function' &&
-		typeof object.get === 'function' &&
-		typeof object.getAll === 'function' &&
-		typeof object.has === 'function' &&
-		typeof object.set === 'function' &&
-		typeof object.sort === 'function' &&
-		object[NAME] === 'URLSearchParams'
-	);
+export const isURLSearchParameters = (object) => {
+    return (
+        typeof object === 'object' &&
+        typeof object.append === 'function' &&
+        typeof object.delete === 'function' &&
+        typeof object.get === 'function' &&
+        typeof object.getAll === 'function' &&
+        typeof object.has === 'function' &&
+        typeof object.set === 'function' &&
+        typeof object.sort === 'function' &&
+        object[NAME] === 'URLSearchParams'
+    );
 };
 
 /**
@@ -34,15 +34,15 @@ export const isURLSearchParameters = object => {
  * @param object Object to check for
  */
 export const isBlob = (value: unknown): value is Blob => {
-	if (!value || typeof value !== 'object') return false;
-	const obj = value as Record<string | symbol, unknown>;
-	return (
-		typeof obj.arrayBuffer === 'function' &&
-		typeof obj.type === 'string' &&
-		typeof obj.stream === 'function' &&
-		typeof obj.constructor === 'function' &&
-		/^(Blob|File)$/.test(obj[NAME] as string)
-	);
+    if (!value || typeof value !== 'object') return false;
+    const obj = value as Record<string | symbol, unknown>;
+    return (
+        typeof obj.arrayBuffer === 'function' &&
+        typeof obj.type === 'string' &&
+        typeof obj.stream === 'function' &&
+        typeof obj.constructor === 'function' &&
+        /^(Blob|File)$/.test(obj[NAME] as string)
+    );
 };
 
 /**
@@ -50,12 +50,9 @@ export const isBlob = (value: unknown): value is Blob => {
  * @param object - Object to check for
  */
 export const isAbortSignal = (object: unknown): object is AbortSignal => {
-	if (typeof object !== 'object' || object === null) return false;
-	const obj = object as Record<string | symbol, unknown>;
-	return (
-		obj[NAME] === 'AbortSignal' ||
-		obj[NAME] === 'EventTarget'
-	);
+    if (typeof object !== 'object' || object === null) return false;
+    const obj = object as Record<string | symbol, unknown>;
+    return obj[NAME] === 'AbortSignal' || obj[NAME] === 'EventTarget';
 };
 
 /**
@@ -67,10 +64,10 @@ export const isAbortSignal = (object: unknown): object is AbortSignal => {
  * @param {string|URL} destination
  */
 export const isDomainOrSubdomain = (destination, original) => {
-	const orig = new URL(original).hostname;
-	const dest = new URL(destination).hostname;
+    const orig = new URL(original).hostname;
+    const dest = new URL(destination).hostname;
 
-	return orig === dest || orig.endsWith(`.${dest}`);
+    return orig === dest || orig.endsWith(`.${dest}`);
 };
 
 /**
@@ -81,8 +78,8 @@ export const isDomainOrSubdomain = (destination, original) => {
  * @param {string|URL} destination
  */
 export const isSameProtocol = (destination, original) => {
-	const orig = new URL(original).protocol;
-	const dest = new URL(destination).protocol;
+    const orig = new URL(original).protocol;
+    const dest = new URL(destination).protocol;
 
-	return orig === dest;
+    return orig === dest;
 };

@@ -5,14 +5,14 @@
 import { CompressionStream, DecompressionStream } from './index.js';
 
 interface _CompressionGlobals {
-  CompressionStream?: typeof CompressionStream;
-  DecompressionStream?: typeof DecompressionStream;
+    CompressionStream?: typeof CompressionStream;
+    DecompressionStream?: typeof DecompressionStream;
 }
 const g = globalThis as unknown as _CompressionGlobals;
 
 if (typeof globalThis.CompressionStream === 'undefined') {
-  g.CompressionStream = CompressionStream;
+    g.CompressionStream = CompressionStream;
 }
 if (typeof globalThis.DecompressionStream === 'undefined') {
-  g.DecompressionStream = DecompressionStream;
+    g.DecompressionStream = DecompressionStream;
 }

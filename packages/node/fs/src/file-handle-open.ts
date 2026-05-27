@@ -16,9 +16,9 @@ import type { OpenFlags } from './types/index.js';
 
 // POSIX numeric open(2) flags (values on Linux x86-64).
 const O_WRONLY = 1;
-const O_RDWR   = 2;
-const O_CREAT  = 64;
-const O_TRUNC  = 512;
+const O_RDWR = 2;
+const O_CREAT = 64;
+const O_TRUNC = 512;
 const O_APPEND = 1024;
 
 /** fopen(3)-style IOChannel mode. */
@@ -31,21 +31,29 @@ export type IOMode = 'r' | 'r+' | 'w' | 'w+' | 'a' | 'a+';
 export function resolveIOMode(flags: OpenFlags | number | undefined): IOMode {
     if (flags === undefined || flags === null) return 'r';
     if (typeof flags === 'number') {
-        const rdwr   = (flags & O_RDWR)   !== 0;
+        const rdwr = (flags & O_RDWR) !== 0;
         const wronly = (flags & O_WRONLY) !== 0;
         const append = (flags & O_APPEND) !== 0;
-        const trunc  = (flags & O_TRUNC)  !== 0;
-        if (rdwr)   return trunc ? 'w+' : 'r+';
+        const trunc = (flags & O_TRUNC) !== 0;
+        if (rdwr) return trunc ? 'w+' : 'r+';
         if (wronly) return append ? 'a' : 'w';
         return 'r';
     }
     // Node.js string flags — map extras to IOChannel equivalents.
     switch (flags) {
-        case 'ax': case 'wx':   return 'w';
-        case 'ax+': case 'wx+': return 'w+';
-        case 'as': case 'rs+':  return 'r+';
-        case 'as+':             return 'a+';
-        default:                return flags as IOMode;
+        case 'ax':
+        case 'wx':
+            return 'w';
+        case 'ax+':
+        case 'wx+':
+            return 'w+';
+        case 'as':
+        case 'rs+':
+            return 'r+';
+        case 'as+':
+            return 'a+';
+        default:
+            return flags as IOMode;
     }
 }
 
@@ -54,9 +62,18 @@ export function shouldCreate(flags: OpenFlags | number | undefined): boolean {
     if (typeof flags === 'number') return (flags & O_CREAT) !== 0;
     if (typeof flags !== 'string') return false;
     // String aliases that imply create: w*, a*. 'r'-only never creates.
-    return flags === 'w' || flags === 'w+' || flags === 'wx' || flags === 'wx+'
-        || flags === 'a' || flags === 'a+' || flags === 'ax' || flags === 'ax+'
-        || flags === 'as' || flags === 'as+';
+    return (
+        flags === 'w' ||
+        flags === 'w+' ||
+        flags === 'wx' ||
+        flags === 'wx+' ||
+        flags === 'a' ||
+        flags === 'a+' ||
+        flags === 'ax' ||
+        flags === 'ax+' ||
+        flags === 'as' ||
+        flags === 'as+'
+    );
 }
 
 /**

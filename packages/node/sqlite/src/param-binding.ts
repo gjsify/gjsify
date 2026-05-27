@@ -27,9 +27,7 @@ function validateBindValue(value: unknown, paramIndex: number): void {
     if (t === 'number' || t === 'bigint' || t === 'string' || t === 'boolean') return;
     if (value instanceof Uint8Array || value instanceof ArrayBuffer) return;
     if (ArrayBuffer.isView(value)) return;
-    throw new InvalidArgTypeError(
-        `Provided value cannot be bound to SQLite parameter ${paramIndex}.`
-    );
+    throw new InvalidArgTypeError(`Provided value cannot be bound to SQLite parameter ${paramIndex}.`);
 }
 
 function setHolderValue(holder: Gda.Holder, value: unknown): void {
@@ -43,9 +41,7 @@ function setHolderValue(holder: Gda.Holder, value: unknown): void {
     }
     if (typeof value === 'bigint') {
         if (value > MAX_INT64 || value < MIN_INT64) {
-            throw new InvalidArgValueError(
-                `BigInt value is too large to bind.`
-            );
+            throw new InvalidArgValueError(`BigInt value is too large to bind.`);
         }
         setHolderPrim(holder, Number(value));
         return;
@@ -137,7 +133,7 @@ export function bindParameters(
             for (const key of Object.keys(namedArgs)) {
                 if (!usedKeys.has(key)) {
                     // Check if any holder matches this key with prefix
-                    const matchesHolder = holders.some(h => {
+                    const matchesHolder = holders.some((h) => {
                         const id = h.get_id();
                         return id === key || id.replace(/^[$:@]/, '') === key;
                     });

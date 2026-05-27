@@ -38,20 +38,9 @@ import type { Command } from '../types/index.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import {
-    DEFAULT_REGISTRY,
-    parseNpmrc,
-    registryFor,
-    buildHeaders,
-    type NpmrcConfig,
-} from '@gjsify/npm-registry';
+import { DEFAULT_REGISTRY, parseNpmrc, registryFor, buildHeaders, type NpmrcConfig } from '@gjsify/npm-registry';
 import { packWorkspace, type PackWorkspaceOptions } from './pack.js';
-import {
-    getNpmTrustedToken,
-    hasGithubOidcEnv,
-    OidcExchangeError,
-    OidcUnavailableError,
-} from '../utils/npm-oidc.js';
+import { getNpmTrustedToken, hasGithubOidcEnv, OidcExchangeError, OidcUnavailableError } from '../utils/npm-oidc.js';
 
 interface PublishOptions {
     path?: string;
@@ -69,7 +58,8 @@ interface PublishOptions {
 
 export const publishCommand: Command<any, PublishOptions> = {
     command: 'publish [path]',
-    description: 'Pack + upload the workspace at <path> (default: cwd) to its npm registry. Drop-in for `npm publish` with workspace:^ rewrite handled automatically.',
+    description:
+        'Pack + upload the workspace at <path> (default: cwd) to its npm registry. Drop-in for `npm publish` with workspace:^ rewrite handled automatically.',
     builder: (yargs) =>
         yargs
             .positional('path', { description: 'Workspace path (default: cwd).', type: 'string' })
@@ -79,25 +69,30 @@ export const publishCommand: Command<any, PublishOptions> = {
                 default: 'latest',
             })
             .option('access', {
-                description: 'Package access — `public` or `restricted` (required for first publish of scoped packages on the public registry).',
+                description:
+                    'Package access — `public` or `restricted` (required for first publish of scoped packages on the public registry).',
                 type: 'string',
             })
             .option('otp', {
-                description: 'npm 2FA one-time code; sent as the `npm-otp` header. Required for manual publishes from a 2FA-enabled account.',
+                description:
+                    'npm 2FA one-time code; sent as the `npm-otp` header. Required for manual publishes from a 2FA-enabled account.',
                 type: 'string',
             })
             .option('tolerate-republish', {
-                description: 'Treat "version already published" as success — covers both classic 409 Conflict and the npm OIDC-path 403 Forbidden + `"previously published"` body shape. Matches yarn `--tolerate-republish`.',
+                description:
+                    'Treat "version already published" as success — covers both classic 409 Conflict and the npm OIDC-path 403 Forbidden + `"previously published"` body shape. Matches yarn `--tolerate-republish`.',
                 type: 'boolean',
                 default: false,
             })
             .option('tolerate-untrusted-new', {
-                description: 'Skip (exit 0) when OIDC token exchange returns `package not found` AND no fallback token is configured — i.e. a never-before-published `@scope/<name>` whose Trusted Publisher entry hasn\'t been set up on npmjs.com yet. Without this flag, one un-bootstrapped new package breaks the entire serialized `gjsify foreach publish` loop. Pair with `--tolerate-republish` in CI release workflows so a fresh-merged package gracefully skips its first CI publish, leaving the manual-bootstrap step to a maintainer (see AGENTS.md "New @gjsify/* package: first-publish + Trusted Publisher bootstrap").',
+                description:
+                    'Skip (exit 0) when OIDC token exchange returns `package not found` AND no fallback token is configured — i.e. a never-before-published `@scope/<name>` whose Trusted Publisher entry hasn\'t been set up on npmjs.com yet. Without this flag, one un-bootstrapped new package breaks the entire serialized `gjsify foreach publish` loop. Pair with `--tolerate-republish` in CI release workflows so a fresh-merged package gracefully skips its first CI publish, leaving the manual-bootstrap step to a maintainer (see AGENTS.md "New @gjsify/* package: first-publish + Trusted Publisher bootstrap").',
                 type: 'boolean',
                 default: false,
             })
             .option('provenance', {
-                description: 'Pass-through flag — recorded in the payload but no signing happens (gjsify doesn\'t ship a sigstore signer yet).',
+                description:
+                    "Pass-through flag — recorded in the payload but no signing happens (gjsify doesn't ship a sigstore signer yet).",
                 type: 'boolean',
                 default: false,
             })
@@ -230,7 +225,10 @@ export const publishCommand: Command<any, PublishOptions> = {
                 integrity: packed.integrity,
             };
             if (args.json) process.stdout.write(`${JSON.stringify(message, null, 2)}\n`);
-            else process.stdout.write(`+ ${packed.name}@${packed.version} (dry-run, ${packed.size} bytes, ${packed.entryCount} files)\n`);
+            else
+                process.stdout.write(
+                    `+ ${packed.name}@${packed.version} (dry-run, ${packed.size} bytes, ${packed.entryCount} files)\n`,
+                );
             return;
         }
 
@@ -244,11 +242,11 @@ export const publishCommand: Command<any, PublishOptions> = {
         // npm registry is picky about the publish PUT URL shape.
         const escapedName = packed.name.startsWith('@')
             ? (() => {
-                const slash = packed.name.indexOf('/');
-                const scope = packed.name.slice(1, slash);
-                const base = packed.name.slice(slash + 1);
-                return `@${encodeURIComponent(scope)}%2f${encodeURIComponent(base)}`;
-            })()
+                  const slash = packed.name.indexOf('/');
+                  const scope = packed.name.slice(1, slash);
+                  const base = packed.name.slice(slash + 1);
+                  return `@${encodeURIComponent(scope)}%2f${encodeURIComponent(base)}`;
+              })()
             : encodeURIComponent(packed.name);
         const url = `${registryClean}/${escapedName}`;
         // npm publish convention: the dist.tarball URL + _attachments key both
@@ -258,9 +256,7 @@ export const publishCommand: Command<any, PublishOptions> = {
         // libnpmpublish/lib/publish.js). The full scoped filename is what
         // `npm pack` writes to disk, but the registry stores tarballs at
         // the unscoped path.
-        const unscopedName = packed.name.includes('/')
-            ? packed.name.slice(packed.name.indexOf('/') + 1)
-            : packed.name;
+        const unscopedName = packed.name.includes('/') ? packed.name.slice(packed.name.indexOf('/') + 1) : packed.name;
         const wireFilename = `${unscopedName}-${packed.version}.tgz`;
         const tarballUrl = `${registryClean}/${packed.name}/-/${wireFilename}`;
 
@@ -289,8 +285,7 @@ export const publishCommand: Command<any, PublishOptions> = {
         // `NODE_AUTH_TOKEN` is set. With `NODE_AUTH_TOKEN` set the user has
         // explicitly opted into token auth, so we don't shadow their choice.
         const wantTrusted =
-            trustedFlag === true ||
-            (trustedFlag === undefined && hasGithubOidcEnv() && !process.env.NODE_AUTH_TOKEN);
+            trustedFlag === true || (trustedFlag === undefined && hasGithubOidcEnv() && !process.env.NODE_AUTH_TOKEN);
         let authMode: 'token' | 'oidc' = 'token';
         if (wantTrusted) {
             try {
@@ -315,19 +310,23 @@ export const publishCommand: Command<any, PublishOptions> = {
                 // --tolerate-untrusted-new is set so one un-bootstrapped
                 // package doesn't break the entire serialized publish loop.
                 const isUntrustedNewPackage =
-                    err instanceof OidcExchangeError &&
-                    err.status === 404 &&
-                    /package not found/i.test(err.body);
+                    err instanceof OidcExchangeError && err.status === 404 && /package not found/i.test(err.body);
                 if (isUntrustedNewPackage && tolerateUntrustedNew) {
                     const headerMsg = `${packed.name}@${packed.version} (skipped — no Trusted Publisher on npm, see AGENTS.md "New @gjsify/* package: first-publish + Trusted Publisher bootstrap")`;
                     if (args.json) {
-                        process.stdout.write(`${JSON.stringify({
-                            ok: true,
-                            action: 'skipped-untrusted-new',
-                            name: packed.name,
-                            version: packed.version,
-                            reason: 'no-trusted-publisher',
-                        }, null, 2)}\n`);
+                        process.stdout.write(
+                            `${JSON.stringify(
+                                {
+                                    ok: true,
+                                    action: 'skipped-untrusted-new',
+                                    name: packed.name,
+                                    version: packed.version,
+                                    reason: 'no-trusted-publisher',
+                                },
+                                null,
+                                2,
+                            )}\n`,
+                        );
                     } else {
                         process.stdout.write(`~ ${headerMsg}\n`);
                     }
@@ -381,9 +380,7 @@ export const publishCommand: Command<any, PublishOptions> = {
         if (!otp && res.status === 401) {
             const wwwAuth = res.headers.get('www-authenticate') ?? '';
             const body401 = await res.text().catch(() => '');
-            const needsOtp =
-                wwwAuth.toLowerCase().split(/,\s*/).includes('otp') ||
-                /one-time pass/i.test(body401);
+            const needsOtp = wwwAuth.toLowerCase().split(/,\s*/).includes('otp') || /one-time pass/i.test(body401);
             if (needsOtp) {
                 // Interactive path: if stdin is a TTY, prompt and retry once.
                 if (process.stdin.isTTY && process.stdout.isTTY) {
@@ -398,9 +395,7 @@ export const publishCommand: Command<any, PublishOptions> = {
                     }
                 } else {
                     // Non-interactive: give the maintainer a clear, actionable message.
-                    console.error(
-                        `gjsify publish: npm requires a 2FA one-time code — re-run with \`--otp <code>\``,
-                    );
+                    console.error(`gjsify publish: npm requires a 2FA one-time code — re-run with \`--otp <code>\``);
                     process.exit(1);
                 }
             }
@@ -433,9 +428,7 @@ export const publishCommand: Command<any, PublishOptions> = {
         // Both are intentionally tolerated under --tolerate-republish so
         // that re-running a release workflow after a partial failure does
         // not error on the already-published packages.
-        const isRepublishConflict =
-            res.status === 409 ||
-            (res.status === 403 && /previously published/i.test(text));
+        const isRepublishConflict = res.status === 409 || (res.status === 403 && /previously published/i.test(text));
         if (isRepublishConflict && tolerate) {
             const out = {
                 ok: true,
@@ -468,8 +461,16 @@ async function packWorkspaceToBytes(wsDir: string): Promise<Uint8Array> {
     });
     if (!res.absolutePath) throw new Error('gjsify publish: pack did not produce a file');
     const bytes = new Uint8Array(readFileSync(res.absolutePath));
-    try { (await import('node:fs')).rmSync(res.absolutePath); } catch { /* best effort */ }
-    try { (await import('node:fs')).rmdirSync(tmp); } catch { /* best effort */ }
+    try {
+        (await import('node:fs')).rmSync(res.absolutePath);
+    } catch {
+        /* best effort */
+    }
+    try {
+        (await import('node:fs')).rmdirSync(tmp);
+    } catch {
+        /* best effort */
+    }
     return bytes;
 }
 
@@ -520,7 +521,9 @@ async function loadNpmrc(cwd: string): Promise<NpmrcConfig> {
     // The auth-token npmrc from actions/setup-node ships
     // `_authToken=${NODE_AUTH_TOKEN}` as a literal placeholder; the env var
     // is set on the publish step.
-    const merged = sources.join('\n').replace(/\$\{([A-Z_][A-Z0-9_]*)\}/gi, (_, name) => process.env[name as string] ?? '');
+    const merged = sources
+        .join('\n')
+        .replace(/\$\{([A-Z_][A-Z0-9_]*)\}/gi, (_, name) => process.env[name as string] ?? '');
     return parseNpmrc(merged);
 }
 
@@ -530,7 +533,14 @@ interface BuildPayloadOptions {
     access?: string;
     tarballBytes: Uint8Array;
     tarballUrl: string;
-    packed: { name: string; version: string; filename: string; integrity: string; shasum: string; wireFilename: string };
+    packed: {
+        name: string;
+        version: string;
+        filename: string;
+        integrity: string;
+        shasum: string;
+        wireFilename: string;
+    };
     provenance: boolean;
 }
 
@@ -617,19 +627,27 @@ async function readLineFromStdin(): Promise<string> {
 function handleOidcFailure(err: unknown, packageName: string, asJson: boolean): void {
     if (err instanceof OidcUnavailableError) {
         const msg = `gjsify publish: OIDC not available — ${err.message}`;
-        if (asJson) process.stdout.write(`${JSON.stringify({ ok: false, name: packageName, error: 'oidc-unavailable', reason: err.reason, message: err.message })}\n`);
+        if (asJson)
+            process.stdout.write(
+                `${JSON.stringify({ ok: false, name: packageName, error: 'oidc-unavailable', reason: err.reason, message: err.message })}\n`,
+            );
         else process.stderr.write(`${msg}\n`);
         return;
     }
     if (err instanceof OidcExchangeError) {
-        const friendly = err.status === 401 || err.status === 403
-            ? `npm rejected the OIDC exchange (${err.status}) — check that ${packageName} has a Trusted Publisher configured at https://www.npmjs.com/package/${encodeURIComponent(packageName)}/access pointing at this workflow.`
-            : err.message;
-        if (asJson) process.stdout.write(`${JSON.stringify({ ok: false, name: packageName, error: 'oidc-exchange', status: err.status, body: err.body, message: err.message })}\n`);
+        const friendly =
+            err.status === 401 || err.status === 403
+                ? `npm rejected the OIDC exchange (${err.status}) — check that ${packageName} has a Trusted Publisher configured at https://www.npmjs.com/package/${encodeURIComponent(packageName)}/access pointing at this workflow.`
+                : err.message;
+        if (asJson)
+            process.stdout.write(
+                `${JSON.stringify({ ok: false, name: packageName, error: 'oidc-exchange', status: err.status, body: err.body, message: err.message })}\n`,
+            );
         else process.stderr.write(`✗ ${packageName}: ${friendly}\n`);
         return;
     }
     const msg = err instanceof Error ? err.message : String(err);
-    if (asJson) process.stdout.write(`${JSON.stringify({ ok: false, name: packageName, error: 'unknown', message: msg })}\n`);
+    if (asJson)
+        process.stdout.write(`${JSON.stringify({ ok: false, name: packageName, error: 'unknown', message: msg })}\n`);
     else process.stderr.write(`✗ ${packageName}: ${msg}\n`);
 }

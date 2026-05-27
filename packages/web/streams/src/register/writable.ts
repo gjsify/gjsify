@@ -8,20 +8,20 @@ import { WritableStream } from '../index.js';
  * absent in the GJS bootstrap state.
  */
 interface _WritableStreamGlobals {
-  WritableStream?: typeof WritableStream;
+    WritableStream?: typeof WritableStream;
 }
 
 function isNativeStreamUsable(Ctor: unknown, method: string): boolean {
-  try {
-    if (typeof Ctor !== 'function') return false;
-    const proto = (Ctor as { prototype?: Record<string, unknown> }).prototype;
-    return typeof proto?.[method] === 'function';
-  } catch {
-    return false;
-  }
+    try {
+        if (typeof Ctor !== 'function') return false;
+        const proto = (Ctor as { prototype?: Record<string, unknown> }).prototype;
+        return typeof proto?.[method] === 'function';
+    } catch {
+        return false;
+    }
 }
 
 if (!isNativeStreamUsable(globalThis.WritableStream, 'getWriter')) {
-  const g = globalThis as unknown as _WritableStreamGlobals;
-  g.WritableStream = WritableStream;
+    const g = globalThis as unknown as _WritableStreamGlobals;
+    g.WritableStream = WritableStream;
 }

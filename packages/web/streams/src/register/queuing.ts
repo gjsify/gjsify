@@ -8,15 +8,15 @@ import { ByteLengthQueuingStrategy, CountQueuingStrategy } from '../index.js';
  * during early bootstrap.
  */
 interface _QueuingStrategyGlobals {
-  ByteLengthQueuingStrategy?: typeof ByteLengthQueuingStrategy;
-  CountQueuingStrategy?: typeof CountQueuingStrategy;
+    ByteLengthQueuingStrategy?: typeof ByteLengthQueuingStrategy;
+    CountQueuingStrategy?: typeof CountQueuingStrategy;
 }
 
 const g = globalThis as unknown as _QueuingStrategyGlobals;
 
 if (typeof globalThis.ByteLengthQueuingStrategy === 'undefined') {
-  g.ByteLengthQueuingStrategy = ByteLengthQueuingStrategy;
+    g.ByteLengthQueuingStrategy = ByteLengthQueuingStrategy;
 }
 if (typeof globalThis.CountQueuingStrategy === 'undefined') {
-  g.CountQueuingStrategy = CountQueuingStrategy;
+    g.CountQueuingStrategy = CountQueuingStrategy;
 }

@@ -10,5 +10,5 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 export function uniqueTempPath(): string {
-  return mkdtempSync(join(tmpdir(), 'gjsify-wt-'));
+    return mkdtempSync(join(tmpdir(), 'gjsify-wt-'));
 }

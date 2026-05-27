@@ -42,10 +42,7 @@ export function connect(options: TlsConnectOptions, callback?: () => void): TLSS
 
         try {
             const connectable = Gio.NetworkAddress.new(servername, port);
-            const tlsConn = Gio.TlsClientConnection.new(
-                rawConnection as unknown as Gio.IOStream,
-                connectable,
-            );
+            const tlsConn = Gio.TlsClientConnection.new(rawConnection as unknown as Gio.IOStream, connectable);
 
             tlsConn.set_server_identity(connectable);
 
@@ -72,21 +69,22 @@ export function connect(options: TlsConnectOptions, callback?: () => void): TLSS
             // 'accept-certificate' returning false. With a custom CA we accept
             // peer certs that validate against `ctx.caCertificates`. With
             // `rejectUnauthorized: false`, accept everything.
-            tlsConn.connect('accept-certificate', (
-                _conn: Gio.TlsConnection,
-                peerCert: Gio.TlsCertificate,
-                _errors: Gio.TlsCertificateFlags,
-            ): boolean => {
-                if (!rejectUnauthorized) return true;
-                if (ctx.caCertificates.length === 0) return false;
-                for (const ca of ctx.caCertificates) {
-                    try {
-                        const flags = peerCert.verify(connectable, ca);
-                        if (flags === Gio.TlsCertificateFlags.NO_FLAGS) return true;
-                    } catch { /* try next */ }
-                }
-                return false;
-            });
+            tlsConn.connect(
+                'accept-certificate',
+                (_conn: Gio.TlsConnection, peerCert: Gio.TlsCertificate, _errors: Gio.TlsCertificateFlags): boolean => {
+                    if (!rejectUnauthorized) return true;
+                    if (ctx.caCertificates.length === 0) return false;
+                    for (const ca of ctx.caCertificates) {
+                        try {
+                            const flags = peerCert.verify(connectable, ca);
+                            if (flags === Gio.TlsCertificateFlags.NO_FLAGS) return true;
+                        } catch {
+                            /* try next */
+                        }
+                    }
+                    return false;
+                },
+            );
 
             const cancellable = new Gio.Cancellable();
             tlsConn.handshake_async(

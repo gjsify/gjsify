@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const GJS_BUNDLE  = resolve(__dirname, 'dist/probe.gjs.mjs');
+const GJS_BUNDLE = resolve(__dirname, 'dist/probe.gjs.mjs');
 const PREBUILD_DIR = resolve(__dirname, '../../../packages/node/terminal-native/prebuilds/linux-x86_64');
 
 function runProbe(withCore) {
@@ -31,9 +31,13 @@ function runProbe(withCore) {
     } else {
         // Strip the prebuild path so the native library is invisible.
         env.GI_TYPELIB_PATH = (env.GI_TYPELIB_PATH || '')
-            .split(':').filter(p => p !== PREBUILD_DIR).join(':');
+            .split(':')
+            .filter((p) => p !== PREBUILD_DIR)
+            .join(':');
         env.LD_LIBRARY_PATH = (env.LD_LIBRARY_PATH || '')
-            .split(':').filter(p => p !== PREBUILD_DIR).join(':');
+            .split(':')
+            .filter((p) => p !== PREBUILD_DIR)
+            .join(':');
     }
 
     const raw = execFileSync('gjs', ['-m', GJS_BUNDLE], {
@@ -43,7 +47,10 @@ function runProbe(withCore) {
     }).trim();
 
     // The probe may print GLib warnings before the JSON line.
-    const jsonLine = raw.split('\n').reverse().find(l => l.trim().startsWith('{'));
+    const jsonLine = raw
+        .split('\n')
+        .reverse()
+        .find((l) => l.trim().startsWith('{'));
     assert.ok(jsonLine, `No JSON output found in probe output:\n${raw}`);
     return JSON.parse(jsonLine);
 }
@@ -51,7 +58,6 @@ function runProbe(withCore) {
 const prebuildsBuilt = existsSync(`${PREBUILD_DIR}/GjsifyTerminal-1.0.typelib`);
 
 await describe('terminal-native E2E', async () => {
-
     await describe('without core module', async () => {
         let r;
         it('probe exits 0 and returns JSON', () => {
@@ -77,9 +83,8 @@ await describe('terminal-native E2E', async () => {
         });
         it('setRawMode does not crash (no-tty skipped gracefully)', () => {
             assert.ok(
-                r.set_raw_mode_ok === 'ok' ||
-                r.set_raw_mode_ok === 'skipped_no_tty',
-                `unexpected: ${r.set_raw_mode_ok}`
+                r.set_raw_mode_ok === 'ok' || r.set_raw_mode_ok === 'skipped_no_tty',
+                `unexpected: ${r.set_raw_mode_ok}`,
             );
         });
     });
@@ -87,7 +92,9 @@ await describe('terminal-native E2E', async () => {
     if (!prebuildsBuilt) {
         await describe('with core module', async () => {
             it('SKIP — run yarn build:prebuilds in packages/node/terminal-native first', () => {
-                console.log('Skipping: prebuilds not built. Run: yarn workspace @gjsify/terminal-native build:prebuilds');
+                console.log(
+                    'Skipping: prebuilds not built. Run: yarn workspace @gjsify/terminal-native build:prebuilds',
+                );
             });
         });
     } else {
@@ -116,9 +123,8 @@ await describe('terminal-native E2E', async () => {
             });
             it('setRawMode does not crash (no-tty skipped gracefully)', () => {
                 assert.ok(
-                    r.set_raw_mode_ok === 'ok' ||
-                    r.set_raw_mode_ok === 'skipped_no_tty',
-                    `unexpected: ${r.set_raw_mode_ok}`
+                    r.set_raw_mode_ok === 'ok' || r.set_raw_mode_ok === 'skipped_no_tty',
+                    `unexpected: ${r.set_raw_mode_ok}`,
                 );
             });
         });

@@ -30,30 +30,30 @@ const AUTOBAHN_URL = 'ws://127.0.0.1:9001';
 const AGENT = 'gjsify-ws';
 
 function connect(path: string): Promise<InstanceType<typeof WebSocket>> {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`${AUTOBAHN_URL}${path}`);
-    ws.once('open', () => resolve(ws));
-    ws.once('error', (err: Error) => reject(err));
-  });
+    return new Promise((resolve, reject) => {
+        const ws = new WebSocket(`${AUTOBAHN_URL}${path}`);
+        ws.once('open', () => resolve(ws));
+        ws.once('error', (err: Error) => reject(err));
+    });
 }
 
 function waitClose(ws: InstanceType<typeof WebSocket>): Promise<void> {
-  return new Promise((resolve) => ws.once('close', () => resolve()));
+    return new Promise((resolve) => ws.once('close', () => resolve()));
 }
 
 function getCaseCount(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`${AUTOBAHN_URL}/getCaseCount`);
-    let count = -1;
-    ws.on('message', (data: Buffer | string) => {
-      count = parseInt(String(data), 10);
+    return new Promise((resolve, reject) => {
+        const ws = new WebSocket(`${AUTOBAHN_URL}/getCaseCount`);
+        let count = -1;
+        ws.on('message', (data: Buffer | string) => {
+            count = parseInt(String(data), 10);
+        });
+        ws.once('close', () => {
+            if (count > 0) resolve(count);
+            else reject(new Error('Autobahn returned no case count — is the fuzzingserver running on port 9001?'));
+        });
+        ws.once('error', (err: Error) => reject(err));
     });
-    ws.once('close', () => {
-      if (count > 0) resolve(count);
-      else reject(new Error('Autobahn returned no case count — is the fuzzingserver running on port 9001?'));
-    });
-    ws.once('error', (err: Error) => reject(err));
-  });
 }
 
 // Upper bound per case. Most cases complete in < 1 s. Exceptions:
@@ -68,62 +68,69 @@ function getCaseCount(): Promise<number> {
 const CASE_TIMEOUT_MS = 480_000;
 
 function waitCloseWithTimeout(ws: InstanceType<typeof WebSocket>, timeoutMs: number): Promise<'ok' | 'timeout'> {
-  return new Promise((resolve) => {
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      try { ws.close(1001, 'autobahn driver case timeout'); } catch { /* ignore */ }
-      resolve('timeout');
-    }, timeoutMs);
-    ws.once('close', () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve('ok');
+    return new Promise((resolve) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            try {
+                ws.close(1001, 'autobahn driver case timeout');
+            } catch {
+                /* ignore */
+            }
+            resolve('timeout');
+        }, timeoutMs);
+        ws.once('close', () => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            resolve('ok');
+        });
     });
-  });
 }
 
 async function runCase(n: number, total: number): Promise<void> {
-  process.stdout.write(`[${n}/${total}] `);
-  const ws = await connect(`/runCase?case=${n}&agent=${AGENT}`);
-  // ws's EventEmitter 'message' event has signature (data, isBinary) — echo
-  // preserving type so Autobahn can verify our frame routing.
-  ws.on('message', (data: Buffer | string | ArrayBuffer, isBinary: boolean) => {
-    try { ws.send(data, { binary: isBinary }); }
-    catch { /* send after close */ }
-  });
-  const result = await waitCloseWithTimeout(ws, CASE_TIMEOUT_MS);
-  process.stdout.write(result === 'ok' ? 'done\n' : `timeout after ${CASE_TIMEOUT_MS}ms\n`);
+    process.stdout.write(`[${n}/${total}] `);
+    const ws = await connect(`/runCase?case=${n}&agent=${AGENT}`);
+    // ws's EventEmitter 'message' event has signature (data, isBinary) — echo
+    // preserving type so Autobahn can verify our frame routing.
+    ws.on('message', (data: Buffer | string | ArrayBuffer, isBinary: boolean) => {
+        try {
+            ws.send(data, { binary: isBinary });
+        } catch {
+            /* send after close */
+        }
+    });
+    const result = await waitCloseWithTimeout(ws, CASE_TIMEOUT_MS);
+    process.stdout.write(result === 'ok' ? 'done\n' : `timeout after ${CASE_TIMEOUT_MS}ms\n`);
 }
 
 async function updateReports(): Promise<void> {
-  const ws = await connect(`/updateReports?agent=${AGENT}`);
-  await waitClose(ws);
+    const ws = await connect(`/updateReports?agent=${AGENT}`);
+    await waitClose(ws);
 }
 
 async function main() {
-  process.stdout.write(`Autobahn fuzzingclient driver — agent="${AGENT}"\n`);
-  const total = await getCaseCount();
-  process.stdout.write(`Running ${total} cases against ${AUTOBAHN_URL}\n`);
+    process.stdout.write(`Autobahn fuzzingclient driver — agent="${AGENT}"\n`);
+    const total = await getCaseCount();
+    process.stdout.write(`Running ${total} cases against ${AUTOBAHN_URL}\n`);
 
-  for (let i = 1; i <= total; i++) {
-    try {
-      await runCase(i, total);
-    } catch (err) {
-      process.stdout.write(`failed: ${(err as Error).message}\n`);
+    for (let i = 1; i <= total; i++) {
+        try {
+            await runCase(i, total);
+        } catch (err) {
+            process.stdout.write(`failed: ${(err as Error).message}\n`);
+        }
     }
-  }
 
-  process.stdout.write('Triggering report generation...\n');
-  await updateReports();
-  process.stdout.write('Done. Reports under reports/output/clients/\n');
+    process.stdout.write('Triggering report generation...\n');
+    await updateReports();
+    process.stdout.write('Done. Reports under reports/output/clients/\n');
 }
 
 main()
-  .then(() => systemExit(0))
-  .catch((err) => {
-    process.stderr.write(`driver failed: ${(err as Error).message}\n`);
-    systemExit(1);
-  });
+    .then(() => systemExit(0))
+    .catch((err) => {
+        process.stderr.write(`driver failed: ${(err as Error).message}\n`);
+        systemExit(1);
+    });

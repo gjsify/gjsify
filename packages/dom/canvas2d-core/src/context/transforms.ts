@@ -17,7 +17,7 @@ export interface TransformMethods {
 }
 
 declare module '../canvas-rendering-context-2d.js' {
-    interface CanvasRenderingContext2D extends TransformMethods { }
+    interface CanvasRenderingContext2D extends TransformMethods {}
 }
 
 const transformMethods: TransformMethods & ThisType<CanvasRenderingContext2D> = {
@@ -42,15 +42,18 @@ const transformMethods: TransformMethods & ThisType<CanvasRenderingContext2D> = 
      *         [b d f]
      *         [0 0 1]
      */
-    transform(
-        this: CanvasRenderingContext2D,
-        a: number, b: number, c: number, d: number, e: number, f: number,
-    ): void {
+    transform(this: CanvasRenderingContext2D, a: number, b: number, c: number, d: number, e: number, f: number): void {
         this._ensureSurface();
         // Guard against NaN / undefined / Infinity — Cairo will hard-crash
         // on invalid matrix values.
-        if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(c) ||
-            !Number.isFinite(d) || !Number.isFinite(e) || !Number.isFinite(f)) {
+        if (
+            !Number.isFinite(a) ||
+            !Number.isFinite(b) ||
+            !Number.isFinite(c) ||
+            !Number.isFinite(d) ||
+            !Number.isFinite(e) ||
+            !Number.isFinite(f)
+        ) {
             return;
         }
         // Cairo.Context in GJS does NOT expose a generic `transform(matrix)` /
@@ -77,16 +80,24 @@ const transformMethods: TransformMethods & ThisType<CanvasRenderingContext2D> = 
      */
     setTransform(
         this: CanvasRenderingContext2D,
-        a?: number | DOMMatrix2DInit, b?: number, c?: number, d?: number, e?: number, f?: number,
+        a?: number | DOMMatrix2DInit,
+        b?: number,
+        c?: number,
+        d?: number,
+        e?: number,
+        f?: number,
     ): void {
         this._ensureSurface();
         if (typeof a === 'object' && a !== null) {
             const m = a;
             this._ctx.identityMatrix();
             this.transform(
-                m.a ?? m.m11 ?? 1, m.b ?? m.m12 ?? 0,
-                m.c ?? m.m21 ?? 0, m.d ?? m.m22 ?? 1,
-                m.e ?? m.m41 ?? 0, m.f ?? m.m42 ?? 0,
+                m.a ?? m.m11 ?? 1,
+                m.b ?? m.m12 ?? 0,
+                m.c ?? m.m21 ?? 0,
+                m.d ?? m.m22 ?? 1,
+                m.e ?? m.m41 ?? 0,
+                m.f ?? m.m42 ?? 0,
             );
         } else if (typeof a === 'number') {
             this._ctx.identityMatrix();
@@ -107,8 +118,8 @@ const transformMethods: TransformMethods & ThisType<CanvasRenderingContext2D> = 
         //   userToDevice(1, 0) = (a + e, b + f)  — first basis vector
         //   userToDevice(0, 1) = (c + e, d + f)  — second basis vector
         const origin = this._ctx.userToDevice(0, 0);
-        const xAxis  = this._ctx.userToDevice(1, 0);
-        const yAxis  = this._ctx.userToDevice(0, 1);
+        const xAxis = this._ctx.userToDevice(1, 0);
+        const yAxis = this._ctx.userToDevice(0, 1);
         const e = origin[0] ?? 0;
         const f = origin[1] ?? 0;
         const a = (xAxis[0] ?? 0) - e;
@@ -121,13 +132,30 @@ const transformMethods: TransformMethods & ThisType<CanvasRenderingContext2D> = 
             return new DOMMatrixCtor([a, b, c, d, e, f]);
         }
         const fallback: DOMMatrix2DLike = {
-            a, b, c, d, e, f,
-            m11: a, m12: b, m13: 0, m14: 0,
-            m21: c, m22: d, m23: 0, m24: 0,
-            m31: 0, m32: 0, m33: 1, m34: 0,
-            m41: e, m42: f, m43: 0, m44: 1,
+            a,
+            b,
+            c,
+            d,
+            e,
+            f,
+            m11: a,
+            m12: b,
+            m13: 0,
+            m14: 0,
+            m21: c,
+            m22: d,
+            m23: 0,
+            m24: 0,
+            m31: 0,
+            m32: 0,
+            m33: 1,
+            m34: 0,
+            m41: e,
+            m42: f,
+            m43: 0,
+            m44: 1,
             is2D: true,
-            isIdentity: (a === 1 && b === 0 && c === 0 && d === 1 && e === 0 && f === 0),
+            isIdentity: a === 1 && b === 0 && c === 0 && d === 1 && e === 0 && f === 0,
         };
         return fallback as unknown as DOMMatrix;
     },

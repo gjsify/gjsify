@@ -15,15 +15,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import {
-    writeFileSync,
-    readFileSync,
-    mkdirSync,
-    chmodSync,
-    existsSync,
-    mkdtempSync,
-    rmSync,
-} from 'node:fs';
+import { writeFileSync, readFileSync, mkdirSync, chmodSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -62,12 +54,18 @@ describe('CLI flatpak sync-flathub E2E', { timeout: 5 * 60 * 1000 }, () => {
         const projectDir = join(tmpDir, 'dry');
         scaffoldProject(projectDir, { appId: 'org.example.SyncDry' });
 
-        const out = runCli([
-            'flatpak', 'sync-flathub',
-            '--version', 'v0.6.6',
-            '--commit', 'deadbeef0000000000000000000000000000aaaa',
-            '--dry-run',
-        ], { cwd: projectDir });
+        const out = runCli(
+            [
+                'flatpak',
+                'sync-flathub',
+                '--version',
+                'v0.6.6',
+                '--commit',
+                'deadbeef0000000000000000000000000000aaaa',
+                '--dry-run',
+            ],
+            { cwd: projectDir },
+        );
 
         assert.match(out, /appId=org\.example\.SyncDry/);
         assert.match(out, /flathubRepo=flathub\/org\.example\.SyncDry/);
@@ -85,22 +83,30 @@ describe('CLI flatpak sync-flathub E2E', { timeout: 5 * 60 * 1000 }, () => {
         mkdirSync(fixtureDir, { recursive: true });
         writeFileSync(
             join(fixtureDir, 'org.example.SyncReal.json'),
-            JSON.stringify({
-                id: 'org.example.SyncReal',
-                runtime: 'org.gnome.Platform',
-                'runtime-version': '50',
-                sdk: 'org.gnome.Sdk',
-                command: 'syncreal',
-                modules: [{
-                    name: 'syncreal',
-                    sources: [{
-                        type: 'git',
-                        url: 'https://github.com/example/syncreal.git',
-                        tag: 'v0.6.5',
-                        commit: '0000000000000000000000000000000000000000',
-                    }],
-                }],
-            }, null, 2) + '\n',
+            JSON.stringify(
+                {
+                    id: 'org.example.SyncReal',
+                    runtime: 'org.gnome.Platform',
+                    'runtime-version': '50',
+                    sdk: 'org.gnome.Sdk',
+                    command: 'syncreal',
+                    modules: [
+                        {
+                            name: 'syncreal',
+                            sources: [
+                                {
+                                    type: 'git',
+                                    url: 'https://github.com/example/syncreal.git',
+                                    tag: 'v0.6.5',
+                                    commit: '0000000000000000000000000000000000000000',
+                                },
+                            ],
+                        },
+                    ],
+                },
+                null,
+                2,
+            ) + '\n',
             'utf-8',
         );
 
@@ -112,20 +118,26 @@ describe('CLI flatpak sync-flathub E2E', { timeout: 5 * 60 * 1000 }, () => {
         const xdgCache = join(tmpDir, 'xdg-real');
         mkdirSync(xdgCache, { recursive: true });
 
-        runCli([
-            'flatpak', 'sync-flathub',
-            '--version', 'v0.6.6',
-            '--commit', 'deadbeef0000000000000000000000000000aaaa',
-            '--no-pr',
-            '--verbose',
-        ], {
-            cwd: projectDir,
-            env: {
-                ...process.env,
-                PATH: `${stubDir}:${process.env.PATH ?? ''}`,
-                XDG_CACHE_HOME: xdgCache,
+        runCli(
+            [
+                'flatpak',
+                'sync-flathub',
+                '--version',
+                'v0.6.6',
+                '--commit',
+                'deadbeef0000000000000000000000000000aaaa',
+                '--no-pr',
+                '--verbose',
+            ],
+            {
+                cwd: projectDir,
+                env: {
+                    ...process.env,
+                    PATH: `${stubDir}:${process.env.PATH ?? ''}`,
+                    XDG_CACHE_HOME: xdgCache,
+                },
             },
-        });
+        );
 
         const cloneDir = join(xdgCache, 'gjsify', 'flathub-sync', 'flathub__org.example.SyncReal');
         const patchedPath = join(cloneDir, 'org.example.SyncReal.json');
@@ -161,18 +173,26 @@ describe('CLI flatpak sync-flathub E2E', { timeout: 5 * 60 * 1000 }, () => {
         mkdirSync(fixtureDir, { recursive: true });
         writeFileSync(
             join(fixtureDir, 'org.example.SyncPr.json'),
-            JSON.stringify({
-                id: 'org.example.SyncPr',
-                modules: [{
-                    name: 'syncpr',
-                    sources: [{
-                        type: 'git',
-                        url: 'https://github.com/example/syncpr.git',
-                        tag: 'v0.5.0',
-                        commit: '1111111111111111111111111111111111111111',
-                    }],
-                }],
-            }, null, 2) + '\n',
+            JSON.stringify(
+                {
+                    id: 'org.example.SyncPr',
+                    modules: [
+                        {
+                            name: 'syncpr',
+                            sources: [
+                                {
+                                    type: 'git',
+                                    url: 'https://github.com/example/syncpr.git',
+                                    tag: 'v0.5.0',
+                                    commit: '1111111111111111111111111111111111111111',
+                                },
+                            ],
+                        },
+                    ],
+                },
+                null,
+                2,
+            ) + '\n',
             'utf-8',
         );
 
@@ -184,18 +204,17 @@ describe('CLI flatpak sync-flathub E2E', { timeout: 5 * 60 * 1000 }, () => {
         const xdgCache = join(tmpDir, 'xdg-pr');
         mkdirSync(xdgCache, { recursive: true });
 
-        runCli([
-            'flatpak', 'sync-flathub',
-            '--version', 'v0.6.0',
-            '--commit', 'cafef00d0000000000000000000000000000bbbb',
-        ], {
-            cwd: projectDir,
-            env: {
-                ...process.env,
-                PATH: `${stubDir}:${process.env.PATH ?? ''}`,
-                XDG_CACHE_HOME: xdgCache,
+        runCli(
+            ['flatpak', 'sync-flathub', '--version', 'v0.6.0', '--commit', 'cafef00d0000000000000000000000000000bbbb'],
+            {
+                cwd: projectDir,
+                env: {
+                    ...process.env,
+                    PATH: `${stubDir}:${process.env.PATH ?? ''}`,
+                    XDG_CACHE_HOME: xdgCache,
+                },
             },
-        });
+        );
 
         const ghCalls = readFileSync(join(stubDir, 'GH_CALLS'), 'utf-8').trim();
         assert.match(ghCalls, /pr create --repo flathub\/org\.example\.SyncPr/);
@@ -211,23 +230,31 @@ describe('CLI flatpak sync-flathub E2E', { timeout: 5 * 60 * 1000 }, () => {
         mkdirSync(fixtureDir, { recursive: true });
         writeFileSync(
             join(fixtureDir, 'org.example.SyncIdem.json'),
-            JSON.stringify({
-                id: 'org.example.SyncIdem',
-                modules: [{
-                    name: 'syncidem',
-                    sources: [{
-                        type: 'git',
-                        url: 'https://github.com/example/syncidem.git',
-                        tag: 'v1.0.0',
-                        commit: 'feedfacefeedfacefeedfacefeedfacefeedface',
-                        'x-checker-data': {
-                            type: 'git',
-                            'tag-pattern': '^v(\\d+\\.\\d+\\.\\d+)$',
-                            'version-scheme': 'semantic',
+            JSON.stringify(
+                {
+                    id: 'org.example.SyncIdem',
+                    modules: [
+                        {
+                            name: 'syncidem',
+                            sources: [
+                                {
+                                    type: 'git',
+                                    url: 'https://github.com/example/syncidem.git',
+                                    tag: 'v1.0.0',
+                                    commit: 'feedfacefeedfacefeedfacefeedfacefeedface',
+                                    'x-checker-data': {
+                                        type: 'git',
+                                        'tag-pattern': '^v(\\d+\\.\\d+\\.\\d+)$',
+                                        'version-scheme': 'semantic',
+                                    },
+                                },
+                            ],
                         },
-                    }],
-                }],
-            }, null, 2) + '\n',
+                    ],
+                },
+                null,
+                2,
+            ) + '\n',
             'utf-8',
         );
 
@@ -239,18 +266,17 @@ describe('CLI flatpak sync-flathub E2E', { timeout: 5 * 60 * 1000 }, () => {
         const xdgCache = join(tmpDir, 'xdg-idem');
         mkdirSync(xdgCache, { recursive: true });
 
-        const out = runCli([
-            'flatpak', 'sync-flathub',
-            '--version', 'v1.0.0',
-            '--commit', 'feedfacefeedfacefeedfacefeedfacefeedface',
-        ], {
-            cwd: projectDir,
-            env: {
-                ...process.env,
-                PATH: `${stubDir}:${process.env.PATH ?? ''}`,
-                XDG_CACHE_HOME: xdgCache,
+        const out = runCli(
+            ['flatpak', 'sync-flathub', '--version', 'v1.0.0', '--commit', 'feedfacefeedfacefeedfacefeedfacefeedface'],
+            {
+                cwd: projectDir,
+                env: {
+                    ...process.env,
+                    PATH: `${stubDir}:${process.env.PATH ?? ''}`,
+                    XDG_CACHE_HOME: xdgCache,
+                },
             },
-        });
+        );
 
         assert.match(out, /already at v1\.0\.0 — nothing to do/);
         assert.equal(existsSync(join(stubDir, 'GH_CALLS')), false, 'gh should not be called on no-op');
@@ -278,11 +304,7 @@ function scaffoldProject(dir, { appId, flathubRepo }) {
 
 function writeShim(binDir, name, traceFile, exitCode = 0) {
     const trace = join(binDir, traceFile);
-    const script = [
-        '#!/bin/sh',
-        `echo "$@" >> ${shellQuote(trace)}`,
-        `exit ${exitCode}`,
-    ].join('\n') + '\n';
+    const script = ['#!/bin/sh', `echo "$@" >> ${shellQuote(trace)}`, `exit ${exitCode}`].join('\n') + '\n';
     const path = join(binDir, name);
     writeFileSync(path, script, 'utf-8');
     chmodSync(path, 0o755);
@@ -296,32 +318,33 @@ function writeShim(binDir, name, traceFile, exitCode = 0) {
  */
 function writeGitStub(binDir, fixtureDir) {
     const trace = join(binDir, 'GIT_CALLS');
-    const script = [
-        '#!/bin/sh',
-        `echo "$@" >> ${shellQuote(trace)}`,
-        'case "$1" in',
-        '  clone)',
-        '    dir="$3"',
-        '    mkdir -p "$dir/.git"',
-        `    cp -r ${shellQuote(fixtureDir)}/. "$dir/"`,
-        '    exit 0 ;;',
-        '  remote)',
-        '    if [ "$2" = "show" ]; then',
-        '      echo "HEAD branch: master"',
-        '    fi',
-        '    exit 0 ;;',
-        '  describe)',
-        '    echo "v0.0.0"',
-        '    exit 0 ;;',
-        '  rev-list)',
-        '    echo "0000000000000000000000000000000000000000"',
-        '    exit 0 ;;',
-        '  fetch|checkout|reset|add|commit|push|config)',
-        '    exit 0 ;;',
-        '  *)',
-        '    exit 0 ;;',
-        'esac',
-    ].join('\n') + '\n';
+    const script =
+        [
+            '#!/bin/sh',
+            `echo "$@" >> ${shellQuote(trace)}`,
+            'case "$1" in',
+            '  clone)',
+            '    dir="$3"',
+            '    mkdir -p "$dir/.git"',
+            `    cp -r ${shellQuote(fixtureDir)}/. "$dir/"`,
+            '    exit 0 ;;',
+            '  remote)',
+            '    if [ "$2" = "show" ]; then',
+            '      echo "HEAD branch: master"',
+            '    fi',
+            '    exit 0 ;;',
+            '  describe)',
+            '    echo "v0.0.0"',
+            '    exit 0 ;;',
+            '  rev-list)',
+            '    echo "0000000000000000000000000000000000000000"',
+            '    exit 0 ;;',
+            '  fetch|checkout|reset|add|commit|push|config)',
+            '    exit 0 ;;',
+            '  *)',
+            '    exit 0 ;;',
+            'esac',
+        ].join('\n') + '\n';
     const path = join(binDir, 'git');
     writeFileSync(path, script, 'utf-8');
     chmodSync(path, 0o755);

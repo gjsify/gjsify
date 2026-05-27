@@ -7,98 +7,100 @@ const kAbort = Symbol('abort');
 const kInternal = Symbol('internal');
 
 export class AbortSignal extends EventTarget {
-  #aborted: boolean = false;
-  reason: any = undefined;
+    #aborted: boolean = false;
+    reason: any = undefined;
 
-  onabort: ((this: AbortSignal, ev: Event) => any) | null = null;
+    onabort: ((this: AbortSignal, ev: Event) => any) | null = null;
 
-  constructor(key?: symbol) {
-    super();
-    if (key !== kInternal) {
-      throw new TypeError('Illegal constructor.');
+    constructor(key?: symbol) {
+        super();
+        if (key !== kInternal) {
+            throw new TypeError('Illegal constructor.');
+        }
     }
-  }
 
-  get aborted(): boolean {
-    if (!(this instanceof AbortSignal)) {
-      throw new TypeError("'get aborted' called on an object that is not a valid instance of AbortSignal.");
+    get aborted(): boolean {
+        if (!(this instanceof AbortSignal)) {
+            throw new TypeError("'get aborted' called on an object that is not a valid instance of AbortSignal.");
+        }
+        return this.#aborted;
     }
-    return this.#aborted;
-  }
 
-  get [Symbol.toStringTag]() { return 'AbortSignal'; }
-
-  throwIfAborted(): void {
-    if (this.#aborted) {
-      throw this.reason;
+    get [Symbol.toStringTag]() {
+        return 'AbortSignal';
     }
-  }
 
-  [kAbort](reason?: any): void {
-    if (this.#aborted) return;
-
-    this.#aborted = true;
-    this.reason = reason ?? new DOMException('The operation was aborted.', 'AbortError');
-
-    const event = new Event('abort');
-    if (typeof this.onabort === 'function') {
-      this.onabort.call(this, event);
+    throwIfAborted(): void {
+        if (this.#aborted) {
+            throw this.reason;
+        }
     }
-    this.dispatchEvent(event);
-  }
 
-  static abort(reason?: any): AbortSignal {
-    const signal = new AbortSignal(kInternal);
-    signal[kAbort](reason);
-    return signal;
-  }
+    [kAbort](reason?: any): void {
+        if (this.#aborted) return;
 
-  static timeout(milliseconds: number): AbortSignal {
-    const signal = new AbortSignal(kInternal);
-    setTimeout(() => {
-      signal[kAbort](new DOMException('The operation timed out.', 'TimeoutError'));
-    }, milliseconds);
-    return signal;
-  }
+        this.#aborted = true;
+        this.reason = reason ?? new DOMException('The operation was aborted.', 'AbortError');
 
-  static any(signals: AbortSignal[]): AbortSignal {
-    const combined = new AbortSignal(kInternal);
+        const event = new Event('abort');
+        if (typeof this.onabort === 'function') {
+            this.onabort.call(this, event);
+        }
+        this.dispatchEvent(event);
+    }
 
-    for (const signal of signals) {
-      if (signal.aborted) {
-        combined[kAbort](signal.reason);
+    static abort(reason?: any): AbortSignal {
+        const signal = new AbortSignal(kInternal);
+        signal[kAbort](reason);
+        return signal;
+    }
+
+    static timeout(milliseconds: number): AbortSignal {
+        const signal = new AbortSignal(kInternal);
+        setTimeout(() => {
+            signal[kAbort](new DOMException('The operation timed out.', 'TimeoutError'));
+        }, milliseconds);
+        return signal;
+    }
+
+    static any(signals: AbortSignal[]): AbortSignal {
+        const combined = new AbortSignal(kInternal);
+
+        for (const signal of signals) {
+            if (signal.aborted) {
+                combined[kAbort](signal.reason);
+                return combined;
+            }
+        }
+
+        const onAbort = () => {
+            if (!combined.aborted) {
+                const aborted = signals.find((s) => s.aborted);
+                combined[kAbort](aborted?.reason);
+            }
+        };
+
+        for (const signal of signals) {
+            signal.addEventListener('abort', onAbort, { once: true });
+        }
+
         return combined;
-      }
     }
-
-    const onAbort = () => {
-      if (!combined.aborted) {
-        const aborted = signals.find(s => s.aborted);
-        combined[kAbort](aborted?.reason);
-      }
-    };
-
-    for (const signal of signals) {
-      signal.addEventListener('abort', onAbort, { once: true });
-    }
-
-    return combined;
-  }
 }
 
 export class AbortController {
-  readonly signal: AbortSignal;
+    readonly signal: AbortSignal;
 
-  constructor() {
-    this.signal = new AbortSignal(kInternal);
-  }
-
-  abort(reason?: any): void {
-    if (!(this instanceof AbortController)) {
-      throw new TypeError("'abort' called on an object that is not a valid instance of AbortController.");
+    constructor() {
+        this.signal = new AbortSignal(kInternal);
     }
-    this.signal[kAbort](reason);
-  }
+
+    abort(reason?: any): void {
+        if (!(this instanceof AbortController)) {
+            throw new TypeError("'abort' called on an object that is not a valid instance of AbortController.");
+        }
+        this.signal[kAbort](reason);
+    }
 }
 
 export { DOMException };

@@ -32,13 +32,13 @@ function createTestWav(durationSec = 0.1, sampleRate = 44100): ArrayBuffer {
     view.setUint16(20, 1, true);
     view.setUint16(22, numChannels, true);
     view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * numChannels * bitsPerSample / 8, true);
-    view.setUint16(32, numChannels * bitsPerSample / 8, true);
+    view.setUint32(28, (sampleRate * numChannels * bitsPerSample) / 8, true);
+    view.setUint16(32, (numChannels * bitsPerSample) / 8, true);
     view.setUint16(34, bitsPerSample, true);
     writeStr(36, 'data');
     view.setUint32(40, dataSize, true);
     for (let i = 0; i < numSamples; i++) {
-        const sample = Math.sin(2 * Math.PI * 440 * i / sampleRate);
+        const sample = Math.sin((2 * Math.PI * 440 * i) / sampleRate);
         view.setInt16(44 + i * 2, Math.round(sample * 32767), true);
     }
     return buf;
@@ -94,7 +94,9 @@ export default async () => {
             const t1 = ctx.currentTime;
             // Small busy-wait to ensure time passes
             const start = Date.now();
-            while (Date.now() - start < 5) { /* busy wait */ }
+            while (Date.now() - start < 5) {
+                /* busy wait */
+            }
             const t2 = ctx.currentTime;
             expect(t2 > t1).toBe(true);
         });
@@ -169,7 +171,9 @@ export default async () => {
             const ctx = new AudioContext();
             const wav = createTestWav(0.05);
             let callbackResult: AudioBuffer | null = null;
-            await ctx.decodeAudioData(wav, (buf) => { callbackResult = buf; });
+            await ctx.decodeAudioData(wav, (buf) => {
+                callbackResult = buf;
+            });
             expect(callbackResult).toBeDefined();
             expect(callbackResult!.numberOfChannels).toBe(1);
         });
@@ -249,7 +253,9 @@ export default async () => {
         await it('should call onChange callback', async () => {
             const param = new AudioParam(0);
             let called = false;
-            param._onChange = () => { called = true; };
+            param._onChange = () => {
+                called = true;
+            };
             param.value = 0.5;
             expect(called).toBe(true);
         });
@@ -285,11 +291,13 @@ export default async () => {
             source.connect(gain).connect(ctx.destination);
 
             let ended = false;
-            source.onended = () => { ended = true; };
+            source.onended = () => {
+                ended = true;
+            };
             source.start();
 
             // Wait for playback to finish (50ms buffer + margin)
-            await new Promise<void>(resolve => setTimeout(resolve, 500));
+            await new Promise<void>((resolve) => setTimeout(resolve, 500));
             expect(ended).toBe(true);
         });
 
@@ -306,11 +314,13 @@ export default async () => {
             source.connect(gain).connect(ctx.destination);
 
             let ended = false;
-            source.onended = () => { ended = true; };
+            source.onended = () => {
+                ended = true;
+            };
             source.start();
 
             // Wait longer than one full play cycle
-            await new Promise<void>(resolve => setTimeout(resolve, 300));
+            await new Promise<void>((resolve) => setTimeout(resolve, 300));
             expect(ended).toBe(false);
 
             // Explicitly stop — should fire onended

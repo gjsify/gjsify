@@ -16,10 +16,10 @@ import { createWebSocketStream } from './stream.js';
 // work. esbuild's __toESM shim turns our ESM default into an object with
 // these properties; aliasing + the gjs CJS-compat layer handles the rest.
 interface _WsCompatStatics {
-  WebSocket?: typeof WebSocket;
-  WebSocketServer?: typeof WebSocketServer;
-  Server?: typeof WebSocketServer;
-  createWebSocketStream?: typeof createWebSocketStream;
+    WebSocket?: typeof WebSocket;
+    WebSocketServer?: typeof WebSocketServer;
+    Server?: typeof WebSocketServer;
+    createWebSocketStream?: typeof createWebSocketStream;
 }
 const _C = WebSocket as typeof WebSocket & _WsCompatStatics;
 _C.WebSocket = WebSocket;

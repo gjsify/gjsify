@@ -20,11 +20,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cpus } from 'node:os';
 import type { Command } from '../types/index.js';
-import {
-    discoverWorkspaces,
-    filterWorkspaces,
-    type Workspace,
-} from '@gjsify/workspace';
+import { discoverWorkspaces, filterWorkspaces, type Workspace } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 
 interface CheckOptions {
@@ -56,10 +52,7 @@ function readPackageJson(dir: string): PackageJson | null {
  * indicates failure. Output is forwarded to the parent's stdout/stderr,
  * line-prefixed with the workspace name when `prefix` is set.
  */
-function runCheck(
-    ws: Workspace,
-    prefix: string | null,
-): Promise<number> {
+function runCheck(ws: Workspace, prefix: string | null): Promise<number> {
     return new Promise((resolve) => {
         const child = spawn('npm', ['run', 'check', '--if-present'], {
             cwd: ws.location,
@@ -102,7 +95,8 @@ export const checkCommand: Command<unknown, CheckOptions> = {
                 array: true,
             })
             .option('parallel', {
-                description: 'Run workspace checks in parallel (default). Use --no-parallel to run them sequentially with full per-workspace output.',
+                description:
+                    'Run workspace checks in parallel (default). Use --no-parallel to run them sequentially with full per-workspace output.',
                 type: 'boolean',
                 alias: 'p',
                 default: true,
@@ -142,7 +136,9 @@ export const checkCommand: Command<unknown, CheckOptions> = {
 
         // ---- Workspace mode ----
         if (!workspaceRoot) {
-            console.error('gjsify check: no workspace root found from cwd. Run inside a workspace (or a package within one) with `npm run check` defined.');
+            console.error(
+                'gjsify check: no workspace root found from cwd. Run inside a workspace (or a package within one) with `npm run check` defined.',
+            );
             process.exit(1);
         }
 
@@ -167,7 +163,9 @@ export const checkCommand: Command<unknown, CheckOptions> = {
         }
 
         if (args.verbose) {
-            console.log(`[check] root=${workspaceRoot}  workspaces=${targets.length}  parallel=${args.parallel ? 'yes' : 'no'}`);
+            console.log(
+                `[check] root=${workspaceRoot}  workspaces=${targets.length}  parallel=${args.parallel ? 'yes' : 'no'}`,
+            );
         }
 
         // ---- Sequential mode ----
@@ -178,7 +176,10 @@ export const checkCommand: Command<unknown, CheckOptions> = {
                 const code = await runCheck(ws, null);
                 if (code !== 0 && firstFail === 0) firstFail = code;
             }
-            if (firstFail !== 0) console.error(`gjsify check: failures in ${targets.filter(async ws => await runCheck(ws, null) !== 0).length}+ workspaces`);
+            if (firstFail !== 0)
+                console.error(
+                    `gjsify check: failures in ${targets.filter(async (ws) => (await runCheck(ws, null)) !== 0).length}+ workspaces`,
+                );
             process.exit(firstFail);
         }
 
@@ -189,15 +190,17 @@ export const checkCommand: Command<unknown, CheckOptions> = {
         let cursor = 0;
         const workers: Promise<void>[] = [];
         for (let i = 0; i < concurrency; i++) {
-            workers.push((async () => {
-                while (true) {
-                    const idx = cursor++;
-                    if (idx >= targets.length) return;
-                    const ws = targets[idx]!;
-                    const code = await runCheck(ws, ws.name);
-                    if (code !== 0) failures.push({ name: ws.name, code });
-                }
-            })());
+            workers.push(
+                (async () => {
+                    while (true) {
+                        const idx = cursor++;
+                        if (idx >= targets.length) return;
+                        const ws = targets[idx]!;
+                        const code = await runCheck(ws, ws.name);
+                        if (code !== 0) failures.push({ name: ws.name, code });
+                    }
+                })(),
+            );
         }
         await Promise.all(workers);
 

@@ -36,10 +36,7 @@ interface PackageJson {
     };
 }
 
-export function resolveGjsEntry(
-    pkgDir: string,
-    binName: string | null,
-): ResolvedEntry {
+export function resolveGjsEntry(pkgDir: string, binName: string | null): ResolvedEntry {
     const pkgJsonPath = join(pkgDir, 'package.json');
     if (!existsSync(pkgJsonPath)) {
         throw new Error(`dlx: no package.json found at ${pkgDir}`);
@@ -57,9 +54,7 @@ export function resolveGjsEntry(
     if (binName !== null) {
         if (!gjsifyBin || !gjsifyBin[binName]) {
             const known = gjsifyBin ? Object.keys(gjsifyBin).join(', ') : '(none)';
-            throw new Error(
-                `dlx: package "${pkg.name ?? pkgDir}" has no GJS bin named "${binName}" — known: ${known}`,
-            );
+            throw new Error(`dlx: package "${pkg.name ?? pkgDir}" has no GJS bin named "${binName}" — known: ${known}`);
         }
         entry = gjsifyBin[binName];
         resolvedBin = binName;
@@ -76,9 +71,7 @@ export function resolveGjsEntry(
 
     if (gjsifyBin && Object.keys(gjsifyBin).length > 1 && binName === null) {
         const names = Object.keys(gjsifyBin).join(', ');
-        throw new Error(
-            `dlx: package "${pkg.name ?? pkgDir}" defines multiple GJS bins — pass one of: ${names}`,
-        );
+        throw new Error(`dlx: package "${pkg.name ?? pkgDir}" defines multiple GJS bins — pass one of: ${names}`);
     }
 
     if (!entry) {

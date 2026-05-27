@@ -22,9 +22,7 @@ async function flushMicrotasks(): Promise<void> {
 }
 
 export default async () => {
-
     await describe('ResizeObserver', async () => {
-
         await it('fires on direct notifyElementResize(target)', async () => {
             const canvas = new HTMLCanvasElement();
             let fired = 0;
@@ -144,7 +142,9 @@ export default async () => {
         await it('stops firing after unobserve()', async () => {
             const canvas = new HTMLCanvasElement();
             let fired = 0;
-            const observer = new ResizeObserver(() => { fired++; });
+            const observer = new ResizeObserver(() => {
+                fired++;
+            });
             observer.observe(canvas);
             await flushMicrotasks();
             const initialFired = fired;
@@ -160,7 +160,9 @@ export default async () => {
         await it('stops firing after disconnect()', async () => {
             const canvas = new HTMLCanvasElement();
             let fired = 0;
-            const observer = new ResizeObserver(() => { fired++; });
+            const observer = new ResizeObserver(() => {
+                fired++;
+            });
             observer.observe(canvas);
             await flushMicrotasks();
             const initialFired = fired;
@@ -174,7 +176,9 @@ export default async () => {
         await it('observe(same target twice) is idempotent', async () => {
             const canvas = new HTMLCanvasElement();
             let fired = 0;
-            const observer = new ResizeObserver(() => { fired++; });
+            const observer = new ResizeObserver(() => {
+                fired++;
+            });
             observer.observe(canvas);
             observer.observe(canvas);
             await flushMicrotasks();
@@ -193,8 +197,12 @@ export default async () => {
             const canvas = new HTMLCanvasElement();
             let firedA = 0;
             let firedB = 0;
-            const a = new ResizeObserver(() => { firedA++; });
-            const b = new ResizeObserver(() => { firedB++; });
+            const a = new ResizeObserver(() => {
+                firedA++;
+            });
+            const b = new ResizeObserver(() => {
+                firedB++;
+            });
             a.observe(canvas);
             b.observe(canvas);
             await flushMicrotasks();
@@ -220,7 +228,9 @@ export default async () => {
         await it('callback receives an entry with target + contentRect + box sizes', async () => {
             const canvas = new HTMLCanvasElement();
             let captured: ResizeObserverEntry | null = null;
-            const observer = new ResizeObserver((entries) => { captured = entries[0]; });
+            const observer = new ResizeObserver((entries) => {
+                captured = entries[0];
+            });
             observer.observe(canvas);
             await flushMicrotasks();
 
@@ -275,7 +285,5 @@ export default async () => {
 
             observer.disconnect();
         });
-
     });
-
 };

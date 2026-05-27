@@ -12,31 +12,32 @@ import type { Element } from './element.js';
  * Reference: https://developer.mozilla.org/en-US/docs/Web/API/IntersectionObserver
  */
 export class IntersectionObserver {
-	readonly root: Element | null;
-	readonly rootMargin: string;
-	readonly thresholds: readonly number[];
+    readonly root: Element | null;
+    readonly rootMargin: string;
+    readonly thresholds: readonly number[];
 
-	constructor(_callback: (...args: unknown[]) => void, options?: { root?: Element | null; rootMargin?: string; threshold?: number | number[] }) {
-		this.root = options?.root ?? null;
-		this.rootMargin = options?.rootMargin ?? '0px';
-		this.thresholds = Array.isArray(options?.threshold)
-			? options.threshold
-			: [options?.threshold ?? 0];
-	}
+    constructor(
+        _callback: (...args: unknown[]) => void,
+        options?: { root?: Element | null; rootMargin?: string; threshold?: number | number[] },
+    ) {
+        this.root = options?.root ?? null;
+        this.rootMargin = options?.rootMargin ?? '0px';
+        this.thresholds = Array.isArray(options?.threshold) ? options.threshold : [options?.threshold ?? 0];
+    }
 
-	observe(_target: Element): void {
-		// Stub
-	}
+    observe(_target: Element): void {
+        // Stub
+    }
 
-	unobserve(_target: Element): void {
-		// Stub
-	}
+    unobserve(_target: Element): void {
+        // Stub
+    }
 
-	disconnect(): void {
-		// Stub
-	}
+    disconnect(): void {
+        // Stub
+    }
 
-	takeRecords(): unknown[] {
-		return [];
-	}
+    takeRecords(): unknown[] {
+        return [];
+    }
 }

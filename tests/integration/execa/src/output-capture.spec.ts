@@ -25,11 +25,9 @@ export default async () => {
         });
 
         await it('forwards environment via the env option', async () => {
-            const result = await execa(
-                'node',
-                ['-e', 'process.stdout.write(String(process.env.GJSIFY_TOKEN))'],
-                { env: { GJSIFY_TOKEN: 'abc123' } },
-            );
+            const result = await execa('node', ['-e', 'process.stdout.write(String(process.env.GJSIFY_TOKEN))'], {
+                env: { GJSIFY_TOKEN: 'abc123' },
+            });
             expect(result.stdout).toBe('abc123');
         });
 
@@ -40,7 +38,10 @@ export default async () => {
         await it('passes stdin via the input option (string)', async () => {
             const result = await execa(
                 'node',
-                ['-e', 'let buf = ""; process.stdin.on("data", d => buf += d); process.stdin.on("end", () => process.stdout.write(buf))'],
+                [
+                    '-e',
+                    'let buf = ""; process.stdin.on("data", d => buf += d); process.stdin.on("end", () => process.stdout.write(buf))',
+                ],
                 { input: 'piped-stdin-payload' },
             );
             expect(result.stdout).toBe('piped-stdin-payload');
@@ -51,10 +52,7 @@ export default async () => {
             // `json` option (Options.shape.json) is set on the relevant API
             // surface. We use the safer manual JSON.parse here to keep the
             // assertion portable across execa minor versions.
-            const result = await execa('node', [
-                '-e',
-                'process.stdout.write(JSON.stringify({ a: 1, b: [2, 3] }))',
-            ]);
+            const result = await execa('node', ['-e', 'process.stdout.write(JSON.stringify({ a: 1, b: [2, 3] }))']);
             const parsed = JSON.parse(result.stdout) as { a: number; b: number[] };
             expect(parsed.a).toBe(1);
             expect(parsed.b).toStrictEqual([2, 3]);

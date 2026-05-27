@@ -13,17 +13,7 @@ const OUT_DIR = resolve(import.meta.dirname, '..');
 // Accent colors (#33d17a, #ff7800, #e01b24, #ed333b) are intentionally preserved.
 const GRAY_FILLS = /fill="(#2e3436|#2e3434|#474747|#222222|#2d3336)"/gi;
 
-const CATEGORIES = [
-    'actions',
-    'categories',
-    'devices',
-    'emotes',
-    'legacy',
-    'mimetypes',
-    'places',
-    'status',
-    'ui',
-];
+const CATEGORIES = ['actions', 'categories', 'devices', 'emotes', 'legacy', 'mimetypes', 'places', 'status', 'ui'];
 
 /** Convert `edit-copy-symbolic.svg` → `editCopySymbolic` */
 function toCamelCase(filename: string): string {
@@ -51,7 +41,7 @@ function generateCategory(category: string, seen: Set<string>): { code: string; 
     }
 
     const files = readdirSync(dir)
-        .filter(f => f.endsWith('.svg'))
+        .filter((f) => f.endsWith('.svg'))
         .sort();
 
     const exports: string[] = [];
@@ -107,7 +97,7 @@ const indexLines = [
     '// Generated from refs/adwaita-icon-theme/Adwaita/symbolic/',
     '// DO NOT EDIT — regenerate with: yarn generate',
     '',
-    ...Array.from(allExports.keys()).map(c => `export * from './${c}.js';`),
+    ...Array.from(allExports.keys()).map((c) => `export * from './${c}.js';`),
     '',
 ];
 writeFileSync(join(OUT_DIR, 'index.ts'), indexLines.join('\n'));

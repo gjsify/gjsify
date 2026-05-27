@@ -18,7 +18,7 @@ if (bundles.length === 0) {
     test('no browser test bundles found', () => {
         console.warn(
             'No test.browser.mjs bundles found. Run build:test:browser in web/dom packages first.\n' +
-            'From repo root: yarn test:browser:build'
+                'From repo root: yarn test:browser:build',
         );
     });
 }
@@ -30,19 +30,12 @@ for (const bundle of bundles) {
 
         await page.waitForSelector(DONE_SELECTOR, { timeout: BUNDLE_TIMEOUT });
 
-        const results: GjsifyTestResults = await page.evaluate(
-            () => (window as any).__gjsify_test_results
-        );
+        const results: GjsifyTestResults = await page.evaluate(() => (window as any).__gjsify_test_results);
 
         expect(results, 'window.__gjsify_test_results not set — @gjsify/unit may not have run').toBeDefined();
 
-        const errorSummary = results.errors
-            .map(e => `  [${e.suite}] ${e.test}: ${e.message}`)
-            .join('\n');
+        const errorSummary = results.errors.map((e) => `  [${e.suite}] ${e.test}: ${e.message}`).join('\n');
 
-        expect(
-            results.failed,
-            `${results.failed} of ${results.total} tests failed:\n${errorSummary}`
-        ).toBe(0);
+        expect(results.failed, `${results.failed} of ${results.total} tests failed:\n${errorSummary}`).toBe(0);
     });
 }

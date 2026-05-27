@@ -13,13 +13,7 @@
 // @gjsify/resolve-npm route this subpath to @gjsify/empty during Node builds
 // so it becomes a no-op.
 
-import {
-    compile,
-    compileStreaming,
-    instantiate,
-    instantiateStreaming,
-    validate,
-} from '../index.js';
+import { compile, compileStreaming, instantiate, instantiateStreaming, validate } from '../index.js';
 
 /** Module-local typed view of the WebAssembly host slot we read. */
 interface _WebAssemblyHost {

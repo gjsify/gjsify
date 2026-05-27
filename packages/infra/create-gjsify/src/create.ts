@@ -21,8 +21,20 @@ const PROJECT_NAME_SENTINEL = 'new-gjsify-app';
 
 /** File extensions we treat as text and scan for the sentinel. */
 const TEXT_FILE_EXT = new Set([
-    '.json', '.md', '.ts', '.tsx', '.js', '.mjs', '.cjs',
-    '.blp', '.html', '.css', '.scss', '.xml', '.ui', '.txt',
+    '.json',
+    '.md',
+    '.ts',
+    '.tsx',
+    '.js',
+    '.mjs',
+    '.cjs',
+    '.blp',
+    '.html',
+    '.css',
+    '.scss',
+    '.xml',
+    '.ui',
+    '.txt',
 ]);
 
 /** npm package names: lowercase, digits, -, _, .; no leading . or _. */
@@ -49,7 +61,9 @@ export async function createProject(options: CreateProjectOptions): Promise<void
 
     const info = findTemplate(template);
     if (!info) {
-        const available = discoverTemplates().map((t) => t.name).join(', ');
+        const available = discoverTemplates()
+            .map((t) => t.name)
+            .join(', ');
         throw new Error(
             `Unknown template "${template}". Available templates: ${available || '(none — run "yarn build" first)'}`,
         );

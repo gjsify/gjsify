@@ -8,13 +8,13 @@ import { hideBin } from 'yargs/helpers';
 
 // ANSI color/style helpers
 const c = {
-    reset:  '\x1b[0m',
-    bold:   '\x1b[1m',
-    dim:    '\x1b[2m',
-    red:    '\x1b[31m',
-    green:  '\x1b[32m',
+    reset: '\x1b[0m',
+    bold: '\x1b[1m',
+    dim: '\x1b[2m',
+    red: '\x1b[31m',
+    green: '\x1b[32m',
     yellow: '\x1b[33m',
-    cyan:   '\x1b[36m',
+    cyan: '\x1b[36m',
 };
 
 function result(label: string, value: number): void {
@@ -31,48 +31,52 @@ const cli = yargs(hideBin(process.argv))
     .command(
         'add <a> <b>',
         'Add two numbers',
-        (y) => y
-            .positional('a', { type: 'number', describe: 'First number' })
-            .positional('b', { type: 'number', describe: 'Second number' }),
+        (y) =>
+            y
+                .positional('a', { type: 'number', describe: 'First number' })
+                .positional('b', { type: 'number', describe: 'Second number' }),
         (args) => {
             const a = args.a as number;
             const b = args.b as number;
             operationLine(a, '+', b);
             result('Result', a + b);
-        }
+        },
     )
     .command(
         'sub <a> <b>',
         'Subtract b from a',
-        (y) => y
-            .positional('a', { type: 'number', describe: 'First number' })
-            .positional('b', { type: 'number', describe: 'Second number' }),
+        (y) =>
+            y
+                .positional('a', { type: 'number', describe: 'First number' })
+                .positional('b', { type: 'number', describe: 'Second number' }),
         (args) => {
             const a = args.a as number;
             const b = args.b as number;
             operationLine(a, '-', b);
             result('Result', a - b);
-        }
+        },
     )
     .command(
         'mul <a> <b>',
         'Multiply two numbers',
-        (y) => y
-            .positional('a', { type: 'number', describe: 'First number' })
-            .positional('b', { type: 'number', describe: 'Second number' }),
+        (y) =>
+            y
+                .positional('a', { type: 'number', describe: 'First number' })
+                .positional('b', { type: 'number', describe: 'Second number' }),
         (args) => {
             const a = args.a as number;
             const b = args.b as number;
             operationLine(a, '×', b);
             result('Result', a * b);
-        }
+        },
     )
     .command(
         'div <a> <b>',
         'Divide a by b',
-        (y) => y
-            .positional('a', { type: 'number', describe: 'Dividend' })
-            .positional('b', { type: 'number', describe: 'Divisor' }),
+        (y) =>
+            y
+                .positional('a', { type: 'number', describe: 'Dividend' })
+                .positional('b', { type: 'number', describe: 'Divisor' }),
         (args) => {
             const a = args.a as number;
             const b = args.b as number;
@@ -82,7 +86,7 @@ const cli = yargs(hideBin(process.argv))
             }
             operationLine(a, '÷', b);
             result('Result', a / b);
-        }
+        },
     )
     .version('0.0.4')
     .help()

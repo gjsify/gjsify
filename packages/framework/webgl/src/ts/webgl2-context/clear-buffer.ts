@@ -32,7 +32,7 @@ export interface ClearBufferMethods {
 }
 
 declare module '../webgl2-rendering-context.js' {
-    interface WebGL2RenderingContext extends ClearBufferMethods { }
+    interface WebGL2RenderingContext extends ClearBufferMethods {}
 }
 
 // clearBuffer{fv,iv,uiv,fi} — WebGL2 methods for clearing specific
@@ -49,8 +49,13 @@ declare module '../webgl2-rendering-context.js' {
 //   DEPTH_STENCIL = 0x84F9
 
 const clearBufferMethods: ClearBufferMethods & ThisType<WebGL2RenderingContext> = {
-
-    clearBufferfv(this: WebGL2RenderingContext, buffer: GLenum, drawbuffer: GLint, values: Float32List, _srcOffset?: GLuint): void {
+    clearBufferfv(
+        this: WebGL2RenderingContext,
+        buffer: GLenum,
+        drawbuffer: GLint,
+        values: Float32List,
+        _srcOffset?: GLuint,
+    ): void {
         const n2 = this._native2 as Gwebgl.WebGL2RenderingContext & OptionalClearBufferNative;
         if (typeof n2.clearBufferfv === 'function') {
             n2.clearBufferfv(buffer, drawbuffer, Array.from(values) as number[]);
@@ -70,7 +75,13 @@ const clearBufferMethods: ClearBufferMethods & ThisType<WebGL2RenderingContext> 
         }
     },
 
-    clearBufferiv(this: WebGL2RenderingContext, buffer: GLenum, drawbuffer: GLint, values: Int32List, _srcOffset?: GLuint): void {
+    clearBufferiv(
+        this: WebGL2RenderingContext,
+        buffer: GLenum,
+        drawbuffer: GLint,
+        values: Int32List,
+        _srcOffset?: GLuint,
+    ): void {
         const n2 = this._native2 as Gwebgl.WebGL2RenderingContext & OptionalClearBufferNative;
         if (typeof n2.clearBufferiv === 'function') {
             n2.clearBufferiv(buffer, drawbuffer, Array.from(values) as number[]);
@@ -86,7 +97,13 @@ const clearBufferMethods: ClearBufferMethods & ThisType<WebGL2RenderingContext> 
         // Integer color buffers are not emulatable via clearColor — silently no-op.
     },
 
-    clearBufferuiv(this: WebGL2RenderingContext, buffer: GLenum, drawbuffer: GLint, values: Uint32List, _srcOffset?: GLuint): void {
+    clearBufferuiv(
+        this: WebGL2RenderingContext,
+        buffer: GLenum,
+        drawbuffer: GLint,
+        values: Uint32List,
+        _srcOffset?: GLuint,
+    ): void {
         const n2 = this._native2 as Gwebgl.WebGL2RenderingContext & OptionalClearBufferNative;
         if (typeof n2.clearBufferuiv === 'function') {
             n2.clearBufferuiv(buffer, drawbuffer, Array.from(values) as number[]);
@@ -94,17 +111,24 @@ const clearBufferMethods: ClearBufferMethods & ThisType<WebGL2RenderingContext> 
         }
         // Unsigned integer color buffers are not emulatable via clearColor —
         // silently no-op.
-        void buffer; void drawbuffer;
+        void buffer;
+        void drawbuffer;
     },
 
-    clearBufferfi(this: WebGL2RenderingContext, buffer: GLenum, drawbuffer: GLint, depth: GLfloat, stencil: GLint): void {
+    clearBufferfi(
+        this: WebGL2RenderingContext,
+        buffer: GLenum,
+        drawbuffer: GLint,
+        depth: GLfloat,
+        stencil: GLint,
+    ): void {
         const n2 = this._native2 as Gwebgl.WebGL2RenderingContext & OptionalClearBufferNative;
         if (typeof n2.clearBufferfi === 'function') {
             n2.clearBufferfi(buffer, drawbuffer, depth, stencil);
             return;
         }
         // Only DEPTH_STENCIL makes sense for this entry point.
-        if (buffer === 0x84F9 /* DEPTH_STENCIL */) {
+        if (buffer === 0x84f9 /* DEPTH_STENCIL */) {
             const prevDepth = this.getParameter(this.DEPTH_CLEAR_VALUE) as number | null;
             const prevStencil = this.getParameter(this.STENCIL_CLEAR_VALUE) as number | null;
             this.clearDepth(depth);

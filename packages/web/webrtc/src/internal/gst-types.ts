@@ -94,8 +94,7 @@ export interface RtpPayloaderElement extends Gst.Element {
 }
 
 /** Narrow an RTP payloader element to the augmented shape. */
-export const asRtpPayloaderElement = (el: Gst.Element): RtpPayloaderElement =>
-    el as RtpPayloaderElement;
+export const asRtpPayloaderElement = (el: Gst.Element): RtpPayloaderElement => el as RtpPayloaderElement;
 
 /**
  * GStreamer `capsfilter` element — exposes a settable `caps` property
@@ -106,8 +105,7 @@ export interface CapsFilterElement extends Gst.Element {
 }
 
 /** Narrow a `capsfilter` element to the augmented shape. */
-export const asCapsFilterElement = (el: Gst.Element): CapsFilterElement =>
-    el as CapsFilterElement;
+export const asCapsFilterElement = (el: Gst.Element): CapsFilterElement => el as CapsFilterElement;
 
 /**
  * GStreamer `vp8enc` encoder — the small set of properties we tune for

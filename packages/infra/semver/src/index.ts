@@ -7,7 +7,7 @@ const NUM_RE = /^(0|[1-9]\d*)$/;
 const SEMVER_RE =
     /^(\d+)\.(\d+)\.(\d+)(?:-((?:[0-9A-Za-z-]+)(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 
-export type ReleaseType = "major" | "minor" | "patch";
+export type ReleaseType = 'major' | 'minor' | 'patch';
 
 export function parse(version: string): SemVer | null {
     try {
@@ -74,20 +74,18 @@ export class SemVer {
     readonly version: string;
 
     constructor(version: string) {
-        const trimmed = String(version).trim().replace(/^v/, "");
+        const trimmed = String(version).trim().replace(/^v/, '');
         const m = SEMVER_RE.exec(trimmed);
         if (!m) throw new TypeError(`Invalid Version: ${version}`);
         this.major = Number(m[1]);
         this.minor = Number(m[2]);
         this.patch = Number(m[3]);
-        this.prerelease = m[4]
-            ? m[4].split(".").map((id) => (NUM_RE.test(id) ? Number(id) : id))
-            : [];
-        this.build = m[5] ? m[5].split(".") : [];
+        this.prerelease = m[4] ? m[4].split('.').map((id) => (NUM_RE.test(id) ? Number(id) : id)) : [];
+        this.build = m[5] ? m[5].split('.') : [];
         this.version =
             `${this.major}.${this.minor}.${this.patch}` +
-            (this.prerelease.length ? `-${this.prerelease.join(".")}` : "") +
-            (this.build.length ? `+${this.build.join(".")}` : "");
+            (this.prerelease.length ? `-${this.prerelease.join('.')}` : '') +
+            (this.build.length ? `+${this.build.join('.')}` : '');
     }
 
     compare(other: SemVer): -1 | 0 | 1 {
@@ -110,8 +108,8 @@ export class SemVer {
             if (y === undefined) return 1;
             if (x === undefined) return -1;
             if (x === y) continue;
-            const xn = typeof x === "number";
-            const yn = typeof y === "number";
+            const xn = typeof x === 'number';
+            const yn = typeof y === 'number';
             if (xn && !yn) return -1;
             if (!xn && yn) return 1;
             return x < y ? -1 : 1;
@@ -124,7 +122,7 @@ export class SemVer {
 }
 
 interface Comparator {
-    operator: "" | "<" | ">" | "<=" | ">=" | "=";
+    operator: '' | '<' | '>' | '<=' | '>=' | '=';
     semver: SemVer | null;
 }
 
@@ -177,7 +175,7 @@ export class Range {
     }
 
     format(): string {
-        return this.set.map((c) => c.map(formatComparator).join(" ")).join(" || ");
+        return this.set.map((c) => c.map(formatComparator).join(' ')).join(' || ');
     }
 
     toString(): string {
@@ -189,29 +187,29 @@ function testComparator(c: Comparator, v: SemVer): boolean {
     if (c.semver === null) return true;
     const cmp = v.compare(c.semver);
     switch (c.operator) {
-        case "":
-        case "=":
+        case '':
+        case '=':
             return cmp === 0;
-        case "<":
+        case '<':
             return cmp < 0;
-        case "<=":
+        case '<=':
             return cmp <= 0;
-        case ">":
+        case '>':
             return cmp > 0;
-        case ">=":
+        case '>=':
             return cmp >= 0;
     }
 }
 
 function formatComparator(c: Comparator): string {
-    if (c.semver === null) return "*";
+    if (c.semver === null) return '*';
     return `${c.operator}${c.semver.version}`;
 }
 
 function parseRangePart(part: string): Comparator[] {
     const trimmed = part.trim();
-    if (trimmed === "" || trimmed === "*" || trimmed.toLowerCase() === "latest") {
-        return [{ operator: ">=", semver: new SemVer("0.0.0") }];
+    if (trimmed === '' || trimmed === '*' || trimmed.toLowerCase() === 'latest') {
+        return [{ operator: '>=', semver: new SemVer('0.0.0') }];
     }
     const hyphen = trimmed.match(/^\s*(\S+)\s+-\s+(\S+)\s*$/);
     if (hyphen) return hyphenRange(hyphen[1], hyphen[2]);
@@ -220,7 +218,7 @@ function parseRangePart(part: string): Comparator[] {
     // normalization the second form tokenizes into `[">=", "1.2"]` and
     // `parseSimple(">=")` then fails. Real-world packuments use the spaced
     // form, e.g. `safer-buffer`'s peer-dep range `">= 2.1.2 < 3.0.0"`.
-    const glued = trimmed.replace(/(<=|>=|<|>|=)\s+(?=\S)/g, "$1");
+    const glued = trimmed.replace(/(<=|>=|<|>|=)\s+(?=\S)/g, '$1');
     const tokens = glued.split(/\s+/);
     const out: Comparator[] = [];
     for (const tok of tokens) out.push(...parseSimple(tok));
@@ -228,14 +226,14 @@ function parseRangePart(part: string): Comparator[] {
 }
 
 function parseSimple(tok: string): Comparator[] {
-    if (tok === "*" || tok === "" || tok.toLowerCase() === "latest") {
-        return [{ operator: ">=", semver: new SemVer("0.0.0") }];
+    if (tok === '*' || tok === '' || tok.toLowerCase() === 'latest') {
+        return [{ operator: '>=', semver: new SemVer('0.0.0') }];
     }
-    if (tok.startsWith("^")) return caretRange(tok.slice(1));
-    if (tok.startsWith("~")) return tildeRange(tok.slice(1).replace(/^>/, ""));
+    if (tok.startsWith('^')) return caretRange(tok.slice(1));
+    if (tok.startsWith('~')) return tildeRange(tok.slice(1).replace(/^>/, ''));
     const opMatch = tok.match(/^(<=|>=|<|>|=)\s*(.+)$/);
     if (opMatch) {
-        const op = opMatch[1] as Comparator["operator"];
+        const op = opMatch[1] as Comparator['operator'];
         return primitiveRange(op, opMatch[2]);
     }
     return partialRange(tok);
@@ -250,27 +248,27 @@ interface PartialVersion {
 }
 
 function parsePartial(s: string): PartialVersion {
-    const trimmed = s.trim().replace(/^v/, "");
-    if (trimmed === "" || trimmed === "*") {
-        return { major: null, minor: null, patch: null, pre: "", build: "" };
+    const trimmed = s.trim().replace(/^v/, '');
+    if (trimmed === '' || trimmed === '*') {
+        return { major: null, minor: null, patch: null, pre: '', build: '' };
     }
-    let pre = "";
-    let build = "";
+    let pre = '';
+    let build = '';
     let core = trimmed;
-    const plus = core.indexOf("+");
+    const plus = core.indexOf('+');
     if (plus >= 0) {
         build = core.slice(plus + 1);
         core = core.slice(0, plus);
     }
-    const dash = core.indexOf("-");
+    const dash = core.indexOf('-');
     if (dash >= 0) {
         pre = core.slice(dash + 1);
         core = core.slice(0, dash);
     }
-    const parts = core.split(".");
+    const parts = core.split('.');
     const xr = (part: string | undefined): number | null => {
-        if (part === undefined || part === "") return null;
-        if (part === "x" || part === "X" || part === "*") return null;
+        if (part === undefined || part === '') return null;
+        if (part === 'x' || part === 'X' || part === '*') return null;
         if (!/^\d+$/.test(part)) {
             throw new TypeError(`Invalid partial version: ${s}`);
         }
@@ -286,33 +284,31 @@ function parsePartial(s: string): PartialVersion {
 }
 
 function partialToVersion(p: PartialVersion): string {
-    return `${p.major ?? 0}.${p.minor ?? 0}.${p.patch ?? 0}${p.pre ? `-${p.pre}` : ""}${
-        p.build ? `+${p.build}` : ""
-    }`;
+    return `${p.major ?? 0}.${p.minor ?? 0}.${p.patch ?? 0}${p.pre ? `-${p.pre}` : ''}${p.build ? `+${p.build}` : ''}`;
 }
 
 function partialRange(tok: string): Comparator[] {
     const p = parsePartial(tok);
-    if (p.major === null) return [{ operator: ">=", semver: new SemVer("0.0.0") }];
+    if (p.major === null) return [{ operator: '>=', semver: new SemVer('0.0.0') }];
     if (p.minor === null) {
         return [
-            { operator: ">=", semver: new SemVer(`${p.major}.0.0`) },
-            { operator: "<", semver: new SemVer(`${p.major + 1}.0.0`) },
+            { operator: '>=', semver: new SemVer(`${p.major}.0.0`) },
+            { operator: '<', semver: new SemVer(`${p.major + 1}.0.0`) },
         ];
     }
     if (p.patch === null) {
         return [
-            { operator: ">=", semver: new SemVer(`${p.major}.${p.minor}.0`) },
-            { operator: "<", semver: new SemVer(`${p.major}.${p.minor + 1}.0`) },
+            { operator: '>=', semver: new SemVer(`${p.major}.${p.minor}.0`) },
+            { operator: '<', semver: new SemVer(`${p.major}.${p.minor + 1}.0`) },
         ];
     }
-    return [{ operator: "=", semver: new SemVer(partialToVersion(p)) }];
+    return [{ operator: '=', semver: new SemVer(partialToVersion(p)) }];
 }
 
 function caretRange(tok: string): Comparator[] {
     const p = parsePartial(tok);
-    if (p.major === null) return [{ operator: ">=", semver: new SemVer("0.0.0") }];
-    const lower = `${p.major}.${p.minor ?? 0}.${p.patch ?? 0}${p.pre ? `-${p.pre}` : ""}`;
+    if (p.major === null) return [{ operator: '>=', semver: new SemVer('0.0.0') }];
+    const lower = `${p.major}.${p.minor ?? 0}.${p.patch ?? 0}${p.pre ? `-${p.pre}` : ''}`;
     let upper: string;
     if (p.major > 0 || p.minor === null) {
         upper = `${p.major + 1}.0.0`;
@@ -322,43 +318,40 @@ function caretRange(tok: string): Comparator[] {
         upper = `0.0.${p.patch + 1}`;
     }
     return [
-        { operator: ">=", semver: new SemVer(lower) },
-        { operator: "<", semver: new SemVer(upper) },
+        { operator: '>=', semver: new SemVer(lower) },
+        { operator: '<', semver: new SemVer(upper) },
     ];
 }
 
 function tildeRange(tok: string): Comparator[] {
     const p = parsePartial(tok);
-    if (p.major === null) return [{ operator: ">=", semver: new SemVer("0.0.0") }];
-    const lower = `${p.major}.${p.minor ?? 0}.${p.patch ?? 0}${p.pre ? `-${p.pre}` : ""}`;
-    const upper =
-        p.minor === null
-            ? `${p.major + 1}.0.0`
-            : `${p.major}.${p.minor + 1}.0`;
+    if (p.major === null) return [{ operator: '>=', semver: new SemVer('0.0.0') }];
+    const lower = `${p.major}.${p.minor ?? 0}.${p.patch ?? 0}${p.pre ? `-${p.pre}` : ''}`;
+    const upper = p.minor === null ? `${p.major + 1}.0.0` : `${p.major}.${p.minor + 1}.0`;
     return [
-        { operator: ">=", semver: new SemVer(lower) },
-        { operator: "<", semver: new SemVer(upper) },
+        { operator: '>=', semver: new SemVer(lower) },
+        { operator: '<', semver: new SemVer(upper) },
     ];
 }
 
-function primitiveRange(op: Comparator["operator"], rhs: string): Comparator[] {
+function primitiveRange(op: Comparator['operator'], rhs: string): Comparator[] {
     const p = parsePartial(rhs);
-    if (p.major === null) return [{ operator: ">=", semver: new SemVer("0.0.0") }];
-    if (op === "=" || op === "") return partialRange(rhs);
-    if (op === ">") {
-        if (p.minor === null) return [{ operator: ">=", semver: new SemVer(`${p.major + 1}.0.0`) }];
-        if (p.patch === null) return [{ operator: ">=", semver: new SemVer(`${p.major}.${p.minor + 1}.0`) }];
-        return [{ operator: ">", semver: new SemVer(partialToVersion(p)) }];
+    if (p.major === null) return [{ operator: '>=', semver: new SemVer('0.0.0') }];
+    if (op === '=' || op === '') return partialRange(rhs);
+    if (op === '>') {
+        if (p.minor === null) return [{ operator: '>=', semver: new SemVer(`${p.major + 1}.0.0`) }];
+        if (p.patch === null) return [{ operator: '>=', semver: new SemVer(`${p.major}.${p.minor + 1}.0`) }];
+        return [{ operator: '>', semver: new SemVer(partialToVersion(p)) }];
     }
-    if (op === "<") {
-        if (p.minor === null) return [{ operator: "<", semver: new SemVer(`${p.major}.0.0`) }];
-        if (p.patch === null) return [{ operator: "<", semver: new SemVer(`${p.major}.${p.minor}.0`) }];
-        return [{ operator: "<", semver: new SemVer(partialToVersion(p)) }];
+    if (op === '<') {
+        if (p.minor === null) return [{ operator: '<', semver: new SemVer(`${p.major}.0.0`) }];
+        if (p.patch === null) return [{ operator: '<', semver: new SemVer(`${p.major}.${p.minor}.0`) }];
+        return [{ operator: '<', semver: new SemVer(partialToVersion(p)) }];
     }
-    if (op === ">=") return [{ operator: ">=", semver: new SemVer(partialToVersion(p)) }];
-    if (p.minor === null) return [{ operator: "<", semver: new SemVer(`${p.major + 1}.0.0`) }];
-    if (p.patch === null) return [{ operator: "<", semver: new SemVer(`${p.major}.${p.minor + 1}.0`) }];
-    return [{ operator: "<=", semver: new SemVer(partialToVersion(p)) }];
+    if (op === '>=') return [{ operator: '>=', semver: new SemVer(partialToVersion(p)) }];
+    if (p.minor === null) return [{ operator: '<', semver: new SemVer(`${p.major + 1}.0.0`) }];
+    if (p.patch === null) return [{ operator: '<', semver: new SemVer(`${p.major}.${p.minor + 1}.0`) }];
+    return [{ operator: '<=', semver: new SemVer(partialToVersion(p)) }];
 }
 
 function hyphenRange(left: string, right: string): Comparator[] {
@@ -366,26 +359,22 @@ function hyphenRange(left: string, right: string): Comparator[] {
     const b = parsePartial(right);
     const lower: Comparator =
         a.major === null
-            ? { operator: ">=", semver: new SemVer("0.0.0") }
+            ? { operator: '>=', semver: new SemVer('0.0.0') }
             : {
-                operator: ">=",
-                semver: new SemVer(
-                    `${a.major}.${a.minor ?? 0}.${a.patch ?? 0}${a.pre ? `-${a.pre}` : ""}`,
-                ),
-            };
+                  operator: '>=',
+                  semver: new SemVer(`${a.major}.${a.minor ?? 0}.${a.patch ?? 0}${a.pre ? `-${a.pre}` : ''}`),
+              };
     let upper: Comparator;
     if (b.major === null) {
-        upper = { operator: ">=", semver: new SemVer("0.0.0") };
+        upper = { operator: '>=', semver: new SemVer('0.0.0') };
     } else if (b.minor === null) {
-        upper = { operator: "<", semver: new SemVer(`${b.major + 1}.0.0`) };
+        upper = { operator: '<', semver: new SemVer(`${b.major + 1}.0.0`) };
     } else if (b.patch === null) {
-        upper = { operator: "<", semver: new SemVer(`${b.major}.${b.minor + 1}.0`) };
+        upper = { operator: '<', semver: new SemVer(`${b.major}.${b.minor + 1}.0`) };
     } else {
         upper = {
-            operator: "<=",
-            semver: new SemVer(
-                `${b.major}.${b.minor}.${b.patch}${b.pre ? `-${b.pre}` : ""}`,
-            ),
+            operator: '<=',
+            semver: new SemVer(`${b.major}.${b.minor}.${b.patch}${b.pre ? `-${b.pre}` : ''}`),
         };
     }
     return [lower, upper];

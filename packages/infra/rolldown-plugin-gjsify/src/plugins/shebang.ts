@@ -65,11 +65,14 @@ export function shebangPlugin(options: ShebangPluginOptions = {}): Plugin | null
  * `/usr/bin/gjs-console`).
  */
 export function expandEnvTemplate(input: string, env: Record<string, string | undefined> = process.env): string {
-    return input.replace(/\$\{env:([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g, (_match, name: string, fallback?: string) => {
-        const value = env[name];
-        if (value !== undefined && value !== '') return value;
-        return fallback ?? '';
-    });
+    return input.replace(
+        /\$\{env:([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g,
+        (_match, name: string, fallback?: string) => {
+            const value = env[name];
+            if (value !== undefined && value !== '') return value;
+            return fallback ?? '';
+        },
+    );
 }
 
 /**
@@ -89,7 +92,10 @@ export function expandEnvTemplate(input: string, env: Record<string, string | un
  * automatically so users can write `"shebang": "/usr/bin/gjs -m"` instead
  * of `"#!/usr/bin/gjs -m"`.
  */
-export function resolveShebangLine(value: boolean | string | undefined, defaultLine: string = GJS_SHEBANG): string | null {
+export function resolveShebangLine(
+    value: boolean | string | undefined,
+    defaultLine: string = GJS_SHEBANG,
+): string | null {
     if (value === undefined || value === false) return null;
     if (value === true) return defaultLine;
     const expanded = expandEnvTemplate(value);

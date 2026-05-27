@@ -9,12 +9,7 @@ const byteArray = imports.byteArray;
  * Example:
  *   const stream = await gioAsync<Gio.InputStream>(session, 'send_async', 'send_finish', msg, priority, null);
  */
-export function gioAsync<T>(
-    obj: any,
-    asyncMethod: string,
-    finishMethod: string,
-    ...args: any[]
-): Promise<T> {
+export function gioAsync<T>(obj: any, asyncMethod: string, finishMethod: string, ...args: any[]): Promise<T> {
     return new Promise<T>((resolve, reject) => {
         obj[asyncMethod](...args, (_self: any, asyncRes: Gio.AsyncResult) => {
             try {
@@ -40,7 +35,7 @@ export async function readBytesAsync(
     inputStream: Gio.InputStream,
     count = 4096,
     ioPriority = GLib.PRIORITY_DEFAULT,
-    cancellable: Gio.Cancellable | null = null
+    cancellable: Gio.Cancellable | null = null,
 ): Promise<Uint8Array | null> {
     return new Promise<Uint8Array | null>((resolve, reject) => {
         inputStream.read_bytes_async(count, ioPriority, cancellable, (_self, asyncRes) => {
@@ -59,11 +54,13 @@ export async function readBytesAsync(
                 // already been delivered to the consumer, so treat these as
                 // EOF instead of propagating.
                 const e = error as { matches?: (a: unknown, b: unknown) => boolean };
-                if (typeof e.matches === 'function' && (
-                    e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.PARTIAL_INPUT) ||
-                    e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CONNECTION_CLOSED) ||
-                    e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.BROKEN_PIPE) ||
-                    e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CLOSED))) {
+                if (
+                    typeof e.matches === 'function' &&
+                    (e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.PARTIAL_INPUT) ||
+                        e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CONNECTION_CLOSED) ||
+                        e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.BROKEN_PIPE) ||
+                        e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CLOSED))
+                ) {
                     return resolve(null);
                 }
                 reject(error);
@@ -79,7 +76,7 @@ export async function* inputStreamAsyncIterator(
     inputStream: Gio.InputStream,
     count = 4096,
     ioPriority = GLib.PRIORITY_DEFAULT,
-    cancellable: Gio.Cancellable | null = null
+    cancellable: Gio.Cancellable | null = null,
 ): AsyncGenerator<Uint8Array> {
     let chunk: Uint8Array | null;
     while ((chunk = await readBytesAsync(inputStream, count, ioPriority, cancellable)) !== null) {

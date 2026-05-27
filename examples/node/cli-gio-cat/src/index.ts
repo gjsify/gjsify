@@ -12,9 +12,7 @@ async function cat(filename: string) {
     print(decoded);
 }
 
-
-if (ARGV.length !== 1)
-    printerr('Usage: gio-cat.js filename');
+if (ARGV.length !== 1) printerr('Usage: gio-cat.js filename');
 else {
     await cat(ARGV[0]);
 }

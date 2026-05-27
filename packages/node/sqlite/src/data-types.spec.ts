@@ -11,11 +11,15 @@ let cnt = 0;
 const testDir = join(tmpdir(), 'gjsify-sqlite-types-test-' + Date.now());
 
 function setup() {
-    try { mkdirSync(testDir, { recursive: true }); } catch {}
+    try {
+        mkdirSync(testDir, { recursive: true });
+    } catch {}
 }
 
 function cleanup() {
-    try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+    try {
+        rmSync(testDir, { recursive: true, force: true });
+    } catch {}
 }
 
 function nextDb(): string {
@@ -70,15 +74,7 @@ export default async () => {
             const db = new DatabaseSync(nextDb());
             db.exec('CREATE TABLE types(key INTEGER PRIMARY KEY, val INTEGER) STRICT;');
 
-            const unsupported = [
-                undefined,
-                () => {},
-                Symbol(),
-                /foo/,
-                Promise.resolve(),
-                new Map(),
-                new Set(),
-            ];
+            const unsupported = [undefined, () => {}, Symbol(), /foo/, Promise.resolve(), new Map(), new Set()];
 
             for (const val of unsupported) {
                 expect(() => {

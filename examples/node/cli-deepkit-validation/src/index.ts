@@ -1,20 +1,5 @@
-import {
-    validate,
-    is,
-    assert,
-    serialize,
-    deserialize,
-    ValidatorError,
-} from '@deepkit/type';
-import type { Type ,
-    MinLength,
-    MaxLength,
-    Positive,
-    Maximum,
-    Minimum,
-    Pattern,
-    Email,
-    Validate} from '@deepkit/type';
+import { validate, is, assert, serialize, deserialize, ValidatorError } from '@deepkit/type';
+import type { Type, MinLength, MaxLength, Positive, Maximum, Minimum, Pattern, Email, Validate } from '@deepkit/type';
 
 const printGjs = (globalThis as unknown as { print?: (msg: string) => void }).print;
 const log: (...args: unknown[]) => void = printGjs
@@ -27,11 +12,11 @@ const log: (...args: unknown[]) => void = printGjs
 
 log('=== 1. Basic Type Validation ===');
 
-log('is<string>("hello"):', is<string>('hello'));   // true
-log('is<string>(42):     ', is<string>(42));        // false
-log('is<number>(42):     ', is<number>(42));        // true
-log('is<boolean>(true):  ', is<boolean>(true));     // true
-log('is<boolean>("yes"): ', is<boolean>('yes'));     // false
+log('is<string>("hello"):', is<string>('hello')); // true
+log('is<string>(42):     ', is<string>(42)); // false
+log('is<number>(42):     ', is<number>(42)); // true
+log('is<boolean>(true):  ', is<boolean>(true)); // true
+log('is<boolean>("yes"): ', is<boolean>('yes')); // false
 
 // ---------------------------------------------------------------------------
 // 2. Interface validation — complex objects validated at runtime
@@ -49,8 +34,8 @@ interface Product {
 const validProduct = { id: 1, name: 'Widget', price: 9.99, inStock: true };
 const invalidProduct = { id: 'abc', name: 42, price: -5 };
 
-log('valid product:  ', is<Product>(validProduct));    // true
-log('invalid product:', is<Product>(invalidProduct));  // false
+log('valid product:  ', is<Product>(validProduct)); // true
+log('invalid product:', is<Product>(invalidProduct)); // false
 
 const errors = validate<Product>(invalidProduct);
 for (const error of errors) {
@@ -68,19 +53,19 @@ type Age = number & Positive & Maximum<150>;
 type Price = number & Minimum<0> & Maximum<99999>;
 type EmailAddress = string & Email;
 
-log('Username "Jo":       ', is<Username>('Jo'));           // false (too short)
-log('Username "John":     ', is<Username>('John'));         // true
+log('Username "Jo":       ', is<Username>('Jo')); // false (too short)
+log('Username "John":     ', is<Username>('John')); // true
 log('Username (21 chars): ', is<Username>('a'.repeat(21))); // false (too long)
 
-log('Age -5:   ', is<Age>(-5));     // false
-log('Age 25:   ', is<Age>(25));     // true
-log('Age 200:  ', is<Age>(200));    // false
+log('Age -5:   ', is<Age>(-5)); // false
+log('Age 25:   ', is<Age>(25)); // true
+log('Age 200:  ', is<Age>(200)); // false
 
 log('Price 9.99:', is<Price>(9.99)); // true
-log('Price -1:  ', is<Price>(-1));   // false
+log('Price -1:  ', is<Price>(-1)); // false
 
 log('Email "test@example.com":', is<EmailAddress>('test@example.com')); // true
-log('Email "not-an-email":    ', is<EmailAddress>('not-an-email'));      // false
+log('Email "not-an-email":    ', is<EmailAddress>('not-an-email')); // false
 
 // ---------------------------------------------------------------------------
 // 4. Complex model validation — combining constraints in interfaces
@@ -103,13 +88,13 @@ const validUser: unknown = {
 };
 
 const invalidUser: unknown = {
-    username: 'ab',              // too short
-    email: 'not-valid',          // no email
-    age: -3,                     // not positive
-    bio: 'x'.repeat(501),       // too long
+    username: 'ab', // too short
+    email: 'not-valid', // no email
+    age: -3, // not positive
+    bio: 'x'.repeat(501), // too long
 };
 
-log('Valid user:', is<UserProfile>(validUser));     // true
+log('Valid user:', is<UserProfile>(validUser)); // true
 log('Invalid user:', is<UserProfile>(invalidUser)); // false
 
 const userErrors = validate<UserProfile>(invalidUser);
@@ -139,12 +124,12 @@ function startsWith(value: string, type: Type, prefix: string) {
 type EvenNumber = number & Validate<typeof isEven>;
 type ProjectCode = string & Validate<typeof startsWith, 'PRJ-'> & MinLength<5>;
 
-log('EvenNumber 4: ', is<EvenNumber>(4));   // true
-log('EvenNumber 7: ', is<EvenNumber>(7));   // false
+log('EvenNumber 4: ', is<EvenNumber>(4)); // true
+log('EvenNumber 7: ', is<EvenNumber>(7)); // false
 
 log('ProjectCode "PRJ-001":', is<ProjectCode>('PRJ-001')); // true
 log('ProjectCode "ABC-001":', is<ProjectCode>('ABC-001')); // false
-log('ProjectCode "PRJ-":   ', is<ProjectCode>('PRJ-'));     // false (too short? depends on minlength)
+log('ProjectCode "PRJ-":   ', is<ProjectCode>('PRJ-')); // false (too short? depends on minlength)
 
 const codeErrors = validate<ProjectCode>('ABC');
 for (const err of codeErrors) {
@@ -233,16 +218,16 @@ log('\n=== 8. Union & Literal Types ===');
 type Status = 'active' | 'inactive' | 'banned';
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
-log('Status "active": ', is<Status>('active'));   // true
-log('Status "unknown":', is<Status>('unknown'));   // false
+log('Status "active": ', is<Status>('active')); // true
+log('Status "unknown":', is<Status>('unknown')); // false
 
-log('HttpMethod "GET":   ', is<HttpMethod>('GET'));     // true
-log('HttpMethod "PATCH": ', is<HttpMethod>('PATCH'));   // false
+log('HttpMethod "GET":   ', is<HttpMethod>('GET')); // true
+log('HttpMethod "PATCH": ', is<HttpMethod>('PATCH')); // false
 
 type Result = { ok: true; value: string } | { ok: false; error: string };
 
-log('Result {ok:true, value:"hi"}:', is<Result>({ ok: true, value: 'hi' }));    // true
-log('Result {ok:false, error:"x"}:', is<Result>({ ok: false, error: 'x' }));   // true
-log('Result {ok:true, error:"x"}: ', is<Result>({ ok: true, error: 'x' }));     // false
+log('Result {ok:true, value:"hi"}:', is<Result>({ ok: true, value: 'hi' })); // true
+log('Result {ok:false, error:"x"}:', is<Result>({ ok: false, error: 'x' })); // true
+log('Result {ok:true, error:"x"}: ', is<Result>({ ok: true, error: 'x' })); // false
 
 log('\nDone! All validation examples completed.');

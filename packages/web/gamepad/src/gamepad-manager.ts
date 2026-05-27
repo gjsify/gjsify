@@ -156,7 +156,9 @@ export class GamepadManager {
 
         // Dispatch gamepaddisconnected event
         if (snapshot) {
-            globalThis.dispatchEvent?.(new GamepadEvent('gamepaddisconnected', { gamepad: snapshot }) as unknown as Event);
+            globalThis.dispatchEvent?.(
+                new GamepadEvent('gamepaddisconnected', { gamepad: snapshot }) as unknown as Event,
+            );
         }
     }
 
@@ -240,11 +242,13 @@ export class GamepadManager {
     private _createSnapshot(state: DeviceState): Gamepad {
         const buttons: GamepadButton[] = [];
         for (let i = 0; i < W3C_BUTTON_COUNT; i++) {
-            buttons.push(new GamepadButton(
-                state.buttonsPressed[i],
-                state.buttonsPressed[i] || state.buttons[i] > 0,
-                state.buttons[i],
-            ));
+            buttons.push(
+                new GamepadButton(
+                    state.buttonsPressed[i],
+                    state.buttonsPressed[i] || state.buttons[i] > 0,
+                    state.buttons[i],
+                ),
+            );
         }
 
         return new Gamepad({

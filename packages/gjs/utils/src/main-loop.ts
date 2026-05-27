@@ -21,38 +21,38 @@ let _loop: GLib.MainLoop | null = null;
  */
 /** GJS runtime bootstrap shape we read here. Pre-dates `@girs/*` resolution. */
 interface _GjsImports {
-  imports?: { gi?: { GLib?: typeof GLib } };
+    imports?: { gi?: { GLib?: typeof GLib } };
 }
 
 export function ensureMainLoop(): GLib.MainLoop | undefined {
-  const gjsImports = (globalThis as unknown as _GjsImports).imports;
-  if (!gjsImports) return undefined; // Not GJS
-  if (_started) return _loop!;
+    const gjsImports = (globalThis as unknown as _GjsImports).imports;
+    if (!gjsImports) return undefined; // Not GJS
+    if (_started) return _loop!;
 
-  const GLibModule = gjsImports.gi?.GLib;
-  if (!GLibModule) return undefined;
-  _loop = new GLibModule.MainLoop(null, false);
-  _started = true;
+    const GLibModule = gjsImports.gi?.GLib;
+    if (!GLibModule) return undefined;
+    _loop = new GLibModule.MainLoop(null, false);
+    _started = true;
 
-  // Only call runAsync() if no mainloop is currently running on the default
-  // context. If one is already running (e.g., test runner's mainloop.run()
-  // or Gtk.Application.runAsync()), async I/O already works through the
-  // shared default context — calling runAsync() would register a
-  // setMainLoopHook whose loop.run() blocks forever after tests quit it
-  // (g_main_loop_run resets the quit flag on entry).
-  if (GLibModule.main_depth() === 0) {
-    try {
-      // GIR types `runAsync(): Promise<void>` since GJS 1.86. We discard the
-      // promise — the loop runs on the default GLib context for as long as
-      // `_started` is true; cancellation is via `quitMainLoop()`.
-      void _loop.runAsync();
-    } catch {
-      // setMainLoopHook throws if already called (e.g., Gtk.Application.runAsync()).
-      // In that case, a main loop hook is already registered — no action needed.
+    // Only call runAsync() if no mainloop is currently running on the default
+    // context. If one is already running (e.g., test runner's mainloop.run()
+    // or Gtk.Application.runAsync()), async I/O already works through the
+    // shared default context — calling runAsync() would register a
+    // setMainLoopHook whose loop.run() blocks forever after tests quit it
+    // (g_main_loop_run resets the quit flag on entry).
+    if (GLibModule.main_depth() === 0) {
+        try {
+            // GIR types `runAsync(): Promise<void>` since GJS 1.86. We discard the
+            // promise — the loop runs on the default GLib context for as long as
+            // `_started` is true; cancellation is via `quitMainLoop()`.
+            void _loop.runAsync();
+        } catch {
+            // setMainLoopHook throws if already called (e.g., Gtk.Application.runAsync()).
+            // In that case, a main loop hook is already registered — no action needed.
+        }
     }
-  }
 
-  return _loop;
+    return _loop;
 }
 
 /**
@@ -63,9 +63,9 @@ export function ensureMainLoop(): GLib.MainLoop | undefined {
  * This is used by `@gjsify/unit` to prevent the loop from blocking after tests.
  */
 export function quitMainLoop(): void {
-  if (_loop) {
-    _loop.quit();
-    _started = false;
-    _loop = null;
-  }
+    if (_loop) {
+        _loop.quit();
+        _started = false;
+        _loop = null;
+    }
 }

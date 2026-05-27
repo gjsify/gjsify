@@ -3,13 +3,38 @@
 
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
-import { open as openP, rm as rmP } from './promises.js'
-import type { PathLike, OpenMode, Mode, ReadPosition, ReadAsyncOptions, NoParamCallback, RmOptions, RmDirOptions, MakeDirectoryOptions } from 'node:fs';
+import { open as openP, rm as rmP } from './promises.js';
+import type {
+    PathLike,
+    OpenMode,
+    Mode,
+    ReadPosition,
+    ReadAsyncOptions,
+    NoParamCallback,
+    RmOptions,
+    RmDirOptions,
+    MakeDirectoryOptions,
+} from 'node:fs';
 import { FileHandle } from './file-handle.js';
 import { Buffer } from 'node:buffer';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { createNodeError } from './errors.js';
-import { realpathSync, readdirSync, renameSync, copyFileSync, accessSync, appendFileSync, readlinkSync, truncateSync, chmodSync, chownSync, mkdirSync, rmdirSync, readFileSync, writeFileSync } from './sync.js';
+import {
+    realpathSync,
+    readdirSync,
+    renameSync,
+    copyFileSync,
+    accessSync,
+    appendFileSync,
+    readlinkSync,
+    truncateSync,
+    chmodSync,
+    chownSync,
+    mkdirSync,
+    rmdirSync,
+    readFileSync,
+    writeFileSync,
+} from './sync.js';
 import { normalizePath } from './utils.js';
 // encoding helpers available if needed in future
 
@@ -17,97 +42,157 @@ import type { OpenFlags } from './types/index.js';
 
 // --- helpers ---
 
-function parseOptsCb(optionsOrCallback: unknown, maybeCallback?: Function): { options: Record<string, unknown>; callback: Function } {
-  return typeof optionsOrCallback === 'function'
-    ? { options: {}, callback: optionsOrCallback }
-    : { options: (optionsOrCallback ?? {}) as Record<string, unknown>, callback: maybeCallback! };
+function parseOptsCb(
+    optionsOrCallback: unknown,
+    maybeCallback?: Function,
+): { options: Record<string, unknown>; callback: Function } {
+    return typeof optionsOrCallback === 'function'
+        ? { options: {}, callback: optionsOrCallback }
+        : { options: (optionsOrCallback ?? {}) as Record<string, unknown>, callback: maybeCallback! };
 }
 
-function statImpl(path: PathLike, flags: Gio.FileQueryInfoFlags, syscall: string, options: Record<string, unknown>, callback: Function): void {
-  const pathStr = normalizePath(path);
-  const file = Gio.File.new_for_path(pathStr);
-  file.query_info_async(STAT_ATTRIBUTES, flags, GLib.PRIORITY_DEFAULT, null, (_s: Gio.File, res: Gio.AsyncResult) => {
-    try {
-      const info = file.query_info_finish(res);
-      callback(null, options?.bigint ? new BigIntStats(info, pathStr) : new Stats(info, pathStr));
-    } catch (err: unknown) {
-      callback(createNodeError(err, syscall, pathStr));
-    }
-  });
+function statImpl(
+    path: PathLike,
+    flags: Gio.FileQueryInfoFlags,
+    syscall: string,
+    options: Record<string, unknown>,
+    callback: Function,
+): void {
+    const pathStr = normalizePath(path);
+    const file = Gio.File.new_for_path(pathStr);
+    file.query_info_async(STAT_ATTRIBUTES, flags, GLib.PRIORITY_DEFAULT, null, (_s: Gio.File, res: Gio.AsyncResult) => {
+        try {
+            const info = file.query_info_finish(res);
+            callback(null, options?.bigint ? new BigIntStats(info, pathStr) : new Stats(info, pathStr));
+        } catch (err: unknown) {
+            callback(createNodeError(err, syscall, pathStr));
+        }
+    });
 }
 
 // --- stat / lstat ---
 
 export function stat(path: PathLike, callback: (err: NodeJS.ErrnoException | null, stats: Stats) => void): void;
-export function stat(path: PathLike, options: { bigint?: boolean }, callback: (err: NodeJS.ErrnoException | null, stats: Stats | BigIntStats) => void): void;
-export function stat(path: PathLike, optionsOrCallback: { bigint?: boolean } | ((err: NodeJS.ErrnoException | null, stats: Stats) => void), maybeCallback?: Function): void {
-  const { options, callback } = parseOptsCb(optionsOrCallback, maybeCallback);
-  statImpl(path, Gio.FileQueryInfoFlags.NONE, 'stat', options, callback);
+export function stat(
+    path: PathLike,
+    options: { bigint?: boolean },
+    callback: (err: NodeJS.ErrnoException | null, stats: Stats | BigIntStats) => void,
+): void;
+export function stat(
+    path: PathLike,
+    optionsOrCallback: { bigint?: boolean } | ((err: NodeJS.ErrnoException | null, stats: Stats) => void),
+    maybeCallback?: Function,
+): void {
+    const { options, callback } = parseOptsCb(optionsOrCallback, maybeCallback);
+    statImpl(path, Gio.FileQueryInfoFlags.NONE, 'stat', options, callback);
 }
 
 export function lstat(path: PathLike, callback: (err: NodeJS.ErrnoException | null, stats: Stats) => void): void;
-export function lstat(path: PathLike, options: { bigint?: boolean }, callback: (err: NodeJS.ErrnoException | null, stats: Stats | BigIntStats) => void): void;
-export function lstat(path: PathLike, optionsOrCallback: { bigint?: boolean } | ((err: NodeJS.ErrnoException | null, stats: Stats) => void), maybeCallback?: Function): void {
-  const { options, callback } = parseOptsCb(optionsOrCallback, maybeCallback);
-  statImpl(path, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, 'lstat', options, callback);
+export function lstat(
+    path: PathLike,
+    options: { bigint?: boolean },
+    callback: (err: NodeJS.ErrnoException | null, stats: Stats | BigIntStats) => void,
+): void;
+export function lstat(
+    path: PathLike,
+    optionsOrCallback: { bigint?: boolean } | ((err: NodeJS.ErrnoException | null, stats: Stats) => void),
+    maybeCallback?: Function,
+): void {
+    const { options, callback } = parseOptsCb(optionsOrCallback, maybeCallback);
+    statImpl(path, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, 'lstat', options, callback);
 }
 
 // --- readdir ---
 
 export function readdir(path: PathLike, callback: (err: NodeJS.ErrnoException | null, files: string[]) => void): void;
-export function readdir(path: PathLike, options: { withFileTypes?: boolean; encoding?: string; recursive?: boolean }, callback: (err: NodeJS.ErrnoException | null, files: string[] | unknown[]) => void): void;
-export function readdir(path: PathLike, optionsOrCallback: { withFileTypes?: boolean; encoding?: string; recursive?: boolean } | ((err: NodeJS.ErrnoException | null, files: string[]) => void), maybeCallback?: Function): void {
-  const { options, callback } = parseOptsCb(optionsOrCallback, maybeCallback);
-  Promise.resolve().then(() => {
-    try {
-      callback(null, readdirSync(path, options as { withFileTypes?: boolean; encoding?: string; recursive?: boolean }));
-    } catch (err: unknown) {
-      callback(createNodeError(err, 'readdir', path));
-    }
-  });
+export function readdir(
+    path: PathLike,
+    options: { withFileTypes?: boolean; encoding?: string; recursive?: boolean },
+    callback: (err: NodeJS.ErrnoException | null, files: string[] | unknown[]) => void,
+): void;
+export function readdir(
+    path: PathLike,
+    optionsOrCallback:
+        | { withFileTypes?: boolean; encoding?: string; recursive?: boolean }
+        | ((err: NodeJS.ErrnoException | null, files: string[]) => void),
+    maybeCallback?: Function,
+): void {
+    const { options, callback } = parseOptsCb(optionsOrCallback, maybeCallback);
+    Promise.resolve().then(() => {
+        try {
+            callback(
+                null,
+                readdirSync(path, options as { withFileTypes?: boolean; encoding?: string; recursive?: boolean }),
+            );
+        } catch (err: unknown) {
+            callback(createNodeError(err, 'readdir', path));
+        }
+    });
 }
 
 // --- realpath ---
 
-export function realpath(path: PathLike, callback: (err: NodeJS.ErrnoException | null, resolvedPath: string) => void): void;
-export function realpath(path: PathLike, options: { encoding?: BufferEncoding }, callback: (err: NodeJS.ErrnoException | null, resolvedPath: string) => void): void;
-export function realpath(path: PathLike, optionsOrCallback: { encoding?: BufferEncoding } | ((err: NodeJS.ErrnoException | null, resolvedPath: string) => void), maybeCallback?: Function): void {
-  const { callback } = parseOptsCb(optionsOrCallback, maybeCallback);
-  Promise.resolve().then(() => {
-    try {
-      callback(null, realpathSync(path));
-    } catch (err: unknown) {
-      callback(err as NodeJS.ErrnoException);
-    }
-  });
+export function realpath(
+    path: PathLike,
+    callback: (err: NodeJS.ErrnoException | null, resolvedPath: string) => void,
+): void;
+export function realpath(
+    path: PathLike,
+    options: { encoding?: BufferEncoding },
+    callback: (err: NodeJS.ErrnoException | null, resolvedPath: string) => void,
+): void;
+export function realpath(
+    path: PathLike,
+    optionsOrCallback:
+        | { encoding?: BufferEncoding }
+        | ((err: NodeJS.ErrnoException | null, resolvedPath: string) => void),
+    maybeCallback?: Function,
+): void {
+    const { callback } = parseOptsCb(optionsOrCallback, maybeCallback);
+    Promise.resolve().then(() => {
+        try {
+            callback(null, realpathSync(path));
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException);
+        }
+    });
 }
 
 // --- symlink ---
 
 export function symlink(target: PathLike, path: PathLike, callback: NoParamCallback): void;
 export function symlink(target: PathLike, path: PathLike, type: string | null, callback: NoParamCallback): void;
-export function symlink(target: PathLike, path: PathLike, typeOrCallback: string | null | NoParamCallback, maybeCallback?: NoParamCallback): void {
-  const callback: NoParamCallback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback!;
-  if (typeof callback !== 'function') {
-    throw new TypeError('Callback must be a function. Received ' + typeof callback);
-  }
-  const pathStr = normalizePath(path);
-  const targetStr = normalizePath(target);
-  const file = Gio.File.new_for_path(pathStr);
-  file.make_symbolic_link_async(targetStr, GLib.PRIORITY_DEFAULT, null, (_s: Gio.File, res: Gio.AsyncResult) => {
-    try {
-      file.make_symbolic_link_finish(res);
-      callback(null);
-    } catch (err: unknown) {
-      callback(createNodeError(err, 'symlink', targetStr, pathStr));
+export function symlink(
+    target: PathLike,
+    path: PathLike,
+    typeOrCallback: string | null | NoParamCallback,
+    maybeCallback?: NoParamCallback,
+): void {
+    const callback: NoParamCallback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback!;
+    if (typeof callback !== 'function') {
+        throw new TypeError('Callback must be a function. Received ' + typeof callback);
     }
-  });
+    const pathStr = normalizePath(path);
+    const targetStr = normalizePath(target);
+    const file = Gio.File.new_for_path(pathStr);
+    file.make_symbolic_link_async(targetStr, GLib.PRIORITY_DEFAULT, null, (_s: Gio.File, res: Gio.AsyncResult) => {
+        try {
+            file.make_symbolic_link_finish(res);
+            callback(null);
+        } catch (err: unknown) {
+            callback(createNodeError(err, 'symlink', targetStr, pathStr));
+        }
+    });
 }
 
 type OpenCallback = (err: NodeJS.ErrnoException | null, fd: number) => void;
 
 type WriteStrCallback = (err: NodeJS.ErrnoException | null, written: number, str: string) => void;
-type WriteBufCallback = <TBuffer extends NodeJS.ArrayBufferView> (err: NodeJS.ErrnoException | null, written: number, buffer: TBuffer) => void;
+type WriteBufCallback = <TBuffer extends NodeJS.ArrayBufferView>(
+    err: NodeJS.ErrnoException | null,
+    written: number,
+    buffer: TBuffer,
+) => void;
 
 type ReadCallback = (err: NodeJS.ErrnoException | null, bytesRead: number, buffer: NodeJS.ArrayBufferView) => void;
 
@@ -128,7 +213,12 @@ type ReadCallback = (err: NodeJS.ErrnoException | null, bytesRead: number, buffe
  * @param [flags='r'] See `support of file system `flags``.
  * @param [mode=0o666]
  */
-export function open(path: PathLike, flags: OpenMode | undefined, mode: Mode | undefined | null, callback: OpenCallback): void;
+export function open(
+    path: PathLike,
+    flags: OpenMode | undefined,
+    mode: Mode | undefined | null,
+    callback: OpenCallback,
+): void;
 /**
  * Asynchronous open(2) - open and possibly create a file. If the file is created, its mode will be `0o666`.
  * @param path A path to a file. If a URL is provided, it must use the `file:` protocol.
@@ -144,32 +234,32 @@ export function open(path: PathLike, callback: OpenCallback): void;
 export function open(path: PathLike, ...args: (OpenMode | Mode | OpenCallback | undefined | null)[]): void {
     let flags: OpenMode | undefined;
     let mode: Mode | undefined | null;
-    let callback: OpenCallback
+    let callback: OpenCallback;
 
     switch (args.length) {
         case 1:
-            callback = args[0] as OpenCallback
+            callback = args[0] as OpenCallback;
             break;
         case 2:
-            flags = args[0] as OpenMode | undefined
-            callback = args[1] as OpenCallback
+            flags = args[0] as OpenMode | undefined;
+            callback = args[1] as OpenCallback;
             break;
         case 3:
-            flags = args[0] as OpenMode | undefined
-            mode = args[1] as Mode | undefined | null
-            callback = args[2] as OpenCallback
+            flags = args[0] as OpenMode | undefined;
+            mode = args[1] as Mode | undefined | null;
+            callback = args[2] as OpenCallback;
             break;
         default:
             break;
     }
 
     openP(path, flags as OpenFlags | number | undefined, mode)
-    .then((fileHandle) => {
-        callback(null, fileHandle.fd);
-    })
-    .catch((err) => {
-        callback(err, -1);
-    })
+        .then((fileHandle) => {
+            callback(null, fileHandle.fd);
+        })
+        .catch((err) => {
+            callback(err, -1);
+        });
 }
 
 /**
@@ -202,7 +292,7 @@ export function write<TBuffer extends NodeJS.ArrayBufferView>(
     offset: number | undefined | null,
     length: number | undefined | null,
     position: number | undefined | null,
-    callback: WriteBufCallback
+    callback: WriteBufCallback,
 ): void;
 /**
  * Asynchronously writes `buffer` to the file referenced by the supplied file descriptor.
@@ -215,7 +305,7 @@ export function write<TBuffer extends NodeJS.ArrayBufferView>(
     buffer: TBuffer,
     offset: number | undefined | null,
     length: number | undefined | null,
-    callback: WriteBufCallback
+    callback: WriteBufCallback,
 ): void;
 /**
  * Asynchronously writes `buffer` to the file referenced by the supplied file descriptor.
@@ -226,13 +316,17 @@ export function write<TBuffer extends NodeJS.ArrayBufferView>(
     fd: number,
     buffer: TBuffer,
     offset: number | undefined | null,
-    callback: WriteBufCallback
+    callback: WriteBufCallback,
 ): void;
 /**
  * Asynchronously writes `buffer` to the file referenced by the supplied file descriptor.
  * @param fd A file descriptor.
  */
-export function write<TBuffer extends NodeJS.ArrayBufferView>(fd: number, buffer: TBuffer, callback: WriteBufCallback): void;
+export function write<TBuffer extends NodeJS.ArrayBufferView>(
+    fd: number,
+    buffer: TBuffer,
+    callback: WriteBufCallback,
+): void;
 /**
  * Asynchronously writes `string` to the file referenced by the supplied file descriptor.
  * @param fd A file descriptor.
@@ -245,7 +339,7 @@ export function write(
     string: string,
     position: number | undefined | null,
     encoding: BufferEncoding | undefined | null,
-    callback: WriteStrCallback
+    callback: WriteStrCallback,
 ): void;
 /**
  * Asynchronously writes `string` to the file referenced by the supplied file descriptor.
@@ -253,7 +347,12 @@ export function write(
  * @param string A string to write.
  * @param position The offset from the beginning of the file where this data should be written. If not supplied, defaults to the current position.
  */
-export function write(fd: number, string: string, position: number | undefined | null, callback: WriteStrCallback): void;
+export function write(
+    fd: number,
+    string: string,
+    position: number | undefined | null,
+    callback: WriteStrCallback,
+): void;
 /**
  * Asynchronously writes `string` to the file referenced by the supplied file descriptor.
  * @param fd A file descriptor.
@@ -261,8 +360,11 @@ export function write(fd: number, string: string, position: number | undefined |
  */
 export function write(fd: number, string: string, callback: WriteStrCallback): void;
 
-export function write<TBuffer extends NodeJS.ArrayBufferView>(fd: number, data: string | TBuffer, ...args: (number | string | BufferEncoding | WriteStrCallback | WriteBufCallback | undefined | null)[]): void {
-
+export function write<TBuffer extends NodeJS.ArrayBufferView>(
+    fd: number,
+    data: string | TBuffer,
+    ...args: (number | string | BufferEncoding | WriteStrCallback | WriteBufCallback | undefined | null)[]
+): void {
     const fileHandle = FileHandle.getInstance(fd);
 
     if (typeof data === 'string') {
@@ -270,29 +372,31 @@ export function write<TBuffer extends NodeJS.ArrayBufferView>(fd: number, data: 
         const position = args[0] as number | undefined | null;
         const encoding = args[1] as BufferEncoding | undefined | null;
 
-        fileHandle.write(data, position, encoding)
-        .then((res) => {
-            callback(null, res.bytesWritten, res.buffer);
-        })
-        .catch((err) => {
-            callback(err, 0, '');
-        });
+        fileHandle
+            .write(data, position, encoding)
+            .then((res) => {
+                callback(null, res.bytesWritten, res.buffer);
+            })
+            .catch((err) => {
+                callback(err, 0, '');
+            });
 
         return;
     }
 
-    const callback = args[args.length -1] as WriteBufCallback;
+    const callback = args[args.length - 1] as WriteBufCallback;
     const offset = args[0] as number | undefined;
     const length = args[1] as number | undefined;
     const position = args[2] as number | undefined;
 
-    fileHandle.write(data, offset, length, position)
-    .then((res) => {
-        callback(null, res.bytesWritten, res.buffer);
-    })
-    .catch((err) => {
-        callback(err, 0, Buffer.from([]));
-    });
+    fileHandle
+        .write(data, offset, length, position)
+        .then((res) => {
+            callback(null, res.bytesWritten, res.buffer);
+        })
+        .catch((err) => {
+            callback(err, 0, Buffer.from([]));
+        });
 }
 
 /**
@@ -318,7 +422,7 @@ export function read<TBuffer extends NodeJS.ArrayBufferView>(
     offset: number,
     length: number,
     position: ReadPosition | null,
-    callback: (err: NodeJS.ErrnoException | null, bytesRead: number, buffer: TBuffer) => void
+    callback: (err: NodeJS.ErrnoException | null, bytesRead: number, buffer: TBuffer) => void,
 ): void;
 /**
  * Similar to the above `fs.read` function, this version takes an optional `options` object.
@@ -332,7 +436,7 @@ export function read<TBuffer extends NodeJS.ArrayBufferView>(
 export function read<TBuffer extends NodeJS.ArrayBufferView>(
     fd: number,
     options: ReadAsyncOptions<TBuffer>,
-    callback: (err: NodeJS.ErrnoException | null, bytesRead: number, buffer: TBuffer) => void
+    callback: (err: NodeJS.ErrnoException | null, bytesRead: number, buffer: TBuffer) => void,
 ): void;
 export function read(fd: number, callback: ReadCallback): void;
 
@@ -359,7 +463,7 @@ export function read<TBuffer extends NodeJS.ArrayBufferView>(
     offset: number,
     length: number,
     position: ReadPosition | null,
-    callback: (err: NodeJS.ErrnoException | null, bytesRead: number, buffer: TBuffer) => void
+    callback: (err: NodeJS.ErrnoException | null, bytesRead: number, buffer: TBuffer) => void,
 ): void;
 /**
  * Similar to the above `fs.read` function, this version takes an optional `options` object.
@@ -373,15 +477,14 @@ export function read<TBuffer extends NodeJS.ArrayBufferView>(
 export function read<TBuffer extends NodeJS.ArrayBufferView>(
     fd: number,
     options: ReadAsyncOptions<TBuffer>,
-    callback: (err: NodeJS.ErrnoException | null, bytesRead: number, buffer: TBuffer) => void
+    callback: (err: NodeJS.ErrnoException | null, bytesRead: number, buffer: TBuffer) => void,
 ): void;
 export function read(fd: number, callback: ReadCallback): void;
 
 export function read(fd: number, ...args: unknown[]): void {
-
     const fileHandle = FileHandle.getInstance(fd);
 
-    const callback: ReadCallback = args[args.length -1] as ReadCallback;
+    const callback: ReadCallback = args[args.length - 1] as ReadCallback;
 
     let buffer: NodeJS.ArrayBufferView | undefined;
     let offset: number | null | undefined;
@@ -403,13 +506,14 @@ export function read(fd: number, ...args: unknown[]): void {
         position = args[3] as ReadPosition | null | undefined;
     }
 
-    fileHandle.read(buffer, offset, length, position)
-    .then((res) => {
-        callback(null, res.bytesRead, res.buffer);
-    })
-    .catch((err) => {
-        callback(err, 0, Buffer.from([]));
-    });
+    fileHandle
+        .read(buffer, offset, length, position)
+        .then((res) => {
+            callback(null, res.bytesRead, res.buffer);
+        })
+        .catch((err) => {
+            callback(err, 0, Buffer.from([]));
+        });
 }
 
 /**
@@ -423,11 +527,12 @@ export function read(fd: number, ...args: unknown[]): void {
  * @since v0.0.2
  */
 export function close(fd: number, callback?: NoParamCallback): void {
-    FileHandle.getInstance(fd).close()
-    .then(() => {
-        callback(null);
-    })
-    .catch((err) => callback(err))
+    FileHandle.getInstance(fd)
+        .close()
+        .then(() => {
+            callback(null);
+        })
+        .catch((err) => callback(err));
 }
 
 /**
@@ -439,51 +544,55 @@ export function rm(path: PathLike, callback: NoParamCallback): void;
 export function rm(path: PathLike, options: RmOptions, callback: NoParamCallback): void;
 
 export function rm(path: PathLike, ...args: (RmOptions | NoParamCallback)[]): void {
-
     let options: RmOptions = {};
-    let callback: NoParamCallback = args[args.length -1] as NoParamCallback;
+    let callback: NoParamCallback = args[args.length - 1] as NoParamCallback;
 
     if (args.length >= 2) {
         options = args[0] as RmOptions;
     }
 
     rmP(path, options)
-    .then(() => {
-        callback(null);
-    })
-    .catch((err) => {
-        callback(err);
-    });
+        .then(() => {
+            callback(null);
+        })
+        .catch((err) => {
+            callback(err);
+        });
 }
 
 // --- rename ---
 
 export function rename(oldPath: PathLike, newPath: PathLike, callback: NoParamCallback): void {
-  Promise.resolve().then(() => {
-    try {
-      renameSync(oldPath, newPath);
-      callback(null);
-    } catch (err: unknown) {
-      callback(err as NodeJS.ErrnoException);
-    }
-  });
+    Promise.resolve().then(() => {
+        try {
+            renameSync(oldPath, newPath);
+            callback(null);
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException);
+        }
+    });
 }
 
 // --- copyFile ---
 
 export function copyFile(src: PathLike, dest: PathLike, callback: NoParamCallback): void;
 export function copyFile(src: PathLike, dest: PathLike, mode: number, callback: NoParamCallback): void;
-export function copyFile(src: PathLike, dest: PathLike, modeOrCb: number | NoParamCallback, maybeCb?: NoParamCallback): void {
-  const mode = typeof modeOrCb === 'function' ? 0 : modeOrCb;
-  const callback = typeof modeOrCb === 'function' ? modeOrCb : maybeCb!;
-  Promise.resolve().then(() => {
-    try {
-      copyFileSync(src, dest, mode);
-      callback(null);
-    } catch (err: unknown) {
-      callback(err as NodeJS.ErrnoException);
-    }
-  });
+export function copyFile(
+    src: PathLike,
+    dest: PathLike,
+    modeOrCb: number | NoParamCallback,
+    maybeCb?: NoParamCallback,
+): void {
+    const mode = typeof modeOrCb === 'function' ? 0 : modeOrCb;
+    const callback = typeof modeOrCb === 'function' ? modeOrCb : maybeCb!;
+    Promise.resolve().then(() => {
+        try {
+            copyFileSync(src, dest, mode);
+            callback(null);
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException);
+        }
+    });
 }
 
 // --- access ---
@@ -491,49 +600,73 @@ export function copyFile(src: PathLike, dest: PathLike, modeOrCb: number | NoPar
 export function access(path: PathLike, callback: NoParamCallback): void;
 export function access(path: PathLike, mode: number, callback: NoParamCallback): void;
 export function access(path: PathLike, modeOrCb: number | NoParamCallback, maybeCb?: NoParamCallback): void {
-  const mode = typeof modeOrCb === 'function' ? undefined : modeOrCb;
-  const callback = typeof modeOrCb === 'function' ? modeOrCb : maybeCb!;
-  Promise.resolve().then(() => {
-    try {
-      accessSync(path, mode);
-      callback(null);
-    } catch (err: unknown) {
-      callback(err as NodeJS.ErrnoException);
-    }
-  });
+    const mode = typeof modeOrCb === 'function' ? undefined : modeOrCb;
+    const callback = typeof modeOrCb === 'function' ? modeOrCb : maybeCb!;
+    Promise.resolve().then(() => {
+        try {
+            accessSync(path, mode);
+            callback(null);
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException);
+        }
+    });
 }
 
 // --- appendFile ---
 
 export function appendFile(path: PathLike, data: string | Uint8Array, callback: NoParamCallback): void;
-export function appendFile(path: PathLike, data: string | Uint8Array, options: { encoding?: string; mode?: number; flag?: string } | string, callback: NoParamCallback): void;
-export function appendFile(path: PathLike, data: string | Uint8Array, optsOrCb: { encoding?: string; mode?: number; flag?: string } | string | NoParamCallback, maybeCb?: NoParamCallback): void {
-  const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
-  const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
-  Promise.resolve().then(() => {
-    try {
-      appendFileSync(path, data, options);
-      callback(null);
-    } catch (err: unknown) {
-      callback(err as NodeJS.ErrnoException);
-    }
-  });
+export function appendFile(
+    path: PathLike,
+    data: string | Uint8Array,
+    options: { encoding?: string; mode?: number; flag?: string } | string,
+    callback: NoParamCallback,
+): void;
+export function appendFile(
+    path: PathLike,
+    data: string | Uint8Array,
+    optsOrCb: { encoding?: string; mode?: number; flag?: string } | string | NoParamCallback,
+    maybeCb?: NoParamCallback,
+): void {
+    const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+    const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
+    Promise.resolve().then(() => {
+        try {
+            appendFileSync(path, data, options);
+            callback(null);
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException);
+        }
+    });
 }
 
 // --- readlink ---
 
-export function readlink(path: PathLike, callback: (err: NodeJS.ErrnoException | null, linkString: string) => void): void;
-export function readlink(path: PathLike, options: { encoding?: string } | string, callback: (err: NodeJS.ErrnoException | null, linkString: string | Buffer) => void): void;
-export function readlink(path: PathLike, optsOrCb: { encoding?: string } | string | ((err: NodeJS.ErrnoException | null, linkString: string | Buffer) => void), maybeCb?: (err: NodeJS.ErrnoException | null, linkString: string | Buffer) => void): void {
-  const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
-  const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
-  Promise.resolve().then(() => {
-    try {
-      callback(null, readlinkSync(path, options));
-    } catch (err: unknown) {
-      callback(err as NodeJS.ErrnoException, '');
-    }
-  });
+export function readlink(
+    path: PathLike,
+    callback: (err: NodeJS.ErrnoException | null, linkString: string) => void,
+): void;
+export function readlink(
+    path: PathLike,
+    options: { encoding?: string } | string,
+    callback: (err: NodeJS.ErrnoException | null, linkString: string | Buffer) => void,
+): void;
+export function readlink(
+    path: PathLike,
+    optsOrCb:
+        | { encoding?: string }
+        | string
+        | ((err: NodeJS.ErrnoException | null, linkString: string | Buffer) => void),
+    maybeCb?: (err: NodeJS.ErrnoException | null, linkString: string | Buffer) => void,
+): void {
+    const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+    const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
+    Promise.resolve().then(() => {
+        try {
+            callback(null, readlinkSync(path, options));
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException, '');
+        }
+    });
 }
 
 // --- truncate ---
@@ -541,59 +674,63 @@ export function readlink(path: PathLike, optsOrCb: { encoding?: string } | strin
 export function truncate(path: PathLike, callback: NoParamCallback): void;
 export function truncate(path: PathLike, len: number, callback: NoParamCallback): void;
 export function truncate(path: PathLike, lenOrCb: number | NoParamCallback, maybeCb?: NoParamCallback): void {
-  const len = typeof lenOrCb === 'function' ? 0 : lenOrCb;
-  const callback = typeof lenOrCb === 'function' ? lenOrCb : maybeCb!;
-  Promise.resolve().then(() => {
-    try {
-      truncateSync(path, len);
-      callback(null);
-    } catch (err: unknown) {
-      callback(err as NodeJS.ErrnoException);
-    }
-  });
+    const len = typeof lenOrCb === 'function' ? 0 : lenOrCb;
+    const callback = typeof lenOrCb === 'function' ? lenOrCb : maybeCb!;
+    Promise.resolve().then(() => {
+        try {
+            truncateSync(path, len);
+            callback(null);
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException);
+        }
+    });
 }
 
 // --- chmod ---
 
 export function chmod(path: PathLike, mode: Mode, callback: NoParamCallback): void {
-  Promise.resolve().then(() => {
-    try {
-      chmodSync(path, mode);
-      callback(null);
-    } catch (err: unknown) {
-      callback(err as NodeJS.ErrnoException);
-    }
-  });
+    Promise.resolve().then(() => {
+        try {
+            chmodSync(path, mode);
+            callback(null);
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException);
+        }
+    });
 }
 
 // --- chown ---
 
 export function chown(path: PathLike, uid: number, gid: number, callback: NoParamCallback): void {
-  Promise.resolve().then(() => {
-    try {
-      chownSync(path, uid, gid);
-      callback(null);
-    } catch (err: unknown) {
-      callback(err as NodeJS.ErrnoException);
-    }
-  });
+    Promise.resolve().then(() => {
+        try {
+            chownSync(path, uid, gid);
+            callback(null);
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException);
+        }
+    });
 }
 
 // --- mkdir (callback) ---
 
 export function mkdir(path: PathLike, callback: NoParamCallback): void;
 export function mkdir(path: PathLike, options: MakeDirectoryOptions | Mode, callback: NoParamCallback): void;
-export function mkdir(path: PathLike, optsOrCb: MakeDirectoryOptions | Mode | NoParamCallback, maybeCb?: NoParamCallback): void {
-  const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
-  const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
-  Promise.resolve().then(() => {
-    try {
-      mkdirSync(path, options as MakeDirectoryOptions | Mode | undefined);
-      callback(null);
-    } catch (err: unknown) {
-      callback(err as NodeJS.ErrnoException);
-    }
-  });
+export function mkdir(
+    path: PathLike,
+    optsOrCb: MakeDirectoryOptions | Mode | NoParamCallback,
+    maybeCb?: NoParamCallback,
+): void {
+    const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+    const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
+    Promise.resolve().then(() => {
+        try {
+            mkdirSync(path, options as MakeDirectoryOptions | Mode | undefined);
+            callback(null);
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException);
+        }
+    });
 }
 
 // --- rmdir (callback) ---
@@ -601,84 +738,111 @@ export function mkdir(path: PathLike, optsOrCb: MakeDirectoryOptions | Mode | No
 export function rmdir(path: PathLike, callback: NoParamCallback): void;
 export function rmdir(path: PathLike, options: RmDirOptions, callback: NoParamCallback): void;
 export function rmdir(path: PathLike, optsOrCb: RmDirOptions | NoParamCallback, maybeCb?: NoParamCallback): void {
-  const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
-  const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
-  Promise.resolve().then(() => {
-    try {
-      rmdirSync(path, options);
-      callback(null);
-    } catch (err: unknown) {
-      callback(err as NodeJS.ErrnoException);
-    }
-  });
+    const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+    const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
+    Promise.resolve().then(() => {
+        try {
+            rmdirSync(path, options);
+            callback(null);
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException);
+        }
+    });
 }
 
 // --- readFile (callback) ---
 
 export function readFile(path: PathLike, callback: (err: NodeJS.ErrnoException | null, data: Buffer) => void): void;
-export function readFile(path: PathLike, options: { encoding?: string; flag?: string } | string, callback: (err: NodeJS.ErrnoException | null, data: string | Buffer) => void): void;
-export function readFile(path: PathLike, optsOrCb: { encoding?: string; flag?: string } | string | ((err: NodeJS.ErrnoException | null, data: Buffer) => void), maybeCb?: (err: NodeJS.ErrnoException | null, data: string | Buffer | null) => void): void {
-  const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
-  const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
-  const pathStr = normalizePath(path);
-  Promise.resolve().then(() => {
-    try {
-      const readOpts = typeof options === 'string' ? { encoding: options as string | null, flag: 'r' } : { encoding: (options?.encoding ?? null) as string | null, flag: options?.flag ?? 'r' };
-      callback(null, readFileSync(pathStr, readOpts) as unknown as Buffer);
-    } catch (err: unknown) {
-      callback(err as NodeJS.ErrnoException, null as unknown as Buffer);
-    }
-  });
+export function readFile(
+    path: PathLike,
+    options: { encoding?: string; flag?: string } | string,
+    callback: (err: NodeJS.ErrnoException | null, data: string | Buffer) => void,
+): void;
+export function readFile(
+    path: PathLike,
+    optsOrCb:
+        | { encoding?: string; flag?: string }
+        | string
+        | ((err: NodeJS.ErrnoException | null, data: Buffer) => void),
+    maybeCb?: (err: NodeJS.ErrnoException | null, data: string | Buffer | null) => void,
+): void {
+    const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+    const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
+    const pathStr = normalizePath(path);
+    Promise.resolve().then(() => {
+        try {
+            const readOpts =
+                typeof options === 'string'
+                    ? { encoding: options as string | null, flag: 'r' }
+                    : { encoding: (options?.encoding ?? null) as string | null, flag: options?.flag ?? 'r' };
+            callback(null, readFileSync(pathStr, readOpts) as unknown as Buffer);
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException, null as unknown as Buffer);
+        }
+    });
 }
 
 // --- writeFile (callback) ---
 
 export function writeFile(path: PathLike, data: string | Uint8Array, callback: NoParamCallback): void;
-export function writeFile(path: PathLike, data: string | Uint8Array, options: { encoding?: string; mode?: number; flag?: string } | string, callback: NoParamCallback): void;
-export function writeFile(path: PathLike, data: string | Uint8Array, optsOrCb: { encoding?: string; mode?: number; flag?: string } | string | NoParamCallback, maybeCb?: NoParamCallback): void {
-  const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
-  const pathStr = normalizePath(path);
-  Promise.resolve().then(() => {
-    try {
-      writeFileSync(pathStr, data);
-      callback(null);
-    } catch (err: unknown) {
-      callback(err as NodeJS.ErrnoException);
-    }
-  });
+export function writeFile(
+    path: PathLike,
+    data: string | Uint8Array,
+    options: { encoding?: string; mode?: number; flag?: string } | string,
+    callback: NoParamCallback,
+): void;
+export function writeFile(
+    path: PathLike,
+    data: string | Uint8Array,
+    optsOrCb: { encoding?: string; mode?: number; flag?: string } | string | NoParamCallback,
+    maybeCb?: NoParamCallback,
+): void {
+    const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+    const pathStr = normalizePath(path);
+    Promise.resolve().then(() => {
+        try {
+            writeFileSync(pathStr, data);
+            callback(null);
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException);
+        }
+    });
 }
 
 // --- link (callback) ---
 
 export function link(existingPath: PathLike, newPath: PathLike, callback: NoParamCallback): void {
-  const existingStr = normalizePath(existingPath);
-  const newStr = normalizePath(newPath);
-  Promise.resolve().then(() => {
-    try {
-      const result = GLib.spawn_command_line_sync(`ln ${existingStr} ${newStr}`);
-      if (!result[0]) {
-        throw Object.assign(new Error(`EPERM: operation not permitted, link '${existingStr}' -> '${newStr}'`), {
-          code: 'EPERM', errno: -1, syscall: 'link',
-          path: existingStr, dest: newStr
-        });
-      }
-      callback(null);
-    } catch (err: unknown) {
-      callback(err as NodeJS.ErrnoException);
-    }
-  });
+    const existingStr = normalizePath(existingPath);
+    const newStr = normalizePath(newPath);
+    Promise.resolve().then(() => {
+        try {
+            const result = GLib.spawn_command_line_sync(`ln ${existingStr} ${newStr}`);
+            if (!result[0]) {
+                throw Object.assign(new Error(`EPERM: operation not permitted, link '${existingStr}' -> '${newStr}'`), {
+                    code: 'EPERM',
+                    errno: -1,
+                    syscall: 'link',
+                    path: existingStr,
+                    dest: newStr,
+                });
+            }
+            callback(null);
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException);
+        }
+    });
 }
 
 // --- unlink (callback) ---
 
 export function unlink(path: PathLike, callback: NoParamCallback): void {
-  const pathStr = normalizePath(path);
-  Promise.resolve().then(() => {
-    try {
-      GLib.unlink(pathStr);
-      callback(null);
-    } catch (err: unknown) {
-      callback(err as NodeJS.ErrnoException);
-    }
-  });
+    const pathStr = normalizePath(path);
+    Promise.resolve().then(() => {
+        try {
+            GLib.unlink(pathStr);
+            callback(null);
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException);
+        }
+    });
 }

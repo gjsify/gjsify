@@ -8,7 +8,7 @@ import { HTMLCanvasElement } from '@gjsify/dom-elements';
 
 // Import canvas2d to register the '2d' context factory
 import '@gjsify/canvas2d';
-import type { CanvasRenderingContext2D} from '@gjsify/canvas2d';
+import type { CanvasRenderingContext2D } from '@gjsify/canvas2d';
 import { Path2D, ImageData, parseColor } from '@gjsify/canvas2d';
 
 /** Helper: create a canvas with a 2D context. */
@@ -27,7 +27,6 @@ function getPixel(ctx: CanvasRenderingContext2D, x: number, y: number): [number,
 }
 
 export default async () => {
-
     // ---- Color parser ----
 
     await describe('parseColor', async () => {
@@ -504,12 +503,34 @@ export default async () => {
 
         await it('should accept valid operations', async () => {
             const { ctx } = createCanvas();
-            const ops = ['source-over', 'source-in', 'source-out', 'source-atop',
-                'destination-over', 'destination-in', 'destination-out', 'destination-atop',
-                'lighter', 'copy', 'xor', 'multiply', 'screen', 'overlay',
-                'darken', 'lighten', 'color-dodge', 'color-burn',
-                'hard-light', 'soft-light', 'difference', 'exclusion',
-                'hue', 'saturation', 'color', 'luminosity'];
+            const ops = [
+                'source-over',
+                'source-in',
+                'source-out',
+                'source-atop',
+                'destination-over',
+                'destination-in',
+                'destination-out',
+                'destination-atop',
+                'lighter',
+                'copy',
+                'xor',
+                'multiply',
+                'screen',
+                'overlay',
+                'darken',
+                'lighten',
+                'color-dodge',
+                'color-burn',
+                'hard-light',
+                'soft-light',
+                'difference',
+                'exclusion',
+                'hue',
+                'saturation',
+                'color',
+                'luminosity',
+            ];
             for (const op of ops) {
                 ctx.globalCompositeOperation = op as GlobalCompositeOperation;
                 expect(ctx.globalCompositeOperation).toBe(op);
@@ -581,8 +602,8 @@ export default async () => {
             // Check orange pixel
             expect(imageData.data[0]).toBe(255); // R
             expect(imageData.data[1]).toBeGreaterThan(120); // G (~128)
-            expect(imageData.data[2]).toBe(0);   // B
-            expect(imageData.data[3]).toBe(255);  // A
+            expect(imageData.data[2]).toBe(0); // B
+            expect(imageData.data[3]).toBe(255); // A
 
             // Clear and put it back
             ctx.clearRect(0, 0, 10, 10);
@@ -840,8 +861,9 @@ export default async () => {
             ctx.font = '20px sans-serif';
             ctx.fillText('42', 5, 30);
             const data = ctx.getImageData(5, 10, 30, 25).data;
-            const hasNonWhite = Array.from({ length: data.length / 4 }, (_, i) =>
-                data[i * 4] < 200 || data[i * 4 + 1] < 200 || data[i * 4 + 2] < 200
+            const hasNonWhite = Array.from(
+                { length: data.length / 4 },
+                (_, i) => data[i * 4] < 200 || data[i * 4 + 1] < 200 || data[i * 4 + 2] < 200,
             ).some(Boolean);
             expect(hasNonWhite).toBe(true);
         });
@@ -863,8 +885,9 @@ export default async () => {
             ctx.font = '30px sans-serif';
             ctx.fillText('X', 10, 60);
             const data = ctx.getImageData(10, 30, 50, 40).data;
-            const hasReddish = Array.from({ length: data.length / 4 }, (_, i) =>
-                data[i * 4] > 200 && data[i * 4 + 2] < 100
+            const hasReddish = Array.from(
+                { length: data.length / 4 },
+                (_, i) => data[i * 4] > 200 && data[i * 4 + 2] < 100,
             ).some(Boolean);
             expect(hasReddish).toBe(true);
         });
@@ -880,8 +903,9 @@ export default async () => {
             ctx.font = '20px Round9x13';
             ctx.fillText('42', 5, 35);
             const data = ctx.getImageData(5, 10, 50, 30).data;
-            const hasNonWhite = Array.from({ length: data.length / 4 }, (_, i) =>
-                data[i * 4] < 200 || data[i * 4 + 1] < 200 || data[i * 4 + 2] < 200
+            const hasNonWhite = Array.from(
+                { length: data.length / 4 },
+                (_, i) => data[i * 4] < 200 || data[i * 4 + 1] < 200 || data[i * 4 + 2] < 200,
             ).some(Boolean);
             expect(hasNonWhite).toBe(true);
         });

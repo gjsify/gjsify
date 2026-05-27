@@ -175,9 +175,7 @@ export default async function () {
             });
 
             await it('rejects short input', () => {
-                const no = GjsifyHttp2.SessionBridge.is_client_preface(
-                    bytesFromString('PRI * HTTP/2.0'),
-                );
+                const no = GjsifyHttp2.SessionBridge.is_client_preface(bytesFromString('PRI * HTTP/2.0'));
                 expect(no).toBe(false);
             });
 
@@ -249,12 +247,7 @@ export default async function () {
                 expect(headersObj[':path']).toBe('/echo');
 
                 // Server → response + body.
-                const rv = server!.submit_response(
-                    reqId,
-                    [':status', 'content-type'],
-                    ['200', 'text/plain'],
-                    false,
-                );
+                const rv = server!.submit_response(reqId, [':status', 'content-type'], ['200', 'text/plain'], false);
                 expect(rv).toBe(0);
                 const body = bytesFromString('hello from session-bridge');
                 const rv2 = server!.submit_data(reqId, body, true);

@@ -86,13 +86,19 @@ describe('CLI self-host loop', { timeout: 5 * 60 * 1000 }, () => {
         // every subsequent step runs only via gjs(1).
         rmSync(OUT_DIR, { recursive: true, force: true });
         mkdirSync(OUT_DIR, { recursive: true });
-        execFileSync('node', [
-            NODE_CLI,
-            'build',
-            join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'src', 'index.ts'),
-            '--app', 'gjs',
-            '--outfile', GJS_CLI_BUNDLE,
-        ], { cwd: MONOREPO_ROOT, stdio: 'pipe' });
+        execFileSync(
+            'node',
+            [
+                NODE_CLI,
+                'build',
+                join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'src', 'index.ts'),
+                '--app',
+                'gjs',
+                '--outfile',
+                GJS_CLI_BUNDLE,
+            ],
+            { cwd: MONOREPO_ROOT, stdio: 'pipe' },
+        );
         assert.ok(existsSync(GJS_CLI_BUNDLE), 'Node-CLI did not produce dist/cli.gjs.mjs');
     });
 
@@ -113,12 +119,7 @@ describe('CLI self-host loop', { timeout: 5 * 60 * 1000 }, () => {
 
     it('GJS-CLI bundles a simple ESM fixture and the output runs', () => {
         const outfile = join(OUT_DIR, 'simple.gjs.mjs');
-        const r = gjs([
-            '-m', GJS_CLI_BUNDLE,
-            'build', SIMPLE_FIXTURE,
-            '--app', 'gjs',
-            '--outfile', outfile,
-        ]);
+        const r = gjs(['-m', GJS_CLI_BUNDLE, 'build', SIMPLE_FIXTURE, '--app', 'gjs', '--outfile', outfile]);
         assert.equal(r.status, 0, `bundle build failed: ${r.stderr}`);
         assert.ok(existsSync(outfile), `bundle output missing: ${outfile}`);
 
@@ -132,19 +133,18 @@ describe('CLI self-host loop', { timeout: 5 * 60 * 1000 }, () => {
 
     it('GJS-CLI bundles the yargs integration suite and all 52 tests pass', () => {
         const outfile = join(OUT_DIR, 'yargs.gjs.mjs');
-        const r = gjs([
-            '-m', GJS_CLI_BUNDLE,
-            'build', YARGS_FIXTURE,
-            '--app', 'gjs',
-            '--outfile', outfile,
-        ]);
+        const r = gjs(['-m', GJS_CLI_BUNDLE, 'build', YARGS_FIXTURE, '--app', 'gjs', '--outfile', outfile]);
         assert.equal(r.status, 0, `yargs bundle build failed: ${r.stderr}`);
         assert.ok(existsSync(outfile), `yargs bundle output missing: ${outfile}`);
 
         const out = gjs(['-m', outfile]);
         assert.equal(out.status, 0, `yargs bundle run failed: ${out.stderr}`);
         // `@gjsify/unit` prints `✔ <count> completed` on success.
-        assert.match(out.stdout, /\b52 completed\b/, `expected '52 completed' in output, got: ${out.stdout.slice(-500)}`);
+        assert.match(
+            out.stdout,
+            /\b52 completed\b/,
+            `expected '52 completed' in output, got: ${out.stdout.slice(-500)}`,
+        );
     });
 
     it('GJS-CLI and Node-CLI yargs bundles are size-equivalent (within 15%)', () => {
@@ -157,12 +157,10 @@ describe('CLI self-host loop', { timeout: 5 * 60 * 1000 }, () => {
         // upstream rolldown behavior is unified.
         const nodeOut = join(OUT_DIR, 'yargs.node.mjs');
         const gjsOut = join(OUT_DIR, 'yargs.gjs.mjs');
-        execFileSync('node', [
-            NODE_CLI,
-            'build', YARGS_FIXTURE,
-            '--app', 'gjs',
-            '--outfile', nodeOut,
-        ], { cwd: MONOREPO_ROOT, stdio: 'pipe' });
+        execFileSync('node', [NODE_CLI, 'build', YARGS_FIXTURE, '--app', 'gjs', '--outfile', nodeOut], {
+            cwd: MONOREPO_ROOT,
+            stdio: 'pipe',
+        });
         assert.ok(existsSync(nodeOut), 'Node-CLI did not produce yargs.node.mjs');
         // gjsOut was created by the previous test; sanity-check.
         assert.ok(existsSync(gjsOut), 'GJS-CLI bundle from previous test is missing');
@@ -170,7 +168,10 @@ describe('CLI self-host loop', { timeout: 5 * 60 * 1000 }, () => {
         const nodeSize = statSync(nodeOut).size;
         const gjsSize = statSync(gjsOut).size;
         const ratio = Math.abs(nodeSize - gjsSize) / Math.max(nodeSize, gjsSize);
-        assert.ok(ratio < 0.15, `bundle size delta too large: node=${nodeSize} gjs=${gjsSize} ratio=${ratio.toFixed(3)}`);
+        assert.ok(
+            ratio < 0.15,
+            `bundle size delta too large: node=${nodeSize} gjs=${gjsSize} ratio=${ratio.toFixed(3)}`,
+        );
 
         // Both bundles must produce the same test result under gjs.
         const fromNode = gjs(['-m', nodeOut]);
@@ -178,4 +179,3 @@ describe('CLI self-host loop', { timeout: 5 * 60 * 1000 }, () => {
         assert.match(fromNode.stdout, /\b52 completed\b/);
     });
 });
-

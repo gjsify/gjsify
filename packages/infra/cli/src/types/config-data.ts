@@ -359,10 +359,12 @@ export interface ConfigDataFlatpak {
      *   declaring attributes explicitly even when they're `none` so the
      *   rating audit is auditable.
      */
-    contentRating?: string | {
-        type?: string;
-        attributes?: Record<string, 'none' | 'mild' | 'moderate' | 'intense'>;
-    };
+    contentRating?:
+        | string
+        | {
+              type?: string;
+              attributes?: Record<string, 'none' | 'mild' | 'moderate' | 'intense'>;
+          };
     /** Freedesktop Menu categories (e.g. `['Development', 'Utility']`). */
     categories?: string[];
     /** Search keywords for app stores. */

@@ -157,9 +157,15 @@ export const VideoBridge = GObject.registerClass(
             });
         }
 
-        get element(): HTMLVideoElement { return this._video; }
-        get videoElement(): HTMLVideoElement { return this._video; }
-        get environment(): BridgeEnvironment { return this._environment; }
+        get element(): HTMLVideoElement {
+            return this._video;
+        }
+        get videoElement(): HTMLVideoElement {
+            return this._video;
+        }
+        get environment(): BridgeEnvironment {
+            return this._environment;
+        }
 
         onReady(cb: VideoReadyCallback): void {
             if (this._ready) {
@@ -270,7 +276,9 @@ export const VideoBridge = GObject.registerClass(
             bar.append(timeLabel);
 
             const volumeBtn = new Gtk.VolumeButton({ value: 1.0 });
-            volumeBtn.connect('value-changed', (_btn, value) => { this._video.volume = value; });
+            volumeBtn.connect('value-changed', (_btn, value) => {
+                this._video.volume = value;
+            });
             bar.append(volumeBtn);
 
             return { bar, playBtn, seekAdj, seekScale, timeLabel, volumeBtn, lastSeekValue: NaN, lastTimeText: '' };
@@ -321,7 +329,7 @@ export const VideoBridge = GObject.registerClass(
             const stream = this._video.srcObject;
             if (!stream) return;
 
-            const tracks = stream.getVideoTracks?.() as GstSourceTrack[] | undefined ?? [];
+            const tracks = (stream.getVideoTracks?.() as GstSourceTrack[] | undefined) ?? [];
             const track = tracks.find((t) => t._gstSource != null);
             if (!track?._gstSource) {
                 console.warn('VideoBridge: MediaStream has no video track with GStreamer source');
@@ -391,14 +399,26 @@ export const VideoBridge = GObject.registerClass(
         _destroyPipeline(): void {
             if (this._pipelineBus) {
                 for (const id of this._pipelineBusHandlers) {
-                    try { this._pipelineBus.disconnect(id); } catch { /* ignore */ }
+                    try {
+                        this._pipelineBus.disconnect(id);
+                    } catch {
+                        /* ignore */
+                    }
                 }
-                try { this._pipelineBus.remove_signal_watch(); } catch { /* ignore */ }
+                try {
+                    this._pipelineBus.remove_signal_watch();
+                } catch {
+                    /* ignore */
+                }
                 this._pipelineBus = null;
                 this._pipelineBusHandlers = [];
             }
             if (this._pipeline) {
-                try { this._pipeline.set_state(GstRuntime.State.NULL); } catch { /* ignore */ }
+                try {
+                    this._pipeline.set_state(GstRuntime.State.NULL);
+                } catch {
+                    /* ignore */
+                }
                 this._pipeline = null;
                 this._video._pipeline = null;
             }

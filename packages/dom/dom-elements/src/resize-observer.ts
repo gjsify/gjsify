@@ -19,38 +19,35 @@ import type { Element } from './element.js';
 
 /** Spec: https://drafts.csswg.org/resize-observer/#resizeobserversize */
 export interface ResizeObserverSize {
-	inlineSize: number;
-	blockSize: number;
+    inlineSize: number;
+    blockSize: number;
 }
 
 /** Spec: https://drafts.csswg.org/resize-observer/#resizeobserverentry */
 export interface ResizeObserverEntry {
-	target: Element;
-	contentRect: DOMRectLike;
-	borderBoxSize: readonly ResizeObserverSize[];
-	contentBoxSize: readonly ResizeObserverSize[];
-	devicePixelContentBoxSize: readonly ResizeObserverSize[];
+    target: Element;
+    contentRect: DOMRectLike;
+    borderBoxSize: readonly ResizeObserverSize[];
+    contentBoxSize: readonly ResizeObserverSize[];
+    devicePixelContentBoxSize: readonly ResizeObserverSize[];
 }
 
 /** Subset of DOMRectReadOnly that `getBoundingClientRect()` already returns. */
 interface DOMRectLike {
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-	top: number;
-	right: number;
-	bottom: number;
-	left: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
 }
 
-export type ResizeObserverCallback = (
-	entries: ResizeObserverEntry[],
-	observer: ResizeObserver,
-) => void;
+export type ResizeObserverCallback = (entries: ResizeObserverEntry[], observer: ResizeObserver) => void;
 
 export interface ResizeObserverOptions {
-	box?: 'content-box' | 'border-box' | 'device-pixel-content-box';
+    box?: 'content-box' | 'border-box' | 'device-pixel-content-box';
 }
 
 /**
@@ -65,16 +62,16 @@ const pendingDelivery: Set<ResizeObserver> = new Set();
 let flushScheduled = false;
 
 function scheduleFlush(): void {
-	if (flushScheduled) return;
-	flushScheduled = true;
-	queueMicrotask(() => {
-		flushScheduled = false;
-		const batch = Array.from(pendingDelivery);
-		pendingDelivery.clear();
-		for (const observer of batch) {
-			observer._deliver();
-		}
-	});
+    if (flushScheduled) return;
+    flushScheduled = true;
+    queueMicrotask(() => {
+        flushScheduled = false;
+        const batch = Array.from(pendingDelivery);
+        pendingDelivery.clear();
+        for (const observer of batch) {
+            observer._deliver();
+        }
+    });
 }
 
 /**
@@ -96,100 +93,102 @@ function scheduleFlush(): void {
  * ```
  */
 export class ResizeObserver {
-	private readonly _callback: ResizeObserverCallback;
-	private readonly _observed = new Map<Element, () => void>();
-	private _pending = new Map<Element, ResizeObserverEntry>();
+    private readonly _callback: ResizeObserverCallback;
+    private readonly _observed = new Map<Element, () => void>();
+    private _pending = new Map<Element, ResizeObserverEntry>();
 
-	constructor(callback: ResizeObserverCallback) {
-		this._callback = callback;
-	}
+    constructor(callback: ResizeObserverCallback) {
+        this._callback = callback;
+    }
 
-	/**
-	 * Start observing `target`. Per spec, the first observation reports
-	 * the target's current size — we honour this on a microtask so
-	 * consumers that observe inside an initialisation routine receive
-	 * the first measurement after their setup completes.
-	 *
-	 * `opts.box` is accepted for spec compatibility but does not change
-	 * behaviour here — content-box, border-box, and device-pixel-content-box
-	 * all map to the same single allocation reported by GTK.
-	 */
-	observe(target: Element, _opts?: ResizeObserverOptions): void {
-		if (this._observed.has(target)) return;
-		const unsubscribe = target._onResize((width, height) => {
-			this._enqueue(target, width, height);
-		});
-		this._observed.set(target, unsubscribe);
-		// Initial measurement, microtask-deferred to mirror spec timing.
-		queueMicrotask(() => {
-			if (!this._observed.has(target)) return; // unobserved meanwhile
-			const rect = readClientRect(target);
-			this._enqueue(target, rect.width, rect.height);
-		});
-	}
+    /**
+     * Start observing `target`. Per spec, the first observation reports
+     * the target's current size — we honour this on a microtask so
+     * consumers that observe inside an initialisation routine receive
+     * the first measurement after their setup completes.
+     *
+     * `opts.box` is accepted for spec compatibility but does not change
+     * behaviour here — content-box, border-box, and device-pixel-content-box
+     * all map to the same single allocation reported by GTK.
+     */
+    observe(target: Element, _opts?: ResizeObserverOptions): void {
+        if (this._observed.has(target)) return;
+        const unsubscribe = target._onResize((width, height) => {
+            this._enqueue(target, width, height);
+        });
+        this._observed.set(target, unsubscribe);
+        // Initial measurement, microtask-deferred to mirror spec timing.
+        queueMicrotask(() => {
+            if (!this._observed.has(target)) return; // unobserved meanwhile
+            const rect = readClientRect(target);
+            this._enqueue(target, rect.width, rect.height);
+        });
+    }
 
-	unobserve(target: Element): void {
-		const unsubscribe = this._observed.get(target);
-		if (!unsubscribe) return;
-		unsubscribe();
-		this._observed.delete(target);
-		this._pending.delete(target);
-	}
+    unobserve(target: Element): void {
+        const unsubscribe = this._observed.get(target);
+        if (!unsubscribe) return;
+        unsubscribe();
+        this._observed.delete(target);
+        this._pending.delete(target);
+    }
 
-	disconnect(): void {
-		for (const unsubscribe of this._observed.values()) unsubscribe();
-		this._observed.clear();
-		this._pending.clear();
-		pendingDelivery.delete(this);
-	}
+    disconnect(): void {
+        for (const unsubscribe of this._observed.values()) unsubscribe();
+        this._observed.clear();
+        this._pending.clear();
+        pendingDelivery.delete(this);
+    }
 
-	/** @internal Called by the module-level scheduler. */
-	_deliver(): void {
-		if (this._pending.size === 0) return;
-		const entries = Array.from(this._pending.values());
-		this._pending.clear();
-		try {
-			this._callback(entries, this);
-		} catch (err) {
-			console.error('ResizeObserver callback threw:', err);
-		}
-	}
+    /** @internal Called by the module-level scheduler. */
+    _deliver(): void {
+        if (this._pending.size === 0) return;
+        const entries = Array.from(this._pending.values());
+        this._pending.clear();
+        try {
+            this._callback(entries, this);
+        } catch (err) {
+            console.error('ResizeObserver callback threw:', err);
+        }
+    }
 
-	private _enqueue(target: Element, width: number, height: number): void {
-		const size: ResizeObserverSize = { inlineSize: width, blockSize: height };
-		this._pending.set(target, {
-			target,
-			contentRect: {
-				x: 0,
-				y: 0,
-				width,
-				height,
-				top: 0,
-				right: width,
-				bottom: height,
-				left: 0,
-			},
-			borderBoxSize: [size],
-			contentBoxSize: [size],
-			devicePixelContentBoxSize: [size],
-		});
-		pendingDelivery.add(this);
-		scheduleFlush();
-	}
+    private _enqueue(target: Element, width: number, height: number): void {
+        const size: ResizeObserverSize = { inlineSize: width, blockSize: height };
+        this._pending.set(target, {
+            target,
+            contentRect: {
+                x: 0,
+                y: 0,
+                width,
+                height,
+                top: 0,
+                right: width,
+                bottom: height,
+                left: 0,
+            },
+            borderBoxSize: [size],
+            contentBoxSize: [size],
+            devicePixelContentBoxSize: [size],
+        });
+        pendingDelivery.add(this);
+        scheduleFlush();
+    }
 }
 
 function readClientRect(target: Element): { width: number; height: number } {
-	// HTMLElement.getBoundingClientRect() exists on every element that ends
-	// up paired with a bridge (HTMLCanvasElement / HTMLVideoElement /
-	// HTMLIFrameElement all extend HTMLElement). Fall back to 0×0 for the
-	// rare case of an Element that doesn't expose it (e.g. an SVG root in
-	// older tests).
-	const fn = (target as Element & {
-		getBoundingClientRect?: () => { width: number; height: number };
-	}).getBoundingClientRect;
-	if (typeof fn === 'function') {
-		const rect = fn.call(target);
-		return { width: rect.width ?? 0, height: rect.height ?? 0 };
-	}
-	return { width: 0, height: 0 };
+    // HTMLElement.getBoundingClientRect() exists on every element that ends
+    // up paired with a bridge (HTMLCanvasElement / HTMLVideoElement /
+    // HTMLIFrameElement all extend HTMLElement). Fall back to 0×0 for the
+    // rare case of an Element that doesn't expose it (e.g. an SVG root in
+    // older tests).
+    const fn = (
+        target as Element & {
+            getBoundingClientRect?: () => { width: number; height: number };
+        }
+    ).getBoundingClientRect;
+    if (typeof fn === 'function') {
+        const rect = fn.call(target);
+        return { width: rect.width ?? 0, height: rect.height ?? 0 };
+    }
+    return { width: 0, height: 0 };
 }

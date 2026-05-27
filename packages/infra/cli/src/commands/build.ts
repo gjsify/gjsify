@@ -8,7 +8,8 @@ export const buildCommand: Command<any, CliBuildOptions> = {
     builder: (yargs) => {
         return yargs
             .option('entry-points', {
-                description: "The entry points you want to bundle. Defaults to bundler.input from package.json#gjsify or .gjsifyrc.js, falling back to src/index.ts when neither is set.",
+                description:
+                    'The entry points you want to bundle. Defaults to bundler.input from package.json#gjsify or .gjsifyrc.js, falling back to src/index.ts when neither is set.',
                 array: true,
                 type: 'string',
                 normalize: true,
@@ -21,59 +22,63 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 // and producing a bundle from the wrong entry point. The
                 // fallback to src/index.ts is applied in config.ts AFTER
                 // merging with the cosmiconfig data.
-                defaultDescription: "src/index.ts (fallback)",
+                defaultDescription: 'src/index.ts (fallback)',
                 coerce: (arg: string[]) => {
                     // Removes duplicates
                     return [...new Set(arg)];
-                }
+                },
             })
             .option('exclude', {
-                description: "An array of glob patterns to exclude entry-points and aliases",
+                description: 'An array of glob patterns to exclude entry-points and aliases',
                 array: true,
                 type: 'string',
                 normalize: true,
-                default: []
+                default: [],
             })
             .option('verbose', {
-                description: "Switch on the verbose mode",
+                description: 'Switch on the verbose mode',
                 type: 'boolean',
                 normalize: true,
-                default: false
+                default: false,
             })
             .option('app', {
-                description: "Use this if you want to build an application, the platform node is usually only used for tests",
+                description:
+                    'Use this if you want to build an application, the platform node is usually only used for tests',
                 type: 'string',
                 choices: ['gjs', 'node', 'browser'],
                 normalize: true,
-                default: 'gjs'
+                default: 'gjs',
             })
             .option('format', {
-                description: "Override the default output format",
+                description: 'Override the default output format',
                 type: 'string',
                 choices: ['iife', 'esm', 'cjs'],
                 normalize: true,
             })
             .option('minify', {
-                description: "Minify the bundled output. Defaults to true; use --no-minify to emit pretty-printed code (e.g. for debugging or readable bundle review).",
+                description:
+                    'Minify the bundled output. Defaults to true; use --no-minify to emit pretty-printed code (e.g. for debugging or readable bundle review).',
                 type: 'boolean',
                 normalize: true,
                 defaultDescription: 'true',
             })
             .option('library', {
-                description: "Use this if you want to build a library for Gjsify",
+                description: 'Use this if you want to build a library for Gjsify',
                 type: 'boolean',
                 normalize: true,
-                default: false
+                default: false,
             })
             .option('outfile', {
                 alias: 'o',
-                description: "Sets the output file name for the build operation. If no outfile is specified, the outfile will be parsed from the package.json. Only used if application mode is active",
+                description:
+                    'Sets the output file name for the build operation. If no outfile is specified, the outfile will be parsed from the package.json. Only used if application mode is active',
                 type: 'string',
                 normalize: true,
             })
             .option('outdir', {
                 alias: 'd',
-                description: "Sets the output directory for the build operation. If no outdir is specified, the outdir will be parsed from the package.json. Only used if library mode is active",
+                description:
+                    'Sets the output directory for the build operation. If no outdir is specified, the outdir will be parsed from the package.json. Only used if library mode is active',
                 type: 'string',
                 normalize: true,
             })
@@ -82,64 +87,85 @@ export const buildCommand: Command<any, CliBuildOptions> = {
                 description: "Enables TypeScript types on runtime using Deepkit's type compiler",
                 type: 'boolean',
                 normalize: true,
-                default: false
+                default: false,
             })
             .option('log-level', {
-                description: "The log level can be changed to prevent esbuild from printing warning and/or error messages to the terminal",
+                description:
+                    'The log level can be changed to prevent esbuild from printing warning and/or error messages to the terminal',
                 type: 'string',
                 choices: ['silent', 'error', 'warning', 'info', 'debug', 'verbose'],
                 normalize: true,
-                default: 'warning'
+                default: 'warning',
             })
             .option('console-shim', {
-                description: "Inject a console shim into GJS builds for clean output without the GLib prefix and with working ANSI colors. Use --no-console-shim to disable. Only applies to GJS app builds.",
+                description:
+                    'Inject a console shim into GJS builds for clean output without the GLib prefix and with working ANSI colors. Use --no-console-shim to disable. Only applies to GJS app builds.',
                 type: 'boolean',
                 normalize: true,
-                default: true
+                default: true,
             })
             .option('globals', {
-                description: "Comma-separated list of global identifiers, 'auto' (default) to detect automatically from the bundled output, or 'none' to disable. The 'auto' token may be combined with explicit identifiers/groups (e.g. 'auto,dom') for cases where the detector cannot statically see a global because it's accessed via indirection. Each identifier is mapped to the corresponding `@gjsify/<pkg>/register` module and injected into the bundle. See the CLI Reference docs for the full list of known identifiers. Only applies to GJS app builds.",
+                description:
+                    "Comma-separated list of global identifiers, 'auto' (default) to detect automatically from the bundled output, or 'none' to disable. The 'auto' token may be combined with explicit identifiers/groups (e.g. 'auto,dom') for cases where the detector cannot statically see a global because it's accessed via indirection. Each identifier is mapped to the corresponding `@gjsify/<pkg>/register` module and injected into the bundle. See the CLI Reference docs for the full list of known identifiers. Only applies to GJS app builds.",
                 type: 'string',
                 normalize: true,
-                default: 'auto'
+                default: 'auto',
             })
             .option('shebang', {
-                description: "Prepend a target-appropriate shebang to the output and mark it executable (chmod 755): `#!/usr/bin/env -S gjs -m` for --app gjs, `#!/usr/bin/env node` for --app node. Applies to GJS and Node app builds with a single --outfile. Default: false (use --shebang to enable, or set `shebang: true` in `.gjsifyrc.js`).",
+                description:
+                    'Prepend a target-appropriate shebang to the output and mark it executable (chmod 755): `#!/usr/bin/env -S gjs -m` for --app gjs, `#!/usr/bin/env node` for --app node. Applies to GJS and Node app builds with a single --outfile. Default: false (use --shebang to enable, or set `shebang: true` in `.gjsifyrc.js`).',
                 type: 'boolean',
-                normalize: true
+                normalize: true,
             })
             .option('external', {
-                description: "Module names that should NOT be bundled. Repeat the flag or pass a comma-separated list (e.g. --external typedoc,prettier). Globs are forwarded to esbuild as-is. See https://esbuild.github.io/api/#external",
+                description:
+                    'Module names that should NOT be bundled. Repeat the flag or pass a comma-separated list (e.g. --external typedoc,prettier). Globs are forwarded to esbuild as-is. See https://esbuild.github.io/api/#external',
                 array: true,
                 type: 'string',
                 default: [] as string[],
-                coerce: (arg: string[]) => arg.flatMap((v) => v.split(',').map((s) => s.trim()).filter(Boolean)),
+                coerce: (arg: string[]) =>
+                    arg.flatMap((v) =>
+                        v
+                            .split(',')
+                            .map((s) => s.trim())
+                            .filter(Boolean),
+                    ),
             })
             .option('define', {
-                description: "Substitute compile-time constants. Each entry is KEY=VALUE where VALUE is a JS expression (string literals must be quoted: --define VERSION='\"1.2.3\"'). Repeat the flag or pass comma-separated. See https://esbuild.github.io/api/#define",
+                description:
+                    'Substitute compile-time constants. Each entry is KEY=VALUE where VALUE is a JS expression (string literals must be quoted: --define VERSION=\'"1.2.3"\'). Repeat the flag or pass comma-separated. See https://esbuild.github.io/api/#define',
                 array: true,
                 type: 'string',
                 default: [] as string[],
             })
             .option('alias', {
-                description: "Map module specifiers at bundle time. Each entry is FROM=TO (e.g. --alias typedoc=@gjsify/empty). Layered on top of the built-in alias map. Useful for stubbing heavy deps the test scenario never executes.",
+                description:
+                    'Map module specifiers at bundle time. Each entry is FROM=TO (e.g. --alias typedoc=@gjsify/empty). Layered on top of the built-in alias map. Useful for stubbing heavy deps the test scenario never executes.',
                 array: true,
                 type: 'string',
                 default: [] as string[],
-                coerce: (arg: string[]) => arg.flatMap((v) => v.split(',').map((s) => s.trim()).filter(Boolean)),
+                coerce: (arg: string[]) =>
+                    arg.flatMap((v) =>
+                        v
+                            .split(',')
+                            .map((s) => s.trim())
+                            .filter(Boolean),
+                    ),
             })
             .option('exclude-globals', {
-                description: "Comma-separated global identifiers to remove from auto-detection results. Use for false positives from dead browser-compat code whose polyfills require unavailable native libraries (e.g. --exclude-globals fetch,XMLHttpRequest).",
+                description:
+                    'Comma-separated global identifiers to remove from auto-detection results. Use for false positives from dead browser-compat code whose polyfills require unavailable native libraries (e.g. --exclude-globals fetch,XMLHttpRequest).',
                 type: 'string',
                 normalize: true,
             })
             .option('watch', {
                 alias: 'w',
-                description: "Watch source files and rebuild on change. Logs each rebuild with duration; clean SIGINT shutdown. Only valid with --app gjs|node|browser (rejected with --library). Requires the npm `rolldown` engine — run under Node, not the GJS-bundled CLI.",
+                description:
+                    'Watch source files and rebuild on change. Logs each rebuild with duration; clean SIGINT shutdown. Only valid with --app gjs|node|browser (rejected with --library). Requires the npm `rolldown` engine — run under Node, not the GJS-bundled CLI.',
                 type: 'boolean',
                 normalize: true,
                 default: false,
-            })
+            });
     },
     handler: async (args) => {
         const config = new Config();
@@ -149,6 +175,6 @@ export const buildCommand: Command<any, CliBuildOptions> = {
             library: args.library,
             app: args.app,
             watch: args.watch,
-        })
-    }
-}
+        });
+    },
+};

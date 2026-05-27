@@ -4,7 +4,7 @@
 // (or via SCSS partials at `@gjsify/adwaita-web/scss/...`).
 // Reference: refs/libadwaita (colors/sizing), refs/adwaita-web (component patterns).
 
-import '@gjsify/adwaita-fonts';  // Registers @font-face (fontsource pattern)
+import '@gjsify/adwaita-fonts'; // Registers @font-face (fontsource pattern)
 
 // Register custom elements (side-effect imports)
 export { AdwCard } from './elements/adw-card.js';

@@ -16,10 +16,10 @@ import languageServerSuite from './language-server.spec.js';
 import cliSuite from './cli.spec.js';
 
 run({
-  parserSuite,
-  libSuite,
-  generatorSuite,
-  generatorTypedocSuite,
-  languageServerSuite,
-  cliSuite,
+    parserSuite,
+    libSuite,
+    generatorSuite,
+    generatorTypedocSuite,
+    languageServerSuite,
+    cliSuite,
 });

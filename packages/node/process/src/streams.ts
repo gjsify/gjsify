@@ -23,7 +23,13 @@ export class ProcessWriteStream extends EventEmitter {
         const gio = getGioNamespace();
         if (gio) {
             const Cls = gio.UnixOutputStream ?? gio.OutputStream;
-            if (Cls) { try { this._outGio = Cls.new(this.fd, false); } catch { /* fallback */ } }
+            if (Cls) {
+                try {
+                    this._outGio = Cls.new(this.fd, false);
+                } catch {
+                    /* fallback */
+                }
+            }
         }
     }
 
@@ -33,7 +39,9 @@ export class ProcessWriteStream extends EventEmitter {
                 const bytes = typeof data === 'string' ? _encoder.encode(data) : data;
                 this._outGio.write_all(bytes, null);
                 return true;
-            } catch { /* fall through to console fallback */ }
+            } catch {
+                /* fall through to console fallback */
+            }
         }
         // Fallback: console adds a trailing newline which breaks terminal UI,
         // but is acceptable when Gio streams are unavailable.
@@ -50,7 +58,9 @@ export class ProcessWriteStream extends EventEmitter {
         try {
             const GLib = getGjsGlobal().imports?.gi?.GLib;
             if (GLib) return !!(GLib as Record<string, Function>).log_writer_supports_color(this.fd);
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
         return false;
     }
 
@@ -65,7 +75,9 @@ export class ProcessWriteStream extends EventEmitter {
                 const c = parseInt((GLib as Record<string, Function>).getenv('COLUMNS') ?? '0', 10);
                 if (c > 0) return c;
             }
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
         return 80;
     }
 
@@ -85,7 +97,9 @@ export class ProcessWriteStream extends EventEmitter {
                 const r = parseInt((GLib as Record<string, Function>).getenv('LINES') ?? '0', 10);
                 if (r > 0) return r;
             }
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
         return 24;
     }
 }
@@ -140,7 +154,9 @@ export class ProcessReadStream extends EventEmitter {
 
     private _setRawModeViaStty(mode: boolean): void {
         try {
-            const _gi: Record<string, unknown> | undefined = (globalThis as { imports?: { gi?: Record<string, unknown> } }).imports?.gi;
+            const _gi: Record<string, unknown> | undefined = (
+                globalThis as { imports?: { gi?: Record<string, unknown> } }
+            ).imports?.gi;
             const Gio: any = _gi?.Gio ?? _gi?.['Gio'];
             if (!Gio) return;
             // G_SUBPROCESS_FLAGS_STDIN_INHERIT = 1 << 1 = 2
@@ -166,10 +182,14 @@ export class ProcessReadStream extends EventEmitter {
                     proc_.once('exit', () => this._setRawModeViaStty(false));
                 }
             }
-        } catch { /* stty not available or not a TTY */ }
+        } catch {
+            /* stty not available or not a TTY */
+        }
     }
 
-    setEncoding(_enc: string): this { return this; }
+    setEncoding(_enc: string): this {
+        return this;
+    }
 
     resume(): this {
         this._flowing = true;
@@ -189,7 +209,9 @@ export class ProcessReadStream extends EventEmitter {
             // it sets _mainLoopHeld = true again and the quit is skipped.
             // This mirrors Node.js libuv unref: pausing stdin allows the event loop
             // to drain when no more prompts follow, but not between sequential prompts.
-            const _gi: Record<string, unknown> | undefined = (globalThis as { imports?: { gi?: Record<string, unknown> } }).imports?.gi;
+            const _gi: Record<string, unknown> | undefined = (
+                globalThis as { imports?: { gi?: Record<string, unknown> } }
+            ).imports?.gi;
             const GLib: any = _gi?.GLib ?? _gi?.['GLib'];
             if (GLib?.idle_add) {
                 GLib.idle_add(300 /* PRIORITY_LOW */, () => {
@@ -203,7 +225,9 @@ export class ProcessReadStream extends EventEmitter {
         return this;
     }
 
-    read(): null { return null; }
+    read(): null {
+        return null;
+    }
 
     private _startReading(): void {
         if (!this._gio || this._reading) return;
@@ -214,7 +238,10 @@ export class ProcessReadStream extends EventEmitter {
         // callback continues the loop when it fires.
         if (this._pendingRead) {
             this._reading = true;
-            if (!this._mainLoopHeld) { this._mainLoopHeld = true; ensureMainLoop(); }
+            if (!this._mainLoopHeld) {
+                this._mainLoopHeld = true;
+                ensureMainLoop();
+            }
             return;
         }
 
@@ -223,13 +250,19 @@ export class ProcessReadStream extends EventEmitter {
         // http.Server.listen() does for network sockets. Without this, gjs -m
         // exits as soon as module evaluation completes even though read_bytes_async
         // is pending, because GJS only stays alive when runAsync() registered a hook.
-        if (!this._mainLoopHeld) { this._mainLoopHeld = true; ensureMainLoop(); }
+        if (!this._mainLoopHeld) {
+            this._mainLoopHeld = true;
+            ensureMainLoop();
+        }
 
         if (!this._stdinGio) {
             // GioUnix: class is `InputStream`. Gio: concrete class is `UnixInputStream`;
             // `InputStream` is abstract. The ?? chain picks the right one for each namespace.
             const Cls = this._gio.UnixInputStream ?? this._gio.InputStream;
-            if (!Cls) { this._reading = false; return; }
+            if (!Cls) {
+                this._reading = false;
+                return;
+            }
             try {
                 this._stdinGio = Cls.new(this.fd, false);
             } catch {
@@ -239,31 +272,29 @@ export class ProcessReadStream extends EventEmitter {
         }
 
         const loop = () => {
-            if (!this._reading) { this._pendingRead = false; return; }
+            if (!this._reading) {
+                this._pendingRead = false;
+                return;
+            }
             this._pendingRead = true;
-            this._stdinGio.read_bytes_async(
-                4096,
-                0,
-                null,
-                (src: any, res: any) => {
-                    this._pendingRead = false;
-                    try {
-                        const bytes = src.read_bytes_finish(res);
-                        const data: Uint8Array | null = bytes?.get_data?.() ?? null;
-                        if (data && data.byteLength > 0) {
-                            this.emit('data', Buffer.from(data));
-                        } else if (data !== null && data.byteLength === 0) {
-                            this._reading = false;
-                            this.emit('end');
-                            return;
-                        }
-                    } catch {
+            this._stdinGio.read_bytes_async(4096, 0, null, (src: any, res: any) => {
+                this._pendingRead = false;
+                try {
+                    const bytes = src.read_bytes_finish(res);
+                    const data: Uint8Array | null = bytes?.get_data?.() ?? null;
+                    if (data && data.byteLength > 0) {
+                        this.emit('data', Buffer.from(data));
+                    } else if (data !== null && data.byteLength === 0) {
                         this._reading = false;
+                        this.emit('end');
                         return;
                     }
-                    if (this._reading) loop();
-                },
-            );
+                } catch {
+                    this._reading = false;
+                    return;
+                }
+                if (this._reading) loop();
+            });
         };
         loop();
     }
