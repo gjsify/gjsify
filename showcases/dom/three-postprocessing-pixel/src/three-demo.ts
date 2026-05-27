@@ -35,6 +35,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     const assetBase = options?.assetBase ?? './';
 
     // Renderer
+    // oxlint-disable-next-line typescript/no-explicit-any -- THREE.WebGLRenderer canvas option expects OffscreenCanvas; GJS canvas type is incompatible
     const renderer = new THREE.WebGLRenderer({ canvas: canvas as any, antialias: false });
     renderer.shadowMap.enabled = true;
     // Pass updateStyle=false: the canvas CSS width/height are managed by the
@@ -64,7 +65,9 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     composer.addPass(new OutputPass());
 
     // OrbitControls
+    // oxlint-disable-next-line typescript/no-explicit-any -- OrbitControls domElement type is HTMLElement; GJS canvas type is incompatible
     const controls = new OrbitControls(camera, canvas as any);
+    // oxlint-disable-next-line typescript/no-explicit-any -- OrbitControls.maxZoom is not in @types/three OrbitControls
     (controls as any).maxZoom = 2;
 
     // Timer for animation

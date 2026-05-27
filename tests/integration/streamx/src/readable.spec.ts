@@ -14,14 +14,14 @@ export default async () => {
     await describe('streamx Readable', async () => {
         await it('ondata', async () => {
             const r = new Readable();
-            const buffered: any[] = [];
+            const buffered: unknown[] = [];
             let ended = 0;
 
             r.push('hello');
             r.push('world');
             r.push(null);
 
-            r.on('data', (data: any) => buffered.push(data));
+            r.on('data', (data: unknown) => buffered.push(data));
             r.on('end', () => ended++);
 
             await new Promise<void>((resolve, reject) => {
@@ -40,9 +40,9 @@ export default async () => {
 
         await it('pause', async () => {
             const r = new Readable();
-            const buffered: any[] = [];
+            const buffered: unknown[] = [];
             expect(Readable.isPaused(r)).toBe(true);
-            r.on('data', (data: any) => buffered.push(data));
+            r.on('data', (data: unknown) => buffered.push(data));
             r.on('close', () => {
                 /* ignored — we await below */
             });
@@ -164,9 +164,9 @@ export default async () => {
         });
 
         await it('from array', async () => {
-            const inc: any[] = [];
+            const inc: unknown[] = [];
             const r = Readable.from([1, 2, 3]);
-            r.on('data', (data: any) => inc.push(data));
+            r.on('data', (data: unknown) => inc.push(data));
             await new Promise<void>((resolve, reject) => {
                 r.on('end', () => {
                     try {
@@ -180,9 +180,9 @@ export default async () => {
         });
 
         await it('from buffer', async () => {
-            const inc: any[] = [];
+            const inc: unknown[] = [];
             const r = Readable.from(Buffer.from('hello'));
-            r.on('data', (data: any) => inc.push(data));
+            r.on('data', (data: unknown) => inc.push(data));
             await new Promise<void>((resolve, reject) => {
                 r.on('end', () => {
                     try {
@@ -202,9 +202,9 @@ export default async () => {
                 yield 3;
             }
 
-            const inc: any[] = [];
+            const inc: unknown[] = [];
             const r = Readable.from(gen());
-            r.on('data', (data: any) => inc.push(data));
+            r.on('data', (data: unknown) => inc.push(data));
             await new Promise<void>((resolve, reject) => {
                 r.on('end', () => {
                     try {
@@ -237,7 +237,7 @@ export default async () => {
             r.push(2);
             r.unshift(0);
             r.push(null);
-            const inc: any[] = [];
+            const inc: unknown[] = [];
             for await (const entry of r) {
                 inc.push(entry);
             }
@@ -251,7 +251,7 @@ export default async () => {
 
         await it('map readable data', async () => {
             const r = new Readable({
-                map: (input: any) => JSON.parse(input),
+                map: (input: unknown) => JSON.parse(String(input)),
             });
             r.push('{ "foo": 1 }');
             for await (const obj of r) {
@@ -265,7 +265,7 @@ export default async () => {
                 map: () => {
                     throw new Error('.mapReadable has priority');
                 },
-                mapReadable: (input: any) => JSON.parse(input),
+                mapReadable: (input: unknown) => JSON.parse(String(input)),
             });
             r.push('{ "foo": 1 }');
             for await (const obj of r) {
@@ -275,7 +275,7 @@ export default async () => {
         });
 
         await it('live stream', async () => {
-            const collected: any[] = [];
+            const collected: unknown[] = [];
             const r = new Readable({
                 read(_cb: (err?: Error | null) => void) {
                     this.push('data');
@@ -285,7 +285,7 @@ export default async () => {
             });
 
             await new Promise<void>((resolve, reject) => {
-                r.on('data', function (data: any) {
+                r.on('data', function (data: unknown) {
                     collected.push(data);
                     if (collected.length === 3) {
                         try {
@@ -300,7 +300,7 @@ export default async () => {
         });
 
         await it('live stream with readable event', async () => {
-            const collected: any[] = [];
+            const collected: unknown[] = [];
             const r = new Readable({
                 read(_cb: (err?: Error | null) => void) {
                     this.push('data');
@@ -311,7 +311,7 @@ export default async () => {
 
             await new Promise<void>((resolve, reject) => {
                 r.on('readable', function () {
-                    let data: any;
+                    let data: unknown;
                     while ((data = r.read()) !== null) collected.push(data);
                     if (collected.length >= 3) {
                         try {
@@ -365,14 +365,14 @@ export default async () => {
         await it('setEncoding respects existing map', async () => {
             const r = new Readable({
                 encoding: 'utf-8',
-                map(data: any) {
-                    return JSON.parse(data);
+                map(data: unknown) {
+                    return JSON.parse(String(data));
                 },
             });
 
             r.push('{"hello":"world"}');
             await new Promise<void>((resolve, reject) => {
-                r.once('data', function (data: any) {
+                r.once('data', function (data: unknown) {
                     try {
                         expect(data).toStrictEqual({ hello: 'world' });
                         resolve();
@@ -390,7 +390,7 @@ export default async () => {
             r.push(buffer);
             r.push(null);
 
-            const chunks: any[] = [];
+            const chunks: unknown[] = [];
             for await (const data of r) {
                 chunks.push(data);
             }

@@ -91,6 +91,7 @@ export default class Demo extends ex.Scene {
         );
         this.add(platform);
 
+        // oxlint-disable-next-line typescript/no-explicit-any -- lockToActor expects ex.Actor but Player extends ex.Actor; type mismatch due to Excalibur generic constraints
         this.camera.strategy.lockToActor(player as any);
     }
 }

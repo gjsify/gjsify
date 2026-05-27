@@ -78,6 +78,7 @@ function rebaseResources(base: string): void {
     for (const category of Object.values(Resources)) {
         for (const resource of Object.values(category)) {
             if (!resource || typeof resource !== 'object') continue;
+            // oxlint-disable-next-line typescript/no-explicit-any -- @gjsify/excalibur resource object has no typed interface; accessing internal path/src properties
             const r = resource as any;
             const rebase = (p: string) => (p.startsWith('/res/') ? base + p.slice(1) : p);
 

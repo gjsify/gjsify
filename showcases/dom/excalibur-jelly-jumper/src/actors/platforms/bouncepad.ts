@@ -81,6 +81,7 @@ export class Bouncepad extends ex.Actor {
         this.addComponent(new OneWayCollisionComponent());
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- ex.Engine<any> uses Excalibur default generic; Engine<TKnownScenes = any>
     onInitialize(_engine: ex.Engine<any>): void {
         this.graphics.use(this.animation.get('neutral'));
 

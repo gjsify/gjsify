@@ -50,6 +50,7 @@ export default async () => {
                 });
                 try {
                     const response = await axios.get(`http://127.0.0.1:${srv.port}/`, {
+                        // oxlint-disable-next-line typescript/no-explicit-any -- axios HTTP adapter accepts false as User-Agent to omit the header; not in type defs
                         headers: { 'User-Agent': false as any },
                     });
                     expect(response.data.ua).toBe(null);

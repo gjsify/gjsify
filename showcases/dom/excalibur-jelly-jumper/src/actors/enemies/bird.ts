@@ -51,6 +51,7 @@ export class BirdEnemy extends EnemyActor {
             anchor: ex.vec(0.5, 0.6),
             collider: ex.Shape.Box(16, 5, ex.vec(0.5, 1)),
             collisionType: ex.CollisionType.Passive,
+            // oxlint-disable-next-line typescript/no-explicit-any -- ActorArgs does not include all constructor params; Excalibur uses any for extended args
         } as any);
 
         this.spritesheet = variants[args.type].spritesheet;

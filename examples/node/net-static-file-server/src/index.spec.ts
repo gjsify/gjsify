@@ -13,6 +13,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = 13005;
 
 function getServerCmd(): { cmd: string; args: string[] } {
+    // oxlint-disable-next-line typescript/no-explicit-any -- imports.gi is a GJS global not in TypeScript types
     const isGJS = typeof (globalThis as any).imports?.gi !== 'undefined';
     const dist = isGJS ? 'dist/index.gjs.js' : 'dist/index.node.mjs';
     return isGJS ? { cmd: 'gjs', args: ['-m', join(__dirname, dist)] } : { cmd: 'node', args: [join(__dirname, dist)] };

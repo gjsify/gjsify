@@ -53,6 +53,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
     const assetBase = options?.assetBase ?? './';
 
     // Renderer
+    // oxlint-disable-next-line typescript/no-explicit-any -- THREE.WebGLRenderer canvas option expects OffscreenCanvas; GJS canvas type is incompatible
     const renderer = new THREE.WebGLRenderer({ canvas: canvas as any, antialias: true });
     // Pass updateStyle=false: the canvas CSS width/height are managed by the
     // host container (flex layout). We only want to update the drawing buffer.
@@ -101,6 +102,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
     };
 
     // OrbitControls
+    // oxlint-disable-next-line typescript/no-explicit-any -- OrbitControls domElement type is HTMLElement; GJS canvas type is incompatible
     const cameraControls = new OrbitControls(camera, canvas as any);
     cameraControls.addEventListener('change', render);
 

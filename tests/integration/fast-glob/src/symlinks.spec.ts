@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import fg from 'fast-glob';
+import type { Entry } from 'fast-glob';
 import { FIXTURES_DIR } from './fixtures.js';
 
 const sorted = (arr: string[]) => [...arr].sort();
@@ -73,7 +74,7 @@ export default async () => {
             // With onlyFiles:false the symlink itself is reported even though it
             // would be a "file" only via follow.
             if (entries.length > 0) {
-                const e = entries[0] as any;
+                const e = entries[0] as Entry;
                 expect(e.name).toBe('symlink-to-a.ts');
                 expect(typeof e.dirent.isSymbolicLink).toBe('function');
                 expect(e.dirent.isSymbolicLink()).toBe(true);

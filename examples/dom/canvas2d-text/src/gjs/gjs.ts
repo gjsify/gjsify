@@ -22,6 +22,7 @@ app.connect('activate', () => {
     canvasWidget.installGlobals();
 
     canvasWidget.onReady((canvas) => {
+        // oxlint-disable-next-line typescript/no-explicit-any -- WebGLBridge/Canvas2DBridge canvas has no TypeScript type compatible with HTMLCanvasElement
         renderDemo(canvas as any);
     });
 

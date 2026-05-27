@@ -30,9 +30,9 @@ export default async () => {
         });
 
         await it('mapReadable and mapWritable', async () => {
-            const received: any[] = [];
+            const received: unknown[] = [];
             const d = new Duplex({
-                write(data: any, cb: (err?: Error | null) => void) {
+                write(data: unknown, cb: (err?: Error | null) => void) {
                     d.push(data);
                     cb();
                 },
@@ -40,11 +40,11 @@ export default async () => {
                     d.push(null);
                     cb();
                 },
-                mapReadable: (num: any) => JSON.stringify({ num }),
-                mapWritable: (input: any) => parseInt(input, 10),
+                mapReadable: (num: unknown) => JSON.stringify({ num }),
+                mapWritable: (input: unknown) => parseInt(String(input), 10),
             });
 
-            d.on('data', (data: any) => received.push(data));
+            d.on('data', (data: unknown) => received.push(data));
             d.write('32');
             d.end();
 
@@ -83,10 +83,10 @@ export default async () => {
 
         await it('write during end', async () => {
             const expected = ['a', 'b'];
-            const received: any[] = [];
+            const received: unknown[] = [];
 
             const w = new Duplex({
-                write(data: any, cb: (err?: Error | null) => void) {
+                write(data: unknown, cb: (err?: Error | null) => void) {
                     received.push(data);
                     expect(data).toBe(expected.shift());
                     cb(null);

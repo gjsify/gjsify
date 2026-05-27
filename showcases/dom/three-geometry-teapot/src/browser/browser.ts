@@ -185,7 +185,16 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
             canvas.height = h;
             if (!demo) {
                 demo = start(canvas, { assetBase: options?.assetBase });
-                connectControls(demo, tessRow, shadingRow, lidRow, bodyRow, bottomRow, fitLidRow, nonblinnRow);
+                connectControls(
+                    demo,
+                    tessRow as AdwRow,
+                    shadingRow as AdwRow,
+                    lidRow as AdwRow,
+                    bodyRow as AdwRow,
+                    bottomRow as AdwRow,
+                    fitLidRow as AdwRow,
+                    nonblinnRow as AdwRow,
+                );
                 if (pendingPause) {
                     demo.pause();
                     pendingPause = false;
@@ -237,23 +246,26 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     };
 }
 
+// Adwaita web components expose custom properties (.selected, .active) not in HTMLElement types.
+type AdwRow = HTMLElement & Record<string, unknown>;
+
 function connectControls(
     demo: TeapotDemo,
-    tessRow: any,
-    shadingRow: any,
-    lidRow: any,
-    bodyRow: any,
-    bottomRow: any,
-    fitLidRow: any,
-    nonblinnRow: any,
+    tessRow: AdwRow,
+    shadingRow: AdwRow,
+    lidRow: AdwRow,
+    bodyRow: AdwRow,
+    bottomRow: AdwRow,
+    fitLidRow: AdwRow,
+    nonblinnRow: AdwRow,
 ) {
     tessRow.addEventListener('notify::selected', () => {
-        demo.effectController.newTess = TESS_VALUES[tessRow.selected];
+        demo.effectController.newTess = TESS_VALUES[tessRow.selected as number];
         demo.render();
     });
 
     shadingRow.addEventListener('notify::selected', () => {
-        demo.effectController.newShading = SHADING_VALUES[shadingRow.selected];
+        demo.effectController.newShading = SHADING_VALUES[shadingRow.selected as number];
         demo.render();
     });
 
@@ -265,7 +277,7 @@ function connectControls(
         [nonblinnRow, 'nonblinn'],
     ] as const) {
         row.addEventListener('notify::active', () => {
-            (demo.effectController as any)[key] = row.active;
+            (demo.effectController as Record<string, unknown>)[key] = (row as AdwRow).active;
             demo.render();
         });
     }

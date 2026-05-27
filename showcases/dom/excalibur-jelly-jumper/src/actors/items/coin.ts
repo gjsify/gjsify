@@ -31,6 +31,7 @@ export class CoinItem extends ex.Actor {
         return this.get(CollectableComponent);
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- ex.Engine<any> uses Excalibur default generic; Engine<TKnownScenes = any>
     onPreUpdate(engine: ex.Engine<any>, elapsed: number): void {
         this.elapsedMs += elapsed;
 

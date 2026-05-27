@@ -45,14 +45,14 @@ async function main() {
         name: 'echo',
         arguments: { message: 'Hello from gjsify MCP client!' },
     });
-    console.log('\necho result:', (echoResult.content as any)[0].text);
+    console.log('\necho result:', (echoResult.content as Array<{ text: string }>)[0].text);
 
     // --- Call add tool ---
     const addResult = await client.callTool({
         name: 'add',
         arguments: { a: 17, b: 25 },
     });
-    console.log('add result:', (addResult.content as any)[0].text);
+    console.log('add result:', (addResult.content as Array<{ text: string }>)[0].text);
 
     // --- List resources ---
     const { resources } = await client.listResources();
@@ -60,7 +60,7 @@ async function main() {
 
     // --- Read resource ---
     const resourceResult = await client.readResource({ uri: 'info://server' });
-    console.log('server-info:', (resourceResult.contents[0] as any).text);
+    console.log('server-info:', (resourceResult.contents[0] as { uri: string; text?: string }).text);
 
     // --- List prompts ---
     const { prompts } = await client.listPrompts();
@@ -71,7 +71,7 @@ async function main() {
         name: 'greet',
         arguments: { name: 'GJS Developer' },
     });
-    console.log('greet prompt:', (promptResult.messages[0].content as any).text);
+    console.log('greet prompt:', (promptResult.messages[0].content as { type: string; text: string }).text);
 
     // --- Cleanup ---
     console.log('\nDone. Closing client...');

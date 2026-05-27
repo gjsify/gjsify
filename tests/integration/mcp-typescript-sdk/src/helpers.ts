@@ -13,8 +13,8 @@ export { InMemoryTransport };
  * Returns the pair and a cleanup function.
  */
 export async function createClientServerPair(
-    serverOptions?: { name?: string; version?: string; capabilities?: Record<string, any> },
-    clientOptions?: { name?: string; version?: string; capabilities?: Record<string, any> },
+    serverOptions?: { name?: string; version?: string; capabilities?: Record<string, unknown> },
+    clientOptions?: { name?: string; version?: string; capabilities?: Record<string, unknown> },
 ) {
     const mcpServer = new McpServer(
         {
@@ -49,7 +49,7 @@ export async function createClientServerPair(
  * with matching values (recursive for nested objects).
  * Replacement for vitest's `toMatchObject`.
  */
-export function assertMatchObject(actual: any, expected: any, path = ''): void {
+export function assertMatchObject(actual: unknown, expected: unknown, path = ''): void {
     if (expected === null || expected === undefined) {
         expect(actual).toBe(expected);
         return;
@@ -62,19 +62,21 @@ export function assertMatchObject(actual: any, expected: any, path = ''): void {
 
     if (Array.isArray(expected)) {
         expect(Array.isArray(actual)).toBe(true);
-        expect(actual.length).toBe(expected.length);
+        const actualArr = actual as unknown[];
+        expect(actualArr.length).toBe(expected.length);
         for (let i = 0; i < expected.length; i++) {
-            assertMatchObject(actual[i], expected[i], `${path}[${i}]`);
+            assertMatchObject(actualArr[i], expected[i], `${path}[${i}]`);
         }
         return;
     }
 
-    for (const key of Object.keys(expected)) {
+    const actualObj = actual as Record<string, unknown>;
+    for (const key of Object.keys(expected as object)) {
         const fullPath = path ? `${path}.${key}` : key;
-        if (actual === null || actual === undefined || !(key in actual)) {
+        if (actual === null || actual === undefined || !(key in actualObj)) {
             throw new Error(`Expected key "${fullPath}" to exist in actual object`);
         }
-        assertMatchObject(actual[key], expected[key], fullPath);
+        assertMatchObject(actualObj[key], (expected as Record<string, unknown>)[key], fullPath);
     }
 }
 

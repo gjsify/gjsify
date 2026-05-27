@@ -3,7 +3,7 @@
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
 
 import { describe, it, expect, on } from '@gjsify/unit';
-import axios, { isAxiosError } from 'axios';
+import axios, { isAxiosError, type AxiosError } from 'axios';
 import { startHTTPServer, stopHTTPServer } from './test-server.js';
 
 export default async () => {
@@ -35,16 +35,16 @@ export default async () => {
                 res.end();
             });
             try {
-                let error: any;
+                let error: AxiosError | undefined;
                 try {
                     await axios.get(`http://127.0.0.1:${srv.port}/one`, { maxRedirects: 0 });
                 } catch (e) {
-                    error = e;
+                    if (isAxiosError(e)) error = e;
                 }
                 // follow-redirects throws when maxRedirects: 0
                 expect(error).toBeDefined();
-                if (error.response) {
-                    expect(error.response.status).toBe(302);
+                if (error!.response) {
+                    expect(error!.response.status).toBe(302);
                 } else {
                     // follow-redirects may also set error.code
                     expect(isAxiosError(error)).toBe(true);
@@ -66,14 +66,14 @@ export default async () => {
                     res.end();
                 });
                 try {
-                    let error: any;
+                    let error: AxiosError | undefined;
                     try {
                         await axios.get(`http://127.0.0.1:${srv.port}/`, { maxRedirects: 3 });
                     } catch (e) {
-                        error = e;
+                        if (isAxiosError(e)) error = e;
                     }
                     expect(isAxiosError(error)).toBe(true);
-                    expect(error.code).toBe('ERR_FR_TOO_MANY_REDIRECTS');
+                    expect(error!.code).toBe('ERR_FR_TOO_MANY_REDIRECTS');
                 } finally {
                     await stopHTTPServer(srv);
                 }
@@ -113,21 +113,22 @@ export default async () => {
                     res.end();
                 });
                 try {
-                    let error: any;
+                    let error: Error | undefined;
                     try {
                         await axios.get(`http://127.0.0.1:${srv.port}/one`, {
                             maxRedirects: 3,
-                            beforeRedirect: (options: any, _responseDetails: any) => {
+                            // oxlint-disable-next-line typescript/no-explicit-any -- beforeRedirect is a follow-redirects hook not in axios type defs
+                            beforeRedirect: (options: Record<string, unknown>, _responseDetails: unknown) => {
                                 if (options.path === '/foo') {
                                     throw new Error('path not allowed');
                                 }
                             },
-                        });
+                        } as Parameters<typeof axios.get>[1]);
                     } catch (e) {
-                        error = e;
+                        if (e instanceof Error) error = e;
                     }
                     expect(error).toBeDefined();
-                    expect(error.message).toContain('path not allowed');
+                    expect(error!.message).toContain('path not allowed');
                 } finally {
                     await stopHTTPServer(srv);
                 }

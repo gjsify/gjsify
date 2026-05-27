@@ -97,7 +97,7 @@ export function start(canvas: HTMLCanvasElement): void {
     let hasMouse = false;
     let time = 0;
 
-    canvas.addEventListener('mousemove', (e: any) => {
+    canvas.addEventListener('mousemove', (e: MouseEvent) => {
         hasMouse = true;
         xpos = w > 0 ? e.clientX / w : 0.5;
     });

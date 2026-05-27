@@ -5,6 +5,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import fg from 'fast-glob';
+import type { Entry } from 'fast-glob';
 import { FIXTURES_DIR } from './fixtures.js';
 
 const sorted = (arr: string[]) => [...arr].sort();
@@ -41,10 +42,10 @@ export default async () => {
 
         await it('stream supports stats / objectMode entries', async () => {
             const opts = { cwd: FIXTURES_DIR, stats: true };
-            const entries = await new Promise<any[]>((resolve, reject) => {
-                const out: any[] = [];
+            const entries = await new Promise<Entry[]>((resolve, reject) => {
+                const out: Entry[] = [];
                 const s = fg.stream('a.ts', opts);
-                s.on('data', (e: any) => out.push(e));
+                s.on('data', (e: Entry) => out.push(e));
                 s.on('error', reject);
                 s.on('end', () => resolve(out));
             });
@@ -52,13 +53,13 @@ export default async () => {
             expect(entries[0].name).toBe('a.ts');
             expect(entries[0].path).toBe('a.ts');
             expect(typeof entries[0].stats?.size).toBe('number');
-            expect(entries[0].stats.size).toBeGreaterThan(0);
+            expect(entries[0].stats!.size).toBeGreaterThan(0);
         });
 
         await it('async API with objectMode returns name/path/dirent shape', async () => {
             const entries = await fg('a.ts', { cwd: FIXTURES_DIR, objectMode: true });
             expect(entries.length).toBe(1);
-            const e = entries[0] as any;
+            const e = entries[0] as Entry;
             expect(e.name).toBe('a.ts');
             expect(e.path).toBe('a.ts');
             // dirent is a fs.Dirent-like object

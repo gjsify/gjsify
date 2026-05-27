@@ -3,7 +3,7 @@
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
 
 import { describe, it, expect, on } from '@gjsify/unit';
-import axios, { isAxiosError } from 'axios';
+import axios, { isAxiosError, type AxiosError } from 'axios';
 import { startHTTPServer, stopHTTPServer } from './test-server.js';
 
 export default async () => {
@@ -13,14 +13,14 @@ export default async () => {
                 setTimeout(() => res.end(), 1000);
             });
             try {
-                let error: any;
+                let error: AxiosError | undefined;
                 try {
                     await axios.get(`http://127.0.0.1:${srv.port}/`, { timeout: 250 });
                 } catch (e) {
-                    error = e;
+                    if (isAxiosError(e)) error = e;
                 }
                 expect(isAxiosError(error)).toBe(true);
-                expect(error.code).toBe('ECONNABORTED');
+                expect(error!.code).toBe('ECONNABORTED');
             } finally {
                 await stopHTTPServer(srv);
             }
@@ -31,13 +31,13 @@ export default async () => {
                 setTimeout(() => res.end(), 1000);
             });
             try {
-                let error: any;
+                let error: AxiosError | undefined;
                 try {
                     await axios.get(`http://127.0.0.1:${srv.port}/`, { timeout: 250 });
                 } catch (e) {
-                    error = e;
+                    if (isAxiosError(e)) error = e;
                 }
-                expect(error.message).toBe('timeout of 250ms exceeded');
+                expect(error!.message).toBe('timeout of 250ms exceeded');
             } finally {
                 await stopHTTPServer(srv);
             }
@@ -48,14 +48,15 @@ export default async () => {
                 setTimeout(() => res.end(), 1000);
             });
             try {
-                let error: any;
+                let error: AxiosError | undefined;
                 try {
+                    // oxlint-disable-next-line typescript/no-explicit-any -- intentionally testing wrong-typed input; axios accepts string-as-number in some adapters
                     await axios.get(`http://127.0.0.1:${srv.port}/`, { timeout: '250' as any });
                 } catch (e) {
-                    error = e;
+                    if (isAxiosError(e)) error = e;
                 }
-                expect(error.code).toBe('ECONNABORTED');
-                expect(error.message).toBe('timeout of 250ms exceeded');
+                expect(error!.code).toBe('ECONNABORTED');
+                expect(error!.message).toBe('timeout of 250ms exceeded');
             } finally {
                 await stopHTTPServer(srv);
             }
@@ -66,17 +67,17 @@ export default async () => {
                 setTimeout(() => res.end(), 1000);
             });
             try {
-                let error: any;
+                let error: AxiosError | undefined;
                 try {
                     await axios.get(`http://127.0.0.1:${srv.port}/`, {
                         timeout: 250,
                         timeoutErrorMessage: 'oops, timeout',
                     });
                 } catch (e) {
-                    error = e;
+                    if (isAxiosError(e)) error = e;
                 }
-                expect(error.code).toBe('ECONNABORTED');
-                expect(error.message).toBe('oops, timeout');
+                expect(error!.code).toBe('ECONNABORTED');
+                expect(error!.message).toBe('oops, timeout');
             } finally {
                 await stopHTTPServer(srv);
             }
@@ -105,16 +106,17 @@ export default async () => {
                     setTimeout(() => res.end(), 1000);
                 });
                 try {
-                    let error: any;
+                    let error: AxiosError | undefined;
                     try {
                         await axios.get(`http://127.0.0.1:${srv.port}/`, {
+                            // oxlint-disable-next-line typescript/no-explicit-any -- intentionally testing wrong-typed input; axios HTTP adapter throws ERR_BAD_OPTION_VALUE for non-numeric timeout
                             timeout: { strangeTimeout: 250 } as any,
                         });
                     } catch (e) {
-                        error = e;
+                        if (isAxiosError(e)) error = e;
                     }
                     expect(isAxiosError(error)).toBe(true);
-                    expect(error.code).toBe('ERR_BAD_OPTION_VALUE');
+                    expect(error!.code).toBe('ERR_BAD_OPTION_VALUE');
                 } finally {
                     await stopHTTPServer(srv);
                 }

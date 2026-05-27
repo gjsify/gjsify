@@ -19,6 +19,7 @@ interface CoyoteAction {
 export class CoyoteComponent<T extends Record<string, CoyoteAction>> extends ex.Component {
     actions: T;
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- {} cast required as Record<keyof T, number> because T is a generic constrained by object; TypeScript cannot verify keys at init
     counter: Record<keyof T, number> = {} as any;
 
     constructor(actions: T) {
@@ -26,6 +27,7 @@ export class CoyoteComponent<T extends Record<string, CoyoteAction>> extends ex.
         this.actions = actions;
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- ex.Entity<any> is Excalibur's Component.onAdd() signature; Entity uses any generic
     onAdd(owner: ex.Entity<any>): void {
         owner.on('preupdate', this.onPreUpdate.bind(this));
     }

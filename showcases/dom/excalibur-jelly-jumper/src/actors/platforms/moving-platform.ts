@@ -54,7 +54,7 @@ export type MovingPlatformArgs = ex.ActorArgs & {
 };
 
 export class MovingPlatform extends ex.Actor {
-    constructor({ oneWay = true, ...args }: MovingPlatformArgs, cb: (actions: ex.ActionsComponent) => any) {
+    constructor({ oneWay = true, ...args }: MovingPlatformArgs, cb: (actions: ex.ActionsComponent) => unknown) {
         super({
             color: ex.Color.Green,
             anchor: ex.vec(0, 0),

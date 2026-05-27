@@ -72,7 +72,7 @@ export async function runDownloadDemo(log: LogFn): Promise<void> {
 
     log('seeder', `Seeding ${FILES.length} files...`);
 
-    const torrent = await new Promise<any>((resolve, reject) => {
+    const torrent = await new Promise<WebTorrent.Torrent>((resolve, reject) => {
         const t = seeder.seed(seedInputs, { announce: TRACKERS });
         t.on('ready', () => {
             log('seeder', `Torrent ready — ${t.files.length} files, ${formatBytes(t.length)}`);
@@ -120,7 +120,7 @@ export async function runDownloadDemo(log: LogFn): Promise<void> {
             const peers = dl.numPeers;
 
             // Per-file progress
-            const fileProgress = dl.files.map((f: any) => `${f.name}: ${(f.progress * 100).toFixed(0)}%`).join(', ');
+            const fileProgress = dl.files.map((f: TorrentFile) => `${f.name}: ${(f.progress * 100).toFixed(0)}%`).join(', ');
 
             log('leecher', `${pct}% (${down}) @ ${speed} | ${peers} peer(s) | ${fileProgress}`);
         });

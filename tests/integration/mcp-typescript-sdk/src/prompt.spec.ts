@@ -7,6 +7,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { Notification } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { assertMatchObject, yieldEventLoop } from './helpers.js';
 
@@ -77,7 +78,7 @@ export default async () => {
             const result = await client.getPrompt({ name: 'greet', arguments: { name: 'World' } });
             expect(result.messages.length).toBe(1);
             expect(result.messages[0].content.type).toBe('text');
-            expect((result.messages[0].content as any).text).toBe('Hello, World!');
+            expect((result.messages[0].content as { type: string; text: string }).text).toBe('Hello, World!');
 
             await client.close();
             await mcpServer.close();
@@ -109,9 +110,9 @@ export default async () => {
 
         await it('should send prompt list changed notification', async () => {
             const mcpServer = new McpServer({ name: 'test server', version: '1.0' });
-            const notifications: any[] = [];
+            const notifications: Notification[] = [];
             const client = new Client({ name: 'test client', version: '1.0' });
-            client.fallbackNotificationHandler = async (notification: any) => {
+            client.fallbackNotificationHandler = async (notification: Notification) => {
                 notifications.push(notification);
             };
 

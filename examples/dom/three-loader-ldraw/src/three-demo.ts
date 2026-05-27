@@ -41,6 +41,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
     const ldrawPath = `${assetBase}assets/models/ldraw/officialLibrary/`;
 
     // Renderer
+    // oxlint-disable-next-line typescript/no-explicit-any -- THREE.WebGLRenderer canvas option expects OffscreenCanvas; GJS canvas type is incompatible
     const renderer = new THREE.WebGLRenderer({ canvas: canvas as any, antialias: true });
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.setSize(canvas.width, canvas.height);
@@ -56,6 +57,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
     camera.position.set(150, 200, 250);
 
     // Controls
+    // oxlint-disable-next-line typescript/no-explicit-any -- OrbitControls domElement type is HTMLElement; GJS canvas type is incompatible
     const controls = new OrbitControls(camera, canvas as any);
     controls.enableDamping = true;
 
@@ -75,6 +77,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
 
     function updateObjectsVisibility() {
         if (!model) return;
+        // oxlint-disable-next-line typescript/no-explicit-any -- THREE.Object3D.traverse callback; LDraw-specific properties (isConditionalLine, buildingStep) not in THREE types
         model.traverse((c: any) => {
             if (c.isLineSegments) {
                 if (c.isConditionalLine) {
@@ -99,6 +102,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
 
         const lDrawLoader = new LDrawLoader();
         lDrawLoader.setConditionalLineMaterial(LDrawConditionalLineMaterial);
+        // oxlint-disable-next-line typescript/no-explicit-any -- LDrawLoader.smoothNormals is a runtime property not in the three.js TypeScript types
         (lDrawLoader as any).smoothNormals = effectController.smoothNormals && !effectController.flatColors;
         lDrawLoader.setPath(ldrawPath);
 
@@ -109,6 +113,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
 
             // Flat colors: convert to MeshBasicMaterial (LEGO instruction look)
             if (effectController.flatColors) {
+                // oxlint-disable-next-line typescript/no-explicit-any -- THREE.Object3D.traverse callback; LDraw-specific isMesh/material not guaranteed typed
                 model.traverse((c: any) => {
                     if (c.isMesh) {
                         if (Array.isArray(c.material)) {
@@ -127,7 +132,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
             model.rotation.x = Math.PI;
             scene.add(model);
 
-            numBuildingSteps = (model.userData as any).numBuildingSteps ?? 1;
+            numBuildingSteps = (model.userData as Record<string, unknown>).numBuildingSteps as number ?? 1;
             effectController.buildingStep = numBuildingSteps - 1;
 
             updateObjectsVisibility();

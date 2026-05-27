@@ -95,7 +95,7 @@ export default async () => {
                 await client.connect(clientTransport);
 
                 const result = await client.callTool({ name: 'greet', arguments: { name: 'HTTP' } });
-                expect((result.content as any)[0].text).toBe('Hello, HTTP!');
+                expect((result.content as Array<{ type: string; text: string }>)[0].text).toBe('Hello, HTTP!');
 
                 await client.close();
             } finally {
@@ -114,7 +114,7 @@ export default async () => {
                 await client.connect(clientTransport);
 
                 const result = await client.readResource({ uri: 'test://localhost/info' });
-                expect((result.contents[0] as any).text).toBe('HTTP transport works!');
+                expect((result.contents[0] as { uri: string; text?: string }).text).toBe('HTTP transport works!');
 
                 await client.close();
             } finally {
@@ -158,7 +158,7 @@ export default async () => {
 
                 for (let i = 1; i <= 3; i++) {
                     const result = await client.callTool({ name: 'greet', arguments: { name: `Call${i}` } });
-                    expect((result.content as any)[0].text).toBe(`Hello, Call${i}!`);
+                    expect((result.content as Array<{ type: string; text: string }>)[0].text).toBe(`Hello, Call${i}!`);
                 }
 
                 await client.close();
@@ -230,7 +230,7 @@ export default async () => {
                     await client.connect(clientTransport);
 
                     const result = await client.callTool({ name: 'greet', arguments: { name: `Sess${i}` } });
-                    expect((result.content as any)[0].text).toBe(`Hello, Sess${i}!`);
+                    expect((result.content as Array<{ type: string; text: string }>)[0].text).toBe(`Hello, Sess${i}!`);
 
                     await client.close();
                 }
@@ -247,7 +247,7 @@ export default async () => {
         await it('should accept many sequential raw HTTP connections without hanging', async () => {
             const httpServer = createServer((req, res) => {
                 let body = '';
-                req.on('data', (chunk: any) => {
+                req.on('data', (chunk: Buffer) => {
                     body += String(chunk);
                 });
                 req.on('end', () => {
@@ -265,7 +265,7 @@ export default async () => {
                         body: `req-${i}`,
                     });
                     expect(r.status).toBe(200);
-                    const json = (await r.json()) as any;
+                    const json = (await r.json()) as { ok: boolean; echoed: string; url: string };
                     expect(json.ok).toBe(true);
                     expect(json.echoed).toBe(`req-${i}`);
                 }
@@ -283,8 +283,10 @@ export default async () => {
 
             // imports.system.gc() exists only on GJS — Node.js test silently skips
             // the gc step but still exercises the call sequence.
+            // oxlint-disable-next-line typescript/no-explicit-any -- imports.system.gc() is a GJS-only runtime API not in TypeScript types
             const sysGc: (() => void) | undefined = ((): (() => void) | undefined => {
                 try {
+                    // oxlint-disable-next-line typescript/no-explicit-any -- GJS runtime property not in TypeScript DOM/Node types
                     const sys = (globalThis as any).imports?.system;
                     return typeof sys?.gc === 'function' ? () => sys.gc() : undefined;
                 } catch {
@@ -300,7 +302,7 @@ export default async () => {
                 for (let i = 1; i <= 5; i++) {
                     if (sysGc) sysGc();
                     const r = await client.callTool({ name: 'greet', arguments: { name: `GC${i}` } });
-                    expect((r.content as any)[0].text).toBe(`Hello, GC${i}!`);
+                    expect((r.content as Array<{ type: string; text: string }>)[0].text).toBe(`Hello, GC${i}!`);
                     if (sysGc) sysGc();
                 }
 
@@ -382,13 +384,13 @@ export default async () => {
                     expect(tools.length).toBe(1);
 
                     const r1 = await client.callTool({ name: 'echo', arguments: { message: `s${s}-1` } });
-                    expect((r1.content as any)[0].text).toBe(`s${s}-1`);
+                    expect((r1.content as Array<{ type: string; text: string }>)[0].text).toBe(`s${s}-1`);
 
                     const r2 = await client.callTool({ name: 'echo', arguments: { message: `s${s}-2` } });
-                    expect((r2.content as any)[0].text).toBe(`s${s}-2`);
+                    expect((r2.content as Array<{ type: string; text: string }>)[0].text).toBe(`s${s}-2`);
 
                     const info = await client.readResource({ uri: 'info://server/meta' });
-                    expect((info.contents[0] as any).text).toBe('inspector-server');
+                    expect((info.contents[0] as { uri: string; text?: string }).text).toBe('inspector-server');
 
                     await client.close();
                 }

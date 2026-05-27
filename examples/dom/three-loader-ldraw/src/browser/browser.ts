@@ -110,63 +110,67 @@ export function mount(container: HTMLElement, options?: MountOptions) {
     const demo = start(canvas, { assetBase }, (numSteps) => {
         // Update building step range when model loads
         buildingStepRow.setAttribute('max', String(numSteps - 1));
+        // oxlint-disable-next-line typescript/no-explicit-any -- adw-spin-row is a custom element with no TypeScript type for .value property
         (buildingStepRow as any).value = numSteps - 1;
     });
 
     connectControls(
         demo,
-        modelRow,
-        flatColorsRow,
-        mergeModelRow,
-        smoothNormalsRow,
-        buildingStepRow,
-        displayLinesRow,
-        conditionalLinesRow,
+        modelRow as AdwRow,
+        flatColorsRow as AdwRow,
+        mergeModelRow as AdwRow,
+        smoothNormalsRow as AdwRow,
+        buildingStepRow as AdwRow,
+        displayLinesRow as AdwRow,
+        conditionalLinesRow as AdwRow,
     );
 }
 
+// Adwaita web components expose custom properties (.selected, .active, .value) not in HTMLElement types.
+type AdwRow = HTMLElement & Record<string, unknown>;
+
 function connectControls(
     demo: LDrawDemo,
-    modelRow: any,
-    flatColorsRow: any,
-    mergeModelRow: any,
-    smoothNormalsRow: any,
-    buildingStepRow: any,
-    displayLinesRow: any,
-    conditionalLinesRow: any,
+    modelRow: AdwRow,
+    flatColorsRow: AdwRow,
+    mergeModelRow: AdwRow,
+    smoothNormalsRow: AdwRow,
+    buildingStepRow: AdwRow,
+    displayLinesRow: AdwRow,
+    conditionalLinesRow: AdwRow,
 ) {
     modelRow.addEventListener('notify::selected', () => {
-        demo.effectController.modelIndex = modelRow.selected;
+        demo.effectController.modelIndex = modelRow.selected as number;
         demo.reloadObject(true);
     });
 
     flatColorsRow.addEventListener('notify::active', () => {
-        demo.effectController.flatColors = flatColorsRow.active;
+        demo.effectController.flatColors = flatColorsRow.active as boolean;
         demo.reloadObject(false);
     });
 
     mergeModelRow.addEventListener('notify::active', () => {
-        demo.effectController.mergeModel = mergeModelRow.active;
+        demo.effectController.mergeModel = mergeModelRow.active as boolean;
         demo.reloadObject(false);
     });
 
     smoothNormalsRow.addEventListener('notify::active', () => {
-        demo.effectController.smoothNormals = smoothNormalsRow.active;
+        demo.effectController.smoothNormals = smoothNormalsRow.active as boolean;
         demo.reloadObject(false);
     });
 
     buildingStepRow.addEventListener('notify::value', () => {
-        demo.effectController.buildingStep = buildingStepRow.value;
+        demo.effectController.buildingStep = buildingStepRow.value as number;
         demo.updateVisibility();
     });
 
     displayLinesRow.addEventListener('notify::active', () => {
-        demo.effectController.displayLines = displayLinesRow.active;
+        demo.effectController.displayLines = displayLinesRow.active as boolean;
         demo.updateVisibility();
     });
 
     conditionalLinesRow.addEventListener('notify::active', () => {
-        demo.effectController.conditionalLines = conditionalLinesRow.active;
+        demo.effectController.conditionalLines = conditionalLinesRow.active as boolean;
         demo.updateVisibility();
     });
 }

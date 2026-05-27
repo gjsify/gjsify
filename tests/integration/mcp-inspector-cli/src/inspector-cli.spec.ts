@@ -33,7 +33,7 @@ export default async () => {
                         const r = await runInspector(server.baseUrl, ['--method', 'tools/list']);
                         expect(r.exitCode).toBe(0);
                         expect(r.json).toBeDefined();
-                        const tools = (r.json as any).tools;
+                        const tools = (r.json as { tools?: unknown[] }).tools;
                         expect(Array.isArray(tools)).toBe(true);
                         expect(tools.length).toBeGreaterThan(0);
                         assertAlive(server, 'after tools/list');
@@ -70,7 +70,7 @@ export default async () => {
                         ]);
                         expect(r.exitCode).toBe(0);
                         expect(r.json).toBeDefined();
-                        const text = (r.json as any).content?.[0]?.text;
+                        const text = (r.json as { content?: Array<{ text?: string }> }).content?.[0]?.text;
                         expect(text).toBe('hello-from-inspector');
                         assertAlive(server, 'after tools/call');
                     });
@@ -118,7 +118,7 @@ export default async () => {
                                 `message=call-${i}`,
                             ]);
                             expect(r.exitCode).toBe(0);
-                            const text = (r.json as any).content?.[0]?.text;
+                            const text = (r.json as { content?: Array<{ text?: string }> }).content?.[0]?.text;
                             expect(text).toBe(`call-${i}`);
                             assertAlive(server, `after call ${i}`);
                         }
@@ -138,7 +138,7 @@ export default async () => {
                             'b=8',
                         ]);
                         expect(r.exitCode).toBe(0);
-                        const text = (r.json as any).content?.[0]?.text;
+                        const text = (r.json as { content?: Array<{ text?: string }> }).content?.[0]?.text;
                         expect(text).toBe('15');
                         assertAlive(server, 'after add');
                     });

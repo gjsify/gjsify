@@ -60,7 +60,7 @@ export async function runTorrentDemo(log: LogFn): Promise<void> {
             ? Object.assign(Buffer.from(SEED_DATA), { name: SEED_FILENAME })
             : new File([SEED_DATA], SEED_FILENAME, { type: 'text/plain' });
 
-    const torrent = await new Promise<any>((resolve, reject) => {
+    const torrent = await new Promise<WebTorrent.Torrent>((resolve, reject) => {
         const t = seeder.seed(seedInput, { announce: TRACKERS });
 
         t.on('ready', () => {
@@ -117,7 +117,7 @@ export async function runTorrentDemo(log: LogFn): Promise<void> {
                     log('main', 'MISMATCH — Content does not match!');
                 }
                 resolve();
-            } catch (err: any) {
+            } catch (err) {
                 reject(err);
             }
         });

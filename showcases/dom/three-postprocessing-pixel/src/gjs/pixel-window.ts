@@ -100,7 +100,7 @@ export class PixelWindow extends Adw.ApplicationWindow {
             // Sync canvas dimensions with GTK widget allocation so the
             // three.js resize check in the animation loop picks up changes
             // (e.g. when the sidebar is toggled).
-            const syncSize = (_widget: any, w: number, h: number) => {
+            const syncSize = (_widget: unknown, w: number, h: number) => {
                 canvas.width = w;
                 canvas.height = h;
             };

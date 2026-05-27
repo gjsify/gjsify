@@ -50,12 +50,12 @@ export default async () => {
                     },
                 }),
                 new Transform({
-                    transform(data: any, cb: (err?: Error | null, chunk?: any) => void) {
+                    transform(data: unknown, cb: (err?: Error | null, chunk?: unknown) => void) {
                         cb(null, data);
                     },
                 }),
                 new Writable({
-                    write(data: any, cb: (err?: Error | null) => void) {
+                    write(data: unknown, cb: (err?: Error | null) => void) {
                         totalReceived += data.length;
                         cb();
                     },
@@ -71,7 +71,7 @@ export default async () => {
             const received: string[] = [];
 
             const d = new Duplex({
-                write(data: any, cb: (err?: Error | null) => void) {
+                write(data: unknown, cb: (err?: Error | null) => void) {
                     this.push(data);
                     cb();
                 },
@@ -109,7 +109,7 @@ export default async () => {
                     },
                 }),
                 new Writable({
-                    write(data: any, cb: (err?: Error | null) => void) {
+                    write(data: unknown, cb: (err?: Error | null) => void) {
                         cb();
                     },
                 }),
@@ -137,7 +137,7 @@ export default async () => {
                         },
                     }),
                     new Writable({
-                        write(data: any, cb: (err?: Error | null) => void) {
+                        write(data: unknown, cb: (err?: Error | null) => void) {
                             cb();
                         },
                     }),

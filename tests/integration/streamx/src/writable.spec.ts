@@ -19,7 +19,7 @@ export default async () => {
                     trace.push('open');
                     return cb(null);
                 },
-                write(data: any, cb: (err?: Error | null) => void) {
+                write(data: unknown, cb: (err?: Error | null) => void) {
                     trace.push('write');
                     return cb(null);
                 },
@@ -43,7 +43,7 @@ export default async () => {
         await it('drain', async () => {
             const stream = new Writable({
                 highWaterMark: 1,
-                write(data: any, cb: (err?: Error | null) => void) {
+                write(data: unknown, cb: (err?: Error | null) => void) {
                     cb(null);
                 },
             });
@@ -64,7 +64,7 @@ export default async () => {
         await it('drain multi write', async () => {
             const stream = new Writable({
                 highWaterMark: 1,
-                write(data: any, cb: (err?: Error | null) => void) {
+                write(data: unknown, cb: (err?: Error | null) => void) {
                     cb(null);
                 },
             });
@@ -79,7 +79,7 @@ export default async () => {
             let flushed = false;
             const stream = new Writable({
                 highWaterMark: 1,
-                write(data: any, cb: (err?: Error | null) => void) {
+                write(data: unknown, cb: (err?: Error | null) => void) {
                     setImmediate(function () {
                         flushed = true;
                         cb(null);
@@ -106,7 +106,7 @@ export default async () => {
             for (let i = 0; i < 100; i++) expected[0].push('hi-' + i);
 
             const s = new Writable({
-                writev(batch: any[], cb: (err?: Error | null) => void) {
+                writev(batch: unknown[], cb: (err?: Error | null) => void) {
                     expect(batch).toStrictEqual(expected.shift());
                     cb(null);
                 },
@@ -132,11 +132,11 @@ export default async () => {
 
         await it('map written data', async () => {
             const r = new Writable({
-                write(data: any, cb: (err?: Error | null) => void) {
+                write(data: unknown, cb: (err?: Error | null) => void) {
                     expect(data).toBe('{"foo":1}');
                     cb();
                 },
-                map: (input: any) => JSON.stringify(input),
+                map: (input: unknown) => JSON.stringify(input),
             });
             const finishP = new Promise<void>((resolve) => r.on('finish', resolve));
             r.write({ foo: 1 });
@@ -146,14 +146,14 @@ export default async () => {
 
         await it('use mapWritable to map data', async () => {
             const r = new Writable({
-                write(data: any, cb: (err?: Error | null) => void) {
+                write(data: unknown, cb: (err?: Error | null) => void) {
                     expect(data).toBe('{"foo":1}');
                     cb();
                 },
                 map: () => {
                     throw new Error('.mapWritable has priority');
                 },
-                mapWritable: (input: any) => JSON.stringify(input),
+                mapWritable: (input: unknown) => JSON.stringify(input),
             });
             const finishP = new Promise<void>((resolve) => r.on('finish', resolve));
             r.write({ foo: 1 });
@@ -196,7 +196,7 @@ export default async () => {
 
         await it('drained helper', async () => {
             const w = new Writable({
-                write(data: any, cb: (err?: Error | null) => void) {
+                write(data: unknown, cb: (err?: Error | null) => void) {
                     setImmediate(cb);
                 },
             });
@@ -233,7 +233,7 @@ export default async () => {
 
         await it('drained helper, duplex', async () => {
             const w = new Duplex({
-                write(data: any, cb: (err?: Error | null) => void) {
+                write(data: unknown, cb: (err?: Error | null) => void) {
                     setImmediate(cb);
                 },
             });
@@ -271,7 +271,7 @@ export default async () => {
         await it('drained helper, inflight write', async () => {
             let writing = false;
             const w = new Writable({
-                write(data: any, cb: (err?: Error | null) => void) {
+                write(data: unknown, cb: (err?: Error | null) => void) {
                     writing = true;
                     setImmediate(() => {
                         setImmediate(() => {
@@ -293,7 +293,7 @@ export default async () => {
 
         await it('can cork and uncork the stream', async () => {
             const w = new Writable({
-                writev(batch: any[], cb: (err?: Error | null) => void) {
+                writev(batch: unknown[], cb: (err?: Error | null) => void) {
                     expect(batch).toStrictEqual([1, 2, 3]);
                     cb(null);
                 },

@@ -24,6 +24,7 @@ app.connect('activate', () => {
 
     canvasWidget.onReady((canvas) => {
         print(`Canvas 2D ready: ${canvas.width}x${canvas.height}`);
+        // oxlint-disable-next-line typescript/no-explicit-any -- WebGLBridge/Canvas2DBridge canvas has no TypeScript type compatible with HTMLCanvasElement
         start(canvas as any);
     });
 

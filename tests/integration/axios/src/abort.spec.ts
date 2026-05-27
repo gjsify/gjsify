@@ -6,6 +6,12 @@ import { describe, it, expect } from '@gjsify/unit';
 import axios from 'axios';
 import { startHTTPServer, stopHTTPServer } from './test-server.js';
 
+// axios.Cancel extends Error with a message; CanceledError has .code
+interface CancelLike {
+    message: string;
+    code?: string;
+}
+
 export default async () => {
     await describe('axios: request aborting', async () => {
         await it('CancelToken cancels in-flight request', async () => {
@@ -15,15 +21,15 @@ export default async () => {
                 source.cancel('Operation has been canceled.');
             });
             try {
-                let thrown: any;
+                let thrown: CancelLike | undefined;
                 try {
                     await axios.get(`http://127.0.0.1:${srv.port}/`, { cancelToken: source.token });
                 } catch (e) {
-                    thrown = e;
+                    if (e && typeof e === 'object' && 'message' in e) thrown = e as CancelLike;
                 }
                 expect(thrown).toBeDefined();
                 expect(axios.isCancel(thrown)).toBe(true);
-                expect(thrown.message).toBe('Operation has been canceled.');
+                expect(thrown!.message).toBe('Operation has been canceled.');
             } finally {
                 await stopHTTPServer(srv);
             }
@@ -36,7 +42,7 @@ export default async () => {
                 res.end();
             });
             try {
-                let thrown: any;
+                let thrown: unknown;
                 try {
                     await axios.get(`http://127.0.0.1:${srv.port}/`, { cancelToken: source.token });
                 } catch (e) {
@@ -54,14 +60,14 @@ export default async () => {
                 controller.abort();
             });
             try {
-                let thrown: any;
+                let thrown: CancelLike | undefined;
                 try {
                     await axios.get(`http://127.0.0.1:${srv.port}/`, { signal: controller.signal });
                 } catch (e) {
-                    thrown = e;
+                    if (e && typeof e === 'object' && 'message' in e) thrown = e as CancelLike;
                 }
                 expect(thrown).toBeDefined();
-                expect(thrown.code === 'ERR_CANCELED' || thrown.code === 'ECONNABORTED' || axios.isCancel(thrown)).toBe(
+                expect(thrown!.code === 'ERR_CANCELED' || thrown!.code === 'ECONNABORTED' || axios.isCancel(thrown)).toBe(
                     true,
                 );
             } finally {

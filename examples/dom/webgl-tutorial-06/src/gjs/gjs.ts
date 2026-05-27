@@ -7,7 +7,7 @@ import { WebGLBridge } from '@gjsify/webgl';
 // globalThis.Image is set automatically by @gjsify/dom-elements (imported transitively via @gjsify/webgl)
 import { start } from '../webgl-demo.js';
 
-globalThis.alert = (...args: any[]) => console.error('alert:', ...args);
+globalThis.alert = (...args: unknown[]) => console.error('alert:', ...args);
 
 const app = new Gtk.Application({
     application_id: 'gjsify.examples.webgl-tutorial-06',

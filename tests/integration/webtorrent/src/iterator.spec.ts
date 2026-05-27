@@ -5,6 +5,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import WebTorrent from 'webtorrent';
+import type { Instance as WebTorrentInstance, Torrent } from 'webtorrent';
 import fixtures from './fixtures.js';
 import { uniqueTempPath } from './test-helpers.js';
 import FileIterator from 'webtorrent/lib/file-iterator.js';
@@ -17,32 +18,32 @@ const disabledClientOpts = {
     natPmp: false,
 } as const;
 
-function destroyClient(client: any): Promise<void> {
+function destroyClient(client: WebTorrentInstance): Promise<void> {
     return new Promise((resolve, reject) => {
-        client.destroy((err: Error | null | undefined) => (err ? reject(err) : resolve()));
+        client.destroy((err) => (err ? reject(err) : resolve()));
     });
 }
 
-function removeTorrent(client: any, torrent: any): Promise<void> {
+function removeTorrent(client: WebTorrentInstance, torrent: Torrent | string | Buffer): Promise<void> {
     return new Promise((resolve, reject) => {
-        client.remove(torrent, (err: Error | null | undefined) => (err ? reject(err) : resolve()));
+        client.remove(torrent, (err) => (err ? reject(err) : resolve()));
     });
 }
 
-function seedFile(client: any, content: Buffer, opts: object): Promise<any> {
+function seedFile(client: WebTorrentInstance, content: Buffer, opts: object): Promise<Torrent> {
     return new Promise((resolve) => {
-        client.seed(content, opts, (torrent: any) => resolve(torrent));
+        client.seed(content, opts as WebTorrent.TorrentOptions, (torrent) => resolve(torrent));
     });
 }
 
-function waitForReady(torrent: any): Promise<void> {
+function waitForReady(torrent: Torrent): Promise<void> {
     return new Promise((resolve) => torrent.once('ready', resolve));
 }
 
 export default async () => {
     await describe('webtorrent/iterator: async iterator when file done', async () => {
         await it('uses the chunk store iterator after seed completes', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             let clientError: unknown = null;
             client.on('error', (err: Error) => {
                 clientError = err;
@@ -63,6 +64,7 @@ export default async () => {
 
             const iterator = torrent.files[0][Symbol.asyncIterator]();
             expect(torrent.files[0].done).toBeTruthy();
+            // oxlint-disable-next-line typescript/no-explicit-any -- FileIterator has no TypeScript types; instanceof needs the constructor
             expect(iterator instanceof (FileIterator as any)).toBe(false);
             iterator.return?.();
 
@@ -76,7 +78,7 @@ export default async () => {
 
     await describe('webtorrent/iterator: async iterator when file not done', async () => {
         await it('uses FileIterator when torrent has not completed', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             let clientError: unknown = null;
             client.on('error', (err: Error) => {
                 clientError = err;
@@ -85,7 +87,7 @@ export default async () => {
                 clientError = err;
             });
 
-            const torrent: any = client.add(fixtures.leaves.torrent, { path: uniqueTempPath() });
+            const torrent = client.add(fixtures.leaves.torrent, { path: uniqueTempPath() });
             expect(client.torrents.length).toBe(1);
 
             await waitForReady(torrent);
@@ -94,6 +96,7 @@ export default async () => {
 
             expect(torrent.files[0].done).toBeFalsy();
             const iterator = torrent.files[0][Symbol.asyncIterator]();
+            // oxlint-disable-next-line typescript/no-explicit-any -- FileIterator has no TypeScript types; instanceof needs the constructor
             expect(iterator instanceof (FileIterator as any)).toBe(true);
             iterator.return?.();
 

@@ -54,7 +54,9 @@ export class ControlsComponent extends ex.Component {
         const engine = this.owner.scene!.engine;
 
         for (const key of engine.input.keyboard.getKeys().slice().reverse()) {
+            // oxlint-disable-next-line typescript/no-explicit-any -- Array<ex.Keys | ex.Buttons>.includes() requires union type; key is ex.Keys which is narrower
             if (this.controls.Left.includes(key as any)) return 'Left';
+            // oxlint-disable-next-line typescript/no-explicit-any -- Array<ex.Keys | ex.Buttons>.includes() requires union type; key is ex.Keys which is narrower
             if (this.controls.Right.includes(key as any)) return 'Right';
         }
 
@@ -68,7 +70,9 @@ export class ControlsComponent extends ex.Component {
         const engine = this.owner.scene!.engine;
 
         for (const key of engine.input.keyboard.getKeys().slice().reverse()) {
+            // oxlint-disable-next-line typescript/no-explicit-any -- Array<ex.Keys | ex.Buttons>.includes() requires union type; key is ex.Keys which is narrower
             if (this.controls.Up.includes(key as any)) return 'Up';
+            // oxlint-disable-next-line typescript/no-explicit-any -- Array<ex.Keys | ex.Buttons>.includes() requires union type; key is ex.Keys which is narrower
             if (this.controls.Down.includes(key as any)) return 'Down';
         }
 

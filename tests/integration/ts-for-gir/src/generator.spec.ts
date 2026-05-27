@@ -21,7 +21,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, expect } from '@gjsify/unit';
-import { DependencyManager, GirModule, NSRegistry, IntrospectedRecord, type OptionsGeneration } from '@ts-for-gir/lib';
+import { DependencyManager, GirModule, NSRegistry, IntrospectedRecord, type IntrospectedClassFunction, type OptionsGeneration } from '@ts-for-gir/lib';
 import { ModuleGenerator } from '@ts-for-gir/generator-typescript';
 
 // Minimal GIR: one record with two methods and one constant, no <include> deps.
@@ -143,13 +143,13 @@ export default async () => {
 
         await it('Greeter has the greet method', async () => {
             const greeter = girModule.members.get('Greeter') as IntrospectedRecord;
-            const greet = greeter.members.find((m: any) => m.name === 'greet');
+            const greet = greeter.members.find((m: IntrospectedClassFunction) => m.name === 'greet');
             expect(greet).toBeDefined();
         });
 
         await it('Greeter has the get_count method', async () => {
             const greeter = girModule.members.get('Greeter') as IntrospectedRecord;
-            const getCount = greeter.members.find((m: any) => m.name === 'get_count');
+            const getCount = greeter.members.find((m: IntrospectedClassFunction) => m.name === 'get_count');
             expect(getCount).toBeDefined();
         });
 

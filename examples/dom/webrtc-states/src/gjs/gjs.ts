@@ -129,6 +129,7 @@ app.connect('activate', () => {
         onPc2Conn: (s) => setLabel(pc2Labels.connection, s),
         onRemoteStream: (stream) => {
             remoteBridge.onReady((video) => {
+                // oxlint-disable-next-line typescript/no-explicit-any -- VideoBridge video element has no TypeScript type for srcObject assignment
                 (video as any).srcObject = stream;
             });
         },
@@ -137,13 +138,14 @@ app.connect('activate', () => {
     // Start demo when local video bridge is ready
     localBridge.onReady(async (localVideo) => {
         try {
+            // oxlint-disable-next-line typescript/no-explicit-any -- VideoBridge video element has no TypeScript type compatible with HTMLVideoElement
             const { hangup } = await runStatesDemo(log, localVideo as any, callbacks);
             win.connect('close-request', () => {
                 hangup();
                 return false;
             });
-        } catch (err: any) {
-            log('ERROR', err?.message ?? String(err));
+        } catch (err) {
+            log('ERROR', (err as Error)?.message ?? String(err));
         }
     });
 

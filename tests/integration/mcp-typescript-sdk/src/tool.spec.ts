@@ -7,6 +7,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { Notification } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { assertMatchObject, yieldEventLoop } from './helpers.js';
 
@@ -14,9 +15,9 @@ export default async () => {
     await describe('MCP tool()', async () => {
         await it('should register zero-argument tool', async () => {
             const mcpServer = new McpServer({ name: 'test server', version: '1.0' });
-            const notifications: any[] = [];
+            const notifications: Notification[] = [];
             const client = new Client({ name: 'test client', version: '1.0' });
-            client.fallbackNotificationHandler = async (notification: any) => {
+            client.fallbackNotificationHandler = async (notification: Notification) => {
                 notifications.push(notification);
             };
 
@@ -145,7 +146,7 @@ export default async () => {
             await Promise.all([client.connect(clientTransport), mcpServer.connect(serverTransport)]);
 
             const result = await client.callTool({ name: 'greet', arguments: { name: 'World' } });
-            expect((result.content as any)[0].text).toBe('Hello, World!');
+            expect((result.content as Array<{ type: string; text: string }>)[0].text).toBe('Hello, World!');
 
             await client.close();
             await mcpServer.close();
@@ -194,7 +195,7 @@ export default async () => {
             await Promise.all([client.connect(clientTransport), mcpServer.connect(serverTransport)]);
 
             const result = await client.callTool({ name: 'test' });
-            expect((result.content as any)[0].text).toBe('Updated response');
+            expect((result.content as Array<{ type: string; text: string }>)[0].text).toBe('Updated response');
 
             await client.close();
             await mcpServer.close();
@@ -202,9 +203,9 @@ export default async () => {
 
         await it('should send tool list changed notifications when connected', async () => {
             const mcpServer = new McpServer({ name: 'test server', version: '1.0' });
-            const notifications: any[] = [];
+            const notifications: Notification[] = [];
             const client = new Client({ name: 'test client', version: '1.0' });
-            client.fallbackNotificationHandler = async (notification: any) => {
+            client.fallbackNotificationHandler = async (notification: Notification) => {
                 notifications.push(notification);
             };
 
@@ -276,9 +277,9 @@ export default async () => {
 
         await it('should remove tool and send notification', async () => {
             const mcpServer = new McpServer({ name: 'test server', version: '1.0' });
-            const notifications: any[] = [];
+            const notifications: Notification[] = [];
             const client = new Client({ name: 'test client', version: '1.0' });
-            client.fallbackNotificationHandler = async (notification: any) => {
+            client.fallbackNotificationHandler = async (notification: Notification) => {
                 notifications.push(notification);
             };
 

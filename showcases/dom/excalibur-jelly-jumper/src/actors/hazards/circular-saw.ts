@@ -48,6 +48,7 @@ export class CircularSawHazard extends PhysicsActor {
         this.addComponent(new CarriableComponent());
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- ex.Engine<any> uses Excalibur default generic; Engine<TKnownScenes = any>
     onInitialize(engine: ex.Engine<any>): void {
         this.graphics.material = new RenderTopHalfMaterial(engine.graphicsContext, this);
     }

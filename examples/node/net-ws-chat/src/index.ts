@@ -99,6 +99,7 @@ server.listen(PORT, () => {
     if (isGJS) {
         // GJS: Add WebSocket handler via Soup.Server
         const httpServer = server as unknown as Server;
+        // oxlint-disable-next-line typescript/no-explicit-any -- Soup.WebsocketConnection has no @types; callback parameter is GJS runtime type
         httpServer.addWebSocketHandler('/ws', (connection: any) => {
             console.log('WebSocket client connected');
             _activeConnections.add(connection);
@@ -109,6 +110,7 @@ server.listen(PORT, () => {
             }
 
             // Handle incoming messages
+            // oxlint-disable-next-line typescript/no-explicit-any -- Soup.WebsocketConnection signal callbacks have no @types for GJS
             connection.connect('message', (_conn: any, _type: number, data: any) => {
                 try {
                     const text = new TextDecoder().decode(data.toArray());
@@ -125,6 +127,7 @@ server.listen(PORT, () => {
                         const payload = JSON.stringify(msg);
                         for (const c of _activeConnections) {
                             try {
+                                // oxlint-disable-next-line typescript/no-explicit-any -- Soup.WebsocketConnection.send_text not in @types; GJS runtime call
                                 (c as any).send_text(payload);
                             } catch {}
                         }
@@ -139,6 +142,7 @@ server.listen(PORT, () => {
                 _activeConnections.delete(connection);
             });
 
+            // oxlint-disable-next-line typescript/no-explicit-any -- Soup.WebsocketConnection 'error' signal callback has no @types for GJS
             connection.connect('error', (_conn: any, error: any) => {
                 console.error('WebSocket error:', error?.message || error);
                 _activeConnections.delete(connection);

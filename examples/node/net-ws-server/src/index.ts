@@ -100,6 +100,7 @@ function broadcast(sender: WebSocket, message: string): void {
 wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
     const nick = url.searchParams.get('nick') ?? 'anonymous';
+    // oxlint-disable-next-line typescript/no-explicit-any -- @gjsify/ws WebSocket exposes .protocol at runtime; not in @types/ws
     const proto = (ws as any).protocol || '(none)';
 
     console.log(`[ws] + ${nick}  (protocol: ${proto}, clients: ${wss.clients.size})`);
@@ -135,6 +136,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
 //   6. Writes the 101 response
 //   7. Creates Soup.WebsocketConnection from the raw IOStream
 
+// oxlint-disable-next-line typescript/no-explicit-any -- Node http.Server 'upgrade' socket is net.Socket but @gjsify/http wraps it; no shared type
 server.on('upgrade', (req: IncomingMessage, socket: any, head: Buffer) => {
     const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
 

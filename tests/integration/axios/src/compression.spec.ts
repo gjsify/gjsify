@@ -120,11 +120,11 @@ export default async () => {
                 res.end('invalid gzip data');
             });
             try {
-                let error: any;
+                let error: Error | undefined;
                 try {
                     await axios.get(`http://127.0.0.1:${srv.port}/`);
                 } catch (e) {
-                    error = e;
+                    if (e instanceof Error) error = e;
                 }
                 expect(error).toBeDefined();
             } finally {

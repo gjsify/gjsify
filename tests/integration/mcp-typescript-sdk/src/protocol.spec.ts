@@ -7,6 +7,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { Notification, ServerCapabilities } from '@modelcontextprotocol/sdk/types.js';
 import { assertMatchObject } from './helpers.js';
 
 export default async () => {
@@ -48,9 +49,9 @@ export default async () => {
                     { capabilities: { logging: {} } },
                 );
 
-                const notifications: any[] = [];
+                const notifications: Notification[] = [];
                 const client = new Client({ name: 'test client', version: '1.0' });
-                client.fallbackNotificationHandler = async (notification: any) => {
+                client.fallbackNotificationHandler = async (notification: Notification) => {
                     notifications.push(notification);
                 };
 
@@ -99,9 +100,10 @@ export default async () => {
 
                 const capabilities = client.getServerCapabilities();
                 expect(capabilities?.extensions).toBeDefined();
-                const ext = (capabilities?.extensions as any)?.['io.modelcontextprotocol/test-extension'];
+                const extensions = (capabilities?.extensions as Record<string, ServerCapabilities['extensions']> | undefined);
+                const ext = extensions?.['io.modelcontextprotocol/test-extension'] as Record<string, unknown> | undefined;
                 expect(ext).toBeDefined();
-                expect(ext.listChanged).toBe(true);
+                expect(ext!.listChanged).toBe(true);
 
                 await client.close();
                 await mcpServer.close();
@@ -128,9 +130,10 @@ export default async () => {
 
                 const capabilities = mcpServer.server.getClientCapabilities();
                 expect(capabilities?.extensions).toBeDefined();
-                const ext = (capabilities?.extensions as any)?.['io.modelcontextprotocol/test-extension'];
-                expect(ext).toBeDefined();
-                expect(ext.streaming).toBe(true);
+                const extensions2 = (capabilities?.extensions as Record<string, unknown> | undefined);
+                const ext2 = extensions2?.['io.modelcontextprotocol/test-extension'] as Record<string, unknown> | undefined;
+                expect(ext2).toBeDefined();
+                expect(ext2!.streaming).toBe(true);
 
                 await client.close();
                 await mcpServer.close();

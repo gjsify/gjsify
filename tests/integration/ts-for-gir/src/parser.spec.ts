@@ -89,8 +89,9 @@ export default async () => {
             // (fast-xml-parser blocks "constructor" to prevent prototype pollution),
             // then restores it in postProcessParsedXml.
             const cls = findClass(ns, 'WebGLRenderingContextBase');
-            expect(Array.isArray((cls as any).constructor)).toBeTruthy();
-            expect((cls as any).__gir_constructor__).toBeUndefined();
+            const clsRecord = cls as unknown as Record<string, unknown>;
+            expect(Array.isArray(clsRecord.constructor)).toBeTruthy();
+            expect(clsRecord.__gir_constructor__).toBeUndefined();
         });
     });
 
@@ -115,7 +116,7 @@ export default async () => {
 
         await it('PromiseBridge has glib:signal entries (replied, rejected)', async () => {
             const cls = findClass(ns, 'PromiseBridge');
-            const signals = (cls as any)['glib:signal'] as Array<{ $: { name: string } }> | undefined;
+            const signals = (cls as unknown as Record<string, unknown>)['glib:signal'] as Array<{ $: { name: string } }> | undefined;
             expect(Array.isArray(signals)).toBeTruthy();
             const names = signals!.map((s) => s.$.name);
             expect(names).toContain('replied');
@@ -162,7 +163,7 @@ export default async () => {
             expect(method).toBeDefined();
             const params = method!.parameters![0];
             // every method has at least an instance-parameter
-            const instanceParam = (params as any)['instance-parameter'];
+            const instanceParam = (params as unknown as Record<string, unknown>)['instance-parameter'];
             expect(Array.isArray(instanceParam)).toBeTruthy();
             expect(instanceParam.length >= 1).toBeTruthy();
         });
