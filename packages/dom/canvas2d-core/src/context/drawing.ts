@@ -7,7 +7,7 @@
 
 import Cairo from 'cairo';
 import Gdk from 'gi://Gdk?version=4.0';
-import GdkPixbuf from 'gi://GdkPixbuf';
+import type GdkPixbuf from 'gi://GdkPixbuf';
 
 import type { CanvasRenderingContext2D } from '../canvas-rendering-context-2d.js';
 import { asCairoPattern } from '../cairo-types.js';

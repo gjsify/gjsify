@@ -2,8 +2,8 @@
 // Reference: Node.js lib/sqlite.js
 // Reimplemented for GJS using Gda-6.0
 
-import Gda from '@girs/gda-6.0';
-import GObject from '@girs/gobject-2.0';
+import type Gda from '@girs/gda-6.0';
+import type GObject from '@girs/gobject-2.0';
 import { InvalidArgTypeError, InvalidArgValueError, InvalidStateError, SqliteError } from './errors.ts';
 import type { SQLiteValue } from './types.ts';
 
@@ -107,7 +107,7 @@ export function bindParameters(
 
             // Try bare name (without prefix)
             if (!found && ctx.allowBareNamedParameters) {
-                const bareName = id.replace(/^[\$:@]/, '');
+                const bareName = id.replace(/^[$:@]/, '');
                 if (bareName in namedArgs) {
                     value = namedArgs[bareName];
                     usedKeys.add(bareName);
@@ -117,7 +117,7 @@ export function bindParameters(
 
             if (!found && !ctx.allowBareNamedParameters) {
                 // Check if user passed bare name — error
-                const bareName = id.replace(/^[\$:@]/, '');
+                const bareName = id.replace(/^[$:@]/, '');
                 if (bareName in namedArgs) {
                     throw new InvalidStateError(`Unknown named parameter '${bareName}'`);
                 }
@@ -139,7 +139,7 @@ export function bindParameters(
                     // Check if any holder matches this key with prefix
                     const matchesHolder = holders.some(h => {
                         const id = h.get_id();
-                        return id === key || id.replace(/^[\$:@]/, '') === key;
+                        return id === key || id.replace(/^[$:@]/, '') === key;
                     });
                     if (!matchesHolder) {
                         throw new InvalidStateError(`Unknown named parameter '${key}'`);

@@ -131,7 +131,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
         const { stdout } = await execFileAsync('node', [CLI_ENTRY, 'upgrade', ...args], {
             timeout: opts.timeout ?? 30 * 1000,
             cwd: opts.cwd,
-            env: { ...process.env, npm_config_registry: registryUrl, ...(opts.env ?? {}) },
+            env: { ...process.env, npm_config_registry: registryUrl, ...opts.env },
             encoding: 'utf8',
         });
         return stdout;

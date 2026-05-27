@@ -6,7 +6,7 @@ import * as bits from 'bit-twiddle';
 import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 import type { WebGLContextBase } from '../webgl-context-base.js';
 import { WebGLTexture } from '../webgl-texture.js';
-import { WebGLTextureUnit } from '../webgl-texture-unit.js';
+import type { WebGLTextureUnit } from '../webgl-texture-unit.js';
 import {
     Uint8ArrayToVariant,
     arrayToUint8Array,

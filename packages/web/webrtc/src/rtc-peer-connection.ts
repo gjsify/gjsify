@@ -30,7 +30,7 @@ import { RTCRtpSender, type RTCRtpTransceiverDirection } from './rtc-rtp-sender.
 import { RTCRtpReceiver } from './rtc-rtp-receiver.js';
 import { RTCRtpTransceiver } from './rtc-rtp-transceiver.js';
 import { MediaStream } from './media-stream.js';
-import { MediaStreamTrack } from './media-stream-track.js';
+import type { MediaStreamTrack } from './media-stream-track.js';
 import { RTCTrackEvent } from './rtc-track-event.js';
 import { RTCIceTransport } from './rtc-ice-transport.js';
 import { RTCDtlsTransport } from './rtc-dtls-transport.js';

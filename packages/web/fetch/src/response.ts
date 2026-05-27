@@ -11,7 +11,7 @@ import Body, { clone, extractContentType } from './body.js';
 import { isRedirect } from './utils/is-redirect.js';
 
 import { URL } from '@gjsify/url';
-import { Blob } from './utils/blob-from.js';
+import type { Blob } from './utils/blob-from.js';
 
 import type { Readable } from 'node:stream';
 

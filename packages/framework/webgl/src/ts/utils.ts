@@ -1,9 +1,9 @@
 // https://github.com/stackgl/headless-gl/blob/master/src/javascript/utils.js
 // import { gl } from './native-gl.js';
 import { WebGLUniformLocation } from './webgl-uniform-location.js';
-import { WebGLProgram } from './webgl-program.js';
+import type { WebGLProgram } from './webgl-program.js';
 import GLib from '@girs/glib-2.0';
-import { HTMLImageElement } from "@gjsify/dom-elements";
+import type { HTMLImageElement } from "@gjsify/dom-elements";
 
 import type { WebGLContextBase } from './webgl-context-base.js';
 import type { TypedArray} from './types/index.js';

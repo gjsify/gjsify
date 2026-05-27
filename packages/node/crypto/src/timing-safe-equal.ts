@@ -1,7 +1,7 @@
 // Constant-time comparison to prevent timing attacks
 // Reference: Node.js lib/internal/crypto/util.js
 
-import { Buffer } from 'node:buffer';
+import type { Buffer } from 'node:buffer';
 
 /**
  * Compare two buffers in constant time to prevent timing attacks.

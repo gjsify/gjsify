@@ -7,7 +7,7 @@
 //
 // Reference: refs/showtime/showtime/play.py (gtk4paintablesink + optional glsinkbin)
 
-import Gdk from 'gi://Gdk?version=4.0';
+import type Gdk from 'gi://Gdk?version=4.0';
 import { ensureGstInit, ensurePaintableSinkAvailable, Gst } from './gst-init.js';
 
 export interface PaintableSinkResult {

@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync, rmdirSync, mkdtempSync, statSync } from 'fs';
-import path from 'path';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync, rmdirSync, mkdtempSync, statSync } from 'node:fs';
+import path from 'node:path';
 
 console.log('=== @gjsify/fs example ===\n');
 

@@ -3,11 +3,13 @@
 // Copyright (c) 2014-2024 Damien Arrachequesne. MIT.
 // Rewritten for GJS: plain http.createServer instead of express.
 
-import { createServer, IncomingMessage, ServerResponse } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Server, Socket } from 'socket.io';
+import type { Socket } from 'socket.io';
+import { Server } from 'socket.io';
 
 const PORT = 3000;
 const __dirname = fileURLToPath(new URL('.', import.meta.url));

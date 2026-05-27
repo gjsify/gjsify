@@ -74,7 +74,7 @@ let _rsaOaepDecrypt: (hashAlgo: string, privKeyPem: string, ciphertext: Uint8Arr
 
 async function loadCrypto(): Promise<void> {
   if (_cryptoLoaded) return;
-  const crypto = await import('crypto') as Record<string, unknown>;
+  const crypto = await import('node:crypto') as Record<string, unknown>;
   _createHash = crypto.createHash as typeof _createHash;
   _createHmac = crypto.createHmac as typeof _createHmac;
   _createCipheriv = crypto.createCipheriv as typeof _createCipheriv;

@@ -181,7 +181,7 @@ export class Config {
         const defineMap = parseKvPairs(cliArgs.define ?? [], 'define');
         const aliasMap = parseKvPairs(cliArgs.alias ?? [], 'alias');
         if (Object.keys(aliasMap).length) {
-            configData.aliases = { ...(configData.aliases ?? {}), ...aliasMap };
+            configData.aliases = { ...configData.aliases, ...aliasMap };
         }
 
         // Resolve `defineFromPackageJson` / `defineFromEnv` into raw
@@ -300,7 +300,7 @@ export class Config {
             // CLI --define wins over package.json/env (manual overrides during
             // debugging beat declarative config).
             transform.define = {
-                ...(transform.define ?? {}),
+                ...transform.define,
                 ...fromPkgDefines,
                 ...fromEnvDefines,
                 ...defineMap,

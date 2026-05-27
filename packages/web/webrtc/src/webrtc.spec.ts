@@ -6,16 +6,17 @@
 import Gst from 'gi://Gst?version=1.0';
 import { describe, it, expect } from '@gjsify/unit';
 
+import type {
+    RTCDataChannel,
+    RTCDTMFToneChangeEvent} from './index.js';
 import {
     RTCPeerConnection,
     RTCSessionDescription,
     RTCIceCandidate,
-    RTCDataChannel,
     RTCDtlsTransport,
     RTCIceTransport,
     RTCSctpTransport,
     RTCDTMFSender,
-    RTCDTMFToneChangeEvent,
     RTCCertificate,
     MediaStreamTrack,
     MediaDevices,

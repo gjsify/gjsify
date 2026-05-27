@@ -23,7 +23,8 @@ import { DOMException } from '@gjsify/dom-exception';
 import { Gst } from '../gst-init.js';
 import { withGstPromise } from '../gst-utils.js';
 import { RTCSessionDescription, type RTCSessionDescriptionInit } from '../rtc-session-description.js';
-import { RTCIceCandidate, type RTCIceCandidateInit } from '../rtc-ice-candidate.js';
+import type { RTCIceCandidate} from '../rtc-ice-candidate.js';
+import { type RTCIceCandidateInit } from '../rtc-ice-candidate.js';
 import type { RTCPeerConnection, RTCOfferOptions, RTCAnswerOptions } from '../rtc-peer-connection.js';
 
 export interface SdpNegotiationMethods {

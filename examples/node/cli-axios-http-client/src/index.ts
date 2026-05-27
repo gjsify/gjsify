@@ -3,7 +3,8 @@
 // Uses https://jsonplaceholder.typicode.com (a free fake REST API) so the demo
 // exercises real HTTPS, JSON parsing, and concurrent requests on Node.js + GJS.
 
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import type { AxiosInstance, AxiosError } from 'axios';
+import axios from 'axios';
 
 interface Post {
   userId: number;

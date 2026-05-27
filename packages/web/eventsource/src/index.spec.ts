@@ -214,7 +214,7 @@ export default async () => {
 
     // Helper to create a simple SSE server
     async function createSSEServer(handler: (req: any, res: any) => void): Promise<{ port: number; close: () => void }> {
-      const http = await import('http');
+      const http = await import('node:http');
       return new Promise((resolve) => {
         const server = http.createServer(handler);
         server.listen(0, () => {

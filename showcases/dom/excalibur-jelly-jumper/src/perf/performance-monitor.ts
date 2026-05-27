@@ -1,4 +1,4 @@
-import * as ex from 'excalibur'
+import type * as ex from 'excalibur'
 
 export interface PerfStats {
   platform: string

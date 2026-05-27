@@ -85,7 +85,7 @@ export function gjsifyBrowser(options: GjsifyBrowserOptions = {}): Plugin[] {
 
     const alias: Record<string, string> = {
         ...browserPolyfillAliases,
-        ...(options.aliases ?? {}),
+        ...options.aliases,
     };
 
     const optimizeDepsExclude = ['@gjsify/unit', ...(options.optimizeDepsExclude ?? [])];

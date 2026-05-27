@@ -47,8 +47,8 @@ export const setupLib = async (input: LibFactoryInput): Promise<LibBuildConfig> 
     const preserveModulesRoot = computeCommonRoot(entryPoints);
 
     const aliasMap = {
-        ...(input.pluginOptions.aliases ?? {}),
-        ...(input.userAliases ?? {}),
+        ...input.pluginOptions.aliases,
+        ...input.userAliases,
     };
 
     // Library mode keeps all third-party / workspace imports as-is so the

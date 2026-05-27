@@ -53,12 +53,12 @@ export const ErrorHandlerTest = async () => {
                 target.dispatchEvent(new Event("foo"))
                 process.removeListener("uncaughtException", onUncaughtException);
 
-                TODO: assert.strictEqual(onUncaughtException.calls.length, 1, "onUncaughtException should be called.")
+                assert.strictEqual(onUncaughtException.calls.length, 1, "onUncaughtException should be called.")
 
                 // TODO: this are currently not the same objects, see https://gitlab.gnome.org/GNOME/gjs/-/issues/523
                 // assert.strictEqual(onUncaughtException.calls[0].arguments[0], error)
-                TODO: expect(onUncaughtException.calls[0].arguments[0].message).toBe(error.message)
-                TODO: expect(onUncaughtException.calls[0].arguments[0].stack?.trim()).toBe(error.stack?.trim())
+                expect(onUncaughtException.calls[0].arguments[0].message).toBe(error.message)
+                expect(onUncaughtException.calls[0].arguments[0].stack?.trim()).toBe(error.stack?.trim())
             })
         })
     })

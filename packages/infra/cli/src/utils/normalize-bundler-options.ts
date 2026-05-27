@@ -41,10 +41,10 @@ export function normalizeBundlerOptions(configData: ConfigData): BundlerOptions 
         fromBundler = {
             ...rest,
             transform: {
-                ...(rest.transform ?? {}),
+                ...rest.transform,
                 define: {
-                    ...(topLevelDefine ?? {}),
-                    ...(rest.transform?.define ?? {}),
+                    ...topLevelDefine,
+                    ...rest.transform?.define,
                 },
             },
         };
@@ -69,19 +69,19 @@ export function normalizeBundlerOptions(configData: ConfigData): BundlerOptions 
     // user-provided config and `input` must survive the merge.
     const out: BundlerOptions = { ...fromEsbuild, ...fromBundler };
     if (fromEsbuild.output || fromBundler.output) {
-        out.output = { ...(fromEsbuild.output ?? {}), ...(fromBundler.output ?? {}) };
+        out.output = { ...fromEsbuild.output, ...fromBundler.output };
     }
     if (fromEsbuild.transform || fromBundler.transform) {
-        out.transform = { ...(fromEsbuild.transform ?? {}), ...(fromBundler.transform ?? {}) };
+        out.transform = { ...fromEsbuild.transform, ...fromBundler.transform };
         if (fromEsbuild.transform?.define || fromBundler.transform?.define) {
             out.transform.define = {
-                ...(fromEsbuild.transform?.define ?? {}),
-                ...(fromBundler.transform?.define ?? {}),
+                ...fromEsbuild.transform?.define,
+                ...fromBundler.transform?.define,
             };
         }
     }
     if (fromEsbuild.resolve || fromBundler.resolve) {
-        out.resolve = { ...(fromEsbuild.resolve ?? {}), ...(fromBundler.resolve ?? {}) };
+        out.resolve = { ...fromEsbuild.resolve, ...fromBundler.resolve };
     }
     return out;
 }
@@ -155,16 +155,16 @@ export function mergeBundlerOptions(
     const { input: _ignoredInput, external: _ignoredExternal, ...overridesRest } = overrides;
     const out: BundlerOptions = { ...base, ...overridesRest };
     if (base.output || overrides.output) {
-        out.output = { ...(base.output ?? {}), ...(overrides.output ?? {}) };
+        out.output = { ...base.output, ...overrides.output };
     }
     if (base.transform || overrides.transform) {
-        out.transform = { ...(base.transform ?? {}), ...(overrides.transform ?? {}) };
+        out.transform = { ...base.transform, ...overrides.transform };
         if (base.transform?.define || overrides.transform?.define) {
-            out.transform.define = { ...(base.transform?.define ?? {}), ...(overrides.transform?.define ?? {}) };
+            out.transform.define = { ...base.transform?.define, ...overrides.transform?.define };
         }
     }
     if (base.resolve || overrides.resolve) {
-        out.resolve = { ...(base.resolve ?? {}), ...(overrides.resolve ?? {}) };
+        out.resolve = { ...base.resolve, ...overrides.resolve };
     }
     return out;
 }

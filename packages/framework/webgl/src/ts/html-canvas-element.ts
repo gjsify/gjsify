@@ -2,7 +2,7 @@
 // Extends the DOM-spec base from @gjsify/dom-elements with GTK.GLArea integration.
 
 import { HTMLCanvasElement as BaseHTMLCanvasElement } from '@gjsify/dom-elements';
-import Gtk from 'gi://Gtk?version=4.0';
+import type Gtk from 'gi://Gtk?version=4.0';
 // Circular import is intentional and safe in ESM (classes are only used at runtime, not at link time)
 import { WebGLRenderingContext as OurWebGLRenderingContext } from './webgl-rendering-context.js';
 import { WebGL2RenderingContext as OurWebGL2RenderingContext } from './webgl2-rendering-context.js';

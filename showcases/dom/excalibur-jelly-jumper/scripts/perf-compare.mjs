@@ -14,7 +14,7 @@
  *   node scripts/perf-compare.mjs /tmp/gjs.log /tmp/browser.log
  */
 
-import { readFileSync } from 'fs';
+import { readFileSync } from 'node:fs';
 
 const [, , gjsFile, browserFile] = process.argv;
 

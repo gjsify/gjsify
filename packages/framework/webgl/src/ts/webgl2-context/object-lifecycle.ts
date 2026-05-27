@@ -12,7 +12,7 @@
 import { warnNotImplemented } from '@gjsify/utils';
 import type { WebGL2RenderingContext } from '../webgl2-rendering-context.js';
 import { WebGLActiveInfo } from '../webgl-active-info.js';
-import { WebGLProgram as OurWebGLProgram } from '../webgl-program.js';
+import type { WebGLProgram as OurWebGLProgram } from '../webgl-program.js';
 import { WebGLQuery } from '../webgl-query.js';
 import { WebGLSampler } from '../webgl-sampler.js';
 import { WebGLSync } from '../webgl-sync.js';

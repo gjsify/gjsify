@@ -6,7 +6,8 @@
 import { URLSearchParams } from '@gjsify/url';
 import { Blob } from './utils/blob-from.js';
 
-import { PassThrough, pipeline as pipelineCb, Readable, Stream, Writable } from 'node:stream';
+import type { Writable } from 'node:stream';
+import { PassThrough, pipeline as pipelineCb, Readable, Stream } from 'node:stream';
 import { Buffer } from 'node:buffer';
 
 import { FormData, formDataToBlob } from '@gjsify/formdata';

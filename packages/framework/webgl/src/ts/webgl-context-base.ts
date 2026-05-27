@@ -18,7 +18,7 @@ import '@girs/gdkpixbuf-2.0';
 import * as bits from 'bit-twiddle';
 import Gwebgl from '@girs/gwebgl-0.1';
 import { WebGLContextAttributes } from './webgl-context-attributes.js';
-import { HTMLCanvasElement } from './html-canvas-element.js';
+import type { HTMLCanvasElement } from './html-canvas-element.js';
 import { flag } from './utils.js';
 
 // Extension factories
@@ -37,13 +37,13 @@ import { getEXTTextureFilterAnisotropic } from './extensions/ext-texture-filter-
 import { getOESTextureHalfFloat } from './extensions/oes-texture-half-float.js';
 // import { getOESVertexArrayObject } from './extensions/oes-vertex-array-object.js';
 
-import { WebGLBuffer } from './webgl-buffer.js';
-import { WebGLDrawingBufferWrapper } from './webgl-drawing-buffer-wrapper.js';
-import { WebGLFramebuffer } from './webgl-framebuffer.js';
-import { WebGLProgram } from './webgl-program.js';
-import { WebGLRenderbuffer } from './webgl-renderbuffer.js';
-import { WebGLShader } from './webgl-shader.js';
-import { WebGLTexture } from './webgl-texture.js';
+import type { WebGLBuffer } from './webgl-buffer.js';
+import type { WebGLDrawingBufferWrapper } from './webgl-drawing-buffer-wrapper.js';
+import type { WebGLFramebuffer } from './webgl-framebuffer.js';
+import type { WebGLProgram } from './webgl-program.js';
+import type { WebGLRenderbuffer } from './webgl-renderbuffer.js';
+import type { WebGLShader } from './webgl-shader.js';
+import type { WebGLTexture } from './webgl-texture.js';
 import { WebGLTextureUnit } from './webgl-texture-unit.js';
 import { WebGLVertexArrayObjectState, WebGLVertexArrayGlobalState } from './webgl-vertex-attribute.js';
 

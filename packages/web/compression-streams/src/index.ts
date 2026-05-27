@@ -47,7 +47,7 @@ interface _ZlibSync {
 
 async function loadZlib(): Promise<void> {
   if (_zlibLoaded) return;
-  const zlib = (await import('zlib')) as unknown as _ZlibSync;
+  const zlib = (await import('node:zlib')) as unknown as _ZlibSync;
   _gzipSync = zlib.gzipSync;
   _gunzipSync = zlib.gunzipSync;
   _deflateSync = zlib.deflateSync;

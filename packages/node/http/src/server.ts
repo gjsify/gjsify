@@ -11,7 +11,7 @@
 // whose lifetime SpiderMonkey GC cannot race against. Same pattern as
 // `@gjsify/webrtc-native`.
 
-import Gio from '@girs/gio-2.0';
+import type Gio from '@girs/gio-2.0';
 import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
 import { Buffer } from 'node:buffer';

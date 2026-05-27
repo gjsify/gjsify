@@ -335,7 +335,7 @@ export class DatabaseSync {
         // Validate the SQL by parsing it (with params replaced by literals)
         try {
             const testSql = paramMap.length > 0
-                ? sql.replace(/\?(\d+)?/g, 'NULL').replace(/[\$:@][a-zA-Z_][a-zA-Z0-9_]*/g, 'NULL')
+                ? sql.replace(/\?(\d+)?/g, 'NULL').replace(/[$:@][a-zA-Z_][a-zA-Z0-9_]*/g, 'NULL')
                 : sql;
             const [stmt] = this.#parser!.parse_string(testSql);
             if (!stmt) {

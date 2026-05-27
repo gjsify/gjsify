@@ -2,7 +2,7 @@
 // Provides a Gtk.GLArea subclass that handles all WebGL bootstrapping boilerplate.
 
 import GObject from 'gi://GObject';
-import Gdk from 'gi://Gdk?version=4.0';
+import type Gdk from 'gi://Gdk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { HTMLCanvasElement as OurHTMLCanvasElement } from './html-canvas-element.js';

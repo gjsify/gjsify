@@ -144,7 +144,7 @@ export default async () => {
       // Previously the named export was `process.hrtime.bind(process)`, which
       // strips own properties — `.bigint` was undefined on the bound copy.
       // Now Object.assign re-attaches it so behavior matches Node.
-      const { hrtime: namedHrtime } = await import('process');
+      const { hrtime: namedHrtime } = await import('node:process');
       expect(typeof (namedHrtime as { bigint?: () => bigint }).bigint).toBe('function');
       const t = (namedHrtime as { bigint: () => bigint }).bigint();
       expect(typeof t).toBe('bigint');

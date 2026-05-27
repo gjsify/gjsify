@@ -1,7 +1,7 @@
 // Gamepad Web API — Gamepad
 // Reference: https://w3c.github.io/gamepad/#dom-gamepad
 
-import { GamepadButton } from './gamepad-button.js';
+import type { GamepadButton } from './gamepad-button.js';
 
 /**
  * Represents a single gamepad device.

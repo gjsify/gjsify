@@ -1,4 +1,4 @@
-import { URL, URLSearchParams, parse, format, fileURLToPath, pathToFileURL } from 'url';
+import { URL, URLSearchParams, parse, format, fileURLToPath, pathToFileURL } from 'node:url';
 
 console.log('=== @gjsify/url example ===\n');
 

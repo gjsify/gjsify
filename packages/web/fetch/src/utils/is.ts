@@ -1,5 +1,5 @@
 import { URL } from '@gjsify/url';
-import { Blob } from './blob-from.js';
+import type { Blob } from './blob-from.js';
 
 /**
  * Is.js

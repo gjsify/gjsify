@@ -110,7 +110,7 @@ async function analysePackage(packageDir) {
     for (const path of allFiles) {
         const name = basename(path);
         const dir = dirname(path);
-        if (/\.spec\.ts$/.test(name)) {
+        if (name.endsWith('.spec.ts')) {
             const list = specsByDir.get(dir) ?? [];
             list.push(path);
             specsByDir.set(dir, list);

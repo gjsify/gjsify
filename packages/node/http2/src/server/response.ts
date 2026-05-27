@@ -717,7 +717,7 @@ function _respondFromFD(
     // table — passing the wrapper object itself fails the lookup
     // (object → "[object Object]" string key).
     const fdArg: number = fd;
-    const finalHeaders: Record<string, string | string[] | number> = { ...(headers ?? {}) };
+    const finalHeaders: Record<string, string | string[] | number> = { ...headers };
 
     // statCheck — mirrors Node's contract: lets the app mutate headers based
     // on stat results without hand-writing fstat boilerplate.

@@ -255,7 +255,7 @@ async function runNativeBundle(finalOpts: BundlerOptions): Promise<RolldownOutpu
     void _droppedPlugins;
     const bundlerOpts = liftTransformExtras(stripUnserializable({
         ...rest,
-        ...(outputOpts ?? {}),
+        ...outputOpts,
         input: normalizeInputForNative(finalOpts.input as import('rolldown').InputOptions['input']),
     }));
     if ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.GJSIFY_DEBUG_NATIVE_OPTS) {

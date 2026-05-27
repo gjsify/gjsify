@@ -1,4 +1,4 @@
-import { homedir, hostname, tmpdir, cpus, EOL, type, release, userInfo, endianness } from 'os';
+import { homedir, hostname, tmpdir, cpus, EOL, type, release, userInfo, endianness } from 'node:os';
 
 console.log('=== @gjsify/os example ===\n');
 

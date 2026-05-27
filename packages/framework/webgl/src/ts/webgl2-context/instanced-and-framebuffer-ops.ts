@@ -15,7 +15,7 @@
 // Original: see webgl2-rendering-context.ts pre-split.
 
 import type { WebGL2RenderingContext } from '../webgl2-rendering-context.js';
-import { WebGLTexture } from '../webgl-texture.js';
+import type { WebGLTexture } from '../webgl-texture.js';
 import { vertexCount } from '../utils.js';
 
 /** Internal debug counters attached to the context instance — opt-in via `globalThis.__GJSIFY_DEBUG_GL = true`. */

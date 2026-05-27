@@ -10,7 +10,7 @@ import '@gjsify/dom-events/register/event-target';
 
 import GLib from 'gi://GLib?version=2.0';
 
-import { MediaStreamTrack } from './media-stream-track.js';
+import type { MediaStreamTrack } from './media-stream-track.js';
 
 export class MediaStream extends EventTarget {
     readonly id: string;

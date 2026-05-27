@@ -4,7 +4,7 @@
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { FileHandle } from './file-handle.js';
-import { Stats, BigIntStats } from './stats.js';
+import type { Stats, BigIntStats } from './stats.js';
 import { statSync, truncateSync, chmodSync, chownSync, readFileSync } from './sync.js';
 import { utimesSync } from './utimes.js';
 import { normalizePath } from './utils.js';

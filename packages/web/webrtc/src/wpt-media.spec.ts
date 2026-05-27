@@ -7,6 +7,8 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
+import type {
+    MediaStreamTrackEvent} from './index.js';
 import {
     RTCPeerConnection,
     RTCRtpSender,
@@ -14,8 +16,7 @@ import {
     RTCRtpTransceiver,
     RTCTrackEvent,
     MediaStream,
-    MediaStreamTrack,
-    MediaStreamTrackEvent,
+    MediaStreamTrack
 } from './index.js';
 
 import {

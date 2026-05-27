@@ -44,9 +44,9 @@ function isBoxedPrimitive(v: unknown): boolean {
     v instanceof BigInt || v instanceof Symbol;
 }
 
-function isNumberObject(v: unknown): v is Number { return v instanceof Number; }
-function isStringObject(v: unknown): v is String { return v instanceof String; }
-function isBooleanObject(v: unknown): v is Boolean { return v instanceof Boolean; }
+function isNumberObject(v: unknown): v is number { return v instanceof Number; }
+function isStringObject(v: unknown): v is string { return v instanceof String; }
+function isBooleanObject(v: unknown): v is boolean { return v instanceof Boolean; }
 function isBigIntObject(v: unknown): boolean {
   return typeof BigInt !== 'undefined' && v instanceof Object && Object.prototype.toString.call(v) === '[object BigInt]';
 }
@@ -141,13 +141,13 @@ function areEqualArrayBuffers(buf1: ArrayBuffer | SharedArrayBuffer, buf2: Array
 
 function isEqualBoxedPrimitive(val1: unknown, val2: unknown): boolean {
   if (isNumberObject(val1)) {
-    return isNumberObject(val2) && Object.is((val1 as Number).valueOf(), (val2 as Number).valueOf());
+    return isNumberObject(val2) && Object.is((val1 as number).valueOf(), (val2 as number).valueOf());
   }
   if (isStringObject(val1)) {
-    return isStringObject(val2) && (val1 as String).valueOf() === (val2 as String).valueOf();
+    return isStringObject(val2) && (val1 as string).valueOf() === (val2 as string).valueOf();
   }
   if (isBooleanObject(val1)) {
-    return isBooleanObject(val2) && (val1 as Boolean).valueOf() === (val2 as Boolean).valueOf();
+    return isBooleanObject(val2) && (val1 as boolean).valueOf() === (val2 as boolean).valueOf();
   }
   if (isBigIntObject(val1)) {
     return isBigIntObject(val2) &&

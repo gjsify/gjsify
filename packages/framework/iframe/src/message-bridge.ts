@@ -5,7 +5,7 @@
 
 import Gio from 'gi://Gio?version=2.0';
 import WebKit from 'gi://WebKit?version=6.0';
-import JavaScriptCore from 'gi://JavaScriptCore?version=6.0';
+import type JavaScriptCore from 'gi://JavaScriptCore?version=6.0';
 import { MessageEvent } from '@gjsify/dom-events';
 
 // Promisify evaluate_javascript so it returns a Promise in GJS

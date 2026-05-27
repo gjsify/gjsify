@@ -2,7 +2,8 @@
 // Reference: refs/node-test/parallel/test-net-*.js
 
 import { describe, it, expect } from '@gjsify/unit';
-import { createServer, createConnection, Socket, Server } from 'node:net';
+import type { Server } from 'node:net';
+import { createServer, createConnection, Socket } from 'node:net';
 import { Buffer } from 'node:buffer';
 
 /** Helper: create server, run test, cleanup */

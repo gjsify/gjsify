@@ -1,5 +1,5 @@
 import * as ex from 'excalibur'
-import Player from '../actors/player.js'
+import type Player from '../actors/player.js'
 import { Resources } from '../resources.js'
 import { OutlineMaterial } from '../materials/outline.js'
 import { GameManager } from '../state/game.js'

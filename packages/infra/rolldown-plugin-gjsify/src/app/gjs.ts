@@ -112,8 +112,8 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     const aliasMap = {
         ...getAliasesForGjs({ external }),
         'unicorn-magic': unicornMagicShim,
-        ...(input.pluginOptions.aliases ?? {}),
-        ...(input.userAliases ?? {}),
+        ...input.pluginOptions.aliases,
+        ...input.userAliases,
     };
 
     // The console shim replaces all `console` references with print()/printerr()-

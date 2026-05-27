@@ -78,7 +78,7 @@ export async function runLifecycleScript(
         npm_lifecycle_event: name,
         npm_package_name: (pkg.name as string | undefined) ?? '',
         npm_package_version: (pkg.version as string | undefined) ?? '',
-        ...(opts.env ?? {}),
+        ...opts.env,
     };
 
     // `'inherit-stderr'` is our extension on top of node's stdio modes —

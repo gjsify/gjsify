@@ -61,8 +61,8 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
 
     const aliasMap = {
         ...getAliasesForNode({ external }),
-        ...(input.pluginOptions.aliases ?? {}),
-        ...(input.userAliases ?? {}),
+        ...input.pluginOptions.aliases,
+        ...input.userAliases,
     };
 
     const bundleDir = getBundleDirFromOutput(input.output);

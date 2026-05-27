@@ -138,7 +138,7 @@ export class StatementSync {
 
                 // Bare name
                 if (!found && this.#allowBareNamedParameters) {
-                    const bareName = origName.replace(/^[\$:@]/, '');
+                    const bareName = origName.replace(/^[$:@]/, '');
                     if (bareName in namedArgs) {
                         value = namedArgs[bareName];
                         found = true;
@@ -146,7 +146,7 @@ export class StatementSync {
                 }
 
                 if (!found && !this.#allowBareNamedParameters) {
-                    const bareName = origName.replace(/^[\$:@]/, '');
+                    const bareName = origName.replace(/^[$:@]/, '');
                     if (bareName in namedArgs) {
                         throw new SqliteError(`Unknown named parameter '${bareName}'`, 0, `Unknown named parameter '${bareName}'`);
                     }

@@ -1,4 +1,5 @@
-import { describe, it, assert, Spy, spy, beforeEach } from '@gjsify/unit';
+import type { Spy} from '@gjsify/unit';
+import { describe, it, assert, spy, beforeEach } from '@gjsify/unit';
 
 import { Event, EventTarget } from "dom-events";
 import { AbortSignal } from "abort-controller";

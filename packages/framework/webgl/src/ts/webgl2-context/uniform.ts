@@ -10,7 +10,7 @@
 // Original: see webgl2-rendering-context.ts pre-split.
 
 import type { WebGL2RenderingContext } from '../webgl2-rendering-context.js';
-import { WebGLUniformLocation } from '../webgl-uniform-location.js';
+import type { WebGLUniformLocation } from '../webgl-uniform-location.js';
 
 export interface UniformMethods {
     uniform1ui(location: WebGLUniformLocation | null, v0: GLuint): void;

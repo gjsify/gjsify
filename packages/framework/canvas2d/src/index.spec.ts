@@ -8,7 +8,8 @@ import { HTMLCanvasElement } from '@gjsify/dom-elements';
 
 // Import canvas2d to register the '2d' context factory
 import '@gjsify/canvas2d';
-import { CanvasRenderingContext2D, Path2D, ImageData, parseColor } from '@gjsify/canvas2d';
+import type { CanvasRenderingContext2D} from '@gjsify/canvas2d';
+import { Path2D, ImageData, parseColor } from '@gjsify/canvas2d';
 
 /** Helper: create a canvas with a 2D context. */
 function createCanvas(width = 100, height = 100) {

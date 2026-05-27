@@ -4,6 +4,9 @@ import {
     assert,
     serialize,
     deserialize,
+    ValidatorError,
+} from '@deepkit/type';
+import type { Type ,
     MinLength,
     MaxLength,
     Positive,
@@ -11,10 +14,7 @@ import {
     Minimum,
     Pattern,
     Email,
-    Validate,
-    ValidatorError,
-} from '@deepkit/type';
-import type { Type } from '@deepkit/type';
+    Validate} from '@deepkit/type';
 
 const printGjs = (globalThis as unknown as { print?: (msg: string) => void }).print;
 const log: (...args: unknown[]) => void = printGjs

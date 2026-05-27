@@ -4,7 +4,7 @@
 // fingerprint (SHA-1) / fingerprint256 (SHA-256), raw DER bytes, and the
 // optional `issuerCertificate` chain when `detailed=true`.
 
-import Gio from '@girs/gio-2.0';
+import type Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { pemToDer } from './pem.js';
 

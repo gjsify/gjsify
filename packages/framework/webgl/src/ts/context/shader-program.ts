@@ -511,7 +511,7 @@ const shaderProgramMethods: ThisType<WebGLContextBase> & Record<string, Function
                 // Scalar uniforms (info.name has no '[0]') fall through without either.
                 const callerBracketMatch = name.match(/\[(\d+)\]$/);
                 const callerIndex = callerBracketMatch ? +callerBracketMatch[1] : -1;
-                const infoIsArray = /\[0\]$/.test(info.name);
+                const infoIsArray = info.name.endsWith('[0]');
 
                 if (infoIsArray && (callerIndex === -1 || callerIndex === 0)) {
                     // Cases A + B: populate full _array so uniform1fv/uniform1iv

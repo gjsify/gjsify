@@ -3,7 +3,7 @@
 // Modifications: Simplified for gjsify — no querySelector/querySelectorAll, no HTML parsing
 
 import { Node } from './node.js';
-import { Element } from './element.js';
+import type { Element } from './element.js';
 import { Text } from './text.js';
 import { NodeType } from './node-type.js';
 import * as PS from './property-symbol.js';

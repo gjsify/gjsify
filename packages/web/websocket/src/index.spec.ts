@@ -3,7 +3,7 @@
 // Note: @gjsify/websocket uses Soup 3.0 — tests run only on GJS
 
 import { describe, it, expect } from '@gjsify/unit';
-import GLib from '@girs/glib-2.0';
+import type GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import Soup from '@girs/soup-3.0';
 import { WebSocket, MessageEvent, CloseEvent } from 'websocket';

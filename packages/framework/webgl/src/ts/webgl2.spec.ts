@@ -4,7 +4,8 @@
 
 import { describe, it, expect, beforeEach, on } from '@gjsify/unit';
 
-import { WebGL2RenderingContext as OurWebGL2RenderingContext, WebGLBridge, HTMLCanvasElement as OurHTMLCanvasElement, OESTextureHalfFloat } from '@gjsify/webgl';
+import type { HTMLCanvasElement as OurHTMLCanvasElement, OESTextureHalfFloat } from '@gjsify/webgl';
+import { WebGL2RenderingContext as OurWebGL2RenderingContext, WebGLBridge } from '@gjsify/webgl';
 import { makeProgram, drawTriangle, readPixel, pixelClose,
          makeTestFBO, destroyTestFBO, makeTestFBOWithDepth,
          makeTestFBOFloat, makeTestFBOWithDepthTexture,

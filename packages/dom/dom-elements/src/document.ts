@@ -2,7 +2,7 @@
 // Reference: refs/happy-dom/packages/happy-dom/src/nodes/document/Document.ts
 
 import { Node } from './node.js';
-import { Element } from './element.js';
+import type { Element } from './element.js';
 import { HTMLElement } from './html-element.js';
 import { HTMLImageElement } from './html-image-element.js';
 import { HTMLVideoElement } from './html-video-element.js';

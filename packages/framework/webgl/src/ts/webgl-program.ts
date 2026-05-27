@@ -1,5 +1,5 @@
 import { Linkable } from './linkable.js'
-import { WebGLActiveInfo } from './webgl-active-info.js';
+import type { WebGLActiveInfo } from './webgl-active-info.js';
 
 import type { WebGLContextBase } from './webgl-context-base.js';
 

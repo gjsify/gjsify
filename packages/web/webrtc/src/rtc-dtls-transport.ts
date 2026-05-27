@@ -8,7 +8,7 @@
 
 import '@gjsify/dom-events/register/event-target';
 
-import { RTCIceTransport } from './rtc-ice-transport.js';
+import type { RTCIceTransport } from './rtc-ice-transport.js';
 
 export type RTCDtlsTransportState = 'new' | 'connecting' | 'connected' | 'closed' | 'failed';
 

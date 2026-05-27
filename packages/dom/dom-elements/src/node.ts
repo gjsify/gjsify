@@ -3,7 +3,8 @@
 // Modifications: Simplified for gjsify — no Document, no MutationObserver, no cache system,
 //   extends @gjsify/dom-events EventTarget
 
-import { EventTarget, Event as DOMEvent } from '@gjsify/dom-events';
+import type { Event as DOMEvent } from '@gjsify/dom-events';
+import { EventTarget } from '@gjsify/dom-events';
 
 import { NodeType } from './node-type.js';
 import { NodeList } from './node-list.js';

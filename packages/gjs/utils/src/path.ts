@@ -32,7 +32,7 @@ export const getProgramDir = () => {
 
 export const getPathSeparator = () => {
     const currentDir = GLib.get_current_dir();
-    return /^\//.test(currentDir) ? '/' : '\\';
+    return currentDir.startsWith('/') ? '/' : '\\';
 }
 
 export const getNodeModulesPath = () => {

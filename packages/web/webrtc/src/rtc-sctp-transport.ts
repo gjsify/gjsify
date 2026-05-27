@@ -9,7 +9,7 @@
 
 import '@gjsify/dom-events/register/event-target';
 
-import { RTCDtlsTransport } from './rtc-dtls-transport.js';
+import type { RTCDtlsTransport } from './rtc-dtls-transport.js';
 
 export type RTCSctpTransportState = 'connecting' | 'connected' | 'closed';
 

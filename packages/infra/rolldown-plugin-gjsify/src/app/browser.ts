@@ -51,8 +51,8 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
 
     const aliasMap: Record<string, string> = {
         ...browserPolyfillAliases,
-        ...(input.pluginOptions.aliases ?? {}),
-        ...(input.userAliases ?? {}),
+        ...input.pluginOptions.aliases,
+        ...input.userAliases,
     };
 
     const options: RolldownOptions = {

@@ -1,5 +1,5 @@
 import * as ex from 'excalibur'
-import { EnemyActor } from '../classes/enemy-actor.js'
+import type { EnemyActor } from '../classes/enemy-actor.js'
 
 export interface EnemySpawnerArgs {
   x: number

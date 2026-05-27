@@ -3,8 +3,8 @@
 
 import Gwebgl from '@girs/gwebgl-0.1';
 import { WebGLContextBase } from './webgl-context-base.js';
-import { HTMLCanvasElement } from './html-canvas-element.js';
-import { WebGLBuffer } from './webgl-buffer.js';
+import type { HTMLCanvasElement } from './html-canvas-element.js';
+import type { WebGLBuffer } from './webgl-buffer.js';
 import { Uint8ArrayToVariant, vertexCount } from './utils.js';
 
 import type { WebGLConstants } from './types/index.js';

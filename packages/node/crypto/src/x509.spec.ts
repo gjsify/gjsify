@@ -121,7 +121,7 @@ export default async () => {
     ].join('\n');
 
     await it('should export secret key as JWK', async () => {
-      const { createSecretKey } = await import('crypto') as any;
+      const { createSecretKey } = await import('node:crypto') as any;
       const key = createSecretKey(Buffer.from('test-secret-key'));
       const jwk = key.export({ format: 'jwk' }) as any;
       expect(jwk.kty).toBe('oct');

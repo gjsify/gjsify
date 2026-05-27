@@ -693,7 +693,7 @@ const getRuntime = async () => {
 
 		if(!process) {
 			try {
-				process = await import('process');
+				process = await import('node:process');
 			} catch (_e) {
 				// browser or runtime without process — fall through to document check
 			}
@@ -763,7 +763,7 @@ export const run = async (namespaces: Namespaces, options?: { timeout?: number; 
 		if (!mainloop) {
 			const exitCode = countTestsFailed > 0 ? 1 : 0;
 			try {
-				const process = globalThis.process || await import('process');
+				const process = globalThis.process || await import('node:process');
 				process.exit(exitCode);
 			} catch (_e) { /* process unavailable */ }
 		}

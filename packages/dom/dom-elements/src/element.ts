@@ -3,7 +3,7 @@
 // Modifications: Simplified for gjsify — no innerHTML/outerHTML, no querySelector/CSS selectors,
 //   no Shadow DOM, no classList/DOMTokenList, no computed styles
 
-import { Event } from '@gjsify/dom-events';
+import type { Event } from '@gjsify/dom-events';
 
 import { Node } from './node.js';
 import { NodeType } from './node-type.js';

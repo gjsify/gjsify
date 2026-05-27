@@ -5,7 +5,8 @@
 
 import { describe, it, expect, beforeEach, on } from '@gjsify/unit';
 
-import { WebGLRenderingContext, WebGLBridge } from '@gjsify/webgl';
+import type { WebGLRenderingContext} from '@gjsify/webgl';
+import { WebGLBridge } from '@gjsify/webgl';
 import { makeProgram, drawTriangle, readPixel, pixelClose,
          makeTestFBO, destroyTestFBO, makeTestFBOWithDepth, destroyTestFBOWithDepth } from './test-utils.js';
 import GLib from '@girs/glib-2.0';

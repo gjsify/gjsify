@@ -182,11 +182,11 @@ async function buildTestBundle(
     // the merged config; we set it explicitly here so package.json#main /
     // bundler.output.file from the surrounding project don't redirect the
     // bundle elsewhere.
-    configData.library = { ...(configData.library ?? {}) };
+    configData.library = { ...configData.library };
     configData.bundler = {
-        ...(configData.bundler ?? {}),
+        ...configData.bundler,
         input: [entry],
-        output: { ...(configData.bundler?.output ?? {}), file: outfile },
+        output: { ...configData.bundler?.output, file: outfile },
     } as never;
 
     const action = new BuildAction(configData);

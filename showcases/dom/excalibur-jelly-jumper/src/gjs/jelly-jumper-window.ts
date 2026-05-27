@@ -4,7 +4,7 @@
 // mirroring the browser's WebGL→Canvas2D fallback path.
 
 import GObject from 'gi://GObject?version=2.0';
-import Gtk from 'gi://Gtk?version=4.0';
+import type Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import { WebGLBridge } from '@gjsify/webgl';
 import { Canvas2DBridge } from '@gjsify/canvas2d';

@@ -1,7 +1,7 @@
 import { URL } from '@gjsify/url';
 
 import { isIP } from 'node:net';
-import Request from '../request.js';
+import type Request from '../request.js';
 
 /**
  * @external URL
@@ -111,7 +111,7 @@ export function isOriginPotentiallyTrustworthy(url: URL) {
 	const hostIp = url.host.replace(/(^\[)|(]$)/g, '');
 	const hostIPVersion = isIP(hostIp);
 
-	if (hostIPVersion === 4 && /^127\./.test(hostIp)) {
+	if (hostIPVersion === 4 && hostIp.startsWith('127.')) {
 		return true;
 	}
 

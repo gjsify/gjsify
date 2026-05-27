@@ -4,7 +4,7 @@
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { open as openP, rm as rmP } from './promises.js'
-import { PathLike, OpenMode, Mode, ReadPosition, ReadAsyncOptions, NoParamCallback, RmOptions, RmDirOptions, MakeDirectoryOptions } from 'node:fs';
+import type { PathLike, OpenMode, Mode, ReadPosition, ReadAsyncOptions, NoParamCallback, RmOptions, RmDirOptions, MakeDirectoryOptions } from 'node:fs';
 import { FileHandle } from './file-handle.js';
 import { Buffer } from 'node:buffer';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
