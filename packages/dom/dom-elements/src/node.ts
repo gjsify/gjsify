@@ -115,14 +115,14 @@ export class Node extends EventTarget {
         // Override in subclasses
     }
 
-    get ownerDocument(): any {
+    get ownerDocument(): unknown {
         // Walk up the tree to find the root. If it's the global document, return it.
         // Standalone nodes (not in a document tree) return null per W3C spec.
         let root: Node = this;
         while (root[PS.parentNode]) {
             root = root[PS.parentNode]!;
         }
-        const doc = (globalThis as any).document;
+        const doc = (globalThis as Record<string, unknown>).document;
         return root === doc ? doc : null;
     }
 

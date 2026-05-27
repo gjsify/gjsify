@@ -165,11 +165,11 @@ export class Element extends Node {
     }
 
     setAttributeNode(attr: unknown): unknown {
-        return this[PS.attributes].setNamedItem(attr as any);
+        return this[PS.attributes].setNamedItem(attr as import('./attr.js').Attr);
     }
 
     removeAttributeNode(attr: unknown): unknown {
-        const existing = this[PS.attributes].getNamedItem((attr as any).name);
+        const existing = this[PS.attributes].getNamedItem((attr as { name: string }).name);
         if (!existing) {
             throw new DOMException(
                 "Failed to execute 'removeAttributeNode' on 'Element': The attribute is not owned by this element.",

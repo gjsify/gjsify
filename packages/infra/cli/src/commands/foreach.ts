@@ -36,7 +36,7 @@ interface ForeachOptions {
     exec?: boolean;
 }
 
-export const foreachCommand: Command<any, ForeachOptions> = {
+export const foreachCommand: Command<unknown, ForeachOptions> = {
     command: 'foreach [script] [args..]',
     description:
         'Run a workspace script across all (or filtered) workspaces. Drop-in for `yarn workspaces foreach`: -A/--all, -p/--parallel, -t/--topological, --include, --exclude, --no-private. Pass --exec to run an arbitrary command instead of a script.',

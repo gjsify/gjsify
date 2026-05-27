@@ -5,7 +5,7 @@ interface CheckOptions {
     json: boolean;
 }
 
-export const systemCheckCommand: Command<any, CheckOptions> = {
+export const systemCheckCommand: Command<unknown, CheckOptions> = {
     command: 'system-check',
     description:
         'Check that required system dependencies (GJS, GTK4, libsoup3, …) are installed. Optional dependencies are detected only when their @gjsify/* package is in your project. (Previously called `gjsify check`; the bare name now runs TypeScript checks across the workspace — see `gjsify check --help`.)',

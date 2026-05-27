@@ -13,7 +13,7 @@ interface GSettingsOptions {
     verbose?: boolean;
 }
 
-export const gsettingsCommand: Command<any, GSettingsOptions> = {
+export const gsettingsCommand: Command<unknown, GSettingsOptions> = {
     command: 'gsettings <schemadir>',
     description: 'Compile GSettings schema XML files into a binary gschemas.compiled (wraps `glib-compile-schemas`).',
     builder: (yargs) => {
@@ -65,18 +65,19 @@ export const gsettingsCommand: Command<any, GSettingsOptions> = {
             if (args.verbose) {
                 console.log(`[gjsify gsettings] wrote ${targetdir}/gschemas.compiled`);
             }
-        } catch (err: any) {
-            if (err?.code === 'ENOENT') {
+        } catch (err: unknown) {
+            const e = err as { code?: unknown; stderr?: string | Buffer };
+            if (e?.code === 'ENOENT') {
                 console.error(
                     '[gjsify gsettings] glib-compile-schemas not found. Install it via your distro (package: glib2-devel / libglib2.0-dev).',
                 );
             } else {
-                if (err?.stderr) process.stderr.write(err.stderr);
+                if (e?.stderr) process.stderr.write(e.stderr);
                 console.error(
-                    `[gjsify gsettings] glib-compile-schemas failed${err?.code !== undefined ? ` (exit ${err.code})` : ''}`,
+                    `[gjsify gsettings] glib-compile-schemas failed${e?.code !== undefined ? ` (exit ${e.code})` : ''}`,
                 );
             }
-            process.exitCode = typeof err?.code === 'number' ? err.code : 1;
+            process.exitCode = typeof e?.code === 'number' ? e.code : 1;
         }
     },
 };

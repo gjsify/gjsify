@@ -21,7 +21,7 @@ interface ShowcaseOptions {
     list: boolean;
 }
 
-export const showcaseCommand: Command<any, ShowcaseOptions> = {
+export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
     command: 'showcase [name]',
     description: 'List or run curated gjsify showcase applications.',
     builder: (yargs) =>

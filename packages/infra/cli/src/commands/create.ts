@@ -9,7 +9,7 @@ interface CreateOptions {
     install: boolean;
 }
 
-export const createCommand: Command<any, CreateOptions> = {
+export const createCommand: Command<unknown, CreateOptions> = {
     command: 'create [project-name]',
     description: 'Scaffold a new Gjsify project in a new directory.',
     builder: (yargs) => {

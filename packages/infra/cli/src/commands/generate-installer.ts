@@ -22,6 +22,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type { Argv } from 'yargs';
 import type { Command } from '../types/index.js';
 
 interface GenerateInstallerOptions {
@@ -43,7 +44,7 @@ function loadInstallerTemplate(): string {
 
 const DEFAULT_BOOTSTRAP_URL = 'https://github.com/gjsify/gjsify/releases/latest/download/cli.gjs.mjs';
 
-export const generateInstallerCommand: Command<any, GenerateInstallerOptions> = {
+export const generateInstallerCommand: Command<unknown, GenerateInstallerOptions> = {
     command: 'generate-installer [target]',
     description: 'Scaffold an install.mjs in the current directory for a GJS-runnable npm package.',
     builder: (yargs) =>
@@ -69,7 +70,7 @@ export const generateInstallerCommand: Command<any, GenerateInstallerOptions> = 
                 description: 'Overwrite an existing output file.',
                 type: 'boolean',
                 default: false,
-            }) as any,
+            }) as Argv<GenerateInstallerOptions>,
     handler: (args: GenerateInstallerOptions) => {
         const outputPath = resolve(process.cwd(), args.output);
         if (existsSync(outputPath) && !args.force) {

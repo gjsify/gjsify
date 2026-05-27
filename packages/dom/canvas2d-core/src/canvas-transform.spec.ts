@@ -166,7 +166,7 @@ export default async () => {
                 // globalThis.DOMMatrix is installed (via @gjsify/dom-elements).
                 // Inject a minimal DOMMatrix for this test so the multiply
                 // code path runs end-to-end.
-                if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+                if (typeof (globalThis as Record<string, unknown>).DOMMatrix === 'undefined') {
                     class TestDOMMatrix {
                         a = 1;
                         b = 0;
@@ -194,16 +194,16 @@ export default async () => {
                             return new TestDOMMatrix([a, b, c, d, e, f]);
                         }
                     }
-                    (globalThis as any).DOMMatrix = TestDOMMatrix;
+                    (globalThis as Record<string, unknown>).DOMMatrix = TestDOMMatrix;
                 }
 
                 const ctx = makeCtx();
                 ctx.translate(50, 50);
                 // Simulate Excalibur's GraphicsContext2DCanvas.multiply():
                 //     ctx.setTransform(ctx.getTransform().multiply(otherMatrix))
-                const current = ctx.getTransform() as any;
+                const current = ctx.getTransform() as DOMMatrix & { multiply?: (o: DOMMatrix) => DOMMatrix };
                 expect(typeof current.multiply).toBe('function');
-                const other = { a: 2, b: 0, c: 0, d: 2, e: 0, f: 0 } as any;
+                const other = { a: 2, b: 0, c: 0, d: 2, e: 0, f: 0 } as unknown as DOMMatrix;
                 const composed = current.multiply(other);
                 ctx.setTransform(composed);
                 const final = ctx.getTransform();

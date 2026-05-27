@@ -23,7 +23,7 @@ function defaultTargetFor(xmlPath: string): string {
     return resolve(dirname(xmlPath), stem);
 }
 
-export const gresourceCommand: Command<any, GResourceOptions> = {
+export const gresourceCommand: Command<unknown, GResourceOptions> = {
     command: 'gresource <xml>',
     description: 'Compile a GResource XML descriptor into a binary .gresource bundle (wraps `glib-compile-resources`).',
     builder: (yargs) => {
@@ -73,18 +73,19 @@ export const gresourceCommand: Command<any, GResourceOptions> = {
             if (args.verbose) {
                 console.log(`[gjsify gresource] wrote ${target}`);
             }
-        } catch (err: any) {
-            if (err?.code === 'ENOENT') {
+        } catch (err: unknown) {
+            const e = err as { code?: unknown; stderr?: string | Buffer };
+            if (e?.code === 'ENOENT') {
                 console.error(
                     '[gjsify gresource] glib-compile-resources not found. Install it via your distro (package: glib2-devel / libglib2.0-dev).',
                 );
             } else {
-                if (err?.stderr) process.stderr.write(err.stderr);
+                if (e?.stderr) process.stderr.write(e.stderr);
                 console.error(
-                    `[gjsify gresource] glib-compile-resources failed${err?.code !== undefined ? ` (exit ${err.code})` : ''}`,
+                    `[gjsify gresource] glib-compile-resources failed${e?.code !== undefined ? ` (exit ${e.code})` : ''}`,
                 );
             }
-            process.exitCode = typeof err?.code === 'number' ? err.code : 1;
+            process.exitCode = typeof e?.code === 'number' ? e.code : 1;
         }
     },
 };

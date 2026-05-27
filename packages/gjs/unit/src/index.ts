@@ -150,7 +150,7 @@ class MatcherFactory {
     public not: MatcherFactory;
 
     constructor(
-        protected readonly actualValue: any,
+        protected readonly actualValue: unknown,
         protected readonly positive: boolean,
         negated?: MatcherFactory,
     ) {
@@ -170,11 +170,11 @@ class MatcherFactory {
         }
     }
 
-    to(callback: (actualValue: any) => boolean) {
+    to(callback: (actualValue: unknown) => boolean) {
         this.triggerResult(callback(this.actualValue), `      Expected callback to validate`);
     }
 
-    toBe(expectedValue: any) {
+    toBe(expectedValue: unknown) {
         this.triggerResult(
             this.actualValue === expectedValue,
             `      Expected values to match using ===\n` +
@@ -183,7 +183,7 @@ class MatcherFactory {
         );
     }
 
-    toEqual(expectedValue: any) {
+    toEqual(expectedValue: unknown) {
         this.triggerResult(
             this.actualValue == expectedValue,
             `      Expected values to match using ==\n` +
@@ -192,7 +192,7 @@ class MatcherFactory {
         );
     }
 
-    toStrictEqual(expectedValue: any) {
+    toStrictEqual(expectedValue: unknown) {
         let success = true;
         let errorMessage = '';
         try {
@@ -210,14 +210,15 @@ class MatcherFactory {
         );
     }
 
-    toEqualArray(expectedValue: Array<any> | Uint8Array) {
+    toEqualArray(expectedValue: Array<unknown> | Uint8Array) {
+        const arr = this.actualValue as unknown[];
         let success =
-            Array.isArray(this.actualValue) &&
+            Array.isArray(arr) &&
             Array.isArray(expectedValue) &&
-            this.actualValue.length === expectedValue.length;
+            arr.length === expectedValue.length;
 
-        for (let i = 0; i < this.actualValue.length; i++) {
-            const actualVal = this.actualValue[i];
+        for (let i = 0; i < arr.length; i++) {
+            const actualVal = arr[i];
             const expectedVal = expectedValue[i];
             success = actualVal == expectedVal;
             if (!success) break;
@@ -240,19 +241,20 @@ class MatcherFactory {
     }
 
     toHaveLength(expectedLength: number) {
-        const actualLength = this.actualValue?.length;
+        const actualLength = (this.actualValue as { length?: number })?.length;
         this.triggerResult(
             actualLength === expectedLength,
             `      Expected length: ${expectedLength}\n` + `      Actual length: ${actualLength}`,
         );
     }
 
-    toMatch(expectedValue: any) {
-        if (typeof this.actualValue.match !== 'function') {
+    toMatch(expectedValue: unknown) {
+        const v = this.actualValue as { match?: (pattern: unknown) => unknown[] | null };
+        if (typeof v.match !== 'function') {
             throw new Error(`You can not use toMatch on type ${typeof this.actualValue}`);
         }
         this.triggerResult(
-            !!this.actualValue.match(expectedValue),
+            !!v.match(expectedValue),
             '      Expected values to match using regular expression\n' +
                 '      Expression: ' +
                 expectedValue +
@@ -282,7 +284,7 @@ class MatcherFactory {
         this.triggerResult(!this.actualValue, `      Expected value to be falsy`);
     }
 
-    toContain(needle: any) {
+    toContain(needle: unknown) {
         const value = this.actualValue;
         let contains: boolean;
         if (typeof value === 'string') {
@@ -296,25 +298,25 @@ class MatcherFactory {
     }
     toBeLessThan(greaterValue: number) {
         this.triggerResult(
-            this.actualValue < greaterValue,
+            (this.actualValue as number) < greaterValue,
             `      Expected ` + this.actualValue + ` to be less than ` + greaterValue,
         );
     }
     toBeGreaterThan(smallerValue: number) {
         this.triggerResult(
-            this.actualValue > smallerValue,
+            (this.actualValue as number) > smallerValue,
             `      Expected ` + this.actualValue + ` to be greater than ` + smallerValue,
         );
     }
     toBeGreaterThanOrEqual(value: number) {
         this.triggerResult(
-            this.actualValue >= value,
+            (this.actualValue as number) >= value,
             `      Expected ${this.actualValue} to be greater than or equal to ${value}`,
         );
     }
     toBeLessThanOrEqual(value: number) {
         this.triggerResult(
-            this.actualValue <= value,
+            (this.actualValue as number) <= value,
             `      Expected ${this.actualValue} to be less than or equal to ${value}`,
         );
     }
@@ -331,11 +333,12 @@ class MatcherFactory {
         let didThrow = false;
         let typeMatch = true;
         let messageMatch = true;
+        const fn = this.actualValue as () => void;
         try {
-            this.actualValue();
+            fn();
             didThrow = false;
         } catch (e) {
-            errorMessage = e.message || '';
+            errorMessage = (e as { message?: string })?.message || '';
             didThrow = true;
             if (typeof expected === 'function') {
                 typeMatch = e instanceof expected;
@@ -346,9 +349,9 @@ class MatcherFactory {
             }
         }
         const functionName =
-            this.actualValue.name || typeof this.actualValue === 'function'
+            (this.actualValue as { name?: string })?.name || typeof this.actualValue === 'function'
                 ? '[anonymous function]'
-                : this.actualValue.toString();
+                : String(this.actualValue);
         this.triggerResult(
             didThrow,
             `      Expected ${functionName} to ${this.positive ? 'throw' : 'not throw'} an exception ${!this.positive && errorMessage ? `, but an error with the message "${errorMessage}" was thrown` : ''}`,
@@ -578,7 +581,7 @@ it.skip = async function (expectation: string, _callback?: () => void | Promise<
     print(`  ${BLUE}-${RESET} ${GRAY}${expectation} (skipped)${RESET}`);
 };
 
-export const expect = function (actualValue: any) {
+export const expect = function (actualValue: unknown) {
     ++countTestsOverall;
 
     const expecter = new MatcherFactory(actualValue, true);
@@ -586,7 +589,7 @@ export const expect = function (actualValue: any) {
     return expecter;
 };
 
-export const assert = function (success: any, message?: string | Error) {
+export const assert = function (success: unknown, message?: string | Error) {
     ++countTestsOverall;
 
     if (!success) {
@@ -612,9 +615,9 @@ assert.strictEqual = function <T>(actual: unknown, expected: T, message?: string
     }
 };
 
-assert.throws = function (promiseFn: () => unknown, ...args: any[]) {
+assert.throws = function (promiseFn: () => unknown, ...args: [import('node:assert').AssertPredicate?, string?]) {
     ++countTestsOverall;
-    let error: any;
+    let error: unknown;
     try {
         promiseFn();
     } catch (e) {

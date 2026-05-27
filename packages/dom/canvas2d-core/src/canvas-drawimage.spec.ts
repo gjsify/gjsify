@@ -24,7 +24,7 @@ function makeCtx(width = 50, height = 50): CanvasRenderingContext2D {
  * (canvas-rendering-context-2d.ts:822-834), avoiding the need for PNG
  * fixtures on disk.
  */
-function createTestImage(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void): any {
+function createTestImage(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void): { width: number; height: number; getContext: (id: string) => CanvasRenderingContext2D | null } {
     const ctx = makeCtx(width, height);
     draw(ctx);
     return {

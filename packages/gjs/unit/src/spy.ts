@@ -1,11 +1,15 @@
 // https://github.com/mysticatea/spy
 
+/** A permissive function type used as a constraint for the spy generic parameter. */
+// oxlint-disable-next-line typescript/no-explicit-any -- constraint-only alias: `any` here allows spy to wrap any function signature
+type AnyFunction = (...args: any[]) => any;
+
 /** Spy. */
-export type Spy<T extends (...args: any[]) => any> = T & Spy.CallInformation<T>;
+export type Spy<T extends AnyFunction> = T & Spy.CallInformation<T>;
 
 export namespace Spy {
     /** Information for calls on a spy. */
-    export interface CallInformation<T extends (...args: any[]) => any> {
+    export interface CallInformation<T extends AnyFunction> {
         /** Information for each call. */
         readonly calls: ReadonlyArray<Call<T>>;
 
@@ -38,10 +42,10 @@ export namespace Spy {
     }
 
     /** Information for each call. */
-    export type Call<T extends (...args: any[]) => any> = ReturnedCall<T> | ThrownCall<T>;
+    export type Call<T extends AnyFunction> = ReturnedCall<T> | ThrownCall<T>;
 
     /** Information for each returned call. */
-    export interface ReturnedCall<T extends (...args: any[]) => any> {
+    export interface ReturnedCall<T extends AnyFunction> {
         type: 'return';
         this: This<T>;
         arguments: Parameters<T>;
@@ -49,14 +53,15 @@ export namespace Spy {
     }
 
     /** Information for each thrown call. */
-    export interface ThrownCall<T extends (...args: any[]) => any> {
+    export interface ThrownCall<T extends AnyFunction> {
         type: 'throw';
         this: This<T>;
         arguments: Parameters<T>;
-        throw: any;
+        throw: unknown;
     }
 }
 
+// oxlint-disable-next-line typescript/no-explicit-any -- conditional type for extracting `this` context from a function signature
 type This<T> = T extends (this: infer TT, ...args: any[]) => any ? TT : undefined;
 
 /**
@@ -68,10 +73,10 @@ export function spy(): Spy<() => void>;
  * Create a spy with a certain behavior.
  * @param f The function of the spy's behavior.
  */
-export function spy<T extends (...args: any[]) => any>(f: T): Spy<T>;
+export function spy<T extends AnyFunction>(f: T): Spy<T>;
 
 // Implementation
-export function spy<T extends (...args: any[]) => any>(f?: T): Spy<T> {
+export function spy<T extends AnyFunction>(f?: T): Spy<T> {
     const calls = [] as Spy.Call<T>[];
 
     function spy(this: This<T>, ...args: Parameters<T>): ReturnType<T> {
@@ -116,40 +121,40 @@ export function spy<T extends (...args: any[]) => any>(f?: T): Spy<T> {
 }
 
 const descriptors = {
-    calls(value: ReadonlyArray<Spy.Call<any>>): PropertyDescriptor {
+    calls(value: ReadonlyArray<Spy.Call<AnyFunction>>): PropertyDescriptor {
         return { value, configurable: true };
     },
 
     returnedCalls: {
-        get: function returnedCalls(this: Spy.CallInformation<any>): ReadonlyArray<Spy.ReturnedCall<any>> {
+        get: function returnedCalls(this: Spy.CallInformation<AnyFunction>): ReadonlyArray<Spy.ReturnedCall<AnyFunction>> {
             return this.calls.filter(isReturned);
         },
         configurable: true,
     } as PropertyDescriptor,
 
     thrownCalls: {
-        get: function thrownCalls(this: Spy.CallInformation<any>): ReadonlyArray<Spy.ThrownCall<any>> {
+        get: function thrownCalls(this: Spy.CallInformation<AnyFunction>): ReadonlyArray<Spy.ThrownCall<AnyFunction>> {
             return this.calls.filter(isThrown);
         },
         configurable: true,
     } as PropertyDescriptor,
 
     firstCall: {
-        get: function firstCall(this: Spy.CallInformation<any>): Spy.Call<any> | null {
+        get: function firstCall(this: Spy.CallInformation<AnyFunction>): Spy.Call<AnyFunction> | null {
             return this.calls[0] || null;
         },
         configurable: true,
     } as PropertyDescriptor,
 
     lastCall: {
-        get: function lastCall(this: Spy.CallInformation<any>): Spy.Call<any> | null {
+        get: function lastCall(this: Spy.CallInformation<AnyFunction>): Spy.Call<AnyFunction> | null {
             return this.calls[this.calls.length - 1] || null;
         },
         configurable: true,
     } as PropertyDescriptor,
 
     firstReturnedCall: {
-        get: function firstReturnedCall(this: Spy.CallInformation<any>): Spy.ReturnedCall<any> | null {
+        get: function firstReturnedCall(this: Spy.CallInformation<AnyFunction>): Spy.ReturnedCall<AnyFunction> | null {
             for (let i = 0; i < this.calls.length; ++i) {
                 const call = this.calls[i];
                 if (isReturned(call)) {
@@ -162,7 +167,7 @@ const descriptors = {
     } as PropertyDescriptor,
 
     lastReturnedCall: {
-        get: function lastReturnedCall(this: Spy.CallInformation<any>): Spy.ReturnedCall<any> | null {
+        get: function lastReturnedCall(this: Spy.CallInformation<AnyFunction>): Spy.ReturnedCall<AnyFunction> | null {
             for (let i = this.calls.length - 1; i >= 0; --i) {
                 const call = this.calls[i];
                 if (isReturned(call)) {
@@ -175,7 +180,7 @@ const descriptors = {
     } as PropertyDescriptor,
 
     firstThrownCall: {
-        get: function firstThrownCall(this: Spy.CallInformation<any>): Spy.ThrownCall<any> | null {
+        get: function firstThrownCall(this: Spy.CallInformation<AnyFunction>): Spy.ThrownCall<AnyFunction> | null {
             for (let i = 0; i < this.calls.length; ++i) {
                 const call = this.calls[i];
                 if (isThrown(call)) {
@@ -188,7 +193,7 @@ const descriptors = {
     } as PropertyDescriptor,
 
     lastThrownCall: {
-        get: function lastThrownCall(this: Spy.CallInformation<any>): Spy.ThrownCall<any> | null {
+        get: function lastThrownCall(this: Spy.CallInformation<AnyFunction>): Spy.ThrownCall<AnyFunction> | null {
             for (let i = this.calls.length - 1; i >= 0; --i) {
                 const call = this.calls[i];
                 if (isThrown(call)) {
@@ -201,13 +206,13 @@ const descriptors = {
     } as PropertyDescriptor,
 
     reset: {
-        value: function reset(this: Spy.CallInformation<any>): void {
-            (this.calls as any[]).length = 0;
+        value: function reset(this: Spy.CallInformation<AnyFunction>): void {
+            (this.calls as Spy.Call<AnyFunction>[]).length = 0;
         },
         configurable: true,
     } as PropertyDescriptor,
 
-    toString(f: ((...args: any[]) => any) | undefined): PropertyDescriptor {
+    toString(f: AnyFunction | undefined): PropertyDescriptor {
         return {
             value: function toString() {
                 return `/* The spy of */ ${f ? f.toString() : 'function(){}'}`;
@@ -217,10 +222,10 @@ const descriptors = {
     },
 };
 
-function isReturned(call: Spy.Call<any>): call is Spy.ReturnedCall<any> {
+function isReturned(call: Spy.Call<AnyFunction>): call is Spy.ReturnedCall<AnyFunction> {
     return call.type === 'return';
 }
 
-function isThrown(call: Spy.Call<any>): call is Spy.ThrownCall<any> {
+function isThrown(call: Spy.Call<AnyFunction>): call is Spy.ThrownCall<AnyFunction> {
     return call.type === 'throw';
 }

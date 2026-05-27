@@ -27,7 +27,7 @@ interface RunOptions {
     args: string[];
 }
 
-export const runCommand: Command<any, RunOptions> = {
+export const runCommand: Command<unknown, RunOptions> = {
     command: 'run <target> [args..]',
     description:
         'Run a script from package.json (yarn-run-style) or a GJS bundle file. If <target> resolves to a file on disk (or has a path-like prefix), it is launched via gjs with LD_LIBRARY_PATH + GI_TYPELIB_PATH set for native packages. Otherwise it is looked up in the current package.json `scripts`.',

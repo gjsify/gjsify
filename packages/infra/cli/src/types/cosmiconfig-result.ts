@@ -1,4 +1,4 @@
-export type CosmiconfigResult<C = any> = {
+export type CosmiconfigResult<C = unknown> = {
     config: C;
     filepath: string;
     isEmpty?: boolean;

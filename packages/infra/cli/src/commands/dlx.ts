@@ -36,7 +36,7 @@ interface DlxOptions {
     registry?: string;
 }
 
-export const dlxCommand: Command<any, DlxOptions> = {
+export const dlxCommand: Command<unknown, DlxOptions> = {
     command: 'dlx <spec> [binOrArg] [extraArgs..]',
     description: 'Run the GJS bundle of an npm-published package without installing it locally.',
     builder: (yargs) =>
