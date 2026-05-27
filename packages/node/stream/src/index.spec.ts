@@ -195,7 +195,7 @@ export default async () => {
     await describe('Readable: _construct', async () => {
         await it('should call _construct before first read', async () => {
             let constructCalled = false;
-            const readable = new Readable({
+            const _readable = new Readable({
                 construct(callback) {
                     constructCalled = true;
                     callback();
@@ -520,7 +520,7 @@ export default async () => {
         await it('should call _construct before first write', async () => {
             let constructCalled = false;
             const chunks: string[] = [];
-            const writable = new Writable({
+            const _writable = new Writable({
                 construct(callback) {
                     constructCalled = true;
                     callback();

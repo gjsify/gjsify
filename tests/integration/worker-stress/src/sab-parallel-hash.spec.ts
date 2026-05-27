@@ -14,6 +14,7 @@
 //   sharing". The suite degrades gracefully on GJS to an availability check.
 
 import { describe, it, expect, on } from '@gjsify/unit';
+import type { Worker } from 'node:worker_threads';
 import { createHash } from 'node:crypto';
 
 const SAB_BYTES = 1024 * 1024; // 1 MiB
@@ -71,7 +72,7 @@ export default async () => {
         `;
 
                 const startMs = Date.now();
-                const workers: import('node:worker_threads').Worker[] = [];
+                const workers: Worker[] = [];
                 const completion = new Promise<void>((resolve, reject) => {
                     let done = 0;
                     const timer = setTimeout(() => reject(new Error('SAB workers timed out')), TIMEOUT_MS);

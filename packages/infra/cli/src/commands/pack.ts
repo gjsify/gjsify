@@ -25,9 +25,9 @@
 // sibling workspaces' own versions, so the published tarball is consumable.
 
 import type { Command } from '../types/index.js';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync, type Dirent } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { createTarball, gzip, type TarWriteEntry } from '@gjsify/tar';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
@@ -275,15 +275,6 @@ function collectFiles(wsDir: string, pkg: Record<string, unknown>): string[] {
     return [...out].sort();
 }
 
-const ALWAYS_INCLUDED_BASENAMES = new Set([
-    'package.json',
-    'README',
-    'README.md',
-    'LICENSE',
-    'LICENSE.md',
-    'NOTICE',
-    'NOTICE.md',
-]);
 const NEVER_INCLUDED_BASENAMES = new Set([
     '.git',
     '.svn',
@@ -327,7 +318,7 @@ function forceIncluded(pkg: Record<string, unknown>): string[] {
 function walkAll(root: string, sub: string = ''): string[] {
     const out: string[] = [];
     const here = sub ? join(root, sub) : root;
-    let entries: import('node:fs').Dirent[];
+    let entries: Dirent[];
     try {
         entries = readdirSync(here, { withFileTypes: true });
     } catch {

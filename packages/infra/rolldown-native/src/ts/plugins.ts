@@ -483,12 +483,6 @@ function normalizeLoadResult(r: string | { code: string; moduleType?: string } |
     return { code: r.code, moduleType: r.moduleType };
 }
 
-function normalizeTransformResult(r: string | { code: string; moduleType?: string } | null | undefined): unknown {
-    if (r == null) return null;
-    if (typeof r === 'string') return { code: r };
-    return { code: r.code, moduleType: r.moduleType };
-}
-
 function normalizeResolveIdResult(r: string | { id: string; external?: boolean } | null | undefined): unknown {
     if (r == null) return null;
     if (typeof r === 'string') return { id: r };

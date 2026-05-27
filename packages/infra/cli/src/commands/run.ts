@@ -14,7 +14,7 @@
 // as a bundle file. Everything else is a script name. Users who want
 // to disambiguate can pass `./<file>` explicitly.
 
-import { existsSync, statSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import type { Command } from '../types/index.js';

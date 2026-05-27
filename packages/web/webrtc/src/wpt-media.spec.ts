@@ -8,15 +8,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 
 import type { MediaStreamTrackEvent } from './index.js';
-import {
-    RTCPeerConnection,
-    RTCRtpSender,
-    RTCRtpReceiver,
-    RTCRtpTransceiver,
-    RTCTrackEvent,
-    MediaStream,
-    MediaStreamTrack,
-} from './index.js';
+import { RTCRtpSender, RTCRtpReceiver, RTCTrackEvent, MediaStream, MediaStreamTrack } from './index.js';
 
 import { createPeerConnection, exchangeOfferAnswer, closePeerConnections } from './wpt-helpers.js';
 
@@ -1035,7 +1027,7 @@ export default async () => {
             let threw = false;
             try {
                 await getUserMedia({});
-            } catch (e: any) {
+            } catch (_e: unknown) {
                 threw = true;
             }
             expect(threw).toBe(true);

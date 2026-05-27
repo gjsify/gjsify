@@ -230,7 +230,7 @@ export const setPriority = (pidOrPriority: number, priority?: number): void => {
     try {
         const actualPid = pid === 0 ? getPid() : pid;
         cli(`renice -n ${prio} -p ${actualPid}`);
-    } catch (err) {
+    } catch (_err) {
         const error: NodeJS.ErrnoException = new Error(`A system error occurred: priority could not be set`);
         error.code = 'ERR_SYSTEM_ERROR';
         throw error;

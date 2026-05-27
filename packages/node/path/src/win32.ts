@@ -4,7 +4,7 @@
 // Copyright (c) Node.js contributors. MIT license.
 // Modifications: Stub — full win32 support is secondary since GJS runs on POSIX systems
 
-import { CHAR_DOT, CHAR_FORWARD_SLASH, CHAR_BACKWARD_SLASH, CHAR_COLON } from './constants.js';
+import { CHAR_DOT, CHAR_BACKWARD_SLASH, CHAR_COLON } from './constants.js';
 import { assertPath, isPathSeparator, isWindowsDeviceRoot, normalizeString, _format } from './util.js';
 
 export interface ParsedPath {

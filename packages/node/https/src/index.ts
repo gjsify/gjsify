@@ -5,7 +5,6 @@
 import type { ClientRequest, IncomingMessage } from 'node:http';
 import { request as httpRequest, get as httpGet, Server as HttpServer } from 'node:http';
 import { TLSSocket, createSecureContext } from 'node:tls';
-import type { TlsOptions } from 'node:tls';
 import { URL } from 'node:url';
 
 export { TLSSocket, createSecureContext };

@@ -27,7 +27,8 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import type { RolldownOutput } from 'rolldown';
+import type { RolldownOutput, InputOptions, RolldownWatcher } from 'rolldown';
+import type * as Rolldown from 'rolldown';
 import type { BundlerOptions } from './types/index.js';
 
 // npm `rolldown` is a Rust crate with platform-specific prebuilds; loading
@@ -36,11 +37,11 @@ import type { BundlerOptions } from './types/index.js';
 // where the createRequire polyfill rejects synchronous builtin loads.
 // Dynamic import keeps it off the GJS code path entirely; the native
 // branch (`@gjsify/rolldown-native`) handles bundling there.
-async function loadNpmRolldown(): Promise<typeof import('rolldown').rolldown> {
+async function loadNpmRolldown(): Promise<typeof Rolldown.rolldown> {
     // Indirect specifier so Rolldown's static-analysis doesn't try to
     // bundle the npm crate into a GJS target build.
     const specifier = 'rolldown';
-    const mod = (await import(/* @vite-ignore */ specifier)) as typeof import('rolldown');
+    const mod = (await import(/* @vite-ignore */ specifier)) as typeof Rolldown;
     return mod.rolldown;
 }
 
@@ -120,7 +121,7 @@ export interface NativePlugin {
  * the GJS-bundled CLI doesn't try to load the unloadable npm crate.
  */
 export async function bundleToChunks(input: {
-    rolldownInput: import('rolldown').InputOptions;
+    rolldownInput: InputOptions;
     format: 'esm' | 'cjs' | 'iife';
 }): Promise<string[]> {
     if (await shouldUseNative()) {
@@ -166,7 +167,7 @@ export async function bundleToChunks(input: {
  * Returns the watcher; the caller registers `event` / `close` listeners
  * and is responsible for invoking `watcher.close()` on shutdown.
  */
-export async function runWatch(finalOpts: BundlerOptions): Promise<import('rolldown').RolldownWatcher> {
+export async function runWatch(finalOpts: BundlerOptions): Promise<RolldownWatcher> {
     if (await shouldUseNative()) {
         throw new Error(
             '`gjsify build --watch` requires the npm `rolldown` engine. The native engine ' +
@@ -175,7 +176,7 @@ export async function runWatch(finalOpts: BundlerOptions): Promise<import('rolld
         );
     }
     const specifier = 'rolldown';
-    const mod = (await import(/* @vite-ignore */ specifier)) as typeof import('rolldown');
+    const mod = (await import(/* @vite-ignore */ specifier)) as typeof Rolldown;
     const output = finalOpts.output ?? {};
     return mod.watch({ ...finalOpts, output });
 }
@@ -291,7 +292,7 @@ async function runNativeBundle(finalOpts: BundlerOptions): Promise<RolldownOutpu
         stripUnserializable({
             ...rest,
             ...outputOpts,
-            input: normalizeInputForNative(finalOpts.input as import('rolldown').InputOptions['input']),
+            input: normalizeInputForNative(finalOpts.input as InputOptions['input']),
         }),
     );
     if (
@@ -398,9 +399,7 @@ function mapToInjectArray(map: Record<string, string | [string, string]>): Array
  * other shapes npm rolldown accepts (string, string[], record) into that
  * shape so callers can pass either engine the same options object.
  */
-function normalizeInputForNative(
-    input: import('rolldown').InputOptions['input'],
-): Array<{ name?: string; import: string }> {
+function normalizeInputForNative(input: InputOptions['input']): Array<{ name?: string; import: string }> {
     if (input === undefined) return [];
     if (typeof input === 'string') return [{ import: input }];
     if (Array.isArray(input)) {

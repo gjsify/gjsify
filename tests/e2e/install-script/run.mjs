@@ -153,7 +153,7 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
         // Build a route table: tarball URL → bytes
         const tarballRoutes = new Map();
         for (const [name, p] of Object.entries(index)) {
-            for (const [version, v] of Object.entries(p.versions)) {
+            for (const [_version, v] of Object.entries(p.versions)) {
                 const routePath = `/${name}/-/${v._baseName}`;
                 tarballRoutes.set(routePath, v._tgz);
             }

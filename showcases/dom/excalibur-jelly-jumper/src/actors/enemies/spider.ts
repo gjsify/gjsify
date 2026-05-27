@@ -50,7 +50,7 @@ export class SpiderEnemy extends EnemyActor {
         this.graphics.use(ex.Animation.fromSpriteSheet(this.spritesheet, [0, 1, 2], 2500 / this.speed));
     }
 
-    onPreUpdate(engine: ex.Engine, elapsed: number): void {
+    onPreUpdate(_engine: ex.Engine, _elapsed: number): void {
         if (this.dead) return;
 
         const bottomLeft = this.raycast(
@@ -85,7 +85,7 @@ export class SpiderEnemy extends EnemyActor {
         }
     }
 
-    onCollisionStart(self: ex.Collider, other: ex.Collider, side: ex.Side, contact: ex.CollisionContact): void {
+    onCollisionStart(self: ex.Collider, other: ex.Collider, side: ex.Side, _contact: ex.CollisionContact): void {
         // Excalibur 0.32.0: `other` is a Collider. Check `other.owner` for Actor identity.
         if (other.owner instanceof Player) {
             return;

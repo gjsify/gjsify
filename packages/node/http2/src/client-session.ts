@@ -16,6 +16,8 @@ import { Duplex } from 'node:stream';
 import { Buffer } from 'node:buffer';
 import { readBytesAsync } from '@gjsify/utils';
 import { constants, getDefaultSettings, type Http2Settings } from './protocol.js';
+import type * as NativeClientDispatcherModule from './native-client-dispatcher.js';
+import type { Http2NativeClientDispatcher } from './native-client-dispatcher.js';
 
 export type { Http2Settings };
 
@@ -289,7 +291,7 @@ export class ClientHttp2Stream extends Duplex {
         let uri: GLib.Uri;
         try {
             uri = GLib.Uri.parse(url, GLib.UriFlags.NONE);
-        } catch (err) {
+        } catch (_err) {
             throw new Error(`Invalid HTTP/2 request URL: ${url}`);
         }
 
@@ -400,9 +402,9 @@ export class ClientHttp2Session extends Http2Session {
     private _authority: string;
     private _soupSession: Soup.Session;
     private _streams: Set<ClientHttp2Stream> = new Set();
-    private _nativeClient: import('./native-client-dispatcher.js').Http2NativeClientDispatcher | null = null;
+    private _nativeClient: Http2NativeClientDispatcher | null = null;
 
-    get nativeClient(): import('./native-client-dispatcher.js').Http2NativeClientDispatcher | null {
+    get nativeClient(): Http2NativeClientDispatcher | null {
         return this._nativeClient;
     }
 
@@ -458,7 +460,7 @@ export class ClientHttp2Session extends Http2Session {
         // Lazy load to keep the module out of the Node bundle when only Soup is
         // used. Pulling node:http2 directly never instantiates the dispatcher.
         const { Http2NativeClientDispatcher } =
-            require('./native-client-dispatcher.js') as typeof import('./native-client-dispatcher.js');
+            require('./native-client-dispatcher.js') as typeof NativeClientDispatcherModule;
         if (!Http2NativeClientDispatcher.available()) {
             if (mode === 'force') {
                 throw new Error(
@@ -503,7 +505,7 @@ export class ClientHttp2Session extends Http2Session {
     }
 
     /** @internal Used by ClientHttp2Stream to access the native client dispatcher. */
-    _getNativeClient(): import('./native-client-dispatcher.js').Http2NativeClientDispatcher | null {
+    _getNativeClient(): Http2NativeClientDispatcher | null {
         return this._nativeClient;
     }
 

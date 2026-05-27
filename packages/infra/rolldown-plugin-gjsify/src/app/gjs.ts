@@ -11,6 +11,8 @@
 
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import type * as NodeFs from 'node:fs';
+import type * as NodeModule from 'node:module';
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 import { aliasPlugin } from '../plugins/alias.js';
 
@@ -31,10 +33,10 @@ function resolveConsoleShim(): string {
     // Preferred: relative to this module's directory. Works under the
     // normal Node consumer flow where `_shimDir` = `<pkg>/lib/app/`.
     const relative = resolve(_shimDir, '../shims/console-gjs.js');
-    let fs: typeof import('node:fs') | null = null;
+    let fs: typeof NodeFs | null = null;
     try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        fs = require('node:fs') as typeof import('node:fs');
+        fs = require('node:fs') as typeof NodeFs;
     } catch {
         return relative;
     }
@@ -47,7 +49,7 @@ function resolveConsoleShim(): string {
     // GJS without further walking.
     try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const Module = require('node:module') as typeof import('node:module');
+        const Module = require('node:module') as typeof NodeModule;
         const require_ = Module.createRequire(import.meta.url);
         return require_.resolve('@gjsify/rolldown-plugin-gjsify/shims/console-gjs');
     } catch {
@@ -295,7 +297,7 @@ function wrapInputWithSideEffects(input: RolldownOptions['input'], sideEffects: 
 
     const plugin: RolldownPluginOption = {
         name: 'gjsify-virtual-entry',
-        async resolveId(source, importer) {
+        async resolveId(source, _importer) {
             if (source.startsWith(PREFIX)) return source;
             // Force-mark the resolved user-entry target as having
             // top-level side effects.

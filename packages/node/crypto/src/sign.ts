@@ -5,7 +5,6 @@
 import { Buffer } from 'node:buffer';
 import { Hash } from './hash.js';
 import { parsePemKey, rsaKeySize } from './asn1.js';
-import type { RsaPrivateComponents, RsaPublicComponents } from './asn1.js';
 import { modPow, bigIntToBytes, bytesToBigInt } from './bigint-math.js';
 
 // ============================================================================
@@ -127,7 +126,7 @@ export class Sign {
         if (parsed.type !== 'rsa-private') {
             throw new Error('privateKey must be an RSA private key');
         }
-        const { n, e, d } = parsed.components;
+        const { n, d } = parsed.components;
         const keyLen = rsaKeySize(n);
 
         // Build DigestInfo = prefix || hash

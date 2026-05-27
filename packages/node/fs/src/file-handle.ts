@@ -1,7 +1,6 @@
 // Reference: Node.js lib/internal/fs/promises.js (FileHandle)
 // Reimplemented for GJS using Gio.File
 
-import { warnNotImplemented, notImplemented } from '@gjsify/utils';
 import { ReadStream } from './read-stream.js';
 import { WriteStream } from './write-stream.js';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
@@ -171,7 +170,7 @@ export class FileHandle implements IFileHandle {
 
         if (encoding) this._file.set_encoding(encoding);
 
-        const [status, written] = this._file.write_chars(data, data.length);
+        const [status, _written] = this._file.write_chars(data, data.length);
 
         if (status === GLib.IOStatus.ERROR) {
             throw new Error('Error on append to file!');

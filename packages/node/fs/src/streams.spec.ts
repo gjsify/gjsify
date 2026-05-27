@@ -2,15 +2,7 @@
 // Reference: refs/node-test/parallel/test-fs-read-stream*.js, test-fs-write-stream*.js
 
 import { describe, it, expect } from '@gjsify/unit';
-import {
-    createReadStream,
-    createWriteStream,
-    writeFileSync,
-    readFileSync,
-    mkdtempSync,
-    rmSync,
-    mkdirSync,
-} from 'node:fs';
+import { createReadStream, createWriteStream, writeFileSync, readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Buffer } from 'node:buffer';

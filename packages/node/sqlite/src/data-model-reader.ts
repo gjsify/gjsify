@@ -3,7 +3,6 @@
 // Reimplemented for GJS using Gda-6.0
 
 import type Gda from '@girs/gda-6.0';
-import GObject from '@girs/gobject-2.0';
 import { OutOfRangeError } from './errors.ts';
 
 export interface ReadOptions {

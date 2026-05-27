@@ -8,16 +8,12 @@
 
 // @ts-ignore — WebTorrent types may not be available
 import WebTorrent from 'webtorrent';
-import type { Instance, TorrentFile } from 'webtorrent';
-import type { EventEmitter } from 'node:events';
+import type { TorrentFile } from 'webtorrent';
 
 // arrayBuffer() exists at runtime but is missing from @types/webtorrent
 interface TorrentFileWithBuffer extends TorrentFile {
     arrayBuffer(): Promise<ArrayBuffer>;
 }
-// WebTorrent Instance supports 'warning' at runtime but @types/webtorrent omits it
-type InstanceWithWarning = Instance & Pick<EventEmitter, 'on'>;
-
 export type LogFn = (tag: string, msg: string) => void;
 
 // The payload to seed — small enough for a quick test

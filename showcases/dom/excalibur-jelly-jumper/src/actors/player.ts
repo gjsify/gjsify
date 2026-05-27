@@ -293,11 +293,11 @@ export default class Player extends PhysicsActor {
             }
         });
 
-        this.animation.get('turn').events.on('frame', (frame) => {
+        this.animation.get('turn').events.on('frame', (_frame) => {
             this.spawnSmokePuffAtFeet(this.facing === 'left' ? 'right' : 'left');
         });
 
-        this.animation.get('wall_slide').events.on('loop', (frame) => {
+        this.animation.get('wall_slide').events.on('loop', (_frame) => {
             this.spawnSmokePuffAtHands(this.facing, ex.vec(ex.randomIntInRange(-1, 1), 0));
         });
 
@@ -369,7 +369,7 @@ export default class Player extends PhysicsActor {
         super.update(engine, elapsed);
     }
 
-    onPostUpdate(engine: ex.Engine, elapsed: number): void {
+    onPostUpdate(_engine: ex.Engine, _elapsed: number): void {
         const { isBeingKnockedBack } = this.get(DamageableComponent);
         // speed up the animation the faster we're moving
         this.animation.speed = Math.min(
@@ -428,7 +428,7 @@ export default class Player extends PhysicsActor {
     /**
      * Process user input to control the character
      */
-    handleInput(engine: ex.Engine, elapsed: number) {
+    handleInput(_engine: ex.Engine, _elapsed: number) {
         const jumpPressed = this.controls.wasPressed('Jump');
         const jumpHeld = this.controls.isHeld('Jump');
 

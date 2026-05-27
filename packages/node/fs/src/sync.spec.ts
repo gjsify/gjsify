@@ -1,4 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
+import type { EventEmitter } from 'node:events';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -188,7 +189,7 @@ export default async () => {
                     throw err;
                 }
                 // FSWatcher inherits from EventEmitter at runtime
-                const w = watcher as unknown as import('node:events').EventEmitter;
+                const w = watcher as unknown as EventEmitter;
                 w.on('change', console.log).on('rename', console.log);
 
                 setTimeout(() => {

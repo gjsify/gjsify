@@ -6,7 +6,6 @@ import {
     open,
     close,
     write,
-    read,
     rm,
     stat,
     lstat,

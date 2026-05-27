@@ -13,7 +13,14 @@
             { "allowedNames": ["self", "el", "blob", "readable", "root", "node", "receivedThis"] }
         ],
         "unicorn/prefer-node-protocol": "error",
-        "eslint/no-unused-vars": "warn",
+        "eslint/no-unused-vars": [
+            "warn",
+            {
+                "argsIgnorePattern": "^_",
+                "caughtErrorsIgnorePattern": "^_",
+                "varsIgnorePattern": "^_"
+            }
+        ],
         "gjsify/register-class-order": "error"
     },
     "ignorePatterns": [

@@ -128,7 +128,7 @@ describe('gjsify showcase E2E', { timeout: 10 * 60 * 1000 }, () => {
         // Run a WebGL showcase — it will fail (no display/GTK in headless),
         // but the error must NOT be about Gwebgl typelib resolution.
         // This proves that runGjsBundle resolves native prebuilds from the bundle's location.
-        const { stdout, stderr, exitCode } = runShowcase(projectDir, ['three-postprocessing-pixel']);
+        const { stdout, stderr } = runShowcase(projectDir, ['three-postprocessing-pixel']);
         const combined = stdout + stderr;
 
         // If the showcase isn't installed, skip gracefully

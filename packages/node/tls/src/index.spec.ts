@@ -18,6 +18,7 @@ import tls, {
     DEFAULT_CIPHERS,
 } from 'node:tls';
 import type { PeerCertificate } from 'node:tls';
+import type { Socket } from 'node:net';
 
 // Build a fake PeerCertificate from minimal fields. Lets us drive
 // `checkServerIdentity` from tests without crafting a real DER cert.
@@ -115,77 +116,77 @@ export default async () => {
         // ===================== TLSSocket =====================
         await describe('TLSSocket', async () => {
             await it('should be constructable', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 expect(socket).toBeDefined();
             });
 
             await it('should have encrypted property set to true', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 expect(socket.encrypted).toBe(true);
             });
 
             await it('should have authorized property as boolean', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 expect(typeof socket.authorized).toBe('boolean');
             });
 
             await it('authorized should default to false', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 expect(socket.authorized).toBe(false);
             });
 
             await it('should have getPeerCertificate method', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 expect(typeof socket.getPeerCertificate).toBe('function');
             });
 
             await it('should have getProtocol method', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 expect(typeof socket.getProtocol).toBe('function');
             });
 
             await it('should have getCipher method', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 expect(typeof socket.getCipher).toBe('function');
             });
 
             await it('should have alpnProtocol property', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 // Node.js: alpnProtocol is a property (null or string), our impl: false or string
                 const val = socket.alpnProtocol;
                 expect(val === false || val === null || typeof val === 'string').toBe(true);
             });
 
             await it('getPeerCertificate should return object when not connected', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 const cert = socket.getPeerCertificate();
                 expect(typeof cert).toBe('object');
             });
 
             await it('getProtocol should return null when not connected', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 const proto = socket.getProtocol();
                 expect(proto === null || typeof proto === 'string').toBe(true);
             });
 
             await it('getCipher should return null when not connected', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 const cipher = socket.getCipher();
                 expect(cipher === null || cipher === undefined || typeof cipher === 'object').toBe(true);
             });
 
             await it('alpnProtocol should default to false', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 expect(socket.alpnProtocol === false || socket.alpnProtocol === null).toBe(true);
             });
 
             await it('authorizationError should be undefined initially', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 expect(socket.authorizationError === undefined || socket.authorizationError === null).toBe(true);
             });
 
             await it('should extend Socket (EventEmitter)', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 expect(typeof socket.on).toBe('function');
                 expect(typeof socket.emit).toBe('function');
                 expect(typeof socket.once).toBe('function');
@@ -193,17 +194,17 @@ export default async () => {
             });
 
             await it('should have destroy method', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 expect(typeof socket.destroy).toBe('function');
             });
 
             await it('should have write method', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 expect(typeof socket.write).toBe('function');
             });
 
             await it('should have end method', async () => {
-                const socket = new TLSSocket(undefined as unknown as import('net').Socket);
+                const socket = new TLSSocket(undefined as unknown as Socket);
                 expect(typeof socket.end).toBe('function');
             });
         });

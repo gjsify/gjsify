@@ -122,7 +122,7 @@ export default async () => {
             try {
                 decipher.update(encrypted, 'hex', 'utf8');
                 decipher.final('utf8');
-            } catch (e) {
+            } catch (_e) {
                 threw = true;
             }
             // Wrong key should produce garbage or throw (padding error)

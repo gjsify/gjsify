@@ -6,7 +6,7 @@ import { GamepadButton } from './gamepad-button.js';
 import { Gamepad } from './gamepad.js';
 import { GamepadEvent } from './gamepad-event.js';
 import { MANETTE_TO_W3C_BUTTON, W3CButton, ManetteButton, W3C_BUTTON_COUNT } from './button-mapping.js';
-import { MANETTE_TO_W3C_AXIS, W3CAxis, ManetteAxis, W3C_AXIS_COUNT } from './axis-mapping.js';
+import { MANETTE_TO_W3C_AXIS, W3CAxis, ManetteAxis } from './axis-mapping.js';
 import { GamepadManager } from './gamepad-manager.js';
 
 export default async () => {

@@ -7,9 +7,9 @@
 // re-exports the native globals for zero overhead.
 // On GJS, it provides a full polyfill and registers globals.
 
-import { WritableStream, WritableStreamDefaultWriter, WritableStreamDefaultController } from './writable-stream.js';
-import { ReadableStream, ReadableStreamDefaultReader, ReadableStreamDefaultController } from './readable-stream.js';
-import { TransformStream, TransformStreamDefaultController } from './transform-stream.js';
+import { WritableStream } from './writable-stream.js';
+import { ReadableStream } from './readable-stream.js';
+import { TransformStream } from './transform-stream.js';
 import { ByteLengthQueuingStrategy, CountQueuingStrategy } from './queuing-strategies.js';
 import { TextEncoderStream } from './text-encoder-stream.js';
 import { TextDecoderStream } from './text-decoder-stream.js';

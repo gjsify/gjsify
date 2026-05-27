@@ -4,7 +4,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
 let cnt = 0;

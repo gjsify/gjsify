@@ -1,7 +1,7 @@
 // Node.js timers/promises module for GJS
 // Reference: Node.js lib/timers/promises.js
 
-import { Timeout, Immediate } from './timeout.js';
+import { Timeout } from './timeout.js';
 
 /**
  * Returns a promise that resolves after `delay` milliseconds.

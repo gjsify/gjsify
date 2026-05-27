@@ -487,7 +487,7 @@ export default async () => {
             let threw = false;
             try {
                 await subtle.exportKey('raw', key);
-            } catch (e) {
+            } catch (_e) {
                 threw = true;
             }
             expect(threw).toBe(true);

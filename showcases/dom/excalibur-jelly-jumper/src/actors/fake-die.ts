@@ -28,7 +28,7 @@ export class FakeDie extends ex.Actor {
         this.vel.x = ex.randomInRange(-100, 100);
     }
 
-    onPreUpdate(engine: ex.Engine, elapsed: number): void {
+    onPreUpdate(_engine: ex.Engine, _elapsed: number): void {
         if (this.isOffScreen) {
             this.kill();
         }

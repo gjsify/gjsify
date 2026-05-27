@@ -131,7 +131,7 @@ export function inlineStaticReads(src: string, sourceFilePath: string): { conten
  * `undefined` if the call doesn't match an inlinable pattern or the path
  * couldn't be resolved or the file doesn't exist.
  */
-function tryInlineCall(node: acorn.CallExpression, ctx: InlineContext, src: string): Edit | undefined {
+function tryInlineCall(node: acorn.CallExpression, ctx: InlineContext, _src: string): Edit | undefined {
     const callee = node.callee;
 
     // `JSON.parse(readFileSync(<path>, "utf8"))` — collapse the whole

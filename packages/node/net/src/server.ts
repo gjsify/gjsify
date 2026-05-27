@@ -2,7 +2,6 @@
 // Reimplemented for GJS using Gio.SocketService
 
 import Gio from '@girs/gio-2.0';
-import GLib from '@girs/glib-2.0';
 import { EventEmitter } from 'node:events';
 import { createNodeError, deferEmit, ensureMainLoop } from '@gjsify/utils';
 import type { ErrnoException } from '@gjsify/utils';

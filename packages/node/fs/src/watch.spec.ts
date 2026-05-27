@@ -3,7 +3,7 @@
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
 
 import { describe, it, expect } from '@gjsify/unit';
-import { promises, mkdirSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { promises, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 

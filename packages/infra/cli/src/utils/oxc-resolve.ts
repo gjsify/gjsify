@@ -30,6 +30,7 @@
 // knows exactly which optionalDependency npm failed to place.
 
 import { existsSync, readFileSync } from 'node:fs';
+import type * as NodeFs from 'node:fs';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import type { SpawnOptions } from 'node:child_process';
@@ -67,7 +68,7 @@ function oxcBindingSuffix(): string {
         // glibc systems have `/lib/ld-linux-*`, musl has `/lib/ld-musl-*`.
         let libc = 'gnu';
         try {
-            const { readdirSync } = require('node:fs') as typeof import('node:fs');
+            const { readdirSync } = require('node:fs') as typeof NodeFs;
             const libEntries = readdirSync('/lib');
             if (libEntries.some((e) => e.startsWith('ld-musl-'))) {
                 libc = 'musl';

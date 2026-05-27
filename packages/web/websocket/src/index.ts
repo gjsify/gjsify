@@ -5,7 +5,7 @@
 import GLib from '@girs/glib-2.0';
 import Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
-import { Event, EventTarget, CustomEvent, MessageEvent, CloseEvent } from '@gjsify/dom-events';
+import { Event, EventTarget, MessageEvent, CloseEvent } from '@gjsify/dom-events';
 
 export { MessageEvent, CloseEvent };
 
@@ -246,7 +246,7 @@ export class WebSocket extends EventTarget {
         if (this.onmessage) this.onmessage.call(this, event);
     }
 
-    private _onError(error: GLib.Error): void {
+    private _onError(_error: GLib.Error): void {
         const event = new Event('error');
         this.dispatchEvent(event);
         if (this.onerror) this.onerror.call(this, event);

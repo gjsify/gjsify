@@ -2,6 +2,7 @@
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/Path2D
 // Records path operations and replays them on a Cairo context.
 
+import type Cairo from 'cairo';
 import { quadraticToCubic, cairoRoundRect } from './cairo-utils.js';
 
 /** A recorded path operation. */
@@ -103,7 +104,7 @@ export class Path2D {
     /**
      * @internal Replay all recorded path operations onto a Cairo context.
      */
-    _replayOnCairo(ctx: import('cairo').default.Context): void {
+    _replayOnCairo(ctx: Cairo.Context): void {
         let lastX = 0,
             lastY = 0;
 

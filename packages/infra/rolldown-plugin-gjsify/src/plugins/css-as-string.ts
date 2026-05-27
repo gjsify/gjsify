@@ -41,6 +41,7 @@ import { createRequire } from 'node:module';
 import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { Plugin } from 'rolldown';
+import type { Targets } from 'lightningcss';
 
 export interface CssAsStringOptions {
     /**
@@ -50,7 +51,7 @@ export interface CssAsStringOptions {
      * match the GTK4 CSS parser. Omit or leave undefined to skip
      * lowering (output stays as-authored except for `@import` inlining).
      */
-    targets?: import('lightningcss').Targets;
+    targets?: Targets;
     /**
      * When true (default), `@import` statements are resolved by
      * lightningcss `bundleAsync`. Set false to fall back to a plain
@@ -64,7 +65,7 @@ interface BundleResult {
     code: Uint8Array;
 }
 
-type Bundler = (filename: string, targets: import('lightningcss').Targets | undefined) => Promise<BundleResult>;
+type Bundler = (filename: string, targets: Targets | undefined) => Promise<BundleResult>;
 
 let _bundlerPromise: Promise<Bundler> | null = null;
 
@@ -176,7 +177,7 @@ const cssBundleResolver = {
     },
 };
 
-function targetsToBrowserslist(targets: import('lightningcss').Targets | undefined): string | undefined {
+function targetsToBrowserslist(targets: Targets | undefined): string | undefined {
     if (!targets) return undefined;
     const parts: string[] = [];
     for (const [browser, encoded] of Object.entries(targets) as [string, number | undefined][]) {
@@ -209,10 +210,7 @@ export function cssAsStringPlugin(options: CssAsStringOptions = {}): Plugin {
     };
 }
 
-async function loadAndBundleCss(
-    filename: string,
-    targets: import('lightningcss').Targets | undefined,
-): Promise<Uint8Array> {
+async function loadAndBundleCss(filename: string, targets: Targets | undefined): Promise<Uint8Array> {
     if (!_bundlerPromise) _bundlerPromise = pickBundler();
     const bundler = await _bundlerPromise;
     const { code } = await bundler(filename, targets);

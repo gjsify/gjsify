@@ -3,7 +3,7 @@
 // Run: yarn generate (or npx tsx scripts/generate.ts)
 
 import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join, resolve, basename } from 'node:path';
+import { join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..', '..', '..', '..');
 const SYMBOLIC_DIR = join(ROOT, 'refs', 'adwaita-icon-theme', 'Adwaita', 'symbolic');

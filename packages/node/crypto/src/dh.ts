@@ -170,12 +170,6 @@ const PREDEFINED_GROUPS: Record<string, { gen: string; prime: string }> = {
 // BigInt utility helpers
 // ---------------------------------------------------------------------------
 
-/** Convert a hex string to BigInt. */
-function hexToBigInt(hex: string): bigint {
-    if (hex.length === 0) return 0n;
-    return BigInt('0x' + hex);
-}
-
 /** Convert a BigInt to a Buffer (big-endian, unsigned). */
 function bigIntToBuffer(n: bigint): Buffer {
     if (n === 0n) return Buffer.from([0]);
@@ -367,23 +361,6 @@ function getCachedCheckPrime(prime: bigint, generatorBuf: Buffer): number {
 // ---------------------------------------------------------------------------
 // DiffieHellman class
 // ---------------------------------------------------------------------------
-
-/**
- * Parse an input value to a Buffer, handling encoding parameters.
- */
-function toBuffer(value: string | Buffer | Uint8Array | ArrayBuffer | number, encoding?: BufferEncoding): Buffer {
-    if (Buffer.isBuffer(value)) return value;
-    if (value instanceof Uint8Array) return Buffer.from(value);
-    if (value instanceof ArrayBuffer) return Buffer.from(value);
-    if (typeof value === 'string') return Buffer.from(value, encoding || 'utf8');
-    if (typeof value === 'number') {
-        // Single byte number — treat as generator value
-        const buf = Buffer.alloc(1);
-        buf[0] = value;
-        return buf;
-    }
-    throw new TypeError('Invalid input type');
-}
 
 /**
  * Format a BigInt return value as Buffer or encoded string.

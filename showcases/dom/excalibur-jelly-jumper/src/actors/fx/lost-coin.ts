@@ -35,7 +35,7 @@ export class LostCoin extends CoinItem {
         this.collectable.isCollectable = false;
     }
 
-    onInitialize(engine: ex.Engine<any>): void {
+    onInitialize(_engine: ex.Engine<any>): void {
         this.actions.runAction(
             new ex.ParallelActions([
                 new ex.ActionSequence(this, (ctx) =>
@@ -69,7 +69,7 @@ export class LostCoin extends CoinItem {
         super.onPreCollisionResolve(self, other, side, contact);
     }
 
-    onPostCollisionResolve(self: ex.Collider, other: ex.Collider, side: ex.Side, contact: ex.CollisionContact): void {
+    onPostCollisionResolve(self: ex.Collider, other: ex.Collider, side: ex.Side, _contact: ex.CollisionContact): void {
         if (side === ex.Side.Bottom || side === ex.Side.Top) {
             this.vel.x = this.oldVel.x * (1 - this.FRICTION);
         } else if (side == ex.Side.Left || side == ex.Side.Right) {

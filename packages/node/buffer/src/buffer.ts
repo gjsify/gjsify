@@ -23,8 +23,6 @@ import { encodeString, decodeString, checkOffset } from './buffer-codec.js';
 // SharedArrayBuffer may not be available in GJS.
 const hasSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
 
-const INSPECT_MAX_BYTES = 50;
-
 /**
  * Node.js-compatible Buffer class.
  */

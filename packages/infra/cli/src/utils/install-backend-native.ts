@@ -26,7 +26,6 @@ import {
     parseNpmrc,
     type NpmrcConfig,
     type Packument,
-    type PackumentVersion,
 } from '@gjsify/npm-registry';
 import { extractTarball } from '@gjsify/tar';
 

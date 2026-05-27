@@ -9,7 +9,7 @@ import Stream from 'node:stream';
 
 import { parseDataUri } from './utils/data-uri.js';
 
-import { writeToStream, clone } from './body.js';
+import { clone } from './body.js';
 import Response from './response.js';
 import Headers from './headers.js';
 import Request, { getSoupRequestOptions } from './request.js';
@@ -177,7 +177,7 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
     });
 
     // Handle stream errors
-    readable.on('error', (error: SystemError) => {
+    readable.on('error', (_error: SystemError) => {
         finalize();
         // Error is consumed by the body when read
     });

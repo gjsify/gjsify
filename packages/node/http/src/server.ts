@@ -12,6 +12,7 @@
 // `@gjsify/webrtc-native`.
 
 import type Gio from '@girs/gio-2.0';
+import type { Socket } from 'node:net';
 import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
 import { Buffer } from 'node:buffer';
@@ -34,7 +35,7 @@ export class OutgoingMessage extends Writable {
     headersSent = false;
     sendDate = true;
     finished = false;
-    socket: import('net').Socket | null = null;
+    socket: Socket | null = null;
 
     protected _headers: Map<string, string | string[]> = new Map();
 
@@ -395,7 +396,7 @@ export class Server extends EventEmitter {
             this._address?.address ?? '127.0.0.1',
             this._address?.port ?? 0,
             bridgeRes,
-        ) as unknown as import('net').Socket;
+        ) as unknown as Socket;
 
         // Push body bytes (pre-buffered by libsoup) and EOF. Body is exposed
         // as a method (not a property) on the bridge — GIR-marshalled

@@ -285,7 +285,7 @@ async function extractStrings(files: string[], options: XGettextPluginOptions, p
                 if (verbose) {
                     console.log(`[${pluginName}] Successfully created temporary POT file: ${tempOutput}`);
                 }
-            } catch (error) {
+            } catch (_error) {
                 console.warn(`[${pluginName}] Failed to create temporary POT file: ${tempOutput}`);
             }
         }

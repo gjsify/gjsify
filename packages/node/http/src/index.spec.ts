@@ -875,9 +875,9 @@ export default async () => {
 
         await it('should support writeContinue', async () => {
             const server = http.createServer((req, res) => {
-                let continueCalled = false;
+                let _continueCalled = false;
                 res.writeContinue(() => {
-                    continueCalled = true;
+                    _continueCalled = true;
                 });
                 res.writeHead(200);
                 res.end('ok');
@@ -1064,9 +1064,9 @@ export default async () => {
         });
 
         await it('should accept requestListener in constructor', async () => {
-            let called = false;
+            let _called = false;
             const server = http.createServer((req, res) => {
-                called = true;
+                _called = true;
                 res.end();
             });
             expect(server).toBeDefined();
@@ -1362,9 +1362,9 @@ export default async () => {
         await it('should handle 302 redirect with Location header via server roundtrip', async () => {
             // Test that the server can set a redirect status + Location header,
             // then a second request to the new location succeeds.
-            let hitCount = 0;
+            let _hitCount = 0;
             const server = http.createServer((req, res) => {
-                hitCount++;
+                _hitCount++;
                 if (req.url === '/old') {
                     // Respond with a body so Soup doesn't auto-follow
                     res.writeHead(200, { 'X-Would-Redirect': '/new' });

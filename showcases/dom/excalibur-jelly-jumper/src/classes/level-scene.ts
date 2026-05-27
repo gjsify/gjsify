@@ -198,7 +198,7 @@ export default class LevelScene extends ex.Scene {
         this.setupSpikes();
     }
 
-    onActivate(context: ex.SceneActivationContext<unknown>): void {
+    onActivate(_context: ex.SceneActivationContext<unknown>): void {
         if (this.song) {
             AudioManager.playSong(this.song);
         }

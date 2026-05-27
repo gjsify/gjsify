@@ -277,7 +277,7 @@ export default async () => {
         await it('live stream', async () => {
             const collected: any[] = [];
             const r = new Readable({
-                read(cb: (err?: Error | null) => void) {
+                read(_cb: (err?: Error | null) => void) {
                     this.push('data');
                     this.push('data');
                     this.push('data');
@@ -302,7 +302,7 @@ export default async () => {
         await it('live stream with readable event', async () => {
             const collected: any[] = [];
             const r = new Readable({
-                read(cb: (err?: Error | null) => void) {
+                read(_cb: (err?: Error | null) => void) {
                     this.push('data');
                     this.push('data');
                     this.push('data');

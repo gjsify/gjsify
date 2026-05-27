@@ -269,7 +269,7 @@ export default async () => {
         await it('should fail when test exceeds timeout', async () => {
             // This test verifies timeout detection by running a test that will timeout,
             // then checking that the failure was counted.
-            const failedBefore = (globalThis as any).__testFailedCount;
+            const _failedBefore = (globalThis as any).__testFailedCount;
 
             // We can't directly test that it() times out from within it() itself,
             // so we test that a fast test with a generous timeout succeeds.

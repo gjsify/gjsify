@@ -34,16 +34,6 @@ function isAnyArrayBuffer(val: unknown): val is ArrayBuffer {
     return val instanceof ArrayBuffer || (typeof SharedArrayBuffer !== 'undefined' && val instanceof SharedArrayBuffer);
 }
 
-function isBoxedPrimitive(val: unknown): boolean {
-    return (
-        val instanceof String ||
-        val instanceof Number ||
-        val instanceof Boolean ||
-        (typeof Symbol !== 'undefined' && val instanceof Symbol) ||
-        (typeof BigInt !== 'undefined' && val instanceof (BigInt as unknown as typeof Number))
-    );
-}
-
 /**
  * Body mixin
  *

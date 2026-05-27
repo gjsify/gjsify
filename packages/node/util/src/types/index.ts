@@ -294,7 +294,7 @@ export function isModuleNamespaceObject(value: unknown): boolean {
 // --- Proxy ---
 // Cannot be detected in pure JavaScript (requires runtime-specific binding).
 // Always returns false. This matches the limitation of all non-V8/Deno runtimes.
-export function isProxy(value: unknown): boolean {
+export function isProxy(_value: unknown): boolean {
     return false;
 }
 
@@ -304,7 +304,7 @@ export function isCryptoKey(value: unknown): boolean {
     return isObjectLike(value) && _toString.call(value) === '[object CryptoKey]';
 }
 
-export function isKeyObject(value: unknown): boolean {
+export function isKeyObject(_value: unknown): boolean {
     return false;
 }
 

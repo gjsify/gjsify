@@ -126,7 +126,7 @@ export default async () => {
             server.on('error', () => {
                 errorOrClose = true;
             });
-            server.close((err) => {
+            server.close((_err) => {
                 // Node.js passes an error to the callback for non-listening servers
                 errorOrClose = true;
             });

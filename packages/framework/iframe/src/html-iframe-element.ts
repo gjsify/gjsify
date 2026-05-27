@@ -7,6 +7,7 @@ import { Event } from '@gjsify/dom-events';
 import * as PS from './property-symbol.js';
 
 import type { IFrameWindowProxy } from './iframe-window-proxy.js';
+import type { IFrameBridge } from './iframe-bridge.js';
 
 const { tagName, localName, namespaceURI } = PropertySymbol;
 
@@ -20,7 +21,7 @@ const { tagName, localName, namespaceURI } = PropertySymbol;
  */
 export class HTMLIFrameElement extends HTMLElement {
     /** @internal The backing IFrameBridge (set by IFrameBridge when it creates this element) */
-    [PS.iframeWidget]: import('./iframe-bridge.js').IFrameBridge | null = null;
+    [PS.iframeWidget]: IFrameBridge | null = null;
 
     /** @internal The contentWindow proxy */
     [PS.windowProxy]: IFrameWindowProxy | null = null;

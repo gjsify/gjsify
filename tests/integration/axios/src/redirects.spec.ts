@@ -117,7 +117,7 @@ export default async () => {
                     try {
                         await axios.get(`http://127.0.0.1:${srv.port}/one`, {
                             maxRedirects: 3,
-                            beforeRedirect: (options: any, responseDetails: any) => {
+                            beforeRedirect: (options: any, _responseDetails: any) => {
                                 if (options.path === '/foo') {
                                     throw new Error('path not allowed');
                                 }

@@ -1,7 +1,7 @@
 // readline/promises — Promise-based readline API
 // Reference: Node.js lib/readline/promises.js
 
-import { Interface as BaseInterface, createInterface as baseCreateInterface } from './index.js';
+import { Interface as BaseInterface } from './index.js';
 import type { InterfaceOptions } from './index.js';
 import type { Readable, Writable } from 'node:stream';
 
@@ -10,7 +10,7 @@ import type { Readable, Writable } from 'node:stream';
  */
 export class Interface extends BaseInterface {
     /** Ask a question and return the answer as a Promise. */
-    question(query: string, options?: any): Promise<string> {
+    question(query: string, _options?: any): Promise<string> {
         return new Promise<string>((resolve) => {
             super.question(query, resolve);
         });

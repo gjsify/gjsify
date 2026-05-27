@@ -135,7 +135,7 @@ export default async () => {
                 let threw = false;
                 try {
                     new EventSource('not a valid url');
-                } catch (e) {
+                } catch (_e) {
                     threw = true;
                 }
                 expect(threw).toBe(true);

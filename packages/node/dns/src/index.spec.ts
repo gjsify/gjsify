@@ -224,7 +224,7 @@ export default async () => {
 
             await it('should error on non-existent hostname', async () => {
                 await new Promise<void>((resolve) => {
-                    lookup('this.hostname.does.not.exist.invalid', (err, address, family) => {
+                    lookup('this.hostname.does.not.exist.invalid', (err, _address, _family) => {
                         expect(err).toBeDefined();
                         expect((err as any).code).toBe('ENOTFOUND');
                         resolve();

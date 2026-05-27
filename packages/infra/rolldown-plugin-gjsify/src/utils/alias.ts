@@ -23,13 +23,13 @@ export const setNodeAliasPrefix = (ALIASES: Record<string, string>) => {
     return ALIASES;
 };
 
-const getAliasesGeneralForGjs = (options: ResolveAliasOptions) => ALIASES_GENERAL_FOR_GJS;
-const getAliasesNodeForGjs = (options: ResolveAliasOptions) => setNodeAliasPrefix(ALIASES_NODE_FOR_GJS);
-const getAliasesWebForGjs = (options: ResolveAliasOptions) => ALIASES_WEB_FOR_GJS;
+const getAliasesGeneralForGjs = (_options: ResolveAliasOptions) => ALIASES_GENERAL_FOR_GJS;
+const getAliasesNodeForGjs = (_options: ResolveAliasOptions) => setNodeAliasPrefix(ALIASES_NODE_FOR_GJS);
+const getAliasesWebForGjs = (_options: ResolveAliasOptions) => ALIASES_WEB_FOR_GJS;
 
-const getAliasesGeneralForNode = (options: ResolveAliasOptions) => ALIASES_GENERAL_FOR_NODE;
-const getAliasesGjsForNode = (options: ResolveAliasOptions) => ALIASES_GJS_FOR_NODE;
-const getAliasesWebForNode = (options: ResolveAliasOptions) => ALIASES_WEB_FOR_NODE;
+const getAliasesGeneralForNode = (_options: ResolveAliasOptions) => ALIASES_GENERAL_FOR_NODE;
+const getAliasesGjsForNode = (_options: ResolveAliasOptions) => ALIASES_GJS_FOR_NODE;
+const getAliasesWebForNode = (_options: ResolveAliasOptions) => ALIASES_WEB_FOR_NODE;
 
 export const getAliasesForGjs = (options: ResolveAliasOptions) => {
     return { ...getAliasesGeneralForGjs(options), ...getAliasesNodeForGjs(options), ...getAliasesWebForGjs(options) };

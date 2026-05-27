@@ -170,9 +170,9 @@ async function search(pattern: string, directory: string): Promise<void> {
     const stats: SearchStats = { filesSearched: 0, filesMatched: 0, totalMatches: 0 };
 
     // Build regex
-    let regex: RegExp;
+    let _regex: RegExp;
     try {
-        regex = new RegExp(pattern);
+        _regex = new RegExp(pattern);
     } catch {
         console.error(`${RED}Invalid pattern: ${pattern}${RESET}`);
         return;

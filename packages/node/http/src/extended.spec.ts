@@ -156,7 +156,7 @@ export default async () => {
         });
 
         await it('all values should be strings', async () => {
-            for (const [code, text] of Object.entries(http.STATUS_CODES)) {
+            for (const [_code, text] of Object.entries(http.STATUS_CODES)) {
                 expect(typeof text).toBe('string');
                 expect((text as string).length).toBeGreaterThan(0);
             }

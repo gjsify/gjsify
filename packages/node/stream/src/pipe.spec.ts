@@ -33,7 +33,7 @@ export default async () => {
             r.readable = true;
 
             let passed = false;
-            w.on('pipe', (src: any) => {
+            w.on('pipe', (_src: any) => {
                 passed = true;
             });
             r.pipe(w);
@@ -532,7 +532,7 @@ export default async () => {
         await it('writable that throws in _write propagates the error via error event', async () => {
             const stringReadable = Readable.from(['hello', 'world']);
             const passThrough = new Transform({
-                transform(_chunk, _enc, cb) {
+                transform(_chunk, _enc, _cb) {
                     this.push(_chunk);
                     throw new Error('something went wrong');
                 },

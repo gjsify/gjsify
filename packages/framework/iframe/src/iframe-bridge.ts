@@ -60,7 +60,7 @@ export const IFrameBridge = GObject.registerClass(
 
             // Create the DOM element and link it to this widget
             this._iframe = new HTMLIFrameElement();
-            this._iframe[PS.iframeWidget] = this as unknown as import('./iframe-bridge.js').IFrameBridge;
+            this._iframe[PS.iframeWidget] = this as unknown as IFrameBridge;
 
             // Set up the message bridge
             this._messageBridge = new MessageBridge(this);

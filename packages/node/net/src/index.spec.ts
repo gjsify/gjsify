@@ -2,7 +2,7 @@
 // test-net-settimeout.js, test-net-bytes-read.js, test-net-server-max-connections.js
 // Original: MIT license, Node.js contributors
 
-import { describe, it, expect, on } from '@gjsify/unit';
+import { describe, it, expect } from '@gjsify/unit';
 import net, { isIP, isIPv4, isIPv6, createServer, createConnection, connect, Socket, Server } from 'node:net';
 import { Buffer } from 'node:buffer';
 
@@ -623,7 +623,7 @@ export default async () => {
             });
 
             await it('should emit timeout event', async () => {
-                const server = createServer((socket) => {
+                const server = createServer((_socket) => {
                     // Don't send anything — let client time out
                 });
 
@@ -646,7 +646,7 @@ export default async () => {
             });
 
             await it('should report getConnections correctly', async () => {
-                const server = createServer((socket) => {
+                const server = createServer((_socket) => {
                     // Hold connection open
                 });
 

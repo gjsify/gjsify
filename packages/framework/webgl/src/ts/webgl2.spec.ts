@@ -10,17 +10,12 @@ import {
     makeProgram,
     drawTriangle,
     readPixel,
-    pixelClose,
     makeTestFBO,
     destroyTestFBO,
-    makeTestFBOWithDepth,
     makeTestFBOFloat,
     makeTestFBOWithDepthTexture,
     TEXTURE_VS_300,
     TEXTURE_FS_300,
-    CUBEMAP_FS_300,
-    type TestFBOFloat,
-    type TestFBOWithDepthTexture,
 } from './test-utils.js';
 import GLib from '@girs/glib-2.0';
 import Gtk from '@girs/gtk-4.0';

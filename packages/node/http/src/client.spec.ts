@@ -429,9 +429,9 @@ export default async () => {
         });
 
         await it('should handle options with callback', async () => {
-            let cbCalled = false;
+            let _cbCalled = false;
             const req = http.request({ hostname: 'localhost', port: 1, path: '/' }, () => {
-                cbCalled = true;
+                _cbCalled = true;
             });
             expect(req).toBeDefined();
             req.on('error', () => {});
@@ -439,9 +439,9 @@ export default async () => {
         });
 
         await it('should handle URL string with callback', async () => {
-            let cbCalled = false;
+            let _cbCalled = false;
             const req = http.request('http://localhost:1/', () => {
-                cbCalled = true;
+                _cbCalled = true;
             });
             expect(req).toBeDefined();
             req.on('error', () => {});

@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { createServer, request as httpRequest, get as httpGet } from 'node:http';
-import { Readable, Writable, PassThrough, Transform } from 'node:stream';
+import { Readable, PassThrough, Transform } from 'node:stream';
 import { Buffer } from 'node:buffer';
 import type { Server, IncomingMessage, ServerResponse } from 'node:http';
 
@@ -12,7 +12,7 @@ import type { Server, IncomingMessage, ServerResponse } from 'node:http';
 function startServer(
     handler: (req: IncomingMessage, res: ServerResponse) => void,
 ): Promise<{ url: string; server: Server; close: () => Promise<void> }> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve, _reject) => {
         const server = createServer(handler);
         server.listen(0, '127.0.0.1', () => {
             const addr = server.address()!;

@@ -7,7 +7,7 @@
 //   - Sequential writes complete within a reasonable time budget
 
 import { describe, it, expect, on } from '@gjsify/unit';
-import { Readable, Writable, Duplex, Transform, pipeline, pipelinePromise } from 'streamx';
+import { Readable, Writable, Duplex, Transform, pipelinePromise } from 'streamx';
 
 export default async () => {
     await describe('streamx throughput', async () => {

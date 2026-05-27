@@ -8,9 +8,9 @@ export default async () => {
     // ===================== Signal handling =====================
     await describe('process signal handling', async () => {
         await it('should support registering SIGTERM handler', async () => {
-            let handlerCalled = false;
+            let _handlerCalled = false;
             const handler = () => {
-                handlerCalled = true;
+                _handlerCalled = true;
             };
             process.on('SIGTERM', handler);
             expect(process.listenerCount('SIGTERM')).toBeGreaterThan(0);

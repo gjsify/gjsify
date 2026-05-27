@@ -1,4 +1,4 @@
-import { describe, it, expect, assert, spy } from '@gjsify/unit';
+import { describe, it, assert, spy } from '@gjsify/unit';
 
 // https://github.com/mysticatea/spy/blob/master/test/index.ts
 export default async () => {

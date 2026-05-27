@@ -20,7 +20,7 @@ import Gio from 'gi://Gio?version=2.0';
 import Adw from 'gi://Adw?version=1';
 
 import { IFrameBridge } from '@gjsify/iframe';
-import { BrowserCore, BUILTIN_PAGE_URLS, DEFAULT_HOME_URL } from '../browser-demo.js';
+import { BrowserCore, BUILTIN_PAGE_URLS, DEFAULT_HOME_URL, type IFrameHandle } from '../browser-demo.js';
 
 function activate(app: Adw.Application): void {
     const win = new Adw.ApplicationWindow({
@@ -108,7 +108,7 @@ function activate(app: Adw.Application): void {
 
     // BrowserCore takes the IFrameBridge's iframeElement (HTMLIFrameElement)
     // — same duck-type the browser variant feeds it via the real <iframe>.
-    const core = new BrowserCore(iframeWidget.iframeElement as unknown as import('../browser-demo.js').IFrameHandle);
+    const core = new BrowserCore(iframeWidget.iframeElement as unknown as IFrameHandle);
 
     // GJS variant lazy-creates contentWindow on the first IFrameBridge
     // load, so re-attach the BrowserCore listener after every onReady.

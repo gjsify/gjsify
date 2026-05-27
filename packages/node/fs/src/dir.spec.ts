@@ -161,7 +161,7 @@ export default async () => {
             let threw = false;
             try {
                 (opendir as any)('/tmp');
-            } catch (e: any) {
+            } catch (_e: unknown) {
                 threw = true;
             }
             expect(threw).toBe(true);
