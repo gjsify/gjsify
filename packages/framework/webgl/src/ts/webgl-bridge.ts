@@ -44,6 +44,15 @@ export const WebGLBridge = GObject.registerClass(
         _renderTag: number | null = null;
         _tickCallbackId: number | null = null;
         _frameCallback: FrameRequestCallback | null = null;
+        // ID of the pending frame callback (matches the value returned by the
+        // most recent requestAnimationFrame call). `cancelAnimationFrame(id)`
+        // only clears the callback when this matches — without ID tracking a
+        // single cancel from anywhere (e.g. an Excalibur.stop() during a
+        // transient parent unmap) would kill the entire loop because every
+        // request would have returned the same handle. Starts at 0 so an
+        // "early" cancel before the first request is a no-op.
+        _frameCallbackId: number = 0;
+        _nextFrameId: number = 1;
         // Time origin in microseconds (GLib monotonic clock).
         // Both requestAnimationFrame timestamps and performance.now() are
         // relative to this origin, matching the browser DOMHighResTimeStamp spec.
@@ -118,7 +127,14 @@ export const WebGLBridge = GObject.registerClass(
                             console.log(`[rAF] frame callback fires t=${time.toFixed(1)}`);
                         }
                         const cb = this._frameCallback;
+                        // Clear BEFORE invoking so a synchronous rAF call from
+                        // inside `cb` (the standard game-loop pattern — Excalibur,
+                        // Three.js, etc.) installs a fresh pending callback +
+                        // assigns a fresh ID. Without this the re-entered request
+                        // would compare its own freshly-assigned ID against itself
+                        // and immediately get cancelled by stray cancel calls.
                         this._frameCallback = null;
+                        this._frameCallbackId = 0;
                         cb(time);
                     }
                     return true;
@@ -221,15 +237,43 @@ export const WebGLBridge = GObject.registerClass(
          * Backed by a persistent GTK frame clock tick callback (vsync-synced) + a persistent GLArea
          * render signal handler. Both are installed once at construction / first render respectively,
          * eliminating per-frame GLib.Source allocation and GObject signal connect/disconnect overhead.
-         * Returns 0 (handle — cancel via cancelAnimationFrame clears the pending callback).
+         *
+         * Returns a monotonically-increasing handle; pass it to `cancelAnimationFrame(id)` to cancel
+         * the specific pending callback. A second `requestAnimationFrame` call before the first has
+         * fired replaces the pending callback (single-slot model — matching the existing rAF
+         * convention of "queue 1 callback per frame, the latest wins"); the older handle becomes
+         * stale and a `cancelAnimationFrame` with that handle is a no-op.
          */
         requestAnimationFrame(cb: FrameRequestCallback): number {
+            const id = this._nextFrameId++;
             this._frameCallback = cb;
+            this._frameCallbackId = id;
             // Trigger a render pass immediately. The persistent tick callback fires on
             // every GTK frame tick and calls queue_render() whenever _frameCallback is set,
             // keeping the loop going; this call ensures the first/resumed frame isn't delayed.
             this.queue_render();
-            return 0;
+            return id;
+        }
+
+        /**
+         * Cancels a previously-scheduled animation frame callback, matching the browser
+         * `cancelAnimationFrame` API. Only clears the pending callback when `id` matches
+         * the handle returned by the most recent `requestAnimationFrame` call — a stale
+         * handle (from a callback that already fired, or was replaced by a later
+         * `requestAnimationFrame`) is a no-op.
+         *
+         * Per-ID matching is load-bearing: without it any consumer that calls
+         * `cancelAnimationFrame` (e.g. Excalibur's `Engine.stop()`, called from a
+         * transient parent `unmap` in a responsive layout) would clear the loop's
+         * latest pending callback and freeze rendering until the next manual
+         * `requestAnimationFrame`. With it, the cancel only fires for the handle
+         * the caller actually owns.
+         */
+        cancelAnimationFrame(id: number): void {
+            if (id !== 0 && id === this._frameCallbackId) {
+                this._frameCallback = null;
+                this._frameCallbackId = 0;
+            }
         }
 
         /**
@@ -249,10 +293,7 @@ export const WebGLBridge = GObject.registerClass(
             const g = globalThis as unknown as _RafGlobals;
 
             g.requestAnimationFrame = (cb: FrameRequestCallback) => this.requestAnimationFrame(cb);
-            g.cancelAnimationFrame = (_id: number) => {
-                // Cancel is not yet fully implemented — clear pending frame callback.
-                this._frameCallback = null;
-            };
+            g.cancelAnimationFrame = (id: number) => this.cancelAnimationFrame(id);
             // Install performance.now() on the same time origin as rAF timestamps.
             // Always override to ensure consistency — native GJS performance.now()
             // may use a different time origin than the frame clock.
