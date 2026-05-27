@@ -645,6 +645,28 @@ Every impl → A or B. Every ported test → C. Original: `// <Module> for GJS �
 
 **Changelog entries ONLY in CHANGELOG.md.** STATUS.md = current state; CHANGELOG.md = what changed + when. Do NOT add dated "Latest:" lines, changelog highlights, or per-session summaries to STATUS.md. Update CHANGELOG.md after work sessions with dated entries describing what changed and why.
 
+## Commit conventions
+
+Conventional commits — `<type>[optional scope]: <description>`, imperative mood, ≤50 char subject.
+
+**All types surface in CHANGELOG.md** (configured via the `types` array in `.release-it.json`). Use the type that best describes the change — no type is silently dropped. Enforced by commitlint (`commitlint.config.cjs`) on every PR via `.github/workflows/commitlint.yml`.
+
+| Type | Changelog section | When to use |
+|---|---|---|
+| `feat` | Features | New user-visible feature or API |
+| `fix` | Bug Fixes | Bug fix |
+| `perf` | Performance Improvements | Performance improvement (no API change) |
+| `revert` | Reverts | Reverts a previous commit |
+| `docs` | Documentation | Docs-only change (website, AGENTS.md, comments) |
+| `refactor` | Code Refactoring | Code restructuring with no behavior change |
+| `build` | Build System | Build scripts, tooling, bundler config |
+| `ci` | Continuous Integration | CI workflow changes |
+| `chore` | Maintenance | Dependency bumps, submodule updates, version commits |
+| `test` | Tests | Adding or fixing tests (no production code change) |
+| `style` | _(hidden)_ | Whitespace / formatting only — omitted from changelog |
+
+**Scope** (optional): lowercase package name without `@gjsify/` prefix, e.g. `feat(fetch): …`, `fix(rolldown-plugin-gjsify): …`. Use `(e2e)` for end-to-end test suites. Omit scope when the change crosses multiple packages.
+
 ## Constraints
 
 Target: GJS 1.86.0 / SpiderMonkey 140 (ES2024) / Rolldown `firefox140` | ESM-only | GNOME libs + standard JS only | Tests pass on both Node + GJS | Do NOT modify `refs/`
