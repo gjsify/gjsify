@@ -9,7 +9,10 @@
 //
 // CSS is duplicated from the slideshow on purpose — extracting it would touch
 // the slideshow's working visual stack. Both components must stay in sync; if
-// you change one, change the other.
+// you change one, change the other — EXCEPT the `.showcase-embed :global(* + *)`
+// margin reset below, which is embed-only: it counters Starlight's
+// `.sl-markdown-content` content-flow margins, which apply only on the doc
+// pages that host this embed, never on the (non-Starlight) home-page slideshow.
 
 interface MountOpts {
   assetBase?: string;
@@ -223,6 +226,21 @@ const mountOptsJson = JSON.stringify(resolvedMountOpts);
        drop-shadow room to bleed; we replicate that here so the shadow isn't
        clipped against the next paragraph. */
     padding: 16px 0 24px;
+  }
+
+  /* Starlight's content-flow margins (`.sl-markdown-content :not(…) + :not(…)
+     { margin-top }`) leak INTO the embedded live Adwaita window: its elements
+     are LIGHT-DOM siblings inside the markdown content, so the window's content
+     (e.g. `adw-overlay-split-view`, which follows the headerbar) picks up a
+     stray `margin-top` — opening a visible gap below the headerbar (and between
+     any sibling demo elements). The homepage slideshow is NOT a Starlight
+     content page, so it never shows this; hence this reset is embed-only — an
+     intentional divergence from the slideshow's otherwise-shared CSS. The demo
+     is a self-contained app (adwaita-web lays out via flex/gap, never sibling
+     margins — verified), so zeroing the leaked top-margins is safe. `!important`
+     beats Starlight's (0,1,2)-specificity selector. */
+  .showcase-embed :global(* + *) {
+    margin-top: 0 !important;
   }
 
   .showcase-embed-window {
