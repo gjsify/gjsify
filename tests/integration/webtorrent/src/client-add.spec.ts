@@ -5,6 +5,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import WebTorrent from 'webtorrent';
+import type { Instance as WebTorrentInstance, Torrent } from 'webtorrent';
 import fixtures from './fixtures.js';
 
 const disabledClientOpts = {
@@ -15,36 +16,36 @@ const disabledClientOpts = {
     natPmp: false,
 } as const;
 
-function destroyClient(client: any): Promise<void> {
+function destroyClient(client: WebTorrentInstance): Promise<void> {
     return new Promise((resolve, reject) => {
-        client.destroy((err: Error | null | undefined) => (err ? reject(err) : resolve()));
+        client.destroy((err) => (err ? reject(err) : resolve()));
     });
 }
 
-function removeTorrent(client: any, torrentId: any): Promise<void> {
+function removeTorrent(client: WebTorrentInstance, torrentId: Torrent | string | Buffer): Promise<void> {
     return new Promise((resolve, reject) => {
-        client.remove(torrentId, (err: Error | null | undefined) => (err ? reject(err) : resolve()));
+        client.remove(torrentId, (err) => (err ? reject(err) : resolve()));
     });
 }
 
-function waitForInfoHash(torrent: any): Promise<void> {
+function waitForInfoHash(torrent: Torrent): Promise<void> {
     return new Promise((resolve) => torrent.once('infoHash', resolve));
 }
 
-function waitForClientError(client: any): Promise<Error> {
-    return new Promise((resolve) => client.once('error', resolve));
+function waitForClientError(client: WebTorrentInstance): Promise<Error> {
+    return new Promise((resolve) => client.once('error', resolve as (err: Error | string) => void));
 }
 
 export default async () => {
     await describe('webtorrent/client-add: magnet URI (utf-8 string)', async () => {
         await it('parses magnet URI and yields expected infoHash', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             let emittedWarning: unknown = null;
             client.on('warning', (err: Error) => {
                 emittedWarning = err;
             });
 
-            const torrent: any = client.add(fixtures.leaves.magnetURI);
+            const torrent = client.add(fixtures.leaves.magnetURI);
             expect(client.torrents.length).toBe(1);
 
             await waitForInfoHash(torrent);
@@ -60,13 +61,13 @@ export default async () => {
 
     await describe('webtorrent/client-add: torrent file buffer', async () => {
         await it('accepts a .torrent Buffer and yields expected infoHash', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             let emittedWarning: unknown = null;
             client.on('warning', (err: Error) => {
                 emittedWarning = err;
             });
 
-            const torrent: any = client.add(fixtures.leaves.torrent);
+            const torrent = client.add(fixtures.leaves.torrent);
             expect(client.torrents.length).toBe(1);
 
             await waitForInfoHash(torrent);
@@ -82,8 +83,8 @@ export default async () => {
 
     await describe('webtorrent/client-add: info hash (hex string)', async () => {
         await it('accepts a hex infoHash and yields a magnetURI', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
-            const torrent: any = client.add(fixtures.leaves.parsedTorrent.infoHash);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
+            const torrent = client.add(fixtures.leaves.parsedTorrent.infoHash);
             expect(client.torrents.length).toBe(1);
 
             await waitForInfoHash(torrent);
@@ -98,8 +99,8 @@ export default async () => {
 
     await describe('webtorrent/client-add: info hash (buffer)', async () => {
         await it('accepts a Buffer infoHash and yields a matching magnetURI prefix', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
-            const torrent: any = client.add(fixtures.leaves.parsedTorrent.infoHashBuffer);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
+            const torrent = client.add(fixtures.leaves.parsedTorrent.infoHashBuffer);
             expect(client.torrents.length).toBe(1);
 
             await waitForInfoHash(torrent);
@@ -114,8 +115,8 @@ export default async () => {
 
     await describe('webtorrent/client-add: parsed torrent', async () => {
         await it('accepts the output of parse-torrent directly', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
-            const torrent: any = client.add(fixtures.leaves.parsedTorrent);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
+            const torrent = client.add(fixtures.leaves.parsedTorrent);
             expect(client.torrents.length).toBe(1);
 
             await waitForInfoHash(torrent);
@@ -130,11 +131,11 @@ export default async () => {
 
     await describe('webtorrent/client-add: parsed torrent with string announce', async () => {
         await it('normalizes a string announce into an array and merges into magnetURI', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             const parsedTorrent = Object.assign({}, fixtures.leaves.parsedTorrent, {
                 announce: 'http://tracker.local:80',
             });
-            const torrent: any = client.add(parsedTorrent);
+            const torrent = client.add(parsedTorrent);
             expect(client.torrents.length).toBe(1);
 
             await waitForInfoHash(torrent);
@@ -151,11 +152,11 @@ export default async () => {
 
     await describe('webtorrent/client-add: parsed torrent with array announce', async () => {
         await it('keeps an array announce as-is and merges into magnetURI', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             const parsedTorrent = Object.assign({}, fixtures.leaves.parsedTorrent, {
                 announce: ['http://tracker.local:80', 'http://tracker.local:81'],
             });
-            const torrent: any = client.add(parsedTorrent);
+            const torrent = client.add(parsedTorrent);
             expect(client.torrents.length).toBe(1);
 
             await waitForInfoHash(torrent);
@@ -172,7 +173,7 @@ export default async () => {
 
     await describe('webtorrent/client-add: invalid torrent id (empty string)', async () => {
         await it('emits an "error" with "Invalid torrent identifier"', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             const errorPromise = waitForClientError(client);
             client.add('');
             const err = await errorPromise;
@@ -184,7 +185,7 @@ export default async () => {
 
     await describe('webtorrent/client-add: invalid torrent id (short buffer)', async () => {
         await it('emits an "error" with "Invalid torrent identifier" for a too-short Buffer', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             const errorPromise = waitForClientError(client);
             client.add(Buffer.from('abc'));
             const err = await errorPromise;
@@ -196,8 +197,8 @@ export default async () => {
 
     await describe('webtorrent/client-add: paused torrent', async () => {
         await it('respects the paused flag', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
-            const torrent: any = client.add(fixtures.leaves.magnetURI, { paused: true });
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
+            const torrent = client.add(fixtures.leaves.magnetURI, { paused: true });
             expect(client.torrents.length).toBe(1);
 
             await waitForInfoHash(torrent);

@@ -12,12 +12,29 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { parse } from 'acorn';
+import type { Program, AnyNode } from 'acorn';
 import { attachScopes, type AttachedScope } from '@rollup/pluginutils';
 
 const PARSE_OPTS = { ecmaVersion: 2024 as const, sourceType: 'module' as const };
 
-function parseModule(src: string): any {
+function parseModule(src: string): Program {
     return parse(src, PARSE_OPTS);
+}
+
+// attachScopes stamps a dynamic `scope` (or custom name) property on each AST
+// node that introduces a lexical scope. The acorn types don't declare this
+// property — access it through a Record cast.
+function scopeOf(n: AnyNode | Program): AttachedScope {
+    return (n as unknown as Record<string, AttachedScope>).scope;
+}
+
+function scopeNamed(n: AnyNode | Program, name: string): AttachedScope {
+    return (n as unknown as Record<string, AttachedScope>)[name];
+}
+
+// Navigate acorn AST nodes whose fields vary by node kind.
+function node(n: AnyNode | Program | null | undefined): Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined> {
+    return n as unknown as Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined>;
 }
 
 export default async () => {
@@ -46,7 +63,7 @@ export default async () => {
             const ast = parseModule(`function add(a, b) { return a + b; }`);
             attachScopes(ast, 'scope');
             const fnNode = ast.body[0];
-            const fnScope = (fnNode as any).scope as AttachedScope;
+            const fnScope = scopeOf(fnNode as AnyNode);
             expect(fnScope).toBeDefined();
             expect(fnScope.contains('a')).toBe(true);
             expect(fnScope.contains('b')).toBe(true);
@@ -58,7 +75,7 @@ export default async () => {
             const ast = parseModule(`{ var v = 1; let l = 2; const c = 3; }`);
             const root = attachScopes(ast, 'scope');
             const blockNode = ast.body[0];
-            const blockScope = (blockNode as any).scope as AttachedScope;
+            const blockScope = scopeOf(blockNode as AnyNode);
             expect(blockScope).toBeDefined();
             // var hoists out to the parent scope.
             expect(root.contains('v')).toBe(true);
@@ -73,9 +90,9 @@ export default async () => {
         await it('creates a new scope for catch clauses with the param bound', async () => {
             const ast = parseModule(`try {} catch (err) { let inner = 1; }`);
             attachScopes(ast, 'scope');
-            const tryStmt: any = ast.body[0];
-            const catchNode: any = tryStmt.handler;
-            const catchScope = catchNode.scope as AttachedScope;
+            const tryStmt = node(ast.body[0] as AnyNode);
+            const catchNode = tryStmt.handler as AnyNode;
+            const catchScope = scopeOf(catchNode);
             expect(catchScope).toBeDefined();
             expect(catchScope.contains('err')).toBe(true);
         });
@@ -83,9 +100,10 @@ export default async () => {
         await it('creates a fresh scope for FunctionExpression name', async () => {
             const ast = parseModule(`const f = function namedFn(a) { return a; };`);
             attachScopes(ast, 'scope');
-            const decl: any = ast.body[0];
-            const fn: any = decl.declarations[0].init;
-            const fnScope = fn.scope as AttachedScope;
+            const decl = node(ast.body[0] as AnyNode);
+            const declarations = decl.declarations as AnyNode[];
+            const fn = node(declarations[0]).init as AnyNode;
+            const fnScope = scopeOf(fn);
             expect(fnScope).toBeDefined();
             expect(fnScope.contains('namedFn')).toBe(true);
             expect(fnScope.contains('a')).toBe(true);
@@ -94,9 +112,9 @@ export default async () => {
         await it('honours a custom propertyName', async () => {
             const ast = parseModule(`function f(){}`);
             attachScopes(ast, '__myScope');
-            const fn: any = ast.body[0];
-            expect(fn.__myScope).toBeDefined();
-            expect(fn.scope).toBeUndefined();
+            const fn = ast.body[0];
+            expect(scopeNamed(fn as AnyNode, '__myScope')).toBeDefined();
+            expect(scopeOf(fn as AnyNode)).toBeUndefined();
         });
 
         await it('parent scope lookups bubble up to ancestors', async () => {
@@ -109,17 +127,18 @@ export default async () => {
         }
       `);
             attachScopes(ast, 'scope');
-            const outerFn: any = ast.body[1];
-            const innerFn: any = outerFn.body.body[0];
-            const innerScope: AttachedScope = innerFn.scope;
+            const outerFn = node(ast.body[1] as AnyNode);
+            const outerBody = node(outerFn.body as AnyNode).body as AnyNode[];
+            const innerFn = outerBody[0];
+            const innerScope = scopeOf(innerFn);
             expect(innerScope.contains('top')).toBe(true);
         });
 
         await it('creates a fresh scope for for-loop initializers', async () => {
             const ast = parseModule(`for (let i = 0; i < 10; i++) { let j = i; }`);
             attachScopes(ast, 'scope');
-            const forStmt: any = ast.body[0];
-            const forScope: AttachedScope = forStmt.scope;
+            const forStmt = ast.body[0];
+            const forScope = scopeOf(forStmt as AnyNode);
             expect(forScope).toBeDefined();
             // The loop body's `j` is in a nested block scope under the for-scope.
         });

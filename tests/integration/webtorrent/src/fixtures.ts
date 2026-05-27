@@ -17,6 +17,7 @@ interface TorrentFixture {
     torrentPath: URL;
     content: Buffer;
     torrent: Buffer;
+    // oxlint-disable-next-line typescript/no-explicit-any -- parse-torrent has no TypeScript types; shape varies by torrent
     parsedTorrent: any;
     magnetURI: string;
 }
@@ -24,6 +25,7 @@ interface TorrentFixture {
 interface TorrentOnlyFixture {
     torrentPath: URL;
     torrent: Buffer;
+    // oxlint-disable-next-line typescript/no-explicit-any -- parse-torrent has no TypeScript types; shape varies by torrent
     parsedTorrent: any;
     magnetURI: string;
 }
@@ -43,6 +45,7 @@ function loadContent(filename: string): Buffer {
 function buildTorrent(contentFile: string, torrentFile: string): TorrentFixture {
     const torrent = loadTorrent(torrentFile);
     const content = loadContent(contentFile);
+    // oxlint-disable-next-line typescript/no-explicit-any -- parseTorrent default export is a function with no TypeScript overload for this call style
     const parsed = (parseTorrent as any)(torrent);
     return {
         contentPath: fixtureUrl(contentFile),
@@ -50,17 +53,20 @@ function buildTorrent(contentFile: string, torrentFile: string): TorrentFixture 
         content,
         torrent,
         parsedTorrent: parsed,
+        // oxlint-disable-next-line typescript/no-explicit-any -- toMagnetURI is a static method on the parseTorrent function object; not in typings
         magnetURI: (parseTorrent as any).toMagnetURI(parsed),
     };
 }
 
 function buildTorrentOnly(torrentFile: string): TorrentOnlyFixture {
     const torrent = loadTorrent(torrentFile);
+    // oxlint-disable-next-line typescript/no-explicit-any -- parseTorrent default export is a function with no TypeScript overload for this call style
     const parsed = (parseTorrent as any)(torrent);
     return {
         torrentPath: fixtureUrl(torrentFile),
         torrent,
         parsedTorrent: parsed,
+        // oxlint-disable-next-line typescript/no-explicit-any -- toMagnetURI is a static method on the parseTorrent function object; not in typings
         magnetURI: (parseTorrent as any).toMagnetURI(parsed),
     };
 }

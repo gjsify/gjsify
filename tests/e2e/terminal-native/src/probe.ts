@@ -6,7 +6,9 @@ import { isatty } from 'node:tty';
 import process from 'node:process';
 import { hasNativeTerminal } from '@gjsify/terminal-native';
 
+// oxlint-disable-next-line typescript/no-explicit-any -- @gjsify/terminal-native extends process.stdout with .columns/.rows not in @types/node
 const stdout = process.stdout as any;
+// oxlint-disable-next-line typescript/no-explicit-any -- @gjsify/terminal-native extends process.stdin with .isTTY/.setRawMode not in @types/node
 const stdin = process.stdin as any;
 
 const result = {
@@ -28,11 +30,12 @@ const result = {
             stdin.setRawMode(true);
             stdin.setRawMode(false);
             return 'ok';
-        } catch (e: any) {
-            return String(e?.message ?? e);
+        } catch (e) {
+            return String((e as Error)?.message ?? e);
         }
     })(),
 };
 
 // Use print() — the GJS built-in — so the output isn't mixed with console.log.
+// oxlint-disable-next-line typescript/no-explicit-any -- print() is a GJS built-in not present in TypeScript's lib.dom.d.ts or @types/node
 (globalThis as any).print(JSON.stringify(result));

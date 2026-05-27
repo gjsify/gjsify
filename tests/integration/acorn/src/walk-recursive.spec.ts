@@ -5,28 +5,35 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { parse } from 'acorn';
+import type { AnyNode } from 'acorn';
 import { recursive, base, make } from 'acorn-walk';
 
 const PARSE_OPTS = { ecmaVersion: 2024 as const, sourceType: 'module' as const };
+
+// Utility: navigate acorn AST nodes without `any` — all nodes share the
+// `type` discriminant and further fields vary by node kind.
+function node(n: AnyNode | null | undefined): Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined> {
+    return n as unknown as Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined>;
+}
 
 export default async () => {
     await describe('acorn-walk recursive walker', async () => {
         await it('recursive: visitors must explicitly continue the walk', async () => {
             const ast = parse('function f() { 1; 2; } 3;', PARSE_OPTS);
             const seen: string[] = [];
-            recursive(ast as any, null, {
-                Program(node, st, c) {
-                    for (const stmt of (node as any).body) c(stmt, st);
+            recursive(ast, null, {
+                Program(n, st, c) {
+                    for (const stmt of node(n as AnyNode).body as AnyNode[]) c(stmt, st);
                 },
-                FunctionDeclaration(node) {
+                FunctionDeclaration(n) {
                     // intentionally do NOT recurse into the body
-                    seen.push(`fn:${(node as any).id.name}`);
+                    seen.push(`fn:${node(node(n as AnyNode).id as AnyNode).name}`);
                 },
-                ExpressionStatement(node, _st, c) {
-                    c((node as any).expression, _st);
+                ExpressionStatement(n, st, c) {
+                    c(node(n as AnyNode).expression as AnyNode, st);
                 },
-                Literal(node) {
-                    seen.push(`lit:${(node as any).value}`);
+                Literal(n) {
+                    seen.push(`lit:${node(n as AnyNode).value}`);
                 },
             });
             // function body NOT walked → only "3" outside the function recorded
@@ -36,9 +43,9 @@ export default async () => {
         await it('recursive: falls back to `base` for unhandled types', async () => {
             const ast = parse('a + (b * c)', PARSE_OPTS);
             const idents: string[] = [];
-            recursive(ast as any, null, {
-                Identifier(node) {
-                    idents.push((node as any).name);
+            recursive(ast, null, {
+                Identifier(n) {
+                    idents.push((n as Extract<AnyNode, { type: 'Identifier' }>).name);
                 },
             });
             expect(idents.sort()).toStrictEqual(['a', 'b', 'c']);
@@ -49,14 +56,14 @@ export default async () => {
             const ast = parse('function a() { function b() { function c() {} } }', PARSE_OPTS);
             let maxDepth = 0;
             const visitors = make<{ depth: number }>({
-                FunctionDeclaration(node, st, c) {
+                FunctionDeclaration(n, st, c) {
                     st.depth++;
                     if (st.depth > maxDepth) maxDepth = st.depth;
-                    c((node as any).body, st);
+                    c(node(n as AnyNode).body as AnyNode, st);
                     st.depth--;
                 },
             });
-            recursive(ast as any, { depth: 0 }, visitors);
+            recursive(ast, { depth: 0 }, visitors);
             expect(maxDepth).toBe(3);
         });
 
@@ -77,18 +84,18 @@ export default async () => {
                 PARSE_OPTS,
             );
             const methods: string[] = [];
-            recursive(ast as any, methods, {
-                Program(node, st, c) {
-                    for (const s of (node as any).body) c(s, st);
+            recursive(ast, methods, {
+                Program(n, st, c) {
+                    for (const s of node(n as AnyNode).body as AnyNode[]) c(s, st);
                 },
-                ClassDeclaration(node, st, c) {
-                    c((node as any).body, st);
+                ClassDeclaration(n, st, c) {
+                    c(node(n as AnyNode).body as AnyNode, st);
                 },
-                ClassBody(node, st, c) {
-                    for (const m of (node as any).body) c(m, st);
+                ClassBody(n, st, c) {
+                    for (const m of node(n as AnyNode).body as AnyNode[]) c(m, st);
                 },
-                MethodDefinition(node, st: string[]) {
-                    st.push((node as any).key.name);
+                MethodDefinition(n, st: string[]) {
+                    st.push(node(node(n as AnyNode).key as AnyNode).name as string);
                 },
             });
             expect(methods).toStrictEqual(['constructor', 'inc', 'dec']);

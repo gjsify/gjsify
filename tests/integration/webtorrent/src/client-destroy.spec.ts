@@ -5,6 +5,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import WebTorrent from 'webtorrent';
+import type { Instance as WebTorrentInstance } from 'webtorrent';
 import fixtures from './fixtures.js';
 
 const disabledClientOpts = {
@@ -15,16 +16,16 @@ const disabledClientOpts = {
     natPmp: false,
 } as const;
 
-function destroyClient(client: any): Promise<void> {
+function destroyClient(client: WebTorrentInstance): Promise<void> {
     return new Promise((resolve, reject) => {
-        client.destroy((err: Error | null | undefined) => (err ? reject(err) : resolve()));
+        client.destroy((err) => (err ? reject(err) : resolve()));
     });
 }
 
 export default async () => {
     await describe('webtorrent/client-destroy: add/seed reject after destroy', async () => {
         await it('client.add and client.seed throw after destroy', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             let emittedError: unknown = null;
             client.on('error', (err: Error) => {
                 emittedError = err;
@@ -48,7 +49,7 @@ export default async () => {
 
     await describe('webtorrent/client-destroy: no torrent/ready events after destroy', async () => {
         await it('destroy is called without emitting torrent or ready', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             let errorEmitted: unknown = null;
             let unexpectedEvent = false;
 

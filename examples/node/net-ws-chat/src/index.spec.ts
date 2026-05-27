@@ -14,6 +14,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = 13006;
 
 function getServerCmd(): { cmd: string; args: string[] } {
+    // oxlint-disable-next-line typescript/no-explicit-any -- imports.gi is a GJS global not in TypeScript types
     const isGJS = typeof (globalThis as any).imports?.gi !== 'undefined';
     const dist = isGJS ? 'dist/index.gjs.js' : 'dist/index.node.mjs';
     return isGJS ? { cmd: 'gjs', args: ['-m', join(__dirname, dist)] } : { cmd: 'node', args: [join(__dirname, dist)] };
@@ -60,7 +61,7 @@ function httpGetResponse(url: string): Promise<{ status: number; body: string }>
     });
 }
 
-function httpPostJson(url: string, body: unknown): Promise<{ status: number; body: any }> {
+function httpPostJson(url: string, body: unknown): Promise<{ status: number; body: unknown }> {
     return new Promise((resolve, reject) => {
         const u = new URL(url);
         const req = httpRequest(
@@ -105,7 +106,7 @@ export default async () => {
                     text: 'Hello from test',
                 });
                 expect(status).toBe(200);
-                expect(body.ok).toBe(true);
+                expect((body as Record<string, unknown>).ok).toBe(true);
             });
 
             await it('GET /api/messages returns sent messages', async () => {

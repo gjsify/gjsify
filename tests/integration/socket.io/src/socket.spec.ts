@@ -6,13 +6,14 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { Server } from 'socket.io';
 import { io as ioc } from 'socket.io-client';
+import type { ManagerOptions, SocketOptions } from 'socket.io-client';
 import type { AddressInfo } from 'node:net';
 
 function getPort(io: Server): number {
     return (io.httpServer.address() as AddressInfo).port;
 }
 
-function createClient(io: Server, nsp: string = '/', opts?: any) {
+function createClient(io: Server, nsp: string = '/', opts?: Partial<ManagerOptions & SocketOptions>) {
     return ioc(`http://localhost:${getPort(io)}${nsp}`, {
         transports: ['polling', 'websocket'],
         ...opts,

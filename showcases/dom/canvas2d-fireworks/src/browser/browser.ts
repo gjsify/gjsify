@@ -166,7 +166,13 @@ export function mount(container: HTMLElement): ShowcaseHandle {
         syncCanvasSize();
         if (!demo && canvas.width > 0 && canvas.height > 0) {
             demo = start(canvas);
-            connectControls(demo, particleCountRow, autoIntervalRow, maxBurstRadiusRow, autoFireworksRow);
+            connectControls(
+                    demo,
+                    particleCountRow as AdwRow,
+                    autoIntervalRow as AdwRow,
+                    maxBurstRadiusRow as AdwRow,
+                    autoFireworksRow as AdwRow,
+                );
             if (pendingPause) {
                 demo.pause();
                 pendingPause = false;
@@ -219,26 +225,29 @@ export function mount(container: HTMLElement): ShowcaseHandle {
     };
 }
 
+// Adwaita web components expose custom properties (.value, .active) not in HTMLElement types.
+type AdwRow = HTMLElement & Record<string, unknown>;
+
 function connectControls(
     demo: FireworksDemo,
-    particleCountRow: any,
-    autoIntervalRow: any,
-    maxBurstRadiusRow: any,
-    autoFireworksRow: any,
+    particleCountRow: AdwRow,
+    autoIntervalRow: AdwRow,
+    maxBurstRadiusRow: AdwRow,
+    autoFireworksRow: AdwRow,
 ) {
     particleCountRow.addEventListener('notify::value', () => {
-        demo.effectController.particleCount = particleCountRow.value;
+        demo.effectController.particleCount = particleCountRow.value as number;
     });
 
     autoIntervalRow.addEventListener('notify::value', () => {
-        demo.effectController.autoInterval = autoIntervalRow.value;
+        demo.effectController.autoInterval = autoIntervalRow.value as number;
     });
 
     maxBurstRadiusRow.addEventListener('notify::value', () => {
-        demo.effectController.maxBurstRadius = maxBurstRadiusRow.value;
+        demo.effectController.maxBurstRadius = maxBurstRadiusRow.value as number;
     });
 
     autoFireworksRow.addEventListener('notify::active', () => {
-        demo.effectController.autoFireworks = autoFireworksRow.active;
+        demo.effectController.autoFireworks = autoFireworksRow.active as boolean;
     });
 }

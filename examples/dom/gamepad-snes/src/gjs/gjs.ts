@@ -37,6 +37,7 @@ app.connect('activate', () => {
     canvasWidget.onReady((canvas) => {
         canvas.width = canvasWidget.get_allocated_width();
         canvas.height = canvasWidget.get_allocated_height();
+        // oxlint-disable-next-line typescript/no-explicit-any -- WebGLBridge/Canvas2DBridge canvas has no TypeScript type compatible with HTMLCanvasElement
         start(canvas as any);
     });
 

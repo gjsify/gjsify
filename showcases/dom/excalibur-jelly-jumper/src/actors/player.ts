@@ -335,6 +335,7 @@ export default class Player extends PhysicsActor {
     }
 
     // @ts-ignore
+    // oxlint-disable-next-line typescript/no-explicit-any -- ex.Engine<any> uses Excalibur default generic; Engine<TKnownScenes = any>
     update(engine: ex.Engine<any>, elapsed: number): void {
         let useApexGravity = false;
 

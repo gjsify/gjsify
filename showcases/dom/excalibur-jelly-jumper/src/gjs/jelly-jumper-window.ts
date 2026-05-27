@@ -51,6 +51,7 @@ export class JellyJumperWindow extends Adw.ApplicationWindow {
         widget.installGlobals();
         this._canvasContainer.append(widget);
 
+        // oxlint-disable-next-line typescript/no-explicit-any -- WebGLBridge canvas has no TypeScript type compatible with HTMLCanvasElement
         widget.onReady((canvas: any) => {
             widget.grab_focus();
             canvas.width = widget.get_allocated_width();

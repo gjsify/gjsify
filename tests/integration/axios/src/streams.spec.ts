@@ -10,7 +10,7 @@ import { startHTTPServer, stopHTTPServer, readBody } from './test-server.js';
 function collectStream(readable: NodeJS.ReadableStream): Promise<Buffer> {
     return new Promise((resolve, reject) => {
         const chunks: Buffer[] = [];
-        readable.on('data', (c: any) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+        readable.on('data', (c: Buffer | string) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
         readable.on('end', () => resolve(Buffer.concat(chunks)));
         readable.on('error', reject);
     });

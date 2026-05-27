@@ -3,7 +3,7 @@
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
 
 import { describe, it, expect } from '@gjsify/unit';
-import axios, { isAxiosError } from 'axios';
+import axios, { isAxiosError, type AxiosError } from 'axios';
 import { startHTTPServer, stopHTTPServer, readBody } from './test-server.js';
 
 export default async () => {
@@ -71,14 +71,14 @@ export default async () => {
                 res.end('Not Found');
             });
             try {
-                let error: any;
+                let error: AxiosError | undefined;
                 try {
                     await axios.get(`http://127.0.0.1:${srv.port}/`);
                 } catch (e) {
-                    error = e;
+                    if (isAxiosError(e)) error = e;
                 }
                 expect(isAxiosError(error)).toBe(true);
-                expect(error.response.status).toBe(404);
+                expect(error!.response!.status).toBe(404);
             } finally {
                 await stopHTTPServer(srv);
             }
@@ -90,14 +90,14 @@ export default async () => {
                 res.end('Internal Server Error');
             });
             try {
-                let error: any;
+                let error: AxiosError | undefined;
                 try {
                     await axios.get(`http://127.0.0.1:${srv.port}/`);
                 } catch (e) {
-                    error = e;
+                    if (isAxiosError(e)) error = e;
                 }
                 expect(isAxiosError(error)).toBe(true);
-                expect(error.response.status).toBe(500);
+                expect(error!.response!.status).toBe(500);
             } finally {
                 await stopHTTPServer(srv);
             }

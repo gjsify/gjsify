@@ -8,6 +8,7 @@ import { GameManager } from '../state/game.js';
  * The UI overlay that displays during the level
  */
 export class LevelOverlay extends ex.ScreenElement {
+    // oxlint-disable-next-line typescript/no-explicit-any -- ex.Query<any,any> is the exact return type of world.queryTags(); Excalibur API uses any generics
     private playerQuery!: ex.Query<any, any>;
     private coinCounter!: CoinCounter;
 
@@ -23,6 +24,7 @@ export class LevelOverlay extends ex.ScreenElement {
         return this.playerQuery.entities[0] as Player;
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- ex.Engine<any> uses Excalibur's own default generic; Engine<TKnownScenes = any>
     onInitialize(engine: ex.Engine<any>): void {
         this.coinCounter = new CoinCounter({ z: this.z });
         this.playerQuery = engine.currentScene.world.queryTags(['player']);
@@ -63,6 +65,7 @@ class CoinCounter extends ex.ScreenElement {
         });
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- ex.Engine<any> uses Excalibur's own default generic; Engine<TKnownScenes = any>
     onInitialize(engine: ex.Engine<any>): void {
         this.label = new ex.Label({
             anchor: ex.vec(0, 0.5),
@@ -88,6 +91,7 @@ class CoinCounter extends ex.ScreenElement {
         this.addChild(icon);
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- ex.Engine<any> uses Excalibur's own default generic; Engine<TKnownScenes = any>
     onPreUpdate(_engine: ex.Engine<any>, _elapsed: number): void {
         this.label.text = GameManager.coins.toString();
     }

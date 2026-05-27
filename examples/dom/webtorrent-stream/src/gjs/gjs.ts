@@ -23,9 +23,10 @@ runStreamDemo(log)
             return GLib.SOURCE_REMOVE;
         });
     })
-    .catch((err: any) => {
-        log('ERROR', err?.message ?? String(err));
-        if (err?.stack) log('STACK', err.stack);
+    .catch((err) => {
+        const e = err as Error;
+        log('ERROR', e?.message ?? String(e));
+        if (e?.stack) log('STACK', e.stack);
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
             loop.quit();
             return GLib.SOURCE_REMOVE;

@@ -160,7 +160,7 @@ export function start(canvas: HTMLCanvasElement): FireworksDemo {
     let running = true;
     let paused = false;
 
-    canvas.addEventListener('mousedown', (e: any) => {
+    canvas.addEventListener('mousedown', (e: MouseEvent) => {
         const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
         // Translate event coords into canvas-pixel coords (handles CSS scaling).
         const rect = canvas.getBoundingClientRect?.();

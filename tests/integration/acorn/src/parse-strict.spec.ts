@@ -6,6 +6,13 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { parse } from 'acorn';
+import type { AnyNode, Program } from 'acorn';
+
+// Utility: navigate acorn AST nodes without `any` — all nodes share the
+// `type` discriminant and further fields vary by node kind.
+function node(n: AnyNode | Program | null | undefined): Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined> {
+    return n as unknown as Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined>;
+}
 
 export default async () => {
     await describe('acorn parse — strict / module sourceType', async () => {
@@ -14,13 +21,13 @@ export default async () => {
         });
 
         await it('module sourceType allows top-level await', async () => {
-            const ast = parse('await fetch("/x");', {
+            const ast: Program = parse('await fetch("/x");', {
                 ecmaVersion: 2024,
                 sourceType: 'module',
-            }) as any;
-            const stmt = ast.body[0];
-            expect(stmt.type).toBe('ExpressionStatement');
-            expect(stmt.expression.type).toBe('AwaitExpression');
+            });
+            const stmt = node(ast.body[0] as AnyNode);
+            expect(ast.body[0].type).toBe('ExpressionStatement');
+            expect(node(stmt.expression as AnyNode).type).toBe('AwaitExpression');
         });
 
         await it('script sourceType rejects top-level await', async () => {
@@ -42,11 +49,12 @@ export default async () => {
         });
 
         await it('non-strict script accepts octal literals', async () => {
-            const ast = parse('const a = 0123;', {
+            const ast: Program = parse('const a = 0123;', {
                 ecmaVersion: 2024,
                 sourceType: 'script',
-            }) as any;
-            expect(ast.body[0].declarations[0].init.value).toBe(83);
+            });
+            const declarations = node(ast.body[0] as AnyNode).declarations as AnyNode[];
+            expect(node(node(declarations[0]).init as AnyNode).value).toBe(83);
         });
 
         await it('module sourceType: duplicate exports are rejected', async () => {
@@ -56,52 +64,59 @@ export default async () => {
         });
 
         await it('locations: 1-based line, 0-based column', async () => {
-            const ast = parse('let x = 1;\nlet y = 2;', {
+            const ast: Program = parse('let x = 1;\nlet y = 2;', {
                 ecmaVersion: 2024,
                 sourceType: 'module',
                 locations: true,
-            }) as any;
-            const first = ast.body[0];
-            expect(first.loc.start.line).toBe(1);
-            expect(first.loc.start.column).toBe(0);
-            const second = ast.body[1];
-            expect(second.loc.start.line).toBe(2);
-            expect(second.loc.start.column).toBe(0);
+            });
+            const first = node(ast.body[0] as AnyNode);
+            const firstLoc = node(first.loc as AnyNode);
+            const firstStart = node(firstLoc.start as AnyNode);
+            expect(firstStart.line).toBe(1);
+            expect(firstStart.column).toBe(0);
+            const second = node(ast.body[1] as AnyNode);
+            const secondLoc = node(second.loc as AnyNode);
+            const secondStart = node(secondLoc.start as AnyNode);
+            expect(secondStart.line).toBe(2);
+            expect(secondStart.column).toBe(0);
         });
 
         await it('export-from with `as` re-export', async () => {
-            const ast = parse('export { x as y } from "mod";', {
+            const ast: Program = parse('export { x as y } from "mod";', {
                 ecmaVersion: 2024,
                 sourceType: 'module',
-            }) as any;
-            const exp = ast.body[0];
-            expect(exp.type).toBe('ExportNamedDeclaration');
-            expect(exp.source.value).toBe('mod');
-            expect(exp.specifiers[0].local.name).toBe('x');
-            expect(exp.specifiers[0].exported.name).toBe('y');
+            });
+            const exp = node(ast.body[0] as AnyNode);
+            expect(ast.body[0].type).toBe('ExportNamedDeclaration');
+            expect(node(exp.source as AnyNode).value).toBe('mod');
+            const specifiers = exp.specifiers as AnyNode[];
+            expect(node(node(specifiers[0]).local as AnyNode).name).toBe('x');
+            expect(node(node(specifiers[0]).exported as AnyNode).name).toBe('y');
         });
 
         await it('dynamic `import()` is parsed as ImportExpression', async () => {
-            const ast = parse('const m = await import("./x.js");', {
+            const ast: Program = parse('const m = await import("./x.js");', {
                 ecmaVersion: 2024,
                 sourceType: 'module',
-            }) as any;
-            const init = ast.body[0].declarations[0].init;
-            expect(init.type).toBe('AwaitExpression');
-            expect(init.argument.type).toBe('ImportExpression');
-            expect(init.argument.source.value).toBe('./x.js');
+            });
+            const declarations = node(ast.body[0] as AnyNode).declarations as AnyNode[];
+            const init = node(node(declarations[0]).init as AnyNode);
+            expect((node(declarations[0]).init as AnyNode).type).toBe('AwaitExpression');
+            expect(node(init.argument as AnyNode).type).toBe('ImportExpression');
+            expect(node(node(init.argument as AnyNode).source as AnyNode).value).toBe('./x.js');
         });
 
         await it('import attributes (with) are accepted at ecmaVersion latest', async () => {
-            const ast = parse('import data from "./d.json" with { type: "json" };', {
+            const ast: Program = parse('import data from "./d.json" with { type: "json" };', {
                 ecmaVersion: 'latest',
                 sourceType: 'module',
-            }) as any;
-            const imp = ast.body[0];
-            expect(imp.type).toBe('ImportDeclaration');
-            expect(Array.isArray(imp.attributes)).toBe(true);
-            expect(imp.attributes[0].key.name).toBe('type');
-            expect(imp.attributes[0].value.value).toBe('json');
+            });
+            const imp = node(ast.body[0] as AnyNode);
+            expect(ast.body[0].type).toBe('ImportDeclaration');
+            const attributes = imp.attributes as AnyNode[];
+            expect(Array.isArray(attributes)).toBe(true);
+            expect(node(node(attributes[0]).key as AnyNode).name).toBe('type');
+            expect(node(node(attributes[0]).value as AnyNode).value).toBe('json');
         });
     });
 };

@@ -51,7 +51,7 @@ function connect(path: string): Promise<WebSocket> {
         const ws = new WebSocket(`${AUTOBAHN_URL}${path}`, undefined, WS_OPTS);
         ws.binaryType = 'arraybuffer';
         ws.addEventListener('open', () => resolve(ws), { once: true });
-        ws.addEventListener('error', (ev: any) => reject(new Error(`WebSocket error: ${ev?.message ?? 'unknown'}`)), {
+        ws.addEventListener('error', (ev: Event) => reject(new Error(`WebSocket error: ${(ev as ErrorEvent)?.message ?? 'unknown'}`)), {
             once: true,
         });
     });
@@ -67,15 +67,15 @@ function getCaseCount(): Promise<number> {
     return new Promise((resolve, reject) => {
         const ws = new WebSocket(`${AUTOBAHN_URL}/getCaseCount`, undefined, WS_OPTS);
         let count = -1;
-        ws.addEventListener('message', (ev: any) => {
+        ws.addEventListener('message', (ev: MessageEvent) => {
             count = parseInt(String(ev?.data ?? ''), 10);
         });
         ws.addEventListener('close', () => {
             if (count > 0) resolve(count);
             else reject(new Error('Autobahn returned no case count — is the fuzzingserver running on port 9001?'));
         });
-        ws.addEventListener('error', (ev: any) =>
-            reject(new Error(`Failed to query case count: ${ev?.message ?? 'unknown'}`)),
+        ws.addEventListener('error', (ev: Event) =>
+            reject(new Error(`Failed to query case count: ${(ev as ErrorEvent)?.message ?? 'unknown'}`)),
         );
     });
 }
@@ -123,11 +123,11 @@ async function runCase(n: number, total: number): Promise<void> {
     // stuck cases obvious in CI logs.
     process.stdout.write(`[${n}/${total}] `);
     const ws = await connect(`/runCase?case=${n}&agent=${AGENT}`);
-    ws.addEventListener('message', (ev: any) => {
+    ws.addEventListener('message', (ev: MessageEvent) => {
         // Echo back exactly as received — Autobahn checks we preserve frame type,
         // payload bytes, and honor fragmentation/control-frame invariants.
         try {
-            ws.send(ev.data);
+            ws.send(ev.data as string | ArrayBuffer | Blob | BufferSource);
         } catch {
             /* send after close — Autobahn is already moving to the next case */
         }

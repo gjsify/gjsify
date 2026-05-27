@@ -21,6 +21,7 @@ const stubClient = {
     },
 };
 
+// oxlint-disable-next-line typescript/no-explicit-any -- Torrent from webtorrent/lib/torrent.js is a plain-JS internal with no TypeScript types
 function waitForMetadata(torrent: any): Promise<void> {
     return new Promise((resolve) => torrent.once('metadata', resolve));
 }
@@ -31,10 +32,13 @@ export default async () => {
         const torrentId = Object.assign({}, fixtures.numbers.parsedTorrent, {
             pieces: Array(numPieces),
         });
+        // oxlint-disable-next-line typescript/no-explicit-any -- Torrent from webtorrent/lib/torrent.js has no TypeScript types (internal module)
         const torrent: any = new (Torrent as any)(torrentId, stubClient, {});
 
         await waitForMetadata(torrent);
+        // oxlint-disable-next-line typescript/no-explicit-any -- Wire from bittorrent-protocol has no @types; constructor is untyped
         torrent._onWire(new (Wire as any)());
+        // oxlint-disable-next-line typescript/no-explicit-any -- Wire from bittorrent-protocol has no @types; constructor is untyped
         torrent._onWire(new (Wire as any)());
 
         const rarityMap = torrent._rarityMap;
@@ -46,12 +50,14 @@ export default async () => {
             }
         };
 
+        // oxlint-disable-next-line typescript/no-explicit-any -- bittorrent-protocol Wire has no TypeScript types
         const setPiece = (wire: any, index: number) => {
             wire.peerPieces.set(index);
             wire.emit('have', index);
         };
 
         const addWire = () => {
+            // oxlint-disable-next-line typescript/no-explicit-any -- Wire from bittorrent-protocol has no @types; constructor and peerPieces are untyped
             const wire: any = new (Wire as any)();
             wire.peerPieces.set(1);
             wire.peerPieces.set(2);

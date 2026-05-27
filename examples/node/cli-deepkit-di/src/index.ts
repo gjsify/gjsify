@@ -8,13 +8,13 @@ const log: (...args: unknown[]) => void = printGjs
 // Dependency Inversion
 
 interface HttpClientInterface {
-    get(path: string): Promise<any>;
+    get(path: string): Promise<unknown>;
 }
 
 class UserRepository {
     constructor(private http: HttpClientInterface) {}
 
-    async getUsers(): Promise<any> {
+    async getUsers(): Promise<unknown> {
         return await this.http.get('/users');
     }
 }

@@ -30,6 +30,7 @@ for (const bundle of bundles) {
 
         await page.waitForSelector(DONE_SELECTOR, { timeout: BUNDLE_TIMEOUT });
 
+        // oxlint-disable-next-line typescript/no-explicit-any -- __gjsify_test_results is a custom runtime global not in lib.dom.d.ts
         const results: GjsifyTestResults = await page.evaluate(() => (window as any).__gjsify_test_results);
 
         expect(results, 'window.__gjsify_test_results not set — @gjsify/unit may not have run').toBeDefined();

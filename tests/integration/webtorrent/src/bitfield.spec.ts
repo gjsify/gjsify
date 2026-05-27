@@ -10,6 +10,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import WebTorrent from 'webtorrent';
+import type { Instance as WebTorrentInstance, Torrent } from 'webtorrent';
 import fixtures from './fixtures.js';
 
 const disabledClientOpts = {
@@ -21,32 +22,32 @@ const disabledClientOpts = {
     natPmp: false,
 } as const;
 
-function destroyClient(client: any): Promise<void> {
+function destroyClient(client: WebTorrentInstance): Promise<void> {
     return new Promise((resolve, reject) => {
-        client.destroy((err: Error | null | undefined) => (err ? reject(err) : resolve()));
+        client.destroy((err) => (err ? reject(err) : resolve()));
     });
 }
 
-function destroyTorrentWithStore(torrent: any): Promise<void> {
+function destroyTorrentWithStore(torrent: Torrent): Promise<void> {
     return new Promise((resolve) => {
         torrent.destroy({ destroyStore: true }, () => resolve());
     });
 }
 
-function seedFiles(client: any, content: Buffer, opts: object): Promise<void> {
+function seedFiles(client: WebTorrentInstance, content: Buffer, opts: object): Promise<void> {
     return new Promise((resolve) => {
-        client.seed(content, opts, () => resolve());
+        client.seed(content, opts as WebTorrent.TorrentOptions, () => resolve());
     });
 }
 
-function waitForReady(torrent: any): Promise<void> {
+function waitForReady(torrent: Torrent): Promise<void> {
     return new Promise((resolve) => torrent.once('ready', resolve));
 }
 
 export default async () => {
     await describe('webtorrent/bitfield: preloaded bitfield', async () => {
         await it('load files into filesystem (seed)', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             let clientError: unknown = null;
             client.on('error', (err: Error) => {
                 clientError = err;
@@ -65,7 +66,7 @@ export default async () => {
         });
 
         await it('full bitfield, files exist', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             let clientError: unknown = null;
             client.on('error', (err: Error) => {
                 clientError = err;
@@ -89,7 +90,7 @@ export default async () => {
         });
 
         await it('partial bitfield, files exist, not done', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             let clientError: unknown = null;
             client.on('error', (err: Error) => {
                 clientError = err;
@@ -114,7 +115,7 @@ export default async () => {
         });
 
         await it('wrong size bitfield, files exist → rescan all pieces', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             let clientError: unknown = null;
             client.on('error', (err: Error) => {
                 clientError = err;
@@ -139,7 +140,7 @@ export default async () => {
         });
 
         await it('full bitfield, files don\u2019t exist → no verified pieces', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             let clientError: unknown = null;
             client.on('error', (err: Error) => {
                 clientError = err;
@@ -163,7 +164,7 @@ export default async () => {
         });
 
         await it('wrong size bitfield, files don\u2019t exist → no verified pieces', async () => {
-            const client = new (WebTorrent as any)(disabledClientOpts);
+            const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             let clientError: unknown = null;
             client.on('error', (err: Error) => {
                 clientError = err;

@@ -34,6 +34,7 @@ export default async () => {
                     GLib.source_remove(giveUpId);
                     try {
                         game = new ex.Engine({
+                            // oxlint-disable-next-line typescript/no-explicit-any -- WebGLBridge canvas type is incompatible with Excalibur's HTMLCanvasElement; runtime shape matches
                             canvasElement: canvas as any,
                             suppressPlayButton: true,
                         });
@@ -73,6 +74,7 @@ export default async () => {
                     GLib.source_remove(giveUpId);
                     try {
                         game = new ex.Engine({
+                            // oxlint-disable-next-line typescript/no-explicit-any -- WebGLBridge canvas type is incompatible with Excalibur's HTMLCanvasElement; runtime shape matches
                             canvasElement: canvas as any,
                             suppressPlayButton: true,
                         });

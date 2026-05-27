@@ -39,9 +39,10 @@ app.connect('activate', () => {
 
     videoBridge.onReady(async (video) => {
         try {
+            // oxlint-disable-next-line typescript/no-explicit-any -- VideoBridge video element has no TypeScript type compatible with HTMLVideoElement
             await startVideo(video as any, log);
-        } catch (err: any) {
-            log(`getUserMedia failed: ${err?.message ?? err}`);
+        } catch (err) {
+            log(`getUserMedia failed: ${(err as Error)?.message ?? err}`);
         }
     });
 

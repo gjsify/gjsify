@@ -45,6 +45,7 @@ export default async () => {
                 widget.onReady((canvas) => {
                     GLib.source_remove(giveUpId);
                     try {
+                        // oxlint-disable-next-line typescript/no-explicit-any -- WebGLBridge canvas has no TypeScript type; runtime provides getContext
                         const gl = (canvas as any).getContext('webgl2') as WebGL2RenderingContext;
 
                         // Simulate Excalibur's FontTextInstance offscreen canvas
@@ -61,6 +62,7 @@ export default async () => {
                         // Upload canvas to WebGL texture — the exact call Excalibur makes
                         const tex = gl.createTexture();
                         gl.bindTexture(gl.TEXTURE_2D, tex);
+                        // oxlint-disable-next-line typescript/no-explicit-any -- WebGL2 texImage2D overload for HTMLCanvasElement not in @types/webgl2
                         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, offscreen as any);
                         glError = gl.getError();
                         gl.deleteTexture(tex);
@@ -100,6 +102,7 @@ export default async () => {
                 widget.onReady((canvas) => {
                     GLib.source_remove(giveUpId);
                     try {
+                        // oxlint-disable-next-line typescript/no-explicit-any -- WebGLBridge canvas has no TypeScript type; runtime provides getContext
                         const gl = (canvas as any).getContext('webgl2') as WebGL2RenderingContext;
 
                         // Draw a solid red square to the offscreen canvas
@@ -115,6 +118,7 @@ export default async () => {
                         // Upload and read back via framebuffer
                         const tex = gl.createTexture();
                         gl.bindTexture(gl.TEXTURE_2D, tex);
+                        // oxlint-disable-next-line typescript/no-explicit-any -- WebGL2 texImage2D overload for HTMLCanvasElement not in @types/webgl2
                         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, offscreen as any);
                         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
                         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -169,6 +173,7 @@ export default async () => {
                 widget.onReady((canvas) => {
                     GLib.source_remove(giveUpId);
                     try {
+                        // oxlint-disable-next-line typescript/no-explicit-any -- WebGLBridge canvas has no TypeScript type; runtime provides getContext
                         const gl = (canvas as any).getContext('webgl2') as WebGL2RenderingContext;
                         glslVersion = gl.getParameter(gl.SHADING_LANGUAGE_VERSION) as string;
 

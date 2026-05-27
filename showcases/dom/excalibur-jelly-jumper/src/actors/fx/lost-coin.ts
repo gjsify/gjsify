@@ -35,6 +35,7 @@ export class LostCoin extends CoinItem {
         this.collectable.isCollectable = false;
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- ex.Engine<any> uses Excalibur default generic; Engine<TKnownScenes = any>
     onInitialize(_engine: ex.Engine<any>): void {
         this.actions.runAction(
             new ex.ParallelActions([
@@ -48,6 +49,7 @@ export class LostCoin extends CoinItem {
         );
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- ex.Engine<any> uses Excalibur default generic; Engine<TKnownScenes = any>
     onPreUpdate(engine: ex.Engine<any>, elapsed: number): void {
         this.elapsedMs += elapsed;
 

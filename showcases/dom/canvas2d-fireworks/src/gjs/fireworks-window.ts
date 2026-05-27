@@ -85,6 +85,7 @@ export class FireworksWindow extends Adw.ApplicationWindow {
             canvas.width = canvasWidget.get_allocated_width();
             canvas.height = canvasWidget.get_allocated_height();
 
+            // oxlint-disable-next-line typescript/no-explicit-any -- Canvas2DBridge canvas has no TypeScript type compatible with HTMLCanvasElement
             this._demo = start(canvas as any);
             this.connectControls(this._demo);
         });

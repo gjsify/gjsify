@@ -7,6 +7,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { Notification } from '@modelcontextprotocol/sdk/types.js';
 import { assertMatchObject, yieldEventLoop } from './helpers.js';
 
 export default async () => {
@@ -46,7 +47,7 @@ export default async () => {
 
             const result = await client.readResource({ uri: 'test://localhost/resource' });
             expect(result.contents.length).toBe(1);
-            expect((result.contents[0] as any).text).toBe('Hello from resource');
+            expect((result.contents[0] as { uri: string; text?: string }).text).toBe('Hello from resource');
 
             await client.close();
             await mcpServer.close();
@@ -119,7 +120,7 @@ export default async () => {
             await Promise.all([client.connect(clientTransport), mcpServer.connect(serverTransport)]);
 
             const result = await client.readResource({ uri: 'test://resource/42' });
-            expect((result.contents[0] as any).text).toBe('Content for 42');
+            expect((result.contents[0] as { uri: string; text?: string }).text).toBe('Content for 42');
 
             await client.close();
             await mcpServer.close();
@@ -127,9 +128,9 @@ export default async () => {
 
         await it('should send resource list changed notification', async () => {
             const mcpServer = new McpServer({ name: 'test server', version: '1.0' });
-            const notifications: any[] = [];
+            const notifications: Notification[] = [];
             const client = new Client({ name: 'test client', version: '1.0' });
-            client.fallbackNotificationHandler = async (notification: any) => {
+            client.fallbackNotificationHandler = async (notification: Notification) => {
                 notifications.push(notification);
             };
 

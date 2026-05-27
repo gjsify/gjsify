@@ -84,6 +84,7 @@ void main() {
 }`;
 
 export function start(canvas: HTMLCanvasElement) {
+    // oxlint-disable-next-line typescript/no-explicit-any -- THREE.WebGLRenderer canvas option expects OffscreenCanvas; GJS canvas type is incompatible
     const renderer = new THREE.WebGLRenderer({ canvas: canvas as any });
     renderer.setSize(canvas.width, canvas.height, false);
     renderer.debug.checkShaderErrors = true;

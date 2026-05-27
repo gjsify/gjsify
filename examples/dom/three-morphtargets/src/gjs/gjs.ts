@@ -33,6 +33,7 @@ app.connect('activate', () => {
     glArea.onReady((canvas) => {
         const ctx = glArea.get_context()!;
         print(`Context version: OpenGL${ctx.get_use_es() ? ' ES' : ''} ${ctx.get_version().join('.')}`);
+        // oxlint-disable-next-line typescript/no-explicit-any -- WebGLBridge/Canvas2DBridge canvas has no TypeScript type compatible with HTMLCanvasElement
         start(canvas as any);
     });
 

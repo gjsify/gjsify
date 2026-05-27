@@ -24,8 +24,9 @@ runTrickleIceDemo(log)
             return GLib.SOURCE_REMOVE;
         });
     })
-    .catch((err: any) => {
-        log('ERROR', err?.message ?? String(err));
+    .catch((err) => {
+        const e = err as Error;
+        log('ERROR', e?.message ?? String(e));
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
             loop.quit();
             return GLib.SOURCE_REMOVE;

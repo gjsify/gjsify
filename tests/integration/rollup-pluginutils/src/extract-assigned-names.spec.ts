@@ -11,14 +11,21 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { parse } from 'acorn';
+import type { AnyNode, Program } from 'acorn';
 import { extractAssignedNames } from '@rollup/pluginutils';
 
 const PARSE_OPTS = { ecmaVersion: 2024 as const, sourceType: 'module' as const };
 
+// Navigate acorn AST nodes whose fields vary by node kind.
+function node(n: AnyNode | Program | null | undefined): Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined> {
+    return n as unknown as Record<string, AnyNode | AnyNode[] | string | number | boolean | null | undefined>;
+}
+
 // Helper: parse `let <pattern> = ...;` and return the pattern node.
-function patternFromLet(src: string): any {
-    const ast: any = parse(`let ${src} = 0;`, PARSE_OPTS);
-    return ast.body[0].declarations[0].id;
+function patternFromLet(src: string): AnyNode {
+    const ast: Program = parse(`let ${src} = 0;`, PARSE_OPTS);
+    const declarations = node(ast.body[0] as AnyNode).declarations as AnyNode[];
+    return node(declarations[0]).id as AnyNode;
 }
 
 export default async () => {
@@ -70,8 +77,9 @@ export default async () => {
 
         await it('returns [] for a MemberExpression target', async () => {
             // Build the AST for `foo.bar = 1;` and extract from the assignment LHS.
-            const ast: any = parse('foo.bar = 1;', PARSE_OPTS);
-            const lhs = ast.body[0].expression.left;
+            const ast: Program = parse('foo.bar = 1;', PARSE_OPTS);
+            const exprStmt = node(ast.body[0] as AnyNode);
+            const lhs = node(exprStmt.expression as AnyNode).left as AnyNode;
             expect(lhs.type).toBe('MemberExpression');
             expect(extractAssignedNames(lhs)).toStrictEqual([]);
         });

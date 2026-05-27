@@ -5,14 +5,24 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { parse } from 'acorn';
+import type { Options } from 'acorn';
 
 const PARSE_OPTS = { ecmaVersion: 2024 as const, sourceType: 'module' as const };
 
-function captureParseError(src: string, opts: any = PARSE_OPTS): any {
+// acorn throws SyntaxError subclasses with extra fields (pos, loc, raisedAt).
+// There are no TypeScript types for the augmented error — capture as unknown
+// and re-cast to this interface for test assertions.
+interface AcornSyntaxError extends SyntaxError {
+    pos: number;
+    loc: { line: number; column: number };
+    raisedAt: number;
+}
+
+function captureParseError(src: string, opts: Options = PARSE_OPTS): AcornSyntaxError {
     try {
         parse(src, opts);
     } catch (err) {
-        return err;
+        return err as AcornSyntaxError;
     }
     throw new Error('expected parse to throw');
 }

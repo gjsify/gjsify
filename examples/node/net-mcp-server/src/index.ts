@@ -98,7 +98,7 @@ function createMcpServer(): McpServer {
 function readRequestBody(req: IncomingMessage): Promise<unknown> {
     return new Promise((resolve, reject) => {
         let data = '';
-        req.on('data', (chunk: any) => {
+        req.on('data', (chunk: Buffer | string) => {
             data += String(chunk);
         });
         req.on('end', () => {

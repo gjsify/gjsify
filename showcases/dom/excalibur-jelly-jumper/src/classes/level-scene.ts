@@ -53,6 +53,7 @@ export default class LevelScene extends ex.Scene {
                     const pathObjectId = props.object?.properties.get('path') as number;
 
                     // props.layer is lacking types for tiledObjectLayer
+                    // oxlint-disable-next-line typescript/no-explicit-any -- @excalibur-tiled FactoryProps.layer has no TypeScript type for tiledObjectLayer
                     const pathObject = (props.layer as any).tiledObjectLayer.objects.find(
                         (obj: TiledObject) => obj.id === pathObjectId,
                     ) as TiledObject;
@@ -208,6 +209,7 @@ export default class LevelScene extends ex.Scene {
         const solidLayers = this.tilemap.getLayersByProperty('solid', true);
 
         for (const layer of solidLayers) {
+            // oxlint-disable-next-line typescript/no-explicit-any -- @excalibur-tiled layer type has no .tilemap property in TypeScript types
             const tilemap = (layer as any).tilemap as ex.TileMap;
 
             const body = tilemap.get(ex.BodyComponent);
@@ -321,7 +323,7 @@ export default class LevelScene extends ex.Scene {
  * Helper function to create a spawner at the Tiled object position
  * for an enemy class
  */
-function makeSpawner(spawn: (actorArgs: { x: number; y: number; z: number }, props: FactoryProps) => any) {
+function makeSpawner(spawn: (actorArgs: { x: number; y: number; z: number }, props: FactoryProps) => unknown) {
     return (props: FactoryProps) => {
         const x = props.object?.x ?? 0;
         const y = props.object?.y ?? 0;

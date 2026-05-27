@@ -24,6 +24,7 @@ const SERVER_BUNDLES = {
 const GJSIFY_BIN = fileURLToPath(new URL('../../../node_modules/.bin/gjsify', `file://${_here}`));
 
 function getServerCmd(): { cmd: string; args: string[] } {
+    // oxlint-disable-next-line typescript/no-explicit-any -- process.versions.gjs is a GJS runtime extension not in @types/node
     const isGJS = typeof (globalThis as any).process?.versions?.gjs === 'string';
     return isGJS
         ? { cmd: GJSIFY_BIN, args: ['run', SERVER_BUNDLES.gjs] }
@@ -63,6 +64,7 @@ function startServer(): Promise<{ proc: ChildProcess; kill: () => void }> {
                 clearTimeout(timer);
                 clearInterval(check);
                 resolve({ proc, kill: () => proc.kill('SIGTERM') });
+            // oxlint-disable-next-line typescript/no-explicit-any -- ChildProcess.exitCode exists at runtime but TypeScript types it as number | null only after 'close' event
             } else if ((proc as any).exitCode !== null) {
                 clearTimeout(timer);
                 clearInterval(check);
@@ -78,7 +80,7 @@ function startServer(): Promise<{ proc: ChildProcess; kill: () => void }> {
     });
 }
 
-function httpGetJson(url: string): Promise<{ status: number; body: any }> {
+function httpGetJson(url: string): Promise<{ status: number; body: unknown }> {
     return new Promise((resolve, reject) => {
         httpGet(url, (res: IncomingMessage) => {
             let data = '';
@@ -92,7 +94,7 @@ function httpGetJson(url: string): Promise<{ status: number; body: any }> {
     });
 }
 
-function httpRequestJson(url: string, method: string, body?: unknown): Promise<{ status: number; body: any }> {
+function httpRequestJson(url: string, method: string, body?: unknown): Promise<{ status: number; body: unknown }> {
     return new Promise((resolve, reject) => {
         const u = new URL(url);
         const req = httpRequest(
@@ -127,31 +129,35 @@ export default async () => {
 
             await it('GET / returns API info', async () => {
                 const { status, body } = await httpGetJson(`http://127.0.0.1:${PORT}/`);
+                const b = body as Record<string, unknown>;
                 expect(status).toBe(200);
-                expect(body.name).toBe('gjsify Todo API');
-                expect(body.endpoints).toBeDefined();
+                expect(b.name).toBe('gjsify Todo API');
+                expect(b.endpoints).toBeDefined();
             });
 
             await it('GET /todos returns initial todos', async () => {
                 const { status, body } = await httpGetJson(`http://127.0.0.1:${PORT}/todos`);
+                const b = body as { todos: unknown[]; count: number };
                 expect(status).toBe(200);
-                expect(body.todos.length).toBeGreaterThan(0);
-                expect(body.count).toBeGreaterThan(0);
+                expect(b.todos.length).toBeGreaterThan(0);
+                expect(b.count).toBeGreaterThan(0);
             });
 
             await it('POST /todos creates a new todo', async () => {
                 const { status, body } = await httpRequestJson(`http://127.0.0.1:${PORT}/todos`, 'POST', {
                     title: 'Test todo',
                 });
+                const b = body as { todo: { title: string; completed: boolean } };
                 expect(status).toBe(201);
-                expect(body.todo.title).toBe('Test todo');
-                expect(body.todo.completed).toBe(false);
+                expect(b.todo.title).toBe('Test todo');
+                expect(b.todo.completed).toBe(false);
             });
 
             await it('DELETE /todos/:id deletes a todo', async () => {
                 const { status, body } = await httpRequestJson(`http://127.0.0.1:${PORT}/todos/1`, 'DELETE');
+                const b = body as Record<string, unknown>;
                 expect(status).toBe(200);
-                expect(body.deleted).toBeDefined();
+                expect(b.deleted).toBeDefined();
             });
         } finally {
             if (server) server.kill();

@@ -6,13 +6,14 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { Server, Namespace, Socket } from 'socket.io';
 import { io as ioc } from 'socket.io-client';
+import type { ManagerOptions, SocketOptions } from 'socket.io-client';
 import type { AddressInfo } from 'node:net';
 
 function getPort(io: Server): number {
     return (io.httpServer.address() as AddressInfo).port;
 }
 
-function createClient(io: Server, nsp: string = '/', opts?: any) {
+function createClient(io: Server, nsp: string = '/', opts?: Partial<ManagerOptions & SocketOptions>) {
     return ioc(`http://localhost:${getPort(io)}${nsp}`, {
         transports: ['polling', 'websocket'],
         ...opts,
@@ -454,7 +455,7 @@ export default async () => {
         await it('should throw on reserved event', async () => {
             // new Server() without a port never binds, so engine is not initialized — do not call io.close()
             const io = new Server();
-            expect(() => (io as any).emit('connect')).toThrow(/"connect" is a reserved event name/);
+            expect(() => (io as unknown as { emit: (ev: string) => void }).emit('connect')).toThrow(/"connect" is a reserved event name/);
         });
 
         await it('should exclude a specific socket when emitting', async () => {
@@ -662,7 +663,7 @@ export default async () => {
                     };
 
                     io.of((_name, _query, next) => {
-                        buffer.push(next as any);
+                        buffer.push(next);
                         if (buffer.length === 2) buffer.forEach((n) => n(null, true));
                     }).on('connection', () => {
                         if (++counters.connected === 2) io.of('/dynamic-101').emit('message');

@@ -10,7 +10,7 @@ export default async () => {
     await describe('streamx Transform', async () => {
         await it('default transform teardown when saturated', async () => {
             const stream = new Transform({
-                transform(data: any, cb: (err?: Error | null, chunk?: any) => void) {
+                transform(data: unknown, cb: (err?: Error | null, chunk?: unknown) => void) {
                     cb(null, data);
                 },
             });
@@ -30,7 +30,7 @@ export default async () => {
             let i = 0;
             const p = new PassThrough();
             const w = new Writable({
-                write(data: any, cb: (err?: Error | null) => void) {
+                write(data: unknown, cb: (err?: Error | null) => void) {
                     i++;
                     if (i === 1) expect(data).toBe('foo');
                     else if (i === 2) expect(data).toBe('bar');

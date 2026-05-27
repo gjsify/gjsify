@@ -90,7 +90,7 @@ export async function runDtmfDemo(log: LogFn): Promise<void> {
     // Collect tonechange events
     const tonesReceived: string[] = [];
     const dtmfComplete = new Promise<void>((resolve) => {
-        dtmf.ontonechange = (ev: any) => {
+        dtmf.ontonechange = (ev: RTCDTMFToneChangeEvent) => {
             if (ev.tone === '') {
                 log('dtmf', 'All tones sent (empty sentinel received)');
                 resolve();

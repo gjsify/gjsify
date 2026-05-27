@@ -175,7 +175,13 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
         syncCanvasSize();
         if (!demo && canvas.width > 0 && canvas.height > 0) {
             demo = start(canvas, { assetBase });
-            connectControls(demo, pixelSizeRow, normalEdgeRow, depthEdgeRow, pixelAlignRow);
+            connectControls(
+                    demo,
+                    pixelSizeRow as AdwRow,
+                    normalEdgeRow as AdwRow,
+                    depthEdgeRow as AdwRow,
+                    pixelAlignRow as AdwRow,
+                );
             if (pendingPause) {
                 demo.pause();
                 pendingPause = false;
@@ -230,26 +236,29 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     };
 }
 
+// Adwaita web components expose custom properties (.value, .active) not in HTMLElement types.
+type AdwRow = HTMLElement & Record<string, unknown>;
+
 function connectControls(
     demo: PixelDemo,
-    pixelSizeRow: any,
-    normalEdgeRow: any,
-    depthEdgeRow: any,
-    pixelAlignRow: any,
+    pixelSizeRow: AdwRow,
+    normalEdgeRow: AdwRow,
+    depthEdgeRow: AdwRow,
+    pixelAlignRow: AdwRow,
 ) {
     pixelSizeRow.addEventListener('notify::value', () => {
-        demo.effectController.pixelSize = pixelSizeRow.value;
+        demo.effectController.pixelSize = pixelSizeRow.value as number;
     });
 
     normalEdgeRow.addEventListener('notify::value', () => {
-        demo.effectController.normalEdgeStrength = normalEdgeRow.value;
+        demo.effectController.normalEdgeStrength = normalEdgeRow.value as number;
     });
 
     depthEdgeRow.addEventListener('notify::value', () => {
-        demo.effectController.depthEdgeStrength = depthEdgeRow.value;
+        demo.effectController.depthEdgeStrength = depthEdgeRow.value as number;
     });
 
     pixelAlignRow.addEventListener('notify::active', () => {
-        demo.effectController.pixelAlignedPanning = pixelAlignRow.active;
+        demo.effectController.pixelAlignedPanning = pixelAlignRow.active as boolean;
     });
 }

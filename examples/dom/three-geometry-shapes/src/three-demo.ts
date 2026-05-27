@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 
 export function start(canvas: HTMLCanvasElement) {
+    // oxlint-disable-next-line typescript/no-explicit-any -- THREE.WebGLRenderer canvas option expects OffscreenCanvas; GJS canvas type is incompatible
     const renderer = new THREE.WebGLRenderer({ canvas: canvas as any, antialias: true });
     renderer.setSize(canvas.width, canvas.height);
 
