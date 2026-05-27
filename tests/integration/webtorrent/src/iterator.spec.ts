@@ -10,6 +10,15 @@ import fixtures from './fixtures.js';
 import { uniqueTempPath } from './test-helpers.js';
 import FileIterator from 'webtorrent/lib/file-iterator.js';
 
+// @types/webtorrent omits a few real runtime members exercised here:
+//   - Instance emits 'warning' (typings only declare 'torrent'/'error');
+//   - TorrentFile exposes a boolean `done` flag.
+// Narrow at the use site rather than augment the third-party module.
+type EmitterLike = NodeJS.EventEmitter;
+interface TorrentFileWithDone {
+    done: boolean;
+}
+
 const disabledClientOpts = {
     dht: false,
     tracker: false,
@@ -26,7 +35,10 @@ function destroyClient(client: WebTorrentInstance): Promise<void> {
 
 function removeTorrent(client: WebTorrentInstance, torrent: Torrent | string | Buffer): Promise<void> {
     return new Promise((resolve, reject) => {
-        client.remove(torrent, (err) => (err ? reject(err) : resolve()));
+        // @types/webtorrent only models remove(id, opts, cb); the runtime also
+        // accepts remove(id, cb). Explicit `undefined` opts matches the typed
+        // overload (webtorrent treats a function in the opts slot as the cb).
+        client.remove(torrent, undefined, (err) => (err ? reject(err) : resolve()));
     });
 }
 
@@ -48,7 +60,7 @@ export default async () => {
             client.on('error', (err: Error) => {
                 clientError = err;
             });
-            client.on('warning', (err: Error) => {
+            (client as EmitterLike).on('warning', (err: Error) => {
                 clientError = err;
             });
 
@@ -63,7 +75,7 @@ export default async () => {
             expect(torrent.magnetURI).toBe(fixtures.leaves.magnetURI);
 
             const iterator = torrent.files[0][Symbol.asyncIterator]();
-            expect(torrent.files[0].done).toBeTruthy();
+            expect((torrent.files[0] as unknown as TorrentFileWithDone).done).toBeTruthy();
             // oxlint-disable-next-line typescript/no-explicit-any -- FileIterator has no TypeScript types; instanceof needs the constructor
             expect(iterator instanceof (FileIterator as any)).toBe(false);
             iterator.return?.();
@@ -83,7 +95,7 @@ export default async () => {
             client.on('error', (err: Error) => {
                 clientError = err;
             });
-            client.on('warning', (err: Error) => {
+            (client as EmitterLike).on('warning', (err: Error) => {
                 clientError = err;
             });
 
@@ -94,7 +106,7 @@ export default async () => {
             expect(torrent.infoHash).toBe(fixtures.leaves.parsedTorrent.infoHash);
             expect(torrent.magnetURI).toBe(fixtures.leaves.magnetURI);
 
-            expect(torrent.files[0].done).toBeFalsy();
+            expect((torrent.files[0] as unknown as TorrentFileWithDone).done).toBeFalsy();
             const iterator = torrent.files[0][Symbol.asyncIterator]();
             // oxlint-disable-next-line typescript/no-explicit-any -- FileIterator has no TypeScript types; instanceof needs the constructor
             expect(iterator instanceof (FileIterator as any)).toBe(true);

@@ -56,7 +56,7 @@ export default async () => {
                 }),
                 new Writable({
                     write(data: unknown, cb: (err?: Error | null) => void) {
-                        totalReceived += data.length;
+                        totalReceived += (data as Buffer).length;
                         cb();
                     },
                 }),

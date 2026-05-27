@@ -165,7 +165,7 @@ export default async () => {
             // every method has at least an instance-parameter
             const instanceParam = (params as unknown as Record<string, unknown>)['instance-parameter'];
             expect(Array.isArray(instanceParam)).toBeTruthy();
-            expect(instanceParam.length >= 1).toBeTruthy();
+            expect((instanceParam as unknown[]).length >= 1).toBeTruthy();
         });
     });
 

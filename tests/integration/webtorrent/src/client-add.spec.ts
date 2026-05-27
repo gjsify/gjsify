@@ -8,6 +8,11 @@ import WebTorrent from 'webtorrent';
 import type { Instance as WebTorrentInstance, Torrent } from 'webtorrent';
 import fixtures from './fixtures.js';
 
+// @types/webtorrent's Instance.on only declares 'torrent'/'error'; the real
+// client also emits 'warning'. Fall back to the EventEmitter overload that
+// accepts arbitrary event names rather than augment the third-party module.
+type EmitterLike = NodeJS.EventEmitter;
+
 const disabledClientOpts = {
     dht: false,
     tracker: false,
@@ -24,7 +29,11 @@ function destroyClient(client: WebTorrentInstance): Promise<void> {
 
 function removeTorrent(client: WebTorrentInstance, torrentId: Torrent | string | Buffer): Promise<void> {
     return new Promise((resolve, reject) => {
-        client.remove(torrentId, (err) => (err ? reject(err) : resolve()));
+        // @types/webtorrent only models remove(id, opts, cb); the runtime also
+        // accepts remove(id, cb). Pass an explicit `undefined` opts to match the
+        // typed overload — webtorrent treats a function in the opts slot as the
+        // callback either way (index.js: `if (typeof opts === 'function') …`).
+        client.remove(torrentId, undefined, (err) => (err ? reject(err) : resolve()));
     });
 }
 
@@ -41,7 +50,7 @@ export default async () => {
         await it('parses magnet URI and yields expected infoHash', async () => {
             const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             let emittedWarning: unknown = null;
-            client.on('warning', (err: Error) => {
+            (client as EmitterLike).on('warning', (err: Error) => {
                 emittedWarning = err;
             });
 
@@ -63,7 +72,7 @@ export default async () => {
         await it('accepts a .torrent Buffer and yields expected infoHash', async () => {
             const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
             let emittedWarning: unknown = null;
-            client.on('warning', (err: Error) => {
+            (client as EmitterLike).on('warning', (err: Error) => {
                 emittedWarning = err;
             });
 
@@ -198,7 +207,10 @@ export default async () => {
     await describe('webtorrent/client-add: paused torrent', async () => {
         await it('respects the paused flag', async () => {
             const client = new WebTorrent(disabledClientOpts as WebTorrent.Options);
-            const torrent = client.add(fixtures.leaves.magnetURI, { paused: true });
+            // `paused` is a real add option the @types/webtorrent surface omits.
+            const torrent = client.add(fixtures.leaves.magnetURI, {
+                paused: true,
+            } as unknown as WebTorrent.TorrentOptions);
             expect(client.torrents.length).toBe(1);
 
             await waitForInfoHash(torrent);

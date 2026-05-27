@@ -8,6 +8,12 @@ import WebTorrent from 'webtorrent';
 import type { Instance as WebTorrentInstance } from 'webtorrent';
 import fixtures from './fixtures.js';
 
+// @types/webtorrent's Instance.on only declares 'torrent'/'error'; the real
+// client also emits 'warning' and 'ready'. Fall back to the EventEmitter
+// overload that accepts arbitrary event names. The `name` add/seed option is
+// likewise a real runtime option the typings omit — narrow at the use site.
+type EmitterLike = NodeJS.EventEmitter;
+
 const disabledClientOpts = {
     dht: false,
     tracker: false,
@@ -30,7 +36,7 @@ export default async () => {
             client.on('error', (err: Error) => {
                 emittedError = err;
             });
-            client.on('warning', (err: Error) => {
+            (client as EmitterLike).on('warning', (err: Error) => {
                 emittedError = err;
             });
 
@@ -56,17 +62,17 @@ export default async () => {
             client.on('error', (err: Error) => {
                 errorEmitted = err;
             });
-            client.on('warning', (err: Error) => {
+            (client as EmitterLike).on('warning', (err: Error) => {
                 errorEmitted = err;
             });
-            client.on('ready', () => {
+            (client as EmitterLike).on('ready', () => {
                 unexpectedEvent = true;
             });
 
-            client.add(fixtures.leaves.torrent, { name: 'leaves' }, () => {
+            client.add(fixtures.leaves.torrent, { name: 'leaves' } as unknown as WebTorrent.TorrentOptions, () => {
                 unexpectedEvent = true;
             });
-            client.seed(fixtures.leaves.content, { name: 'leaves' }, () => {
+            client.seed(fixtures.leaves.content, { name: 'leaves' } as unknown as WebTorrent.TorrentOptions, () => {
                 unexpectedEvent = true;
             });
 

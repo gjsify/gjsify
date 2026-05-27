@@ -9,6 +9,15 @@ import type { Instance as WebTorrentInstance, Torrent } from 'webtorrent';
 import fixtures from './fixtures.js';
 import { uniqueTempPath } from './test-helpers.js';
 
+// @types/webtorrent omits a few real runtime members exercised here:
+//   - Instance emits 'warning' (typings only declare 'torrent'/'error');
+//   - TorrentFile.arrayBuffer(range) returns a Promise<ArrayBuffer>.
+// Narrow at the use site rather than augment the third-party module.
+type EmitterLike = NodeJS.EventEmitter;
+interface TorrentFileWithArrayBuffer {
+    arrayBuffer(opts: { start: number; end: number }): Promise<ArrayBuffer>;
+}
+
 const disabledClientOpts = {
     dht: false,
     tracker: false,
@@ -25,7 +34,10 @@ function destroyClient(client: WebTorrentInstance): Promise<void> {
 
 function removeTorrent(client: WebTorrentInstance, torrent: Torrent | string | Buffer): Promise<void> {
     return new Promise((resolve, reject) => {
-        client.remove(torrent, (err) => (err ? reject(err) : resolve()));
+        // @types/webtorrent only models remove(id, opts, cb); the runtime also
+        // accepts remove(id, cb). Explicit `undefined` opts matches the typed
+        // overload (webtorrent treats a function in the opts slot as the cb).
+        client.remove(torrent, undefined, (err) => (err ? reject(err) : resolve()));
     });
 }
 
@@ -43,7 +55,7 @@ export default async () => {
             client.on('error', (err: Error) => {
                 clientError = err;
             });
-            client.on('warning', (err: Error) => {
+            (client as EmitterLike).on('warning', (err: Error) => {
                 clientError = err;
             });
 
@@ -57,7 +69,9 @@ export default async () => {
             expect(torrent.infoHash).toBe(fixtures.leaves.parsedTorrent.infoHash);
             expect(torrent.magnetURI).toBe(fixtures.leaves.magnetURI);
 
-            const buffer: ArrayBuffer = await torrent.files[0].arrayBuffer({ start: 0, end: 99 });
+            const buffer: ArrayBuffer = await (
+                torrent.files[0] as unknown as TorrentFileWithArrayBuffer
+            ).arrayBuffer({ start: 0, end: 99 });
             expect(buffer.byteLength).toBe(100);
 
             const orig = fixtures.leaves.content.buffer.slice(0, 100);
