@@ -907,6 +907,7 @@ Pack + upload a workspace to its npm registry. Drop-in for `npm publish`. Uses [
 gjsify publish                                  # publish current workspace
 gjsify publish packages/infra/cli --tag latest
 gjsify publish --access public                  # required for first publish of scoped pkg
+gjsify publish --access public --otp 123456     # first publish with 2FA OTP (Node-free bootstrap)
 gjsify publish --tolerate-republish             # treat 409 conflict as success
 gjsify publish --dry-run                        # pack only, don't PUT
 ```
@@ -916,6 +917,7 @@ gjsify publish --dry-run                        # pack only, don't PUT
 | `[path]` | `cwd` | Workspace path to publish. |
 | `--tag <tag>` | `latest` | npm dist-tag. |
 | `--access <kind>` | — | `public` or `restricted` (required on first publish of scoped packages). |
+| `--otp <code>` | — | npm 2FA one-time code; forwarded as the `npm-otp` HTTP header on the PUT request. Required for manual publishes from a 2FA-enabled npm account. If the registry responds with `401 OTP-required` and `--otp` was not supplied: on an interactive TTY the CLI prompts once and retries; on a non-TTY it exits non-zero with an actionable message. |
 | `--tolerate-republish` | `false` | Treat a 409 conflict (version already published) as success. Matches `yarn --tolerate-republish`. |
 | `--provenance` | `false` | Recorded in payload but no signing happens (no sigstore signer yet). |
 | `--dry-run` | `false` | Pack only, do not PUT. |

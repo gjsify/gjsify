@@ -535,12 +535,12 @@ npm Trusted Publishing (OIDC) requires the package to **already exist** on npmjs
 Run before the merge that adds the package (or immediately after, before the next release-it patch):
 
 1. Build the package locally: `gjsify workspace @gjsify/<name> build`
-2. **Manual first publish from a maintainer machine** with an npm account that has `@gjsify` scope publish access + 2FA OTP (or a granular access token with bypass-2fa enabled):
+2. **Manual first publish from a maintainer machine** with an npm account that has `@gjsify` scope publish access + 2FA OTP (or a granular access token with bypass-2fa enabled). `gjsify publish` now supports `--otp` natively, keeping the bootstrap entirely Node-free:
    ```bash
    cd packages/<pillar>/<name>
-   npm publish --access public --otp <code>
+   gjsify publish --access public --otp <code>
    ```
-   This creates the package record on npmjs.com.
+   This creates the package record on npmjs.com. The `npm-otp: <code>` header is forwarded on the PUT request; if OTP is required but `--otp` is omitted on a non-TTY, the CLI exits with a clear error pointing at `--otp`. On an interactive TTY it prompts once and retries (mirrors npm's `otplease` behavior — see `refs/npm-cli/lib/utils/auth.js`).
 3. **Configure Trusted Publisher** at `https://www.npmjs.com/package/@gjsify/<name>/access`:
    - Repository: `gjsify/gjsify`
    - Workflow: `release.yml`
