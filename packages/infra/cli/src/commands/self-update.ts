@@ -110,11 +110,28 @@ export const selfUpdateCommand: Command<any, SelfUpdateOptions> = {
         }
 
         console.log(`Installing ${PACKAGE_NAME}@${target} ...`);
-        await installPackages({
-            prefix: layout.prefix,
-            specs: [`${PACKAGE_NAME}@${target}`],
-            verbose: false,
-        });
+        // `@gjsify/cli` is a self-contained GJS bundle: every workspace dep
+        // (`@gjsify/node-polyfills`, `@gjsify/v8`, …) is bundled into the
+        // published `dist/cli.gjs.mjs` artifact and must NOT be resolved as
+        // a separate npm package. `skipDeps: true` limits the native install
+        // backend to fetching the top-level tarball only, avoiding spurious
+        // packument requests for workspace-internal packages that are not
+        // published to the public registry (which previously caused a
+        // 406 Not Acceptable → fatal crash on the `@gjsify/v8` packument).
+        try {
+            await installPackages({
+                prefix: layout.prefix,
+                specs: [`${PACKAGE_NAME}@${target}`],
+                verbose: false,
+                skipDeps: true,
+            });
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(`self-update: install failed — ${msg}`);
+            console.error(`Re-run \`gjsify self-update\` to retry.`);
+            process.exit(1);
+            return;
+        }
         const linked = linkGlobalBins([PACKAGE_NAME], layout);
         if (linked.length === 0) {
             console.warn(

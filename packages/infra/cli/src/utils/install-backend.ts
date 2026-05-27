@@ -46,6 +46,19 @@ export interface InstallOptions {
      * forcing `typescript@~5.9` across every `typescript@*` devDep.
      */
     overrides?: Record<string, string>;
+    /**
+     * Native backend only: skip transitive dependency resolution and only
+     * install the top-level requested packages. Use this when the packages
+     * are self-contained bundles whose declared `dependencies` are either
+     * bundled into the artifact (e.g. `@gjsify/cli`'s GJS bundle) or
+     * workspace-only packages not published to npm separately. Setting this
+     * avoids spurious packument fetches for workspace-internal packages.
+     *
+     * Has no effect when `frozen: true` (the lockfile already contains the
+     * full resolved tree and is used verbatim) or when `GJSIFY_INSTALL_BACKEND=npm`
+     * (npm does its own resolution and does not consult this flag).
+     */
+    skipDeps?: boolean;
 }
 
 const DEFAULT_BACKEND = process.env.GJSIFY_INSTALL_BACKEND ?? 'native';
