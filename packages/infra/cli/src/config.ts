@@ -23,12 +23,12 @@ import { readPackageJSON, resolvePackageJSON } from 'pkg-types';
 import { getTsconfig } from 'get-tsconfig';
 
 /** Deep merge objects (replaces lodash.merge) */
-function merge<T extends Record<string, unknown>>(target: T, ...sources: Record<string, unknown>[]): T {
+function merge<T extends object>(target: T, ...sources: object[]): T {
     for (const source of sources) {
         if (!source) continue;
         for (const key of Object.keys(source)) {
             const targetVal = (target as Record<string, unknown>)[key];
-            const sourceVal = source[key];
+            const sourceVal = (source as Record<string, unknown>)[key];
             if (sourceVal !== undefined) {
                 if (isPlainObject(targetVal) && isPlainObject(sourceVal)) {
                     merge(targetVal, sourceVal);
