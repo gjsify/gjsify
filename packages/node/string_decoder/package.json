@@ -40,5 +40,12 @@
     },
     "dependencies": {
         "@gjsify/buffer": "workspace:^"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "native",
+            "browser": "polyfill"
+        }
     }
 }

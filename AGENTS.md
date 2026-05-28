@@ -340,7 +340,7 @@ IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning for re
 |`refs/gamepad-mirror/` — Manette 0.2 gamepad reference app
 
 ### Other
-`refs/gjs/`(internals) | `refs/stream-http/`(HTTP via streams) | `refs/troll/`(GJS utils) | `refs/crypto-browserify/`(orchestrator → sub-pkgs: `refs/{browserify-cipher,browserify-sign,create-ecdh,create-hash,create-hmac,diffie-hellman,hash-base,pbkdf2,public-encrypt,randombytes,randomfill}`) | `refs/readable-stream/`(edge cases) | `refs/ungap-structured-clone/`(→`packages/gjs/utils/src/structured-clone.ts`)
+`refs/gjs/`(internals) | `refs/stream-http/`(HTTP via streams) | `refs/troll/`(GJS utils) | `refs/crypto-browserify/`(orchestrator → sub-pkgs: `refs/{browserify-cipher,browserify-sign,create-ecdh,create-hash,create-hmac,diffie-hellman,hash-base,pbkdf2,public-encrypt,randombytes,randomfill}`) | `refs/readable-stream/`(edge cases) | `refs/ungap-structured-clone/`(→`packages/gjs/utils/src/structured-clone.ts`) | `refs/node-gtk/` — romgrk's Node.js GObject Introspection bindings; **reference-only** for the platform-bridge axis (Node-on-GTK aspiration documented in `## Strategic direction`); NOT a build target / NOT actively maintained on our side
 
 ### Adwaita/GTK design
 |`refs/adwaita-web/` Web Framework based on GTK4/Libadwaita — CSS/component ref for `@gjsify/adwaita-web`
@@ -690,6 +690,28 @@ Conventional commits — `<type>[optional scope]: <description>`, imperative moo
 ## Constraints
 
 Target: GJS 1.86.0 / SpiderMonkey 140 (ES2024) / Rolldown `firefox140` | ESM-only | GNOME libs + standard JS only | Tests pass on both Node + GJS | Do NOT modify `refs/`
+
+## Strategic direction — cross-runtime portability (experimental, internal)
+
+GJS = primary target, NON-NEGOTIABLE. But many `@gjsify/*` packages are pure TS (no `gi://`/`@girs/*`/`imports.` value-deps) and therefore portable. Long-term vision: **"alles unter allem lauffähig"** — share what's shareable across GJS / Node / Browser; runtime-specific where not. Each package declares a runtime-triplet (`gjs` × `node` × `browser`), each slot ∈ {`polyfill`, `native`, `partial`, `none`}; the `--app <target>` alias layer routes `@gjsify/<X>` to the right slot.
+
+|strategy: **opportunistic, not driven** — existing GJS-bound packages stay GJS-only (no refactor budget); NEW packages whose impl is pure-TS-portable anyway get cross-runtime treatment from day one; GJS remains test driver for everything (only runtime where all three pillars need polyfill)
+|axis 1 (Node-API, `packages/node/*`) — wraps `node:*`; GJS-polyfill, Node-native, Browser-polyfill-possible
+|axis 2 (Web-API, `packages/web/*`) — wraps W3C; GJS-polyfill, Browser-native, Node-polyfill-possible (today: `globals.mjs` re-export pattern)
+|axis 3 (DOM, `packages/dom/*`) — DOM tree; GJS-polyfill, Browser-native, Node n/a today
+|axis 4 (design-identity) — carry a runtime's design system to OTHER runtimes; today: `@gjsify/adwaita-{web,fonts,icons}` carries Libadwaita identity into the browser (Web Components + SCSS + fonts + icons)
+|axis 5 (platform-bridge, future) — carry a runtime's NATIVE platform to OTHER runtimes; GTK-via-WebKit (`@gjsify/iframe` precedent for one specific case); long-term aspirational: GTK on Node via [`refs/node-gtk`](refs/node-gtk) (NOT actively worked; reference-only until a real consumer demands it); GTK on browser is a non-goal (design-identity axis is the right tool for that)
+|slot routing per `--app` target: `gjs` → `polyfill` for everything (existing) | `node` → `native` where slot=native (re-export via `<pkg>/globals` pattern), else `polyfill` (upgrades today's empty stub where pure-TS impl exists) | `browser` → `native` where slot=native, else `polyfill`
+|declared per package in `package.json#gjsify.runtimes`: `{"gjs":"polyfill","node":"native","browser":"native"}`
+|pure-TS first-class examples (slot=polyfill on all three): `dom-events`, `dom-exception`, `abort-controller`, `string_decoder`, `querystring`, `path`, `buffer`, `formdata`, `message-channel`, `webstorage`
+|GJS-only (slot=none off-GJS): `framework/*`, `webgl`, `canvas2d`, `webrtc`, `webaudio`, `gamepad`, `webkit`, `tls-native`, `terminal-native`, `webrtc-native`, `sab-native`, anything with `@girs/*` value imports
+|already shipping cross-runtime: `adwaita-web`/`adwaita-fonts`/`adwaita-icons` (browser); 12 browser-test packages (`abort-controller`, `compression-streams`, `dom-events`, `domparser`, `eventsource`, `fetch`, `formdata`, `message-channel`, `streams`, `webcrypto`, `websocket`, `webstorage`)
+
+**Until proven on ≥2 real cross-runtime consumers:** do NOT document in website / `gjsify --help` / README / package READMEs; do NOT publish runtime claims; do NOT advertise as "WinterCG-compatible" / "Node-compatible runtime" / similar. STATUS.md tracks audit progress + slot-table per package; internal-only until the experiment graduates. **`@gjsify/adwaita-*` is the exception** — already shipping to browser consumers via showcases and counts as Production for the design-identity axis; documented normally.
+
+**Convention for NEW packages:** the runtime axis is the FIRST clarification question. (a) needs `gi://*`/`@girs/*` value-imports → GJS-only (`runtimes.{node,browser}: "none"`); (b) pure TS, no platform-native deps → cross-runtime from day one (`runtimes.{gjs,node,browser}: "polyfill"`), test on all three; (c) native runtime equivalent exists → declare `"native"` for that slot, ship `<pkg>/globals` (Node) or browser-conditional export. Existing GJS-only packages are NOT refactored opportunistically — they stay as they are; the convention applies only to new package work and to packages already being touched for unrelated reasons (NO "while-I'm-here" scope creep in bug-fix PRs).
+
+**Non-goals:** turning gjsify into a runtime; replacing Node/browser-native APIs where they exist; spec conformance beyond what a polyfill needs to behave correctly; forking / maintaining `refs/node-gtk` (it's reference, not a target); making GJS-bound packages cross-runtime by refactoring (only NEW pure-TS packages get the treatment from day one).
 
 ## JS Feature Availability
 

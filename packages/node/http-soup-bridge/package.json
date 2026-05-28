@@ -19,7 +19,12 @@
         "src/vala"
     ],
     "gjsify": {
-        "prebuilds": "prebuilds"
+        "prebuilds": "prebuilds",
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none"
+        }
     },
     "scripts": {
         "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",

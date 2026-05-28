@@ -51,5 +51,12 @@
         "@gjsify/vm": "workspace:^",
         "@gjsify/worker_threads": "workspace:^",
         "@gjsify/zlib": "workspace:^"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "native",
+            "browser": "polyfill"
+        }
     }
 }

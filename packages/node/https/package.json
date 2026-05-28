@@ -41,5 +41,12 @@
     "dependencies": {
         "@gjsify/http": "workspace:^",
         "@gjsify/tls": "workspace:^"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "native",
+            "browser": "polyfill"
+        }
     }
 }

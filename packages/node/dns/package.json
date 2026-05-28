@@ -47,5 +47,12 @@
         "@girs/glib-2.0": "2.88.0-4.0.1",
         "@gjsify/net": "workspace:^",
         "@gjsify/utils": "workspace:^"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none"
+        }
     }
 }
