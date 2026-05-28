@@ -7,6 +7,7 @@ import { createServer, request as httpRequest, get as httpGet } from 'node:http'
 import { Readable, PassThrough, Transform } from 'node:stream';
 import { Buffer } from 'node:buffer';
 import type { Server, IncomingMessage, ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
 
 /** Helper: start a server and return its URL + cleanup function */
 function startServer(
@@ -609,7 +610,7 @@ export default async () => {
             await new Promise<void>((resolve) => {
                 server.listen(0, '127.0.0.1', () => resolve());
             });
-            const addr = server.address() as import('node:net').AddressInfo | null;
+            const addr = server.address() as AddressInfo | null;
             expect(addr).toBeDefined();
             expect(typeof addr!.port).toBe('number');
             expect(addr!.port).toBeGreaterThan(0);

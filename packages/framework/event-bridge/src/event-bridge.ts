@@ -7,7 +7,7 @@
 import Gtk from 'gi://Gtk?version=4.0';
 import Gdk from 'gi://Gdk?version=4.0';
 import {
-    Event as OurEvent,
+    type Event as OurEvent,
     MouseEvent as OurMouseEvent,
     PointerEvent as OurPointerEvent,
     KeyboardEvent as OurKeyboardEvent,
