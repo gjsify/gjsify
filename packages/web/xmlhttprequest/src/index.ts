@@ -2,6 +2,8 @@
 // Backed by @gjsify/fetch (Soup 3.0) for HTTP and GLib for file:// + temp files.
 // Reference: https://xhr.spec.whatwg.org/
 
+// oxlint-disable typescript/no-explicit-any -- W3C XMLHttpRequest surface uses `any` deliberately: `response: any` in lib.dom matches our impl (the actual shape varies by `responseType`: text/json/arraybuffer/blob); the `on{load,error,progress,…}` handler return types are `=> any` in lib.dom; the simplified progress events we dispatch carry varying-shape payloads. The remaining `any`s in send()'s body parameter, fetch-callback narrowing at the Soup boundary, listener-map value type, and catch-block error sit inside this same W3C surface and a `gioAsync`-style introspection boundary.
+
 import GLib from 'gi://GLib?version=2.0';
 import System from 'system';
 import fetch from '@gjsify/fetch';

@@ -26,7 +26,7 @@ export default async () => {
             const ch = new MessageChannel();
             const received = await new Promise<unknown>((resolve) => {
                 ch.port2.addEventListener('message', (e) => {
-                    resolve((e as any).data);
+                    resolve((e as { data: unknown }).data);
                 });
                 ch.port1.postMessage({ hello: 'world' });
             });
@@ -37,7 +37,7 @@ export default async () => {
             const ch = new MessageChannel();
             const received = await new Promise<unknown>((resolve) => {
                 ch.port1.addEventListener('message', (e) => {
-                    resolve((e as any).data);
+                    resolve((e as { data: unknown }).data);
                 });
                 ch.port2.postMessage(42);
             });
@@ -51,7 +51,7 @@ export default async () => {
             const messages: unknown[] = [];
             await new Promise<void>((resolve) => {
                 ch.port2.addEventListener('message', (e) => {
-                    messages.push((e as any).data);
+                    messages.push((e as { data: unknown }).data);
                     if (messages.length === 2) resolve();
                 });
             });
@@ -65,7 +65,7 @@ export default async () => {
             const ch = new MessageChannel();
             const received: unknown[] = [];
             ch.port2.addEventListener('message', (e) => {
-                received.push((e as any).data);
+                received.push((e as { data: unknown }).data);
             });
             ch.port1.postMessage('before-close');
             await new Promise((r) => setTimeout(r, 10));
@@ -88,7 +88,7 @@ export default async () => {
         await it('onmessage setter wires up the message handler', async () => {
             const ch = new MessageChannel();
             const received = await new Promise<unknown>((resolve) => {
-                ch.port2.onmessage = (e) => resolve((e as any).data);
+                ch.port2.onmessage = (e) => resolve((e as { data: unknown }).data);
                 ch.port1.postMessage('via onmessage');
             });
             expect(received).toBe('via onmessage');

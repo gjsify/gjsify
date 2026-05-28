@@ -25,7 +25,7 @@ export function stripURLForUseAsAReferrer(url: null | URL | 'no-referrer', origi
         return 'no-referrer';
     }
 
-    const u = new URL(url) as any;
+    const u = new URL(url) as URL & { username: string; password: string; hash: string; pathname: string; search: string };
 
     // 2. If url's scheme is a local scheme, then return no referrer.
     if (/^(about|blob|data):$/.test(u.protocol)) {
@@ -55,7 +55,7 @@ export function stripURLForUseAsAReferrer(url: null | URL | 'no-referrer', origi
     }
 
     // 7. Return url.
-    return u as URL;
+    return u;
 }
 
 /**

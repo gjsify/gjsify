@@ -68,7 +68,7 @@ export default async () => {
 
                 keys.forEach((key) => {
                     // WORKAROUND for getter / setter
-                    const exists = (signal as any)[key] !== undefined;
+                    const exists = (signal as unknown as Record<string, unknown>)[key] !== undefined;
 
                     assert(exists, `'${key}' not found, but should have it: `);
                 });
@@ -80,11 +80,14 @@ export default async () => {
 
             await it("should have 'onabort' property which is null by default", async () => {
                 // TODO:
-                expect((signal as any).onabort).toBeNull();
+                expect(signal.onabort).toBeNull();
             });
 
             await it("should throw a TypeError if 'signal.aborted' getter is called with non AbortSignal object", async () => {
-                const getAborted = Object.getOwnPropertyDescriptor((signal as any).__proto__, 'aborted')!.get;
+                const getAborted = Object.getOwnPropertyDescriptor(
+                    Object.getPrototypeOf(signal) as object,
+                    'aborted',
+                )!.get;
 
                 expect(() => {
                     getAborted!.call({});
@@ -121,7 +124,7 @@ export default async () => {
 
                 let calls = 0;
                 // TODO:
-                (controller.signal as any).onabort = () => {
+                controller.signal.onabort = () => {
                     ++calls;
                 };
                 controller.abort();

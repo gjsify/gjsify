@@ -51,9 +51,10 @@ export const EventTargetTest = async () => {
 
         await it('should not throw even if empty object had been added', async () => {
             const f = {};
-            // Our dom-events EventListener interface is not exported — use `any` to bypass
-            // the mismatch between the global DOM EventListener type and our local one.
-            target.addEventListener('foo', f as any);
+            // Deliberately register an empty object — the spec tolerates it (the object can grow
+            // a `handleEvent` later). Cast through the listener-object shape since `{}` is not
+            // structurally assignable to `EventListenerObject` until `handleEvent` is added.
+            target.addEventListener('foo', f as unknown as (evt: Event) => void);
             const retv = target.dispatchEvent(new Event('foo'));
             assert.strictEqual(retv, true);
         });
@@ -61,7 +62,7 @@ export const EventTargetTest = async () => {
         await it('should call obj.handleEvent method even if added later', async () => {
             const event = new Event('foo');
             const f: { handleEvent?: Spy<(event: Event) => void> } = {};
-            target.addEventListener('foo', f as any);
+            target.addEventListener('foo', f as unknown as (evt: Event) => void);
             f.handleEvent = spy();
             const retv = target.dispatchEvent(event);
 

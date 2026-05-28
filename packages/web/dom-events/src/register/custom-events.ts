@@ -11,7 +11,7 @@ const toRegister: Record<string, unknown> = {
 };
 
 for (const [name, value] of Object.entries(toRegister)) {
-    if (typeof (globalThis as any)[name] === 'undefined') {
+    if (typeof (globalThis as Record<string, unknown>)[name] === 'undefined') {
         Object.defineProperty(globalThis, name, { value, writable: true, configurable: true });
     }
 }

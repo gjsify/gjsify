@@ -12,7 +12,7 @@ export default async () => {
     await describe('AbortSignal', async () => {
         await it('should not be callable', async () => {
             expect(() => {
-                (AbortSignal as any)();
+                (AbortSignal as unknown as () => unknown)();
             }).toThrow(TypeError);
         });
 

@@ -99,12 +99,12 @@ export default async () => {
                 },
             );
             server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
-            const port = (server.get_listeners()[0].get_local_address() as any).get_port();
+            const port = (server.get_listeners()[0].get_local_address() as Gio.InetSocketAddress).get_port();
 
             const result = await new Promise<string>((resolve, reject) => {
                 const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
                 ws.onopen = () => ws.send('hello websocket');
-                ws.onmessage = (event: any) => {
+                ws.onmessage = (event: MessageEvent<string>) => {
                     ws.close();
                     resolve(event.data);
                 };
@@ -132,13 +132,13 @@ export default async () => {
                 },
             );
             server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
-            const port = (server.get_listeners()[0].get_local_address() as any).get_port();
+            const port = (server.get_listeners()[0].get_local_address() as Gio.InetSocketAddress).get_port();
 
             const result = await new Promise<ArrayBuffer>((resolve, reject) => {
                 const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
                 ws.binaryType = 'arraybuffer';
                 ws.onopen = () => ws.send(new Uint8Array([1, 2, 3, 4, 5]).buffer);
-                ws.onmessage = (event: any) => {
+                ws.onmessage = (event: MessageEvent<ArrayBuffer>) => {
                     ws.close();
                     resolve(event.data);
                 };
@@ -164,11 +164,11 @@ export default async () => {
                 },
             );
             server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
-            const port = (server.get_listeners()[0].get_local_address() as any).get_port();
+            const port = (server.get_listeners()[0].get_local_address() as Gio.InetSocketAddress).get_port();
 
             const result = await new Promise<number>((resolve, reject) => {
                 const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
-                ws.onclose = (event: any) => resolve(event.code);
+                ws.onclose = (event: CloseEvent) => resolve(event.code);
                 ws.onerror = () => reject(new Error('WebSocket error'));
                 setTimeout(() => reject(new Error('Timeout')), 5000);
             });
@@ -195,7 +195,7 @@ export default async () => {
                 },
             );
             server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
-            const port = (server.get_listeners()[0].get_local_address() as any).get_port();
+            const port = (server.get_listeners()[0].get_local_address() as Gio.InetSocketAddress).get_port();
 
             await new Promise<void>((resolve, reject) => {
                 const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, undefined, {
@@ -224,7 +224,7 @@ export default async () => {
                 },
             );
             server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
-            const port = (server.get_listeners()[0].get_local_address() as any).get_port();
+            const port = (server.get_listeners()[0].get_local_address() as Gio.InetSocketAddress).get_port();
 
             await new Promise<void>((resolve, reject) => {
                 const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, undefined, {
@@ -256,13 +256,16 @@ export default async () => {
                 const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, undefined, {
                     handshakeTimeout: 200,
                 });
-                ws.addEventListener(
-                    'error',
-                    (ev: any) => {
-                        resolve(ev.error instanceof Error ? ev.error : new Error(ev.message ?? 'unknown'));
-                    },
-                    { once: true },
-                );
+                // The W3C `Event` doesn't model `error`/`message`; the impl attaches them so
+                // wrappers (e.g. @gjsify/ws) can surface a typed error. Cast through `unknown`
+                // because the consumer's global `Event` and dom-events' internal `Event` are
+                // structurally compatible but TS treats them as distinct nominal types.
+                const onError = (ev: Event & { error?: Error; message?: string }) => {
+                    resolve(ev.error instanceof Error ? ev.error : new Error(ev.message ?? 'unknown'));
+                };
+                ws.addEventListener('error', onError as unknown as Parameters<typeof ws.addEventListener>[1], {
+                    once: true,
+                });
                 ws.addEventListener('open', () => reject(new Error('Unexpected open')), { once: true });
                 setTimeout(() => reject(new Error('Test timeout')), 5000);
             });

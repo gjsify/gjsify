@@ -72,7 +72,7 @@ export default async () => {
                 const h = new Headers();
                 h.append('x-multi', 'a');
                 h.append('x-multi', 'b');
-                const raw = (h as any).raw();
+                const raw = (h as Headers & { raw: () => Record<string, string[]> }).raw();
                 expect(raw['x-multi'].length).toBe(2);
                 expect(raw['x-multi'][0]).toBe('a');
                 expect(raw['x-multi'][1]).toBe('b');
@@ -300,10 +300,10 @@ export default async () => {
             // registered by `@gjsify/fetch/register/xhr` (pulled in by --globals
             // auto when the detector sees `new XMLHttpRequest()`); on Node there
             // is no native XMLHttpRequest, so the suite is gated with on('Gjs', …).
-            const XHR = (globalThis as any).XMLHttpRequest;
+            const XHR = (globalThis as { XMLHttpRequest: typeof XMLHttpRequest }).XMLHttpRequest;
 
-            const runXhr = (init: (xhr: any) => void) =>
-                new Promise<any>((resolve, reject) => {
+            const runXhr = (init: (xhr: XMLHttpRequest) => void) =>
+                new Promise<XMLHttpRequest>((resolve, reject) => {
                     const xhr = new XHR();
                     xhr.open('GET', 'data:text/plain;base64,aGVsbG8=');
                     init(xhr);
