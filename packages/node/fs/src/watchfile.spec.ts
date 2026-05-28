@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec captures fs.watchFile's dynamically-typed (curr, prev) Stats listener arguments
 // Ported from refs/bun/test/js/node/watch/fs.watchFile.test.ts (behavior)
 // Original: MIT, Oven & contributors.
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.

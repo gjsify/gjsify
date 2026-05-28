@@ -33,14 +33,17 @@ export function fstat(
     options: StatOptions,
     callback: (err: NodeJS.ErrnoException | null, stats: Stats | BigIntStats) => void,
 ): void;
-export function fstat(fd: number, optionsOrCb: any, callback?: any): void {
-    if (typeof optionsOrCb === 'function') {
-        callback = optionsOrCb;
-        optionsOrCb = {};
-    }
-    Promise.resolve()
-        .then(() => fstatSync(fd, optionsOrCb))
-        .then((s) => callback(null, s), callback);
+export function fstat(
+    fd: number,
+    optionsOrCb: StatOptions | ((err: NodeJS.ErrnoException | null, stats: Stats | BigIntStats) => void),
+    callback?: (err: NodeJS.ErrnoException | null, stats: Stats | BigIntStats) => void,
+): void {
+    const cb = typeof optionsOrCb === 'function' ? optionsOrCb : callback!;
+    const options: StatOptions = typeof optionsOrCb === 'function' ? {} : optionsOrCb;
+    fstatAsync(fd, options).then(
+        (s) => cb(null, s),
+        (err) => cb(err as NodeJS.ErrnoException, undefined as unknown as Stats),
+    );
 }
 
 export async function fstatAsync(fd: number, options?: StatOptions): Promise<Stats | BigIntStats> {
@@ -59,14 +62,14 @@ export function ftruncateSync(fd: number, len = 0): void {
 
 export function ftruncate(fd: number, callback: (err: NodeJS.ErrnoException | null) => void): void;
 export function ftruncate(fd: number, len: number, callback: (err: NodeJS.ErrnoException | null) => void): void;
-export function ftruncate(fd: number, lenOrCb: any, callback?: any): void {
-    if (typeof lenOrCb === 'function') {
-        callback = lenOrCb;
-        lenOrCb = 0;
-    }
-    Promise.resolve()
-        .then(() => ftruncateSync(fd, lenOrCb))
-        .then(() => callback(null), callback);
+export function ftruncate(
+    fd: number,
+    lenOrCb: number | ((err: NodeJS.ErrnoException | null) => void),
+    callback?: (err: NodeJS.ErrnoException | null) => void,
+): void {
+    const cb = typeof lenOrCb === 'function' ? lenOrCb : callback!;
+    const len = typeof lenOrCb === 'function' ? 0 : lenOrCb;
+    ftruncateAsync(fd, len).then(() => cb(null), cb);
 }
 
 export async function ftruncateAsync(fd: number, len = 0): Promise<void> {
@@ -244,14 +247,21 @@ export function readv(
     position: number | null,
     callback: (err: NodeJS.ErrnoException | null, bytesRead: number, buffers: NodeJS.ArrayBufferView[]) => void,
 ): void;
-export function readv(fd: number, buffers: NodeJS.ArrayBufferView[], positionOrCb: any, callback?: any): void {
-    if (typeof positionOrCb === 'function') {
-        callback = positionOrCb;
-        positionOrCb = null;
-    }
-    Promise.resolve()
-        .then(() => ({ bytesRead: readvSync(fd, buffers, positionOrCb), buffers }))
-        .then((r) => callback(null, r.bytesRead, r.buffers), callback);
+export function readv(
+    fd: number,
+    buffers: NodeJS.ArrayBufferView[],
+    positionOrCb:
+        | number
+        | null
+        | ((err: NodeJS.ErrnoException | null, bytesRead: number, buffers: NodeJS.ArrayBufferView[]) => void),
+    callback?: (err: NodeJS.ErrnoException | null, bytesRead: number, buffers: NodeJS.ArrayBufferView[]) => void,
+): void {
+    const cb = typeof positionOrCb === 'function' ? positionOrCb : callback!;
+    const position = typeof positionOrCb === 'function' ? null : positionOrCb;
+    readvAsync(fd, buffers, position).then(
+        (r) => cb(null, r.bytesRead, r.buffers),
+        (err) => cb(err as NodeJS.ErrnoException, 0, buffers),
+    );
 }
 
 export async function readvAsync(fd: number, buffers: NodeJS.ArrayBufferView[], position?: number | null) {
@@ -280,14 +290,21 @@ export function writev(
     position: number | null,
     callback: (err: NodeJS.ErrnoException | null, bytesWritten: number, buffers: NodeJS.ArrayBufferView[]) => void,
 ): void;
-export function writev(fd: number, buffers: NodeJS.ArrayBufferView[], positionOrCb: any, callback?: any): void {
-    if (typeof positionOrCb === 'function') {
-        callback = positionOrCb;
-        positionOrCb = null;
-    }
-    Promise.resolve()
-        .then(() => ({ bytesWritten: writevSync(fd, buffers, positionOrCb), buffers }))
-        .then((r) => callback(null, r.bytesWritten, r.buffers), callback);
+export function writev(
+    fd: number,
+    buffers: NodeJS.ArrayBufferView[],
+    positionOrCb:
+        | number
+        | null
+        | ((err: NodeJS.ErrnoException | null, bytesWritten: number, buffers: NodeJS.ArrayBufferView[]) => void),
+    callback?: (err: NodeJS.ErrnoException | null, bytesWritten: number, buffers: NodeJS.ArrayBufferView[]) => void,
+): void {
+    const cb = typeof positionOrCb === 'function' ? positionOrCb : callback!;
+    const position = typeof positionOrCb === 'function' ? null : positionOrCb;
+    writevAsync(fd, buffers, position).then(
+        (r) => cb(null, r.bytesWritten, r.buffers),
+        (err) => cb(err as NodeJS.ErrnoException, 0, buffers),
+    );
 }
 
 export async function writevAsync(fd: number, buffers: NodeJS.ArrayBufferView[], position?: number | null) {

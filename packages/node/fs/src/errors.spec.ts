@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec catches errors with catch (err: any) to assert fs error .code/.message/.path fields
 // Extended fs tests — error handling, constants, path edge cases, readdir options
 // Ported from refs/node-test/parallel/test-fs-*.js
 // Original: MIT license, Node.js contributors

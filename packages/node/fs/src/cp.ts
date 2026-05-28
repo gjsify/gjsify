@@ -45,7 +45,7 @@ function makeENOTDIR(srcStr: string, destStr: string): NodeJS.ErrnoException {
     e.code = 'ENOTDIR';
     e.syscall = 'copyfile';
     e.path = srcStr;
-    (e as any).dest = destStr;
+    (e as NodeJS.ErrnoException & { dest?: string }).dest = destStr;
     return e;
 }
 
@@ -56,7 +56,7 @@ function makeSYMLINKLOOP(srcStr: string, destStr: string): NodeJS.ErrnoException
     e.code = 'ELOOP';
     e.syscall = 'copyfile';
     e.path = srcStr;
-    (e as any).dest = destStr;
+    (e as NodeJS.ErrnoException & { dest?: string }).dest = destStr;
     return e;
 }
 
@@ -88,8 +88,8 @@ function copyOneSyncFile(
             if (opts.errorOnExist) throw makeEEXIST(destStr);
             return; // silent skip when force=false and no errorOnExist
         }
-    } catch (e: any) {
-        if (typeof e.code === 'string') throw e; // re-throw Node-style errors (string codes)
+    } catch (e) {
+        if (typeof (e as NodeJS.ErrnoException).code === 'string') throw e; // re-throw Node-style errors (string codes)
         // Gio errors have numeric codes (e.g. NOT_FOUND=1) — dest doesn't exist, fine
     }
 
@@ -128,8 +128,8 @@ function cpOneDirSync(
             if (destInfo.get_file_type() !== Gio.FileType.DIRECTORY) {
                 throw makeENOTDIR(destStr, srcStr);
             }
-        } catch (e: any) {
-            if (typeof e.code === 'string') throw e;
+        } catch (e) {
+            if (typeof (e as NodeJS.ErrnoException).code === 'string') throw e;
         }
     }
 
@@ -210,8 +210,8 @@ export function cpSync(src: PathLike, dest: PathLike, options?: CpSyncOptions): 
         if (info.get_file_type() === Gio.FileType.DIRECTORY && !opts.recursive) {
             throw makeEISDIR(srcStr);
         }
-    } catch (e: any) {
-        if (typeof e.code === 'string') throw e;
+    } catch (e) {
+        if (typeof (e as NodeJS.ErrnoException).code === 'string') throw e;
         throw createNodeError(e, 'stat', srcStr);
     }
 
@@ -253,8 +253,8 @@ export function cp(
                     cpPromises(src, dest, opts)
                         .then(() => cb(null))
                         .catch(cb);
-                } catch (e: any) {
-                    cb(e);
+                } catch (e) {
+                    cb(e as NodeJS.ErrnoException);
                 }
             })
             .catch(cb);
@@ -266,8 +266,8 @@ export function cp(
         try {
             cpSync(src, dest, opts as CpSyncOptions);
             cb(null);
-        } catch (e: any) {
-            cb(e);
+        } catch (e) {
+            cb(e as NodeJS.ErrnoException);
         }
     });
 }

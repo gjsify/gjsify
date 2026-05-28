@@ -17,7 +17,7 @@ const kIoDone = Symbol('kIoDone');
 // Legacy alias — delegates to the fs-package-internal `normalizePath`.
 // Accepts Buffer for compatibility with older call-sites; always returns a string.
 export function toPathIfFileURL(fileURLOrPath: string | Buffer | URL): string {
-    return normalizePath(fileURLOrPath as any);
+    return normalizePath(fileURLOrPath as PathLike);
 }
 export class WriteStream extends Writable implements IWriteStream {
     /**

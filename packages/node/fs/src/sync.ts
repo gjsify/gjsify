@@ -168,7 +168,10 @@ export function symlinkSync(target: PathLike, path: PathLike, _type?: 'file' | '
     file.make_symbolic_link(targetStr, null);
 }
 
-export function readFileSync(path: PathLike, options: any = { encoding: null, flag: 'r' }) {
+export function readFileSync(
+    path: PathLike,
+    options: { encoding?: string | null; flag?: string } | string | null = { encoding: null, flag: 'r' },
+) {
     const pathStr = normalizePath(path);
     const file = Gio.File.new_for_path(pathStr);
 
@@ -179,7 +182,10 @@ export function readFileSync(path: PathLike, options: any = { encoding: null, fl
             throw createNodeError(new Error('failed to read file'), 'read', pathStr);
         }
 
-        return encodeUint8Array(getEncodingFromOptions(options, 'buffer'), data);
+        return encodeUint8Array(
+            getEncodingFromOptions(options as Parameters<typeof getEncodingFromOptions>[0], 'buffer'),
+            data,
+        );
     } catch (err: unknown) {
         if ((err as { code?: unknown }).code && typeof (err as { code?: unknown }).code === 'string') throw err; // Already a Node error
         throw createNodeError(err, 'read', pathStr);

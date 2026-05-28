@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec calls glob via its dynamically-typed callback form not modelled by @types/node
 // Ported from refs/bun/test/js/node/fs/glob.test.ts
 // Original: MIT, Oven & contributors.
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.

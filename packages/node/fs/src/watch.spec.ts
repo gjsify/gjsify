@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec catches errors with catch (e: any) to assert fs.watch error codes and event shape
 // Ported from refs/bun/test/js/node/watch/fs.watch.test.ts
 // Original: MIT, Oven & contributors.
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
