@@ -241,7 +241,7 @@ export default async () => {
             });
 
             await it('File should be available as global', async () => {
-                expect(typeof (globalThis as any).File).toBe('function');
+                expect(typeof (globalThis as { File?: unknown }).File).toBe('function');
             });
         });
 

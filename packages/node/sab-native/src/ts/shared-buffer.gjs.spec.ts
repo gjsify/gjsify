@@ -43,7 +43,7 @@ export default async () => {
             await it('rejects non-integer size', async () => {
                 let threw = false;
                 try {
-                    SharedBuffer.create(1.5 as any);
+                    SharedBuffer.create(1.5 as unknown as number);
                 } catch {
                     threw = true;
                 }

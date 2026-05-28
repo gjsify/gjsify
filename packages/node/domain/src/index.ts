@@ -3,7 +3,7 @@
 import { EventEmitter } from 'node:events';
 
 export class Domain extends EventEmitter {
-    members: any[] = [];
+    members: EventEmitter[] = [];
 
     add(_emitter: EventEmitter): void {
         this.members.push(_emitter);

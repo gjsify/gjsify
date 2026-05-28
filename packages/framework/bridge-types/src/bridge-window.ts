@@ -70,8 +70,8 @@ export class BridgeWindow extends EventTarget {
         };
     }
 
-    getComputedStyle(_element: any): any {
-        return {};
+    getComputedStyle(_element: Element, _pseudoElt?: string | null): CSSStyleDeclaration {
+        return {} as CSSStyleDeclaration;
     }
 
     get [Symbol.toStringTag](): string {
