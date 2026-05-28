@@ -39,7 +39,7 @@ import {
 } from './fd-ops.js';
 import { FileHandle } from './file-handle.js';
 import { tempDirPath, normalizePath } from './utils.js';
-import { Dirent } from './dirent.js';
+import type { Dirent } from './dirent.js';
 import { Stats, BigIntStats, STAT_ATTRIBUTES } from './stats.js';
 import { createNodeError } from './errors.js';
 
@@ -568,15 +568,37 @@ async function rm(path: PathLike, options?: RmOptions): Promise<void> {
     const recursive = options?.recursive || false;
     const force = options?.force || false;
 
-    let dirent: Dirent;
+    // Probe the top-level path with NOFOLLOW so a symlink is identified as
+    // such — see the matching `rmSync` (`sync.ts`) comment for the
+    // workspace-source-wipe rationale. A symlink-to-directory must NOT
+    // be walked into; it is removed as a single entry.
+    let topType: Gio.FileType;
     try {
-        dirent = new Dirent(pathStr);
+        topType = file.query_file_type(Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
     } catch (err: unknown) {
-        if (force) return; // force: ignore non-existent paths
+        if (force) return;
         throw createNodeError(err, 'rm', path);
     }
 
-    if (dirent.isDirectory()) {
+    if (topType === Gio.FileType.SYMBOLIC_LINK) {
+        await new Promise<void>((resolve, reject) => {
+            file.delete_async(GLib.PRIORITY_DEFAULT, null, (_self: unknown, res: Gio.AsyncResult) => {
+                try {
+                    file.delete_finish(res);
+                    resolve();
+                } catch (err: unknown) {
+                    if (force) {
+                        resolve();
+                        return;
+                    }
+                    reject(createNodeError(err, 'rm', path));
+                }
+            });
+        });
+        return;
+    }
+
+    if (topType === Gio.FileType.DIRECTORY) {
         const childFiles = await readdir(path, { withFileTypes: true });
 
         if (!recursive && childFiles.length) {

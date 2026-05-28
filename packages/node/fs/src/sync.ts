@@ -596,22 +596,41 @@ export function rmSync(path: PathLike, options?: RmOptions): void {
     const recursive = options?.recursive || false;
     const force = options?.force || false;
 
-    let dirent: Dirent;
+    // Probe the top-level path with NOFOLLOW so a symlink is identified as
+    // such — `new Dirent(pathStr)` (default `Gio.FileQueryInfoFlags.NONE`)
+    // follows symlinks and reports a symlink-to-directory as a directory,
+    // which then walks the TARGET's children into the recursive `rmSync`
+    // descent below — the workspace-source-wipe data-loss bug: calling
+    // `rmSync(<root>/node_modules/@pkg/foo, { recursive: true })` where the
+    // path is a symlink to `packages/foo` would delete every file under
+    // packages/foo. Node's `fs.rmSync` removes a top-level symlink as a
+    // single entry, never descending into the target — match that.
+    let topType: Gio.FileType;
     try {
-        dirent = new Dirent(pathStr);
+        topType = file.query_file_type(Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
     } catch (err: unknown) {
         if (force && isNotFoundError(err)) return;
         throw createNodeError(err, 'rm', path);
     }
 
-    if (dirent.isDirectory()) {
+    if (topType === Gio.FileType.SYMBOLIC_LINK) {
+        try {
+            file.delete(null);
+        } catch (err: unknown) {
+            if (force && isNotFoundError(err)) return;
+            throw createNodeError(err, 'rm', path);
+        }
+        return;
+    }
+
+    if (topType === Gio.FileType.DIRECTORY) {
         // Use plain `readdirSync` (no withFileTypes) — the recursive call
-        // re-stats each child anyway (`new Dirent(pathStr)` at the top), so
-        // allocating + holding Dirent objects per level just adds GC pressure.
-        // The pre-collected name list also lets `readdirSync`'s enumerator
-        // close before the first recursive call descends, keeping the live
-        // fd count bounded by recursion depth × 1 (see readdirSync header
-        // for the EMFILE-on-deep-trees rationale).
+        // re-stats each child anyway, so allocating + holding Dirent
+        // objects per level just adds GC pressure. The pre-collected name
+        // list also lets `readdirSync`'s enumerator close before the first
+        // recursive call descends, keeping the live fd count bounded by
+        // recursion depth × 1 (see readdirSync header for the EMFILE-on-
+        // deep-trees rationale).
         const childNames = readdirSync(path) as string[];
 
         if (!recursive && childNames.length) {
