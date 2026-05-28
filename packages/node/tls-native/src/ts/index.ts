@@ -57,8 +57,82 @@ export interface NativeTls {
     parse_ocsp_response(bytes: Uint8Array): OcspResponseInfo | null;
 }
 
+/**
+ * Symbolic channel-binding type per RFC 5929 / RFC 9266.
+ *
+ * Mirrors `GjsifyTls.ChannelBindingType` in the GIR. Values are stable
+ * across GnuTLS / OpenSSL / Node — the RFCs assign them implicitly via
+ * the wire-protocol identifier ("tls-unique", "tls-server-end-point",
+ * "tls-exporter").
+ */
+export const TlsChannelBindingType = {
+    /** `tls-unique` (RFC 5929 §3) — TLS 1.0–1.2 only. */
+    TLS_UNIQUE: 0,
+    /** `tls-server-end-point` (RFC 5929 §4) — hash of the server cert. */
+    TLS_SERVER_END_POINT: 1,
+    /** `tls-exporter` (RFC 9266) — TLS 1.3 replacement for `tls-unique`. */
+    TLS_EXPORTER: 2,
+} as const;
+export type TlsChannelBindingType = (typeof TlsChannelBindingType)[keyof typeof TlsChannelBindingType];
+
+/**
+ * Minimal Gio.TlsConnection shape — typed structurally so this module
+ * doesn't take a value-level dep on `@girs/gio-2.0` (would force every
+ * consumer to install the GIR-types package even on Node). Real
+ * connections come from `@gjsify/tls`'s `TLSSocket._tlsConnection`.
+ */
+export interface TlsConnectionHandle {
+    /** Tag for type-narrowing — present on real Gio.TlsConnection. */
+    __isTlsConnection?: never;
+}
+
+/**
+ * Native SessionAccess wrapper (Phase 2 POC).
+ *
+ * Mirrors `GjsifyTls.SessionAccess` from the GIR. Every method currently
+ * throws a GLib.Error with domain `gjsify-tls-session-access-error-quark`
+ * and code `NOT_SUPPORTED` — see `docs/poc/tls-phase2-session-access.md`
+ * for the open struct-layout question gating the real implementation.
+ *
+ * The shape is locked in now so flipping the native side from
+ * throw → real is a transparent change for JS callers.
+ */
+export interface NativeSessionAccess {
+    /** `gnutls_session_is_resumed` — true if the session was resumed. */
+    is_session_reused(): boolean;
+    /** `gnutls_session_get_data2` — serialized session blob. */
+    get_session_data(): unknown;
+    /** `gnutls_session_set_data` — inject a session blob before handshake. */
+    set_session_data(data: unknown): void;
+    /** `gnutls_session_channel_binding` for a specific binding type. */
+    get_channel_binding(binding: TlsChannelBindingType): unknown;
+    /** Convenience: TLS-Finished bytes we sent (Node compat). */
+    get_finished(): unknown;
+    /** Convenience: TLS-Finished bytes the peer sent (Node compat). */
+    get_peer_finished(): unknown;
+    /** Negotiated protocol version as a stable string. */
+    get_negotiated_protocol_version(): string;
+}
+
+/** Native `SessionAccess` class constructor surface (GIR static methods). */
+export interface NativeSessionAccessClass {
+    /**
+     * Returns whether the native session access layer is functional.
+     * Currently always `false` — see `hasTlsSessionAccess()` for the
+     * preferred predicate that callers should use.
+     */
+    is_supported(): boolean;
+    /**
+     * Build a SessionAccess for a live `Gio.TlsConnection`. Returns
+     * `null` if @connection is `null`.
+     */
+    for_connection(connection: TlsConnectionHandle | null): NativeSessionAccess | null;
+}
+
 export interface GjsifyTlsModule {
     Tls: NativeTls;
+    SessionAccess: NativeSessionAccessClass;
+    ChannelBindingType: typeof TlsChannelBindingType;
 }
 
 // Synchronous optional load via GJS legacy imports API.
@@ -130,3 +204,42 @@ export const OcspResponseStatus = {
     UNAUTHORIZED: 6,
 } as const;
 export type OcspResponseStatus = (typeof OcspResponseStatus)[keyof typeof OcspResponseStatus];
+
+// ─── Phase 2: SessionAccess (POC scaffold) ─────────────────────────────────
+
+/**
+ * Returns `true` when the Phase 2 session-access bridge is functional.
+ *
+ * Today this always returns `false` even when the native typelib is
+ * loaded — the underlying gnutls_session_t extraction from
+ * `Gio.TlsConnection` is not yet implemented. See
+ * `docs/poc/tls-phase2-session-access.md` for the open question.
+ *
+ * Callers (e.g. `@gjsify/tls`'s `TLSSocket.getFinished()`) should gate
+ * with this predicate so consumers can detect "not supported on this
+ * platform / version" without triggering a thrown error.
+ *
+ * When the native side becomes functional this predicate flips to
+ * `true` automatically (it reads `GjsifyTls.SessionAccess.is_supported()`).
+ */
+export function hasTlsSessionAccess(): boolean {
+    if (!_mod) return false;
+    try {
+        return _mod.SessionAccess.is_supported();
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Build a {@link NativeSessionAccess} wrapper around a live
+ * `Gio.TlsConnection`. Returns `null` if @connection is `null` or
+ * the native typelib is unavailable.
+ *
+ * The returned object's methods THROW until {@link hasTlsSessionAccess}
+ * starts returning `true` — surface stays stable across the impl flip.
+ */
+export function createSessionAccess(connection: TlsConnectionHandle | null): NativeSessionAccess | null {
+    if (!_mod) return null;
+    return _mod.SessionAccess.for_connection(connection);
+}

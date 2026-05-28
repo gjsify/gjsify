@@ -52,8 +52,13 @@
 //
 // Documented gaps (see STATUS.md "Open TODOs"):
 //   - OCSP stapling on the Gio side: not exposed (parser surfaced via ocsp.ts).
-//   - TLS session resumption ('session' event, {session} option): GnuTLS
-//     resumption API is not surfaced via GI.
+//   - TLS session resumption ('session' event, {session} option) + channel
+//     binding (getFinished/getPeerFinished): SURFACE PRESENT (Phase 2 POC,
+//     v0.4.30). The native side throws "not supported" today (GnuTLS
+//     session_t access through Gio.TlsConnection's GIO-internal struct
+//     pending — see docs/poc/tls-phase2-session-access.md). The JS surface
+//     is locked in so flipping the native bits flips the consumer behavior
+//     transparently. Gate via hasTlsSessionAccess().
 //   - Custom DH/ECDH params, ticket keys: not exposed.
 
 export const DEFAULT_MIN_VERSION = 'TLSv1.2';
@@ -92,6 +97,19 @@ export {
     type OcspResponseInfo,
 } from './ocsp.js';
 
+// Phase 2: session resumption + channel binding — surface re-exports
+// from @gjsify/tls-native via session-access.ts. The TLSSocket getters
+// (`getSession`, `getFinished`, `getPeerFinished`, `isSessionReused`,
+// the `'session'` event, the `{session}` option on `connect()`) are
+// always present; their NO-OP / throw-into-undefined behavior is
+// gated by `hasTlsSessionAccess()`. See session-access.ts for the
+// full consumer flow.
+export {
+    hasTlsSessionAccess,
+    TlsChannelBindingType,
+    type NativeSessionAccess as TlsSessionAccess,
+} from './session-access.js';
+
 // --- default-object export (Node CJS-compat) -------------------------------
 import { checkServerIdentity as _checkServerIdentity } from './internal/hostname.js';
 import { createSecureContext as _createSecureContext } from './secure-context.js';
@@ -104,6 +122,10 @@ import {
     OcspCertStatus as _OcspCertStatus,
     OcspResponseStatus as _OcspResponseStatus,
 } from './ocsp.js';
+import {
+    hasTlsSessionAccess as _hasTlsSessionAccess,
+    TlsChannelBindingType as _TlsChannelBindingType,
+} from './session-access.js';
 
 const tlsExports = {
     TLSSocket: _TLSSocket,
@@ -122,6 +144,8 @@ const tlsExports = {
     hasOcspSupport: _hasOcspSupport,
     OcspCertStatus: _OcspCertStatus,
     OcspResponseStatus: _OcspResponseStatus,
+    hasTlsSessionAccess: _hasTlsSessionAccess,
+    TlsChannelBindingType: _TlsChannelBindingType,
 };
 
 export default tlsExports;

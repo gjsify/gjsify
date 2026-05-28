@@ -4,11 +4,21 @@
 //
 // Reference: Node.js lib/_tls_wrap.js `TLSSocket.prototype._init` +
 // lib/_tls_common.js. Gio-mapping notes live at the top of `index.ts`.
+//
+// Phase 2 hooks: when `options.session` is provided AND the native
+// session-access bridge is functional ({@link hasTlsSessionAccess}),
+// the session blob is injected BEFORE `handshake_async()` so GnuTLS
+// can attempt resumption. After the handshake completes, a `'session'`
+// event is emitted on the socket with the fresh session blob — Node
+// consumers cache this for subsequent connect calls. Both paths are
+// no-ops when the bridge isn't available, matching Node's behavior
+// on a build without session support.
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { TLSSocket, type SocketInternals, type TlsConnectOptions } from './tls-socket.js';
 import { createSecureContext } from './secure-context.js';
+import { hasTlsSessionAccess } from './session-access.js';
 
 /**
  * Create a TLS client connection.
@@ -45,6 +55,29 @@ export function connect(options: TlsConnectOptions, callback?: () => void): TLSS
             const tlsConn = Gio.TlsClientConnection.new(rawConnection as unknown as Gio.IOStream, connectable);
 
             tlsConn.set_server_identity(connectable);
+
+            // Session resumption: inject the prior session blob (if any)
+            // BEFORE handshake_async() so GnuTLS can attempt resumption.
+            // No-op when the native bridge isn't available; consumers
+            // get a full handshake without error.
+            //
+            // We route through `socket.setSession(...)` (rather than
+            // calling the native access directly) so the Buffer →
+            // GLib.Bytes coercion lives in ONE place — `tls-socket.ts`'s
+            // `_bufferToBytes` helper. The setSession path also no-ops
+            // gracefully when `hasTlsSessionAccess()` is false, so the
+            // outer guard is belt-and-suspenders.
+            if (options.session && hasTlsSessionAccess()) {
+                try {
+                    // Wire the TLS connection on the socket so
+                    // `_getSessionAccess()` resolves a bridge bound to
+                    // the same `tlsConn` we're about to handshake on.
+                    socket._tlsConnection = tlsConn;
+                    socket.setSession(options.session);
+                } catch {
+                    // Swallow — resumption is best-effort.
+                }
+            }
 
             // Client certificate (mTLS)
             if (ctx.certificate) {
@@ -114,6 +147,22 @@ export function connect(options: TlsConnectOptions, callback?: () => void): TLSS
                         const internals = socket as unknown as SocketInternals;
                         internals._reading = false;
                         internals._startReading();
+
+                        // Phase 2: emit 'session' after the handshake so
+                        // consumers can cache the session blob for the
+                        // next connect call. No-op when the native bridge
+                        // is unavailable (`getSession()` returns undefined).
+                        // Node fires this once per new session ticket; the
+                        // POC fires once post-handshake. The full event
+                        // semantics (multiple tickets per connection, the
+                        // 'new-session-ticket' callback signal proxy)
+                        // arrive when the GIO struct-layout work lands.
+                        if (hasTlsSessionAccess()) {
+                            const session = socket.getSession();
+                            if (session) {
+                                socket.emit('session', session);
+                            }
+                        }
 
                         socket.emit('secureConnect');
                     } catch (err: unknown) {
