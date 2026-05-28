@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec exercises util.promisify custom-symbol, util.inherits and callbackify with dynamic props and deliberately-invalid argument types
 import { describe, it, expect } from '@gjsify/unit';
 import * as util from 'node:util';
 

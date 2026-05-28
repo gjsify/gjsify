@@ -268,12 +268,13 @@ export class TracingChannel {
 
         start.publish(context);
         try {
-            const result = fn.apply(thisArg, args) as any;
-            if (typeof result?.then !== 'function') {
+            const result: unknown = fn.apply(thisArg, args);
+            const thenable = result as { then?: unknown } | null | undefined;
+            if (typeof thenable?.then !== 'function') {
                 context.result = result;
                 return result;
             }
-            return result.then(resolve, reject);
+            return (result as PromiseLike<unknown>).then(resolve, reject);
         } catch (err) {
             context.error = err;
             error.publish(context);

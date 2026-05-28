@@ -330,7 +330,7 @@ export default async () => {
         await it('each interface entry should have required fields', async () => {
             const ifaces = os.networkInterfaces();
             for (const [, entries] of Object.entries(ifaces)) {
-                for (const entry of entries as any[]) {
+                for (const entry of (entries ?? []) as unknown as Array<Record<string, unknown>>) {
                     expect(typeof entry.address).toBe('string');
                     expect(typeof entry.netmask).toBe('string');
                     expect(

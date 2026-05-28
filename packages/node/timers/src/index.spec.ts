@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec passes deliberately-invalid arguments (null/undefined/string) to clear*/setTimeout for no-throw and coercion checks, and reads internal aliases dynamically
 import { describe, it, expect } from '@gjsify/unit';
 import timers from 'node:timers';
 

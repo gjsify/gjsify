@@ -12,14 +12,18 @@ import type { LookupOptions, LookupAddress } from './index.js';
 
 export function lookup(hostname: string, options?: LookupOptions | number): Promise<LookupAddress | LookupAddress[]> {
     return new Promise((resolve, reject) => {
-        _lookup(hostname, options as any, (err: any, address: any, family: any) => {
-            if (err) return reject(err);
-            if (Array.isArray(address)) {
-                resolve(address);
-            } else {
-                resolve({ address, family: family as 4 | 6 });
-            }
-        });
+        _lookup(
+            hostname,
+            options,
+            (err: NodeJS.ErrnoException | null, address: string | LookupAddress[], family: number) => {
+                if (err) return reject(err);
+                if (Array.isArray(address)) {
+                    resolve(address);
+                } else {
+                    resolve({ address, family: family as 4 | 6 });
+                }
+            },
+        );
     });
 }
 
@@ -50,15 +54,17 @@ export function reverse(ip: string): Promise<string[]> {
     });
 }
 
-export function resolve(hostname: string, rrtype?: string): Promise<any[]> {
+export function resolve(hostname: string): Promise<string[]>;
+export function resolve(hostname: string, rrtype: string): Promise<unknown[]>;
+export function resolve(hostname: string, rrtype?: string): Promise<string[] | unknown[]> {
     return new Promise((res, reject) => {
         if (rrtype) {
-            _resolve(hostname, rrtype, (err: any, records: any) => {
+            _resolve(hostname, rrtype, (err: NodeJS.ErrnoException | null, records: unknown[]) => {
                 if (err) return reject(err);
                 res(records);
             });
         } else {
-            _resolve(hostname, (err: any, records: any) => {
+            _resolve(hostname, (err: NodeJS.ErrnoException | null, records: string[]) => {
                 if (err) return reject(err);
                 res(records);
             });

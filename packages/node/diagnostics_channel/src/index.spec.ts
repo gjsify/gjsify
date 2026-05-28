@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec casts channel/tracingChannel handles and captures dynamically-shaped published message contexts
 // Ported from refs/node-test/parallel/test-diagnostics-channel-*.js
 // Original: MIT license, Node.js contributors
 

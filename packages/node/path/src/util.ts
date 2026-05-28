@@ -112,19 +112,20 @@ export function normalizeString(
 /**
  * Format a parsed path object into a path string.
  */
-export function _format(sep: string, pathObject: Record<string, any>): string {
+export function _format(sep: string, pathObject: unknown): string {
     if (pathObject === null || typeof pathObject !== 'object') {
         throw new TypeError('The "pathObject" argument must be of type Object. Received type ' + typeof pathObject);
     }
 
-    const dir = pathObject.dir || pathObject.root;
-    const base = pathObject.base || (pathObject.name || '') + formatExt(pathObject.ext);
+    const obj = pathObject as { dir?: string; root?: string; base?: string; name?: string; ext?: string };
+    const dir = obj.dir || obj.root;
+    const base = obj.base || (obj.name || '') + formatExt(obj.ext);
 
     if (!dir) {
         return base;
     }
 
-    if (dir === pathObject.root) {
+    if (dir === obj.root) {
         return dir + base;
     }
 

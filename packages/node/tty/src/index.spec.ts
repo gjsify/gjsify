@@ -294,8 +294,8 @@ export default async () => {
         });
 
         await it('process.stdin should have isTTY property if available', async () => {
-            if ((process.stdin as any).isTTY !== undefined) {
-                expect(typeof (process.stdin as any).isTTY).toBe('boolean');
+            if ((process.stdin as { isTTY?: boolean }).isTTY !== undefined) {
+                expect(typeof (process.stdin as { isTTY?: boolean }).isTTY).toBe('boolean');
             }
         });
     });

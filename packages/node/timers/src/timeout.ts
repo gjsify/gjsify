@@ -4,12 +4,12 @@
 export class Timeout {
     private _id: ReturnType<typeof setTimeout> | null;
     private _ref = true;
-    private _callback: (...args: any[]) => void;
+    private _callback: (...args: unknown[]) => void;
     private _delay: number;
-    private _args: any[];
+    private _args: unknown[];
     private _isInterval: boolean;
 
-    constructor(callback: (...args: any[]) => void, delay: number, args: any[], isInterval: boolean) {
+    constructor(callback: (...args: unknown[]) => void, delay: number, args: unknown[], isInterval: boolean) {
         this._callback = callback;
         this._delay = delay;
         this._args = args;
@@ -84,7 +84,7 @@ export class Immediate {
     private _ref = true;
     private _cancelled = false;
 
-    constructor(callback: (...args: any[]) => void, args: any[]) {
+    constructor(callback: (...args: unknown[]) => void, args: unknown[]) {
         // Use a microtask so setImmediate fires before setTimeout(0)
         Promise.resolve().then(() => {
             if (!this._cancelled) {

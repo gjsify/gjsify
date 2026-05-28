@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec tests CJS util.inherits patterns requiring dynamic this-typed constructors and (Cls as any).call() / .super_ idioms
 // Ported from refs/node-test/parallel/test-util-inspect.js,
 // test-util-format.js, test-util-types.js, test-util-callbackify.js
 // Original: MIT license, Node.js contributors
