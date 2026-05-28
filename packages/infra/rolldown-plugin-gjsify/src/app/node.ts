@@ -16,6 +16,7 @@ import { getAliasesForNode } from '../utils/alias.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
 import { nodeModulesPathRewritePlugin, getBundleDirFromOutput } from '../plugins/rewrite-node-modules-paths.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
+import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 
 export interface NodeBuildConfig {
     options: RolldownOptions;
@@ -36,14 +37,18 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     // `require('../build/Release/node_datachannel.node')` must resolve at
     // runtime against the real node_modules tree.
     //
-    // Note: Rolldown's `external` array does NOT support glob patterns the
-    // way esbuild's did (`gi://*`, `@girs/*`). We use a function predicate
-    // instead so the gi:// URI scheme and the @girs/ namespace are matched
-    // by prefix.
+    // GJS-specific specifiers (`gi://*`, `@girs/*`) are NOT externalised —
+    // they are intercepted by `gjsImportsEmptyPlugin` (added to the plugins
+    // array below) and redirected to a virtual empty ESM module. Marking them
+    // external would leave bare `import 'gi://Gio?version=2.0'` strings in the
+    // output that Node's default ESM loader rejects with
+    // `ERR_UNSUPPORTED_ESM_URL_SCHEME`. The empty-module redirect makes node
+    // bundles of cross-platform packages (which transitively import @girs/*
+    // via *.gjs.spec / direct internal imports) loadable on Node — the GJS-
+    // only code paths are still gated at runtime by `on('Gjs', …)` or by
+    // `typeof globalThis.imports !== 'undefined'` guards.
     const exactExternal = [...(EXTERNALS_NODE as string[]), 'node-datachannel', ...userExternal];
     const external = (id: string): boolean => {
-        if (id.startsWith('gi://')) return true;
-        if (id.startsWith('@girs/')) return true;
         if (exactExternal.includes(id)) return true;
         return false;
     };
@@ -102,6 +107,12 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     };
 
     const plugins: RolldownPluginOption[] = [
+        // gjsImportsEmptyPlugin runs in `resolveId` order: 'pre', so it
+        // intercepts `@girs/*` and `gi://*` specifiers before `aliasPlugin`
+        // (and before the default resolver tries to read the @girs/* package
+        // entry, which contains a top-level `import 'gi://...'` that Node
+        // cannot resolve). Same composition order as `app/browser.ts`.
+        gjsImportsEmptyPlugin(),
         aliasPlugin({ entries: flattenAliases(aliasMap) }),
         deepkitPlugin({ reflection: input.pluginOptions.reflection }),
         cssAsStringPlugin(),
