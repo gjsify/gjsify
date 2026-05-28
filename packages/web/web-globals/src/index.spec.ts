@@ -1,5 +1,5 @@
 // Tests for @gjsify/web-globals — verify all Web API globals are registered
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
 
 // Side-effect import — registers all Web API globals
 import '@gjsify/web-globals/register';
@@ -185,15 +185,25 @@ export default async () => {
         });
 
         // ==================== EventSource ====================
-        await describe('EventSource', async () => {
-            await it('EventSource should be available as global', async () => {
-                expect(typeof globalThis.EventSource).toBe('function');
-            });
+        // EventSource is registered as a global on GJS by `@gjsify/eventsource/register`
+        // (chained from `@gjsify/web-globals/register`). On Node 24.x it is NOT
+        // available by default — Node added EventSource experimentally in 22.3 (gated
+        // behind --experimental-eventsource on many distros) and our cross-runtime
+        // routing intentionally leaves `eventsource/register` no-op on Node (consumers
+        // import `@gjsify/eventsource` directly to get the polyfill). On browser it
+        // is universally native. So these assertions only hold for the GJS slot of
+        // the runtimes triplet.
+        await on('Gjs', async () => {
+            await describe('EventSource', async () => {
+                await it('EventSource should be available as global', async () => {
+                    expect(typeof globalThis.EventSource).toBe('function');
+                });
 
-            await it('EventSource should have readyState constants', async () => {
-                expect(EventSource.CONNECTING).toBe(0);
-                expect(EventSource.OPEN).toBe(1);
-                expect(EventSource.CLOSED).toBe(2);
+                await it('EventSource should have readyState constants', async () => {
+                    expect(EventSource.CONNECTING).toBe(0);
+                    expect(EventSource.OPEN).toBe(1);
+                    expect(EventSource.CLOSED).toBe(2);
+                });
             });
         });
 

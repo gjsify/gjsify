@@ -196,16 +196,25 @@ function suggestRuntimes(axis, signals) {
     }
 
     // Node-API, Web-API, DOM — three-pillar polyfills.
-    // (A) GJS-bound → polyfill on GJS only.
+    // (A) GJS-bound — polyfill on GJS, other slots depend on whether the
+    // package ships a `globals.mjs` re-export pointing at the runtime's
+    // native equivalent. Examples:
+    //   - `@gjsify/websocket` is gjs-bound (Soup impl) AND ships globals.mjs
+    //     re-exporting globalThis.WebSocket — Node 22+ and modern browsers
+    //     have native WebSocket. Slot = `native` on Node/browser.
+    //   - `@gjsify/webrtc-native` is gjs-bound and ships NO globals.mjs —
+    //     no native equivalent on Node/browser. Slot = `none` on both.
+    // Convention: `globals.mjs` presence is the signal that the package
+    // has a workable native-delegation path on the non-GJS runtimes it
+    // re-exports for. Where present, suggest `native`; otherwise `none`.
     if (gjsBound) {
-        return {
-            gjs: 'polyfill',
-            // DOM is native on browser even when impl is GJS-bound (the browser
-            // doesn't need our impl; the alias resolves to the empty stub today,
-            // but logically the slot is 'native').
-            node: 'none',
-            browser: axis === 'dom' ? 'native' : 'none',
-        };
+        // DOM is native on browser even when impl is GJS-bound (the browser
+        // doesn't need our impl; logically the slot is 'native').
+        if (axis === 'dom') {
+            return { gjs: 'polyfill', node: 'none', browser: 'native' };
+        }
+        const nativeSlot = signals.has_globals_mjs ? 'native' : 'none';
+        return { gjs: 'polyfill', node: nativeSlot, browser: nativeSlot };
     }
 
     // (B) Pure-TS — portable on all three. Browser-native flag if a Web-API
