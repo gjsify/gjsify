@@ -87,7 +87,7 @@ export default async () => {
             expect(err).toBeDefined();
             // GJS Gio errors have numeric codes; Node.js has string 'ENOENT'
             const code: unknown = (err as NodeJS.ErrnoException).code;
-            expect(code === 'ENOENT' || code === 1 || (err as any).code !== undefined).toBeTruthy();
+            expect(code === 'ENOENT' || code === 1 || (err as NodeJS.ErrnoException).code !== undefined).toBeTruthy();
         });
 
         await it('should read file with start and end options', async () => {

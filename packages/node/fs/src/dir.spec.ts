@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec passes deliberately-invalid arguments to opendir and reads callback err shape
 // Ported from refs/bun/test/js/node/fs/dir.test.ts
 // Original: MIT, Oven & contributors.
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.

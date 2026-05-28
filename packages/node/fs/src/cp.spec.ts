@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec catches errors with catch (e: any) to assert fs.cp error codes
 // Ported from refs/bun/test/js/node/fs/cp.test.ts and
 // refs/node-test/parallel/test-fs-cp-sync-*.mjs
 // Original: MIT, Oven & contributors / Node.js contributors.

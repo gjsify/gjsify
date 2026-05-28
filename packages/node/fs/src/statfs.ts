@@ -91,15 +91,14 @@ export function statfs(
     options: { bigint: true },
     callback: (err: NodeJS.ErrnoException | null, stats: BigIntStatFsResult) => void,
 ): void;
+// oxlint-disable-next-line typescript/no-explicit-any -- overload-impl signature: the three public overloads above split the callback's `stats` type (StatFsResult vs BigIntStatFsResult), which a single typed impl signature cannot unify; the typed surface is the overloads.
 export function statfs(path: PathLike, optionsOrCb: any, callback?: any): void {
-    if (typeof optionsOrCb === 'function') {
-        callback = optionsOrCb;
-        optionsOrCb = {};
-    }
-    const useBigInt = optionsOrCb?.bigint === true;
+    const cb = typeof optionsOrCb === 'function' ? optionsOrCb : callback;
+    const options = typeof optionsOrCb === 'function' ? {} : optionsOrCb;
+    const useBigInt = options?.bigint === true;
     queryFsInfoAsync(path, useBigInt).then(
-        (result) => callback(null, result),
-        (err) => callback(err, null),
+        (result) => cb(null, result),
+        (err) => cb(err, null),
     );
 }
 

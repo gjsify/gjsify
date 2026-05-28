@@ -312,23 +312,23 @@ export class FileHandle implements IFileHandle {
     ): Promise<FileReadResult<T>>;
     async read<T extends NodeJS.ArrayBufferView = Buffer>(options?: FileReadOptions<T>): Promise<FileReadResult<T>>;
 
-    async read<T extends NodeJS.ArrayBufferView = Buffer>(...args: any[]): Promise<FileReadResult<T>> {
+    async read<T extends NodeJS.ArrayBufferView = Buffer>(...args: unknown[]): Promise<FileReadResult<T>> {
         let buffer: T | undefined;
         let offset: number | null | undefined;
         let length: number | null | undefined;
         let position: number | null | undefined;
 
         if (typeof args[0] === 'object' && !(args[0] instanceof Uint8Array) && !(args[0] instanceof Buffer)) {
-            const options: FileReadOptions<T> = args[0];
+            const options = args[0] as FileReadOptions<T>;
             buffer = options.buffer;
             offset = options.offset;
             length = options.length;
             position = options.position;
         } else {
-            buffer = args[0];
-            offset = args[1];
-            length = args[2];
-            position = args[3];
+            buffer = args[0] as T;
+            offset = args[1] as number | null | undefined;
+            length = args[2] as number | null | undefined;
+            position = args[3] as number | null | undefined;
         }
 
         const bufView = buffer as unknown as Uint8Array;
@@ -625,7 +625,7 @@ export class FileHandle implements IFileHandle {
     }>;
     async write<TBuffer extends NodeJS.ArrayBufferView>(
         data: string | TBuffer,
-        ...args: any[]
+        ...args: unknown[]
     ): Promise<{
         bytesWritten: number;
         buffer: string | TBuffer;
@@ -636,12 +636,12 @@ export class FileHandle implements IFileHandle {
         let length: number | null = null;
 
         if (typeof data === 'string') {
-            position = args[0];
-            encoding = args[1];
+            position = args[0] as number | null;
+            encoding = args[1] as BufferEncoding | 'buffer' | null;
         } else {
-            offset = args[0];
-            length = args[1];
-            position = args[2];
+            offset = args[0] as number | null;
+            length = args[1] as number | null;
+            position = args[2] as number | null;
         }
 
         encoding = getEncodingFromOptions(encoding, typeof data === 'string' ? 'utf8' : null);

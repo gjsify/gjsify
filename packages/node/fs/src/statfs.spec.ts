@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec wraps the statfs callback API in new Promise<any> and reads the dynamically-shaped StatFs result
 // Ported from refs/node-test/parallel/test-fs-statfs.js (behavior)
 // Original: MIT, Node.js contributors.
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.

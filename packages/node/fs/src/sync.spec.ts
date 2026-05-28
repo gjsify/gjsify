@@ -180,9 +180,9 @@ export default async () => {
                 let watcher: ReturnType<typeof watch>;
                 try {
                     watcher = watch(watchMe, { persistent: true }, console.log);
-                } catch (err: any) {
+                } catch (err) {
                     // EMFILE (too many open files) is a system-level issue, not a code bug
-                    if (err?.code === 'EMFILE') {
+                    if ((err as NodeJS.ErrnoException)?.code === 'EMFILE') {
                         resolve();
                         return;
                     }
@@ -428,9 +428,9 @@ export default async () => {
                 expect(refResult).toBe(watcher);
                 const unrefResult = watcher.unref();
                 expect(unrefResult).toBe(watcher);
-            } catch (err: any) {
+            } catch (err) {
                 // EMFILE is a system-level issue, not a code bug
-                if (err?.code !== 'EMFILE') throw err;
+                if ((err as NodeJS.ErrnoException)?.code !== 'EMFILE') throw err;
             } finally {
                 if (watcher) watcher.close();
                 rmSync(filePath);

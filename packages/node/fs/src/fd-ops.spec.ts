@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec wraps fd callback APIs in new Promise<any> and reads the dynamically-shaped Stats result
 // Ported from refs/node-test/parallel/test-fs-read-sync.js + test-fs-write-sync.js (behavior)
 // Original: MIT, Node.js contributors.
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.

@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec dynamically imports node:fs for the lutimes surface and reads callback err shape
 // Ported from refs/node-test/parallel/test-fs-utimes.js (behavior)
 // Original: MIT, Node.js contributors.
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.

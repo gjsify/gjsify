@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec wraps callback fs APIs in new Promise<any> and reads the dynamically-shaped Stats result
 // Ported from refs/node-test/parallel/test-fs-*.js
 // Original: MIT license, Node.js contributors
 

@@ -168,7 +168,9 @@ function matchAll(pattern: string, cwd: string, exclude: GlobOptions['exclude'])
 
 export function globSync(pattern: string | string[], options?: GlobOptions): string[] {
     const patterns = Array.isArray(pattern) ? pattern : [pattern];
-    const cwd = options?.cwd ? normalizePath(options.cwd as PathLike) : ((globalThis as any).process?.cwd?.() ?? '/');
+    const cwd = options?.cwd
+        ? normalizePath(options.cwd as PathLike)
+        : ((globalThis as { process?: { cwd?: () => string } }).process?.cwd?.() ?? '/');
     const exclude = options?.exclude;
 
     const seen = new Set<string>();
