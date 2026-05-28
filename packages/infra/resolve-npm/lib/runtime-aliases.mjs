@@ -19,7 +19,11 @@
 //   slot=polyfill → keep as-is (`@gjsify/<X>` — our impl ships)
 //   slot=native   → redirect to `@gjsify/<X>/globals` (re-exports native value)
 //   slot=partial  → keep as-is (our impl, gracefully degrades at runtime)
-//   slot=none     → redirect to `@gjsify/empty`
+//   slot=none     → no rewrite (the package's polyfill resolves normally;
+//                   its GJS-only value-deps are stripped by the bundler's
+//                   `gjsImportsEmptyPlugin`; runtime calls into GJS-only
+//                   code paths fail with a structured no-op — same shape
+//                   as `slot=partial`)
 //
 // Packages without a declared `runtimes` triplet fall through to the hardcoded
 // `ALIASES_*` maps in `./index.mjs` — backwards-compatible behavior for the
@@ -330,7 +334,23 @@ function resolveSlot(rec, target) {
             );
             return '@gjsify/empty';
         case 'none':
-            return '@gjsify/empty';
+            // Intentionally no rewrite. The original draft routed `none` to
+            // `@gjsify/empty` (idea: shrink GJS-only polyfills out of Node
+            // bundles), but that breaks bundles whose own `*.gjs.spec.ts`
+            // files import their host package by name — e.g. `@gjsify/tls`'s
+            // `session-access.gjs.spec.ts` imports `TLSSocket, connect, …`
+            // from `@gjsify/tls`. Empty has none of those exports, so the
+            // bundler errors with MISSING_EXPORT before the gjs-spec gets a
+            // chance to runtime-guard via `on('Gjs', …)`.
+            // Letting `none`-slotted packages resolve normally to the
+            // polyfill keeps the bundle valid; the `gjsImportsEmptyPlugin`
+            // (added to `--app node` in a prior PR) still strips the
+            // `gi://`/`@girs/*` value-deps inside the polyfill so the bundle
+            // doesn't crash on load. Consumers calling GJS-only code paths
+            // on Node will hit a runtime no-op / structured failure inside
+            // the polyfill, which is the documented `partial`-shaped
+            // behavior — and exactly what the strategy doc allows.
+            return null;
         default:
             return null;
     }
