@@ -7,20 +7,22 @@
 //      not surfaced via @types/node — `*.gjs.spec.ts` per CLAUDE.md
 //      rule 2b allows direct impl-private access type-safely.
 //
-// Current state of the native side: every session-access method
-// throws `SessionAccessError.NOT_SUPPORTED` (Phase 2 POC scaffold —
-// see docs/poc/tls-phase2-session-access.md). The TLSSocket surface
-// converts those throws into `undefined` returns / silent no-ops to
-// match Node's "session support not available" contract.
+// Current state of the native side: Path-A implementation lands the
+// C shim (`@gjsify/tls-native` `src/c/gjsify-tls-private.{c,h}`) that
+// walks the glib-networking GnuTLS-backend private struct to extract
+// `gnutls_session_t` and forwards every session/channel-binding API
+// to GnuTLS proper. `hasTlsSessionAccess()` returns `true` on any
+// runtime with glib-networking's GnuTLS backend (Fedora 43+, gjs
+// 1.86+). A real TLS handshake round-trip test for resumption +
+// channel-binding bytes lives at the package level once a fixture
+// TLS server is in place.
 //
-// These tests lock the API surface in BEFORE the native side becomes
-// functional. When the GIO struct-layout work lands and
-// `hasTlsSessionAccess()` flips to `true`, a follow-up real
-// round-trip test goes in `tests/integration/tls-session/` and the
-// `expects-undefined` assertions here either stay (gated on
-// `hasTlsSessionAccess() === false` paths) or get a paired
-// "real value when available" assertion. Either way the contract
-// stays: API surface always present, behavior gated by the predicate.
+// The unit-level tests below cover the API SHAPE + pre-handshake
+// graceful-degradation: every getter returns `undefined`/`false`
+// when there is no live TlsConnection bound to the socket (a socket
+// constructed without going through `connect()`). That's the
+// contract consumers (https.Agent, pg-protocol SCRAM-SHA-*) depend
+// on for graceful fallback regardless of bridge availability.
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import {
@@ -41,11 +43,12 @@ export default async () => {
                     expect(typeof hasTlsSessionAccess()).toBe('boolean');
                 });
 
-                await it('returns false until the gnutls_session_t access lands (POC scaffold)', () => {
-                    // Flip this to a paired assertion once the GIO
-                    // struct-layout work in docs/poc/tls-phase2-session-access.md
-                    // is resolved and SessionAccess.is_supported() returns true.
-                    expect(hasTlsSessionAccess()).toBe(false);
+                await it('returns true under glib-networking GnuTLS backend (Path-A active)', () => {
+                    // Path-A: returns true on the Fedora 43+ default
+                    // (glib-networking GnuTLS backend). Would return
+                    // false on a future OpenSSL backend selected via
+                    // `GIO_USE_TLS=openssl`.
+                    expect(hasTlsSessionAccess()).toBe(true);
                 });
             });
 
@@ -71,10 +74,11 @@ export default async () => {
                     expect(sock.getPeerFinished()).toBeUndefined();
                 });
 
-                await it('getFinished returns undefined when session-access bridge is unavailable', () => {
-                    // POC path: hasTlsSessionAccess() === false, getFinished()
-                    // short-circuits to undefined before touching the bridge.
-                    if (hasTlsSessionAccess()) return; // skip when flipped
+                await it('getFinished returns undefined before a TLS handshake', () => {
+                    // Path-A: even with hasTlsSessionAccess() === true,
+                    // a socket with no bound `_tlsConnection` returns
+                    // undefined — there is no session to bind against
+                    // yet. Same contract Node uses pre-handshake.
                     const sock = new TLSSocket();
                     expect(sock.getFinished()).toBeUndefined();
                     expect(sock.getPeerFinished()).toBeUndefined();
@@ -129,28 +133,27 @@ export default async () => {
             });
 
             await describe('connect() — surface for the Phase 2 hooks', async () => {
-                await it('is a function (full round-trip lives in tests/integration/tls-session — pending native flip)', () => {
+                await it('is a function (full TLS-handshake round-trip is exercised at the integration layer)', () => {
                     expect(typeof connect).toBe('function');
                 });
             });
 
-            await describe('graceful degradation (POC contract)', async () => {
-                await it('all Phase 2 getters degrade to undefined / false / no-op when bridge is unavailable', () => {
-                    // POC path: bridge unavailable means EVERY surface
-                    // method behaves like Node on a build without session
-                    // support — no thrown errors, no observable state
-                    // change. This is the contract consumer libraries
-                    // (https.Agent, pg-protocol's SCRAM-SHA-* path)
-                    // depend on for graceful fallback.
-                    if (hasTlsSessionAccess()) return;
+            await describe('graceful degradation pre-handshake', async () => {
+                await it('all Phase 2 getters degrade to undefined / false / no-op before a handshake', () => {
+                    // A socket with no bound `_tlsConnection` behaves
+                    // like Node's TLSSocket pre-handshake — every
+                    // getter returns the empty/undefined value, no
+                    // throws. Holds regardless of bridge availability
+                    // because the short-circuit happens at the JS
+                    // layer before any native call.
                     const sock = new TLSSocket();
                     expect(sock.getFinished()).toBeUndefined();
                     expect(sock.getPeerFinished()).toBeUndefined();
                     expect(sock.getSession()).toBeUndefined();
                     expect(sock.isSessionReused()).toBe(false);
                     sock.setSession(Buffer.from([0]));
-                    // setSession is a no-op, but the call itself must
-                    // not perturb the other getters.
+                    // setSession is a no-op pre-handshake, but the
+                    // call itself must not perturb the other getters.
                     expect(sock.getSession()).toBeUndefined();
                 });
             });
