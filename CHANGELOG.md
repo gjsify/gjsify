@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.33](https://github.com/gjsify/gjsify/compare/v0.4.32...v0.4.33) (2026-05-28)
+
+### Features
+
+* **fetch:** ship globals.mjs + native routing on Node and browser ([41693ac](https://github.com/gjsify/gjsify/commit/41693ac9978c48baaa07fd76cea953ebdb61ef7f)), closes [#362](https://github.com/gjsify/gjsify/issues/362) [#368](https://github.com/gjsify/gjsify/issues/368)
+* **web:** wire cross-runtime tests + correct websocket native triplet ([acac9ce](https://github.com/gjsify/gjsify/commit/acac9ce59fbd6f82f871db0e08e0afaa7b03dac8)), closes [#362](https://github.com/gjsify/gjsify/issues/362)
+
+### Bug Fixes
+
+* **resolve-npm:** route bare 'dom-events' to polyfill on Node ([7e0640f](https://github.com/gjsify/gjsify/commit/7e0640f1877fdacc736d029698b90a7f897b810b))
+
+### Documentation
+
+* **strategy:** graduate cross-runtime portability out of experimental ([e3843b8](https://github.com/gjsify/gjsify/commit/e3843b89922de52086b47dabe3f7559dbe0ee06c))
+
 ## [0.4.32](https://github.com/gjsify/gjsify/compare/v0.4.31...v0.4.32) (2026-05-28)
 
 ### Features
