@@ -1,7 +1,9 @@
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 
-const byteArray = imports.byteArray;
+// `imports.byteArray` is GJS-only and undefined under Node. Access lazily at
+// the call sites (functions only run on GJS) so the module's top level stays
+// free of a hard `imports` reference — keeps node-target bundles loadable.
 
 /**
  * Generic promise wrapper for Gio async/finish method pairs.
@@ -45,7 +47,7 @@ export async function readBytesAsync(
                 if (res.get_size() === 0) {
                     return resolve(null);
                 }
-                return resolve(byteArray.fromGBytes(res));
+                return resolve(imports.byteArray.fromGBytes(res));
             } catch (error) {
                 // Soup3's chunked-decoding input stream raises a clean-stream-
                 // end error (G_IO_ERROR_PARTIAL_INPUT / CONNECTION_CLOSED /
