@@ -14,7 +14,7 @@ import { describe, it, expect, on } from '@gjsify/unit';
 import Gtk from 'gi://Gtk?version=4.0';
 import Gdk from 'gi://Gdk?version=4.0';
 
-import { Event as OurEvent } from '@gjsify/dom-events';
+import type { Event as OurEvent } from '@gjsify/dom-events';
 import { attachEventControllers } from './event-bridge.js';
 
 /** Pointer/Mouse event shape the bridge dispatches — the union of fields the tests read. */

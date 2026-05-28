@@ -541,7 +541,7 @@ export default async () => {
             el.onwheel = (ev: unknown) => {
                 deltaY = (ev as { deltaY: number }).deltaY;
             };
-            el.dispatchEvent(new Event('wheel') as unknown as import('@gjsify/dom-events').Event);
+            el.dispatchEvent(new Event('wheel') as unknown as Event);
             // The handler fires even without a deltaY; verifies wiring
             expect(typeof el.onwheel).toBe('function');
             el.onwheel = null;

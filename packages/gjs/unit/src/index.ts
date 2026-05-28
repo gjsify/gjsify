@@ -5,6 +5,7 @@ import '@girs/gjs';
 import type GLib from '@girs/glib-2.0';
 export * from './spy.js';
 import nodeAssert from 'node:assert';
+import type { AssertPredicate } from 'node:assert';
 import { quitMainLoop } from '@gjsify/utils/main-loop';
 
 /**
@@ -615,7 +616,7 @@ assert.strictEqual = function <T>(actual: unknown, expected: T, message?: string
     }
 };
 
-assert.throws = function (promiseFn: () => unknown, ...args: [import('node:assert').AssertPredicate?, string?]) {
+assert.throws = function (promiseFn: () => unknown, ...args: [AssertPredicate?, string?]) {
     ++countTestsOverall;
     let error: unknown;
     try {

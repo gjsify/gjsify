@@ -7,7 +7,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import { HTMLIFrameElement, IFrameWindowProxy } from './index.js';
 import { Document } from '@gjsify/dom-elements';
 import { HTMLElement, Element, Node } from '@gjsify/dom-elements';
-import { Event, MessageEvent } from '@gjsify/dom-events';
+import { MessageEvent, type Event } from '@gjsify/dom-events';
 import type { MessageBridge } from './message-bridge.js';
 
 /** Minimal MessageBridge stand-in for unit tests — only the methods IFrameWindowProxy reads. */

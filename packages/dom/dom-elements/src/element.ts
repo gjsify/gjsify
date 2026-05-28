@@ -5,6 +5,7 @@
 
 import type { Event } from '@gjsify/dom-events';
 
+import type { Attr } from './attr.js';
 import { Node } from './node.js';
 import { NodeType } from './node-type.js';
 import { NamedNodeMap } from './named-node-map.js';
@@ -165,7 +166,7 @@ export class Element extends Node {
     }
 
     setAttributeNode(attr: unknown): unknown {
-        return this[PS.attributes].setNamedItem(attr as import('./attr.js').Attr);
+        return this[PS.attributes].setNamedItem(attr as Attr);
     }
 
     removeAttributeNode(attr: unknown): unknown {
