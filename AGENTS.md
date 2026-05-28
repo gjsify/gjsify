@@ -711,6 +711,8 @@ GJS = primary target, NON-NEGOTIABLE. But many `@gjsify/*` packages are pure TS 
 
 **Convention for NEW packages:** the runtime axis is the FIRST clarification question. (a) needs `gi://*`/`@girs/*` value-imports → GJS-only (`runtimes.{node,browser}: "none"`); (b) pure TS, no platform-native deps → cross-runtime from day one (`runtimes.{gjs,node,browser}: "polyfill"`), test on all three; (c) native runtime equivalent exists → declare `"native"` for that slot, ship `<pkg>/globals` (Node) or browser-conditional export. Existing GJS-only packages are NOT refactored opportunistically — they stay as they are; the convention applies only to new package work and to packages already being touched for unrelated reasons (NO "while-I'm-here" scope creep in bug-fix PRs).
 
+**Canonical exemplars** (mirror their `package.json` / `src/test.{mts,browser.mts}` layout when adding a new cross-runtime package): `@gjsify/abort-controller`, `@gjsify/dom-events`, `@gjsify/dom-exception` — all three declare `{gjs:"polyfill",node:"polyfill",browser:"native"}` and validate on GJS + Node + Browser via per-target `build:test:{gjs,node,browser}` scripts.
+
 **Non-goals:** turning gjsify into a runtime; replacing Node/browser-native APIs where they exist; spec conformance beyond what a polyfill needs to behave correctly; forking / maintaining `refs/node-gtk` (it's reference, not a target); making GJS-bound packages cross-runtime by refactoring (only NEW pure-TS packages get the treatment from day one).
 
 ## JS Feature Availability
