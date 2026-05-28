@@ -5,7 +5,10 @@ import GLib from '@girs/glib-2.0';
 import { createSubnet } from './createSubnet.js';
 import { cli } from '@gjsify/utils';
 
-const byteArray = imports.byteArray;
+// `imports.byteArray` is GJS-only and undefined under Node. Access lazily inside
+// the function body (called only on GJS) so the module's top level stays free
+// of a hard `imports` reference — keeps node-target bundles loadable.
+
 const EOL = /\r\n|\n/;
 
 /**
@@ -14,7 +17,7 @@ const EOL = /\r\n|\n/;
 function readTextFile(path: string): string {
     const [ok, contents] = GLib.file_get_contents(path);
     if (!ok || !contents) return '';
-    return byteArray.toString(contents);
+    return imports.byteArray.toString(contents);
 }
 
 const getIPv4Subnet = createSubnet(32, 8, 10, '.');
