@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.30](https://github.com/gjsify/gjsify/compare/v0.4.29...v0.4.30) (2026-05-28)
+
+### Bug Fixes
+
+* **fetch:** hold Soup.Session against GC to stop host->conns race ([#339](https://github.com/gjsify/gjsify/issues/339)) ([db79767](https://github.com/gjsify/gjsify/commit/db79767f161ee10e3f06b0f0b5bb3a74df9be498))
+* **install:** never fetch/extract over workspace sources (data-loss bug) ([#338](https://github.com/gjsify/gjsify/issues/338)) ([320bfd1](https://github.com/gjsify/gjsify/commit/320bfd1055f7bb57ea158934b78b5707b7ea5e97))
+* repair [#334](https://github.com/gjsify/gjsify/issues/334) no-explicit-any over-narrowing regressions ([#340](https://github.com/gjsify/gjsify/issues/340)) ([6723129](https://github.com/gjsify/gjsify/commit/6723129d2ad50b7cd3e65afcd76f53fec15eba74)), closes [#336](https://github.com/gjsify/gjsify/issues/336)
+* repair remaining [#336](https://github.com/gjsify/gjsify/issues/336) over-narrowing (examples/showcases) + refresh CLI bundle ([#341](https://github.com/gjsify/gjsify/issues/341)) ([ba074de](https://github.com/gjsify/gjsify/commit/ba074deac1fee0460d7d45b9de7d1afdc506e697))
+* **website:** reset Starlight content margins leaking into live-demo embeds ([#333](https://github.com/gjsify/gjsify/issues/333)) ([94a7334](https://github.com/gjsify/gjsify/commit/94a733451e0b260f1e1ee83a3267fddd238e731a))
+
+### Maintenance
+
+* type the any-typed gjs/infra/dom code (no-explicit-any → 0) ([#334](https://github.com/gjsify/gjsify/issues/334)) ([1746e2a](https://github.com/gjsify/gjsify/commit/1746e2a70a3332f3fd7a32dce07568cbe6d9b019))
+* type the any-typed node stream/events/buffer (no-explicit-any → 0) ([#335](https://github.com/gjsify/gjsify/issues/335)) ([231b438](https://github.com/gjsify/gjsify/commit/231b438d1e0ec9a3decf4c52ce1e28dfc407f18c))
+* type the any-typed test/example/showcase code (no-explicit-any → 0) ([#336](https://github.com/gjsify/gjsify/issues/336)) ([7971335](https://github.com/gjsify/gjsify/commit/79713350e671187607c953fd6d5d20c0eb8ab351))
+* type the any-typed web/streams generics (no-explicit-any → 0) ([#337](https://github.com/gjsify/gjsify/issues/337)) ([e2afb08](https://github.com/gjsify/gjsify/commit/e2afb085c54d9a72934f7b7219a50664af600635))
+
 ## [0.4.29](https://github.com/gjsify/gjsify/compare/v0.4.28...v0.4.29) (2026-05-27)
 
 ### Features
