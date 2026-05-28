@@ -79,6 +79,7 @@ export default async () => {
             for (const val of unsupported) {
                 expect(() => {
                     // Intentionally pass non-SQLInputValue values to verify runtime rejection.
+                    // oxlint-disable-next-line typescript/no-explicit-any -- spec passes a deliberately-varied union of SQL input values (BigInt, Date, Buffer, …) into a parameterized query to verify the SQL-value conversion path
                     db.prepare('INSERT INTO types (key, val) VALUES (?, ?)').run(1, val as any);
                 }).toThrow();
             }

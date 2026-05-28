@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec passes deliberately-invalid constructor arguments (missing path, wrong-type options, non-numeric open flags, …) to new DatabaseSync() to verify input-validation error paths
 // Ported from refs/node-test/parallel/test-sqlite-database-sync.js
 // Original: MIT license, Node.js contributors
 
