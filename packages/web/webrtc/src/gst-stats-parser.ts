@@ -89,7 +89,7 @@ export function parseGstStats(reply: Gst.Structure | null): RTCStatsReport {
         try {
             const nested = reply.get_value(fieldName);
             // GJS unboxes the nested GstStructure directly
-            if (nested && typeof (nested as any).n_fields === 'function') {
+            if (nested && typeof (nested as { n_fields?: unknown }).n_fields === 'function') {
                 const stats = parseStatsEntry(nested as unknown as Gst.Structure);
                 if (stats) {
                     entries.push([stats.id, stats]);

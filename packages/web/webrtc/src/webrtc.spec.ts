@@ -1,3 +1,21 @@
+// oxlint-disable typescript/no-explicit-any -- WebRTC spec patterns:
+//   (a) deliberate-invalid construction `(pc as any).addTrack({}, {})`, `[cert] as any`
+//       (W3C requires throws on bad input — the cast bypasses the typed signature so
+//       the runtime guard is exercised);
+//   (b) `catch (e: any)` for `.code` / `.name` / `.message` access on thrown DOMException
+//       (precedent: #346/#347 — the cleaner `instanceof + property cast` would obscure
+//       the assertion intent in W3C error-path tests where the throw IS the test);
+//   (c) `(ev: any)` for ICE candidate / track callback assignments inside test scaffolding —
+//       the public W3C type IS `RTCPeerConnectionIceEvent` / `RTCTrackEvent` but the test
+//       harness deliberately reads `.candidate` / `.track` without binding to the typed
+//       overload that GJS-side has not yet imported;
+//   (d) `(pc as any).getStats() / getSenders() / getReceivers()` etc. exercising the
+//       method-presence side of W3C surface — typed via lib.dom on browsers, but our
+//       polyfill class only carries the structural shape until /register lands;
+//   (e) `(track as any)._teeMultiplexer` reading impl-private internal fields that have
+//       no public W3C surface (GJS-internal — verifies the runtime wiring).
+// Same precedent as #348's `@gjsify/process` GI-boundary + #349's `@gjsify/sqlite`
+// deliberate-invalid file-level disables.
 // WebRTC API tests — GJS only (requires GStreamer + webrtcbin).
 //
 // The loopback test is the primary smoke test: two local peers exchange

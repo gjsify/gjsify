@@ -1,3 +1,22 @@
+// oxlint-disable typescript/no-explicit-any -- WPT-ported W3C conformance test patterns:
+//   (a) deliberate-invalid construction: `new (RTCDataChannelEvent as any)('type')`,
+//       `{ channel: null as any }`, `new (RTCError as any)({})`, `new (RTCErrorEvent as any)('error', {})`,
+//       `(cfg1 as any).iceServers = []`, `(pc as any).setConfiguration(...)`, `{ certificates: [...] } as any` —
+//       the cast bypasses TS to exercise W3C runtime throws on bad input;
+//   (b) `catch (e: any)` + `let thrown: any` + `(thrown as any)?.name` — assertion that a thrown
+//       value's `.name` matches the expected DOMException identifier; `instanceof DOMException`
+//       narrowing would mask off-spec impl errors the WPT tests are designed to catch;
+//   (c) `(globalThis as any).Blob` existence probe — checking host-object availability without
+//       depending on the Blob global being typed (some test environments omit it);
+//   (d) `(ev: any)` ICE candidate / track callbacks inside test scaffolding (event types ARE
+//       known to be `RTCPeerConnectionIceEvent` etc., but the harness reads `.candidate` /
+//       `.track` directly without binding the parameter to the lib.dom-typed setter);
+//   (e) `pc.createOffer() as Promise<any>` adapting our Promise<RTCSessionDescriptionInit> return
+//       through the `withTimeout<T>(ms, p, name)` race helper;
+//   (f) `invalidBinaryTypes: any[]` array — the test deliberately enumerates non-BinaryType values
+//       to verify the setter ignores invalid input per spec.
+// Same precedent as #348's `@gjsify/process` GI-boundary + #349's `@gjsify/sqlite`
+// deliberate-invalid file-level disables.
 // WPT-ported tests for @gjsify/webrtc.
 //
 // Ported from refs/wpt/webrtc/* (W3C, BSD-3-Clause). Each test group is

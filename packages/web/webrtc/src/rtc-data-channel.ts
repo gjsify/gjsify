@@ -34,6 +34,9 @@ const STATE_MAP: Record<number, RTCDataChannelState> = {
     4: 'closed',
 };
 
+// W3C EventHandlerNonNull (Web IDL § 8.1.5.1) is `(event: Event) => any` — matches
+// every `GlobalEventHandlers.on*` field in lib.dom. Keep `any` to match the spec.
+// oxlint-disable-next-line typescript/no-explicit-any -- W3C EventHandlerNonNull return type matches lib.dom
 type EventHandler<E extends Event = Event> = ((this: RTCDataChannel, ev: E) => any) | null;
 
 /** Convert a JS typed array / ArrayBuffer to a GLib.Bytes. */

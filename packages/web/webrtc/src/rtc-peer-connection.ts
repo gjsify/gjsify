@@ -92,6 +92,11 @@ export interface RTCDataChannelInit {
     priority?: 'very-low' | 'low' | 'medium' | 'high';
 }
 
+// W3C EventHandlerNonNull (Web IDL § 8.1.5.1) is `(event: Event) => any` — the
+// `any` is required so the `on<event>` setter accepts handlers whose return
+// type does not matter (per spec, it is ignored). lib.dom mirrors this on
+// every `GlobalEventHandlers.on*` field. Keep `any` to match the W3C contract.
+// oxlint-disable-next-line typescript/no-explicit-any -- W3C EventHandlerNonNull return type matches lib.dom
 type EventHandler<E extends Event = Event> = ((this: RTCPeerConnection, ev: E) => any) | null;
 
 export interface RTCRtpTransceiverInit {

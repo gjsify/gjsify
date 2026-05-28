@@ -11,6 +11,7 @@ import {
     type RTCDataChannelInit,
     type RTCSessionDescriptionInit,
 } from './index.js';
+import type { RTCErrorEvent } from './rtc-events.js';
 
 /** Mirror WPT's `createPeerConnectionWithCleanup` — returns a fresh pc. */
 export function createPeerConnection(): RTCPeerConnection {
@@ -64,7 +65,7 @@ export async function createDataChannelPair(
                     new Promise<void>((res, rej) => {
                         if (dc.readyState === 'open') return res();
                         dc.onopen = () => res();
-                        dc.onerror = (ev: any) => rej(ev?.error ?? new Error('onerror'));
+                        dc.onerror = (ev: RTCErrorEvent) => rej(ev?.error ?? new Error('onerror'));
                     }),
             ),
         );
@@ -74,14 +75,14 @@ export async function createDataChannelPair(
             new Promise<void>((res, rej) => {
                 if (dc1.readyState === 'open') return res();
                 dc1.onopen = () => res();
-                dc1.onerror = (ev: any) => rej(ev?.error ?? new Error('onerror'));
+                dc1.onerror = (ev: RTCErrorEvent) => rej(ev?.error ?? new Error('onerror'));
             }),
             new Promise<RTCDataChannel>((res, rej) => {
                 pc2.ondatachannel = (ev) => {
                     const dc2 = ev.channel;
                     if (dc2.readyState === 'open') return res(dc2);
                     dc2.onopen = () => res(dc2);
-                    dc2.onerror = (e: any) => rej(e?.error ?? new Error('onerror'));
+                    dc2.onerror = (e: RTCErrorEvent) => rej(e?.error ?? new Error('onerror'));
                 };
             }).then((dc2) => {
                 pair[1] = dc2;
@@ -103,13 +104,13 @@ export function awaitMessage<T = unknown>(channel: RTCDataChannel): Promise<T> {
             channel.removeEventListener('error', errorHandler);
             resolve(ev.data as T);
         };
-        const errorHandler = (ev: any) => {
+        const errorHandler = (ev: Event) => {
             channel.removeEventListener('message', messageHandler);
-            channel.removeEventListener('error', errorHandler);
-            reject(ev?.error ?? new Error('channel error'));
+            channel.removeEventListener('error', errorHandler as EventListener);
+            reject((ev as RTCErrorEvent)?.error ?? new Error('channel error'));
         };
-        channel.addEventListener('message', messageHandler);
-        channel.addEventListener('error', errorHandler);
+        channel.addEventListener('message', messageHandler as EventListener);
+        channel.addEventListener('error', errorHandler as EventListener);
     });
 }
 
