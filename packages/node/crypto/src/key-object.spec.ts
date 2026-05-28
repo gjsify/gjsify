@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec passes deliberately-invalid arguments to new KeyObject (private constructor sentinel) and untyped export-format options to verify input-validation
 // Ported from refs/node-test/parallel/test-crypto-key-objects.js
 // Original: MIT license, Node.js contributors
 

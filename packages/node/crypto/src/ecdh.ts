@@ -484,7 +484,7 @@ class ECDH {
         const G: ECPoint = { x: this._curve.Gx, y: this._curve.Gy };
         this._publicKey = scalarMul(k, G, this._curve);
 
-        return this.getPublicKey(encoding as any, format);
+        return encoding === undefined ? this.getPublicKey() : this.getPublicKey(encoding, format);
     }
 
     /**

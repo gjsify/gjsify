@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec dynamically imports node:crypto, extracts JWK objects (key.export({format:'jwk'})) whose shape varies per key type, and passes export-format options through deliberately-typed bypasses to test the JWK/PEM/DER export surface
 // Tests for X509Certificate
 // Ported from refs/node-test/parallel/test-crypto-x509.js
 // Original: MIT license, Node.js contributors
