@@ -210,14 +210,18 @@ export default async () => {
 
         await describe('EventSource (SSE integration)', async () => {
             // Helper to create a simple SSE server
-            async function createSSEServer(
-                handler: (req: any, res: any) => void,
-            ): Promise<{ port: number; close: () => void }> {
+            const { IncomingMessage, ServerResponse } = await import('node:http');
+            type HttpHandler = (
+                req: InstanceType<typeof IncomingMessage>,
+                res: InstanceType<typeof ServerResponse>,
+            ) => void;
+            async function createSSEServer(handler: HttpHandler): Promise<{ port: number; close: () => void }> {
                 const http = await import('node:http');
                 return new Promise((resolve) => {
                     const server = http.createServer(handler);
                     server.listen(0, () => {
-                        const addr = server.address() as any;
+                        const addr = server.address();
+                        if (!addr || typeof addr === 'string') throw new Error('Expected AddressInfo');
                         resolve({
                             port: addr.port,
                             close: () => server.close(),

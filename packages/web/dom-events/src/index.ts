@@ -1,6 +1,7 @@
 // Reference: DOM Living Standard (https://dom.spec.whatwg.org/)
 // EventTarget/Event implementation for GJS
 
+// oxlint-disable typescript/no-explicit-any -- the W3C event surface (`CustomEvent<T = any>`, `CustomEventInit<T = any>`, `MessageEvent<T = any>`, `MessageEventInit<T = any>`) uses `any` defaults in lib.dom; narrowing them to `unknown` would break unparameterised `new CustomEvent(...)` / `new MessageEvent(...)` for consumers (those expressions become `CustomEvent<unknown>` and forfeit the implicit-any conveniences the spec mandates).
 // Re-export DOMException from dedicated package for backwards compatibility
 import { DOMException } from '@gjsify/dom-exception';
 export { DOMException };

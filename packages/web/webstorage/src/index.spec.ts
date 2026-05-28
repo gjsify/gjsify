@@ -39,11 +39,12 @@ export default async () => {
 
         await it('should convert values to strings', async () => {
             const s = new Storage();
-            s.setItem('num', 42 as any);
+            // Storage.setItem coerces any value to string per spec — deliberately pass non-strings.
+            s.setItem('num', 42 as unknown as string);
             expect(s.getItem('num')).toBe('42');
-            s.setItem('bool', true as any);
+            s.setItem('bool', true as unknown as string);
             expect(s.getItem('bool')).toBe('true');
-            s.setItem('null', null as any);
+            s.setItem('null', null as unknown as string);
             expect(s.getItem('null')).toBe('null');
         });
 

@@ -3,6 +3,8 @@
 // Copyright (c) 2018-2026 the Deno authors. MIT license.
 // Reimplemented for GJS — pure TypeScript using fetch + Web Streams.
 
+// oxlint-disable typescript/no-explicit-any -- W3C EventSource handler attributes are typed as `((this: EventSource, ev: Event) => any) | null` in lib.dom; mirror the spec surface verbatim so consumer code composes with our impl exactly as with the native one.
+
 // EventSource's internal TextLineStream extends TransformStream<string, string>
 // at module-load time — the class declaration itself needs the TransformStream
 // constructor to exist before it can be evaluated. We therefore register the

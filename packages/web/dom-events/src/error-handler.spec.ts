@@ -10,7 +10,7 @@ export const ErrorHandlerTest = async () => {
             await it('should dispatch an ErrorEvent if a listener threw an error', async () => {
                 const _originalConsoleError = console.error;
                 const f = spy((_message, _source, _lineno, _colno, _error) => {});
-                const consoleError = spy((..._: any[]) => {});
+                const consoleError = spy((..._: unknown[]) => {});
                 const target = new EventTarget();
                 const error = new Error('test error');
                 target.addEventListener('foo', () => {

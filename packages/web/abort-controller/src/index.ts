@@ -1,6 +1,7 @@
 // Reference: W3C DOM Abort API
 // Reimplemented for GJS
 
+// oxlint-disable typescript/no-explicit-any -- W3C AbortSignal/AbortController spec types abort `reason` and the `onabort` return value as `any` in lib.dom (an abort reason is intentionally an arbitrary JS value). Mirror the public surface verbatim so consumers compose with our impl exactly as with the native one.
 import { Event, EventTarget, DOMException } from '@gjsify/dom-events';
 
 const kAbort = Symbol('abort');
