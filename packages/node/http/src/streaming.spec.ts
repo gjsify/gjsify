@@ -609,10 +609,10 @@ export default async () => {
             await new Promise<void>((resolve) => {
                 server.listen(0, '127.0.0.1', () => resolve());
             });
-            const addr = server.address();
+            const addr = server.address() as import('node:net').AddressInfo | null;
             expect(addr).toBeDefined();
-            expect(typeof (addr as any).port).toBe('number');
-            expect((addr as any).port).toBeGreaterThan(0);
+            expect(typeof addr!.port).toBe('number');
+            expect(addr!.port).toBeGreaterThan(0);
             await new Promise<void>((resolve) => server.close(() => resolve()));
         });
 

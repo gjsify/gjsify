@@ -20,7 +20,7 @@ export default async () => {
 
             try {
                 // Second server tries to bind the same port — must emit 'error'
-                const error = await new Promise<any>((resolve, reject) => {
+                const error = await new Promise<NodeJS.ErrnoException & { port?: number }>((resolve, reject) => {
                     const server2 = http.createServer();
                     server2.on('error', resolve);
                     server2.on('listening', () => {
@@ -50,7 +50,7 @@ export default async () => {
             });
 
             try {
-                const error = await new Promise<any>((resolve, reject) => {
+                const error = await new Promise<NodeJS.ErrnoException & { port?: number }>((resolve, reject) => {
                     const server2 = http.createServer();
                     server2.on('error', resolve);
                     server2.on('listening', () => {

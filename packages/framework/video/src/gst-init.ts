@@ -13,7 +13,7 @@ let initialized = false;
 
 export function ensureGstInit(): void {
     if (initialized) return;
-    Gst.init(null as any);
+    Gst.init();
     initialized = true;
 }
 

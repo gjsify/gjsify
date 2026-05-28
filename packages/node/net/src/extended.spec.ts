@@ -1,3 +1,5 @@
+// oxlint-disable typescript/no-explicit-any -- isIP/isIPv4/isIPv6 are typed `(input: string) => …` so testing non-string inputs (null/undefined/number/bool) requires `as any` casts to bypass the parameter type — test-fidelity pattern.
+
 // Extended net tests — isIP edge cases, Socket/Server properties, createConnection
 // Ported from refs/node-test/parallel/test-net-*.js
 // Original: MIT license, Node.js contributors

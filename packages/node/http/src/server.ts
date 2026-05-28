@@ -101,7 +101,7 @@ export class OutgoingMessage extends Writable {
         this.headersSent = true;
     }
 
-    _write(_chunk: any, _encoding: string, callback: (error?: Error | null) => void): void {
+    _write(_chunk: unknown, _encoding: string, callback: (error?: Error | null) => void): void {
         callback();
     }
 }
@@ -224,8 +224,12 @@ export class ServerResponse extends OutgoingMessage {
     }
 
     /** Writable stream _write — sends headers on first call, then appends each chunk. */
-    _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
-        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
+    _write(chunk: unknown, encoding: string, callback: (error?: Error | null) => void): void {
+        const buf = Buffer.isBuffer(chunk)
+            ? chunk
+            : typeof chunk === 'string'
+              ? Buffer.from(chunk, encoding as BufferEncoding)
+              : Buffer.from(chunk as Uint8Array);
         this._startStreaming();
         this._bridge.write_chunk(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
         callback();

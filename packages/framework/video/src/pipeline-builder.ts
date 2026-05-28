@@ -85,7 +85,10 @@ export interface MediaStreamPipelineResult {
  * The tee element allows other consumers (e.g. RTCPeerConnection.addTrack)
  * to request additional branches without moving the source across pipelines.
  */
-export function buildMediaStreamPipeline(gstSource: any, gstPipeline: any): MediaStreamPipelineResult {
+export function buildMediaStreamPipeline(
+    gstSource: Gst.Element,
+    gstPipeline: Gst.Pipeline | null,
+): MediaStreamPipelineResult {
     ensureGstInit();
     const { sink, paintable } = createPaintableSink();
 

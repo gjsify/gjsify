@@ -8,6 +8,8 @@
 import GLib from 'gi://GLib?version=2.0';
 import { ensureGstInit, Gst } from './gst-init.js';
 import type { AudioBuffer } from './audio-buffer.js';
+import type Gst1 from '@girs/gst-1.0';
+import type GstApp1 from '@girs/gstapp-1.0';
 
 // Force GstApp typelib load
 import GstApp from 'gi://GstApp?version=1.0';
@@ -27,8 +29,8 @@ export interface GstPlayerOptions {
  * Manages a single GStreamer playback pipeline for one AudioBufferSourceNode.start() call.
  */
 export class GstPlayer {
-    private _pipeline: any = null;
-    private _volumeElement: any = null;
+    private _pipeline: Gst1.Pipeline | null = null;
+    private _volumeElement: Gst1.Element | null = null;
     private _busWatchId: number | null = null;
     private _ended = false;
     private _loop: boolean;
@@ -57,16 +59,16 @@ export class GstPlayer {
         // segments, preventing gst_segment_to_stream_time assertion failures.
         const capsStr = `audio/x-raw,format=F32LE,rate=${sr},channels=${ch},layout=interleaved`;
         const desc = `appsrc name=src caps="${capsStr}" format=3 ! audioconvert ! volume name=vol ! autoaudiosink`;
-        this._pipeline = Gst.parse_launch(desc);
+        this._pipeline = Gst.parse_launch(desc) as Gst1.Pipeline;
         this._volumeElement = this._pipeline.get_by_name('vol');
-        const appsrc = this._pipeline.get_by_name('src')!;
+        const appsrc = this._pipeline.get_by_name('src')! as GstApp1.AppSrc;
 
         // Set volume
         this._volumeElement.set_property('volume', Math.max(0, Math.min(volume, 10)));
 
         // Set up bus watch for EOS/ERROR
         const bus = this._pipeline.get_bus();
-        this._busWatchId = bus.add_watch(0, (_bus: any, msg: any) => {
+        this._busWatchId = bus.add_watch(0, (_bus: Gst1.Bus, msg: Gst1.Message) => {
             if (msg.type === Gst.MessageType.EOS) {
                 if (this._loop && !this._ended) {
                     // Restart: push data again
@@ -129,7 +131,7 @@ export class GstPlayer {
         return this._ended;
     }
 
-    private _restartPlayback(_appsrc: any, _pcmData: Uint8Array): void {
+    private _restartPlayback(_appsrc: GstApp1.AppSrc, _pcmData: Uint8Array): void {
         // For looping: seek pipeline to start
         if (this._pipeline) {
             this._pipeline.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, 0);

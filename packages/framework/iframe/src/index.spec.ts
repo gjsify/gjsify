@@ -7,7 +7,13 @@ import { describe, it, expect } from '@gjsify/unit';
 import { HTMLIFrameElement, IFrameWindowProxy } from './index.js';
 import { Document } from '@gjsify/dom-elements';
 import { HTMLElement, Element, Node } from '@gjsify/dom-elements';
-import { MessageEvent } from '@gjsify/dom-events';
+import { Event, MessageEvent } from '@gjsify/dom-events';
+import type { MessageBridge } from './message-bridge.js';
+
+/** Minimal MessageBridge stand-in for unit tests — only the methods IFrameWindowProxy reads. */
+type MockMessageBridge = Pick<MessageBridge, 'sendToWebView' | 'getLocation'>;
+/** Treat the mock as a full MessageBridge for IFrameWindowProxy's constructor — only `sendToWebView` and `getLocation` are read by the proxy. */
+const asMessageBridge = (mock: MockMessageBridge): MessageBridge => mock as unknown as MessageBridge;
 
 export default async () => {
     // -- HTMLIFrameElement DOM properties --
@@ -235,7 +241,7 @@ export default async () => {
                     return { href: 'about:blank', origin: 'null' };
                 },
             };
-            const proxy = new IFrameWindowProxy(mockBridge as any);
+            const proxy = new IFrameWindowProxy(asMessageBridge(mockBridge));
             expect(Object.prototype.toString.call(proxy)).toBe('[object IFrameWindowProxy]');
         });
 
@@ -246,7 +252,7 @@ export default async () => {
                     return { href: 'about:blank', origin: 'null' };
                 },
             };
-            const proxy = new IFrameWindowProxy(mockBridge as any);
+            const proxy = new IFrameWindowProxy(asMessageBridge(mockBridge));
             expect(proxy.parent).toBe(globalThis);
         });
 
@@ -257,7 +263,7 @@ export default async () => {
                     return { href: 'about:blank', origin: 'null' };
                 },
             };
-            const proxy = new IFrameWindowProxy(mockBridge as any);
+            const proxy = new IFrameWindowProxy(asMessageBridge(mockBridge));
             expect(proxy.top).toBe(globalThis);
         });
 
@@ -268,7 +274,7 @@ export default async () => {
                     return { href: 'about:blank', origin: 'null' };
                 },
             };
-            const proxy = new IFrameWindowProxy(mockBridge as any);
+            const proxy = new IFrameWindowProxy(asMessageBridge(mockBridge));
             expect(proxy.self).toBe(proxy);
             expect(proxy.window).toBe(proxy);
         });
@@ -280,7 +286,7 @@ export default async () => {
                     return { href: 'about:blank', origin: 'null' };
                 },
             };
-            const proxy = new IFrameWindowProxy(mockBridge as any);
+            const proxy = new IFrameWindowProxy(asMessageBridge(mockBridge));
             expect(proxy.closed).toBe(false);
             proxy._close();
             expect(proxy.closed).toBe(true);
@@ -298,9 +304,9 @@ export default async () => {
                     return { href: 'about:blank', origin: 'null' };
                 },
             };
-            const proxy = new IFrameWindowProxy(mockBridge as any);
+            const proxy = new IFrameWindowProxy(asMessageBridge(mockBridge));
             proxy.postMessage({ hello: 'world' }, 'https://example.com');
-            expect((sentData as any).hello).toBe('world');
+            expect((sentData as { hello: string }).hello).toBe('world');
             expect(sentOrigin).toBe('https://example.com');
         });
 
@@ -314,7 +320,7 @@ export default async () => {
                     return { href: 'about:blank', origin: 'null' };
                 },
             };
-            const proxy = new IFrameWindowProxy(mockBridge as any);
+            const proxy = new IFrameWindowProxy(asMessageBridge(mockBridge));
             proxy._close();
             proxy.postMessage('test');
             expect(called).toBe(false);
@@ -327,7 +333,7 @@ export default async () => {
                     return { href: 'https://example.com/page', origin: 'https://example.com' };
                 },
             };
-            const proxy = new IFrameWindowProxy(mockBridge as any);
+            const proxy = new IFrameWindowProxy(asMessageBridge(mockBridge));
             expect(proxy.location.href).toBe('https://example.com/page');
             expect(proxy.location.origin).toBe('https://example.com');
         });
@@ -339,11 +345,11 @@ export default async () => {
                     return { href: 'about:blank', origin: 'null' };
                 },
             };
-            const proxy = new IFrameWindowProxy(mockBridge as any);
+            const proxy = new IFrameWindowProxy(asMessageBridge(mockBridge));
             let received: unknown;
-            proxy.addEventListener('message', ((event: Event) => {
+            proxy.addEventListener('message', (event: Event) => {
                 received = (event as unknown as MessageEvent).data;
-            }) as any);
+            });
             proxy.dispatchEvent(new MessageEvent('message', { data: 'hello' }));
             expect(received).toBe('hello');
         });

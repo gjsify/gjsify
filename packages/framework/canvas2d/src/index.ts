@@ -20,14 +20,19 @@ import { CanvasRenderingContext2D, ImageData, Path2D } from '@gjsify/canvas2d-co
 
 const CONTEXT_KEY = Symbol.for('gjsify_canvas2d_context');
 
-GjsifyHTMLCanvasElement.registerContextFactory('2d', (canvas: any, options?: any) => {
-    // Per spec: once a context type is obtained, subsequent calls return the same instance
-    const existing = (canvas as any)[CONTEXT_KEY];
-    if (existing) return existing;
-    const ctx = new CanvasRenderingContext2D(canvas, options);
-    (canvas as any)[CONTEXT_KEY] = ctx;
-    return ctx;
-});
+GjsifyHTMLCanvasElement.registerContextFactory(
+    '2d',
+    (canvas: GjsifyHTMLCanvasElement, options?: unknown) => {
+        // Per spec: once a context type is obtained, subsequent calls return the same instance
+        type CanvasWithContext = GjsifyHTMLCanvasElement & { [CONTEXT_KEY]?: CanvasRenderingContext2D };
+        const c = canvas as CanvasWithContext;
+        const existing = c[CONTEXT_KEY];
+        if (existing) return existing;
+        const ctx = new CanvasRenderingContext2D(canvas, options);
+        c[CONTEXT_KEY] = ctx;
+        return ctx;
+    },
+);
 
 // Register globals
 Object.defineProperty(globalThis, 'CanvasRenderingContext2D', {

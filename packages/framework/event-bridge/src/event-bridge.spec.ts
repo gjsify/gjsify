@@ -14,15 +14,28 @@ import { describe, it, expect, on } from '@gjsify/unit';
 import Gtk from 'gi://Gtk?version=4.0';
 import Gdk from 'gi://Gdk?version=4.0';
 
+import { Event as OurEvent } from '@gjsify/dom-events';
 import { attachEventControllers } from './event-bridge.js';
+
+/** Pointer/Mouse event shape the bridge dispatches — the union of fields the tests read. */
+type FakeBridgeEvent = OurEvent & {
+    clientX?: number;
+    clientY?: number;
+    offsetX?: number;
+    offsetY?: number;
+    screenX?: number;
+    screenY?: number;
+    movementX?: number;
+    movementY?: number;
+};
 
 // Minimal stub that records dispatched events.
 function makeFakeCanvas() {
-    const events: any[] = [];
+    const events: FakeBridgeEvent[] = [];
     const el = {
         events,
-        dispatchEvent(e: any): boolean {
-            events.push(e);
+        dispatchEvent(e: OurEvent): boolean {
+            events.push(e as FakeBridgeEvent);
             return true;
         },
     };
@@ -63,7 +76,7 @@ export default async () => {
                 const widget = new Gtk.DrawingArea();
                 const canvas = makeFakeCanvas();
 
-                attachEventControllers(widget, () => canvas as any);
+                attachEventControllers(widget, () => canvas);
                 allocateWidget(widget, 400, 300);
 
                 const motionCtrl = getMotionController(widget);
@@ -75,7 +88,7 @@ export default async () => {
                 // handler would produce different values than 42/17.
                 motionCtrl!.emit('motion', 42, 17);
 
-                const moveEvents = canvas.events.filter((e: any) => e.type === 'pointermove');
+                const moveEvents = canvas.events.filter((e: FakeBridgeEvent) => e.type === 'pointermove');
                 expect(moveEvents.length).toBe(1);
                 const ev = moveEvents[0];
                 expect(ev.clientX).toBe(42);
@@ -91,12 +104,12 @@ export default async () => {
                 const widget = new Gtk.DrawingArea();
                 const canvas = makeFakeCanvas();
 
-                attachEventControllers(widget, () => canvas as any);
+                attachEventControllers(widget, () => canvas);
                 allocateWidget(widget, 400, 300);
 
                 getMotionController(widget)!.emit('motion', 100, 50);
 
-                const mousemoveEvents = canvas.events.filter((e: any) => e.type === 'mousemove');
+                const mousemoveEvents = canvas.events.filter((e: FakeBridgeEvent) => e.type === 'mousemove');
                 expect(mousemoveEvents.length).toBe(1);
                 expect(mousemoveEvents[0].clientX).toBe(100);
                 expect(mousemoveEvents[0].clientY).toBe(50);
@@ -106,7 +119,7 @@ export default async () => {
                 const widget = new Gtk.DrawingArea();
                 const canvas = makeFakeCanvas();
 
-                attachEventControllers(widget, () => canvas as any);
+                attachEventControllers(widget, () => canvas);
                 allocateWidget(widget, 400, 300);
 
                 // Negative + above-allocation coords should be clamped to
@@ -114,7 +127,7 @@ export default async () => {
                 // out-of-range values GTK sometimes reports at widget edges.
                 getMotionController(widget)!.emit('motion', -5, 999);
 
-                const moveEvents = canvas.events.filter((e: any) => e.type === 'pointermove');
+                const moveEvents = canvas.events.filter((e: FakeBridgeEvent) => e.type === 'pointermove');
                 expect(moveEvents.length).toBe(1);
                 const ev = moveEvents[0];
                 expect(ev.clientX).toBe(0);
@@ -125,14 +138,14 @@ export default async () => {
                 const widget = new Gtk.DrawingArea();
                 const canvas = makeFakeCanvas();
 
-                attachEventControllers(widget, () => canvas as any);
+                attachEventControllers(widget, () => canvas);
                 allocateWidget(widget, 400, 300);
 
                 const motionCtrl = getMotionController(widget)!;
                 motionCtrl.emit('motion', 10, 20);
                 motionCtrl.emit('motion', 13, 25);
 
-                const moveEvents = canvas.events.filter((e: any) => e.type === 'pointermove');
+                const moveEvents = canvas.events.filter((e: FakeBridgeEvent) => e.type === 'pointermove');
                 expect(moveEvents.length).toBe(2);
                 expect(moveEvents[1].movementX).toBe(3);
                 expect(moveEvents[1].movementY).toBe(5);

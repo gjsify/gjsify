@@ -11,6 +11,8 @@ declare module 'node:http' {
         keepAlive: boolean;
         keepAliveMsecs: number;
         scheduling: 'fifo' | 'lifo';
+        protocol: string;
+        maxFreeSockets: number;
     }
 }
 
@@ -325,13 +327,16 @@ export default async () => {
         });
 
         await it('should be constructable as standalone', async () => {
-            // Our IncomingMessage accepts zero args; @types/node requires a socket.
-            const msg = new (http.IncomingMessage as any)();
+            // Our IncomingMessage accepts zero args; @types/node requires a socket — cast to
+            // the zero-arg constructor shape to bypass the @types/node Socket requirement.
+            const Ctor = http.IncomingMessage as unknown as new () => InstanceType<typeof http.IncomingMessage>;
+            const msg = new Ctor();
             expect(msg).toBeDefined();
         });
 
         await it('should inherit from Readable', async () => {
-            const msg = new (http.IncomingMessage as any)();
+            const Ctor = http.IncomingMessage as unknown as new () => InstanceType<typeof http.IncomingMessage>;
+            const msg = new Ctor();
             expect(typeof msg.pipe).toBe('function');
             expect(typeof msg.read).toBe('function');
         });
@@ -391,10 +396,10 @@ export default async () => {
             const agent = new http.Agent();
             expect(typeof agent.defaultPort).toBe('number');
             expect(typeof agent.maxSockets).toBe('number');
-            expect(typeof (agent as any).maxFreeSockets).toBe('number');
-            expect(typeof (agent as any).keepAliveMsecs).toBe('number');
-            expect(typeof (agent as any).keepAlive).toBe('boolean');
-            expect(typeof (agent as any).protocol).toBe('string');
+            expect(typeof agent.maxFreeSockets).toBe('number');
+            expect(typeof agent.keepAliveMsecs).toBe('number');
+            expect(typeof agent.keepAlive).toBe('boolean');
+            expect(typeof agent.protocol).toBe('string');
         });
     });
 

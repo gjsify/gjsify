@@ -6,6 +6,7 @@ import GObject from 'gi://GObject';
 import type Gdk from 'gi://Gdk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
+import type Cairo from 'cairo';
 import { HTMLCanvasElement as GjsifyHTMLCanvasElement, notifyElementResize } from '@gjsify/dom-elements';
 import { attachEventControllers } from '@gjsify/event-bridge';
 import type { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
@@ -77,7 +78,7 @@ export const Canvas2DBridge = GObject.registerClass(
         }
 
         /** @internal Draw function called by GTK. Blits the Cairo surface to screen. */
-        _onDraw(_area: Gtk.DrawingArea, cr: any, width: number, height: number): void {
+        _onDraw(_area: Gtk.DrawingArea, cr: Cairo.Context, width: number, height: number): void {
             // Lazy init: create canvas + 2D context on first draw.
             // We do NOT sync dimensions after onReady fires: ready callbacks may set their
             // own canvas dimensions (e.g. a static render at a fixed size). Syncing here

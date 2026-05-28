@@ -78,8 +78,10 @@ export class AudioContext {
         this.state = 'closed';
     }
 
-    // Stub methods for APIs not yet backed by GStreamer (Phase 3)
-    createAnalyser(): any {
+    // Stub methods for APIs not yet backed by GStreamer (Phase 3).
+    // Returns an `AnalyserNode`-shaped stub — the W3C `AnalyserNode` extends `AudioNode` with
+    // `fftSize` / `frequencyBinCount` / `getByteFrequencyData()` / `getFloatFrequencyData()`.
+    createAnalyser(): AnalyserNodeStub {
         return {
             connect: () => {},
             disconnect: () => {},
@@ -93,7 +95,7 @@ export class AudioContext {
     createDynamicsCompressor(): AudioNode {
         return new AudioNode();
     }
-    createBiquadFilter(): any {
+    createBiquadFilter(): AudioNode {
         return new AudioNode();
     }
     createConvolver(): AudioNode {
@@ -106,6 +108,16 @@ export class AudioContext {
         return new AudioNode();
     }
 
-    addEventListener(_type: string, _listener: any): void {}
-    removeEventListener(_type: string, _listener: any): void {}
+    addEventListener(_type: string, _listener: ((event: Event) => void) | null): void {}
+    removeEventListener(_type: string, _listener: ((event: Event) => void) | null): void {}
+}
+
+/** Minimal AnalyserNode stub returned by `createAnalyser()` until GStreamer backing lands. */
+interface AnalyserNodeStub {
+    connect(): void;
+    disconnect(): void;
+    fftSize: number;
+    frequencyBinCount: number;
+    getByteFrequencyData(): void;
+    getFloatFrequencyData(): void;
 }
