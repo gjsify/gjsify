@@ -103,7 +103,7 @@ export class Hmac extends Transform {
     }
 
     // Transform stream interface
-    _transform(chunk: any, encoding: BufferEncoding, callback: TransformCallback): void {
+    _transform(chunk: string | Buffer | Uint8Array, encoding: BufferEncoding, callback: TransformCallback): void {
         try {
             this.update(chunk, encoding);
             callback();

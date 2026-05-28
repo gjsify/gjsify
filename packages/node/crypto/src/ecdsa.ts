@@ -51,9 +51,9 @@ function rfc6979(hashAlgo: string, privKey: bigint, msgHash: Uint8Array, curve: 
 
     // Step a: h1 = H(m) — already provided as msgHash
     // Step b: V = 0x01 * hLen
-    let V: any = new Uint8Array(hLen).fill(0x01);
+    let V: Uint8Array<ArrayBufferLike> = new Uint8Array(hLen).fill(0x01);
     // Step c: K = 0x00 * hLen
-    let K: any = new Uint8Array(hLen).fill(0x00);
+    let K: Uint8Array<ArrayBufferLike> = new Uint8Array(hLen).fill(0x00);
 
     // int2octets(x) — private key as fixed-length big-endian bytes
     const x = bigintToBytes(privKey, qLen);
@@ -85,7 +85,7 @@ function rfc6979(hashAlgo: string, privKey: bigint, msgHash: Uint8Array, curve: 
     // Step h: Generate k candidates
     for (let attempt = 0; attempt < 100; attempt++) {
         // Step h.1–h.2: Generate T by concatenating HMAC_K(V) blocks
-        let T: any = new Uint8Array(0);
+        let T: Uint8Array<ArrayBufferLike> = new Uint8Array(0);
         while (T.length < qLen) {
             V = hmacDigest(hashAlgo, K, V);
             const newT = new Uint8Array(T.length + V.length);

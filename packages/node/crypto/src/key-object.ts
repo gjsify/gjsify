@@ -187,6 +187,7 @@ function exportJwk(parsed: ParsedKey, keyType: 'public' | 'private'): object {
     throw new Error('Unsupported key type for JWK export');
 }
 
+// oxlint-disable-next-line typescript/no-explicit-any -- JWK shape varies per key type (RSA: n/e/d/p/q/dp/dq/qi; EC: x/y/d/crv); typing accurately requires the JsonWebKey union plus a discriminating narrow at each field, which adds noise without real safety since the function trusts the caller's JWK has the needed fields and base64urlToBigint validates the strings at runtime
 function importJwkRsa(jwk: any): { parsed: ParsedKey; pem: string } {
     if (jwk.d) {
         // Private key
@@ -338,7 +339,7 @@ export function createPublicKey(key: string | Buffer | KeyInput | KeyObject): Ke
     if (typeof key === 'object' && !Buffer.isBuffer(key) && 'key' in key) {
         const input = key as KeyInput;
         if (input.format === 'jwk') {
-            const jwk = input.key as any;
+            const jwk = input.key as Record<string, unknown>;
             if (jwk.kty === 'RSA') {
                 const { parsed, pem } = importJwkRsa({ n: jwk.n, e: jwk.e }); // public only
                 return new KeyObject('public', { parsed, pem });
@@ -372,7 +373,7 @@ export function createPrivateKey(key: string | Buffer | KeyInput): KeyObject {
     if (typeof key === 'object' && !Buffer.isBuffer(key) && 'key' in key) {
         const input = key as KeyInput;
         if (input.format === 'jwk') {
-            const jwk = input.key as any;
+            const jwk = input.key as Record<string, unknown>;
             if (jwk.kty === 'RSA' && jwk.d) {
                 const { parsed, pem } = importJwkRsa(jwk);
                 return new KeyObject('private', { parsed, pem });
