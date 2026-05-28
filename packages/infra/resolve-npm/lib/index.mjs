@@ -279,7 +279,16 @@ export const ALIASES_WEB_FOR_NODE = {
     // Bare specifiers → native re-exports (works for both named and side-effect imports)
     'abort-controller': '@gjsify/abort-controller/globals',
     'compression-streams': '@gjsify/compression-streams/globals',
-    'dom-events': '@gjsify/dom-events/globals',
+    // dom-events deliberately routes to the polyfill on Node — globals.mjs
+    // is browser-targeted (re-exports the full lib.dom event class hierarchy
+    // from globalThis), but Node 22 only ships Event/EventTarget/CustomEvent
+    // natively (no UIEvent / MouseEvent / KeyboardEvent / WheelEvent /
+    // PointerEvent / InputEvent / FocusEvent / …). Routing the bare specifier
+    // to the polyfill keeps the full class hierarchy available on Node; the
+    // polyfill subclasses native Event/EventTarget where present and supplies
+    // the rest. The `/globals` path remains reachable for browser builds via
+    // the dynamic per-runtimes-triplet resolver in `runtime-aliases.mjs`.
+    'dom-events': '@gjsify/dom-events',
     'dom-exception': '@gjsify/dom-exception/globals',
     'message-channel': '@gjsify/message-channel/globals',
     'eventsource': '@gjsify/eventsource/globals',
