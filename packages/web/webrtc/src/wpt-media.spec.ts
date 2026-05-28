@@ -1,3 +1,12 @@
+// oxlint-disable typescript/no-explicit-any -- WPT-ported W3C conformance test patterns:
+//   (a) deliberate-invalid construction: `new RTCTrackEvent(..., { ... } as any)`,
+//       `pc.addTransceiver('invalid' as any)`, `{ direction: 'invalid' as any }`,
+//       `(pc as any).addTrack('audio')` / `addTrack({})` — bypasses TS to exercise W3C
+//       runtime throws on bad input;
+//   (b) `catch (e: any)` — DOMException error-name assertion patterns;
+//   (c) `(track as any)._gstSource` — accesses impl-private GJS-internal field, no public
+//       W3C surface.
+// Same precedent as #348/#349 deliberate-invalid file-level disables.
 // WPT-ported tests for @gjsify/webrtc Phase 2 (Media API surface).
 //
 // Ported from refs/wpt/webrtc/* (W3C, BSD-3-Clause). Tests cover transceiver,
@@ -8,15 +17,22 @@
 import { describe, it, expect } from '@gjsify/unit';
 
 import type { MediaStreamTrackEvent } from './index.js';
-import { RTCRtpSender, RTCRtpReceiver, RTCTrackEvent, MediaStream, MediaStreamTrack } from './index.js';
+import {
+    RTCRtpSender,
+    RTCRtpReceiver,
+    RTCTrackEvent,
+    MediaStream,
+    MediaStreamTrack,
+    type RTCSessionDescriptionInit,
+} from './index.js';
 
 import { createPeerConnection, exchangeOfferAnswer, closePeerConnections } from './wpt-helpers.js';
 
 // Helper: generate a remote answer for a given offer using a second peer
-async function generateAnswer(offer: any): Promise<any> {
+async function generateAnswer(offer: RTCSessionDescriptionInit): Promise<RTCSessionDescriptionInit> {
     const pc = createPeerConnection();
     await pc.setRemoteDescription(offer);
-    const answer = await pc.createAnswer();
+    const answer = (await pc.createAnswer()) as RTCSessionDescriptionInit;
     await pc.setLocalDescription(answer);
     closePeerConnections(pc);
     return answer;

@@ -7,25 +7,36 @@
 // Reference: refs/node-gst-webrtc/src/media/TeeMultiplexer.ts (ISC)
 // Reference: packages/web/webrtc-native/src/vala/receiver-bridge.vala (tee pattern)
 
+import type GstNs from 'gi://Gst?version=1.0';
+
 import { Gst } from './gst-init.js';
+
+/**
+ * GStreamer `tee` element with the runtime-only `allow-not-linked`
+ * GObject property exposed — not declared on `Gst.Element` by the GIR
+ * typings because it is class-installed by the tee element.
+ */
+interface TeeElement extends GstNs.Element {
+    allow_not_linked: boolean;
+}
 
 /**
  * Manages a GStreamer `tee` element that fans out one source to multiple
  * consumer branches. Each branch gets its own src pad from the tee.
  */
 export class TeeMultiplexer {
-    private _tee: any; // Gst.Element
-    private _pipeline: any; // Gst.Pipeline
+    private _tee: TeeElement;
+    private _pipeline: GstNs.Pipeline;
     private _branchCount = 0;
 
     /**
      * Create a tee in the given pipeline and link it to the source's output.
      * The source must already be in the pipeline.
      */
-    constructor(pipeline: any, source: any) {
+    constructor(pipeline: GstNs.Pipeline, source: GstNs.Element) {
         this._pipeline = pipeline;
-        this._tee = Gst.ElementFactory.make('tee', null)!;
-        (this._tee as any).allow_not_linked = true;
+        this._tee = Gst.ElementFactory.make('tee', null)! as TeeElement;
+        this._tee.allow_not_linked = true;
 
         pipeline.add(this._tee);
         this._tee.sync_state_with_parent();
@@ -35,7 +46,7 @@ export class TeeMultiplexer {
     }
 
     /** Request a new src pad from the tee for a consumer branch. */
-    requestSrcPad(): any /* Gst.Pad */ {
+    requestSrcPad(): GstNs.Pad | null {
         const padName = 'src_%u';
         const srcPad = this._tee.request_pad_simple
             ? this._tee.request_pad_simple(padName)
@@ -48,7 +59,7 @@ export class TeeMultiplexer {
      * Release a branch's src pad from the tee.
      * Adds a DROP probe before unlinking to prevent errors.
      */
-    releaseSrcPad(srcPad: any): void {
+    releaseSrcPad(srcPad: GstNs.Pad | null): void {
         if (!srcPad) return;
         try {
             // Block data on the pad before unlinking
@@ -76,7 +87,7 @@ export class TeeMultiplexer {
     }
 
     /** The tee element (for pipeline queries). */
-    get element(): any {
+    get element(): GstNs.Element {
         return this._tee;
     }
 }

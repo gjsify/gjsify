@@ -97,7 +97,7 @@ export class MediaDevices extends EventTarget {
                 return result;
             }
 
-            let gstDevices: any[];
+            let gstDevices: Gst.Device[];
             try {
                 gstDevices = monitor.get_devices() ?? [];
             } catch {

@@ -10,14 +10,18 @@
 
 import '@gjsify/dom-events/register/event-target';
 
+import type GstNs from 'gi://Gst?version=1.0';
+
 import GLib from 'gi://GLib?version=2.0';
 
 import { Gst } from './gst-init.js';
 
+import type { TeeMultiplexer } from './tee-multiplexer.js';
+
 /** @internal GStreamer backing for tracks created by getUserMedia */
 export interface MediaStreamTrackGstInit {
-    source: any; // Gst.Element
-    pipeline: any; // Gst.Pipeline
+    source: GstNs.Element;
+    pipeline: GstNs.Pipeline;
 }
 
 export interface MediaStreamTrackInit {
@@ -44,13 +48,13 @@ export class MediaStreamTrack extends EventTarget {
     private _onunmute: ((ev: Event) => void) | null = null;
 
     /** @internal GStreamer source element (e.g. pulsesrc, audiotestsrc) */
-    _gstSource: any = null;
+    _gstSource: GstNs.Element | null = null;
     /** @internal Pipeline the source currently lives in (updated by VideoBridge) */
-    _gstPipeline: any = null;
+    _gstPipeline: GstNs.Pipeline | null = null;
     /** @internal Tee element inserted by VideoBridge for preview fan-out */
-    _gstTee: any = null;
+    _gstTee: GstNs.Element | null = null;
     /** @internal TeeMultiplexer for multi-PC fan-out (created on second addTrack) */
-    _teeMultiplexer: any = null;
+    _teeMultiplexer: TeeMultiplexer | null = null;
     /** @internal Callback set by RTCRtpSender to control valve drop property */
     private _enableCallback: ((enabled: boolean) => void) | null = null;
 

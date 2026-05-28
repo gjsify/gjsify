@@ -157,19 +157,12 @@ export class RTCRtpSender {
     /** @internal — build the outgoing encoder chain and link to webrtcbin */
     _wirePipeline(track: MediaStreamTrack): void {
         if (this._linked || !this._pipeline || !this._webrtcbin) return;
-        const source = track._gstSource as GstNs.Element | null;
+        const source = track._gstSource;
         if (!source) return; // No GStreamer backing — nothing to wire
 
-        // MediaStreamTrack's GStreamer-backing fields are intentionally typed
-        // `any` on the track itself (they are runtime-attached by the
-        // get-user-media / VideoBridge code paths). We narrow them locally
-        // here to keep the rest of this method strongly typed.
-        const trackGst = track as MediaStreamTrack & {
-            _gstSource: GstNs.Element | null;
-            _gstPipeline: GstNs.Pipeline | null;
-            _gstTee: GstNs.Element | null;
-            _teeMultiplexer: TeeMultiplexer | null;
-        };
+        // Alias for brevity — the underlying fields are properly typed on
+        // `MediaStreamTrack` (no more `any` narrowing needed).
+        const trackGst = track;
         let sourceForChain: GstNs.Element | null; // source directly or null when tee branch
 
         if (trackGst._gstTee && trackGst._gstPipeline && trackGst._gstPipeline !== this._pipeline) {
@@ -407,12 +400,8 @@ export class RTCRtpSender {
         if (this._track !== null && track.kind !== this._track.kind) {
             throw new TypeError('Cannot replace track with different kind');
         }
-        // Same narrowing as `_wirePipeline` — the GStreamer-backing fields on
-        // `MediaStreamTrack` are runtime-attached and typed `any` on the class.
-        const trackGst = track as MediaStreamTrack & {
-            _gstSource: GstNs.Element | null;
-            _gstPipeline: GstNs.Pipeline | null;
-        };
+        // GStreamer-backing fields are now properly typed on `MediaStreamTrack`.
+        const trackGst = track;
         if (this._linked && trackGst._gstSource) {
             // Atomic source swap: old source → new source, keep rest of chain
             const oldSource = this._elements[0];

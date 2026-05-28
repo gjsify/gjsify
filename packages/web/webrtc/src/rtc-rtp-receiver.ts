@@ -47,12 +47,12 @@ export class RTCRtpReceiver {
     private _gstReceiver: GstWebRTC.WebRTCRTPReceiver | null;
     private _track: MediaStreamTrack;
     private _jitterBufferTarget: number | null = null;
-    private _pipeline: any = null;
+    private _pipeline: Gst.Pipeline | null = null;
     private _receiverBridge: ReceiverBridgeType | null = null;
     /** @internal — stats callback set by RTCPeerConnection */
     _getStatsForTrack: ((track: MediaStreamTrack) => Promise<RTCStatsReport>) | null = null;
 
-    constructor(kind: 'audio' | 'video', gstReceiver: GstWebRTC.WebRTCRTPReceiver | null, pipeline?: any) {
+    constructor(kind: 'audio' | 'video', gstReceiver: GstWebRTC.WebRTCRTPReceiver | null, pipeline?: Gst.Pipeline) {
         this._gstReceiver = gstReceiver;
         this._pipeline = pipeline ?? null;
         this._track = new MediaStreamTrack({ kind, muted: true });
@@ -61,7 +61,7 @@ export class RTCRtpReceiver {
     /** @internal — called from RTCPeerConnection._handlePadAdded */
     _connectToPad(pad: Gst.Pad): void {
         if (!this._pipeline || this._receiverBridge) return;
-        this._receiverBridge = new (ReceiverBridge as any)({
+        this._receiverBridge = new ReceiverBridge({
             pipeline: this._pipeline,
             kind: this._track.kind,
         });

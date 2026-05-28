@@ -107,8 +107,9 @@ const dataChannelMethods: DataChannelMethods & ThisType<RTCPeerConnection> = {
                 label,
                 gstOpts,
             ) as unknown as GstWebRTC.WebRTCDataChannel | null;
-        } catch (err: any) {
-            throw new Error(`create-data-channel failed: ${err?.message ?? err}`);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            throw new Error(`create-data-channel failed: ${msg}`);
         }
         if (!native) {
             throw new Error('webrtcbin returned null data channel (check id/label/options)');

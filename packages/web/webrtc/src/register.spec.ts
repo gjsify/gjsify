@@ -1,3 +1,11 @@
+// oxlint-disable typescript/no-explicit-any -- /register existence probes: the W3C
+// classes (RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, RTCPeerConnectionIceEvent,
+// RTCDataChannel, RTCDataChannelEvent, RTCError, RTCErrorEvent, DOMException) are registered onto
+// `globalThis` by the side-effect import of `@gjsify/webrtc/register`. The tests assert presence
+// via `(globalThis as any).<Ctor>` because the assertions intentionally read through an untyped
+// host object — typing each access against lib.dom would mask a missed registration (the spec's
+// purpose is to verify the writes happened, not to consume the constructors typed). Same precedent
+// as #348's `@gjsify/globals` register-existence file-level disable.
 // WebRTC globals registration tests — verifies the granular /register
 // subpaths wire each identifier onto globalThis.
 //
