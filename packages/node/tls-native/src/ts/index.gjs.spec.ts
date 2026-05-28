@@ -74,24 +74,31 @@ export default async () => {
             });
         });
 
-        // Phase 2 (POC scaffold): the SessionAccess native class exists,
-        // is_supported() returns false today, and methods throw
-        // SessionAccessError.NOT_SUPPORTED. Surface-only tests that lock
-        // the API shape in BEFORE the GIO struct-layout work lands.
-        await describe('@gjsify/tls-native — SessionAccess (Phase 2 POC)', async () => {
+        // Phase 2 (Path-A implementation): the SessionAccess native class
+        // delegates to the C shim that walks the glib-networking GnuTLS
+        // backend's private struct to extract gnutls_session_t and
+        // forward to gnutls_session_get_data2 / set_data /
+        // is_resumed / channel_binding. `is_supported()` now returns
+        // true on any platform running glib-networking's GnuTLS
+        // backend (Fedora 43+ defaults). Surface-only tests below;
+        // round-trip resumption + channel-binding bytes are covered
+        // by tests/integration/tls-session/ (real TLS handshake).
+        await describe('@gjsify/tls-native — SessionAccess (Phase 2)', async () => {
             await it('exposes the SessionAccess class on the native module', () => {
                 expect(nativeTls).not.toBeNull();
                 expect(typeof nativeTls?.SessionAccess.is_supported).toBe('function');
                 expect(typeof nativeTls?.SessionAccess.for_connection).toBe('function');
             });
 
-            await it('hasTlsSessionAccess() returns false until the gnutls_session_t access lands', () => {
-                // POC: deliberately false. See docs/poc/tls-phase2-session-access.md.
-                expect(hasTlsSessionAccess()).toBe(false);
+            await it('hasTlsSessionAccess() returns true under glib-networking GnuTLS backend', () => {
+                // Path-A: returns true on GnuTLS-backend runtimes (the
+                // Fedora 43+ default). Would return false on a future
+                // OpenSSL backend selected via `GIO_USE_TLS=openssl`.
+                expect(hasTlsSessionAccess()).toBe(true);
             });
 
             await it('SessionAccess.is_supported() matches hasTlsSessionAccess()', () => {
-                expect(nativeTls?.SessionAccess.is_supported()).toBe(false);
+                expect(nativeTls?.SessionAccess.is_supported()).toBe(true);
             });
 
             await it('createSessionAccess(null) returns null', () => {

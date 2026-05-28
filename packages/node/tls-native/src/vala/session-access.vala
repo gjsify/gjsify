@@ -1,43 +1,28 @@
 /*
- * SessionAccess — POC scaffold for Phase 2 (TLS session resumption +
- * channel binding) of @gjsify/tls-native.
+ * SessionAccess — Phase 2 (TLS session resumption + channel binding)
+ * of @gjsify/tls-native.
  *
  * Status
  * ──────
- * This class delivers the JS-visible *surface* (so `@gjsify/tls` can
- * wire `getFinished()` / `getPeerFinished()` / `getSession()` /
- * `setSession()` / `isSessionReused()` and the `'session'` event into
- * `TLSSocket` with proper typings and consistent error semantics), but
- * the actual GnuTLS interactions throw a clear "not supported" error
- * pending the GIO-internal struct-layout work documented in
- * `docs/poc/tls-phase2-session-access.md`.
+ * Functional Path-A implementation. Every method below delegates to a
+ * thin C shim (`src/c/gjsify-tls-private.{c,h}`) that reaches into
+ * glib-networking's GnuTLS-backend private struct via the GLib 2.38+
+ * public `g_type_instance_get_private` + a runtime
+ * `g_type_from_name("GTlsConnectionGnutls")` lookup. The struct layout
+ * itself is vendored from `refs/glib-networking/tls/gnutls/
+ * gtlsconnection-gnutls.c` (see the file-header in the C shim for the
+ * vendored offsets + supported window).
  *
- * Why a POC and not a real impl: GnuTLS's session-resumption +
- * channel-binding APIs all operate on a `gnutls_session_t` handle,
- * which `Gio.TlsConnection` keeps private inside the glib-networking
- * GnuTLS backend (`_GTlsConnectionGnutlsPrivate`). Reaching it requires
- * either:
- *
- *   (a) Walking the GTypeInstance private-data offset for
- *       `GTlsConnectionGnutls` — needs the exact struct layout from a
- *       known glib-networking commit (see the docs/poc note).
- *   (b) A future upstream patch to expose a `g_tls_connection_get_native_session()`
- *       (or similar) accessor.
- *
- * Until either path is available, every native call here returns the
- * `GError` domain `GjsifyTls.session_access_quark()`/code
- * `NOT_SUPPORTED` with a message pointing at the docs/poc note. The
- * JS side surfaces this as a regular `Error` thrown synchronously
- * from the `@gjsify/tls` getter — so consumers can detect it via
- * `try/catch` AND gate up-front via `hasTlsSessionAccess()`.
- *
- * Wiring the real implementation later is intentionally a small
- * change: each `throw_not_supported()` site below becomes a call into
- * a new `_native_session_for_connection()` helper that returns the
- * raw `gnutls_session_t`, then the existing GnuTLS APIs (already in
- * Vala 0.56's `gnutls.vapi`, with `session_channel_binding` added in
- * the sibling `gnutls-session.vapi`) take over. The JS-side bindings
- * + tests don't need to change.
+ * Backwards-compatibility on a non-GnuTLS backend
+ * ───────────────────────────────────────────────
+ * If `g_type_from_name("GTlsConnectionGnutls")` returns 0 (i.e. a
+ * hypothetical future OpenSSL backend is selected via `GIO_USE_TLS`),
+ * the static `is_supported()` returns `false` and every consumer call
+ * surfaces `SessionAccessError.NOT_SUPPORTED` — gracefully degrading
+ * the same way Node's TLSSocket does when built without session
+ * support. The JS-side `hasTlsSessionAccess()` predicate is the
+ * canonical gate consumers should check; see the per-method docs for
+ * the corresponding error semantics.
  *
  * Phase 2 scope
  * ─────────────
@@ -142,19 +127,18 @@ namespace GjsifyTls {
         /**
          * Returns whether SessionAccess is functional in this runtime.
          *
-         * Today this always returns `false` (Phase 2 POC). When the
-         * GIO-internal `gnutls_session_t` access lands, this returns
-         * `true` for connections whose backend is the GnuTLS one
-         * (`GTlsConnectionGnutls` instance) and `false` for any other
-         * (e.g. a hypothetical OpenSSL backend, or a mock).
+         * Returns `true` when glib-networking's GnuTLS backend is the
+         * active TLS backend (`GTlsConnectionGnutls` GType is
+         * registered). Returns `false` only when a non-GnuTLS GIO TLS
+         * backend is selected (e.g. via `GIO_USE_TLS=openssl` once
+         * that backend exists upstream).
          *
          * Consumers should call this BEFORE constructing a
          * {@link SessionAccess} — passing the result through to
          * `hasTlsSessionAccess()` on the JS side.
          */
         public static bool is_supported () {
-            // POC: always false. See `_resolve_native_session()` below.
-            return false;
+            return GjsifyTlsPrivate.is_supported ();
         }
 
         /**
@@ -183,14 +167,16 @@ namespace GjsifyTls {
          *
          * Wraps `gnutls_session_is_resumed`.
          *
-         * @throws SessionAccessError if the native session cannot be
-         *         accessed (currently: always, until the Phase 2
-         *         struct-layout work lands).
+         * @throws SessionAccessError if the connection is not from
+         *         the GnuTLS backend (`NOT_SUPPORTED`) or the GnuTLS
+         *         API itself failed (`GNUTLS_ERROR`).
          */
         public bool is_session_reused () throws SessionAccessError {
-            _resolve_native_session ();
-            // Unreachable today — _resolve_native_session() always throws.
-            return false;
+            try {
+                return GjsifyTlsPrivate.is_session_reused (this._connection);
+            } catch (GjsifyTlsPrivate.Error e) {
+                throw _wrap (e);
+            }
         }
 
         /**
@@ -207,8 +193,11 @@ namespace GjsifyTls {
          *         accessed.
          */
         public GLib.Bytes get_session_data () throws SessionAccessError {
-            _resolve_native_session ();
-            return new GLib.Bytes (new uint8[0]);
+            try {
+                return GjsifyTlsPrivate.get_session_data (this._connection);
+            } catch (GjsifyTlsPrivate.Error e) {
+                throw _wrap (e);
+            }
         }
 
         /**
@@ -224,7 +213,11 @@ namespace GjsifyTls {
          *         accessed.
          */
         public void set_session_data (GLib.Bytes data) throws SessionAccessError {
-            _resolve_native_session ();
+            try {
+                GjsifyTlsPrivate.set_session_data (this._connection, data);
+            } catch (GjsifyTlsPrivate.Error e) {
+                throw _wrap (e);
+            }
         }
 
         /**
@@ -243,8 +236,11 @@ namespace GjsifyTls {
          */
         public GLib.Bytes get_channel_binding (ChannelBindingType binding = ChannelBindingType.TLS_UNIQUE)
             throws SessionAccessError {
-            _resolve_native_session ();
-            return new GLib.Bytes (new uint8[0]);
+            try {
+                return GjsifyTlsPrivate.get_channel_binding (this._connection, (int) binding);
+            } catch (GjsifyTlsPrivate.Error e) {
+                throw _wrap (e);
+            }
         }
 
         /**
@@ -255,12 +251,15 @@ namespace GjsifyTls {
          * Same blocker as {@link get_channel_binding}.
          */
         public GLib.Bytes get_finished () throws SessionAccessError {
-            // TLS 1.3 vs 1.2 selection happens here once
-            // _resolve_native_session() returns a real handle — for
-            // 1.3 we'd call get_channel_binding(TLS_EXPORTER) and
-            // for ≤1.2 get_channel_binding(TLS_UNIQUE). Today the
-            // throw is unconditional.
-            return get_channel_binding (ChannelBindingType.TLS_UNIQUE);
+            // On TLS ≤1.2 the relevant binding is `tls-unique` (the
+            // first Finished message, RFC 5929 §3). On TLS 1.3 the
+            // Finished messages are encrypted before the channel-
+            // binding is taken, so RFC 9266 specifies `tls-exporter`
+            // as the replacement.
+            var binding = _connection.get_protocol_version () == GLib.TlsProtocolVersion.TLS_1_3
+                ? ChannelBindingType.TLS_EXPORTER
+                : ChannelBindingType.TLS_UNIQUE;
+            return get_channel_binding (binding);
         }
 
         /**
@@ -283,7 +282,14 @@ namespace GjsifyTls {
          * mapping the Path-A implementation will use.
          */
         public GLib.Bytes get_peer_finished () throws SessionAccessError {
-            return get_channel_binding (ChannelBindingType.TLS_UNIQUE);
+            // Per the GnuTLS manual + RFC 5929/9266 the channel-binding
+            // bytes are symmetric across both peers — there is no
+            // separate "peer" Finished available via the GnuTLS API
+            // (OpenSSL exposes both halves; GnuTLS does not). For the
+            // SCRAM-SHA-* use case the symmetric binding IS what SASL
+            // negotiates against, so this is functionally correct.
+            // Same TLS-1.3 fallback as `get_finished()`.
+            return get_finished ();
         }
 
         /**
@@ -312,33 +318,18 @@ namespace GjsifyTls {
         }
 
         /**
-         * Resolve the `gnutls_session_t` for {@link _connection}.
-         *
-         * Today this always throws {@link SessionAccessError.NOT_SUPPORTED}.
-         * The eventual implementation needs to:
-         *
-         *   1. Confirm `_connection` is a `GTlsConnectionGnutls`
-         *      instance (`g_type_check_instance_is_a` against the
-         *      type from `gio-tls-gnutls.so`).
-         *   2. Read the `session` field from
-         *      `((GTlsConnectionGnutls*)_connection)->priv->session`
-         *      — the layout comes from `glib-networking/tls/gnutls/
-         *      gtlsconnection-gnutls-base.c`.
-         *   3. Return the pointer as `void*` so the GnuTLS calls in
-         *      the methods above can use it.
-         *
-         * Until that lands, the unconditional throw keeps the API
-         * surface honest. See docs/poc/tls-phase2-session-access.md
-         * for the open questions and acceptance criteria for Path A.
+         * Translate a {@link GjsifyTlsPrivate.Error} from the C shim
+         * into the public {@link SessionAccessError} domain, preserving
+         * the original message verbatim. The mapping is one-to-one:
+         * `NOT_SUPPORTED` → `NOT_SUPPORTED`, `GNUTLS_FAILED` →
+         * `GNUTLS_ERROR`. The `NOT_READY` code stays reserved for the
+         * Vala-side `null`-connection guard in {@link for_connection}.
          */
-        private void* _resolve_native_session () throws SessionAccessError {
-            throw new SessionAccessError.NOT_SUPPORTED (
-                "@gjsify/tls-native SessionAccess: extracting gnutls_session_t " +
-                "from Gio.TlsConnection is not yet implemented. The Phase 2 " +
-                "native bits ship as a POC scaffold; see " +
-                "docs/poc/tls-phase2-session-access.md for the open struct-layout " +
-                "question that gates the real implementation."
-            );
+        private SessionAccessError _wrap (GjsifyTlsPrivate.Error e) {
+            if (e is GjsifyTlsPrivate.Error.GNUTLS_FAILED) {
+                return new SessionAccessError.GNUTLS_ERROR (e.message);
+            }
+            return new SessionAccessError.NOT_SUPPORTED (e.message);
         }
     }
 }

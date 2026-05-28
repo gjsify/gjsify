@@ -1,8 +1,12 @@
 # TLS Phase 2 — `gnutls_session_t` access from `Gio.TlsConnection`
 
-> Status: **POC scaffold shipped** (v0.4.30, `@gjsify/tls-native` Phase 2).
-> Real implementation **blocked** on the struct-layout question below.
-> Tracked in STATUS.md "Open TODOs → Medium priority — TLS gaps".
+> Status: **CLOSED — Path A landed** (v0.4.31, `@gjsify/tls-native` Phase 2).
+> The real implementation now ships in `packages/node/tls-native/src/c/gjsify-tls-private.{c,h}` —
+> see the file-header in the C shim for the vendored struct layout + supported window.
+> The two STATUS.md "Open TODOs → Medium priority — TLS gaps" entries are struck through.
+>
+> The notes below are kept for context — they document the open question
+> we resolved + the alternative path (B) we ruled out.
 
 ## Problem statement
 

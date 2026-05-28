@@ -12,20 +12,33 @@ dependencies = [
 sources = files(
     'src/vala/tls.vala',
     'src/vala/session-access.vala',
+    # Phase-2 Path-A C shim. Compiled into the same shared lib so
+    # SessionAccess can delegate without an additional dlopen step.
+    # The header lives under `src/c/` and is reached via the
+    # `c_args: ['-I…/src/c']` flag below.
+    'src/c/gjsify-tls-private.c',
 )
 
-# Sibling vapis: `gnutls-ocsp.vapi` (Phase 1 OCSP parser) and
-# `gnutls-session.vapi` (Phase 2 channel-binding API). The bundled
-# Vala 0.56 gnutls.vapi has session-data set/get/get2 and is_resumed
-# already, but not `gnutls_session_channel_binding` — added in the
-# sibling vapi.
+# Sibling vapis:
+#   gnutls-ocsp.vapi        — Phase 1 OCSP parser bindings
+#   gnutls-session.vapi     — channel-binding enum + function
+#                              (Vala 0.56's bundled gnutls.vapi has
+#                              session_set/get/get2/is_resumed already,
+#                              but lacks gnutls_session_channel_binding)
+#   gjsify-tls-private.vapi — Path-A C-shim bindings
+#                              (session_t extraction + GnuTLS-call
+#                              wrappers + GError mapping)
 libGjsifyTls = library('gjsifytls', sources,
     dependencies: dependencies,
+    c_args: [
+        '-I' + meson.current_source_dir() / 'src/c',
+    ],
     vala_args: [
         '--pkg=gnutls',
         '--vapidir=' + meson.current_source_dir() / 'src/vala',
         '--pkg=gnutls-ocsp',
         '--pkg=gnutls-session',
+        '--pkg=gjsify-tls-private',
     ],
     vala_gir: meson.project_name() + '-1.0.gir',
     install: true,
