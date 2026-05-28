@@ -7,6 +7,7 @@
 import Gtk from 'gi://Gtk?version=4.0';
 import Gdk from 'gi://Gdk?version=4.0';
 import {
+    Event as OurEvent,
     MouseEvent as OurMouseEvent,
     PointerEvent as OurPointerEvent,
     KeyboardEvent as OurKeyboardEvent,
@@ -92,7 +93,7 @@ export interface EventControllerOptions {
 
 export function attachEventControllers(
     widget: Gtk.Widget,
-    getElement: () => { dispatchEvent(event: any): boolean } | null,
+    getElement: () => { dispatchEvent(event: OurEvent): boolean } | null,
     options?: EventControllerOptions,
 ): void {
     // Make widget focusable for keyboard events

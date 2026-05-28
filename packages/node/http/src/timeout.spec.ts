@@ -204,7 +204,7 @@ export default async () => {
                         path: '/',
                         method: 'GET',
                         timeout: 50,
-                    } as any);
+                    });
                     req.on('timeout', () => {
                         req.destroy();
                         resolve(true);

@@ -4,6 +4,7 @@
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/HTMLAudioElement
 
 import { ensureGstInit, Gst } from './gst-init.js';
+import type Gst1 from '@girs/gst-1.0';
 
 // GStreamer-supported MIME types (common on GNOME systems)
 const SUPPORTED_TYPES = new Set([
@@ -28,7 +29,7 @@ export class HTMLAudioElement {
     duration = 0;
     readyState = 0;
 
-    private _pipeline: any = null;
+    private _pipeline: Gst1.Element | null = null;
 
     canPlayType(type: string): CanPlayTypeResult {
         // Strip codecs parameter: "audio/ogg; codecs=vorbis" → "audio/ogg"
@@ -64,8 +65,8 @@ export class HTMLAudioElement {
         this._cleanup();
     }
 
-    addEventListener(_type: string, _listener: any): void {}
-    removeEventListener(_type: string, _listener: any): void {}
+    addEventListener(_type: string, _listener: ((event: Event) => void) | null): void {}
+    removeEventListener(_type: string, _listener: ((event: Event) => void) | null): void {}
 
     private _cleanup(): void {
         if (this._pipeline) {

@@ -9,6 +9,7 @@ import { URL } from 'node:url';
 import { readBytesAsync } from '@gjsify/utils';
 import { OutgoingMessage } from './server.js';
 import { IncomingMessage } from './incoming-message.js';
+import type { Agent } from 'node:http';
 
 export interface ClientRequestOptions {
     protocol?: string;
@@ -19,7 +20,9 @@ export interface ClientRequestOptions {
     method?: string;
     headers?: Record<string, string | number | string[]>;
     timeout?: number;
-    agent?: any;
+    // Node's `RequestOptions.agent` accepts `Agent | boolean | undefined` — agent pooling is
+    // not implemented in this GJS port; the property is stored verbatim and never consulted.
+    agent?: Agent | boolean;
     setHost?: boolean;
     /** Basic authentication string in the format 'user:password'. */
     auth?: string;
@@ -194,8 +197,12 @@ export class ClientRequest extends OutgoingMessage {
     }
 
     /** Writable stream _write implementation — collect body chunks. */
-    _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
-        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
+    _write(chunk: unknown, encoding: string, callback: (error?: Error | null) => void): void {
+        const buf = Buffer.isBuffer(chunk)
+            ? chunk
+            : typeof chunk === 'string'
+              ? Buffer.from(chunk, encoding as BufferEncoding)
+              : Buffer.from(chunk as Uint8Array);
         this._chunks.push(buf);
         callback();
     }
@@ -240,6 +247,7 @@ export class ClientRequest extends OutgoingMessage {
                     this._message,
                     GLib.PRIORITY_DEFAULT,
                     this._cancellable,
+                    // oxlint-disable-next-line typescript/no-explicit-any -- GI introspection boundary: Soup.Session.send_async's callback `_self` ref isn't reliably typed across @girs/soup-3.0 variants; the parameter is unused and the result handle is read off the closure-captured `_session`.
                     (_self: any, asyncRes: Gio.AsyncResult) => {
                         try {
                             const stream = this._session.send_finish(asyncRes);
@@ -307,7 +315,7 @@ export class ClientRequest extends OutgoingMessage {
                 res.push(null);
                 res.complete = true;
             }, 0);
-        } catch (error: any) {
+        } catch (error: unknown) {
             if (this.aborted) {
                 this.emit('abort');
             } else {

@@ -324,13 +324,17 @@ export class Socket extends Duplex {
         }
     }
 
-    _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
+    _write(chunk: unknown, encoding: string, callback: (error?: Error | null) => void): void {
         if (!this._outputStream) {
             callback(new Error('Socket is not connected'));
             return;
         }
 
-        const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
+        const data = Buffer.isBuffer(chunk)
+            ? chunk
+            : typeof chunk === 'string'
+              ? Buffer.from(chunk, encoding as BufferEncoding)
+              : Buffer.from(chunk as Uint8Array);
 
         this._outputStream.write_bytes_async(
             new GLib.Bytes(data),

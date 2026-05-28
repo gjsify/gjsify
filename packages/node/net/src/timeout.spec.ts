@@ -9,7 +9,7 @@ import type { Server } from 'node:net';
 
 /** Helper: create a TCP server and return address + cleanup */
 function listenServer(
-    handler?: (socket: any) => void,
+    handler?: (socket: Socket) => void,
 ): Promise<{ port: number; server: Server; close: () => Promise<void> }> {
     return new Promise((resolve) => {
         const server = createServer(handler || (() => {}));
@@ -126,13 +126,13 @@ export default async () => {
     await describe('net allowHalfOpen', async () => {
         await it('server should store allowHalfOpen option', async () => {
             const server1 = createServer({ allowHalfOpen: true });
-            expect((server1 as any).allowHalfOpen).toBe(true);
+            expect((server1 as unknown as { allowHalfOpen: boolean }).allowHalfOpen).toBe(true);
 
             const server2 = createServer({ allowHalfOpen: false });
-            expect((server2 as any).allowHalfOpen).toBe(false);
+            expect((server2 as unknown as { allowHalfOpen: boolean }).allowHalfOpen).toBe(false);
 
             const server3 = createServer();
-            expect((server3 as any).allowHalfOpen).toBe(false);
+            expect((server3 as unknown as { allowHalfOpen: boolean }).allowHalfOpen).toBe(false);
         });
 
         await it('should close write side on EOF when allowHalfOpen=false', async () => {

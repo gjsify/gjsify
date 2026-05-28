@@ -18,13 +18,14 @@ import type { BridgeWindowHost } from '@gjsify/bridge-types';
 import { HTMLVideoElement, notifyElementResize } from '@gjsify/dom-elements';
 import { buildMediaStreamPipeline, buildUriPipeline } from './pipeline-builder.js';
 import { Gst as GstRuntime } from './gst-init.js';
+import type Gst1 from '@girs/gst-1.0';
 
 type VideoReadyCallback = (video: globalThis.HTMLVideoElement) => void;
 
 type GstSourceTrack = MediaStreamTrack & {
-    _gstSource?: unknown;
-    _gstPipeline?: unknown;
-    _gstTee?: unknown;
+    _gstSource?: Gst1.Element;
+    _gstPipeline?: Gst1.Pipeline;
+    _gstTee?: Gst1.Element;
 };
 
 const PLAY_ICON = 'media-playback-start-symbolic';

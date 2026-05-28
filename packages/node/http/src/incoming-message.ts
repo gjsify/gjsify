@@ -3,6 +3,7 @@
 
 import { Readable } from 'node:stream';
 import { Buffer } from 'node:buffer';
+import type { Socket } from 'node:net';
 
 /**
  * IncomingMessage — Readable stream for HTTP request (server-side) or response (client-side).
@@ -18,7 +19,9 @@ export class IncomingMessage extends Readable {
     statusCode?: number;
     statusMessage?: string;
     complete = false;
-    socket: any = null;
+    // Matches `@types/node` IncomingMessage.socket: a Socket-shaped duck (our ServerRequestSocket
+    // extends Duplex and satisfies this structurally, see server-request-socket.ts).
+    socket: Socket | null = null;
     aborted = false;
 
     /** Node.js legacy alias for socket — needed by engine.io and other HTTP consumers. */

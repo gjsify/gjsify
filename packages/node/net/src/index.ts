@@ -43,7 +43,7 @@ export function createConnection(
     connectionListener?: () => void,
 ): Socket {
     const socket = new Socket();
-    return socket.connect(options as any, host as any, connectionListener);
+    return socket.connect(options, host, connectionListener);
 }
 
 /** Alias for createConnection. */
@@ -55,7 +55,13 @@ export function createServer(
     options?: { allowHalfOpen?: boolean },
     connectionListener?: (socket: Socket) => void,
 ): Server;
-export function createServer(optionsOrListener?: any, connectionListener?: (socket: Socket) => void): Server {
+export function createServer(
+    optionsOrListener?: { allowHalfOpen?: boolean } | ((socket: Socket) => void),
+    connectionListener?: (socket: Socket) => void,
+): Server {
+    if (typeof optionsOrListener === 'function') {
+        return new Server(optionsOrListener);
+    }
     return new Server(optionsOrListener, connectionListener);
 }
 

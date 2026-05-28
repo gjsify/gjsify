@@ -1,3 +1,5 @@
+// oxlint-disable typescript/no-explicit-any -- isIP/isIPv4/isIPv6 are typed `(input: string) => …` so testing non-string inputs (undefined/null/number/bool/object) requires `as any` casts to bypass the parameter type; `server.address()` returns `string | net.AddressInfo | null` so reading `.port` is narrowed via cast — both are test-fidelity patterns.
+
 // Ported from refs/node-test/parallel/test-net-isip.js, test-net-connect-buffer.js,
 // test-net-settimeout.js, test-net-bytes-read.js, test-net-server-max-connections.js
 // Original: MIT license, Node.js contributors

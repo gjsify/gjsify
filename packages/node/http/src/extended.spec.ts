@@ -1,3 +1,5 @@
+// oxlint-disable typescript/no-explicit-any -- validateHeaderName/Value are typed `(name: string, …) => …`; testing non-string rejection (123/null/undefined) requires `as any` casts to bypass the parameter type — test-fidelity.
+
 // Extended HTTP tests — header validation, STATUS_CODES depth, Agent details,
 // IncomingMessage/ServerResponse properties
 // Ported from refs/node-test/parallel/test-http-*.js
@@ -173,7 +175,7 @@ export default async () => {
         });
 
         await it('unknown status code should be undefined', async () => {
-            expect((http.STATUS_CODES as any)[999]).toBeUndefined();
+            expect((http.STATUS_CODES as Record<number, string | undefined>)[999]).toBeUndefined();
         });
     });
 
