@@ -17,6 +17,7 @@ export class Session {
 
     disconnect(): void {}
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- node:inspector Session.post signature: params and result are protocol-defined arbitrary objects per @types/node.
     post(_method: string, _params?: any, _callback?: (err: Error | null, result?: any) => void): void {
         if (_callback) _callback(null);
     }

@@ -33,7 +33,7 @@ export default async () => {
             // Native implementations may throw TypeError or other errors
             let threw = false;
             try {
-                new CompressionStream('invalid-format-xyz' as any);
+                new CompressionStream('invalid-format-xyz' as unknown as CompressionFormat);
             } catch {
                 threw = true;
             }
@@ -103,7 +103,7 @@ export default async () => {
         await it('should reject unsupported format', async () => {
             let threw = false;
             try {
-                new DecompressionStream('invalid-format-xyz' as any);
+                new DecompressionStream('invalid-format-xyz' as unknown as CompressionFormat);
             } catch {
                 threw = true;
             }

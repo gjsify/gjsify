@@ -93,6 +93,7 @@ export class FormData {
         }
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- thisArg matches lib.dom's FormData.forEach signature, which intentionally uses `any` because the callback's `this` binding type isn't expressible by the standard.
     forEach(callback: (value: FormDataEntryValue, key: string, parent: FormData) => void, thisArg?: any): void {
         for (const entry of this[_entries]) {
             callback.call(thisArg, entry.value, entry.name, this);

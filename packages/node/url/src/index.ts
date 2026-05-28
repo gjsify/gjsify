@@ -142,7 +142,7 @@ function encodeComponent(s: string): string {
 // ---- URL class using GLib.Uri ----
 
 export class URL {
-    #uri: any; // GLib.Uri
+    #uri: GLib.Uri;
     #searchParams: URLSearchParams;
 
     constructor(url: string | URL, base?: string | URL) {
