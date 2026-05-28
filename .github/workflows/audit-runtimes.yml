@@ -1,0 +1,33 @@
+name: Audit runtimes
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  check:
+    name: Detect runtime-triplet drift
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+
+      # `scripts/audit-runtimes.mjs` is pure Node (zero deps beyond builtins),
+      # so no `yarn install` / `npm install` is needed. The script walks
+      # `packages/**/package.json`, classifies each one against the five-axis
+      # cross-runtime model (see AGENTS.md `## Strategic direction`), and
+      # exits 1 if any package's declared `gjsify.runtimes` triplet diverges
+      # from what its source-code signals (`@girs/*` value-imports, `gi://`
+      # URL imports, dynamic `import('gi://...')`, legacy `imports.X`, etc.)
+      # would suggest. Catches the case where a package's impl changes shape
+      # but its triplet declaration is left stale.
+      - name: Check declared vs detected runtime triplets
+        run: node scripts/audit-runtimes.mjs --check
