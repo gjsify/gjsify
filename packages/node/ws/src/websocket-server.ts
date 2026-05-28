@@ -41,6 +41,28 @@ interface HttpServer {
     address(): { address: string; family: string; port: number } | null;
 }
 
+/** Structural duck-type for an HTTP upgrade request (Node `IncomingMessage`-shaped).
+ *  ws's `handleUpgrade(req, socket, head, cb)` accepts the IncomingMessage produced
+ *  by `http.Server`'s 'upgrade' event — modelled structurally so this file does not
+ *  hard-depend on `@gjsify/http`'s exact request class. Members read defensively. */
+interface UpgradeRequest {
+    method?: string;
+    url?: string;
+    headers?: Record<string, string | string[] | undefined>;
+    socket?: { remoteAddress?: string; remotePort?: number };
+}
+
+/** Structural duck-type for the upgrade socket (Node `Duplex`/`net.Socket`-shaped).
+ *  We only need `write`/`destroy` to send the 101/4xx response, plus the optional
+ *  `_releaseIOStream` hook that `@gjsify/net`'s Socket exposes so we can hand its
+ *  underlying `Gio.IOStream` to `Soup.WebsocketConnection.new`. The hook stays
+ *  optional so a plain net.Socket can still pass through `_abortHandshake`. */
+interface UpgradeSocket {
+    write(chunk: string | Uint8Array, cb?: (err?: Error) => void): boolean;
+    destroy?(err?: Error): void;
+    _releaseIOStream?(): Gio.IOStream | null;
+}
+
 // ── verifyClient types ──────────────────────────────────────────────────────
 
 export interface VerifyClientInfo {
@@ -418,7 +440,12 @@ export class WebSocketServer extends EventEmitter {
      *  Sec-WebSocket-Accept, emits 'headers' (mutable array), writes the 101
      *  response via socket.write(), then creates Soup.WebsocketConnection from
      *  the underlying IOStream and calls cb(ws, req). */
-    handleUpgrade(req: any, socket: any, _head: Buffer, cb: (ws: ServerSideWebSocket, req: any) => void): void {
+    handleUpgrade(
+        req: UpgradeRequest,
+        socket: UpgradeSocket,
+        _head: Buffer,
+        cb: (ws: ServerSideWebSocket, req: UpgradeRequest) => void,
+    ): void {
         if (!this._validateUpgradeHeaders(req, socket)) return;
         const key = (req.headers?.['sec-websocket-key'] ?? '') as string;
 
@@ -453,21 +480,21 @@ export class WebSocketServer extends EventEmitter {
 
     // ── handleUpgrade helpers ───────────────────────────────────────────────
 
-    private _validateUpgradeHeaders(req: any, socket: any): boolean {
+    private _validateUpgradeHeaders(req: UpgradeRequest, socket: UpgradeSocket): boolean {
         const h = req.headers ?? {};
         if (req.method !== 'GET') {
             this._abortHandshake(socket, 405);
             return false;
         }
-        if ((h['upgrade'] ?? '').toLowerCase() !== 'websocket') {
+        if (((h['upgrade'] as string | undefined) ?? '').toLowerCase() !== 'websocket') {
             this._abortHandshake(socket, 400);
             return false;
         }
-        if (!WS_KEY_REGEX.test(h['sec-websocket-key'] ?? '')) {
+        if (!WS_KEY_REGEX.test((h['sec-websocket-key'] as string | undefined) ?? '')) {
             this._abortHandshake(socket, 400);
             return false;
         }
-        const ver = Number(h['sec-websocket-version'] ?? '0');
+        const ver = Number((h['sec-websocket-version'] as string | undefined) ?? '0');
         if (ver !== 13 && ver !== 8) {
             this._abortHandshake(socket, 426);
             return false;
@@ -480,10 +507,10 @@ export class WebSocketServer extends EventEmitter {
     }
 
     private _completeUpgrade(
-        req: any,
-        socket: any,
+        req: UpgradeRequest,
+        socket: UpgradeSocket,
         key: string,
-        cb: (ws: ServerSideWebSocket, req: any) => void,
+        cb: (ws: ServerSideWebSocket, req: UpgradeRequest) => void,
     ): void {
         const digest = createHash('sha1')
             .update(key + WS_GUID)
@@ -547,7 +574,7 @@ export class WebSocketServer extends EventEmitter {
         });
     }
 
-    private _abortHandshake(socket: any, code: number): void {
+    private _abortHandshake(socket: UpgradeSocket, code: number): void {
         const statusTexts: Record<number, string> = {
             400: 'Bad Request',
             401: 'Unauthorized',
@@ -561,15 +588,19 @@ export class WebSocketServer extends EventEmitter {
         });
     }
 
-    private _buildVerifyClientInfoFromReq(req: any): VerifyClientInfo {
+    private _buildVerifyClientInfoFromReq(req: UpgradeRequest): VerifyClientInfo {
         const h = req.headers ?? {};
+        // Defensive coerce: UpgradeRequest models per-header values as
+        // `string | string[] | undefined` (Node http), so a per-field cast is needed
+        // to satisfy VerifyClientInfo's narrower `Record<string, string | string[]>`.
+        const headers = h as Record<string, string | string[]>;
         return {
-            origin: (h['origin'] as string) ?? '',
+            origin: (headers['origin'] as string | undefined) ?? '',
             secure: false,
             req: {
                 method: req.method ?? 'GET',
                 url: req.url ?? '/',
-                headers: h,
+                headers,
                 socket: {
                     remoteAddress: req.socket?.remoteAddress ?? '127.0.0.1',
                     remotePort: req.socket?.remotePort ?? 0,

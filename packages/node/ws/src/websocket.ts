@@ -22,6 +22,50 @@ import { BINARY_TYPES, CLOSED, CLOSING, CONNECTING, OPEN } from './constants.js'
 
 export type BinaryType = 'nodebuffer' | 'arraybuffer' | 'fragments' | 'blob';
 
+/** Structural subset of the W3C WebSocket we delegate to. Defined locally so we
+ *  do not depend on lib.dom's `WebSocket` (which isn't available under `--app gjs`
+ *  unless lib.dom is in scope) and stay agnostic of whether the runtime binding
+ *  is `@gjsify/websocket`'s Soup-backed class or the host's native global. */
+interface NativeWebSocketLike {
+    binaryType: string;
+    protocol?: string;
+    extensions?: string;
+    addEventListener(type: 'open' | 'message' | 'close' | 'error', listener: (ev: NativeEvent) => void): void;
+    send(data: string | ArrayBuffer | ArrayBufferView | Blob): void;
+    close(code?: number, reason?: string): void;
+}
+
+/** Minimal event shape emitted by the native WebSocket. Properties are read
+ *  defensively (`ev?.data` / `ev?.code` / `ev?.error`) so the same handler
+ *  works against the W3C `MessageEvent`/`CloseEvent`/`Event` instances from
+ *  `@gjsify/dom-events`, lib.dom, and undici's WebSocket alike. */
+interface NativeEvent {
+    type?: string;
+    data?: unknown;
+    code?: number;
+    reason?: string;
+    wasClean?: boolean;
+    error?: unknown;
+    message?: string;
+}
+
+/** Event shape passed to W3C-style `addEventListener` consumers. ws's public
+ *  API uses `(event: ws.Event | ws.MessageEvent | ws.CloseEvent | ws.ErrorEvent) => void`;
+ *  consumers read `event.type`/`event.data`/`event.code`/`event.reason`/`event.error`,
+ *  all of which are surfaced here. `target` is the wrapper, matching ws. */
+interface WsListenerEvent {
+    type: string;
+    target: WebSocket;
+    data?: unknown;
+    code?: number;
+    reason?: string;
+    wasClean?: boolean;
+    error?: unknown;
+    message?: string;
+}
+
+type WsListener = (ev: WsListenerEvent) => void;
+
 /** Options accepted by the ws constructor. Only a subset is honored on Gjs —
  *  see README for the support matrix. Unknown options are silently ignored
  *  to preserve drop-in compatibility with `ws`-calling code. */
@@ -87,10 +131,10 @@ export class WebSocket extends EventEmitter {
     bufferedAmount = 0;
     binaryType: BinaryType = 'nodebuffer';
 
-    /** The real WebSocket we delegate to. Typed as `any` because the W3C
-     *  ambient type comes from multiple realms depending on where this bundle
-     *  ends up (GJS browser-like globals vs. Node's undici). */
-    private _native: any = null;
+    /** The real WebSocket we delegate to. Typed structurally (`NativeWebSocketLike`)
+     *  because the W3C ambient type comes from multiple realms depending on where
+     *  this bundle ends up (GJS browser-like globals vs. Node's undici). */
+    private _native: NativeWebSocketLike | null = null;
 
     constructor(address: string | URL | null, protocols?: string | string[], options: ClientOptions = {}) {
         super();
@@ -159,7 +203,7 @@ export class WebSocket extends EventEmitter {
                 url: string | URL,
                 protocols?: string | string[],
                 opts?: typeof nativeOpts,
-            ) => typeof this._native;
+            ) => NativeWebSocketLike;
             this._native = new (NativeWebSocket as unknown as NativeWebSocketCtor)(url, protocols, nativeOpts);
         } catch (err) {
             queueMicrotask(() => this._fail(err instanceof Error ? err : new Error(String(err))));
@@ -171,9 +215,9 @@ export class WebSocket extends EventEmitter {
         this._native.binaryType = 'arraybuffer';
 
         this._native.addEventListener('open', () => this._onOpen());
-        this._native.addEventListener('message', (ev: any) => this._onMessage(ev));
-        this._native.addEventListener('close', (ev: any) => this._onClose(ev));
-        this._native.addEventListener('error', (ev: any) => this._onError(ev));
+        this._native.addEventListener('message', (ev: NativeEvent) => this._onMessage(ev));
+        this._native.addEventListener('close', (ev: NativeEvent) => this._onClose(ev));
+        this._native.addEventListener('error', (ev: NativeEvent) => this._onError(ev));
     }
 
     private _fail(err: string | Error): void {
@@ -190,13 +234,13 @@ export class WebSocket extends EventEmitter {
         this.readyState = OPEN;
         // protocol/extensions may not be exposed by every native WebSocket
         // implementation; read defensively.
-        if (typeof this._native.protocol === 'string') this.protocol = this._native.protocol;
-        if (typeof this._native.extensions === 'string') this.extensions = this._native.extensions;
+        if (typeof this._native?.protocol === 'string') this.protocol = this._native.protocol;
+        if (typeof this._native?.extensions === 'string') this.extensions = this._native.extensions;
         this.emit('open');
         this._dispatchEvent('open', {});
     }
 
-    private _onMessage(ev: any): void {
+    private _onMessage(ev: NativeEvent): void {
         const raw = ev?.data;
         let data: unknown;
         let isBinary = false;
@@ -237,7 +281,7 @@ export class WebSocket extends EventEmitter {
         }
     }
 
-    private _onClose(ev: any): void {
+    private _onClose(ev: NativeEvent): void {
         const code = typeof ev?.code === 'number' ? ev.code : 1006;
         const reason = typeof ev?.reason === 'string' ? ev.reason : '';
         this.readyState = CLOSED;
@@ -245,8 +289,8 @@ export class WebSocket extends EventEmitter {
         this._dispatchEvent('close', { code, reason, wasClean: !!ev?.wasClean });
     }
 
-    private _onError(ev: any): void {
-        const msg = ev?.message || 'WebSocket error';
+    private _onError(ev: NativeEvent): void {
+        const msg = (typeof ev?.message === 'string' && ev.message) || 'WebSocket error';
         const err = ev?.error instanceof Error ? ev.error : new Error(msg);
         this.emit('error', err);
         this._dispatchEvent('error', { error: err, message: msg });
@@ -283,15 +327,22 @@ export class WebSocket extends EventEmitter {
             // W3C WebSocket.send accepts string / Blob / ArrayBuffer / ArrayBufferView.
             // ws accepts additionally Node Buffer (which is a Uint8Array subclass, so
             // ArrayBufferView — passes through) and numbers/booleans (coerced to str).
-            let payload: unknown = data;
-            if (typeof data === 'number' || typeof data === 'boolean') {
+            let payload: string | ArrayBuffer | ArrayBufferView | Blob;
+            if (typeof data === 'string') {
+                payload = data;
+            } else if (typeof data === 'number' || typeof data === 'boolean') {
                 payload = String(data);
             } else if (Buffer.isBuffer(data)) {
                 // Send the underlying bytes (not the Buffer wrapper) so Soup treats
                 // it as binary, not text.
                 payload = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+            } else if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+                payload = data as ArrayBuffer | ArrayBufferView;
+            } else {
+                // Best-effort fallback for unrecognized payloads — coerce to string.
+                payload = String(data);
             }
-            this._native.send(payload as Parameters<typeof this._native.send>[0]);
+            this._native?.send(payload);
             if (cb) queueMicrotask(() => cb());
         } catch (err) {
             const e = err instanceof Error ? err : new Error(String(err));
@@ -347,9 +398,9 @@ export class WebSocket extends EventEmitter {
     // registration for consumers that prefer the W3C API. We mirror it to
     // stay compat.
 
-    private _eventTargetListeners: Map<string, Set<(ev: any) => void>> = new Map();
+    private _eventTargetListeners: Map<string, Set<WsListener>> = new Map();
 
-    addEventListener(type: string, listener: (ev: any) => void): void {
+    addEventListener(type: string, listener: WsListener): void {
         let set = this._eventTargetListeners.get(type);
         if (!set) {
             set = new Set();
@@ -358,7 +409,7 @@ export class WebSocket extends EventEmitter {
         set.add(listener);
     }
 
-    removeEventListener(type: string, listener: (ev: any) => void): void {
+    removeEventListener(type: string, listener: WsListener): void {
         this._eventTargetListeners.get(type)?.delete(listener);
     }
 
@@ -366,7 +417,7 @@ export class WebSocket extends EventEmitter {
         const set = this._eventTargetListeners.get(type);
         if (!set || set.size === 0) return;
         // Minimal event shape matching Node's ws: { type, target } + detail props.
-        const ev = Object.assign({ type, target: this }, detail);
+        const ev: WsListenerEvent = Object.assign({ type, target: this }, detail);
         for (const listener of set) {
             try {
                 listener(ev);

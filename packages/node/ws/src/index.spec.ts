@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec asserts ws's CJS post-load self-references (`(WebSocket as any).WebSocket`, `(WebSocket as any).Server`) — these properties are deliberately attached at module load by index.ts to mirror the npm `ws` shape and are not part of the published `@types/ws` named-export surface, so a cast is the right tool; typing them as `WebSocket & { WebSocket: typeof WebSocket; Server: typeof WebSocketServer }` here would couple the test to the wrapper's internal post-load surface that ESM↔CJS bridging deliberately hides on Node (the assertions wrap in `on('Gjs')` for exactly this reason)
 // SPDX-License-Identifier: MIT
 // Ported from refs/ws/test/websocket.test.js and websocket-server.test.js
 // Original: Copyright (c) 2011+ Einar Otto Stangvik. MIT.
