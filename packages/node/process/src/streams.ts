@@ -15,6 +15,7 @@ export class ProcessWriteStream extends EventEmitter {
     readonly fd: number;
     // Required by Stream.pipe(): without this, pipe skips dest.write() entirely.
     writable = true;
+    // oxlint-disable-next-line typescript/no-explicit-any -- GI introspection boundary: Gio/GLib namespaces and stream/result instances are runtime-injected via globalThis.imports.gi and would require @girs/* imports to type statically (coupling this file's TS compile to GJS); matches the gioAsync per-line-disable convention noted in AGENTS.md
     private _outGio: any = null;
 
     constructor(fd: number) {
@@ -112,7 +113,9 @@ export class ProcessReadStream extends EventEmitter {
     // setImmediate fires as a microtask — the property must stay absent so
     // @inquirer/core calls startCycle() synchronously on its own schedule.
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- GI introspection boundary: Gio/GLib namespaces and stream/result instances are runtime-injected via globalThis.imports.gi and would require @girs/* imports to type statically (coupling this file's TS compile to GJS); matches the gioAsync per-line-disable convention noted in AGENTS.md
     private _gio: any = null;
+    // oxlint-disable-next-line typescript/no-explicit-any -- GI introspection boundary: Gio/GLib namespaces and stream/result instances are runtime-injected via globalThis.imports.gi and would require @girs/* imports to type statically (coupling this file's TS compile to GJS); matches the gioAsync per-line-disable convention noted in AGENTS.md
     private _stdinGio: any = null;
     private _reading = false;
     private _flowing = false;
@@ -157,6 +160,7 @@ export class ProcessReadStream extends EventEmitter {
             const _gi: Record<string, unknown> | undefined = (
                 globalThis as { imports?: { gi?: Record<string, unknown> } }
             ).imports?.gi;
+            // oxlint-disable-next-line typescript/no-explicit-any -- GI introspection boundary: Gio/GLib namespaces and stream/result instances are runtime-injected via globalThis.imports.gi and would require @girs/* imports to type statically (coupling this file's TS compile to GJS); matches the gioAsync per-line-disable convention noted in AGENTS.md
             const Gio: any = _gi?.Gio ?? _gi?.['Gio'];
             if (!Gio) return;
             // G_SUBPROCESS_FLAGS_STDIN_INHERIT = 1 << 1 = 2
@@ -212,6 +216,7 @@ export class ProcessReadStream extends EventEmitter {
             const _gi: Record<string, unknown> | undefined = (
                 globalThis as { imports?: { gi?: Record<string, unknown> } }
             ).imports?.gi;
+            // oxlint-disable-next-line typescript/no-explicit-any -- GI introspection boundary: Gio/GLib namespaces and stream/result instances are runtime-injected via globalThis.imports.gi and would require @girs/* imports to type statically (coupling this file's TS compile to GJS); matches the gioAsync per-line-disable convention noted in AGENTS.md
             const GLib: any = _gi?.GLib ?? _gi?.['GLib'];
             if (GLib?.idle_add) {
                 GLib.idle_add(300 /* PRIORITY_LOW */, () => {
@@ -277,6 +282,7 @@ export class ProcessReadStream extends EventEmitter {
                 return;
             }
             this._pendingRead = true;
+            // oxlint-disable-next-line typescript/no-explicit-any -- GI introspection boundary: Gio/GLib namespaces and stream/result instances are runtime-injected via globalThis.imports.gi and would require @girs/* imports to type statically (coupling this file's TS compile to GJS); matches the gioAsync per-line-disable convention noted in AGENTS.md
             this._stdinGio.read_bytes_async(4096, 0, null, (src: any, res: any) => {
                 this._pendingRead = false;
                 try {

@@ -5,14 +5,14 @@ import { EventEmitter } from 'node:events';
 export const isPrimary = true;
 export const isMaster = true;
 export const isWorker = false;
-export const workers: Record<number, any> = {};
-export const settings: any = {};
+export const workers: Record<number, unknown> = {};
+export const settings: Record<string, unknown> = {};
 
-export function setupPrimary(_settings?: any): void {}
+export function setupPrimary(_settings?: Record<string, unknown>): void {}
 
 export const setupMaster = setupPrimary;
 
-export function fork(_env?: any): any {
+export function fork(_env?: Record<string, string | undefined>): never {
     throw new Error('cluster.fork() is not supported in GJS');
 }
 

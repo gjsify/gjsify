@@ -835,7 +835,7 @@ export default async () => {
                 const socket = createSocket('udp4');
                 await new Promise<void>((resolve) => {
                     socket.connect(12345, '127.0.0.1', () => {
-                        const remote = (socket as any).remoteAddress();
+                        const remote = (socket as { remoteAddress: () => { address: string; port: number; family: string } }).remoteAddress();
                         expect(remote.port).toBe(12345);
                         expect(remote.address).toBe('127.0.0.1');
                         expect(remote.family).toBe('IPv4');
@@ -865,7 +865,7 @@ export default async () => {
                 const socket = createSocket('udp4');
                 await new Promise<void>((resolve) => {
                     socket.connect(12345, () => {
-                        const remote = (socket as any).remoteAddress();
+                        const remote = (socket as { remoteAddress: () => { address: string; port: number; family: string } }).remoteAddress();
                         expect(remote.port).toBe(12345);
                         expect(remote.address).toBe('127.0.0.1');
                         socket.close();
@@ -900,7 +900,7 @@ export default async () => {
                         // remoteAddress() should now throw
                         let threw = false;
                         try {
-                            (socket as any).remoteAddress();
+                            (socket as { remoteAddress: () => { address: string; port: number; family: string } }).remoteAddress();
                         } catch (e: unknown) {
                             threw = true;
                             expect((e as NodeJS.ErrnoException).code).toBe('ERR_SOCKET_DGRAM_NOT_CONNECTED');
@@ -929,7 +929,7 @@ export default async () => {
                 const socket = createSocket('udp4');
                 let threw = false;
                 try {
-                    (socket as any).remoteAddress();
+                    (socket as { remoteAddress: () => { address: string; port: number; family: string } }).remoteAddress();
                 } catch (e: unknown) {
                     threw = true;
                     expect((e as NodeJS.ErrnoException).code).toBe('ERR_SOCKET_DGRAM_NOT_CONNECTED');
@@ -980,7 +980,7 @@ export default async () => {
                         socket.disconnect();
                         // Should be able to connect again
                         socket.connect(54321, '127.0.0.1', () => {
-                            const remote = (socket as any).remoteAddress();
+                            const remote = (socket as { remoteAddress: () => { address: string; port: number; family: string } }).remoteAddress();
                             expect(remote.port).toBe(54321);
                             socket.close();
                             resolve();
@@ -1207,7 +1207,7 @@ export default async () => {
                             expect(msg.length).toBe(testMsg.length);
                             // rinfo.size should match message byte length
                             if ('size' in rinfo) {
-                                expect((rinfo as any).size).toBe(testMsg.length);
+                                expect((rinfo as { size?: number }).size).toBe(testMsg.length);
                             }
                             server.close();
                             client.close();

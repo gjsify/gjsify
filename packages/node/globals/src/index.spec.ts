@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec asserts node-globals are wired on globalThis by reading them dynamically via (globalThis as any).<prop>; typing each chained access (.process.env/.versions, .Buffer, .TextEncoder, .structuredClone, .atob/btoa, .setImmediate, …) would obscure the test intent and is exactly the dynamic-globalThis-read pattern the convention permits at file level
 import { describe, it, expect } from '@gjsify/unit';
 
 export default async () => {

@@ -369,7 +369,7 @@ export default async () => {
             const orig = process.exitCode;
             process.exitCode = 42;
             expect(process.exitCode).toBe(42);
-            process.exitCode = orig as any;
+            process.exitCode = orig as number | string | null | undefined;
         });
 
         await it('process.title should be a string', async () => {

@@ -238,7 +238,7 @@ export default async () => {
 
         await it('exec error should have code property', async () => {
             // Testing child_process module API — hardcoded safe literal
-            const error = await new Promise<any>((resolve) => {
+            const error = await new Promise<(Error & { code?: string | number }) | undefined>((resolve) => {
                 exec('exit 42', (err) => {
                     resolve(err);
                 });
@@ -610,7 +610,7 @@ export default async () => {
         });
 
         await it('error should have status property', async () => {
-            let error: any = null;
+            let error: (Error & { code?: string | number; status?: number | null; stderr?: string | Buffer }) | null = null;
             try {
                 execSync('exit 42');
             } catch (e) {
@@ -621,7 +621,7 @@ export default async () => {
         });
 
         await it('error should have stderr property', async () => {
-            let error: any = null;
+            let error: (Error & { code?: string | number; status?: number | null; stderr?: string | Buffer }) | null = null;
             try {
                 execSync('echo err_msg >&2; exit 1');
             } catch (e) {
@@ -657,7 +657,7 @@ export default async () => {
         });
 
         await it('error should have status and stderr', async () => {
-            let error: any = null;
+            let error: (Error & { code?: string | number; status?: number | null; stderr?: string | Buffer }) | null = null;
             try {
                 execFileSync('sh', ['-c', 'echo err >&2; exit 3']);
             } catch (e) {
