@@ -474,6 +474,6 @@ export class DatabaseSync {
 
 // Expose exec() as public API. Named sqlExec internally to avoid security hook
 // false positive on the string "exec" in method definitions.
-(DatabaseSync.prototype as any).exec = DatabaseSync.prototype.sqlExec;
+(DatabaseSync.prototype as unknown as Record<string, unknown>).exec = DatabaseSync.prototype.sqlExec;
 
 export type { ParamInfo };

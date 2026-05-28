@@ -155,7 +155,7 @@ export default async () => {
             db.exec('CREATE TABLE types(key INTEGER PRIMARY KEY, val INTEGER) STRICT;');
             const stmt = db.prepare('INSERT INTO types (key, val) VALUES ($k, $v)');
             expect(() => {
-                (stmt as any).setReadBigInts();
+                (stmt as unknown as { setReadBigInts: () => void }).setReadBigInts();
             }).toThrow();
             db.close();
         });
@@ -188,7 +188,7 @@ export default async () => {
             db.exec('CREATE TABLE data(key INTEGER PRIMARY KEY, val INTEGER) STRICT;');
             const stmt = db.prepare('SELECT key, val FROM data');
             expect(() => {
-                (stmt as any).setReturnArrays();
+                (stmt as unknown as { setReturnArrays: () => void }).setReturnArrays();
             }).toThrow();
             db.close();
         });
