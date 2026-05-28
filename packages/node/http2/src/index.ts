@@ -55,6 +55,17 @@ export {
 } from './client-session.js';
 
 import { Http2Session, ClientHttp2Session, ClientHttp2Stream, type ClientSessionOptions } from './client-session.js';
+import type { Socket } from 'node:net';
+import type { TLSSocket } from 'node:tls';
+
+/**
+ * Socket type for the `connect()` callback — matches Node's
+ * `net.Socket | tls.TLSSocket` shape. gjsify currently passes `null` from
+ * `ClientHttp2Session` because the underlying transport is Soup-managed
+ * (or the @gjsify/http2-native bridge); a real socket handle isn't surfaced.
+ * Typed as the Node union so consumer callbacks stay drop-in.
+ */
+type ConnectSocket = Socket | TLSSocket;
 
 // ─── Factory functions ────────────────────────────────────────────────────────
 
@@ -74,8 +85,8 @@ export function createSecureServer(
 
 export function connect(
     authority: string | URL,
-    options?: ClientSessionOptions | ((session: ClientHttp2Session, socket: any) => void),
-    listener?: (session: ClientHttp2Session, socket: any) => void,
+    options?: ClientSessionOptions | ((session: ClientHttp2Session, socket: ConnectSocket) => void),
+    listener?: (session: ClientHttp2Session, socket: ConnectSocket) => void,
 ): ClientHttp2Session {
     const authorityStr = typeof authority === 'string' ? authority : authority.toString();
     if (typeof options === 'function') {

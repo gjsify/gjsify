@@ -3,6 +3,8 @@
 
 import { Readable } from 'node:stream';
 import { Buffer } from 'node:buffer';
+import type { Socket } from 'node:net';
+import type { TLSSocket } from 'node:tls';
 import type { ServerHttp2Stream } from './response.js';
 
 export class Http2ServerRequest extends Readable {
@@ -16,7 +18,12 @@ export class Http2ServerRequest extends Readable {
     httpVersionMajor = 2;
     httpVersionMinor = 0;
     complete = false;
-    socket: any = null;
+    // Node types: `net.Socket | tls.TLSSocket`. gjsify currently has no Node
+    // socket handle to expose for HTTP/2 (Soup multiplexes transparently;
+    // the @gjsify/http2-native bridge owns its own GIO socket), so the field
+    // is `null` at runtime — matches Node's behaviour for sessions where
+    // the socket has been destroyed.
+    socket: Socket | TLSSocket | null = null;
     trailers: Record<string, string> = {};
     rawTrailers: string[] = [];
 

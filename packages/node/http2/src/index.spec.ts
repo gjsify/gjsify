@@ -191,7 +191,7 @@ export default async () => {
 
         await it('getPackedSettings with no args should return empty', async () => {
             // Calling getPackedSettings() without args is valid at runtime; @types/node requires one arg.
-            const packed = (getPackedSettings as any)();
+            const packed = (getPackedSettings as unknown as () => Uint8Array)();
             expect(packed.byteLength).toBe(0);
         });
 

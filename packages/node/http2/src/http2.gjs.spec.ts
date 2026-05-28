@@ -1,3 +1,8 @@
+// oxlint-disable typescript/no-explicit-any -- Spec exercises GJS-only impl-private surface (push streams,
+// respondWithFD/File, ServerHttp2Stream pushedChildren) via `(value as any).method` casts because the
+// runtime `http2` module is imported through `node:http2` (whose @types/node declarations don't expose
+// the gjsify-specific shapes); replacing each cast with a full structural narrow would multiply spec
+// noise without improving fidelity. Same precedent as #335/#337/#346/#349 spec headers.
 // GJS-only integration tests for http2 server + client (Soup.Server / Soup.Session backed)
 // These tests only run on GJS since they require Soup 3.0.
 // Wrapped in on('Gjs') — not executed on Node.js.

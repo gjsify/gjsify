@@ -1,3 +1,10 @@
+// oxlint-disable typescript/no-explicit-any -- GI introspection boundary: spec dynamically imports
+// `gi://Gio`/`gi://GLib`/`gi://GjsifyHttp2` (cast to `any` because tsconfig deliberately keeps `@girs/*`
+// out of the @gjsify/http2 source-graph), uses raw GObject signal handlers (`headers_received` /
+// `data_received` / `push_promise_received`) marshalling `GLib.Variant`/`GLib.Bytes` payloads, plus
+// `pushStream` callback / pushed-stream casts at the @gjsify-private API surface that @types/node
+// doesn't model. Same GI-boundary disable precedent as #348 process/streams.ts and #351 http2-native
+// session-bridge spec.
 // Phase-1 spec for the native HTTP/2 dispatcher.
 //
 // Drives `createServer({ allowHTTP1: false })` end-to-end via an in-process
