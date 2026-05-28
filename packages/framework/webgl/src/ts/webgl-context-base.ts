@@ -72,12 +72,12 @@ const availableExtensions: Record<string, ExtensionFactory> = {
 };
 
 /**
- * Per-extension structural type. The original code typed this as `Record<string, any>`;
- * since each extension is created by an `ExtensionFactory` and exposes a heterogenous
- * set of GL constants and instance state, `Record<string, unknown>` plus a string index
- * preserves "anything can be on it" without losing call-site safety entirely.
+ * Per-extension structural type. Each extension is a concrete class instance
+ * created by an `ExtensionFactory`, with its own heterogenous GL constants and
+ * methods. We track them as plain `object` here and structurally narrow at the
+ * access site (e.g. `(ext as { COLOR_ATTACHMENT0_WEBGL: GLenum })`).
  */
-type WebGLExtensionLike = Record<string, unknown>;
+type WebGLExtensionLike = object;
 
 // oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: merges the GL enum constants into the class
 export interface WebGLContextBase extends WebGLConstants {}
@@ -124,7 +124,7 @@ export abstract class WebGLContextBase {
      * for that name. Each extension has its own surface area, so we keep this
      * loose-typed but no longer `any`.
      */
-    _extensions: Record<string, WebGLExtensionLike & any> = {};
+    _extensions: Record<string, WebGLExtensionLike> = {};
     _programs: Record<number, WebGLProgram> = {};
     _shaders: Record<number, WebGLShader> = {};
     _textures: Record<number, WebGLTexture> = {};
@@ -541,7 +541,11 @@ export abstract class WebGLContextBase {
 
             default:
                 if (this._extensions.webgl_draw_buffers) {
-                    const ext = this._extensions.webgl_draw_buffers;
+                    // Structural shape of the (not-yet-implemented) WEBGL_draw_buffers extension.
+                    const ext = this._extensions.webgl_draw_buffers as Record<
+                        `DRAW_BUFFER${number}_WEBGL` | 'MAX_DRAW_BUFFERS_WEBGL' | 'MAX_COLOR_ATTACHMENTS_WEBGL',
+                        GLenum
+                    > & { _buffersState: number[] };
                     switch (pname) {
                         case ext.DRAW_BUFFER0_WEBGL:
                         case ext.DRAW_BUFFER1_WEBGL:
@@ -569,25 +573,25 @@ export abstract class WebGLContextBase {
                     }
                 }
 
-                if (
-                    this._extensions.oes_standard_derivatives &&
-                    pname === this._extensions.oes_standard_derivatives.FRAGMENT_SHADER_DERIVATIVE_HINT_OES
-                ) {
+                const oesStd = this._extensions.oes_standard_derivatives as
+                    | { FRAGMENT_SHADER_DERIVATIVE_HINT_OES: GLenum }
+                    | undefined;
+                if (oesStd && pname === oesStd.FRAGMENT_SHADER_DERIVATIVE_HINT_OES) {
                     return this._getParameterDirect(pname);
                 }
 
-                if (
-                    this._extensions.ext_texture_filter_anisotropic &&
-                    pname === this._extensions.ext_texture_filter_anisotropic.MAX_TEXTURE_MAX_ANISOTROPY_EXT
-                ) {
+                const anisoExt = this._extensions.ext_texture_filter_anisotropic as
+                    | { MAX_TEXTURE_MAX_ANISOTROPY_EXT: GLenum }
+                    | undefined;
+                if (anisoExt && pname === anisoExt.MAX_TEXTURE_MAX_ANISOTROPY_EXT) {
                     return this._getParameterDirect(pname);
                 }
 
-                if (
-                    this._extensions.oes_vertex_array_object &&
-                    pname === this._extensions.oes_vertex_array_object.VERTEX_ARRAY_BINDING_OES
-                ) {
-                    return this._extensions.oes_vertex_array_object._activeVertexArrayObject;
+                const oesVao = this._extensions.oes_vertex_array_object as
+                    | { VERTEX_ARRAY_BINDING_OES: GLenum; _activeVertexArrayObject: unknown }
+                    | undefined;
+                if (oesVao && pname === oesVao.VERTEX_ARRAY_BINDING_OES) {
+                    return oesVao._activeVertexArrayObject;
                 }
 
                 this.setError(this.INVALID_ENUM);

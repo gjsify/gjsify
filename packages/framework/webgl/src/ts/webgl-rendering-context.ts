@@ -103,11 +103,10 @@ export class WebGLRenderingContext extends WebGLContextBase implements WebGLRend
             maxIndex = (count + first - 1) >>> 0;
         }
         if (this._checkVertexAttribState(maxIndex)) {
+            const drawBuffersExt = this._extensions.webgl_draw_buffers as { _buffersState?: number[] } | undefined;
             if (
                 this._vertexObjectState._attribs[0]._isPointer ||
-                (this._extensions.webgl_draw_buffers &&
-                    this._extensions.webgl_draw_buffers._buffersState &&
-                    this._extensions.webgl_draw_buffers._buffersState.length > 0)
+                (drawBuffersExt && drawBuffersExt._buffersState && drawBuffersExt._buffersState.length > 0)
             ) {
                 return this._native.drawArrays(mode, first, reducedCount);
             } else {

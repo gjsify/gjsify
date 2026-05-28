@@ -554,7 +554,10 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
         }
 
         if (this._extensions.webgl_draw_buffers) {
-            const { webgl_draw_buffers } = this._extensions;
+            const webgl_draw_buffers = this._extensions.webgl_draw_buffers as {
+                COLOR_ATTACHMENT0_WEBGL: GLenum;
+                _maxDrawBuffers: number;
+            };
             return attachment < webgl_draw_buffers.COLOR_ATTACHMENT0_WEBGL + webgl_draw_buffers._maxDrawBuffers;
         }
 
@@ -661,13 +664,13 @@ const framebufferMethods: ThisType<WebGLContextBase> & Record<string, Function> 
 
     _getAttachments(this: WebGLContextBase): number[] {
         return this._extensions.webgl_draw_buffers
-            ? this._extensions.webgl_draw_buffers._ALL_ATTACHMENTS
+            ? (this._extensions.webgl_draw_buffers as { _ALL_ATTACHMENTS: number[] })._ALL_ATTACHMENTS
             : this.DEFAULT_ATTACHMENTS;
     },
 
     _getColorAttachments(this: WebGLContextBase): number[] {
         return this._extensions.webgl_draw_buffers
-            ? this._extensions.webgl_draw_buffers._ALL_COLOR_ATTACHMENTS
+            ? (this._extensions.webgl_draw_buffers as { _ALL_COLOR_ATTACHMENTS: number[] })._ALL_COLOR_ATTACHMENTS
             : this.DEFAULT_COLOR_ATTACHMENTS;
     },
 

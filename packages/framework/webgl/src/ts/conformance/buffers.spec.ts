@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- conformance spec: tests deliberately call `bufferData`/`bufferSubData` with wrong-typed args (null data, plain numbers, strings, `null`) to assert WebGL throws/sets `INVALID_VALUE` per the Khronos conformance suite. Typing these forms would defeat the test intent.
 // Ported from refs/webgl/conformance-suites/2.0.0/conformance/buffers/
 // Original: Copyright (c) 2012 The Khronos Group Inc., MIT License
 // Modifications: Uses @gjsify/unit; GTK-backed GL context instead of browser canvas;

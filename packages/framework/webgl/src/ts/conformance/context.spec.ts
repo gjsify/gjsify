@@ -223,8 +223,9 @@ export default async () => {
 
             await it('all standard WebGL methods are functions on the context', async () => {
                 const missing: string[] = [];
+                const glIndex = gl as unknown as Record<string, unknown>;
                 for (const method of WEBGL_METHODS) {
-                    if (typeof (gl as any)[method] !== 'function') {
+                    if (typeof glIndex[method] !== 'function') {
                         missing.push(method);
                     }
                 }
@@ -244,8 +245,9 @@ export default async () => {
 
             await it('all sampled WebGL constants have the correct numeric value', async () => {
                 const wrong: string[] = [];
+                const glIndex = gl as unknown as Record<string, number>;
                 for (const [name, expected] of WEBGL_CONSTANTS) {
-                    const actual = (gl as any)[name];
+                    const actual = glIndex[name];
                     if (actual !== expected) {
                         wrong.push(`${name}: expected ${expected}, got ${actual}`);
                     }
@@ -257,8 +259,9 @@ export default async () => {
 
             await it('WebGLRenderingContext class constant values match instance constants', async () => {
                 const wrong: string[] = [];
+                const ctorIndex = OurWebGLRenderingContext as unknown as Record<string, number | undefined>;
                 for (const [name, expected] of WEBGL_CONSTANTS) {
-                    const classVal = (OurWebGLRenderingContext as any)[name];
+                    const classVal = ctorIndex[name];
                     if (classVal !== undefined && classVal !== expected) {
                         wrong.push(`${name}: expected ${expected}, got ${classVal}`);
                     }
@@ -278,7 +281,7 @@ export default async () => {
             });
 
             await it('WebGLRenderingContext should exist in globalThis', async () => {
-                expect(typeof (globalThis as any).WebGLRenderingContext !== 'undefined').toBeTruthy();
+                expect(typeof (globalThis as { WebGLRenderingContext?: unknown }).WebGLRenderingContext !== 'undefined').toBeTruthy();
             });
 
             await it('gl should be an instance of WebGLRenderingContext', async () => {
@@ -297,7 +300,7 @@ export default async () => {
 
             await it('canvas property points to the HTMLCanvasElement', async () => {
                 expect(gl.canvas).not.toBeNull();
-                expect(typeof (gl.canvas as any).getContext).toBe('function');
+                expect(typeof (gl.canvas as { getContext?: unknown }).getContext).toBe('function');
             });
 
             await it('drawingBufferWidth and drawingBufferHeight are positive integers', async () => {

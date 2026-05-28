@@ -9,9 +9,9 @@ import { makeProgram } from '../test-utils.js';
 import { createGLSetup } from './setup.js';
 
 function arrClose(a: Float32Array | Int32Array | number[], b: number[], tol = 0.001): boolean {
-    if ((a as any).length !== b.length) return false;
+    if (a.length !== b.length) return false;
     for (let i = 0; i < b.length; i++) {
-        if (Math.abs((a as any)[i] - b[i]) > tol) return false;
+        if (Math.abs(a[i] - b[i]) > tol) return false;
     }
     return true;
 }
@@ -278,14 +278,14 @@ export default async () => {
 
             await it('ALIASED_POINT_SIZE_RANGE is [>0, >=1]', async () => {
                 const v = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE) as Float32Array;
-                expect((v as any)[0] > 0).toBe(true);
-                expect((v as any)[1] >= 1).toBe(true);
+                expect(v[0] > 0).toBe(true);
+                expect(v[1] >= 1).toBe(true);
             });
 
             await it('ALIASED_LINE_WIDTH_RANGE is [>0, >=1]', async () => {
                 const v = gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE) as Float32Array;
-                expect((v as any)[0] > 0).toBe(true);
-                expect((v as any)[1] >= 1).toBe(true);
+                expect(v[0] > 0).toBe(true);
+                expect(v[1] >= 1).toBe(true);
             });
         });
 
@@ -355,7 +355,7 @@ export default async () => {
             for (const cap of validCaps) {
                 await it(`enable/disable/isEnabled round-trip for ${cap}`, async () => {
                     gl.getError(); // flush any stale error
-                    const val = (gl as any)[cap] as number;
+                    const val = (gl as unknown as Record<string, number>)[cap];
                     const was = gl.isEnabled(val);
                     gl.enable(val);
                     expect(gl.isEnabled(val)).toBe(true);
@@ -392,7 +392,7 @@ export default async () => {
                 expect(gl.getError()).toBe(gl.INVALID_VALUE);
                 // restore
                 const vp = gl.getParameter(gl.VIEWPORT) as Int32Array;
-                gl.viewport(0, 0, (vp as any)[2], (vp as any)[3]);
+                gl.viewport(0, 0, vp[2], vp[3]);
             });
         });
 

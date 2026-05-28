@@ -32,7 +32,7 @@ export function bindPublics(
     }
 }
 
-export function checkObject(object: any) {
+export function checkObject(object: unknown) {
     return typeof object === 'object' || object === undefined;
 }
 
@@ -179,8 +179,8 @@ export function boolArray(array: ArrayBufferView) {
 }
 
 export const extractImageData = (pixels: TexImageSource | HTMLImageElement): ImageData | null => {
-    const width = (pixels as any).width as number | undefined;
-    const height = (pixels as any).height as number | undefined;
+    const width = (pixels as { width?: number }).width;
+    const height = (pixels as { height?: number }).height;
     if (typeof pixels === 'object' && typeof width !== 'undefined' && typeof height !== 'undefined') {
         if (typeof (pixels as ImageData).data !== 'undefined') {
             return pixels as ImageData;
@@ -277,7 +277,7 @@ export function validCubeTarget(gl: WebGLContextBase, target: GLenum) {
     );
 }
 
-export function flag<T = Record<string, any>>(options: T, name: keyof T, dflt: boolean) {
+export function flag<T = Record<string, unknown>>(options: T, name: keyof T, dflt: boolean) {
     if (!options || !(typeof options === 'object') || !(name in options)) {
         return dflt;
     }

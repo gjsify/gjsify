@@ -32,7 +32,7 @@ export function createGLSetup(): GLSetup | null {
             const gl = g as unknown as WebGLRenderingContext;
             let gl2: WebGL2RenderingContext | null = null;
             try {
-                gl2 = (canvas as any).getContext('webgl2') as WebGL2RenderingContext | null;
+                gl2 = canvas.getContext('webgl2') as WebGL2RenderingContext | null;
             } catch (_) {
                 // webgl2 not available — that's fine for WebGL1-only tests
             }

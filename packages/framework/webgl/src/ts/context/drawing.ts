@@ -523,7 +523,9 @@ const drawingMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
         const attrib = this._vertexObjectState._attribs[index];
         const vertexAttribValue = this._vertexGlobalState._attribs[index]._data;
 
-        const extInstancing = this._extensions.angle_instanced_arrays;
+        const extInstancing = this._extensions.angle_instanced_arrays as
+            | { VERTEX_ATTRIB_ARRAY_DIVISOR_ANGLE: GLenum }
+            | undefined;
         if (extInstancing) {
             if (pname === extInstancing.VERTEX_ATTRIB_ARRAY_DIVISOR_ANGLE) {
                 return attrib._divisor;
