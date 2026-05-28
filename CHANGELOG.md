@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.4.31](https://github.com/gjsify/gjsify/compare/v0.4.30...v0.4.31) (2026-05-28)
+
+### Features
+
+* **tls-native:** SessionAccess scaffold for session resumption + channel binding (Phase 2 native bits) ([0c521ed](https://github.com/gjsify/gjsify/commit/0c521ed2220b9dac4ebd9ecefefb8ad6dac5c75f))
+
+### Documentation
+
+* **status:** v0.4.31 consolidation entry (no-any sweep + chokidar/dotenv/TLS Phase 2) ([0e09e7a](https://github.com/gjsify/gjsify/commit/0e09e7a5aea21d567affdab276b60eb03ca80619))
+
+### Continuous Integration
+
+* retrigger ([a427a48](https://github.com/gjsify/gjsify/commit/a427a486ff99326c5d8a4711fe790a872c00b260))
+* retrigger ([dfd4240](https://github.com/gjsify/gjsify/commit/dfd42407cd1c909a5db2fb06123b170952526ac2))
+* retrigger ([88cff63](https://github.com/gjsify/gjsify/commit/88cff63475b02993a9a46fcee71c48366421ce6d))
+
+### Maintenance
+
+* **crypto:** type the any-typed @gjsify/crypto (no-explicit-any → 0) ([#350](https://github.com/gjsify/gjsify/issues/350)) ([1f730f1](https://github.com/gjsify/gjsify/commit/1f730f1d8e3c23cab39ac9e07878dffaafb0428d))
+* eliminate remaining no-explicit-any warnings (long tail) ([341d3ad](https://github.com/gjsify/gjsify/commit/341d3ad83f94ca9fb1c203771d4bb9f34ed0c6aa))
+* **fs:** type the any-typed @gjsify/fs (no-explicit-any → 0) ([#347](https://github.com/gjsify/gjsify/issues/347)) ([ff8b995](https://github.com/gjsify/gjsify/commit/ff8b995e975187262a7cd5c486ae30ba4e811d02))
+* **http2:** type the any-typed @gjsify/http2 (no-explicit-any → 0) ([#353](https://github.com/gjsify/gjsify/issues/353)) ([4e42de8](https://github.com/gjsify/gjsify/commit/4e42de8d08d82eb248d870cd908a164898a21999)), closes [334/#336](https://github.com/334/gjsify/issues/336) [#348](https://github.com/gjsify/gjsify/issues/348) [#351](https://github.com/gjsify/gjsify/issues/351)
+* **node,framework:** type the any-typed node-networking + framework packages (no-explicit-any → 0) ([#356](https://github.com/gjsify/gjsify/issues/356)) ([3143f5f](https://github.com/gjsify/gjsify/commit/3143f5f325ebbb59a2b44cc329166f187e000b8b)), closes [334/#336](https://github.com/334/gjsify/issues/336)
+* **node:** type the any-typed node-utility packages (no-explicit-any → 0) ([#346](https://github.com/gjsify/gjsify/issues/346)) ([580274d](https://github.com/gjsify/gjsify/commit/580274df1ac9218cbf27d8e53d06375e9479d69b)), closes [335/#337](https://github.com/335/gjsify/issues/337)
+* **node:** type the any-typed small node packages (no-explicit-any → 0) ([#348](https://github.com/gjsify/gjsify/issues/348)) ([2da2d4c](https://github.com/gjsify/gjsify/commit/2da2d4c016bc617e95291c4554b46b5dba033263))
+* **sqlite:** type the any-typed @gjsify/sqlite (no-explicit-any → 0) ([#349](https://github.com/gjsify/gjsify/issues/349)) ([6244d2e](https://github.com/gjsify/gjsify/commit/6244d2ece18f670785dcb897d076cb79732c9510))
+* update native prebuilds [skip ci] ([f82107f](https://github.com/gjsify/gjsify/commit/f82107fdf1067bc026d40d12826513254d781da4))
+* **vala-bridges:** disable no-any in generated ts-for-gir .d.ts files ([#351](https://github.com/gjsify/gjsify/issues/351)) ([bd2cfde](https://github.com/gjsify/gjsify/commit/bd2cfde3bdd2fbb100f18240b642f2069d408006))
+* **web:** eliminate no-explicit-any warnings in small web packages ([ee2adf8](https://github.com/gjsify/gjsify/commit/ee2adf8ca23f4f22d77670eb7764d2dc9d80877d))
+* **webgl:** type the any-typed @gjsify/webgl (no-explicit-any → 0) ([#355](https://github.com/gjsify/gjsify/issues/355)) ([f2f1f1d](https://github.com/gjsify/gjsify/commit/f2f1f1dfa41afc8bbb82f5e56733e63fca90c5e4))
+* **webrtc:** type the any-typed @gjsify/webrtc (no-explicit-any → 0) ([#354](https://github.com/gjsify/gjsify/issues/354)) ([66e5730](https://github.com/gjsify/gjsify/commit/66e573007cb1ae28b3c6f74bcaf7a540f071de3b)), closes [334/#336](https://github.com/334/gjsify/issues/336)
+* **ws:** type the any-typed @gjsify/ws (no-explicit-any → 0) ([e1df450](https://github.com/gjsify/gjsify/commit/e1df450d1f9772f2df10afbfad39272a38beb3a0)), closes [334/#336](https://github.com/334/gjsify/issues/336)
+
+### Tests
+
+* **e2e:** chokidar integration suite + fs.watch root-cause fix ([7d1062c](https://github.com/gjsify/gjsify/commit/7d1062cac014ba139497f2ad3ae2f8f7a00d1f2c))
+* **e2e:** dotenv integration suite — process.env + fs path coverage ([bbf2f2e](https://github.com/gjsify/gjsify/commit/bbf2f2e4f9a95b6be822e4d25eaab1079ce8eb82))
+
 ## [0.4.30](https://github.com/gjsify/gjsify/compare/v0.4.29...v0.4.30) (2026-05-28)
 
 ### Bug Fixes
