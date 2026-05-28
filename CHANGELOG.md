@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.4.32](https://github.com/gjsify/gjsify/compare/v0.4.31...v0.4.32) (2026-05-28)
+
+### Features
+
+* **resolve-npm:** route @gjsify/* aliases via runtimes triplet ([6482e5e](https://github.com/gjsify/gjsify/commit/6482e5e7e84654a3c9873b2ba24d4292ca7514af))
+* **scripts:** audit-runtimes --check for CI drift ([fb2c9d2](https://github.com/gjsify/gjsify/commit/fb2c9d29a45e837156984e52058646d74be35a85))
+* **tls-native:** phase 2 path-A — flip session-access to functional ([7605347](https://github.com/gjsify/gjsify/commit/76053472f0f245a8b950ea04eaf65955cd758f36)), closes [#342](https://github.com/gjsify/gjsify/issues/342) [#342](https://github.com/gjsify/gjsify/issues/342)
+
+### Bug Fixes
+
+* **fs:** rmSync must not walk into target of a top-level symlink ([#366](https://github.com/gjsify/gjsify/issues/366)) ([80e5e67](https://github.com/gjsify/gjsify/commit/80e5e67cd562d2ed4b99d8ed01a7badddad6cfb8))
+* **rolldown-plugin-gjsify,utils,os:** make --app node bundles loadable on Node ([e157645](https://github.com/gjsify/gjsify/commit/e157645e22f8be076157007f07647c776f5d31bb)), closes [Pre-#342](https://github.com/gjsify/Pre-/issues/342)
+
+### Documentation
+
+* **strategy:** declare cross-runtime portability direction + audit foundation ([6d1d0ff](https://github.com/gjsify/gjsify/commit/6d1d0ff355177e912a378d5baa5fdc135438cd74))
+
+### Maintenance
+
+* **lint:** clear remaining consistent-type-imports warnings ([307482c](https://github.com/gjsify/gjsify/commit/307482cf10a997ad94f6298ce77034716624b036)), closes [#358](https://github.com/gjsify/gjsify/issues/358)
+* update native prebuilds [skip ci] ([4342bab](https://github.com/gjsify/gjsify/commit/4342bab41e1de19bb21192dd83b67b323d1b7db6))
+
+### Tests
+
+* **web:** validate cross-runtime exemplars on gjs+node+browser ([845e9b1](https://github.com/gjsify/gjsify/commit/845e9b1580a66e9101c7bda4643a6b3f03de2a07))
+
 ## [0.4.31](https://github.com/gjsify/gjsify/compare/v0.4.30...v0.4.31) (2026-05-28)
 
 ### Features
