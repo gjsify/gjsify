@@ -300,11 +300,12 @@ export const ALIASES_WEB_FOR_NODE = {
     // EventSource on Node out of the box. Same fix pattern as the `dom-events`
     // entry above.
     'eventsource': '@gjsify/eventsource',
-    // 'fetch' bare specifier is intentionally not aliased on Node:
-    // fetch/Headers/Request/Response/FormData are native globals since Node 18,
-    // so specs / app code should read them off globalThis. Users who need the
-    // value form should `import { fetch } from '@gjsify/fetch'` explicitly.
-    // 'fetch': '@gjsify/fetch/globals',
+    // 'fetch' routes to @gjsify/fetch/globals on Node — the globals.mjs
+    // re-exports the native globalThis.{fetch,Request,Response,Headers,
+    // FormData} as named exports. The dynamic resolver routes
+    // @gjsify/fetch to the same /globals subpath via its runtimes
+    // triplet declaration (`node:"native"`), so both entry forms converge.
+    'fetch': '@gjsify/fetch/globals',
     'formdata': '@gjsify/formdata/globals',
     'html-image-element': '@gjsify/html-image-element',
     'webcrypto': '@gjsify/webcrypto/globals',
