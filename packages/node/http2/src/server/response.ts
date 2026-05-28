@@ -17,9 +17,20 @@ import Soup from '@girs/soup-3.0';
 import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
 import { Buffer } from 'node:buffer';
-import { read as fsRead, statSync, openSync, closeSync } from 'node:fs';
+import { read as fsRead, statSync, openSync, closeSync, type Stats } from 'node:fs';
+import type { OutgoingHttpHeaders } from 'node:http';
 import { constants } from '../protocol.js';
 import type { ServerHttp2Session } from './session.js';
+
+/**
+ * StatCheck callback signature — matches Node's
+ * `http2.ServerStreamFileResponseOptions.statCheck`:
+ * `(stats: fs.Stats, headers: OutgoingHttpHeaders, statOptions: { offset, length }) => void`.
+ * The user mutates headers based on stat results; returning `false` cancels
+ * the send (Node behaviour — wired through `_respondFromFD`).
+ */
+type StatCheckOptions = { offset?: number; length?: number };
+type StatCheck = (stats: Stats, headers: OutgoingHttpHeaders, statOptions: StatCheckOptions) => void | boolean;
 
 /**
  * Per-stream backend that routes writes through `SessionBridge.submit_*`
@@ -244,8 +255,12 @@ export class Http2ServerResponse extends Writable {
         }
     }
 
-    _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
-        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
+    _write(chunk: string | Buffer | Uint8Array, encoding: string, callback: (error?: Error | null) => void): void {
+        const buf = Buffer.isBuffer(chunk)
+            ? chunk
+            : typeof chunk === 'string'
+              ? Buffer.from(chunk, encoding as BufferEncoding)
+              : Buffer.from(chunk);
         this._startStreaming();
         if (this._nativeBackend) {
             this._nativeBackend.submitData(buf, false);
@@ -333,7 +348,7 @@ export class Http2ServerResponse extends Writable {
     respondWithFD(
         fd: number | { fd: number },
         headers?: Record<string, string | string[] | number>,
-        options?: { offset?: number; length?: number; statCheck?: (stat: any, headers: any, statOptions: any) => void },
+        options?: { offset?: number; length?: number; statCheck?: StatCheck },
     ): void {
         _respondFromFD(this, fd, headers, options ?? {}, /* closeFd */ false);
     }
@@ -352,7 +367,7 @@ export class Http2ServerResponse extends Writable {
         options?: {
             offset?: number;
             length?: number;
-            statCheck?: (stat: any, headers: any, statOptions: any) => void;
+            statCheck?: StatCheck;
             onError?: (err: Error) => void;
         },
     ): void {
@@ -565,7 +580,7 @@ export class ServerHttp2Stream extends EventEmitter {
     respondWithFD(
         fd: number | { fd: number },
         headers?: Record<string, string | string[] | number>,
-        options?: { offset?: number; length?: number; statCheck?: (stat: any, headers: any, statOptions: any) => void },
+        options?: { offset?: number; length?: number; statCheck?: StatCheck },
     ): void {
         this._res.respondWithFD(fd, headers, options);
     }
@@ -577,7 +592,7 @@ export class ServerHttp2Stream extends EventEmitter {
         options?: {
             offset?: number;
             length?: number;
-            statCheck?: (stat: any, headers: any, statOptions: any) => void;
+            statCheck?: StatCheck;
             onError?: (err: Error) => void;
         },
     ): void {
@@ -749,7 +764,7 @@ function _respondFromFD(
     options: {
         offset?: number;
         length?: number;
-        statCheck?: (stat: any, headers: any, statOptions: any) => void;
+        statCheck?: StatCheck;
         onError?: (err: Error) => void;
     },
     closeFd: boolean,
@@ -770,7 +785,11 @@ function _respondFromFD(
     if (options.statCheck) {
         try {
             const stat = statSync(_fdPath(fd) ?? '/proc/self/fd/' + fd);
-            const cont = options.statCheck(stat, finalHeaders, options) as unknown;
+            // `finalHeaders` is the http2-style outgoing-headers shape
+            // (`Record<string, string | string[] | number>`) which is the same
+            // record-shape as `OutgoingHttpHeaders`; the explicit cast bridges
+            // the nominal mismatch without weakening either declaration.
+            const cont = options.statCheck(stat, finalHeaders as OutgoingHttpHeaders, options);
             if (cont === false) {
                 if (closeFd) closeSync(fd);
                 res.end();

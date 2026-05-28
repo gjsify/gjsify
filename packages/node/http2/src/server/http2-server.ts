@@ -35,8 +35,12 @@ export interface ServerOptions {
     peerMaxHeaderListSize?: number;
     selectPadding?: (frameLen: number, maxFrameLen: number) => number;
     settings?: Http2Settings;
-    Http1IncomingMessage?: any;
-    Http1ServerResponse?: any;
+    // Node typings model these as `typeof IncomingMessage` / `typeof ServerResponse`
+    // (deprecated in favor of `http1Options.{IncomingMessage,ServerResponse}`).
+    // We don't dispatch through them in this impl — the field is kept for shape
+    // parity so user `ServerOptions` literals stay assignable.
+    Http1IncomingMessage?: new (...args: unknown[]) => unknown;
+    Http1ServerResponse?: new (...args: unknown[]) => unknown;
     unknownProtocolTimeout?: number;
     /**
      * Native dispatcher mode (gjsify-specific, defaults to `'auto'`).
@@ -231,13 +235,21 @@ export class Http2Server extends EventEmitter {
             }
         }
 
+        // GJS has no `net.Socket` / `tls.TLSSocket` instance to surface — the
+        // dispatcher carries only the IP/port quadruple. Expose the connection
+        // metadata via the public `socket` slot (typed as Node's
+        // `net.Socket | tls.TLSSocket | null` for drop-in compat) using a
+        // structural cast — consumers that read `remoteAddress` / `remotePort`
+        // see correct values, the full Socket method surface is intentionally
+        // absent and downstream Node-shaped code calling `socket.destroy()` etc.
+        // will fail at runtime as expected for the partial-compat layer.
         req.socket = {
             remoteAddress: event.remoteAddress,
             remotePort: event.remotePort,
             localAddress: this._address?.address ?? '127.0.0.1',
             localPort: event.localPort,
             encrypted: false,
-        };
+        } as unknown as NonNullable<typeof req.socket>;
 
         // Drain DATA frames into the Readable. The dispatcher gave us an async
         // iterable; pump it into `_pushBody` and signal EOF.
@@ -307,13 +319,14 @@ export class Http2Server extends EventEmitter {
         const remoteHost = soupMsg.get_remote_host() ?? '127.0.0.1';
         const remoteAddr = soupMsg.get_remote_address();
         const remotePort = remoteAddr instanceof Gio.InetSocketAddress ? remoteAddr.get_port() : 0;
+        // Same partial-Socket cast as the dispatcher path above — see comment there.
         req.socket = {
             remoteAddress: remoteHost,
             remotePort,
             localAddress: this._address?.address ?? '127.0.0.1',
             localPort: this._address?.port ?? 0,
             encrypted: this instanceof Http2SecureServer,
-        };
+        } as unknown as NonNullable<typeof req.socket>;
 
         // Push request body into the readable stream
         const body = soupMsg.get_request_body();

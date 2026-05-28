@@ -193,8 +193,12 @@ export class ClientHttp2Stream extends Duplex {
 
     _read(_size: number): void {}
 
-    _write(chunk: any, encoding: string, callback: (error?: Error | null) => void): void {
-        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding as BufferEncoding);
+    _write(chunk: string | Buffer | Uint8Array, encoding: string, callback: (error?: Error | null) => void): void {
+        const buf = Buffer.isBuffer(chunk)
+            ? chunk
+            : typeof chunk === 'string'
+              ? Buffer.from(chunk, encoding as BufferEncoding)
+              : Buffer.from(chunk);
         if (this._nativeStreamId > 0) {
             this._session._getNativeClient()!.writeData(this._nativeStreamId, buf, false);
         } else {
@@ -321,7 +325,7 @@ export class ClientHttp2Stream extends Duplex {
                     message,
                     GLib.PRIORITY_DEFAULT,
                     this._cancellable,
-                    (_self: any, asyncRes: Gio.AsyncResult) => {
+                    (_self: Soup.Session | null, asyncRes: Gio.AsyncResult) => {
                         try {
                             resolve(session.send_finish(asyncRes));
                         } catch (error) {
@@ -371,7 +375,7 @@ export class ClientHttp2Stream extends Duplex {
 
             this.push(null);
             this._state = constants.NGHTTP2_STREAM_STATE_CLOSED;
-        } catch (error: any) {
+        } catch (error: unknown) {
             this._state = constants.NGHTTP2_STREAM_STATE_CLOSED;
             if (!this._cancellable.is_cancelled()) {
                 this.destroy(error instanceof Error ? error : new Error(String(error)));
