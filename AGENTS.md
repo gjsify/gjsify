@@ -691,7 +691,7 @@ Conventional commits — `<type>[optional scope]: <description>`, imperative moo
 
 Target: GJS 1.86.0 / SpiderMonkey 140 (ES2024) / Rolldown `firefox140` | ESM-only | GNOME libs + standard JS only | Tests pass on both Node + GJS | Do NOT modify `refs/`
 
-## Strategic direction — cross-runtime portability (experimental, internal)
+## Strategic direction — cross-runtime portability
 
 GJS = primary target, NON-NEGOTIABLE. But many `@gjsify/*` packages are pure TS (no `gi://`/`@girs/*`/`imports.` value-deps) and therefore portable. Long-term vision: **"alles unter allem lauffähig"** — share what's shareable across GJS / Node / Browser; runtime-specific where not. Each package declares a runtime-triplet (`gjs` × `node` × `browser`), each slot ∈ {`polyfill`, `native`, `partial`, `none`}; the `--app <target>` alias layer routes `@gjsify/<X>` to the right slot.
 
@@ -707,7 +707,15 @@ GJS = primary target, NON-NEGOTIABLE. But many `@gjsify/*` packages are pure TS 
 |GJS-only (slot=none off-GJS): `framework/*`, `webgl`, `canvas2d`, `webrtc`, `webaudio`, `gamepad`, `webkit`, `tls-native`, `terminal-native`, `webrtc-native`, `sab-native`, anything with `@girs/*` value imports
 |already shipping cross-runtime: `adwaita-web`/`adwaita-fonts`/`adwaita-icons` (browser); 12 browser-test packages (`abort-controller`, `compression-streams`, `dom-events`, `domparser`, `eventsource`, `fetch`, `formdata`, `message-channel`, `streams`, `webcrypto`, `websocket`, `webstorage`)
 
-**Until proven on ≥2 real cross-runtime consumers:** do NOT document in website / `gjsify --help` / README / package READMEs; do NOT publish runtime claims; do NOT advertise as "WinterCG-compatible" / "Node-compatible runtime" / similar. STATUS.md tracks audit progress + slot-table per package; internal-only until the experiment graduates. **`@gjsify/adwaita-*` is the exception** — already shipping to browser consumers via showcases and counts as Production for the design-identity axis; documented normally.
+**Graduation status (2026-05-28).** Cross-runtime portability is OUT of experimental status for the axes whose validation infrastructure is demonstrably exercising real consumers. Documentation in website / `gjsify --help` / README / package READMEs is unblocked per-axis as listed below. Avoid blanket "WinterCG-compatible" / "Node-compatible runtime" / similar runtime-class claims — describe what's actually validated, by name. `STATUS.md` continues to track audit-runtimes drift + slot-table per package as the single source of truth for the declared triplets.
+
+| Axis | Graduation | Validated consumers |
+|---|---|---|
+| 1 — Node-API | ✓ Graduated | `tests/integration/{streamx,webtorrent,socket.io,chokidar,dotenv,ts-for-gir,…}` (10+ ports running on both Node and GJS via `@gjsify/{fs,stream,buffer,path,events,…}`); upstream `ts-for-gir` consumes `@gjsify/cli`+`@gjsify/path` on both Node and GJS bins |
+| 2 — Web-API | ✓ Graduated | `tests/browser/` (Playwright Firefox/SpiderMonkey) drives 12 packages — `abort-controller`, `compression-streams`, `dom-events`, `domparser`, `eventsource`, `fetch`, `formdata`, `message-channel`, `streams`, `webcrypto`, `websocket`, `webstorage`; `tests/integration/autobahn` validates `@gjsify/{websocket,ws}` RFC 6455 conformance via the crossbario fuzzingserver |
+| 3 — DOM | ✓ Graduated | `pixel-rpg/map-editor` uses `@gjsify/dom-elements`+`@gjsify/canvas2d-core` end-to-end via the Excalibur.js game engine (GJS+GTK target); `showcases/dom/excalibur-jelly-jumper` mirrors the same path with a browser-build target |
+| 4 — Design-identity | ✓ Graduated since v0.4.28 (pre-strategy) | `@gjsify/adwaita-{web,fonts,icons}` shipped in `showcases/dom/{canvas2d-fireworks,excalibur-jelly-jumper,three-geometry-teapot,minimalist-browser,three-postprocessing-pixel,webrtc-loopback,webrtc-video}` browser builds + sister `easy6502/app-web` |
+| 5 — Platform-bridge | Pre-graduation (single bridge, no external consumer yet) | `@gjsify/iframe`+`WebKit.WebView` exercised in `showcases/dom/minimalist-browser`; long-term Node-on-GTK path remains gated on a real consumer surfacing the need (`refs/node-gtk` stays read-only reference) |
 
 **Convention for NEW packages:** the runtime axis is the FIRST clarification question. (a) needs `gi://*`/`@girs/*` value-imports → GJS-only (`runtimes.{node,browser}: "none"`); (b) pure TS, no platform-native deps → cross-runtime from day one (`runtimes.{gjs,node,browser}: "polyfill"`), test on all three; (c) native runtime equivalent exists → declare `"native"` for that slot, ship `<pkg>/globals` (Node) or browser-conditional export. Existing GJS-only packages are NOT refactored opportunistically — they stay as they are; the convention applies only to new package work and to packages already being touched for unrelated reasons (NO "while-I'm-here" scope creep in bug-fix PRs).
 
