@@ -89,6 +89,14 @@ export class FSWatcher extends EventEmitter implements IFSWatcher {
 }
 
 function changed(watcher, file, otherFile, eventType) {
+    // Node's fs.watch emits a single 'change' event whose listener signature is
+    // (eventType: 'rename'|'change', filename: string). The string discriminant
+    // tells the consumer whether a directory entry appeared/disappeared/was
+    // renamed ('rename') or an existing file's contents changed ('change').
+    // Previously we emitted on the event NAMES 'change' and 'rename' — which
+    // works for our own internal 'change'-listener registration but silently
+    // drops every rename/create/delete for any consumer (chokidar, vite, tsc)
+    // that registers only `watcher.on('change', listener)` per Node's contract.
     switch (eventType) {
         case Gio.FileMonitorEvent.CHANGES_DONE_HINT:
             this.emit('change', 'change', file.get_basename());
@@ -98,7 +106,7 @@ function changed(watcher, file, otherFile, eventType) {
         case Gio.FileMonitorEvent.RENAMED:
         case Gio.FileMonitorEvent.MOVED_IN:
         case Gio.FileMonitorEvent.MOVED_OUT:
-            this.emit('rename', 'rename', file.get_basename());
+            this.emit('change', 'rename', file.get_basename());
             break;
     }
 }
