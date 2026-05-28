@@ -291,7 +291,15 @@ export const ALIASES_WEB_FOR_NODE = {
     'dom-events': '@gjsify/dom-events',
     'dom-exception': '@gjsify/dom-exception/globals',
     'message-channel': '@gjsify/message-channel/globals',
-    'eventsource': '@gjsify/eventsource/globals',
+    // eventsource deliberately routes to the polyfill on Node — globals.mjs
+    // re-exports `globalThis.EventSource`, but Node 24.x doesn't ship native
+    // EventSource at all (added experimentally in 22.3, requires the
+    // --experimental-eventsource flag on many distributions). The polyfill
+    // itself uses `fetch` + ReadableStream — both native on Node 18+ — and
+    // works without any GJS deps; routing to it gives consumers a working
+    // EventSource on Node out of the box. Same fix pattern as the `dom-events`
+    // entry above.
+    'eventsource': '@gjsify/eventsource',
     // 'fetch' bare specifier is intentionally not aliased on Node:
     // fetch/Headers/Request/Response/FormData are native globals since Node 18,
     // so specs / app code should read them off globalThis. Users who need the
