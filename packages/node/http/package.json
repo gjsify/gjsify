@@ -53,5 +53,12 @@
         "@gjsify/stream": "workspace:^",
         "@gjsify/url": "workspace:^",
         "@gjsify/utils": "workspace:^"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none"
+        }
     }
 }

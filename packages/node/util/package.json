@@ -42,5 +42,12 @@
         "@types/inherits": "^2.0.0",
         "@types/node": "^25.9.1",
         "typescript": "^6.0.3"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "native",
+            "browser": "polyfill"
+        }
     }
 }

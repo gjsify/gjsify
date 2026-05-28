@@ -46,5 +46,12 @@
         "@gjsify/events": "workspace:^",
         "@gjsify/message-channel": "workspace:^",
         "@gjsify/sab-native": "workspace:^"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none"
+        }
     }
 }

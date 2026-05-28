@@ -29,5 +29,12 @@
         "@gjsify/websocket": "workspace:^",
         "@gjsify/webstorage": "workspace:^",
         "@gjsify/xmlhttprequest": "workspace:^"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "polyfill",
+            "browser": "native"
+        }
     }
 }

@@ -45,5 +45,12 @@
         "@gjsify/buffer": "workspace:^",
         "@gjsify/events": "workspace:^",
         "@gjsify/utils": "workspace:^"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none"
+        }
     }
 }

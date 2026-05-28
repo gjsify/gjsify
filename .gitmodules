@@ -218,3 +218,6 @@
 [submodule "refs/Gradia"]
 	path = refs/Gradia
 	url = git@github.com:AlexanderVanhee/Gradia.git
+[submodule "refs/node-gtk"]
+	path = refs/node-gtk
+	url = https://github.com/romgrk/node-gtk

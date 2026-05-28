@@ -16,7 +16,12 @@
         "prebuilds"
     ],
     "gjsify": {
-        "prebuilds": "prebuilds"
+        "prebuilds": "prebuilds",
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none"
+        }
     },
     "scripts": {
         "clear": "rm -rf lib tmp build test.gjs.mjs tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",

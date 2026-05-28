@@ -56,5 +56,12 @@
         "@gjsify/events": "workspace:^",
         "@gjsify/utils": "workspace:^",
         "@gjsify/web-streams": "workspace:^"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "native",
+            "browser": "polyfill"
+        }
     }
 }

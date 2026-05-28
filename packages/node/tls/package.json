@@ -44,5 +44,12 @@
         "@gjsify/net": "workspace:^",
         "@gjsify/tls-native": "workspace:^",
         "@gjsify/utils": "workspace:^"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none"
+        }
     }
 }

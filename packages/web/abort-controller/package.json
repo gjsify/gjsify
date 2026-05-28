@@ -51,5 +51,12 @@
     },
     "dependencies": {
         "@gjsify/dom-events": "workspace:^"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "polyfill",
+            "browser": "native"
+        }
     }
 }
