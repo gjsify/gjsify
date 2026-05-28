@@ -14,11 +14,13 @@
         "./strict": {
             "types": "./lib/types/strict/index.d.ts",
             "default": "./lib/esm/strict/index.js"
-        }
+        },
+        "./globals": "./globals.mjs"
     },
     "files": [
         "lib",
-        "cjs-compat.cjs"
+        "cjs-compat.cjs",
+        "globals.mjs"
     ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",

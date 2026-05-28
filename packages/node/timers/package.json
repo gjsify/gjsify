@@ -13,10 +13,12 @@
         "./promises": {
             "types": "./lib/types/promises.d.ts",
             "default": "./lib/esm/promises.js"
-        }
+        },
+        "./globals": "./globals.mjs"
     },
     "files": [
-        "lib"
+        "lib",
+        "globals.mjs"
     ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",

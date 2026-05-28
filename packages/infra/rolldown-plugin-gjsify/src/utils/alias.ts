@@ -7,6 +7,7 @@ import {
     ALIASES_GENERAL_FOR_NODE,
     ALIASES_GJS_FOR_NODE,
     ALIASES_WEB_FOR_NODE,
+    getDerivedAliasesSync,
 } from '@gjsify/resolve-npm';
 
 import type { ResolveAliasOptions } from '../types/index.js';
@@ -31,12 +32,34 @@ const getAliasesGeneralForNode = (_options: ResolveAliasOptions) => ALIASES_GENE
 const getAliasesGjsForNode = (_options: ResolveAliasOptions) => ALIASES_GJS_FOR_NODE;
 const getAliasesWebForNode = (_options: ResolveAliasOptions) => ALIASES_WEB_FOR_NODE;
 
+/**
+ * Compose the alias map for a target runtime.
+ *
+ * Merge order — later entries WIN, so hardcoded `ALIASES_*` entries take
+ * precedence over derived ones. This preserves 100% backwards-compatible
+ * behavior for the curated set of bare specifiers (`webcrypto`, `assert`, …)
+ * encoded in the hardcoded maps. The derived layer fills in `@gjsify/<X>`
+ * direct-import routes for packages that have declared a `gjsify.runtimes`
+ * triplet, additively — when both sources mention the same key, hardcoded
+ * wins.
+ */
 export const getAliasesForGjs = (options: ResolveAliasOptions) => {
-    return { ...getAliasesGeneralForGjs(options), ...getAliasesNodeForGjs(options), ...getAliasesWebForGjs(options) };
+    return {
+        // Derived first → hardcoded overrides.
+        ...getDerivedAliasesSync('gjs'),
+        ...getAliasesGeneralForGjs(options),
+        ...getAliasesNodeForGjs(options),
+        ...getAliasesWebForGjs(options),
+    };
 };
 
 export const getAliasesForNode = (options: ResolveAliasOptions) => {
-    return { ...getAliasesGeneralForNode(options), ...getAliasesGjsForNode(options), ...getAliasesWebForNode(options) };
+    return {
+        ...getDerivedAliasesSync('node'),
+        ...getAliasesGeneralForNode(options),
+        ...getAliasesGjsForNode(options),
+        ...getAliasesWebForNode(options),
+    };
 };
 
 /** Array of Node.js build in module names (also with node: prefix) */

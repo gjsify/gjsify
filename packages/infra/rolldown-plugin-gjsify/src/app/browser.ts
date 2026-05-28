@@ -11,6 +11,7 @@ import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
+import { getDerivedAliasesSync } from '@gjsify/resolve-npm';
 
 import type { PluginOptions } from '../types/plugin-options.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
@@ -49,7 +50,12 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
         'node:assert': '@gjsify/assert',
     };
 
+    // Derived `@gjsify/<X>` aliases driven by per-package `gjsify.runtimes`
+    // triplet declarations. Merge order: derived (lowest priority) → hardcoded
+    // browser polyfills → user. Hardcoded entries WIN for the curated specifier
+    // set, preserving 100% backwards-compatible behavior.
     const aliasMap: Record<string, string> = {
+        ...getDerivedAliasesSync('browser'),
         ...browserPolyfillAliases,
         ...input.pluginOptions.aliases,
         ...input.userAliases,
