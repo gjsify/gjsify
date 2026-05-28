@@ -5,14 +5,16 @@
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
     "files": [
-        "lib"
+        "lib",
+        "globals.mjs"
     ],
     "type": "module",
     "exports": {
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
-        }
+        },
+        "./globals": "./globals.mjs"
     },
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",

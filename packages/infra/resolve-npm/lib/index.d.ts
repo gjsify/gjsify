@@ -31,3 +31,35 @@ export declare const ALIASES_GJS_FOR_NODE: {[alias:string]: string};
 /** Record of Web modules and his replacement for Node */
 export declare const ALIASES_WEB_FOR_NODE: {[alias:string]: string};
 
+/** Runtime-slot type carried by `package.json#gjsify.runtimes.<target>`. */
+export type RuntimeSlot = 'polyfill' | 'native' | 'partial' | 'none';
+
+/** Per-package runtime triplet — `{gjs, node, browser}` × {RuntimeSlot}. */
+export interface RuntimeTriplet {
+    gjs?: RuntimeSlot;
+    node?: RuntimeSlot;
+    browser?: RuntimeSlot;
+}
+
+/**
+ * Build a derived `@gjsify/<X>` alias map for the given target runtime, driven
+ * by each workspace package's declared `gjsify.runtimes` triplet. See
+ * `runtime-aliases.mjs` for the routing semantics.
+ */
+export declare function getDerivedAliasesSync(target: 'gjs' | 'node' | 'browser'): {[alias: string]: string};
+
+/** Async variant of {@link getDerivedAliasesSync}. */
+export declare function getDerivedAliases(
+    target: 'gjs' | 'node' | 'browser',
+): Promise<{[alias: string]: string}>;
+
+/** Reset the in-memory cache. Test-only. */
+export declare function resetRuntimeAliasesCache(): void;
+
+/** Diagnostic — list every declared runtime triplet keyed by package name. */
+export declare function listDeclaredRuntimes(): Promise<Map<string, {
+    name: string;
+    dir: string;
+    runtimes: RuntimeTriplet;
+    hasGlobals: boolean;
+}>>;

@@ -36,5 +36,11 @@
             "node": "polyfill",
             "browser": "native"
         }
-    }
+    },
+    "exports": {
+        "./globals": "./globals.mjs"
+    },
+    "files": [
+        "globals.mjs"
+    ]
 }

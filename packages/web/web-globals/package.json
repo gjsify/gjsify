@@ -18,14 +18,17 @@
         },
         "./register/formdata": {
             "default": "./lib/esm/register/formdata.js"
-        }
+        },
+        "./globals": "./globals.mjs"
     },
     "files": [
-        "lib"
+        "lib",
+        "globals.mjs"
     ],
     "sideEffects": [
         "./lib/esm/register.js",
-        "./lib/esm/register/*.js"
+        "./lib/esm/register/*.js",
+        "./globals.mjs"
     ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",

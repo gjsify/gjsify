@@ -1,3 +1,16 @@
+// Runtime-aware alias derivation — driven by per-package `gjsify.runtimes`
+// triplet declarations. See `./runtime-aliases.mjs` for the routing rules.
+// These helpers AUGMENT the hardcoded `ALIASES_*` maps below: a package
+// without a declared triplet falls through to the hardcoded map for that
+// specifier, preserving backwards-compatible behavior for the 21 infra/gjs
+// packages that opted out of the triplet model.
+export {
+    getDerivedAliases,
+    getDerivedAliasesSync,
+    listDeclaredRuntimes,
+    resetRuntimeAliasesCache,
+} from './runtime-aliases.mjs';
+
 /** Array of Node.js build in module names */
 export const EXTERNALS_NODE = [
     'assert',
