@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec passes deliberately-invalid argument types (primitives, bigint arrays) to qs.stringify to verify graceful handling
 import { describe, it, expect } from '@gjsify/unit';
 import * as qs from 'node:querystring';
 

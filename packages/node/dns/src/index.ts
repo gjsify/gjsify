@@ -138,7 +138,7 @@ export function lookup(
                         address: addr.to_string(),
                         family: addr.get_family() === Gio.SocketFamily.IPV6 ? (6 as const) : (4 as const),
                     }));
-                    (callback as any)(null, allAddresses);
+                    callback(null, allAddresses);
                 } else {
                     const first = results[0];
                     const addrStr = first.to_string();

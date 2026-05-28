@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec catches abort rejections with catch (e: any) to assert .name === AbortError
 import { describe, it, expect } from '@gjsify/unit';
 import { setTimeout, setImmediate, setInterval, scheduler } from 'node:timers/promises';
 

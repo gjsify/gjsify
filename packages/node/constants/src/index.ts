@@ -133,4 +133,4 @@ export const {
     SIGIO,
     SIGPWR,
     SIGSYS,
-} = flattened as any;
+} = flattened as Record<string, number>;

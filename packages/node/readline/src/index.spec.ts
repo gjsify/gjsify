@@ -851,7 +851,7 @@ export default async () => {
             });
             let called = false;
             // @types/node's cursorTo overload forces 4 args here; the 3-arg form is valid at runtime.
-            (cursorTo as any)(stream, 1, () => {
+            (cursorTo as unknown as (s: unknown, x: number, cb: () => void) => void)(stream, 1, () => {
                 called = true;
             });
             await new Promise<void>((r) => setTimeout(r, 10));

@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec reads dynamically-keyed heap-statistics fields and round-trips serialize/deserialize results of unknown shape
 // Ported from refs/node-test/parallel/test-v8-stats.js,
 //   refs/node-test/parallel/test-v8-serdes.js,
 //   refs/node-test/parallel/test-v8-deserialize-buffer.js

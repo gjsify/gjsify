@@ -104,13 +104,13 @@ if (globalThis.performance) {
 // Re-export Web Performance API classes if available, with stubs for GJS
 
 class PerformanceObserverStub {
-    private _callback: (list: any, observer: any) => void;
-    constructor(callback: (list: any, observer: any) => void) {
+    private _callback: (list: unknown, observer: unknown) => void;
+    constructor(callback: (list: unknown, observer: unknown) => void) {
         this._callback = callback;
     }
     observe(_options?: { entryTypes?: string[]; type?: string }) {}
     disconnect() {}
-    takeRecords(): any[] {
+    takeRecords(): unknown[] {
         return [];
     }
 }
@@ -126,13 +126,13 @@ class PerformanceEntryStub {
 }
 
 class PerformanceObserverEntryListStub {
-    getEntries(): any[] {
+    getEntries(): unknown[] {
         return [];
     }
-    getEntriesByName(_name: string): any[] {
+    getEntriesByName(_name: string): unknown[] {
         return [];
     }
-    getEntriesByType(_type: string): any[] {
+    getEntriesByType(_type: string): unknown[] {
         return [];
     }
 }
@@ -159,15 +159,15 @@ const PerformanceMeasure = _g.PerformanceMeasure || class PerformanceMeasure ext
 
 /** Stub: event loop utilization metrics (not available in GJS). */
 function eventLoopUtilization(
-    _utilization1?: any,
-    _utilization2?: any,
+    _utilization1?: unknown,
+    _utilization2?: unknown,
 ): { idle: number; active: number; utilization: number } {
     return { idle: 0, active: 0, utilization: 0 };
 }
 
 /** Stub: wraps a function to measure its execution time. */
-function timerify<T extends (...args: any[]) => any>(fn: T): T {
-    const wrapped = function (this: any, ...args: any[]) {
+function timerify<T extends (...args: unknown[]) => unknown>(fn: T): T {
+    const wrapped = function (this: unknown, ...args: unknown[]) {
         const start = performance.now();
         const result = fn.apply(this, args);
         const duration = performance.now() - start;

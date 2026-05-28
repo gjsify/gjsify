@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec catches errors with catch (e: any) to assert .message and passes custom error objects to assert.ok
 import { describe, it, expect } from '@gjsify/unit';
 import {
     equal,

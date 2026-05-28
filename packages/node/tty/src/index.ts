@@ -240,8 +240,8 @@ export class WriteStream extends Writable {
         return this;
     }
 
-    override _write(chunk: any, enc: string, cb: Function) {
-        this._print(enc === 'buffer' ? chunk.toString('utf-8') : chunk);
+    override _write(chunk: unknown, enc: string, cb: Function) {
+        this._print(enc === 'buffer' ? (chunk as Buffer).toString('utf-8') : (chunk as string));
         cb(null);
     }
 

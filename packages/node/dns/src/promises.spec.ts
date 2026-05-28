@@ -81,9 +81,9 @@ export default async () => {
                 let threw = false;
                 try {
                     await lookup('this.hostname.does.not.exist.invalid');
-                } catch (err: any) {
+                } catch (err) {
                     threw = true;
-                    expect(err.code).toBe('ENOTFOUND');
+                    expect((err as NodeJS.ErrnoException).code).toBe('ENOTFOUND');
                 }
                 expect(threw).toBe(true);
             });
@@ -117,9 +117,9 @@ export default async () => {
                 try {
                     const hostnames = await reverse('127.0.0.1');
                     expect(Array.isArray(hostnames)).toBe(true);
-                } catch (err: any) {
+                } catch (err) {
                     // May fail depending on system config — just verify error shape
-                    expect(typeof err.code).toBe('string');
+                    expect(typeof (err as NodeJS.ErrnoException).code).toBe('string');
                 }
             });
         });

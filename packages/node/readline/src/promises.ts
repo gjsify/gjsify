@@ -10,6 +10,7 @@ import type { Readable, Writable } from 'node:stream';
  */
 export class Interface extends BaseInterface {
     /** Ask a question and return the answer as a Promise. */
+    // oxlint-disable-next-line typescript/no-explicit-any -- promise Interface.question intentionally overrides the callback-based, overloaded base signature with a Promise-returning form; the options param must stay `any` to satisfy override compatibility
     question(query: string, _options?: any): Promise<string> {
         return new Promise<string>((resolve) => {
             super.question(query, resolve);
@@ -24,7 +25,7 @@ export function createInterface(input?: Readable | InterfaceOptions, output?: Wr
     if (
         typeof input === 'object' &&
         input !== null &&
-        !('read' in input && typeof (input as any).read === 'function')
+        !('read' in input && typeof (input as { read?: unknown }).read === 'function')
     ) {
         const opts = input as InterfaceOptions;
         const rl = new Interface(opts);

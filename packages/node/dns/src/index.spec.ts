@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec inspects DNS callback error .code and dynamically-typed record results from resolve()
 import { describe, it, expect } from '@gjsify/unit';
 import dns, {
     lookup,

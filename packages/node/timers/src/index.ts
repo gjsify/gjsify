@@ -9,7 +9,7 @@ export { Timeout, Immediate };
  * Schedule a callback to be called after `delay` milliseconds.
  * Returns a Timeout object with ref/unref/refresh methods.
  */
-function _setTimeout<T extends any[]>(callback: (...args: T) => void, delay = 0, ...args: T): Timeout {
+function _setTimeout<T extends unknown[]>(callback: (...args: T) => void, delay = 0, ...args: T): Timeout {
     return new Timeout(callback, delay, args, false);
 }
 
@@ -32,7 +32,7 @@ function _clearTimeout(timeout: Timeout | number | undefined): void {
  * Schedule a callback to be called repeatedly every `delay` milliseconds.
  * Returns a Timeout object with ref/unref/refresh methods.
  */
-function _setInterval<T extends any[]>(callback: (...args: T) => void, delay = 0, ...args: T): Timeout {
+function _setInterval<T extends unknown[]>(callback: (...args: T) => void, delay = 0, ...args: T): Timeout {
     return new Timeout(callback, delay, args, true);
 }
 
@@ -51,7 +51,7 @@ function _clearInterval(timeout: Timeout | number | undefined): void {
  * Schedule a callback to be called on the next iteration of the event loop.
  * Returns an Immediate object with ref/unref methods.
  */
-function _setImmediate<T extends any[]>(callback: (...args: T) => void, ...args: T): Immediate {
+function _setImmediate<T extends unknown[]>(callback: (...args: T) => void, ...args: T): Immediate {
     return new Immediate(callback, args);
 }
 
