@@ -23,6 +23,7 @@ import testSuiteWatchFile from './watchfile.spec.js';
 import testSuiteStatFs from './statfs.spec.js';
 import testSuiteUtimes from './utimes.spec.js';
 import testSuiteFdOps from './fd-ops.spec.js';
+import testSuiteRmSymlink from './rm-symlink.spec.js';
 
 run({
     testSuiteCallback,
@@ -43,4 +44,5 @@ run({
     testSuiteStatFs,
     testSuiteUtimes,
     testSuiteFdOps,
+    testSuiteRmSymlink,
 });
