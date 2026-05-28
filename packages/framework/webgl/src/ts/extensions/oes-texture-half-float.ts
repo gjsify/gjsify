@@ -14,7 +14,7 @@ export function getOESTextureHalfFloat(context: WebGLContextBase) {
     }
     // WebGL2 contexts always support half-float — return extension even if
     // the native driver doesn't advertise the WebGL1 extension name.
-    if ((context as any)._native2) {
+    if ((context as { _native2?: unknown })._native2) {
         return new OESTextureHalfFloat();
     }
     return null;

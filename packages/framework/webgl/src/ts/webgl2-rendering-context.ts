@@ -169,7 +169,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
      * The base class handles CA0, DEPTH, STENCIL, DEPTH_STENCIL and calls
      * _preCheckFramebufferStatus (which we override to query native GL).
      */
-    override _updateFramebufferAttachments(framebuffer: any): void {
+    override _updateFramebufferAttachments(framebuffer: WebGLFramebuffer | null): void {
         super._updateFramebufferAttachments(framebuffer);
         if (!framebuffer) return;
         for (let i = 1; i <= 15; i++) {
@@ -553,13 +553,17 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         type: GLenum,
         source: TexImageSource | GdkPixbuf.Pixbuf,
     ): void;
+    // Overload-impl: slot 4-6 carry different types depending on call arity
+    // (6-arg source form: format/type/source; 9-arg form: width/height/border).
+    // The public typed overloads above guarantee call-site type safety; the impl
+    // uses `unknown` and narrows internally via `arguments.length` and `instanceof`.
     override texImage2D(
         target: GLenum = 0,
         level: GLint = 0,
         internalFormat: GLint = 0,
-        formatOrWidth: any = 0,
-        typeOrHeight: any = 0,
-        sourceOrBorder: any = 0,
+        formatOrWidth: unknown = 0,
+        typeOrHeight: unknown = 0,
+        sourceOrBorder: unknown = 0,
         _format: GLenum = 0,
         type: GLenum = 0,
         pixels?: ArrayBufferView | null,
@@ -570,8 +574,8 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         let border: number = 0;
 
         if (arguments.length === 6) {
-            type = typeOrHeight;
-            format = formatOrWidth;
+            type = typeOrHeight as GLenum;
+            format = formatOrWidth as GLenum;
 
             if (sourceOrBorder instanceof GdkPixbuf.Pixbuf) {
                 const pixbuf = sourceOrBorder;
@@ -590,8 +594,8 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
                 pixels = imageData.data;
             }
         } else if (arguments.length >= 9) {
-            width = formatOrWidth;
-            height = typeOrHeight;
+            width = formatOrWidth as number;
+            height = typeOrHeight as number;
             border = sourceOrBorder as GLint;
             format = _format as GLenum;
         }
@@ -681,14 +685,18 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         type: GLenum,
         source: TexImageSource | GdkPixbuf.Pixbuf,
     ): void;
+    // Overload-impl: slot 5-7 carry different types depending on call arity
+    // (7-arg source form: format/type/source; 9-arg form: width/height/format).
+    // The public typed overloads above guarantee call-site type safety; the impl
+    // uses `unknown` and narrows internally via `arguments.length` and `instanceof`.
     override texSubImage2D(
         target: GLenum = 0,
         level: GLint = 0,
         xoffset: GLint = 0,
         yoffset: GLint = 0,
-        formatOrWidth: any = 0,
-        typeOrHeight: any = 0,
-        sourceOrFormat: any = 0,
+        formatOrWidth: unknown = 0,
+        typeOrHeight: unknown = 0,
+        sourceOrFormat: unknown = 0,
         type: GLenum = 0,
         pixels?: ArrayBufferView | null,
     ): void {
@@ -697,8 +705,8 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         let format: number = 0;
 
         if (arguments.length === 7) {
-            type = typeOrHeight;
-            format = formatOrWidth;
+            type = typeOrHeight as GLenum;
+            format = formatOrWidth as GLenum;
 
             if (sourceOrFormat instanceof GdkPixbuf.Pixbuf) {
                 const pixbuf = sourceOrFormat;
@@ -717,8 +725,8 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
                 pixels = imageData.data;
             }
         } else {
-            width = formatOrWidth;
-            height = typeOrHeight;
+            width = formatOrWidth as number;
+            height = typeOrHeight as number;
             format = sourceOrFormat as GLenum;
         }
 
@@ -806,6 +814,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         return name.length > 0 ? name : null;
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- byte-matches lib.dom WebGL2RenderingContext.getActiveUniformBlockParameter: any (pname-dependent return type)
     getActiveUniformBlockParameter(program: WebGLProgram, uniformBlockIndex: GLuint, pname: GLenum): any {
         return this._native2.getActiveUniformBlockParameter(
             (program as unknown as OurWebGLProgram)._,
@@ -814,6 +823,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         );
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- byte-matches lib.dom WebGL2RenderingContext.getActiveUniforms: any (pname-dependent return type)
     getActiveUniforms(program: WebGLProgram, uniformIndices: GLuint[], pname: GLenum): any {
         const result = this._native2.getActiveUniforms(
             (program as unknown as OurWebGLProgram)._,
@@ -831,14 +841,17 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
 
     // ─── Indexed Parameter Queries ────────────────────────────────────────
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- byte-matches lib.dom WebGL2RenderingContext.getIndexedParameter: any (target-dependent return type)
     getIndexedParameter(target: GLenum, index: GLuint): any {
         return this._native2.getIndexedParameteri(target, index);
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- byte-matches lib.dom WebGL2RenderingContext.getInternalformatParameter: any (pname-dependent return type)
     getInternalformatParameter(target: GLenum, internalformat: GLenum, pname: GLenum): any {
         return this._native2.getInternalformatParameter(target, internalformat, pname);
     }
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- byte-matches lib.dom WebGLRenderingContext.getParameter: any (pname-dependent return type)
     override getParameter(pname: GLenum): any {
         if (pname === 0x1f02 /* GL_VERSION */) return 'WebGL 2.0';
         if (pname === 0x8b8c /* GL_SHADING_LANGUAGE_VERSION */) return 'WebGL GLSL ES 3.00';

@@ -1,6 +1,6 @@
 export class Linkable {
     _: number = 0;
-    _references: any[] = [];
+    _references: Linkable[] = [];
     _refCount = 0;
     _pendingDelete = false;
     _binding = 0;
@@ -13,13 +13,13 @@ export class Linkable {
         this._binding = 0;
     }
 
-    _link(b: any) {
+    _link(b: Linkable) {
         this._references.push(b);
         b._refCount += 1;
         return true;
     }
 
-    _unlink(b: any) {
+    _unlink(b: Linkable) {
         let idx = this._references.indexOf(b);
         if (idx < 0) {
             return false;
@@ -34,7 +34,7 @@ export class Linkable {
         return true;
     }
 
-    _linked(b: any) {
+    _linked(b: Linkable) {
         return this._references.indexOf(b) >= 0;
     }
 

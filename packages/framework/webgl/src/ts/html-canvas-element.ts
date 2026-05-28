@@ -62,7 +62,7 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
      * 'webgl2' returns a WebGL2RenderingContext (WebGL 2.0).
      * Other context types emit a warning and return null.
      */
-    override getContext(contextId: string, options?: any): any {
+    override getContext(contextId: string, options?: unknown): unknown {
         if (contextId === 'webgl' || contextId === 'experimental-webgl') {
             if (!this._webgl) {
                 // Native Gwebgl context construction reads OpenGL state from
@@ -71,14 +71,16 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
                 // the widget's GL context may not be current — make it current
                 // explicitly before instantiating.
                 this.gtkGlArea.make_current();
-                this._webgl = new OurWebGLRenderingContext(this as any, options);
+                // GTK-backed canvas is structurally compatible with the spec
+                // HTMLCanvasElement that the rendering context expects.
+                this._webgl = new OurWebGLRenderingContext(this as unknown as HTMLCanvasElement, options);
             }
             return this._webgl;
         }
         if (contextId === 'webgl2') {
             if (!this._webgl2) {
                 this.gtkGlArea.make_current();
-                this._webgl2 = new OurWebGL2RenderingContext(this as any, options);
+                this._webgl2 = new OurWebGL2RenderingContext(this as unknown as HTMLCanvasElement, options);
             }
             return this._webgl2;
         }

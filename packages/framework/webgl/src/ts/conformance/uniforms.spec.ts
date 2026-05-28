@@ -34,7 +34,7 @@ const FS_VEC4ARR = makeFS('uniform vec4 u_v4arr[3]; void main() { gl_FragColor =
 function floatArrayClose(a: Float32Array | number[], b: number[], tol = 0.001): boolean {
     if (a.length !== b.length) return false;
     for (let i = 0; i < b.length; i++) {
-        if (Math.abs((a as any)[i] - b[i]) > tol) return false;
+        if (Math.abs(a[i] - b[i]) > tol) return false;
     }
     return true;
 }

@@ -3,7 +3,9 @@ import { Linkable } from './linkable.js';
 
 import type { WebGLContextBase } from './webgl-context-base.js';
 // import type { WebGLDrawBuffers } from './extensions/webgl-draw-buffers.js';
-type WebGLDrawBuffers = any;
+// Structural placeholder until the WEBGL_draw_buffers extension is implemented;
+// `webgl-draw-buffers.ts` will provide a concrete type with these GL enum constants.
+type WebGLDrawBuffers = Record<`COLOR_ATTACHMENT${number}_WEBGL`, GLenum>;
 
 export class WebGLFramebuffer extends Linkable implements WebGLFramebuffer {
     _ctx: WebGLContextBase;
@@ -40,7 +42,7 @@ export class WebGLFramebuffer extends Linkable implements WebGLFramebuffer {
         this._attachmentFace[ctx.DEPTH_STENCIL_ATTACHMENT] = 0;
 
         if (ctx._extensions.webgl_draw_buffers) {
-            const webGLDrawBuffers: WebGLDrawBuffers = ctx._extensions.webgl_draw_buffers;
+            const webGLDrawBuffers = ctx._extensions.webgl_draw_buffers as WebGLDrawBuffers;
             this._attachments[webGLDrawBuffers.COLOR_ATTACHMENT1_WEBGL] = null;
             this._attachments[webGLDrawBuffers.COLOR_ATTACHMENT2_WEBGL] = null;
             this._attachments[webGLDrawBuffers.COLOR_ATTACHMENT3_WEBGL] = null;
@@ -103,7 +105,9 @@ export class WebGLFramebuffer extends Linkable implements WebGLFramebuffer {
             return;
         }
         this._attachments[attachment] = null;
-        this._unlink(object);
+        // Attachments are always framework subclasses (WebGLTexture/WebGLRenderbuffer extend Linkable)
+        // but the public type uses lib.dom's empty-brand `WebGLTexture | WebGLRenderbuffer` interfaces.
+        this._unlink(object as unknown as Linkable);
     }
 
     _setAttachment(object: WebGLTexture | WebGLRenderbuffer | null, attachment: GLenum) {
@@ -119,7 +123,8 @@ export class WebGLFramebuffer extends Linkable implements WebGLFramebuffer {
 
         this._attachments[attachment] = object;
 
-        this._link(object);
+        // See _clearAttachment for the cast rationale.
+        this._link(object as unknown as Linkable);
     }
 
     _performDelete() {

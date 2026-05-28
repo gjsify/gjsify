@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- WebGL1 spec: tests dynamically index W3C `WebGLRenderingContext` by string GL-constant name (`gl[name]` over GL_CONSTANT_NAMES list) and access the impl-private `_native` Gwebgl Vala bridge (`gl._native.getParameterb`/`getParameterbv`/`getParameterf`/`getParameterfv`/`getParameteri`/`getParameteriv`); typing each access would require an exhaustive const-name → numeric-value map per the W3C spec plus a typed alias of the internal Gwebgl bridge that this spec deliberately treats as a black box.
 // WebGL1 tests — exercises WebGLRenderingContext (WebGL 1.0) backed by GTK GLArea.
 // Reference: refs/headless-gl/test/ (buffers, programs, simple-shader, extensions, textures)
 // Ported from headless-gl. Copyright (c) stackgl contributors. MIT license.

@@ -715,10 +715,10 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
                     return;
             }
 
-            if (
-                this._extensions.ext_texture_filter_anisotropic &&
-                pname === this._extensions.ext_texture_filter_anisotropic.TEXTURE_MAX_ANISOTROPY_EXT
-            ) {
+            const anisoExt = this._extensions.ext_texture_filter_anisotropic as
+                | { TEXTURE_MAX_ANISOTROPY_EXT: GLenum }
+                | undefined;
+            if (anisoExt && pname === anisoExt.TEXTURE_MAX_ANISOTROPY_EXT) {
                 this._gl.texParameterf(target, pname, param);
                 return;
             }
@@ -739,10 +739,10 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
                     return;
             }
 
-            if (
-                this._extensions.ext_texture_filter_anisotropic &&
-                pname === this._extensions.ext_texture_filter_anisotropic.TEXTURE_MAX_ANISOTROPY_EXT
-            ) {
+            const anisoExt = this._extensions.ext_texture_filter_anisotropic as
+                | { TEXTURE_MAX_ANISOTROPY_EXT: GLenum }
+                | undefined;
+            if (anisoExt && pname === anisoExt.TEXTURE_MAX_ANISOTROPY_EXT) {
                 this._gl.texParameteri(target, pname, param);
                 return;
             }
@@ -770,10 +770,10 @@ const textureMethods: ThisType<WebGLContextBase> & Record<string, Function> = {
                 return this._getTexParameterDirect(target, pname);
         }
 
-        if (
-            this._extensions.ext_texture_filter_anisotropic &&
-            pname === this._extensions.ext_texture_filter_anisotropic.TEXTURE_MAX_ANISOTROPY_EXT
-        ) {
+        const anisoExt = this._extensions.ext_texture_filter_anisotropic as
+            | { TEXTURE_MAX_ANISOTROPY_EXT: GLenum }
+            | undefined;
+        if (anisoExt && pname === anisoExt.TEXTURE_MAX_ANISOTROPY_EXT) {
             return this._getTexParameterDirect(target, pname);
         }
 

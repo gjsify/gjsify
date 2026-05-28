@@ -135,11 +135,13 @@ const stateMethods: StateMethods & ThisType<WebGLContextBase> = {
     },
 
     hint(this: WebGLContextBase, target: GLenum = 0, mode: GLenum = 0): void {
+        const oesStd = this._extensions.oes_standard_derivatives as
+            | { FRAGMENT_SHADER_DERIVATIVE_HINT_OES: GLenum }
+            | undefined;
         if (
             !(
                 target === this.GENERATE_MIPMAP_HINT ||
-                (this._extensions.oes_standard_derivatives &&
-                    target === this._extensions.oes_standard_derivatives.FRAGMENT_SHADER_DERIVATIVE_HINT_OES)
+                (oesStd && target === oesStd.FRAGMENT_SHADER_DERIVATIVE_HINT_OES)
             )
         ) {
             this.setError(this.INVALID_ENUM);
@@ -355,13 +357,12 @@ const stateMethods: StateMethods & ThisType<WebGLContextBase> = {
     },
 
     _validBlendMode(this: WebGLContextBase, mode: GLenum): boolean {
+        const extBlend = this._extensions.ext_blend_minmax as { MIN_EXT: GLenum; MAX_EXT: GLenum } | undefined;
         return (
             mode === this.FUNC_ADD ||
             mode === this.FUNC_SUBTRACT ||
             mode === this.FUNC_REVERSE_SUBTRACT ||
-            (this._extensions.ext_blend_minmax &&
-                (mode === this._extensions.ext_blend_minmax.MIN_EXT ||
-                    mode === this._extensions.ext_blend_minmax.MAX_EXT))
+            !!(extBlend && (mode === extBlend.MIN_EXT || mode === extBlend.MAX_EXT))
         );
     },
 

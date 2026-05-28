@@ -32,6 +32,7 @@ export interface ObjectLifecycleMethods {
     beginQuery(target: GLenum, query: WebGLQuery): void;
     endQuery(target: GLenum): void;
     getQuery(target: GLenum, pname: GLenum): WebGLQuery | null;
+    // oxlint-disable-next-line typescript/no-explicit-any -- byte-matches lib.dom WebGL2RenderingContext.getQueryParameter: any (pname-dependent return type)
     getQueryParameter(query: WebGLQuery, pname: GLenum): any;
     // Sampler
     createSampler(): WebGLSampler | null;
@@ -40,6 +41,7 @@ export interface ObjectLifecycleMethods {
     bindSampler(unit: GLuint, sampler: WebGLSampler | null): void;
     samplerParameteri(sampler: WebGLSampler, pname: GLenum, param: GLint): void;
     samplerParameterf(sampler: WebGLSampler, pname: GLenum, param: GLfloat): void;
+    // oxlint-disable-next-line typescript/no-explicit-any -- byte-matches lib.dom WebGL2RenderingContext.getSamplerParameter: any (pname-dependent return type)
     getSamplerParameter(sampler: WebGLSampler, pname: GLenum): any;
     // Sync
     fenceSync(condition: GLenum, flags: GLbitfield): WebGLSync | null;
@@ -47,6 +49,7 @@ export interface ObjectLifecycleMethods {
     deleteSync(sync: WebGLSync | null): void;
     clientWaitSync(sync: WebGLSync, flags: GLbitfield, timeout: GLuint64): GLenum;
     waitSync(sync: WebGLSync, flags: GLbitfield, timeout: GLint64): void;
+    // oxlint-disable-next-line typescript/no-explicit-any -- byte-matches lib.dom WebGL2RenderingContext.getSyncParameter: any (pname-dependent return type)
     getSyncParameter(sync: WebGLSync, pname: GLenum): any;
     // Transform Feedback
     createTransformFeedback(): WebGLTransformFeedback | null;
@@ -134,6 +137,7 @@ const objectLifecycleMethods: ObjectLifecycleMethods & ThisType<WebGL2RenderingC
         return null;
     },
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- impl-side match for spec-any return on the ObjectLifecycleMethods interface above
     getQueryParameter(this: WebGL2RenderingContext, query: WebGLQuery, pname: GLenum): any {
         if (!(query instanceof WebGLQuery)) return null;
         return this._native2.getQueryParameter(query._, pname);
@@ -174,6 +178,7 @@ const objectLifecycleMethods: ObjectLifecycleMethods & ThisType<WebGL2RenderingC
         this._native2.samplerParameterf(sampler._, pname, param);
     },
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- impl-side match for spec-any return on the ObjectLifecycleMethods interface above
     getSamplerParameter(this: WebGL2RenderingContext, sampler: WebGLSampler, pname: GLenum): any {
         if (!(sampler instanceof WebGLSampler)) return null;
         // Float params: TEXTURE_MIN_LOD, TEXTURE_MAX_LOD
@@ -214,6 +219,7 @@ const objectLifecycleMethods: ObjectLifecycleMethods & ThisType<WebGL2RenderingC
         this._native2.waitSync(sync._, flags, timeout as unknown as number);
     },
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- impl-side match for spec-any return on the ObjectLifecycleMethods interface above
     getSyncParameter(this: WebGL2RenderingContext, sync: WebGLSync, pname: GLenum): any {
         if (!(sync instanceof WebGLSync)) return null;
         return this._native2.getSyncParameter(sync._, pname);
