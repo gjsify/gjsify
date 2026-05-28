@@ -27,10 +27,15 @@
 //                                                 # runtimes triplet back
 //                                                 # into each package.json
 //                                                 # (only when absent)
+//   node scripts/audit-runtimes.mjs --check       # exit 1 if any declared
+//                                                 # triplet drifts from what
+//                                                 # the signal-based detection
+//                                                 # would suggest (CI guard)
 //
 // Pure read-only by default. `--apply` only fills in missing declarations;
 // existing `gjsify.runtimes` values are NEVER overwritten — the human stays
-// in charge of every non-default decision.
+// in charge of every non-default decision. `--check` is read-only; it never
+// edits package.json — it only reports drift.
 
 import { readdir, readFile, writeFile, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -43,6 +48,7 @@ const PACKAGES_DIR = resolve(ROOT, 'packages');
 const args = new Set(process.argv.slice(2));
 const FORMAT = args.has('--json') ? 'json' : args.has('--markdown') ? 'markdown' : 'table';
 const APPLY = args.has('--apply');
+const CHECK = args.has('--check');
 
 // ─── Discovery ──────────────────────────────────────────────────────────────
 
@@ -303,6 +309,50 @@ function renderJson(rows) {
     return JSON.stringify(rows, null, 2);
 }
 
+/**
+ * Compare declared vs suggested triplets and return a list of drifted rows.
+ * Only rows where BOTH `declared` and `suggested` exist are checked; infra /
+ * unknown axes (suggested === null) are skipped — the script has nothing to
+ * say about them. A row where `declared` is missing but `suggested` exists is
+ * also flagged (a new package landed without declaring its triplet).
+ */
+function diffDeclared(rows) {
+    const drifted = [];
+    const missing = [];
+    for (const r of rows) {
+        if (!r.suggested) continue; // infra / unknown — out of scope
+        if (!r.declared) {
+            missing.push(r);
+            continue;
+        }
+        const slots = ['gjs', 'node', 'browser'];
+        const mismatches = slots.filter((s) => r.declared[s] !== r.suggested[s]);
+        if (mismatches.length > 0) {
+            drifted.push({ row: r, mismatches });
+        }
+    }
+    return { drifted, missing };
+}
+
+/** Short human-readable signal summary for a row — what drove the suggestion. */
+function summarizeSignals(r) {
+    const s = r.signals;
+    const flags = [];
+    if (s.girs_value) flags.push('@girs/* value-import');
+    if (s.gi_url) flags.push('gi:// URL import');
+    if (s.dynamic_gi) flags.push('dynamic import(gi://)');
+    if (s.imports_legacy) flags.push('legacy imports.X');
+    if (s.gjs_imports_guard) flags.push('.imports?.gi guard');
+    if (s.has_browser_entry) flags.push('test.browser entry');
+    if (s.has_globals_mjs) flags.push('globals.mjs');
+    if (flags.length === 0) flags.push('pure TS (no GJS-binding signal)');
+    return `axis=${r.axis}, signals: ${flags.join(', ')}`;
+}
+
+function fmtTriplet(t) {
+    return `{gjs:${t.gjs}, node:${t.node}, browser:${t.browser}}`;
+}
+
 async function apply(rows) {
     let updated = 0;
     let skipped = 0;
@@ -335,6 +385,42 @@ if (APPLY) {
     const { updated, skipped } = await apply(rows);
     console.log(`audit-runtimes: applied ${updated} package(s), skipped ${skipped} (already-declared / infra / unknown).`);
     process.exit(0);
+}
+
+if (CHECK) {
+    const { drifted, missing } = diffDeclared(rows);
+    const declarable = rows.filter((r) => r.suggested).length;
+    if (drifted.length === 0 && missing.length === 0) {
+        console.log(
+            `audit-runtimes --check: OK. ${declarable} declarable package(s) match the signal-based suggestion (${rows.length - declarable} infra/unknown skipped).`,
+        );
+        process.exit(0);
+    }
+    console.error('audit-runtimes --check: DRIFT DETECTED.\n');
+    if (missing.length > 0) {
+        console.error(`Missing gjsify.runtimes declaration on ${missing.length} package(s):`);
+        for (const r of missing) {
+            console.error(`  - ${r.name ?? r.path}  (path: packages/${r.path})`);
+            console.error(`      suggested: ${fmtTriplet(r.suggested)}`);
+            console.error(`      reason:    ${summarizeSignals(r)}`);
+        }
+        console.error('');
+    }
+    if (drifted.length > 0) {
+        console.error(`Declared triplet drifts from source-code signals on ${drifted.length} package(s):`);
+        for (const { row: r, mismatches } of drifted) {
+            console.error(`  - ${r.name ?? r.path}  (path: packages/${r.path})`);
+            console.error(`      declared:  ${fmtTriplet(r.declared)}`);
+            console.error(`      suggested: ${fmtTriplet(r.suggested)}`);
+            console.error(`      slots:     ${mismatches.join(', ')}`);
+            console.error(`      reason:    ${summarizeSignals(r)}`);
+        }
+        console.error('');
+    }
+    console.error(
+        'Either update the package\'s source-code signals (the GJS-binding shape changed) or update its package.json#gjsify.runtimes to match the new reality. See AGENTS.md `## Strategic direction — cross-runtime portability` for the slot model.',
+    );
+    process.exit(1);
 }
 
 if (FORMAT === 'json') {
