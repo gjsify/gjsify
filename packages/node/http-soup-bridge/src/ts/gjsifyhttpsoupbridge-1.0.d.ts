@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- generated ts-for-gir .d.ts (see file header). Constructor/_init rest-args and GObject signal-handler (...args: any[]) => any patterns come from the ts-for-gir template; fixes belong upstream in https://github.com/gjsify/ts-for-gir, not in this generated file
 /**
  * Type Definitions for Gjs (https://gjs.guide/)
  *
