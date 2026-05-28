@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-explicit-any -- spec exercises the GjsifyHttp2 Vala/GObject native bridge: bytes/string conversion helpers and signal handlers ('headers_received', 'data_received') marshal GLib.Bytes payloads at the GI introspection boundary — same recognized any-justified pattern as AGENTS.md's gioAsync precedent
 // Phase-0 spec for @gjsify/http2-native's SessionBridge.
 //
 // Drives a server + client SessionBridge pair through the GLib main loop,
