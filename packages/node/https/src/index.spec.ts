@@ -56,12 +56,12 @@ export default async () => {
 
         await it('should have defaultPort 443', async () => {
             const agent = new Agent();
-            expect((agent as any).defaultPort).toBe(443);
+            expect((agent as { defaultPort?: number; protocol?: string }).defaultPort).toBe(443);
         });
 
         await it('should have protocol https:', async () => {
             const agent = new Agent();
-            expect((agent as any).protocol).toBe('https:');
+            expect((agent as { defaultPort?: number; protocol?: string }).protocol).toBe('https:');
         });
 
         await it('should have maxSockets property', async () => {
@@ -155,11 +155,11 @@ export default async () => {
         });
 
         await it('should have protocol https:', async () => {
-            expect((globalAgent as any).protocol).toBe('https:');
+            expect((globalAgent as { defaultPort?: number; protocol?: string }).protocol).toBe('https:');
         });
 
         await it('should have defaultPort 443', async () => {
-            expect((globalAgent as any).defaultPort).toBe(443);
+            expect((globalAgent as { defaultPort?: number; protocol?: string }).defaultPort).toBe(443);
         });
 
         await it('should be same reference on default export', async () => {
@@ -486,19 +486,19 @@ export default async () => {
     await describe('https protocol defaults', async () => {
         await it('Agent defaultPort should be 443 (not 80)', async () => {
             const agent = new Agent();
-            expect((agent as any).defaultPort).toBe(443);
-            expect((agent as any).defaultPort).not.toBe(80);
+            expect((agent as { defaultPort?: number; protocol?: string }).defaultPort).toBe(443);
+            expect((agent as { defaultPort?: number; protocol?: string }).defaultPort).not.toBe(80);
         });
 
         await it('Agent protocol should be https: (not http:)', async () => {
             const agent = new Agent();
-            expect((agent as any).protocol).toBe('https:');
-            expect((agent as any).protocol).not.toBe('http:');
+            expect((agent as { defaultPort?: number; protocol?: string }).protocol).toBe('https:');
+            expect((agent as { defaultPort?: number; protocol?: string }).protocol).not.toBe('http:');
         });
 
         await it('globalAgent should have same defaults', async () => {
-            expect((globalAgent as any).defaultPort).toBe(443);
-            expect((globalAgent as any).protocol).toBe('https:');
+            expect((globalAgent as { defaultPort?: number; protocol?: string }).defaultPort).toBe(443);
+            expect((globalAgent as { defaultPort?: number; protocol?: string }).protocol).toBe('https:');
         });
     });
 };

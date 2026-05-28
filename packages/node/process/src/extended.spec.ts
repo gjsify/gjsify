@@ -96,7 +96,7 @@ export default async () => {
         });
 
         await it('should coerce non-string values to strings', async () => {
-            (process.env as any).TEST_NUM = 42;
+            (process.env as Record<string, unknown>).TEST_NUM = 42;
             expect(typeof process.env.TEST_NUM).toBe('string');
             expect(process.env.TEST_NUM).toBe('42');
             delete process.env.TEST_NUM;
@@ -222,7 +222,7 @@ export default async () => {
             // On Node.js: v8 exists. On GJS: may have gjs or modules
             const hasEngine =
                 process.versions.v8 !== undefined ||
-                (process.versions as any).gjs !== undefined ||
+                (process.versions as Record<string, string | undefined>).gjs !== undefined ||
                 process.versions.modules !== undefined;
             expect(hasEngine).toBe(true);
         });
