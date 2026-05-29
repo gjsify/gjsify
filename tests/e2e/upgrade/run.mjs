@@ -134,13 +134,13 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
         const dir = scaffold('dry-run-project');
         const before = readFileSync(join(dir, 'package.json'), 'utf-8');
         const out = await runCli(['--latest', '--dry-run'], { cwd: dir });
-        assert.match(out, /checking 4 dependencies/);
+        assert.match(out, /checking 4 unique deps across 1 workspace/);
         assert.match(out, /lib-a/);
         assert.match(out, /lib-b/);
         assert.match(out, /lib-c/);
         // lib-uptodate (9.9.9) has no newer version → not in table
         assert.doesNotMatch(out, /lib-uptodate/);
-        assert.match(out, /--dry-run: would update 3 dependencies/);
+        assert.match(out, /--dry-run: would update 3 deps across 1 package\.json/);
         // Verify package.json untouched
         assert.equal(readFileSync(join(dir, 'package.json'), 'utf-8'), before);
     });
@@ -214,7 +214,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
         );
         const out = await runCli(['--latest', '--dry-run'], { cwd: dir });
         // Only lib-a is checked (@gjsify/cli has workspace: range)
-        assert.match(out, /checking 1 dependencies/);
+        assert.match(out, /checking 1 unique deps across 1 workspace/);
         assert.match(out, /lib-a/);
         assert.doesNotMatch(out, /@gjsify\/cli/);
     });
@@ -233,5 +233,147 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
         );
         const out = await runCli([], { cwd: dir });
         assert.match(out, /no external npm dependencies/);
+    });
+
+    // ─── Workspace-mode tests ──────────────────────────────────────────
+
+    /** Scaffold a 3-workspace monorepo with an inconsistent `lib-a` declaration. */
+    function scaffoldMonorepo(rootName) {
+        const root = join(tmpDir, rootName);
+        mkdirSync(join(root, 'packages', 'alpha'), { recursive: true });
+        mkdirSync(join(root, 'packages', 'beta'), { recursive: true });
+        mkdirSync(join(root, 'packages', 'gamma'), { recursive: true });
+        writeFileSync(
+            join(root, 'package.json'),
+            JSON.stringify(
+                {
+                    name: rootName,
+                    version: '1.0.0',
+                    private: true,
+                    workspaces: ['packages/*'],
+                },
+                null,
+                2,
+            ) + '\n',
+        );
+        // lib-a declared at ^1.0.0 in alpha + beta, ^0.9.0 in gamma → inconsistency
+        writeFileSync(
+            join(root, 'packages', 'alpha', 'package.json'),
+            JSON.stringify(
+                {
+                    name: '@m/alpha',
+                    version: '1.0.0',
+                    private: true,
+                    dependencies: { 'lib-a': '^1.0.0', 'lib-c': '^3.2.0' },
+                },
+                null,
+                2,
+            ) + '\n',
+        );
+        writeFileSync(
+            join(root, 'packages', 'beta', 'package.json'),
+            JSON.stringify(
+                {
+                    name: '@m/beta',
+                    version: '1.0.0',
+                    private: true,
+                    dependencies: { 'lib-a': '^1.0.0', 'lib-b': '~0.4.0' },
+                },
+                null,
+                2,
+            ) + '\n',
+        );
+        writeFileSync(
+            join(root, 'packages', 'gamma', 'package.json'),
+            JSON.stringify(
+                {
+                    name: '@m/gamma',
+                    version: '1.0.0',
+                    private: true,
+                    dependencies: { 'lib-a': '^0.9.0' },
+                },
+                null,
+                2,
+            ) + '\n',
+        );
+        return root;
+    }
+
+    it('workspace mode: aggregates declarations across all workspaces', async () => {
+        const root = scaffoldMonorepo('mono-aggregate');
+        const out = await runCli(['--latest', '--dry-run'], { cwd: root });
+        // 3 unique deps (lib-a, lib-b, lib-c) across 4 workspaces (root + 3 children)
+        assert.match(out, /checking 3 unique deps across 4 workspace/);
+        // lib-a should show fan=3 (alpha + beta + gamma)
+        assert.match(out, /lib-a/);
+        // Inconsistency flag should be present
+        assert.match(out, /⚠/);
+    });
+
+    it('workspace mode: --check exits non-zero on inconsistency', async () => {
+        const root = scaffoldMonorepo('mono-check-fail');
+        await assert.rejects(
+            runCli(['--check'], { cwd: root }),
+            (err) => {
+                assert.equal(err.code, 1);
+                assert.match(err.stderr ?? '', /lib-a/);
+                assert.match(err.stderr ?? '', /declared at inconsistent ranges/);
+                return true;
+            },
+        );
+    });
+
+    it('workspace mode: --check exits 0 when all consistent', async () => {
+        const root = join(tmpDir, 'mono-check-ok');
+        mkdirSync(join(root, 'packages', 'one'), { recursive: true });
+        mkdirSync(join(root, 'packages', 'two'), { recursive: true });
+        writeFileSync(
+            join(root, 'package.json'),
+            JSON.stringify(
+                { name: 'mono-check-ok', version: '1.0.0', private: true, workspaces: ['packages/*'] },
+                null,
+                2,
+            ) + '\n',
+        );
+        writeFileSync(
+            join(root, 'packages', 'one', 'package.json'),
+            JSON.stringify(
+                { name: '@m/one', version: '1.0.0', private: true, dependencies: { 'lib-a': '^1.0.0' } },
+                null,
+                2,
+            ) + '\n',
+        );
+        writeFileSync(
+            join(root, 'packages', 'two', 'package.json'),
+            JSON.stringify(
+                { name: '@m/two', version: '1.0.0', private: true, dependencies: { 'lib-a': '^1.0.0' } },
+                null,
+                2,
+            ) + '\n',
+        );
+        const out = await runCli(['--check'], { cwd: root });
+        assert.match(out, /gjsify upgrade --check: OK/);
+    });
+
+    it('workspace mode: --align fixes inconsistencies offline', async () => {
+        const root = scaffoldMonorepo('mono-align');
+        const out = await runCli(['--align'], { cwd: root });
+        // lib-a was ^1.0.0 (alpha, beta) + ^0.9.0 (gamma) → align to highest = ^1.0.0
+        assert.match(out, /aligning 1 inconsistent dep/);
+        assert.match(out, /lib-a/);
+        const gamma = JSON.parse(
+            readFileSync(join(root, 'packages', 'gamma', 'package.json'), 'utf-8'),
+        );
+        assert.equal(gamma.dependencies['lib-a'], '^1.0.0');
+    });
+
+    it('workspace mode: --workspace filter restricts to one package', async () => {
+        const root = scaffoldMonorepo('mono-filter');
+        const out = await runCli(['--latest', '--dry-run', '-p', '@m/alpha'], { cwd: root });
+        // Only alpha's deps should be checked: lib-a, lib-c
+        assert.match(out, /checking 2 unique deps across 1 workspace/);
+        assert.match(out, /lib-a/);
+        assert.match(out, /lib-c/);
+        assert.doesNotMatch(out, /lib-b/);
     });
 });

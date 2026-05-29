@@ -273,6 +273,12 @@ gjsify run build:gjsify | gjsify run build:types
 gjsify run build:test:{gjs,node} | gjsify run test:{gjs,node}
 # One specific workspace from anywhere
 gjsify workspace @gjsify/<name> <script>
+# Workspace-wide dep upgrades (drop-in for `yarn upgrade-interactive`)
+gjsify upgrade                       # interactive table aggregated across ALL workspaces; shows fan-out + ⚠ on inconsistencies
+gjsify upgrade --latest | --minor | --patch    # bulk upgrade, same aggregation across all workspaces
+gjsify upgrade --align                # offline: align inconsistent deps to their highest declared version (no registry calls)
+gjsify upgrade --check                # CI gate: exit non-zero if any dep is declared at multiple ranges across workspaces
+gjsify upgrade -p '@gjsify/*'         # restrict to a workspace subset (glob matched against name + path)
 ```
 
 ## GNOME Libs & Mappings — `node_modules/@girs/*`

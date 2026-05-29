@@ -1,17 +1,33 @@
 // `gjsify upgrade` — drop-in replacement for `yarn upgrade-interactive`
-// and `npx npm-check-updates`. Two modes:
+// and `npx npm-check-updates`. Workspace-aware: walks every package.json
+// declared by the monorepo, groups by dep name, surfaces inconsistencies.
 //
-//   1. Interactive (default): show outdated packages, prompt user to
-//      select which ones to update (space-separated indices or `a` for
-//      all), then write the new ranges to `package.json`.
+// Modes:
 //
-//   2. Non-interactive (`--latest` / `--minor` / `--patch` / `--filter`):
-//      bump matching packages automatically without prompting.
+//   1. Interactive (default): show outdated packages aggregated across all
+//      workspaces, prompt user to select, then write the new ranges to every
+//      affected `package.json` (with optional per-workspace override).
 //
-// Workspace-aware: `workspace:^` / `workspace:~` / `workspace:*` ranges
-// are skipped — those are the gjsify monorepo internal links and `gjsify
-// install` resolves them locally. Only external npm specs get checked
-// against the registry.
+//   2. Non-interactive bulk (`--latest` / `--minor` / `--patch`): bump
+//      matching packages automatically without prompting; same selection
+//      logic as above but no UI loop.
+//
+//   3. `--align`: offline consistency-only mode. Finds deps declared at
+//      multiple ranges across the workspace and proposes a single range
+//      (the highest declared) — no registry calls.
+//
+//   4. `--check`: CI gate. Exits non-zero when any inconsistency exists.
+//
+// Filters:
+//
+//   --filter <name>     match against dep name
+//   --workspace <pat>   restrict to a subset of workspaces (`-p` shorthand;
+//                       repeatable; comma-separated; glob-like — see
+//                       `filterWorkspaces` in `@gjsify/workspace`).
+//
+// Workspace-protocol ranges (`workspace:*`, `workspace:^`, …) are always
+// skipped — those are internal links and `gjsify install` resolves them
+// locally.
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -19,6 +35,14 @@ import { homedir } from 'node:os';
 import { createInterface } from 'node:readline/promises';
 import { parse } from '@gjsify/semver';
 import { DEFAULT_REGISTRY, fetchPackument, parseNpmrc, type NpmrcConfig } from '@gjsify/npm-registry';
+import { discoverWorkspaces, filterWorkspaces, type Workspace } from '@gjsify/workspace';
+import { findWorkspaceRoot } from '../utils/workspace-root.js';
+import {
+    groupByDependency,
+    findInconsistencies,
+    type DepDeclaration,
+    type DependencyGroup,
+} from '../utils/dep-aggregation.js';
 import type { Command } from '../types/index.js';
 
 type ReleaseType = 'major' | 'minor' | 'patch' | 'prerelease' | 'none';
@@ -28,23 +52,17 @@ interface UpgradeOptions {
     minor?: boolean;
     patch?: boolean;
     filter?: string;
+    workspace?: string;
+    align?: boolean;
+    check?: boolean;
     dryRun?: boolean;
     cwd?: string;
     verbose?: boolean;
     yes?: boolean;
 }
 
-interface DepEntry {
-    name: string;
-    field: 'dependencies' | 'devDependencies' | 'optionalDependencies' | 'peerDependencies';
-    currentRange: string;
-    /** Parsed current version (the max-satisfying numeric from the range). */
-    currentVersion: string | null;
-    /** Range prefix preserved when writing back (`^`, `~`, `>=`, or ``). */
-    prefix: string;
-}
-
-interface UpgradeCandidate extends DepEntry {
+/** A `DependencyGroup` enriched with registry-resolved upgrade target. */
+interface UpgradeGroup extends DependencyGroup {
     latestVersion: string;
     diff: ReleaseType;
 }
@@ -52,7 +70,7 @@ interface UpgradeCandidate extends DepEntry {
 export const upgradeCommand: Command<unknown, UpgradeOptions> = {
     command: 'upgrade',
     description:
-        'Check the npm registry for newer versions of declared dependencies and update package.json. Interactive by default; `--latest` / `--minor` / `--patch` switch to non-interactive bulk-update mode.',
+        'Workspace-aware dependency upgrades. Walks every package.json in the monorepo, groups by dep, flags inconsistencies. `--latest` / `--minor` / `--patch` for bulk-mode, `--align` for offline consistency-only mode, `--check` for CI drift detection.',
     builder: (yargs) => {
         return yargs
             .option('latest', {
@@ -74,16 +92,35 @@ export const upgradeCommand: Command<unknown, UpgradeOptions> = {
             })
             .option('filter', {
                 description:
-                    'Only consider packages whose name matches this substring (case-insensitive). Repeatable; comma-separated values are split.',
+                    'Only consider deps whose name matches this substring (case-insensitive). Repeatable; comma-separated values are split.',
                 type: 'string',
             })
+            .option('workspace', {
+                alias: 'p',
+                description:
+                    'Restrict to a subset of workspaces. Patterns are matched against the workspace package name AND its directory path (substring + glob). Repeatable; comma-separated values are split.',
+                type: 'string',
+            })
+            .option('align', {
+                description:
+                    'Offline consistency mode: find deps declared at multiple ranges across the workspace and align them to the highest. No registry calls.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('check', {
+                description:
+                    'CI gate: exit non-zero when any dep is declared inconsistently across workspaces. Implies offline (no registry calls). Pairs with `--align` as the fix.',
+                type: 'boolean',
+                default: false,
+            })
             .option('dry-run', {
-                description: 'Print the upgrade plan without writing package.json.',
+                description: 'Print the upgrade plan without writing package.json files.',
                 type: 'boolean',
                 default: false,
             })
             .option('cwd', {
-                description: 'Project directory. Default: process.cwd().',
+                description:
+                    'Project directory. Default: process.cwd(). When inside a workspace, walks up to the monorepo root.',
                 type: 'string',
             })
             .option('yes', {
@@ -100,28 +137,35 @@ export const upgradeCommand: Command<unknown, UpgradeOptions> = {
     },
     handler: async (args) => {
         const cwd = resolve((args.cwd as string | undefined) ?? process.cwd());
-        const pkgJsonPath = join(cwd, 'package.json');
-        if (!existsSync(pkgJsonPath)) {
-            throw new Error(`[gjsify upgrade] no package.json at ${pkgJsonPath}`);
+
+        const ctx = discoverContext(cwd);
+        const targetWorkspaces = applyWorkspaceFilter(ctx.workspaces, args.workspace);
+        if (targetWorkspaces.length === 0) {
+            console.log('[gjsify upgrade] no matching workspaces.');
+            return;
         }
-        const rawPkg = readFileSync(pkgJsonPath, 'utf-8');
-        const pkg = JSON.parse(rawPkg) as Record<string, unknown>;
 
-        const filters = args.filter
-            ? (args.filter as string)
-                  .split(',')
-                  .map((s) => s.trim().toLowerCase())
-                  .filter(Boolean)
-            : [];
-
-        const entries = collectExternalDeps(pkg, filters);
-        if (entries.length === 0) {
+        const depFilters = parseFilterList(args.filter);
+        const decls = collectAllDeclarations(targetWorkspaces, depFilters);
+        if (decls.length === 0) {
             console.log('[gjsify upgrade] no external npm dependencies to check.');
             return;
         }
 
-        const npmrc = await loadNpmrcLight(cwd);
+        const groups = groupByDependency(decls);
 
+        // --check: exit non-zero if any inconsistency.
+        if (args.check) {
+            return runCheckMode(groups);
+        }
+
+        // --align: offline consistency-only, no registry calls.
+        if (args.align) {
+            return runAlignMode(groups, args);
+        }
+
+        // Normal flow: hit the registry, build upgrade table.
+        const npmrc = await loadNpmrcLight(ctx.root);
         const mode: 'latest' | 'minor' | 'patch' | 'interactive' = args.latest
             ? 'latest'
             : args.minor
@@ -130,17 +174,26 @@ export const upgradeCommand: Command<unknown, UpgradeOptions> = {
                 ? 'patch'
                 : 'interactive';
 
-        console.log(`[gjsify upgrade] checking ${entries.length} dependencies against ${npmrc.registry}…`);
-        const candidates = await resolveCandidates(entries, npmrc, args.verbose ?? false, mode);
+        console.log(
+            `[gjsify upgrade] checking ${groups.length} unique deps across ${targetWorkspaces.length} workspace(s) against ${npmrc.registry}…`,
+        );
+        const candidates = await resolveCandidateGroups(groups, npmrc, args.verbose ?? false, mode);
 
         if (candidates.length === 0) {
             console.log('✅ all dependencies are up to date');
+            // Even with no upgrades, surface inconsistencies as a courtesy.
+            const inconsistencies = findInconsistencies(groups);
+            if (inconsistencies.length > 0) {
+                console.log(
+                    `\n⚠  ${inconsistencies.length} dep(s) declared at inconsistent ranges across workspaces. Run \`gjsify upgrade --align\` to fix.`,
+                );
+            }
             return;
         }
 
         printTable(candidates);
 
-        let selected: UpgradeCandidate[];
+        let selected: UpgradeGroup[];
         if (mode === 'interactive' && !args.yes) {
             selected = await promptSelection(candidates);
         } else if (args.yes && mode === 'interactive') {
@@ -151,34 +204,105 @@ export const upgradeCommand: Command<unknown, UpgradeOptions> = {
         }
 
         if (selected.length === 0) {
-            console.log('[gjsify upgrade] nothing selected; package.json unchanged.');
+            console.log('[gjsify upgrade] nothing selected; no files changed.');
             return;
         }
 
         if (args.dryRun) {
-            console.log(`[gjsify upgrade] --dry-run: would update ${selected.length} dependencies (no write).`);
+            const fileCount = uniqueLocations(selected).length;
+            console.log(
+                `[gjsify upgrade] --dry-run: would update ${selected.length} deps across ${fileCount} package.json file(s).`,
+            );
+            printChangePlan(selected);
             return;
         }
 
-        writePackageJson(pkgJsonPath, rawPkg, pkg, selected);
-        console.log(`✏️  updated ${selected.length} dependencies in ${pkgJsonPath}. Run \`gjsify install\` to apply.`);
+        const files = applyToFiles(selected);
+        console.log(
+            `✏️  updated ${selected.length} dep(s) across ${files} package.json file(s). Run \`gjsify install\` to apply.`,
+        );
     },
 };
 
-// ─── Resolution ─────────────────────────────────────────────────────────
+// ─── Context: workspace-aware discovery ────────────────────────────────
+
+interface UpgradeContext {
+    /** Monorepo root absolute path (or the single-package dir when no workspace). */
+    root: string;
+    /** Discovered workspaces. In single-package mode this has one entry pointing at `cwd`. */
+    workspaces: Workspace[];
+    isMonorepo: boolean;
+}
+
+function discoverContext(cwd: string): UpgradeContext {
+    const root = findWorkspaceRoot(cwd);
+    if (root) {
+        const ws = discoverWorkspaces(root, { includeRoot: true });
+        return { root, workspaces: ws, isMonorepo: true };
+    }
+    // Single-package fallback — keep legacy behavior.
+    const pkgPath = join(cwd, 'package.json');
+    if (!existsSync(pkgPath)) {
+        throw new Error(`[gjsify upgrade] no package.json at ${pkgPath}`);
+    }
+    const manifest = JSON.parse(readFileSync(pkgPath, 'utf-8')) as Record<string, unknown>;
+    return {
+        root: cwd,
+        workspaces: [
+            {
+                name: (manifest.name as string | undefined) ?? '<root>',
+                location: cwd,
+                relativeLocation: '.',
+                version: (manifest.version as string | undefined) ?? '0.0.0',
+                manifest: manifest as unknown as Workspace['manifest'],
+                private: manifest.private === true,
+            },
+        ],
+        isMonorepo: false,
+    };
+}
+
+function applyWorkspaceFilter(workspaces: Workspace[], filter: string | undefined): Workspace[] {
+    if (!filter) return workspaces;
+    const patterns = filter
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    if (patterns.length === 0) return workspaces;
+    return filterWorkspaces(workspaces, { include: patterns });
+}
+
+function parseFilterList(raw: string | undefined): string[] {
+    if (!raw) return [];
+    return raw
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+}
+
+// ─── Per-workspace dep collection ──────────────────────────────────────
 
 const DEP_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const;
 
-function collectExternalDeps(pkg: Record<string, unknown>, filters: string[]): DepEntry[] {
-    const out: DepEntry[] = [];
+function collectAllDeclarations(workspaces: readonly Workspace[], depFilters: string[]): DepDeclaration[] {
+    const out: DepDeclaration[] = [];
+    for (const w of workspaces) {
+        for (const decl of collectFromWorkspace(w, depFilters)) {
+            out.push(decl);
+        }
+    }
+    return out;
+}
+
+function collectFromWorkspace(workspace: Workspace, depFilters: string[]): DepDeclaration[] {
+    const out: DepDeclaration[] = [];
+    const pkg = workspace.manifest;
     for (const field of DEP_FIELDS) {
         const map = pkg[field];
         if (!map || typeof map !== 'object') continue;
         for (const [name, raw] of Object.entries(map as Record<string, string>)) {
             if (typeof raw !== 'string') continue;
-            if (filters.length && !filters.some((f) => name.toLowerCase().includes(f))) {
-                continue;
-            }
+            if (depFilters.length && !depFilters.some((f) => name.toLowerCase().includes(f))) continue;
             // Skip workspace-protocol + file: + link: + git: + http(s): specs.
             if (
                 raw.startsWith('workspace:') ||
@@ -186,15 +310,17 @@ function collectExternalDeps(pkg: Record<string, unknown>, filters: string[]): D
                 raw.startsWith('link:') ||
                 raw.startsWith('git+') ||
                 raw.startsWith('git:') ||
-                raw.startsWith('http') ||
-                raw.startsWith('npm:') || // e.g. `foo: npm:@scope/foo@^1`
-                raw === '*' ||
-                raw === 'latest'
+                raw.startsWith('http:') ||
+                raw.startsWith('https:') ||
+                raw.startsWith('npm:') ||
+                raw.startsWith('portal:')
             ) {
                 continue;
             }
             const { prefix, version } = splitRange(raw);
             out.push({
+                workspace: workspace.name,
+                workspaceLocation: workspace.location,
                 name,
                 field,
                 currentRange: raw,
@@ -206,57 +332,131 @@ function collectExternalDeps(pkg: Record<string, unknown>, filters: string[]): D
     return out;
 }
 
-/**
- * Split `^1.2.3` → { prefix: "^", version: "1.2.3" }. Honors `~`, `>=`,
- * `>`, `<=`, `<`, `=`. Defaults to "" prefix when the range is just a
- * literal version.
- */
 function splitRange(range: string): { prefix: string; version: string | null } {
     const m = range.match(/^(\^|~|>=|<=|>|<|=)?\s*([0-9].*)$/);
     if (!m) return { prefix: '', version: null };
     const prefix = m[1] ?? '';
-    const version = m[2]?.split(/\s|[|&,]/)[0] ?? null; // strip range modifiers (`||`, ` - `, etc.)
+    const version = m[2]?.split(/\s|[|&,]/)[0] ?? null;
     const parsed = version ? parse(version) : null;
     return { prefix, version: parsed?.version ?? null };
 }
 
-async function resolveCandidates(
-    entries: DepEntry[],
+// ─── Modes: --check / --align ──────────────────────────────────────────
+
+function runCheckMode(groups: readonly DependencyGroup[]): void {
+    const inconsistencies = findInconsistencies(groups);
+    if (inconsistencies.length === 0) {
+        console.log(
+            `gjsify upgrade --check: OK. ${groups.length} dep(s) consistently declared across workspaces.`,
+        );
+        return;
+    }
+    console.error(
+        `gjsify upgrade --check: FAIL. ${inconsistencies.length} dep(s) declared at inconsistent ranges:\n`,
+    );
+    for (const g of inconsistencies) {
+        const byRange = new Map<string, string[]>();
+        for (const occ of g.occurrences) {
+            const list = byRange.get(occ.currentRange) ?? [];
+            list.push(occ.workspace);
+            byRange.set(occ.currentRange, list);
+        }
+        console.error(`  ${ANSI.bold}${g.name}${ANSI.reset}`);
+        for (const [range, holders] of byRange.entries()) {
+            console.error(`    ${range.padEnd(16)} — ${holders.join(', ')}`);
+        }
+    }
+    console.error(
+        `\nFix: run \`gjsify upgrade --align\` (offline; aligns each dep to its highest declared range).`,
+    );
+    process.exit(1);
+}
+
+function runAlignMode(groups: readonly DependencyGroup[], args: UpgradeOptions): void {
+    const inconsistencies = findInconsistencies(groups);
+    if (inconsistencies.length === 0) {
+        console.log(
+            `gjsify upgrade --align: nothing to do. ${groups.length} dep(s) already consistent.`,
+        );
+        return;
+    }
+    // For each inconsistency, the alignment target is the highest declared version
+    // — preserve the prefix of the dominant occurrence so the range shape doesn't
+    // mutate (caret stays caret, tilde stays tilde).
+    const updates: UpgradeGroup[] = [];
+    for (const g of inconsistencies) {
+        if (!g.highestVersion) continue;
+        // Pick a prefix: use the prefix of the dominant range; if dominant has
+        // no prefix, default to "^" (the npm-cli default).
+        const dominantOcc = g.occurrences.find((o) => o.currentRange === g.dominantRange);
+        const prefix = dominantOcc?.prefix || '^';
+        updates.push({
+            ...g,
+            latestVersion: g.highestVersion,
+            diff: 'none',
+            occurrences: g.occurrences.map((o) => ({ ...o, prefix })),
+        });
+    }
+    if (updates.length === 0) {
+        console.log(
+            'gjsify upgrade --align: inconsistencies present but no parseable target version. No-op.',
+        );
+        return;
+    }
+    console.log(
+        `gjsify upgrade --align: aligning ${updates.length} inconsistent dep(s) to their highest declared version:\n`,
+    );
+    for (const u of updates) {
+        const newPrefix = u.occurrences[0]?.prefix ?? '^';
+        console.log(
+            `  ${u.name.padEnd(28)}  ranges: ${[...u.declaredRanges].join(', ')}  →  ${newPrefix}${u.latestVersion}`,
+        );
+    }
+    if (args.dryRun) {
+        console.log('\n[gjsify upgrade --align] --dry-run: no files changed.');
+        return;
+    }
+    const files = applyToFiles(updates);
+    console.log(`\n✏️  updated ${updates.length} dep(s) across ${files} package.json file(s).`);
+}
+
+// ─── Registry resolution (group-aware) ─────────────────────────────────
+
+async function resolveCandidateGroups(
+    groups: readonly DependencyGroup[],
     npmrc: NpmrcConfig,
     verbose: boolean,
     mode: 'latest' | 'minor' | 'patch' | 'interactive',
-): Promise<UpgradeCandidate[]> {
-    const results: UpgradeCandidate[] = [];
-    // Parallel fetch with a small concurrency cap.
+): Promise<UpgradeGroup[]> {
+    const results: UpgradeGroup[] = [];
     const cap = 8;
     let cursor = 0;
     async function worker() {
         for (;;) {
             const i = cursor++;
-            if (i >= entries.length) return;
-            const entry = entries[i]!;
+            if (i >= groups.length) return;
+            const g = groups[i]!;
             try {
-                const packument = await fetchPackument(entry.name, { npmrc });
+                const packument = await fetchPackument(g.name, { npmrc });
                 const latest = packument['dist-tags']?.latest;
                 if (!latest) {
-                    if (verbose) console.warn(`  ${entry.name}: no dist-tags.latest, skipping`);
+                    if (verbose) console.warn(`  ${g.name}: no dist-tags.latest, skipping`);
                     continue;
                 }
-                if (!entry.currentVersion) {
-                    if (verbose) console.warn(`  ${entry.name}: unable to parse current range "${entry.currentRange}"`);
+                // Diff is computed against the HIGHEST currently-declared version
+                // (so a workspace stuck on an old range still shows the same target).
+                const current = g.highestVersion;
+                if (!current) {
+                    if (verbose) console.warn(`  ${g.name}: unable to parse any current range`);
                     continue;
                 }
-                const diff = classifyDiff(entry.currentVersion, latest);
+                const diff = classifyDiff(current, latest);
                 if (diff === 'none') continue;
                 if (mode === 'minor' && diff === 'major') continue;
                 if (mode === 'patch' && (diff === 'major' || diff === 'minor')) continue;
-                results.push({
-                    ...entry,
-                    latestVersion: latest,
-                    diff,
-                });
+                results.push({ ...g, latestVersion: latest, diff });
             } catch (err) {
-                if (verbose) console.warn(`  ${entry.name}: fetch failed (${(err as Error).message})`);
+                if (verbose) console.warn(`  ${g.name}: fetch failed (${(err as Error).message})`);
             }
         }
     }
@@ -286,6 +486,7 @@ const ANSI = {
     yellow: '\x1b[33m',
     green: '\x1b[32m',
     cyan: '\x1b[36m',
+    magenta: '\x1b[35m',
 };
 
 function colorForDiff(diff: ReleaseType): string {
@@ -303,35 +504,52 @@ function colorForDiff(diff: ReleaseType): string {
     }
 }
 
-function printTable(candidates: UpgradeCandidate[]): void {
+function printTable(candidates: readonly UpgradeGroup[]): void {
     const nameW = Math.max(...candidates.map((c) => c.name.length), 4);
-    const curW = Math.max(...candidates.map((c) => c.currentRange.length), 7);
+    const fanW = Math.max(
+        ...candidates.map((c) => `${c.occurrences.length}`.length + 2),
+        3,
+    );
+    const curW = Math.max(...candidates.map((c) => declaredCellWidth(c)), 7);
     const newW = Math.max(...candidates.map((c) => c.latestVersion.length), 6);
     const idxW = String(candidates.length).length + 2;
 
     const head =
-        ' '.repeat(idxW) +
+        ' '.repeat(idxW + 2) +
         ANSI.bold +
         'name'.padEnd(nameW) +
         '  ' +
-        'current'.padEnd(curW) +
+        'fan'.padEnd(fanW) +
+        '  ' +
+        'declared'.padEnd(curW) +
         '  ' +
         'latest'.padEnd(newW) +
         '  ' +
         'kind' +
         ANSI.reset;
     console.log(head);
-    console.log(' '.repeat(idxW) + ANSI.dim + '─'.repeat(nameW + curW + newW + 12) + ANSI.reset);
+    console.log(
+        ' '.repeat(idxW + 2) +
+            ANSI.dim +
+            '─'.repeat(nameW + fanW + curW + newW + 16) +
+            ANSI.reset,
+    );
     for (let i = 0; i < candidates.length; i++) {
         const c = candidates[i]!;
         const idx = `${i + 1}.`.padEnd(idxW);
+        const badge = c.declaredRanges.size > 1 ? `${ANSI.magenta}⚠ ${ANSI.reset}` : '  ';
         const color = colorForDiff(c.diff);
         console.log(
             idx +
+                badge +
                 c.name.padEnd(nameW) +
                 '  ' +
                 ANSI.dim +
-                c.currentRange.padEnd(curW) +
+                `${c.occurrences.length}`.padEnd(fanW) +
+                ANSI.reset +
+                '  ' +
+                ANSI.dim +
+                renderDeclaredCell(c).padEnd(curW) +
                 ANSI.reset +
                 '  ' +
                 color +
@@ -343,9 +561,37 @@ function printTable(candidates: UpgradeCandidate[]): void {
                 ANSI.reset,
         );
     }
+    const inconsistentCount = candidates.filter((c) => c.declaredRanges.size > 1).length;
+    if (inconsistentCount > 0) {
+        console.log(
+            `\n${ANSI.magenta}⚠${ANSI.reset}  ${inconsistentCount} dep(s) declared at inconsistent ranges across workspaces.`,
+        );
+    }
 }
 
-async function promptSelection(candidates: UpgradeCandidate[]): Promise<UpgradeCandidate[]> {
+function declaredCellWidth(c: DependencyGroup): number {
+    return renderDeclaredCell(c).length;
+}
+
+function renderDeclaredCell(c: DependencyGroup): string {
+    if (c.declaredRanges.size === 1) return [...c.declaredRanges][0]!;
+    // "^1.0, ^2.0" — truncate at 32 chars
+    const joined = [...c.declaredRanges].sort().join(', ');
+    if (joined.length <= 32) return joined;
+    return joined.slice(0, 29) + '…';
+}
+
+function printChangePlan(selected: readonly UpgradeGroup[]): void {
+    for (const u of selected) {
+        for (const occ of u.occurrences) {
+            console.log(
+                `  ${occ.workspace.padEnd(38)}  ${u.name.padEnd(28)}  ${occ.currentRange.padEnd(12)} → ${occ.prefix}${u.latestVersion}`,
+            );
+        }
+    }
+}
+
+async function promptSelection(candidates: readonly UpgradeGroup[]): Promise<UpgradeGroup[]> {
     if (!process.stdin.isTTY) {
         console.log(
             '[gjsify upgrade] non-TTY stdin: pass --latest / --minor / --patch (or --yes for interactive-all) to upgrade non-interactively.',
@@ -371,7 +617,7 @@ async function promptSelection(candidates: UpgradeCandidate[]): Promise<UpgradeC
         );
         const answer = (await rl.question('> ')).trim();
         if (!answer) return [];
-        if (answer.toLowerCase() === 'a' || answer.toLowerCase() === 'all') return candidates;
+        if (answer.toLowerCase() === 'a' || answer.toLowerCase() === 'all') return [...candidates];
         const picked = new Set<number>();
         for (const token of answer.split(/[\s,]+/).filter(Boolean)) {
             const range = token.match(/^(\d+)-(\d+)$/);
@@ -389,22 +635,55 @@ async function promptSelection(candidates: UpgradeCandidate[]): Promise<UpgradeC
     }
 }
 
-// ─── Write-back ────────────────────────────────────────────────────────
+// ─── Write-back across all affected workspaces ─────────────────────────
 
-function writePackageJson(
-    path: string,
-    rawText: string,
-    parsed: Record<string, unknown>,
-    selected: UpgradeCandidate[],
-): void {
-    // Mutate the parsed object then re-stringify with the original indent.
-    for (const c of selected) {
-        const map = parsed[c.field] as Record<string, string> | undefined;
-        if (!map) continue;
-        map[c.name] = c.prefix + c.latestVersion;
+function applyToFiles(updates: readonly UpgradeGroup[]): number {
+    // Group by workspace.location so each package.json is read + written once.
+    const byLocation = new Map<string, UpgradeGroup[]>();
+    for (const u of updates) {
+        for (const occ of u.occurrences) {
+            const list = byLocation.get(occ.workspaceLocation) ?? [];
+            list.push({ ...u, occurrences: [occ] });
+            byLocation.set(occ.workspaceLocation, list);
+        }
     }
-    const indent = detectIndent(rawText);
-    writeFileSync(path, JSON.stringify(parsed, null, indent) + (rawText.endsWith('\n') ? '\n' : ''), 'utf-8');
+    let touched = 0;
+    for (const [location, groups] of byLocation.entries()) {
+        const pkgJsonPath = join(location, 'package.json');
+        const raw = readFileSync(pkgJsonPath, 'utf-8');
+        const pkg = JSON.parse(raw) as Record<string, unknown>;
+        let changed = false;
+        for (const g of groups) {
+            const occ = g.occurrences[0]!;
+            const map = pkg[occ.field] as Record<string, string> | undefined;
+            if (!map) continue;
+            const next = `${occ.prefix}${g.latestVersion}`;
+            if (map[g.name] !== next) {
+                map[g.name] = next;
+                changed = true;
+            }
+        }
+        if (changed) {
+            const indent = detectIndent(raw);
+            writeFileSync(
+                pkgJsonPath,
+                JSON.stringify(pkg, null, indent) + (raw.endsWith('\n') ? '\n' : ''),
+                'utf-8',
+            );
+            touched++;
+        }
+    }
+    return touched;
+}
+
+function uniqueLocations(updates: readonly UpgradeGroup[]): string[] {
+    const set = new Set<string>();
+    for (const u of updates) {
+        for (const occ of u.occurrences) {
+            set.add(occ.workspaceLocation);
+        }
+    }
+    return [...set];
 }
 
 function detectIndent(json: string): number {
