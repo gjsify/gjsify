@@ -111,11 +111,11 @@ The project comprises **41 Node.js modules** (+1 meta, +5 native bridges), **18 
 | GJS Infrastructure | 3 | 3 (runtime, unit, utils) | — | — |
 | Build/Infra Tools | 16 | 16 | — | — |
 | Showcases | 8 | 8 | — | — |
-| Integration test suites | 21 | 21 | — | — |
+| Integration test suites | 22 | 22 | — | — |
 
 **Web platform coverage** (vs. the relevant W3C/WHATWG standards, not just our own package list): ≈54 % of all surveyed standards implemented full or partial, with ~20 % out of scope by design for desktop GTK apps (Service Worker, FS Access, Web Bluetooth, …). See `website/src/data/web-standards.ts` for the canonical category list.
 
-**Test coverage:** 10,570+ test cases in 112+ spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 43/44 — minimum supported runtime: GJS 1.86 / SpiderMonkey 140). Integration suites (`gjsify foreach test:integration`) are opt-in and exercise curated upstream tests from acorn, autobahn, axios, cosmiconfig, deepkit-type-compiler, dotenv, execa, fast-glob, gettext-parser, lightningcss, mcp-inspector-cli, mcp-typescript-sdk, minify-xml, pkg-types, rolldown-native, rollup-pluginutils, socket.io, streamx, ts-for-gir, webtorrent, worker-stress, and yargs.
+**Test coverage:** 10,570+ test cases in 112+ spec files (each test runs on both Node.js and GJS). CI via GitHub Actions (Node.js 24.x + GJS on Fedora 43/44 — minimum supported runtime: GJS 1.86 / SpiderMonkey 140). Integration suites (`gjsify foreach test:integration`) are opt-in and exercise curated upstream tests from acorn, autobahn, axios, cosmiconfig, deepkit-type-compiler, dotenv, execa, fast-glob, gettext-parser, lightningcss, mcp-inspector-cli, mcp-typescript-sdk, minify-xml, pkg-types, rolldown-native, rollup-pluginutils, socket.io, streamx, ts-for-gir, undici, webtorrent, worker-stress, and yargs.
 
 ---
 
@@ -458,7 +458,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | E2E suites | 30+ (create-app, cli-only, cli-only-pnp, standalone-plugin, vite-plugin-gjsify, native-install, cli-config, inline-static-reads, library-multi-build, terminal-native, gsettings, gresource, define-from-pkg, text-loader, css-bundling, dlx-native-prebuilds, dlx-version-pin, plugins-by-name, shebang-string, shebang-node, build-watch, test-runner, app-browser, publish, self-update, flatpak, flatpak-sync, flatpak-diff, flatpak-release, oxc, oxc-plugin, upgrade — flatpak: 17 tests (incl. G.2 2-space); test-runner: 5; build-watch: 2; flatpak-sync: 4; flatpak-diff: 4; flatpak-release: 4; oxc: 8 (oxlint+oxfmt format/lint/fix); oxc-plugin: register-class-order rule report + autofix; upgrade: 7 covering --latest/--patch/--minor/--filter/workspace skip/empty-deps against an in-process mock npm registry; vite-plugin-gjsify: 4 — programmatic `vite build` with `gjsifyBrowser()`, asserts no `gi://` / `@girs/` leak + `node:assert`→`@gjsify/assert` alias resolved) |
 | Total test cases | 10,790+ (unit, +18 sab-native SharedBuffer/atomics/cross-process fd-roundtrip + SCM_RIGHTS, +4 worker_threads × sab-native cross-process SharedBuffer (eval workers + atomic counters), +32 worker_threads transferList/MessagePort/SAB, +23 http2 Phase 2 pushStream/respondWithFD/respondWithFile, +80 http2 Phases 0–4 native dispatcher / SessionBridge / GOAWAY / RST_STREAM / GC pinning, +11 `gjsify barrels` generator) + 1,861+ (integration: 185 webtorrent + 112 socket.io + 156 streamx + 131 autobahn + 108 mcp-typescript-sdk + 14 mcp-inspector-cli + 68 axios/120 GJS + 1035 worker-stress GJS / 1169 Node — including the new 4-worker × SHA-256 cross-process SharedBuffer barrier + 8-worker × 10k fetch_add stress suite via @gjsify/sab-native) |
 | Spec files | 110+ |
-| Integration test suites | 22 (acorn, autobahn, axios, cosmiconfig, deepkit-type-compiler, dotenv, execa, fast-glob, gettext-parser, lightningcss, mcp-inspector-cli, mcp-typescript-sdk, minify-xml, pkg-types, rolldown-native, rollup-pluginutils, socket.io, streamx, ts-for-gir, webtorrent, worker-stress, yargs) |
+| Integration test suites | 23 (acorn, autobahn, axios, cosmiconfig, deepkit-type-compiler, dotenv, execa, fast-glob, gettext-parser, lightningcss, mcp-inspector-cli, mcp-typescript-sdk, minify-xml, pkg-types, rolldown-native, rollup-pluginutils, socket.io, streamx, ts-for-gir, undici, webtorrent, worker-stress, yargs) |
 | Showcases | 8 (Canvas2D Fireworks, Three.js Teapot, Three.js Pixel Post-Processing, Excalibur Jelly Jumper, Express Webserver, WebRTC Loopback, WebRTC Video, Minimalist Browser) |
 | Real-world examples | 53+ across `examples/dom/` (WebGL tutorials, WebRTC loopback/DTMF/trickle-ice/video/states, WebTorrent download/player/seed/stream, three.js variants, video-player, gamepad-snes, iframe, canvas2d-confetti/text) and `examples/node/` (Express, Koa, Hono REST, SSE chat, WS chat, socket.io pingpong / chat-server, static file server, CLI tools for fs/path/events/os/url/buffer, deepkit di/events/types/validation/workflow, file search, DNS lookup, JSON store, SQLite JSON store, Gio cat, worker pool, **4-worker SAB-native parallel SHA-256**, yargs, GTK HTTP dashboard, **axios HTTP client**) |
 | GNOME-integrated packages | 20+ (Gio, GLib, Soup, Gda, Gst, GstApp, GstWebRTC, GstSDP, Manette, WebKit, Gtk, Cairo, PangoCairo, GdkPixbuf, libepoxy) |
@@ -1129,6 +1129,18 @@ Tiny but load-bearing — dotenv is the most ubiquitous third-party `process.env
 sinon-based stub coverage (CLI tip rotation, debug logging, `os.homedir` stub for `~/.env` expansion, `fs.readFileSync` stub for I/O isolation) is intentionally skipped — those exercise mocking infra, not dotenv or `@gjsify/*` semantics. Every key written to `process.env` is reset in `try/finally` so suites don't leak environment state into each other.
 
 No `@gjsify/*` fix required: `process.env` mutation, `readFileSync` of `.env` files (string + URL-instance paths), and `Buffer.from()` input all round-trip cleanly. The suite confirms the previously-sparse "real-world consumer of `process.env`" coverage gap — dotenv is the de-facto cross-runtime smoke for the Proxy.
+
+### undici (`tests/integration/undici/`)
+
+Three ports against npm `undici@7` — the canonical HTTP/1.1 + WebSocket client every Node consumer ships with (Node's own `globalThis.fetch` is undici under the hood since Node 18). Exercises the three load-bearing entry points (`fetch`, `request`, `WebSocket`) end-to-end against a local `node:http`-backed server. Under Node the server side is native; under GJS the bundler's alias layer routes `node:http` → `@gjsify/http` (Soup-backed). The point is to validate the outgoing-HTTP surface (and the WebSocket client) of an unmodified npm package against a real consumer Node every developer ships with.
+
+| Suite | Node | GJS | Exercises |
+|---|---|---|---|
+| fetch-basic.spec.ts | TBD | TBD | `fetch()` GET/POST/PUT/DELETE on a local server; `response.text()` / `.json()` / `.arrayBuffer()`; status codes (200/204/404/500); custom request headers + case-insensitive response headers; Uint8Array body round-trip; binary payload preservation; AbortController cancellation. |
+| request.spec.ts | TBD | TBD | `undici.request()` status codes (200/204/301/404/500), lowercase response-header object, POST string/Buffer body, body streaming via `body.text()` / `.json()` / `.arrayBuffer()` / `.bytes()` / async iterator over a 64 KiB response. |
+| websocket.spec.ts | TBD | TBD | `undici.WebSocket` opens against a local `WebSocketServer` (npm `ws` on Node, `@gjsify/ws` on GJS via the alias map), text + binary (`binaryType:'arraybuffer'`) round-trip, `readyState` transitions (CONNECTING → OPEN → CLOSED), server-initiated close with code/reason on `closeEvent.code` / `wasClean`, ECONNREFUSED-style failure path. |
+
+Server-side helper is a single `src/server.ts` wrapper around `node:http.createServer()` — each spec spins its own server bound to `127.0.0.1:0` so cases are independent and parallel-safe. The npm `ws` package is used on the WebSocket server side; under GJS the resolve-npm alias map routes `ws` → `@gjsify/ws` (Soup-backed WebSocketServer) so the same source covers both runtimes without conditional imports. Test counts will be filled in once the suite has run on both runtimes for the first time after concurrent-agent install churn settles.
 
 ## Open TODOs
 
