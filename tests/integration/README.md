@@ -62,6 +62,7 @@ assertions are preserved — only the assertion dialect changes.
 | `acorn/` | acorn + acorn-walk AST parser | `### acorn + acorn-walk` |
 | `autobahn/` | `@gjsify/ws` against the Autobahn WebSocket conformance pillar | `### autobahn` |
 | `axios/` | `@gjsify/http` + `@gjsify/fetch` consumer | `### axios` |
+| `chalk/` | `@gjsify/{tty,process}` ANSI color + level gating via supports-color | `### chalk` |
 | `cosmiconfig/` | `@gjsify/fs` + `@gjsify/path` + dynamic ESM `import(file://…)` | `### cosmiconfig` |
 | `deepkit-type-compiler/` | TypeScript compiler API (Phase D-1 W) | `### @deepkit/type-compiler` |
 | `dotenv/` | `@gjsify/process` (process.env Proxy round-trip through GLib.{get,set,unset}env) + `@gjsify/fs.readFileSync` | `### dotenv` |
