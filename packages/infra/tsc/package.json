@@ -1,0 +1,54 @@
+{
+    "name": "@gjsify/tsc",
+    "version": "0.4.34",
+    "description": "TypeScript compiler for GJS — bundles upstream `typescript` to a single GJS module + ships a Node-free `tsc` bin.",
+    "type": "module",
+    "main": "src/index.ts",
+    "exports": {
+        ".": "./src/index.ts",
+        "./bundle": "./dist/tsc.gjs.mjs",
+        "./package.json": "./package.json"
+    },
+    "bin": {
+        "gjsify-tsc": "./dist/tsc.gjs.mjs"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none"
+        }
+    },
+    "files": [
+        "src",
+        "dist/tsc.gjs.mjs"
+    ],
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build": "node scripts/build-bundle.mjs",
+        "build:gjsify": "node scripts/build-bundle.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "gjsify",
+        "typescript",
+        "tsc",
+        "compiler"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/infra/tsc"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/tsc#readme",
+    "license": "MIT",
+    "dependencies": {},
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "typescript": "^5.9.3"
+    }
+}
