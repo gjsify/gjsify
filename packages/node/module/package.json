@@ -5,10 +5,16 @@
     "type": "module",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
+    "browser": "./lib/esm/browser.js",
     "exports": {
         ".": {
             "types": "./lib/types/index.d.ts",
+            "browser": "./lib/esm/browser.js",
             "default": "./lib/esm/index.js"
+        },
+        "./browser": {
+            "types": "./lib/types/browser.d.ts",
+            "default": "./lib/esm/browser.js"
         }
     },
     "files": [
@@ -48,7 +54,7 @@
         "runtimes": {
             "gjs": "polyfill",
             "node": "none",
-            "browser": "none"
+            "browser": "partial"
         }
     }
 }

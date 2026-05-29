@@ -1,13 +1,17 @@
 /**
- * Re-exports native `node:console` for use in Node.js builds.
+ * Cross-runtime re-export of the native `console` global for use in Node.js
+ * AND browser builds.
  *
- * On Node, `node:console` is built into the runtime — so a Node-target
- * bundle that imports `@gjsify/console` is routed here by the
- * resolver's `gjsify.runtimes.node === "native"` rule. This avoids dragging
- * the GJS polyfill into Node bundles entirely.
+ * `globalThis.console` exists on both runtimes — direct re-export avoids
+ * dragging in the GJS polyfill (`./lib/esm/index.js`) for either target.
+ * GJS bundles do NOT consult this file; the GJS-target alias layer routes
+ * `@gjsify/console` to the polyfill at `lib/esm/index.js`.
  *
- * GJS bundles do NOT consult this file; they route to `@gjsify/console`'s
- * own `lib/esm/index.js` (the polyfill).
+ * IMPORTANT: this file MUST NOT reference `node:console` (or any other
+ * `node:` specifier) — the audit-runtimes `--strict` probe rejects re-exports
+ * from `node:*` for a slot declared cross-runtime, and `node:console`
+ * fails to resolve in a browser bundle.
  */
-export * from 'node:console';
-export { default } from 'node:console';
+export const console = globalThis.console;
+export const Console = globalThis.console.constructor;
+export default globalThis.console;
