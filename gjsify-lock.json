@@ -73,7 +73,6 @@
     "acorn-walk@^8.3.5",
     "fast-glob@^3.3.3",
     "lightningcss@^1.32.0",
-    "typescript@^5.9.3",
     "execa@^9.6.1",
     "minify-xml@^4.5.2",
     "vite@^8.0.11",
@@ -11800,9 +11799,9 @@
       }
     },
     "node_modules/typescript": {
-      "version": "5.9.3",
-      "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
-      "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",
+      "version": "6.0.3",
+      "resolved": "https://registry.npmjs.org/typescript/-/typescript-6.0.3.tgz",
+      "integrity": "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==",
       "bin": {
         "tsc": "bin/tsc",
         "tsserver": "bin/tsserver"

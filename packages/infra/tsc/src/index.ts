@@ -26,4 +26,4 @@ export const TSC_BUNDLE_PATH: string = resolve(
 );
 
 /** Pinned upstream TypeScript version the shipped bundle was built from. */
-export const TYPESCRIPT_VERSION = '5.9.3' as const;
+export const TYPESCRIPT_VERSION = '6.0.3' as const;

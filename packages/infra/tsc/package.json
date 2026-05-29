@@ -46,9 +46,13 @@
     },
     "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/tsc#readme",
     "license": "MIT",
-    "dependencies": {},
+    "dependencies": {
+        "@gjsify/console": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/web-globals": "workspace:^"
+    },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
-        "typescript": "^5.9.3"
+        "typescript": "^6.0.3"
     }
 }
