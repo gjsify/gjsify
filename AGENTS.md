@@ -730,6 +730,22 @@ GJS = primary target, NON-NEGOTIABLE. But many `@gjsify/*` packages are pure TS 
 
 **Non-goals:** turning gjsify into a runtime; replacing Node/browser-native APIs where they exist; spec conformance beyond what a polyfill needs to behave correctly; forking / maintaining `refs/node-gtk` (it's reference, not a target); making GJS-bound packages cross-runtime by refactoring (only NEW pure-TS packages get the treatment from day one).
 
+### Sixth axis — bundled toolchains (Node-free build chain)
+
+Orthogonal to the five runtime-portability axes above: NPM toolchains that are themselves plain TS/JS (no native deps, no `node-api` addons) can be re-bundled with `gjsify build --app gjs` and run under GJS — giving a Node-free version of the tool without reimplementing it. First exemplar:
+
+- **`@gjsify/tsc`** (`packages/infra/tsc/`) — wraps upstream `typescript`'s `lib/_tsc.js` CLI entry into a 3.4 MiB GJS bundle shipped as the `gjsify-tsc` bin. `typescript` itself stays a `devDependency` (build-time only); the published bundle has no runtime `typescript` dep. Triplet `{gjs: "polyfill", node: "none", browser: "none"}` — GJS-only artifact; on Node, downstream uses upstream `typescript` directly. Bundle is **committed** to `dist/tsc.gjs.mjs` and re-included in root `.gitignore` (same `dist/cli.gjs.mjs` precedent). Rebuild via `gjsify workspace @gjsify/tsc build` (`scripts/build-bundle.mjs`). Pinned upstream version in `src/index.ts` as `TYPESCRIPT_VERSION`.
+
+Pattern (mirror when adding a new bundled toolchain — e.g. `@gjsify/oxlint`, `@gjsify/prettier`, `@gjsify/eslint`):
+1. Package lives in `packages/infra/<tool>/`, declares `runtimes.{gjs: "polyfill", node: "none", browser: "none"}`.
+2. `scripts/build-bundle.mjs` runs `gjsify build node_modules/<tool>/<dist-entry>.js --app gjs --shebang` against a `devDependency` of the upstream tool. Uses the workspace-local `node_modules/.bin/gjsify` Node-CLI on PATH (the global GJS-bundle CLI currently fails sub-package `rolldown` resolution — separate bug).
+3. `dist/<bin>.gjs.mjs` is committed (heavy artifact, no per-install rebuild) and re-included via a paired root-`.gitignore` exception. `files: ["dist/<bin>.gjs.mjs"]` ships it in the npm tarball.
+4. `bin: { "gjsify-<tool>": "./dist/<bin>.gjs.mjs" }` — namespaced bin to avoid PATH collisions with upstream's `<tool>` bin.
+5. `src/index.ts` is a metadata stub exporting `<TOOL>_VERSION` (pinned) and `<TOOL>_BUNDLE_PATH` (absolute path resolver) — programmatic API re-exports land here once a separate `./library` subpath bundle is built from the tool's library entry point.
+6. NOT a polyfill; do NOT mark as `polyfill` slot if the tool ISN'T re-implemented for cross-runtime — `none` for Node/Browser keeps the alias layer honest.
+
+Non-goal for this axis: bundling Node-API/native-addon tools (Rolldown, oxc binaries, esbuild). Those stay Node-resolved via `oxc-resolve.ts`-style PATH walkers — the bundled-toolchain pattern is for pure-TS/JS tools only.
+
 ## JS Feature Availability
 
 ### SM140 (GJS 1.86+, current) — ES2024 + extras
