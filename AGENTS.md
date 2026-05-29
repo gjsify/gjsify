@@ -268,6 +268,8 @@ Every pkg registering anything on `globalThis` MUST follow these rules.
 ```bash
 # Root (runs each script across all workspaces, topologically)
 gjsify foreach build | gjsify foreach build:node | gjsify foreach build:web | gjsify foreach test | gjsify foreach check
+# Node-free `tsc` under GJS via the @gjsify/tsc bundle (forwards args verbatim)
+gjsify tsc --version | gjsify tsc -p tsconfig.json
 # Per-package (in the package dir)
 gjsify run build:gjsify | gjsify run build:types
 gjsify run build:test:{gjs,node} | gjsify run test:{gjs,node}
