@@ -130,6 +130,7 @@
         "@gjsify/rolldown-plugin-pnp": "workspace:^",
         "@gjsify/semver": "workspace:^",
         "@gjsify/tar": "workspace:^",
+        "@gjsify/tsc": "workspace:^",
         "@gjsify/web-polyfills": "workspace:^",
         "@gjsify/workspace": "workspace:^",
         "cosmiconfig": "^9.0.1",

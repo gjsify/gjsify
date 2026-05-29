@@ -24,3 +24,4 @@ export * from './lint.js';
 export * from './fix.js';
 export * from './upgrade.js';
 export * from './barrels.js';
+export * from './tsc.js';
