@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/declarations.d.ts",
+        "src/basic.spec.ts",
+        "src/templates.spec.ts",
+        "src/level.spec.ts"
+    ]
+}

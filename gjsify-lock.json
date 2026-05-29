@@ -94,6 +94,7 @@
     "@excaliburjs/plugin-tiled@0.32.0",
     "excalibur@0.32.0",
     "@playwright/test@^1.59.1",
+    "chalk@^5.6.2",
     "chokidar@^5.0.0",
     "debug@^4.4.3",
     "typescript@^5.4.5",
@@ -4765,13 +4766,9 @@
       "integrity": "sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg=="
     },
     "node_modules/chalk": {
-      "version": "4.1.2",
-      "resolved": "https://registry.npmjs.org/chalk/-/chalk-4.1.2.tgz",
-      "integrity": "sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==",
-      "dependencies": {
-        "ansi-styles": "^4.1.0",
-        "supports-color": "^7.1.0"
-      }
+      "version": "5.6.2",
+      "resolved": "https://registry.npmjs.org/chalk/-/chalk-5.6.2.tgz",
+      "integrity": "sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA=="
     },
     "node_modules/character-entities": {
       "version": "2.0.2",
@@ -5105,6 +5102,15 @@
       "bin": {
         "conc": "dist/bin/concurrently.js",
         "concurrently": "dist/bin/concurrently.js"
+      }
+    },
+    "node_modules/concurrently/node_modules/chalk": {
+      "version": "4.1.2",
+      "resolved": "https://registry.npmjs.org/chalk/-/chalk-4.1.2.tgz",
+      "integrity": "sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==",
+      "dependencies": {
+        "ansi-styles": "^4.1.0",
+        "supports-color": "^7.1.0"
       }
     },
     "node_modules/concurrently/node_modules/shell-quote": {
@@ -7417,6 +7423,15 @@
         "http-server": "bin/http-server"
       }
     },
+    "node_modules/http-server/node_modules/chalk": {
+      "version": "4.1.2",
+      "resolved": "https://registry.npmjs.org/chalk/-/chalk-4.1.2.tgz",
+      "integrity": "sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==",
+      "dependencies": {
+        "ansi-styles": "^4.1.0",
+        "supports-color": "^7.1.0"
+      }
+    },
     "node_modules/http-server/node_modules/url-join": {
       "version": "4.0.1",
       "resolved": "https://registry.npmjs.org/url-join/-/url-join-4.0.1.tgz",
@@ -9385,11 +9400,6 @@
         "stdin-discarder": "^0.3.1",
         "is-unicode-supported": "^2.1.0"
       }
-    },
-    "node_modules/ora/node_modules/chalk": {
-      "version": "5.6.2",
-      "resolved": "https://registry.npmjs.org/chalk/-/chalk-5.6.2.tgz",
-      "integrity": "sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA=="
     },
     "node_modules/ora/node_modules/string-width": {
       "version": "8.2.1",
