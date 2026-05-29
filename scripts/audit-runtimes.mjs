@@ -104,9 +104,46 @@ async function scanSourceTree(pkgDir) {
         imports_legacy: false,
         gjs_imports_guard: false,
         has_browser_entry: false,
+        has_browser_src: existsSync(join(srcDir, 'browser.ts')) || existsSync(join(srcDir, 'browser.mts')),
+        browser_src_is_partial: false,
         has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),
+        globals_mjs_browser_safe: false,
         file_count: 0,
     };
+    if (signals.has_browser_src) {
+        const browserSrc = existsSync(join(srcDir, 'browser.ts'))
+            ? join(srcDir, 'browser.ts')
+            : join(srcDir, 'browser.mts');
+        try {
+            const txt = await readFile(browserSrc, 'utf8');
+            // Heuristic: a browser entry is `partial` when the file declares its
+            // slot explicitly in a comment (`Slot is "browser:\"partial\""`) OR
+            // when its impl throws ENOTSUP from MULTIPLE entry points (the
+            // canonical dns/module/ws pattern — at least 2 method bodies
+            // produce a code:'ENOTSUP' error). A single throw (e.g.
+            // process.chdir throwing) does NOT downgrade an otherwise functional
+            // polyfill to `partial`; that's the process-browserify shape.
+            const slotDeclaredPartial = /Slot[^.\n]*partial/i.test(txt);
+            const enotsupHits = (txt.match(/code\s*[:=]\s*['"]ENOTSUP['"]/g) ?? []).length;
+            signals.browser_src_is_partial = slotDeclaredPartial || enotsupHits >= 2;
+        } catch {
+            // unreadable — treat as full polyfill (conservative for upgrade path)
+        }
+    }
+    if (signals.has_globals_mjs) {
+        try {
+            const txt = await readFile(join(pkgDir, 'globals.mjs'), 'utf8');
+            // Browser-safe iff the file ships actual exports AND none re-export
+            // from a `node:` specifier — i.e. it routes through `globalThis.*`
+            // (Wave-3 pattern) or otherwise stays runtime-agnostic. An empty
+            // `export {};` file (the `@gjsify/node-polyfills` meta-pkg pattern)
+            // is NOT a browser-native delegation path.
+            const hasNonEmptyExport = /export\s+(?:const|let|var|function|class|default|\{[^}]*\w[^}]*\})/m.test(txt);
+            signals.globals_mjs_browser_safe = hasNonEmptyExport && !/from\s+['"]node:/m.test(txt);
+        } catch {
+            // unreadable → treat as not-browser-safe (conservative)
+        }
+    }
     if (!existsSync(srcDir)) return signals;
     await walkSource(srcDir, signals);
     return signals;
@@ -214,7 +251,17 @@ function suggestRuntimes(axis, signals) {
             return { gjs: 'polyfill', node: 'none', browser: 'native' };
         }
         const nativeSlot = signals.has_globals_mjs ? 'native' : 'none';
-        return { gjs: 'polyfill', node: nativeSlot, browser: nativeSlot };
+        // Browser slot upgrade: a dedicated `src/browser.ts` entry indicates
+        // a partial/polyfill browser-specific impl exists alongside the
+        // GJS-bound default. Without a stronger signal we suggest `polyfill`
+        // (a `browser.ts` shipping ENOTSUP-throws is still cataloged as
+        // polyfill — the declared `partial` may be a hand-narrowed override,
+        // which we accept by treating either value as "browser entry exists").
+        let browserSlot = nativeSlot;
+        if (signals.has_browser_src && !signals.has_globals_mjs) {
+            browserSlot = signals.browser_src_is_partial ? 'partial' : 'polyfill';
+        }
+        return { gjs: 'polyfill', node: nativeSlot, browser: browserSlot };
     }
 
     // (B) Pure-TS — portable on all three. Browser-native flag if a Web-API
@@ -224,14 +271,38 @@ function suggestRuntimes(axis, signals) {
     // `import('gi://X')` for graceful degradation, downgrade non-GJS slots to
     // `partial` — the package loads everywhere, but functionality drops on
     // non-GJS runtimes.
+    //
+    // Cross-runtime `globals.mjs`: a node-api pkg that ships a browser-safe
+    // `globals.mjs` (re-exports `globalThis.*`, no `node:*` specifiers) has
+    // a working `native` slot for both Node AND browser — the same file
+    // serves both targets. This is the Wave-3 pattern for `console` / `timers`.
     const nonGjsSlot = gjsDynamicOnly ? 'partial' : 'polyfill';
     if (axis === 'web-api') {
         // Web APIs are native on browser by definition; node uses our polyfill.
         return { gjs: 'polyfill', node: nonGjsSlot, browser: gjsDynamicOnly ? 'partial' : 'native' };
     }
     if (axis === 'node-api') {
-        // Node APIs are native on Node by definition; browser uses our polyfill.
-        return { gjs: 'polyfill', node: gjsDynamicOnly ? 'partial' : 'native', browser: nonGjsSlot };
+        // Node APIs are native on Node by definition; browser uses our polyfill,
+        // unless globals.mjs is browser-safe — then browser is also `native`.
+        // A dedicated `src/browser.ts` shipping ENOTSUP-throws on multiple
+        // entries (or self-declared as partial) downgrades the slot from
+        // `polyfill` to `partial` — pure-TS-but-functionally-partial pattern
+        // used by `@gjsify/https` (server throws, client via fetch).
+        let browserSlot;
+        if (gjsDynamicOnly) {
+            browserSlot = 'partial';
+        } else if (signals.globals_mjs_browser_safe) {
+            browserSlot = 'native';
+        } else if (signals.has_browser_src && signals.browser_src_is_partial) {
+            browserSlot = 'partial';
+        } else {
+            browserSlot = nonGjsSlot;
+        }
+        return {
+            gjs: 'polyfill',
+            node: gjsDynamicOnly ? 'partial' : 'native',
+            browser: browserSlot,
+        };
     }
     if (axis === 'dom') {
         return { gjs: 'polyfill', node: nonGjsSlot, browser: gjsDynamicOnly ? 'partial' : 'native' };
