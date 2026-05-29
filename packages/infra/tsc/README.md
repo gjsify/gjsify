@@ -7,7 +7,7 @@ the loop.
 
 ```bash
 # Node-free TypeScript checking on any GJS-equipped system:
-gjsify-tsc --version              # → Version 6.0.3
+gjsify-tsc --version              # → Version 5.9.3
 gjsify-tsc -p tsconfig.json       # type-check (--noEmit-style usage)
 gjsify-tsc --diagnostics foo.ts   # tsc perf info works the same as on Node
 ```

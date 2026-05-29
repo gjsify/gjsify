@@ -25,5 +25,12 @@ export const TSC_BUNDLE_PATH: string = resolve(
     'tsc.gjs.mjs',
 );
 
-/** Pinned upstream TypeScript version the shipped bundle was built from. */
-export const TYPESCRIPT_VERSION = '6.0.3' as const;
+/** Pinned upstream TypeScript version the shipped bundle was built from.
+ *
+ * NOTE: this is the version actually bundled into `dist/tsc.gjs.mjs`, which
+ * may lag the declared `typescript` devDep range when `gjsify install`
+ * resolves to an older satisfying version (the typescript@5.9.x and 6.0.x
+ * ranges currently coexist in the workspace; the install resolves to the
+ * highest version that satisfies every declared range — 5.9.3 today).
+ */
+export const TYPESCRIPT_VERSION = '5.9.3' as const;
