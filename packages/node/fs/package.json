@@ -3,6 +3,7 @@
     "version": "0.4.34",
     "description": "Node.js fs module for Gjs",
     "module": "lib/esm/index.js",
+    "browser": "./lib/esm/browser.js",
     "types": "lib/types/index.d.ts",
     "files": [
         "lib"
@@ -11,11 +12,37 @@
     "exports": {
         ".": {
             "types": "./lib/types/index.d.ts",
+            "browser": "./lib/esm/browser.js",
             "default": "./lib/esm/index.js"
         },
         "./promises": {
             "types": "./lib/types/promises.d.ts",
+            "browser": "./lib/esm/browser/promises-entry.js",
             "default": "./lib/esm/promises.js"
+        },
+        "./browser": {
+            "types": "./lib/types/browser.d.ts",
+            "default": "./lib/esm/browser.js"
+        },
+        "./browser/promises": {
+            "types": "./lib/types/browser/promises-entry.d.ts",
+            "default": "./lib/esm/browser/promises-entry.js"
+        },
+        "./browser/volume": {
+            "types": "./lib/types/browser/volume.d.ts",
+            "default": "./lib/esm/browser/volume.js"
+        },
+        "./browser/sync": {
+            "types": "./lib/types/browser/sync.d.ts",
+            "default": "./lib/esm/browser/sync.js"
+        },
+        "./browser/async": {
+            "types": "./lib/types/browser/async.d.ts",
+            "default": "./lib/esm/browser/async.js"
+        },
+        "./browser/stream": {
+            "types": "./lib/types/browser/stream.d.ts",
+            "default": "./lib/esm/browser/stream.js"
         }
     },
     "scripts": {
@@ -55,7 +82,7 @@
         "runtimes": {
             "gjs": "polyfill",
             "node": "none",
-            "browser": "none"
+            "browser": "partial"
         }
     }
 }
