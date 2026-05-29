@@ -104,6 +104,7 @@ async function scanSourceTree(pkgDir) {
         imports_legacy: false,
         gjs_imports_guard: false,
         has_browser_entry: false,
+        has_browser_polyfill: existsSync(join(srcDir, 'browser.ts')) || existsSync(join(srcDir, 'browser.mts')),
         has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),
         file_count: 0,
     };
@@ -214,7 +215,13 @@ function suggestRuntimes(axis, signals) {
             return { gjs: 'polyfill', node: 'none', browser: 'native' };
         }
         const nativeSlot = signals.has_globals_mjs ? 'native' : 'none';
-        return { gjs: 'polyfill', node: nativeSlot, browser: nativeSlot };
+        // GJS-bound + dedicated `src/browser.ts` entry → browser slot becomes
+        // `partial`. The browser-target bundler picks up the polyfill via the
+        // package.json `"browser"` field (Rolldown `mainFields:['browser',…]`
+        // + `conditionNames:[…,'browser']`); the GJS index.ts is bypassed.
+        // Sync APIs without WebCrypto pendants throw ENOTSUP in that polyfill.
+        const browserSlot = signals.has_browser_polyfill ? 'partial' : nativeSlot;
+        return { gjs: 'polyfill', node: nativeSlot, browser: browserSlot };
     }
 
     // (B) Pure-TS — portable on all three. Browser-native flag if a Web-API
