@@ -278,6 +278,7 @@ gjsify upgrade                       # interactive table aggregated across ALL w
 gjsify upgrade --latest | --minor | --patch    # bulk upgrade, same aggregation across all workspaces
 gjsify upgrade --align                # offline: align inconsistent deps to their highest declared version (no registry calls)
 gjsify upgrade --check                # CI gate: exit non-zero if any dep is declared at multiple ranges across workspaces
+gjsify upgrade --check --exclude-workspace '@gjsify/integration-*'    # CI-friendly: carve out workspaces with intentional drift (the GJS workflow runs this exact form)
 gjsify upgrade -p '@gjsify/*'         # restrict to a workspace subset (glob matched against name + path)
 ```
 

@@ -114,6 +114,20 @@ jobs:
       - name: Build examples
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run build:examples'
 
+      # Workspace-wide dependency consistency drift detection. The CLI's
+      # `upgrade --check` mode walks every `package.json` in the monorepo,
+      # groups by dep name, and fails if the same dep is declared at
+      # multiple ranges across workspaces. `--exclude-workspace
+      # '@gjsify/integration-*'` carves out integration-test packages
+      # whose pins to specific upstream versions are intentional (e.g.
+      # `zod@4.3.6` exact in `integration-mcp-typescript-sdk`,
+      # `typescript@^5.x` in `integration-deepkit-type-compiler`).
+      # Pairs with `gjsify upgrade --align` as the local fix.
+      - name: Check dependency consistency
+        run: >
+          su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify upgrade --check --exclude-workspace "@gjsify/integration-*"'
+
       - name: Check
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run check'
 

@@ -53,6 +53,7 @@ interface UpgradeOptions {
     patch?: boolean;
     filter?: string;
     workspace?: string;
+    excludeWorkspace?: string;
     align?: boolean;
     check?: boolean;
     dryRun?: boolean;
@@ -101,6 +102,11 @@ export const upgradeCommand: Command<unknown, UpgradeOptions> = {
                     'Restrict to a subset of workspaces. Patterns are matched against the workspace package name AND its directory path (substring + glob). Repeatable; comma-separated values are split.',
                 type: 'string',
             })
+            .option('exclude-workspace', {
+                description:
+                    'Skip workspaces matching this pattern (glob-shaped; matched against workspace package name AND directory path). Repeatable; comma-separated values are split. Use for workspaces with intentional dependency drift — e.g. integration tests pinned to specific upstream versions.',
+                type: 'string',
+            })
             .option('align', {
                 description:
                     'Offline consistency mode: find deps declared at multiple ranges across the workspace and align them to the highest. No registry calls.',
@@ -139,7 +145,7 @@ export const upgradeCommand: Command<unknown, UpgradeOptions> = {
         const cwd = resolve((args.cwd as string | undefined) ?? process.cwd());
 
         const ctx = discoverContext(cwd);
-        const targetWorkspaces = applyWorkspaceFilter(ctx.workspaces, args.workspace);
+        const targetWorkspaces = applyWorkspaceFilter(ctx.workspaces, args.workspace, args.excludeWorkspace);
         if (targetWorkspaces.length === 0) {
             console.log('[gjsify upgrade] no matching workspaces.');
             return;
@@ -262,14 +268,26 @@ function discoverContext(cwd: string): UpgradeContext {
     };
 }
 
-function applyWorkspaceFilter(workspaces: Workspace[], filter: string | undefined): Workspace[] {
-    if (!filter) return workspaces;
-    const patterns = filter
-        .split(',')
+function applyWorkspaceFilter(
+    workspaces: Workspace[],
+    include: string | undefined,
+    exclude: string | undefined,
+): Workspace[] {
+    const includePatterns = include
+        ?.split(',')
         .map((s) => s.trim())
         .filter(Boolean);
-    if (patterns.length === 0) return workspaces;
-    return filterWorkspaces(workspaces, { include: patterns });
+    const excludePatterns = exclude
+        ?.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    if ((!includePatterns || includePatterns.length === 0) && (!excludePatterns || excludePatterns.length === 0)) {
+        return workspaces;
+    }
+    return filterWorkspaces(workspaces, {
+        include: includePatterns,
+        exclude: excludePatterns,
+    });
 }
 
 function parseFilterList(raw: string | undefined): string[] {
