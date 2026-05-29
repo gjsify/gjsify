@@ -221,3 +221,6 @@
 [submodule "refs/node-gtk"]
 	path = refs/node-gtk
 	url = https://github.com/romgrk/node-gtk
+[submodule "refs/glib-networking"]
+	path = refs/glib-networking
+	url = https://gitlab.gnome.org/GNOME/glib-networking.git
