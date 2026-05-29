@@ -107,6 +107,33 @@ jobs:
           fi
           echo "GJS bundle OK — reports v$ACTUAL matching package.json."
 
+      # Same logic as the CLI bundle check above, applied to the `@gjsify/tsc`
+      # GJS bundle. The committed `dist/tsc.gjs.mjs` wraps upstream
+      # `typescript`'s `_tsc.js` CLI — its `--version` output (`Version <X>`)
+      # must match the `TYPESCRIPT_VERSION` constant pinned in
+      # `packages/infra/tsc/src/index.ts`. A drift between the two means
+      # either the bundle wasn't rebuilt after a typescript devDep bump
+      # (stale artifact) or `TYPESCRIPT_VERSION` wasn't updated to reflect a
+      # rebuild (wrong constant). Both are real bugs — `@gjsify/tsc`'s only
+      # value is being a Node-free TypeScript CLI, and downstream
+      # `tsc --version` checks rely on the reported number matching the
+      # actual bundled compiler.
+      #
+      # Must also run BEFORE Build, for the same reason as the CLI check —
+      # `gjsify run build` would rebuild the bundle in-place.
+      - name: Verify committed @gjsify/tsc GJS bundle is functional + up-to-date
+        run: |
+          set -e
+          EXPECTED=$(grep "TYPESCRIPT_VERSION = " packages/infra/tsc/src/index.ts | sed "s/.*'\([^']*\)'.*/\1/")
+          ACTUAL=$(gjs -m packages/infra/tsc/dist/tsc.gjs.mjs --version 2>&1 | head -1 | sed 's/^Version //' | tr -d '[:space:]')
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::packages/infra/tsc/dist/tsc.gjs.mjs reports 'Version $ACTUAL', TYPESCRIPT_VERSION constant says '$EXPECTED'."
+            echo "::error::Refresh locally: gjsify workspace @gjsify/tsc build"
+            echo "::error::Then commit packages/infra/tsc/dist/tsc.gjs.mjs (and TYPESCRIPT_VERSION in packages/infra/tsc/src/index.ts if upstream typescript was bumped)."
+            exit 1
+          fi
+          echo "@gjsify/tsc bundle OK — reports v$ACTUAL matching TYPESCRIPT_VERSION."
+
       - name: Build
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run build'
 
