@@ -1134,13 +1134,27 @@ No `@gjsify/*` fix required: `process.env` mutation, `readFileSync` of `.env` fi
 
 Three ports against npm `undici@7` — the canonical HTTP/1.1 + WebSocket client every Node consumer ships with (Node's own `globalThis.fetch` is undici under the hood since Node 18). Exercises the three load-bearing entry points (`fetch`, `request`, `WebSocket`) end-to-end against a local `node:http`-backed server. Under Node the server side is native; under GJS the bundler's alias layer routes `node:http` → `@gjsify/http` (Soup-backed). The point is to validate the outgoing-HTTP surface (and the WebSocket client) of an unmodified npm package against a real consumer Node every developer ships with.
 
+**Node: 31/31 green (76 assertions, ~137 ms total). GJS: blocked at module load by a real impl gap in `@gjsify/zlib` — undici v7's runtime feature detector reads `zlib.createZstdDecompress` at startup (a Node 23.8+ Zstd API, [PR #56777](https://github.com/nodejs/node/pull/56777)) and `@gjsify/zlib` has no Zstd binding. Documented under Open TODOs.**
+
 | Suite | Node | GJS | Exercises |
 |---|---|---|---|
-| fetch-basic.spec.ts | TBD | TBD | `fetch()` GET/POST/PUT/DELETE on a local server; `response.text()` / `.json()` / `.arrayBuffer()`; status codes (200/204/404/500); custom request headers + case-insensitive response headers; Uint8Array body round-trip; binary payload preservation; AbortController cancellation. |
-| request.spec.ts | TBD | TBD | `undici.request()` status codes (200/204/301/404/500), lowercase response-header object, POST string/Buffer body, body streaming via `body.text()` / `.json()` / `.arrayBuffer()` / `.bytes()` / async iterator over a 64 KiB response. |
-| websocket.spec.ts | TBD | TBD | `undici.WebSocket` opens against a local `WebSocketServer` (npm `ws` on Node, `@gjsify/ws` on GJS via the alias map), text + binary (`binaryType:'arraybuffer'`) round-trip, `readyState` transitions (CONNECTING → OPEN → CLOSED), server-initiated close with code/reason on `closeEvent.code` / `wasClean`, ECONNREFUSED-style failure path. |
+| fetch-basic.spec.ts | ✅ (13) | blocked (zstd) | `fetch()` GET/POST/PUT/DELETE on a local server; `response.text()` / `.json()` / `.arrayBuffer()`; status codes (200/204/404/500); custom request headers + case-insensitive response headers; Uint8Array body round-trip; binary payload preservation; AbortController cancellation. |
+| request.spec.ts | ✅ (13) | blocked (zstd) | `undici.request()` status codes (200/204/301/404/500), lowercase response-header object, POST string/Buffer body, body streaming via `body.text()` / `.json()` / `.arrayBuffer()` / `.bytes()` / async iterator over a 64 KiB response. |
+| websocket.spec.ts | ✅ (5) | blocked (zstd) | `undici.WebSocket` opens against a local `WebSocketServer` (npm `ws` on Node, `@gjsify/ws` on GJS via the alias map), text + binary (`binaryType:'arraybuffer'`) round-trip, `readyState` transitions (CONNECTING → OPEN → CLOSED), server-initiated close with code/reason on `closeEvent.code` / `wasClean`, ECONNREFUSED-style failure path. |
 
-Server-side helper is a single `src/server.ts` wrapper around `node:http.createServer()` — each spec spins its own server bound to `127.0.0.1:0` so cases are independent and parallel-safe. The npm `ws` package is used on the WebSocket server side; under GJS the resolve-npm alias map routes `ws` → `@gjsify/ws` (Soup-backed WebSocketServer) so the same source covers both runtimes without conditional imports. Test counts will be filled in once the suite has run on both runtimes for the first time after concurrent-agent install churn settles.
+Server-side helper is a single `src/server.ts` wrapper around `node:http.createServer()` — each spec spins its own server bound to `127.0.0.1:0` so cases are independent and parallel-safe. The npm `ws` package is used on the WebSocket server side; under GJS the resolve-npm alias map routes `ws` → `@gjsify/ws` (Soup-backed WebSocketServer) so the same source covers both runtimes without conditional imports.
+
+**Local GJS run failure:**
+
+```
+TypeError: can't access property "createZstdDecompress", n[e]() is undefined
+detectRuntimeFeatureByExportedProperty@dist/test.gjs.mjs:335
+qp<@dist/test.gjs.mjs:350  (undici runtime-feature detector at module init)
+```
+
+Trace: undici's `lib/util/feature-detection.js` calls `require('node:zlib').createZstdDecompress` to probe for Zstd support during module init. Our `@gjsify/zlib` exposes only `gzip`/`deflate`/`brotli` (the last via stubs). Adding `createZstdDecompress` as a stub that throws `ERR_UNSUPPORTED_OPERATION` on first call (matching how brotli was handled in PR #265 for axios) would unblock the suite, since undici only constructs the decompressor lazily when a `Content-Encoding: zstd` response arrives, and the test fixtures never set that header.
+
+Per `CLAUDE.md` rule "If GJS hits a real impl gap, STOP and report — don't paper over", this is left as a follow-up — tracked under "Open TODOs → Medium priority — `@gjsify/zlib` Zstd stubs for undici v7" — so the fix can land alongside its own test coverage in a sibling PR.
 
 ## Open TODOs
 
@@ -1154,6 +1168,16 @@ Tracked follow-up work that has been deliberately deferred. Every "out of scope"
 2. `cd packages/infra/vite-plugin-gjsify && npm publish --access public --otp <code>`
 3. Configure Trusted Publisher at `https://www.npmjs.com/package/@gjsify/vite-plugin-gjsify/access` — Repository `gjsify/gjsify`, Workflow `release.yml`, Environment empty, Permission `npm publish`.
 4. (Optional) verify: `gh workflow run release.yml -f verify_only=true` — the new package should report `✓`.
+
+### Medium priority — `@gjsify/zlib` Zstd stubs for undici v7
+
+`tests/integration/undici` (PR #382) fails on first import under GJS because undici@7's runtime-feature detector reads `zlib.createZstdDecompress` at module init (Node 23.8+ Zstd API, [nodejs/node#56777](https://github.com/nodejs/node/pull/56777)). `@gjsify/zlib` exposes `gzip`/`deflate`/`brotli` (the last via `throw`-stubs from PR #265 for axios) but has no Zstd binding. Adding `createZstdDecompress` / `createZstdCompress` / `zstdDecompress` / `zstdDecompressSync` / `zstdCompress` / `zstdCompressSync` as stubs that throw `ERR_UNSUPPORTED_OPERATION` on first call (matching the brotli pattern) is enough — undici constructs the decompressor lazily only when a `Content-Encoding: zstd` response arrives, so the stub never actually fires in normal use.
+
+Checklist:
+- Add the six exports to `packages/node/zlib/src/index.ts` mirroring the brotli stubs
+- Spec coverage under `packages/node/zlib/src/index.spec.ts`: each named export is callable + throws with `code: 'ERR_UNSUPPORTED_OPERATION'`
+- After landing, re-run `cd tests/integration/undici && gjsify run test:gjs` and fill in the live `### undici` per-port GJS counts in STATUS.md (currently `blocked (zstd)`)
+- If real Zstd compression on GJS is wanted later (low priority — GTK ecosystem doesn't ship Zstd responses today), it'd come via `Gio.ZlibCompressor`'s sibling APIs in glib-networking 2.84+ or a Vala/libzstd-1.5 prebuild — not part of this stub work
 
 ### Medium priority — Website & docs follow-ups
 
