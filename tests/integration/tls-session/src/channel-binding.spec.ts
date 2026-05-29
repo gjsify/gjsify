@@ -26,6 +26,7 @@
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import { Buffer } from 'node:buffer';
+import type { ConnectionOptions } from 'node:tls';
 import { readCert, readKey } from './fixtures.js';
 
 interface BindingProbe {
@@ -46,14 +47,15 @@ async function probeChannelBinding(
     maxVersion: 'TLSv1.2' | 'TLSv1.3',
 ): Promise<BindingProbe> {
     return new Promise((resolve, reject) => {
-        const sock = tls.connect({
+        const connectOpts: ConnectionOptions = {
             host: '127.0.0.1',
             port,
             ca,
             servername: 'localhost',
             minVersion,
             maxVersion,
-        } as Parameters<typeof tls.connect>[0]);
+        };
+        const sock = tls.connect(connectOpts);
 
         sock.once('secureConnect', () => {
             const probe: BindingProbe = {
