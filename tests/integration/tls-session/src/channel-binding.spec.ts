@@ -47,14 +47,19 @@ async function probeChannelBinding(
     maxVersion: 'TLSv1.2' | 'TLSv1.3',
 ): Promise<BindingProbe> {
     return new Promise((resolve, reject) => {
-        const connectOpts: ConnectionOptions = {
+        // Build a plain options object (no explicit `ConnectionOptions`
+        // annotation) so TS picks the `connect(options)` overload
+        // unambiguously — annotating widens the inferred type enough
+        // that TS falls back to `connect(port: number, ...)` and
+        // errors on the object → number conversion.
+        const connectOpts = {
             host: '127.0.0.1',
             port,
             ca,
             servername: 'localhost',
             minVersion,
             maxVersion,
-        };
+        } satisfies ConnectionOptions;
         const sock = tls.connect(connectOpts);
 
         sock.once('secureConnect', () => {

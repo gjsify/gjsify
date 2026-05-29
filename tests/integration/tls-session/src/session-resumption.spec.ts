@@ -56,7 +56,13 @@ async function openTlsConnection(
     sessionOption?: Buffer,
 ): Promise<{ session: Buffer | undefined; reused: boolean }> {
     return new Promise((resolve, reject) => {
-        const connectOpts: ConnectionOptions = {
+        // Build a plain options object (no explicit `ConnectionOptions`
+        // annotation) so TS picks the `connect(options)` overload
+        // unambiguously — annotating the literal makes the spread
+        // widen the inferred type enough that TS falls back to the
+        // `connect(port: number, ...)` overload and errors on the
+        // object → number conversion.
+        const connectOpts = {
             host: '127.0.0.1',
             port,
             ca,
@@ -65,10 +71,10 @@ async function openTlsConnection(
             // (TLS 1.3 also resumes via PSK tickets but the resumption
             //  surface differs slightly; the Node test we mirror is
             //  TLS_method/TLS 1.2.)
-            minVersion: 'TLSv1.2',
-            maxVersion: 'TLSv1.2',
+            minVersion: 'TLSv1.2' as const,
+            maxVersion: 'TLSv1.2' as const,
             ...(sessionOption ? { session: sessionOption } : {}),
-        };
+        } satisfies ConnectionOptions;
         const sock = tls.connect(connectOpts);
 
         let capturedSession: Buffer | undefined;
@@ -182,5 +188,4 @@ export default async () => {
                 });
             });
         });
-    });
-};
+   
