@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.34](https://github.com/gjsify/gjsify/compare/v0.4.33...v0.4.34) (2026-05-29)
+
+### Features
+
+* **upgrade:** --exclude-workspace flag + CI dep-consistency gate ([0d2a2c3](https://github.com/gjsify/gjsify/commit/0d2a2c3cdcebfd455ec6a4ff0a54ea9ad39e34a0))
+* **upgrade:** workspace-aware aggregation + --align + --check ([a0fda21](https://github.com/gjsify/gjsify/commit/a0fda2159bb61980f443ba1687d4bd41ca0b7b75))
+
+### Maintenance
+
+* **deps:** align rolldown + vite ranges across workspace ([5b6ea38](https://github.com/gjsify/gjsify/commit/5b6ea38d343b05f6706f7a3ba3249297c0f2a2c1)), closes [#371](https://github.com/gjsify/gjsify/issues/371)
+* **refs:** add glib-networking submodule (TLS Phase 2 vendored struct layout source) ([541c20c](https://github.com/gjsify/gjsify/commit/541c20c860181118a7b94fe5f473d846a93360b3))
+
 ## [0.4.33](https://github.com/gjsify/gjsify/compare/v0.4.32...v0.4.33) (2026-05-28)
 
 ### Features

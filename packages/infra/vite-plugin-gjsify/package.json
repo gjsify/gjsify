@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/vite-plugin-gjsify",
-    "version": "0.4.33",
+    "version": "0.4.34",
     "description": "Vite plugin preset that mirrors `gjsify build --app browser` — dev (Vite/HMR) parity with the gjsify browser target.",
     "type": "module",
     "main": "lib/index.js",
