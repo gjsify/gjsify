@@ -376,4 +376,22 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
         assert.match(out, /lib-c/);
         assert.doesNotMatch(out, /lib-b/);
     });
+
+    it('workspace mode: --exclude-workspace skips matching packages', async () => {
+        // scaffoldMonorepo declares `lib-a` inconsistently across alpha, beta, gamma.
+        // Excluding gamma (which declares ^0.9.0) leaves alpha + beta which both
+        // declare ^1.0.0 — `--check` should now exit 0.
+        const root = scaffoldMonorepo('mono-exclude');
+        const out = await runCli(['--check', '--exclude-workspace', '@m/gamma'], { cwd: root });
+        assert.match(out, /gjsify upgrade --check: OK/);
+    });
+
+    it('workspace mode: --exclude-workspace glob pattern matches multiple', async () => {
+        // Excluding ALL of '@m/*' leaves only the root workspace (which has no
+        // deps). `--check` should report nothing to check.
+        const root = scaffoldMonorepo('mono-exclude-glob');
+        const out = await runCli(['--check', '--exclude-workspace', '@m/*'], { cwd: root });
+        // With every child workspace excluded, root has no external deps to check
+        assert.match(out, /no external npm dependencies/);
+    });
 });
