@@ -78,6 +78,7 @@ assertions are preserved — only the assertion dialect changes.
 | `rollup-pluginutils/` | `@rollup/pluginutils` helper toolkit | `### @rollup/pluginutils` |
 | `socket.io/` | `@gjsify/http` + `@gjsify/ws` (full Socket.IO server + client) | `### socket.io` |
 | `streamx/` | `@gjsify/stream` + queueMicrotask injection | `### streamx` |
+| `tls-session/` | `@gjsify/tls-native` Phase 2 SessionAccess — real-handshake session resumption + RFC 5929 / RFC 9266 channel binding | `### tls-session` |
 | `ts-for-gir/` | full ts-for-gir generator chain on GJS | `### ts-for-gir` |
 | `typescript-tsc/` | TypeScript `tsc` CLI on GJS | covered in STATUS |
 | `webtorrent/` | `@gjsify/fs` + `@gjsify/stream` + bittorrent-protocol | `### webtorrent` |
