@@ -82,6 +82,7 @@ assertions are preserved — only the assertion dialect changes.
 | `tls-session/` | `@gjsify/tls-native` Phase 2 SessionAccess — real-handshake session resumption + RFC 5929 / RFC 9266 channel binding | `### tls-session` |
 | `ts-for-gir/` | full ts-for-gir generator chain on GJS | `### ts-for-gir` |
 | `typescript-tsc/` | TypeScript `tsc` CLI on GJS | covered in STATUS |
+| `undici/` | `undici.fetch` + `undici.request` + `undici.WebSocket` (npm `undici@7`) | `### undici` |
 | `webtorrent/` | `@gjsify/fs` + `@gjsify/stream` + bittorrent-protocol | `### webtorrent` |
 | `worker-stress/` | `@gjsify/worker_threads` + `@gjsify/sab-native` | `### worker-stress` |
 | `yargs/` | yargs CLI parser | `### yargs` |
