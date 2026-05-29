@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/server.ts",
+        "src/fetch-basic.spec.ts",
+        "src/request.spec.ts",
+        "src/websocket.spec.ts"
+    ]
+}
