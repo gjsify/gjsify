@@ -282,7 +282,7 @@ export class ChildProcess extends EventEmitter {
 function _spawnSubprocess(
     argv: string[],
     flags: Gio.SubprocessFlags,
-    options?: { cwd?: string; env?: Record<string, string> },
+    options?: { cwd?: string; env?: Record<string, string | undefined> },
 ): Gio.Subprocess {
     const launcher = new Gio.SubprocessLauncher({ flags });
     if (options?.cwd) {
@@ -290,7 +290,25 @@ function _spawnSubprocess(
     }
     if (options?.env) {
         for (const [key, value] of Object.entries(options.env)) {
-            launcher.setenv(key, value, true);
+            // Node's child_process.spawn semantics: when an env entry's value
+            // is `undefined`, the variable is omitted (NOT set to the literal
+            // string "undefined"). This matches consumer code like
+            //   env: { RUST_LOG: process.env.RUST_LOG, ... }
+            // which intentionally relies on undefined-passthrough — when
+            // RUST_LOG is unset on the parent it should also be unset on the
+            // child. Passing `undefined` to GI's `Gio.SubprocessLauncher.setenv`
+            // (signature: `setenv(variable: string, value: string, overwrite: bool)`)
+            // throws a GI type-marshalling error that aborts the spawn AND
+            // silently nulls out the stdin/stdout pipes via the partially-
+            // constructed launcher — observed end-to-end in the @gjsify/
+            // integration-deltachat suite where `@deltachat/stdio-rpc-server`
+            // does exactly this pattern. Symptom before this fix: `proc.stdin`
+            // and `proc.stdout` both `null` after spawn, no error event.
+            if (value === undefined) continue;
+            // Coerce numbers/booleans the same way Node does so consumers
+            // passing `env: { PORT: 3000 }` (number) don't trip the same GI
+            // marshalling error from a different angle.
+            launcher.setenv(key, String(value), true);
         }
     }
     return launcher.spawnv(argv);
