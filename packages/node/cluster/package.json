@@ -47,7 +47,7 @@
         "runtimes": {
             "gjs": "polyfill",
             "node": "native",
-            "browser": "polyfill"
+            "browser": "none"
         }
     }
 }
