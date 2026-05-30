@@ -31,6 +31,27 @@
 //                                                 # triplet drifts from what
 //                                                 # the signal-based detection
 //                                                 # would suggest (CI guard)
+//   node scripts/audit-runtimes.mjs --check --strict
+//                                                 # opt-in functional probes:
+//                                                 # statically validate that
+//                                                 # `native`/`polyfill` slots
+//                                                 # have the mechanics they
+//                                                 # claim (globals.mjs parses
+//                                                 # + each re-export is
+//                                                 # plausibly resolvable on
+//                                                 # the target runtime; a
+//                                                 # browser:"polyfill" slot
+//                                                 # ships a `src/test.browser
+//                                                 # .{mts,ts}` entry). Exit 1
+//                                                 # on any probe failure, in
+//                                                 # addition to the drift /
+//                                                 # missing checks. Default
+//                                                 # `--check` behavior is
+//                                                 # UNCHANGED (no CI break on
+//                                                 # main) — `--strict` is the
+//                                                 # opt-in for the harder
+//                                                 # check until R1 closes the
+//                                                 # `globals.mjs` gaps.
 //
 // Pure read-only by default. `--apply` only fills in missing declarations;
 // existing `gjsify.runtimes` values are NEVER overwritten — the human stays
@@ -49,6 +70,12 @@ const args = new Set(process.argv.slice(2));
 const FORMAT = args.has('--json') ? 'json' : args.has('--markdown') ? 'markdown' : 'table';
 const APPLY = args.has('--apply');
 const CHECK = args.has('--check');
+// `--strict` runs the functional probes during `--check` (opt-in until R1 ships
+// the remaining `globals.mjs` files). On `main` today the default `--check`
+// MUST stay byte-identical to the pre-strict behavior so the audit-runtimes
+// CI workflow (`.github/workflows/audit-runtimes.yml`) does not start failing
+// the moment this script lands.
+const STRICT = args.has('--strict');
 
 // ─── Discovery ──────────────────────────────────────────────────────────────
 
@@ -418,6 +445,144 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
     return null;
 }
 
+// ─── Functional probes (opt-in via `--check --strict`) ─────────────────────
+//
+// The probes statically validate that the DECLARED `gjsify.runtimes` triplet
+// is backed by actual mechanics on disk — independent from the drift check,
+// which only compares the declared triplet against the signal-based suggestion.
+//
+// Three probe kinds today:
+//   - `globals-broken` (slot=`native` on node/browser): `globals.mjs` exists,
+//     parses, and every `export {…} from '<spec>'` re-export source is
+//     recognisable as a runtime-resolvable specifier (Node built-ins for
+//     `node` target, curated browser-native set for `browser`, plus
+//     `@gjsify/<X>/globals` self-delegation either way). NO runtime evaluation
+//     — we run inside Node and must not crash on a browser-only re-export.
+//   - `no-browser-test` (slot=`browser:"polyfill"`): a `src/test.browser.mts`
+//     or `src/test.browser.ts` entry exists so the package can be validated
+//     against Firefox/SpiderMonkey via the `tests/browser/` Playwright suite.
+//     NO actual build — too expensive for `--check`. The static existence of
+//     the entry is the contract.
+//
+// `BROWSER_NATIVE_RE_EXPORTS` is intentionally an empty set today. Wave 5
+// (T-Plan Sektion 5b-i `BROWSER_NATIVE_IDENTS`) will populate it with the
+// curated browser-native re-export sources extracted from the upcoming
+// `globals-map.mjs` extension. Until then `browser:"native"` slots with a
+// `globals.mjs` that re-exports from anything other than a `@gjsify/<X>/
+// globals` self-delegation will fail the probe — which is the desired signal:
+// the probe surfaces gaps before R1 builds the curated map.
+
+/**
+ * Curated set of bare specifiers that are safe to re-export from a
+ * `globals.mjs` aimed at the browser target. TODO(welle-5): populate from
+ * the new `BROWSER_NATIVE_IDENTS` constant once `globals-map.mjs` Sektion 5b
+ * lands. Today: empty — every browser-native re-export must arrive via
+ * `@gjsify/<X>/globals` self-delegation (the chain still resolves on disk
+ * because the upstream `@gjsify/<X>` package owns the runtime decision).
+ */
+const BROWSER_NATIVE_RE_EXPORTS = new Set();
+
+/**
+ * Statically extract every `export {…} from '<src>'` / `export * from
+ * '<src>'` specifier from a `globals.mjs` file. Regex-based — no full ESM
+ * parser. Conservative: anything ambiguous fails-open (the regex either
+ * matches the canonical re-export form or it does not, the probe never
+ * silently passes a malformed file because `existsSync` + `readFile` already
+ * gate that).
+ */
+async function probeGlobalsExports(pkgDir, target) {
+    const filePath = join(pkgDir, 'globals.mjs');
+    if (!existsSync(filePath)) {
+        return { ok: false, reason: 'globals.mjs missing' };
+    }
+    let src;
+    try {
+        src = await readFile(filePath, 'utf8');
+    } catch (err) {
+        return { ok: false, reason: `globals.mjs unreadable: ${err.message}` };
+    }
+    const reExports = [...src.matchAll(/export\s*(?:\*|\{[^}]*\})\s*from\s*['"]([^'"]+)['"]/g)].map(
+        (m) => m[1],
+    );
+    for (const spec of reExports) {
+        // `@gjsify/<X>/globals` self-delegation is always OK on either target —
+        // the chain terminates at a package that has its own probe applied.
+        if (spec.startsWith('@gjsify/') && spec.endsWith('/globals')) continue;
+        if (target === 'node') {
+            // Node built-ins: either `node:*` prefix or bare specifier in the
+            // hardcoded EXTERNALS_NODE list (which mirrors the `module.builtinModules`
+            // surface that resolve-npm treats as native on Node).
+            if (spec.startsWith('node:')) continue;
+            if (EXTERNALS_NODE.includes(spec)) continue;
+        }
+        if (target === 'browser') {
+            if (BROWSER_NATIVE_RE_EXPORTS.has(spec)) continue;
+        }
+        return { ok: false, reason: `unrecognised re-export source for target=${target}: ${spec}` };
+    }
+    return { ok: true };
+}
+
+/**
+ * Static existence-only check for a browser test entry. NO actual build —
+ * the bundle build is `--app browser` and prohibitively expensive for the
+ * audit script. The presence of `src/test.browser.{mts,ts}` is the contract
+ * between the package and the `tests/browser/` Playwright discovery.
+ */
+async function probeBrowserBuildable(pkgDir) {
+    const candidates = [
+        join(pkgDir, 'src', 'test.browser.mts'),
+        join(pkgDir, 'src', 'test.browser.ts'),
+    ];
+    for (const candidate of candidates) {
+        if (existsSync(candidate)) return { ok: true };
+    }
+    return {
+        ok: false,
+        reason: 'browser:"polyfill" declared but no src/test.browser.{mts,ts} entry',
+    };
+}
+
+/**
+ * Run the probe set for a single row. Only the DECLARED triplet drives the
+ * probe selection — drift (declared ≠ suggested) is reported separately by
+ * `diffDeclared`. A row with no `declared` triplet skips probes entirely
+ * (the missing-declaration path already surfaces the issue).
+ *
+ * Returns an array of `{ slot, kind, detail }` failures (empty = ok).
+ */
+async function functionalProbe(row) {
+    const failures = [];
+    const declared = row.declared;
+    if (!declared) return failures;
+
+    if (declared.node === 'native') {
+        const r = await probeGlobalsExports(row.pkgDir, 'node');
+        if (!r.ok) failures.push({ slot: 'node', kind: 'globals-broken', detail: r.reason });
+    }
+    if (declared.browser === 'native') {
+        const r = await probeGlobalsExports(row.pkgDir, 'browser');
+        if (!r.ok) failures.push({ slot: 'browser', kind: 'globals-broken', detail: r.reason });
+    }
+    if (declared.browser === 'polyfill') {
+        const r = await probeBrowserBuildable(row.pkgDir);
+        if (!r.ok) failures.push({ slot: 'browser', kind: 'no-browser-test', detail: r.reason });
+    }
+    return failures;
+}
+
+/** Run `functionalProbe` over every row, returning the rows that failed. */
+async function runProbes(rows) {
+    const probeFailures = [];
+    for (const row of rows) {
+        const failures = await functionalProbe(row);
+        if (failures.length > 0) {
+            probeFailures.push({ row, failures });
+        }
+    }
+    return probeFailures;
+}
+
 // ─── Aggregation ────────────────────────────────────────────────────────────
 
 async function buildReport() {
@@ -435,6 +600,7 @@ async function buildReport() {
         rows.push({
             name: pkgJson.name,
             path: rel,
+            pkgDir,
             axis,
             gjs_bound: signals.girs_value || signals.gi_url || signals.imports_legacy,
             signals,
@@ -542,6 +708,11 @@ function fmtTriplet(t) {
     return `{gjs:${t.gjs}, node:${t.node}, browser:${t.browser}}`;
 }
 
+/** Read the declared slot for a single target on a row, defaulting to `?`. */
+function declaredSlot(row, slot) {
+    return row.declared?.[slot] ?? '?';
+}
+
 async function apply(rows) {
     let updated = 0;
     let skipped = 0;
@@ -579,13 +750,23 @@ if (APPLY) {
 if (CHECK) {
     const { drifted, missing } = diffDeclared(rows);
     const declarable = rows.filter((r) => r.suggested).length;
-    if (drifted.length === 0 && missing.length === 0) {
+    // Functional probes only run under `--check --strict`. The default
+    // `--check` path stays byte-identical to its pre-strict behavior so the
+    // existing audit-runtimes CI workflow does not start failing the moment
+    // this script lands. Strict mode will become the default once R1 has
+    // closed the remaining `globals.mjs` gaps (T-Plan Sektion 1d step 3).
+    const probeFailures = STRICT ? await runProbes(rows) : [];
+    const ok = drifted.length === 0 && missing.length === 0 && probeFailures.length === 0;
+    if (ok) {
+        const suffix = STRICT
+            ? ` (functional probes passed on every declared slot)`
+            : '';
         console.log(
-            `audit-runtimes --check: OK. ${declarable} declarable package(s) match the signal-based suggestion (${rows.length - declarable} infra/unknown skipped).`,
+            `audit-runtimes --check${STRICT ? ' --strict' : ''}: OK. ${declarable} declarable package(s) match the signal-based suggestion (${rows.length - declarable} infra/unknown skipped).${suffix}`,
         );
         process.exit(0);
     }
-    console.error('audit-runtimes --check: DRIFT DETECTED.\n');
+    console.error(`audit-runtimes --check${STRICT ? ' --strict' : ''}: DRIFT DETECTED.\n`);
     if (missing.length > 0) {
         console.error(`Missing gjsify.runtimes declaration on ${missing.length} package(s):`);
         for (const r of missing) {
@@ -603,6 +784,20 @@ if (CHECK) {
             console.error(`      suggested: ${fmtTriplet(r.suggested)}`);
             console.error(`      slots:     ${mismatches.join(', ')}`);
             console.error(`      reason:    ${summarizeSignals(r)}`);
+        }
+        console.error('');
+    }
+    if (probeFailures.length > 0) {
+        console.error(
+            `FUNCTIONAL PROBE FAILURES on ${probeFailures.length} package(s):`,
+        );
+        for (const { row: r, failures } of probeFailures) {
+            console.error(`  - ${r.name ?? r.path}  (path: packages/${r.path})`);
+            console.error(`      declared:  ${fmtTriplet(r.declared)}`);
+            const lines = failures.map((f) => `${f.slot}-${declaredSlot(r, f.slot)}: ${f.kind} — ${f.detail}`);
+            for (const line of lines) {
+                console.error(`      problem:   ${line}`);
+            }
         }
         console.error('');
     }
