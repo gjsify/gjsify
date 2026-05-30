@@ -30,6 +30,12 @@ import {
 import { extractTarball } from '@gjsify/tar';
 
 import type { InstallOptions } from './install-backend.ts';
+import {
+    cacheRootForLogging,
+    getCachedTarball,
+    isCacheHit,
+    putCachedTarball,
+} from './install-tarball-cache.js';
 
 const DEFAULT_CONCURRENCY = Number(process.env.GJSIFY_INSTALL_CONCURRENCY ?? '8') || 8;
 
@@ -628,15 +634,27 @@ async function extractOne(
     // source dir — the realpath check additionally rejects a `dest` that
     // resolves THROUGH a symlink into a directory outside node_modules.
     assertNodeModulesDest(dest, node);
-    log('fetch: %s@%s ← %s (→ %s)', node.name, node.version, node.tarballUrl, node.installPath);
-    const bytes = await fetchTarball(node.tarballUrl, {
-        npmrc,
-        signal,
-        integrity: node.integrity,
-        onRetry: ({ attempt, error, delayMs }) => {
-            log('tarball %s@%s: retry %d after %dms (%s)', node.name, node.version, attempt, delayMs, errMsg(error));
-        },
-    });
+    // Hit the content-addressable cache before touching the network.
+    // Tarballs are immutable per SRI integrity, so a hash hit means the
+    // cached bytes are byte-identical to whatever the registry would
+    // return — no need to verify by re-download.
+    let bytes = getCachedTarball(node.integrity);
+    if (bytes) {
+        log('cache-hit: %s@%s ← %s', node.name, node.version, node.integrity);
+    } else {
+        log('fetch: %s@%s ← %s (→ %s)', node.name, node.version, node.tarballUrl, node.installPath);
+        bytes = await fetchTarball(node.tarballUrl, {
+            npmrc,
+            signal,
+            integrity: node.integrity,
+            onRetry: ({ attempt, error, delayMs }) => {
+                log('tarball %s@%s: retry %d after %dms (%s)', node.name, node.version, attempt, delayMs, errMsg(error));
+            },
+        });
+        // Best-effort cache write — failures are swallowed by `putCachedTarball`
+        // so a read-only HOME / out-of-disk cache volume doesn't break the install.
+        putCachedTarball(node.integrity, bytes);
+    }
     fs.rmSync(dest, { recursive: true, force: true });
     fs.mkdirSync(dest, { recursive: true });
     await extractTarball(bytes, dest);
