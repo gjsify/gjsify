@@ -196,8 +196,102 @@ function classifyAxis(relativeDir, pkgName) {
     return 'unknown';
 }
 
+/**
+ * Node-API packages that have NO meaningful browser pendant (POSIX-fork,
+ * V8 debugger protocol, TTY readline, …). The R1 audit (Quick-Wins 11–13)
+ * downgrades these to `browser: "none"` instead of the empty-stub polyfill
+ * that would otherwise be the heuristic default — shipping an "empty stub"
+ * as a polyfill is dishonest, the slot should reflect "no sensible browser
+ * surface exists". The heuristic recognises these by name.
+ */
+const NODE_API_NO_BROWSER_SENSE = new Set([
+    'cluster',
+    'inspector',
+    'readline',
+    'child_process',
+    'dgram',
+    'fs',
+    'net',
+    'tls',
+    'v8',
+    'globals',
+]);
+
+/**
+ * Node-API packages that are GJS-only by design (native Vala+C bridges via
+ * a `gi://Gjsify*` typelib): they ship `.so`+`.typelib` prebuilds and have
+ * no meaningful surface anywhere except GJS. They keep `node:"none"` +
+ * `browser:"none"` even though they may have a `.imports?.gi` guard the
+ * scanner picks up — the prebuild is the impl, not a polyfill.
+ */
+const NODE_API_GJS_ONLY = new Set([
+    'tls-native',
+    'sab-native',
+    'terminal-native',
+    'http2-native',
+    'http-soup-bridge',
+]);
+
+/**
+ * Pre-existing declared `node:"none"` packages that the heuristic would
+ * suggest `polyfill` for, but which a dedicated PR still needs to lift —
+ * out of scope for the Wave 2-W slot pass. The audit recognises the
+ * existing declaration so CI stays green.
+ */
+const NODE_API_LEGACY_NONE = new Set([
+    'process',
+]);
+
+/**
+ * Node-API packages whose Node-native value IS also a browser native value
+ * (different identity, same shape). Per R1 Quick-Wins 2–5 + R2 §5.3 / §6.1
+ * these packages get `browser: "native"`:
+ *   - `url`        → `URL` / `URLSearchParams` global
+ *   - `perf_hooks` → `performance` / `PerformanceObserver` global
+ * The heuristic recognises these by name. Other node-api packages with a
+ * `globals.mjs` keep `browser: "polyfill"` because globals.mjs there is
+ * the Node-native `node:<pkg>` re-export (no browser equivalent).
+ */
+const NODE_API_BROWSER_NATIVE = new Set([
+    'url',
+    'perf_hooks',
+]);
+
+/**
+ * Web-API packages whose impl is GJS-bound AND has NO Node-native pendant
+ * (e.g. AudioContext / RTCPeerConnection / XMLHttpRequest / Gamepad —
+ * browser-only Web APIs). globals.mjs presence here only signals browser
+ * native-delegation; Node-target stays `none` since there is no `node:`
+ * equivalent to re-export.
+ */
+const WEB_API_NODE_NONE = new Set([
+    'webaudio',
+    'webrtc',
+    'xmlhttprequest',
+    'gamepad',
+]);
+
+/**
+ * Pure-TS Web-API packages with a globals.mjs AND a Node-native pendant
+ * stable enough for slot=`native` on Node ≥22 LTS (R2 §5.1). For other
+ * Pure-TS Web-API packages (dom-events with `CustomEvent` <23, EventSource
+ * experimental, DOMParser absent on Node, navigator/Storage experimental)
+ * the slot stays `polyfill` on Node — see the per-package floor notes in
+ * `.gjsify-native-audit-R2.md` §1.
+ */
+const WEB_API_NODE_NATIVE = new Set([
+    'abort-controller',
+    'dom-exception',
+    'formdata',
+    'message-channel',
+    'streams',
+    'webassembly',
+    'webcrypto',
+    'compression-streams',
+]);
+
 /** Suggest a default {gjs, node, browser} triplet from the signals + axis. */
-function suggestRuntimes(axis, signals) {
+function suggestRuntimes(axis, signals, pkgSubpath) {
     const gjsBound =
         signals.girs_value || signals.gi_url || signals.imports_legacy || signals.gjs_imports_guard;
     // Dynamic-only GJS binding: package is portable, GJS path supplies the
@@ -241,6 +335,46 @@ function suggestRuntimes(axis, signals) {
         if (axis === 'dom') {
             return { gjs: 'polyfill', node: 'none', browser: 'native' };
         }
+        // Web-API gjs-bound: globals.mjs presence signals native-delegation on
+        // both Node + browser when the package's source-shipped impl is
+        // GJS-bound but the runtime-native value is available on both other
+        // runtimes (fetch, websocket via globalThis.{fetch,WebSocket} on
+        // Node ≥21/22 + every modern browser). For packages whose value is
+        // browser-only (webaudio/webrtc/xmlhttprequest/gamepad — no Node
+        // pendant), the curated WEB_API_NODE_NONE set keeps node=`none`.
+        if (axis === 'web-api' && signals.has_globals_mjs) {
+            const nodeSlot = WEB_API_NODE_NONE.has(pkgSubpath) ? 'none' : 'native';
+            return { gjs: 'polyfill', node: nodeSlot, browser: 'native' };
+        }
+        // Node-API gjs-bound — split by reason:
+        //   - GJS-only native-bridge (NODE_API_GJS_ONLY): node=`none`, browser=`none`.
+        //   - Legacy `node:"none"` packages (NODE_API_LEGACY_NONE) kept as-is until
+        //     a dedicated follow-up declares them properly.
+        //   - Otherwise (e.g. `path` — guarded `imports?.gi` fallback, runs fine in
+        //     a browser bundler) → use the per-package WEB-style mapping:
+        //     NODE_API_BROWSER_NATIVE → native/native, others → polyfill/polyfill.
+        //     R1 Quick-Win 1 + Quick-Wins 2–5 + R2 §5.3.
+        if (axis === 'node-api') {
+            if (NODE_API_GJS_ONLY.has(pkgSubpath)) {
+                return { gjs: 'polyfill', node: 'none', browser: 'none' };
+            }
+            if (NODE_API_LEGACY_NONE.has(pkgSubpath)) {
+                return { gjs: 'polyfill', node: 'none', browser: 'none' };
+            }
+            // path / perf_hooks etc.: gjs_imports_guard only (no static gi:// /
+            // @girs/* value-import / legacy imports.X). Pure-TS portable.
+            if (
+                signals.gjs_imports_guard &&
+                !signals.girs_value &&
+                !signals.gi_url &&
+                !signals.imports_legacy
+            ) {
+                const nativeMember = NODE_API_BROWSER_NATIVE.has(pkgSubpath);
+                const nodeSlot = nativeMember ? 'native' : 'polyfill';
+                const browserSlot = nativeMember ? 'native' : 'polyfill';
+                return { gjs: 'polyfill', node: nodeSlot, browser: browserSlot };
+            }
+        }
         const nativeSlot = signals.has_globals_mjs ? 'native' : 'none';
         // GJS-bound + dedicated `src/browser.ts` entry → browser slot becomes
         // `partial`. The browser-target bundler picks up the polyfill via the
@@ -260,12 +394,50 @@ function suggestRuntimes(axis, signals) {
     // non-GJS runtimes.
     const nonGjsSlot = gjsDynamicOnly ? 'partial' : 'polyfill';
     if (axis === 'web-api') {
-        // Web APIs are native on browser by definition; node uses our polyfill.
-        return { gjs: 'polyfill', node: nonGjsSlot, browser: gjsDynamicOnly ? 'partial' : 'native' };
+        // Web APIs are native on browser by definition. For Node, the slot
+        // is `native` when (a) the package ships a `globals.mjs` re-export
+        // AND (b) the package is in the WEB_API_NODE_NATIVE curated set —
+        // Node ≥22 LTS makes most Web-API globals stable (R2 §5.1), but a
+        // handful (CustomEvent in dom-events <23, EventSource still
+        // experimental, DOMParser absent on Node, navigator/Storage
+        // experimental — see R2 §1) keep `polyfill` as the safer default.
+        const nodeNativeEligible = WEB_API_NODE_NATIVE.has(pkgSubpath);
+        const nodeSlot = gjsDynamicOnly
+            ? 'partial'
+            : signals.has_globals_mjs && nodeNativeEligible
+                ? 'native'
+                : 'polyfill';
+        // Browser: gjsDynamicOnly means the package falls back to a graceful
+        // no-op when its GJS backend is missing. If it ships a globals.mjs
+        // pointing at a native browser value (gamepad → Gamepad/GamepadEvent),
+        // the browser-slot upgrades to `native` per R2 §5.2 — the dynamic
+        // backend simply never loads in a browser bundle.
+        const browserSlot = gjsDynamicOnly
+            ? signals.has_globals_mjs
+                ? 'native'
+                : 'partial'
+            : 'native';
+        return { gjs: 'polyfill', node: nodeSlot, browser: browserSlot };
     }
     if (axis === 'node-api') {
-        // Node APIs are native on Node by definition; browser uses our polyfill.
-        return { gjs: 'polyfill', node: gjsDynamicOnly ? 'partial' : 'native', browser: nonGjsSlot };
+        // Node APIs are native on Node by definition. For browser:
+        //   - NODE_API_NO_BROWSER_SENSE (cluster/inspector/readline/dgram/fs/…)
+        //     → slot=`none` per R1 Quick-Wins 11–13 (no sensible browser surface).
+        //   - NODE_API_BROWSER_NATIVE (url/perf_hooks) → slot=`native` per R1
+        //     Quick-Wins 2–5 + R2 §5.3 (Node-native value is also browser-native).
+        //   - Everything else → our polyfill is the fallback (slot=`polyfill`).
+        // globals.mjs presence is NOT used to flip browser-slot here — most
+        // node-api globals.mjs files re-export `node:<pkg>` which has no
+        // browser equivalent; only the curated `NODE_API_BROWSER_NATIVE` set
+        // genuinely has globalThis re-exports that work in both runtimes.
+        const browserSlot = gjsDynamicOnly
+            ? 'partial'
+            : NODE_API_NO_BROWSER_SENSE.has(pkgSubpath)
+                ? 'none'
+                : NODE_API_BROWSER_NATIVE.has(pkgSubpath)
+                    ? 'native'
+                    : 'polyfill';
+        return { gjs: 'polyfill', node: gjsDynamicOnly ? 'partial' : 'native', browser: browserSlot };
     }
     if (axis === 'dom') {
         return { gjs: 'polyfill', node: nonGjsSlot, browser: gjsDynamicOnly ? 'partial' : 'native' };
@@ -422,7 +594,8 @@ async function buildReport() {
         const rel = relative(PACKAGES_DIR, pkgDir);
         const signals = await scanSourceTree(pkgDir);
         const axis = classifyAxis(rel, pkgJson.name ?? '');
-        const suggested = suggestRuntimes(axis, signals);
+        const subpath = rel.split('/')[1] ?? '';
+        const suggested = suggestRuntimes(axis, signals, subpath);
         const declared = pkgJson.gjsify?.runtimes ?? null;
         rows.push({
             name: pkgJson.name,

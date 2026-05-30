@@ -55,7 +55,7 @@
     "gjsify": {
         "runtimes": {
             "gjs": "polyfill",
-            "node": "polyfill",
+            "node": "native",
             "browser": "native"
         }
     }
