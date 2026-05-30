@@ -22,39 +22,11 @@ jobs:
     name: Fedora ${{ matrix.fedora-version }} (${{ matrix.gjs-info }})
     runs-on: ubuntu-latest
     container:
-      # Pre-baked image (`.docker/ci-fedora.Dockerfile`) with every
-      # GJS/GNOME devel package, meson/vala/blueprint, and gstreamer
-      # plugin we need already installed. Built by
-      # `.github/workflows/build-ci-image.yml` on a weekly cron + on
-      # pushes to the Dockerfile, so the `dnf install` steps we used
-      # to run here at job start (3-5 min × 2 matrix entries) become
-      # no-ops. Fallback path: if the image isn't published yet (first
-      # PR before the cron lands), `build-ci-image.yml` can be triggered
-      # manually via `workflow_dispatch`.
-      image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora-version }}
+      image: fedora:${{ matrix.fedora-version }}
 
     steps:
-      - name: Verify pre-baked image (debug aid)
-        # The Dockerfile writes the Fedora major into a marker file.
-        # If this step shows "Bare fedora image" the container was not
-        # picked up from GHCR and the build-ci-image workflow needs to
-        # run first.
-        run: |
-          if [ -f /etc/gjsify-ci-fedora-version ]; then
-            echo "Pre-baked CI image — Fedora $(cat /etc/gjsify-ci-fedora-version)"
-          else
-            echo "::warning::Bare fedora image — devel packages are NOT pre-installed."
-            echo "::warning::Re-run .github/workflows/build-ci-image.yml to publish the baked image."
-            dnf install -y --setopt=install_weak_deps=False \
-              git tar xz findutils \
-              gjs glib2-devel gobject-introspection-devel gtk4-devel \
-              libsoup3-devel webkitgtk6.0-devel libadwaita-devel \
-              gdk-pixbuf2-devel libepoxy-devel \
-              gstreamer1-devel gstreamer1-plugins-base-devel gstreamer1-plugins-bad-free-devel \
-              libnice-gstreamer1 libgda libgda-sqlite \
-              xorg-x11-server-Xvfb mesa-dri-drivers mesa-libGL \
-              meson vala gcc pkgconf blueprint-compiler
-          fi
+      - name: Install container prerequisites
+        run: dnf install -y git tar xz findutils
 
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -63,6 +35,37 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
+
+      - name: Install GJS and GNOME development libraries
+        # gstreamer1-{,plugins-base-,plugins-bad-free-}devel provide the
+        # gstreamer-1.0 / gstreamer-sdp-1.0 / gstreamer-webrtc-1.0 pkg-config
+        # files + headers needed to compile @gjsify/webrtc-native at Vala
+        # build time. libnice-gstreamer1 provides the `nice` plugin that
+        # webrtcbin needs at runtime for the WebRTC test suite.
+        run: >
+          dnf install -y
+          gjs
+          glib2-devel
+          gobject-introspection-devel
+          gtk4-devel
+          libsoup3-devel
+          webkitgtk6.0-devel
+          libadwaita-devel
+          gdk-pixbuf2-devel
+          libepoxy-devel
+          gstreamer1-devel
+          gstreamer1-plugins-base-devel
+          gstreamer1-plugins-bad-free-devel
+          libnice-gstreamer1
+          libgda
+          libgda-sqlite
+          xorg-x11-server-Xvfb
+          mesa-dri-drivers
+          mesa-libGL
+
+
+      - name: Install Meson, Vala and Blueprint Compiler
+        run: dnf install -y meson vala gcc pkgconf blueprint-compiler
 
       - name: Create non-root user for tests
         run: |
