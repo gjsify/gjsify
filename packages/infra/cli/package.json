@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/cli",
-    "version": "0.4.34",
+    "version": "0.4.35",
     "description": "CLI for Gjsify",
     "type": "module",
     "main": "lib/index.js",
@@ -130,6 +130,7 @@
         "@gjsify/rolldown-plugin-pnp": "workspace:^",
         "@gjsify/semver": "workspace:^",
         "@gjsify/tar": "workspace:^",
+        "@gjsify/tsc": "workspace:^",
         "@gjsify/web-polyfills": "workspace:^",
         "@gjsify/workspace": "workspace:^",
         "cosmiconfig": "^9.0.1",

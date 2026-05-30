@@ -2,7 +2,7 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.4.34, ESM-only, GNOME libs. Bootstraps via the committed `packages/infra/cli/dist/cli.gjs.mjs` GJS bundle — `gjsify install --immutable` is the supported install path (no yarn / no Node-only npm CLI required at runtime, see Phase D.7d). Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (21 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra.
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.4.35, ESM-only, GNOME libs. Bootstraps via the committed `packages/infra/cli/dist/cli.gjs.mjs` GJS bundle — `gjsify install --immutable` is the supported install path (no yarn / no Node-only npm CLI required at runtime, see Phase D.7d). Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (21 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra.
 
 ## Governance — non-negotiable
 
@@ -54,8 +54,8 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.
 | string_decoder | — | Full | UTF-8, Base64, hex, streaming |
 | sys | — | Full | Deprecated alias for util |
 | timers | — | Full | setTimeout/setInterval/setImmediate + promises (GLib-source-safe: replaces setTimeout/setInterval with `GLib.timeout_add` to avoid SM-GC race on GLib.Source BoxedInstances) |
-| tls | Gio, @gjsify/tls-native | Full | TLSSocket via Gio.TlsClientConnection (incl. ALPN, mTLS, custom CA, RFC 6125 hostname matching, custom `checkServerIdentity`, SNI via real-ClientHello-peek), OCSP-response parsing via the optional `@gjsify/tls-native` Phase 1 (`parseOcspResponse` / `OcspCertStatus` / `OcspResponseStatus` / `hasOcspSupport()`), Phase 2 (v0.4.34 Path A, functional): `TLSSocket.getFinished()` / `getPeerFinished()` / `getSession()` / `setSession()` / `isSessionReused()` + `'session'` event + `{session}` option on `tls.connect()` + `TlsChannelBindingType` + `hasTlsSessionAccess()` gate — all backed by real `gnutls_session_t`-rooted GnuTLS calls via the C shim. Auto-selects `tls-unique` (RFC 5929, TLS ≤1.2) vs `tls-exporter` (RFC 9266, TLS 1.3) per negotiated version. `hasTlsSessionAccess()` returns `true` on glib-networking GnuTLS backends (Fedora 43+ default); a hypothetical `GIO_USE_TLS=openssl` backend degrades to the `undefined`/`false`/no-op contract Node uses on a build without session support |
-| tls-native | GjsifyTls (Vala + C) | Partial | **Optional native Vala+C prebuild.** Phase 1 (`OcspResponseInfo` + `Tls.parse_ocsp_response`): RFC 6960 OCSPResponse DER parser via `gnutls_ocsp_resp_*` (the OCSP API gap in Vala 0.56's `gnutls.vapi` is filled by sibling `gnutls-ocsp.vapi`). Phase 2 (`SessionAccess` + `ChannelBindingType` + `SessionAccessError`, v0.4.34 Path A): wraps a `Gio.TlsConnection` + exposes `is_supported()` / `for_connection()` / `is_session_reused()` / `get_session_data()` / `set_session_data()` / `get_channel_binding()` / `get_finished()` / `get_peer_finished()` / `get_negotiated_protocol_version()`. Methods delegate to the C shim `src/c/gjsify-tls-private.{c,h}` which extracts `gnutls_session_t` from `GTlsConnectionGnutls`'s private struct via the public `g_type_instance_get_private` + a runtime `g_type_from_name("GTlsConnectionGnutls")` lookup. Struct layout vendored from `refs/glib-networking/tls/gnutls/gtlsconnection-gnutls.c` (4-pointer `{credentials, session, interaction_id, cancellable}`, stable across glib-networking 2.74–2.84 — covers Fedora 43 + 44). Force-loads the dynamic GIO TLS module via `g_tls_backend_get_client_connection_type()` so the type registers even before any connection is instantiated. Sibling vapi `gnutls-session.vapi` adds the missing `gnutls_session_channel_binding` declaration + `ChannelBinding` enum (`TLS_UNIQUE`/`TLS_SERVER_END_POINT`/`TLS_EXPORTER`). Loaded via synchronous `imports.gi.GjsifyTls` with try/catch — safe when typelib not installed. TS wrappers: `nativeTls`, `hasNativeTls()`, `parseOcspResponse()`, `hasTlsSessionAccess()`, `createSessionAccess()`. Consumed by `@gjsify/tls`. Ships as `.so`+`.gir`+`.typelib` in `prebuilds/linux-{x86_64,aarch64,ppc64,s390x,riscv64}/` |
+| tls | Gio, @gjsify/tls-native | Full | TLSSocket via Gio.TlsClientConnection (incl. ALPN, mTLS, custom CA, RFC 6125 hostname matching, custom `checkServerIdentity`, SNI via real-ClientHello-peek), OCSP-response parsing via the optional `@gjsify/tls-native` Phase 1 (`parseOcspResponse` / `OcspCertStatus` / `OcspResponseStatus` / `hasOcspSupport()`), Phase 2 (v0.4.35 Path A, functional): `TLSSocket.getFinished()` / `getPeerFinished()` / `getSession()` / `setSession()` / `isSessionReused()` + `'session'` event + `{session}` option on `tls.connect()` + `TlsChannelBindingType` + `hasTlsSessionAccess()` gate — all backed by real `gnutls_session_t`-rooted GnuTLS calls via the C shim. Auto-selects `tls-unique` (RFC 5929, TLS ≤1.2) vs `tls-exporter` (RFC 9266, TLS 1.3) per negotiated version. `hasTlsSessionAccess()` returns `true` on glib-networking GnuTLS backends (Fedora 43+ default); a hypothetical `GIO_USE_TLS=openssl` backend degrades to the `undefined`/`false`/no-op contract Node uses on a build without session support |
+| tls-native | GjsifyTls (Vala + C) | Partial | **Optional native Vala+C prebuild.** Phase 1 (`OcspResponseInfo` + `Tls.parse_ocsp_response`): RFC 6960 OCSPResponse DER parser via `gnutls_ocsp_resp_*` (the OCSP API gap in Vala 0.56's `gnutls.vapi` is filled by sibling `gnutls-ocsp.vapi`). Phase 2 (`SessionAccess` + `ChannelBindingType` + `SessionAccessError`, v0.4.35 Path A): wraps a `Gio.TlsConnection` + exposes `is_supported()` / `for_connection()` / `is_session_reused()` / `get_session_data()` / `set_session_data()` / `get_channel_binding()` / `get_finished()` / `get_peer_finished()` / `get_negotiated_protocol_version()`. Methods delegate to the C shim `src/c/gjsify-tls-private.{c,h}` which extracts `gnutls_session_t` from `GTlsConnectionGnutls`'s private struct via the public `g_type_instance_get_private` + a runtime `g_type_from_name("GTlsConnectionGnutls")` lookup. Struct layout vendored from `refs/glib-networking/tls/gnutls/gtlsconnection-gnutls.c` (4-pointer `{credentials, session, interaction_id, cancellable}`, stable across glib-networking 2.74–2.84 — covers Fedora 43 + 44). Force-loads the dynamic GIO TLS module via `g_tls_backend_get_client_connection_type()` so the type registers even before any connection is instantiated. Sibling vapi `gnutls-session.vapi` adds the missing `gnutls_session_channel_binding` declaration + `ChannelBinding` enum (`TLS_UNIQUE`/`TLS_SERVER_END_POINT`/`TLS_EXPORTER`). Loaded via synchronous `imports.gi.GjsifyTls` with try/catch — safe when typelib not installed. TS wrappers: `nativeTls`, `hasNativeTls()`, `parseOcspResponse()`, `hasTlsSessionAccess()`, `createSessionAccess()`. Consumed by `@gjsify/tls`. Ships as `.so`+`.gir`+`.typelib` in `prebuilds/linux-{x86_64,aarch64,ppc64,s390x,riscv64}/` |
 | terminal-native | GjsifyTerminal (Vala) | Full | **Optional native Vala prebuild.** `GjsifyTerminal.Terminal`: `is_tty(fd)→bool` (Posix.isatty), `get_size(fd)→{rows,cols}` (ioctl TIOCGWINSZ), `set_raw_mode(fd,enable)→bool` (termios). `GjsifyTerminal.ResizeWatcher`: `resized(rows,cols)` signal on SIGWINCH. Loaded via synchronous `imports.gi.GjsifyTerminal` with try/catch — safe when typelib not installed. Ships as `.so`+`.typelib` prebuild in `prebuilds/linux-x86_64/`. TS wrapper: `nativeTerminal`, `hasNativeTerminal()`. Consumed by `@gjsify/tty` + `@gjsify/process` for native terminal support when installed |
 | tty | GjsifyTerminal | Full | ReadStream/WriteStream, ANSI escapes; isatty via Posix.isatty or GLib fallback; getWindowSize via ioctl TIOCGWINSZ or env/default; setRawMode via termios — all through @gjsify/terminal-native optional native bridge |
 | url | GLib | Full | URL (with static `URL.createObjectURL` / `URL.revokeObjectURL` over `Blob._tmpPath` + `file://`), URLSearchParams via GLib.Uri |
@@ -262,17 +262,26 @@ Every pkg registering anything on `globalThis` MUST follow these rules.
 - **Method markers for monkey-patched APIs.** Some packages register by patching a method on a host object instead of defining a fresh global (canonical: `@gjsify/gamepad/register` sets `globalThis.navigator.getGamepads=…` — neither `getGamepads` nor `Gamepad` appears as free identifier). `detect-free-globals.ts` keeps `METHOD_MARKERS`: `<host>.<method>` → target identifier. Add entry whenever register patches a method. Current: `navigator.getGamepads → GamepadEvent`.
 - `sideEffects:["./lib/esm/register.js","./lib/esm/register/*.js"]` must remain. Never `false` on a register-providing package.
 - `globals-map.mjs` MUST point at **granular** subpaths when they exist. Missing entry → `--globals auto` silently fails to inject. Pointing at catch-all when granular exists → bundle pulls entire register module instead of needed feature.
+- **`@gjsify/<pkg>/register[/<feature>]` MUST NEVER be externalized for `--app gjs`.** GJS's native ESM loader has no node_modules walker AND does not follow `package.json#exports` maps for bare specifiers, so a bundle that externalizes one of these subpaths throws `Module not found` at runtime even when `<pkg>/lib/esm/register/<feature>.js` is physically on disk. The `--app gjs` externals predicate in `packages/infra/rolldown-plugin-gjsify/src/app/gjs.ts` enforces this via `isRegisterSubpath(id)` — it short-circuits to `false` (force-inline) before the user-external check fires, regardless of `bundler.external` from `package.json#gjsify`. The match is by SHAPE (`*/register`, `*/register/<feature>`, or resolved `<pkg>/lib/esm/register/<feature>.js` disk path) so the carve-out scales to every package added by this convention — no explicit allow-list. Verified by `packages/infra/cli/src/auto-globals.spec.ts`. Until upstream GJS gains an exports-map-aware resolver, inlining is the only safe option.
 
 **Auto is the default.** If auto misses (value-flow indirection): `--globals auto,dom` or `auto,matchMedia,FontFace`. If auto injects false positive: switch to explicit list or file issue.
 
 ```bash
 # Root (runs each script across all workspaces, topologically)
 gjsify foreach build | gjsify foreach build:node | gjsify foreach build:web | gjsify foreach test | gjsify foreach check
+# Node-free `tsc` under GJS via the @gjsify/tsc bundle (forwards args verbatim)
+gjsify tsc --version | gjsify tsc -p tsconfig.json
+# Publish + npmrc-auth verification (drop-in for `npm publish` / `npm whoami`)
+gjsify publish [path] [--tag <t>] [--access public] [--otp <code>] [--trusted] [--dry-run]
+gjsify whoami [--registry <url>] [--json]   # prints the npm username for the current ~/.npmrc token; clear failure on dead/missing token
 # Per-package (in the package dir)
 gjsify run build:gjsify | gjsify run build:types
 gjsify run build:test:{gjs,node} | gjsify run test:{gjs,node}
 # One specific workspace from anywhere
 gjsify workspace @gjsify/<name> <script>
+gjsify workspace @gjsify/<name> <script> --with-dependencies      # also build transitive workspace deps in topological order first (alias: -d / -t / --topological)
+gjsify workspace @gjsify/<name> <script> -d --continue-on-error   # keep going past failed deps; default stops on first failure
+gjsify workspace @gjsify/<name> <script> -d --include-dev          # also walk devDependencies (default: prod + optional only)
 # Workspace-wide dep upgrades (drop-in for `yarn upgrade-interactive`)
 gjsify upgrade                       # interactive table aggregated across ALL workspaces; shows fan-out + ⚠ on inconsistencies
 gjsify upgrade --latest | --minor | --patch    # bulk upgrade, same aggregation across all workspaces
@@ -556,7 +565,7 @@ Scripts: `gjsify foreach test:integration[:node|:gjs]`. NOT part of `gjsify fore
 
 ## Package convention
 
-`packages/node/<name>/` → `@gjsify/<name>`, v0.4.34, `"type":"module"` | exports `./lib/esm/index.js` + `./lib/esm/register.js` (if globals) | `sideEffects:["./lib/esm/register.js"]` pinned to register-only | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`; devDep `@gjsify/unit`; workspace deps `workspace:^`
+`packages/node/<name>/` → `@gjsify/<name>`, v0.4.35, `"type":"module"` | exports `./lib/esm/index.js` + `./lib/esm/register.js` (if globals) | `sideEffects:["./lib/esm/register.js"]` pinned to register-only | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`; devDep `@gjsify/unit`; workspace deps `workspace:^`
 
 Layout: `src/index.ts` (pure named exports) | `src/register.ts` (side-effect globals) | `src/*.spec.ts` | `src/test.mts` (entry, imports `@gjsify/node-globals/register` + feature-specific `<pkg>/register`). Full rules: Tree-shakeable Globals section.
 
@@ -568,7 +577,7 @@ Shared utils: `@gjsify/utils` (`packages/gjs/utils/`). Check before duplicating;
 
 ### New `@gjsify/*` package: first-publish + Trusted Publisher bootstrap
 
-npm Trusted Publishing (OIDC) requires the package to **already exist** on npmjs.com — you cannot configure a Trusted Publisher for a name that has no published versions. This makes the **first publish a manual maintainer action**, not a CI release. Skipping this step breaks the entire serialized `npm:publish` loop in `release.yml`: every package alphabetically after the new name fails to publish because the OIDC exchange returns `404 — OIDC token exchange error - package not found` and the workflow exits 1 (incident on v0.4.34: `@gjsify/tls-native` was added in #242, no manual bootstrap → 60+ packages stuck at 0.4.19).
+npm Trusted Publishing (OIDC) requires the package to **already exist** on npmjs.com — you cannot configure a Trusted Publisher for a name that has no published versions. This makes the **first publish a manual maintainer action**, not a CI release. Skipping this step breaks the entire serialized `npm:publish` loop in `release.yml`: every package alphabetically after the new name fails to publish because the OIDC exchange returns `404 — OIDC token exchange error - package not found` and the workflow exits 1 (incident on v0.4.35: `@gjsify/tls-native` was added in #242, no manual bootstrap → 60+ packages stuck at 0.4.19).
 
 Run before the merge that adds the package (or immediately after, before the next release-it patch):
 
@@ -579,6 +588,16 @@ Run before the merge that adds the package (or immediately after, before the nex
    gjsify publish --access public --otp <code>
    ```
    This creates the package record on npmjs.com. The `npm-otp: <code>` header is forwarded on the PUT request; if OTP is required but `--otp` is omitted on a non-TTY, the CLI exits with a clear error pointing at `--otp`. On an interactive TTY it prompts once and retries (mirrors npm's `otplease` behavior — see `refs/npm-cli/lib/utils/auth.js`).
+
+   **Pre-flight — verify `~/.npmrc` auth.** Before the publish PUT, confirm the token is live with `gjsify whoami` (uses the same npmrc + bearer-resolution path as `gjsify publish`). Healthy: `Logged in as: <you>` / `Registry: https://registry.npmjs.org`. Dead/revoked: the command exits 1 with a clear "token appears dead or revoked" message — refresh via `npm login` and re-run. The same probe is available as `gjsify whoami --json` for CI scripts (`{"username":"<you>","registry":"<url>"}` on success; `{"error":"dead-token"|"no-token-configured"|"<network-message>","registry":"<url>"}` on failure). The legacy curl one-liner remains a hand-off fallback when `gjsify` itself is not on PATH yet:
+   ```bash
+   curl -s -H "Authorization: Bearer $(grep registry.npmjs.org ~/.npmrc | sed 's|.*=||')" \
+        https://registry.npmjs.org/-/whoami
+   # Healthy: {"username":"<you>"}
+   # Dead:    {}
+   ```
+
+   **Diagnostic — `404 Not Found` on PUT.** A 404 on the publish PUT is ambiguous: the npm registry returns it for both a dead `_authToken` and a genuinely-missing package. `gjsify publish` now probes `GET /-/whoami` with the same Authorization header to disambiguate: body `{}` (status 200) → the `_authToken` in `~/.npmrc` is revoked/expired, refresh via `npm login`; body `{"username": "..."}` → the package doesn't exist on npm yet, run the first-publish bootstrap above. The probe is best-effort (token-auth path only, skipped under `--otp` or `--trusted`/OIDC where the error surfaces are already clear); on a network failure the generic error message is used instead.
 3. **Configure Trusted Publisher** at `https://www.npmjs.com/package/@gjsify/<name>/access`:
    - Repository: `gjsify/gjsify`
    - Workflow: `release.yml`
@@ -740,6 +759,22 @@ GJS = primary target, NON-NEGOTIABLE. But many `@gjsify/*` packages are pure TS 
 **Canonical exemplars** (mirror their `package.json` / `src/test.{mts,browser.mts}` layout when adding a new cross-runtime package): `@gjsify/abort-controller`, `@gjsify/dom-events`, `@gjsify/dom-exception` — all three declare `{gjs:"polyfill",node:"polyfill",browser:"native"}` and validate on GJS + Node + Browser via per-target `build:test:{gjs,node,browser}` scripts.
 
 **Non-goals:** turning gjsify into a runtime; replacing Node/browser-native APIs where they exist; spec conformance beyond what a polyfill needs to behave correctly; forking / maintaining `refs/node-gtk` (it's reference, not a target); making GJS-bound packages cross-runtime by refactoring (only NEW pure-TS packages get the treatment from day one).
+
+### Sixth axis — bundled toolchains (Node-free build chain)
+
+Orthogonal to the five runtime-portability axes above: NPM toolchains that are themselves plain TS/JS (no native deps, no `node-api` addons) can be re-bundled with `gjsify build --app gjs` and run under GJS — giving a Node-free version of the tool without reimplementing it. First exemplar:
+
+- **`@gjsify/tsc`** (`packages/infra/tsc/`) — wraps upstream `typescript`'s `lib/_tsc.js` CLI entry into a 3.4 MiB GJS bundle shipped as the `gjsify-tsc` bin. `typescript` itself stays a `devDependency` (build-time only); the published bundle has no runtime `typescript` dep. Triplet `{gjs: "polyfill", node: "none", browser: "none"}` — GJS-only artifact; on Node, downstream uses upstream `typescript` directly. Bundle is **committed** to `dist/tsc.gjs.mjs` and re-included in root `.gitignore` (same `dist/cli.gjs.mjs` precedent). Rebuild via `gjsify workspace @gjsify/tsc build` (`scripts/build-bundle.mjs`). Pinned upstream version in `src/index.ts` as `TYPESCRIPT_VERSION`.
+
+Pattern (mirror when adding a new bundled toolchain — e.g. `@gjsify/oxlint`, `@gjsify/prettier`, `@gjsify/eslint`):
+1. Package lives in `packages/infra/<tool>/`, declares `runtimes.{gjs: "polyfill", node: "none", browser: "none"}`.
+2. `scripts/build-bundle.mjs` runs `gjsify build node_modules/<tool>/<dist-entry>.js --app gjs --shebang` against a `devDependency` of the upstream tool. Uses the workspace-local `node_modules/.bin/gjsify` Node-CLI on PATH (the global GJS-bundle CLI currently fails sub-package `rolldown` resolution — separate bug).
+3. `dist/<bin>.gjs.mjs` is committed (heavy artifact, no per-install rebuild) and re-included via a paired root-`.gitignore` exception. `files: ["dist/<bin>.gjs.mjs"]` ships it in the npm tarball.
+4. `bin: { "gjsify-<tool>": "./dist/<bin>.gjs.mjs" }` — namespaced bin to avoid PATH collisions with upstream's `<tool>` bin.
+5. `src/index.ts` is a metadata stub exporting `<TOOL>_VERSION` (pinned) and `<TOOL>_BUNDLE_PATH` (absolute path resolver) — programmatic API re-exports land here once a separate `./library` subpath bundle is built from the tool's library entry point.
+6. NOT a polyfill; do NOT mark as `polyfill` slot if the tool ISN'T re-implemented for cross-runtime — `none` for Node/Browser keeps the alias layer honest.
+
+Non-goal for this axis: bundling Node-API/native-addon tools (Rolldown, oxc binaries, esbuild). Those stay Node-resolved via `oxc-resolve.ts`-style PATH walkers — the bundled-toolchain pattern is for pure-TS/JS tools only.
 
 ## JS Feature Availability
 

@@ -96,6 +96,14 @@ export function renderDesktop(inputs: ScaffoldInputs): string {
     const f = inputs.flatpak;
     const categoriesLine = (f.categories ?? ['Utility']).join(';') + ';';
     const keywordsLine = f.keywords?.length ? `Keywords=${f.keywords.join(';')};\n` : '';
+    // `MimeType=` is sourced from `gjsify.flatpak.provides.mimetypes` —
+    // the same field already populates `<mediatype>` entries in the
+    // MetaInfo XML, so callers configure both with one knob. Typical
+    // entries: `x-scheme-handler/<scheme>` for URL-scheme handlers
+    // (Flatpak portal: chats / browsers can launch the app via a
+    // custom URL), or `application/<mime>` for file-type handlers.
+    const mimetypes = f.provides?.mimetypes ?? [];
+    const mimetypesLine = mimetypes.length ? `MimeType=${mimetypes.join(';')};\n` : '';
     return substitute(loadDesktopTemplate(), {
         NAME: inputs.name,
         SUMMARY: f.summary ?? inputs.name,
@@ -103,6 +111,7 @@ export function renderDesktop(inputs: ScaffoldInputs): string {
         APP_ID: inputs.appId,
         CATEGORIES_LINE: categoriesLine,
         KEYWORDS_LINE: keywordsLine,
+        MIMETYPES_LINE: mimetypesLine,
     });
 }
 

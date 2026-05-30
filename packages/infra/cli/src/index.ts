@@ -24,6 +24,7 @@ import {
     workspaceCommand as workspace,
     packCommand as pack,
     publishCommand as publish,
+    whoamiCommand as whoami,
     selfUpdateCommand as selfUpdate,
     generateInstallerCommand as generateInstaller,
     uninstallCommand as uninstall,
@@ -32,6 +33,7 @@ import {
     fixCommand as fix,
     upgradeCommand as upgrade,
     barrelsCommand as barrels,
+    tscCommand as tsc,
 } from './commands/index.js';
 import { APP_NAME } from './constants.js';
 
@@ -110,6 +112,7 @@ await cli
     .command(workspace.command, workspace.description, workspace.builder, workspace.handler)
     .command(pack.command, pack.description, pack.builder, pack.handler)
     .command(publish.command, publish.description, publish.builder, publish.handler)
+    .command(whoami.command, whoami.description, whoami.builder, whoami.handler)
     .command(selfUpdate.command, selfUpdate.description, selfUpdate.builder, selfUpdate.handler)
     .command(
         generateInstaller.command,
@@ -123,6 +126,7 @@ await cli
     .command(lint.command, lint.description, lint.builder, lint.handler)
     .command(fix.command, fix.description, fix.builder, fix.handler)
     .command(barrels.command, barrels.description, barrels.builder, barrels.handler)
+    .command(tsc.command, tsc.description, tsc.builder, tsc.handler)
     .demandCommand(1)
     .epilogue(`Running on ${runtimeLabel()}`)
     .help()
