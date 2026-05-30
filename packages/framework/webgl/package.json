@@ -60,5 +60,15 @@
         "@gjsify/utils": "workspace:^",
         "bit-twiddle": "^1.0.2",
         "glsl-tokenizer": "^2.1.5"
-    }
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/framework/webgl"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl#readme"
 }
