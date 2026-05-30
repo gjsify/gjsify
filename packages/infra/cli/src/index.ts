@@ -34,6 +34,7 @@ import {
     upgradeCommand as upgrade,
     barrelsCommand as barrels,
     tscCommand as tsc,
+    affectedCommand as affected,
 } from './commands/index.js';
 import { APP_NAME } from './constants.js';
 
@@ -127,6 +128,7 @@ await cli
     .command(fix.command, fix.description, fix.builder, fix.handler)
     .command(barrels.command, barrels.description, barrels.builder, barrels.handler)
     .command(tsc.command, tsc.description, tsc.builder, tsc.handler)
+    .command(affected.command, affected.description, affected.builder, affected.handler)
     .demandCommand(1)
     .epilogue(`Running on ${runtimeLabel()}`)
     .help()
