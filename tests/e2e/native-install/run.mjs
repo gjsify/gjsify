@@ -180,9 +180,15 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
     });
 
     it('installs root + transitive deps into a flat node_modules', async () => {
-        const cliPkgPath = new URL('../../../packages/infra/cli/src/utils/install-backend-native.ts', import.meta.url);
-        // The TS module exports installPackagesNative — we drive it directly via a
-        // child Node process that imports it through Node's --experimental-strip-types.
+        // Import the COMPILED .js from lib/ (CI runs `gjsify foreach build` before
+        // tests, so lib/ is populated). Importing the .ts source via
+        // --experimental-strip-types fails on sibling `.js` imports — strip-types
+        // does not rewrite extensions and the on-disk file is .ts. The compiled
+        // .js already has all extensions resolved, so it works under plain node.
+        const cliPkgPath = new URL(
+            '../../../packages/infra/cli/lib/utils/install-backend-native.js',
+            import.meta.url,
+        );
         const harness = `
       const { installPackagesNative } = await import(${JSON.stringify(cliPkgPath.href)});
       // First install: writes gjsify-lock.json. Verifies it lands on disk.
@@ -214,7 +220,7 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
         try {
             const out = await runHarness(
                 'node',
-                ['--experimental-strip-types', '--no-warnings', harnessFile],
+                ['--no-warnings', harnessFile],
                 workspaceRoot,
             );
             if (out.status !== 0) {
