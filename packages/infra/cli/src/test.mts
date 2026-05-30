@@ -7,6 +7,7 @@ import bundlerPickSuite from './bundler-pick.spec.js';
 import barrelsGenerateSuite from './barrels-generate.spec.js';
 import npmOidcSuite from './npm-oidc.spec.js';
 import publishDiagnoseSuite from './publish-diagnose.spec.js';
+import whoamiCommandSuite from './whoami-command.spec.js';
 import installBackendParseSpecSuite from './install-backend-parse-spec.spec.js';
 import inlineStaticReadsSuite from './inline-static-reads.spec.js';
 import resolveNpmPackageSuite from './utils/resolve-npm-package.spec.js';
@@ -22,6 +23,7 @@ run({
     barrelsGenerateSuite,
     npmOidcSuite,
     publishDiagnoseSuite,
+    whoamiCommandSuite,
     installBackendParseSpecSuite,
     inlineStaticReadsSuite,
     resolveNpmPackageSuite,
