@@ -10,6 +10,10 @@
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
         },
+        "./browser": {
+            "types": "./lib/types/browser.d.ts",
+            "default": "./lib/esm/browser.js"
+        },
         "./globals": "./globals.mjs"
     },
     "files": [
@@ -48,7 +52,7 @@
         "runtimes": {
             "gjs": "polyfill",
             "node": "native",
-            "browser": "polyfill"
+            "browser": "partial"
         }
     }
 }
