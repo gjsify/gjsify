@@ -21,7 +21,7 @@
 
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { buildInstallCommand, detectPackageManager, runMinimalChecks } from '../utils/check-system-deps.js';
@@ -791,5 +791,47 @@ async function runPostInstallChecks(): Promise<void> {
             console.log(`  • ${pkg.name}`);
         }
         console.log('\nUse `gjsify run <bundle>` to launch with LD_LIBRARY_PATH/GI_TYPELIB_PATH set.');
+    }
+
+    // 3. Install workspace git hooks (only fires inside the gjsify monorepo
+    //    itself, NOT in consumer projects that depend on @gjsify/cli — gated
+    //    by the presence of `scripts/install-git-hooks.mjs` + a `.git`
+    //    checkout). Idempotent; safe to re-run on every install.
+    maybeInstallGitHooks();
+}
+
+/**
+ * Wire `core.hooksPath = .githooks` when running `gjsify install` inside a
+ * git checkout that ships `scripts/install-git-hooks.mjs` (i.e. the gjsify
+ * monorepo). Consumer projects that don't ship the script are skipped
+ * silently — they wouldn't have hooks to install.
+ *
+ * The script itself handles its own no-op cases (extracted tarball, already
+ * configured, SKIP_GJSIFY_HOOKS=1).
+ */
+function maybeInstallGitHooks(): void {
+    const cwd = process.cwd();
+    const scriptPath = join(cwd, 'scripts', 'install-git-hooks.mjs');
+    if (!existsSync(scriptPath)) return;
+    // Need a git checkout — the script also checks, but skipping here
+    // avoids spawning a process when we know the answer.
+    if (!existsSync(join(cwd, '.git'))) return;
+    try {
+        const result = spawnSync(process.execPath, [scriptPath, '--quiet'], {
+            cwd,
+            stdio: 'inherit',
+            env: process.env,
+        });
+        if (result.status !== 0) {
+            console.warn(
+                `[gjsify install] scripts/install-git-hooks.mjs exited ${result.status} — git hooks may not be active.`,
+            );
+        }
+    } catch (err) {
+        // Hook installation is a quality-of-life touchup, not a hard install
+        // requirement. Never let it abort the surrounding install.
+        console.warn(
+            `[gjsify install] git hook installation skipped: ${err instanceof Error ? err.message : String(err)}`,
+        );
     }
 }
