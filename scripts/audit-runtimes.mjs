@@ -104,13 +104,13 @@ async function scanSourceTree(pkgDir) {
         imports_legacy: false,
         gjs_imports_guard: false,
         has_browser_entry: false,
-        has_browser_src: existsSync(join(srcDir, 'browser.ts')) || existsSync(join(srcDir, 'browser.mts')),
+        has_browser_polyfill: existsSync(join(srcDir, 'browser.ts')) || existsSync(join(srcDir, 'browser.mts')),
         browser_src_is_partial: false,
         has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),
         globals_mjs_browser_safe: false,
         file_count: 0,
     };
-    if (signals.has_browser_src) {
+    if (signals.has_browser_polyfill) {
         const browserSrc = existsSync(join(srcDir, 'browser.ts'))
             ? join(srcDir, 'browser.ts')
             : join(srcDir, 'browser.mts');
@@ -253,12 +253,11 @@ function suggestRuntimes(axis, signals) {
         const nativeSlot = signals.has_globals_mjs ? 'native' : 'none';
         // Browser slot upgrade: a dedicated `src/browser.ts` entry indicates
         // a partial/polyfill browser-specific impl exists alongside the
-        // GJS-bound default. Without a stronger signal we suggest `polyfill`
-        // (a `browser.ts` shipping ENOTSUP-throws is still cataloged as
-        // polyfill — the declared `partial` may be a hand-narrowed override,
-        // which we accept by treating either value as "browser entry exists").
+        // GJS-bound default. The `browser_src_is_partial` heuristic distinguishes
+        // a stub-shaped browser entry (ENOTSUP throws ≥2 OR `Slot ... partial`
+        // comment) from a full polyfill.
         let browserSlot = nativeSlot;
-        if (signals.has_browser_src && !signals.has_globals_mjs) {
+        if (signals.has_browser_polyfill && !signals.has_globals_mjs) {
             browserSlot = signals.browser_src_is_partial ? 'partial' : 'polyfill';
         }
         return { gjs: 'polyfill', node: nativeSlot, browser: browserSlot };
@@ -293,7 +292,7 @@ function suggestRuntimes(axis, signals) {
             browserSlot = 'partial';
         } else if (signals.globals_mjs_browser_safe) {
             browserSlot = 'native';
-        } else if (signals.has_browser_src && signals.browser_src_is_partial) {
+        } else if (signals.has_browser_polyfill && signals.browser_src_is_partial) {
             browserSlot = 'partial';
         } else {
             browserSlot = nonGjsSlot;
