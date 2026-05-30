@@ -284,16 +284,15 @@ jobs:
         if: ${{ needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:e2e'
 
-      # Integration tests — explicitly opt-in. Slow. Gated by the
-      # classifier when a workspace in the closure is a `dependencies`
-      # entry of any `@gjsify/integration-*` workspace, OR on full-run
-      # paths. The classifier surfaces this as `run-integration=true`.
+      # Integration tests — NOT wired into CI yet. AGENTS.md "Integration
+      # tests" section explicitly classifies them as opt-in
+      # ("NOT part of `gjsify foreach test` — opt-in to avoid blocking
+      # PRs on tracked gaps."). Individual suites have CI-incompatible
+      # preconditions today: `integration-autobahn` needs Podman/Docker
+      # for the crossbario fuzzingserver, `integration-axios` (and
+      # likely others) hang on test:gjs in this Fedora container.
       #
-      # `@gjsify/integration-autobahn` is excluded — its test script
-      # boots the crossbario fuzzingserver via Podman/Docker, neither of
-      # which is available in this Fedora container without a privileged
-      # nested-container setup. Documented in AGENTS.md ("Not wired into
-      # CI yet (Podman-in-CI needs privileged containers)").
-      - name: Integration tests
-        if: ${{ needs.changes.outputs.run-integration == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' }}
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify foreach test --include "@gjsify/integration-*" --exclude "@gjsify/integration-autobahn"'
+      # The classifier still emits `run-integration` so we can re-enable
+      # the gate per-suite once each integration package has been
+      # individually hardened for the Fedora-in-Ubuntu environment.
+      # Tracked as a STATUS.md "Open TODO" follow-up.
