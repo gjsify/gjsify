@@ -6,7 +6,7 @@ Physics settings inspired by Super Mario World.
 
 Based on the original [sample-jelly-jumper](https://github.com/excaliburjs/sample-jelly-jumper) by the Excalibur.js team.
 
-![jelly jumper sample](./jelly-jumper.gif)
+<img width="1573" height="989" alt="grafik" src="https://github.com/user-attachments/assets/4a18214c-5944-43b4-be48-571141b502ce" />
 
 ## Setup
 
