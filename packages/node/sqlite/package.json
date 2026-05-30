@@ -4,12 +4,10 @@
     "description": "Node.js sqlite module for Gjs using libgda",
     "type": "module",
     "module": "lib/esm/index.js",
-    "browser": "./lib/esm/browser.js",
     "types": "lib/types/index.d.ts",
     "exports": {
         ".": {
             "types": "./lib/types/index.d.ts",
-            "browser": "./lib/esm/browser.js",
             "default": "./lib/esm/index.js"
         },
         "./browser": {
