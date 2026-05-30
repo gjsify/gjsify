@@ -49,10 +49,28 @@ gjsify workspace @gjsify/tsc clear
 # bump devDependency typescript: in package.json (or workspace-wide)
 gjsify install --immutable
 gjsify workspace @gjsify/tsc build
-# commit the new dist/tsc.gjs.mjs
+# update TYPESCRIPT_VERSION in src/index.ts to match the new bundled version
+# commit the new dist/tsc.gjs.mjs and src/index.ts
 ```
 
 The bundled version is pinned in `src/index.ts` as `TYPESCRIPT_VERSION`.
+
+CI (`.github/workflows/main.yml`) runs a staleness check after every install
+that fails the build if `dist/tsc.gjs.mjs --version` does not match
+`TYPESCRIPT_VERSION` — same shape as the existing check for
+`packages/infra/cli/dist/cli.gjs.mjs`.
+
+## Tests
+
+```bash
+gjsify workspace @gjsify/tsc test
+```
+
+The GJS-only smoke spec (`src/index.gjs.spec.ts`) runs the committed bundle
+under `gjs -m dist/tsc.gjs.mjs …` and validates `--version` plus `-p
+<tsconfig>` exit codes on a clean and a buggy fixture (the latter must
+produce a `TS2322` diagnostic). The aggregator is `src/test.mts`; the test
+bundle is built to `dist/test.gjs.mjs` and is gitignored.
 
 ## Runtime triplet
 
