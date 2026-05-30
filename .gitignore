@@ -30,6 +30,13 @@ builddir/
 !packages/infra/cli/dist/
 !packages/infra/cli/dist/cli.gjs.mjs
 
+# @gjsify/tsc ships its bundled `tsc` as the bin — committed for
+# the same reason the CLI bundle is: downstream consumers (and
+# `gjsify install --immutable`) must not need a rebuild step on
+# install. Rebuilt by `gjsify workspace @gjsify/tsc build`.
+!packages/infra/tsc/dist/
+!packages/infra/tsc/dist/tsc.gjs.mjs
+
 packages/**/*/test.*.js
 packages/**/*/test.*.js.map
 packages/**/*/test.*.cjs

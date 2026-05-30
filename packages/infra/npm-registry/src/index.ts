@@ -66,6 +66,20 @@ export interface FetchOptions {
      */
     retryDelayMs?: number;
     /**
+     * Per-request timeout in ms. Default 30000 (30s). Set to 0 to disable.
+     *
+     * Guards against the reachable-but-slow registry case where TCP connect
+     * succeeds but the response body never finishes — a single packument
+     * fetch would otherwise await indefinitely with no resource cleanup,
+     * no error message, no progress (the exact shape of an observed
+     * `gjsify install` hang). A timeout fires an AbortError that the retry
+     * loop treats as transient (CDN slowdowns recover), so a slow attempt
+     * gets retried per the retries / retryDelayMs schedule. When ALL
+     * retries exhaust because of timeouts, a `RegistryTimeoutError` is
+     * thrown with a clear "timed out after Xs × N attempts" message.
+     */
+    timeoutMs?: number;
+    /**
      * Called once per retry with `{ attempt, error, delayMs }`. Useful for
      * verbose-mode install logs ("retrying fetch in 500 ms…").
      */
@@ -117,7 +131,11 @@ export async function fetchPackument(name: string, opts: FetchOptions = {}): Pro
     const headers = buildHeaders(url, opts);
     headers['accept'] ??= 'application/vnd.npm.install-v1+json';
 
-    const res = await fetchWithRetry(url, { headers, signal: opts.signal }, opts);
+    const res = await fetchWithRetry(
+        url,
+        { headers, signal: opts.signal },
+        { fetch: opts.fetch, retries: opts.retries, retryDelayMs: opts.retryDelayMs, timeoutMs: opts.timeoutMs, onRetry: opts.onRetry },
+    );
     if (!res.ok) {
         // 404 = package not found. 406 = Not Acceptable — npm returns this
         // when the URL path is unrecognised (e.g. `%40scope/name` is parsed
@@ -139,7 +157,11 @@ export async function fetchTarball(url: string, opts: FetchOptions & { integrity
     const headers = buildHeaders(url, opts);
     headers['accept'] ??= 'application/octet-stream';
 
-    const res = await fetchWithRetry(url, { headers, signal: opts.signal }, opts);
+    const res = await fetchWithRetry(
+        url,
+        { headers, signal: opts.signal },
+        { fetch: opts.fetch, retries: opts.retries, retryDelayMs: opts.retryDelayMs, timeoutMs: opts.timeoutMs, onRetry: opts.onRetry },
+    );
     if (!res.ok) throw new Error(`tarball GET ${url} -> ${res.status} ${res.statusText}`);
     const buf = new Uint8Array(await res.arrayBuffer());
     if (opts.integrity) {
@@ -158,33 +180,62 @@ export async function fetchTarball(url: string, opts: FetchOptions & { integrity
  *     the TLS handshake mid-stream, ECONNRESET, ENETUNREACH, …)
  *   - HTTP 408 (Request Timeout), 425 (Too Early), 429 (rate limit),
  *     500-503, 504, 522, 524 (Cloudflare upstream)
+ *   - per-request timeout (opts.timeoutMs, default 30s) — the AbortError
+ *     surfaced by a fired timeout signal is treated as transient (slow
+ *     CDN) and retried like any other network blip; distinguished from
+ *     a caller-triggered abort via the abort signal's `reason` identity.
  *
  * Does NOT retry on:
  *   - 4xx other than 408/425/429 (semantic errors — 404 surfaces via the
  *     caller's PackageNotFoundError path)
- *   - AbortError (signal trip — caller wants out)
+ *   - AbortError from the CALLER's signal (`opts.signal` — caller wants out)
  *   - any other thrown shape that doesn't look transient
  *
  * Default schedule: 250ms, 500ms, 1000ms (3 retries → 4 total attempts);
- * capped at 8s per delay. Caller can tune via opts.retries / opts.retryDelayMs.
+ * capped at 8s per delay. Caller can tune via opts.retries / opts.retryDelayMs
+ * / opts.timeoutMs.
+ *
+ * When ALL retries exhaust because of per-request timeouts, throws a
+ * typed `RegistryTimeoutError` (not the raw "signal is aborted without
+ * reason" the underlying fetch would surface) so the user gets a clear
+ * "<url> timed out after Xs × N attempts" message.
  */
 export async function fetchWithRetry(
     url: string,
     init: { headers: Record<string, string>; signal?: AbortSignal },
-    opts: Pick<FetchOptions, 'fetch' | 'retries' | 'retryDelayMs' | 'onRetry'>,
+    opts: Pick<FetchOptions, 'fetch' | 'retries' | 'retryDelayMs' | 'timeoutMs' | 'onRetry'>,
 ): Promise<Response> {
     const fetchImpl = opts.fetch ?? globalThis.fetch;
     if (!fetchImpl) throw new Error('@gjsify/npm-registry: globalThis.fetch is missing');
 
     const maxRetries = Math.max(0, opts.retries ?? 3);
     const baseDelay = Math.max(0, opts.retryDelayMs ?? 250);
+    const timeoutMs = Math.max(0, opts.timeoutMs ?? 30_000);
     let attempt = 0;
     let lastErr: unknown;
+    let timeoutHits = 0;
 
     while (true) {
         if (init.signal?.aborted) throw signalAbortError(init.signal);
+
+        // Per-attempt timeout controller — re-armed each retry so a slow
+        // response on attempt N doesn't pre-fire the abort on attempt N+1.
+        // Using a manual controller (rather than `AbortSignal.timeout`) lets
+        // us tell timeout-from-here apart from abort-from-caller by inspecting
+        // `timeoutController.signal.aborted` after the fetch throws — caller-
+        // aborts must NOT retry but timeouts MUST.
+        const timeoutController = timeoutMs > 0 ? new AbortController() : null;
+        const timeoutId =
+            timeoutController !== null
+                ? setTimeout(
+                      () => timeoutController.abort(new Error(`@gjsify/npm-registry: per-request timeout ${timeoutMs}ms`)),
+                      timeoutMs,
+                  )
+                : null;
+        const composedSignal = composeSignals(init.signal, timeoutController?.signal);
+
         try {
-            const res = await fetchImpl(url, init);
+            const res = await fetchImpl(url, { ...init, signal: composedSignal });
             if (res.ok || !isRetryableStatus(res.status) || attempt >= maxRetries) {
                 return res;
             }
@@ -196,14 +247,58 @@ export async function fetchWithRetry(
             }
             lastErr = new Error(`HTTP ${res.status} ${res.statusText}`);
         } catch (err) {
-            if (!isRetryableError(err) || attempt >= maxRetries) throw err;
-            lastErr = err;
+            // Classify the abort. Caller-aborts MUST propagate without retry;
+            // timeouts MUST retry (transient — slow CDN recovers).
+            //
+            // The distinction: did OUR timeout fire while the caller's signal
+            // is still un-aborted? If so the cause is our timeout. We check
+            // signal state explicitly rather than relying on `err.name` —
+            // some runtimes (GJS Soup-backed fetch) surface abort-triggered
+            // fetch errors as plain Error instances with no `AbortError` name
+            // marker, so a name-only test is fragile. Walking the signal-state
+            // is reliable across runtimes.
+            const timeoutFired = timeoutController !== null && timeoutController.signal.aborted;
+            const callerAborted = init.signal?.aborted === true;
+            if (timeoutFired && !callerAborted) {
+                timeoutHits++;
+                if (attempt >= maxRetries) {
+                    throw new RegistryTimeoutError(url, timeoutMs, timeoutHits);
+                }
+                lastErr = err;
+            } else if (callerAborted) {
+                // Caller wants out — propagate as a canonical AbortError so
+                // upstream `try/catch` patterns recognize the shape.
+                throw signalAbortError(init.signal);
+            } else {
+                if (!isRetryableError(err) || attempt >= maxRetries) throw err;
+                lastErr = err;
+            }
+        } finally {
+            if (timeoutId !== null) clearTimeout(timeoutId);
         }
         const delayMs = Math.min(baseDelay * 2 ** attempt, 8000);
         opts.onRetry?.({ attempt: attempt + 1, error: lastErr, delayMs });
         await delay(delayMs, init.signal);
         attempt++;
     }
+}
+
+/**
+ * Combine the caller's AbortSignal with our per-request timeout signal.
+ * Returns whichever one is non-null when only one is supplied — avoids the
+ * `AbortSignal.any` allocation when there is nothing to compose. Both null
+ * also returns `undefined`, so callers that pass neither don't materialise a
+ * signal at all (some fetch impls treat `signal: undefined` and the absence
+ * of the field differently).
+ */
+function composeSignals(a: AbortSignal | undefined, b: AbortSignal | undefined): AbortSignal | undefined {
+    if (!a) return b;
+    if (!b) return a;
+    // `AbortSignal.any` is available in Node ≥ 20.3 and SpiderMonkey 140+
+    // (current GJS baseline) — both runtimes covered by the @gjsify cross-
+    // runtime portability axis. If a future regression surfaces an older
+    // runtime, polyfill here.
+    return AbortSignal.any([a, b]);
 }
 
 function isRetryableStatus(status: number): boolean {
@@ -476,6 +571,53 @@ function base64Decode(s: string): string {
     return atob(s);
 }
 
+/**
+ * Result of `whoami(registry, npmrc)` — the npm registry's `/-/whoami`
+ * endpoint returns `{"username": "<name>"}` for a live bearer token and an
+ * empty object `{}` for a token that the registry no longer accepts (dead /
+ * revoked / expired). The status code stays 200 in both cases; the empty
+ * body is npm's signal that the bearer was rejected.
+ *
+ * `gjsify publish` uses this distinction to give a clear diagnostic when a
+ * PUT publish call returns 404 Not Found / body "Not Found" — the typical
+ * dead-token shape that's easily mistaken for a "package does not exist"
+ * (Trusted-Publisher-bootstrap) situation.
+ */
+export interface WhoamiResult {
+    /** Username when the token is live. Absent (or empty string) when dead. */
+    username?: string;
+}
+
+/**
+ * GET `<registry>/-/whoami` with the bearer/basic Authorization derived from
+ * `npmrc`. Returns the parsed body on 2xx (`{username}` for a live token,
+ * `{}` for a dead one — both are 200 responses). **Throws** on network
+ * failures, non-2xx status, or unparseable bodies — the caller must handle
+ * the "couldn't probe" path explicitly (typically: fall back to the
+ * generic error message).
+ *
+ * Reference: `npm whoami` (refs/npm-cli/lib/commands/whoami.js) — the
+ * endpoint is documented as a registry-API canonical method.
+ */
+export async function whoami(registry: string, npmrc: NpmrcConfig | undefined): Promise<WhoamiResult> {
+    const base = ensureTrailingSlash(registry);
+    const url = `${base}-/whoami`;
+    const headers = buildHeaders(url, { npmrc });
+    headers['accept'] = 'application/json';
+    const fetchImpl = globalThis.fetch;
+    if (!fetchImpl) throw new Error('@gjsify/npm-registry: globalThis.fetch is missing');
+    const res = await fetchImpl(url, { method: 'GET', headers });
+    if (!res.ok) {
+        throw new Error(`whoami GET ${url} -> ${res.status} ${res.statusText}`);
+    }
+    const body = (await res.json()) as unknown;
+    if (body && typeof body === 'object' && 'username' in (body as Record<string, unknown>)) {
+        const u = (body as Record<string, unknown>).username;
+        if (typeof u === 'string' && u.length > 0) return { username: u };
+    }
+    return {};
+}
+
 export class PackageNotFoundError extends Error {
     constructor(
         public readonly name: string,
@@ -493,5 +635,28 @@ export class IntegrityError extends Error {
     ) {
         super(`Tarball integrity mismatch for ${url} (expected ${integrity})`);
         this.name = 'IntegrityError';
+    }
+}
+
+/**
+ * Thrown when EVERY retry attempt against a registry URL exhausts the
+ * per-request timeout (`opts.timeoutMs`, default 30s). Replaces the
+ * inscrutable "signal is aborted without reason" the raw AbortSignal path
+ * would otherwise surface — `gjsify install` users seeing this know exactly
+ * what timed out, how long they waited, and that the CDN is the suspect.
+ */
+export class RegistryTimeoutError extends Error {
+    constructor(
+        public readonly url: string,
+        public readonly timeoutMs: number,
+        public readonly attempts: number,
+    ) {
+        const seconds = Math.round(timeoutMs / 100) / 10;
+        const totalSeconds = Math.round((timeoutMs * attempts) / 100) / 10;
+        super(
+            `@gjsify/npm-registry: GET ${url} timed out after ${seconds}s × ${attempts} attempt(s) ` +
+                `(total ~${totalSeconds}s). This usually means the registry CDN is slow or unreachable.`,
+        );
+        this.name = 'RegistryTimeoutError';
     }
 }

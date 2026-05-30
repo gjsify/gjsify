@@ -119,7 +119,7 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
         nodes = lockfileToNodes(existingLock);
     } else {
         log('install: resolving %d top-level spec(s) → %s', opts.specs.length, opts.prefix);
-        nodes = await resolveDeps(opts.specs, npmrc, log, opts.overrides, opts.skipDeps);
+        nodes = await resolveDeps(opts.specs, npmrc, log, opts.overrides, opts.skipDeps, opts.signal);
         if (opts.lockfile) {
             writeLockfile(lockfilePath, opts.specs, nodes);
             log('install: wrote %s (%d entries)', LOCKFILE_NAME, nodes.length);
@@ -127,7 +127,7 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
     }
 
     log('install: downloading %d tarball(s)', nodes.length);
-    await downloadAndExtractAll(nodes, opts.prefix, npmrc, log);
+    await downloadAndExtractAll(nodes, opts.prefix, npmrc, log, opts.signal);
     await linkBins(nodes, opts.prefix, log);
     log('install: done');
 
@@ -190,6 +190,7 @@ async function resolveDeps(
     log: Logger,
     overrides?: Record<string, string>,
     skipDeps?: boolean,
+    signal?: AbortSignal,
 ): Promise<ResolvedNode[]> {
     const applyOverride = (name: string, range: string): string => {
         if (!overrides) return range;
@@ -205,6 +206,7 @@ async function resolveDeps(
         if (cached) return cached;
         const fresh = fetchPackument(name, {
             npmrc,
+            signal,
             onRetry: ({ attempt, error, delayMs }) => {
                 log('packument %s: retry %d after %dms (%s)', name, attempt, delayMs, errMsg(error));
             },
@@ -539,6 +541,7 @@ async function downloadAndExtractAll(
     prefix: string,
     npmrc: NpmrcConfig,
     log: Logger,
+    signal?: AbortSignal,
 ): Promise<void> {
     // Sort by install-path depth ascending so parents extract before
     // children. Extracting a parent on top of an existing child would
@@ -559,7 +562,7 @@ async function downloadAndExtractAll(
     while (cursor < splitAt) {
         const node = queue[cursor++];
         if (!node) break;
-        await extractOne(node, prefix, npmrc, log);
+        await extractOne(node, prefix, npmrc, log, signal);
     }
 
     // Concurrent nested pass.
@@ -571,7 +574,7 @@ async function downloadAndExtractAll(
                     if (idx >= queue.length) return;
                     const node = queue[idx];
                     if (!node) return;
-                    await extractOne(node, prefix, npmrc, log);
+                    await extractOne(node, prefix, npmrc, log, signal);
                 }
             })(),
         );
@@ -579,7 +582,13 @@ async function downloadAndExtractAll(
     await Promise.all(workers);
 }
 
-async function extractOne(node: ResolvedNode, prefix: string, npmrc: NpmrcConfig, log: Logger): Promise<void> {
+async function extractOne(
+    node: ResolvedNode,
+    prefix: string,
+    npmrc: NpmrcConfig,
+    log: Logger,
+    signal?: AbortSignal,
+): Promise<void> {
     const dest = path.join(prefix, node.installPath);
     // Defense-in-depth against the workspace-source-wipe data-loss bug:
     // every extractable node MUST land inside a `node_modules/` directory.
@@ -593,6 +602,7 @@ async function extractOne(node: ResolvedNode, prefix: string, npmrc: NpmrcConfig
     log('fetch: %s@%s ← %s (→ %s)', node.name, node.version, node.tarballUrl, node.installPath);
     const bytes = await fetchTarball(node.tarballUrl, {
         npmrc,
+        signal,
         integrity: node.integrity,
         onRetry: ({ attempt, error, delayMs }) => {
             log('tarball %s@%s: retry %d after %dms (%s)', node.name, node.version, attempt, delayMs, errMsg(error));
