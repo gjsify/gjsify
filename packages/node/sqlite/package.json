@@ -44,9 +44,9 @@
         "typescript": "^5.9.3"
     },
     "dependencies": {
-        "@girs/gda-6.0": "6.0.0-4.0.1",
-        "@girs/glib-2.0": "2.88.0-4.0.1",
-        "@girs/gobject-2.0": "2.88.0-4.0.1"
+        "@girs/gda-6.0": "6.0.0-4.0.4",
+        "@girs/glib-2.0": "2.88.0-4.0.4",
+        "@girs/gobject-2.0": "2.88.0-4.0.4"
     },
     "gjsify": {
         "runtimes": {
