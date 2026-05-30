@@ -15,7 +15,7 @@
     "@girs/gio-2.0": "2.88.0-4.0.1",
     "@girs/gjs": "4.0.1",
     "@gjsify/cli": "workspace:^",
-    "typescript": "^6.0.3"
+    "typescript": "^5.9.3"
   },
   "private": true,
   "version": "0.4.35"

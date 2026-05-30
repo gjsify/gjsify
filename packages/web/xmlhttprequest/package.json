@@ -5,7 +5,8 @@
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
     "files": [
-        "lib"
+        "lib",
+        "globals.mjs"
     ],
     "type": "module",
     "exports": {
@@ -16,10 +17,12 @@
         "./register": {
             "types": "./lib/types/register.d.ts",
             "default": "./lib/esm/register.js"
-        }
+        },
+        "./globals": "./globals.mjs"
     },
     "sideEffects": [
-        "./lib/esm/register.js"
+        "./lib/esm/register.js",
+        "./globals.mjs"
     ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
@@ -43,13 +46,13 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@types/node": "^25.9.1",
-        "typescript": "^6.0.3"
+        "typescript": "^5.9.3"
     },
     "gjsify": {
         "runtimes": {
             "gjs": "polyfill",
             "node": "none",
-            "browser": "none"
+            "browser": "native"
         }
     }
 }

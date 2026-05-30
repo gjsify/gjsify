@@ -28,7 +28,7 @@
         "bittorrent-protocol": "^5.0.0",
         "parse-torrent": "^11.0.19",
         "randombytes": "^2.1.0",
-        "typescript": "^6.0.3",
+        "typescript": "^5.9.3",
         "webtorrent": "^2.8.5",
         "webtorrent-fixtures": "2.0.2"
     },
