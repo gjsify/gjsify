@@ -39,5 +39,14 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "typescript": "^5.9.3"
-    }
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/infra/semver"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/semver#readme"
 }
