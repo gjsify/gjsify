@@ -251,3 +251,18 @@
 [submodule "refs/wa-sqlite"]
 	path = refs/wa-sqlite
 	url = https://github.com/rhashimoto/wa-sqlite.git
+[submodule "refs/nativescript"]
+	path = refs/nativescript
+	url = git@github.com:NativeScript/NativeScript.git
+[submodule "refs/nativescript-nodeify"]
+	path = refs/nativescript-nodeify
+	url = git@github.com:EddyVerbruggen/nativescript-nodeify.git
+[submodule "refs/nativescript-napi"]
+	path = refs/nativescript-napi
+	url = git@github.com:NativeScript/runtime-node-api.git
+[submodule "refs/nativescript-android"]
+	path = refs/nativescript-android
+	url = git@github.com:NativeScript/android.git
+[submodule "refs/nativescript-ios"]
+	path = refs/nativescript-ios
+	url = git@github.com:NativeScript/ios.git
