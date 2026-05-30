@@ -3,7 +3,6 @@
     "version": "0.4.35",
     "description": "Node.js fs module for Gjs",
     "module": "lib/esm/index.js",
-    "browser": "./lib/esm/browser.js",
     "types": "lib/types/index.d.ts",
     "files": [
         "lib"
@@ -12,7 +11,6 @@
     "exports": {
         ".": {
             "types": "./lib/types/index.d.ts",
-            "browser": "./lib/esm/browser.js",
             "default": "./lib/esm/index.js"
         },
         "./promises": {
