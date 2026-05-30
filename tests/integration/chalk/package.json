@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-chalk",
-    "description": "Integration tests: chalk on GJS and Node. Validates ANSI escape-code generation + level gating end-to-end — every CLI tool depends on chalk, so this locks in the @gjsify/{tty,process} color/TTY-detection contract chalk uses through supports-color.",
+    "description": "Integration tests: chalk on GJS and Node. Validates ANSI escape-code generation + level gating end-to-end \u2014 every CLI tool depends on chalk, so this locks in the @gjsify/{tty,process} color/TTY-detection contract chalk uses through supports-color.",
     "type": "module",
     "private": true,
     "engines": {
@@ -17,7 +17,7 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.1",
+        "@girs/gjs": "4.0.4",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",

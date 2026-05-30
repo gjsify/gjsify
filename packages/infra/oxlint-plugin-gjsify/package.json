@@ -29,7 +29,7 @@
     ],
     "license": "MIT",
     "peerDependencies": {
-        "oxlint": "^1.66.0"
+        "oxlint": "^1.67.0"
     },
     "devDependencies": {
         "@types/node": "^25.9.1",

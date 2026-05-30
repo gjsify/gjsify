@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-rollup-pluginutils",
-    "description": "Integration tests: @rollup/pluginutils on GJS and Node. Validates @gjsify/path + picomatch glob (transitive) — same code paths used by @gjsify/rolldown-plugin-gjsify.",
+    "description": "Integration tests: @rollup/pluginutils on GJS and Node. Validates @gjsify/path + picomatch glob (transitive) \u2014 same code paths used by @gjsify/rolldown-plugin-gjsify.",
     "type": "module",
     "private": true,
     "engines": {
@@ -17,7 +17,7 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.1",
+        "@girs/gjs": "4.0.4",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",

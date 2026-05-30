@@ -42,7 +42,7 @@
         "typescript": "^5.9.3"
     },
     "peerDependencies": {
-        "rolldown": "^1.0.0"
+        "rolldown": "^1.0.3"
     },
     "peerDependenciesMeta": {
         "rolldown": {
@@ -51,6 +51,6 @@
     },
     "devDependencies": {
         "@types/node": "^25.9.1",
-        "rolldown": "^1.0.0"
+        "rolldown": "^1.0.3"
     }
 }

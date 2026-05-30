@@ -23,7 +23,7 @@
     "@gjsify/runtime": "workspace:^",
     "@types/node": "^25.9.1",
     "typescript": "^5.9.3",
-    "ws": "^8.20.0"
+    "ws": "^8.21.0"
   },
   "private": true,
   "version": "0.4.35"

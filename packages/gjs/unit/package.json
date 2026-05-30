@@ -44,8 +44,8 @@
     },
     "homepage": "https://github.com/gjsify/unit#readme",
     "devDependencies": {
-        "@girs/gjs": "4.0.1",
-        "@girs/glib-2.0": "2.88.0-4.0.1",
+        "@girs/gjs": "4.0.4",
+        "@girs/glib-2.0": "2.88.0-4.0.4",
         "@gjsify/cli": "workspace:^",
         "@types/node": "^25.9.1",
         "typescript": "^5.9.3"
