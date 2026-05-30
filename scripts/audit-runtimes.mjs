@@ -285,23 +285,24 @@ function suggestRuntimes(axis, signals) {
 //     NO actual build — too expensive for `--check`. The static existence of
 //     the entry is the contract.
 //
-// `BROWSER_NATIVE_RE_EXPORTS` is intentionally an empty set today. Wave 5
-// (T-Plan Sektion 5b-i `BROWSER_NATIVE_IDENTS`) will populate it with the
-// curated browser-native re-export sources extracted from the upcoming
-// `globals-map.mjs` extension. Until then `browser:"native"` slots with a
-// `globals.mjs` that re-exports from anything other than a `@gjsify/<X>/
-// globals` self-delegation will fail the probe — which is the desired signal:
-// the probe surfaces gaps before R1 builds the curated map.
+// `BROWSER_NATIVE_RE_EXPORTS` is sourced from `BROWSER_NATIVE_IDENTS` in
+// `@gjsify/resolve-npm/globals-map` (T-Plan Sektion 5b-i landed via PR-G).
+// Each identifier doubles as the canonical bare specifier a `globals.mjs`
+// would re-export from on a browser target — `export { X } from 'X'` mirrors
+// the pattern used today on Node (`export { default as X } from 'node:X'`).
+
+import { BROWSER_NATIVE_IDENTS } from '../packages/infra/resolve-npm/lib/globals-map.mjs';
 
 /**
  * Curated set of bare specifiers that are safe to re-export from a
- * `globals.mjs` aimed at the browser target. TODO(welle-5): populate from
- * the new `BROWSER_NATIVE_IDENTS` constant once `globals-map.mjs` Sektion 5b
- * lands. Today: empty — every browser-native re-export must arrive via
- * `@gjsify/<X>/globals` self-delegation (the chain still resolves on disk
- * because the upstream `@gjsify/<X>` package owns the runtime decision).
+ * `globals.mjs` aimed at the browser target. Populated from
+ * `BROWSER_NATIVE_IDENTS` (T-Plan Sektion 5b-i): every identifier the curated
+ * map declares as browser-native is, by definition, a specifier the browser
+ * resolves natively when a `globals.mjs` does `export { Foo } from 'Foo'`.
+ * `@gjsify/<X>/globals` self-delegation chains are recognised separately in
+ * `probeGlobalsExports`.
  */
-const BROWSER_NATIVE_RE_EXPORTS = new Set();
+const BROWSER_NATIVE_RE_EXPORTS = new Set(BROWSER_NATIVE_IDENTS);
 
 /**
  * Statically extract every `export {…} from '<src>'` / `export * from
