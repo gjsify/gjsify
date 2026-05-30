@@ -161,9 +161,9 @@ jobs:
             packages/**/tsconfig.tsbuildinfo
             packages/**/tsconfig.*.tsbuildinfo
             packages/**/dist
-          key: build-${{ runner.os }}-fedora${{ matrix.fedora-version }}-${{ hashFiles('gjsify-lock.json', '**/tsconfig*.json', '**/package.json') }}-${{ hashFiles('packages/**/src/**/*.ts', 'packages/**/src/**/*.mts', 'packages/**/src/**/*.cts') }}
+          key: build-${{ runner.os }}-fedora${{ matrix.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
           restore-keys: |
-            build-${{ runner.os }}-fedora${{ matrix.fedora-version }}-${{ hashFiles('gjsify-lock.json', '**/tsconfig*.json', '**/package.json') }}-
+            build-${{ runner.os }}-fedora${{ matrix.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-
             build-${{ runner.os }}-fedora${{ matrix.fedora-version }}-
 
       - name: Build
