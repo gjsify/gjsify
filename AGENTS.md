@@ -442,6 +442,15 @@ Native libs in `prebuilds/linux-<arch>/` (`.so`+`.typelib`). `package.json`: `"f
 
 **gi:// ordering:** `GIRepository.prepend_search_path()` must run before `gi://Foo` resolves. Static `gi://` imports resolve in ESM Linking (before code). Use `gjsify run` or two-file loader (loader calls prepend_search_path, then `await import('./bundle.js')`).
 
+## Git hooks
+
+Plain bash hooks under `.githooks/`, no husky/lefthook dep. Activate via `core.hooksPath=.githooks`; that key is wired automatically by `gjsify install` (`maybeInstallGitHooks()` post-check, gated on `existsSync(scripts/install-git-hooks.mjs) && existsSync(.git)` so consumer projects with `@gjsify/cli` as a dep are skipped silently). Manual install: `node scripts/install-git-hooks.mjs` (idempotent; `--uninstall` reverts to git's default; `--quiet` suppresses success log).
+
+|`pre-commit` (`.githooks/pre-commit`): when staged files touch `packages/infra/cli/src/` / `packages/infra/cli/package.json` → runs `gjsify workspace @gjsify/cli build && build:gjs-bundle`, re-stages `packages/infra/cli/dist/cli.gjs.mjs`. When they touch `packages/infra/tsc/src/` / `packages/infra/tsc/package.json` → runs `gjsify workspace @gjsify/tsc build`, re-stages `packages/infra/tsc/dist/tsc.gjs.mjs`. No-op when neither path is touched. Resolves `gjsify` via workspace-local `node_modules/.bin/gjsify` → PATH → committed `cli.gjs.mjs` GJS bundle (so it works even on a fresh clone where `gjsify install` ran for the first time).
+|**Bypass:** `git commit --no-verify` (standard) or `SKIP_GJSIFY_HOOKS=1 git commit` (env-var escape — use in CI / scripted commits that must not rebuild).
+|**Why it exists:** `.github/workflows/main.yml` runs `gjs -m packages/infra/{cli,tsc}/dist/<bundle>.gjs.mjs --version` against both committed bundles and fails CI if the reported version drifts from `packages/infra/cli/package.json` / `TYPESCRIPT_VERSION` in `packages/infra/tsc/src/index.ts`. Contributors who edit `src/` without rebuilding the bundle land red CI runs (~90 min wasted per PR × 2 platforms). The hook removes the foot-gun by rebuilding + auto-staging the bundle transparently inside the same commit — no "remember to run two commands" step.
+|**Tests:** `tests/e2e/git-hooks-cli-bundle-staleness/run.mjs` (no-op-for-unrelated / auto-rebuild-on-cli-src-change / `SKIP_GJSIFY_HOOKS=1` skip).
+
 ## Lint & format — oxc (oxlint + oxfmt)
 
 `gjsify lint` / `gjsify format` / `gjsify fix` wrap **oxc** (`oxlint` for lint, `oxfmt` for format) — migrated from Biome (full replacement, no `--engine` fallback). `gjsify check` stays the **tsc** orchestrator, unrelated.
