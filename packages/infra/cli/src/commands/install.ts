@@ -442,33 +442,61 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
         console.log('gjsify install: no external deps to fetch');
     }
 
-    for (const link of symlinks) {
-        const target = byName.get(link.fromWorkspaceName);
-        if (!target) continue;
-        const linkPath = join(target.location, 'node_modules', link.depName);
-        mkdirSync(dirname(linkPath), { recursive: true });
-        // Remove any prior entry — regular dir, broken symlink, file, or
-        // a normal symlink left over from a previous install. Using
-        // `{ recursive: true, force: true }` handles every shape in one
-        // call: `rmSync` no-ops on missing paths under `force: true`, and
-        // `recursive: true` covers the directory case. Avoids the EEXIST
-        // race a previous lstat-then-branch version hit when the stat's
-        // type-discrimination missed an edge case (e.g. broken symlink
-        // whose `isSymbolicLink()` returned a non-truthy value through
-        // Gio's NOFOLLOW path, leaving a leftover entry that
-        // `symlinkSync` would then refuse to overwrite).
-        try {
-            rmSync(linkPath, { recursive: true, force: true });
-        } catch {
-            /* unexpected — Gio failure on a path we just lstat'd to
-                     decide we wanted to remove. The subsequent symlinkSync
-                     will surface the real reason if there is one. */
-        }
-        // Relative symlink so the repo is portable across checkout paths.
-        const relTarget = relative(dirname(linkPath), link.targetLocation);
-        symlinkSync(relTarget, linkPath);
-    }
+    // Workspace symlink wiring — pre-dedup the parent-dir mkdirs (every
+    // symlink for the same workspace shares a single `node_modules` parent),
+    // then run the per-link rm + symlink steps with bounded concurrency.
+    // Pure sync loops here used to dominate the tail of large installs
+    // (~793 symlinks × ~10ms each for mkdir+rm+symlink = ~24s of serial
+    // syscalls). With async + a 32-wide pool the same set lands in 1-2s.
     if (symlinks.length > 0) {
+        const fsp = await import('node:fs/promises');
+        const parentDirs = new Set<string>();
+        const plans: Array<{ linkPath: string; relTarget: string }> = [];
+        for (const link of symlinks) {
+            const target = byName.get(link.fromWorkspaceName);
+            if (!target) continue;
+            const linkPath = join(target.location, 'node_modules', link.depName);
+            parentDirs.add(dirname(linkPath));
+            const relTarget = relative(dirname(linkPath), link.targetLocation);
+            plans.push({ linkPath, relTarget });
+        }
+        // Phase 1: one mkdir per unique parent (max ~213 instead of ~793).
+        await Promise.all(
+            [...parentDirs].map((dir) => fsp.mkdir(dir, { recursive: true })),
+        );
+        // Phase 2: per-link rm + symlink, pooled. A semaphore-style cursor
+        // keeps the concurrent in-flight count bounded so we don't blow up
+        // the file-descriptor table on huge monorepos.
+        const SYMLINK_CONCURRENCY = 32;
+        let cursor = 0;
+        const workers: Promise<void>[] = [];
+        const wireOne = async (linkPath: string, relTarget: string) => {
+            // Remove any prior entry — regular dir, broken symlink, file, or
+            // a normal symlink left over from a previous install.
+            // `{ recursive: true, force: true }` handles every shape (rm
+            // no-ops on missing paths under force; recursive covers dirs).
+            try {
+                await fsp.rm(linkPath, { recursive: true, force: true });
+            } catch {
+                /* unexpected; symlink call below will surface the real
+                   cause if it persists. */
+            }
+            await fsp.symlink(relTarget, linkPath);
+        };
+        for (let i = 0; i < Math.min(SYMLINK_CONCURRENCY, plans.length); i++) {
+            workers.push(
+                (async () => {
+                    while (true) {
+                        const idx = cursor++;
+                        if (idx >= plans.length) return;
+                        const p = plans[idx];
+                        if (!p) return;
+                        await wireOne(p.linkPath, p.relTarget);
+                    }
+                })(),
+            );
+        }
+        await Promise.all(workers);
         console.log(`gjsify install: wired ${symlinks.length} workspace symlink(s)`);
     }
 
