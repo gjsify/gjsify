@@ -13,6 +13,10 @@
         "./promises": {
             "types": "./lib/types/promises.d.ts",
             "default": "./lib/esm/promises.js"
+        },
+        "./browser": {
+            "types": "./lib/types/browser.d.ts",
+            "default": "./lib/esm/browser.js"
         }
     },
     "files": [
@@ -52,7 +56,7 @@
         "runtimes": {
             "gjs": "polyfill",
             "node": "none",
-            "browser": "none"
+            "browser": "partial"
         }
     }
 }
