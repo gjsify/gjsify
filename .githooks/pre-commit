@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# gjsify pre-commit hook — auto-rebuild + re-stage the committed GJS bundles
+# when the corresponding source trees were changed in the staged diff.
+#
+# Why this exists
+# ---------------
+# Two committed artifacts gate CI builds:
+#
+#   packages/infra/cli/dist/cli.gjs.mjs   (the @gjsify/cli GJS bundle)
+#   packages/infra/tsc/dist/tsc.gjs.mjs   (the @gjsify/tsc GJS bundle)
+#
+# `.github/workflows/main.yml` runs `gjs -m <bundle> --version` against each
+# committed bundle and fails the build if the reported version does not match
+# the source-of-truth in `package.json` / `TYPESCRIPT_VERSION`. Contributors
+# who edit the corresponding `src/` without rebuilding the bundle land red
+# CI runs (~45 min × 2 platforms wasted). This hook removes the foot-gun by
+# rebuilding + auto-staging the affected bundle inside the same commit.
+#
+# Bypass
+# ------
+#   git commit --no-verify          # standard escape hatch
+#   SKIP_GJSIFY_HOOKS=1 git commit  # env-var escape hatch (CI, scripted commits)
+#
+# Install
+# -------
+#   node scripts/install-git-hooks.mjs   # sets core.hooksPath=.githooks
+#   gjsify install                       # also installs the hook
+#
+
+set -e
+
+# --- Bypass --------------------------------------------------------------
+
+if [ "${SKIP_GJSIFY_HOOKS:-0}" = "1" ]; then
+    exit 0
+fi
+
+# --- Repo root resolution ------------------------------------------------
+#
+# A pre-commit hook may be invoked from any subdirectory of the working tree
+# (git invokes hooks with CWD=repo-root, but we don't rely on that — some
+# wrappers/IDEs change CWD before exec). Resolve the root explicitly.
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# --- gjsify resolution ---------------------------------------------------
+#
+# Prefer the workspace-local CLI at node_modules/.bin/gjsify so the rebuilt
+# bundle uses the same version the workspace declares (matters during a
+# version bump where the global gjsify on PATH may drift from
+# packages/infra/cli/package.json#version). Fall back to PATH, then to the
+# committed GJS bundle itself (works on a freshly-cloned repo with no
+# node_modules yet — but that's a near-impossible case here because we're
+# about to invoke `gjsify workspace ... build` which itself needs the
+# workspace to be installed).
+
+if [ -x "$REPO_ROOT/node_modules/.bin/gjsify" ]; then
+    GJSIFY="$REPO_ROOT/node_modules/.bin/gjsify"
+elif command -v gjsify >/dev/null 2>&1; then
+    GJSIFY="$(command -v gjsify)"
+elif command -v gjs >/dev/null 2>&1 && [ -f "$REPO_ROOT/packages/infra/cli/dist/cli.gjs.mjs" ]; then
+    GJSIFY="gjs -m $REPO_ROOT/packages/infra/cli/dist/cli.gjs.mjs"
+else
+    echo "::warning::[gjsify pre-commit] no gjsify CLI on PATH and no node_modules/.bin/gjsify;"
+    echo "::warning::[gjsify pre-commit] skipping bundle freshness check. Run 'gjsify install' first."
+    exit 0
+fi
+
+# --- Detect what changed -------------------------------------------------
+#
+# `--diff-filter=ACMR` includes Added / Copied / Modified / Renamed entries.
+# We deliberately do not include Deleted — a pure delete won't make the
+# bundle stale.
+# `--name-only` keeps the command output single-line per file (cheap to
+# substring-check via `head -1` for emptiness).
+
+CLI_SRC_CHANGED="$(git diff --cached --name-only --diff-filter=ACMR -- packages/infra/cli/src/ packages/infra/cli/package.json | head -1)"
+TSC_SRC_CHANGED="$(git diff --cached --name-only --diff-filter=ACMR -- packages/infra/tsc/src/ packages/infra/tsc/package.json | head -1)"
+
+# Avoid re-entering rebuild if nothing relevant changed.
+if [ -z "$CLI_SRC_CHANGED" ] && [ -z "$TSC_SRC_CHANGED" ]; then
+    exit 0
+fi
+
+echo "[gjsify pre-commit] detected staged changes that may stale the committed GJS bundle(s):"
+[ -n "$CLI_SRC_CHANGED" ] && echo "  • packages/infra/cli/src/ (or package.json)"
+[ -n "$TSC_SRC_CHANGED" ] && echo "  • packages/infra/tsc/src/ (or package.json)"
+echo "[gjsify pre-commit] rebuilding affected bundle(s) — bypass with 'git commit --no-verify' or SKIP_GJSIFY_HOOKS=1."
+
+# --- Rebuild @gjsify/cli -------------------------------------------------
+
+if [ -n "$CLI_SRC_CHANGED" ]; then
+    echo "[gjsify pre-commit] rebuilding @gjsify/cli bundle..."
+    # Two-step: tsc-build the workspace lib/, then bundle it into the
+    # committed dist/cli.gjs.mjs. Both steps mirror what the GJS workflow
+    # does for the freshness verifier in main.yml.
+    $GJSIFY workspace @gjsify/cli build
+    $GJSIFY workspace @gjsify/cli build:gjs-bundle
+    git add packages/infra/cli/dist/cli.gjs.mjs
+    echo "[gjsify pre-commit] staged packages/infra/cli/dist/cli.gjs.mjs"
+fi
+
+# --- Rebuild @gjsify/tsc -------------------------------------------------
+
+if [ -n "$TSC_SRC_CHANGED" ]; then
+    echo "[gjsify pre-commit] rebuilding @gjsify/tsc bundle..."
+    # The tsc package's `build` script already wraps build-bundle.mjs (no
+    # separate :gjs-bundle phase) — its dist/tsc.gjs.mjs is the only artifact.
+    $GJSIFY workspace @gjsify/tsc build
+    git add packages/infra/tsc/dist/tsc.gjs.mjs
+    echo "[gjsify pre-commit] staged packages/infra/tsc/dist/tsc.gjs.mjs"
+fi
+
+exit 0
