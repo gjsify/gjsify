@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-undici",
-    "description": "Integration tests: undici on GJS and Node. Validates @gjsify/{http,fetch,websocket} against the npm package every Node consumer uses (Node 18+'s fetch is undici under the hood). Ports a focused subset of undici's public API surface — fetch(), request(), WebSocket — against a local node:http / @gjsify/http server.",
+    "description": "Integration tests: undici on GJS and Node. Validates @gjsify/{http,fetch,websocket} against the npm package every Node consumer uses (Node 18+'s fetch is undici under the hood). Ports a focused subset of undici's public API surface \u2014 fetch(), request(), WebSocket \u2014 against a local node:http / @gjsify/http server.",
     "type": "module",
     "private": true,
     "engines": {
@@ -17,7 +17,7 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.1",
+        "@girs/gjs": "4.0.4",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",

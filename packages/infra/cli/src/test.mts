@@ -9,6 +9,7 @@ import npmOidcSuite from './npm-oidc.spec.js';
 import publishDiagnoseSuite from './publish-diagnose.spec.js';
 import whoamiCommandSuite from './whoami-command.spec.js';
 import installBackendParseSpecSuite from './install-backend-parse-spec.spec.js';
+import installTarballCacheSuite from './utils/install-tarball-cache.spec.js';
 import inlineStaticReadsSuite from './inline-static-reads.spec.js';
 import resolveNpmPackageSuite from './utils/resolve-npm-package.spec.js';
 // `@gjsify/rolldown-plugin-gjsify` has no test runner of its own; its
@@ -17,6 +18,7 @@ import resolveNpmPackageSuite from './utils/resolve-npm-package.spec.js';
 // a dependency. The predicate itself is re-exported from the plugin's
 // public API.
 import autoGlobalsSuite from './auto-globals.spec.js';
+import affectedClassifierSuite from './affected-classifier.spec.js';
 
 run({
     bundlerPickSuite,
@@ -25,7 +27,9 @@ run({
     publishDiagnoseSuite,
     whoamiCommandSuite,
     installBackendParseSpecSuite,
+    installTarballCacheSuite,
     inlineStaticReadsSuite,
     resolveNpmPackageSuite,
     autoGlobalsSuite,
+    affectedClassifierSuite,
 });

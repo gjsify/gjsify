@@ -201,6 +201,7 @@ We own ~every Web/Node/DOM API. First question for any new feature: *"which pack
 - **Reading globals:** prefer `import { X } from '@gjsify/<pkg>'` over `(globalThis as any).X` in impl code. Imports give bundlers tree-shaking visibility, TS real types, surface missing deps as build errors. `globalThis` reads only justified for: (1) writes in register modules; (2) existence probes in register modules (`if (typeof globalThis.X === 'undefined') { globalThis.X = X }`); (3) debug flags (`globalThis.__GJSIFY_DEBUG_X`); (4) GJS runtime bootstrap (`globalThis.imports.*` before `@girs/*` resolves); (5) genuinely soft deps (rare — fallback to `Error` if `DOMException` not registered); (6) `globals.mjs` Node adapter — re-exports native value (`export default globalThis.crypto`) so alias layer can redirect bare specifiers on Node. Only non-register file allowed to read `globalThis.X` without `as any`.
 - **Patching classes you own:** method belongs to a monorepo class (`URL.createObjectURL`→`@gjsify/url`, `Headers.getSetCookie`→`@gjsify/fetch`) → put it on the class, NOT on `globalThis.X.method=…` in a register module. Patch only when target is genuinely external (native global we can't subclass, third-party type).
 - **"No module to import from":** check again — workspace almost certainly has `@gjsify/dom-*`/`@gjsify/web-*`/`@gjsify/node-*` exporting the class. Add the dep. Legit exceptions: (a) pre-registration bootstrap; (b) values with no module form (GJS `imports`, Node's `process.argv` before `@gjsify/process` loads).
+- **Pure-JS → native swap:** before replacing a pure-JS impl with a (partly) native one in any pkg, ask: *is the pure-JS path still load-bearing on browser / Node / NativeScript?* If yes — KEEP the pure-JS code, lift it into a `-core` (or `/core` subpath) package that the native pkg depends on as a fallback. Native goes in front for the runtime that has it; the core stays as the default for the others. Mirrors `@gjsify/canvas2d-core` ⇆ `@gjsify/canvas2d` (Cairo-backed). Never delete portable code just because one platform got faster; the others still need it.
 
 ### Tree-shakeable globals — `/register` subpath convention
 
@@ -357,6 +358,14 @@ IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning for re
 
 ### Other
 `refs/gjs/`(internals) | `refs/stream-http/`(HTTP via streams) | `refs/troll/`(GJS utils) | `refs/crypto-browserify/`(orchestrator → sub-pkgs: `refs/{browserify-cipher,browserify-sign,create-ecdh,create-hash,create-hmac,diffie-hellman,hash-base,pbkdf2,public-encrypt,randombytes,randomfill}`) | `refs/readable-stream/`(edge cases) | `refs/ungap-structured-clone/`(→`packages/gjs/utils/src/structured-clone.ts`) | `refs/node-gtk/` — romgrk's Node.js GObject Introspection bindings; **reference-only** for the platform-bridge axis (Node-on-GTK aspiration documented in `## Strategic direction`); NOT a build target / NOT actively maintained on our side
+
+### Mobile (NativeScript)
+Reference sources for the upcoming 4th runtime axis. NativeScript is a V8-based mobile framework that exposes Android (Java) and iOS (Objective-C/Swift) APIs directly to JavaScript via a metadata-driven bridge — conceptually analogous to GJS↔GNOME. Used as inspiration for the `--app nativescript` build target, the `gjsifyNativescript()` Vite-preset, and the per-package `runtimes.nativescript` slot mechanics.
+|`refs/nativescript/` — NativeScript core monorepo: `packages/core` (UI components, fetch, XMLHttpRequest, WebSocket, ApplicationSettings, etc.), `packages/types-android`, `packages/types-ios` (TypeScript types analogous to gjsify's `@girs/*`). Primary reference for which Web/Node APIs ship by default vs need polyfilling
+|`refs/nativescript-android/` — V8 Android runtime + JNI metadata bridge + binary metadata generator. Reference for how `java.io.File`/`android.content.Context` etc. are exposed as JS globals at runtime
+|`refs/nativescript-ios/` — V8 iOS runtime + Objective-C metadata bridge. Reference for `NSFileManager`/`UIDevice` etc. surface
+|`refs/nativescript-napi/` — embeddable Node-API-based runtime (2025/2026 direction unifying iOS + Android engines). Reference for the future engine-agnostic substrate
+|`refs/nativescript-nodeify/` — EddyVerbruggen's Node-shim plugin (`fs`/`path`/`crypto`/`events` polyfills for NS). **Not** a 1:1 take — gjsify ships its own per-pillar polyfills with native bridges; nodeify is a structural reference for what npm consumers expect
 
 ### Browser polyfills
 |`refs/node-stdlib-browser/` — canonical aggregator + npm-name → browser-polyfill mapping table (consumed by webpack/rollup/vite resolvers); reference for our resolver shim's expected names on the Web axis
@@ -533,6 +542,25 @@ run({ testSuite });
 
 Real-world examples uncovering bugs (GC, missing globals, CJS-ESM, MainLoop) → always add targeted test to relevant `*.spec.ts`. Examples = integration validation; regression tests = permanent safety net.
 
+### Selective CI — affected-only test runs
+
+CI's `linux` job is gated by a `gjsify affected` classifier that diffs HEAD vs the PR base and decides which test tiers run. **Place new tests where the classifier can find them**:
+
+|spec files: `<workspace>/src/**/*.spec.ts` — touching only this file → seed = that workspace, no closure expansion (test code has no downstream consumers).
+|integration suites: `tests/integration/<name>/` — declare every backend pillar exercised in `package.json#dependencies` so the classifier fires the integration tier when those workspaces are in the closure. The forward-graph walk at the end of the closure step is what surfaces the suite when `@gjsify/<dep>` changes.
+|e2e: `tests/e2e/<name>/` — runs only when `tests/e2e/**` itself is touched OR on a global trigger. Don't put per-workspace functional tests here.
+|browser: `tests/browser/specs/*.spec.ts` — Playwright; runs as part of `test:browser`.
+
+**Global triggers** (force a full run): touching `packages/infra/{workspace,cli,rolldown-plugin-gjsify,resolve-npm}/**`, `gjsify-lock.json`, root `package.json`/`tsconfig*.json`, `scripts/audit-runtimes.mjs`, or `.github/workflows/main.yml`. These can't be selectively gated because the classifier itself depends on them.
+
+**Ignored** (no test run, no closure seed): `**/*.md`, `refs/**`, `website/**`, `docs/**`, unrelated workflow files (`.github/workflows/{deploy-docs,commitlint,release,audit-runtimes,prebuilds}.yml`), `.githooks/**`, `LICENSE*`, `.gitignore`, top-level `STATUS|CHANGELOG|AGENTS|CLAUDE|README.md`.
+
+**Kill switch**: set repo variable `GJSIFY_CI_FORCE_FULL=1` (Settings → Variables → Actions) to short-circuit the classifier and run the full suite on every PR.
+
+**Local dry-run**: `gjsify affected --base origin/main` prints what CI would run. Use this when adding a new tier of tests to verify the classifier picks them up. `--format=json` for machine-readable, `--changed-from-stdin` for fixture-driven testing.
+
+When you add a new workflow file or a new top-level directory the classifier doesn't know about (e.g. `benchmarks/`), update `packages/infra/cli/src/commands/affected.ts`'s `GLOBAL_TRIGGERS` / `IGNORE` tables + the spec — silently mis-categorising new paths is the most common way to leak slowdowns back into the typical PR loop.
+
 ### Test sources
 
 Rewrite in `@gjsify/unit` with bare specifiers. Never copy verbatim. Select: core behavior, GNOME-relevant edge cases, errors, cross-platform. Skip: V8 internals, native addons, stubbed features.
@@ -586,7 +614,7 @@ Shared utils: `@gjsify/utils` (`packages/gjs/utils/`). Check before duplicating;
 
 ### New `@gjsify/*` package: first-publish + Trusted Publisher bootstrap
 
-npm Trusted Publishing (OIDC) requires the package to **already exist** on npmjs.com — you cannot configure a Trusted Publisher for a name that has no published versions. This makes the **first publish a manual maintainer action**, not a CI release. Skipping this step breaks the entire serialized `npm:publish` loop in `release.yml`: every package alphabetically after the new name fails to publish because the OIDC exchange returns `404 — OIDC token exchange error - package not found` and the workflow exits 1 (incident on v0.4.35: `@gjsify/tls-native` was added in #242, no manual bootstrap → 60+ packages stuck at 0.4.19).
+npm Trusted Publishing (OIDC) requires the package to **already exist** on npmjs.com — you cannot configure a Trusted Publisher for a name that has no published versions. This makes the **first publish a manual maintainer action**, not a CI release. Skipping this step breaks the entire serialized `npm:publish` loop in `release.yml`: every package alphabetically after the new name fails to publish because the OIDC exchange returns `404 — OIDC token exchange error - package not found` and the workflow exits 1 (historical incident on v0.4.20: `@gjsify/tls-native` was added in #242, no manual bootstrap → 60+ packages stuck at 0.4.19).
 
 Run before the merge that adds the package (or immediately after, before the next release-it patch):
 
@@ -686,7 +714,7 @@ Every impl → A or B. Every ported test → C. Original: `// <Module> for GJS �
 
 ### Copyright (refs/<pkg> → holder, license)
 
-|node,node-test → Node.js contributors, MIT |deno → 2018-2026 Deno authors, MIT |bun → Oven, MIT |quickjs → Bellard+Gordon, MIT |workerd → Cloudflare, Apache 2.0 |edgejs → Wasmer, MIT |crypto-browserify,browserify-cipher,create-hash,create-hmac,randombytes,randomfill → crypto-browserify contributors, MIT |browserify-sign,diffie-hellman,public-encrypt → Calvin Metcalf, ISC/MIT |create-ecdh → createECDH contributors, MIT |hash-base → Kirill Fomichev, MIT |pbkdf2 → Daniel Cousens, MIT |readable-stream → Node.js contributors, MIT |undici → Matteo Collina+contributors, MIT |gjs → GNOME contributors, MIT/LGPLv2+ |headless-gl → Mikola Lysenko, BSD-2-Clause |webgl → Khronos Group, MIT |three → three.js authors, MIT |libepoxy → Intel, MIT |node-gst-webrtc → Ratchanan Srirattanamet, ISC |node-datachannel → Murat Doğan, MPL 2.0 |libdatachannel → Paul-Louis Ageneau, MPL 2.0 |webkit → WebKit contributors, LGPLv2 / BSD-2-Clause |epiphany → GNOME contributors, GPLv3 |webrtc-samples → WebRTC authors, BSD-3-Clause |node-canvas → Automattic, MIT |llrt → Amazon, Apache 2.0 |happy-dom → David Ortner, MIT |jsdom → Elijah Insua, MIT |wpt → web-platform-tests contributors, 3-Clause BSD |ungap-structured-clone → Andrea Giammarchi, ISC |ws → WebSocket/IO contributors, MIT |socket.io → Automattic, MIT |streamx → Mathias Buus, MIT |webtorrent,webtorrent-desktop → WebTorrent LLC, MIT |excalibur → Excalibur.js authors, BSD-2-Clause |excalibur-tiled → Excalibur.js authors, BSD-2-Clause |peachy → vixalien, MIT |map-editor → PixelRPG, MIT |gamepad-mirror → vendillah, GPLv3 |showtime → GNOME contributors, GPLv3 |adwaita-web → mclellac, MIT |libadwaita → GNOME contributors, LGPLv2.1+ |adwaita-fonts → Inter/Iosevka/GNOME, SIL OFL 1.1 |adwaita-icon-theme → GNOME contributors, CC0-1.0 / LGPLv3 |app-mockups,app-icon-requests → GNOME contributors, CC-BY-SA |node-fetch → MIT |event-target-shim → Toru Nagashima, MIT |gjs-require → Andrea Giammarchi, ISC |ts-for-gir → ts-for-gir contributors / gjsify, Apache 2.0 |path-browserify → James Halliday + browserify contributors, MIT |process → Roman Shtylman, MIT |stream-browserify → James Halliday + browserify contributors, MIT |buffer-browserify → Feross Aboukhadijeh + contributors, MIT |pako → Vitaly Puzrin + Andrey Tupitsin, MIT AND Zlib |browserify-zlib → Devon Govett + Node.js contributors, MIT |memfs → streamich (Vadim Dalecky), Apache-2.0 |wa-sqlite → Roy Hashimoto, MIT |node-stdlib-browser → Ivan Nikolić + contributors, MIT
+|node,node-test → Node.js contributors, MIT |deno → 2018-2026 Deno authors, MIT |bun → Oven, MIT |quickjs → Bellard+Gordon, MIT |workerd → Cloudflare, Apache 2.0 |edgejs → Wasmer, MIT |crypto-browserify,browserify-cipher,create-hash,create-hmac,randombytes,randomfill → crypto-browserify contributors, MIT |browserify-sign,diffie-hellman,public-encrypt → Calvin Metcalf, ISC/MIT |create-ecdh → createECDH contributors, MIT |hash-base → Kirill Fomichev, MIT |pbkdf2 → Daniel Cousens, MIT |readable-stream → Node.js contributors, MIT |undici → Matteo Collina+contributors, MIT |gjs → GNOME contributors, MIT/LGPLv2+ |headless-gl → Mikola Lysenko, BSD-2-Clause |webgl → Khronos Group, MIT |three → three.js authors, MIT |libepoxy → Intel, MIT |node-gst-webrtc → Ratchanan Srirattanamet, ISC |node-datachannel → Murat Doğan, MPL 2.0 |libdatachannel → Paul-Louis Ageneau, MPL 2.0 |webkit → WebKit contributors, LGPLv2 / BSD-2-Clause |epiphany → GNOME contributors, GPLv3 |webrtc-samples → WebRTC authors, BSD-3-Clause |node-canvas → Automattic, MIT |llrt → Amazon, Apache 2.0 |happy-dom → David Ortner, MIT |jsdom → Elijah Insua, MIT |wpt → web-platform-tests contributors, 3-Clause BSD |ungap-structured-clone → Andrea Giammarchi, ISC |ws → WebSocket/IO contributors, MIT |socket.io → Automattic, MIT |streamx → Mathias Buus, MIT |webtorrent,webtorrent-desktop → WebTorrent LLC, MIT |excalibur → Excalibur.js authors, BSD-2-Clause |excalibur-tiled → Excalibur.js authors, BSD-2-Clause |peachy → vixalien, MIT |map-editor → PixelRPG, MIT |gamepad-mirror → vendillah, GPLv3 |showtime → GNOME contributors, GPLv3 |adwaita-web → mclellac, MIT |libadwaita → GNOME contributors, LGPLv2.1+ |adwaita-fonts → Inter/Iosevka/GNOME, SIL OFL 1.1 |adwaita-icon-theme → GNOME contributors, CC0-1.0 / LGPLv3 |app-mockups,app-icon-requests → GNOME contributors, CC-BY-SA |node-fetch → MIT |event-target-shim → Toru Nagashima, MIT |gjs-require → Andrea Giammarchi, ISC |ts-for-gir → ts-for-gir contributors / gjsify, Apache 2.0 |path-browserify → James Halliday + browserify contributors, MIT |process → Roman Shtylman, MIT |stream-browserify → James Halliday + browserify contributors, MIT |buffer-browserify → Feross Aboukhadijeh + contributors, MIT |pako → Vitaly Puzrin + Andrey Tupitsin, MIT AND Zlib |browserify-zlib → Devon Govett + Node.js contributors, MIT |memfs → streamich (Vadim Dalecky), Apache-2.0 |wa-sqlite → Roy Hashimoto, MIT |node-stdlib-browser → Ivan Nikolić + contributors, MIT |nativescript,nativescript-android,nativescript-ios → NativeScript contributors / Telerik / Progress / OpenJS Foundation, Apache 2.0 |nativescript-napi → NativeScript contributors, MIT |nativescript-nodeify → Eddy Verbruggen, MIT
 
 ## STATUS.md & CHANGELOG.md Maintenance
 
@@ -770,6 +798,26 @@ GJS = primary target, NON-NEGOTIABLE. But many `@gjsify/*` packages are pure TS 
 **Canonical exemplars** (mirror their `package.json` / `src/test.{mts,browser.mts}` layout when adding a new cross-runtime package): `@gjsify/abort-controller`, `@gjsify/dom-events`, `@gjsify/dom-exception` — all three declare `{gjs:"polyfill",node:"polyfill",browser:"native"}` and validate on GJS + Node + Browser via per-target `build:test:{gjs,node,browser}` scripts.
 
 **Non-goals:** turning gjsify into a runtime; replacing Node/browser-native APIs where they exist; spec conformance beyond what a polyfill needs to behave correctly; forking / maintaining `refs/node-gtk` (it's reference, not a target); making GJS-bound packages cross-runtime by refactoring (only NEW pure-TS packages get the treatment from day one).
+
+### Cross-Runtime Mobile (NativeScript) — 4. Runtime-Slot
+
+NativeScript ist als 4. Runtime-Slot eingeführt (Welle 4-T). V8 (ES2024) auf iOS + Android via metadata-driven Native-Bridge — konzeptionell analog zu GJS↔GNOME, nur mit `java.io.File`/`NSFileManager` statt `imports.gi.Gio.File`.
+
+|Triplet → Quadruplet: `{gjs, node, browser, nativescript}` in `package.json#gjsify.runtimes`
+|Slot-Vokabular gleich wie bei den anderen Targets (`polyfill`/`native`/`partial`/`none`); `native` Slot redirected zu `@gjsify/<X>/globals` re-export wo vorhanden
+|Optional: `package.json#gjsify.nativescriptPlatforms: ['ios','android']` (default beide) — erlaubt Capability-Deklaration auf Plattform-Subset-Niveau ohne den Slot zu doppeln. iOS/Android werden NICHT in separate Axes gesplittet (wir orientieren uns daran wie NS selbst es macht — ein `@nativescript/core` mit interner Plattform-Verzweigung). Revisitable: wenn iOS/Android-Divergenz beim Implementieren überstrapaziert wird, kann das Quintuplet später kommen — `VALID_TARGETS` in `runtime-aliases.mjs` ist ein 1-Line-Change
+|Native-Bridge-Identifier (`java.*`, `android.*`, `androidx.*`, `kotlin.*`, `NS*`, `UI*`, `CG*`, `NSObject`) werden NICHT externalized + NICHT aliasiert — der NS-Runtime macht sie als globale Identifier verfügbar (wie GJS' `imports.gi.*`)
+|Build: `gjsify build --app nativescript src/foo.ts --outfile dist/foo.ns.mjs` → ESM-Bundle, esnext target, codeSplitting:false. NS-Konsumer pipen das durch `@nativescript/webpack` oder `@nativescript/vite` als Entry-Datei
+|Vite-Plugin-Track: `gjsifyNativescript()` Preset aus `@gjsify/vite-plugin-gjsify` (Schwesterstück zu `gjsifyBrowser()`) für NS 9.0+ Vite-Builds. Konsumer-Pattern:
+```ts
+import nativescript from '@nativescript/vite';
+import { gjsifyNativescript } from '@gjsify/vite-plugin-gjsify';
+export default defineConfig({ plugins: [nativescript(), ...gjsifyNativescript()] });
+```
+|Audit: `scripts/audit-runtimes.mjs` ist quadruplet-aware. `nativescript` Slot ist OPTIONAL für bestehende Packages (Foundation = ergänzt den Slot-Mechanismus, per-package Backfill ist Welle 5). Wenn ein Package `nativescript` nicht deklariert, wird der Drift-Check für diesen Slot übersprungen
+|Reference-Sources: 5 NativeScript-Submodules unter `refs/nativescript*` (siehe `## References — refs/` → `### Mobile (NativeScript)`)
+
+**Universelle Core-Packages (Konvention, kein Pflicht):** Wenn ein `@gjsify/X` auf ≥3 Runtimes mit gemeinsamer pure-TS-Logik läuft, kann es in `@gjsify/X-core` (platform-agnostische Logik) + dünne Per-Platform-Adapter (`@gjsify/X`) extrahiert werden. Pro Welle/Agent zu entscheiden — kein automatisches Refactoring. Beispiel-Kandidaten: `@gjsify/fs-core` (POSIX-shape interface, alle Platform-Bridges importieren), `@gjsify/path-core` (pure POSIX/win32 logic).
 
 ### Sixth axis — bundled toolchains (Node-free build chain)
 

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-pkg-types",
-    "description": "Integration tests: pkg-types and get-tsconfig on GJS and Node. Validates @gjsify/fs (readFile, JSON path), @gjsify/path (resolve, dirname, join, relative), and JSON parsing — exercised via the package.json/tsconfig.json reading helpers used by @gjsify/cli at runtime.",
+    "description": "Integration tests: pkg-types and get-tsconfig on GJS and Node. Validates @gjsify/fs (readFile, JSON path), @gjsify/path (resolve, dirname, join, relative), and JSON parsing \u2014 exercised via the package.json/tsconfig.json reading helpers used by @gjsify/cli at runtime.",
     "type": "module",
     "private": true,
     "engines": {
@@ -20,7 +20,7 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.1",
+        "@girs/gjs": "4.0.4",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-chokidar",
-    "description": "Integration tests: chokidar on GJS and Node. Validates @gjsify/fs's FSWatcher (fs.watch) + StatWatcher (fs.watchFile) end-to-end — the file-watching surface every TypeScript-aware dev tool (Vite, Rolldown, esbuild --watch, tsc --watch) depends on.",
+    "description": "Integration tests: chokidar on GJS and Node. Validates @gjsify/fs's FSWatcher (fs.watch) + StatWatcher (fs.watchFile) end-to-end \u2014 the file-watching surface every TypeScript-aware dev tool (Vite, Rolldown, esbuild --watch, tsc --watch) depends on.",
     "type": "module",
     "private": true,
     "engines": {
@@ -20,7 +20,7 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.1",
+        "@girs/gjs": "4.0.4",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",

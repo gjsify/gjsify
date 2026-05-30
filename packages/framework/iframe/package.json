@@ -33,10 +33,11 @@
         "dom"
     ],
     "dependencies": {
-        "@girs/gjs": "4.0.1",
-        "@girs/gtk-4.0": "4.23.0-4.0.1",
-        "@girs/javascriptcore-6.0": "2.52.1-4.0.1",
-        "@girs/webkit-6.0": "2.52.1-4.0.1",
+        "@girs/gdkpixbuf-2.0": "2.0.0-4.0.4",
+        "@girs/gjs": "4.0.4",
+        "@girs/gtk-4.0": "4.23.0-4.0.4",
+        "@girs/javascriptcore-6.0": "2.52.1-4.0.4",
+        "@girs/webkit-6.0": "2.52.1-4.0.4",
         "@gjsify/dom-elements": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/message-channel": "workspace:^"
@@ -53,5 +54,15 @@
             "node": "none",
             "browser": "none"
         }
-    }
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/framework/iframe"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/iframe#readme"
 }

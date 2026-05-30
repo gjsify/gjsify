@@ -38,7 +38,7 @@
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
-        "sass": "^1.99.0",
+        "sass": "^1.100.0",
         "typescript": "^5.9.3"
     },
     "gjsify": {
@@ -47,5 +47,15 @@
             "node": "none",
             "browser": "polyfill"
         }
-    }
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/web/adwaita-web"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web#readme"
 }

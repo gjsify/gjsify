@@ -26,7 +26,7 @@ import { discoverWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { buildInstallCommand, detectPackageManager, runMinimalChecks } from '../utils/check-system-deps.js';
 import { detectNativePackages } from '../utils/detect-native-packages.js';
-import { installPackages } from '../utils/install-backend.js';
+import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
 import { binDirOnPath, defaultGlobalLayout, linkGlobalBins, specToPackageName } from '../utils/install-global.js';
 import {
     addDependencyEntry,
@@ -46,6 +46,8 @@ interface InstallOptions {
     'save-optional'?: boolean;
     immutable?: boolean;
     verbose: boolean;
+    quiet?: boolean;
+    progress?: boolean;
     backend?: 'native' | 'npm';
     timeout: number;
 }
@@ -89,6 +91,17 @@ export const installCommand: Command<unknown, InstallOptions> = {
                 description: 'Verbose install logging.',
                 type: 'boolean',
                 default: false,
+            })
+            .option('quiet', {
+                description: 'Silence the progress bar.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('progress', {
+                description:
+                    'Show a TTY-aware progress bar for resolve / download / extract phases. Auto-enabled when stderr is a TTY (override with --no-progress). Implicitly off under --verbose (per-package log lines replace the bar) or --quiet.',
+                type: 'boolean',
+                default: true,
             })
             .option('backend', {
                 description:
@@ -281,6 +294,12 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
     }
 
     mkdirSync(cwd, { recursive: true });
+    // Progress bar is auto-enabled when stderr is a TTY (and `--verbose` /
+    // `--quiet` / `--no-progress` aren't set). When piped to a log file the
+    // reporter falls back to one line per phase begin/end.
+    const progress = makeProgressReporter({
+        enabled: !args.verbose && !args.quiet && args.progress !== false,
+    });
     const result = await installPackages({
         prefix: cwd,
         specs,
@@ -290,6 +309,7 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
         lockfile: !args.immutable,
         frozen: args.immutable,
         signal,
+        progress,
     });
 
     // Update package.json only when the user passed explicit packages
@@ -490,6 +510,9 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
     }
 
     if (externalSpecs.size > 0) {
+        const progress = makeProgressReporter({
+            enabled: !args.verbose && !args.quiet && args.progress !== false,
+        });
         await installPackages({
             prefix: cwd,
             specs: [...externalSpecs],
@@ -498,6 +521,7 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
             frozen: args.immutable,
             overrides,
             signal,
+            progress,
         });
     } else if (args.verbose) {
         console.log('gjsify install: no external deps to fetch');
@@ -527,33 +551,61 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
         });
     }
 
-    for (const link of symlinks) {
-        const target = byName.get(link.fromWorkspaceName);
-        if (!target) continue;
-        const linkPath = join(target.location, 'node_modules', link.depName);
-        mkdirSync(dirname(linkPath), { recursive: true });
-        // Remove any prior entry — regular dir, broken symlink, file, or
-        // a normal symlink left over from a previous install. Using
-        // `{ recursive: true, force: true }` handles every shape in one
-        // call: `rmSync` no-ops on missing paths under `force: true`, and
-        // `recursive: true` covers the directory case. Avoids the EEXIST
-        // race a previous lstat-then-branch version hit when the stat's
-        // type-discrimination missed an edge case (e.g. broken symlink
-        // whose `isSymbolicLink()` returned a non-truthy value through
-        // Gio's NOFOLLOW path, leaving a leftover entry that
-        // `symlinkSync` would then refuse to overwrite).
-        try {
-            rmSync(linkPath, { recursive: true, force: true });
-        } catch {
-            /* unexpected — Gio failure on a path we just lstat'd to
-                     decide we wanted to remove. The subsequent symlinkSync
-                     will surface the real reason if there is one. */
-        }
-        // Relative symlink so the repo is portable across checkout paths.
-        const relTarget = relative(dirname(linkPath), link.targetLocation);
-        symlinkSync(relTarget, linkPath);
-    }
+    // Workspace symlink wiring — pre-dedup the parent-dir mkdirs (every
+    // symlink for the same workspace shares a single `node_modules` parent),
+    // then run the per-link rm + symlink steps with bounded concurrency.
+    // Pure sync loops here used to dominate the tail of large installs
+    // (~793 symlinks × ~10ms each for mkdir+rm+symlink = ~24s of serial
+    // syscalls). With async + a 32-wide pool the same set lands in 1-2s.
     if (symlinks.length > 0) {
+        const fsp = await import('node:fs/promises');
+        const parentDirs = new Set<string>();
+        const plans: Array<{ linkPath: string; relTarget: string }> = [];
+        for (const link of symlinks) {
+            const target = byName.get(link.fromWorkspaceName);
+            if (!target) continue;
+            const linkPath = join(target.location, 'node_modules', link.depName);
+            parentDirs.add(dirname(linkPath));
+            const relTarget = relative(dirname(linkPath), link.targetLocation);
+            plans.push({ linkPath, relTarget });
+        }
+        // Phase 1: one mkdir per unique parent (max ~213 instead of ~793).
+        await Promise.all(
+            [...parentDirs].map((dir) => fsp.mkdir(dir, { recursive: true })),
+        );
+        // Phase 2: per-link rm + symlink, pooled. A semaphore-style cursor
+        // keeps the concurrent in-flight count bounded so we don't blow up
+        // the file-descriptor table on huge monorepos.
+        const SYMLINK_CONCURRENCY = 32;
+        let cursor = 0;
+        const workers: Promise<void>[] = [];
+        const wireOne = async (linkPath: string, relTarget: string) => {
+            // Remove any prior entry — regular dir, broken symlink, file, or
+            // a normal symlink left over from a previous install.
+            // `{ recursive: true, force: true }` handles every shape (rm
+            // no-ops on missing paths under force; recursive covers dirs).
+            try {
+                await fsp.rm(linkPath, { recursive: true, force: true });
+            } catch {
+                /* unexpected; symlink call below will surface the real
+                   cause if it persists. */
+            }
+            await fsp.symlink(relTarget, linkPath);
+        };
+        for (let i = 0; i < Math.min(SYMLINK_CONCURRENCY, plans.length); i++) {
+            workers.push(
+                (async () => {
+                    while (true) {
+                        const idx = cursor++;
+                        if (idx >= plans.length) return;
+                        const p = plans[idx];
+                        if (!p) return;
+                        await wireOne(p.linkPath, p.relTarget);
+                    }
+                })(),
+            );
+        }
+        await Promise.all(workers);
         console.log(`gjsify install: wired ${symlinks.length} workspace symlink(s)`);
     }
 

@@ -54,14 +54,24 @@
         "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=./prebuilds/linux-x86_64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifyTls-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true"
     },
     "dependencies": {
-        "@girs/glib-2.0": "2.88.0-4.0.1",
-        "@girs/gobject-2.0": "2.88.0-4.0.1"
+        "@girs/glib-2.0": "2.88.0-4.0.4",
+        "@girs/gobject-2.0": "2.88.0-4.0.4"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@ts-for-gir/cli": "^4.0.0-rc.15",
+        "@ts-for-gir/cli": "^4.0.4",
         "@types/node": "^25.9.1",
         "typescript": "^5.9.3"
-    }
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/node/tls-native"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/tls-native#readme"
 }

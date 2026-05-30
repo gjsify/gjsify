@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-worker-stress",
-    "description": "Integration tests: worker_threads stress workload — exercises @gjsify/worker_threads transferList, SAB pass-through (Node only), high-volume MessageChannel throughput.",
+    "description": "Integration tests: worker_threads stress workload \u2014 exercises @gjsify/worker_threads transferList, SAB pass-through (Node only), high-volume MessageChannel throughput.",
     "type": "module",
     "private": true,
     "engines": {
@@ -17,7 +17,7 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.1",
+        "@girs/gjs": "4.0.4",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",

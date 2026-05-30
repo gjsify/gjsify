@@ -88,12 +88,12 @@
     "license": "MIT",
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
-        "@release-it/bumper": "^7.0.5",
-        "@release-it/conventional-changelog": "^11.0.0",
+        "@release-it/bumper": "^7.0.6",
+        "@release-it/conventional-changelog": "^11.0.1",
         "conventional-changelog-conventionalcommits": "^9.3.1",
-        "oxfmt": "^0.51.0",
-        "oxlint": "^1.66.0",
-        "release-it": "^20.0.1",
+        "oxfmt": "^0.52.0",
+        "oxlint": "^1.67.0",
+        "release-it": "^20.2.0",
         "typescript": "^5.9.3"
     },
     "resolutions": {

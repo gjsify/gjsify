@@ -30,8 +30,8 @@
     "@gjsify/webrtc": "workspace:^"
   },
   "devDependencies": {
-    "@girs/gjs": "4.0.1",
-    "@girs/glib-2.0": "2.88.0-4.0.1",
+    "@girs/gjs": "4.0.4",
+    "@girs/glib-2.0": "2.88.0-4.0.4",
     "@gjsify/cli": "workspace:^",
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/runtime": "workspace:^",
@@ -40,5 +40,14 @@
     "typescript": "^5.9.3"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gjsify/gjsify.git",
+    "directory": "showcases/dom/webrtc-loopback"
+  },
+  "bugs": {
+    "url": "https://github.com/gjsify/gjsify/issues"
+  },
+  "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/webrtc-loopback#readme"
 }

@@ -57,7 +57,7 @@
     },
     "license": "LGPL-3.0-or-later AND CC-BY-SA-3.0",
     "devDependencies": {
-        "tsx": "^4.21.0",
+        "tsx": "^4.22.3",
         "typescript": "^5.9.3"
     },
     "gjsify": {
@@ -66,5 +66,14 @@
             "node": "none",
             "browser": "polyfill"
         }
-    }
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/web/adwaita-icons"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-icons#readme"
 }

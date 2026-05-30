@@ -53,7 +53,7 @@
         "@gjsify/rolldown-plugin-deepkit": "workspace:^",
         "@gjsify/rolldown-plugin-pnp": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^",
-        "@rollup/pluginutils": "^5.3.0",
+        "@rollup/pluginutils": "^5.4.0",
         "acorn": "^8.16.0",
         "acorn-walk": "^8.3.5",
         "fast-glob": "^3.3.3",
@@ -61,7 +61,7 @@
     },
     "peerDependencies": {
         "@gjsify/lightningcss-native": "workspace:^",
-        "rolldown": "^1.0.0"
+        "rolldown": "^1.0.3"
     },
     "peerDependenciesMeta": {
         "@gjsify/lightningcss-native": {
@@ -73,7 +73,7 @@
     },
     "devDependencies": {
         "@types/node": "^25.9.1",
-        "rolldown": "^1.0.0",
+        "rolldown": "^1.0.3",
         "typescript": "^5.9.3"
     }
 }

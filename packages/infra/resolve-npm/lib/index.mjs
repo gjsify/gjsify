@@ -263,6 +263,90 @@ export const ALIASES_NODE_FOR_BROWSER = {
     'isomorphic-ws':       '@gjsify/empty',
 }
 
+/**
+ * Bare Node-builtin specifier → polyfill / empty-stub mapping for `--app
+ * nativescript` builds. Mirrors `ALIASES_NODE_FOR_BROWSER` in shape, with
+ * different per-module decisions reflecting what makes sense on a mobile-V8
+ * runtime (NativeScript on iOS + Android):
+ *
+ * - **Server-only Node built-ins → `@gjsify/empty`.** There is no listening
+ *   socket / process model on a mobile-app runtime, so `child_process`,
+ *   `cluster`, `dgram`, `dns`, `inspector`, `net`, `tls`, `tty`, `http*`
+ *   resolve to an empty stub. NativeScript apps that need network I/O use
+ *   the runtime-native `fetch` / `XMLHttpRequest` / `WebSocket`.
+ * - **Mobile-tractable Node built-ins → `@gjsify/<X>`.** `assert`,
+ *   `async_hooks`, `buffer`, `crypto`, `events`, `fs`, `os`, `path`,
+ *   `process`, `stream`, `string_decoder`, `url`, `util`, `querystring`
+ *   route to their gjsify polyfills. The polyfills themselves may declare
+ *   `runtimes.nativescript = "polyfill" | "partial" | "none"`; the
+ *   triplet-driven `getDerivedAliasesSync('nativescript')` second pass
+ *   reads the declaration and either keeps the resolution as-is (polyfill /
+ *   partial) or redirects to `/globals` (native) or `@gjsify/empty` (none).
+ * - **`ws` / `isomorphic-ws` → `@gjsify/empty`.** NS apps use `WebSocket`
+ *   from the global runtime, not the `ws` package.
+ *
+ * Entries here are PROVISIONAL — per-pillar Welle-5 PRs will refine them as
+ * each `@gjsify/<X>` package lands an explicit `nativescript` slot.
+ */
+export const ALIASES_NODE_FOR_NATIVESCRIPT = {
+    // Server-only Node built-ins → empty stub
+    'child_process':       '@gjsify/empty',
+    'cluster':             '@gjsify/empty',
+    'dgram':               '@gjsify/empty',
+    'dns':                 '@gjsify/empty',
+    'dns/promises':        '@gjsify/empty',
+    'inspector':           '@gjsify/empty',
+    'net':                 '@gjsify/empty',
+    'tls':                 '@gjsify/empty',
+    'tty':                 '@gjsify/empty',
+    'http':                '@gjsify/empty',
+    'https':               '@gjsify/empty',
+    'http2':               '@gjsify/empty',
+    'readline':            '@gjsify/empty',
+    'repl':                '@gjsify/empty',
+    'v8':                  '@gjsify/empty',
+    'vm':                  '@gjsify/empty',
+    'worker_threads':      '@gjsify/empty',
+    'perf_hooks':          '@gjsify/empty',
+    'diagnostics_channel': '@gjsify/empty',
+    'domain':              '@gjsify/empty',
+    'sqlite':              '@gjsify/empty',
+    'sys':                 '@gjsify/empty',
+    'zlib':                '@gjsify/empty',
+    'module':              '@gjsify/empty',
+
+    // Mobile-tractable Node built-ins → @gjsify/<X>
+    'assert':              '@gjsify/assert',
+    'assert/strict':       '@gjsify/assert',
+    'async_hooks':         '@gjsify/async_hooks',
+    'buffer':              '@gjsify/buffer',
+    'crypto':              '@gjsify/crypto',
+    'events':              '@gjsify/events',
+    'fs':                  '@gjsify/fs',
+    'fs/promises':         '@gjsify/fs/promises',
+    'os':                  '@gjsify/os',
+    'path':                '@gjsify/path',
+    'path/posix':          '@gjsify/path/posix',
+    'path/win32':          '@gjsify/path/win32',
+    'process':             '@gjsify/process',
+    'stream':              '@gjsify/stream',
+    'stream/promises':     '@gjsify/stream/promises',
+    'stream/web':          '@gjsify/stream/web',
+    'string_decoder':      '@gjsify/string_decoder',
+    'url':                 '@gjsify/url',
+    'util':                '@gjsify/util',
+    'util/types':          '@gjsify/util/types',
+    'querystring':         '@gjsify/querystring',
+    'console':             '@gjsify/console',
+    'timers':              '@gjsify/timers',
+    'timers/promises':     '@gjsify/timers/promises',
+
+    // Third-party
+    'node-fetch':          '@gjsify/empty',        // NS has native fetch
+    'ws':                  '@gjsify/empty',        // NS has its own WebSocket
+    'isomorphic-ws':       '@gjsify/empty',
+}
+
 /** Record of Web modules and his replacement for Gjs */
 export const ALIASES_WEB_FOR_GJS = {
     // Bare specifiers (named imports, pure — no side-effects after Stage 2)

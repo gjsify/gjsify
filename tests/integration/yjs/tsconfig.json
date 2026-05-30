@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/y-text.spec.ts",
+        "src/y-array.spec.ts",
+        "src/y-map.spec.ts",
+        "src/y-xml.spec.ts",
+        "src/doc.spec.ts",
+        "src/updates-sync.spec.ts",
+        "src/undo-manager.spec.ts",
+        "src/awareness.spec.ts"
+    ]
+}

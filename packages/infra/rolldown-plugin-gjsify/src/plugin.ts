@@ -13,7 +13,7 @@
 
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 import type { PluginOptions } from './types/plugin-options.js';
-import { setupForGjs, setupForNode, setupForBrowser } from './app/index.js';
+import { setupForGjs, setupForNode, setupForBrowser, setupForNativescript } from './app/index.js';
 import { setupLib } from './library/index.js';
 
 export interface GjsifyConfig {
@@ -82,6 +82,14 @@ export const gjsifyPlugin = async (
             });
         case 'browser':
             return await setupForBrowser({
+                input: input.input,
+                output: input.output,
+                userExternal: input.userExternal,
+                userAliases: input.userAliases,
+                pluginOptions,
+            });
+        case 'nativescript':
+            return await setupForNativescript({
                 input: input.input,
                 output: input.output,
                 userExternal: input.userExternal,

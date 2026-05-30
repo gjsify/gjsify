@@ -39,7 +39,7 @@
         "typescript": "^5.9.3"
     },
     "dependencies": {
-        "@girs/glib-2.0": "2.88.0-4.0.1",
+        "@girs/glib-2.0": "2.88.0-4.0.4",
         "@gjsify/stream": "workspace:^",
         "@gjsify/terminal-native": "workspace:^"
     },
@@ -49,5 +49,15 @@
             "node": "none",
             "browser": "none"
         }
-    }
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/node/tty"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/tty#readme"
 }

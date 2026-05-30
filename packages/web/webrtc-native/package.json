@@ -46,16 +46,26 @@
         "native"
     ],
     "dependencies": {
-        "@girs/gjs": "4.0.1",
+        "@girs/gjs": "4.0.4",
         "@girs/gjsifywebrtc-0.1": "0.1.0-4.0.0-rc.5",
-        "@girs/glib-2.0": "2.88.0-4.0.1",
-        "@girs/gobject-2.0": "2.88.0-4.0.1",
-        "@girs/gst-1.0": "1.28.1-4.0.1",
-        "@girs/gstwebrtc-1.0": "1.0.0-4.0.1"
+        "@girs/glib-2.0": "2.88.0-4.0.4",
+        "@girs/gobject-2.0": "2.88.0-4.0.4",
+        "@girs/gst-1.0": "1.28.1-4.0.4",
+        "@girs/gstwebrtc-1.0": "1.0.0-4.0.4"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@types/node": "^25.9.1",
         "typescript": "^5.9.3"
-    }
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/web/webrtc-native"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/webrtc-native#readme"
 }

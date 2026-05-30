@@ -532,6 +532,40 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
     return null;
 }
 
+/**
+ * Derive a default `nativescript` slot from an already-suggested
+ * {gjs,node,browser} triplet + the source-tree signals. Foundation-time
+ * heuristic; per-package Welle-5 PRs override with explicit declarations.
+ *
+ * Rules:
+ * - GJS-bound (gi://, @girs/* value-import, imports.X) → 'none'.
+ *   The package can't run on NS' V8 because it depends on GObject Introspection.
+ * - Browser-native Web APIs that NS V8 also exposes (fetch, URL, WebSocket,
+ *   crypto, etc.) → 'native'. Routed via /globals re-export on `--app nativescript`.
+ * - Pure TS portable (slot=polyfill on >1 runtime) → 'polyfill'.
+ *   Should run on NS V8 without modification; per-package Welle 5 confirms.
+ * - DOM / framework-gjs → 'none'. NS has its own UI system; no DOM.
+ * - Server-only Node-API (cluster, inspector, etc.) → 'none'.
+ * - Fallback → 'none' (conservative default; consumers explicitly opt in).
+ */
+function deriveNativescriptSlot(axis, suggested, signals, pkgSubpath) {
+    if (!suggested) return null;
+    // GJS-bound packages can't run on NS' V8
+    if (signals.girs_value || signals.gi_url || signals.imports_legacy) return 'none';
+    // DOM/Framework are GJS+browser specific
+    if (axis === 'dom' || axis === 'framework-gjs') return 'none';
+    // Browser-native Web APIs are typically also NS-native (NS V8 ships fetch/URL/WebSocket/crypto/…)
+    if (axis === 'web-api' && suggested.browser === 'native') return 'native';
+    // Pure-TS Node-API polyfills with portable shapes → polyfill candidate
+    if (axis === 'node-api') {
+        // Server-only modules → none
+        if (NODE_API_NO_BROWSER_SENSE.has(pkgSubpath)) return 'none';
+        // If browser slot is polyfill/partial/native, we likely have a portable shape
+        if (suggested.browser === 'polyfill' || suggested.browser === 'partial' || suggested.browser === 'native') return 'polyfill';
+    }
+    return 'none';
+}
+
 // ─── Functional probes (opt-in via `--check --strict`) ─────────────────────
 //
 // The probes statically validate that the DECLARED `gjsify.runtimes` triplet
@@ -684,6 +718,12 @@ async function buildReport() {
         const axis = classifyAxis(rel, pkgJson.name ?? '');
         const subpath = rel.split('/')[1] ?? '';
         const suggested = suggestRuntimes(axis, signals, subpath);
+        if (suggested) {
+            // Quadruplet: append the `nativescript` slot suggestion via the
+            // foundation-time heuristic (Welle 4-T). Per-package Welle-5 PRs
+            // override with explicit declarations.
+            suggested.nativescript = deriveNativescriptSlot(axis, suggested, signals, subpath);
+        }
         const declared = pkgJson.gjsify?.runtimes ?? null;
         rows.push({
             name: pkgJson.name,
@@ -768,8 +808,16 @@ function diffDeclared(rows) {
             missing.push(r);
             continue;
         }
-        const slots = ['gjs', 'node', 'browser'];
-        const mismatches = slots.filter((s) => r.declared[s] !== r.suggested[s]);
+        const slots = ['gjs', 'node', 'browser', 'nativescript'];
+        const mismatches = slots.filter((s) => {
+            // `nativescript` is a Foundation-time addition (Welle 4-T). Existing
+            // packages declared their triplet before NS was an axis; treat the
+            // 4th slot as OPTIONAL until per-package Welle-5 PRs backfill it.
+            // If the package doesn't declare `nativescript`, skip drift check
+            // on that slot (the suggestion is just a hint, not a hard target).
+            if (s === 'nativescript' && r.declared[s] === undefined) return false;
+            return r.declared[s] !== r.suggested[s];
+        });
         if (mismatches.length > 0) {
             drifted.push({ row: r, mismatches });
         }
@@ -793,7 +841,8 @@ function summarizeSignals(r) {
 }
 
 function fmtTriplet(t) {
-    return `{gjs:${t.gjs}, node:${t.node}, browser:${t.browser}}`;
+    const ns = t?.nativescript !== undefined ? `, nativescript:${t.nativescript}` : '';
+    return `{gjs:${t?.gjs}, node:${t?.node}, browser:${t?.browser}${ns}}`;
 }
 
 /** Read the declared slot for a single target on a row, defaulting to `?`. */

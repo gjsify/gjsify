@@ -27,9 +27,9 @@
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/runtime": "workspace:^",
     "@gjsify/unit": "workspace:^",
-    "@hono/node-server": "^2.0.2",
+    "@hono/node-server": "^2.0.4",
     "@types/node": "^25.9.1",
-    "hono": "^4.12.18",
+    "hono": "^4.12.23",
     "typescript": "^5.9.3"
   },
   "private": true,

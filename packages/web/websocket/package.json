@@ -48,10 +48,10 @@
         "typescript": "^5.9.3"
     },
     "dependencies": {
-        "@girs/gio-2.0": "2.88.0-4.0.1",
-        "@girs/gjs": "4.0.1",
-        "@girs/glib-2.0": "2.88.0-4.0.1",
-        "@girs/soup-3.0": "3.6.6-4.0.1",
+        "@girs/gio-2.0": "2.88.0-4.0.4",
+        "@girs/gjs": "4.0.4",
+        "@girs/glib-2.0": "2.88.0-4.0.4",
+        "@girs/soup-3.0": "3.6.6-4.0.4",
         "@gjsify/dom-events": "workspace:^"
     },
     "gjsify": {
@@ -60,5 +60,15 @@
             "node": "native",
             "browser": "native"
         }
-    }
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/web/websocket"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/websocket#readme"
 }

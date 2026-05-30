@@ -45,7 +45,7 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
                 description:
                     'Use this if you want to build an application, the platform node is usually only used for tests',
                 type: 'string',
-                choices: ['gjs', 'node', 'browser'],
+                choices: ['gjs', 'node', 'browser', 'nativescript'],
                 normalize: true,
                 default: 'gjs',
             })
