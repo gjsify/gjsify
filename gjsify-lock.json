@@ -7,7 +7,7 @@
     "oxfmt@^0.51.0",
     "oxlint@^1.66.0",
     "release-it@^20.0.1",
-    "typescript@^6.0.3",
+    "typescript@^5.9.3",
     "@girs/gio-2.0@2.88.0-4.0.1",
     "@girs/gjs@4.0.1",
     "@girs/gtk-4.0@4.23.0-4.0.1",

@@ -22,7 +22,7 @@
     "@deepkit/type": "^1.0.19",
     "@gjsify/cli": "workspace:^",
     "@types/node": "^25.9.1",
-    "typescript": "^6.0.3"
+    "typescript": "^5.9.3"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",

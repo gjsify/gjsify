@@ -2,16 +2,19 @@
 //
 // Browser builds redirect `@girs/*` and `gi://*` to an empty virtual module
 // (they appear transitively via `@gjsify/unit` and similar packages with
-// GJS-specific code paths). Standard Node.js → browser polyfill aliases
-// for `process` and `assert` keep `@gjsify/unit`'s top-level imports
-// resolvable in a browser bundle.
+// GJS-specific code paths). Bare Node specifiers + their `node:*` prefix
+// variants are routed to `@gjsify/<X>` via the curated
+// `ALIASES_NODE_FOR_BROWSER` table — the dynamic per-runtimes-triplet
+// resolver (`getDerivedAliasesSync`) finishes the routing in a second pass
+// (`@gjsify/<X>` → `@gjsify/<X>/globals` / `@gjsify/empty` depending on the
+// slot declaration).
 
 import { aliasPlugin } from '../plugins/alias.js';
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
-import { getDerivedAliasesSync } from '@gjsify/resolve-npm';
+import { ALIASES_NODE_FOR_BROWSER, getDerivedAliasesSync } from '@gjsify/resolve-npm';
 
 import type { PluginOptions } from '../types/plugin-options.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
@@ -38,24 +41,36 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
     const exclude = input.pluginOptions.exclude ?? [];
     const entryPoints = await globToEntryPoints(input.input, exclude);
 
-    // `@gjsify/unit` has `await import('process')` inside a try-catch that
-    // is unreachable in browser (typeof document check comes first), but
-    // Rolldown still resolves it statically. Map to `@gjsify/empty` so the
-    // build succeeds. `assert` → `@gjsify/assert` because `@gjsify/unit`
-    // imports `node:assert` at the top level.
-    const browserPolyfillAliases: Record<string, string> = {
-        process: '@gjsify/empty',
-        'node:process': '@gjsify/empty',
-        assert: '@gjsify/assert',
-        'node:assert': '@gjsify/assert',
-    };
+    // Bare Node-builtin + `node:*` prefix aliases — both forms route to the
+    // same `@gjsify/<X>` target. Generated deterministically from
+    // `ALIASES_NODE_FOR_BROWSER` so a single source-of-truth in
+    // `@gjsify/resolve-npm` drives every browser-app build (no per-target
+    // hand-curation drift). The `process` entry here flips today's
+    // accidental `@gjsify/empty` to the polyfill (`@gjsify/process`) —
+    // `@gjsify/unit`'s `await import('process')` is unreachable in browser
+    // (typeof document check comes first), but Rolldown still resolves it
+    // statically; the polyfill is the more honest target.
+    const nodePrefixAliases: Record<string, string> = {};
+    for (const [bare, target] of Object.entries(ALIASES_NODE_FOR_BROWSER)) {
+        nodePrefixAliases[bare] = target;
+        nodePrefixAliases[`node:${bare}`] = target;
+    }
+
+    // Legacy overrides — kept as a separate Record so future per-target
+    // shims have an explicit landing pad. Today: empty. The `process` /
+    // `assert` entries that lived here historically have moved into
+    // `ALIASES_NODE_FOR_BROWSER` (assert → `@gjsify/assert`, process →
+    // `@gjsify/process`) — pulling them out of this layer means the new
+    // tabular values are not silently shadowed by a stale `@gjsify/empty`.
+    const browserPolyfillAliases: Record<string, string> = {};
 
     // Derived `@gjsify/<X>` aliases driven by per-package `gjsify.runtimes`
-    // triplet declarations. Merge order: derived (lowest priority) → hardcoded
-    // browser polyfills → user. Hardcoded entries WIN for the curated specifier
-    // set, preserving 100% backwards-compatible behavior.
+    // triplet declarations. Merge order: derived (lowest priority) → curated
+    // bare/`node:*` Node-builtin map → legacy per-target overrides → user.
+    // Higher tiers WIN on conflict — the user always retains final say.
     const aliasMap: Record<string, string> = {
         ...getDerivedAliasesSync('browser'),
+        ...nodePrefixAliases,
         ...browserPolyfillAliases,
         ...input.pluginOptions.aliases,
         ...input.userAliases,
