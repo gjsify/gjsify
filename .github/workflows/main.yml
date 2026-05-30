@@ -256,7 +256,7 @@ jobs:
             if [ \"\$GLOBAL\" = \"true\" ] || [ -z \"\$GLOBAL\" ]; then
               gjsify run test
             else
-              gjsify foreach \$INCLUDE_ARGS --exclude \"@gjsify/integration-*\" test
+              gjsify foreach test \$INCLUDE_ARGS --exclude \"@gjsify/integration-*\"
             fi
           '"
 
@@ -290,4 +290,4 @@ jobs:
       # paths. The classifier surfaces this as `run-integration=true`.
       - name: Integration tests
         if: ${{ needs.changes.outputs.run-integration == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' }}
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify foreach --include "@gjsify/integration-*" test'
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify foreach test --include "@gjsify/integration-*"'
