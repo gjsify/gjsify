@@ -33,6 +33,7 @@
         "dom"
     ],
     "dependencies": {
+        "@girs/gdkpixbuf-2.0": "2.0.0-4.0.4",
         "@girs/gjs": "4.0.4",
         "@girs/gtk-4.0": "4.23.0-4.0.4",
         "@girs/javascriptcore-6.0": "2.52.1-4.0.4",

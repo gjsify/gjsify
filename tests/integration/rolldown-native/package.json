@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-rolldown-native",
-    "description": "Integration tests for @gjsify/rolldown-native — locks in the Phase D-2.B plugin-bridge contract end-to-end. Exercises bundleWithPlugins() under GJS with the full hook surface (load/transform/resolveId/renderChunk/banner/footer/intro/outro/buildStart/End/generateBundle), the per-hook id-regex filter short-circuit (B.2), and the nested protocol for plugin-context callbacks (B.3 — this.resolve / this.warn / this.error). GJS-only because the native bridge needs the Vala/GIR typelib that only loads under SpiderMonkey + GLib.",
+    "description": "Integration tests for @gjsify/rolldown-native \u2014 locks in the Phase D-2.B plugin-bridge contract end-to-end. Exercises bundleWithPlugins() under GJS with the full hook surface (load/transform/resolveId/renderChunk/banner/footer/intro/outro/buildStart/End/generateBundle), the per-hook id-regex filter short-circuit (B.2), and the nested protocol for plugin-context callbacks (B.3 \u2014 this.resolve / this.warn / this.error). GJS-only because the native bridge needs the Vala/GIR typelib that only loads under SpiderMonkey + GLib.",
     "type": "module",
     "private": true,
     "engines": {
@@ -15,7 +15,7 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.1",
+        "@girs/gjs": "4.0.4",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/rolldown-native": "workspace:^",

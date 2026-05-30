@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-fast-glob",
-    "description": "Integration tests: fast-glob on GJS and Node. Validates @gjsify/fs (URL paths, readdir/stat/lstat, symlinks), @gjsify/path, and process.cwd() — exercised end-to-end via the glob-pattern matcher used by @gjsify/rolldown-plugin-gjsify and @gjsify/vite-plugin-gettext.",
+    "description": "Integration tests: fast-glob on GJS and Node. Validates @gjsify/fs (URL paths, readdir/stat/lstat, symlinks), @gjsify/path, and process.cwd() \u2014 exercised end-to-end via the glob-pattern matcher used by @gjsify/rolldown-plugin-gjsify and @gjsify/vite-plugin-gettext.",
     "type": "module",
     "private": true,
     "engines": {
@@ -20,7 +20,7 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.1",
+        "@girs/gjs": "4.0.4",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-cosmiconfig",
-    "description": "Integration tests: cosmiconfig on GJS and Node. Validates @gjsify/fs (read), @gjsify/path (resolve), and dynamic ESM `import()` with file:// URLs — the same code paths used by @gjsify/cli's config loader.",
+    "description": "Integration tests: cosmiconfig on GJS and Node. Validates @gjsify/fs (read), @gjsify/path (resolve), and dynamic ESM `import()` with file:// URLs \u2014 the same code paths used by @gjsify/cli's config loader.",
     "type": "module",
     "private": true,
     "engines": {
@@ -20,7 +20,7 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.1",
+        "@girs/gjs": "4.0.4",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
