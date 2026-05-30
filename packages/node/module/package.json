@@ -5,11 +5,9 @@
     "type": "module",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
-    "browser": "./lib/esm/browser.js",
     "exports": {
         ".": {
             "types": "./lib/types/index.d.ts",
-            "browser": "./lib/esm/browser.js",
             "default": "./lib/esm/index.js"
         },
         "./browser": {
