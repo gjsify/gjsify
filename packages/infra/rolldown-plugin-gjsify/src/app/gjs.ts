@@ -93,6 +93,23 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     // string specifiers stay externalised by name.
     const exactExternal = ['cairo', 'gettext', 'system', ...userExternal];
     const external = (id: string): boolean => {
+        // `@gjsify/<pkg>/register[/<feature>]` and the bare-`<pkg>/register`
+        // form MUST NEVER be externalized for `--app gjs`. These are the
+        // side-effect entry points that `--globals auto` injects to wire
+        // up `globalThis.{Buffer,fetch,…}`; GJS's native ESM loader has no
+        // node_modules walker AND does not follow `package.json#exports`
+        // maps for bare specifiers, so an externalized
+        // `import '@gjsify/buffer/register/buffer'` at runtime would throw
+        // `Module not found` even when `<pkg>/lib/esm/register/buffer.js`
+        // is on disk via the exports map.
+        //
+        // Inlining is the only safe option — the exclusion is by SHAPE
+        // (`*/register` or `*/register/*` substring), not by an explicit
+        // package list, so the invariant scales to every package added
+        // by the tree-shakeable-globals convention. See AGENTS.md
+        // §Tree-shakeable globals — /register subpath convention, and
+        // §Build — Rolldown, platform plugins for the externals policy.
+        if (isRegisterSubpath(id)) return false;
         if (id.startsWith('gi://')) return true;
         if (exactExternal.includes(id)) return true;
         return false;
@@ -343,4 +360,50 @@ function flattenAliases(map: Record<string, string>): Record<string, string> {
         if (to) out[from] = to;
     }
     return out;
+}
+
+/**
+ * Recognize the `/register` and `/register/<feature>` subpath shapes that
+ * `--globals auto` injects into the bundle as side-effect imports.
+ *
+ * Matches every shape that goes through the alias layer + Rolldown
+ * resolution chain to a `@gjsify/<pkg>/register*` target:
+ *   - bare:           `<pkg>/register`, `<pkg>/register/<feature>`
+ *   - fully qualified `@gjsify/<pkg>/register`, `@gjsify/<pkg>/register/<feature>`
+ *   - resolved disk paths under a real `node_modules/<scope>/<pkg>/lib/esm/register*`
+ *
+ * Used by the `--app gjs` externals predicate to force-inline these even
+ * when the user passes them via `bundler.external`. Exported for direct
+ * use by the regression test in `auto-globals.spec.ts`; this is the
+ * canonical contract — change-detector status. Keep in sync with the
+ * `AGENTS.md` §Tree-shakeable globals subpath convention.
+ */
+export function isRegisterSubpath(id: string): boolean {
+    // Source-shape: a bare or fully-qualified specifier ending in
+    // `/register` or `/register/<feature>`. The leading `/` rules out
+    // false positives like `register` (the bare word) or
+    // `@scope/unregister`.
+    //
+    //   ✓ `fetch/register`
+    //   ✓ `@gjsify/buffer/register`
+    //   ✓ `@gjsify/node-globals/register/buffer`
+    //   ✗ `register`        (no `/` prefix)
+    //   ✗ `@scope/unregister`  (the `/` is followed by `un`, not `register`)
+    //   ✗ `foo/register.js?query=1`  (query-suffix → treat as resolved-path,
+    //                                  caught by the second branch only when
+    //                                  the file extension is intact)
+    if (/\/register(?:\/[^?]*)?$/.test(id)) {
+        return true;
+    }
+    // Resolved disk-path shape — Rolldown sees these after the alias
+    // plugin + node_modules resolver run. Matches both ESM build output
+    // (`lib/esm/register/<feature>.js`) and any future TS-direct setup
+    // that points the export at `src/register/<feature>.ts`. Strictly
+    // requires the file extension at the end — a Rolldown synthetic-id
+    // suffix like `?query=1` therefore does NOT match (those callers
+    // expect to flow through the normal externals path).
+    if (/[/\\]register(?:[/\\][^/\\]+)?\.(?:[mc]?js|ts)$/.test(id)) {
+        return true;
+    }
+    return false;
 }
