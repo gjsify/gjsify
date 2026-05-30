@@ -104,13 +104,12 @@ async function scanSourceTree(pkgDir) {
         imports_legacy: false,
         gjs_imports_guard: false,
         has_browser_entry: false,
-        has_browser_src: existsSync(join(srcDir, 'browser.ts')) || existsSync(join(srcDir, 'browser.mts')),
-        browser_src_is_partial: false,
-        has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),
+        has_browser_polyfill: existsSync(join(srcDir, 'browser.ts')) || existsSync(join(srcDir, 'browser.mts')),
+        browser_src_is_partial: false,        has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),
         globals_mjs_browser_safe: false,
         file_count: 0,
     };
-    if (signals.has_browser_src) {
+    if (signals.has_browser_polyfill) {
         const browserSrc = existsSync(join(srcDir, 'browser.ts'))
             ? join(srcDir, 'browser.ts')
             : join(srcDir, 'browser.mts');
@@ -258,10 +257,9 @@ function suggestRuntimes(axis, signals) {
         // polyfill — the declared `partial` may be a hand-narrowed override,
         // which we accept by treating either value as "browser entry exists").
         let browserSlot = nativeSlot;
-        if (signals.has_browser_src && !signals.has_globals_mjs) {
+        if (signals.has_browser_polyfill && !signals.has_globals_mjs) {
             browserSlot = signals.browser_src_is_partial ? 'partial' : 'polyfill';
-        }
-        return { gjs: 'polyfill', node: nativeSlot, browser: browserSlot };
+        }        return { gjs: 'polyfill', node: nativeSlot, browser: browserSlot };
     }
 
     // (B) Pure-TS — portable on all three. Browser-native flag if a Web-API
