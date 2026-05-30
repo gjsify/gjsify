@@ -261,8 +261,11 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
     // -- PR #18: gjsify gresource -------------------------------------------
     it(
         'gjsify gresource compiles XML descriptor into binary bundle',
-        { skip: !hasCommand('glib-compile-resources') && 'glib-compile-resources not installed' },
         () => {
+            assert.ok(
+                hasCommand('glib-compile-resources'),
+                '`glib-compile-resources` is required (provided by the `glib2` rpm / `libglib2.0-bin` deb). The gjsify e2e suite hard-requires the GNOME platform toolchain — silent skipping was hiding real coverage gaps in CI.',
+            );
             const dataDir = join(projectDir, 'gresource-data');
             mkdirSync(dataDir, { recursive: true });
             writeFileSync(join(dataDir, 'hello.txt'), 'world\n');
@@ -315,8 +318,11 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
     // -- PR #18: gjsify gettext ---------------------------------------------
     it(
         'gjsify gettext --format mo produces a per-language locale tree',
-        { skip: !hasCommand('msgfmt') && 'msgfmt not installed' },
         () => {
+            assert.ok(
+                hasCommand('msgfmt'),
+                '`msgfmt` is required (provided by the `gettext` rpm / `gettext` deb). The gjsify e2e suite hard-requires the GNU gettext toolchain — silent skipping was hiding real coverage gaps in CI.',
+            );
             const poDir = join(projectDir, 'po');
             mkdirSync(poDir, { recursive: true });
             writeFileSync(
@@ -363,8 +369,11 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
 
     it(
         'gjsify dlx <local-path> resolves gjsify.main and runs the bundle on gjs',
-        { skip: !hasCommand('gjs') && 'gjs not installed' },
         () => {
+            assert.ok(
+                hasCommand('gjs'),
+                '`gjs` is required (provided by the `gjs` rpm / `gjs` deb). The gjsify e2e suite hard-requires gjs — silent skipping was hiding real coverage gaps in CI.',
+            );
             // Tiny standalone GJS bundle: prints a sentinel string and exits.
             // GJS-native `print()` writes to fd1 directly — `console.log()` would go
             // through GLib's logging facility (stderr-prefixed `Gjs-Console-Message`).
@@ -398,8 +407,11 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
 
     it(
         'gjsify dlx <local-path> bin auto-pick resolves a single-entry gjsify.bin',
-        { skip: !hasCommand('gjs') && 'gjs not installed' },
         () => {
+            assert.ok(
+                hasCommand('gjs'),
+                '`gjs` is required (provided by the `gjs` rpm / `gjs` deb). The gjsify e2e suite hard-requires gjs — silent skipping was hiding real coverage gaps in CI.',
+            );
             const dlxPkgDir = join(tmpDir, 'dlx-fixture-single-bin');
             mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
             writeFileSync(
@@ -430,8 +442,11 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
 
     it(
         'gjsify dlx <local-path> <bin-name> selects from multi-entry gjsify.bin',
-        { skip: !hasCommand('gjs') && 'gjs not installed' },
         () => {
+            assert.ok(
+                hasCommand('gjs'),
+                '`gjs` is required (provided by the `gjs` rpm / `gjs` deb). The gjsify e2e suite hard-requires gjs — silent skipping was hiding real coverage gaps in CI.',
+            );
             const dlxPkgDir = join(tmpDir, 'dlx-fixture-multi-bin');
             mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
             writeFileSync(
@@ -509,8 +524,11 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
 
     it(
         'gjsify dlx <local-path> falls back to package.json#main with a warning',
-        { skip: !hasCommand('gjs') && 'gjs not installed' },
         () => {
+            assert.ok(
+                hasCommand('gjs'),
+                '`gjs` is required (provided by the `gjs` rpm / `gjs` deb). The gjsify e2e suite hard-requires gjs — silent skipping was hiding real coverage gaps in CI.',
+            );
             const dlxPkgDir = join(tmpDir, 'dlx-fixture-fallback-main');
             mkdirSync(join(dlxPkgDir, 'dist'), { recursive: true });
             writeFileSync(

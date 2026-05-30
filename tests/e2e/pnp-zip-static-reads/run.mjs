@@ -120,10 +120,13 @@ describe('PnP zip-resident static reads E2E', { timeout: 10 * 60 * 1000 }, () =>
     let tarballMap;
     let projectDir;
     let fixtureTarball;
-    const skipReason = !hasCommand('yarn') ? 'yarn (>= 4) not on PATH — skipping PnP suite' : null;
-
+    // Yarn-PnP IS a stated gjsify support target — silent-skipping the PnP suite
+    // when yarn is missing was hiding real coverage gaps. Hard-require yarn.
     before(() => {
-        if (skipReason) return;
+        assert.ok(
+            hasCommand('yarn'),
+            '`yarn` is required for the PnP-zip-static-reads e2e suite (gjsify supports Yarn-PnP as a first-class consumer scenario; `tests/e2e/pnp-zip-static-reads/` validates `readFileSync(URL)` inlining against zip-resident files). Install via the system package manager or `corepack enable`.',
+        );
 
         const env = createTestEnvironment('gjsify-e2e-pnp-zip-reads-');
         tmpDir = env.tmpDir;
@@ -168,7 +171,7 @@ describe('PnP zip-resident static reads E2E', { timeout: 10 * 60 * 1000 }, () =>
     });
 
     after(() => {
-        if (!skipReason) cleanupTestEnvironment(tmpDir);
+        cleanupTestEnvironment(tmpDir);
     });
 
     function buildAndAssert(appTarget, outFile) {
@@ -222,7 +225,6 @@ describe('PnP zip-resident static reads E2E', { timeout: 10 * 60 * 1000 }, () =>
 
     it(
         'inlines static readFileSync(URL) calls from PnP zip-resident files (--app node)',
-        skipReason ? { skip: skipReason } : {},
         () => {
             const bundlePath = buildAndAssert('node', 'app.node.mjs');
 
@@ -260,8 +262,11 @@ describe('PnP zip-resident static reads E2E', { timeout: 10 * 60 * 1000 }, () =>
 
     it(
         'inlines static readFileSync(URL) calls from PnP zip-resident files (--app gjs)',
-        skipReason || !gjsRunnable() ? { skip: skipReason || 'gjs not runnable — skipping GJS bundle execution' } : {},
         () => {
+            assert.ok(
+                gjsRunnable(),
+                'gjs is required + must run a one-liner (`gjs -c \'"ok"\'`) — see the before() yarn check for context on why the PnP suite hard-requires the GNOME toolchain.',
+            );
             const bundlePath = buildAndAssert('gjs', 'app.gjs.js');
 
             // Move out of the PnP project before running under gjs.
