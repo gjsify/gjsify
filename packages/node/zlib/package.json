@@ -12,6 +12,10 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
+        },
+        "./browser": {
+            "types": "./lib/types/browser.d.ts",
+            "default": "./lib/esm/browser.js"
         }
     },
     "scripts": {
@@ -38,15 +42,16 @@
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@gjsify/stream": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.1",
-        "typescript": "^6.0.3"
+        "typescript": "^5.9.3"
     },
     "gjsify": {
         "runtimes": {
             "gjs": "polyfill",
             "node": "none",
-            "browser": "none"
+            "browser": "partial"
         }
     }
 }

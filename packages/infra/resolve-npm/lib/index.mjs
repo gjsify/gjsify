@@ -179,6 +179,90 @@ export const ALIASES_NODE_FOR_GJS = {
     'isomorphic-ws': '@gjsify/websocket',
 }
 
+/**
+ * Record of Node.js modules (built-in or 3rd-party) and their `@gjsify/<X>`
+ * replacement for `--app browser` builds. Mirrors `ALIASES_NODE_FOR_GJS` in
+ * shape — bare bridge from the NPM-specifier namespace into `@gjsify/*` so the
+ * dynamic per-runtimes-triplet resolver (`getDerivedAliasesSync`) can finish
+ * the routing in a second pass (`@gjsify/<X>` → `@gjsify/<X>/globals` or
+ * `@gjsify/empty` depending on the slot declaration).
+ *
+ * `none`-slot entries are deliberately hardcoded to `@gjsify/empty` here
+ * (e.g. `child_process`, `fs`, `net`, ...) rather than relying on the dynamic
+ * runtime layer — bare `fs` / `net` / ... do NOT start with `@gjsify/` and
+ * therefore never enter `getDerivedAliasesSync`. This table is the bridge.
+ *
+ * NOTE — UNWIRED IN THIS PR. The browser-app orchestrator
+ * (`packages/infra/rolldown-plugin-gjsify/src/app/browser.ts`) does NOT
+ * consume this map yet. PR-D (T-Plan Sektion 2b-ii + 2b-iii, Welle 3) flips
+ * `browser.ts` to spread `ALIASES_NODE_FOR_BROWSER` (+ generated `node:*`
+ * prefix-map) into its `aliasMap` UNDER `browserPolyfillAliases` and the user
+ * aliases. Decoupled here so the table is exportable / reviewable in
+ * isolation, while consumer wiring waits on the R1 wave delivering browser-
+ * baubable `@gjsify/{process,buffer,stream,...}` builds. Adopt only when the
+ * per-package browser slots are R1-validated.
+ */
+export const ALIASES_NODE_FOR_BROWSER = {
+    'assert':              '@gjsify/assert',
+    'assert/strict':       '@gjsify/assert/strict',
+    'async_hooks':         '@gjsify/async_hooks',
+    'buffer':              '@gjsify/buffer',
+    'child_process':       '@gjsify/empty',        // none-slot — browser has no process model
+    'cluster':             '@gjsify/empty',
+    'console':             '@gjsify/console',
+    'constants':           '@gjsify/constants',
+    'crypto':              '@gjsify/crypto',
+    'dgram':               '@gjsify/empty',
+    'diagnostics_channel': '@gjsify/diagnostics_channel',
+    'dns':                 '@gjsify/empty',
+    'dns/promises':        '@gjsify/empty',
+    'domain':              '@gjsify/domain',
+    'events':              '@gjsify/events',
+    'fs':                  '@gjsify/empty',        // phase 1: stub; later @gjsify/fs/browser
+    'fs/promises':         '@gjsify/empty',
+    'http':                '@gjsify/empty',        // browser fetch covers most cases
+    'http2':               '@gjsify/empty',
+    'https':               '@gjsify/empty',
+    'inspector':           '@gjsify/empty',
+    'module':              '@gjsify/empty',
+    'net':                 '@gjsify/empty',
+    'os':                  '@gjsify/os',
+    'path':                '@gjsify/path',
+    'path/posix':          '@gjsify/path/posix',
+    'path/win32':          '@gjsify/path/win32',
+    'perf_hooks':          '@gjsify/perf_hooks',
+    'process':             '@gjsify/process',      // PR-D: flips today's `@gjsify/empty`
+    'punycode':            '@gjsify/punycode',
+    'querystring':         '@gjsify/querystring',
+    'readline':            '@gjsify/empty',
+    'readline/promises':   '@gjsify/empty',
+    'repl':                '@gjsify/empty',
+    'stream':              '@gjsify/stream',
+    'stream/web':          '@gjsify/stream/web',
+    'stream/consumers':    '@gjsify/stream/consumers',
+    'stream/promises':     '@gjsify/stream/promises',
+    'string_decoder':      '@gjsify/string_decoder',
+    'sys':                 '@gjsify/sys',
+    'timers':              '@gjsify/timers',
+    'timers/promises':     '@gjsify/timers/promises',
+    'tls':                 '@gjsify/empty',
+    'tty':                 '@gjsify/empty',
+    'url':                 '@gjsify/url',
+    'util':                '@gjsify/util',
+    'util/types':          '@gjsify/util/types',
+    'v8':                  '@gjsify/empty',
+    'vm':                  '@gjsify/vm',
+    'wasi':                '@gjsify/empty',
+    'sqlite':              '@gjsify/empty',
+    'worker_threads':      '@gjsify/empty',
+    'zlib':                '@gjsify/zlib',
+
+    // Third-party
+    'node-fetch':          '@gjsify/empty',        // browser native fetch
+    'ws':                  '@gjsify/empty',        // browser native WebSocket
+    'isomorphic-ws':       '@gjsify/empty',
+}
+
 /** Record of Web modules and his replacement for Gjs */
 export const ALIASES_WEB_FOR_GJS = {
     // Bare specifiers (named imports, pure — no side-effects after Stage 2)

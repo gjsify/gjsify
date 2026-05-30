@@ -16,6 +16,30 @@
         "./promises": {
             "types": "./lib/types/promises.d.ts",
             "default": "./lib/esm/promises.js"
+        },
+        "./browser": {
+            "types": "./lib/types/browser.d.ts",
+            "default": "./lib/esm/browser.js"
+        },
+        "./browser/promises": {
+            "types": "./lib/types/browser/promises-entry.d.ts",
+            "default": "./lib/esm/browser/promises-entry.js"
+        },
+        "./browser/volume": {
+            "types": "./lib/types/browser/volume.d.ts",
+            "default": "./lib/esm/browser/volume.js"
+        },
+        "./browser/sync": {
+            "types": "./lib/types/browser/sync.d.ts",
+            "default": "./lib/esm/browser/sync.js"
+        },
+        "./browser/async": {
+            "types": "./lib/types/browser/async.d.ts",
+            "default": "./lib/esm/browser/async.js"
+        },
+        "./browser/stream": {
+            "types": "./lib/types/browser/stream.d.ts",
+            "default": "./lib/esm/browser/stream.js"
         }
     },
     "scripts": {
@@ -40,7 +64,7 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.1",
-        "typescript": "^6.0.3"
+        "typescript": "^5.9.3"
     },
     "dependencies": {
         "@girs/gio-2.0": "2.88.0-4.0.1",
@@ -55,7 +79,7 @@
         "runtimes": {
             "gjs": "polyfill",
             "node": "none",
-            "browser": "none"
+            "browser": "partial"
         }
     }
 }

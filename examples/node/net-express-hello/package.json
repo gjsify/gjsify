@@ -30,7 +30,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^25.9.1",
     "express": "^5.2.1",
-    "typescript": "^6.0.3"
+    "typescript": "^5.9.3"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
