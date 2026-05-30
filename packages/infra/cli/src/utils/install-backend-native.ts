@@ -35,7 +35,7 @@ import {
     getCachedTarball,
     isCacheHit,
     putCachedTarball,
-} from './install-tarball-cache.ts';
+} from './install-tarball-cache.js';
 
 const DEFAULT_CONCURRENCY = Number(process.env.GJSIFY_INSTALL_CONCURRENCY ?? '8') || 8;
 
