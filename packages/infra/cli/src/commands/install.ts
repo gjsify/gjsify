@@ -47,7 +47,17 @@ interface InstallOptions {
     immutable?: boolean;
     verbose: boolean;
     backend?: 'native' | 'npm';
+    timeout: number;
 }
+
+// Default 30min wall-clock budget for the full install. Big workspaces
+// (212+ sub-packages × 600+ external deps in the gjsify monorepo itself)
+// can legitimately take 10-20 min on a fresh CI install when the npm CDN
+// is slow — a 5-min default would false-positive on those legitimate
+// flows. Per-fetch timeout (30s, retried) catches the truly stuck case
+// inside this budget. Set --timeout 0 to disable the wall-clock guard
+// entirely.
+const DEFAULT_INSTALL_TIMEOUT_MS = 1_800_000;
 
 export const installCommand: Command<unknown, InstallOptions> = {
     command: 'install [packages..]',
@@ -85,6 +95,12 @@ export const installCommand: Command<unknown, InstallOptions> = {
                     'Install backend. `native` (default) routes through `@gjsify/{semver,npm-registry,tar}` — no Node/npm at runtime. `npm` shells out to `npm install` as an escape hatch for cases the native backend does not yet model (Yarn PnP repos, lifecycle scripts). Overrides `GJSIFY_INSTALL_BACKEND` if both are set.',
                 type: 'string',
                 choices: ['native', 'npm'] as const,
+            })
+            .option('timeout', {
+                description:
+                    'Overall install wall-clock timeout in ms (default 1800000 = 30 min). On timeout, all in-flight registry fetches are aborted and the install exits non-zero with a clear "install timed out — likely a registry slowdown" message. Per-request timeouts in @gjsify/npm-registry (default 30s) still apply within this budget. Set to 0 to disable the overall budget.',
+                type: 'number',
+                default: DEFAULT_INSTALL_TIMEOUT_MS,
             }),
     handler: async (args) => {
         // --immutable is incompatible with explicit `<pkg>` adds and with
@@ -131,10 +147,55 @@ export const installCommand: Command<unknown, InstallOptions> = {
             return;
         }
 
-        await projectInstallNative(args);
-        await runPostInstallChecks();
+        // Overall wall-clock budget for the install (default 5 min). On
+        // timeout we abort every in-flight registry fetch via this controller
+        // so the process exits cleanly with an actionable message instead of
+        // a silent hang. Per-request timeouts inside @gjsify/npm-registry
+        // (default 30s, retried) still apply within this budget.
+        const overallTimeoutMs = args.timeout > 0 ? args.timeout : 0;
+        const overallController = overallTimeoutMs > 0 ? new AbortController() : null;
+        const overallTimerId =
+            overallController !== null
+                ? setTimeout(() => overallController.abort(new Error('install-overall-timeout')), overallTimeoutMs)
+                : null;
+        try {
+            await projectInstallNative(args, overallController?.signal);
+            await runPostInstallChecks();
+        } catch (err) {
+            if (overallController !== null && overallController.signal.aborted && isAbortedFromOverallTimeout(err)) {
+                const secs = Math.round(overallTimeoutMs / 100) / 10;
+                console.error(
+                    `gjsify install: timed out after ${secs}s — likely a registry slowdown.\n` +
+                        `Re-run, or override with --timeout <ms> (set --timeout 0 to disable the overall budget).`,
+                );
+                process.exit(1);
+            }
+            throw err;
+        } finally {
+            if (overallTimerId !== null) clearTimeout(overallTimerId);
+        }
     },
 };
+
+/**
+ * Heuristic: was this error raised because the overall-install AbortSignal
+ * fired? The signal's `reason` is the sentinel `Error('install-overall-timeout')`
+ * we installed above; the abort surfaces either as that exact reason or as
+ * any AbortError thrown by a downstream fetch / setTimeout-on-abort path.
+ * We match permissively because intermediate layers (fetch, GJS Soup, our
+ * own delay()) re-wrap the reason in their own AbortError instances.
+ */
+function isAbortedFromOverallTimeout(err: unknown): boolean {
+    if (!err || typeof err !== 'object') return false;
+    const name = (err as { name?: unknown }).name;
+    if (name === 'AbortError') return true;
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === 'string' && message.includes('install-overall-timeout')) return true;
+    // RegistryTimeoutError surfaces the per-request budget — distinct from
+    // the overall budget but typically the symptom the overall timer reports.
+    if (name === 'RegistryTimeoutError') return true;
+    return false;
+}
 
 function isWorkspaceRoot(cwd: string): boolean {
     const pkgPath = join(cwd, 'package.json');
@@ -150,7 +211,7 @@ function depKindFromArgs(args: InstallOptions): DependencyKind {
     return 'dependencies';
 }
 
-async function projectInstallNative(args: InstallOptions): Promise<void> {
+async function projectInstallNative(args: InstallOptions, signal?: AbortSignal): Promise<void> {
     const cwd = process.cwd();
     const pkgPath = join(cwd, 'package.json');
 
@@ -191,7 +252,7 @@ async function projectInstallNative(args: InstallOptions): Promise<void> {
     // fires for the root no-args case, which is the `yarn install`
     // equivalent).
     if ((!args.packages || args.packages.length === 0) && isWorkspaceRoot(cwd)) {
-        await workspaceInstall(cwd, args);
+        await workspaceInstall(cwd, args, signal);
         return;
     }
 
@@ -228,6 +289,7 @@ async function projectInstallNative(args: InstallOptions): Promise<void> {
         // it (the whole point is byte-stability under CI).
         lockfile: !args.immutable,
         frozen: args.immutable,
+        signal,
     });
 
     // Update package.json only when the user passed explicit packages
@@ -289,7 +351,7 @@ function syncLockfileRequested(cwd: string, specs: string[]): void {
  * nested `node_modules/` for version conflicts are tracked as a follow-up
  * in STATUS.md "Open TODOs".
  */
-async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void> {
+async function workspaceInstall(cwd: string, args: InstallOptions, signal?: AbortSignal): Promise<void> {
     const workspaces = discoverWorkspaces(cwd, { includeRoot: true });
     if (workspaces.length === 0) {
         throw new Error(`gjsify install: ${cwd} has a "workspaces" field but no workspaces were discovered`);
@@ -374,6 +436,7 @@ async function workspaceInstall(cwd: string, args: InstallOptions): Promise<void
             lockfile: !args.immutable,
             frozen: args.immutable,
             overrides,
+            signal,
         });
     } else if (args.verbose) {
         console.log('gjsify install: no external deps to fetch');
