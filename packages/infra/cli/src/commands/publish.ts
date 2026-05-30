@@ -35,12 +35,13 @@
 // in-the-wild publish payloads.
 
 import type { Command } from '../types/index.js';
-import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { DEFAULT_REGISTRY, parseNpmrc, registryFor, buildHeaders, type NpmrcConfig } from '@gjsify/npm-registry';
+import { DEFAULT_REGISTRY, registryFor, buildHeaders } from '@gjsify/npm-registry';
 import { packWorkspace, type PackWorkspaceOptions } from './pack.js';
 import { getNpmTrustedToken, hasGithubOidcEnv, OidcExchangeError, OidcUnavailableError } from '../utils/npm-oidc.js';
+import { diagnose404, is404DiagnosticCandidate } from '../utils/publish-diagnose.js';
+import { loadNpmrc } from '../utils/load-npmrc.js';
 
 interface PublishOptions {
     path?: string;
@@ -441,6 +442,43 @@ export const publishCommand: Command<unknown, PublishOptions> = {
             else process.stdout.write(`= ${packed.name}@${packed.version} (already published, tolerated)\n`);
             return;
         }
+        // 404 diagnostic — token-auth only. npm returns 404 for both a
+        // dead `_authToken` and a genuinely-missing package; `/-/whoami`
+        // disambiguates. OIDC has its own clear error surfaces (handled in
+        // the OIDC catch block above) and `--otp` flows take a different
+        // 401 path, so the diagnostic only kicks in for the plain
+        // token-auth PUT signature.
+        if (res.status === 404 && authMode === 'token' && !otp) {
+            if (is404DiagnosticCandidate(text)) {
+                const diag = await diagnose404({
+                    packageName: packed.name,
+                    version: packed.version,
+                    registry: registryClean,
+                    npmrc,
+                });
+                if (diag.reason !== 'unknown') {
+                    if (args.json) {
+                        process.stdout.write(
+                            `${JSON.stringify(
+                                {
+                                    ok: false,
+                                    name: packed.name,
+                                    version: packed.version,
+                                    status: 404,
+                                    diagnostic: diag.reason,
+                                    username: diag.username,
+                                },
+                                null,
+                                2,
+                            )}\n`,
+                        );
+                    } else {
+                        process.stderr.write(`${diag.message}\n`);
+                    }
+                    process.exit(1);
+                }
+            }
+        }
         console.error(`gjsify publish: ${packed.name}@${packed.version} — ${res.status} ${res.statusText}`);
         console.error(text);
         process.exit(1);
@@ -495,36 +533,6 @@ async function loadRewrittenManifest(wsDir: string, pkg: Record<string, unknown>
         }
     }
     return pkg;
-}
-
-async function loadNpmrc(cwd: string): Promise<NpmrcConfig> {
-    // npm CLI's npmrc resolution order (lowest → highest precedence):
-    //   1. globalconfig:  /etc/npmrc  (system)
-    //   2. userconfig:    $NPM_CONFIG_USERCONFIG  (overrides ~/.npmrc)
-    //                     or ~/.npmrc  (default)
-    //   3. projectconfig: ./.npmrc  (closest)
-    //
-    // actions/setup-node writes the auth-token npmrc to $RUNNER_TEMP/.npmrc
-    // and exports NPM_CONFIG_USERCONFIG pointing at it — it does NOT touch
-    // ~/.npmrc. Honor the env var so CI authentication works end-to-end.
-    const sources: string[] = [];
-    const projectNpmrc = join(cwd, '.npmrc');
-    if (existsSync(projectNpmrc)) sources.push(readFileSync(projectNpmrc, 'utf-8'));
-    const userConfig = process.env.NPM_CONFIG_USERCONFIG;
-    if (userConfig && existsSync(userConfig)) {
-        sources.push(readFileSync(userConfig, 'utf-8'));
-    } else {
-        const homeNpmrc = join(homedir(), '.npmrc');
-        if (existsSync(homeNpmrc)) sources.push(readFileSync(homeNpmrc, 'utf-8'));
-    }
-    // Inline `${VAR}` placeholders (npm CLI's expand-on-read behavior).
-    // The auth-token npmrc from actions/setup-node ships
-    // `_authToken=${NODE_AUTH_TOKEN}` as a literal placeholder; the env var
-    // is set on the publish step.
-    const merged = sources
-        .join('\n')
-        .replace(/\$\{([A-Z_][A-Z0-9_]*)\}/gi, (_, name) => process.env[name as string] ?? '');
-    return parseNpmrc(merged);
 }
 
 interface BuildPayloadOptions {

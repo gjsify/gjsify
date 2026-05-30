@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.4.35](https://github.com/gjsify/gjsify/compare/v0.4.34...v0.4.35) (2026-05-29)
+
+### Features
+
+* **cli:** flatpak — `.desktop` MimeType= from `provides.mimetypes` ([2931c74](https://github.com/gjsify/gjsify/commit/2931c746ad27fc4d2679c82e4ea95b823b34939f))
+* **tsc:** @gjsify/tsc — Node-free TypeScript compiler under GJS ([#385](https://github.com/gjsify/gjsify/issues/385)) ([d6f3225](https://github.com/gjsify/gjsify/commit/d6f32256bb769b36a7c73c657be4f91e291001d8))
+
+### Bug Fixes
+
+* **tls-session:** close missing braces in session-resumption.spec.ts ([1c462d1](https://github.com/gjsify/gjsify/commit/1c462d121dee7a3a73bd13791cf6e859e4f29a05))
+* **tls-session:** use ConnectionOptions type for tls.connect — drop bogus Parameters cast ([8c831a7](https://github.com/gjsify/gjsify/commit/8c831a79ec03e045cca765e7e469e3c875a88b2c))
+* **tls-session:** use satisfies ConnectionOptions to disambiguate tls.connect overload ([5465663](https://github.com/gjsify/gjsify/commit/54656638a1d7ccb297c29b0714eeb8c3787f7ddc))
+
+### Documentation
+
+* **e2e:** expand undici suite STATUS + README coverage row ([99a89a2](https://github.com/gjsify/gjsify/commit/99a89a28f88b41b48d7719fe8370a0645d9cbaf1))
+* **e2e:** undici GJS hits @gjsify/zlib Zstd impl gap, document follow-up ([b59fa37](https://github.com/gjsify/gjsify/commit/b59fa37ab1c7d1df14f693113adf6da3a57cb966))
+
+### Code Refactoring
+
+* **http2:** per-concern split of server/response.ts ([83e0b68](https://github.com/gjsify/gjsify/commit/83e0b685d1aa94a571a6e954d74334c12f578f49)), closes [#261](https://github.com/gjsify/gjsify/issues/261) [#273](https://github.com/gjsify/gjsify/issues/273) [#309](https://github.com/gjsify/gjsify/issues/309)
+* **querystring:** per-concern split of index.ts ([b391ed7](https://github.com/gjsify/gjsify/commit/b391ed7152f4d0141a00e9b7b3cfa1bc4c8c6b6c)), closes [package.json#exports](https://github.com/gjsify/package.json/issues/exports) [#309](https://github.com/gjsify/gjsify/issues/309)
+* **webgl:** per-concern split of shader-program.ts ([6f88c0f](https://github.com/gjsify/gjsify/commit/6f88c0f9335a6a4bf238c4bb82531456d65d4f47)), closes [273/#309](https://github.com/273/gjsify/issues/309)
+* **webgl:** per-concern split of texture-management.ts ([b833efa](https://github.com/gjsify/gjsify/commit/b833efa0318c91929f64de89546ff04309162b31)), closes [#309](https://github.com/gjsify/gjsify/issues/309) [#273](https://github.com/gjsify/gjsify/issues/273) [#309](https://github.com/gjsify/gjsify/issues/309) [#273](https://github.com/gjsify/gjsify/issues/273) [#262](https://github.com/gjsify/gjsify/issues/262)
+
+### Continuous Integration
+
+* retrigger ([19b2f2f](https://github.com/gjsify/gjsify/commit/19b2f2faf47606978b4ee2ded90ef103ac659229))
+
+### Maintenance
+
+* **debug:** refresh gjsify-lock.json for debug devDep ([99b9c46](https://github.com/gjsify/gjsify/commit/99b9c4633ad319541873db50b5877a74a327ef91))
+* **undici:** refresh gjsify-lock.json for undici devDep ([14166f1](https://github.com/gjsify/gjsify/commit/14166f1554cbeec7af0bfce5be00f552c1248b47))
+
+### Tests
+
+* **e2e:** chalk integration suite — color codes + level gating + truecolor ([0611582](https://github.com/gjsify/gjsify/commit/0611582b9e057a0f8800173a4ccaab88d40c2c33))
+* **e2e:** debug integration suite — namespace matching + format specifiers + tty output ([787418d](https://github.com/gjsify/gjsify/commit/787418d93acacb11797b49a0cb2572f0597cfe18))
+* **e2e:** drop strict protocol assertion on GJS channel-binding spec ([2d84dc0](https://github.com/gjsify/gjsify/commit/2d84dc01e04607aa657980b5576e376f319a2037))
+* **e2e:** tls-session integration suite — phase 2 round-trip + channel binding ([23843e1](https://github.com/gjsify/gjsify/commit/23843e10286fc6417a23cbf645863f56a6d6fabc)), closes [#360](https://github.com/gjsify/gjsify/issues/360)
+* **e2e:** undici integration suite — fetch + request + websocket ([7eb2dc5](https://github.com/gjsify/gjsify/commit/7eb2dc50a419062362f4e73f6d9024d2401f61c6))
+
 ## [0.4.34](https://github.com/gjsify/gjsify/compare/v0.4.33...v0.4.34) (2026-05-29)
 
 ### Features
