@@ -132,9 +132,44 @@ async function scanSourceTree(pkgDir) {
         gjs_imports_guard: false,
         has_browser_entry: false,
         has_browser_polyfill: existsSync(join(srcDir, 'browser.ts')) || existsSync(join(srcDir, 'browser.mts')),
-        has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),
+        browser_src_is_partial: false,        has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),
+        globals_mjs_browser_safe: false,
         file_count: 0,
     };
+    if (signals.has_browser_polyfill) {
+        const browserSrc = existsSync(join(srcDir, 'browser.ts'))
+            ? join(srcDir, 'browser.ts')
+            : join(srcDir, 'browser.mts');
+        try {
+            const txt = await readFile(browserSrc, 'utf8');
+            // Heuristic: a browser entry is `partial` when the file declares its
+            // slot explicitly in a comment (`Slot is "browser:\"partial\""`) OR
+            // when its impl throws ENOTSUP from MULTIPLE entry points (the
+            // canonical dns/module/ws pattern — at least 2 method bodies
+            // produce a code:'ENOTSUP' error). A single throw (e.g.
+            // process.chdir throwing) does NOT downgrade an otherwise functional
+            // polyfill to `partial`; that's the process-browserify shape.
+            const slotDeclaredPartial = /Slot[^.\n]*partial/i.test(txt);
+            const enotsupHits = (txt.match(/code\s*[:=]\s*['"]ENOTSUP['"]/g) ?? []).length;
+            signals.browser_src_is_partial = slotDeclaredPartial || enotsupHits >= 2;
+        } catch {
+            // unreadable — treat as full polyfill (conservative for upgrade path)
+        }
+    }
+    if (signals.has_globals_mjs) {
+        try {
+            const txt = await readFile(join(pkgDir, 'globals.mjs'), 'utf8');
+            // Browser-safe iff the file ships actual exports AND none re-export
+            // from a `node:` specifier — i.e. it routes through `globalThis.*`
+            // (Wave-3 pattern) or otherwise stays runtime-agnostic. An empty
+            // `export {};` file (the `@gjsify/node-polyfills` meta-pkg pattern)
+            // is NOT a browser-native delegation path.
+            const hasNonEmptyExport = /export\s+(?:const|let|var|function|class|default|\{[^}]*\w[^}]*\})/m.test(txt);
+            signals.globals_mjs_browser_safe = hasNonEmptyExport && !/from\s+['"]node:/m.test(txt);
+        } catch {
+            // unreadable → treat as not-browser-safe (conservative)
+        }
+    }
     if (!existsSync(srcDir)) return signals;
     await walkSource(srcDir, signals);
     return signals;
@@ -376,13 +411,16 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
             }
         }
         const nativeSlot = signals.has_globals_mjs ? 'native' : 'none';
-        // GJS-bound + dedicated `src/browser.ts` entry → browser slot becomes
-        // `partial`. The browser-target bundler picks up the polyfill via the
-        // package.json `"browser"` field (Rolldown `mainFields:['browser',…]`
-        // + `conditionNames:[…,'browser']`); the GJS index.ts is bypassed.
-        // Sync APIs without WebCrypto pendants throw ENOTSUP in that polyfill.
-        const browserSlot = signals.has_browser_polyfill ? 'partial' : nativeSlot;
-        return { gjs: 'polyfill', node: nativeSlot, browser: browserSlot };
+        // Browser slot upgrade: a dedicated `src/browser.ts` entry indicates
+        // a partial/polyfill browser-specific impl exists alongside the
+        // GJS-bound default. Without a stronger signal we suggest `polyfill`
+        // (a `browser.ts` shipping ENOTSUP-throws is still cataloged as
+        // polyfill — the declared `partial` may be a hand-narrowed override,
+        // which we accept by treating either value as "browser entry exists").
+        let browserSlot = nativeSlot;
+        if (signals.has_browser_polyfill && !signals.has_globals_mjs) {
+            browserSlot = signals.browser_src_is_partial ? 'partial' : 'polyfill';
+        }        return { gjs: 'polyfill', node: nativeSlot, browser: browserSlot };
     }
 
     // (B) Pure-TS — portable on all three. Browser-native flag if a Web-API
@@ -392,6 +430,11 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
     // `import('gi://X')` for graceful degradation, downgrade non-GJS slots to
     // `partial` — the package loads everywhere, but functionality drops on
     // non-GJS runtimes.
+    //
+    // Cross-runtime `globals.mjs`: a node-api pkg that ships a browser-safe
+    // `globals.mjs` (re-exports `globalThis.*`, no `node:*` specifiers) has
+    // a working `native` slot for both Node AND browser — the same file
+    // serves both targets. This is the Wave-3 pattern for `console` / `timers`.
     const nonGjsSlot = gjsDynamicOnly ? 'partial' : 'polyfill';
     if (axis === 'web-api') {
         // Web APIs are native on browser by definition. For Node, the slot
@@ -420,25 +463,18 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
         return { gjs: 'polyfill', node: nodeSlot, browser: browserSlot };
     }
     if (axis === 'node-api') {
-        // Node APIs are native on Node by definition. For browser:
-        //   - NODE_API_NO_BROWSER_SENSE (cluster/inspector/readline/dgram/fs/…)
-        //     → slot=`none` per R1 Quick-Wins 11–13 (no sensible browser surface).
-        //   - NODE_API_BROWSER_NATIVE (url/perf_hooks) → slot=`native` per R1
-        //     Quick-Wins 2–5 + R2 §5.3 (Node-native value is also browser-native).
-        //   - Everything else → our polyfill is the fallback (slot=`polyfill`).
-        // globals.mjs presence is NOT used to flip browser-slot here — most
-        // node-api globals.mjs files re-export `node:<pkg>` which has no
-        // browser equivalent; only the curated `NODE_API_BROWSER_NATIVE` set
-        // genuinely has globalThis re-exports that work in both runtimes.
+        // Node APIs are native on Node by definition; browser uses our polyfill,
+        // unless globals.mjs is browser-safe — then browser is also `native`.
         const browserSlot = gjsDynamicOnly
             ? 'partial'
-            : NODE_API_NO_BROWSER_SENSE.has(pkgSubpath)
-                ? 'none'
-                : NODE_API_BROWSER_NATIVE.has(pkgSubpath)
-                    ? 'native'
-                    : 'polyfill';
-        return { gjs: 'polyfill', node: gjsDynamicOnly ? 'partial' : 'native', browser: browserSlot };
-    }
+            : signals.globals_mjs_browser_safe
+              ? 'native'
+              : nonGjsSlot;
+        return {
+            gjs: 'polyfill',
+            node: gjsDynamicOnly ? 'partial' : 'native',
+            browser: browserSlot,
+        };    }
     if (axis === 'dom') {
         return { gjs: 'polyfill', node: nonGjsSlot, browser: gjsDynamicOnly ? 'partial' : 'native' };
     }
