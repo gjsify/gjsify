@@ -404,7 +404,48 @@ export class EventTarget {
                         entry.listener.handleEvent.call(entry.listener, event);
                     }
                 } catch (err) {
-                    console.error(err);
+                    // "Report the exception" per WHATWG DOM § 2.7 step 8.6
+                    // and HTML § 8.2.5 "Report an exception":
+                    //
+                    //   1. If `globalThis.reportError` is wired (W3C
+                    //      standard since 2022, browsers + Deno + Node 18+),
+                    //      delegate so the runtime's `error` / `unhandled
+                    //      rejection` machinery + `ErrorEvent` dispatch run.
+                    //   2. Fallback console path MUST format the error
+                    //      defensively. `console.error(err)` on a bare
+                    //      Error rendered as `{}` under `@gjsify/console`'s
+                    //      `_formatArgs` (which JSON.stringify's non-string
+                    //      args; Error's enumerable property set is empty).
+                    //      The result was that listener exceptions in
+                    //      production GJS apps surfaced as a single `{}`
+                    //      line with NO message + NO stack — debugged for
+                    //      hours in pixel-rpg/map-editor's Pair-Editing
+                    //      hand-test before tracing back to here.
+                    //
+                    // The fallback prefers `err.stack` (includes name +
+                    // message + frames), then falls back to formatted
+                    // name+message, then String(err) for non-Error throws.
+                    const g = globalThis as { reportError?: (err: unknown) => void };
+                    if (typeof g.reportError === 'function') {
+                        try {
+                            g.reportError(err);
+                        } catch {
+                            /* reportError shouldn't throw — defensive */
+                        }
+                    } else if (err instanceof Error) {
+                        // `err.stack` shape differs by runtime:
+                        //   - V8 (Node, Chrome): "Error: foo\n  at …"
+                        //     (message embedded at the top)
+                        //   - SpiderMonkey (GJS, Firefox): "@file:line:col"
+                        //     (frames ONLY, message NOT at the top)
+                        // Always prepend name + message so the log line
+                        // carries the actionable description regardless
+                        // of runtime.
+                        const head = `${err.name}: ${err.message}`;
+                        console.error(err.stack ? `${head}\n${err.stack}` : head);
+                    } else {
+                        console.error(String(err));
+                    }
                 } finally {
                     ev[kInPassiveListener] = false;
                 }
