@@ -1,0 +1,57 @@
+{
+    "name": "@gjsify/browser-node-polyfills",
+    "version": "0.4.34",
+    "description": "Meta package: @gjsify Node.js polyfill packages that run in the browser",
+    "type": "module",
+    "keywords": [
+        "gjs",
+        "gjsify",
+        "node",
+        "browser",
+        "polyfills",
+        "meta"
+    ],
+    "dependencies": {
+        "@gjsify/assert": "workspace:^",
+        "@gjsify/async_hooks": "workspace:^",
+        "@gjsify/buffer": "workspace:^",
+        "@gjsify/console": "workspace:^",
+        "@gjsify/constants": "workspace:^",
+        "@gjsify/crypto": "workspace:^",
+        "@gjsify/diagnostics_channel": "workspace:^",
+        "@gjsify/domain": "workspace:^",
+        "@gjsify/events": "workspace:^",
+        "@gjsify/fs": "workspace:^",
+        "@gjsify/http": "workspace:^",
+        "@gjsify/https": "workspace:^",
+        "@gjsify/module": "workspace:^",
+        "@gjsify/os": "workspace:^",
+        "@gjsify/path": "workspace:^",
+        "@gjsify/perf_hooks": "workspace:^",
+        "@gjsify/process": "workspace:^",
+        "@gjsify/querystring": "workspace:^",
+        "@gjsify/sqlite": "workspace:^",
+        "@gjsify/stream": "workspace:^",
+        "@gjsify/string_decoder": "workspace:^",
+        "@gjsify/sys": "workspace:^",
+        "@gjsify/timers": "workspace:^",
+        "@gjsify/url": "workspace:^",
+        "@gjsify/util": "workspace:^",
+        "@gjsify/vm": "workspace:^",
+        "@gjsify/worker_threads": "workspace:^",
+        "@gjsify/zlib": "workspace:^"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "native",
+            "browser": "polyfill"
+        }
+    },
+    "exports": {
+        "./globals": "./globals.mjs"
+    },
+    "files": [
+        "globals.mjs"
+    ]
+}

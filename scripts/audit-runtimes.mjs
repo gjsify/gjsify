@@ -32,7 +32,7 @@
 //                                                 # the signal-based detection
 //                                                 # would suggest (CI guard)
 //   node scripts/audit-runtimes.mjs --check --strict
-//                                                 # opt-in functional probes:
+//                                                 # functional probes:
 //                                                 # statically validate that
 //                                                 # `native`/`polyfill` slots
 //                                                 # have the mechanics they
@@ -45,13 +45,32 @@
 //                                                 # .{mts,ts}` entry). Exit 1
 //                                                 # on any probe failure, in
 //                                                 # addition to the drift /
-//                                                 # missing checks. Default
-//                                                 # `--check` behavior is
-//                                                 # UNCHANGED (no CI break on
-//                                                 # main) — `--strict` is the
-//                                                 # opt-in for the harder
-//                                                 # check until R1 closes the
-//                                                 # `globals.mjs` gaps.
+//                                                 # missing checks.
+//   node scripts/audit-runtimes.mjs --check --quick
+//                                                 # explicit forward-
+//                                                 # compatible opt-out for
+//                                                 # the functional probes.
+//                                                 # Today `--check` and
+//                                                 # `--check --quick` are
+//                                                 # behaviorally identical
+//                                                 # (probes opt-in); when the
+//                                                 # default flips to strict
+//                                                 # (PR-B follow-up, T-Plan
+//                                                 # section 1d step 3) `--
+//                                                 # quick` becomes the way to
+//                                                 # pin the legacy "drift +
+//                                                 # missing only" behavior.
+//
+// PR-B (T-Plan section 1d step 3) had planned to flip the `--check` default
+// to strict mode in this PR. The flip is currently NOT performed because 26
+// packages on the integration base (`feat/tooling-foundation-wave2-t` + the
+// staged browser-polyfill PRs #392–#396) declare `browser:"polyfill"` but
+// lack the required `src/test.browser.{mts,ts}` entry the probes look for.
+// The flip is parked behind a follow-up PR; the unblock work is per-package
+// `src/test.browser.mts` skeletons in the R1 wave. The `--quick` flag is
+// wired today so callers already pinning the legacy behavior can switch to
+// the forward-compatible spelling now; the constant is harmless until the
+// default flips (it merely shadows `--strict` when both are present).
 //
 // Pure read-only by default. `--apply` only fills in missing declarations;
 // existing `gjsify.runtimes` values are NEVER overwritten — the human stays
@@ -70,12 +89,18 @@ const args = new Set(process.argv.slice(2));
 const FORMAT = args.has('--json') ? 'json' : args.has('--markdown') ? 'markdown' : 'table';
 const APPLY = args.has('--apply');
 const CHECK = args.has('--check');
-// `--strict` runs the functional probes during `--check` (opt-in until R1 ships
-// the remaining `globals.mjs` files). On `main` today the default `--check`
-// MUST stay byte-identical to the pre-strict behavior so the audit-runtimes
-// CI workflow (`.github/workflows/audit-runtimes.yml`) does not start failing
-// the moment this script lands.
-const STRICT = args.has('--strict');
+// `--quick` is the forward-compatible opt-out flag for the future default-
+// strict mode (PR-B follow-up). Today the default is still legacy, so
+// `--quick` is a no-op; the constant is wired now so callers can pin the
+// legacy behavior with the forward-compatible spelling and stay green when
+// the default flips.
+const QUICK = args.has('--quick');
+// `--strict` runs the functional probes during `--check`. The default-flip
+// to strict mode is parked behind PR-B follow-up (gated on R1 closing the
+// remaining `src/test.browser.{mts,ts}` gaps — 26 packages affected on
+// the integration base today). `--quick` wins on conflict to keep the
+// caller's opt-out intent unambiguous.
+const STRICT = args.has('--strict') && !QUICK;
 
 // ─── Discovery ──────────────────────────────────────────────────────────────
 
@@ -507,23 +532,24 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
 //     NO actual build — too expensive for `--check`. The static existence of
 //     the entry is the contract.
 //
-// `BROWSER_NATIVE_RE_EXPORTS` is intentionally an empty set today. Wave 5
-// (T-Plan Sektion 5b-i `BROWSER_NATIVE_IDENTS`) will populate it with the
-// curated browser-native re-export sources extracted from the upcoming
-// `globals-map.mjs` extension. Until then `browser:"native"` slots with a
-// `globals.mjs` that re-exports from anything other than a `@gjsify/<X>/
-// globals` self-delegation will fail the probe — which is the desired signal:
-// the probe surfaces gaps before R1 builds the curated map.
+// `BROWSER_NATIVE_RE_EXPORTS` is sourced from `BROWSER_NATIVE_IDENTS` in
+// `@gjsify/resolve-npm/globals-map` (T-Plan Sektion 5b-i landed via PR-G).
+// Each identifier doubles as the canonical bare specifier a `globals.mjs`
+// would re-export from on a browser target — `export { X } from 'X'` mirrors
+// the pattern used today on Node (`export { default as X } from 'node:X'`).
+
+import { BROWSER_NATIVE_IDENTS } from '../packages/infra/resolve-npm/lib/globals-map.mjs';
 
 /**
  * Curated set of bare specifiers that are safe to re-export from a
- * `globals.mjs` aimed at the browser target. TODO(welle-5): populate from
- * the new `BROWSER_NATIVE_IDENTS` constant once `globals-map.mjs` Sektion 5b
- * lands. Today: empty — every browser-native re-export must arrive via
- * `@gjsify/<X>/globals` self-delegation (the chain still resolves on disk
- * because the upstream `@gjsify/<X>` package owns the runtime decision).
+ * `globals.mjs` aimed at the browser target. Populated from
+ * `BROWSER_NATIVE_IDENTS` (T-Plan Sektion 5b-i): every identifier the curated
+ * map declares as browser-native is, by definition, a specifier the browser
+ * resolves natively when a `globals.mjs` does `export { Foo } from 'Foo'`.
+ * `@gjsify/<X>/globals` self-delegation chains are recognised separately in
+ * `probeGlobalsExports`.
  */
-const BROWSER_NATIVE_RE_EXPORTS = new Set();
+const BROWSER_NATIVE_RE_EXPORTS = new Set(BROWSER_NATIVE_IDENTS);
 
 /**
  * Statically extract every `export {…} from '<src>'` / `export * from
