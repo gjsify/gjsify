@@ -1,4 +1,4 @@
-export { setupForGjs } from './gjs.js';
+export { setupForGjs, isRegisterSubpath } from './gjs.js';
 export type { GjsBuildConfig, GjsFactoryInput } from './gjs.js';
 export { setupForNode } from './node.js';
 export type { NodeBuildConfig, NodeFactoryInput } from './node.js';

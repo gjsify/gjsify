@@ -59,6 +59,15 @@ export interface InstallOptions {
      * (npm does its own resolution and does not consult this flag).
      */
     skipDeps?: boolean;
+    /**
+     * Native backend only: overall wall-clock budget for the install. When
+     * fired, in-flight packument + tarball fetches are aborted via their
+     * AbortSignals (the resolver/extractor surface the abort as a normal
+     * AbortError), so the user gets a clean failure instead of a silent
+     * hang. Zero or undefined disables the overall budget — per-request
+     * timeouts in @gjsify/npm-registry still apply.
+     */
+    signal?: AbortSignal;
 }
 
 const DEFAULT_BACKEND = process.env.GJSIFY_INSTALL_BACKEND ?? 'native';
