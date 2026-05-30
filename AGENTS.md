@@ -717,6 +717,8 @@ Conventional commits — `<type>[optional scope]: <description>`, imperative moo
 
 Target: GJS 1.86.0 / SpiderMonkey 140 (ES2024) / Rolldown `firefox140` | ESM-only | GNOME libs + standard JS only | Tests pass on both Node + GJS | Do NOT modify `refs/`
 
+**TypeScript version invariant.** Root + every non-integration workspace declares `typescript: "^5.9.3"`. The single, workspace-wide range is enforced by the CI `gjsify upgrade --check --exclude-workspace '@gjsify/integration-*'` step. Exception: `tests/integration/{deepkit-type-compiler,loro-crdt,typescript-tsc}` pin to specific upstream-fixed `^5.4.5` / `^5.7.3` ranges to validate against those upstream behaviours — they are intentionally carved out by the exclusion glob. Lockfile resolves to the highest version satisfying every range (today: `5.9.3`). When bumping the TS range workspace-wide, update every non-integration `package.json` AND verify the lockfile + `gjsify run check` in the same PR — declaration-vs-resolution drift is what produced the v0.4.35 PR #385 CI break.
+
 ## Strategic direction — cross-runtime portability
 
 GJS = primary target, NON-NEGOTIABLE. But many `@gjsify/*` packages are pure TS (no `gi://`/`@girs/*`/`imports.` value-deps) and therefore portable. Long-term vision: **"alles unter allem lauffähig"** — share what's shareable across GJS / Node / Browser; runtime-specific where not. Each package declares a runtime-triplet (`gjs` × `node` × `browser`), each slot ∈ {`polyfill`, `native`, `partial`, `none`}; the `--app <target>` alias layer routes `@gjsify/<X>` to the right slot.

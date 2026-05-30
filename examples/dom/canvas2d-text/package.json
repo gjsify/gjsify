@@ -21,7 +21,7 @@
     "@gjsify/cli": "workspace:^",
     "@types/node": "^25.9.1",
     "http-server": "^14.1.1",
-    "typescript": "^6.0.3"
+    "typescript": "^5.9.3"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
