@@ -276,6 +276,9 @@ gjsify run build:gjsify | gjsify run build:types
 gjsify run build:test:{gjs,node} | gjsify run test:{gjs,node}
 # One specific workspace from anywhere
 gjsify workspace @gjsify/<name> <script>
+gjsify workspace @gjsify/<name> <script> --with-dependencies      # also build transitive workspace deps in topological order first (alias: -d / -t / --topological)
+gjsify workspace @gjsify/<name> <script> -d --continue-on-error   # keep going past failed deps; default stops on first failure
+gjsify workspace @gjsify/<name> <script> -d --include-dev          # also walk devDependencies (default: prod + optional only)
 # Workspace-wide dep upgrades (drop-in for `yarn upgrade-interactive`)
 gjsify upgrade                       # interactive table aggregated across ALL workspaces; shows fan-out + ⚠ on inconsistencies
 gjsify upgrade --latest | --minor | --patch    # bulk upgrade, same aggregation across all workspaces
