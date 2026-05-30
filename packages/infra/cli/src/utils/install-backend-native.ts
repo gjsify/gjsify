@@ -94,6 +94,7 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
     fs.mkdirSync(opts.prefix, { recursive: true });
     const npmrc = await loadNpmrc(opts);
     const log = makeLogger(opts.verbose ?? false);
+    const progress = opts.progress;
 
     const lockfilePath = path.join(opts.prefix, LOCKFILE_NAME);
     const existingLock = readLockfile(lockfilePath);
@@ -125,7 +126,7 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
         nodes = lockfileToNodes(existingLock);
     } else {
         log('install: resolving %d top-level spec(s) → %s', opts.specs.length, opts.prefix);
-        nodes = await resolveDeps(opts.specs, npmrc, log, opts.overrides, opts.skipDeps, opts.signal);
+        nodes = await resolveDeps(opts.specs, npmrc, log, opts.overrides, opts.skipDeps, opts.signal, progress);
         if (opts.lockfile) {
             writeLockfile(lockfilePath, opts.specs, nodes);
             log('install: wrote %s (%d entries)', LOCKFILE_NAME, nodes.length);
@@ -133,7 +134,7 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
     }
 
     log('install: downloading %d tarball(s)', nodes.length);
-    await downloadAndExtractAll(nodes, opts.prefix, npmrc, log, opts.signal);
+    await downloadAndExtractAll(nodes, opts.prefix, npmrc, log, opts.signal, progress);
     await linkBins(nodes, opts.prefix, log);
     log('install: done');
 
@@ -197,7 +198,9 @@ async function resolveDeps(
     overrides?: Record<string, string>,
     skipDeps?: boolean,
     signal?: AbortSignal,
+    progress?: import('./install-progress.js').ProgressReporter,
 ): Promise<ResolvedNode[]> {
+    progress?.beginPhase('resolve', specs.length);
     const applyOverride = (name: string, range: string): string => {
         if (!overrides) return range;
         const override = overrides[name];
@@ -291,6 +294,16 @@ async function resolveDeps(
                 root.set(edge.name, node);
             }
             log('resolve: %s@%s ← %s (at %s)', edge.name, version, edge.range, installPath);
+            // Soft-total tracks the dep graph as it grows. We use
+            // byPath.size (resolved so far) + queue.length (still to
+            // process) as a moving estimate that converges as work
+            // finishes — yarn/pnpm use the same pattern.
+            progress?.update({
+                phase: 'resolve',
+                current: byPath.size,
+                total: byPath.size + queue.length,
+                name: `${edge.name}@${version}`,
+            });
 
             if (!skipDeps) {
                 for (const [depName, depRange] of Object.entries(node.dependencies)) {
@@ -321,6 +334,7 @@ async function resolveDeps(
         }
     }
 
+    progress?.endPhase('resolve');
     return Array.from(byPath.values());
 }
 
@@ -548,6 +562,7 @@ async function downloadAndExtractAll(
     npmrc: NpmrcConfig,
     log: Logger,
     signal?: AbortSignal,
+    progress?: import('./install-progress.js').ProgressReporter,
 ): Promise<void> {
     // Sort by install-path depth ascending so parents extract before
     // children. Extracting a parent on top of an existing child would
@@ -557,6 +572,17 @@ async function downloadAndExtractAll(
     );
     const workers: Array<Promise<void>> = [];
     const concurrency = Math.max(1, Math.min(DEFAULT_CONCURRENCY, queue.length));
+    progress?.beginPhase('download', queue.length);
+    let completed = 0;
+    const tickProgress = (node: ResolvedNode) => {
+        completed++;
+        progress?.update({
+            phase: 'download',
+            current: completed,
+            total: queue.length,
+            name: `${node.name}@${node.version}`,
+        });
+    };
     // Parents (depth 1) are extracted serially first to avoid concurrent
     // `rm -rf` + extract races with their children. Once depth-1 is done,
     // depths >=2 run with full concurrency.
@@ -569,6 +595,7 @@ async function downloadAndExtractAll(
         const node = queue[cursor++];
         if (!node) break;
         await extractOne(node, prefix, npmrc, log, signal);
+        tickProgress(node);
     }
 
     // Concurrent nested pass.
@@ -581,11 +608,13 @@ async function downloadAndExtractAll(
                     const node = queue[idx];
                     if (!node) return;
                     await extractOne(node, prefix, npmrc, log, signal);
+                    tickProgress(node);
                 }
             })(),
         );
     }
     await Promise.all(workers);
+    progress?.endPhase('download');
 }
 
 async function extractOne(

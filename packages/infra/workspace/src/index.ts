@@ -282,6 +282,140 @@ export function topologicalSort(graph: DependencyGraph): Workspace[] {
 }
 
 /**
+ * Build the REVERSE inter-workspace dependency graph. Each edge `B → A`
+ * means "A depends on B" — i.e. when B changes, A is affected and may
+ * need re-test / re-build. Same option semantics as
+ * `buildDependencyGraph`; the result feeds `affectedClosure`.
+ *
+ * Implementation note: we share the forward graph's filtering rules
+ * (workspace:* protocol, only edges where both endpoints are workspaces
+ * in this monorepo) so the two graphs stay consistent — `topologicalSort`
+ * order is the reverse of `affectedClosure` traversal order on any
+ * acyclic DAG.
+ */
+export function buildReverseDependencyGraph(
+    workspaces: readonly Workspace[],
+    options: BuildGraphOptions = {},
+): DependencyGraph {
+    const forward = buildDependencyGraph(workspaces, options);
+    const edges = new Map<string, Set<string>>();
+    for (const name of forward.edges.keys()) edges.set(name, new Set());
+    for (const [from, deps] of forward.edges) {
+        for (const dep of deps) {
+            // `from` depends on `dep`. Reverse edge: `dep` → `from`.
+            const slot = edges.get(dep);
+            if (slot) slot.add(from);
+        }
+    }
+    return { edges, byName: forward.byName };
+}
+
+/**
+ * BFS over a reverse-dep graph starting from `seeds`. Returns
+ * `seeds ∪ all transitive dependents` as a `Set<string>` of workspace
+ * names. Idempotent on duplicate seeds; unknown seed names are silently
+ * skipped (a renamed-then-deleted workspace, a file in a not-yet-discovered
+ * directory, etc. — those signal "we can't be precise here" and the
+ * caller is expected to fall back to a conservative full run, not crash).
+ *
+ * @param reverse The reverse-dep graph from `buildReverseDependencyGraph`.
+ * @param seeds Workspace names to start from.
+ */
+export function affectedClosure(
+    reverse: DependencyGraph,
+    seeds: readonly string[],
+): Set<string> {
+    const out = new Set<string>();
+    const queue: string[] = [];
+    for (const seed of seeds) {
+        if (!reverse.byName.has(seed)) continue;
+        if (out.has(seed)) continue;
+        out.add(seed);
+        queue.push(seed);
+    }
+    while (queue.length > 0) {
+        const name = queue.shift() as string;
+        const dependents = reverse.edges.get(name);
+        if (!dependents) continue;
+        for (const next of dependents) {
+            if (out.has(next)) continue;
+            out.add(next);
+            queue.push(next);
+        }
+    }
+    return out;
+}
+
+/**
+ * Map a list of changed file paths (repo-relative, `git diff --name-only`
+ * shape) to the set of workspaces that OWN those files. A file is
+ * considered owned by the deepest workspace whose `relativeLocation` is
+ * an ancestor path. Files outside every workspace are returned in
+ * `unmatched` so the caller can classify them (docs / lockfile / global
+ * trigger / etc.).
+ *
+ * Match is path-segment-based — `packages/node/fs/src/x.ts` belongs to
+ * `packages/node/fs`, NOT `packages/node/fs-promises` even though the
+ * latter is a prefix-of-string match. Each path is normalised to forward
+ * slashes before comparison so Windows-style diffs are handled too.
+ *
+ * @returns `matched` — Set of `Workspace.name` strings. `unmatched` — the
+ *   subset of input paths that did not fall under any workspace.
+ */
+export function workspacesForChangedFiles(
+    workspaces: readonly Workspace[],
+    rootDir: string,
+    changedFiles: readonly string[],
+): { matched: Set<string>; unmatched: string[] } {
+    // Build a longest-prefix lookup: split each workspace.relativeLocation
+    // into segments, then match changed-file segments from the root.
+    const matched = new Set<string>();
+    const unmatched: string[] = [];
+    // Index workspaces by segment prefix for O(depth) lookup per file.
+    // Tree shape: `Map<string, {ws?: string, children: Map<...>}>`.
+    interface Node {
+        ws?: string;
+        children: Map<string, Node>;
+    }
+    const root: Node = { children: new Map() };
+    for (const ws of workspaces) {
+        if (ws.relativeLocation === '.' || ws.relativeLocation === '') continue;
+        const segments = ws.relativeLocation.split('/').filter(Boolean);
+        let cur = root;
+        for (const seg of segments) {
+            let next = cur.children.get(seg);
+            if (!next) {
+                next = { children: new Map() };
+                cur.children.set(seg, next);
+            }
+            cur = next;
+        }
+        cur.ws = ws.name;
+    }
+
+    for (const raw of changedFiles) {
+        if (!raw) continue;
+        const path = raw.replace(/\\/g, '/');
+        const segments = path.split('/').filter(Boolean);
+        let cur: Node | undefined = root;
+        let bestMatch: string | undefined;
+        for (const seg of segments) {
+            cur = cur.children.get(seg);
+            if (!cur) break;
+            // Deepest match wins — a file inside a nested workspace
+            // belongs to that workspace, not its grandparent.
+            if (cur.ws) bestMatch = cur.ws;
+        }
+        if (bestMatch) {
+            matched.add(bestMatch);
+        } else {
+            unmatched.push(raw);
+        }
+    }
+    return { matched, unmatched };
+}
+
+/**
  * Filter workspaces by glob-pattern include/exclude (mirrors
  * `yarn workspaces foreach --include '@gjsify/example-*' --exclude
  * '@gjsify/example-*-net'` shape). Uses a minimal glob: only `*` is

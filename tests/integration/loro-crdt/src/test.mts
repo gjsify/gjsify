@@ -46,6 +46,10 @@ import loroListSuite from './loro-list.spec.js';
 import loroMapSuite from './loro-map.spec.js';
 import loroTreeSuite from './loro-tree.spec.js';
 import loroSnapshotSyncSuite from './loro-snapshot-sync.spec.js';
+import loroCounterSuite from './loro-counter.spec.js';
+import loroMovableListSuite from './loro-movable-list.spec.js';
+import loroVersionSuite from './loro-version.spec.js';
+import loroAwarenessSuite from './loro-awareness.spec.js';
 
 run({
     loroTextSuite,
@@ -53,4 +57,8 @@ run({
     loroMapSuite,
     loroTreeSuite,
     loroSnapshotSyncSuite,
+    loroCounterSuite,
+    loroMovableListSuite,
+    loroVersionSuite,
+    loroAwarenessSuite,
 });

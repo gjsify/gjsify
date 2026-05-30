@@ -26,7 +26,7 @@ import { discoverWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { buildInstallCommand, detectPackageManager, runMinimalChecks } from '../utils/check-system-deps.js';
 import { detectNativePackages } from '../utils/detect-native-packages.js';
-import { installPackages } from '../utils/install-backend.js';
+import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
 import { binDirOnPath, defaultGlobalLayout, linkGlobalBins, specToPackageName } from '../utils/install-global.js';
 import {
     addDependencyEntry,
@@ -46,6 +46,8 @@ interface InstallOptions {
     'save-optional'?: boolean;
     immutable?: boolean;
     verbose: boolean;
+    quiet?: boolean;
+    progress?: boolean;
     backend?: 'native' | 'npm';
     timeout: number;
 }
@@ -89,6 +91,17 @@ export const installCommand: Command<unknown, InstallOptions> = {
                 description: 'Verbose install logging.',
                 type: 'boolean',
                 default: false,
+            })
+            .option('quiet', {
+                description: 'Silence the progress bar.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('progress', {
+                description:
+                    'Show a TTY-aware progress bar for resolve / download / extract phases. Auto-enabled when stderr is a TTY (override with --no-progress). Implicitly off under --verbose (per-package log lines replace the bar) or --quiet.',
+                type: 'boolean',
+                default: true,
             })
             .option('backend', {
                 description:
@@ -281,6 +294,12 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
     }
 
     mkdirSync(cwd, { recursive: true });
+    // Progress bar is auto-enabled when stderr is a TTY (and `--verbose` /
+    // `--quiet` / `--no-progress` aren't set). When piped to a log file the
+    // reporter falls back to one line per phase begin/end.
+    const progress = makeProgressReporter({
+        enabled: !args.verbose && !args.quiet && args.progress !== false,
+    });
     const result = await installPackages({
         prefix: cwd,
         specs,
@@ -290,6 +309,7 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
         lockfile: !args.immutable,
         frozen: args.immutable,
         signal,
+        progress,
     });
 
     // Update package.json only when the user passed explicit packages
@@ -420,15 +440,79 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
 
     // Read top-level package.json's `overrides` (npm-native) or `resolutions`
     // (yarn-native, kept as the existing field name in pre-Phase-D.8 repos).
-    // Both are flattened to a name → version map and passed to the install
-    // backend. Pattern keys like `typescript@*` are normalised to bare names —
-    // we don't yet support per-parent scoping (npm's nested overrides shape).
+    // Flat `name → range` entries become global overrides applied to every
+    // workspace; nested `<workspace> → {dep → range}` entries become
+    // workspace-local installs that place the overridden dep inside that
+    // workspace's own `node_modules/`. Lets a monorepo pin one workspace to
+    // an older `typescript` (e.g. a downstream integration test) without
+    // forcing the rest of the tree to the same version.
     const rootManifest = workspaces.find((w) => w.location === cwd)?.manifest as
         | { overrides?: unknown; resolutions?: unknown }
         | undefined;
-    const overrides = extractOverrides(rootManifest);
+    const extracted = extractOverrides(rootManifest);
+    const overrides = extracted?.global;
+
+    // Second pass: pluck specs that have a workspace-scoped override out of
+    // `externalSpecs` and re-collect them into a per-workspace map. Those
+    // specs will be installed into the workspace's own `node_modules/` after
+    // the root install completes, so the resolver in the root pass does NOT
+    // see the conflicting versions.
+    const wsLocalSpecs = new Map<string, Set<string>>(); // wsLocation → name@range set
+    const droppedFromExternal = new Set<string>();
+    if (extracted && extracted.scoped.size > 0) {
+        for (const ws of workspaces) {
+            const wsManifest = ws.manifest;
+            for (const kind of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
+                const deps = wsManifest[kind] as Record<string, string> | undefined;
+                if (!deps) continue;
+                for (const [depName, spec] of Object.entries(deps)) {
+                    const override = scopedOverrideFor(ws, depName, extracted);
+                    if (!override) continue;
+                    // Re-route this dep to the workspace's own install
+                    const targetRange = override;
+                    const wsKey = ws.location;
+                    let bucket = wsLocalSpecs.get(wsKey);
+                    if (!bucket) {
+                        bucket = new Set<string>();
+                        wsLocalSpecs.set(wsKey, bucket);
+                    }
+                    bucket.add(`${depName}@${targetRange}`);
+                    // Drop the un-overridden version from the root spec set:
+                    // the workspace will see its scoped version via parent-walk
+                    // resolution. Note we only drop the EXACT `name@spec` the
+                    // workspace declared; other workspaces' instances of the
+                    // same name+spec stay in the root set.
+                    droppedFromExternal.add(`${depName}@${spec}`);
+                }
+            }
+        }
+        // Apply the drops only when no OTHER workspace declared the same spec
+        // — otherwise it has legitimate root requesters and must stay.
+        const stillNeeded = new Set<string>();
+        for (const ws of workspaces) {
+            for (const kind of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
+                const deps = ws.manifest[kind] as Record<string, string> | undefined;
+                if (!deps) continue;
+                for (const [depName, spec] of Object.entries(deps)) {
+                    if (scopedOverrideFor(ws, depName, extracted)) continue;
+                    stillNeeded.add(`${depName}@${spec}`);
+                }
+            }
+        }
+        for (const dropped of droppedFromExternal) {
+            if (!stillNeeded.has(dropped)) externalSpecs.delete(dropped);
+        }
+        if (wsLocalSpecs.size > 0) {
+            console.log(
+                `gjsify install: ${wsLocalSpecs.size} workspace(s) have scoped overrides — they will install their overridden deps locally after the root install`,
+            );
+        }
+    }
 
     if (externalSpecs.size > 0) {
+        const progress = makeProgressReporter({
+            enabled: !args.verbose && !args.quiet && args.progress !== false,
+        });
         await installPackages({
             prefix: cwd,
             specs: [...externalSpecs],
@@ -437,9 +521,34 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
             frozen: args.immutable,
             overrides,
             signal,
+            progress,
         });
     } else if (args.verbose) {
         console.log('gjsify install: no external deps to fetch');
+    }
+
+    // Workspace-local installs for scoped overrides. Each runs as its own
+    // `installPackages` call inside the workspace location — the resulting
+    // `node_modules/<dep>` shadows the root-hoisted version via standard
+    // Node parent-walk resolution.
+    for (const [wsLocation, specSet] of wsLocalSpecs) {
+        if (specSet.size === 0) continue;
+        const wsName = workspaces.find((w) => w.location === wsLocation)?.name ?? wsLocation;
+        if (args.verbose) {
+            console.log(
+                `gjsify install: ${wsName} — installing ${specSet.size} scoped-override spec(s) into ${wsLocation}/node_modules/`,
+            );
+        }
+        await installPackages({
+            prefix: wsLocation,
+            specs: [...specSet],
+            verbose: args.verbose,
+            // Per-workspace installs get a thin lockfile next to the workspace
+            // package.json. Same `--immutable` semantics as the root install.
+            lockfile: !args.immutable,
+            frozen: args.immutable,
+            signal,
+        });
     }
 
     // Workspace symlink wiring — pre-dedup the parent-dir mkdirs (every
@@ -630,32 +739,94 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
  * Keys beginning with `_` are skipped (convention for documentation entries
  * like `"_comment_typescript"` used in the wild).
  */
+/**
+ * Result of extracting `overrides` + `resolutions` from the root manifest.
+ *
+ * - `global`: flat `depName → range` map. Applied to every workspace unless
+ *   a more specific scoped entry matches.
+ * - `scoped`: per-workspace `<scopeKey> → {depName → range}`. The scopeKey
+ *   matches either a workspace's `name` (e.g. `@gjsify/integration-loro-crdt`)
+ *   or its `relativeLocation` (e.g. `tests/integration/loro-crdt`) — both are
+ *   accepted so users can write whichever is more readable. The scoped layer
+ *   triggers a workspace-local install (the integration package gets its own
+ *   `node_modules/<dep>` instead of the hoisted root version).
+ */
+interface ExtractedOverrides {
+    global: Record<string, string>;
+    scoped: Map<string, Record<string, string>>;
+}
+
 function extractOverrides(
     rootManifest: { overrides?: unknown; resolutions?: unknown } | undefined,
-): Record<string, string> | undefined {
+): ExtractedOverrides | undefined {
     if (!rootManifest) return undefined;
-    const out: Record<string, string> = {};
+    const global: Record<string, string> = {};
+    const scoped = new Map<string, Record<string, string>>();
     const merge = (source: Record<string, unknown> | undefined, fieldName: string) => {
         if (!source) return;
         for (const [key, value] of Object.entries(source)) {
             if (key.startsWith('_')) continue;
-            if (typeof value !== 'string') {
-                console.warn(
-                    `gjsify install: ${fieldName}["${key}"] is not a string — nested override shape isn't supported yet, skipping`,
-                );
+            if (typeof value === 'string') {
+                // Flat `name → range` entry. Normalise pattern keys (`name@*`,
+                // `name@^range`) → bare name. For scoped packages preserve the
+                // leading `@`.
+                let name = key;
+                const atIdx = key.startsWith('@') ? key.indexOf('@', 1) : key.indexOf('@');
+                if (atIdx > 0) name = key.slice(0, atIdx);
+                global[name] = value;
                 continue;
             }
-            // Normalise pattern keys (`name@*`, `name@^range`) → bare name.
-            // For scoped packages preserve the leading `@`.
-            let name = key;
-            const atIdx = key.startsWith('@') ? key.indexOf('@', 1) : key.indexOf('@');
-            if (atIdx > 0) name = key.slice(0, atIdx);
-            out[name] = value;
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                // Scoped entry — `<workspace> → {dep → range}`. This is the
+                // npm-overrides nested shape and yarn's resolutions
+                // selectors collapsed to per-workspace level.
+                const sub: Record<string, string> = {};
+                for (const [depKey, depValue] of Object.entries(value as Record<string, unknown>)) {
+                    if (depKey.startsWith('_')) continue;
+                    if (typeof depValue !== 'string') {
+                        console.warn(
+                            `gjsify install: ${fieldName}["${key}"]["${depKey}"] is not a string — only one level of nesting is supported, skipping`,
+                        );
+                        continue;
+                    }
+                    let depName = depKey;
+                    const atIdx = depKey.startsWith('@') ? depKey.indexOf('@', 1) : depKey.indexOf('@');
+                    if (atIdx > 0) depName = depKey.slice(0, atIdx);
+                    sub[depName] = depValue;
+                }
+                if (Object.keys(sub).length > 0) {
+                    const existing = scoped.get(key) ?? {};
+                    scoped.set(key, { ...existing, ...sub });
+                }
+                continue;
+            }
+            console.warn(
+                `gjsify install: ${fieldName}["${key}"] is not a string or object — skipping`,
+            );
         }
     };
     merge(rootManifest.overrides as Record<string, unknown> | undefined, 'overrides');
     merge(rootManifest.resolutions as Record<string, unknown> | undefined, 'resolutions');
-    return Object.keys(out).length > 0 ? out : undefined;
+    if (Object.keys(global).length === 0 && scoped.size === 0) return undefined;
+    return { global, scoped };
+}
+
+/**
+ * Look up the scoped override for a given workspace + dep. Matches by
+ * workspace name OR relative location (both accepted for readability).
+ */
+function scopedOverrideFor(
+    ws: { name: string; relativeLocation: string },
+    depName: string,
+    extracted: ExtractedOverrides | undefined,
+): string | undefined {
+    if (!extracted || extracted.scoped.size === 0) return undefined;
+    const candidates = [ws.name, ws.relativeLocation];
+    for (const key of candidates) {
+        const entry = extracted.scoped.get(key);
+        if (entry?.[depName]) return entry[depName];
+    }
+    return undefined;
 }
 
 function buildBinShim(

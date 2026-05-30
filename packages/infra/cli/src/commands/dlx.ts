@@ -23,7 +23,7 @@ import {
     resolveInstalledPkgDir,
     symlinkSwap,
 } from '../utils/dlx-cache.js';
-import { installPackages } from '../utils/install-backend.js';
+import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
 
 interface DlxOptions {
     spec: string;
@@ -155,6 +155,12 @@ async function ensurePkgDir(
     }
 
     const prepareDir = makePrepareDir(cacheDir);
+    // First-run dlx (cache miss) downloads & extracts the package + its tree.
+    // For `npx @gjsify/cli showcase excalibur-jelly-jumper` and similar first-
+    // contact entry points the user otherwise sees no feedback for 10+ seconds
+    // (cold packument fetch + tarball extract + prebuild detection); the
+    // progress reporter renders a live bar via stderr.
+    const progress = makeProgressReporter({ enabled: !opts.verbose });
     await installPackages({
         prefix: prepareDir,
         specs: [parsed.spec],
@@ -165,6 +171,7 @@ async function ensurePkgDir(
         // and lets `--frozen` short-circuit the resolver entirely.
         lockfile: true,
         frozen: opts.frozen,
+        progress,
     });
 
     const liveTarget = symlinkSwap(cacheDir, prepareDir);

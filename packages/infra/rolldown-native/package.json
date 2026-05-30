@@ -52,5 +52,14 @@
         "typescript": "^5.9.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",
-    "license": "MIT"
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/infra/rolldown-native"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/rolldown-native#readme"
 }
