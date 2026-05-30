@@ -33,5 +33,15 @@
         "@gjsify/cli": "workspace:^",
         "@types/node": "^25.9.1",
         "typescript": "^6.0.3"
-    }
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/gjs/runtime"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/gjs/runtime#readme"
 }

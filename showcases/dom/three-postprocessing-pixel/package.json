@@ -43,5 +43,14 @@
     "typescript": "^6.0.3"
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gjsify/gjsify.git",
+    "directory": "showcases/dom/three-postprocessing-pixel"
+  },
+  "bugs": {
+    "url": "https://github.com/gjsify/gjsify/issues"
+  },
+  "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/three-postprocessing-pixel#readme"
 }

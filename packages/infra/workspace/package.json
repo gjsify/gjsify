@@ -42,5 +42,14 @@
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.1",
         "typescript": "^6.0.3"
-    }
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/infra/workspace"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/workspace#readme"
 }
