@@ -571,6 +571,8 @@ Run before the merge that adds the package (or immediately after, before the nex
    gjsify publish --access public --otp <code>
    ```
    This creates the package record on npmjs.com. The `npm-otp: <code>` header is forwarded on the PUT request; if OTP is required but `--otp` is omitted on a non-TTY, the CLI exits with a clear error pointing at `--otp`. On an interactive TTY it prompts once and retries (mirrors npm's `otplease` behavior — see `refs/npm-cli/lib/utils/auth.js`).
+
+   **Diagnostic — `404 Not Found` on PUT.** A 404 on the publish PUT is ambiguous: the npm registry returns it for both a dead `_authToken` and a genuinely-missing package. `gjsify publish` now probes `GET /-/whoami` with the same Authorization header to disambiguate: body `{}` (status 200) → the `_authToken` in `~/.npmrc` is revoked/expired, refresh via `npm login`; body `{"username": "..."}` → the package doesn't exist on npm yet, run the first-publish bootstrap above. The probe is best-effort (token-auth path only, skipped under `--otp` or `--trusted`/OIDC where the error surfaces are already clear); on a network failure the generic error message is used instead.
 3. **Configure Trusted Publisher** at `https://www.npmjs.com/package/@gjsify/<name>/access`:
    - Repository: `gjsify/gjsify`
    - Workflow: `release.yml`

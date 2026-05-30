@@ -41,6 +41,7 @@ import { join, resolve } from 'node:path';
 import { DEFAULT_REGISTRY, parseNpmrc, registryFor, buildHeaders, type NpmrcConfig } from '@gjsify/npm-registry';
 import { packWorkspace, type PackWorkspaceOptions } from './pack.js';
 import { getNpmTrustedToken, hasGithubOidcEnv, OidcExchangeError, OidcUnavailableError } from '../utils/npm-oidc.js';
+import { diagnose404, is404DiagnosticCandidate } from '../utils/publish-diagnose.js';
 
 interface PublishOptions {
     path?: string;
@@ -440,6 +441,43 @@ export const publishCommand: Command<unknown, PublishOptions> = {
             if (args.json) process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
             else process.stdout.write(`= ${packed.name}@${packed.version} (already published, tolerated)\n`);
             return;
+        }
+        // 404 diagnostic — token-auth only. npm returns 404 for both a
+        // dead `_authToken` and a genuinely-missing package; `/-/whoami`
+        // disambiguates. OIDC has its own clear error surfaces (handled in
+        // the OIDC catch block above) and `--otp` flows take a different
+        // 401 path, so the diagnostic only kicks in for the plain
+        // token-auth PUT signature.
+        if (res.status === 404 && authMode === 'token' && !otp) {
+            if (is404DiagnosticCandidate(text)) {
+                const diag = await diagnose404({
+                    packageName: packed.name,
+                    version: packed.version,
+                    registry: registryClean,
+                    npmrc,
+                });
+                if (diag.reason !== 'unknown') {
+                    if (args.json) {
+                        process.stdout.write(
+                            `${JSON.stringify(
+                                {
+                                    ok: false,
+                                    name: packed.name,
+                                    version: packed.version,
+                                    status: 404,
+                                    diagnostic: diag.reason,
+                                    username: diag.username,
+                                },
+                                null,
+                                2,
+                            )}\n`,
+                        );
+                    } else {
+                        process.stderr.write(`${diag.message}\n`);
+                    }
+                    process.exit(1);
+                }
+            }
         }
         console.error(`gjsify publish: ${packed.name}@${packed.version} — ${res.status} ${res.statusText}`);
         console.error(text);
