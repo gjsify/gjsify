@@ -299,7 +299,10 @@ const NODE_API_GJS_ONLY = new Set([
  * existing declaration so CI stays green.
  */
 const NODE_API_LEGACY_NONE = new Set([
-    'process',
+    // `process` used to live here while it had no browser entry; it now ships
+    // `src/browser.ts` (defunctzombie-style env / nextTick / stdio stubs) so
+    // the legacy-none designation is no longer accurate. The heuristic now
+    // honours the browser.ts via `has_browser_polyfill` instead.
 ]);
 
 /**
@@ -430,7 +433,13 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
                 !signals.imports_legacy
             ) {
                 const nativeMember = NODE_API_BROWSER_NATIVE.has(pkgSubpath);
-                const nodeSlot = nativeMember ? 'native' : 'polyfill';
+                // A `globals.mjs` re-exporting the runtime-native value upgrades
+                // the node slot to `native` — same logic the post-PR-#392 audit
+                // already applies to the gjs-bound default below. Without this
+                // check, packages like `@gjsify/process` (`gjs_imports_guard` +
+                // a `globalThis.process` globals.mjs) get a spurious `polyfill`
+                // suggestion that drifts from their honest `native` declaration.
+                const nodeSlot = nativeMember || signals.has_globals_mjs ? 'native' : 'polyfill';
                 const browserSlot = nativeMember ? 'native' : 'polyfill';
                 return { gjs: 'polyfill', node: nodeSlot, browser: browserSlot };
             }
@@ -494,7 +503,15 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
         // `polyfill` to `partial` — pure-TS-but-functionally-partial pattern
         // used by `@gjsify/https` (server throws, client via fetch).
         let browserSlot;
-        if (gjsDynamicOnly) {
+        if (NODE_API_NO_BROWSER_SENSE.has(pkgSubpath)) {
+            // cluster / inspector / readline / fs / net / tls / dgram / etc. —
+            // semantics have no browser pendant. The `globals.mjs` they ship is
+            // Node-only (`export * from 'node:cluster'`), so without this
+            // explicit carve-out the per-axis heuristic would suggest `polyfill`
+            // and produce false-positive drift on every CI run. The user-facing
+            // package.json keeps `browser:"none"` as the honest declaration.
+            browserSlot = 'none';
+        } else if (gjsDynamicOnly) {
             browserSlot = 'partial';
         } else if (signals.globals_mjs_browser_safe) {
             browserSlot = 'native';
@@ -502,11 +519,13 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
             browserSlot = 'partial';
         } else {
             browserSlot = nonGjsSlot;
-        }        return {
+        }
+        return {
             gjs: 'polyfill',
             node: gjsDynamicOnly ? 'partial' : 'native',
             browser: browserSlot,
-        };    }
+        };
+    }
     if (axis === 'dom') {
         return { gjs: 'polyfill', node: nonGjsSlot, browser: gjsDynamicOnly ? 'partial' : 'native' };
     }
