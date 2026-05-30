@@ -11,6 +11,10 @@
             "require": "./cjs-compat.cjs",
             "default": "./lib/esm/index.js"
         },
+        "./browser": {
+            "types": "./lib/types/browser.d.ts",
+            "default": "./lib/esm/browser.js"
+        },
         "./consumers": {
             "types": "./lib/types/consumers/index.d.ts",
             "default": "./lib/esm/consumers/index.js"
