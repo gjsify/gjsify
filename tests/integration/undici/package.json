@@ -24,7 +24,7 @@
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.1",
         "@types/ws": "^8.5.13",
-        "typescript": "^6.0.3",
+        "typescript": "^5.9.3",
         "undici": "^7.26.0",
         "ws": "^8.18.0"
     },

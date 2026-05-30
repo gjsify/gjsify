@@ -8,7 +8,13 @@ export declare const EXTERNALS_NPM: string[];
 export declare const ALIASES_GENERAL_FOR_GJS: {[alias:string]: string}; 
 
 /** Record of Node.js modules (build in or not) and his replacement for Gjs */
-export declare const ALIASES_NODE_FOR_GJS: {[alias:string]: string}; 
+export declare const ALIASES_NODE_FOR_GJS: {[alias:string]: string};
+
+/**
+ * Record of Node.js modules (build in or not) and his replacement for `--app browser`.
+ * Unwired in this PR — exported for future consumption by browser.ts.
+ */
+export declare const ALIASES_NODE_FOR_BROWSER: {[alias:string]: string};
 
 /** Record of Web modules and his replacement for Gjs */
 export declare const ALIASES_WEB_FOR_GJS: {[alias:string]: string}; 

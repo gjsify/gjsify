@@ -28,14 +28,17 @@
         },
         "./register/media-devices": {
             "default": "./lib/esm/register/media-devices.js"
-        }
+        },
+        "./globals": "./globals.mjs"
     },
     "files": [
-        "lib"
+        "lib",
+        "globals.mjs"
     ],
     "sideEffects": [
         "./lib/esm/register.js",
-        "./lib/esm/register/*.js"
+        "./lib/esm/register/*.js",
+        "./globals.mjs"
     ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs || exit 0",
@@ -73,13 +76,13 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.1",
-        "typescript": "^6.0.3"
+        "typescript": "^5.9.3"
     },
     "gjsify": {
         "runtimes": {
             "gjs": "polyfill",
             "node": "none",
-            "browser": "none"
+            "browser": "native"
         }
     },
     "license": "MIT",

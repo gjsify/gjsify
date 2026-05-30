@@ -33,6 +33,7 @@
         "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "build:test:browser": "gjsify build src/test.browser.mts --app browser --outfile dist/test.browser.mjs",
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
         "test:gjs": "gjsify run test.gjs.mjs",
         "test:node": "node test.node.mjs"
@@ -46,7 +47,7 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.1",
-        "typescript": "^6.0.3"
+        "typescript": "^5.9.3"
     },
     "dependencies": {
         "@gjsify/utils": "workspace:^"

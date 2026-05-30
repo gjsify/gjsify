@@ -215,3 +215,115 @@ export const GJS_GLOBALS_MAP = {
     location:             '@gjsify/dom-elements/register/location',
     navigator:            '@gjsify/dom-elements/register/navigator',
 };
+
+// ─── Browser target ────────────────────────────────────────────────────────
+//
+// `GJS_GLOBALS_MAP` is the GJS-target authority — every identifier needs a
+// `@gjsify/<X>/register` install path because GJS ships none of them natively.
+// The `--app browser` target inverts that: nearly every identifier in
+// `GJS_GLOBALS_GROUPS.web` and `.dom` is already on the browser's `globalThis`
+// (fetch, Headers, ReadableStream, Event, document, …). Only a handful of
+// Node-group identifiers (Buffer, process, setImmediate, clearImmediate)
+// need a polyfill register entry.
+//
+// The split below mirrors the T-Plan section 5b distinction:
+//   - `BROWSER_NATIVE_IDENTS` — identifier set that resolves to no-op
+//     register entries for `--app browser`. Used by both the audit-runtimes
+//     `BROWSER_NATIVE_RE_EXPORTS` probe (T-Plan 5b-i) and the future
+//     esbuild/rolldown `--globals` consumer to recognise that the identifier
+//     does NOT need an injected register module on the browser target.
+//   - `BROWSER_GLOBALS_MAP` — the strict subset of `GJS_GLOBALS_MAP` that
+//     still needs a polyfill register path on the browser target. Today only
+//     `Buffer` (`@gjsify/buffer/register`) and `process` (no `/register`
+//     subpath shipped yet — placeholder string mirrored from GJS map until
+//     `@gjsify/process` lands a browser-runnable register module).
+
+/**
+ * Identifiers that are natively present on a browser's `globalThis` and
+ * therefore need no `/register` injection when `--app browser` is targeting
+ * the bundle. Consumed by:
+ *
+ *   - `scripts/audit-runtimes.mjs` `BROWSER_NATIVE_RE_EXPORTS` probe
+ *     (T-Plan section 1b) to decide whether a `globals.mjs` re-export source
+ *     is recognisable as a browser-resolvable specifier.
+ *   - `@gjsify/cli` `--globals` flag indirection — future browser-target
+ *     consumer (T-Plan section 5b-iii `getGlobalsMapFor(target)`) maps these
+ *     to a no-op register entry instead of injecting a `/register` shim.
+ *
+ * Drawn from `GJS_GLOBALS_GROUPS.web` and `.dom` (every entry there is
+ * browser-native) plus a small set of shared identifiers from `.node`
+ * (`queueMicrotask`, `structuredClone`, `btoa`, `atob`, `URL`,
+ * `URLSearchParams`, and the unprefixed timer family).
+ */
+export const BROWSER_NATIVE_IDENTS = new Set([
+    // Web group — all browser-native
+    'fetch', 'Headers', 'Request', 'Response',
+    'FormData', 'Blob', 'File',
+    'ReadableStream', 'WritableStream', 'TransformStream',
+    'ReadableStreamBYOBReader', 'ReadableStreamBYOBRequest',
+    'ReadableByteStreamController', 'ReadableStreamDefaultController',
+    'ReadableStreamDefaultReader',
+    'TextEncoderStream', 'TextDecoderStream',
+    'ByteLengthQueuingStrategy', 'CountQueuingStrategy',
+    'CompressionStream', 'DecompressionStream',
+    'crypto',
+    'AbortController', 'AbortSignal',
+    'MessageChannel', 'MessagePort',
+    'Event', 'EventTarget', 'CustomEvent', 'MessageEvent',
+    'ErrorEvent', 'CloseEvent', 'ProgressEvent',
+    'UIEvent', 'MouseEvent', 'PointerEvent', 'KeyboardEvent',
+    'WheelEvent', 'FocusEvent',
+    'EventSource', 'WebSocket', 'WebAssembly',
+    'DOMException',
+    'performance', 'PerformanceObserver',
+    'XMLHttpRequest', 'XMLHttpRequestUpload',
+    'DOMParser',
+    'AudioContext', 'webkitAudioContext', 'Audio', 'HTMLAudioElement',
+    'GamepadEvent',
+    'MediaDevices',
+    'RTCPeerConnection', 'RTCSessionDescription', 'RTCIceCandidate',
+    'RTCPeerConnectionIceEvent', 'RTCDataChannel', 'RTCDataChannelEvent',
+    'RTCError', 'RTCErrorEvent',
+    'MediaStream', 'MediaStreamTrack', 'RTCTrackEvent',
+    // DOM group — all browser-native
+    'document', 'Image', 'HTMLCanvasElement', 'HTMLImageElement',
+    'HTMLElement', 'MutationObserver', 'ResizeObserver', 'IntersectionObserver',
+    'FontFace', 'matchMedia', 'location', 'navigator',
+    // Shared Node-group identifiers that are also browser-native
+    'queueMicrotask', 'structuredClone', 'btoa', 'atob',
+    'URL', 'URLSearchParams',
+    'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval',
+]);
+
+/**
+ * Identifier → register-subpath map for the `--app browser` target. Strict
+ * subset of `GJS_GLOBALS_MAP`: only identifiers that do NOT exist natively
+ * on `globalThis` in a browser need a polyfill register injection.
+ *
+ * Today: `Buffer` (the sole Node-group identifier with a shipped
+ * `@gjsify/<X>/register` subpath that ALSO has a browser-runnable polyfill
+ * landed on `main`). `process`, `setImmediate`, and `clearImmediate` will
+ * join the map as `@gjsify/{process,timers}/register` granular subpaths
+ * land (browser polyfill wave 3-A onwards).
+ */
+export const BROWSER_GLOBALS_MAP = {
+    Buffer:          '@gjsify/buffer/register',
+};
+
+/**
+ * Helper for consumers (esbuild/rolldown plugins, future audit consumers)
+ * to fetch the right identifier → register-subpath map for a given build
+ * target. Centralises the per-target choice so a consumer with a `target`
+ * variable does not need to branch on the strings itself.
+ *
+ *   - `'gjs'`     → full `GJS_GLOBALS_MAP` (every identifier needs a register)
+ *   - `'node'`    → `{}` (every GJS-mapped identifier is Node-native)
+ *   - `'browser'` → `BROWSER_GLOBALS_MAP` (subset that still needs a polyfill)
+ *   - default     → `GJS_GLOBALS_MAP` (safer fallback for unknown targets)
+ */
+export function getGlobalsMapFor(target) {
+    if (target === 'gjs') return GJS_GLOBALS_MAP;
+    if (target === 'node') return {};
+    if (target === 'browser') return BROWSER_GLOBALS_MAP;
+    return GJS_GLOBALS_MAP;
+}

@@ -94,7 +94,7 @@
         "oxfmt": "^0.51.0",
         "oxlint": "^1.66.0",
         "release-it": "^20.0.1",
-        "typescript": "^6.0.3"
+        "typescript": "^5.9.3"
     },
     "resolutions": {
         "@gjsify/rolldown-plugin-deepkit": "workspace:^"
