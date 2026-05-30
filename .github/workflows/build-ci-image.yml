@@ -1,0 +1,74 @@
+name: Build CI Fedora image
+
+# Builds `.docker/ci-fedora.Dockerfile` for every supported Fedora major
+# and pushes the result to `ghcr.io/gjsify/ci-fedora:<major>`. The main
+# test workflow (`main.yml`) consumes the resulting image instead of
+# pulling `fedora:<major>` and running `dnf install` from scratch every
+# job — saves 3-5 minutes per matrix entry.
+#
+# Triggers:
+#   - Weekly cron (Sundays 04:00 UTC). Picks up Fedora security errata.
+#   - Push to main that touches the Dockerfile or this workflow.
+#   - Manual `workflow_dispatch` for ad-hoc rebuilds.
+#
+# Permissions: writes to GHCR via the workflow-issued GITHUB_TOKEN.
+# `packages: write` is required for `docker push ghcr.io/...`.
+
+on:
+  schedule:
+    - cron: '0 4 * * 0'
+  push:
+    branches:
+      - main
+    paths:
+      - '.docker/ci-fedora.Dockerfile'
+      - '.github/workflows/build-ci-image.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build & push Fedora ${{ matrix.fedora-version }} image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora-version: [43, 44]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (for cross-arch where needed)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tag
+        id: tag
+        run: |
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "image=ghcr.io/${REPO_LC%/*}/ci-fedora:${{ matrix.fedora-version }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .docker
+          file: .docker/ci-fedora.Dockerfile
+          build-args: FEDORA_VERSION=${{ matrix.fedora-version }}
+          # Single-arch (amd64) — main.yml runs on ubuntu-latest x86_64.
+          # When we add aarch64 runners we'll grow this list.
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.tag.outputs.image }}
+          cache-from: type=registry,ref=${{ steps.tag.outputs.image }}-cache
+          cache-to: type=registry,ref=${{ steps.tag.outputs.image }}-cache,mode=max
