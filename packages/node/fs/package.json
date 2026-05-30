@@ -15,7 +15,6 @@
         },
         "./promises": {
             "types": "./lib/types/promises.d.ts",
-            "browser": "./lib/esm/browser/promises-entry.js",
             "default": "./lib/esm/promises.js"
         },
         "./browser": {
