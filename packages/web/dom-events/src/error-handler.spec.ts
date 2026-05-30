@@ -56,5 +56,96 @@ export const ErrorHandlerTest = async () => {
                 expect(onUncaughtException.calls[0].arguments[0].stack?.trim()).toBe(error.stack?.trim());
             });
         });
+
+        // The two specs above are gated to `on([])` because they
+        // exercise full W3C error-reporting machinery (window.onerror
+        // / process.uncaughtException dispatch) that we haven't yet
+        // implemented. The two specs below pin the bits we DO ship:
+        // delegate-via-`globalThis.reportError` and the safe-format
+        // fallback. Together they are the regression markers for the
+        // 2026-05-31 "`{}`-instead-of-error" diagnostic disaster.
+        await describe('listener exception reporting (active behaviour)', async () => {
+            await it('delegates to globalThis.reportError when available', async () => {
+                const g = globalThis as { reportError?: (err: unknown) => void };
+                const original = g.reportError;
+                const seen: unknown[] = [];
+                g.reportError = (err) => seen.push(err);
+                try {
+                    const target = new EventTarget();
+                    const error = new Error('listener threw');
+                    target.addEventListener('boom', () => {
+                        throw error;
+                    });
+                    target.dispatchEvent(new Event('boom'));
+                    expect(seen.length).toBe(1);
+                    expect(seen[0]).toBe(error);
+                } finally {
+                    if (original === undefined) delete g.reportError;
+                    else g.reportError = original;
+                }
+            });
+
+            await it('REGRESSION (2026-05-31 {}-instead-of-error): fallback prints stack, not bare Error', async () => {
+                // Pre-fix: `console.error(err)` on an Error rendered as
+                // `{}` under `@gjsify/console`'s `_formatArgs`
+                // JSON.stringify path. Post-fix: when no
+                // `globalThis.reportError` is wired, we extract
+                // `err.stack` (which always carries name + message +
+                // frames) so the log line is actually actionable.
+                const g = globalThis as { reportError?: (err: unknown) => void };
+                const originalReport = g.reportError;
+                const originalConsoleError = console.error;
+                delete g.reportError;
+                const logged: unknown[] = [];
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (console as any).error = (...args: unknown[]) => logged.push(args);
+                try {
+                    const target = new EventTarget();
+                    const error = new Error('listener threw safely');
+                    target.addEventListener('safe', () => {
+                        throw error;
+                    });
+                    target.dispatchEvent(new Event('safe'));
+                    expect(logged.length).toBe(1);
+                    const printed = (logged[0] as unknown[])[0];
+                    // CRITICAL: printed value must be a string (not the raw
+                    // Error object) AND must contain the message so
+                    // `@gjsify/console`'s JSON.stringify fallback doesn't
+                    // reduce it to `{}`.
+                    expect(typeof printed).toBe('string');
+                    expect(String(printed)).toContain('listener threw safely');
+                    expect(String(printed)).not.toBe('{}');
+                    expect(String(printed)).not.toBe('[object Object]');
+                } finally {
+                    if (originalReport !== undefined) g.reportError = originalReport;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (console as any).error = originalConsoleError;
+                }
+            });
+
+            await it('fallback formats non-Error throws via String()', async () => {
+                const g = globalThis as { reportError?: (err: unknown) => void };
+                const originalReport = g.reportError;
+                const originalConsoleError = console.error;
+                delete g.reportError;
+                const logged: unknown[] = [];
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (console as any).error = (...args: unknown[]) => logged.push(args);
+                try {
+                    const target = new EventTarget();
+                    target.addEventListener('strthrow', () => {
+                        // eslint-disable-next-line no-throw-literal
+                        throw 'just a string';
+                    });
+                    target.dispatchEvent(new Event('strthrow'));
+                    expect(logged.length).toBe(1);
+                    expect((logged[0] as unknown[])[0]).toBe('just a string');
+                } finally {
+                    if (originalReport !== undefined) g.reportError = originalReport;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (console as any).error = originalConsoleError;
+                }
+            });
+        });
     });
 };
