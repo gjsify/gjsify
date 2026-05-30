@@ -9,10 +9,15 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
-        }
+        },
+        "./globals": "./globals.mjs"
     },
     "files": [
-        "lib"
+        "lib",
+        "globals.mjs"
+    ],
+    "sideEffects": [
+        "./globals.mjs"
     ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",
@@ -36,13 +41,13 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.1",
-        "typescript": "^6.0.3"
+        "typescript": "^5.9.3"
     },
     "gjsify": {
         "runtimes": {
             "gjs": "polyfill",
-            "node": "none",
-            "browser": "none"
+            "node": "native",
+            "browser": "native"
         }
     }
 }

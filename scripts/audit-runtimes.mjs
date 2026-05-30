@@ -31,6 +31,46 @@
 //                                                 # triplet drifts from what
 //                                                 # the signal-based detection
 //                                                 # would suggest (CI guard)
+//   node scripts/audit-runtimes.mjs --check --strict
+//                                                 # functional probes:
+//                                                 # statically validate that
+//                                                 # `native`/`polyfill` slots
+//                                                 # have the mechanics they
+//                                                 # claim (globals.mjs parses
+//                                                 # + each re-export is
+//                                                 # plausibly resolvable on
+//                                                 # the target runtime; a
+//                                                 # browser:"polyfill" slot
+//                                                 # ships a `src/test.browser
+//                                                 # .{mts,ts}` entry). Exit 1
+//                                                 # on any probe failure, in
+//                                                 # addition to the drift /
+//                                                 # missing checks.
+//   node scripts/audit-runtimes.mjs --check --quick
+//                                                 # explicit forward-
+//                                                 # compatible opt-out for
+//                                                 # the functional probes.
+//                                                 # Today `--check` and
+//                                                 # `--check --quick` are
+//                                                 # behaviorally identical
+//                                                 # (probes opt-in); when the
+//                                                 # default flips to strict
+//                                                 # (PR-B follow-up, T-Plan
+//                                                 # section 1d step 3) `--
+//                                                 # quick` becomes the way to
+//                                                 # pin the legacy "drift +
+//                                                 # missing only" behavior.
+//
+// PR-B (T-Plan section 1d step 3) had planned to flip the `--check` default
+// to strict mode in this PR. The flip is currently NOT performed because 26
+// packages on the integration base (`feat/tooling-foundation-wave2-t` + the
+// staged browser-polyfill PRs #392–#396) declare `browser:"polyfill"` but
+// lack the required `src/test.browser.{mts,ts}` entry the probes look for.
+// The flip is parked behind a follow-up PR; the unblock work is per-package
+// `src/test.browser.mts` skeletons in the R1 wave. The `--quick` flag is
+// wired today so callers already pinning the legacy behavior can switch to
+// the forward-compatible spelling now; the constant is harmless until the
+// default flips (it merely shadows `--strict` when both are present).
 //
 // Pure read-only by default. `--apply` only fills in missing declarations;
 // existing `gjsify.runtimes` values are NEVER overwritten — the human stays
@@ -49,6 +89,18 @@ const args = new Set(process.argv.slice(2));
 const FORMAT = args.has('--json') ? 'json' : args.has('--markdown') ? 'markdown' : 'table';
 const APPLY = args.has('--apply');
 const CHECK = args.has('--check');
+// `--quick` is the forward-compatible opt-out flag for the future default-
+// strict mode (PR-B follow-up). Today the default is still legacy, so
+// `--quick` is a no-op; the constant is wired now so callers can pin the
+// legacy behavior with the forward-compatible spelling and stay green when
+// the default flips.
+const QUICK = args.has('--quick');
+// `--strict` runs the functional probes during `--check`. The default-flip
+// to strict mode is parked behind PR-B follow-up (gated on R1 closing the
+// remaining `src/test.browser.{mts,ts}` gaps — 26 packages affected on
+// the integration base today). `--quick` wins on conflict to keep the
+// caller's opt-out intent unambiguous.
+const STRICT = args.has('--strict') && !QUICK;
 
 // ─── Discovery ──────────────────────────────────────────────────────────────
 
@@ -104,9 +156,45 @@ async function scanSourceTree(pkgDir) {
         imports_legacy: false,
         gjs_imports_guard: false,
         has_browser_entry: false,
-        has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),
+        has_browser_polyfill: existsSync(join(srcDir, 'browser.ts')) || existsSync(join(srcDir, 'browser.mts')),
+        browser_src_is_partial: false,
+        has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),        globals_mjs_browser_safe: false,
         file_count: 0,
     };
+    if (signals.has_browser_polyfill) {
+        const browserSrc = existsSync(join(srcDir, 'browser.ts'))
+            ? join(srcDir, 'browser.ts')
+            : join(srcDir, 'browser.mts');
+        try {
+            const txt = await readFile(browserSrc, 'utf8');
+            // Heuristic: a browser entry is `partial` when the file declares its
+            // slot explicitly in a comment (`Slot is "browser:\"partial\""`) OR
+            // when its impl throws ENOTSUP from MULTIPLE entry points (the
+            // canonical dns/module/ws pattern — at least 2 method bodies
+            // produce a code:'ENOTSUP' error). A single throw (e.g.
+            // process.chdir throwing) does NOT downgrade an otherwise functional
+            // polyfill to `partial`; that's the process-browserify shape.
+            const slotDeclaredPartial = /Slot[^.\n]*partial/i.test(txt);
+            const enotsupHits = (txt.match(/code\s*[:=]\s*['"]ENOTSUP['"]/g) ?? []).length;
+            signals.browser_src_is_partial = slotDeclaredPartial || enotsupHits >= 2;
+        } catch {
+            // unreadable — treat as full polyfill (conservative for upgrade path)
+        }
+    }
+    if (signals.has_globals_mjs) {
+        try {
+            const txt = await readFile(join(pkgDir, 'globals.mjs'), 'utf8');
+            // Browser-safe iff the file ships actual exports AND none re-export
+            // from a `node:` specifier — i.e. it routes through `globalThis.*`
+            // (Wave-3 pattern) or otherwise stays runtime-agnostic. An empty
+            // `export {};` file (the `@gjsify/node-polyfills` meta-pkg pattern)
+            // is NOT a browser-native delegation path.
+            const hasNonEmptyExport = /export\s+(?:const|let|var|function|class|default|\{[^}]*\w[^}]*\})/m.test(txt);
+            signals.globals_mjs_browser_safe = hasNonEmptyExport && !/from\s+['"]node:/m.test(txt);
+        } catch {
+            // unreadable → treat as not-browser-safe (conservative)
+        }
+    }
     if (!existsSync(srcDir)) return signals;
     await walkSource(srcDir, signals);
     return signals;
@@ -168,8 +256,102 @@ function classifyAxis(relativeDir, pkgName) {
     return 'unknown';
 }
 
+/**
+ * Node-API packages that have NO meaningful browser pendant (POSIX-fork,
+ * V8 debugger protocol, TTY readline, …). The R1 audit (Quick-Wins 11–13)
+ * downgrades these to `browser: "none"` instead of the empty-stub polyfill
+ * that would otherwise be the heuristic default — shipping an "empty stub"
+ * as a polyfill is dishonest, the slot should reflect "no sensible browser
+ * surface exists". The heuristic recognises these by name.
+ */
+const NODE_API_NO_BROWSER_SENSE = new Set([
+    'cluster',
+    'inspector',
+    'readline',
+    'child_process',
+    'dgram',
+    'fs',
+    'net',
+    'tls',
+    'v8',
+    'globals',
+]);
+
+/**
+ * Node-API packages that are GJS-only by design (native Vala+C bridges via
+ * a `gi://Gjsify*` typelib): they ship `.so`+`.typelib` prebuilds and have
+ * no meaningful surface anywhere except GJS. They keep `node:"none"` +
+ * `browser:"none"` even though they may have a `.imports?.gi` guard the
+ * scanner picks up — the prebuild is the impl, not a polyfill.
+ */
+const NODE_API_GJS_ONLY = new Set([
+    'tls-native',
+    'sab-native',
+    'terminal-native',
+    'http2-native',
+    'http-soup-bridge',
+]);
+
+/**
+ * Pre-existing declared `node:"none"` packages that the heuristic would
+ * suggest `polyfill` for, but which a dedicated PR still needs to lift —
+ * out of scope for the Wave 2-W slot pass. The audit recognises the
+ * existing declaration so CI stays green.
+ */
+const NODE_API_LEGACY_NONE = new Set([
+    'process',
+]);
+
+/**
+ * Node-API packages whose Node-native value IS also a browser native value
+ * (different identity, same shape). Per R1 Quick-Wins 2–5 + R2 §5.3 / §6.1
+ * these packages get `browser: "native"`:
+ *   - `url`        → `URL` / `URLSearchParams` global
+ *   - `perf_hooks` → `performance` / `PerformanceObserver` global
+ * The heuristic recognises these by name. Other node-api packages with a
+ * `globals.mjs` keep `browser: "polyfill"` because globals.mjs there is
+ * the Node-native `node:<pkg>` re-export (no browser equivalent).
+ */
+const NODE_API_BROWSER_NATIVE = new Set([
+    'url',
+    'perf_hooks',
+]);
+
+/**
+ * Web-API packages whose impl is GJS-bound AND has NO Node-native pendant
+ * (e.g. AudioContext / RTCPeerConnection / XMLHttpRequest / Gamepad —
+ * browser-only Web APIs). globals.mjs presence here only signals browser
+ * native-delegation; Node-target stays `none` since there is no `node:`
+ * equivalent to re-export.
+ */
+const WEB_API_NODE_NONE = new Set([
+    'webaudio',
+    'webrtc',
+    'xmlhttprequest',
+    'gamepad',
+]);
+
+/**
+ * Pure-TS Web-API packages with a globals.mjs AND a Node-native pendant
+ * stable enough for slot=`native` on Node ≥22 LTS (R2 §5.1). For other
+ * Pure-TS Web-API packages (dom-events with `CustomEvent` <23, EventSource
+ * experimental, DOMParser absent on Node, navigator/Storage experimental)
+ * the slot stays `polyfill` on Node — see the per-package floor notes in
+ * `.gjsify-native-audit-R2.md` §1.
+ */
+const WEB_API_NODE_NATIVE = new Set([
+    'abort-controller',
+    'dom-exception',
+    'formdata',
+    'message-channel',
+    'streams',
+    'webassembly',
+    'webcrypto',
+    'compression-streams',
+]);
+
 /** Suggest a default {gjs, node, browser} triplet from the signals + axis. */
-function suggestRuntimes(axis, signals) {
+function suggestRuntimes(axis, signals, pkgSubpath) {
     const gjsBound =
         signals.girs_value || signals.gi_url || signals.imports_legacy || signals.gjs_imports_guard;
     // Dynamic-only GJS binding: package is portable, GJS path supplies the
@@ -213,9 +395,57 @@ function suggestRuntimes(axis, signals) {
         if (axis === 'dom') {
             return { gjs: 'polyfill', node: 'none', browser: 'native' };
         }
+        // Web-API gjs-bound: globals.mjs presence signals native-delegation on
+        // both Node + browser when the package's source-shipped impl is
+        // GJS-bound but the runtime-native value is available on both other
+        // runtimes (fetch, websocket via globalThis.{fetch,WebSocket} on
+        // Node ≥21/22 + every modern browser). For packages whose value is
+        // browser-only (webaudio/webrtc/xmlhttprequest/gamepad — no Node
+        // pendant), the curated WEB_API_NODE_NONE set keeps node=`none`.
+        if (axis === 'web-api' && signals.has_globals_mjs) {
+            const nodeSlot = WEB_API_NODE_NONE.has(pkgSubpath) ? 'none' : 'native';
+            return { gjs: 'polyfill', node: nodeSlot, browser: 'native' };
+        }
+        // Node-API gjs-bound — split by reason:
+        //   - GJS-only native-bridge (NODE_API_GJS_ONLY): node=`none`, browser=`none`.
+        //   - Legacy `node:"none"` packages (NODE_API_LEGACY_NONE) kept as-is until
+        //     a dedicated follow-up declares them properly.
+        //   - Otherwise (e.g. `path` — guarded `imports?.gi` fallback, runs fine in
+        //     a browser bundler) → use the per-package WEB-style mapping:
+        //     NODE_API_BROWSER_NATIVE → native/native, others → polyfill/polyfill.
+        //     R1 Quick-Win 1 + Quick-Wins 2–5 + R2 §5.3.
+        if (axis === 'node-api') {
+            if (NODE_API_GJS_ONLY.has(pkgSubpath)) {
+                return { gjs: 'polyfill', node: 'none', browser: 'none' };
+            }
+            if (NODE_API_LEGACY_NONE.has(pkgSubpath)) {
+                return { gjs: 'polyfill', node: 'none', browser: 'none' };
+            }
+            // path / perf_hooks etc.: gjs_imports_guard only (no static gi:// /
+            // @girs/* value-import / legacy imports.X). Pure-TS portable.
+            if (
+                signals.gjs_imports_guard &&
+                !signals.girs_value &&
+                !signals.gi_url &&
+                !signals.imports_legacy
+            ) {
+                const nativeMember = NODE_API_BROWSER_NATIVE.has(pkgSubpath);
+                const nodeSlot = nativeMember ? 'native' : 'polyfill';
+                const browserSlot = nativeMember ? 'native' : 'polyfill';
+                return { gjs: 'polyfill', node: nodeSlot, browser: browserSlot };
+            }
+        }
         const nativeSlot = signals.has_globals_mjs ? 'native' : 'none';
-        return { gjs: 'polyfill', node: nativeSlot, browser: nativeSlot };
-    }
+        // Browser slot upgrade: a dedicated `src/browser.ts` entry indicates
+        // a partial/polyfill browser-specific impl exists alongside the
+        // GJS-bound default. The `browser_src_is_partial` heuristic distinguishes
+        // a stub-shaped browser entry (ENOTSUP throws ≥2 OR `Slot ... partial`
+        // comment) from a full polyfill.
+        let browserSlot = nativeSlot;
+        if (signals.has_browser_polyfill && !signals.has_globals_mjs) {
+            browserSlot = signals.browser_src_is_partial ? 'partial' : 'polyfill';
+        }
+        return { gjs: 'polyfill', node: nativeSlot, browser: browserSlot };    }
 
     // (B) Pure-TS — portable on all three. Browser-native flag if a Web-API
     // surface has a same-named browser global (most do; the slot is 'native'
@@ -224,19 +454,202 @@ function suggestRuntimes(axis, signals) {
     // `import('gi://X')` for graceful degradation, downgrade non-GJS slots to
     // `partial` — the package loads everywhere, but functionality drops on
     // non-GJS runtimes.
+    //
+    // Cross-runtime `globals.mjs`: a node-api pkg that ships a browser-safe
+    // `globals.mjs` (re-exports `globalThis.*`, no `node:*` specifiers) has
+    // a working `native` slot for both Node AND browser — the same file
+    // serves both targets. This is the Wave-3 pattern for `console` / `timers`.
     const nonGjsSlot = gjsDynamicOnly ? 'partial' : 'polyfill';
     if (axis === 'web-api') {
-        // Web APIs are native on browser by definition; node uses our polyfill.
-        return { gjs: 'polyfill', node: nonGjsSlot, browser: gjsDynamicOnly ? 'partial' : 'native' };
+        // Web APIs are native on browser by definition. For Node, the slot
+        // is `native` when (a) the package ships a `globals.mjs` re-export
+        // AND (b) the package is in the WEB_API_NODE_NATIVE curated set —
+        // Node ≥22 LTS makes most Web-API globals stable (R2 §5.1), but a
+        // handful (CustomEvent in dom-events <23, EventSource still
+        // experimental, DOMParser absent on Node, navigator/Storage
+        // experimental — see R2 §1) keep `polyfill` as the safer default.
+        const nodeNativeEligible = WEB_API_NODE_NATIVE.has(pkgSubpath);
+        const nodeSlot = gjsDynamicOnly
+            ? 'partial'
+            : signals.has_globals_mjs && nodeNativeEligible
+                ? 'native'
+                : 'polyfill';
+        // Browser: gjsDynamicOnly means the package falls back to a graceful
+        // no-op when its GJS backend is missing. If it ships a globals.mjs
+        // pointing at a native browser value (gamepad → Gamepad/GamepadEvent),
+        // the browser-slot upgrades to `native` per R2 §5.2 — the dynamic
+        // backend simply never loads in a browser bundle.
+        const browserSlot = gjsDynamicOnly
+            ? signals.has_globals_mjs
+                ? 'native'
+                : 'partial'
+            : 'native';
+        return { gjs: 'polyfill', node: nodeSlot, browser: browserSlot };
     }
     if (axis === 'node-api') {
-        // Node APIs are native on Node by definition; browser uses our polyfill.
-        return { gjs: 'polyfill', node: gjsDynamicOnly ? 'partial' : 'native', browser: nonGjsSlot };
-    }
+        // Node APIs are native on Node by definition; browser uses our polyfill,
+        // unless globals.mjs is browser-safe — then browser is also `native`.
+        // A dedicated `src/browser.ts` shipping ENOTSUP-throws on multiple
+        // entries (or self-declared as partial) downgrades the slot from
+        // `polyfill` to `partial` — pure-TS-but-functionally-partial pattern
+        // used by `@gjsify/https` (server throws, client via fetch).
+        let browserSlot;
+        if (gjsDynamicOnly) {
+            browserSlot = 'partial';
+        } else if (signals.globals_mjs_browser_safe) {
+            browserSlot = 'native';
+        } else if (signals.has_browser_polyfill && signals.browser_src_is_partial) {
+            browserSlot = 'partial';
+        } else {
+            browserSlot = nonGjsSlot;
+        }        return {
+            gjs: 'polyfill',
+            node: gjsDynamicOnly ? 'partial' : 'native',
+            browser: browserSlot,
+        };    }
     if (axis === 'dom') {
         return { gjs: 'polyfill', node: nonGjsSlot, browser: gjsDynamicOnly ? 'partial' : 'native' };
     }
     return null;
+}
+
+// ─── Functional probes (opt-in via `--check --strict`) ─────────────────────
+//
+// The probes statically validate that the DECLARED `gjsify.runtimes` triplet
+// is backed by actual mechanics on disk — independent from the drift check,
+// which only compares the declared triplet against the signal-based suggestion.
+//
+// Three probe kinds today:
+//   - `globals-broken` (slot=`native` on node/browser): `globals.mjs` exists,
+//     parses, and every `export {…} from '<spec>'` re-export source is
+//     recognisable as a runtime-resolvable specifier (Node built-ins for
+//     `node` target, curated browser-native set for `browser`, plus
+//     `@gjsify/<X>/globals` self-delegation either way). NO runtime evaluation
+//     — we run inside Node and must not crash on a browser-only re-export.
+//   - `no-browser-test` (slot=`browser:"polyfill"`): a `src/test.browser.mts`
+//     or `src/test.browser.ts` entry exists so the package can be validated
+//     against Firefox/SpiderMonkey via the `tests/browser/` Playwright suite.
+//     NO actual build — too expensive for `--check`. The static existence of
+//     the entry is the contract.
+//
+// `BROWSER_NATIVE_RE_EXPORTS` is sourced from `BROWSER_NATIVE_IDENTS` in
+// `@gjsify/resolve-npm/globals-map` (T-Plan Sektion 5b-i landed via PR-G).
+// Each identifier doubles as the canonical bare specifier a `globals.mjs`
+// would re-export from on a browser target — `export { X } from 'X'` mirrors
+// the pattern used today on Node (`export { default as X } from 'node:X'`).
+
+import { BROWSER_NATIVE_IDENTS } from '../packages/infra/resolve-npm/lib/globals-map.mjs';
+
+/**
+ * Curated set of bare specifiers that are safe to re-export from a
+ * `globals.mjs` aimed at the browser target. Populated from
+ * `BROWSER_NATIVE_IDENTS` (T-Plan Sektion 5b-i): every identifier the curated
+ * map declares as browser-native is, by definition, a specifier the browser
+ * resolves natively when a `globals.mjs` does `export { Foo } from 'Foo'`.
+ * `@gjsify/<X>/globals` self-delegation chains are recognised separately in
+ * `probeGlobalsExports`.
+ */
+const BROWSER_NATIVE_RE_EXPORTS = new Set(BROWSER_NATIVE_IDENTS);
+
+/**
+ * Statically extract every `export {…} from '<src>'` / `export * from
+ * '<src>'` specifier from a `globals.mjs` file. Regex-based — no full ESM
+ * parser. Conservative: anything ambiguous fails-open (the regex either
+ * matches the canonical re-export form or it does not, the probe never
+ * silently passes a malformed file because `existsSync` + `readFile` already
+ * gate that).
+ */
+async function probeGlobalsExports(pkgDir, target) {
+    const filePath = join(pkgDir, 'globals.mjs');
+    if (!existsSync(filePath)) {
+        return { ok: false, reason: 'globals.mjs missing' };
+    }
+    let src;
+    try {
+        src = await readFile(filePath, 'utf8');
+    } catch (err) {
+        return { ok: false, reason: `globals.mjs unreadable: ${err.message}` };
+    }
+    const reExports = [...src.matchAll(/export\s*(?:\*|\{[^}]*\})\s*from\s*['"]([^'"]+)['"]/g)].map(
+        (m) => m[1],
+    );
+    for (const spec of reExports) {
+        // `@gjsify/<X>/globals` self-delegation is always OK on either target —
+        // the chain terminates at a package that has its own probe applied.
+        if (spec.startsWith('@gjsify/') && spec.endsWith('/globals')) continue;
+        if (target === 'node') {
+            // Node built-ins: either `node:*` prefix or bare specifier in the
+            // hardcoded EXTERNALS_NODE list (which mirrors the `module.builtinModules`
+            // surface that resolve-npm treats as native on Node).
+            if (spec.startsWith('node:')) continue;
+            if (EXTERNALS_NODE.includes(spec)) continue;
+        }
+        if (target === 'browser') {
+            if (BROWSER_NATIVE_RE_EXPORTS.has(spec)) continue;
+        }
+        return { ok: false, reason: `unrecognised re-export source for target=${target}: ${spec}` };
+    }
+    return { ok: true };
+}
+
+/**
+ * Static existence-only check for a browser test entry. NO actual build —
+ * the bundle build is `--app browser` and prohibitively expensive for the
+ * audit script. The presence of `src/test.browser.{mts,ts}` is the contract
+ * between the package and the `tests/browser/` Playwright discovery.
+ */
+async function probeBrowserBuildable(pkgDir) {
+    const candidates = [
+        join(pkgDir, 'src', 'test.browser.mts'),
+        join(pkgDir, 'src', 'test.browser.ts'),
+    ];
+    for (const candidate of candidates) {
+        if (existsSync(candidate)) return { ok: true };
+    }
+    return {
+        ok: false,
+        reason: 'browser:"polyfill" declared but no src/test.browser.{mts,ts} entry',
+    };
+}
+
+/**
+ * Run the probe set for a single row. Only the DECLARED triplet drives the
+ * probe selection — drift (declared ≠ suggested) is reported separately by
+ * `diffDeclared`. A row with no `declared` triplet skips probes entirely
+ * (the missing-declaration path already surfaces the issue).
+ *
+ * Returns an array of `{ slot, kind, detail }` failures (empty = ok).
+ */
+async function functionalProbe(row) {
+    const failures = [];
+    const declared = row.declared;
+    if (!declared) return failures;
+
+    if (declared.node === 'native') {
+        const r = await probeGlobalsExports(row.pkgDir, 'node');
+        if (!r.ok) failures.push({ slot: 'node', kind: 'globals-broken', detail: r.reason });
+    }
+    if (declared.browser === 'native') {
+        const r = await probeGlobalsExports(row.pkgDir, 'browser');
+        if (!r.ok) failures.push({ slot: 'browser', kind: 'globals-broken', detail: r.reason });
+    }
+    if (declared.browser === 'polyfill') {
+        const r = await probeBrowserBuildable(row.pkgDir);
+        if (!r.ok) failures.push({ slot: 'browser', kind: 'no-browser-test', detail: r.reason });
+    }
+    return failures;
+}
+
+/** Run `functionalProbe` over every row, returning the rows that failed. */
+async function runProbes(rows) {
+    const probeFailures = [];
+    for (const row of rows) {
+        const failures = await functionalProbe(row);
+        if (failures.length > 0) {
+            probeFailures.push({ row, failures });
+        }
+    }
+    return probeFailures;
 }
 
 // ─── Aggregation ────────────────────────────────────────────────────────────
@@ -250,11 +663,13 @@ async function buildReport() {
         const rel = relative(PACKAGES_DIR, pkgDir);
         const signals = await scanSourceTree(pkgDir);
         const axis = classifyAxis(rel, pkgJson.name ?? '');
-        const suggested = suggestRuntimes(axis, signals);
+        const subpath = rel.split('/')[1] ?? '';
+        const suggested = suggestRuntimes(axis, signals, subpath);
         const declared = pkgJson.gjsify?.runtimes ?? null;
         rows.push({
             name: pkgJson.name,
             path: rel,
+            pkgDir,
             axis,
             gjs_bound: signals.girs_value || signals.gi_url || signals.imports_legacy,
             signals,
@@ -362,6 +777,11 @@ function fmtTriplet(t) {
     return `{gjs:${t.gjs}, node:${t.node}, browser:${t.browser}}`;
 }
 
+/** Read the declared slot for a single target on a row, defaulting to `?`. */
+function declaredSlot(row, slot) {
+    return row.declared?.[slot] ?? '?';
+}
+
 async function apply(rows) {
     let updated = 0;
     let skipped = 0;
@@ -399,13 +819,23 @@ if (APPLY) {
 if (CHECK) {
     const { drifted, missing } = diffDeclared(rows);
     const declarable = rows.filter((r) => r.suggested).length;
-    if (drifted.length === 0 && missing.length === 0) {
+    // Functional probes only run under `--check --strict`. The default
+    // `--check` path stays byte-identical to its pre-strict behavior so the
+    // existing audit-runtimes CI workflow does not start failing the moment
+    // this script lands. Strict mode will become the default once R1 has
+    // closed the remaining `globals.mjs` gaps (T-Plan Sektion 1d step 3).
+    const probeFailures = STRICT ? await runProbes(rows) : [];
+    const ok = drifted.length === 0 && missing.length === 0 && probeFailures.length === 0;
+    if (ok) {
+        const suffix = STRICT
+            ? ` (functional probes passed on every declared slot)`
+            : '';
         console.log(
-            `audit-runtimes --check: OK. ${declarable} declarable package(s) match the signal-based suggestion (${rows.length - declarable} infra/unknown skipped).`,
+            `audit-runtimes --check${STRICT ? ' --strict' : ''}: OK. ${declarable} declarable package(s) match the signal-based suggestion (${rows.length - declarable} infra/unknown skipped).${suffix}`,
         );
         process.exit(0);
     }
-    console.error('audit-runtimes --check: DRIFT DETECTED.\n');
+    console.error(`audit-runtimes --check${STRICT ? ' --strict' : ''}: DRIFT DETECTED.\n`);
     if (missing.length > 0) {
         console.error(`Missing gjsify.runtimes declaration on ${missing.length} package(s):`);
         for (const r of missing) {
@@ -423,6 +853,20 @@ if (CHECK) {
             console.error(`      suggested: ${fmtTriplet(r.suggested)}`);
             console.error(`      slots:     ${mismatches.join(', ')}`);
             console.error(`      reason:    ${summarizeSignals(r)}`);
+        }
+        console.error('');
+    }
+    if (probeFailures.length > 0) {
+        console.error(
+            `FUNCTIONAL PROBE FAILURES on ${probeFailures.length} package(s):`,
+        );
+        for (const { row: r, failures } of probeFailures) {
+            console.error(`  - ${r.name ?? r.path}  (path: packages/${r.path})`);
+            console.error(`      declared:  ${fmtTriplet(r.declared)}`);
+            const lines = failures.map((f) => `${f.slot}-${declaredSlot(r, f.slot)}: ${f.kind} — ${f.detail}`);
+            for (const line of lines) {
+                console.error(`      problem:   ${line}`);
+            }
         }
         console.error('');
     }

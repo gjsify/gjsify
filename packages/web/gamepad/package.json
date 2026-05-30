@@ -13,13 +13,16 @@
         "./register": {
             "types": "./lib/types/register.d.ts",
             "default": "./lib/esm/register.js"
-        }
+        },
+        "./globals": "./globals.mjs"
     },
     "files": [
-        "lib"
+        "lib",
+        "globals.mjs"
     ],
     "sideEffects": [
-        "./lib/esm/register.js"
+        "./lib/esm/register.js",
+        "./globals.mjs"
     ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs || exit 0",
@@ -48,13 +51,13 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.1",
-        "typescript": "^6.0.3"
+        "typescript": "^5.9.3"
     },
     "gjsify": {
         "runtimes": {
             "gjs": "polyfill",
             "node": "partial",
-            "browser": "partial"
+            "browser": "native"
         }
     }
 }

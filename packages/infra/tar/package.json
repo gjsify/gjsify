@@ -40,6 +40,6 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/compression-streams": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "typescript": "^6.0.3"
+        "typescript": "^5.9.3"
     }
 }

@@ -24,7 +24,7 @@
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.1",
         "@types/yargs": "^17.0.35",
-        "typescript": "^6.0.3",
+        "typescript": "^5.9.3",
         "yargs": "^18.0.0"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",
