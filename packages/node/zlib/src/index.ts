@@ -363,6 +363,51 @@ export function brotliDecompressSync(_data: string | Uint8Array | ArrayBuffer, _
     throw new Error('brotliDecompressSync: Brotli is not supported in this environment');
 }
 
+// ---- Zstd stubs (Node 23.8+ API, see https://github.com/nodejs/node/pull/56777) ----
+//
+// undici v7's runtime-feature detector reads `zlib.createZstdDecompress` at
+// module-init time — even if no Zstd-encoded response ever arrives, the
+// symbol MUST exist for undici to even load. These stubs make `import undici`
+// work under GJS; they throw `ERR_UNSUPPORTED_OPERATION` only when the
+// caller actually constructs the codec (rare — GTK ecosystem doesn't ship
+// Content-Encoding: zstd today). A real implementation would land via
+// `Gio.ZlibCompressor`'s zstd siblings in glib-networking 2.84+ or a
+// libzstd-1.5 Vala prebuild — neither is on the immediate horizon.
+
+export function zstdCompress(
+    data: string | Uint8Array | ArrayBuffer,
+    optionsOrCallback: ZlibOptions | ZlibCallback,
+    callback?: ZlibCallback,
+): void {
+    const cb = (typeof optionsOrCallback === 'function' ? optionsOrCallback : callback) as ZlibCallback;
+    const err = new Error('zstdCompress: Zstd is not supported in this environment');
+    (err as Error & { code: string }).code = 'ERR_UNSUPPORTED_OPERATION';
+    cb(err, EMPTY_RESULT);
+}
+
+export function zstdDecompress(
+    data: string | Uint8Array | ArrayBuffer,
+    optionsOrCallback: ZlibOptions | ZlibCallback,
+    callback?: ZlibCallback,
+): void {
+    const cb = (typeof optionsOrCallback === 'function' ? optionsOrCallback : callback) as ZlibCallback;
+    const err = new Error('zstdDecompress: Zstd is not supported in this environment');
+    (err as Error & { code: string }).code = 'ERR_UNSUPPORTED_OPERATION';
+    cb(err, EMPTY_RESULT);
+}
+
+export function zstdCompressSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
+    const err = new Error('zstdCompressSync: Zstd is not supported in this environment');
+    (err as Error & { code: string }).code = 'ERR_UNSUPPORTED_OPERATION';
+    throw err;
+}
+
+export function zstdDecompressSync(_data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
+    const err = new Error('zstdDecompressSync: Zstd is not supported in this environment');
+    (err as Error & { code: string }).code = 'ERR_UNSUPPORTED_OPERATION';
+    throw err;
+}
+
 // ---- Constants ----
 
 export const constants = {
@@ -406,7 +451,11 @@ import {
     createUnzip,
     createBrotliCompress,
     createBrotliDecompress,
+    createZstdCompress,
+    createZstdDecompress,
 } from './transform-streams.js';
+
+export { createZstdCompress, createZstdDecompress } from './transform-streams.js';
 
 export default {
     gzip,
@@ -425,6 +474,10 @@ export default {
     brotliDecompress,
     brotliCompressSync,
     brotliDecompressSync,
+    zstdCompress,
+    zstdDecompress,
+    zstdCompressSync,
+    zstdDecompressSync,
     createGzip,
     createGunzip,
     createDeflate,
@@ -434,5 +487,7 @@ export default {
     createUnzip,
     createBrotliCompress,
     createBrotliDecompress,
+    createZstdCompress,
+    createZstdDecompress,
     constants,
 };
