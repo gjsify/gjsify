@@ -30,6 +30,7 @@ import { pathToFileURL } from 'node:url';
 import type { RolldownOutput, InputOptions, RolldownWatcher } from 'rolldown';
 import type * as Rolldown from 'rolldown';
 import type { BundlerOptions } from './types/index.js';
+import { resolveNpmPackage } from './utils/resolve-npm-package.js';
 
 // npm `rolldown` is a Rust crate with platform-specific prebuilds; loading
 // it eagerly at module init pulls musl-detection code that does
@@ -41,8 +42,39 @@ async function loadNpmRolldown(): Promise<typeof Rolldown.rolldown> {
     // Indirect specifier so Rolldown's static-analysis doesn't try to
     // bundle the npm crate into a GJS target build.
     const specifier = 'rolldown';
-    const mod = (await import(/* @vite-ignore */ specifier)) as typeof Rolldown;
+    const target = resolveImportTargetForGjs(specifier);
+    const mod = (await import(/* @vite-ignore */ target)) as typeof Rolldown;
     return mod.rolldown;
+}
+
+/**
+ * Convert a bare npm specifier into something dynamic `import(...)` can
+ * load regardless of host runtime:
+ *
+ *   - Node has a native node_modules resolver — return the specifier
+ *     unchanged.
+ *   - GJS's native ESM loader has no node_modules walker, so we resolve
+ *     the specifier through multiple `createRequire` anchors (cwd,
+ *     workspace root, bundle URL, parent-dir walk, `GJSIFY_NODE_PATH`)
+ *     and dynamic-import the resulting `file://` URL.
+ *
+ * Falls back to the bare specifier when every anchor misses so the
+ * host runtime's loader surfaces its native error path instead of a
+ * silent synth from this helper.
+ *
+ * The bundle-URL anchor (`import.meta.url`) is critical for the case
+ * where the install lives next to the bundle but the user invokes
+ * `gjs -m <install>/dist/cli.gjs.mjs build …` from a completely
+ * unrelated cwd — without it, the createRequire walk anchored at the
+ * cwd's `node_modules` chain misses, and we'd throw `Module not found:
+ * rolldown` even though the package is present under the install dir.
+ */
+function resolveImportTargetForGjs(specifier: string): string {
+    const isGjs = typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
+    if (!isGjs) return specifier;
+    const resolved = resolveNpmPackage(specifier, { bundleUrl: import.meta.url });
+    if (resolved) return pathToFileURL(resolved).href;
+    return specifier;
 }
 
 interface BundleResult {
@@ -176,7 +208,8 @@ export async function runWatch(finalOpts: BundlerOptions): Promise<RolldownWatch
         );
     }
     const specifier = 'rolldown';
-    const mod = (await import(/* @vite-ignore */ specifier)) as typeof Rolldown;
+    const target = resolveImportTargetForGjs(specifier);
+    const mod = (await import(/* @vite-ignore */ target)) as typeof Rolldown;
     const output = finalOpts.output ?? {};
     return mod.watch({ ...finalOpts, output });
 }
@@ -250,8 +283,14 @@ async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
             const specifier = '@gjsify/rolldown-native';
             let target: string = specifier;
             if (isGjs) {
-                const require = createRequire(import.meta.url);
-                const resolved = require.resolve(specifier);
+                // Same multi-anchor resolution as `loadNpmRolldown` —
+                // when the bundle is invoked from a cwd outside the
+                // install dir, anchoring solely at `import.meta.url`
+                // misses node_modules layouts where the user's cwd
+                // or the workspace root carries the package instead.
+                const resolved =
+                    resolveNpmPackage(specifier, { bundleUrl: import.meta.url }) ??
+                    createRequire(import.meta.url).resolve(specifier);
                 target = pathToFileURL(resolved).href;
             }
             const mod = (await import(/* @vite-ignore */ target)) as NativeRolldownSurface;
