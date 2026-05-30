@@ -39,10 +39,17 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const VALID_SLOTS = new Set(['polyfill', 'native', 'partial', 'none']);
-const VALID_TARGETS = new Set(['gjs', 'node', 'browser']);
+const VALID_TARGETS = new Set(['gjs', 'node', 'browser', 'nativescript']);
 
 /** @typedef {'polyfill'|'native'|'partial'|'none'} Slot */
-/** @typedef {{gjs?:Slot, node?:Slot, browser?:Slot}} RuntimeTriplet */
+/**
+ * Per-package runtime slot declaration. Quadruplet (gjs / node / browser /
+ * nativescript). The legacy "triplet" name is kept on the typedef for
+ * minimal churn while NativeScript is being landed; the type is canonically
+ * a quadruplet from VALID_TARGETS' perspective.
+ *
+ * @typedef {{gjs?:Slot, node?:Slot, browser?:Slot, nativescript?:Slot}} RuntimeTriplet
+ */
 /** @typedef {{name:string, dir:string, runtimes:RuntimeTriplet, hasGlobals:boolean}} PackageRecord */
 
 let _cache = null;
@@ -313,7 +320,7 @@ function warnOnce(key, message) {
  * Given a package record + target runtime, resolve the alias target.
  *
  * @param {PackageRecord} rec
- * @param {'gjs'|'node'|'browser'} target
+ * @param {'gjs'|'node'|'browser'|'nativescript'} target
  * @returns {string|null} The alias target specifier, or null if no rewrite applies.
  */
 function resolveSlot(rec, target) {
@@ -365,7 +372,7 @@ function resolveSlot(rec, target) {
  * (callers should `{ ...derived, ...hardcoded }` to preserve current behavior
  * for packages opted out of the triplet model).
  *
- * @param {'gjs'|'node'|'browser'} target
+ * @param {'gjs'|'node'|'browser'|'nativescript'} target
  * @returns {Record<string,string>}
  */
 export function getDerivedAliasesSync(target) {
@@ -386,7 +393,7 @@ export function getDerivedAliasesSync(target) {
  * Async variant of {@link getDerivedAliasesSync} — preferred when callable from
  * an async config hook.
  *
- * @param {'gjs'|'node'|'browser'} target
+ * @param {'gjs'|'node'|'browser'|'nativescript'} target
  * @returns {Promise<Record<string,string>>}
  */
 export async function getDerivedAliases(target) {

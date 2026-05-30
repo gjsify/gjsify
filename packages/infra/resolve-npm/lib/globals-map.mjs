@@ -311,19 +311,42 @@ export const BROWSER_GLOBALS_MAP = {
 };
 
 /**
+ * NativeScript globals map. NS' bundled V8 already provides every Web /
+ * Node-runtime global that `GJS_GLOBALS_MAP` covers — `fetch`, `URL`,
+ * `URLSearchParams`, `crypto` (incl. `crypto.getRandomValues`), `Promise`,
+ * `setTimeout` / `setInterval`, `console`, `TextEncoder` / `TextDecoder`,
+ * `atob` / `btoa`, `Blob`, `File`, `FormData`, `WebSocket`,
+ * `XMLHttpRequest`, `structuredClone`, etc. — so no register-subpath
+ * injection is needed for the default surface.
+ *
+ * `Buffer` is the one exception: NS does not ship `Buffer` as a global
+ * (it's a Node-specific concept). Apps that consume `node:buffer` get the
+ * polyfill via the alias layer; this map covers the bare `Buffer`
+ * free-identifier case (parallel to the BROWSER_GLOBALS_MAP entry).
+ *
+ * Per-pillar Welle-5 PRs will extend this map as packages declare
+ * `runtimes.nativescript = "polyfill"` and need a specific global stubbed.
+ */
+export const NATIVESCRIPT_GLOBALS_MAP = {
+    Buffer:          '@gjsify/buffer/register',
+};
+
+/**
  * Helper for consumers (esbuild/rolldown plugins, future audit consumers)
  * to fetch the right identifier → register-subpath map for a given build
  * target. Centralises the per-target choice so a consumer with a `target`
  * variable does not need to branch on the strings itself.
  *
- *   - `'gjs'`     → full `GJS_GLOBALS_MAP` (every identifier needs a register)
- *   - `'node'`    → `{}` (every GJS-mapped identifier is Node-native)
- *   - `'browser'` → `BROWSER_GLOBALS_MAP` (subset that still needs a polyfill)
- *   - default     → `GJS_GLOBALS_MAP` (safer fallback for unknown targets)
+ *   - `'gjs'`          → full `GJS_GLOBALS_MAP` (every identifier needs a register)
+ *   - `'node'`         → `{}` (every GJS-mapped identifier is Node-native)
+ *   - `'browser'`      → `BROWSER_GLOBALS_MAP` (subset that still needs a polyfill)
+ *   - `'nativescript'` → `NATIVESCRIPT_GLOBALS_MAP` (subset NS V8 doesn't ship)
+ *   - default          → `GJS_GLOBALS_MAP` (safer fallback for unknown targets)
  */
 export function getGlobalsMapFor(target) {
     if (target === 'gjs') return GJS_GLOBALS_MAP;
     if (target === 'node') return {};
     if (target === 'browser') return BROWSER_GLOBALS_MAP;
+    if (target === 'nativescript') return NATIVESCRIPT_GLOBALS_MAP;
     return GJS_GLOBALS_MAP;
 }

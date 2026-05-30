@@ -771,6 +771,26 @@ GJS = primary target, NON-NEGOTIABLE. But many `@gjsify/*` packages are pure TS 
 
 **Non-goals:** turning gjsify into a runtime; replacing Node/browser-native APIs where they exist; spec conformance beyond what a polyfill needs to behave correctly; forking / maintaining `refs/node-gtk` (it's reference, not a target); making GJS-bound packages cross-runtime by refactoring (only NEW pure-TS packages get the treatment from day one).
 
+### Cross-Runtime Mobile (NativeScript) — 4. Runtime-Slot
+
+NativeScript ist als 4. Runtime-Slot eingeführt (Welle 4-T). V8 (ES2024) auf iOS + Android via metadata-driven Native-Bridge — konzeptionell analog zu GJS↔GNOME, nur mit `java.io.File`/`NSFileManager` statt `imports.gi.Gio.File`.
+
+|Triplet → Quadruplet: `{gjs, node, browser, nativescript}` in `package.json#gjsify.runtimes`
+|Slot-Vokabular gleich wie bei den anderen Targets (`polyfill`/`native`/`partial`/`none`); `native` Slot redirected zu `@gjsify/<X>/globals` re-export wo vorhanden
+|Optional: `package.json#gjsify.nativescriptPlatforms: ['ios','android']` (default beide) — erlaubt Capability-Deklaration auf Plattform-Subset-Niveau ohne den Slot zu doppeln. iOS/Android werden NICHT in separate Axes gesplittet (wir orientieren uns daran wie NS selbst es macht — ein `@nativescript/core` mit interner Plattform-Verzweigung). Revisitable: wenn iOS/Android-Divergenz beim Implementieren überstrapaziert wird, kann das Quintuplet später kommen — `VALID_TARGETS` in `runtime-aliases.mjs` ist ein 1-Line-Change
+|Native-Bridge-Identifier (`java.*`, `android.*`, `androidx.*`, `kotlin.*`, `NS*`, `UI*`, `CG*`, `NSObject`) werden NICHT externalized + NICHT aliasiert — der NS-Runtime macht sie als globale Identifier verfügbar (wie GJS' `imports.gi.*`)
+|Build: `gjsify build --app nativescript src/foo.ts --outfile dist/foo.ns.mjs` → ESM-Bundle, esnext target, codeSplitting:false. NS-Konsumer pipen das durch `@nativescript/webpack` oder `@nativescript/vite` als Entry-Datei
+|Vite-Plugin-Track: `gjsifyNativescript()` Preset aus `@gjsify/vite-plugin-gjsify` (Schwesterstück zu `gjsifyBrowser()`) für NS 9.0+ Vite-Builds. Konsumer-Pattern:
+```ts
+import nativescript from '@nativescript/vite';
+import { gjsifyNativescript } from '@gjsify/vite-plugin-gjsify';
+export default defineConfig({ plugins: [nativescript(), ...gjsifyNativescript()] });
+```
+|Audit: `scripts/audit-runtimes.mjs` ist quadruplet-aware. `nativescript` Slot ist OPTIONAL für bestehende Packages (Foundation = ergänzt den Slot-Mechanismus, per-package Backfill ist Welle 5). Wenn ein Package `nativescript` nicht deklariert, wird der Drift-Check für diesen Slot übersprungen
+|Reference-Sources: 5 NativeScript-Submodules unter `refs/nativescript*` (siehe `## References — refs/` → `### Mobile (NativeScript)`)
+
+**Universelle Core-Packages (Konvention, kein Pflicht):** Wenn ein `@gjsify/X` auf ≥3 Runtimes mit gemeinsamer pure-TS-Logik läuft, kann es in `@gjsify/X-core` (platform-agnostische Logik) + dünne Per-Platform-Adapter (`@gjsify/X`) extrahiert werden. Pro Welle/Agent zu entscheiden — kein automatisches Refactoring. Beispiel-Kandidaten: `@gjsify/fs-core` (POSIX-shape interface, alle Platform-Bridges importieren), `@gjsify/path-core` (pure POSIX/win32 logic).
+
 ### Sixth axis — bundled toolchains (Node-free build chain)
 
 Orthogonal to the five runtime-portability axes above: NPM toolchains that are themselves plain TS/JS (no native deps, no `node-api` addons) can be re-bundled with `gjsify build --app gjs` and run under GJS — giving a Node-free version of the tool without reimplementing it. First exemplar:

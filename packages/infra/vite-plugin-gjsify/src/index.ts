@@ -34,6 +34,7 @@ import { type Plugin } from 'vite';
 import { gjsImportsEmptyPlugin } from '@gjsify/rolldown-plugin-gjsify';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
+import { ALIASES_NODE_FOR_NATIVESCRIPT } from '@gjsify/resolve-npm';
 
 export interface GjsifyBrowserOptions {
     /**
@@ -129,3 +130,107 @@ export function gjsifyBrowser(options: GjsifyBrowserOptions = {}): Plugin[] {
 }
 
 export default gjsifyBrowser;
+
+// ---------------------------------------------------------------------------
+// `gjsifyNativescript()` — Vite-plugin-track for `--app nativescript`
+// ---------------------------------------------------------------------------
+//
+// Schwesterstück zu `gjsifyBrowser()`: produces a Vite plugin array that
+// makes a NativeScript app's Vite build (NS 9.0+ ships @nativescript/vite)
+// match what `gjsify build --app nativescript` produces under Rolldown.
+//
+// What it composes (one-to-one with `--app nativescript`):
+//   - gjsImportsEmptyPlugin() → resolve `@girs/*` / `gi://*` to empty
+//   - deepkitPlugin() → optional Deepkit reflection (opt-in)
+//   - inline Vite `config` hook setting NS-target aliases, conditions,
+//     mainFields, defines, build target.
+//
+// DELIBERATELY OMITTED (compared to `gjsifyBrowser()`):
+//   - blueprintPlugin (Blueprint is a GTK-specific UI DSL; NS uses XML/Vue/
+//     React/Svelte UI bindings instead)
+//   - cssAsStringPlugin (NS ships its own CSS pipeline via @nativescript/core;
+//     .css imports flow through the consuming @nativescript/vite build)
+//   - `window` define (NS apps have no DOM and use `typeof window === undefined`
+//     as a cross-platform branch gate)
+
+export interface GjsifyNativescriptOptions {
+    /**
+     * Enable Deepkit type reflection. Off by default — matches gjsifyBrowser.
+     */
+    reflection?: boolean;
+    /**
+     * Extra `resolve.alias` entries merged on top of `ALIASES_NODE_FOR_NATIVESCRIPT`.
+     * User entries win over the defaults.
+     */
+    aliases?: Record<string, string>;
+    /**
+     * Extra package names to add to Vite's `optimizeDeps.exclude`. `@gjsify/unit`
+     * is always excluded.
+     */
+    optimizeDepsExclude?: string[];
+}
+
+/**
+ * Returns the Vite plugin array that brings `gjsify build --app nativescript`'s
+ * NS-target transforms to a Vite project (dev + build). Spread it into a
+ * Vite config's `plugins`:
+ *
+ * ```ts
+ * import { defineConfig } from 'vite';
+ * import { gjsifyNativescript } from '@gjsify/vite-plugin-gjsify';
+ * import nativescript from '@nativescript/vite';
+ *
+ * export default defineConfig({
+ *   plugins: [nativescript(), ...gjsifyNativescript()],
+ * });
+ * ```
+ */
+export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plugin[] {
+    // Bare Node-builtin + node:* prefix aliases. Both forms route to the same
+    // `@gjsify/<X>` target. Generated from `ALIASES_NODE_FOR_NATIVESCRIPT` so
+    // the single source-of-truth in `@gjsify/resolve-npm` drives every build,
+    // matching the Rolldown-side `app/nativescript.ts` composition.
+    const nodePrefixAliases: Record<string, string> = {};
+    for (const [bare, target] of Object.entries(ALIASES_NODE_FOR_NATIVESCRIPT)) {
+        nodePrefixAliases[bare] = target;
+        nodePrefixAliases[`node:${bare}`] = target;
+    }
+
+    const alias: Record<string, string> = {
+        ...nodePrefixAliases,
+        ...options.aliases,
+    };
+
+    const optimizeDepsExclude = ['@gjsify/unit', ...(options.optimizeDepsExclude ?? [])];
+
+    const configPlugin: Plugin = {
+        name: 'gjsify-nativescript-config',
+        config() {
+            return {
+                resolve: {
+                    alias,
+                    conditions: ['import', 'nativescript'],
+                    mainFields: ['nativescript', 'module', 'main'],
+                },
+                define: {
+                    global: 'globalThis',
+                    // NO `window` define — NS apps have no DOM
+                },
+                build: {
+                    target: 'esnext',
+                },
+                optimizeDeps: {
+                    exclude: optimizeDepsExclude,
+                },
+            };
+        },
+    };
+
+    return [
+        gjsImportsEmptyPlugin() as unknown as Plugin,
+        // NO blueprintPlugin — Blueprint is GTK-specific
+        // NO cssAsStringPlugin — NS handles CSS via @nativescript/core
+        deepkitPlugin({ reflection: options.reflection }) as unknown as Plugin,
+        configPlugin,
+    ];
+}

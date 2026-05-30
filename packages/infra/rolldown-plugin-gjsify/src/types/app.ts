@@ -1,1 +1,1 @@
-export type App = 'gjs' | 'node' | 'browser';
+export type App = 'gjs' | 'node' | 'browser' | 'nativescript';
