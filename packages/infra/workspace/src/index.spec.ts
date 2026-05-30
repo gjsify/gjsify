@@ -13,6 +13,9 @@ import {
     discoverWorkspaces,
     resolveWorkspaceProtocol,
     buildDependencyGraph,
+    buildReverseDependencyGraph,
+    affectedClosure,
+    workspacesForChangedFiles,
     topologicalSort,
     filterWorkspaces,
     type Workspace,
@@ -199,6 +202,149 @@ export default async (): Promise<void> => {
             await it('--no-private drops private workspaces', () => {
                 const sel = filterWorkspaces(ws, { noPrivate: true });
                 expect(sel.find((w) => w.name === '@girs/glib-2.0')).toBeUndefined();
+            });
+        });
+
+        await describe('buildReverseDependencyGraph', async () => {
+            await it('inverts forward edges — `A → B` becomes `B → A`', () => {
+                const ws: Workspace[] = [
+                    makeWs('@gjsify/a', '1.0.0', {
+                        dependencies: { '@gjsify/b': 'workspace:*' },
+                    }),
+                    makeWs('@gjsify/b', '1.0.0'),
+                ];
+                const reverse = buildReverseDependencyGraph(ws);
+                expect(reverse.edges.get('@gjsify/b')?.has('@gjsify/a')).toBeTruthy();
+                expect(reverse.edges.get('@gjsify/a')?.size).toBe(0);
+            });
+
+            await it('every workspace appears as a key, even with no dependents', () => {
+                const ws: Workspace[] = [makeWs('@gjsify/lonely', '1.0.0')];
+                const reverse = buildReverseDependencyGraph(ws);
+                expect(reverse.edges.has('@gjsify/lonely')).toBeTruthy();
+                expect(reverse.edges.get('@gjsify/lonely')?.size).toBe(0);
+            });
+        });
+
+        await describe('affectedClosure', async () => {
+            // Diamond: A → B, A → C, B → D, C → D. A change in D
+            // should mark D, B, C, AND A as affected.
+            const ws: Workspace[] = [
+                makeWs('@gjsify/a', '1.0.0', {
+                    dependencies: { '@gjsify/b': 'workspace:*', '@gjsify/c': 'workspace:*' },
+                }),
+                makeWs('@gjsify/b', '1.0.0', {
+                    dependencies: { '@gjsify/d': 'workspace:*' },
+                }),
+                makeWs('@gjsify/c', '1.0.0', {
+                    dependencies: { '@gjsify/d': 'workspace:*' },
+                }),
+                makeWs('@gjsify/d', '1.0.0'),
+            ];
+            const reverse = buildReverseDependencyGraph(ws);
+
+            await it('seeds-only when no dependents', () => {
+                const closure = affectedClosure(reverse, ['@gjsify/a']);
+                expect(closure.size).toBe(1);
+                expect(closure.has('@gjsify/a')).toBeTruthy();
+            });
+
+            await it('walks transitive dependents through a diamond', () => {
+                const closure = affectedClosure(reverse, ['@gjsify/d']);
+                expect(closure.size).toBe(4);
+                for (const name of ['@gjsify/a', '@gjsify/b', '@gjsify/c', '@gjsify/d']) {
+                    expect(closure.has(name)).toBeTruthy();
+                }
+            });
+
+            await it('idempotent on duplicate seeds', () => {
+                const a = affectedClosure(reverse, ['@gjsify/b', '@gjsify/b', '@gjsify/b']);
+                const b = affectedClosure(reverse, ['@gjsify/b']);
+                expect(a.size).toBe(b.size);
+                for (const n of a) expect(b.has(n)).toBeTruthy();
+            });
+
+            await it('unknown seed names are silently skipped (conservative)', () => {
+                const closure = affectedClosure(reverse, ['@gjsify/ghost', '@gjsify/d']);
+                expect(closure.size).toBe(4);
+                expect(closure.has('@gjsify/ghost')).toBeFalsy();
+            });
+
+            await it('seeds = [] returns empty', () => {
+                expect(affectedClosure(reverse, []).size).toBe(0);
+            });
+        });
+
+        await describe('workspacesForChangedFiles', async () => {
+            const ws: Workspace[] = [
+                {
+                    location: '/abs/packages/node/fs',
+                    relativeLocation: 'packages/node/fs',
+                    name: '@gjsify/fs',
+                    version: '0.0.0',
+                    private: false,
+                    manifest: { name: '@gjsify/fs', version: '0.0.0' },
+                },
+                {
+                    location: '/abs/packages/node/fs-promises',
+                    relativeLocation: 'packages/node/fs-promises',
+                    name: '@gjsify/fs-promises',
+                    version: '0.0.0',
+                    private: false,
+                    manifest: { name: '@gjsify/fs-promises', version: '0.0.0' },
+                },
+                {
+                    location: '/abs/tests/integration/loro-crdt',
+                    relativeLocation: 'tests/integration/loro-crdt',
+                    name: '@gjsify/integration-loro-crdt',
+                    version: '0.0.0',
+                    private: true,
+                    manifest: { name: '@gjsify/integration-loro-crdt', version: '0.0.0' },
+                },
+            ];
+
+            await it('matches segment-aware, not prefix-of-string', () => {
+                // fs-promises is a prefix-of-string match for fs but
+                // belongs to its own workspace.
+                const r = workspacesForChangedFiles(ws, '/abs', [
+                    'packages/node/fs-promises/src/x.ts',
+                    'packages/node/fs/src/y.ts',
+                ]);
+                expect(r.matched.size).toBe(2);
+                expect(r.matched.has('@gjsify/fs-promises')).toBeTruthy();
+                expect(r.matched.has('@gjsify/fs')).toBeTruthy();
+            });
+
+            await it('unmatched files surface for caller-side classification', () => {
+                const r = workspacesForChangedFiles(ws, '/abs', [
+                    'README.md',
+                    'scripts/audit-runtimes.mjs',
+                ]);
+                expect(r.matched.size).toBe(0);
+                expect(r.unmatched.length).toBe(2);
+            });
+
+            await it('multiple files in one workspace coalesce', () => {
+                const r = workspacesForChangedFiles(ws, '/abs', [
+                    'packages/node/fs/src/a.ts',
+                    'packages/node/fs/src/b.ts',
+                    'packages/node/fs/package.json',
+                ]);
+                expect(r.matched.size).toBe(1);
+                expect(r.matched.has('@gjsify/fs')).toBeTruthy();
+            });
+
+            await it('handles backslashes (Windows-style diff)', () => {
+                const r = workspacesForChangedFiles(ws, '/abs', [
+                    'packages\\node\\fs\\src\\index.ts',
+                ]);
+                expect(r.matched.has('@gjsify/fs')).toBeTruthy();
+            });
+
+            await it('empty input → empty output', () => {
+                const r = workspacesForChangedFiles(ws, '/abs', []);
+                expect(r.matched.size).toBe(0);
+                expect(r.unmatched.length).toBe(0);
             });
         });
     });
