@@ -1190,6 +1190,27 @@ Trace: undici's `lib/util/feature-detection.js` calls `require('node:zlib').crea
 
 Per `CLAUDE.md` rule "If GJS hits a real impl gap, STOP and report — don't paper over", this is left as a follow-up — tracked under "Open TODOs → Medium priority — `@gjsify/zlib` Zstd stubs for undici v7" — so the fix can land alongside its own test coverage in a sibling PR.
 
+### yjs (`tests/integration/yjs/`)
+
+8 spec files ported from yjs@13.6.31 + y-protocols upstream tests into `@gjsify/unit` style. **Node: 147 assertions / 54 test cases green (~95 ms). GJS: 147 assertions / 54 test cases green (~80 ms), 0 skips.**
+
+Yjs is the de-facto JavaScript CRDT — it backs [TipTap](https://tiptap.dev/), [ProseMirror](https://prosemirror.net/) collab, [BlockNote](https://www.blocknotejs.org/), [Hocuspocus](https://tiptap.dev/docs/hocuspocus/introduction), and a long tail of collaborative editors. Unlike the sibling Loro suite (Rust → WASM via wasm-bindgen), Yjs is pure JavaScript at its core, so it exercises a different cross-section of the GJS engine: heavy `Uint8Array` + `DataView` use for the binary wire format, `Map` / `Set` / `WeakMap` for the delete-set + transaction bookkeeping, `crypto.getRandomValues` (via `lib0/webcrypto`) for clientID generation, and the standard Yjs sync companion protocol `y-protocols/awareness`.
+
+| Suite | Node | GJS | Exercises |
+|---|---|---|---|
+| y-text.spec.ts | ✅ | ✅ | `Y.Text` insert/delete/format, observer delta semantics (insert/retain/delete ops), `toDelta()`, unicode + UTF-16 indices, transactional coalescing of insert+delete pairs |
+| y-array.spec.ts | ✅ | ✅ | `Y.Array` push/insert/delete/slice, `Y.Array.from()`, regression for yjs#297 search-marker length, observer firing on every mutation, `Symbol.iterator` over a list of nested `Y.Map`s |
+| y-map.spec.ts | ✅ | ✅ | `Y.Map` set/get/has/delete/clear/size, `keys()` / `values()` / `entries()` iterators, nested `Y.Map` + `Y.Array` round-trip via `toJSON()`, observer `keysChanged` set per mutation |
+| y-xml.spec.ts | ✅ | ✅ | `Y.XmlElement` setAttribute / hasAttribute / removeAttribute, `insertAfter()` sibling positioning, `nextSibling` / `prevSibling` linked-list traversal, `Y.XmlFragment` + `Y.XmlText` round-trip through `applyUpdate` |
+| doc.spec.ts | ✅ | ✅ | `Y.Doc` `toJSON()` empty + recursive, transaction origins via `afterTransaction`, multi-op transaction coalescing into a single `'update'` event, clientID auto-reroll on collision, empty-id `getText('')` aliasing, subdocs `'subdocs'` event payload (`added` / `loaded` Set membership), `getSubdocs()` / `getSubdocGuids()` enumeration |
+| updates-sync.spec.ts | ✅ | ✅ | `Y.encodeStateAsUpdate` / `Y.applyUpdate` / `Y.encodeStateVector` two-doc + three-doc convergence, state-vector diff being smaller than full update, `Y.encodeStateVectorFromUpdate`, `Y.mergeUpdates` of discrete update batches, mixed container-type round-trip, `Y.snapshot` + `Y.snapshotContainsUpdate` per the Yjs snapshot contract |
+| undo-manager.spec.ts | ✅ | ✅ | `Y.UndoManager` empty-scope `addToScope` undo, global-scope doc-wide undo, double-undo, undo/redo on `Y.Map` including nested type restore, `stopCapturing()` discrete-step splitting, `stack-item-added` / `stack-item-popped` events, `trackedOrigins` filter |
+| awareness.spec.ts | ✅ | ✅ | `y-protocols/awareness` Awareness setLocalState + encode/apply round-trip with `'change'` event added/updated/removed semantics, `removeAwarenessStates` explicit drop, encode preserves rich state JSON (cursor + tags), `encodeAwarenessUpdate` returns `Uint8Array`, `destroy()` clears local state |
+
+Pillars exercised: `buffer` (Yjs encoder uses Uint8Array / DataView heavily), `events` (Yjs's `lib0/observable` EventEmitter shape — Observer pattern in every shared type), `crypto` (`crypto.getRandomValues` via `lib0/webcrypto` for `Y.Doc` clientID generation through `lib0/random.uuidv4`), `webassembly`-free path (pure JS — useful contrast to the Loro suite). No `@gjsify/*` source fixes were required to land this suite — the existing polyfill surface already covers Yjs's needs end-to-end on GJS.
+
+The upstream tests use a heavyweight `TestConnector` simulating N concurrent users with delayed delivery + reconnect simulation, driven by `lib0/prng`. Multi-user scenarios in the upstream cases are reduced here to deterministic 2- or 3-doc sync via the canonical wire format every Yjs deployment actually uses (`Y.applyUpdate(b, Y.encodeStateAsUpdate(a))`) — same correctness assertion, no shared mutable test infra, no PRNG randomness in CI runs.
+
 ## Open TODOs
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
