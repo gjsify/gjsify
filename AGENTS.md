@@ -542,6 +542,25 @@ run({ testSuite });
 
 Real-world examples uncovering bugs (GC, missing globals, CJS-ESM, MainLoop) → always add targeted test to relevant `*.spec.ts`. Examples = integration validation; regression tests = permanent safety net.
 
+### Selective CI — affected-only test runs
+
+CI's `linux` job is gated by a `gjsify affected` classifier that diffs HEAD vs the PR base and decides which test tiers run. **Place new tests where the classifier can find them**:
+
+|spec files: `<workspace>/src/**/*.spec.ts` — touching only this file → seed = that workspace, no closure expansion (test code has no downstream consumers).
+|integration suites: `tests/integration/<name>/` — declare every backend pillar exercised in `package.json#dependencies` so the classifier fires the integration tier when those workspaces are in the closure. The forward-graph walk at the end of the closure step is what surfaces the suite when `@gjsify/<dep>` changes.
+|e2e: `tests/e2e/<name>/` — runs only when `tests/e2e/**` itself is touched OR on a global trigger. Don't put per-workspace functional tests here.
+|browser: `tests/browser/specs/*.spec.ts` — Playwright; runs as part of `test:browser`.
+
+**Global triggers** (force a full run): touching `packages/infra/{workspace,cli,rolldown-plugin-gjsify,resolve-npm}/**`, `gjsify-lock.json`, root `package.json`/`tsconfig*.json`, `scripts/audit-runtimes.mjs`, or `.github/workflows/main.yml`. These can't be selectively gated because the classifier itself depends on them.
+
+**Ignored** (no test run, no closure seed): `**/*.md`, `refs/**`, `website/**`, `docs/**`, unrelated workflow files (`.github/workflows/{deploy-docs,commitlint,release,audit-runtimes,prebuilds}.yml`), `.githooks/**`, `LICENSE*`, `.gitignore`, top-level `STATUS|CHANGELOG|AGENTS|CLAUDE|README.md`.
+
+**Kill switch**: set repo variable `GJSIFY_CI_FORCE_FULL=1` (Settings → Variables → Actions) to short-circuit the classifier and run the full suite on every PR.
+
+**Local dry-run**: `gjsify affected --base origin/main` prints what CI would run. Use this when adding a new tier of tests to verify the classifier picks them up. `--format=json` for machine-readable, `--changed-from-stdin` for fixture-driven testing.
+
+When you add a new workflow file or a new top-level directory the classifier doesn't know about (e.g. `benchmarks/`), update `packages/infra/cli/src/commands/affected.ts`'s `GLOBAL_TRIGGERS` / `IGNORE` tables + the spec — silently mis-categorising new paths is the most common way to leak slowdowns back into the typical PR loop.
+
 ### Test sources
 
 Rewrite in `@gjsify/unit` with bare specifiers. Never copy verbatim. Select: core behavior, GNOME-relevant edge cases, errors, cross-platform. Skip: V8 internals, native addons, stubbed features.
