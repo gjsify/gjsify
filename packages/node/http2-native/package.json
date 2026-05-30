@@ -63,5 +63,15 @@
         "@ts-for-gir/cli": "^4.0.4",
         "@types/node": "^25.9.1",
         "typescript": "^5.9.3"
-    }
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/node/http2-native"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/http2-native#readme"
 }

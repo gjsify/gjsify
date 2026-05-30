@@ -1,0 +1,30 @@
+{
+    "name": "@gjsify/integration-yjs",
+    "description": "Integration tests: Yjs (the de-facto CRDT for collaborative apps \u2014 TipTap, ProseMirror, BlockNote, Hocuspocus). Yjs is pure-JS at its core (no WASM) and exercises a different cross-section of GJS engine surface than Loro: heavy TypedArray / DataView use for the binary wire format, `Map`/`Set`/`WeakMap` for delete-set bookkeeping, structured-clone-style snapshot serialization, and EventEmitter-shaped Observer wiring. Validates `@gjsify/buffer`, `@gjsify/crypto.randomBytes` (Y.Doc clientID generation), `@gjsify/events`, the SpiderMonkey 140 typed-array surface, and `y-protocols/awareness` (the standard Yjs sync companion).",
+    "type": "module",
+    "private": true,
+    "engines": {
+        "node": ">=22.12.0"
+    },
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile dist/test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile dist/test.node.mjs",
+        "build:test": "gjsify run build:test:node && gjsify run build:test:gjs",
+        "test": "gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:node": "node dist/test.node.mjs",
+        "test:gjs": "gjsify run dist/test.gjs.mjs"
+    },
+    "devDependencies": {
+        "@girs/gjs": "4.0.4",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.1",
+        "typescript": "^5.7.3",
+        "y-protocols": "^1.0.6",
+        "yjs": "^13.6.31"
+    }
+}

@@ -586,7 +586,7 @@ Shared utils: `@gjsify/utils` (`packages/gjs/utils/`). Check before duplicating;
 
 ### New `@gjsify/*` package: first-publish + Trusted Publisher bootstrap
 
-npm Trusted Publishing (OIDC) requires the package to **already exist** on npmjs.com — you cannot configure a Trusted Publisher for a name that has no published versions. This makes the **first publish a manual maintainer action**, not a CI release. Skipping this step breaks the entire serialized `npm:publish` loop in `release.yml`: every package alphabetically after the new name fails to publish because the OIDC exchange returns `404 — OIDC token exchange error - package not found` and the workflow exits 1 (incident on v0.4.35: `@gjsify/tls-native` was added in #242, no manual bootstrap → 60+ packages stuck at 0.4.19).
+npm Trusted Publishing (OIDC) requires the package to **already exist** on npmjs.com — you cannot configure a Trusted Publisher for a name that has no published versions. This makes the **first publish a manual maintainer action**, not a CI release. Skipping this step breaks the entire serialized `npm:publish` loop in `release.yml`: every package alphabetically after the new name fails to publish because the OIDC exchange returns `404 — OIDC token exchange error - package not found` and the workflow exits 1 (historical incident on v0.4.20: `@gjsify/tls-native` was added in #242, no manual bootstrap → 60+ packages stuck at 0.4.19).
 
 Run before the merge that adds the package (or immediately after, before the next release-it patch):
 
