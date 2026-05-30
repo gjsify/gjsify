@@ -30,7 +30,9 @@
 
 import { run } from '@gjsify/unit';
 import deltaChatRpcSmokeSuite from './deltachat-rpc-smoke.spec.js';
+import deltaChatBasicSuite from './basic.spec.js';
 
 run({
     deltaChatRpcSmokeSuite,
+    deltaChatBasicSuite,
 });
