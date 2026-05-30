@@ -17,6 +17,7 @@ import resolveNpmPackageSuite from './utils/resolve-npm-package.spec.js';
 // a dependency. The predicate itself is re-exported from the plugin's
 // public API.
 import autoGlobalsSuite from './auto-globals.spec.js';
+import affectedClassifierSuite from './affected-classifier.spec.js';
 
 run({
     bundlerPickSuite,
@@ -28,4 +29,5 @@ run({
     inlineStaticReadsSuite,
     resolveNpmPackageSuite,
     autoGlobalsSuite,
+    affectedClassifierSuite,
 });
