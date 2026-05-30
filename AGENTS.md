@@ -271,6 +271,9 @@ Every pkg registering anything on `globalThis` MUST follow these rules.
 gjsify foreach build | gjsify foreach build:node | gjsify foreach build:web | gjsify foreach test | gjsify foreach check
 # Node-free `tsc` under GJS via the @gjsify/tsc bundle (forwards args verbatim)
 gjsify tsc --version | gjsify tsc -p tsconfig.json
+# Publish + npmrc-auth verification (drop-in for `npm publish` / `npm whoami`)
+gjsify publish [path] [--tag <t>] [--access public] [--otp <code>] [--trusted] [--dry-run]
+gjsify whoami [--registry <url>] [--json]   # prints the npm username for the current ~/.npmrc token; clear failure on dead/missing token
 # Per-package (in the package dir)
 gjsify run build:gjsify | gjsify run build:types
 gjsify run build:test:{gjs,node} | gjsify run test:{gjs,node}
@@ -574,6 +577,14 @@ Run before the merge that adds the package (or immediately after, before the nex
    gjsify publish --access public --otp <code>
    ```
    This creates the package record on npmjs.com. The `npm-otp: <code>` header is forwarded on the PUT request; if OTP is required but `--otp` is omitted on a non-TTY, the CLI exits with a clear error pointing at `--otp`. On an interactive TTY it prompts once and retries (mirrors npm's `otplease` behavior — see `refs/npm-cli/lib/utils/auth.js`).
+
+   **Pre-flight — verify `~/.npmrc` auth.** Before the publish PUT, confirm the token is live with `gjsify whoami` (uses the same npmrc + bearer-resolution path as `gjsify publish`). Healthy: `Logged in as: <you>` / `Registry: https://registry.npmjs.org`. Dead/revoked: the command exits 1 with a clear "token appears dead or revoked" message — refresh via `npm login` and re-run. The same probe is available as `gjsify whoami --json` for CI scripts (`{"username":"<you>","registry":"<url>"}` on success; `{"error":"dead-token"|"no-token-configured"|"<network-message>","registry":"<url>"}` on failure). The legacy curl one-liner remains a hand-off fallback when `gjsify` itself is not on PATH yet:
+   ```bash
+   curl -s -H "Authorization: Bearer $(grep registry.npmjs.org ~/.npmrc | sed 's|.*=||')" \
+        https://registry.npmjs.org/-/whoami
+   # Healthy: {"username":"<you>"}
+   # Dead:    {}
+   ```
 
    **Diagnostic — `404 Not Found` on PUT.** A 404 on the publish PUT is ambiguous: the npm registry returns it for both a dead `_authToken` and a genuinely-missing package. `gjsify publish` now probes `GET /-/whoami` with the same Authorization header to disambiguate: body `{}` (status 200) → the `_authToken` in `~/.npmrc` is revoked/expired, refresh via `npm login`; body `{"username": "..."}` → the package doesn't exist on npm yet, run the first-publish bootstrap above. The probe is best-effort (token-auth path only, skipped under `--otp` or `--trusted`/OIDC where the error surfaces are already clear); on a network failure the generic error message is used instead.
 3. **Configure Trusted Publisher** at `https://www.npmjs.com/package/@gjsify/<name>/access`:
