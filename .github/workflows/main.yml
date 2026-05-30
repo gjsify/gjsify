@@ -5,9 +5,82 @@ on:
   push:
     branches:
       - main
+  schedule:
+    # Nightly full sweep on main — safety net for the selective-CI gates
+    # below. Runs the full test suite even when no PR touched a path the
+    # classifier would mark as a global trigger.
+    - cron: '0 4 * * *'
 
 jobs:
+  # Classifier job — diffs HEAD vs the PR's base SHA, emits per-test-tier
+  # gates as job outputs. Runs in seconds on plain ubuntu-latest with no
+  # Fedora image and no `gjsify install` — it boots the committed CLI
+  # bundle (`packages/infra/cli/dist/cli.gjs.mjs`) which has zero runtime
+  # dependencies. `continue-on-error` + missing-output defaults mean a
+  # classifier crash falls back to a full run (fail-safe).
+  #
+  # Skipped on main pushes and on the nightly schedule — those branches
+  # MUST run the full suite unconditionally. The downstream `linux` job
+  # observes `needs.changes.outputs.*` as empty in those cases and falls
+  # back to the historical `gjsify run test` path.
+  #
+  # Repo-level kill switch: set `vars.GJSIFY_CI_FORCE_FULL=1` in the repo
+  # settings and the classifier emits `global=true` regardless of the
+  # diff. Lets maintainers force a full run without editing this file.
+  changes:
+    if: ${{ github.event_name != 'schedule' && github.ref != 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    outputs:
+      skip-all: ${{ steps.classify.outputs.skip-all }}
+      global: ${{ steps.classify.outputs.global }}
+      include-args: ${{ steps.classify.outputs.include-args }}
+      run-integration: ${{ steps.classify.outputs.run-integration }}
+      run-e2e: ${{ steps.classify.outputs.run-e2e }}
+      reason: ${{ steps.classify.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Install gjs (host-side, for the classifier bundle only)
+        run: sudo apt-get update && sudo apt-get install -y gjs
+      - id: base
+        name: Resolve diff base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "sha=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            # Push to a non-main branch: diff against HEAD~1.
+            echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
+          fi
+      - id: classify
+        name: Classify affected workspaces
+        # On classifier failure we leave outputs unset; the linux job's
+        # gates then default to "global" via the `||` fallbacks below.
+        continue-on-error: true
+        env:
+          FORCE_FULL: ${{ vars.GJSIFY_CI_FORCE_FULL }}
+        run: |
+          set -e
+          if [ "$FORCE_FULL" = "1" ]; then
+            echo "global=true" >> "$GITHUB_OUTPUT"
+            echo "skip-all=false" >> "$GITHUB_OUTPUT"
+            echo "include-args=" >> "$GITHUB_OUTPUT"
+            echo "run-integration=true" >> "$GITHUB_OUTPUT"
+            echo "run-e2e=true" >> "$GITHUB_OUTPUT"
+            echo "reason=vars.GJSIFY_CI_FORCE_FULL=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gjs -m packages/infra/cli/dist/cli.gjs.mjs affected \
+              --base "${{ steps.base.outputs.sha }}" \
+              --format=github-actions
+
   linux:
+    needs: changes
+    # Run unless the classifier explicitly says skip-all. `always()`
+    # ensures we proceed even when the `changes` job was itself skipped
+    # (main / schedule path) — those land here with empty outputs and the
+    # gates below default to "run everything".
+    if: ${{ always() && needs.changes.outputs.skip-all != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -161,20 +234,60 @@ jobs:
       - name: Check examples
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run check:examples'
 
+      # Test step — gated by the classifier's output. Three observable
+      # paths:
+      #   1. main / schedule / global trigger / classifier failed → full
+      #      `gjsify run test` (workspace foreach across the monorepo).
+      #   2. include-args non-empty (typical PR) → `gjsify foreach
+      #      <include args> --exclude '@gjsify/integration-*' test`. The
+      #      integration carve-out keeps the heavy suites in their own
+      #      gate below.
+      #   3. neither → step is skipped (the `if:` below). The whole job
+      #      run as a no-op is intentional: build + check + lint still
+      #      ran so the PR has SOMETHING green to merge against, but no
+      #      test time is wasted.
       - name: Test
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify run test'
+        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '' }}
+        env:
+          GLOBAL: ${{ needs.changes.outputs.global }}
+          INCLUDE_ARGS: ${{ needs.changes.outputs.include-args }}
+        run: |
+          su testuser -c "PATH=\"\$PWD/node_modules/.bin:\$PATH\" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args=\"-screen 0 1280x720x24\" sh -c '
+            if [ \"\$GLOBAL\" = \"true\" ] || [ -z \"\$GLOBAL\" ]; then
+              gjsify run test
+            else
+              gjsify foreach \$INCLUDE_ARGS --exclude \"@gjsify/integration-*\" test
+            fi
+          '"
 
+      # WebGL conformance — only when @gjsify/webgl (or its consumers)
+      # are in the closure, OR on the full-run paths. The classifier
+      # emits @gjsify/webgl as part of include-args when warranted; we
+      # check for its presence to gate this expensive xvfb-run.
       - name: Test WebGL conformance
-        # `gjsify` is at `node_modules/.bin/gjsify` after install. xvfb-run
-        # spawns a clean shell that doesn't inherit the PATH npm would
-        # prepend, so prepend it explicitly here.
+        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/webgl') }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify workspace @gjsify/webgl test:conformance'
 
       - name: Test CLI examples
+        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '' }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:examples'
 
       - name: Test net examples
+        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '' }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:examples:net'
 
+      # E2E tests — gated when an `e2e` path was touched OR on a full
+      # run. Tests live under `tests/e2e/` and exercise the CLI end-to-
+      # end (install, build, dlx, …). Slow enough to skip on docs-only
+      # / single-workspace-impl PRs.
       - name: E2E tests
+        if: ${{ needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:e2e'
+
+      # Integration tests — explicitly opt-in. Slow. Gated by the
+      # classifier when a workspace in the closure is a `dependencies`
+      # entry of any `@gjsify/integration-*` workspace, OR on full-run
+      # paths. The classifier surfaces this as `run-integration=true`.
+      - name: Integration tests
+        if: ${{ needs.changes.outputs.run-integration == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' }}
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify foreach --include "@gjsify/integration-*" test'
