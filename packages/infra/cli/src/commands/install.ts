@@ -26,7 +26,7 @@ import { discoverWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { buildInstallCommand, detectPackageManager, runMinimalChecks } from '../utils/check-system-deps.js';
 import { detectNativePackages } from '../utils/detect-native-packages.js';
-import { installPackages } from '../utils/install-backend.js';
+import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
 import { binDirOnPath, defaultGlobalLayout, linkGlobalBins, specToPackageName } from '../utils/install-global.js';
 import {
     addDependencyEntry,
@@ -46,6 +46,8 @@ interface InstallOptions {
     'save-optional'?: boolean;
     immutable?: boolean;
     verbose: boolean;
+    quiet?: boolean;
+    progress?: boolean;
     backend?: 'native' | 'npm';
     timeout: number;
 }
@@ -89,6 +91,17 @@ export const installCommand: Command<unknown, InstallOptions> = {
                 description: 'Verbose install logging.',
                 type: 'boolean',
                 default: false,
+            })
+            .option('quiet', {
+                description: 'Silence the progress bar.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('progress', {
+                description:
+                    'Show a TTY-aware progress bar for resolve / download / extract phases. Auto-enabled when stderr is a TTY (override with --no-progress). Implicitly off under --verbose (per-package log lines replace the bar) or --quiet.',
+                type: 'boolean',
+                default: true,
             })
             .option('backend', {
                 description:
@@ -281,6 +294,12 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
     }
 
     mkdirSync(cwd, { recursive: true });
+    // Progress bar is auto-enabled when stderr is a TTY (and `--verbose` /
+    // `--quiet` / `--no-progress` aren't set). When piped to a log file the
+    // reporter falls back to one line per phase begin/end.
+    const progress = makeProgressReporter({
+        enabled: !args.verbose && !args.quiet && args.progress !== false,
+    });
     const result = await installPackages({
         prefix: cwd,
         specs,
@@ -290,6 +309,7 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
         lockfile: !args.immutable,
         frozen: args.immutable,
         signal,
+        progress,
     });
 
     // Update package.json only when the user passed explicit packages
@@ -490,6 +510,9 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
     }
 
     if (externalSpecs.size > 0) {
+        const progress = makeProgressReporter({
+            enabled: !args.verbose && !args.quiet && args.progress !== false,
+        });
         await installPackages({
             prefix: cwd,
             specs: [...externalSpecs],
@@ -498,6 +521,7 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
             frozen: args.immutable,
             overrides,
             signal,
+            progress,
         });
     } else if (args.verbose) {
         console.log('gjsify install: no external deps to fetch');

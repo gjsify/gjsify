@@ -17,6 +17,11 @@ import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import type { ProgressReporter } from './install-progress.js';
+
+export type { ProgressEvent, ProgressPhase, ProgressReporter } from './install-progress.js';
+export { makeProgressReporter } from './install-progress.js';
+
 export interface InstallOptions {
     /** Directory to install into (npm `--prefix`). Created by caller. */
     prefix: string;
@@ -68,6 +73,13 @@ export interface InstallOptions {
      * timeouts in @gjsify/npm-registry still apply.
      */
     signal?: AbortSignal;
+    /**
+     * Native backend only: progress reporter for resolve / download / extract /
+     * link phases. The CLI auto-creates a TTY-aware reporter by default; pass
+     * a custom reporter (or the `NOOP` from `makeProgressReporter({enabled:false})`)
+     * to override.
+     */
+    progress?: ProgressReporter;
 }
 
 const DEFAULT_BACKEND = process.env.GJSIFY_INSTALL_BACKEND ?? 'native';
