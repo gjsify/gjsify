@@ -4,6 +4,12 @@
 // (W3C). Sync APIs that have no WebCrypto equivalent throw ENOTSUP; the
 // async variants are preferred.
 //
+// Slot is "browser:partial": WebCrypto covers hash / hmac / cipher / sign /
+// random / pbkdf2 / hkdf, but classic DH, scrypt, X509 and the sync digest
+// paths throw ENOTSUP. Caller-facing throws live in `browser/stubs.ts` and
+// the per-feature sub-modules under `browser/`; the audit-runtimes heuristic
+// only scans this entry file for the slot marker, hence the explicit note.
+//
 // Reference: refs/crypto-browserify/* (+ sub-refs: hash-base, create-hash,
 // create-hmac, randombytes, randomfill, pbkdf2, browserify-cipher,
 // browserify-sign, create-ecdh, diffie-hellman, public-encrypt).
