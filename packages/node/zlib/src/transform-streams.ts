@@ -140,3 +140,22 @@ export function createBrotliCompress(_options?: ZlibOptions): never {
 export function createBrotliDecompress(_options?: ZlibOptions): never {
     throw new Error('createBrotliDecompress is not supported on GJS (no Brotli in GLib)');
 }
+
+// Zstd (Node 23.8+, see https://github.com/nodejs/node/pull/56777) is not
+// available in GLib. Stubs that throw at runtime — undici v7's module-init
+// feature detector reads `zlib.createZstdDecompress` eagerly, so the
+// export must exist; the stub never actually fires unless a real
+// `Content-Encoding: zstd` response arrives (GTK ecosystem doesn't ship
+// Zstd today). A real implementation would land via `Gio.ZlibCompressor`
+// once glib-networking exposes the API, or via a libzstd-1.5 Vala prebuild.
+export function createZstdCompress(_options?: ZlibOptions): never {
+    const err = new Error('createZstdCompress is not supported on GJS (no Zstd in GLib)');
+    (err as Error & { code: string }).code = 'ERR_UNSUPPORTED_OPERATION';
+    throw err;
+}
+
+export function createZstdDecompress(_options?: ZlibOptions): never {
+    const err = new Error('createZstdDecompress is not supported on GJS (no Zstd in GLib)');
+    (err as Error & { code: string }).code = 'ERR_UNSUPPORTED_OPERATION';
+    throw err;
+}

@@ -1277,4 +1277,100 @@ export default async () => {
             expect(typeof zlib.createInflate).toBe('function');
         });
     });
+
+    await describe('Zstd stubs', async () => {
+        // The Zstd surface exists only to keep `undici v7` loadable (it
+        // reads `zlib.createZstdDecompress` at module-init). All entry
+        // points throw `ERR_UNSUPPORTED_OPERATION` if actually invoked —
+        // GLib has no Zstd today.
+
+        await it('exports the named Zstd stubs', async () => {
+            const m = await import('./index.ts');
+            expect(typeof m.createZstdCompress).toBe('function');
+            expect(typeof m.createZstdDecompress).toBe('function');
+            expect(typeof m.zstdCompress).toBe('function');
+            expect(typeof m.zstdDecompress).toBe('function');
+            expect(typeof m.zstdCompressSync).toBe('function');
+            expect(typeof m.zstdDecompressSync).toBe('function');
+        });
+
+        await it('createZstdCompress throws ERR_UNSUPPORTED_OPERATION', async () => {
+            const m = await import('./index.ts');
+            try {
+                m.createZstdCompress();
+                throw new Error('expected throw');
+            } catch (e) {
+                expect((e as Error & { code?: string }).code).toBe('ERR_UNSUPPORTED_OPERATION');
+            }
+        });
+
+        await it('createZstdDecompress throws ERR_UNSUPPORTED_OPERATION', async () => {
+            const m = await import('./index.ts');
+            try {
+                m.createZstdDecompress();
+                throw new Error('expected throw');
+            } catch (e) {
+                expect((e as Error & { code?: string }).code).toBe('ERR_UNSUPPORTED_OPERATION');
+            }
+        });
+
+        await it('zstdCompressSync throws ERR_UNSUPPORTED_OPERATION', async () => {
+            const m = await import('./index.ts');
+            try {
+                m.zstdCompressSync(Buffer.from('hello'));
+                throw new Error('expected throw');
+            } catch (e) {
+                expect((e as Error & { code?: string }).code).toBe('ERR_UNSUPPORTED_OPERATION');
+            }
+        });
+
+        await it('zstdDecompressSync throws ERR_UNSUPPORTED_OPERATION', async () => {
+            const m = await import('./index.ts');
+            try {
+                m.zstdDecompressSync(Buffer.from('hello'));
+                throw new Error('expected throw');
+            } catch (e) {
+                expect((e as Error & { code?: string }).code).toBe('ERR_UNSUPPORTED_OPERATION');
+            }
+        });
+
+        await it('zstdCompress callback receives ERR_UNSUPPORTED_OPERATION', async () => {
+            const m = await import('./index.ts');
+            await new Promise<void>((resolve, reject) => {
+                m.zstdCompress(Buffer.from('hello'), (err) => {
+                    try {
+                        expect(err).toBeTruthy();
+                        expect((err as Error & { code?: string }).code).toBe('ERR_UNSUPPORTED_OPERATION');
+                        resolve();
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+            });
+        });
+
+        await it('zstdDecompress callback receives ERR_UNSUPPORTED_OPERATION', async () => {
+            const m = await import('./index.ts');
+            await new Promise<void>((resolve, reject) => {
+                m.zstdDecompress(Buffer.from('hello'), (err) => {
+                    try {
+                        expect(err).toBeTruthy();
+                        expect((err as Error & { code?: string }).code).toBe('ERR_UNSUPPORTED_OPERATION');
+                        resolve();
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+            });
+        });
+
+        await it('default export includes all Zstd surface', async () => {
+            expect(typeof zlib.createZstdCompress).toBe('function');
+            expect(typeof zlib.createZstdDecompress).toBe('function');
+            expect(typeof zlib.zstdCompress).toBe('function');
+            expect(typeof zlib.zstdDecompress).toBe('function');
+            expect(typeof zlib.zstdCompressSync).toBe('function');
+            expect(typeof zlib.zstdDecompressSync).toBe('function');
+        });
+    });
 };
