@@ -153,14 +153,19 @@ jobs:
       # Per-Fedora-major scope because the bundler output (rolldown) can
       # diverge by host libs; Fedora 43 vs 44 would otherwise share the
       # same cache and produce stale bundles.
+      # IMPORTANT: paths use `packages/*/*/...` (pillar/name), NOT
+      # `packages/**/...`. The double-star globs into node_modules and
+      # blew up the cache POST upload to multi-gigabyte tars that hung
+      # for hours. The pillar/name shape covers every real workspace
+      # while skipping the deps tree.
       - name: Cache build output (lib/ + tsbuildinfo)
         uses: actions/cache@v4
         with:
           path: |
-            packages/**/lib
-            packages/**/tsconfig.tsbuildinfo
-            packages/**/tsconfig.*.tsbuildinfo
-            packages/**/dist
+            packages/*/*/lib
+            packages/*/*/tsconfig.tsbuildinfo
+            packages/*/*/tsconfig.*.tsbuildinfo
+            packages/*/*/dist
           key: build-${{ runner.os }}-fedora${{ matrix.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
           restore-keys: |
             build-${{ runner.os }}-fedora${{ matrix.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-
