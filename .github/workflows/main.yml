@@ -288,6 +288,12 @@ jobs:
       # classifier when a workspace in the closure is a `dependencies`
       # entry of any `@gjsify/integration-*` workspace, OR on full-run
       # paths. The classifier surfaces this as `run-integration=true`.
+      #
+      # `@gjsify/integration-autobahn` is excluded — its test script
+      # boots the crossbario fuzzingserver via Podman/Docker, neither of
+      # which is available in this Fedora container without a privileged
+      # nested-container setup. Documented in AGENTS.md ("Not wired into
+      # CI yet (Podman-in-CI needs privileged containers)").
       - name: Integration tests
         if: ${{ needs.changes.outputs.run-integration == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' }}
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify foreach test --include "@gjsify/integration-*"'
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify foreach test --include "@gjsify/integration-*" --exclude "@gjsify/integration-autobahn"'
