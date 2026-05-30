@@ -154,7 +154,7 @@ jobs:
       # diverge by host libs; Fedora 43 vs 44 would otherwise share the
       # same cache and produce stale bundles.
       - name: Cache build output (lib/ + tsbuildinfo)
-        uses: actions/cache@v6
+        uses: actions/cache@v4
         with:
           path: |
             packages/**/lib
