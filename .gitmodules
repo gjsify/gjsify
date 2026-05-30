@@ -224,3 +224,30 @@
 [submodule "refs/glib-networking"]
 	path = refs/glib-networking
 	url = https://gitlab.gnome.org/GNOME/glib-networking.git
+[submodule "refs/node-stdlib-browser"]
+	path = refs/node-stdlib-browser
+	url = https://github.com/niksy/node-stdlib-browser.git
+[submodule "refs/path-browserify"]
+	path = refs/path-browserify
+	url = https://github.com/browserify/path-browserify.git
+[submodule "refs/process"]
+	path = refs/process
+	url = https://github.com/defunctzombie/node-process.git
+[submodule "refs/stream-browserify"]
+	path = refs/stream-browserify
+	url = https://github.com/browserify/stream-browserify.git
+[submodule "refs/buffer-browserify"]
+	path = refs/buffer-browserify
+	url = https://github.com/feross/buffer.git
+[submodule "refs/pako"]
+	path = refs/pako
+	url = https://github.com/nodeca/pako.git
+[submodule "refs/browserify-zlib"]
+	path = refs/browserify-zlib
+	url = https://github.com/browserify/browserify-zlib.git
+[submodule "refs/memfs"]
+	path = refs/memfs
+	url = https://github.com/streamich/memfs.git
+[submodule "refs/wa-sqlite"]
+	path = refs/wa-sqlite
+	url = https://github.com/rhashimoto/wa-sqlite.git
