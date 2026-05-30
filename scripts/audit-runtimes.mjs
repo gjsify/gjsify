@@ -133,8 +133,7 @@ async function scanSourceTree(pkgDir) {
         has_browser_entry: false,
         has_browser_polyfill: existsSync(join(srcDir, 'browser.ts')) || existsSync(join(srcDir, 'browser.mts')),
         browser_src_is_partial: false,
-        has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),
-        globals_mjs_browser_safe: false,
+        has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),        globals_mjs_browser_safe: false,
         file_count: 0,
     };
     if (signals.has_browser_polyfill) {
@@ -421,8 +420,7 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
         if (signals.has_browser_polyfill && !signals.has_globals_mjs) {
             browserSlot = signals.browser_src_is_partial ? 'partial' : 'polyfill';
         }
-        return { gjs: 'polyfill', node: nativeSlot, browser: browserSlot };
-    }
+        return { gjs: 'polyfill', node: nativeSlot, browser: browserSlot };    }
 
     // (B) Pure-TS — portable on all three. Browser-native flag if a Web-API
     // surface has a same-named browser global (most do; the slot is 'native'
@@ -479,8 +477,7 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
             browserSlot = 'partial';
         } else {
             browserSlot = nonGjsSlot;
-        }
-        return {
+        }        return {
             gjs: 'polyfill',
             node: gjsDynamicOnly ? 'partial' : 'native',
             browser: browserSlot,
