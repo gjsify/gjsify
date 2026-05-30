@@ -1,7 +1,7 @@
 {
     "name": "@gjsify/vite-plugin-gjsify",
     "version": "0.4.35",
-    "description": "Vite plugin preset that mirrors `gjsify build --app browser` — dev (Vite/HMR) parity with the gjsify browser target.",
+    "description": "Vite plugin presets mirroring `gjsify build --app browser` / `--app nativescript` — dev (Vite/HMR) parity with the gjsify CLI targets.",
     "type": "module",
     "main": "lib/index.js",
     "module": "lib/index.js",
@@ -39,6 +39,7 @@
     ],
     "license": "MIT",
     "dependencies": {
+        "@gjsify/resolve-npm": "workspace:^",
         "@gjsify/rolldown-plugin-deepkit": "workspace:^",
         "@gjsify/rolldown-plugin-gjsify": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^"

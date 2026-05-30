@@ -15,6 +15,7 @@ export declare const ALIASES_NODE_FOR_GJS: {[alias:string]: string};
  * Unwired in this PR — exported for future consumption by browser.ts.
  */
 export declare const ALIASES_NODE_FOR_BROWSER: {[alias:string]: string};
+export declare const ALIASES_NODE_FOR_NATIVESCRIPT: {[alias:string]: string};
 
 /** Record of Web modules and his replacement for Gjs */
 export declare const ALIASES_WEB_FOR_GJS: {[alias:string]: string}; 
@@ -52,11 +53,11 @@ export interface RuntimeTriplet {
  * by each workspace package's declared `gjsify.runtimes` triplet. See
  * `runtime-aliases.mjs` for the routing semantics.
  */
-export declare function getDerivedAliasesSync(target: 'gjs' | 'node' | 'browser'): {[alias: string]: string};
+export declare function getDerivedAliasesSync(target: 'gjs' | 'node' | 'browser' | 'nativescript'): {[alias: string]: string};
 
 /** Async variant of {@link getDerivedAliasesSync}. */
 export declare function getDerivedAliases(
-    target: 'gjs' | 'node' | 'browser',
+    target: 'gjs' | 'node' | 'browser' | 'nativescript',
 ): Promise<{[alias: string]: string}>;
 
 /** Reset the in-memory cache. Test-only. */
