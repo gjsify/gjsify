@@ -220,6 +220,53 @@ export default async () => {
             const result = execFileSync('echo', ['one', 'two', 'three'], { encoding: 'utf8' });
             expect((result as string).trim()).toBe('one two three');
         });
+
+        await it('spawn keeps stdin/stdout pipes when env has undefined values', async () => {
+            // Regression test for a bug surfaced in the
+            // @gjsify/integration-deltachat suite: when an env entry's value
+            // is `undefined` (a common Node pattern — `env: { RUST_LOG:
+            // process.env.RUST_LOG, … }` passes-through-or-omits), the GI
+            // `Gio.SubprocessLauncher.setenv(key, value, true)` call throws
+            // a type-marshalling error on the `undefined` arg that aborts
+            // the spawn AND silently nulls out the stdin/stdout pipes via
+            // the partially-constructed launcher. Symptom: `proc.stdin`
+            // and `proc.stdout` both `null`, no error event. Fix: skip
+            // entries with `undefined` value (matches Node's documented
+            // semantics — undefined values are omitted, NOT stringified).
+            const child = spawn('/bin/sh', ['-c', 'echo $BAR; cat'], {
+                env: { FOO: undefined, BAR: 'bar-value' } as unknown as NodeJS.ProcessEnv,
+                stdio: ['pipe', 'pipe', 'inherit'],
+            });
+            expect(child.stdin).not.toBe(null);
+            expect(child.stdout).not.toBe(null);
+            // Verify the stdio actually works end-to-end (not just non-null)
+            const out = await new Promise<string>((resolve) => {
+                let buf = '';
+                child.stdout!.on('data', (c: Buffer | string) => (buf += String(c)));
+                child.stdout!.on('end', () => resolve(buf));
+                child.stdin!.end();
+            });
+            expect(out.trim()).toBe('bar-value');
+        });
+
+        await it('spawn coerces number/boolean env values to strings (matches Node)', async () => {
+            // Node's spawn coerces non-string env values via String() rather
+            // than throwing. Without explicit coercion, GI's setenv() would
+            // reject `3000` / `true` with the same marshalling error as
+            // `undefined` above. Guard the symmetric case so a future
+            // refactor doesn't regress.
+            const child = spawn('/bin/sh', ['-c', 'echo $PORT-$FLAG'], {
+                env: { PORT: 3000 as unknown as string, FLAG: true as unknown as string },
+                stdio: ['pipe', 'pipe', 'inherit'],
+            });
+            expect(child.stdout).not.toBe(null);
+            const out = await new Promise<string>((resolve) => {
+                let buf = '';
+                child.stdout!.on('data', (c: Buffer | string) => (buf += String(c)));
+                child.stdout!.on('end', () => resolve(buf));
+            });
+            expect(out.trim()).toBe('3000-true');
+        });
     });
 
     // ==================== exec with encoding option ====================

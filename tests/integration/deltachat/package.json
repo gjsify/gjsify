@@ -1,0 +1,29 @@
+{
+    "name": "@gjsify/integration-deltachat",
+    "private": true,
+    "description": "Integration tests: DeltaChat / chatmail core (@deltachat/jsonrpc-client + @deltachat/stdio-rpc-server) on Node + GJS. Validates that the pure-JS JSON-RPC client speaks to the Rust core process over stdio via @gjsify/child_process — the canonical real-world consumer for a future native Adwaita+GJS DeltaChat app.",
+    "type": "module",
+    "engines": {
+        "node": ">=22.12.0"
+    },
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile dist/test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile dist/test.node.mjs",
+        "build:test": "gjsify run build:test:node && gjsify run build:test:gjs",
+        "test": "gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:node": "node dist/test.node.mjs",
+        "test:gjs": "gjsify run dist/test.gjs.mjs"
+    },
+    "devDependencies": {
+        "@deltachat/jsonrpc-client": "^2.51.0",
+        "@deltachat/stdio-rpc-server": "^2.51.0",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.1",
+        "typescript": "^5.7.3"
+    }
+}

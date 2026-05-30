@@ -11,13 +11,15 @@ import { describe, it, expect } from '@gjsify/unit';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
 
-// Locate the lib-output of this same package so the spec doesn't depend
-// on a separate built bundle. `import.meta.url` points at the running
-// .js file under `lib/esm/`; the CLI entry is `lib/esm/index.js`.
-const CLI_ENTRY = resolve(dirname(fileURLToPath(import.meta.url)), 'index.js');
+// Resolve the CLI entry from the workspace root rather than `import.meta.url`.
+// `gjsify run test:node` runs `node dist/test.node.mjs` after bundling the
+// spec, so `import.meta.url` at runtime points at the bundle in `dist/`,
+// not at the original `src/` or `lib/` location. The workspace's npm script
+// always runs from the package root, so `process.cwd()` is stable here and
+// points at `packages/infra/cli`; the tsc-emitted CLI entry is `lib/index.js`.
+const CLI_ENTRY = resolve(process.cwd(), 'lib/index.js');
 
 interface ClassifyOutput {
     global: boolean;

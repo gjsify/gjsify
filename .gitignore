@@ -76,3 +76,6 @@ tests/e2e/*/out/
 # the package root next to test.{gjs,node}.mjs by `prebuild:test:fixtures` so
 # `new URL('./fixtures/...', import.meta.url)` resolves from the test bundle).
 packages/node/worker_threads/fixtures/
+
+# Claude Code agent worktree state (per-session, must never enter commits)
+.claude/
