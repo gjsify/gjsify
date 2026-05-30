@@ -24,7 +24,7 @@ if (bundles.length === 0) {
 }
 
 for (const bundle of bundles) {
-    test(`@gjsify/${bundle.packageName} — browser unit tests`, async ({ page }) => {
+    test(`${bundle.pillar}/@gjsify/${bundle.packageName} — browser unit tests`, async ({ page }) => {
         const bundleUrl = encodeURIComponent(bundle.url);
         await page.goto(`${HARNESS_PATH}?bundle=${bundleUrl}`);
 
