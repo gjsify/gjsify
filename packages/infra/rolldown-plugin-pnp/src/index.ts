@@ -108,6 +108,38 @@ export async function pnpPlugin(opts: PnpPluginOptions = {}): Promise<Plugin | n
                 // (which would error with `UNDECLARED_DEPENDENCY` because
                 // `@girs/*` packages don't list `gi:` as a dep).
                 if (source.startsWith('gi://')) return { id: source, external: true };
+                // `node:`-prefixed specifiers (`node:fs`, `node:path`, etc.)
+                // are a Node-resolver concept Yarn PnP does NOT understand —
+                // `pnpApi.resolveRequest('node:fs', issuer)` throws
+                // `UNDECLARED_DEPENDENCY` because PnP treats `node:fs` as an
+                // ordinary specifier requiring an explicit declaration in the
+                // consumer's package.json.
+                //
+                // Returning `null` here is NOT enough under Rolldown: when
+                // `process.versions.pnp` is truthy, Rolldown's `bindingifyResolve`
+                // (see `node_modules/rolldown/dist/shared/bindingify-input-options-*.mjs`)
+                // unconditionally enables `yarnPnp: true` in the Rust resolver.
+                // That makes the native resolver run PnP for every unresolved
+                // bare specifier after the plugin `pre`-order chain returns null
+                // — including `node:fs` — and surface the exact
+                // `non-Node resolution context` error PnP throws for builtins.
+                // The user-facing `resolve` options have no knob to disable that.
+                //
+                // Instead we MUST actively intercept `node:*` here and route
+                // it through the rest of the plugin chain via `this.resolve()`
+                // (`skipSelf: true` keeps us out of the recursion). The gjsify
+                // alias plugin maps `node:<X>` → `@gjsify/<X>` and the
+                // re-resolved `@gjsify/<X>` specifier flows back through this
+                // hook in the next pass, where PnP resolves it cleanly via the
+                // polyfill-package relay below. Without this carve-out, every
+                // external PnP consumer importing `node:fs` etc. hits
+                // `[RESOLVE_ERROR] Could not resolve 'node:fs'` — exactly the
+                // failure mode surfaced by `tests/e2e/cli-only-pnp/` after the
+                // toolchain-hardening landed.
+                if (source.startsWith('node:')) {
+                    const resolved = await this.resolve(source, importer, { skipSelf: true });
+                    return resolved;
+                }
                 if (!importer) return null;
 
                 // Importer may be a file URL string or an absolute path.

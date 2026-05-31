@@ -1,7 +1,7 @@
 // Shared E2E test helpers for @gjsify CLI/plugin workflows.
 
 import { execFileSync, execSync } from 'node:child_process';
-import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -156,12 +156,26 @@ export function setupProjectYarnPnp(projectDir, pkg, tarballsDir, tarballMap) {
     console.log('  yarn install done');
 }
 
-/** True when the given executable is on PATH. */
+/**
+ * True when the given executable is on PATH. Walks `process.env.PATH`
+ * directly via `fs.existsSync` instead of shelling out to `which`(1):
+ * the Fedora 43/44 minimal containers used by CI ship without `which`
+ * installed (only `which-2.x` rpm provides it), so any `which`-based
+ * check silently returns false on EVERY command and turns this helper
+ * into a permanent "tool missing" gate. The PATH walk has zero
+ * external-binary dependencies — works on any POSIX-shaped env.
+ */
 export function hasCommand(cmd) {
-    try {
-        execFileSync('which', [cmd], { stdio: 'pipe' });
-        return true;
-    } catch {
-        return false;
+    const path = process.env.PATH;
+    if (!path) return false;
+    const sep = process.platform === 'win32' ? ';' : ':';
+    for (const dir of path.split(sep)) {
+        if (!dir) continue;
+        try {
+            if (existsSync(join(dir, cmd))) return true;
+        } catch {
+            // ignore inaccessible PATH entries
+        }
     }
+    return false;
 }

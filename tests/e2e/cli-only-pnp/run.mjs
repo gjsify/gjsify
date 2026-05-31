@@ -35,10 +35,15 @@ describe('CLI-only E2E under Yarn PnP (external-consumer scenario)', { timeout: 
     let tarballsDir;
     let tarballMap;
     let projectDir;
-    const skipReason = !hasCommand('yarn') ? 'yarn (>= 4) not on PATH — skipping PnP suite' : null;
-
+    // Yarn-PnP IS a stated gjsify support target — silent-skipping the PnP suite
+    // when yarn is missing was hiding real coverage gaps for PnP consumers (e.g.
+    // ts-for-gir, easy6502 hit PnP-specific bugs the silent-skip never caught).
+    // Hard-require yarn (>= 4 via corepack `packageManager: 'yarn@4.x.y'`).
     before(() => {
-        if (skipReason) return;
+        assert.ok(
+            hasCommand('yarn'),
+            '`yarn` is required for the PnP e2e suite (gjsify supports Yarn-PnP as a first-class consumer scenario per the PnP-aware createRequire in @gjsify/module + the cli-only-pnp / pnp-zip-static-reads e2e suites). Install via the system package manager or `corepack enable` (Node 24 ships corepack which auto-fetches yarn@4 from the `packageManager` field).',
+        );
 
         const env = createTestEnvironment('gjsify-e2e-cli-only-pnp-');
         tmpDir = env.tmpDir;
@@ -69,10 +74,10 @@ describe('CLI-only E2E under Yarn PnP (external-consumer scenario)', { timeout: 
     });
 
     after(() => {
-        if (!skipReason) cleanupTestEnvironment(tmpDir);
+        cleanupTestEnvironment(tmpDir);
     });
 
-    it('builds a script importing node:fs (relay → @gjsify/fs)', skipReason ? { skip: skipReason } : {}, () => {
+    it('builds a script importing node:fs (relay → @gjsify/fs)', () => {
         writeFileSync(
             join(projectDir, 'src', 'with-fs.ts'),
             "import { existsSync } from 'node:fs';\nconsole.log(existsSync('/tmp'));\n",
@@ -88,7 +93,7 @@ describe('CLI-only E2E under Yarn PnP (external-consumer scenario)', { timeout: 
         );
     });
 
-    it('builds a script importing node:path (relay → @gjsify/path)', skipReason ? { skip: skipReason } : {}, () => {
+    it('builds a script importing node:path (relay → @gjsify/path)', () => {
         writeFileSync(
             join(projectDir, 'src', 'with-path.ts'),
             "import { join } from 'node:path';\nconsole.log(join('a', 'b'));\n",
@@ -110,7 +115,6 @@ describe('CLI-only E2E under Yarn PnP (external-consumer scenario)', { timeout: 
 
     it(
         'builds a script importing node:child_process (relay → @gjsify/child_process)',
-        skipReason ? { skip: skipReason } : {},
         () => {
             writeFileSync(
                 join(projectDir, 'src', 'with-cp.ts'),
@@ -134,10 +138,11 @@ describe('CLI-only E2E under Yarn PnP (external-consumer scenario)', { timeout: 
 
     it(
         'rewriter injects __filename for CJS code in node_modules under PnP namespace',
-        skipReason || !gjsRunnable()
-            ? { skip: skipReason || 'gjs not runnable — skipping bundle-execution check' }
-            : {},
         () => {
+            assert.ok(
+                gjsRunnable(),
+                'gjs is required + must run a one-liner (`gjs -c \'"ok"\'`) — see the before() yarn check for context on why the PnP suite hard-requires the GNOME toolchain.',
+            );
             // Regression: F5 — esbuild stops at the first matching `onLoad`, so the
             // gjsify rewriter must run from INSIDE @yarnpkg/esbuild-plugin-pnp's onLoad
             // (composed via @gjsify/resolve-npm/pnp-relay), not as a separate
@@ -190,7 +195,6 @@ describe('CLI-only E2E under Yarn PnP (external-consumer scenario)', { timeout: 
 
     it(
         'builds a script combining fs + path + events (relay handles multiple polyfills in one bundle)',
-        skipReason ? { skip: skipReason } : {},
         () => {
             // Single bundle exercising several polyfills at once — verifies the relay
             // is reused across calls (one onResolve hook lifetime per build invocation).
