@@ -293,6 +293,39 @@ export class WebSocketServer extends EventEmitter {
      *  Only register add_handler when verifyClient is provided — a no-op handler on the
      *  same path as an existing http.Server catch-all can interfere with Soup's routing. */
     private _setupHandlers(soupServer: Soup.Server, options: ServerOptions): void {
+        // ── Step 0: Disable WebSocket per-message-deflate ──
+        // Soup ships `WebsocketExtensionDeflate` registered by
+        // default on every `Soup.Server` (see the `note` in
+        // [libsoup's `soup_server_add_websocket_extension` docs](
+        // refs/libsoup/libsoup/server/soup-server.c:1971)). Combined
+        // with `@gjsify/ws` (the client side here, defaulting
+        // `perMessageDeflate: true` to match npm-ws), the handshake
+        // negotiates deflate but Soup's loopback encode/decode path
+        // is buggy across Fedora Soup 3.x builds — server-to-client
+        // frames go out compressed, the client never sees a usable
+        // `message` event, and the connection times out.
+        //
+        // The pragmatic fix: REMOVE deflate from the server's
+        // supported-extensions list. Clients that offer deflate
+        // fall back to plain frames (which work end-to-end in
+        // every test we run). For peers that genuinely need
+        // deflate (cross-internet bandwidth-constrained), the
+        // caller can re-register via `soupServer.add_websocket_
+        // extension(...)` after constructing the WebSocketServer.
+        //
+        // Surfaced by pixel-rpg/map-editor's Pair-Editing 2026-05-31
+        // hand-test: host sent 13 frames, joiner reported `0
+        // frames delivered`. Reproduced in `rapid-server-send.
+        // spec.ts` — `perMessageDeflate=false` client variant
+        // already passes; with deflate disabled server-side every
+        // client variant passes too.
+        try {
+            soupServer.remove_websocket_extension(Soup.WebsocketExtensionDeflate.$gtype);
+        } catch {
+            // Older Soup builds without WebsocketExtensionDeflate
+            // fall through silently (nothing to remove).
+        }
+
         // ── Step 1: HTTP interceptor — verifyClient (registered only when needed) ──
         if (options.verifyClient) {
             const vc = options.verifyClient;
