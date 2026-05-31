@@ -60,7 +60,8 @@
         }
     },
     "exports": {
-        "./globals": "./globals.mjs"
+        "./globals": "./globals.mjs",
+        "./package.json": "./package.json"
     },
     "files": [
         "globals.mjs"
