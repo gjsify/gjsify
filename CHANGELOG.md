@@ -1,5 +1,102 @@
 # Changelog
 
+## [0.4.36](https://github.com/gjsify/gjsify/compare/v0.4.35...v0.4.36) (2026-05-31)
+
+### Features
+
+* **audit-runtimes:** introduce --quick opt-out alias (PR-B preparation) ([a215d19](https://github.com/gjsify/gjsify/commit/a215d1979ac1d85e209d2d636c001e399667cf80)), closes [#396](https://github.com/gjsify/gjsify/issues/396)
+* **audit-runtimes:** opt-in --strict mode with functional probes ([6a21e72](https://github.com/gjsify/gjsify/commit/6a21e72a2f6a85020436e9a8c2d37dc165077e1d))
+* **browser-node-polyfills:** umbrella meta-pkg for browser-side Node polyfills ([2291345](https://github.com/gjsify/gjsify/commit/2291345accd33b584c6729da408245c5ab572ebd)), closes [#392](https://github.com/gjsify/gjsify/issues/392) [#396](https://github.com/gjsify/gjsify/issues/396)
+* **cli:** `gjsify affected` — workspaces touched by HEAD vs base ([2ff5729](https://github.com/gjsify/gjsify/commit/2ff572972877332bfcaadc0312c432d5b6a70f6f)), closes [#417](https://github.com/gjsify/gjsify/issues/417)
+* **cli:** gjsify tsc subcommand — delegate to @gjsify/tsc bundle ([#389](https://github.com/gjsify/gjsify/issues/389)) ([9d7e462](https://github.com/gjsify/gjsify/commit/9d7e462253bad37d15e8f074985af513087937ea))
+* **cli:** gjsify whoami subcommand ([#400](https://github.com/gjsify/gjsify/issues/400)) ([e2d67a6](https://github.com/gjsify/gjsify/commit/e2d67a64d1604b306dad4b2bcf73e91c27f7a23f))
+* **cli:** tty-aware progress bar for gjsify install + dlx ([98b3e2b](https://github.com/gjsify/gjsify/commit/98b3e2b599056c82446be4cac20d27cc6acbee4f))
+* **crypto:** browser polyfill via WebCrypto + crypto-browserify pattern (welle 3-C) ([28e7706](https://github.com/gjsify/gjsify/commit/28e77066e9df6fe0f6d6ef9e01d0b0b60a35c128))
+* **fs:** in-memory browser polyfill (welle 3-D, memfs-inspired) ([382705a](https://github.com/gjsify/gjsify/commit/382705a67419f06e5ba3abf9f7fb011b84cbd385))
+* **install:** content-addressable tarball cache ([4225994](https://github.com/gjsify/gjsify/commit/42259948a701740a4d407897ec00c74f57dbc4c7))
+* **install:** workspace-scoped overrides ([8b99119](https://github.com/gjsify/gjsify/commit/8b9911920205f0eb5faab73753608d293970d7c7))
+* **node:** browser polyfill entries for process/os/dns/ws/module (welle 3-A) ([862accc](https://github.com/gjsify/gjsify/commit/862accce4b6c922e8eb0b98490fd35db388b4dba)), closes [#386](https://github.com/gjsify/gjsify/issues/386) [#387](https://github.com/gjsify/gjsify/issues/387) [#388](https://github.com/gjsify/gjsify/issues/388) [#388](https://github.com/gjsify/gjsify/issues/388) [#386](https://github.com/gjsify/gjsify/issues/386) [#387](https://github.com/gjsify/gjsify/issues/387)
+* **node:** browser polyfills for stream/http/https/zlib (welle 3-B) ([4ccabca](https://github.com/gjsify/gjsify/commit/4ccabca09502a97d007357954285a4ae6dd42335)), closes [#386](https://github.com/gjsify/gjsify/issues/386) [#387](https://github.com/gjsify/gjsify/issues/387) [#388](https://github.com/gjsify/gjsify/issues/388) [#392](https://github.com/gjsify/gjsify/issues/392) [#388](https://github.com/gjsify/gjsify/issues/388) [#386](https://github.com/gjsify/gjsify/issues/386) [#387](https://github.com/gjsify/gjsify/issues/387) [#388](https://github.com/gjsify/gjsify/issues/388)
+* **node:** browser polyfills for worker_threads + vm + sqlite (welle 3-E) ([c0b7ee3](https://github.com/gjsify/gjsify/commit/c0b7ee370544ca2a283fbae63b4a30a3de93c83d))
+* **resolve-npm:** add ALIASES_NODE_FOR_BROWSER export (unwired) ([08adc25](https://github.com/gjsify/gjsify/commit/08adc25a9fd97955c420782e4d04459cc8f1bffa))
+* **resolve-npm:** browser globals-map (BROWSER_NATIVE_IDENTS + BROWSER_GLOBALS_MAP) ([bfd3132](https://github.com/gjsify/gjsify/commit/bfd3132e149e792754b38ad8c0a49fb53e3db2b5))
+* **rolldown-plugin-gjsify:** browser target consumes ALIASES_NODE_FOR_BROWSER ([e3ed748](https://github.com/gjsify/gjsify/commit/e3ed748e63e587572bdc6a7c33fbc423306d3928)), closes [#388](https://github.com/gjsify/gjsify/issues/388)
+* **runtimes:** nativescript as 4th runtime axis — foundation (welle 4-t) ([bdf0f71](https://github.com/gjsify/gjsify/commit/bdf0f710c06da8bd080a9ab5a764aa1ffb4ce894))
+* **runtimes:** wave 2-W slot improvements for cross-runtime expansion ([56ce1ae](https://github.com/gjsify/gjsify/commit/56ce1aee72e0a54b86d9afa9fbd07b7565cb42d8))
+* **tooling:** auto-rebuild CLI/tsc bundles via pre-commit hook ([d2ed4b2](https://github.com/gjsify/gjsify/commit/d2ed4b272572dde58f6fc4c32129f3f892dfe02e))
+* **tsc:** smoke tests + CI bundle-staleness check ([#391](https://github.com/gjsify/gjsify/issues/391)) ([b9c5134](https://github.com/gjsify/gjsify/commit/b9c513469bd04dbedb5a2b14fc17b2acabbb0a2c)), closes [#385](https://github.com/gjsify/gjsify/issues/385)
+* **workspace:** --with-dependencies flag for topological pre-build ([#398](https://github.com/gjsify/gjsify/issues/398)) ([21bf97a](https://github.com/gjsify/gjsify/commit/21bf97a2167a8d2face44fd1801fa0435a0a34d0))
+* **workspace:** reverse-dep graph + affected-closure + file→ws mapping ([1576fcd](https://github.com/gjsify/gjsify/commit/1576fcd1214bc37131f8aea9b9d4245b0c2ef757))
+
+### Bug Fixes
+
+* **audit-runtimes:** close drift on cluster/inspector/readline + process ([4622626](https://github.com/gjsify/gjsify/commit/462262616a98dbb1e4f95c339377a21a8c4a1954))
+* **child_process:** de-flake detached-spawn test (stdout race) ([c767d90](https://github.com/gjsify/gjsify/commit/c767d90b450d9cdf93cf387e15e97728c21ac3ab)), closes [#411](https://github.com/gjsify/gjsify/issues/411) [#413](https://github.com/gjsify/gjsify/issues/413) [#414](https://github.com/gjsify/gjsify/issues/414)
+* **child_process:** de-flake detached-spawn test (stdout race) ([e256499](https://github.com/gjsify/gjsify/commit/e256499b2d02feaeb94896a9bbd3efec040148a7)), closes [#411](https://github.com/gjsify/gjsify/issues/411) [#413](https://github.com/gjsify/gjsify/issues/413) [#414](https://github.com/gjsify/gjsify/issues/414)
+* **child_process:** de-flake detached-spawn test (stdout race) ([73a31b1](https://github.com/gjsify/gjsify/commit/73a31b10946596ecaf02bca30167f8ccd9bbd783)), closes [#411](https://github.com/gjsify/gjsify/issues/411) [#413](https://github.com/gjsify/gjsify/issues/413) [#414](https://github.com/gjsify/gjsify/issues/414)
+* **child_process:** node-parity audit — 14 bugs, 86 new tests ([caa569a](https://github.com/gjsify/gjsify/commit/caa569a12ebed9fa498ec526e3005de29383a3a6)), closes [#407](https://github.com/gjsify/gjsify/issues/407)
+* **child_process:** skip undefined env values + add deltachat integration ([ad39b4b](https://github.com/gjsify/gjsify/commit/ad39b4b97a0554d10737b40a55d9ef1c01698c6e))
+* **ci:** revert main.yml switch + actions/checkout@v6 → v4 ([b5870a6](https://github.com/gjsify/gjsify/commit/b5870a64ef7fa12b5caecc6634a9d09909d7c59f))
+* **ci:** script positional before option flags in foreach calls ([29c29bf](https://github.com/gjsify/gjsify/commit/29c29bfbf1ed122e1ceb46a455fa5297624c75d6))
+* **cli,rolldown-plugin-gjsify:** cross-cwd rolldown resolve + inline register/* for --app gjs ([#399](https://github.com/gjsify/gjsify/issues/399)) ([adf66b9](https://github.com/gjsify/gjsify/commit/adf66b96de354f04476c8a6489f192e600e49c00)), closes [package.json#exports](https://github.com/gjsify/package.json/issues/exports)
+* **cli:** resolve affected-classifier spec CLI entry from cwd ([b308ae9](https://github.com/gjsify/gjsify/commit/b308ae90fb7bb03c4b59136322679a12fba9354b))
+* **cli:** use .ts extension for tarball-cache import ([0b3f835](https://github.com/gjsify/gjsify/commit/0b3f835ca24743837aa8e6e7d39fb996e24bf996))
+* **cli:** use .ts extension for tarball-cache import ([3929547](https://github.com/gjsify/gjsify/commit/39295477e26df7a9d1406eb7eb270be49cda7ad5))
+* **deps:** align @girs/* across integration tests + framework bridges ([699a9cc](https://github.com/gjsify/gjsify/commit/699a9cca58052bd0533ef76674fb5eceb8064256))
+* **dom-events:** report listener exceptions via reportError + safe console fallback ([#426](https://github.com/gjsify/gjsify/issues/426)) ([2c78fc9](https://github.com/gjsify/gjsify/commit/2c78fc9ecfb06669991d8c5fab82c3a4ede6c982))
+* **e2e:** drive native-install harness against compiled lib/ output ([bd7eb7f](https://github.com/gjsify/gjsify/commit/bd7eb7fcc0f7106f13cd730c510295bd1a72d46e))
+* **e2e:** drive native-install harness against compiled lib/ output ([e90a9a1](https://github.com/gjsify/gjsify/commit/e90a9a1354a2066e992b9bb4f2ce8d435be9f3ee))
+* **fs:** drop browser condition from ./promises export ([5af2113](https://github.com/gjsify/gjsify/commit/5af21137f1531118458b8c06dfdd2d1ee14263ec))
+* **node:** drop top-level browser field — causes node:* leak on --app gjs ([839d06c](https://github.com/gjsify/gjsify/commit/839d06c1c710a05152efa843f386c31118ac3def)), closes [#393](https://github.com/gjsify/gjsify/issues/393)
+* **node:** drop top-level browser field — causes node:* leak on --app gjs ([b273e66](https://github.com/gjsify/gjsify/commit/b273e664c148de1abbb1dfb745e5de9f02ffa523)), closes [#393](https://github.com/gjsify/gjsify/issues/393)
+* **node:** drop top-level browser field — causes node:* leak on --app gjs ([4f98da2](https://github.com/gjsify/gjsify/commit/4f98da2310f9174559057cc4b37e1e073db7e0b1)), closes [#393](https://github.com/gjsify/gjsify/issues/393)
+* **node:** drop top-level browser field — causes node:* leak on --app gjs ([45cc791](https://github.com/gjsify/gjsify/commit/45cc791b9a2acd123111f78719231c3c484fa4ef)), closes [#393](https://github.com/gjsify/gjsify/issues/393)
+* **node:** drop top-level browser field — causes node:* leak on --app gjs ([4fc4a4c](https://github.com/gjsify/gjsify/commit/4fc4a4cf4dc436f17d99a4ab601f6c715aa3cdfc)), closes [#397](https://github.com/gjsify/gjsify/issues/397)
+* **npm-registry,install:** per-fetch timeout + clear timeout error ([#402](https://github.com/gjsify/gjsify/issues/402)) ([41a6059](https://github.com/gjsify/gjsify/commit/41a6059eae8fa732379a441ccb2a2118bec630b5))
+* **publish:** diagnose dead-token 404 via /-/whoami probe ([#390](https://github.com/gjsify/gjsify/issues/390)) ([c645742](https://github.com/gjsify/gjsify/commit/c64574292b1bd48b1f927564052a74c09b56840f))
+* **ws:** disable server-side permessage-deflate to unblock loopback message flow ([#427](https://github.com/gjsify/gjsify/issues/427)) ([1f284c0](https://github.com/gjsify/gjsify/commit/1f284c0efc6e4a937f7b2c580d91f0f80b71f8ac)), closes [#115](https://github.com/gjsify/gjsify/issues/115)
+* **zlib:** zstd stubs for undici v7 compat ([#404](https://github.com/gjsify/gjsify/issues/404)) ([b7a45e4](https://github.com/gjsify/gjsify/commit/b7a45e4c3382db2947a7396d456a9f27aff5b172)), closes [nodejs/node#56777](https://github.com/nodejs/node/issues/56777)
+
+### Performance Improvements
+
+* **install:** parallelize workspace-symlink wiring ([792d522](https://github.com/gjsify/gjsify/commit/792d522edd6db76df00d36e2e00864ba6bbba934)), closes [#414](https://github.com/gjsify/gjsify/issues/414)
+
+### Documentation
+
+* **agents:** fix nonsense v0.4.35 → v0.4.20 in first-publish incident note ([86ca8b3](https://github.com/gjsify/gjsify/commit/86ca8b39211d57667e97ae8097d6e20e29c6943c))
+* **agents:** selective-CI section under Testing ([4d452c3](https://github.com/gjsify/gjsify/commit/4d452c3de13ba15ffd232aa1d1f37ee152faa9b1)), closes [#421](https://github.com/gjsify/gjsify/issues/421) [#421](https://github.com/gjsify/gjsify/issues/421) [#420](https://github.com/gjsify/gjsify/issues/420) [#410](https://github.com/gjsify/gjsify/issues/410) [#408](https://github.com/gjsify/gjsify/issues/408) [#406](https://github.com/gjsify/gjsify/issues/406)
+* **status:** summarize welle 3-F browser-polyfill wiring ([e06f506](https://github.com/gjsify/gjsify/commit/e06f506d452445d2bc60b6807d4804cce9162717))
+
+### Continuous Integration
+
+* cache lib/ + tsbuildinfo between runs ([#423](https://github.com/gjsify/gjsify/issues/423)) ([747808f](https://github.com/gjsify/gjsify/commit/747808f5ea7c3d32930bc4f8bd1ce6a5c006cd98))
+* don't run integration tests on PRs (align with AGENTS.md) ([63b2bdf](https://github.com/gjsify/gjsify/commit/63b2bdfdd9b443c151e096320838f208b3a25715))
+* exclude integration-autobahn from CI sweep (needs Podman) ([7cefe43](https://github.com/gjsify/gjsify/commit/7cefe4372c8d1715cd19efafe806c60295139adf))
+* force re-trigger workflow run ([a1620ad](https://github.com/gjsify/gjsify/commit/a1620ad2a07480da1e194c859f94f9e2624038da))
+* **main:** selective tests via `gjsify affected` gates ([70ffa7d](https://github.com/gjsify/gjsify/commit/70ffa7d9bca0dcffd8d200655aebff7fe535393e)), closes [#418](https://github.com/gjsify/gjsify/issues/418) [#417](https://github.com/gjsify/gjsify/issues/417) [#418](https://github.com/gjsify/gjsify/issues/418)
+* pre-baked Fedora image — skip dnf install on every job ([b2cb5b0](https://github.com/gjsify/gjsify/commit/b2cb5b0bc597374eaa83b9d6a3d04e5188276889))
+
+### Maintenance
+
+* **deps:** align typescript range to ^5.9.3 workspace-wide (declaration vs lockfile cleanup) ([290c7b6](https://github.com/gjsify/gjsify/commit/290c7b6b79b432982d7b06b9c1173150d76e76c7)), closes [#385](https://github.com/gjsify/gjsify/issues/385)
+* **deps:** bulk minor + patch bumps via gjsify upgrade --minor ([8111d18](https://github.com/gjsify/gjsify/commit/8111d183fec9a5fa924cf6304370a7055d2e5a7f))
+* drop accidentally-staged .claude/ worktree dir ([a3294a9](https://github.com/gjsify/gjsify/commit/a3294a94c72d8397de7de46745e4fb4c3d28319d))
+* **gitignore:** exclude .claude/ (claude code agent worktrees) ([dbd8ebb](https://github.com/gjsify/gjsify/commit/dbd8ebb753ead7f90cf709f754bab34291332a45))
+* **lock:** refresh gjsify-lock.json for deltachat devdeps ([29b015e](https://github.com/gjsify/gjsify/commit/29b015e2688772a6a9a86a631ea4bcccaf6dd1cc))
+* **lock:** refresh gjsify-lock.json for yjs + y-protocols devdeps ([523c9b6](https://github.com/gjsify/gjsify/commit/523c9b67a724c7c369101abbdd861a07fd758267))
+* **packages:** add license + repository + bugs + homepage to all published packages ([88e50aa](https://github.com/gjsify/gjsify/commit/88e50aa345e732851e09cf3969b938950222a368))
+* **refs:** vendor 5 nativescript submodules (welle 4-s) ([6cb1330](https://github.com/gjsify/gjsify/commit/6cb1330a905b8816825d5a999d64e3b03292f594))
+* **refs:** vendor 9 browser-polyfill submodules for cross-runtime wave ([6308873](https://github.com/gjsify/gjsify/commit/6308873382f80dc934e2e46ced846eb4a2406183))
+* **status:** remove stale BLOCKER entry for @gjsify/vite-plugin-gjsify ([465f1f1](https://github.com/gjsify/gjsify/commit/465f1f113bfbb25d279bf914224b34afb095c6ca))
+
+### Tests
+
+* **browser:** include packages/node in discover-bundles ([50061e4](https://github.com/gjsify/gjsify/commit/50061e4ee592bb105c813880f5e49a7640bbd4a2))
+* **integration/deltachat:** port chatmail/core upstream basic.ts tests ([0f4bd53](https://github.com/gjsify/gjsify/commit/0f4bd53189f8d41a30679ef726f81ac48cdbc437))
+* **integration/loro-crdt:** expand from 57 to 166 tests on Node + GJS ([d22c61d](https://github.com/gjsify/gjsify/commit/d22c61d4c687a297dea27c5e1d9f038000960a1e))
+* **integration/mcp:** port stdio / in-memory / uri-template tests from upstream sdk ([7410ffb](https://github.com/gjsify/gjsify/commit/7410ffbc82261f576430f67888464152585eead4))
+* **integration/yjs:** new suite — 147 assertions / 54 cases on node + gjs ([c9d9ec5](https://github.com/gjsify/gjsify/commit/c9d9ec59c65401f1a45df18c7411e6c7792f3126))
+
 ## [0.4.35](https://github.com/gjsify/gjsify/compare/v0.4.34...v0.4.35) (2026-05-29)
 
 ### Features
