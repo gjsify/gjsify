@@ -207,6 +207,43 @@ jobs:
           fi
           echo "@gjsify/tsc bundle OK — reports v$ACTUAL matching TYPESCRIPT_VERSION."
 
+      # Restore previously-built `lib/` directories + `tsbuildinfo` files.
+      # TypeScript with `composite: true` (the standard tsconfig template in
+      # this monorepo) reads `tsconfig.tsbuildinfo` and only re-emits files
+      # whose source signature changed. The cache key is content-addressable
+      # over every input that affects build output, so a PR touching only
+      # docs / a single workspace's src lands on a near-perfect cache hit:
+      #
+      #   primary key: includes the hash of all `packages/**/src/**` files.
+      #                exact-hit only on a perfect no-source-change PR.
+      #   restore-key 1: drops the src hash → restores the most-recent
+      #                  cached lib/ for the same lockfile+tsconfig set.
+      #                  tsc + rolldown then re-emit only the files whose
+      #                  src changed; the rest stay byte-identical.
+      #   restore-key 2: just the Fedora version → ultimate fallback,
+      #                  useful when the lockfile bumps en masse.
+      #
+      # Per-Fedora-major scope because the bundler output (rolldown) can
+      # diverge by host libs; Fedora 43 vs 44 would otherwise share the
+      # same cache and produce stale bundles.
+      # IMPORTANT: paths use `packages/*/*/...` (pillar/name), NOT
+      # `packages/**/...`. The double-star globs into node_modules and
+      # blew up the cache POST upload to multi-gigabyte tars that hung
+      # for hours. The pillar/name shape covers every real workspace
+      # while skipping the deps tree.
+      - name: Cache build output (lib/ + tsbuildinfo)
+        uses: actions/cache@v4
+        with:
+          path: |
+            packages/*/*/lib
+            packages/*/*/tsconfig.tsbuildinfo
+            packages/*/*/tsconfig.*.tsbuildinfo
+            packages/*/*/dist
+          key: build-${{ runner.os }}-fedora${{ matrix.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
+          restore-keys: |
+            build-${{ runner.os }}-fedora${{ matrix.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-
+            build-${{ runner.os }}-fedora${{ matrix.fedora-version }}-
+
       - name: Build
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run build'
 
