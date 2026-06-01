@@ -587,7 +587,9 @@ export class RTCPeerConnection extends EventTarget {
         const native = channelBridge.channel as unknown as GstWebRTC.WebRTCDataChannel;
         let js = this._dataChannels.get(native);
         if (!js) {
-            js = new RTCDataChannel(channelBridge);
+            // Pass the SCTP transport so RTCDataChannel.send can
+            // enforce the W3C max-message-size ceiling.
+            js = new RTCDataChannel(channelBridge, this._sctpTransport ?? undefined);
             this._dataChannels.set(native, js);
             js.addEventListener('close', () => {
                 this._dataChannels.delete(native);

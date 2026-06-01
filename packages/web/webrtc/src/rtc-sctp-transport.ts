@@ -18,7 +18,13 @@ type EventHandler = ((ev: Event) => void) | null;
 export class RTCSctpTransport extends EventTarget {
     readonly transport: RTCDtlsTransport;
     private _state: RTCSctpTransportState = 'connecting';
-    private _maxMessageSize: number = 262144; // 256 KB default per SCTP
+    // SCTP `max-message-size` ceiling that `RTCDataChannel.send`
+    // enforces (W3C WebRTC § 5.6.5 step 4). The 262144-byte (256
+    // KiB) default mirrors GStreamer webrtcbin's negotiated value
+    // when the remote peer omits the `a=max-message-size:N` SDP
+    // attribute. {@link _setMaxMessageSize} updates this after
+    // SDP parsing; `0` means unlimited per RFC 8841.
+    private _maxMessageSize: number = 262144;
     private _maxChannels: number | null = 65535;
 
     private _onstatechange: EventHandler = null;
