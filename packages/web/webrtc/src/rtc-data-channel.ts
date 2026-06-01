@@ -19,6 +19,7 @@ import { Blob } from '@gjsify/buffer';
 
 import { RTCError } from './rtc-error.js';
 import { RTCErrorEvent } from './rtc-events.js';
+import type { RTCSctpTransport } from './rtc-sctp-transport.js';
 
 export type RTCDataChannelState = 'connecting' | 'open' | 'closing' | 'closed';
 export type BinaryType = 'blob' | 'arraybuffer';
@@ -88,14 +89,32 @@ export class RTCDataChannel extends EventTarget {
     private _onclosing: EventHandler = null;
 
     /**
+     * Reference to the parent peer connection's SCTP transport. Used
+     * by {@link send} to enforce the W3C `maxMessageSize` ceiling
+     * per WebRTC § 5.6.5 step 4 — `OperationError` is thrown when a
+     * send would exceed the negotiated SCTP `max-message-size`.
+     *
+     * Optional for backwards compatibility with the
+     * `new RTCDataChannel(rawGstChannel)` factory shape used by
+     * downstream tooling that hasn't been updated yet. When omitted,
+     * size validation is skipped — matching pre-2026-06-01 behaviour.
+     * Production peer connections always pass it.
+     */
+    private readonly _sctpTransport: RTCSctpTransport | null = null;
+
+    /**
      * @internal
      * Accepts either a raw GstWebRTCDataChannel (for locally-created channels)
      * or a pre-made DataChannelBridge (for remotely-originated channels that
      * the WebrtcbinBridge already wrapped on the streaming thread to avoid
      * missing early messages).
+     *
+     * `sctpTransport` enables W3C-spec `maxMessageSize` validation in
+     * {@link send}. Optional for backwards-compat — see field doc.
      */
-    constructor(source: GstWebRTC.WebRTCDataChannel | DataChannelBridgeType) {
+    constructor(source: GstWebRTC.WebRTCDataChannel | DataChannelBridgeType, sctpTransport?: RTCSctpTransport) {
         super();
+        this._sctpTransport = sctpTransport ?? null;
         // Discriminator: DataChannelBridge has both `channel` + `dispose_bridge`;
         // the raw GstWebRTCDataChannel has neither. Check structurally via a
         // narrow `_BridgeDuckType` rather than `as any`.
@@ -235,14 +254,30 @@ export class RTCDataChannel extends EventTarget {
         }
 
         if (typeof data === 'string') {
+            const byteLength = new TextEncoder().encode(data).byteLength;
+            this._enforceMaxMessageSize(byteLength);
             this._native.send_string(data);
-            this._bufferedAmount += new TextEncoder().encode(data).byteLength;
+            this._bufferedAmount += byteLength;
             return;
         }
 
         if (data instanceof Blob) {
             const blob = data;
+            // Blob path: we don't know the byte size until the
+            // `.arrayBuffer()` Promise resolves. The W3C spec
+            // (§ 5.6.5 step 4) says the check happens on send
+            // synchronously, but `Blob` is the only async-sized
+            // input shape — defer the check to inside the .then.
+            // Failure surfaces via the 'error' event rather than
+            // throwing, matching how Chrome handles async Blob
+            // overflow.
             blob.arrayBuffer().then((buf) => {
+                try {
+                    this._enforceMaxMessageSize(buf.byteLength);
+                } catch (err) {
+                    this._handleError(err instanceof Error ? err.message : String(err));
+                    return;
+                }
                 try {
                     this._native.send_data(toGBytes(buf));
                     this._bufferedAmount += buf.byteLength;
@@ -254,12 +289,14 @@ export class RTCDataChannel extends EventTarget {
         }
 
         if (ArrayBuffer.isView(data)) {
+            this._enforceMaxMessageSize(data.byteLength);
             const bytes = toGBytes(data);
             this._native.send_data(bytes);
             this._bufferedAmount += data.byteLength;
             return;
         }
         if (data instanceof ArrayBuffer) {
+            this._enforceMaxMessageSize(data.byteLength);
             const bytes = toGBytes(data);
             this._native.send_data(bytes);
             this._bufferedAmount += data.byteLength;
@@ -267,6 +304,35 @@ export class RTCDataChannel extends EventTarget {
         }
 
         throw new TypeError('RTCDataChannel.send: unsupported data type');
+    }
+
+    /**
+     * W3C WebRTC § 5.6.5 step 4 — "If the length of data in bytes is
+     * greater than transport's [[MaxMessageSize]] internal slot,
+     * throw an OperationError DOMException."
+     *
+     * Pre-fix (2026-06-01) the underlying webrtcbin / SCTP layer
+     * silently dropped any single `send_message` above the
+     * `max-message-size` ceiling (RFC 8841 default 64 KiB on most
+     * peers). Application code saw "send returned, frame never
+     * arrived" — debugged for hours in pixel-rpg/map-editor's
+     * Pair-Editing hand-test before tracing it back here. Post-fix,
+     * the bound peer connection passes its `RTCSctpTransport` into
+     * the data channel; oversize sends throw immediately, surfacing
+     * the framing limit as a typed JS error like every browser
+     * implementation does.
+     */
+    private _enforceMaxMessageSize(byteLength: number): void {
+        if (!this._sctpTransport) return;
+        const max = this._sctpTransport.maxMessageSize;
+        if (max <= 0) return; // 0 = unlimited per RFC 8841
+        if (byteLength > max) {
+            throw new DOMException(
+                `RTCDataChannel.send: data (${byteLength} bytes) exceeds the SCTP ` +
+                    `max-message-size of ${max} bytes. Split into smaller frames before sending.`,
+                'OperationError',
+            );
+        }
     }
 
     close(): void {

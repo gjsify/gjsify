@@ -118,7 +118,9 @@ const dataChannelMethods: DataChannelMethods & ThisType<RTCPeerConnection> = {
         // Data channel created → ensure SCTP transport exists
         this._ensureSctpTransport();
 
-        const js = new RTCDataChannel(native);
+        // Pass the SCTP transport so RTCDataChannel.send can enforce
+        // the W3C max-message-size ceiling per § 5.6.5 step 4.
+        const js = new RTCDataChannel(native, this.sctp ?? undefined);
         this._dataChannels.set(native, js);
         js.addEventListener('close', () => {
             this._dataChannels.delete(native);

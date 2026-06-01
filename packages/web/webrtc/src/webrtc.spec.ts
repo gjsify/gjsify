@@ -285,6 +285,105 @@ export default async () => {
                 pcA.close();
                 pcB.close();
             });
+
+            await it('REGRESSION (2026-06-01): send() throws OperationError when data exceeds SCTP max-message-size', async () => {
+                // W3C WebRTC § 5.6.5 step 4 — per-spec, oversize
+                // sends MUST throw `OperationError` synchronously
+                // rather than be silently dropped at the SCTP
+                // layer. Pre-fix, the underlying webrtcbin
+                // dropped any single `send_message` above the
+                // negotiated `max-message-size` (RFC 8841 default
+                // 64 KiB) — surfaced as a frame that "went out"
+                // but never arrived at the peer. Symptom debugged
+                // for hours in pixel-rpg/map-editor's Pair-Editing
+                // hand-test before tracing back here.
+                const pcA = new RTCPeerConnection();
+                const pcB = new RTCPeerConnection();
+                pcA.onicecandidate = (ev) => {
+                    if (ev.candidate) pcB.addIceCandidate(ev.candidate.toJSON());
+                };
+                pcB.onicecandidate = (ev) => {
+                    if (ev.candidate) pcA.addIceCandidate(ev.candidate.toJSON());
+                };
+                const channelA = pcA.createDataChannel('oversize');
+                const offer = await pcA.createOffer();
+                await pcA.setLocalDescription(offer);
+                await pcB.setRemoteDescription(offer);
+                const answer = await pcB.createAnswer();
+                await pcB.setLocalDescription(answer);
+                await pcA.setRemoteDescription(answer);
+                if (channelA.readyState !== 'open') await awaitEvent(channelA, 'open');
+
+                // Pin the channel's transport `maxMessageSize` to
+                // a small value so we don't need a megabyte of
+                // fixture data to trip the limit.
+                // lib.dom's `RTCSctpTransport` interface doesn't expose
+                // `_setMaxMessageSize` (it's our internal extension);
+                // cast through `unknown` to reach the test-only setter.
+                ;(pcA.sctp! as unknown as { _setMaxMessageSize(v: number): void })._setMaxMessageSize(1024)
+
+                // Within-limit send: ~512 bytes of string MUST succeed
+                expect(() => channelA.send('a'.repeat(512))).not.toThrow();
+
+                // Over-limit send: 2 KiB > 1 KiB ceiling → OperationError
+                let caught: unknown = null;
+                try {
+                    channelA.send('a'.repeat(2_048));
+                } catch (err) {
+                    caught = err;
+                }
+                expect(caught instanceof DOMException).toBeTruthy();
+                expect((caught as DOMException).name).toBe('OperationError');
+                expect((caught as DOMException).message).toContain('exceeds the SCTP max-message-size');
+                expect((caught as DOMException).message).toContain('2048');
+
+                // ArrayBuffer over-limit also throws
+                let bufferCaught: unknown = null;
+                try {
+                    channelA.send(new Uint8Array(2_048).buffer);
+                } catch (err) {
+                    bufferCaught = err;
+                }
+                expect(bufferCaught instanceof DOMException).toBeTruthy();
+                expect((bufferCaught as DOMException).name).toBe('OperationError');
+
+                // After the failed sends the channel stays usable —
+                // a within-limit send still works.
+                expect(() => channelA.send('still here')).not.toThrow();
+
+                channelA.close();
+                pcA.close();
+                pcB.close();
+            });
+
+            await it('REGRESSION: sctp._setMaxMessageSize(0) means unlimited per RFC 8841', async () => {
+                // Defensive: 0 = "no limit advertised by the
+                // remote peer". `send()` MUST skip the check
+                // rather than treat 0 as "throw on anything".
+                const pcA = new RTCPeerConnection();
+                const pcB = new RTCPeerConnection();
+                pcA.onicecandidate = (ev) => {
+                    if (ev.candidate) pcB.addIceCandidate(ev.candidate.toJSON());
+                };
+                pcB.onicecandidate = (ev) => {
+                    if (ev.candidate) pcA.addIceCandidate(ev.candidate.toJSON());
+                };
+                const channelA = pcA.createDataChannel('unlimited');
+                const offer = await pcA.createOffer();
+                await pcA.setLocalDescription(offer);
+                await pcB.setRemoteDescription(offer);
+                const answer = await pcB.createAnswer();
+                await pcB.setLocalDescription(answer);
+                await pcA.setRemoteDescription(answer);
+                if (channelA.readyState !== 'open') await awaitEvent(channelA, 'open');
+
+                ;(pcA.sctp! as unknown as { _setMaxMessageSize(v: number): void })._setMaxMessageSize(0)
+                expect(() => channelA.send('a'.repeat(100_000))).not.toThrow();
+
+                channelA.close();
+                pcA.close();
+                pcB.close();
+            });
         });
 
         await describe('close()', async () => {
