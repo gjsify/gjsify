@@ -12,11 +12,13 @@
 // (`./index.js`) drives libsoup and cannot run in a browser.
 //
 // Strategy: client paths (`request`, `get`) ride on top of the native browser
-// `fetch()`. Streaming the request body uses `ReadableStream` (or buffers when
-// the consumer never streamed). Streaming the response body re-emits chunks on
-// an EventEmitter-shaped `IncomingMessage`. Server paths
-// (`createServer`, `Server`, `ServerResponse`) throw ENOTSUP — a browser cannot
-// listen on a socket. Slot: browser:"partial". < 350 LOC.
+// `fetch()`. The request body is buffered into a `Blob` and posted; the response
+// body is streamed through a Readable-shaped `IncomingMessage` that supports the
+// surface Node consumers expect — flowing `'data'`/`'end'`, paused `read()` +
+// `'readable'`, `pause()`/`resume()` backpressure, `setEncoding()` decoding,
+// `pipe()`, and async iteration. Server paths (`createServer`, `Server`,
+// `ServerResponse`) throw a structured ENOTSUP — a browser cannot listen on a
+// socket and faking it would be dishonest. Slot: browser:"partial".
 
 import { EventEmitter } from '@gjsify/events';
 
@@ -110,6 +112,12 @@ function buildUrl(opts: RequestOptions): string {
 
 // ─── IncomingMessage (browser response wrapper) ───────────────────────────
 
+// A minimal Readable-stream shape over the fetch Response body. Self-contained
+// (no `@gjsify/stream` dependency) so it stays bundle-light, but implements the
+// surface Node consumers rely on: flowing-mode `'data'`/`'end'` events,
+// paused-mode `read()` + `'readable'`, backpressure via `pause()`/`resume()`,
+// `setEncoding()` decoding, `pipe()`, and async iteration. The `ClientRequest`
+// flush loop drives it through `_push()` / `_push(null)`.
 export class IncomingMessage extends EventEmitter {
     statusCode: number;
     statusMessage: string;
@@ -125,6 +133,13 @@ export class IncomingMessage extends EventEmitter {
     readable = true;
     destroyed = false;
     complete = false;
+    aborted = false;
+
+    private _buffer: (Uint8Array | string)[] = [];
+    private _flowing: boolean | null = null;
+    private _paused = false;
+    private _ended = false;
+    private _decoder: TextDecoder | null = null;
 
     constructor(response: Response) {
         super();
@@ -136,24 +151,122 @@ export class IncomingMessage extends EventEmitter {
         });
     }
 
-    setEncoding(_enc: string): this {
+    // ── stream ingestion (driven by ClientRequest._flush) ──
+    /** Feed one body chunk, or `null` to signal end-of-stream. */
+    _push(chunk: Uint8Array | null): void {
+        if (chunk === null) {
+            // Flush any partial multibyte char held by the streaming decoder.
+            if (this._decoder) {
+                const tail = this._decoder.decode();
+                if (tail) this._emitChunk(tail);
+            }
+            this._ended = true;
+            this._maybeEnd();
+            return;
+        }
+        this._emitChunk(this._decoder ? this._decoder.decode(chunk, { stream: true }) : chunk);
+    }
+
+    private _emitChunk(out: Uint8Array | string): void {
+        if (this._flowing) {
+            this.emit('data', out);
+        } else {
+            this._buffer.push(out);
+            this.emit('readable');
+        }
+    }
+
+    private _maybeEnd(): void {
+        if (this._ended && this._buffer.length === 0 && !this.complete) {
+            this.complete = true;
+            this.readable = false;
+            this.emit('end');
+        }
+    }
+
+    private _drain(): void {
+        while (this._flowing && !this._paused && this._buffer.length > 0) {
+            this.emit('data', this._buffer.shift());
+        }
+        this._maybeEnd();
+    }
+
+    // ── public Readable surface ──
+    setEncoding(enc: string): this {
+        this._decoder = new TextDecoder(enc === 'binary' ? 'latin1' : enc);
         return this;
     }
+
+    read(): Uint8Array | string | null {
+        return this._buffer.length === 0 ? null : (this._buffer.shift() as Uint8Array | string);
+    }
+
     pause(): this {
+        this._paused = true;
+        this._flowing = false;
+        this.emit('pause');
         return this;
     }
+
     resume(): this {
+        this._paused = false;
+        this._flowing = true;
+        queueMicrotask(() => this._drain());
+        this.emit('resume');
         return this;
     }
+
+    pipe<T extends { write(c: unknown): unknown; end(): unknown }>(dest: T): T {
+        this.on('data', (chunk: unknown) => dest.write(chunk));
+        this.on('end', () => dest.end());
+        this.resume();
+        return dest;
+    }
+
+    override on(event: string, listener: (...args: unknown[]) => void): this {
+        super.on(event, listener);
+        if (event === 'data' && this._flowing === null) {
+            this._flowing = true;
+            queueMicrotask(() => this._drain());
+        }
+        return this;
+    }
+
     destroy(err?: Error): this {
         if (this.destroyed) return this;
         this.destroyed = true;
         this.readable = false;
+        this.aborted = true;
         queueMicrotask(() => {
             if (err) this.emit('error', err);
             this.emit('close');
         });
         return this;
+    }
+
+    async *[Symbol.asyncIterator](): AsyncIterableIterator<Uint8Array | string> {
+        const queue: (Uint8Array | string)[] = [];
+        let done = false;
+        let err: Error | null = null;
+        let wake: (() => void) | null = null;
+        const onData = (c: Uint8Array | string): void => { queue.push(c); wake?.(); };
+        const onEnd = (): void => { done = true; wake?.(); };
+        const onError = (e: Error): void => { err = e; wake?.(); };
+        this.on('data', onData as (...a: unknown[]) => void);
+        this.once('end', onEnd);
+        this.once('error', onError as (...a: unknown[]) => void);
+        try {
+            while (true) {
+                if (err) throw err;
+                if (queue.length > 0) { yield queue.shift() as Uint8Array | string; continue; }
+                if (done) return;
+                await new Promise<void>((res) => { wake = res; });
+            }
+        } finally {
+            this.removeListener('data', onData as (...a: unknown[]) => void);
+            this.removeListener('end', onEnd);
+            this.removeListener('error', onError as (...a: unknown[]) => void);
+        }
     }
 }
 
@@ -175,6 +288,7 @@ export class ClientRequest extends EventEmitter {
     connection = null;
     writable = true;
     destroyed = false;
+    aborted = false;
 
     constructor(options: RequestOptions, callback?: (res: IncomingMessage) => void) {
         super();
@@ -226,8 +340,13 @@ export class ClientRequest extends EventEmitter {
     abort(): void {
         if (this._aborted) return;
         this._aborted = true;
+        this.aborted = true;
+        this.writable = false;
         this._abortCtrl.abort();
-        this.emit('abort');
+        queueMicrotask(() => {
+            this.emit('abort');
+            this.emit('close');
+        });
     }
 
     destroy(err?: Error): this {
@@ -263,12 +382,13 @@ export class ClientRequest extends EventEmitter {
                 credentials: 'same-origin',
             });
             const incoming = new IncomingMessage(response);
+            incoming.method = this.method;
+            incoming.url = this.path;
             this.emit('response', incoming);
             if (cb) queueMicrotask(cb);
             const reader = response.body?.getReader();
             if (!reader) {
-                incoming.complete = true;
-                queueMicrotask(() => incoming.emit('end'));
+                queueMicrotask(() => incoming._push(null));
                 return;
             }
             const pump = async (): Promise<void> => {
@@ -276,11 +396,9 @@ export class ClientRequest extends EventEmitter {
                     while (true) {
                         const { done, value } = await reader.read();
                         if (done) break;
-                        incoming.emit('data', value);
+                        incoming._push(value);
                     }
-                    incoming.complete = true;
-                    incoming.emit('end');
-                    incoming.emit('close');
+                    incoming._push(null);
                 } catch (err) {
                     incoming.emit('error', err);
                 }
@@ -332,6 +450,10 @@ export function get(
 }
 
 // ─── Server paths — ENOTSUP in the browser ────────────────────────────────
+//
+// A browser cannot bind a TCP listening socket, so there is no honest way to
+// implement an HTTP server. These throw a structured `ENOTSUP` rather than
+// pretending to work — faking it would hide the real platform limit.
 
 function notSupported(syscall: string): never {
     const err = new Error(`http.${syscall} is not supported in the browser`) as Error & { code: string; errno: number; syscall: string };
@@ -362,6 +484,7 @@ export class OutgoingMessage extends EventEmitter {
     }
 }
 
+/** Throws structured `ENOTSUP` — a browser cannot listen on a TCP socket. */
 export function createServer(..._args: unknown[]): Server {
     return notSupported('createServer');
 }
