@@ -128,25 +128,36 @@ export class Readable extends Stream {
     protected _paused = false;
     protected _flowing: boolean | null = null;
     protected _ended = false;
+    protected _endEmitted = false;
+    protected _drainScheduled = false;
 
     push(chunk: unknown): boolean {
         if (chunk === null) {
             this._ended = true;
-            queueMicrotask(() => {
-                if (this._buffer.length === 0) {
-                    this.readableEnded = true;
-                    this.emit('end');
-                }
-            });
+            // Route end emission through the same drain path as data so a flowing
+            // 'end' can never overtake still-pending 'data' emits (and fires once).
+            this._scheduleDrain();
             return false;
         }
         if (this._flowing) {
-            queueMicrotask(() => this.emit('data', chunk));
+            // Buffer + coalesced drain instead of an independent per-chunk
+            // microtask: keeps data ordered ahead of 'end' on the single path.
+            this._buffer.push(chunk);
+            this._scheduleDrain();
         } else {
             this._buffer.push(chunk);
             this.emit('readable');
         }
         return !this._paused;
+    }
+
+    protected _scheduleDrain(): void {
+        if (this._drainScheduled) return;
+        this._drainScheduled = true;
+        queueMicrotask(() => {
+            this._drainScheduled = false;
+            this._drainBuffer();
+        });
     }
 
     read(): unknown {
@@ -163,14 +174,15 @@ export class Readable extends Stream {
     override resume(): this {
         this._paused = false;
         this._flowing = true;
-        queueMicrotask(() => this._drainBuffer());
+        this._scheduleDrain();
         this.emit('resume');
         return this;
     }
 
     protected _drainBuffer(): void {
         while (this._flowing && this._buffer.length > 0) this.emit('data', this._buffer.shift());
-        if (this._ended && this._buffer.length === 0) {
+        if (this._ended && this._buffer.length === 0 && !this._endEmitted) {
+            this._endEmitted = true;
             this.readableEnded = true;
             this.emit('end');
         }
@@ -190,7 +202,7 @@ export class Readable extends Stream {
         super.on(event, listener);
         if (event === 'data' && this._flowing === null) {
             this._flowing = true;
-            queueMicrotask(() => this._drainBuffer());
+            this._scheduleDrain();
         }
         return this;
     }
