@@ -3,13 +3,19 @@
 //
 // Reference: refs/node/lib/dns.js (surface mirror)
 //
-// Slot: "browser:partial" — `lookup()` works (loopback), every real DNS
-// resolver method throws ENOTSUP. Mirrors `node-stdlib-browser`'s `dns mock`.
+// Slot: "browser:partial" — `lookup()` resolves only what a browser can
+// honestly resolve without a DNS API (IP literals + `localhost`); every real
+// name resolution (and every `resolve*`/`reverse`) returns a structured
+// ENOTSUP. Mirrors `node-stdlib-browser`'s `dns mock`.
 //
-// Browser has no DNS resolver API surface. We supply a `lookup()` that
-// resolves to 127.0.0.1 (loopback) so consumers performing a perfunctory
-// "is this even a hostname"-style check don't blow up, and `ENOTSUP`-coded
-// throws for every real-resolution method.
+// A browser sandbox exposes no DNS resolver. Earlier versions of this stub
+// resolved *every* hostname to 127.0.0.1, which silently lied about names
+// like `example.com`. We now only short-circuit cases that are correct
+// without a resolver:
+//   - IP-address literals (v4/v6) — no DNS needed, the answer is the input.
+//   - the reserved name `localhost` — always loopback per RFC 6761.
+// Anything that would require a real DNS query reports ENOTSUP through the
+// usual error channel (callback / rejected promise) instead of crashing.
 
 type ErrnoLike = Error & { code?: string; errno?: number; syscall?: string; hostname?: string };
 
@@ -20,6 +26,32 @@ function makeNotSupported(syscall: string, hostname?: string): ErrnoLike {
     err.syscall = syscall;
     if (hostname !== undefined) err.hostname = hostname;
     return err;
+}
+
+// Minimal `node:net.isIP`-style probe (0 = not an IP, 4 = IPv4, 6 = IPv6).
+// Inlined so the browser entry stays dependency-free — we only need the
+// coarse classification, not full canonicalization.
+function classifyIP(host: string): 0 | 4 | 6 {
+    // IPv4: four 0-255 dotted octets.
+    const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+    if (v4) {
+        if (v4.slice(1).every((o) => Number(o) <= 255)) return 4;
+        return 0;
+    }
+    // IPv6: at least one ':' and only hex digits / ':' / '.' (v4-mapped tail).
+    if (host.includes(':') && /^[0-9a-fA-F:.]+$/.test(host)) return 6;
+    return 0;
+}
+
+// Hostnames a browser can resolve to loopback without any DNS query.
+function loopbackFor(hostname: string, family: 4 | 6): { address: string; family: 4 | 6 } | null {
+    const ip = classifyIP(hostname);
+    if (ip === 4) return { address: hostname, family: 4 };
+    if (ip === 6) return { address: hostname, family: 6 };
+    if (hostname === 'localhost') {
+        return family === 6 ? { address: '::1', family: 6 } : { address: '127.0.0.1', family: 4 };
+    }
+    return null;
 }
 
 // ─── Public error code re-exports (subset; matches @gjsify/dns) ──────────
@@ -92,17 +124,25 @@ export function lookup(
         throw new TypeError('The "cb" argument must be of type function');
     }
     const family = opts.family === 6 ? 6 : 4;
-    const address = family === 6 ? '::1' : '127.0.0.1';
+    const resolved = loopbackFor(hostname, family);
     queueMicrotask(() => {
+        if (!resolved) {
+            // A real DNS query — not possible in the browser. Report through
+            // the callback rather than lying with a loopback address.
+            (callback as (err: ErrnoLike | null, addr: string, fam: number) => void)(
+                makeNotSupported('lookup', hostname),
+                '',
+                family,
+            );
+            return;
+        }
         if (opts.all) {
-            (callback as (err: ErrnoLike | null, addrs: LookupAddress[]) => void)(null, [
-                { address, family },
-            ]);
+            (callback as (err: ErrnoLike | null, addrs: LookupAddress[]) => void)(null, [resolved]);
         } else {
             (callback as (err: ErrnoLike | null, addr: string, fam: number) => void)(
                 null,
-                address,
-                family,
+                resolved.address,
+                resolved.family,
             );
         }
     });
@@ -163,12 +203,16 @@ function _throwingPromise(syscall: string) {
 
 export const promises = {
     lookup(hostname: string, opts: LookupOptions = {}): Promise<LookupAddress | LookupAddress[]> {
-        return new Promise((resolveP) => {
+        return new Promise((resolveP, rejectP) => {
             const family = opts.family === 6 ? 6 : 4;
-            const address = family === 6 ? '::1' : '127.0.0.1';
+            const resolved = loopbackFor(hostname, family);
             queueMicrotask(() => {
-                if (opts.all) resolveP([{ address, family }]);
-                else resolveP({ address, family });
+                if (!resolved) {
+                    rejectP(makeNotSupported('lookup', hostname));
+                    return;
+                }
+                if (opts.all) resolveP([resolved]);
+                else resolveP(resolved);
             });
         });
     },
