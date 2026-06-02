@@ -25,8 +25,8 @@
 // honest structured `ENOTSUP` (matching the full GJS impl, which lacks them
 // too) rather than faking the codec. Sync variants of gzip/deflate are also
 // unsupported because the CompressionStream API is Promise-based — they throw
-// `ENOTSUP` pointing the caller at the async (callback) form. Slot:
-// browser:"partial". < 320 LOC.
+// `ENOTSUP` pointing the caller at the async (callback) form.
+// Slot: browser:"partial". < 320 LOC.
 
 import { Transform } from '@gjsify/stream/browser';
 
