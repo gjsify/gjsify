@@ -57,7 +57,8 @@
         "runtimes": {
             "gjs": "polyfill",
             "node": "partial",
-            "browser": "native"
+            "browser": "native",
+            "nativescript": "native"
         }
     },
     "license": "MIT",

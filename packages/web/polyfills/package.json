@@ -34,7 +34,8 @@
         "runtimes": {
             "gjs": "polyfill",
             "node": "polyfill",
-            "browser": "native"
+            "browser": "native",
+            "nativescript": "native"
         }
     },
     "exports": {
