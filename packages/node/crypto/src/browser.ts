@@ -5,8 +5,10 @@
 // async variants are preferred.
 //
 // Slot is "browser:partial": WebCrypto covers hash / hmac / cipher / sign /
-// random / pbkdf2 / hkdf, but classic DH, scrypt, X509 and the sync digest
-// paths throw ENOTSUP. Caller-facing throws live in `browser/stubs.ts` and
+// random / pbkdf2 / hkdf, and ECDH is provided by a pure-BigInt EC backend
+// (`browser/ecdh.ts`, no native dep). Classic DH, scrypt, RSA encrypt/decrypt,
+// X509 and the sync digest paths throw ENOTSUP. Caller-facing throws live in
+// `browser/stubs.ts` and
 // the per-feature sub-modules under `browser/`; the audit-runtimes heuristic
 // only scans this entry file for the slot marker, hence the explicit note.
 //
@@ -66,7 +68,11 @@ export {
 
 export { Sign, Verify, createSign, createVerify, sign, verify } from './browser/sign.js';
 
-// ─── Stubs (DH, ECDH, RSA, KeyObject, X509Certificate, generateKey*) ──────
+// ─── ECDH (pure-BigInt EC arithmetic — no native dep, sync API) ──────────────
+
+export { createECDH, getCurves } from './browser/ecdh.js';
+
+// ─── Stubs (DH, RSA, KeyObject, X509Certificate, generateKey*) ──────────────
 
 export {
     createDiffieHellman,
@@ -74,8 +80,6 @@ export {
     DiffieHellman,
     DiffieHellmanGroup,
     createDiffieHellmanGroup,
-    createECDH,
-    getCurves,
     ecdsaSign,
     ecdsaVerify,
     publicEncrypt,
@@ -119,14 +123,13 @@ import {
     getCiphers,
 } from './browser/cipher.js';
 import { Sign, Verify, createSign, createVerify, sign, verify } from './browser/sign.js';
+import { createECDH, getCurves } from './browser/ecdh.js';
 import {
     createDiffieHellman,
     getDiffieHellman,
     DiffieHellman,
     DiffieHellmanGroup,
     createDiffieHellmanGroup,
-    createECDH,
-    getCurves,
     ecdsaSign,
     ecdsaVerify,
     publicEncrypt,
