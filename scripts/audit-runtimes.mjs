@@ -652,6 +652,19 @@ async function probeGlobalsExports(pkgDir, target) {
  * between the package and the `tests/browser/` Playwright discovery.
  */
 async function probeBrowserBuildable(pkgDir) {
+    // Carve-out: a `src/test.browser.{mts,ts}` mirrors the package's standard
+    // `src/test.{mts,ts}` suite. Packages that ship NO standard test entry have
+    // nothing to derive a browser test from, so the `no-browser-test` probe does
+    // not apply: dependency-only meta packages (`@gjsify/node-polyfills`,
+    // `@gjsify/browser-node-polyfills` — no `src/` at all) and design-asset
+    // packages (`@gjsify/adwaita-{fonts,icons,web}` — CSS / fonts / icons / Web
+    // Components, no `@gjsify/unit` test harness). Without this, flipping the
+    // default `--check` to strict would gate every CI run on test entries that
+    // cannot meaningfully exist.
+    const hasStandardTest =
+        existsSync(join(pkgDir, 'src', 'test.mts')) || existsSync(join(pkgDir, 'src', 'test.ts'));
+    if (!hasStandardTest) return { ok: true };
+
     const candidates = [
         join(pkgDir, 'src', 'test.browser.mts'),
         join(pkgDir, 'src', 'test.browser.ts'),
