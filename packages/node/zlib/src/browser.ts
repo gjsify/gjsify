@@ -12,17 +12,21 @@
 // (`./index.js`) is bound to `Gio.ZlibCompressor` / `GLib.Bytes` and cannot
 // run in a browser.
 //
-// Strategy: top-level callback APIs (`gzip`, `gunzip`, `deflate`, `inflate`,
-// `deflateRaw`, `inflateRaw`, `brotliCompress`, `brotliDecompress` + each
-// Sync variant) ride on the browser-native `CompressionStream` /
-// `DecompressionStream` primitives (Chrome 80+ / Firefox 113+ / Safari 16.4+;
-// Brotli support added in Chrome 117). Streaming classes (`Gzip` / `Inflate` /
-// etc.) are thin Transform-stream wrappers over our `@gjsify/stream` browser
-// polyfill. Constants are copied from Node lib/zlib.js for API parity.
-// Sync variants are NOT actually synchronous in the browser (the
-// CompressionStream API is Promise-based) — we use a `deasync`-style fallback
-// only for the empty-input case; non-empty inputs throw with an ENOTSUP-style
-// hint pointing at the async API. Slot: browser:"partial". < 300 LOC.
+// Strategy: gzip / deflate / deflate-raw ride on the browser-native
+// `CompressionStream` / `DecompressionStream` primitives (Chrome 80+ /
+// Firefox 113+ / Safari 16.4+ — these three formats are the entire surface
+// of the WHATWG Compression Streams spec). Streaming classes (`Gzip` /
+// `Inflate` / etc.) are thin Transform-stream wrappers over our
+// `@gjsify/stream` browser polyfill. Constants are copied from Node
+// lib/zlib.js for API parity.
+//
+// Brotli and Zstd are NOT in the WHATWG Compression Streams spec — there is
+// no `CompressionStream('br')` / `CompressionStream('zstd')`. They throw an
+// honest structured `ENOTSUP` (matching the full GJS impl, which lacks them
+// too) rather than faking the codec. Sync variants of gzip/deflate are also
+// unsupported because the CompressionStream API is Promise-based — they throw
+// `ENOTSUP` pointing the caller at the async (callback) form. Slot:
+// browser:"partial". < 320 LOC.
 
 import { Transform } from '@gjsify/stream/browser';
 
@@ -70,9 +74,21 @@ function toUint8(data: string | Uint8Array | ArrayBuffer): Uint8Array {
     return new Uint8Array(data);
 }
 
+// ─── Error helpers ────────────────────────────────────────────────────────
+
+/** Build a Node-shaped `ENOTSUP` error for a codec the platform lacks. */
+function notSupportedError(op: string, reason: string): Error & { code: string; syscall: string } {
+    return Object.assign(new Error(`zlib.${op} is not supported in the browser (${reason})`), {
+        code: 'ENOTSUP',
+        syscall: op,
+    });
+}
+
 // ─── Core: CompressionStream / DecompressionStream ────────────────────────
 
-type WebCompressionFormat = 'gzip' | 'deflate' | 'deflate-raw' | 'br';
+// The WHATWG Compression Streams spec only defines these three formats —
+// brotli / zstd have no `CompressionStream` constructor.
+type WebCompressionFormat = 'gzip' | 'deflate' | 'deflate-raw';
 
 async function runStream(
     format: WebCompressionFormat,
@@ -85,8 +101,7 @@ async function runStream(
     if (!StreamCtor) {
         throw new Error(`zlib browser polyfill requires ${direction === 'compress' ? 'CompressionStream' : 'DecompressionStream'} (not available in this browser)`);
     }
-    // Brotli's CompressionStream is Chrome-117+ only — caller has been warned.
-    const transform = new StreamCtor(format as 'gzip' | 'deflate' | 'deflate-raw');
+    const transform = new StreamCtor(format);
     const writer = transform.writable.getWriter();
     const reader = transform.readable.getReader();
     void writer.write(data as BufferSource);
@@ -127,11 +142,32 @@ function asyncOp(format: WebCompressionFormat, direction: 'compress' | 'decompre
 
 function syncOp(_format: WebCompressionFormat, _direction: 'compress' | 'decompress', op: string) {
     return (_data: string | Uint8Array | ArrayBuffer, _opts?: ZlibOptions): Uint8Array => {
-        throw Object.assign(new Error(`zlib.${op} is not supported in the browser (CompressionStream is async-only — use the callback form)`), { code: 'ENOTSUP', syscall: op });
+        throw notSupportedError(op, 'CompressionStream is async-only — use the callback form');
     };
 }
 
-// ─── Callback APIs ────────────────────────────────────────────────────────
+/** Async ENOTSUP for codecs the WHATWG Compression Streams spec lacks. */
+function unsupportedAsyncOp(op: string, codec: string) {
+    return (
+        _data: string | Uint8Array | ArrayBuffer,
+        optsOrCb: ZlibOptions | Callback,
+        maybeCb?: Callback,
+    ): void => {
+        const cb = typeof optsOrCb === 'function' ? optsOrCb : maybeCb;
+        if (typeof cb !== 'function') throw new TypeError('callback is required');
+        const err = notSupportedError(op, `${codec} is not in the WHATWG Compression Streams spec`);
+        queueMicrotask(() => cb(err));
+    };
+}
+
+/** Sync ENOTSUP for codecs the WHATWG Compression Streams spec lacks. */
+function unsupportedSyncOp(op: string, codec: string) {
+    return (_data: string | Uint8Array | ArrayBuffer, _opts?: ZlibOptions): Uint8Array => {
+        throw notSupportedError(op, `${codec} is not in the WHATWG Compression Streams spec`);
+    };
+}
+
+// ─── Callback APIs (gzip / deflate / deflate-raw — native) ────────────────
 
 export const gzip = asyncOp('gzip', 'compress');
 export const gunzip = asyncOp('gzip', 'decompress');
@@ -139,8 +175,13 @@ export const deflate = asyncOp('deflate', 'compress');
 export const inflate = asyncOp('deflate', 'decompress');
 export const deflateRaw = asyncOp('deflate-raw', 'compress');
 export const inflateRaw = asyncOp('deflate-raw', 'decompress');
-export const brotliCompress = asyncOp('br', 'compress');
-export const brotliDecompress = asyncOp('br', 'decompress');
+
+// Brotli / Zstd — no CompressionStream support; honest ENOTSUP, matching the
+// full GJS impl which lacks them too (no Gio.ZlibCompressor brotli/zstd path).
+export const brotliCompress = unsupportedAsyncOp('brotliCompress', 'brotli');
+export const brotliDecompress = unsupportedAsyncOp('brotliDecompress', 'brotli');
+export const zstdCompress = unsupportedAsyncOp('zstdCompress', 'zstd');
+export const zstdDecompress = unsupportedAsyncOp('zstdDecompress', 'zstd');
 
 // ─── Sync stubs ───────────────────────────────────────────────────────────
 
@@ -150,8 +191,10 @@ export const deflateSync = syncOp('deflate', 'compress', 'deflateSync');
 export const inflateSync = syncOp('deflate', 'decompress', 'inflateSync');
 export const deflateRawSync = syncOp('deflate-raw', 'compress', 'deflateRawSync');
 export const inflateRawSync = syncOp('deflate-raw', 'decompress', 'inflateRawSync');
-export const brotliCompressSync = syncOp('br', 'compress', 'brotliCompressSync');
-export const brotliDecompressSync = syncOp('br', 'decompress', 'brotliDecompressSync');
+export const brotliCompressSync = unsupportedSyncOp('brotliCompressSync', 'brotli');
+export const brotliDecompressSync = unsupportedSyncOp('brotliDecompressSync', 'brotli');
+export const zstdCompressSync = unsupportedSyncOp('zstdCompressSync', 'zstd');
+export const zstdDecompressSync = unsupportedSyncOp('zstdDecompressSync', 'zstd');
 
 // ─── Streaming classes — Transform wrappers ───────────────────────────────
 
@@ -207,11 +250,20 @@ export class DeflateRaw extends ZlibTransform {
 export class InflateRaw extends ZlibTransform {
     constructor() { super('deflate-raw', 'decompress'); }
 }
-export class BrotliCompress extends ZlibTransform {
-    constructor() { super('br', 'compress'); }
+
+// Brotli streaming classes throw on construction — no CompressionStream codec
+// exists for brotli in the browser. Honest ENOTSUP > a fake Transform.
+export class BrotliCompress extends Transform {
+    constructor() {
+        super();
+        throw notSupportedError('BrotliCompress', 'brotli is not in the WHATWG Compression Streams spec');
+    }
 }
-export class BrotliDecompress extends ZlibTransform {
-    constructor() { super('br', 'decompress'); }
+export class BrotliDecompress extends Transform {
+    constructor() {
+        super();
+        throw notSupportedError('BrotliDecompress', 'brotli is not in the WHATWG Compression Streams spec');
+    }
 }
 
 // ─── Factory functions (Node-style) ───────────────────────────────────────
@@ -231,9 +283,10 @@ export const createUnzip = (_opts?: ZlibOptions): Gunzip => new Gunzip();
 
 const zlibDefault = {
     constants,
-    gzip, gunzip, deflate, inflate, deflateRaw, inflateRaw, brotliCompress, brotliDecompress,
+    gzip, gunzip, deflate, inflate, deflateRaw, inflateRaw,
+    brotliCompress, brotliDecompress, zstdCompress, zstdDecompress,
     gzipSync, gunzipSync, deflateSync, inflateSync, deflateRawSync, inflateRawSync,
-    brotliCompressSync, brotliDecompressSync,
+    brotliCompressSync, brotliDecompressSync, zstdCompressSync, zstdDecompressSync,
     Gzip, Gunzip, Deflate, Inflate, DeflateRaw, InflateRaw, BrotliCompress, BrotliDecompress,
     createGzip, createGunzip, createDeflate, createInflate, createDeflateRaw, createInflateRaw,
     createBrotliCompress, createBrotliDecompress, createUnzip,
