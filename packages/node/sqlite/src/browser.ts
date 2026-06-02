@@ -20,18 +20,14 @@
 //   the module, inspect the `constants`, type-check against the API,
 //   and ship code that conditionally uses SQLite. Calling
 //   `new DatabaseSync(...)` or `new StatementSync(...)` throws a
-//   structured ENOTSUP that points at the wiring strategy for a real
-//   WASM backend.
+//   structured ERR_NOT_SUPPORTED that points at the intended backend.
 //
-// Follow-up (tracked under "Open TODOs"):
-//   A future welle will add a `@gjsify/sqlite/wasm-backend` registration
-//   hook that wires `refs/wa-sqlite` (Roy Hashimoto, MIT) or `refs/sql.js`
-//   (Apache-2.0 / MIT) at runtime when the consumer opts in. The
-//   `DatabaseSync` / `StatementSync` classes here will then delegate to
-//   the registered backend instead of throwing.
+// Intended backend: wa-sqlite (Roy Hashimoto, MIT — vendored read-only
+//   under `refs/wa-sqlite`). A future opt-in `@gjsify/sqlite` WASM backend
+//   would delegate the classes below to it instead of throwing.
 //
 // Known gaps (slot: partial):
-//   - Calling any DB / statement constructor throws ENOTSUP.
+//   - Calling any DB / statement constructor throws ERR_NOT_SUPPORTED.
 //   - No `constants.SQLITE_*` errno table (the existing GJS constants
 //     module is re-exported as-is; values mirror Node's node:sqlite).
 
@@ -46,11 +42,10 @@ export type { DatabaseSyncOptions, StatementSyncOptions, RunResult, ColumnInfo, 
 function _enotsup(api: string): Error {
     const err = new Error(
         `@gjsify/sqlite: ${api} is not available in the browser polyfill. ` +
-            `Ship a WebAssembly SQLite backend (refs/wa-sqlite or refs/sql.js) and ` +
-            `wire it via the @gjsify/sqlite/wasm-backend hook (follow-up — tracked in ` +
-            `STATUS.md "Open TODOs").`,
+            `Ship a WebAssembly SQLite backend (the intended backend is wa-sqlite, ` +
+            `vendored read-only under refs/wa-sqlite) and delegate to it.`,
     ) as Error & { code?: string };
-    err.code = 'ENOTSUP';
+    err.code = 'ERR_NOT_SUPPORTED';
     return err;
 }
 
