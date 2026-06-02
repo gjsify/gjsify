@@ -23,7 +23,8 @@
         "runtimes": {
             "gjs": "polyfill",
             "node": "none",
-            "browser": "none"
+            "browser": "none",
+            "nativescript": "none"
         }
     },
     "keywords": [
