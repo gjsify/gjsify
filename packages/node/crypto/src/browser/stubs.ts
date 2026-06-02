@@ -50,18 +50,8 @@ export function createDiffieHellmanGroup(_groupName: string): never {
 }
 
 // ─── ECDH ───────────────────────────────────────────────────────────────────
-
-export function createECDH(_curveName: string): never {
-    return notSupported(
-        'createECDH',
-        'Use crypto.subtle.generateKey({name:"ECDH",namedCurve:…}) + subtle.deriveBits instead.',
-    );
-}
-
-export function getCurves(): string[] {
-    // WebCrypto exposes P-256/P-384/P-521 for ECDH/ECDSA.
-    return ['prime256v1', 'secp256r1', 'secp384r1', 'secp521r1'];
-}
+// Implemented with pure-BigInt EC arithmetic in `browser/ecdh.ts`
+// (`createECDH` / `getCurves`) — not stubbed here.
 
 // ─── ECDSA helpers (one-shot wrappers on top of sign.ts) ────────────────────
 
