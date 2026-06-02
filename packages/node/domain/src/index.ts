@@ -38,4 +38,7 @@ export function create(): Domain {
     return new Domain();
 }
 
-export default { Domain, create };
+// Node aliases `create` and `createDomain` to the same factory (lib/domain.js).
+export const createDomain = create;
+
+export default { Domain, create, createDomain };

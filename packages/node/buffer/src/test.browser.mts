@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
-// Browser test entry for @gjsify/buffer — re-exports the standard test.mts
-// suite so the existing assertions also run under `gjsify build --app browser`
-// (Playwright/Firefox/SpiderMonkey).
+// Browser test entry for @gjsify/buffer — runs the browser-target conformance
+// spec (`index.browser.spec.ts`, which imports the `./index.js` Buffer impl
+// directly) under `gjsify build --app browser` (Playwright/Firefox/SpiderMonkey).
 //
-// The impl is platform-neutral pure-TS (Buffer over Uint8Array + Blob/atob/btoa),
-// so the same spec exercises both runtimes. The browser-target alias layer
-// (`ALIASES_NODE_FOR_BROWSER` in PR #388) routes `node:buffer` → `@gjsify/buffer`
-// so the spec's `import { Buffer } from 'node:buffer'` resolves transparently.
+// Replaces the previous hollow `export * from './test.mjs'` re-export: that
+// re-export tree-shook the browser bundle to 0 bytes (no live binding survived
+// the dead-code pass) and pulled in `@gjsify/node-globals` register side-effects.
 
-export * from './test.mjs';
-import './test.mjs';
+import { run } from '@gjsify/unit';
+
+import testSuite from './index.browser.spec.js';
+
+run({ testSuite });
