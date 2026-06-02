@@ -6,10 +6,33 @@
 // in browserify-land; same shape applies here — `https` is HTTP with a `protocol:
 // 'https:'` default).
 //
-// This module re-exports the @gjsify/http browser entry. Browser `fetch()`
+// This module builds on the @gjsify/http browser entry. Browser `fetch()`
 // already negotiates TLS for `https://` URLs transparently, so no additional
-// TLS-specific code is needed. Slot: browser:"partial" (client native via
-// fetch, server throws ENOTSUP).
+// TLS-specific code is needed — `https.request`/`https.get` differ from their
+// `http` counterparts only in defaulting `protocol` to `https:` when the
+// caller passes an options object without one (matching Node's
+// `lib/https.js`). Slot: browser:"partial" (client native via fetch, server
+// throws ENOTSUP).
+
+import {
+    METHODS,
+    STATUS_CODES,
+    maxHeaderSize,
+    globalAgent,
+    IncomingMessage,
+    ClientRequest,
+    Server,
+    ServerResponse,
+    OutgoingMessage,
+    createServer,
+    request as httpRequest,
+    validateHeaderName,
+    validateHeaderValue,
+    setMaxIdleHTTPParsers,
+} from '@gjsify/http/browser';
+import type { RequestOptions } from '@gjsify/http/browser';
+
+import httpDefault from '@gjsify/http/browser';
 
 export {
     METHODS,
@@ -22,14 +45,12 @@ export {
     ServerResponse,
     OutgoingMessage,
     createServer,
-    request,
-    get,
     validateHeaderName,
     validateHeaderValue,
     setMaxIdleHTTPParsers,
-} from '@gjsify/http/browser';
+};
 
-import httpDefault from '@gjsify/http/browser';
+export type { RequestOptions };
 
 /**
  * Browser `https.Agent` stub — there is no real socket pool in the browser, so
@@ -49,6 +70,48 @@ export class Agent {
 
 export const globalHttpsAgent = new Agent();
 
-const httpsDefault = { ...httpDefault, Agent, globalAgent: globalHttpsAgent };
+/**
+ * `https.request` — identical to `http.request` over the browser `fetch()`
+ * client, except that an options object without an explicit `protocol`
+ * defaults to `https:` (Node `lib/https.js`). A string/`URL` argument already
+ * carries its own protocol, so it is forwarded unchanged.
+ */
+export function request(
+    urlOrOptions: string | URL | RequestOptions,
+    optsOrCb?: RequestOptions | ((res: IncomingMessage) => void),
+    maybeCb?: (res: IncomingMessage) => void,
+): ClientRequest {
+    if (typeof urlOrOptions === 'string' || urlOrOptions instanceof URL) {
+        // String/URL keeps its own protocol; the trailing options object (if
+        // any) is where a caller could still pin a protocol, so default it.
+        if (typeof optsOrCb === 'object' && optsOrCb !== null) {
+            return httpRequest(urlOrOptions, { protocol: 'https:', ...optsOrCb }, maybeCb);
+        }
+        return httpRequest(urlOrOptions, optsOrCb, maybeCb);
+    }
+    return httpRequest(
+        { protocol: 'https:', ...urlOrOptions },
+        optsOrCb as ((res: IncomingMessage) => void) | undefined,
+    );
+}
+
+/** `https.get` — `https.request` followed by `req.end()` (no request body). */
+export function get(
+    urlOrOptions: string | URL | RequestOptions,
+    optsOrCb?: RequestOptions | ((res: IncomingMessage) => void),
+    maybeCb?: (res: IncomingMessage) => void,
+): ClientRequest {
+    const req = request(urlOrOptions, optsOrCb, maybeCb);
+    req.end();
+    return req;
+}
+
+const httpsDefault = {
+    ...httpDefault,
+    Agent,
+    globalAgent: globalHttpsAgent,
+    request,
+    get,
+};
 
 export default httpsDefault;
