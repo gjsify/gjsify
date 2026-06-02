@@ -29,5 +29,10 @@ jobs:
       # URL imports, dynamic `import('gi://...')`, legacy `imports.X`, etc.)
       # would suggest. Catches the case where a package's impl changes shape
       # but its triplet declaration is left stale.
-      - name: Check declared vs detected runtime triplets
-        run: node scripts/audit-runtimes.mjs --check
+      # `--strict` additionally runs the functional probes: every declared
+      # `native` slot's `globals.mjs` re-exports must resolve on-target, and
+      # every `browser:"polyfill"` package that ships a standard `src/test.{mts,ts}`
+      # must also ship a `src/test.browser.{mts,ts}` entry for the `tests/browser/`
+      # Playwright suite. Meta/asset packages with no standard test are exempt.
+      - name: Check declared vs detected runtime triplets (strict)
+        run: node scripts/audit-runtimes.mjs --check --strict
