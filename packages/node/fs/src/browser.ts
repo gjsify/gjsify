@@ -2,7 +2,10 @@
 // Reimplemented for @gjsify browser target — inspired by memfs
 // (streamich + contributors, Apache-2.0).
 //
-// In-memory only. No persistence (OPFS bridge is a future iteration).
+// In-memory working layer with OPTIONAL OPFS persistence. The synchronous
+// `fs.*Sync` surface always hits an in-memory `Volume`; calling
+// `enableOpfsPersistence()` mirrors that volume to the Origin Private File
+// System so files survive a page reload (feature-detected, graceful fallback).
 // No file watching (FSWatcher is a stub). No real permission/owner enforcement.
 //
 // This file is the browser entry point selected by the package's `"browser"`
@@ -13,13 +16,19 @@
 // Strategy: a single in-memory `Volume` (default) + `memfs`-shape `Volume`
 // class export for tests that want sandboxes. Sync / callback / promise
 // surfaces are all backed by the same volume so writes in one API are
-// visible to reads in another.
+// visible to reads in another. `enableOpfsPersistence()` (browser/opfs.js)
+// hydrates the volume from OPFS on init and write-behind-flushes mutations
+// back, behind a `navigator.storage?.getDirectory` feature check.
 //
 // Known gaps (slot: partial):
-//   - No OPFS / IndexedDB persistence — page reload wipes the volume.
-//   - FSWatcher is a stub (registers events, never fires).
-//   - Symlinks are stored but never followed by `realpath` / `stat`.
-//   - chmod / chown alter mode bits but enforce nothing.
+//   - Persistence is OPT-IN + asynchronous (write-behind via OPFS). Without
+//     `enableOpfsPersistence()`, or where OPFS is unavailable, a reload wipes
+//     the volume.
+//   - FSWatcher is a stub (registers events, never fires) — not OPFS-aware.
+//   - Symlinks are stored but never followed by `realpath` / `stat`, and are
+//     NOT round-tripped through OPFS (persisted as placeholder strings only).
+//   - chmod / chown alter mode bits but enforce nothing, and mode/uid/gid are
+//     not persisted (OPFS has no POSIX metadata).
 //   - File descriptors are minimal (no readv / writev / fsync / fdatasync).
 //   - No `cp` (recursive copy) — implement on top of `readdir` + `copyFile`.
 
@@ -33,6 +42,10 @@ export {
     createReadStream, ReadStream, createWriteStream, WriteStream,
     FSWatcher, StatWatcher, watch, watchFile, unwatchFile,
 } from './browser/stream.js';
+export {
+    enableOpfsPersistence, hasOpfs,
+    type OpfsPersistenceOptions, type OpfsPersistenceController,
+} from './browser/opfs.js';
 
 import * as promises from './browser/promises.js';
 export { promises };

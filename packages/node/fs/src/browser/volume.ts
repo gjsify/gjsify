@@ -57,10 +57,29 @@ export class Volume {
     private nextIno = 2;
     private fds = new Map<number, FdEntry>();
     private nextFd = 3;
+    private mutationListeners = new Set<() => void>();
 
     constructor() {
         this.root = { kind: 'dir', children: new Map(), ...this.mkBase('dir', 0o755), nlink: 2 } as DirNode;
         this.root.ino = 1;
+    }
+
+    /**
+     * Register a listener invoked after every mutation (write / mkdir / unlink /
+     * rename / chmod / …). Returns an unsubscribe function. The OPFS persistence
+     * bridge uses this to debounce-flush the volume back to the Origin Private
+     * File System; it has no effect on the in-memory semantics.
+     */
+    subscribe(listener: () => void): () => void {
+        this.mutationListeners.add(listener);
+        return () => { this.mutationListeners.delete(listener); };
+    }
+
+    /** Notify all mutation listeners. A listener failure never breaks the fs op. */
+    notifyMutation(): void {
+        for (const l of this.mutationListeners) {
+            try { l(); } catch { /* a persistence flush failure must not break fs */ }
+        }
     }
 
     private mkBase(kind: NodeKind, perm: number): BaseNode {
@@ -146,6 +165,7 @@ export class Volume {
             parent.children.set(name, file);
             parent.mtimeMs = parent.ctimeMs = now();
         }
+        this.notifyMutation();
     }
 
     appendFileSync(path: string, data: Uint8Array, mode = 0o666): void {
@@ -158,9 +178,10 @@ export class Volume {
             merged.set(data, node.data.byteLength);
             node.data = merged;
             node.mtimeMs = node.ctimeMs = now();
+            this.notifyMutation();
         } catch (e) {
             if ((e as { code?: string }).code !== 'ENOENT') throw e;
-            this.writeFileSync(abs, data, mode);
+            this.writeFileSync(abs, data, mode); // delegates → notifies
         }
     }
 
@@ -174,6 +195,7 @@ export class Volume {
             node.data = extended;
         }
         node.mtimeMs = node.ctimeMs = now();
+        this.notifyMutation();
     }
 
     // ───────────── Directory I/O ─────────────────────────────────────────────
@@ -220,6 +242,7 @@ export class Volume {
                 cur = child;
             }
         }
+        if (firstCreated !== undefined) this.notifyMutation();
         return firstCreated;
     }
 
@@ -233,6 +256,7 @@ export class Volume {
         if (!opts.recursive && node.children.size > 0) throw ENOTEMPTY('rmdir', abs);
         parent.children.delete(name);
         parent.mtimeMs = parent.ctimeMs = now();
+        this.notifyMutation();
     }
 
     unlinkSync(path: string): void {
@@ -243,6 +267,7 @@ export class Volume {
         if (node.kind === 'dir') throw EISDIR('unlink', abs);
         parent.children.delete(name);
         parent.mtimeMs = parent.ctimeMs = now();
+        this.notifyMutation();
     }
 
     rmSync(path: string, opts: { recursive?: boolean; force?: boolean } = {}): void {
@@ -281,6 +306,7 @@ export class Volume {
         oldParent.mtimeMs = oldParent.ctimeMs = t;
         newParent.mtimeMs = newParent.ctimeMs = t;
         node.ctimeMs = t;
+        this.notifyMutation();
     }
 
     copyFileSync(src: string, dest: string, flags = 0): void {
@@ -299,6 +325,7 @@ export class Volume {
         node.nlink += 1;
         parent.children.set(name, { ...node, kind: 'file' } as FileNode);
         parent.mtimeMs = parent.ctimeMs = now();
+        this.notifyMutation();
     }
 
     // ───────────── Symlinks (limited) ────────────────────────────────────────
@@ -311,6 +338,7 @@ export class Volume {
         link.target = target;
         parent.children.set(name, link);
         parent.mtimeMs = parent.ctimeMs = now();
+        this.notifyMutation();
     }
 
     readlinkSync(path: string): string {
@@ -331,6 +359,7 @@ export class Volume {
         const node = this.lookup(path, 'chmod');
         node.mode = (node.mode & ~0o7777) | (mode & 0o7777);
         node.ctimeMs = now();
+        this.notifyMutation();
     }
 
     chownSync(path: string, uid: number, gid: number): void {
@@ -338,6 +367,7 @@ export class Volume {
         node.uid = uid;
         node.gid = gid;
         node.ctimeMs = now();
+        this.notifyMutation();
     }
 
     utimesSync(path: string, atime: number, mtime: number): void {
@@ -345,6 +375,7 @@ export class Volume {
         node.atimeMs = atime;
         node.mtimeMs = mtime;
         node.ctimeMs = now();
+        this.notifyMutation();
     }
 
     // ───────────── File descriptors (minimal) ────────────────────────────────
@@ -403,6 +434,7 @@ export class Volume {
         entry.node.data.set(slice, pos);
         if (position === null) entry.position = end;
         entry.node.mtimeMs = entry.node.ctimeMs = now();
+        this.notifyMutation();
         return slice.byteLength;
     }
 
