@@ -10,6 +10,7 @@ import publishDiagnoseSuite from './publish-diagnose.spec.js';
 import whoamiCommandSuite from './whoami-command.spec.js';
 import installBackendParseSpecSuite from './install-backend-parse-spec.spec.js';
 import installTarballCacheSuite from './utils/install-tarball-cache.spec.js';
+import installPackumentCacheSuite from './utils/install-packument-cache.spec.js';
 import inlineStaticReadsSuite from './inline-static-reads.spec.js';
 import resolveNpmPackageSuite from './utils/resolve-npm-package.spec.js';
 // `@gjsify/rolldown-plugin-gjsify` has no test runner of its own; its
@@ -28,6 +29,7 @@ run({
     whoamiCommandSuite,
     installBackendParseSpecSuite,
     installTarballCacheSuite,
+    installPackumentCacheSuite,
     inlineStaticReadsSuite,
     resolveNpmPackageSuite,
     autoGlobalsSuite,

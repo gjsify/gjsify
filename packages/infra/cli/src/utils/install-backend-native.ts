@@ -22,8 +22,10 @@ import { Range, SemVer, maxSatisfying, satisfies } from '@gjsify/semver';
 import {
     DEFAULT_REGISTRY,
     fetchPackument,
+    fetchPackumentConditional,
     fetchTarball,
     parseNpmrc,
+    registryFor,
     type NpmrcConfig,
     type Packument,
 } from '@gjsify/npm-registry';
@@ -37,6 +39,7 @@ import {
     isCacheHit,
     putCachedTarball,
 } from './install-tarball-cache.js';
+import { getCachedPackument, putCachedPackument } from './install-packument-cache.js';
 
 // 16-wide download pool. Matched to the shared Soup.Session's lifted
 // `max-conns-per-host` (see @gjsify/fetch `getSharedSession`) — a higher pool
@@ -219,13 +222,7 @@ async function resolveDeps(
     const fetchPkg = (name: string): Promise<Packument> => {
         const cached = packumentCache.get(name);
         if (cached) return cached;
-        const fresh = fetchPackument(name, {
-            npmrc,
-            signal,
-            onRetry: ({ attempt, error, delayMs }) => {
-                log('packument %s: retry %d after %dms (%s)', name, attempt, delayMs, errMsg(error));
-            },
-        });
+        const fresh = fetchPackumentWithDiskCache(name, npmrc, log, signal);
         packumentCache.set(name, fresh);
         return fresh;
     };
@@ -386,6 +383,45 @@ async function resolveDeps(
  * the single-edge path. Swallowing also stops one bad optional dependency from
  * aborting the whole wave's batch.
  */
+/**
+ * Fetch a packument with on-disk ETag revalidation. Reads the cached
+ * `{ etag, packument }` for `(registry, name)`, sends it as `If-None-Match`,
+ * and on a `304 Not Modified` returns the cached body without re-downloading
+ * it; on a `200` it stores the fresh body + ETag and returns it. The cache is
+ * keyed by the registry the name resolves to, so scope-registry overrides never
+ * cross-contaminate. Falls back to a plain fetch when there's no cached entry
+ * or the registry doesn't send an ETag (the 304 fast-path simply never fires).
+ */
+async function fetchPackumentWithDiskCache(
+    name: string,
+    npmrc: NpmrcConfig,
+    log: Logger,
+    signal?: AbortSignal,
+): Promise<Packument> {
+    const registry = registryFor(name, npmrc);
+    const disk = getCachedPackument(registry, name);
+    const onRetry = ({ attempt, error, delayMs }: { attempt: number; error: unknown; delayMs: number }) => {
+        log('packument %s: retry %d after %dms (%s)', name, attempt, delayMs, errMsg(error));
+    };
+    const result = await fetchPackumentConditional(name, {
+        npmrc,
+        signal,
+        ifNoneMatch: disk?.etag,
+        onRetry,
+    });
+    if (result.status === 'not-modified' && disk) {
+        log('packument-cache-hit: %s (304, etag %s)', name, disk.etag);
+        return disk.packument;
+    }
+    if (result.status === 'fresh' && result.packument) {
+        if (result.etag) putCachedPackument(registry, name, result.etag, result.packument);
+        return result.packument;
+    }
+    // 304 with no cached body to satisfy it (a stale `If-None-Match` raced a
+    // cache eviction). Re-fetch unconditionally so we always return a body.
+    return fetchPackument(name, { npmrc, signal, onRetry });
+}
+
 async function prefetchPackuments(
     names: string[],
     fetchPkg: (name: string) => Promise<Packument>,
