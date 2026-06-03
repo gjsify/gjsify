@@ -266,3 +266,6 @@
 [submodule "refs/nativescript-ios"]
 	path = refs/nativescript-ios
 	url = git@github.com:NativeScript/ios.git
+[submodule "refs/nativescript-canvas"]
+	path = refs/nativescript-canvas
+	url = git@github.com:NativeScript/canvas.git
