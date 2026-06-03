@@ -251,97 +251,161 @@ async function resolveDeps(
         required: true,
     }));
 
+    // Wave-based BFS. Each iteration drains the current queue level, prefetches
+    // every not-yet-cached packument in that level IN PARALLEL (bounded), then
+    // applies placement SERIALLY in the same FIFO order the single-edge loop
+    // used. Because newly-discovered children always append to the end of the
+    // queue, "the current queue contents" is exactly one BFS level — so the
+    // serial pass visits edges in the identical order, and `decidePlacement`'s
+    // order-dependent hoist/nest decisions (hence the lockfile) are byte-for-
+    // byte unchanged. Only the network moved: N sequential ~RTT packument
+    // fetches per level collapse into one bounded-parallel batch. This is the
+    // dominant cold-install cost — at libsoup's old `max-conns-per-host=2` it
+    // would have throttled anyway, so it lands alongside the connection-cap
+    // lift in `@gjsify/fetch`. `packumentCache` still guarantees ≤1 fetch per
+    // unique name across the whole resolve, so prefetching every wave name
+    // fetches exactly the same SET as before, just batched.
     while (queue.length > 0) {
-        const edge = queue.shift() as Edge;
+        const wave = queue.splice(0, queue.length);
 
-        // Walk the ancestor chain to see whether a satisfying placement is
-        // already visible from the requester's `node_modules` lookup. npm's
-        // resolver does this — each level of nesting acts as a fallback.
-        const visible = findVisible(edge.from, edge.name, byPath);
-        if (visible && satisfiesRange(visible.version, edge.range)) {
-            // Compatible placement reachable; reuse, no new install.
-            continue;
+        // Prefetch every not-yet-cached packument referenced in this level.
+        // Names already in `packumentCache` (resolved in an earlier wave, or a
+        // duplicate within this one) are skipped — the de-dup keeps the batch
+        // to genuinely-new names.
+        const toPrefetch: string[] = [];
+        const queuedForFetch = new Set<string>();
+        for (const edge of wave) {
+            if (packumentCache.has(edge.name) || queuedForFetch.has(edge.name)) continue;
+            queuedForFetch.add(edge.name);
+            toPrefetch.push(edge.name);
         }
+        await prefetchPackuments(toPrefetch, fetchPkg, signal);
 
-        // No compatible existing placement. Resolve a fresh version.
-        let version: string | null = null;
-        try {
-            const packument = await fetchPkg(edge.name);
-            version = pickVersion(packument, edge.range);
-            if (!version) {
-                if (!edge.required) continue;
-                throw new Error(`No version of ${edge.name} satisfies ${edge.range}`);
-            }
-            const v = packument.versions[version];
-            if (!v) {
-                throw new Error(`Packument for ${edge.name} promised ${version} but no entry exists`);
-            }
+        // Serial placement pass — identical decisions and order to the original
+        // single-edge loop, but every `fetchPkg` now resolves from the warmed
+        // cache instead of blocking on a fresh round-trip.
+        for (let wi = 0; wi < wave.length; wi++) {
+            const edge = wave[wi];
 
-            // Decision: hoist to root, or nest under the requester?
-            //   - Hoist iff the root has no conflicting placement (i.e. the
-            //     root slot for `name` is empty OR holds the same version).
-            //   - Otherwise nest. Top-level specs (from === null) always
-            //     hoist; the resolver guarantees they never conflict with
-            //     each other because the input set is checked once.
-            const installPath = decidePlacement(edge.from, edge.name, version, root);
-
-            const node: ResolvedNode = {
-                name: edge.name,
-                version,
-                tarballUrl: v.dist.tarball,
-                integrity: v.dist.integrity,
-                installPath,
-                dependencies: v.dependencies ?? {},
-                optionalDependencies: v.optionalDependencies ?? {},
-                bin: v.bin,
-            };
-            byPath.set(installPath, node);
-            if (installPath === `node_modules/${edge.name}`) {
-                root.set(edge.name, node);
-            }
-            log('resolve: %s@%s ← %s (at %s)', edge.name, version, edge.range, installPath);
-            // Soft-total tracks the dep graph as it grows. We use
-            // byPath.size (resolved so far) + queue.length (still to
-            // process) as a moving estimate that converges as work
-            // finishes — yarn/pnpm use the same pattern.
-            progress?.update({
-                phase: 'resolve',
-                current: byPath.size,
-                total: byPath.size + queue.length,
-                name: `${edge.name}@${version}`,
-            });
-
-            if (!skipDeps) {
-                for (const [depName, depRange] of Object.entries(node.dependencies)) {
-                    queue.push({
-                        from: installPath,
-                        name: depName,
-                        range: applyOverride(depName, depRange),
-                        required: true,
-                    });
-                }
-                for (const [depName, depRange] of Object.entries(node.optionalDependencies)) {
-                    queue.push({
-                        from: installPath,
-                        name: depName,
-                        range: applyOverride(depName, depRange),
-                        required: false,
-                    });
-                }
-            }
-        } catch (e) {
-            // Optional deps that fail to resolve are skipped — yarn/npm
-            // behavior. Required deps re-throw.
-            if (!edge.required) {
-                log('resolve: optional dep %s@%s skipped (%s)', edge.name, edge.range, (e as Error).message);
+            // Walk the ancestor chain to see whether a satisfying placement is
+            // already visible from the requester's `node_modules` lookup. npm's
+            // resolver does this — each level of nesting acts as a fallback.
+            const visible = findVisible(edge.from, edge.name, byPath);
+            if (visible && satisfiesRange(visible.version, edge.range)) {
+                // Compatible placement reachable; reuse, no new install.
                 continue;
             }
-            throw e;
+
+            // No compatible existing placement. Resolve a fresh version.
+            let version: string | null = null;
+            try {
+                const packument = await fetchPkg(edge.name);
+                version = pickVersion(packument, edge.range);
+                if (!version) {
+                    if (!edge.required) continue;
+                    throw new Error(`No version of ${edge.name} satisfies ${edge.range}`);
+                }
+                const v = packument.versions[version];
+                if (!v) {
+                    throw new Error(`Packument for ${edge.name} promised ${version} but no entry exists`);
+                }
+
+                // Decision: hoist to root, or nest under the requester?
+                //   - Hoist iff the root has no conflicting placement (i.e. the
+                //     root slot for `name` is empty OR holds the same version).
+                //   - Otherwise nest. Top-level specs (from === null) always
+                //     hoist; the resolver guarantees they never conflict with
+                //     each other because the input set is checked once.
+                const installPath = decidePlacement(edge.from, edge.name, version, root);
+
+                const node: ResolvedNode = {
+                    name: edge.name,
+                    version,
+                    tarballUrl: v.dist.tarball,
+                    integrity: v.dist.integrity,
+                    installPath,
+                    dependencies: v.dependencies ?? {},
+                    optionalDependencies: v.optionalDependencies ?? {},
+                    bin: v.bin,
+                };
+                byPath.set(installPath, node);
+                if (installPath === `node_modules/${edge.name}`) {
+                    root.set(edge.name, node);
+                }
+                log('resolve: %s@%s ← %s (at %s)', edge.name, version, edge.range, installPath);
+                // Moving soft-total: resolved so far + edges still to visit in
+                // this wave + children already queued for the next wave. Same
+                // converging-estimate pattern yarn/pnpm use.
+                progress?.update({
+                    phase: 'resolve',
+                    current: byPath.size,
+                    total: byPath.size + (wave.length - wi - 1) + queue.length,
+                    name: `${edge.name}@${version}`,
+                });
+
+                if (!skipDeps) {
+                    for (const [depName, depRange] of Object.entries(node.dependencies)) {
+                        queue.push({
+                            from: installPath,
+                            name: depName,
+                            range: applyOverride(depName, depRange),
+                            required: true,
+                        });
+                    }
+                    for (const [depName, depRange] of Object.entries(node.optionalDependencies)) {
+                        queue.push({
+                            from: installPath,
+                            name: depName,
+                            range: applyOverride(depName, depRange),
+                            required: false,
+                        });
+                    }
+                }
+            } catch (e) {
+                // Optional deps that fail to resolve are skipped — yarn/npm
+                // behavior. Required deps re-throw.
+                if (!edge.required) {
+                    log('resolve: optional dep %s@%s skipped (%s)', edge.name, edge.range, (e as Error).message);
+                    continue;
+                }
+                throw e;
+            }
         }
     }
 
     progress?.endPhase('resolve');
     return Array.from(byPath.values());
+}
+
+/**
+ * Warm `packumentCache` for a batch of package names with bounded parallelism
+ * (same `DEFAULT_CONCURRENCY` width as the download pool). Rejections — e.g. a
+ * 404 on an optional dep — are swallowed here: the promise stays cached in its
+ * rejected state and the caller's per-edge `await fetchPkg(name)` re-surfaces
+ * it, so required deps still throw and optional ones are skipped exactly as in
+ * the single-edge path. Swallowing also stops one bad optional dependency from
+ * aborting the whole wave's batch.
+ */
+async function prefetchPackuments(
+    names: string[],
+    fetchPkg: (name: string) => Promise<Packument>,
+    signal?: AbortSignal,
+): Promise<void> {
+    if (names.length === 0) return;
+    let cursor = 0;
+    const concurrency = Math.max(1, Math.min(DEFAULT_CONCURRENCY, names.length));
+    const worker = async (): Promise<void> => {
+        while (cursor < names.length) {
+            if (signal?.aborted) return;
+            const name = names[cursor++];
+            try {
+                await fetchPkg(name);
+            } catch {
+                /* cached rejection — the serial placement pass handles it */
+            }
+        }
+    };
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
 }
 
 /**
