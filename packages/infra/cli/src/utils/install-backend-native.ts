@@ -33,11 +33,17 @@ import type { InstallOptions } from './install-backend.ts';
 import {
     cacheRootForLogging,
     getCachedTarball,
+    getForeignCachedTarball,
     isCacheHit,
     putCachedTarball,
 } from './install-tarball-cache.js';
 
-const DEFAULT_CONCURRENCY = Number(process.env.GJSIFY_INSTALL_CONCURRENCY ?? '8') || 8;
+// 16-wide download pool. Matched to the shared Soup.Session's lifted
+// `max-conns-per-host` (see @gjsify/fetch `getSharedSession`) — a higher pool
+// here only translates into real concurrency because that cap was raised from
+// libsoup's default of 2. npm (`maxsockets` 15) and pnpm (`network-concurrency`
+// 16) use the same order of magnitude. Override with GJSIFY_INSTALL_CONCURRENCY.
+const DEFAULT_CONCURRENCY = Number(process.env.GJSIFY_INSTALL_CONCURRENCY ?? '16') || 16;
 
 interface ParsedSpec {
     name: string;
@@ -641,6 +647,14 @@ async function extractOne(
     let bytes = getCachedTarball(node.integrity);
     if (bytes) {
         log('cache-hit: %s@%s ← %s', node.name, node.version, node.integrity);
+    } else if ((bytes = getForeignCachedTarball(node.integrity))) {
+        // Second-chance: npm's cacache content store (same SRI key). A user
+        // who has run `npm install` before already has the tarball on disk —
+        // read it instead of the network. Write it through to OUR store so
+        // the next `gjsify install` is a first-class hit even if npm later
+        // prunes its cache.
+        log('npm-cache-hit: %s@%s ← %s', node.name, node.version, node.integrity);
+        putCachedTarball(node.integrity, bytes);
     } else {
         log('fetch: %s@%s ← %s (→ %s)', node.name, node.version, node.tarballUrl, node.installPath);
         bytes = await fetchTarball(node.tarballUrl, {
@@ -648,7 +662,14 @@ async function extractOne(
             signal,
             integrity: node.integrity,
             onRetry: ({ attempt, error, delayMs }) => {
-                log('tarball %s@%s: retry %d after %dms (%s)', node.name, node.version, attempt, delayMs, errMsg(error));
+                log(
+                    'tarball %s@%s: retry %d after %dms (%s)',
+                    node.name,
+                    node.version,
+                    attempt,
+                    delayMs,
+                    errMsg(error),
+                );
             },
         });
         // Best-effort cache write — failures are swallowed by `putCachedTarball`

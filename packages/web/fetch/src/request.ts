@@ -56,9 +56,46 @@ const INTERNALS = Symbol('Request internals');
  */
 let sharedSession: Soup.Session | null = null;
 
+/**
+ * Connections libsoup may open per host (and overall) on the shared session.
+ *
+ * libsoup's default `max-conns-per-host` is a conservative **2**, which
+ * serialises bulk-fetch workloads to two-at-a-time even over a multiplexed
+ * HTTP/2 connection. `@gjsify/npm-registry` (during `gjsify install`) hammers
+ * a single host — the npm registry — with hundreds of packument + tarball
+ * GETs; at the default cap a 16-wide download pool was measured stalling at
+ * ~2 effective in-flight requests (16 packuments in ~3.0s vs ~0.24s once the
+ * cap is lifted — a 12× difference, same h2 connection).
+ *
+ * 16 matches npm's `maxsockets` (15) and pnpm's `network-concurrency` (16)
+ * defaults and is browser-competitive (Chrome uses 6 per host for HTTP/1.1,
+ * more via h2 stream multiplexing). It is harmless for light fetch users, who
+ * never materialise more than a couple of concurrent requests to one host.
+ * Override per-host with `GJSIFY_FETCH_MAX_CONNS_PER_HOST` and the global
+ * ceiling with `GJSIFY_FETCH_MAX_CONNS`.
+ */
+const DEFAULT_MAX_CONNS_PER_HOST = 16;
+const DEFAULT_MAX_CONNS = 64;
+
+function envPositiveInt(name: string, fallback: number): number {
+    const raw = GLib.getenv(name);
+    if (!raw) return fallback;
+    const n = Number.parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 function getSharedSession(): Soup.Session {
     if (sharedSession === null) {
-        sharedSession = new Soup.Session();
+        const maxPerHost = envPositiveInt('GJSIFY_FETCH_MAX_CONNS_PER_HOST', DEFAULT_MAX_CONNS_PER_HOST);
+        // The global ceiling must be ≥ the per-host cap, else libsoup clamps
+        // the per-host value down to it.
+        const maxConns = Math.max(envPositiveInt('GJSIFY_FETCH_MAX_CONNS', DEFAULT_MAX_CONNS), maxPerHost);
+        // `max-conns` / `max-conns-per-host` are construct-only in libsoup 3 —
+        // they MUST be passed to the constructor; the setters don't exist.
+        sharedSession = new Soup.Session({
+            maxConns,
+            maxConnsPerHost: maxPerHost,
+        });
         // Soup auto-adds a ContentDecoder to new sessions, but it decodes the
         // body without removing the Content-Encoding header, causing
         // double-decompression when index.ts also runs DecompressionStream.
