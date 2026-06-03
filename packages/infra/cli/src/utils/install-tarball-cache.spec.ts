@@ -2,13 +2,14 @@
 // Unit tests for the content-addressable tarball cache.
 
 import { describe, it, expect } from '@gjsify/unit';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import {
     cacheRootForLogging,
     getCachedTarball,
+    getForeignCachedTarball,
     isCacheHit,
     putCachedTarball,
 } from './install-tarball-cache.js';
@@ -16,12 +17,14 @@ import {
 const SAMPLE_INTEGRITY =
     'sha512-z3rDtSj0lKDqyGCVS9emVdb31Cv3DDpyZ6X7CWk3eDoejWlBwiBNVOe0bWB9BJVcj/EQGOIaq8ftADyhjs7t9w==';
 // The base64 → hex decode of the digest above, computed once and pinned so
-// changes to either side of the path-derivation get caught.
+// changes to either side of the path-derivation get caught. This is the exact
+// shard key both our own store and npm's cacache derive from the integrity:
+// `content-v2/sha512/<hex[0:2]>/<hex[2:4]>/<hex[4:]>`.
 const SAMPLE_HEX =
     'cf7ac3b528f494a0eac86095' +
-    '2bd7a655d6f7d42bf70c3a72' +
-    '67a5fb09693778368e8d6941' +
-    'c220210d54e7b46d607d04955c8ff11018e21aabc7ed003ca18ecedf7';
+    '4bd7a655d6f7d42bf70c3a72' +
+    '67a5fb096937783a1e8d6941' +
+    'c2204d54e7b46d607d04955c8ff11018e21aabc7ed003ca18eceedf7';
 
 export default async () => {
     await describe('install-tarball-cache', async () => {
@@ -31,11 +34,14 @@ export default async () => {
             const dir = mkdtempSync(join(tmpdir(), 'gjsify-tarball-cache-'));
             const prev = process.env.XDG_CACHE_HOME;
             process.env.XDG_CACHE_HOME = dir;
-            return { dir, restore: () => {
-                if (prev === undefined) delete process.env.XDG_CACHE_HOME;
-                else process.env.XDG_CACHE_HOME = prev;
-                rmSync(dir, { recursive: true, force: true });
-            } };
+            return {
+                dir,
+                restore: () => {
+                    if (prev === undefined) delete process.env.XDG_CACHE_HOME;
+                    else process.env.XDG_CACHE_HOME = prev;
+                    rmSync(dir, { recursive: true, force: true });
+                },
+            };
         };
 
         await it('cacheRootForLogging honours XDG_CACHE_HOME', async () => {
@@ -131,6 +137,95 @@ export default async () => {
                 expect(isCacheHit(SAMPLE_INTEGRITY)).toBe(false);
             } finally {
                 restore();
+            }
+        });
+
+        // --- npm cacache interop (getForeignCachedTarball) ---
+
+        // Build a fake npm `_cacache` content-store entry for a given integrity
+        // and return the npm-cache BASE dir (the parent of `_cacache`). Mirrors
+        // cacache's `content-v2/<algo>/<hex[0:2]>/<hex[2:4]>/<hex[4:]>` layout.
+        const seedNpmCacache = (base: string, hex: string, bytes: Uint8Array) => {
+            const file = join(base, '_cacache', 'content-v2', 'sha512', hex.slice(0, 2), hex.slice(2, 4), hex.slice(4));
+            mkdirSync(dirname(file), { recursive: true });
+            writeFileSync(file, bytes);
+            return file;
+        };
+
+        const withForeignEnv = (vars: Record<string, string | undefined>, fn: () => void) => {
+            const keys = ['GJSIFY_NPM_CACHE', 'npm_config_cache'] as const;
+            const prev: Record<string, string | undefined> = {};
+            for (const k of keys) prev[k] = process.env[k];
+            for (const k of keys) {
+                if (vars[k] === undefined) delete process.env[k];
+                else process.env[k] = vars[k];
+            }
+            try {
+                fn();
+            } finally {
+                for (const k of keys) {
+                    if (prev[k] === undefined) delete process.env[k];
+                    else process.env[k] = prev[k];
+                }
+            }
+        };
+
+        await it('getForeignCachedTarball reads npm cacache via GJSIFY_NPM_CACHE', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-npm-cache-'));
+            try {
+                const payload = new Uint8Array([0x1f, 0x8b, 1, 2, 3, 4]);
+                seedNpmCacache(dir, SAMPLE_HEX, payload);
+                withForeignEnv({ GJSIFY_NPM_CACHE: dir, npm_config_cache: undefined }, () => {
+                    const out = getForeignCachedTarball(SAMPLE_INTEGRITY);
+                    expect(out).not.toBe(null);
+                    if (out) {
+                        expect(out.length).toBe(payload.length);
+                        expect(out[0]).toBe(0x1f);
+                        expect(out[1]).toBe(0x8b);
+                    }
+                });
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
+        await it('GJSIFY_NPM_CACHE accepts a path that already ends in _cacache', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-npm-cache-'));
+            try {
+                seedNpmCacache(dir, SAMPLE_HEX, new Uint8Array([5, 6, 7]));
+                withForeignEnv({ GJSIFY_NPM_CACHE: join(dir, '_cacache'), npm_config_cache: undefined }, () => {
+                    const out = getForeignCachedTarball(SAMPLE_INTEGRITY);
+                    expect(out).not.toBe(null);
+                    if (out) expect(out[0]).toBe(5);
+                });
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
+        await it('GJSIFY_NPM_CACHE=0 disables the interop even when the entry exists', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-npm-cache-'));
+            try {
+                seedNpmCacache(dir, SAMPLE_HEX, new Uint8Array([1, 2, 3]));
+                // Point npm_config_cache at the real entry, but disable via the override.
+                withForeignEnv({ GJSIFY_NPM_CACHE: '0', npm_config_cache: dir }, () => {
+                    expect(getForeignCachedTarball(SAMPLE_INTEGRITY)).toBe(null);
+                });
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
+        await it('getForeignCachedTarball returns null on a cacache miss / bad integrity', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-npm-cache-'));
+            try {
+                withForeignEnv({ GJSIFY_NPM_CACHE: dir, npm_config_cache: undefined }, () => {
+                    expect(getForeignCachedTarball(SAMPLE_INTEGRITY)).toBe(null);
+                    expect(getForeignCachedTarball(undefined)).toBe(null);
+                    expect(getForeignCachedTarball('not-a-real-integrity')).toBe(null);
+                });
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
             }
         });
 
