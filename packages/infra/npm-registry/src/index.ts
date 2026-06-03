@@ -124,18 +124,66 @@ export function packumentUrl(name: string, registry: string): string {
     return `${base}${encodeURIComponent(name)}`;
 }
 
-/** Fetch + parse a packument. Retries on transient errors (see fetchWithRetry). */
-export async function fetchPackument(name: string, opts: FetchOptions = {}): Promise<Packument> {
+/** Outcome of a conditional packument fetch ({@link fetchPackumentConditional}). */
+export interface ConditionalPackument {
+    /** `'fresh'` — the registry returned a new body (200). `'not-modified'` —
+     *  a 304, so the caller's cached copy is still current. */
+    status: 'fresh' | 'not-modified';
+    /** Parsed packument. Present iff `status === 'fresh'`. */
+    packument?: Packument;
+    /** The response `ETag`, to store alongside a freshly-fetched body. On a
+     *  304 this echoes back the `ifNoneMatch` the caller sent (still current). */
+    etag?: string;
+}
+
+/**
+ * Conditional packument fetch with ETag revalidation.
+ *
+ * When `ifNoneMatch` is supplied it is sent as `If-None-Match`; a `304 Not
+ * Modified` resolves to `{ status: 'not-modified' }` (no body transferred — the
+ * caller reuses its cached packument), and a `200` resolves to `{ status:
+ * 'fresh', packument, etag }`. Without `ifNoneMatch` it behaves like
+ * {@link fetchPackument} but additionally surfaces the response ETag so the
+ * caller can seed a cache.
+ *
+ * Why revalidation rather than a TTL: packuments are mutable (new versions
+ * publish over time), so a TTL cache would serve stale data and silently miss
+ * a just-published version; a conditional GET keeps a cheap round-trip but
+ * skips the (60–98 KB, `accept-encoding: identity`) body when nothing changed.
+ * Reference: npm's make-fetch-happen HTTP-cache layer.
+ */
+export async function fetchPackumentConditional(
+    name: string,
+    opts: FetchOptions & { ifNoneMatch?: string } = {},
+): Promise<ConditionalPackument> {
     const registry = opts.registry ?? registryFor(name, opts.npmrc);
     const url = packumentUrl(name, registry);
     const headers = buildHeaders(url, opts);
     headers['accept'] ??= 'application/vnd.npm.install-v1+json';
+    if (opts.ifNoneMatch) headers['if-none-match'] = opts.ifNoneMatch;
 
     const res = await fetchWithRetry(
         url,
         { headers, signal: opts.signal },
-        { fetch: opts.fetch, retries: opts.retries, retryDelayMs: opts.retryDelayMs, timeoutMs: opts.timeoutMs, onRetry: opts.onRetry },
+        {
+            fetch: opts.fetch,
+            retries: opts.retries,
+            retryDelayMs: opts.retryDelayMs,
+            timeoutMs: opts.timeoutMs,
+            onRetry: opts.onRetry,
+        },
     );
+    if (res.status === 304) {
+        // 304 is not `res.ok`; fetchWithRetry returns it un-retried because
+        // isRetryableStatus(304) is false. Drain any (empty) body so the
+        // connection can be reused.
+        try {
+            await res.arrayBuffer();
+        } catch {
+            /* empty 304 body — nothing to drain */
+        }
+        return { status: 'not-modified', etag: opts.ifNoneMatch };
+    }
     if (!res.ok) {
         // 404 = package not found. 406 = Not Acceptable — npm returns this
         // when the URL path is unrecognised (e.g. `%40scope/name` is parsed
@@ -147,9 +195,22 @@ export async function fetchPackument(name: string, opts: FetchOptions = {}): Pro
         if (res.status === 404 || res.status === 406) throw new PackageNotFoundError(name, url);
         throw new Error(`registry GET ${url} -> ${res.status} ${res.statusText}`);
     }
+    const etag = res.headers.get('etag') ?? undefined;
     const body = (await res.json()) as unknown;
     assertPackument(name, body);
-    return body;
+    return { status: 'fresh', packument: body, etag };
+}
+
+/** Fetch + parse a packument. Retries on transient errors (see fetchWithRetry). */
+export async function fetchPackument(name: string, opts: FetchOptions = {}): Promise<Packument> {
+    // Delegate to the conditional path with no `ifNoneMatch`, so the registry
+    // always returns a fresh body (a 304 to an unconditional request would be a
+    // protocol violation — guard defensively).
+    const result = await fetchPackumentConditional(name, opts);
+    if (!result.packument) {
+        throw new Error(`registry: ${name} returned 304 Not Modified to an unconditional request`);
+    }
+    return result.packument;
 }
 
 /** Download a tarball as bytes. Verifies SRI `integrity` when supplied. */
@@ -160,7 +221,13 @@ export async function fetchTarball(url: string, opts: FetchOptions & { integrity
     const res = await fetchWithRetry(
         url,
         { headers, signal: opts.signal },
-        { fetch: opts.fetch, retries: opts.retries, retryDelayMs: opts.retryDelayMs, timeoutMs: opts.timeoutMs, onRetry: opts.onRetry },
+        {
+            fetch: opts.fetch,
+            retries: opts.retries,
+            retryDelayMs: opts.retryDelayMs,
+            timeoutMs: opts.timeoutMs,
+            onRetry: opts.onRetry,
+        },
     );
     if (!res.ok) throw new Error(`tarball GET ${url} -> ${res.status} ${res.statusText}`);
     const buf = new Uint8Array(await res.arrayBuffer());
@@ -228,7 +295,10 @@ export async function fetchWithRetry(
         const timeoutId =
             timeoutController !== null
                 ? setTimeout(
-                      () => timeoutController.abort(new Error(`@gjsify/npm-registry: per-request timeout ${timeoutMs}ms`)),
+                      () =>
+                          timeoutController.abort(
+                              new Error(`@gjsify/npm-registry: per-request timeout ${timeoutMs}ms`),
+                          ),
                       timeoutMs,
                   )
                 : null;

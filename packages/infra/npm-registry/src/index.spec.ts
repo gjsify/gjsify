@@ -8,6 +8,7 @@ import {
     buildHeaders,
     verifyIntegrity,
     fetchPackument,
+    fetchPackumentConditional,
     fetchTarball,
     PackageNotFoundError,
     IntegrityError,
@@ -226,6 +227,65 @@ export default async () => {
                 },
             });
             expect(seenAuth).toBe('Bearer secret-tok');
+        });
+    });
+
+    await describe('@gjsify/npm-registry — fetchPackumentConditional (mocked)', async () => {
+        const FRESH_BODY = JSON.stringify({
+            name: 'lodash',
+            'dist-tags': { latest: '4.17.21' },
+            versions: {
+                '4.17.21': {
+                    name: 'lodash',
+                    version: '4.17.21',
+                    dist: { tarball: 'https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz' },
+                },
+            },
+        });
+
+        await it('200 → fresh, surfaces the ETag', async () => {
+            const mock = makeMockFetch(
+                async () => new Response(FRESH_BODY, { status: 200, headers: { etag: '"abc123"' } }),
+            );
+            const r = await fetchPackumentConditional('lodash', { fetch: mock });
+            expect(r.status).toBe('fresh');
+            expect(r.etag).toBe('"abc123"');
+            expect(r.packument?.name).toBe('lodash');
+        });
+
+        await it('sends If-None-Match and treats 304 as not-modified', async () => {
+            let seenINM: string | null = null;
+            const mock = makeMockFetch(async (_url, init) => {
+                seenINM = (init?.headers as Record<string, string> | undefined)?.['if-none-match'] ?? null;
+                return new Response(null, { status: 304 });
+            });
+            const r = await fetchPackumentConditional('lodash', { fetch: mock, ifNoneMatch: '"abc123"' });
+            expect(seenINM).toBe('"abc123"');
+            expect(r.status).toBe('not-modified');
+            expect(r.etag).toBe('"abc123"');
+            expect(r.packument).toBeUndefined();
+        });
+
+        await it('omits If-None-Match when no etag is supplied', async () => {
+            let hadINM = true;
+            const mock = makeMockFetch(async (_url, init) => {
+                hadINM = 'if-none-match' in ((init?.headers as Record<string, string> | undefined) ?? {});
+                return new Response(FRESH_BODY, { status: 200 });
+            });
+            const r = await fetchPackumentConditional('lodash', { fetch: mock });
+            expect(hadINM).toBe(false);
+            expect(r.status).toBe('fresh');
+        });
+
+        await it('404 → PackageNotFoundError', async () => {
+            const mock = makeMockFetch(async () => new Response('not found', { status: 404 }));
+            let caught: Error | null = null;
+            try {
+                await fetchPackumentConditional('nope-pkg', { fetch: mock });
+            } catch (e) {
+                caught = e as Error;
+            }
+            expect(caught instanceof PackageNotFoundError).toBe(true);
         });
     });
 
