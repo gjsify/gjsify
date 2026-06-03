@@ -33,6 +33,11 @@ import { ALIASES_NODE_FOR_NATIVESCRIPT, getDerivedAliasesSync } from '@gjsify/re
 import type { PluginOptions } from '../types/plugin-options.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
+import {
+    platformResolvePlugin,
+    detectNativescriptPlatform,
+    nativescriptPlatformDefines,
+} from '../plugins/platform-resolve.js';
 
 export interface NativescriptBuildConfig {
     options: RolldownOptions;
@@ -47,14 +52,17 @@ export interface NativescriptFactoryInput {
     pluginOptions: PluginOptions;
 }
 
-export const setupForNativescript = async (
-    input: NativescriptFactoryInput,
-): Promise<NativescriptBuildConfig> => {
+export const setupForNativescript = async (input: NativescriptFactoryInput): Promise<NativescriptBuildConfig> => {
     const userExternal = input.userExternal ?? [];
     const external = [...userExternal];
 
     const exclude = input.pluginOptions.exclude ?? [];
     const entryPoints = await globToEntryPoints(input.input, exclude);
+
+    // Target platform — discovered from the env NS' CLI sets when it spawns a
+    // bundler (else `undefined` → `.native`-only resolution + neutral defines).
+    // `gjsify build` is a production bundler, so `__DEV__` is `false` here.
+    const platform = detectNativescriptPlatform();
 
     // Bare Node-builtin + `node:*` prefix aliases — both forms route to the
     // same `@gjsify/<X>` target. Generated deterministically from
@@ -106,6 +114,13 @@ export const setupForNativescript = async (
                 // NO `window` define — NativeScript apps don't have a DOM
                 // and rely on the canonical absence of `window` to gate
                 // their cross-platform branches.
+                //
+                // Standard NS compile-time platform flags (`__ANDROID__` /
+                // `__IOS__` / `__APPLE__` / `__VISIONOS__` / `__DEV__`) so app
+                // code branching on them is statically resolved + dead-code
+                // eliminated per target — matching the globals
+                // `@nativescript/vite` seeds in its main entry.
+                ...nativescriptPlatformDefines(platform, { dev: false }),
             },
         },
         output: {
@@ -122,6 +137,10 @@ export const setupForNativescript = async (
 
     const plugins: RolldownPluginOption[] = [
         gjsImportsEmptyPlugin(),
+        // Platform-specific source variants (`*.android` / `*.ios` /
+        // `*.native`) win over the base file — resolved BEFORE the Node-builtin
+        // alias routing so a platform fork of a portable module is honored.
+        platformResolvePlugin({ platform }),
         aliasPlugin({ entries: flattenAliases(aliasMap) }),
         // NO blueprintPlugin — Blueprint is a GTK-specific UI DSL
         // NO cssAsStringPlugin — NS ships its own CSS pipeline via

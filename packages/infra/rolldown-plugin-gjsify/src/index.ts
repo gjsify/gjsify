@@ -22,6 +22,12 @@ export type { TextLoaderPluginOptions, LoaderKind } from './plugins/text-loader.
 export { shebangPlugin, GJS_SHEBANG, NODE_SHEBANG, expandEnvTemplate, resolveShebangLine } from './plugins/shebang.js';
 export type { ShebangPluginOptions } from './plugins/shebang.js';
 export { gjsImportsEmptyPlugin } from './plugins/gjs-imports-empty.js';
+export {
+    platformResolvePlugin,
+    detectNativescriptPlatform,
+    nativescriptPlatformDefines,
+} from './plugins/platform-resolve.js';
+export type { PlatformResolvePluginOptions, NativescriptPlatform } from './plugins/platform-resolve.js';
 
 export * from './plugin.js';
 import { gjsifyPlugin } from './plugin.js';

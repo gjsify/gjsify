@@ -31,7 +31,12 @@
 
 import { type Plugin } from 'vite';
 
-import { gjsImportsEmptyPlugin } from '@gjsify/rolldown-plugin-gjsify';
+import {
+    gjsImportsEmptyPlugin,
+    platformResolvePlugin,
+    detectNativescriptPlatform,
+    nativescriptPlatformDefines,
+} from '@gjsify/rolldown-plugin-gjsify';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
 import { ALIASES_NODE_FOR_NATIVESCRIPT } from '@gjsify/resolve-npm';
@@ -203,9 +208,15 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
 
     const optimizeDepsExclude = ['@gjsify/unit', ...(options.optimizeDepsExclude ?? [])];
 
+    // Target platform from the env NS' CLI sets when it spawns the bundler
+    // (else `undefined` → `.native`-only resolution + neutral defines).
+    const platform = detectNativescriptPlatform();
+
     const configPlugin: Plugin = {
         name: 'gjsify-nativescript-config',
-        config() {
+        config(_userConfig, env) {
+            // `__DEV__` tracks Vite's mode (dev server vs `vite build`).
+            const dev = env?.mode !== 'production';
             return {
                 resolve: {
                     alias,
@@ -215,6 +226,11 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
                 define: {
                     global: 'globalThis',
                     // NO `window` define — NS apps have no DOM
+                    //
+                    // Standard NS compile-time platform flags, matching the
+                    // Rolldown `--app nativescript` factory + the globals
+                    // `@nativescript/vite` seeds in its main entry.
+                    ...nativescriptPlatformDefines(platform, { dev }),
                 },
                 build: {
                     target: 'esnext',
@@ -228,6 +244,11 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
 
     return [
         gjsImportsEmptyPlugin() as unknown as Plugin,
+        // Platform-specific source variants (`*.android` / `*.ios` /
+        // `*.native`). A `resolveId` HOOK, NOT a `resolve.alias` — so it works
+        // under Vite 8 / Rolldown, where @nativescript/vite's function-based
+        // alias for the same feature is rejected.
+        platformResolvePlugin({ platform }) as unknown as Plugin,
         // NO blueprintPlugin — Blueprint is GTK-specific
         // NO cssAsStringPlugin — NS handles CSS via @nativescript/core
         deepkitPlugin({ reflection: options.reflection }) as unknown as Plugin,
