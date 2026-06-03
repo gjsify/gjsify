@@ -106,6 +106,20 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
         root: {
             versions: { '0.1.0': { dependencies: { middle: '^1.0.0', leaf: '^1.0.0' } } },
         },
+        // Conflict graph (second test): app → dep@^1 + mid@^1; mid → dep@^2.
+        // Forces dep@2 to NEST under mid while dep@1 hoists to the root — the
+        // order-sensitive hoist-vs-nest placement path. A regression in the
+        // resolver's BFS ordering (e.g. the wave-based parallel rewrite) would
+        // surface here as a wrong placement.
+        dep: {
+            versions: { '1.0.0': { dependencies: {} }, '2.0.0': { dependencies: {} } },
+        },
+        mid: {
+            versions: { '1.0.0': { dependencies: { dep: '^2.0.0' } } },
+        },
+        app: {
+            versions: { '1.0.0': { dependencies: { dep: '^1.0.0', mid: '^1.0.0' } } },
+        },
     };
 
     before(async () => {
@@ -185,10 +199,7 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
         // --experimental-strip-types fails on sibling `.js` imports — strip-types
         // does not rewrite extensions and the on-disk file is .ts. The compiled
         // .js already has all extensions resolved, so it works under plain node.
-        const cliPkgPath = new URL(
-            '../../../packages/infra/cli/lib/utils/install-backend-native.js',
-            import.meta.url,
-        );
+        const cliPkgPath = new URL('../../../packages/infra/cli/lib/utils/install-backend-native.js', import.meta.url);
         const harness = `
       const { installPackagesNative } = await import(${JSON.stringify(cliPkgPath.href)});
       // First install: writes gjsify-lock.json. Verifies it lands on disk.
@@ -218,11 +229,7 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
         const workspaceRoot = new URL('../../../', import.meta.url).pathname;
         writeFileSync(harnessFile, harness);
         try {
-            const out = await runHarness(
-                'node',
-                ['--no-warnings', harnessFile],
-                workspaceRoot,
-            );
+            const out = await runHarness('node', ['--no-warnings', harnessFile], workspaceRoot);
             if (out.status !== 0) {
                 throw new Error(
                     `harness failed (status=${out.status})\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}`,
@@ -255,6 +262,64 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
             assert.ok(existsSync(pkgJson), `missing ${pkgJson}`);
             const parsed = JSON.parse(readFileSync(pkgJson, 'utf-8'));
             assert.equal(parsed.name, name, `unexpected name in ${pkgJson}`);
+        }
+    });
+
+    it('nests conflicting transitive versions under the requester', async () => {
+        // app → dep@^1 + mid@^1 ; mid → dep@^2. Expected placement:
+        //   node_modules/dep            @ 1.0.0   (hoisted, satisfies app)
+        //   node_modules/mid            @ 1.0.0   (hoisted)
+        //   node_modules/mid/node_modules/dep @ 2.0.0 (nested — root holds dep@1)
+        // This is the order-sensitive path the wave-based resolver must keep
+        // identical to the original single-edge BFS.
+        const prefix2 = mkdtempSync(join(tmpdir(), 'gjsify-native-install-conflict-'));
+        const cliPkgPath = new URL('../../../packages/infra/cli/lib/utils/install-backend-native.js', import.meta.url);
+        const harness = `
+      const { installPackagesNative } = await import(${JSON.stringify(cliPkgPath.href)});
+      await installPackagesNative({
+        prefix: ${JSON.stringify(prefix2)},
+        specs: ['app@^1.0.0'],
+        registry: ${JSON.stringify(registryUrl)},
+        verbose: false,
+        lockfile: true,
+      });
+      console.log('OK');
+    `;
+        const harnessFile = new URL('./harness-conflict.tmp.mjs', import.meta.url).pathname;
+        const workspaceRoot = new URL('../../../', import.meta.url).pathname;
+        writeFileSync(harnessFile, harness);
+        try {
+            const out = await runHarness('node', ['--no-warnings', harnessFile], workspaceRoot);
+            if (out.status !== 0) {
+                throw new Error(
+                    `harness failed (status=${out.status})\nstdout:\n${out.stdout}\nstderr:\n${out.stderr}`,
+                );
+            }
+            assert.match(out.stdout, /OK/, `harness did not report OK: ${out.stdout}`);
+
+            const lock = JSON.parse(readFileSync(join(prefix2, 'gjsify-lock.json'), 'utf-8'));
+            assert.equal(lock.packages['node_modules/dep']?.version, '1.0.0', 'dep@1 should hoist to root');
+            assert.equal(lock.packages['node_modules/mid']?.version, '1.0.0', 'mid should hoist to root');
+            assert.equal(lock.packages['node_modules/app']?.version, '1.0.0', 'app should hoist to root');
+            assert.equal(
+                lock.packages['node_modules/mid/node_modules/dep']?.version,
+                '2.0.0',
+                'dep@2 must NEST under node_modules/mid, not overwrite the hoisted dep@1',
+            );
+
+            // The nesting must be materialised on disk too.
+            const nestedDep = join(prefix2, 'node_modules', 'mid', 'node_modules', 'dep', 'package.json');
+            assert.ok(existsSync(nestedDep), `missing nested ${nestedDep}`);
+            assert.equal(JSON.parse(readFileSync(nestedDep, 'utf-8')).version, '2.0.0');
+            const rootDep = join(prefix2, 'node_modules', 'dep', 'package.json');
+            assert.equal(JSON.parse(readFileSync(rootDep, 'utf-8')).version, '1.0.0');
+        } finally {
+            try {
+                rmSync(harnessFile, { force: true });
+                rmSync(prefix2, { recursive: true, force: true });
+            } catch {
+                /* best effort */
+            }
         }
     });
 });
