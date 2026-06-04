@@ -1,0 +1,76 @@
+{
+    "name": "@gjsify/nativescript-vite",
+    "version": "0.4.36",
+    "description": "Vite 8 / Rolldown compatibility + gjsify transforms for building NativeScript apps — composes @nativescript/vite and fixes the pieces Rolldown rejects.",
+    "type": "module",
+    "main": "lib/index.js",
+    "module": "lib/index.js",
+    "types": "lib/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/index.d.ts",
+            "default": "./lib/index.js"
+        }
+    },
+    "files": [
+        "lib"
+    ],
+    "scripts": {
+        "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "build": "tsc"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/nativescript-vite#readme",
+    "keywords": [
+        "vite",
+        "rolldown",
+        "nativescript",
+        "android",
+        "ios",
+        "gjsify"
+    ],
+    "license": "MIT",
+    "dependencies": {
+        "@gjsify/vite-plugin-gjsify": "workspace:^"
+    },
+    "peerDependencies": {
+        "@nativescript/canvas": "*",
+        "@nativescript/canvas-polyfill": "*",
+        "@nativescript/core": "*",
+        "@nativescript/vite": "*",
+        "nativescript": "*",
+        "vite": "^8.0.14"
+    },
+    "peerDependenciesMeta": {
+        "@nativescript/canvas": {
+            "optional": true
+        },
+        "@nativescript/canvas-polyfill": {
+            "optional": true
+        },
+        "@nativescript/core": {
+            "optional": true
+        },
+        "@nativescript/vite": {
+            "optional": true
+        },
+        "nativescript": {
+            "optional": true
+        },
+        "vite": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@types/node": "^25.9.1",
+        "typescript": "^5.9.3",
+        "vite": "^8.0.14"
+    }
+}
