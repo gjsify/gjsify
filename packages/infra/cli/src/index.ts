@@ -25,6 +25,8 @@ import {
     packCommand as pack,
     publishCommand as publish,
     whoamiCommand as whoami,
+    loginCommand as login,
+    logoutCommand as logout,
     selfUpdateCommand as selfUpdate,
     generateInstallerCommand as generateInstaller,
     uninstallCommand as uninstall,
@@ -114,6 +116,8 @@ await cli
     .command(pack.command, pack.description, pack.builder, pack.handler)
     .command(publish.command, publish.description, publish.builder, publish.handler)
     .command(whoami.command, whoami.description, whoami.builder, whoami.handler)
+    .command(login.command, login.description, login.builder, login.handler)
+    .command(logout.command, logout.description, logout.builder, logout.handler)
     .command(selfUpdate.command, selfUpdate.description, selfUpdate.builder, selfUpdate.handler)
     .command(
         generateInstaller.command,

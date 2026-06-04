@@ -152,7 +152,11 @@ export default async () => {
                 expect(result.reason).toBe('live-token-404');
                 expect(result.username).toBe('jumplink');
                 expect(result.message.includes('Authenticated as: jumplink')).toBe(true);
-                expect(result.message.includes('first-publish bootstrap')).toBe(true);
+                expect(result.message.includes('NOT a dead-token problem')).toBe(true);
+                expect(result.message.includes('first-publish')).toBe(true);
+                // the new transient-provisioning-race hint
+                expect(result.message.includes('provisioning')).toBe(true);
+                expect(result.message.includes('npm publish')).toBe(true);
                 expect(result.message.includes('@gjsify/brand-new-pkg')).toBe(true);
                 expect(result.message.includes('npm access ls-packages')).toBe(true);
             } finally {

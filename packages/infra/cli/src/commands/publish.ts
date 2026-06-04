@@ -442,13 +442,13 @@ export const publishCommand: Command<unknown, PublishOptions> = {
             else process.stdout.write(`= ${packed.name}@${packed.version} (already published, tolerated)\n`);
             return;
         }
-        // 404 diagnostic — token-auth only. npm returns 404 for both a
-        // dead `_authToken` and a genuinely-missing package; `/-/whoami`
-        // disambiguates. OIDC has its own clear error surfaces (handled in
-        // the OIDC catch block above) and `--otp` flows take a different
-        // 401 path, so the diagnostic only kicks in for the plain
-        // token-auth PUT signature.
-        if (res.status === 404 && authMode === 'token' && !otp) {
+        // 404 diagnostic — token-auth (with or without --otp). npm returns 404
+        // for a dead `_authToken`, a genuinely-missing package, AND transiently
+        // while a brand-new scoped package is being provisioned; `/-/whoami`
+        // disambiguates a dead token from a live one. OIDC has its own clear
+        // error surfaces (handled in the OIDC catch block above), so the
+        // diagnostic only kicks in for the token-auth PUT signature.
+        if (res.status === 404 && authMode === 'token') {
             if (is404DiagnosticCandidate(text)) {
                 const diag = await diagnose404({
                     packageName: packed.name,

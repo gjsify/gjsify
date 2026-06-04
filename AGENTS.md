@@ -275,6 +275,8 @@ gjsify tsc --version | gjsify tsc -p tsconfig.json
 # Publish + npmrc-auth verification (drop-in for `npm publish` / `npm whoami`)
 gjsify publish [path] [--tag <t>] [--access public] [--otp <code>] [--trusted] [--dry-run]
 gjsify whoami [--registry <url>] [--json]   # prints the npm username for the current ~/.npmrc token; clear failure on dead/missing token
+gjsify login  [--registry <url>] [--scope @s] [--username <u>] [--otp <code>] [--json]   # Node-free `npm login` (legacy credentials flow): prompts user+password(hidden), PUTs the couchdb user doc (Basic auth, 409→_rev retry for existing users), writes //host/:_authToken to ~/.npmrc. No web-OAuth flow.
+gjsify logout [--registry <url>] [--scope @s] [--json]   # revoke the token (best-effort DELETE /-/user/token) + strip it from ~/.npmrc
 # Per-package (in the package dir)
 gjsify run build:gjsify | gjsify run build:types
 gjsify run build:test:{gjs,node} | gjsify run test:{gjs,node}

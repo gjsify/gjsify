@@ -95,11 +95,15 @@ function formatLiveToken404(name: string, version: string, username: string): st
         '',
         `Authenticated as: ${username}`,
         '',
-        `The package ${name} does not yet exist on npmjs.com. For a brand-new`,
-        'scoped package, this usually means the first-publish bootstrap step is needed',
-        '(see AGENTS.md > "New @gjsify/* package: first-publish + Trusted Publisher',
-        'bootstrap"). If you\'re sure you have write access to the scope, verify with:',
-        '  npm access ls-packages',
+        `Your token authenticates, so this is NOT a dead-token problem. The package`,
+        `${name} is not (yet) on npmjs.com. Two cases:`,
+        '',
+        '  1. First publish of a brand-new scoped package — do the one-time bootstrap',
+        '     (see AGENTS.md > "New @gjsify/* package: first-publish + Trusted',
+        '     Publisher bootstrap"). The npm registry can also 404 *transiently*',
+        '     while provisioning a brand-new package: simply re-run, or do the very',
+        '     first publish with `npm publish` (then configure the Trusted Publisher).',
+        '  2. You lack publish access to the scope — verify with `npm access ls-packages`.',
     ].join('\n');
 }
 
