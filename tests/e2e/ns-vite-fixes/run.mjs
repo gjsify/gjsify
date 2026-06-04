@@ -26,9 +26,12 @@
 // resolves the module's own top-level `vite` + `@gjsify/vite-plugin-gjsify`
 // imports from the package's own `node_modules` (neither is the NS toolchain).
 
-import { describe, it, before } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // Resolve the built lib relative to this file (not CWD) so the suite works no
 // matter which directory `node --test` is launched from.
@@ -182,5 +185,72 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
             recordAlias,
             'record-form resolve.alias must be passed through unchanged',
         );
+    });
+});
+
+// `gjsifyNativescript()` aliases the bare `css-tree` specifier to css-tree's
+// self-contained `dist/csstree.esm.js`. @nativescript/core's CSS parser pulls
+// css-tree, whose data modules load JSON via `createRequire(...)` at module-eval
+// time — dynamic requires Rolldown can't resolve, which then throw on the NS V8
+// runtime. The dist bundle has the data inlined (no createRequire), so the alias
+// keeps the crash out. Resolved from the Vite config's `root` (css-tree is a
+// transitive dep of the consuming project), skipped when css-tree is absent.
+describe('gjsifyNativescript css-tree alias E2E', () => {
+    let gjsifyNativescript;
+    const tmp = [];
+
+    before(async () => {
+        const url = new URL('../../../packages/infra/vite-plugin-gjsify/lib/index.js', import.meta.url);
+        ({ gjsifyNativescript } = await import(url));
+        assert.equal(
+            typeof gjsifyNativescript,
+            'function',
+            `gjsifyNativescript is not exported from ${fileURLToPath(url)} — rebuild @gjsify/vite-plugin-gjsify`,
+        );
+    });
+
+    // Run the preset's config() hook the way Vite does and return its result.
+    function runConfig(root) {
+        const plugin = gjsifyNativescript().find((p) => p && p.name === 'gjsify-nativescript-config');
+        assert.ok(plugin, 'gjsify-nativescript-config plugin missing from gjsifyNativescript()');
+        return plugin.config({ root }, { mode: 'production' });
+    }
+
+    // A throwaway project root carrying a minimal `css-tree` whose `./dist/*`
+    // export maps `css-tree/dist/csstree.esm` → `dist/csstree.esm.js`.
+    function fixtureWithCssTree() {
+        const dir = mkdtempSync(join(tmpdir(), 'gjsify-csstree-'));
+        tmp.push(dir);
+        const pkg = join(dir, 'node_modules', 'css-tree');
+        mkdirSync(join(pkg, 'dist'), { recursive: true });
+        writeFileSync(
+            join(pkg, 'package.json'),
+            JSON.stringify({ name: 'css-tree', version: '3.2.1', exports: { './dist/*': './dist/*.js' } }),
+        );
+        writeFileSync(join(pkg, 'dist', 'csstree.esm.js'), 'export const parse = () => {};\n');
+        return dir;
+    }
+
+    after(() => {
+        for (const d of tmp) rmSync(d, { recursive: true, force: true });
+    });
+
+    it('aliases css-tree to its bundled dist when css-tree is resolvable', () => {
+        const root = fixtureWithCssTree();
+        const alias = runConfig(root).resolve.alias;
+        assert.equal(
+            alias['css-tree'],
+            join(root, 'node_modules', 'css-tree', 'dist', 'csstree.esm.js'),
+            'css-tree should be aliased to its dist bundle resolved from the project root',
+        );
+    });
+
+    it('adds no css-tree alias when css-tree is not installed', () => {
+        const empty = mkdtempSync(join(tmpdir(), 'gjsify-nocsstree-'));
+        tmp.push(empty);
+        const alias = runConfig(empty).resolve.alias;
+        assert.ok(!('css-tree' in alias), 'no css-tree alias should be added when css-tree is absent');
+        // …but the node-builtin aliases are still present (the preset still works).
+        assert.ok('path' in alias || 'node:path' in alias, 'node-builtin aliases must still be wired');
     });
 });

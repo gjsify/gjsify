@@ -7,15 +7,23 @@
 
 import { base64Decode, btoaPolyfill as _btoa } from './base64.js';
 
-const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
+// Lazily instantiated. A top-level `new TextEncoder()` runs at module-evaluation
+// time — which on the NativeScript V8 runtime is BEFORE `@nativescript/core`
+// registers the `TextEncoder` / `TextDecoder` globals, throwing and rejecting the
+// whole bundle's evaluation on app start. Deferring construction to first use
+// lets the globals exist by the time we need them. No behaviour change on GJS /
+// Node / browser, where both globals already exist at eval time.
+let _textEncoder: TextEncoder | undefined;
+let _textDecoder: TextDecoder | undefined;
+const textEncoder = (): TextEncoder => (_textEncoder ??= new TextEncoder());
+const textDecoder = (): TextDecoder => (_textDecoder ??= new TextDecoder());
 
 // ─── Encode string → Uint8Array ──────────────────────────────────────────
 
 export function encodeString(str: string, encoding: BufferEncoding): Uint8Array {
     switch (encoding) {
         case 'utf8':
-            return textEncoder.encode(str);
+            return textEncoder().encode(str);
 
         case 'ascii': {
             const buf = new Uint8Array(str.length);
@@ -66,7 +74,7 @@ export function encodeString(str: string, encoding: BufferEncoding): Uint8Array 
         }
 
         default:
-            return textEncoder.encode(str);
+            return textEncoder().encode(str);
     }
 }
 
@@ -77,7 +85,7 @@ export function decodeString(buf: Uint8Array, encoding: BufferEncoding, start?: 
 
     switch (encoding) {
         case 'utf8':
-            return textDecoder.decode(slice);
+            return textDecoder().decode(slice);
 
         case 'ascii': {
             let result = '';
@@ -125,7 +133,7 @@ export function decodeString(buf: Uint8Array, encoding: BufferEncoding, start?: 
         }
 
         default:
-            return textDecoder.decode(slice);
+            return textDecoder().decode(slice);
     }
 }
 

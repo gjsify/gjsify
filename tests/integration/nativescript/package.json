@@ -1,0 +1,36 @@
+{
+    "name": "@gjsify/integration-nativescript",
+    "description": "Local-only smoke suite: runs gjsify nativescript:'polyfill' portable packages (@gjsify/path, @gjsify/buffer) on the NativeScript V8 runtime via @gjsify/nativescript-vite, asserting pass/fail from logcat markers. Validates the declared `nativescript` runtime slots actually execute on-device. Requires the NativeScript CLI + an Android emulator — NOT wired into CI, and excluded from the root workspace (heavy optional NS toolchain).",
+    "version": "0.4.36",
+    "private": true,
+    "main": "app/app.ts",
+    "scripts": {
+        "clear": "rm -rf platforms hooks dist *.log tsconfig.tsbuildinfo || exit 0",
+        "check": "tsc --noEmit",
+        "prepare:android": "nativescript prepare android --no-hmr",
+        "build:android": "nativescript build android --no-hmr",
+        "test:android": "node scripts/run-on-device.mjs android",
+        "test": "node scripts/run-on-device.mjs android"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git"
+    },
+    "license": "MIT",
+    "dependencies": {
+        "@gjsify/buffer": "^0.4.36",
+        "@gjsify/empty": "^0.4.36",
+        "@gjsify/module": "^0.4.36",
+        "@gjsify/nativescript-vite": "^0.4.36",
+        "@gjsify/path": "^0.4.36",
+        "@nativescript/core": "~9.0.0"
+    },
+    "devDependencies": {
+        "@nativescript/android": "9.0.4",
+        "@nativescript/types": "~9.0.0",
+        "@nativescript/vite": "^2.0.3",
+        "nativescript": "^9.0.6",
+        "typescript": "~5.4.0",
+        "vite": "^8.0.16"
+    }
+}

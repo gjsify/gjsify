@@ -30,6 +30,7 @@
 // `resolve.alias`, which is what the inline config hook below sets.
 
 import { type Plugin } from 'vite';
+import { createRequire } from 'node:module';
 
 import {
     gjsImportsEmptyPlugin,
@@ -176,6 +177,30 @@ export interface GjsifyNativescriptOptions {
 }
 
 /**
+ * `@nativescript/core`'s CSS parser pulls in `css-tree`, whose data modules
+ * (`data.js` / `data-patch.js` / `version.js`) load JSON via
+ * `createRequire(import.meta.url)('mdn-data/*.json' | '../package.json')` at
+ * module-evaluation time. Rolldown can't statically resolve those dynamic
+ * requires, so they survive into the bundle and throw on the NativeScript V8
+ * runtime ("Module evaluation promise rejected") — crashing every NS app that
+ * uses `@nativescript/core`'s styling. css-tree ships a self-contained
+ * `dist/csstree.esm.js` with the data inlined (no `createRequire`); aliasing the
+ * bare `css-tree` specifier to it keeps those requires out of the bundle.
+ *
+ * Resolved from the consuming project (`css-tree` is `@nativescript/core`'s
+ * transitive dep, not a direct one here). Returns no alias when css-tree isn't
+ * installed — a non-NS-core consumer keeps resolving `css-tree` normally.
+ */
+function nativescriptCssTreeAlias(fromDir: string): Record<string, string> {
+    try {
+        const require = createRequire(import.meta.url);
+        return { 'css-tree': require.resolve('css-tree/dist/csstree.esm', { paths: [fromDir] }) };
+    } catch {
+        return {};
+    }
+}
+
+/**
  * Returns the Vite plugin array that brings `gjsify build --app nativescript`'s
  * NS-target transforms to a Vite project (dev + build). Spread it into a
  * Vite config's `plugins`:
@@ -201,11 +226,6 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
         nodePrefixAliases[`node:${bare}`] = target;
     }
 
-    const alias: Record<string, string> = {
-        ...nodePrefixAliases,
-        ...options.aliases,
-    };
-
     const optimizeDepsExclude = ['@gjsify/unit', ...(options.optimizeDepsExclude ?? [])];
 
     // Target platform from the env NS' CLI sets when it spawns the bundler
@@ -214,12 +234,15 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
 
     const configPlugin: Plugin = {
         name: 'gjsify-nativescript-config',
-        config(_userConfig, env) {
+        config(userConfig, env) {
             // `__DEV__` tracks Vite's mode (dev server vs `vite build`).
             const dev = env?.mode !== 'production';
+            // Resolve css-tree from the project root (its dist is the consumer's
+            // transitive dep). User `aliases` are merged last so they win.
+            const root = userConfig?.root ?? process.cwd();
             return {
                 resolve: {
-                    alias,
+                    alias: { ...nodePrefixAliases, ...nativescriptCssTreeAlias(root), ...options.aliases },
                     conditions: ['import', 'nativescript'],
                     mainFields: ['nativescript', 'module', 'main'],
                 },
