@@ -73,6 +73,12 @@ export function discoverWorkspaces(root: string, options: DiscoverWorkspacesOpti
     const rootManifest = JSON.parse(readFileSync(rootManifestPath, 'utf-8')) as WorkspaceManifest;
     const patterns = options.patterns ?? extractWorkspacePatterns(rootManifest);
 
+    // `!`-prefixed patterns are exclusions (npm/yarn-compatible) — e.g.
+    // `"!showcases/dom/foo"` drops a dir that an include glob (`showcases/dom/*`)
+    // would otherwise match. Excludes are matched against the relative location.
+    const includePatterns = patterns.filter((p) => !p.startsWith('!'));
+    const excludeMatchers = patterns.filter((p) => p.startsWith('!')).map((p) => globToRegex(p.slice(1)));
+
     const out: Workspace[] = [];
     if (options.includeRoot && rootManifest.name) {
         out.push({
@@ -85,8 +91,10 @@ export function discoverWorkspaces(root: string, options: DiscoverWorkspacesOpti
         });
     }
 
-    for (const pattern of patterns) {
+    for (const pattern of includePatterns) {
         for (const matchedDir of expandPattern(root, pattern)) {
+            const relativeLocation = relative(root, matchedDir).split(sep).join('/');
+            if (excludeMatchers.some((re) => re.test(relativeLocation))) continue;
             const pkgPath = join(matchedDir, 'package.json');
             if (!existsSync(pkgPath)) continue;
             let manifest: WorkspaceManifest;
@@ -98,7 +106,7 @@ export function discoverWorkspaces(root: string, options: DiscoverWorkspacesOpti
             if (!manifest.name) continue;
             out.push({
                 location: matchedDir,
-                relativeLocation: relative(root, matchedDir).split(sep).join('/'),
+                relativeLocation,
                 name: manifest.name,
                 version: manifest.version ?? '0.0.0',
                 manifest,
@@ -321,10 +329,7 @@ export function buildReverseDependencyGraph(
  * @param reverse The reverse-dep graph from `buildReverseDependencyGraph`.
  * @param seeds Workspace names to start from.
  */
-export function affectedClosure(
-    reverse: DependencyGraph,
-    seeds: readonly string[],
-): Set<string> {
+export function affectedClosure(reverse: DependencyGraph, seeds: readonly string[]): Set<string> {
     const out = new Set<string>();
     const queue: string[] = [];
     for (const seed of seeds) {

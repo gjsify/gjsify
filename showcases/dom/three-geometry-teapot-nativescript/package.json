@@ -1,0 +1,36 @@
+{
+    "name": "@gjsify/example-dom-three-geometry-teapot-nativescript",
+    "version": "0.4.36",
+    "description": "The three.js Utah teapot on NativeScript-Android — the same shared start(canvas) seam as the GNOME + browser teapot, built with @gjsify/nativescript-vite on Vite 8.",
+    "private": true,
+    "type": "module",
+    "main": "app/app.ts",
+    "scripts": {
+        "prepare:android": "nativescript prepare android --no-hmr",
+        "build:android": "nativescript build android --no-hmr",
+        "run:android": "nativescript run android --no-hmr"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git"
+    },
+    "license": "MIT",
+    "dependencies": {
+        "@gjsify/empty": "^0.4.36",
+        "@gjsify/module": "^0.4.36",
+        "@gjsify/nativescript-vite": "^0.4.36",
+        "@nativescript/canvas": "^2.0.32",
+        "@nativescript/canvas-polyfill": "^2.0.32",
+        "@nativescript/core": "~9.0.0",
+        "@nativescript/theme": "^3.1.0",
+        "three": "^0.184.0"
+    },
+    "devDependencies": {
+        "@nativescript/android": "9.0.4",
+        "@nativescript/types": "~9.0.0",
+        "@nativescript/vite": "^2.0.3",
+        "nativescript": "^9.0.6",
+        "typescript": "~5.4.0",
+        "vite": "^8.0.16"
+    }
+}
