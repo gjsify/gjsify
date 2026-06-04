@@ -3,7 +3,6 @@
     "version": "0.4.36",
     "description": "The three.js Utah teapot on NativeScript-Android — the same shared start(canvas) seam as the GNOME + browser teapot, built with @gjsify/nativescript-vite on Vite 8.",
     "private": true,
-    "type": "module",
     "main": "app/app.ts",
     "scripts": {
         "prepare:android": "nativescript prepare android --no-hmr",
