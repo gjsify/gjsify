@@ -12,6 +12,7 @@ import installBackendParseSpecSuite from './install-backend-parse-spec.spec.js';
 import installTarballCacheSuite from './utils/install-tarball-cache.spec.js';
 import installPackumentCacheSuite from './utils/install-packument-cache.spec.js';
 import installCacheFsSuite from './utils/install-cache-fs.spec.js';
+import authNpmrcSuite from './utils/auth-npmrc.spec.js';
 import inlineStaticReadsSuite from './inline-static-reads.spec.js';
 import resolveNpmPackageSuite from './utils/resolve-npm-package.spec.js';
 // `@gjsify/rolldown-plugin-gjsify` has no test runner of its own; its
@@ -31,6 +32,7 @@ run({
     installBackendParseSpecSuite,
     installTarballCacheSuite,
     installPackumentCacheSuite,
+    authNpmrcSuite,
     installCacheFsSuite,
     inlineStaticReadsSuite,
     resolveNpmPackageSuite,
