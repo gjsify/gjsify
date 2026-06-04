@@ -313,13 +313,16 @@ export const ALIASES_NODE_FOR_NATIVESCRIPT = {
     'sqlite':              '@gjsify/empty',
     'sys':                 '@gjsify/empty',
     'zlib':                '@gjsify/empty',
-    'module':              '@gjsify/empty',
 
     // Mobile-tractable Node built-ins → @gjsify/<X>
     'assert':              '@gjsify/assert',
     'assert/strict':       '@gjsify/assert',
     'async_hooks':         '@gjsify/async_hooks',
     'buffer':              '@gjsify/buffer',
+    // `@gjsify/module` (not `@gjsify/empty`): provides the named exports
+    // `createRequire` / `builtinModules` / `isBuiltin`, so `import { createRequire }
+    // from 'module'` in deps (e.g. css-tree) resolves instead of failing the build.
+    'module':              '@gjsify/module',
     'crypto':              '@gjsify/crypto',
     'events':              '@gjsify/events',
     'fs':                  '@gjsify/fs',

@@ -39,6 +39,7 @@
     ],
     "license": "MIT",
     "dependencies": {
+        "@gjsify/empty": "workspace:^",
         "@gjsify/resolve-npm": "workspace:^",
         "@gjsify/rolldown-plugin-deepkit": "workspace:^",
         "@gjsify/rolldown-plugin-gjsify": "workspace:^",
