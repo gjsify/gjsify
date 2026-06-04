@@ -39,6 +39,31 @@ function makeMockFetch(handler: (url: string, init?: RequestInit) => Promise<Res
     }) as typeof fetch;
 }
 
+/** Gzip a string to bytes via the Web CompressionStream (cross-platform). Mirrors
+ *  the registry's `Content-Encoding: gzip` so the decode path is exercised. */
+async function gzipBytes(text: string): Promise<Uint8Array> {
+    const Comp = (globalThis as { CompressionStream?: typeof CompressionStream }).CompressionStream;
+    if (typeof Comp !== 'function') throw new Error('CompressionStream unavailable in this test environment');
+    const stream = new Blob([new TextEncoder().encode(text)]).stream().pipeThrough(new Comp('gzip'));
+    const reader = (stream as ReadableStream<Uint8Array>).getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const c = value instanceof Uint8Array ? value : new Uint8Array(value as ArrayBufferLike);
+        chunks.push(c);
+        total += c.length;
+    }
+    const out = new Uint8Array(total);
+    let pos = 0;
+    for (const c of chunks) {
+        out.set(c, pos);
+        pos += c.length;
+    }
+    return out;
+}
+
 export default async () => {
     await describe('@gjsify/npm-registry — packumentUrl + registryFor', async () => {
         await it('plain name', async () => {
@@ -128,6 +153,16 @@ export default async () => {
             const h = buildHeaders('https://registry.npmjs.org/lodash', { npmrc: cfg });
             expect(h['authorization']).toBe('Bearer tok-x');
             expect(typeof h['user-agent']).toBe('string');
+        });
+
+        await it('buildHeaders defaults accept-encoding to identity', async () => {
+            const h = buildHeaders('https://registry.npmjs.org/lodash', {});
+            expect(h['accept-encoding']).toBe('identity');
+        });
+
+        await it('buildHeaders honours an explicit acceptEncoding', async () => {
+            const h = buildHeaders('https://registry.npmjs.org/lodash', { acceptEncoding: 'gzip' });
+            expect(h['accept-encoding']).toBe('gzip');
         });
     });
 
@@ -287,6 +322,37 @@ export default async () => {
             }
             expect(caught instanceof PackageNotFoundError).toBe(true);
         });
+
+        await it('requests gzip + compress:false for packuments', async () => {
+            let seenEnc: string | null = null;
+            let seenCompress: unknown = 'unset';
+            const mock = makeMockFetch(async (_url, init) => {
+                seenEnc = (init?.headers as Record<string, string> | undefined)?.['accept-encoding'] ?? null;
+                seenCompress = (init as { compress?: unknown } | undefined)?.compress;
+                return new Response(FRESH_BODY, { status: 200 });
+            });
+            await fetchPackumentConditional('lodash', { fetch: mock });
+            // gzip lets the registry compress the JSON (~4×); compress:false makes
+            // the fetch layer hand us the raw body to gunzip ourselves (GJS's
+            // streaming decode trips a libsoup gzip bug).
+            expect(seenEnc).toBe('gzip');
+            expect(seenCompress).toBe(false);
+        });
+
+        await it('decodes a gzip-encoded packument body', async () => {
+            const gz = await gzipBytes(FRESH_BODY);
+            // Sanity: the helper really produced a gzip stream (magic bytes).
+            expect(gz[0]).toBe(0x1f);
+            expect(gz[1]).toBe(0x8b);
+            // `as BodyInit`: a `Uint8Array<ArrayBufferLike>` (the helper's
+            // return) isn't directly assignable to `BodyInit` under TS 5.7+'s
+            // ArrayBuffer-strictness, but is a valid Response body at runtime.
+            const mock = makeMockFetch(async () => new Response(gz as unknown as BodyInit, { status: 200 }));
+            const r = await fetchPackumentConditional('lodash', { fetch: mock });
+            expect(r.status).toBe('fresh');
+            expect(r.packument?.name).toBe('lodash');
+            expect(r.packument?.['dist-tags'].latest).toBe('4.17.21');
+        });
     });
 
     await describe('@gjsify/npm-registry — fetchTarball (mocked)', async () => {
@@ -297,6 +363,19 @@ export default async () => {
             expect(got.length).toBe(4);
             expect(got[0]).toBe(0x1f);
             expect(got[1]).toBe(0x8b);
+        });
+
+        await it('requests accept-encoding: identity (never gzip)', async () => {
+            // Tarballs are already-gzipped .tgz; transport-gzip would change the
+            // raw bytes verifyIntegrity checks the SRI against. This guards that
+            // the per-call-site encoding split never flips tarballs to gzip.
+            let seenEnc: string | null = null;
+            const mock = makeMockFetch(async (_url, init) => {
+                seenEnc = (init?.headers as Record<string, string> | undefined)?.['accept-encoding'] ?? null;
+                return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
+            });
+            await fetchTarball('https://r/x.tgz', { fetch: mock });
+            expect(seenEnc).toBe('identity');
         });
 
         await it('verifies integrity when supplied', async () => {

@@ -3,11 +3,11 @@
 // Sibling to the content-addressable tarball cache (install-tarball-cache.ts).
 // Stores each package's abbreviated packument plus the registry `ETag` it came
 // with, so a re-resolve (lockfile miss — e.g. a dependency range changed) can
-// send a conditional `If-None-Match` and skip re-downloading the body for every
-// unchanged package. Packuments are fetched with `accept-encoding: identity`
-// (a libsoup chunked-gzip workaround), so each is ~60–98 KB uncompressed —
-// turning the unchanged majority into empty `304 Not Modified` responses is a
-// real bandwidth + parse saving on repeated/dep-churn installs.
+// send a conditional `If-None-Match` and turn the unchanged majority into empty
+// `304 Not Modified` responses — a real bandwidth + parse saving on repeated /
+// dep-churn installs, on top of the ~4× gzip transfer for the changed minority
+// (packuments are fetched gzip-compressed and decoded by the fetch layer; see
+// `@gjsify/npm-registry` `fetchPackumentConditional`).
 //
 // Mirrors pnpm's metadata cache + npm's make-fetch-happen HTTP-cache layer.
 //
@@ -24,11 +24,11 @@
 // Disabled with `GJSIFY_PACKUMENT_CACHE=0` (or `false`). Honours
 // `XDG_CACHE_HOME` like the tarball + dlx caches.
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Packument } from '@gjsify/npm-registry';
+
+import { atomicWrite, gjsifyCacheRoot, readCacheFile } from './install-cache-fs.js';
 
 const CACHE_LAYOUT_VERSION = 'v1';
 
@@ -52,11 +52,9 @@ function isEnabled(): boolean {
     return !(trimmed === '0' || trimmed === 'false' || trimmed === '');
 }
 
-/** Root of the packument cache, honouring `XDG_CACHE_HOME`. */
+/** Root of the packument cache: `$XDG_CACHE_HOME/gjsify/metadata/v1`. */
 function cacheRoot(): string {
-    const xdg = process.env.XDG_CACHE_HOME;
-    const base = xdg && xdg.length > 0 ? xdg : join(homedir(), '.cache');
-    return join(base, 'gjsify', 'metadata', CACHE_LAYOUT_VERSION);
+    return gjsifyCacheRoot('metadata', CACHE_LAYOUT_VERSION);
 }
 
 /** FNV-1a 32-bit → 2 hex chars. Directory-fan-out only; not security-sensitive. */
@@ -87,9 +85,10 @@ function pathFor(registry: string, name: string): string | null {
 export function getCachedPackument(registry: string, name: string): CachedPackument | null {
     const path = pathFor(registry, name);
     if (!path) return null;
-    if (!existsSync(path)) return null;
+    const buf = readCacheFile(path);
+    if (!buf) return null;
     try {
-        const parsed = JSON.parse(readFileSync(path, 'utf-8')) as Partial<PackumentCacheEntry>;
+        const parsed = JSON.parse(buf.toString('utf-8')) as Partial<PackumentCacheEntry>;
         if (typeof parsed.etag !== 'string' || !parsed.etag) return null;
         if (!parsed.packument || typeof parsed.packument !== 'object') return null;
         return { etag: parsed.etag, packument: parsed.packument as Packument };
@@ -108,14 +107,6 @@ export function putCachedPackument(registry: string, name: string, etag: string,
     if (!etag) return;
     const path = pathFor(registry, name);
     if (!path) return;
-    try {
-        mkdirSync(join(path, '..'), { recursive: true });
-        const entry: PackumentCacheEntry = { etag, packument };
-        const tmp = `${path}.tmp.${process.pid}`;
-        writeFileSync(tmp, JSON.stringify(entry));
-        renameSync(tmp, path);
-    } catch {
-        // Best-effort — a cache-write failure leaves the install to proceed
-        // with the in-memory packument; we just won't get a 304 next run.
-    }
+    const entry: PackumentCacheEntry = { etag, packument };
+    atomicWrite(path, JSON.stringify(entry));
 }
