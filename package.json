@@ -117,6 +117,7 @@
         "tests/browser",
         "tests/dom/*",
         "tests/integration/*",
+        "!tests/integration/nativescript",
         "tests/e2e/*",
         "website"
     ]

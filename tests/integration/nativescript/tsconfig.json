@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "module": "ESNext",
+        "moduleResolution": "Bundler",
+        "target": "ES2020",
+        "lib": ["ES2020", "DOM"],
+        "types": ["@nativescript/types"],
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "strict": true,
+        "noEmit": true
+    },
+    "include": ["app/**/*.ts", "vite.config.ts", "nativescript.config.ts"]
+}
