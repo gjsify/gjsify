@@ -3,7 +3,11 @@
 // Node.js exports Blob from 'node:buffer' since v18.
 // On GJS, globalThis.Blob is not available — this provides a minimal polyfill.
 
-const _encoder = new TextEncoder();
+// Lazily instantiated — a top-level `new TextEncoder()` crashes the bundle on
+// the NativeScript V8 runtime, where the global is registered after module eval.
+// See buffer-codec.ts for the full rationale. No behaviour change elsewhere.
+let _encoderInstance: TextEncoder | undefined;
+const _encoder = (): TextEncoder => (_encoderInstance ??= new TextEncoder());
 
 class BlobPolyfill implements Blob {
     _parts: BlobPart[];
@@ -14,7 +18,7 @@ class BlobPolyfill implements Blob {
         this._parts = parts || [];
         this.type = options?.type || '';
         this.size = this._parts.reduce((acc: number, part: BlobPart) => {
-            if (typeof part === 'string') return acc + _encoder.encode(part).byteLength;
+            if (typeof part === 'string') return acc + _encoder().encode(part).byteLength;
             if (part instanceof ArrayBuffer) return acc + part.byteLength;
             if (ArrayBuffer.isView(part)) return acc + part.byteLength;
             if (part && typeof (part as Blob).size === 'number') return acc + (part as Blob).size;
@@ -34,7 +38,7 @@ class BlobPolyfill implements Blob {
     async arrayBuffer(): Promise<ArrayBuffer> {
         const chunks: Uint8Array[] = [];
         for (const part of this._parts) {
-            if (typeof part === 'string') chunks.push(_encoder.encode(part));
+            if (typeof part === 'string') chunks.push(_encoder().encode(part));
             else if (part instanceof ArrayBuffer) chunks.push(new Uint8Array(part));
             else if (ArrayBuffer.isView(part))
                 chunks.push(new Uint8Array(part.buffer as ArrayBuffer, part.byteOffset, part.byteLength));
