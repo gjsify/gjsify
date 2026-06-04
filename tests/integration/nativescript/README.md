@@ -62,14 +62,17 @@ an unpublished workspace change, `npm pack` it and point the dep at the tarball.
 >   build.
 > - `@gjsify/buffer` — lazy `TextEncoder`/`TextDecoder` init; 0.4.36 constructs
 >   them at module-eval time and crashes on NS V8.
+> - `@gjsify/vite-plugin-gjsify` — `gjsifyNativescript()` now aliases `css-tree`
+>   to its bundled dist (data inlined), keeping `@nativescript/core` → css-tree's
+>   `createRequire` data-loads out of the bundle (they throw on NS V8); 0.4.36
+>   has no such alias.
 > - `@gjsify/nativescript-vite@0.4.36` — a `workspace:` range leaked into its npm
 >   manifest during the manual first-publish, making it uninstallable from npm
 >   (CI's `gjsify publish` resolves it, so the next release self-heals it).
 >
 > Until the next release lands, validate against local packs: `gjsify pack` each of
-> `@gjsify/{nativescript-vite,resolve-npm,buffer}`, point the deps / an `overrides`
-> block at the tarballs, then `npm install`. The `css-tree` alias in `vite.config.ts`
-> is the third fix, carried in-repo until it moves into `gjsifyNativescript()`.
+> `@gjsify/{nativescript-vite,vite-plugin-gjsify,resolve-npm,buffer}`, point the deps /
+> an `overrides` block at the tarballs, then `npm install`.
 
 ## Running locally
 
