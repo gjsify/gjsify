@@ -66,6 +66,20 @@ export default async (): Promise<void> => {
                 }
             });
 
+            await it('excludes dirs matched by a `!`-negation pattern', () => {
+                const root = makeFixture({
+                    '.': { name: 'root', private: true, workspaces: ['showcases/*', '!showcases/excluded'] },
+                    'showcases/kept': { name: 'kept', version: '1.0.0' },
+                    'showcases/excluded': { name: 'excluded', version: '1.0.0' },
+                });
+                try {
+                    const ws = discoverWorkspaces(root);
+                    expect(ws.map((w) => w.name).sort()).toStrictEqual(['kept']);
+                } finally {
+                    rmSync(root, { recursive: true, force: true });
+                }
+            });
+
             await it('skips dirs without package.json', () => {
                 const root = makeFixture({
                     '.': { name: 'root', private: true, workspaces: ['packages/*'] },
@@ -316,10 +330,7 @@ export default async (): Promise<void> => {
             });
 
             await it('unmatched files surface for caller-side classification', () => {
-                const r = workspacesForChangedFiles(ws, '/abs', [
-                    'README.md',
-                    'scripts/audit-runtimes.mjs',
-                ]);
+                const r = workspacesForChangedFiles(ws, '/abs', ['README.md', 'scripts/audit-runtimes.mjs']);
                 expect(r.matched.size).toBe(0);
                 expect(r.unmatched.length).toBe(2);
             });
@@ -335,9 +346,7 @@ export default async (): Promise<void> => {
             });
 
             await it('handles backslashes (Windows-style diff)', () => {
-                const r = workspacesForChangedFiles(ws, '/abs', [
-                    'packages\\node\\fs\\src\\index.ts',
-                ]);
+                const r = workspacesForChangedFiles(ws, '/abs', ['packages\\node\\fs\\src\\index.ts']);
                 expect(r.matched.has('@gjsify/fs')).toBeTruthy();
             });
 

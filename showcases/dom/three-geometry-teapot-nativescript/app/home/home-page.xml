@@ -1,0 +1,12 @@
+<Page navigatingTo="onNavigatingTo" xmlns="http://schemas.nativescript.org/tns.xsd" xmlns:canvas="@nativescript/canvas">
+
+    <ActionBar>
+        <Label text="Teapot Spike — WebGL cube" />
+    </ActionBar>
+
+    <GridLayout rows="*" columns="*">
+        <canvas:Canvas id="cv" ready="onCanvasReady" row="0" col="0"
+            width="100%" height="100%"
+            verticalAlignment="stretch" horizontalAlignment="stretch" />
+    </GridLayout>
+</Page>

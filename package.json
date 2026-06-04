@@ -112,6 +112,7 @@
         "examples/node/*",
         "examples/dom/*",
         "showcases/dom/*",
+        "!showcases/dom/three-geometry-teapot-nativescript",
         "showcases/node/*",
         "tests/browser",
         "tests/dom/*",

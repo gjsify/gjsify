@@ -1,0 +1,8 @@
+# NativeScript build artifacts
+platforms/
+hooks/
+.ns-vite-build/
+node_modules/
+package-lock.json
+*.apk
+*.aab
