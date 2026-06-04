@@ -158,13 +158,26 @@ export async function fetchPackumentConditional(
 ): Promise<ConditionalPackument> {
     const registry = opts.registry ?? registryFor(name, opts.npmrc);
     const url = packumentUrl(name, registry);
-    const headers = buildHeaders(url, opts);
+    // Packuments are JSON — request gzip (~4× smaller); the fetch layer
+    // decompresses transparently on both Node and GJS (see buildHeaders).
+    const headers = buildHeaders(url, { ...opts, acceptEncoding: 'gzip' });
     headers['accept'] ??= 'application/vnd.npm.install-v1+json';
     if (opts.ifNoneMatch) headers['if-none-match'] = opts.ifNoneMatch;
 
     const res = await fetchWithRetry(
         url,
-        { headers, signal: opts.signal },
+        // `compress: false` tells the fetch layer NOT to transparently decode
+        // the gzip body. We decode it ourselves with a full-buffer gunzip
+        // (decodeJsonBody) because GJS's @gjsify/fetch decompresses by STREAMING
+        // the body through a DecompressionStream, and that streaming decode
+        // trips libsoup's G_IO_ERROR_PARTIAL_INPUT on npm-CDN gzip responses
+        // (the connection closes at a non-chunk boundary). The full body is
+        // received intact — only the streaming decode is fragile — so buffering
+        // then decoding (the same pattern @gjsify/tar uses for .tgz) is robust.
+        // On Node, undici ignores `compress` and may auto-decompress anyway;
+        // decodeJsonBody's gzip-magic-byte sniff handles both (decoded → no
+        // magic → parse as-is; raw gzip → magic → gunzip).
+        { headers, signal: opts.signal, compress: false },
         {
             fetch: opts.fetch,
             retries: opts.retries,
@@ -196,9 +209,54 @@ export async function fetchPackumentConditional(
         throw new Error(`registry GET ${url} -> ${res.status} ${res.statusText}`);
     }
     const etag = res.headers.get('etag') ?? undefined;
-    const body = (await res.json()) as unknown;
+    const body = await decodeJsonBody(res);
     assertPackument(name, body);
     return { status: 'fresh', packument: body, etag };
+}
+
+/**
+ * Read a JSON response body, transparently gunzipping it when it arrives
+ * gzip-encoded. Detection is by the gzip magic bytes (`0x1f 0x8b`) of the raw
+ * `arrayBuffer`, NOT the `Content-Encoding` header — this is runtime-agnostic:
+ *   - Node/undici may have already decoded the body (no magic → parse as-is).
+ *   - GJS/@gjsify/fetch with `compress: false` yields the raw gzip (magic →
+ *     gunzip with a full-buffer DecompressionStream, which — unlike streaming
+ *     decode — is reliable; the same pattern @gjsify/tar uses for `.tgz`).
+ */
+async function decodeJsonBody(res: Response): Promise<unknown> {
+    const buf = new Uint8Array(await res.arrayBuffer());
+    const isGzip = buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b;
+    const bytes = isGzip ? await gunzip(buf) : buf;
+    return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+/** Full-buffer gzip decode via the Web DecompressionStream (cross-platform). */
+async function gunzip(input: Uint8Array): Promise<Uint8Array> {
+    const Decomp = (globalThis as { DecompressionStream?: typeof DecompressionStream }).DecompressionStream;
+    if (typeof Decomp !== 'function') {
+        throw new Error(
+            '@gjsify/npm-registry: globalThis.DecompressionStream is unavailable — ' +
+                "cannot decode a gzip registry response (on GJS, register '@gjsify/compression-streams')",
+        );
+    }
+    const stream = new Blob([new Uint8Array(input)]).stream().pipeThrough(new Decomp('gzip'));
+    const reader = (stream as ReadableStream<Uint8Array>).getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunk = value instanceof Uint8Array ? value : new Uint8Array(value as ArrayBufferLike);
+        chunks.push(chunk);
+        total += chunk.length;
+    }
+    const out = new Uint8Array(total);
+    let pos = 0;
+    for (const c of chunks) {
+        out.set(c, pos);
+        pos += c.length;
+    }
+    return out;
 }
 
 /** Fetch + parse a packument. Retries on transient errors (see fetchWithRetry). */
@@ -215,7 +273,9 @@ export async function fetchPackument(name: string, opts: FetchOptions = {}): Pro
 
 /** Download a tarball as bytes. Verifies SRI `integrity` when supplied. */
 export async function fetchTarball(url: string, opts: FetchOptions & { integrity?: string } = {}): Promise<Uint8Array> {
-    const headers = buildHeaders(url, opts);
+    // Tarballs stay `identity`: a `.tgz` is already gzipped, and transport-gzip
+    // would change the raw bytes `verifyIntegrity` checks the SRI against.
+    const headers = buildHeaders(url, { ...opts, acceptEncoding: 'identity' });
     headers['accept'] ??= 'application/octet-stream';
 
     const res = await fetchWithRetry(
@@ -269,7 +329,10 @@ export async function fetchTarball(url: string, opts: FetchOptions & { integrity
  */
 export async function fetchWithRetry(
     url: string,
-    init: { headers: Record<string, string>; signal?: AbortSignal },
+    // `compress` is forwarded verbatim to the fetch impl. On @gjsify/fetch
+    // (GJS) `compress: false` disables transparent gzip decoding so the caller
+    // can buffer-then-gunzip itself; Node's undici ignores the field.
+    init: { headers: Record<string, string>; signal?: AbortSignal; compress?: boolean },
     opts: Pick<FetchOptions, 'fetch' | 'retries' | 'retryDelayMs' | 'timeoutMs' | 'onRetry'>,
 ): Promise<Response> {
     const fetchImpl = opts.fetch ?? globalThis.fetch;
@@ -556,17 +619,30 @@ export function parseNpmrc(text: string): NpmrcConfig {
     return out;
 }
 
-/** Build auth + UA headers for a request URL. Pure (no I/O). */
-export function buildHeaders(url: string, opts: FetchOptions): Record<string, string> {
+/**
+ * Build auth + UA headers for a request URL. Pure (no I/O).
+ *
+ * `acceptEncoding` controls the `Accept-Encoding` header (default `identity`):
+ *
+ *   - **Packuments** pass `'gzip'` — the JSON corpus compresses ~4× and is
+ *     transparently decompressed by the fetch layer (undici auto-decompresses
+ *     on Node; on GJS the `@gjsify/fetch` shared session has libsoup's
+ *     `ContentDecoder` removed and `@gjsify/fetch` does its own
+ *     `DecompressionStream` decode keyed off the surviving `Content-Encoding`
+ *     header — so `res.json()` here still sees plain JSON on both runtimes).
+ *     This bypasses the libsoup chunked-gzip decoder bug (`G_IO_ERROR_
+ *     PARTIAL_INPUT` at the tail of an npm-CDN gzip stream) that the old blanket
+ *     `identity` default was working around.
+ *   - **Tarballs** pass `'identity'` — they are already-gzipped `.tgz`, and
+ *     transport-gzip would change which bytes the SRI `verifyIntegrity` runs
+ *     over (the raw response body), breaking integrity.
+ *
+ * Callers that don't care (e.g. `whoami`) get the safe `identity` default.
+ */
+export function buildHeaders(url: string, opts: FetchOptions & { acceptEncoding?: string }): Record<string, string> {
     const headers: Record<string, string> = {
         'user-agent': 'gjsify-install/0.3.7',
-        // Disable transparent gzip negotiation. Under GJS, libsoup's chunked-
-        // decoder raises G_IO_ERROR_PARTIAL_INPUT at the tail of npm CDN
-        // gzipped responses (the upstream closes the TCP connection at a
-        // non-chunk boundary). Requesting identity avoids the entire chunked-
-        // gzip code path. Bandwidth cost is negligible for our payloads
-        // (~64 KB packuments).
-        'accept-encoding': 'identity',
+        'accept-encoding': opts.acceptEncoding ?? 'identity',
     };
     if (opts.npmrc) {
         const auth = resolveAuthForUrl(url, opts.npmrc);

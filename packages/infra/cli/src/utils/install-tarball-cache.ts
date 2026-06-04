@@ -31,33 +31,37 @@
 // relies on too. Tarballs without an integrity hash (older registries)
 // fall through to a no-op cache and download every time.
 
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { atomicWrite, gjsifyCacheRoot, readCacheFile } from './install-cache-fs.js';
+
 const CACHE_LAYOUT_VERSION = 'v1';
 
-/**
- * Resolve the root of the tarball cache. Mirrors the dlx cache's
- * XDG-honouring lookup so users with a custom `XDG_CACHE_HOME` get a
- * single coherent cache root.
- */
+/** Root of the tarball cache: `$XDG_CACHE_HOME/gjsify/tarballs/v1`. */
 function cacheRoot(): string {
-    const xdg = process.env.XDG_CACHE_HOME;
-    const base = xdg && xdg.length > 0 ? xdg : join(homedir(), '.cache');
-    return join(base, 'gjsify', 'tarballs', CACHE_LAYOUT_VERSION);
+    return gjsifyCacheRoot('tarballs', CACHE_LAYOUT_VERSION);
+}
+
+interface ParsedSri {
+    /** SRI algorithm, e.g. `sha512`. */
+    algorithm: string;
+    /** Hex-encoded digest. */
+    hex: string;
 }
 
 /**
- * Convert an SRI integrity string (`sha512-AbCd…=`) into a cache file path.
- * Returns `null` for unsupported / malformed integrity values so the caller
- * can fall back to a fresh download.
+ * Parse an SRI integrity string (`sha512-AbCd…=`) into its algorithm + hex
+ * digest, or `null` for a missing / malformed value (caller falls back to a
+ * fresh download). Shared by both the gjsify-store and npm-cacache path
+ * derivations below — the base64→hex decode used to be inlined in each.
  */
-function pathFor(integrity: string | undefined): string | null {
+function parseSri(integrity: string | undefined): ParsedSri | null {
     if (!integrity) return null;
     const dashIdx = integrity.indexOf('-');
     if (dashIdx <= 0 || dashIdx === integrity.length - 1) return null;
-    const algo = integrity.slice(0, dashIdx);
+    const algorithm = integrity.slice(0, dashIdx);
     const b64 = integrity.slice(dashIdx + 1).replace(/=+$/, '');
     // Decode base64 → hex; throws on malformed input which we swallow.
     let hex: string;
@@ -67,8 +71,19 @@ function pathFor(integrity: string | undefined): string | null {
         return null;
     }
     if (hex.length < 4) return null;
-    const shard = hex.slice(0, 2);
-    return join(cacheRoot(), algo, shard, `${hex}.tgz`);
+    return { algorithm, hex };
+}
+
+/**
+ * Convert an SRI integrity string into a cache file path. Returns `null` for
+ * unsupported / malformed integrity values so the caller can fall back to a
+ * fresh download.
+ */
+function pathFor(integrity: string | undefined): string | null {
+    const sri = parseSri(integrity);
+    if (!sri) return null;
+    const shard = sri.hex.slice(0, 2);
+    return join(cacheRoot(), sri.algorithm, shard, `${sri.hex}.tgz`);
 }
 
 /**
@@ -80,15 +95,7 @@ function pathFor(integrity: string | undefined): string | null {
 export function getCachedTarball(integrity: string | undefined): Uint8Array | null {
     const path = pathFor(integrity);
     if (!path) return null;
-    if (!existsSync(path)) return null;
-    try {
-        const buf = readFileSync(path);
-        // Sanity: a zero-byte file is a previous-write failure; treat as MISS.
-        if (buf.length === 0) return null;
-        return buf;
-    } catch {
-        return null;
-    }
+    return readCacheFile(path);
 }
 
 /**
@@ -103,16 +110,9 @@ export function getCachedTarball(integrity: string | undefined): Uint8Array | nu
 export function putCachedTarball(integrity: string | undefined, bytes: Uint8Array): void {
     const path = pathFor(integrity);
     if (!path) return;
+    // Idempotent: content-addressed entries are immutable, never rewritten.
     if (existsSync(path)) return;
-    try {
-        mkdirSync(join(path, '..'), { recursive: true });
-        const tmp = `${path}.tmp.${process.pid}`;
-        writeFileSync(tmp, bytes);
-        renameSync(tmp, path);
-    } catch {
-        // Cache write failure is non-fatal — the install proceeds with the
-        // in-memory bytes; we just won't get a hit on the next run.
-    }
+    atomicWrite(path, bytes);
 }
 
 /**
@@ -177,22 +177,12 @@ function npmCacacheContentDir(): string | null {
 
 /** Map an SRI integrity to its npm cacache content-store path, or `null`. */
 function npmCachePathFor(integrity: string | undefined): string | null {
-    if (!integrity) return null;
     const contentDir = npmCacacheContentDir();
     if (!contentDir) return null;
-    const dashIdx = integrity.indexOf('-');
-    if (dashIdx <= 0 || dashIdx === integrity.length - 1) return null;
-    const algo = integrity.slice(0, dashIdx);
-    const b64 = integrity.slice(dashIdx + 1).replace(/=+$/, '');
-    let hex: string;
-    try {
-        hex = Buffer.from(b64, 'base64').toString('hex');
-    } catch {
-        return null;
-    }
-    if (hex.length < 4) return null;
+    const sri = parseSri(integrity);
+    if (!sri) return null;
     // cacache shards the hex digest into [0:2]/[2:4]/[4:] with NO extension.
-    return join(contentDir, algo, hex.slice(0, 2), hex.slice(2, 4), hex.slice(4));
+    return join(contentDir, sri.algorithm, sri.hex.slice(0, 2), sri.hex.slice(2, 4), sri.hex.slice(4));
 }
 
 /**
@@ -205,12 +195,5 @@ function npmCachePathFor(integrity: string | undefined): string | null {
 export function getForeignCachedTarball(integrity: string | undefined): Uint8Array | null {
     const path = npmCachePathFor(integrity);
     if (!path) return null;
-    if (!existsSync(path)) return null;
-    try {
-        const buf = readFileSync(path);
-        if (buf.length === 0) return null;
-        return buf;
-    } catch {
-        return null;
-    }
+    return readCacheFile(path);
 }
