@@ -28,11 +28,24 @@
 //        bundle's own URL and `__dirname`/`__filename` derive from it.
 //
 //   4. CJS (`__dirname`/`__filename` only, no `import.meta.url`)
-//      → declare them from the file's absolute build path. NOTE: still
-//        build-location-coupled and shares the "breaks when published" class of
-//        bug case (1) fixes; injecting an ESM import into a CJS module is unsafe,
-//        so a CJS-safe runtime-resolve is tracked as a follow-up. ESM deps (the
-//        common data-reader shape, e.g. typedoc) take path (1).
+//      → when `runtimeResolve` is on (ESM output + bundle-URL banner present),
+//        declare `__dirname`/`__filename` from the RUNTIME module-resolve shim
+//        — the same location-independent strategy as case (1), so the bundle
+//        works after being published/relocated. This is what lets `@gjsify/tsc`
+//        find its `lib.*.d.ts` files relative to the INSTALLED bundle (via
+//        `getExecutingFilePath()` → `__filename`) instead of the build
+//        machine's `node_modules` path. Rolldown wraps the CJS module in an
+//        ESM `__commonJS(...)` factory at link time, so a prepended ESM
+//        `import { … }` header is hoisted alongside the bundle's other imports
+//        — the same shape case (1) already relies on for ESM deps. The shim
+//        functions resolve the dep's own package root at runtime and never
+//        throw (they fall back to the bundle's own location), preserving the
+//        lazy `createRequire(__filename)` semantics.
+//      → when `runtimeResolve` is OFF (the rare `--format iife|cjs` build that
+//        can't host the bundle-URL banner) fall back to the file's absolute
+//        build path. Build-location-coupled — shares the "breaks when
+//        published" class of bug; acceptable only because those output formats
+//        cannot anchor a runtime URL.
 //
 // Hosting: a Rolldown `transform(code, id)` hook with `order: 'post'` — runs
 // after deepkit/blueprint/css pre-transforms but still during module loading,
@@ -189,8 +202,36 @@ function rewriteZipResident(src: string, path: string, flags: TokenFlags): Rewri
 }
 
 /**
- * Case 4 — CJS (no `import.meta.url`). Declare `__dirname`/`__filename` from the
- * absolute build path. Build-location-coupled — see file header note.
+ * Case 4a — CJS, runtime-resolve. Declare `__dirname`/`__filename` from the
+ * module-resolve shim so they point at the file's location relative to the
+ * INSTALLED bundle, not the build machine. Location-independent — the fix for
+ * the "works in the workspace, crashes once published" class of bug for CJS
+ * deps (e.g. `@gjsify/tsc`'s `typescript/lib/_tsc.js` resolving its sibling
+ * `lib.*.d.ts` files). Mirrors `rewriteOnDiskEsm` minus the `import.meta.url`
+ * rewrite (a CJS file has none).
+ */
+function rewriteCjsRuntime(src: string, path: string, flags: TokenFlags): RewriteResult {
+    const spec = JSON.stringify(extractPackageSpec(path));
+    const used: string[] = [];
+    const preamble: string[] = [];
+    if (needsDirnameDecl(src, flags)) {
+        preamble.push(`var __dirname = __gjsifyModuleDir(${spec});`);
+        used.push('__gjsifyModuleDir');
+    }
+    if (needsFilenameDecl(src, flags)) {
+        preamble.push(`var __filename = __gjsifyModuleFile(${spec});`);
+        used.push('__gjsifyModuleFile');
+    }
+    // Nothing to declare (both tokens already locally bound) — leave untouched.
+    if (used.length === 0) return { code: src, moduleType: moduleTypeForPath(path) };
+    const header = `import { ${used.join(', ')} } from ${JSON.stringify(MODULE_RESOLVE_SHIM)};`;
+    return { code: withPreamble(src, preamble, header), moduleType: moduleTypeForPath(path) };
+}
+
+/**
+ * Case 4b — CJS, legacy. Declare `__dirname`/`__filename` from the absolute
+ * build path. Build-location-coupled — see file header note. Used only for the
+ * non-ESM output formats that can't host the bundle-URL anchor banner.
  */
 function rewriteCjsAbsolute(src: string, path: string, flags: TokenFlags): RewriteResult {
     const preamble: string[] = [];
@@ -243,7 +284,9 @@ export function rewriteContents(
             ? rewriteOnDiskEsm(src, args.path, flags)
             : rewriteOnDiskEsmLegacy(src, args.path, bundleDir, flags);
     }
-    return rewriteCjsAbsolute(src, args.path, flags);
+    return runtimeResolve
+        ? rewriteCjsRuntime(src, args.path, flags)
+        : rewriteCjsAbsolute(src, args.path, flags);
 }
 
 export interface NodeModulesPathRewriteOptions {
