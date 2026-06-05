@@ -30,7 +30,7 @@ function runTsc(args: string[]): { stdout: string; stderr: string; status: numbe
 }
 
 /** Create a throwaway tsconfig + source-file fixture, return its absolute path. */
-function makeProject(filename: string, source: string): string {
+function makeProject(filename: string, source: string, lib?: string[]): string {
     const tmp = GLib.dir_make_tmp('gjsify-tsc-spec-XXXXXX');
     if (!tmp) {
         throw new Error('GLib.dir_make_tmp returned null');
@@ -42,6 +42,7 @@ function makeProject(filename: string, source: string): string {
             target: 'ES2020',
             module: 'ESNext',
             moduleResolution: 'bundler',
+            ...(lib ? { lib } : {}),
         },
         include: ['*.ts'],
     });
@@ -102,6 +103,33 @@ export default async () => {
                     expect(status).toBe(2);
                     expect(stdout).toContain('TS2322');
                     expect(stdout).toContain('bad.ts');
+                } finally {
+                    cleanupProject(tmp);
+                }
+            });
+
+            // Drop-in regression: with an explicit `"lib": ["ESNext","DOM"]`,
+            // the bundled `lib.*.d.ts` must resolve from the SHIPPED libs (the
+            // consumer has no upstream `typescript`). Before the lib-resolution
+            // fix this printed `error TS6053: File '…/lib.esnext.d.ts' not found`
+            // + a cascade of `error TS2318: Cannot find global type 'Array'/…`.
+            // Now the only error must be the deliberate Promise type mismatch.
+            await it('resolves explicit "lib" without TS6053/TS2318 and still catches the deliberate error', async () => {
+                const tmp = makeProject(
+                    'libcheck.ts',
+                    'const p: Promise<number> = "x";\nexport { p };\n',
+                    ['ESNext', 'DOM'],
+                );
+                try {
+                    const { stdout, status } = runTsc(['-p', tmp]);
+                    // No missing-lib / missing-global-type errors.
+                    expect(stdout.includes('TS6053')).toBe(false);
+                    expect(stdout.includes('TS2318')).toBe(false);
+                    expect(stdout.includes('lib.esnext.d.ts')).toBe(false);
+                    // The deliberate `Promise<number> = "x"` must still be caught.
+                    expect(status).toBe(2);
+                    expect(stdout).toContain('TS2322');
+                    expect(stdout).toContain('libcheck.ts');
                 } finally {
                     cleanupProject(tmp);
                 }

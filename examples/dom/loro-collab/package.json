@@ -20,7 +20,7 @@
         "@gjsify/cli": "workspace:^",
         "@types/node": "^25.9.1",
         "loro-crdt": "^1.12.3",
-        "typescript": "^5.9.3"
+        "typescript": "^6.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",
     "license": "MIT",

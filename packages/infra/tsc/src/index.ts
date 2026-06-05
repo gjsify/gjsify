@@ -27,10 +27,11 @@ export const TSC_BUNDLE_PATH: string = resolve(
 
 /** Pinned upstream TypeScript version the shipped bundle was built from.
  *
- * NOTE: this is the version actually bundled into `dist/tsc.gjs.mjs`, which
- * may lag the declared `typescript` devDep range when `gjsify install`
- * resolves to an older satisfying version (the typescript@5.9.x and 6.0.x
- * ranges currently coexist in the workspace; the install resolves to the
- * highest version that satisfies every declared range — 5.9.3 today).
+ * This is the version actually bundled into `dist/tsc.gjs.mjs`. The whole
+ * workspace declares `typescript: "^6.0.3"` (the single, workspace-wide range
+ * enforced by the `gjsify upgrade --check` CI gate), so `gjsify install`
+ * resolves the same 6.x the bundle is built from. CI cross-checks this constant
+ * against the committed bundle's reported `--version`, so keep it in lockstep
+ * with the `typescript` devDep when bumping the bundled toolchain.
  */
-export const TYPESCRIPT_VERSION = '5.9.3' as const;
+export const TYPESCRIPT_VERSION = '6.0.3' as const;

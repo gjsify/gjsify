@@ -24,7 +24,7 @@
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.1",
         "minify-xml": "^4.5.2",
-        "typescript": "^5.9.3"
+        "typescript": "^6.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",
     "license": "MIT"

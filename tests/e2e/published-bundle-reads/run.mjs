@@ -66,6 +66,50 @@ function createFixture(projectDir) {
     return pkgDir;
 }
 
+/**
+ * A CJS `node_modules/@fixture/cjs-reader` package whose entry reads a sibling
+ * data file via `__dirname` (CJS — no `import.meta.url`). Reproduces the
+ * `@gjsify/tsc` class of bug: tsc derives its default-lib dir from `__dirname`
+ * of `_tsc.js`, and the naive rewriter baked the build machine's absolute path.
+ * The dynamic name keeps the static-read inliner from collapsing it, so the
+ * read survives to runtime and `__dirname` must resolve to the dep's real
+ * on-disk location (case 4a — CJS runtime-resolve).
+ */
+function createCjsFixture(projectDir) {
+    const pkgDir = join(projectDir, 'node_modules', '@fixture', 'cjs-reader');
+    mkdirSync(pkgDir, { recursive: true });
+    writeFileSync(
+        join(pkgDir, 'package.json'),
+        JSON.stringify(
+            {
+                name: '@fixture/cjs-reader',
+                version: '1.0.0',
+                main: './index.cjs',
+                exports: { '.': './index.cjs' },
+            },
+            null,
+            2,
+        ),
+    );
+    writeFileSync(join(pkgDir, 'data.json'), JSON.stringify({ secret: 'cjs-resolved-at-runtime' }) + '\n');
+    writeFileSync(
+        join(pkgDir, 'index.cjs'),
+        `const { readFileSync } = require('node:fs');\n` +
+            `const { join } = require('node:path');\n` +
+            `\n` +
+            `// __dirname (CJS) → rewritten to the runtime resolver; dynamic name\n` +
+            `// keeps the static-read inliner from collapsing it.\n` +
+            `function load(name) {\n` +
+            `  return JSON.parse(readFileSync(join(__dirname, name + '.json'), 'utf8'));\n` +
+            `}\n` +
+            `\n` +
+            `exports.getSecret = function getSecret() {\n` +
+            `  return load('data').secret;\n` +
+            `};\n`,
+    );
+    return pkgDir;
+}
+
 describe('Published-bundle runtime resolve E2E', { timeout: 10 * 60 * 1000 }, () => {
     let tmpDir;
     let tarballsDir;
@@ -95,10 +139,15 @@ describe('Published-bundle runtime resolve E2E', { timeout: 10 * 60 * 1000 }, ()
         );
 
         createFixture(projectDir);
+        createCjsFixture(projectDir);
 
         writeFileSync(
             join(projectDir, 'src', 'app.ts'),
             `import { getSecret } from '@fixture/dynamic-reader';\n` + `console.log('OK:' + getSecret());\n`,
+        );
+        writeFileSync(
+            join(projectDir, 'src', 'cjs-app.ts'),
+            `import { getSecret } from '@fixture/cjs-reader';\n` + `console.log('CJSOK:' + getSecret());\n`,
         );
     });
 
@@ -161,6 +210,60 @@ describe('Published-bundle runtime resolve E2E', { timeout: 10 * 60 * 1000 }, ()
             out1,
             /^OK:resolved-at-runtime/,
             `relocated (published-layout) bundle failed to resolve the dep read. Got: ${out1}`,
+        );
+    });
+
+    it('rewrites a CJS dep __dirname read to runtime resolution and survives relocation', () => {
+        const outDir = join(projectDir, 'dist');
+        mkdirSync(outDir, { recursive: true });
+        const bundlePath = join(outDir, 'cjs-app.gjs.mjs');
+        execFileSync(
+            'npx',
+            ['gjsify', 'build', 'src/cjs-app.ts', '--app', 'gjs', '--outfile', bundlePath, '--no-minify'],
+            { cwd: projectDir, stdio: 'pipe', timeout: 120 * 1000 },
+        );
+
+        assert.ok(existsSync(bundlePath), 'cjs bundle missing');
+        const bundle = readFileSync(bundlePath, 'utf-8');
+
+        // The CJS dep's __dirname must be rewritten to the runtime resolver
+        // keyed by the dep's package-qualified spec — NOT a build-relative path.
+        assert.ok(
+            bundle.includes('__gjsifyModuleDir("@fixture/cjs-reader/index.cjs")'),
+            'cjs bundle does not route __dirname through the runtime resolver',
+        );
+        assert.ok(bundle.includes('globalThis.__gjsifyBundleUrl'), 'cjs bundle is missing the bundle-URL anchor banner');
+        // No absolute build-machine path may be baked for the dep (the publish bug).
+        assert.ok(
+            !bundle.includes(join(projectDir, 'node_modules', '@fixture', 'cjs-reader')),
+            'cjs bundle still bakes the absolute build path to the dep (the publish bug)',
+        );
+
+        if (!hasCommand('gjs')) return;
+
+        // Build-site run (sanity).
+        const out0 = execFileSync('gjs', ['-m', bundlePath], { stdio: 'pipe', timeout: 30 * 1000 }).toString();
+        assert.match(out0, /^CJSOK:cjs-resolved-at-runtime/, `cjs build-site run failed. Got: ${out0}`);
+
+        // Simulate PUBLISH at a different node_modules depth with the dep present.
+        const installRoot = join(tmpDir, 'installed-cjs');
+        const binDir = join(installRoot, 'node_modules', '@app', 'cli', 'bin');
+        mkdirSync(binDir, { recursive: true });
+        cpSync(bundlePath, join(binDir, 'cjs-app.gjs.mjs'));
+        cpSync(
+            join(projectDir, 'node_modules', '@fixture', 'cjs-reader'),
+            join(installRoot, 'node_modules', '@fixture', 'cjs-reader'),
+            { recursive: true },
+        );
+
+        const out1 = execFileSync('gjs', ['-m', join(binDir, 'cjs-app.gjs.mjs')], {
+            stdio: 'pipe',
+            timeout: 30 * 1000,
+        }).toString();
+        assert.match(
+            out1,
+            /^CJSOK:cjs-resolved-at-runtime/,
+            `relocated (published-layout) cjs bundle failed to resolve the __dirname read. Got: ${out1}`,
         );
     });
 });

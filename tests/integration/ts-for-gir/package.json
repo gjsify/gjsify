@@ -32,7 +32,7 @@
         "@ts-for-gir/language-server": "^4.0.0-rc.15",
         "@ts-for-gir/lib": "^4.0.0-rc.15",
         "@types/node": "^25.9.1",
-        "typescript": "^5.9.3"
+        "typescript": "^6.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",
     "license": "MIT"

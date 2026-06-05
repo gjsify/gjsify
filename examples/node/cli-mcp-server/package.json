@@ -22,7 +22,7 @@
         "@gjsify/runtime": "workspace:^",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "@types/node": "^25.9.1",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.3",
         "zod": "^4.4.3"
     },
     "private": true,

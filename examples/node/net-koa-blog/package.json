@@ -37,7 +37,7 @@
     "ejs": "^5.0.2",
     "koa": "^3.2.1",
     "koa-bodyparser": "^4.4.1",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   },
   "private": true,
   "version": "0.4.37"

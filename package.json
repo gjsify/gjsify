@@ -96,7 +96,7 @@
         "oxfmt": "^0.52.0",
         "oxlint": "^1.67.0",
         "release-it": "^20.2.0",
-        "typescript": "^5.9.3"
+        "typescript": "^6.0.3"
     },
     "resolutions": {
         "@gjsify/rolldown-plugin-deepkit": "workspace:^"
@@ -118,6 +118,11 @@
         "tests/dom/*",
         "tests/integration/*",
         "!tests/integration/nativescript",
+        "!tests/integration/deepkit-type-compiler",
+        "!tests/integration/loro-crdt",
+        "!tests/integration/typescript-tsc",
+        "!tests/integration/deltachat",
+        "!tests/integration/yjs",
         "tests/e2e/*",
         "website"
     ]

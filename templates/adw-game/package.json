@@ -20,7 +20,7 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^",
         "@types/node": "^25.9.1",
-        "typescript": "^5.9.3"
+        "typescript": "^6.0.3"
     },
     "dependencies": {
         "@gjsify/webgl": "workspace:^",

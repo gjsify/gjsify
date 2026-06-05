@@ -28,7 +28,7 @@
         "@types/node": "^25.9.1",
         "get-tsconfig": "^4.14.0",
         "pkg-types": "^2.3.1",
-        "typescript": "^5.9.3"
+        "typescript": "^6.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",
     "license": "MIT"
