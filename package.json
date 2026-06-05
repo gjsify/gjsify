@@ -96,10 +96,27 @@
         "oxfmt": "^0.52.0",
         "oxlint": "^1.67.0",
         "release-it": "^20.2.0",
-        "typescript": "^5.9.3"
+        "typescript": "^6.0.3"
     },
     "resolutions": {
         "@gjsify/rolldown-plugin-deepkit": "workspace:^"
+    },
+    "overrides": {
+        "@gjsify/integration-deepkit-type-compiler": {
+            "typescript": "^5.4.5"
+        },
+        "@gjsify/integration-loro-crdt": {
+            "typescript": "^5.7.3"
+        },
+        "@gjsify/integration-typescript-tsc": {
+            "typescript": "^5.7.3"
+        },
+        "@gjsify/integration-deltachat": {
+            "typescript": "^5.7.3"
+        },
+        "@gjsify/integration-yjs": {
+            "typescript": "^5.7.3"
+        }
     },
     "workspaces": [
         "packages/infra/*",

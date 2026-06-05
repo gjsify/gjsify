@@ -25,7 +25,7 @@
         "@rollup/pluginutils": "^5.3.0",
         "@types/node": "^25.9.1",
         "acorn": "^8.16.0",
-        "typescript": "^5.9.3"
+        "typescript": "^6.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",
     "license": "MIT"

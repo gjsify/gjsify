@@ -46,7 +46,7 @@
         "@gjsify/stream": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.1",
-        "typescript": "^5.9.3"
+        "typescript": "^6.0.3"
     },
     "gjsify": {
         "runtimes": {
