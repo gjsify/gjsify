@@ -34,8 +34,13 @@ builddir/
 # the same reason the CLI bundle is: downstream consumers (and
 # `gjsify install --immutable`) must not need a rebuild step on
 # install. Rebuilt by `gjsify workspace @gjsify/tsc build`.
+# The committed `lib/lib*.d.ts` are the bundled default-library
+# files tsc resolves on a consumer (it has no upstream `typescript`);
+# `lib/` is otherwise globally ignored above, so re-include this one.
 !packages/infra/tsc/dist/
 !packages/infra/tsc/dist/tsc.gjs.mjs
+!packages/infra/tsc/lib/
+!packages/infra/tsc/lib/*.d.ts
 
 packages/**/*/test.*.js
 packages/**/*/test.*.js.map
