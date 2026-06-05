@@ -36,15 +36,15 @@ builddir/
 # install. Rebuilt by `gjsify workspace @gjsify/tsc build`.
 !packages/infra/tsc/dist/
 !packages/infra/tsc/dist/tsc.gjs.mjs
-# The default-library `lib/lib*.d.ts` files tsc resolves on a consumer
-# (which has no upstream `typescript`) are NOT committed — they are a
-# build-copied artifact (`scripts/build-bundle.mjs` copies them from the
-# `typescript` devDep into `packages/infra/tsc/lib/` on every build) and
-# are shipped in the npm tarball via `package.json#files` (`lib/lib*.d.ts`).
-# Committing ~108 generated `.d.ts` (~76k lines) only bloats the repo; CI
-# always runs `gjsify run build` (which builds `@gjsify/tsc`, copying the
-# libs) before any step that uses the bundled `tsc` to compile, so a clean
-# checkout resolves them after build. `lib/` stays globally ignored.
+# @gjsify/tsc's default-library `lib/lib*.d.ts` are COMMITTED, exactly like the
+# bundle above. tsc resolves them on a consumer that has no upstream `typescript`,
+# and `package.json#files` ships them — but `release.yml` publishes the checkout
+# WITHOUT a build step, so a build-copied-but-gitignored `lib/` ships EMPTY (the
+# 0.4.38 `error TS6053: lib.esnext.d.ts not found` regression). Committing them
+# (like `dist/tsc.gjs.mjs`) guarantees they are in every tarball. Rebuilt by
+# `gjsify workspace @gjsify/tsc build` (copies them from the `typescript` devDep).
+!packages/infra/tsc/lib/
+!packages/infra/tsc/lib/*.d.ts
 
 packages/**/*/test.*.js
 packages/**/*/test.*.js.map
