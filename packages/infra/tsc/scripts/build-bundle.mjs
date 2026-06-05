@@ -65,22 +65,18 @@ const env = {
     PATH: `${join(pkgRoot, '..', '..', '..', 'node_modules', '.bin')}:${process.env.PATH ?? ''}`,
 };
 
-const t0 = Date.now();
-const r = spawnSync(
-    'gjsify',
-    ['build', entry, '--app', 'gjs', '--outfile', outfile, '--shebang'],
-    { stdio: 'inherit', cwd: pkgRoot, env },
-);
-if (r.status !== 0) {
-    console.error(`[@gjsify/tsc] build failed (exit ${r.status})`);
-    process.exit(r.status ?? 1);
-}
-
 // --- Ship the default-library `.d.ts` files alongside the bundle -----------
 // Copy every `lib*.d.ts` from upstream `typescript/lib` into `<pkgRoot>/lib`.
 // These are the files tsc loads for `--lib ESNext,DOM,…`; without them a
 // consumer hits `TS6053: File '…/lib.esnext.d.ts' not found` + a cascade of
 // `TS2318: Cannot find global type 'Array'/'Promise'/…`.
+//
+// Done BEFORE the bundle build (which can fail) on purpose: the libs are
+// version-locked runtime data sourced from the `typescript` devDep, fully
+// independent of the bundle step. Copying them first means a bundle-build
+// hiccup still leaves the committed `lib/` refreshed — the libs are what the
+// published tarball actually ships (they are committed, like `dist/tsc.gjs.mjs`),
+// so they must never depend on the more fragile `gjsify build` succeeding.
 rmSync(shipLibDir, { recursive: true, force: true });
 mkdirSync(shipLibDir, { recursive: true });
 let libCount = 0;
@@ -93,6 +89,17 @@ for (const name of readdirSync(tsLibDir)) {
 if (libCount === 0) {
     console.error(`[@gjsify/tsc] no lib*.d.ts found in ${tsLibDir} — cannot ship default libs`);
     process.exit(1);
+}
+
+const t0 = Date.now();
+const r = spawnSync(
+    'gjsify',
+    ['build', entry, '--app', 'gjs', '--outfile', outfile, '--shebang'],
+    { stdio: 'inherit', cwd: pkgRoot, env },
+);
+if (r.status !== 0) {
+    console.error(`[@gjsify/tsc] build failed (exit ${r.status})`);
+    process.exit(r.status ?? 1);
 }
 
 // --- Re-point runtime default-lib resolution to `@gjsify/tsc/lib` -----------

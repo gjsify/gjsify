@@ -38,11 +38,16 @@ builddir/
 !packages/infra/tsc/dist/tsc.gjs.mjs
 # @gjsify/tsc's default-library `lib/lib*.d.ts` are COMMITTED, exactly like the
 # bundle above. tsc resolves them on a consumer that has no upstream `typescript`,
-# and `package.json#files` ships them — but `release.yml` publishes the checkout
-# WITHOUT a build step, so a build-copied-but-gitignored `lib/` ships EMPTY (the
-# 0.4.38 `error TS6053: lib.esnext.d.ts not found` regression). Committing them
-# (like `dist/tsc.gjs.mjs`) guarantees they are in every tarball. Rebuilt by
-# `gjsify workspace @gjsify/tsc build` (copies them from the `typescript` devDep).
+# and `package.json#files` ships them. They are version-locked runtime data whose
+# only producer is `build-bundle.mjs` (it copies them from the `typescript`
+# devDep). `release.yml` DOES build before publishing, but @gjsify/tsc's build
+# is fragile: a `gjsify build` hiccup that does NOT abort the whole `foreach build`
+# leaves the committed bundle shipping while a build-copied-but-gitignored `lib/`
+# ships EMPTY (the 0.4.38 `error TS6053: lib.esnext.d.ts not found` regression —
+# other packages' plain `tsc` compile doesn't fail, so their gitignored `lib/`
+# ships fine; @gjsify/tsc is the exception). Committing the libs (like
+# `dist/tsc.gjs.mjs`) decouples them from the build and guarantees they are in
+# every tarball. Rebuilt by `gjsify workspace @gjsify/tsc build`.
 !packages/infra/tsc/lib/
 !packages/infra/tsc/lib/*.d.ts
 
