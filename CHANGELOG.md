@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.39](https://github.com/gjsify/gjsify/compare/v0.4.38...v0.4.39) (2026-06-05)
+
+### Bug Fixes
+
+* **tsc:** commit lib*.d.ts (v0.4.38 shipped empty) ([bf74470](https://github.com/gjsify/gjsify/commit/bf74470eb952518964558ec0bdb388dd180d116b))
+
 ## [0.4.38](https://github.com/gjsify/gjsify/compare/v0.4.37...v0.4.38) (2026-06-05)
 
 ### Features
