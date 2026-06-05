@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.40](https://github.com/gjsify/gjsify/compare/v0.4.39...v0.4.40) (2026-06-05)
+
+### Bug Fixes
+
+* **cli:** expand globs in pack 'files' field ([2059689](https://github.com/gjsify/gjsify/commit/2059689d0c4e4f0ea4ce920cc55916e749519bbf)), closes [package.json#files](https://github.com/gjsify/package.json/issues/files)
+
 ## [0.4.39](https://github.com/gjsify/gjsify/compare/v0.4.38...v0.4.39) (2026-06-05)
 
 ### Bug Fixes
