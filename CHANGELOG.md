@@ -1,5 +1,67 @@
 # Changelog
 
+## [0.4.37](https://github.com/gjsify/gjsify/compare/v0.4.36...v0.4.37) (2026-06-04)
+
+### Features
+
+* **crypto:** implement browser ecdh via pure-bigint backend ([#434](https://github.com/gjsify/gjsify/issues/434)) ([14b722a](https://github.com/gjsify/gjsify/commit/14b722a7c9f9c77e551bde13091556ca00f65955))
+* **fs:** add opfs persistence to browser polyfill ([#438](https://github.com/gjsify/gjsify/issues/438)) ([67125b0](https://github.com/gjsify/gjsify/commit/67125b07cfe4b61e63282da5b7b19ba5f399a299))
+* gjsify login + logout (node-free npm auth) ([#462](https://github.com/gjsify/gjsify/issues/462)) ([6623644](https://github.com/gjsify/gjsify/commit/6623644a5151ce9765ddfdad87cb885925895197))
+* **http:** complete fetch-backed browser client path ([#436](https://github.com/gjsify/gjsify/issues/436)) ([69985c9](https://github.com/gjsify/gjsify/commit/69985c9c0f147dfe47b9d1c3efbeffa0a940fe6d))
+* nativescript platform file resolution + defines ([#451](https://github.com/gjsify/gjsify/issues/451)) ([a73a307](https://github.com/gjsify/gjsify/commit/a73a3078e463c59b087bb32439ab578a308f7ea5))
+* **nativescript-vite:** vite 8 / rolldown compatibility composer ([#459](https://github.com/gjsify/gjsify/issues/459)) ([cafb31b](https://github.com/gjsify/gjsify/commit/cafb31b49db67f05049bb825991fc2056dfc1aa0))
+* round out browser paths and declare nativescript slots ([#435](https://github.com/gjsify/gjsify/issues/435)) ([2d6a0e7](https://github.com/gjsify/gjsify/commit/2d6a0e7ad3bd0e8da5dafc347638a47f4615b0d7))
+* round out zlib and https browser implementations ([#441](https://github.com/gjsify/gjsify/issues/441)) ([4031c16](https://github.com/gjsify/gjsify/commit/4031c16c2d1b6d0d3ae5fbc6448f557404b74fac))
+* **runtimes:** declare nativescript native for web-api set ([#433](https://github.com/gjsify/gjsify/issues/433)) ([3fcdaa1](https://github.com/gjsify/gjsify/commit/3fcdaa124fafe0b5b134a07f373fd1fd68c2f850))
+* **runtimes:** declare nativescript none for gjs-ui set ([#430](https://github.com/gjsify/gjsify/issues/430)) ([8bbc13b](https://github.com/gjsify/gjsify/commit/8bbc13bfb7e48b230fcd4b99c4965a5b6ce3b7e4))
+* **runtimes:** declare nativescript none for node set ([#429](https://github.com/gjsify/gjsify/issues/429)) ([87a9faa](https://github.com/gjsify/gjsify/commit/87a9faa97cb958ac8c3cbc16e10d38e2354755fb))
+* **runtimes:** declare nativescript none for web-gjs set ([#431](https://github.com/gjsify/gjsify/issues/431)) ([1e5a6fb](https://github.com/gjsify/gjsify/commit/1e5a6fb980ab2d326d4b5d24b47b65e489eb1216))
+* **runtimes:** declare nativescript polyfill for portable node set ([#432](https://github.com/gjsify/gjsify/issues/432)) ([de9c03e](https://github.com/gjsify/gjsify/commit/de9c03e71036d72f09ff21fc7457647e9918ba95))
+* standalone nativescript teapot showcase ([#461](https://github.com/gjsify/gjsify/issues/461)) ([e1343b3](https://github.com/gjsify/gjsify/commit/e1343b3a4920bfbf6d419228ba39fa29043b89fd))
+* **worker_threads:** flesh out browser Worker path ([#437](https://github.com/gjsify/gjsify/issues/437)) ([535a467](https://github.com/gjsify/gjsify/commit/535a4674def5600c70dc93080a6453c89d5dd346))
+
+### Bug Fixes
+
+* **e2e:** hasCommand() walks PATH directly instead of which(1) ([6dfa37f](https://github.com/gjsify/gjsify/commit/6dfa37ff9cebba220fb44dc71a90dee2dd71ef3d))
+* **node-polyfills,web-polyfills:** expose ./package.json in exports map ([d07246f](https://github.com/gjsify/gjsify/commit/d07246f617b3bcb7dfe384cc8e262df7cd54b31e))
+* resolvable nativescript preset alias targets ([#457](https://github.com/gjsify/gjsify/issues/457)) ([f6058e1](https://github.com/gjsify/gjsify/commit/f6058e12af818913b342fbdc303c751a1267a267))
+* **rolldown-plugin-pnp:** route node:* via this.resolve() under PnP ([3a5f361](https://github.com/gjsify/gjsify/commit/3a5f3616f3ff56eea2ee63b03e75900bbe695c53))
+* **rolldown-plugin-pnp:** skip node:* specifiers in PnP resolver ([77b69cd](https://github.com/gjsify/gjsify/commit/77b69cd4ae09d8379fb3ddbe6201ed9ec05e2ac8)), closes [#425](https://github.com/gjsify/gjsify/issues/425)
+* **showcase:** drop type:module from the nativescript teapot ([#464](https://github.com/gjsify/gjsify/issues/464)) ([f6ab375](https://github.com/gjsify/gjsify/commit/f6ab3754fd88d4f3f3611ec0c40915d9a75c001b))
+* **webrtc:** throw operationerror on rtc-data-channel send over max-message-size ([#428](https://github.com/gjsify/gjsify/issues/428)) ([f5317a6](https://github.com/gjsify/gjsify/commit/f5317a6e49f248219e743472f27a310cf31bf0f3)), closes [#118](https://github.com/gjsify/gjsify/issues/118)
+
+### Performance Improvements
+
+* **install:** cache packuments with ETag revalidation ([#456](https://github.com/gjsify/gjsify/issues/456)) ([ded08f6](https://github.com/gjsify/gjsify/commit/ded08f6e07f00082398fe47a56548f99a4862215))
+* **install:** gzip packuments, dedup cache fs ([#460](https://github.com/gjsify/gjsify/issues/460)) ([ee3adc8](https://github.com/gjsify/gjsify/commit/ee3adc8fbbae1036c60b864a20c1d825638e06ce)), closes [455/#456](https://github.com/455/gjsify/issues/456)
+* **install:** lift Soup conn cap, reuse npm cache ([#452](https://github.com/gjsify/gjsify/issues/452)) ([8dfdf02](https://github.com/gjsify/gjsify/commit/8dfdf02f20609eea77b91d41a63d32d3516010b9))
+* **install:** parallelize the resolve BFS ([#455](https://github.com/gjsify/gjsify/issues/455)) ([be37aec](https://github.com/gjsify/gjsify/commit/be37aecdb639703a2413f07104fce43a402cbfdb))
+
+### Documentation
+
+* **status:** record nativescript backfill and browser completion ([#447](https://github.com/gjsify/gjsify/issues/447)) ([90d5d97](https://github.com/gjsify/gjsify/commit/90d5d97e6b7924a43f5e0d8dcd1d640d305e7617))
+
+### Continuous Integration
+
+* enable strict runtime-audit gate with meta/asset carve-out ([#449](https://github.com/gjsify/gjsify/issues/449)) ([16de2cb](https://github.com/gjsify/gjsify/commit/16de2cbda8dfeaa441b1e17e35cc83dd8b2e1122))
+
+### Maintenance
+
+* **refs:** vendor nativescript-canvas submodule ([#450](https://github.com/gjsify/gjsify/issues/450)) ([59ed73d](https://github.com/gjsify/gjsify/commit/59ed73d6e3040a08ffd08b2ac68c822c857934f0))
+
+### Tests
+
+* add browser conformance entries for gamepad and xhr ([#444](https://github.com/gjsify/gjsify/issues/444)) ([1d59980](https://github.com/gjsify/gjsify/commit/1d59980518784c62ff5a2b8000c6a0ae1fcb95b5))
+* add browser conformance tests for vm, zlib, https ([#446](https://github.com/gjsify/gjsify/issues/446)) ([46f7efc](https://github.com/gjsify/gjsify/commit/46f7efcebed7f883b6b97235fa1f32cb60992551))
+* add browser specs for stream, domain, buffer ([#448](https://github.com/gjsify/gjsify/issues/448)) ([8d7e707](https://github.com/gjsify/gjsify/commit/8d7e707078865a53cc1d02f552d49a014000007f))
+* add browser test entries for native re-export packages ([#443](https://github.com/gjsify/gjsify/issues/443)) ([2ed1cd4](https://github.com/gjsify/gjsify/commit/2ed1cd4a790bb531fccec9c57a770072b40cacc7))
+* add browser-target specs for dns, sqlite, module ([#445](https://github.com/gjsify/gjsify/issues/445)) ([9120d01](https://github.com/gjsify/gjsify/commit/9120d01964cb977c8386fbcacff549f936cbdd44))
+* add browser-target tests for process and os ([#440](https://github.com/gjsify/gjsify/issues/440)) ([1d49205](https://github.com/gjsify/gjsify/commit/1d492059f44d719718650ab797a194f0f4e1d0a2))
+* **browser:** add browser test entries for core node packages ([#439](https://github.com/gjsify/gjsify/issues/439)) ([0c3c0bd](https://github.com/gjsify/gjsify/commit/0c3c0bd384e88fb8e3881091b753643a5c14f8e4))
+* **e2e:** hard-require gjs/glib/msgfmt/yarn (drop silent skip-guards) ([d671d62](https://github.com/gjsify/gjsify/commit/d671d625daf55364531d99248b2772699133d83e))
+* **nativescript:** on-device polyfill smoke suite ([#463](https://github.com/gjsify/gjsify/issues/463)) ([7183d6c](https://github.com/gjsify/gjsify/commit/7183d6cac70590347c7312b73a31ee0be786ebb2))
+* **node:** add browser test entries for async_hooks/diagnostics_channel/sys ([#442](https://github.com/gjsify/gjsify/issues/442)) ([16dbaff](https://github.com/gjsify/gjsify/commit/16dbaff7eab9d14ef1f504892b73536fc39b73ea))
+
 ## [0.4.36](https://github.com/gjsify/gjsify/compare/v0.4.35...v0.4.36) (2026-05-31)
 
 ### Features
