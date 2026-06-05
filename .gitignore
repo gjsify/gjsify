@@ -34,13 +34,17 @@ builddir/
 # the same reason the CLI bundle is: downstream consumers (and
 # `gjsify install --immutable`) must not need a rebuild step on
 # install. Rebuilt by `gjsify workspace @gjsify/tsc build`.
-# The committed `lib/lib*.d.ts` are the bundled default-library
-# files tsc resolves on a consumer (it has no upstream `typescript`);
-# `lib/` is otherwise globally ignored above, so re-include this one.
 !packages/infra/tsc/dist/
 !packages/infra/tsc/dist/tsc.gjs.mjs
-!packages/infra/tsc/lib/
-!packages/infra/tsc/lib/*.d.ts
+# The default-library `lib/lib*.d.ts` files tsc resolves on a consumer
+# (which has no upstream `typescript`) are NOT committed — they are a
+# build-copied artifact (`scripts/build-bundle.mjs` copies them from the
+# `typescript` devDep into `packages/infra/tsc/lib/` on every build) and
+# are shipped in the npm tarball via `package.json#files` (`lib/lib*.d.ts`).
+# Committing ~108 generated `.d.ts` (~76k lines) only bloats the repo; CI
+# always runs `gjsify run build` (which builds `@gjsify/tsc`, copying the
+# libs) before any step that uses the bundled `tsc` to compile, so a clean
+# checkout resolves them after build. `lib/` stays globally ignored.
 
 packages/**/*/test.*.js
 packages/**/*/test.*.js.map

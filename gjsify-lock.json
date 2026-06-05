@@ -98,10 +98,7 @@
     "chalk@^5.6.2",
     "chokidar@^5.0.0",
     "debug@^4.4.3",
-    "@deltachat/jsonrpc-client@^2.51.0",
-    "@deltachat/stdio-rpc-server@^2.51.0",
     "dotenv@^17.4.2",
-    "loro-crdt@^1.12.1",
     "@modelcontextprotocol/inspector@^0.21.2",
     "zod@4.3.6",
     "@rollup/pluginutils@^5.3.0",
@@ -121,8 +118,6 @@
     "parse-torrent@^11.0.19",
     "randombytes@^2.1.0",
     "webtorrent-fixtures@2.0.2",
-    "y-protocols@^1.0.6",
-    "yjs@^13.6.31",
     "@astrojs/starlight@^0.39.2",
     "@fontsource/coming-soon@^5.2.8",
     "astro@^6.4.2"
@@ -528,76 +523,6 @@
       "version": "1.0.19",
       "resolved": "https://registry.npmjs.org/@deepkit/workflow/-/workflow-1.0.19.tgz",
       "integrity": "sha512-rLADAWPaKA7eg6kDWySFcWn4Bg4pFSlxRslRA6l80X3dSdu6wAy5LBBQ6y7U3QF5hJnCXvEg6FCRGfHYjvmWSQ=="
-    },
-    "node_modules/@deltachat/jsonrpc-client": {
-      "version": "2.51.0",
-      "resolved": "https://registry.npmjs.org/@deltachat/jsonrpc-client/-/jsonrpc-client-2.51.0.tgz",
-      "integrity": "sha512-r3xZ51xejCiWYbhNGzizSwg/SiBUYhfkWUPEe01ulqMOksKgLs4czUy8jz4yedM1iB0aX1MBrb4gFE4awI9h+g==",
-      "dependencies": {
-        "@deltachat/tiny-emitter": "3.0.0",
-        "isomorphic-ws": "^5.0.0",
-        "yerpc": "^0.6.2"
-      }
-    },
-    "node_modules/@deltachat/stdio-rpc-server": {
-      "version": "2.51.0",
-      "resolved": "https://registry.npmjs.org/@deltachat/stdio-rpc-server/-/stdio-rpc-server-2.51.0.tgz",
-      "integrity": "sha512-+DCOchxo9ia85wAYELASKzZ7S7LjbhdmiNCF7C5w46TIkpXwZyUo1sTPVODcRXNoke4KVEO+JEbaCO/+zsnKOg=="
-    },
-    "node_modules/@deltachat/stdio-rpc-server-android-arm": {
-      "version": "2.51.0",
-      "resolved": "https://registry.npmjs.org/@deltachat/stdio-rpc-server-android-arm/-/stdio-rpc-server-android-arm-2.51.0.tgz",
-      "integrity": "sha512-N91fgOlApi7zjmashajBNlpSCPTiu6iV4XMOMiQqqVVeS/E11qUKeRJOryMlpY/Vwn/GfjHA1hQLEfhicf1c8A=="
-    },
-    "node_modules/@deltachat/stdio-rpc-server-android-arm64": {
-      "version": "2.51.0",
-      "resolved": "https://registry.npmjs.org/@deltachat/stdio-rpc-server-android-arm64/-/stdio-rpc-server-android-arm64-2.51.0.tgz",
-      "integrity": "sha512-wYLGeqHu3gn7Ve5cGjVn0wqYs2m4kOtIrILY1oRv+vM98bI4/529MwaUCREbXCwut8/k+SThA2L1DW+MJMh7rg=="
-    },
-    "node_modules/@deltachat/stdio-rpc-server-darwin-arm64": {
-      "version": "2.51.0",
-      "resolved": "https://registry.npmjs.org/@deltachat/stdio-rpc-server-darwin-arm64/-/stdio-rpc-server-darwin-arm64-2.51.0.tgz",
-      "integrity": "sha512-Rv3lOrn+uQpVSndU+HTg6Lc9fqEBzBKEe7B/um6nfcCTPll5T7yrC1vrndM+evjYQ/LW2dmsppWjEk7++Wm4og=="
-    },
-    "node_modules/@deltachat/stdio-rpc-server-darwin-x64": {
-      "version": "2.51.0",
-      "resolved": "https://registry.npmjs.org/@deltachat/stdio-rpc-server-darwin-x64/-/stdio-rpc-server-darwin-x64-2.51.0.tgz",
-      "integrity": "sha512-X6+I4VeBL5ZkUwF0XZ/0N0SU8PXlm7bsFaBUnvkcSsStIYTIfvi3zC8baOwRaOdwZdEMI2Fuq9ciDne/iSPDZA=="
-    },
-    "node_modules/@deltachat/stdio-rpc-server-linux-arm": {
-      "version": "2.51.0",
-      "resolved": "https://registry.npmjs.org/@deltachat/stdio-rpc-server-linux-arm/-/stdio-rpc-server-linux-arm-2.51.0.tgz",
-      "integrity": "sha512-il55eKTl8PButdwu14ad64mYZzdbZS9yPgqsqI976WSkfeaDY0v3O4YMairW0FG5D5FW0TCZLAaj3zoGb5nN4w=="
-    },
-    "node_modules/@deltachat/stdio-rpc-server-linux-arm64": {
-      "version": "2.51.0",
-      "resolved": "https://registry.npmjs.org/@deltachat/stdio-rpc-server-linux-arm64/-/stdio-rpc-server-linux-arm64-2.51.0.tgz",
-      "integrity": "sha512-15SjGXDgH5UTTMPeEfXSx+0oF602SftZEeiofd2HjUGsS4Qj0XoaSX8Hquz+Mg9BDSyisk+TKeTnyy6bAcr3JQ=="
-    },
-    "node_modules/@deltachat/stdio-rpc-server-linux-ia32": {
-      "version": "2.51.0",
-      "resolved": "https://registry.npmjs.org/@deltachat/stdio-rpc-server-linux-ia32/-/stdio-rpc-server-linux-ia32-2.51.0.tgz",
-      "integrity": "sha512-MKY1dtvPuKuClwIjRLpYKTIoxGdHjHfpKz2MTXNIjbNPeIInfdlYh78qmWO3KEY8s3KpzAFC1u+XqaGL1A1crw=="
-    },
-    "node_modules/@deltachat/stdio-rpc-server-linux-x64": {
-      "version": "2.51.0",
-      "resolved": "https://registry.npmjs.org/@deltachat/stdio-rpc-server-linux-x64/-/stdio-rpc-server-linux-x64-2.51.0.tgz",
-      "integrity": "sha512-LDt+yf7TGJ1RdeD0pHz6EF6cMS9T5boo3ikeFio07x3HXXBLZpOpGfVkhUGBMZCkCtr/QBeJm/tBRiJ4IOoCVQ=="
-    },
-    "node_modules/@deltachat/stdio-rpc-server-win32-ia32": {
-      "version": "2.51.0",
-      "resolved": "https://registry.npmjs.org/@deltachat/stdio-rpc-server-win32-ia32/-/stdio-rpc-server-win32-ia32-2.51.0.tgz",
-      "integrity": "sha512-m8/vVFjeWmgGajeBkQtVMcDB2Y2bElEOA9Hfa30jYiYPw29n1oN88NK6rCDBl5fMXb8hgRDZ6xrpga0V1A9m1g=="
-    },
-    "node_modules/@deltachat/stdio-rpc-server-win32-x64": {
-      "version": "2.51.0",
-      "resolved": "https://registry.npmjs.org/@deltachat/stdio-rpc-server-win32-x64/-/stdio-rpc-server-win32-x64-2.51.0.tgz",
-      "integrity": "sha512-rKEBF8HB6+6hPWSOWoGo3LsJ6lFPSlQq1OSvOhGGZsvk3sVhkPk5oL55FfAFlVBcJi9ar6SFzbED7OdUE9S9gA=="
-    },
-    "node_modules/@deltachat/tiny-emitter": {
-      "version": "3.0.0",
-      "resolved": "https://registry.npmjs.org/@deltachat/tiny-emitter/-/tiny-emitter-3.0.0.tgz",
-      "integrity": "sha512-iapvwGCEWFjXtObQ/vNzXS0+M9hrZrY2tMdV7SaX8kHXKVm3oIuJUVmUj5jhABTL7GstO6uKzV+36FUZVGOqCA=="
     },
     "node_modules/@dimforge/rapier3d-compat": {
       "version": "0.12.0",
@@ -8009,16 +7934,6 @@
       "resolved": "https://registry.npmjs.org/isexe/-/isexe-2.0.0.tgz",
       "integrity": "sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw=="
     },
-    "node_modules/isomorphic-ws": {
-      "version": "5.0.0",
-      "resolved": "https://registry.npmjs.org/isomorphic-ws/-/isomorphic-ws-5.0.0.tgz",
-      "integrity": "sha512-muId7Zzn9ywDsyXgTIafTry2sV3nySZeUDe6YedVd1Hvuuep5AsIlqK+XefWpYTyJG5e503F2xIuT2lcU6rCSw=="
-    },
-    "node_modules/isomorphic.js": {
-      "version": "0.2.5",
-      "resolved": "https://registry.npmjs.org/isomorphic.js/-/isomorphic.js-0.2.5.tgz",
-      "integrity": "sha512-PIeMbHqMt4DnUP3MA/Flc0HElYjMXArsw1qwJZcm9sqR8mq3l8NYizFMty0pWwE/tzIGH3EKK5+jes5mAr85yw=="
-    },
     "node_modules/issue-parser": {
       "version": "7.0.1",
       "resolved": "https://registry.npmjs.org/issue-parser/-/issue-parser-7.0.1.tgz",
@@ -8307,19 +8222,6 @@
       "dependencies": {
         "prelude-ls": "~1.1.2",
         "type-check": "~0.3.2"
-      }
-    },
-    "node_modules/lib0": {
-      "version": "0.2.117",
-      "resolved": "https://registry.npmjs.org/lib0/-/lib0-0.2.117.tgz",
-      "integrity": "sha512-DeXj9X5xDCjgKLU/7RR+/HQEVzuuEUiwldwOGsHK/sfAfELGWEyTcf0x+uOvCvK3O2zPmZePXWL85vtia6GyZw==",
-      "dependencies": {
-        "isomorphic.js": "^0.2.4"
-      },
-      "bin": {
-        "0serve": "bin/0serve.js",
-        "0gentesthtml": "bin/gentesthtml.js",
-        "0ecdsa-generate-keypair": "bin/0ecdsa-generate-keypair.js"
       }
     },
     "node_modules/lightningcss": {
@@ -12841,14 +12743,6 @@
       "resolved": "https://registry.npmjs.org/xxhash-wasm/-/xxhash-wasm-1.1.0.tgz",
       "integrity": "sha512-147y/6YNh+tlp6nd/2pWq38i9h6mz/EuQ6njIrmW8D1BS5nCqs0P6DG+m6zTGnNz5I+uhZ0SHxBs9BsPrwcKDA=="
     },
-    "node_modules/y-protocols": {
-      "version": "1.0.7",
-      "resolved": "https://registry.npmjs.org/y-protocols/-/y-protocols-1.0.7.tgz",
-      "integrity": "sha512-YSVsLoXxO67J6eE/nV4AtFtT3QEotZf5sK5BHxFBXso7VDUT3Tx07IfA6hsu5Q5OmBdMkQVmFZ9QOA7fikWvnw==",
-      "dependencies": {
-        "lib0": "^0.2.85"
-      }
-    },
     "node_modules/y18n": {
       "version": "5.0.8",
       "resolved": "https://registry.npmjs.org/y18n/-/y18n-5.0.8.tgz",
@@ -12879,38 +12773,6 @@
       "version": "22.0.0",
       "resolved": "https://registry.npmjs.org/yargs-parser/-/yargs-parser-22.0.0.tgz",
       "integrity": "sha512-rwu/ClNdSMpkSrUb+d6BRsSkLUq1fmfsY6TOpYzTwvwkg1/NRG85KBy3kq++A8LKQwX6lsu+aWad+2khvuXrqw=="
-    },
-    "node_modules/yerpc": {
-      "version": "0.6.4",
-      "resolved": "https://registry.npmjs.org/yerpc/-/yerpc-0.6.4.tgz",
-      "integrity": "sha512-f/yBGREg5sR9aa6QG0thon6uL8jKJhQuRO/SwGsnOIIe45wFQrMYBV+A5cCNEgqzSHsz+Jl2F7sEO6h7CJfr5w==",
-      "dependencies": {
-        "@types/ws": "^8.2.2",
-        "isomorphic-ws": "^4.0.1",
-        "typescript": "^4.6.3"
-      }
-    },
-    "node_modules/yerpc/node_modules/isomorphic-ws": {
-      "version": "4.0.1",
-      "resolved": "https://registry.npmjs.org/isomorphic-ws/-/isomorphic-ws-4.0.1.tgz",
-      "integrity": "sha512-BhBvN2MBpWTaSHdWRb/bwdZJ1WaehQ2L1KngkCkfLUGF0mAWAT1sQUQacEmQ0jXkFw/czDXPNQSL5u2/Krsz1w=="
-    },
-    "node_modules/yerpc/node_modules/typescript": {
-      "version": "4.9.5",
-      "resolved": "https://registry.npmjs.org/typescript/-/typescript-4.9.5.tgz",
-      "integrity": "sha512-1FXk9E2Hm+QzZQ7z+McJiHL4NW1F2EzMu9Nq9i3zAaGqibafqYwCVU6WyWAuyQRRzOlxou8xZSyXLEN8oKj24g==",
-      "bin": {
-        "tsc": "bin/tsc",
-        "tsserver": "bin/tsserver"
-      }
-    },
-    "node_modules/yjs": {
-      "version": "13.6.31",
-      "resolved": "https://registry.npmjs.org/yjs/-/yjs-13.6.31.tgz",
-      "integrity": "sha512-Eq+5BRfbeGyqGVrTJL3bEcr8gKkxPuyuoHmAwpk52fDb8kOVMrfVSTRPd6yiGgX5Fskb96qCRjzjbRjrL4YEnw==",
-      "dependencies": {
-        "lib0": "^0.2.99"
-      }
     },
     "node_modules/yn": {
       "version": "3.1.1",

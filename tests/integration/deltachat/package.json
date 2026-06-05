@@ -19,10 +19,10 @@
     "devDependencies": {
         "@deltachat/jsonrpc-client": "^2.51.0",
         "@deltachat/stdio-rpc-server": "^2.51.0",
-        "@gjsify/cli": "workspace:^",
-        "@gjsify/node-globals": "workspace:^",
-        "@gjsify/runtime": "workspace:^",
-        "@gjsify/unit": "workspace:^",
+        "@gjsify/cli": "^0.4.36",
+        "@gjsify/node-globals": "^0.4.36",
+        "@gjsify/runtime": "^0.4.36",
+        "@gjsify/unit": "^0.4.36",
         "@types/node": "^25.9.1",
         "typescript": "^5.7.3"
     }
