@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.38](https://github.com/gjsify/gjsify/compare/v0.4.37...v0.4.38) (2026-06-05)
+
+### Features
+
+* **vite-plugin-gjsify:** register xmlns barrels for NS ([#466](https://github.com/gjsify/gjsify/issues/466)) ([6048c2a](https://github.com/gjsify/gjsify/commit/6048c2acc0523204b77e8b975acf31cf96a4510d))
+
+### Bug Fixes
+
+* **tsc:** bundle TS 6.0.3 + make it a real tsc drop-in ([#467](https://github.com/gjsify/gjsify/issues/467)) ([7088abd](https://github.com/gjsify/gjsify/commit/7088abdb5ad662965f297fb4706efeea73279efd)), closes [package.json#workspaces](https://github.com/gjsify/package.json/issues/workspaces) [package.json#files](https://github.com/gjsify/package.json/issues/files)
+
+### Documentation
+
+* **nativescript:** track upstream PRs [#11259](https://github.com/gjsify/gjsify/issues/11259) + [#6056](https://github.com/gjsify/gjsify/issues/6056) ([#465](https://github.com/gjsify/gjsify/issues/465)) ([615e25d](https://github.com/gjsify/gjsify/commit/615e25da3ee865617e5f9e7c3c0cb1d320e07a89))
+
+### Tests
+
+* move TS-5.x integration tests to TS 6 ([#468](https://github.com/gjsify/gjsify/issues/468)) ([24abd02](https://github.com/gjsify/gjsify/commit/24abd02334350a96dd22f4d8467011c08e197675)), closes [#467](https://github.com/gjsify/gjsify/issues/467) [package.json#workspaces](https://github.com/gjsify/package.json/issues/workspaces)
+
 ## [0.4.37](https://github.com/gjsify/gjsify/compare/v0.4.36...v0.4.37) (2026-06-04)
 
 ### Features
