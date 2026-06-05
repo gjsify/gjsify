@@ -29,7 +29,10 @@ HTMLCanvasElement.registerContextFactory('2d', (canvas, options) => {
     // runtime). One `as unknown as` boundary cast — better than `as any`.
     const ctx = new CanvasRenderingContext2D(
         canvas as unknown as ConstructorParameters<typeof CanvasRenderingContext2D>[0],
-        options,
+        // TS 6 infers the factory's `options` param as `unknown`; cast to the
+        // ctor's optional second parameter (the same boundary-cast shape as
+        // `canvas` above).
+        options as ConstructorParameters<typeof CanvasRenderingContext2D>[1],
     );
     slot[CANVAS2D_KEY] = ctx;
     return ctx;

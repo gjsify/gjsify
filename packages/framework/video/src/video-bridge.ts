@@ -338,7 +338,12 @@ export const VideoBridge = GObject.registerClass(
             }
 
             try {
-                const { pipeline, paintable, tee } = buildMediaStreamPipeline(track._gstSource, track._gstPipeline);
+                const { pipeline, paintable, tee } = buildMediaStreamPipeline(
+                    track._gstSource,
+                    // `_gstPipeline` is optional (`Pipeline | undefined`); the builder
+                    // takes `Pipeline | null`. TS 6 no longer conflates the two.
+                    track._gstPipeline ?? null,
+                );
                 this._attachPipeline(pipeline, paintable);
                 track._gstPipeline = pipeline;
                 track._gstTee = tee;
