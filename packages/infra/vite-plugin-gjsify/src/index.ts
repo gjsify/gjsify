@@ -31,6 +31,8 @@
 
 import { type Plugin } from 'vite';
 import { createRequire } from 'node:module';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import * as nodePath from 'node:path';
 
 import {
     gjsImportsEmptyPlugin,
@@ -200,6 +202,132 @@ function nativescriptCssTreeAlias(fromDir: string): Record<string, string> {
     }
 }
 
+/** A barrel module referenced from XML via an `xmlns` namespace. */
+interface XmlnsBarrel {
+    /** The NativeScript module nickname, e.g. `widgets/index` (what `loadModule` looks up). */
+    name: string;
+    /** Root-relative POSIX import specifier Vite resolves, e.g. `/app/widgets/index.ts`. */
+    spec: string;
+}
+
+/**
+ * Collect the barrel modules referenced from the app's XML via `xmlns="~/MOD"`
+ * that `@nativescript/vite`'s `ns-bundler-context` does NOT register — i.e. those
+ * with no paired `.xml` sibling. Returns the NS nickname + a root-relative import
+ * specifier for each.
+ */
+function collectXmlnsBarrels(appDir: string, root: string): XmlnsBarrel[] {
+    const xmlFiles: string[] = [];
+    const walk = (dir: string): void => {
+        let entries: string[];
+        try {
+            entries = readdirSync(dir);
+        } catch {
+            return;
+        }
+        for (const entry of entries) {
+            const full = nodePath.join(dir, entry);
+            let isDir: boolean;
+            try {
+                isDir = statSync(full).isDirectory();
+            } catch {
+                continue;
+            }
+            if (isDir) walk(full);
+            else if (full.endsWith('.xml')) xmlFiles.push(full);
+        }
+    };
+    walk(appDir);
+
+    const names = new Set<string>();
+    const xmlnsRe = /xmlns:[\w-]+\s*=\s*["']~\/([^"']+)["']/g;
+    for (const file of xmlFiles) {
+        let src: string;
+        try {
+            src = readFileSync(file, 'utf8');
+        } catch {
+            continue;
+        }
+        for (const match of src.matchAll(xmlnsRe)) {
+            names.add(match[1].replace(/\/+$/, ''));
+        }
+    }
+
+    const barrels: XmlnsBarrel[] = [];
+    for (const name of names) {
+        // ns-bundler-context already registers any module that has an `.xml` sibling.
+        if (existsSync(nodePath.join(appDir, `${name}.xml`))) continue;
+        const file = ['.ts', '.js', '/index.ts', '/index.js']
+            .map((suffix) => nodePath.join(appDir, `${name}${suffix}`))
+            .find((candidate) => existsSync(candidate));
+        if (!file) continue;
+        const spec = '/' + nodePath.relative(root, file).split(nodePath.sep).join('/');
+        barrels.push({ name, spec });
+    }
+    return barrels;
+}
+
+/**
+ * Register barrel modules referenced from XML via `xmlns` namespaces, which
+ * `@nativescript/vite`'s `ns-bundler-context` leaves unregistered.
+ *
+ * NativeScript resolves a custom element — e.g. `<w:SourceView>` declared with
+ * `xmlns:w="~/widgets/index"` — at runtime via `global.loadModule("widgets/index")`,
+ * a lookup in the registry populated by `registerModule` / `registerBundlerModules`.
+ * `ns-bundler-context` registers every XML file, its paired code-behind and CSS,
+ * but deliberately NOT standalone barrels (`index.ts` with no `.xml` sibling). So a
+ * barrel reachable only via `xmlns` (`~/widgets/index`, `~/mdx/index`) is never
+ * registered; an ESM bundle has no `global.require` fallback, so `loadModule(...)`
+ * returns `null` → "Module 'SourceView' not found". `@nativescript/webpack`'s
+ * `xml-namespace-loader` registered every `.ts`, so these resolved for free there —
+ * this plugin reproduces that behaviour for the Vite build.
+ *
+ * It augments `@nativescript/vite`'s generated `virtual:ns-bundler-context` module
+ * (guaranteed imported early, before `Application.run`) by prepending a namespace
+ * import of each missing barrel and appending matching `registerModule` calls. The
+ * barrels enter the bundle via the added imports; registration runs right after the
+ * upstream `registerBundlerModules`.
+ */
+function nativescriptXmlnsBarrelsPlugin(): Plugin {
+    const BUNDLER_CONTEXT_ID = '\0virtual:ns-bundler-context';
+    let root = process.cwd();
+    let appDir: string | undefined;
+    return {
+        name: 'gjsify-nativescript-xmlns-barrels',
+        configResolved(config) {
+            root = config.root || process.cwd();
+            // `~/` maps to the NativeScript app directory (`appPath`, default `app`;
+            // `src` is the other common layout). Probe both; XML lives under it.
+            appDir = ['app', 'src'].map((dir) => nodePath.join(root, dir)).find((dir) => existsSync(dir));
+        },
+        transform(code, id) {
+            if (id !== BUNDLER_CONTEXT_ID || !appDir) return null;
+            const barrels = collectXmlnsBarrels(appDir, root);
+            if (barrels.length === 0) return null;
+            const imports = barrels
+                .map((barrel, i) => `import * as __gjsifyXmlnsBarrel${i} from ${JSON.stringify(barrel.spec)};`)
+                .join('\n');
+            const registrations = barrels
+                .map((barrel, i) => `    global.registerModule(${JSON.stringify(barrel.name)}, () => __gjsifyXmlnsBarrel${i});`)
+                .join('\n');
+            const footer = [
+                '',
+                ';(function () {',
+                '  try {',
+                "    if (typeof global !== 'undefined' && typeof global.registerModule === 'function') {",
+                registrations,
+                '    }',
+                '  } catch (e) {',
+                "    try { console.warn('[gjsify-nativescript] xmlns barrel registration failed', e); } catch (_) {}",
+                '  }',
+                '})();',
+                '',
+            ].join('\n');
+            return { code: `${imports}\n${code}${footer}`, map: null };
+        },
+    };
+}
+
 /**
  * Returns the Vite plugin array that brings `gjsify build --app nativescript`'s
  * NS-target transforms to a Vite project (dev + build). Spread it into a
@@ -272,6 +400,10 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
         // under Vite 8 / Rolldown, where @nativescript/vite's function-based
         // alias for the same feature is rejected.
         platformResolvePlugin({ platform }) as unknown as Plugin,
+        // Register `xmlns`-referenced barrel modules that @nativescript/vite's
+        // ns-bundler-context leaves unregistered (its tree-shaking gap for
+        // barrels with no `.xml` sibling). Reproduces webpack's xml-namespace-loader.
+        nativescriptXmlnsBarrelsPlugin(),
         // NO blueprintPlugin — Blueprint is GTK-specific
         // NO cssAsStringPlugin — NS handles CSS via @nativescript/core
         deepkitPlugin({ reflection: options.reflection }) as unknown as Plugin,

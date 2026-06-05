@@ -254,3 +254,87 @@ describe('gjsifyNativescript css-tree alias E2E', () => {
         assert.ok('path' in alias || 'node:path' in alias, 'node-builtin aliases must still be wired');
     });
 });
+
+// `@nativescript/vite`'s ns-bundler-context registers XML files + their paired
+// code-behind, but NOT standalone barrels referenced only via `xmlns="~/MOD"`
+// (a barrel `index.ts` with no `.xml` sibling). gjsifyNativescript()'s
+// xmlns-barrels plugin augments the generated `virtual:ns-bundler-context`
+// module to `import * as` + `registerModule` those barrels — reproducing
+// @nativescript/webpack's xml-namespace-loader so `<w:SourceView>` resolves.
+describe('gjsifyNativescript xmlns barrels E2E', () => {
+    let gjsifyNativescript;
+    const tmp = [];
+    const BUNDLER_CONTEXT_ID = '\0virtual:ns-bundler-context';
+    const UPSTREAM_CODE = '// generated bundler context\n(function () {})();';
+
+    before(async () => {
+        const url = new URL('../../../packages/infra/vite-plugin-gjsify/lib/index.js', import.meta.url);
+        ({ gjsifyNativescript } = await import(url));
+        assert.equal(typeof gjsifyNativescript, 'function', 'gjsifyNativescript must be exported — rebuild the package');
+    });
+
+    after(() => {
+        for (const d of tmp) rmSync(d, { recursive: true, force: true });
+    });
+
+    // The xmlns-barrels plugin, with configResolved(root) already run.
+    function pluginForRoot(root) {
+        const plugin = gjsifyNativescript().find((p) => p && p.name === 'gjsify-nativescript-xmlns-barrels');
+        assert.ok(plugin, 'gjsify-nativescript-xmlns-barrels plugin missing from gjsifyNativescript()');
+        plugin.configResolved({ root });
+        return plugin;
+    }
+
+    // A throwaway NS app whose editor.xml references `~/widgets/index` (a barrel,
+    // no .xml sibling → must be registered) AND `~/widgets/source-view` (has an
+    // .xml sibling → ns-bundler-context owns it, plugin must SKIP it).
+    function fixtureApp() {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-xmlns-'));
+        tmp.push(root);
+        const app = join(root, 'app');
+        mkdirSync(join(app, 'widgets'), { recursive: true });
+        mkdirSync(join(app, 'mdx'), { recursive: true });
+        writeFileSync(
+            join(app, 'editor.xml'),
+            '<Page xmlns="http://schemas.nativescript.org/tns.xsd" xmlns:w="~/widgets/index" ' +
+                'xmlns:sv="~/widgets/source-view" xmlns:mdx="~/mdx/index">\n  <w:SourceView />\n</Page>\n',
+        );
+        writeFileSync(join(app, 'widgets', 'index.ts'), 'export class SourceView {}\n');
+        writeFileSync(join(app, 'mdx', 'index.ts'), 'export class TutorialView {}\n');
+        // Has an .xml sibling → registered by ns-bundler-context, not by us.
+        writeFileSync(join(app, 'widgets', 'source-view.xml'), '<GridLayout />\n');
+        writeFileSync(join(app, 'widgets', 'source-view.ts'), 'export class SourceView {}\n');
+        return root;
+    }
+
+    it('registers xmlns barrels with no .xml sibling, skipping those that have one', () => {
+        const plugin = pluginForRoot(fixtureApp());
+        const out = plugin.transform(UPSTREAM_CODE, BUNDLER_CONTEXT_ID).code;
+        // The upstream bundler-context code is preserved.
+        assert.ok(out.includes(UPSTREAM_CODE), 'upstream ns-bundler-context code must be preserved');
+        // Barrels without an .xml sibling are imported (root-relative) + registered.
+        assert.ok(out.includes('"/app/widgets/index.ts"'), 'widgets/index barrel must be imported root-relative');
+        assert.ok(out.includes('"/app/mdx/index.ts"'), 'mdx/index barrel must be imported root-relative');
+        assert.ok(out.includes('global.registerModule("widgets/index"'), 'widgets/index must be registerModule-d');
+        assert.ok(out.includes('global.registerModule("mdx/index"'), 'mdx/index must be registerModule-d');
+        // A target WITH an .xml sibling is left to ns-bundler-context.
+        assert.ok(
+            !out.includes('registerModule("widgets/source-view"'),
+            'widgets/source-view has an .xml sibling — must NOT be re-registered',
+        );
+    });
+
+    it('only transforms the ns-bundler-context virtual module', () => {
+        const plugin = pluginForRoot(fixtureApp());
+        assert.equal(plugin.transform('whatever', '\0some-other-module'), null, 'non-bundler-context ids return null');
+    });
+
+    it('is a no-op when the app declares no xmlns barrels', () => {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-noxmlns-'));
+        tmp.push(root);
+        mkdirSync(join(root, 'app'), { recursive: true });
+        writeFileSync(join(root, 'app', 'main.xml'), '<Page><Label text="hi" /></Page>\n');
+        const plugin = pluginForRoot(root);
+        assert.equal(plugin.transform(UPSTREAM_CODE, BUNDLER_CONTEXT_ID), null, 'no barrels → transform returns null');
+    });
+});
