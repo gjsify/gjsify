@@ -339,28 +339,81 @@ function walkAll(root: string, sub: string = ''): string[] {
 
 function expandFilesPatterns(wsDir: string, patterns: readonly string[]): string[] {
     const out = new Set<string>();
+    let allFiles: string[] | null = null;
     for (const pattern of patterns) {
-        // Drop leading ./
+        // Drop leading ./ and trailing /
         const normalized = pattern.replace(/^\.\//, '').replace(/\/$/, '');
-        const full = join(wsDir, normalized);
-        if (!existsSync(full)) continue;
-        const st = statSync(full);
-        if (st.isDirectory()) {
-            for (const f of walkAll(wsDir, normalized)) out.add(f);
-        } else if (st.isFile()) {
-            out.add(normalized);
+        if (!normalized) continue;
+
+        // Literal file or directory (the common case: lib, dist, prebuilds).
+        if (!/[*?[\]]/.test(normalized)) {
+            const full = join(wsDir, normalized);
+            if (!existsSync(full)) continue;
+            const st = statSync(full);
+            if (st.isDirectory()) {
+                for (const f of walkAll(wsDir, normalized)) out.add(f);
+            } else if (st.isFile()) {
+                out.add(normalized);
+            }
+            continue;
         }
-        // TODO: glob patterns (foo/*.js). Currently we treat the entry as a
-        // literal file or directory. Most monorepos use file/dir entries only
-        // (lib, dist, prebuilds) — globs are rare. Surface a warning if the
-        // pattern contains glob chars and didn't resolve.
-        if (!existsSync(full) && /[*?[]/.test(pattern)) {
-            console.warn(
-                `gjsify pack: files entry "${pattern}" looks like a glob but glob expansion isn't implemented — pass literal files/dirs`,
-            );
+
+        // Glob pattern (e.g. `lib/lib*.d.ts`, `dist/*.js`). Match every file in
+        // the tree against the pattern AND against `<pattern>/**` (npm semantics:
+        // a glob that resolves to a directory includes everything under it). `*`
+        // does not cross `/`; `**` does. This is what npm-packlist does — without
+        // it, `@gjsify/tsc`'s `files: ["lib/lib*.d.ts"]` shipped ZERO libs.
+        allFiles ??= walkAll(wsDir);
+        const fileRe = filesGlobToRegExp(normalized);
+        const dirRe = filesGlobToRegExp(`${normalized}/**`);
+        for (const f of allFiles) {
+            if (fileRe.test(f) || dirRe.test(f)) out.add(f);
         }
     }
     return [...out];
+}
+
+/**
+ * Translate an npm-`files`-style glob to an anchored RegExp. `*` matches any run
+ * of non-`/` chars, `**` matches across `/`, `?` one non-`/` char, `[…]` a class.
+ * All other regex metacharacters are escaped. Mirrors the subset of glob syntax
+ * npm-packlist accepts in the `files` field.
+ */
+function filesGlobToRegExp(glob: string): RegExp {
+    let re = '^';
+    for (let i = 0; i < glob.length; i++) {
+        const c = glob[i];
+        if (c === '*') {
+            if (glob[i + 1] === '*') {
+                re += '.*';
+                i++;
+                if (glob[i + 1] === '/') i++; // consume the `/` after `**`
+            } else {
+                re += '[^/]*';
+            }
+        } else if (c === '?') {
+            re += '[^/]';
+        } else if (c === '[') {
+            let j = i + 1;
+            let cls = '[';
+            if (glob[j] === '!') {
+                cls += '^';
+                j++;
+            }
+            for (; j < glob.length && glob[j] !== ']'; j++) cls += glob[j];
+            if (j < glob.length) {
+                re += `${cls}]`;
+                i = j;
+            } else {
+                re += '\\['; // unmatched `[` → literal
+            }
+        } else if ('.+^${}()|\\]'.includes(c)) {
+            re += `\\${c}`;
+        } else {
+            re += c;
+        }
+    }
+    return new RegExp(`${re}$`);
 }
 
 function loadIgnore(wsDir: string): (rel: string) => boolean {
