@@ -19,12 +19,12 @@
     "devDependencies": {
         "@deepkit/type-compiler": "^1.0.19",
         "@girs/gjs": "4.0.4",
-        "@gjsify/cli": "^0.4.36",
-        "@gjsify/node-globals": "^0.4.36",
-        "@gjsify/runtime": "^0.4.36",
-        "@gjsify/unit": "^0.4.36",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.1",
-        "typescript": "^5.4.5"
+        "typescript": "^6.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",
     "license": "MIT"
