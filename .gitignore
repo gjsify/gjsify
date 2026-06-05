@@ -37,17 +37,17 @@ builddir/
 !packages/infra/tsc/dist/
 !packages/infra/tsc/dist/tsc.gjs.mjs
 # @gjsify/tsc's default-library `lib/lib*.d.ts` are COMMITTED, exactly like the
-# bundle above. tsc resolves them on a consumer that has no upstream `typescript`,
-# and `package.json#files` ships them. They are version-locked runtime data whose
-# only producer is `build-bundle.mjs` (it copies them from the `typescript`
-# devDep). `release.yml` DOES build before publishing, but @gjsify/tsc's build
-# is fragile: a `gjsify build` hiccup that does NOT abort the whole `foreach build`
-# leaves the committed bundle shipping while a build-copied-but-gitignored `lib/`
-# ships EMPTY (the 0.4.38 `error TS6053: lib.esnext.d.ts not found` regression —
-# other packages' plain `tsc` compile doesn't fail, so their gitignored `lib/`
-# ships fine; @gjsify/tsc is the exception). Committing the libs (like
-# `dist/tsc.gjs.mjs`) decouples them from the build and guarantees they are in
-# every tarball. Rebuilt by `gjsify workspace @gjsify/tsc build`.
+# bundle above: version-locked runtime data tsc resolves on a consumer that has
+# no upstream `typescript`. `package.json#files` ships them (`lib/lib*.d.ts`).
+# NOTE: the v0.4.37–0.4.39 "empty lib/" regression (`error TS6053:
+# lib.esnext.d.ts not found` + a `TS2318: Cannot find global type …` cascade on
+# every consumer) was NOT a gitignore problem — the libs were always on disk at
+# pack time. The real bug: gjsify's own packer (`cli/src/commands/pack.ts`) did
+# NOT expand `files` GLOBS, so `lib/lib*.d.ts` matched nothing and shipped 0 files
+# (a plain-dir entry like `["lib"]` worked; a glob did not). Fixed by implementing
+# glob expansion in the packer. Committing the libs is an independent self-
+# contained-tool choice (tracked-correct, like the bundle); the glob fix is what
+# actually includes them. Rebuilt by `gjsify workspace @gjsify/tsc build`.
 !packages/infra/tsc/lib/
 !packages/infra/tsc/lib/*.d.ts
 
