@@ -84,6 +84,16 @@ export interface FetchOptions {
      * verbose-mode install logs ("retrying fetch in 500 ms…").
      */
     onRetry?: (info: { attempt: number; error: unknown; delayMs: number }) => void;
+    /**
+     * Treat HTTP 404 as a transient (retryable) failure rather than a hard
+     * "not found". Default false. Opt in for TARBALL fetches: a tarball URL
+     * already came from a successfully-resolved packument, so a 404 on the
+     * `.tgz` is a registry/CDN hiccup under load (observed on heavy parallel
+     * `@girs/*` installs — npm itself fails the same way) rather than a
+     * genuinely-missing artifact. Packument 404s must stay permanent (the
+     * package really doesn't exist), so leave this false there.
+     */
+    retryNotFound?: boolean;
 }
 
 /** Strict-validate a packument shape. Throws on schema mismatch. */
@@ -287,6 +297,9 @@ export async function fetchTarball(url: string, opts: FetchOptions & { integrity
             retryDelayMs: opts.retryDelayMs,
             timeoutMs: opts.timeoutMs,
             onRetry: opts.onRetry,
+            // A tarball URL came from a resolved packument, so a 404 on the
+            // `.tgz` is a transient CDN hiccup, not a missing artifact — retry it.
+            retryNotFound: opts.retryNotFound ?? true,
         },
     );
     if (!res.ok) throw new Error(`tarball GET ${url} -> ${res.status} ${res.statusText}`);
@@ -314,7 +327,9 @@ export async function fetchTarball(url: string, opts: FetchOptions & { integrity
  *
  * Does NOT retry on:
  *   - 4xx other than 408/425/429 (semantic errors — 404 surfaces via the
- *     caller's PackageNotFoundError path)
+ *     caller's PackageNotFoundError path) UNLESS `opts.retryNotFound` is set,
+ *     which `fetchTarball` enables so a transient CDN 404 on a `.tgz` (whose
+ *     URL already came from a resolved packument) is retried like any blip
  *   - AbortError from the CALLER's signal (`opts.signal` — caller wants out)
  *   - any other thrown shape that doesn't look transient
  *
@@ -333,7 +348,7 @@ export async function fetchWithRetry(
     // (GJS) `compress: false` disables transparent gzip decoding so the caller
     // can buffer-then-gunzip itself; Node's undici ignores the field.
     init: { headers: Record<string, string>; signal?: AbortSignal; compress?: boolean },
-    opts: Pick<FetchOptions, 'fetch' | 'retries' | 'retryDelayMs' | 'timeoutMs' | 'onRetry'>,
+    opts: Pick<FetchOptions, 'fetch' | 'retries' | 'retryDelayMs' | 'timeoutMs' | 'onRetry' | 'retryNotFound'>,
 ): Promise<Response> {
     const fetchImpl = opts.fetch ?? globalThis.fetch;
     if (!fetchImpl) throw new Error('@gjsify/npm-registry: globalThis.fetch is missing');
@@ -341,6 +356,7 @@ export async function fetchWithRetry(
     const maxRetries = Math.max(0, opts.retries ?? 3);
     const baseDelay = Math.max(0, opts.retryDelayMs ?? 250);
     const timeoutMs = Math.max(0, opts.timeoutMs ?? 30_000);
+    const retryNotFound = opts.retryNotFound ?? false;
     let attempt = 0;
     let lastErr: unknown;
     let timeoutHits = 0;
@@ -369,7 +385,8 @@ export async function fetchWithRetry(
 
         try {
             const res = await fetchImpl(url, { ...init, signal: composedSignal });
-            if (res.ok || !isRetryableStatus(res.status) || attempt >= maxRetries) {
+            const retryable = isRetryableStatus(res.status) || (retryNotFound && res.status === 404);
+            if (res.ok || !retryable || attempt >= maxRetries) {
                 return res;
             }
             // Drain the body so the underlying connection can be reused.

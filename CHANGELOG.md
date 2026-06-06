@@ -5,6 +5,7 @@
 ### Bug Fixes
 
 * **cli:** `self-update` now pulls the on-disk runtime dependencies alongside the bundle by default (new `--skip-deps` restores the bundle-only fast path), so native bridges / `rolldown` / `lightningcss` / `@gjsify/tsc` no longer skew behind the updated `cli.gjs.mjs`.
+* **npm-registry,install:** retry transient `404`s on tarball fetches (`fetchTarball` opts into `retryNotFound`), so a momentary registry/CDN hiccup on a `.tgz` under heavy parallel `@girs/*` load no longer aborts `gjsify install`. Packument 404s stay permanent (the package genuinely doesn't exist).
 
 ### Documentation
 

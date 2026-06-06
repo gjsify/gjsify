@@ -480,6 +480,41 @@ export default async () => {
             expect(calls).toBe(1);
         });
 
+        await it('fetchTarball retries a transient 404 (tarball URL came from a valid packument)', async () => {
+            // A `.tgz` URL is handed out by a successfully-resolved packument, so a
+            // 404 on it is a CDN hiccup under load (observed on heavy parallel
+            // @girs installs), not a missing artifact — fetchTarball retries it.
+            let calls = 0;
+            const mock = makeMockFetch(async () => {
+                calls++;
+                if (calls < 3) return new Response('not found', { status: 404, statusText: 'Not Found' });
+                return new Response(new Uint8Array([0x1f, 0x8b, 0x08]), { status: 200 });
+            });
+            const got = await fetchTarball('https://r/@girs/gtk-4.0/-/gtk-4.0-4.23.0-4.0.4.tgz', {
+                fetch: mock,
+                retries: 3,
+                retryDelayMs: 1,
+            });
+            expect(got.length).toBe(3);
+            expect(calls).toBe(3);
+        });
+
+        await it('fetchTarball gives up on a persistent 404 after exhausting retries', async () => {
+            let calls = 0;
+            const mock = makeMockFetch(async () => {
+                calls++;
+                return new Response('not found', { status: 404 });
+            });
+            let caught: Error | null = null;
+            try {
+                await fetchTarball('https://r/x.tgz', { fetch: mock, retries: 2, retryDelayMs: 1 });
+            } catch (e) {
+                caught = e as Error;
+            }
+            expect(caught instanceof Error).toBe(true);
+            expect(calls).toBe(3); // initial + 2 retries
+        });
+
         await it('throws the underlying error after exhausting retries', async () => {
             let calls = 0;
             const mock = makeMockFetch(async () => {
