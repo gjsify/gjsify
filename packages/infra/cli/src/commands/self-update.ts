@@ -25,6 +25,7 @@ interface SelfUpdateOptions {
     check?: boolean;
     force?: boolean;
     tag: string;
+    skipDeps?: boolean;
 }
 
 const PACKAGE_NAME = '@gjsify/cli';
@@ -48,6 +49,14 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
                 description: 'npm dist-tag or pinned version to install (e.g. `latest`, `next`, `0.5.0`).',
                 type: 'string',
                 default: 'latest',
+            })
+            .option('skip-deps', {
+                description:
+                    'Update only the @gjsify/cli bundle itself; do not pull its runtime dependencies ' +
+                    '(rolldown, lightningcss, @gjsify/tsc, the native gi:// bridges, …). Faster, but can ' +
+                    'leave the on-disk runtime deps stale relative to the new bundle.',
+                type: 'boolean',
+                default: false,
             }) as Argv<SelfUpdateOptions>,
     handler: async (args: SelfUpdateOptions) => {
         const layout = defaultGlobalLayout();
@@ -104,21 +113,33 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
             return;
         }
 
-        console.log(`Installing ${PACKAGE_NAME}@${target} ...`);
-        // `@gjsify/cli` is a self-contained GJS bundle: every workspace dep
-        // (`@gjsify/node-polyfills`, `@gjsify/v8`, …) is bundled into the
-        // published `dist/cli.gjs.mjs` artifact and must NOT be resolved as
-        // a separate npm package. `skipDeps: true` limits the native install
-        // backend to fetching the top-level tarball only, avoiding spurious
-        // packument requests for workspace-internal packages that are not
-        // published to the public registry (which previously caused a
-        // 406 Not Acceptable → fatal crash on the `@gjsify/v8` packument).
+        // `@gjsify/cli` ships two runtimes from one package: the Node `bin`
+        // (`lib/index.js`, which imports its deps from `node_modules`) and the
+        // self-contained GJS bundle (`dist/cli.gjs.mjs`, which inlines them).
+        // The published `dependencies` therefore must cover everything `lib/**`
+        // resolves at runtime PLUS the pieces only the GJS runtime loads from
+        // disk (the `gi://` native typelib bridges via the launcher's
+        // GI_TYPELIB_PATH, `rolldown`/`lightningcss` native addons, the
+        // separate `@gjsify/tsc` bundle, `@gjsify/create-app`'s disk templates).
+        //
+        // By DEFAULT self-update now resolves that full production `dependencies`
+        // tree (`skipDeps: false`) so the on-disk runtime deps move in lockstep
+        // with the freshly-installed bundle instead of skewing behind it. This is
+        // safe today because every `@gjsify/*` package — including the
+        // `@gjsify/v8` that once 404'd → 406 and forced `skipDeps: true`
+        // unconditionally — is now published to the public registry.
+        //
+        // `--skip-deps` restores the old fast path: fetch only the top-level
+        // `@gjsify/cli` tarball and re-link the bin, leaving runtime deps untouched.
+        const pullDeps = !args.skipDeps;
+        const depNote = pullDeps ? ' + runtime dependencies' : ' (bundle only)';
+        console.log(`Installing ${PACKAGE_NAME}@${target}${depNote} ...`);
         try {
             await installPackages({
                 prefix: layout.prefix,
                 specs: [`${PACKAGE_NAME}@${target}`],
                 verbose: false,
-                skipDeps: true,
+                skipDeps: !pullDeps,
             });
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -138,6 +159,11 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
             }
         }
         console.log(`\nUpdated ${PACKAGE_NAME} to v${target}.`);
+        if (pullDeps) {
+            console.log('Runtime dependencies were resolved alongside the bundle.');
+        } else {
+            console.log('Bundle-only update (--skip-deps): on-disk runtime dependencies were left unchanged.');
+        }
     },
 };
 

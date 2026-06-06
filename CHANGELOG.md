@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Bug Fixes
+
+* **cli:** `self-update` now pulls the on-disk runtime dependencies alongside the bundle by default (new `--skip-deps` restores the bundle-only fast path), so native bridges / `rolldown` / `lightningcss` / `@gjsify/tsc` no longer skew behind the updated `cli.gjs.mjs`.
+
+### Documentation
+
+* **agents:** anchor the "Bundled-artifact dependency classification" rule in `AGENTS.md` — the bundled→devDep shortcut applies only to pure-bundle packages (`@gjsify/tsc`), never to dual-entry ones (`@gjsify/cli`, whose Node `bin` resolves its deps from `node_modules`).
+
 ## [0.4.42](https://github.com/gjsify/gjsify/compare/v0.4.41...v0.4.42) (2026-06-06)
 
 ### Build System
