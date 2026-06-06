@@ -70,6 +70,50 @@ export function toFileRef(name, tarballsDir, tarballMap) {
     return `file:${join(tarballsDir, filename)}`;
 }
 
+/** Synchronous sleep (no extra process) — used for retry backoff. */
+function sleepSync(ms) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Heuristic: did this `npm install` failure look like a transient registry /
+ * network hiccup (vs a deterministic dependency error worth surfacing)?
+ */
+function isTransientInstallError(err) {
+    const text = `${err?.message ?? ''}\n${err?.stdout ?? ''}\n${err?.stderr ?? ''}`;
+    return /E404|ETARGET|ENOTFOUND|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|socket hang up|network|registry\.npmjs\.org|\b(?:429|500|502|503|504)\b|Not Found|could not be found/i.test(
+        text,
+    );
+}
+
+/**
+ * Run `npm install` in `projectDir`, retrying on transient failures. E2E
+ * templates pull heavy `@girs/*` tarballs from the public registry in parallel;
+ * the registry intermittently returns a transient 404 / network error for a
+ * tarball that genuinely exists (observed: Fedora 43 passes while Fedora 44
+ * fails on the identical commit). Retry with backoff so a registry hiccup
+ * doesn't red a PR.
+ *
+ * Only the install is retried — callers' build/check steps stay deterministic
+ * so a real regression still fails on the first attempt rather than being
+ * masked by a retry.
+ */
+export function npmInstallWithRetry(projectDir, { label = 'project', attempts = 3, timeoutMs = 5 * 60 * 1000 } = {}) {
+    for (let attempt = 1; ; attempt++) {
+        try {
+            execSync('npm install --no-audit --no-fund', { cwd: projectDir, stdio: 'pipe', timeout: timeoutMs });
+            return;
+        } catch (err) {
+            if (attempt >= attempts || !isTransientInstallError(err)) throw err;
+            const waitMs = 3000 * attempt;
+            console.log(
+                `  [${label}] npm install attempt ${attempt}/${attempts} hit a transient registry error — retrying in ${waitMs}ms…`,
+            );
+            sleepSync(waitMs);
+        }
+    }
+}
+
 /**
  * Write a package.json, install deps, and return the project dir.
  */
@@ -89,11 +133,7 @@ export function setupProject(projectDir, pkg, tarballsDir, tarballMap) {
     writeFileSync(join(projectDir, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
 
     console.log('  running npm install...');
-    execSync('npm install --no-audit --no-fund', {
-        cwd: projectDir,
-        stdio: 'pipe',
-        timeout: 3 * 60 * 1000,
-    });
+    npmInstallWithRetry(projectDir, { label: 'setupProject', timeoutMs: 3 * 60 * 1000 });
     console.log('  npm install done');
 }
 

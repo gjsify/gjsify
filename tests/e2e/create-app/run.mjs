@@ -15,6 +15,7 @@ import {
     cleanupTestEnvironment,
     toFileRef,
     buildOverrides,
+    npmInstallWithRetry,
 } from '../helpers.mjs';
 
 // Listing order matches the template catalog (simple first).
@@ -39,6 +40,11 @@ function hasBlueprintCompiler() {
         return false;
     }
 }
+
+// `npm install` retry (transient @girs registry 404s) lives in ../helpers.mjs
+// as `npmInstallWithRetry`. `npm run build` is intentionally NOT retried so a
+// real regression (e.g. a runtime dep misclassified as a devDependency — the
+// bug this suite guards) still fails deterministically on the first attempt.
 
 /** Scaffold a project using the create-app CLI with an explicit template. */
 function scaffold(cwd, projectName, template) {
@@ -116,11 +122,7 @@ describe('create-app E2E', { timeout: 60 * 60 * 1000 }, () => {
                 patchPackageJson(projectDir, tarballsDir, tarballMap);
 
                 console.log(`  [${template}] npm install…`);
-                execSync('npm install --no-audit --no-fund', {
-                    cwd: projectDir,
-                    stdio: 'pipe',
-                    timeout: 5 * 60 * 1000,
-                });
+                npmInstallWithRetry(projectDir, { label: template });
             });
 
             it('scaffolded project has expected files', (t) => {
