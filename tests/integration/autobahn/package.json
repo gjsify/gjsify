@@ -8,7 +8,7 @@
     },
     "scripts": {
         "clear": "rm -rf dist tsconfig.tsbuildinfo reports/output || exit 0",
-        "check": "tsc --noEmit",
+        "check": "gjsify tsc --noEmit",
         "build:driver:gjs": "gjsify build src/fuzzingclient-driver.ts --app gjs --outfile dist/driver-websocket.gjs.mjs --globals auto,WebSocket",
         "build:driver:ws:gjs": "gjsify build src/fuzzingclient-driver-ws.ts --app gjs --outfile dist/driver-ws.gjs.mjs --globals auto,WebSocket",
         "build": "gjsify run build:driver:gjs && gjsify run build:driver:ws:gjs",

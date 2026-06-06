@@ -8,7 +8,7 @@
   },
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
-    "check": "tsc --noEmit",
+    "check": "gjsify tsc --noEmit",
     "start": "gjsify run start:gjs",
     "start:gjs": "gjsify run dist/gjs.js",
     "start:node": "node dist/node.js",

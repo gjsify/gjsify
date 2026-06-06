@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
-    "check": "tsc --noEmit",
+    "check": "gjsify tsc --noEmit",
     "start": "gjs -m dist/index.js",
     "build": "gjsify run build:gjs",
     "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.js",

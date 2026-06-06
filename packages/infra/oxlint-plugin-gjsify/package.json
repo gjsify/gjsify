@@ -10,7 +10,7 @@
     },
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
-        "check": "tsc --noEmit"
+        "check": "gjsify tsc --noEmit"
     },
     "repository": {
         "type": "git",
