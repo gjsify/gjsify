@@ -846,6 +846,17 @@ Pattern (mirror when adding a new bundled toolchain — e.g. `@gjsify/oxlint`, `
 
 Non-goal for this axis: bundling Node-API/native-addon tools (Rolldown, oxc binaries, esbuild). Those stay Node-resolved via `oxc-resolve.ts`-style PATH walkers — the bundled-toolchain pattern is for pure-TS/JS tools only.
 
+### Bundled-artifact dependency classification — `dependencies` vs `devDependencies`
+
+A package belongs in `dependencies` **IFF something a consumer runs needs it present on disk at runtime.** The trap with the bundled-artifact pattern is assuming "it's inlined into the GJS bundle ⇒ it's a devDependency." That holds **only when the bundle is the sole consumed artifact.** It is WRONG whenever the package ALSO ships a Node entry that resolves the same deps from `node_modules`. Decide per-package by counting the entry points:
+
+- **Pure-bundle package — `@gjsify/tsc`** (`bin: dist/tsc.gjs.mjs`, no Node `lib/` consumed by anyone). The GJS bundle inlines everything, so `typescript` is genuinely a build-time-only `devDependency`; the published tarball has no runtime `typescript` dep. The bundled→devDep rule applies cleanly here.
+- **Dual-entry package — `@gjsify/cli`** (`bin: lib/index.js` (Node) **AND** `gjsify.bin: dist/cli.gjs.mjs` (GJS)). npm installs the package and wires the `bin` to the **Node** entry, whose `lib/**` `import`s its deps from `node_modules` at runtime — even though those same packages are *also* inlined into the GJS bundle. So `cosmiconfig`, `yargs`, `get-tsconfig`, `pkg-types`, `@gjsify/{workspace,npm-registry,resolve-npm,tar,semver,buffer,node-globals,rolldown-plugin-*}`, the polyfill metas — all stay in `dependencies`. Only genuinely build/test-only tools (`typescript`, `@gjsify/unit`, `@types/*`) are `devDependencies`. **Moving a `lib/**`-imported dep to `devDependencies` breaks `gjsify` when installed as a normal npm dependency** — guarded by `tests/e2e/create-app` (scaffolds a project that depends on `@gjsify/cli` and runs its bin: a misclassified dep fails the build with `ERR_MODULE_NOT_FOUND: Cannot find package '<dep>'`).
+
+Optional GJS-native fast-paths that have an npm fallback already on disk → **optional `peerDependencies`** (`peerDependenciesMeta.<name>.optional: true`), e.g. `@gjsify/rolldown-native` (falls back to npm `rolldown`).
+
+**Keeping on-disk runtime deps in lockstep with the bundle:** `gjsify self-update` resolves the production `dependencies` tree by default (`--skip-deps` for the bundle-only fast path), so a `gjsify` update pulls the matching native bridges / `rolldown` / `lightningcss` / `@gjsify/tsc` rather than leaving them skewed at the version the original `install.mjs` laid down. This is only safe because every `@gjsify/*` package is published to the public registry; if a workspace-internal package were ever unpublished, resolving the production tree would 406 (the historical `@gjsify/v8` failure) and `self-update` would need `--skip-deps` or a curated pull instead.
+
 ## JS Feature Availability
 
 ### SM140 (GJS 1.86+, current) — ES2024 + extras

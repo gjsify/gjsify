@@ -57,11 +57,17 @@
 //   - Records every GET request path in a shared JSON file so the parent
 //     process can assert which packuments were fetched.
 //   - Serves the `@gjsify/cli` packument correctly (200).
-//   - Returns 406 for any other packument path — matching real npm registry
-//     behavior for unpublished workspace packages — so regression tests
-//     immediately surface if skipDeps is dropped or bypassed.
-//   - Returns 406 for tarball requests beyond `@gjsify/cli` (self-update
-//     uses skipDeps so no transitive tarballs should be requested either).
+//   - Returns 406 for any other packument path — the failure mode the old
+//     code guarded against. `@gjsify/v8` was the canonical offender back when
+//     it (briefly) wasn't on the public registry; this guard surfaces any
+//     regression that fetches a transitive packument on the short-circuit path.
+//
+// Default-behavior note: `self-update` now resolves the production
+// `dependencies` tree by DEFAULT (only `--skip-deps` keeps the bundle-only
+// fast path). That is safe because every `@gjsify/*` package — including
+// `@gjsify/v8` — is now published to the public registry. These tests exercise
+// the same-version / `--check` paths, where `installPackages` is never reached,
+// so no transitive packuments/tarballs are requested regardless.
 //
 // Limitation: the full upgrade path (installPackages + linkGlobalBins) is NOT
 // exercised here because `installPackages` with a real tarball server is out
@@ -450,15 +456,20 @@ globalThis.fetch = async (input, init = {}) => {
     });
 
     // ── 6. STRAY PACKUMENT FETCH REGRESSION ───────────────────────────────
-    // Regression guard for the production bug where the native install backend
-    // walked the full transitive dep graph of @gjsify/cli, fetching packuments
-    // for workspace-internal packages like @gjsify/v8 that are NOT published
-    // to npm. The registry returned 406 Not Acceptable, causing a fatal crash.
+    // Regression guard for the historical bug where the native install backend
+    // walked the full transitive dep graph of @gjsify/cli and fetched a
+    // packument for @gjsify/v8 back when it wasn't on the public registry,
+    // getting a 406 Not Acceptable that crashed the command.
     //
-    // Fix: self-update.ts passes `skipDeps: true` to installPackages so the
-    // native backend only fetches the top-level @gjsify/cli tarball.
+    // The structural guarantee here is the short-circuit: this test runs the
+    // same-version path → "Already up to date" returns before installPackages is
+    // ever called, so the ONLY registry call is the single
+    // fetchPackument('@gjsify/cli'). Any stray transitive packument request
+    // (e.g. @gjsify/v8) on this path is a regression. (On a real upgrade the
+    // backend now does resolve the production tree by default — safe because all
+    // @gjsify/* packages are published — but that path is not exercised here.)
     //
-    // This test verifies the fix by:
+    // This test verifies the guard by:
     //   a. Asserting the mock registry never receives a request for any
     //      non-@gjsify/cli packument (i.e., no @gjsify/v8, @gjsify/node-polyfills, etc.)
     //   b. Asserting the mock registry never receives a request whose path
@@ -581,6 +592,31 @@ globalThis.fetch = async (input, init = {}) => {
             combined2,
             /Already up to date/,
             `Expected "Already up to date" on second run (idempotency):\n${combined2}`,
+        );
+    });
+
+    // ── 9. --skip-deps FLAG IS RECOGNISED ─────────────────────────────────
+    // Wiring guard for the new `--skip-deps` option. With a matching version
+    // the command short-circuits at "Already up to date" before any install,
+    // but the flag must still parse cleanly — a removed/renamed option would
+    // make yargs reject it as "Unknown argument" and exit non-zero.
+
+    it('accepts the --skip-deps flag without a yargs "Unknown argument" error', async () => {
+        const result = await runSelfUpdate(['--skip-deps'], {
+            preloadPath,
+            env: {
+                GJSIFY_GLOBAL_PREFIX: prefixWithCli,
+                GJSIFY_GLOBAL_BIN_DIR: join(tmpRoot, 'bin-skip-deps'),
+                GJSIFY_E2E_REGISTRY_URL: registryUrl,
+                GJSIFY_E2E_LATEST_VERSION: currentVersion,
+            },
+        });
+
+        const combined = result.stdout + result.stderr;
+        assert.equal(result.status, 0, `Expected exit 0 with --skip-deps (same version):\n${combined}`);
+        assert.ok(
+            !/Unknown argument/i.test(combined),
+            `--skip-deps was rejected as an unknown argument — option wiring regression:\n${combined}`,
         );
     });
 });
