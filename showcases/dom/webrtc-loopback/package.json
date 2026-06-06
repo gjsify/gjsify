@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-dom-webrtc-loopback",
-  "version": "0.4.41",
+  "version": "0.4.42",
   "description": "WebRTC data-channel loopback demo (two local peers) for GJS and browser",
   "main": "dist/gjs.js",
   "type": "module",

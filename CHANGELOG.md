@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.42](https://github.com/gjsify/gjsify/compare/v0.4.41...v0.4.42) (2026-06-06)
+
+### Build System
+
+* self-host build:types on gjsify tsc ([#474](https://github.com/gjsify/gjsify/issues/474)) ([557d007](https://github.com/gjsify/gjsify/commit/557d0079579b51cb9c7e75d88bea83013ae83d42))
+* self-host workspace check on gjsify tsc ([#472](https://github.com/gjsify/gjsify/issues/472)) ([f8c714e](https://github.com/gjsify/gjsify/commit/f8c714efc36b38251137176827862ff2b3c74df1))
+
 ## [0.4.41](https://github.com/gjsify/gjsify/compare/v0.4.40...v0.4.41) (2026-06-06)
 
 ### Bug Fixes
