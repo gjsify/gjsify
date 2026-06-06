@@ -6,7 +6,7 @@
     "main": "app/app.ts",
     "scripts": {
         "clear": "rm -rf platforms hooks dist *.log tsconfig.tsbuildinfo || exit 0",
-        "check": "tsc --noEmit",
+        "check": "gjsify tsc --noEmit",
         "prepare:android": "nativescript prepare android --no-hmr",
         "build:android": "nativescript build android --no-hmr",
         "test:android": "node scripts/run-on-device.mjs android",

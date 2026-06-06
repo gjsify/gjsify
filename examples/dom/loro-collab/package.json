@@ -5,7 +5,7 @@
     "type": "module",
     "scripts": {
         "clear": "rm -rf dist tsconfig.tsbuildinfo",
-        "check": "tsc --noEmit",
+        "check": "gjsify tsc --noEmit",
         "start": "gjsify run dist/loro-collab.gjs.js",
         "build": "gjsify run build:gjs",
         "build:gjs": "gjsify build src/main.ts --app gjs --outfile dist/loro-collab.gjs.js --globals 'auto,crypto'"

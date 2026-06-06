@@ -19,7 +19,7 @@
     "bin": "./lib/index.js",
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
-        "check": "tsc --noEmit",
+        "check": "gjsify tsc --noEmit",
         "build": "node scripts/process-template.mjs && tsc && chmod +x ./lib/index.js",
         "test": "echo 'nothing to do'"
     },

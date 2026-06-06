@@ -5,7 +5,7 @@
     "type": "module",
     "private": true,
     "scripts": {
-        "check": "tsc --noEmit",
+        "check": "gjsify tsc --noEmit",
         "build": "gjsify build src/index.ts --outfile dist/index.js",
         "start": "gjsify run dist/index.js",
         "dev": "gjsify build src/index.ts --outfile dist/index.js && gjsify run dist/index.js"

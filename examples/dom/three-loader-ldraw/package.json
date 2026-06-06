@@ -10,7 +10,7 @@
   },
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
-    "check": "tsc --noEmit --skipLibCheck --strictNullChecks false --noImplicitAny false",
+    "check": "gjsify tsc --noEmit --skipLibCheck --strictNullChecks false --noImplicitAny false",
     "start": "gjsify run dist/gjs.js",
     "start:browser": "http-server dist",
     "build": "gjsify run build:gjs && gjsify run build:browser && gjsify run build:assets",

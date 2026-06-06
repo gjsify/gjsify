@@ -4,7 +4,7 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "check": "tsc --noEmit",
+        "check": "gjsify tsc --noEmit",
         "test": "playwright test --project=firefox",
         "test:firefox": "playwright test --project=firefox",
         "test:chromium": "playwright test --project=chromium"

@@ -8,7 +8,7 @@
     },
     "scripts": {
         "clear": "rm -rf dist fixtures tsconfig.tsbuildinfo || exit 0",
-        "check": "tsc --noEmit",
+        "check": "gjsify tsc --noEmit",
         "prebuild:test:gjs": "node scripts/setup-fixtures.mjs",
         "prebuild:test:node": "node scripts/setup-fixtures.mjs",
         "setup-fixtures": "node scripts/setup-fixtures.mjs",

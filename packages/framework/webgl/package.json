@@ -26,7 +26,7 @@
     },
     "scripts": {
         "clear": "rm -rf lib tmp build test.gjs.mjs tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
-        "check": "tsc --noEmit",
+        "check": "gjsify tsc --noEmit",
         "init:meson": "meson setup build .",
         "init:meson:wipe": "gjsify run init:meson --wipe",
         "build": "gjsify run build:gjsify && gjsify run build:types",
