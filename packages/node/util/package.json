@@ -25,7 +25,7 @@
         "check": "gjsify tsc --noEmit",
         "build": "gjsify run build:gjsify && gjsify run build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
-        "build:types": "tsc",
+        "build:types": "gjsify tsc",
         "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
         "build:test:gjs": "gjsify build src/test.ts --app gjs --no-minify --outfile test.gjs.mjs",
         "build:test:node": "gjsify build src/test.ts --app node --no-minify --outfile test.node.mjs",

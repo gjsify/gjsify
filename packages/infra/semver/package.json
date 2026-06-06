@@ -20,7 +20,7 @@
         "check": "gjsify tsc --noEmit",
         "build": "gjsify run build:gjsify && gjsify run build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.mts'",
-        "build:types": "tsc -p tsconfig.build.json",
+        "build:types": "gjsify tsc -p tsconfig.build.json",
         "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
