@@ -133,6 +133,31 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
         }
     });
 
+    it("removes the 'ns-typescript-check' plugin (bundler != type-checker; gjsify tsc is the gate)", () => {
+        const fixed = applyVite8Fixes({
+            plugins: [
+                { name: 'nativescript-package-resolver' }, // KEEP
+                { name: 'ns-typescript-check' }, // DROP — fails the build on the standard NS createNativeView override under TS 6+
+                { name: 'vite:esbuild' }, // KEEP
+                [
+                    { name: 'ns-typescript-check' }, // DROP (nested)
+                    { name: 'nested-keeper' }, // KEEP
+                ],
+            ],
+        });
+        const names = pluginNames(fixed.plugins);
+        assert.equal(
+            names.includes('ns-typescript-check'),
+            false,
+            "an 'ns-typescript-check' plugin survived — it would fail every ns build on the standard NS createNativeView idiom",
+        );
+        assert.deepEqual(
+            names,
+            ['nativescript-package-resolver', 'vite:esbuild', 'nested-keeper'],
+            'non-ts-check plugins (incl. the nested sibling) were not preserved after the strip',
+        );
+    });
+
     it("removes every 'commonjs' plugin (incl. nested), keeps all others", () => {
         const fixed = applyVite8Fixes(makeSyntheticConfig());
 

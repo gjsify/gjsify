@@ -120,11 +120,15 @@ async function loadUpstreamConfig(env: ConfigEnv): Promise<UserConfig> {
     );
 }
 
+/** Upstream `@nativescript/vite` TypeScript-check plugin name (see `helpers/typescript-check.js`). */
+const TS_CHECK_PLUGIN = 'ns-typescript-check';
+
 /**
- * Apply the two Vite 8 / Rolldown fixes to a returned `@nativescript/vite`
- * config: drop function-replacement aliases and the explicit
- * `@rollup/plugin-commonjs`. Returns a shallow copy with the fixed `resolve` and
- * `plugins` — the input is not mutated.
+ * Apply the Vite 8 / Rolldown + type-check fixes to a returned `@nativescript/vite`
+ * config: drop function-replacement aliases, the explicit `@rollup/plugin-commonjs`,
+ * and the vite-side `ns-typescript-check` (gjsify type-checks via `gjsify tsc`).
+ * Returns a shallow copy with the fixed `resolve` and `plugins` — the input is not
+ * mutated.
  */
 export function applyVite8Fixes(config: UserConfig): UserConfig {
     const out: UserConfig = { ...config };
@@ -146,6 +150,26 @@ export function applyVite8Fixes(config: UserConfig): UserConfig {
                 '[@gjsify/nativescript-vite] no plugin named "commonjs" found in the upstream config — ' +
                     'if your @nativescript/vite version renamed/wrapped @rollup/plugin-commonjs, the Rolldown ' +
                     'CommonJS fix may not have applied.',
+            );
+        }
+
+        // Drop the vite-side `ns-typescript-check` plugin. A bundler should bundle,
+        // not type-check — gjsify defers the authoritative TypeScript gate to
+        // `gjsify tsc` / the app's own `check` script (the same separation Vite's
+        // esbuild/SWC pipeline already makes). The vite-side check additionally runs
+        // a SEPARATE program that loads the full `@nativescript/types` android
+        // globals and, under TS 6+, fails the build on the *standard* NativeScript
+        // `createNativeView(): android.view.View` override — a covariance the app's
+        // own `tsc --noEmit` accepts. Removing it (not silencing it) keeps the build
+        // honest; type errors surface in `gjsify tsc`, the real gate.
+        const tsCheckBefore = countPluginByName(out.plugins, TS_CHECK_PLUGIN);
+        out.plugins = stripPluginByName(out.plugins, TS_CHECK_PLUGIN);
+        if (tsCheckBefore > 0) {
+            console.warn(
+                `[@gjsify/nativescript-vite] removed the vite-side "${TS_CHECK_PLUGIN}" plugin — gjsify defers ` +
+                    "TypeScript checking to `gjsify tsc` / the app's own `check` script (the vite-side check fails " +
+                    'the build on the standard NativeScript `createNativeView` override under TS 6+, which the ' +
+                    "app's own tsc accepts). Run `gjsify tsc` for the authoritative type gate.",
             );
         }
     }
