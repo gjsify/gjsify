@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.41](https://github.com/gjsify/gjsify/compare/v0.4.40...v0.4.41) (2026-06-06)
+
+### Bug Fixes
+
+* **nativescript-vite:** drop vite-side ts-check ([6e85545](https://github.com/gjsify/gjsify/commit/6e8554527f82b31c9247d1bf89176e6d5a44aa69))
+
 ## [0.4.40](https://github.com/gjsify/gjsify/compare/v0.4.39...v0.4.40) (2026-06-05)
 
 ### Bug Fixes
