@@ -44,7 +44,7 @@
         "check": "gjsify tsc --noEmit",
         "build": "gjsify run build:gjsify && gjsify run build:types",
         "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
-        "build:types": "tsc",
+        "build:types": "gjsify tsc",
         "init:meson": "meson setup build .",
         "init:meson:wipe": "gjsify run init:meson --wipe",
         "build:meson": "gjsify run init:meson && meson compile -C build",

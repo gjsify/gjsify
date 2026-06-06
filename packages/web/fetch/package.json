@@ -36,7 +36,7 @@
         "check": "gjsify tsc --noEmit",
         "build": "gjsify run build:gjsify && gjsify run build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
-        "build:types": "tsc",
+        "build:types": "gjsify tsc",
         "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "build:test:browser": "gjsify build src/test.browser.mts --app browser --outfile dist/test.browser.mjs",

@@ -30,7 +30,7 @@
         "build": "gjsify run build:scss && gjsify run build:gjsify && gjsify run build:types",
         "build:scss": "node scripts/build-scss.mjs",
         "build:gjsify": "gjsify build --library 'src/**/*.ts' --exclude 'src/**/*.spec.ts'",
-        "build:types": "tsc"
+        "build:types": "gjsify tsc"
     },
     "dependencies": {
         "@gjsify/adwaita-fonts": "workspace:^",
