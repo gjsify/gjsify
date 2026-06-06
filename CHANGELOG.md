@@ -10,6 +10,10 @@
 
 * **agents:** anchor the "Bundled-artifact dependency classification" rule in `AGENTS.md` — the bundled→devDep shortcut applies only to pure-bundle packages (`@gjsify/tsc`), never to dual-entry ones (`@gjsify/cli`, whose Node `bin` resolves its deps from `node_modules`).
 
+### Tests
+
+* **e2e:** retry the scaffolded `npm install` on transient registry errors (`npmInstallWithRetry` in `tests/e2e/helpers.mjs`, shared by `create-app` + `setupProject`) — absorbs the intermittent `@girs/*` tarball 404s that flaked the E2E job (one CI runner failing while another passed on the same commit). `npm run build` is deliberately not retried, so real regressions still fail deterministically.
+
 ## [0.4.42](https://github.com/gjsify/gjsify/compare/v0.4.41...v0.4.42) (2026-06-06)
 
 ### Build System
