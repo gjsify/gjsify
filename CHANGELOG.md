@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.43](https://github.com/gjsify/gjsify/compare/v0.4.42...v0.4.43) (2026-06-07)
+
+### Bug Fixes
+
+* **cli:** native bundler writes nested chunk dirs ([6ed4220](https://github.com/gjsify/gjsify/commit/6ed4220dc7a6595f4ee08f060135963c922b862d))
+* **cli:** self-update pulls runtime deps by default ([d159a1d](https://github.com/gjsify/gjsify/commit/d159a1d6224a8e0b51f99a67d094221cf77ab608))
+* **npm-registry:** retry transient tarball 404s in gjsify install ([1ea7681](https://github.com/gjsify/gjsify/commit/1ea7681fe3a89abfc0cff2c0aff558cc84faf60b)), closes [#475](https://github.com/gjsify/gjsify/issues/475)
+* **tsc:** keep committed libs on mismatched TS install ([a98edf9](https://github.com/gjsify/gjsify/commit/a98edf935ed6d54a97591e1efa544db2a57b7742))
+
+### Tests
+
+* **e2e:** retry npm install on transient registry errors ([f3dc9bd](https://github.com/gjsify/gjsify/commit/f3dc9bd87adcb5788a9f83c98810ef2832f78404))
+
 ## [Unreleased]
 
 ### Bug Fixes
