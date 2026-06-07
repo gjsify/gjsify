@@ -1,14 +1,19 @@
-// Phase D-2.B.5b — runtime bundler pick.
+// Runtime bundler pick (Phase D-2.B.5b → D-3.1 runtime-aware default).
 //
-// Default behavior: call npm `rolldown(opts).write(opts.output)` exactly
-// as before. Setting `GJSIFY_BUNDLER=native` opts into the
-// `@gjsify/rolldown-native` Vala/Rust prebuild via `bundleWithPlugins()`.
+// The engine is chosen by `shouldUseNative()` per host runtime:
+//   - Node: npm `rolldown(opts).write(opts.output)`.
+//   - GJS:  `@gjsify/rolldown-native` (the Vala/Rust prebuild) via
+//           `bundleWithPlugins()`. npm `rolldown` is a Rust N-API addon
+//           that CANNOT load under GJS, so the native engine is the GJS
+//           DEFAULT — no env var needed (this is the Node-free build
+//           chain's bundler). This writes the BundleOutput to disk
+//           (`runNativeBundle`), replicating npm rolldown's `.write()`
+//           incl. nested chunk/asset subdirectories.
 //
-// The native path is only attempted under GJS — under Node it falls
-// back to npm rolldown silently. Under GJS, if the prebuild isn't
-// loadable for the running architecture, we throw so the caller
-// notices the configuration mismatch instead of silently using a
-// different code path.
+// `GJSIFY_BUNDLER=native|npm` is an explicit override: `native` forces
+// the native engine and throws if its prebuild isn't loadable for the
+// running architecture (instead of silently switching engines); `npm`
+// forces the npm crate (Node only).
 //
 // Plugin shape conversion: rolldown plugins may declare hooks either
 // as bare functions (`load(id)`) or as `{filter, handler}` objects.
@@ -352,10 +357,22 @@ async function runNativeBundle(finalOpts: BundlerOptions): Promise<RolldownOutpu
     const outDir = outputCfg.dir ?? (outputCfg.file ? path.dirname(outputCfg.file) : process.cwd());
     if (outDir) await fs.mkdir(outDir, { recursive: true });
     for (const item of result.output) {
+        // A single `--outfile` build collapses to that exact path; otherwise
+        // each chunk/asset lands at `outDir/<fileName>`. Nested fileNames
+        // (e.g. `_virtual/_rolldown/runtime.js` from a `--library` /
+        // code-split build) live in subdirectories npm rolldown's `.write()`
+        // creates implicitly — replicate that here, or `writeFile` throws
+        // ENOENT on the missing parent (regression: `--library` under the
+        // native GJS engine). Also write text assets for `.write()` parity.
+        const target =
+            outputCfg.file && item.type === 'chunk' && result.output.length === 1
+                ? outputCfg.file
+                : path.join(outDir, item.fileName);
+        await fs.mkdir(path.dirname(target), { recursive: true });
         if (item.type === 'chunk') {
-            const target =
-                outputCfg.file && result.output.length === 1 ? outputCfg.file : path.join(outDir, item.fileName);
             await fs.writeFile(target, item.code, 'utf8');
+        } else if (item.sourceText !== undefined) {
+            await fs.writeFile(target, item.sourceText, 'utf8');
         }
     }
 
