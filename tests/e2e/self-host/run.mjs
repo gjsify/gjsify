@@ -27,8 +27,9 @@
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve as resolvePath } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -129,6 +130,26 @@ describe('CLI self-host loop', { timeout: 5 * 60 * 1000 }, () => {
         // The fixture is `const sum = 1 + 2 + 4; console.log(sum);` — constant-
         // folded by rolldown's minifier to `console.log(7)` or similar.
         assert.match(out.stdout, /\b7\b/, `unexpected bundle stdout: ${JSON.stringify(out.stdout)}`);
+    });
+
+    it('GJS-CLI --library build writes nested chunk subdirs (native runNativeBundle regression)', () => {
+        // Regression: under the native GJS engine, `runNativeBundle` only
+        // mkdir'd the top-level outDir, so a multi-module `--library` build
+        // — whose output includes a nested chunk like rolldown's
+        // `_virtual/_rolldown/runtime.js` — threw ENOENT on the missing
+        // parent dir. npm rolldown's `.write()` creates those dirs; the
+        // native path must too. The build exiting non-zero is the failure.
+        const dir = mkdtempSync(join(tmpdir(), 'gjsify-selfhost-lib-'));
+        try {
+            writeFileSync(join(dir, 'entry.js'), "import { x } from './lib.js';\nexport const y = x + 1;\n");
+            writeFileSync(join(dir, 'lib.js'), 'export const x = 41;\n');
+            const outdir = join(dir, 'out');
+            const r = gjs(['-m', GJS_CLI_BUNDLE, 'build', '--library', join(dir, 'entry.js'), '--outdir', outdir]);
+            assert.equal(r.status, 0, `--library build failed (nested-chunk ENOENT regression?): ${r.stderr}`);
+            assert.ok(existsSync(join(outdir, 'entry.js')), `library entry output missing under ${outdir}`);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 
     it('GJS-CLI bundles the yargs integration suite and all 52 tests pass', () => {
