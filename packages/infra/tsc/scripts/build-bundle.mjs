@@ -18,7 +18,8 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { statSync, readdirSync, readFileSync, writeFileSync, rmSync, mkdirSync, copyFileSync } from 'node:fs';
+import { statSync, existsSync, readdirSync, readFileSync, writeFileSync, rmSync, mkdirSync, copyFileSync } from 'node:fs';
+import { pickLibSource } from './lib-source.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(here, '..');
@@ -66,28 +67,57 @@ const env = {
 };
 
 // --- Ship the default-library `.d.ts` files alongside the bundle -----------
-// Copy every `lib*.d.ts` from upstream `typescript/lib` into `<pkgRoot>/lib`.
 // These are the files tsc loads for `--lib ESNext,DOM,…`; without them a
-// consumer hits `TS6053: File '…/lib.esnext.d.ts' not found` + a cascade of
-// `TS2318: Cannot find global type 'Array'/'Promise'/…`.
+// consumer hits `TS6053: File '…/lib.esnext.full.d.ts' not found` + a cascade
+// of `TS2318: Cannot find global type 'Array'/'Promise'/…`.
 //
-// Done BEFORE the bundle build (which can fail) on purpose: the libs are
-// version-locked runtime data sourced from the `typescript` devDep, fully
-// independent of the bundle step. Copying them first means a bundle-build
-// hiccup still leaves the committed `lib/` refreshed — the libs are what the
-// published tarball actually ships (they are committed, like `dist/tsc.gjs.mjs`),
-// so they must never depend on the more fragile `gjsify build` succeeding.
-rmSync(shipLibDir, { recursive: true, force: true });
-mkdirSync(shipLibDir, { recursive: true });
-let libCount = 0;
-for (const name of readdirSync(tsLibDir)) {
-    if (/^lib\..*\.d\.ts$/.test(name) || name === 'lib.d.ts') {
-        copyFileSync(join(tsLibDir, name), join(shipLibDir, name));
-        libCount++;
+// The committed `<pkgRoot>/lib/lib*.d.ts` are the version-locked source of
+// truth (tracked in git, like `dist/tsc.gjs.mjs`). We REFRESH them from the
+// upstream `typescript` devDep only when it EXACTLY matches the pinned
+// `TYPESCRIPT_VERSION` and ships a complete set; otherwise we KEEP the
+// committed libs untouched. A naive rm-then-copy destroys the correct libs and
+// replaces them with whatever happens to be installed — a stale (TS 5.9's
+// 100-file set, missing the `es2025.*` libs `lib.esnext` references) or
+// partial/corrupt install yields a `lib/` that breaks every downstream
+// `gjsify tsc`. See `pickLibSource()` (root cause of the v0.4.42 Fedora-44
+// `main` red: an incomplete CI typescript install).
+//
+// The pin lives in `src/index.ts`; parse it from source (always present) so
+// the .mjs build script needs no compiled artifact.
+const pinnedTypescriptVersion = (() => {
+    const indexTs = readFileSync(join(pkgRoot, 'src', 'index.ts'), 'utf-8');
+    const m = indexTs.match(/TYPESCRIPT_VERSION\s*=\s*['"]([^'"]+)['"]/);
+    if (!m) {
+        console.error('[@gjsify/tsc] could not parse TYPESCRIPT_VERSION from src/index.ts — cannot validate lib source');
+        process.exit(1);
     }
-}
-if (libCount === 0) {
-    console.error(`[@gjsify/tsc] no lib*.d.ts found in ${tsLibDir} — cannot ship default libs`);
+    return m[1];
+})();
+
+const isLibFile = (name) => /^lib\..*\.d\.ts$/.test(name) || name === 'lib.d.ts';
+const sourceLibs = readdirSync(tsLibDir).filter(isLibFile);
+const committedLibs = existsSync(shipLibDir) ? readdirSync(shipLibDir).filter(isLibFile) : [];
+const { action, reason } = pickLibSource({
+    tsVersion,
+    pinnedVersion: pinnedTypescriptVersion,
+    sourceLibs,
+    committedLibs,
+});
+
+let libCount;
+if (action === 'refresh') {
+    // Done BEFORE the bundle build (which can fail) on purpose: the libs are
+    // version-locked runtime data, fully independent of the bundle step.
+    rmSync(shipLibDir, { recursive: true, force: true });
+    mkdirSync(shipLibDir, { recursive: true });
+    for (const name of sourceLibs) copyFileSync(join(tsLibDir, name), join(shipLibDir, name));
+    libCount = sourceLibs.length;
+    console.log(`[@gjsify/tsc] refreshed ${libCount} lib*.d.ts — ${reason}`);
+} else if (action === 'keep') {
+    libCount = committedLibs.length;
+    console.warn(`[@gjsify/tsc] ${reason}. Run \`npm install\` to align typescript with the pin, then rebuild.`);
+} else {
+    console.error(`[@gjsify/tsc] ${reason}.`);
     process.exit(1);
 }
 

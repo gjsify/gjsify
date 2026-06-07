@@ -26,12 +26,13 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // tests/e2e/self-host-tsc/ → monorepo root is 3 levels up.
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const CLI_ENTRY = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
+const LIB_SOURCE_MJS = join(MONOREPO_ROOT, 'packages', 'infra', 'tsc', 'scripts', 'lib-source.mjs');
 
 // Run from the monorepo root so `gjsify tsc` resolves the workspace
 // `@gjsify/tsc` (it resolves the bundle from cwd's node_modules — exactly as a
@@ -103,5 +104,62 @@ describe('gjsify tsc — workspace self-host', () => {
         assert.match(output, /TS2322/, `expected the deliberate TS2322:\n${output}`);
         assert.ok(!/TS6053/.test(output), `lib resolution broke (TS6053):\n${output}`);
         assert.ok(!/TS2318/.test(output), `global types missing (TS2318):\n${output}`);
+    });
+});
+
+// Guards the @gjsify/tsc build-bundle lib-source decision (pickLibSource). The
+// committed `lib/lib*.d.ts` are version-locked; the build must NEVER let a
+// mismatched/incomplete upstream `typescript` install clobber them. This is the
+// root-cause fix for the v0.4.42 Fedora-44 `main` red, where a partial CI
+// typescript install (missing lib.esnext.full.d.ts) was copied over the correct
+// committed libs, breaking every downstream `gjsify tsc` with TS6053.
+describe('@gjsify/tsc build — lib source selection (pickLibSource)', () => {
+    let pickLibSource, SUPER_LIB;
+
+    before(async () => {
+        ({ pickLibSource, SUPER_LIB } = await import(pathToFileURL(LIB_SOURCE_MJS).href));
+    });
+
+    const set = (n, withSuper = true) =>
+        Array.from({ length: n }, (_, i) => (i === 0 && withSuper ? SUPER_LIB : `lib.x${i}.d.ts`));
+
+    it('refreshes when the install matches the pin and is complete', () => {
+        const r = pickLibSource({
+            tsVersion: '6.0.3',
+            pinnedVersion: '6.0.3',
+            sourceLibs: set(108),
+            committedLibs: set(108),
+        });
+        assert.equal(r.action, 'refresh', r.reason);
+    });
+
+    it('keeps committed libs when the installed version != the pin (stale TS 5.9)', () => {
+        const r = pickLibSource({
+            tsVersion: '5.9.3',
+            pinnedVersion: '6.0.3',
+            sourceLibs: set(100), // 5.9 has the super-lib but fewer files (no es2025.*)
+            committedLibs: set(108),
+        });
+        assert.equal(r.action, 'keep', r.reason);
+    });
+
+    it('keeps committed libs when a same-version install is partial (no super-lib)', () => {
+        const r = pickLibSource({
+            tsVersion: '6.0.3',
+            pinnedVersion: '6.0.3',
+            sourceLibs: set(90, false), // corrupt: missing lib.esnext.full.d.ts
+            committedLibs: set(108),
+        });
+        assert.equal(r.action, 'keep', r.reason);
+    });
+
+    it('errors only when neither source can supply a valid set', () => {
+        const r = pickLibSource({
+            tsVersion: '5.9.3',
+            pinnedVersion: '6.0.3',
+            sourceLibs: set(90, false),
+            committedLibs: [],
+        });
+        assert.equal(r.action, 'error', r.reason);
     });
 });
