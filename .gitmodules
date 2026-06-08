@@ -214,7 +214,7 @@
 	url = git@github.com:biomejs/biome.git
 [submodule "refs/oxc"]
 	path = refs/oxc
-	url = git@github.com:oxc-project/oxc.git
+	url = https://github.com/oxc-project/oxc
 [submodule "refs/Gradia"]
 	path = refs/Gradia
 	url = git@github.com:AlexanderVanhee/Gradia.git
