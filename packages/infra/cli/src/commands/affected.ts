@@ -10,15 +10,19 @@
 // Classifier table (first-match wins) handles the cases that aren't a
 // straightforward "file lives in workspace X":
 //
-//   1. GLOBAL_TRIGGERS  — change touches infra the classifier itself
-//      depends on (`@gjsify/workspace`, `@gjsify/cli`, the bundler
-//      plugins, the lockfile, root tsconfig / package.json, this very
-//      workflow file). Emits `global=true` → CI must run the full
-//      suite. We can't trust the closure when the algorithm that
-//      computes it just changed.
+//   1. IGNORE  — pure-docs / *.md / website / refs/ submodule / unrelated
+//      workflow files / LICENSE / .gitignore. Discarded FIRST, before every
+//      other rule: an ignored file is never build-relevant, not even inside
+//      a GLOBAL_TRIGGERS directory (e.g. `packages/infra/cli/README.md` must
+//      not force a full run just because `packages/infra/cli/` is a global
+//      trigger). Ignore wins over global.
 //
-//   2. IGNORE  — pure-docs / website / refs/ submodule / unrelated
-//      workflow files. Discard; do not contribute to seeds.
+//   2. GLOBAL_TRIGGERS  — a non-ignored change touching infra the classifier
+//      itself depends on (`@gjsify/workspace`, `@gjsify/cli`, the bundler
+//      plugins, the lockfile, root tsconfig / package.json, this very
+//      workflow file). Emits `global=true` → CI must run the full suite. We
+//      can't trust the closure when the algorithm that computes it just
+//      changed.
 //
 //   3. TEST_ONLY  — every changed file under ONE workspace is a spec
 //      file, e2e fixture, or integration test. Seed = that workspace
@@ -183,22 +187,11 @@ function classifyAndExpand(
             skipAll: true,
         };
     }
-    // Global triggers short-circuit immediately.
-    for (const f of files) {
-        for (const re of GLOBAL_TRIGGERS) {
-            if (re.test(f)) {
-                return {
-                    global: true,
-                    reason: `global-trigger ${re.source} matched ${f}`,
-                    workspaces: workspaces.map((w) => w.name),
-                    runE2E: true,
-                    runIntegration: true,
-                    skipAll: false,
-                };
-            }
-        }
-    }
-    // Drop ignored files; collect the remainder.
+    // Drop ignored files FIRST — before the global-trigger check. An ignored
+    // file (docs, *.md, LICENSE, .gitignore, …) is never build-relevant, not
+    // even inside a GLOBAL_TRIGGERS directory: `packages/infra/cli/README.md`
+    // must NOT force a full run just because `packages/infra/cli/` is a global
+    // trigger. Ignore wins over global.
     const remaining: string[] = [];
     for (const f of files) {
         if (IGNORE.some((re) => re.test(f))) continue;
@@ -213,6 +206,21 @@ function classifyAndExpand(
             runIntegration: false,
             skipAll: true,
         };
+    }
+    // Global triggers short-circuit — checked on the non-ignored remainder.
+    for (const f of remaining) {
+        for (const re of GLOBAL_TRIGGERS) {
+            if (re.test(f)) {
+                return {
+                    global: true,
+                    reason: `global-trigger ${re.source} matched ${f}`,
+                    workspaces: workspaces.map((w) => w.name),
+                    runE2E: true,
+                    runIntegration: true,
+                    skipAll: false,
+                };
+            }
+        }
     }
     // Map files → workspaces. Files outside any workspace stay in `unmatched`.
     const { matched, unmatched } = workspacesForChangedFiles(workspaces, rootDir, remaining);

@@ -558,6 +558,8 @@ CI's `linux` job is gated by a `gjsify affected` classifier that diffs HEAD vs t
 
 **Ignored** (no test run, no closure seed): `**/*.md`, `refs/**`, `website/**`, `docs/**`, unrelated workflow files (`.github/workflows/{deploy-docs,commitlint,release,audit-runtimes,prebuilds}.yml`), `.githooks/**`, `LICENSE*`, `.gitignore`, top-level `STATUS|CHANGELOG|AGENTS|CLAUDE|README.md`.
 
+**Precedence: IGNORE wins over GLOBAL_TRIGGERS.** Ignored files are dropped *first*, so an ignored file inside a global-trigger directory (e.g. `packages/infra/cli/README.md`, a `.gitignore` under `workspace/`) does NOT force a full run — only a non-ignored change there (real `src/`, `package.json`) does. A docs-only PR is `skip-all` even when it edits READMEs of the infra packages.
+
 **Kill switch**: set repo variable `GJSIFY_CI_FORCE_FULL=1` (Settings → Variables → Actions) to short-circuit the classifier and run the full suite on every PR.
 
 **Local dry-run**: `gjsify affected --base origin/main` prints what CI would run. Use this when adding a new tier of tests to verify the classifier picks them up. `--format=json` for machine-readable, `--changed-from-stdin` for fixture-driven testing.
