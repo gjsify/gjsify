@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/vm",
-    "version": "0.4.43",
+    "version": "0.4.44",
     "description": "Node.js vm module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/adwaita-fonts",
-    "version": "0.4.43",
+    "version": "0.4.44",
     "description": "Adwaita Sans font package for browser targets (fontsource-style)",
     "type": "module",
     "main": "index.css",

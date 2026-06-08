@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.4.44](https://github.com/gjsify/gjsify/compare/v0.4.43...v0.4.44) (2026-06-08)
+
+### Features
+
+* **cli:** flatpak sources — offline dep vendoring ([0a9e83f](https://github.com/gjsify/gjsify/commit/0a9e83fcdbe523624d4c51bbb494366e7110bbb3))
+* **cli:** flatpak sources reads all lockfiles ([8c1db14](https://github.com/gjsify/gjsify/commit/8c1db14ef1226d773eb8f2599697ca121eb2297e)), closes [#sha1](https://github.com/gjsify/gjsify/issues/sha1)
+
+### Bug Fixes
+
+* **cli:** ignore wins over global in affected classifier ([2cc89b4](https://github.com/gjsify/gjsify/commit/2cc89b43f9240d71e97c2a75f10fefa33cf98ead))
+* enable Node-free self-build (2 bridge bugs) ([346d541](https://github.com/gjsify/gjsify/commit/346d541e8f48770b76a3a98b8ea45f972c2fd5bc))
+
+### Documentation
+
+* add and standardize package READMEs ([cde0613](https://github.com/gjsify/gjsify/commit/cde0613e9b055fcce4981496a7d9315e6f49904a))
+
+### Continuous Integration
+
+* exclude committed artifacts from build cache ([29db7fb](https://github.com/gjsify/gjsify/commit/29db7fb90dbe2a2caddd9014f5a03e81568984eb))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([67dc3f1](https://github.com/gjsify/gjsify/commit/67dc3f10ab047ee49e53a7f0b392fb3b7c442aff))
+
 ## [0.4.43](https://github.com/gjsify/gjsify/compare/v0.4.42...v0.4.43) (2026-06-07)
 
 ### Bug Fixes
