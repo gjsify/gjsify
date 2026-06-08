@@ -20,6 +20,7 @@
 
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { Command } from '../types/index.js';
 import { detectNativePackages, buildNativeEnv } from '../utils/detect-native-packages.js';
@@ -93,9 +94,30 @@ export const tscCommand: Command<unknown, TscOptions> = {
                 // try the next anchor
             }
         }
-        if (!bundlePath) {
-            console.error('gjsify tsc: @gjsify/tsc is not installed.');
-            console.error('  Install with: gjsify install --save-dev @gjsify/tsc');
+
+        // Node fallback: upstream npm `typescript`'s CLI (`lib/tsc.js`),
+        // resolved from the same anchors. gjsify tsc is GJS-first — the
+        // @gjsify/tsc bundle is the Node-free path — but it stays runnable
+        // under Node: on a machine with no `gjs`, it transparently spawns
+        // upstream `typescript`. Mirrors how `bundler-pick.ts` falls back to
+        // npm `rolldown` off GJS, so "both with both" holds for the type-gate.
+        let nodeTscPath: string | undefined;
+        for (const anchor of anchors) {
+            try {
+                nodeTscPath = join(
+                    dirname(createRequire(anchor).resolve('typescript/package.json')),
+                    'lib',
+                    'tsc.js',
+                );
+                break;
+            } catch {
+                // try the next anchor
+            }
+        }
+
+        if (!bundlePath && !nodeTscPath) {
+            console.error('gjsify tsc: neither @gjsify/tsc (GJS bundle) nor npm `typescript` (Node) is installed.');
+            console.error('  Install with: gjsify install --save-dev @gjsify/tsc   (or add `typescript`).');
             process.exit(1);
         }
 
@@ -111,25 +133,46 @@ export const tscCommand: Command<unknown, TscOptions> = {
             ...nativeEnv,
         };
 
-        const gjsArgs = ['-m', bundlePath, ...tscArgs];
-        const child = spawn('gjs', gjsArgs, { env, stdio: 'inherit' });
-
-        await new Promise<void>((resolvePromise) => {
-            child.on('close', (code) => {
-                process.exit(code ?? 1);
-            });
+        // Run upstream `typescript` under this Node — the Node-only fallback.
+        const runNodeTsc = (): void => {
+            const child = spawn(process.execPath, [nodeTscPath as string, ...tscArgs], { env, stdio: 'inherit' });
+            child.on('close', (code) => process.exit(code ?? 1));
             child.on('error', (err: NodeJS.ErrnoException) => {
-                if (err.code === 'ENOENT') {
-                    console.error('gjsify tsc: `gjs` not found on PATH. Install GJS (e.g. `dnf install gjs`).');
-                } else {
-                    console.error(`gjsify tsc: ${err.message}`);
-                }
+                console.error(`gjsify tsc (node typescript): ${err.message}`);
                 process.exit(1);
             });
-            // Never resolves naturally — process.exit() above terminates
-            // the program once the child closes. The promise just keeps
-            // the handler alive while gjs runs.
-            void resolvePromise;
-        });
+        };
+
+        // Prefer GJS — the Node-free @gjsify/tsc bundle — when it resolves. If
+        // `gjs` is not on PATH (ENOENT), transparently fall back to upstream
+        // `typescript` under Node when available.
+        if (bundlePath) {
+            const child = spawn('gjs', ['-m', bundlePath, ...tscArgs], { env, stdio: 'inherit' });
+            await new Promise<void>((resolvePromise) => {
+                child.on('close', (code) => {
+                    process.exit(code ?? 1);
+                });
+                child.on('error', (err: NodeJS.ErrnoException) => {
+                    if (err.code === 'ENOENT' && nodeTscPath) {
+                        // No gjs on PATH — run upstream typescript under Node.
+                        runNodeTsc();
+                    } else if (err.code === 'ENOENT') {
+                        console.error('gjsify tsc: `gjs` not found on PATH and no npm `typescript` fallback.');
+                        console.error('  Install GJS (e.g. `dnf install gjs`), or add `typescript` to the project.');
+                        process.exit(1);
+                    } else {
+                        console.error(`gjsify tsc: ${err.message}`);
+                        process.exit(1);
+                    }
+                });
+                // Never resolves naturally — process.exit() above terminates the
+                // program once the child closes. The promise just keeps the
+                // handler alive while the child runs.
+                void resolvePromise;
+            });
+        } else {
+            // No GJS bundle resolvable — go straight to the Node fallback.
+            runNodeTsc();
+        }
     },
 };

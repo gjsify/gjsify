@@ -852,6 +852,16 @@ function buildBinShim(
                   );
               })();
     if (nodeAbs && gjsAbs) {
+        // Prefer the Node entry when present; fall back to the GJS bundle.
+        // NOTE: a GJS-first flip is desirable (gjsify is Node-free under GJS)
+        // but NOT yet safe as the default — running the full workspace build
+        // under GJS surfaced two blockers that must land first: (1) some
+        // builds fail under native rolldown/lightningcss that pass under npm
+        // (e.g. @gjsify/adwaita-web's css-as-string on adwaita-fonts CSS), and
+        // (2) `gjsify foreach`/`workspace` does not exit on a child failure
+        // under GJS (the process hangs instead of failing fast → CI timeout).
+        // Until both are fixed, Node stays the shim default; GJS remains fully
+        // available (run `gjs -m dist/cli.gjs.mjs`, or the gjs-only bins).
         return `#!/bin/sh\nif [ -f "${nodeAbs}" ]; then\n  exec node "${nodeAbs}" "$@"\nfi\n${gjsPreamble}exec gjs -m "${gjsAbs}" "$@"\n`;
     }
     if (nodeAbs) return `#!/bin/sh\nexec node "${nodeAbs}" "$@"\n`;
