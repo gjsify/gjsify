@@ -104,6 +104,26 @@ export default async (): Promise<void> => {
             expect(r.skipAll).toBe(true);
         });
 
+        await it('flatpak SDK-extension manifest → skipAll (build tooling, ignored)', async () => {
+            const r = await runClassify(root, [
+                'flatpak/org.freedesktop.Sdk.Extension.gjsify.json',
+                'flatpak/org.freedesktop.Sdk.Extension.gjsify.metainfo.xml',
+            ]);
+            expect(r.skipAll).toBe(true);
+            expect(r.global).toBe(false);
+        });
+
+        await it('flatpak manifest alongside a real src change → flatpak ignored, no full run', async () => {
+            // The flatpak manifest is dropped by IGNORE, so it neither forces a
+            // global run nor widens the closure — only the real `fs` change drives it.
+            const r = await runClassify(root, [
+                'flatpak/org.freedesktop.Sdk.Extension.gjsify.json',
+                'packages/node/fs/src/index.ts',
+            ]);
+            expect(r.global).toBe(false);
+            expect(r.skipAll).toBe(false);
+        });
+
         await it('docs inside a global-trigger dir → skipAll (ignore wins over global)', async () => {
             // A README in a GLOBAL_TRIGGERS path (packages/infra/cli/,
             // workspace/, …) must NOT force a full run — IGNORE is applied
