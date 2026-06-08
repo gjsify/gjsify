@@ -8,6 +8,7 @@ import type { Command } from '../../types/index.js';
 import { flatpakInitCommand } from './init.js';
 import { flatpakBuildCommand } from './build.js';
 import { flatpakDepsCommand } from './deps.js';
+import { flatpakSourcesCommand } from './sources.js';
 import { flatpakCiCommand } from './ci.js';
 import { flatpakCheckCommand } from './check.js';
 import { flatpakSyncFlathubCommand } from './sync-flathub.js';
@@ -17,7 +18,7 @@ import { flatpakReleaseCommand } from './release.js';
 export const flatpakCommand: Command = {
     command: 'flatpak <subcommand>',
     description:
-        'Flatpak toolchain: init/build/deps/ci/check/sync-flathub/diff/release subcommands for shipping GJS apps and CLIs as Flatpaks.',
+        'Flatpak toolchain: init/build/deps/sources/ci/check/sync-flathub/diff/release subcommands for shipping GJS apps and CLIs as Flatpaks.',
     builder: (yargs) => {
         return yargs
             .command(
@@ -37,6 +38,12 @@ export const flatpakCommand: Command = {
                 flatpakDepsCommand.description,
                 flatpakDepsCommand.builder!,
                 flatpakDepsCommand.handler!,
+            )
+            .command(
+                flatpakSourcesCommand.command as string,
+                flatpakSourcesCommand.description,
+                flatpakSourcesCommand.builder!,
+                flatpakSourcesCommand.handler!,
             )
             .command(
                 flatpakCiCommand.command as string,
@@ -77,6 +84,7 @@ export {
     flatpakInitCommand,
     flatpakBuildCommand,
     flatpakDepsCommand,
+    flatpakSourcesCommand,
     flatpakCiCommand,
     flatpakCheckCommand,
     flatpakSyncFlathubCommand,
