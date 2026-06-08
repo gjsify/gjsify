@@ -250,15 +250,28 @@ jobs:
       - name: Cache build output (lib/ + tsbuildinfo)
         uses: actions/cache@v4
         with:
+          # NEVER cache git-committed, version-locked artifacts. `@gjsify/tsc`'s
+          # `lib/` (the ~108 default `lib.*.d.ts`) and the committed `.gjs.mjs`
+          # bundles are TRACKED DATA, not build output. Caching them lets a cache
+          # restore overwrite the correct checked-out files with a stale set — a
+          # Fedora-44-only run could then type-check the workspace with an
+          # incomplete lib (e.g. crypto: `TS2550 padStart` / `TS2339
+          # toStringTag`) non-deterministically. The `!` excludes keep them = the
+          # git checkout, so `build-bundle.mjs`'s pickLibSource() `keep` branch is
+          # always safe. (In a `|` block scalar the `!` lines are literal — no
+          # quoting, and a leading `#` would be a path, not a comment.)
           path: |
             packages/*/*/lib
+            !packages/infra/tsc/lib
             packages/*/*/tsconfig.tsbuildinfo
             packages/*/*/tsconfig.*.tsbuildinfo
             packages/*/*/dist
-          key: build-${{ runner.os }}-fedora${{ matrix.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
+            !packages/infra/cli/dist/cli.gjs.mjs
+            !packages/infra/tsc/dist/tsc.gjs.mjs
+          key: build-v2-${{ runner.os }}-fedora${{ matrix.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
           restore-keys: |
-            build-${{ runner.os }}-fedora${{ matrix.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-
-            build-${{ runner.os }}-fedora${{ matrix.fedora-version }}-
+            build-v2-${{ runner.os }}-fedora${{ matrix.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-
+            build-v2-${{ runner.os }}-fedora${{ matrix.fedora-version }}-
 
       - name: Build
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run build'
