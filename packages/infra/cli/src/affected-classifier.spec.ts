@@ -104,6 +104,26 @@ export default async (): Promise<void> => {
             expect(r.skipAll).toBe(true);
         });
 
+        await it('docs inside a global-trigger dir → skipAll (ignore wins over global)', async () => {
+            // A README in a GLOBAL_TRIGGERS path (packages/infra/cli/,
+            // workspace/, …) must NOT force a full run — IGNORE is applied
+            // before the global-trigger check.
+            const r = await runClassify(root, [
+                'packages/infra/cli/README.md',
+                'packages/infra/workspace/README.md',
+            ]);
+            expect(r.skipAll).toBe(true);
+            expect(r.global).toBe(false);
+        });
+
+        await it('real src in a global-trigger dir still triggers global (alongside a README)', async () => {
+            const r = await runClassify(root, [
+                'packages/infra/cli/README.md',
+                'packages/infra/cli/src/commands/build.ts',
+            ]);
+            expect(r.global).toBe(true);
+        });
+
         await it('infra workspace touched → global=true', async () => {
             const r = await runClassify(root, ['packages/infra/workspace/src/index.ts']);
             expect(r.global).toBe(true);
