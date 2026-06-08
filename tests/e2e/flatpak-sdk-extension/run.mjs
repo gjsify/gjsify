@@ -53,9 +53,14 @@ assert(manifest.runtime === 'org.freedesktop.Sdk', 'runtime org.freedesktop.Sdk'
 assert(manifest.sdk === 'org.freedesktop.Sdk', 'sdk org.freedesktop.Sdk');
 
 const sources = manifest.modules?.[0]?.sources ?? [];
-const fileSources = sources.filter((s) => s.type === 'file');
+const fileSources = sources.filter((s) => s.type === 'file' || s.type === 'dir');
 for (const s of fileSources) {
-    assert(existsSync(resolve(FLATPAK_DIR, s.path)), `file source exists: ${s.path}`);
+    assert(existsSync(resolve(FLATPAK_DIR, s.path)), `${s.type} source exists: ${s.path}`);
+}
+// Both prebuild arches must be present as only-arches sources (x86_64 + aarch64).
+for (const arch of ['x86_64', 'aarch64']) {
+    const tagged = sources.filter((s) => Array.isArray(s['only-arches']) && s['only-arches'].includes(arch));
+    assert(tagged.length > 0, `has only-arches sources for ${arch}`);
 }
 const scriptNames = sources.filter((s) => s.type === 'script').map((s) => s['dest-filename']);
 assert(scriptNames.includes('gjsify'), 'gjsify wrapper script source present');
@@ -95,11 +100,15 @@ if (!canBuild || !sdkInstalled) {
         const bundle = join(files, 'lib/gjsify/dist/cli.gjs.mjs');
         for (const rel of [
             'bin/gjsify',
+            'bin/gjsify-tsc',
             'enable.sh',
             'lib/gjsify/dist/cli.gjs.mjs',
             'lib/gjsify/package.json',
             'lib/gjsify/shims/console-gjs.js',
             'lib/gjsify/shims/unicorn-magic.js',
+            'lib/gjsify/node_modules/@gjsify/rolldown-native/lib/esm/index.js',
+            'lib/gjsify/node_modules/@gjsify/tsc/dist/tsc.gjs.mjs',
+            'lib/gjsify/node_modules/@gjsify/tsc/lib/lib.esnext.d.ts',
             'lib/girepository-1.0/GjsifyRolldown-1.0.typelib',
             'lib/girepository-1.0/GjsifyLightningcss-1.0.typelib',
         ]) {
@@ -132,6 +141,14 @@ if (!canBuild || !sdkInstalled) {
                 stdio: 'ignore',
             });
             assert(existsSync(out) && readFileSync(out, 'utf8').length > 0, 'gjsify build produced a bundle');
+
+            // `gjsify tsc` must resolve @gjsify/tsc from the extension's own
+            // node_modules (the bundle-location anchor) — the consumer `app`
+            // dir has no @gjsify/tsc — and the bundled tsc must find its libs.
+            const tscVersion = execFileSync('gjs', ['-m', bundle, 'tsc', '--version'], { env: giEnv, cwd: app })
+                .toString()
+                .trim();
+            assert(/Version \d+\.\d+\.\d+/.test(tscVersion), `gjsify tsc resolves + runs (got "${tscVersion}")`);
         } else {
             console.log('  (gjs not on PATH — payload-run sub-steps skipped)');
         }
