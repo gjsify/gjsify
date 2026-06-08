@@ -175,9 +175,18 @@ gjsify_rolldown_glue_session_take_request_payload (BundleSession *session,
   if (session == NULL) return NULL;
   size_t len = 0;
   uint8_t *buf = gjsify_rolldown_session_take_request_payload (session, req_id, &len);
-  if (buf == NULL || len == 0) return NULL;
+  /* NULL buf = no payload was stashed for this req_id (genuine miss) → NULL.
+   * A non-NULL buf with len == 0 is an EMPTY-but-present payload (e.g. the
+   * `transform` hook on rolldown's virtual `\0rolldown/empty.js` module, whose
+   * code is ""). It MUST yield an empty GBytes, NOT NULL — otherwise the JS
+   * adapter reads `take_request_payload() === null` and throws "missing payload
+   * bytes", which is exactly what broke the CLI self-build. Don't fold len==0
+   * into the miss case. */
+  if (buf == NULL) return NULL;
   /* Copy into GLib heap and free the Rust allocation immediately so
-   * GBytes refcount/lifetime stays inside the GLib side. */
+   * GBytes refcount/lifetime stays inside the GLib side. g_bytes_new copies
+   * `len` bytes; for len == 0 it never dereferences `buf`, so the Rust
+   * dangling-but-aligned zero-length pointer is safe here. */
   GBytes *out = g_bytes_new (buf, len);
   gjsify_rolldown_session_free_payload (buf, len);
   return out;
