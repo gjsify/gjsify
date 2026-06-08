@@ -1,0 +1,127 @@
+{
+  "id": "org.freedesktop.Sdk.Extension.gjsify",
+  "branch": "24.08",
+  "runtime": "org.freedesktop.Sdk",
+  "runtime-version": "24.08",
+  "sdk": "org.freedesktop.Sdk",
+  "build-extension": true,
+  "separate-locales": false,
+  "appstream-compose": false,
+  "build-options": {
+    "prefix": "/usr/lib/sdk/gjsify",
+    "prepend-path": "/usr/lib/sdk/gjsify/bin",
+    "prepend-ld-library-path": "/usr/lib/sdk/gjsify/lib"
+  },
+  "modules": [
+    {
+      "name": "gjsify",
+      "buildsystem": "simple",
+      "sources": [
+        {
+          "type": "file",
+          "path": "../packages/infra/cli/dist/cli.gjs.mjs"
+        },
+        {
+          "type": "file",
+          "path": "../packages/infra/cli/package.json",
+          "dest-filename": "cli-package.json"
+        },
+        {
+          "type": "file",
+          "path": "../packages/infra/rolldown-plugin-gjsify/lib/shims/console-gjs.js"
+        },
+        {
+          "type": "file",
+          "path": "../packages/infra/rolldown-plugin-gjsify/lib/shims/unicorn-magic.js"
+        },
+        {
+          "type": "file",
+          "path": "../packages/infra/rolldown-plugin-gjsify/lib/shims/module-resolve.js"
+        },
+        {
+          "type": "dir",
+          "path": "../packages/infra/rolldown-native/lib",
+          "dest": "rn-lib"
+        },
+        {
+          "type": "file",
+          "path": "../packages/infra/rolldown-native/package.json",
+          "dest-filename": "rn-package.json"
+        },
+        {
+          "type": "dir",
+          "path": "../packages/infra/lightningcss-native/lib",
+          "dest": "ln-lib"
+        },
+        {
+          "type": "file",
+          "path": "../packages/infra/lightningcss-native/package.json",
+          "dest-filename": "ln-package.json"
+        },
+        {
+          "type": "file",
+          "path": "../packages/infra/rolldown-native/prebuilds/linux-x86_64/GjsifyRolldown-1.0.typelib"
+        },
+        {
+          "type": "file",
+          "path": "../packages/infra/rolldown-native/prebuilds/linux-x86_64/libgjsify_rolldown.so"
+        },
+        {
+          "type": "file",
+          "path": "../packages/infra/rolldown-native/prebuilds/linux-x86_64/libgjsifyrolldown.so"
+        },
+        {
+          "type": "file",
+          "path": "../packages/infra/lightningcss-native/prebuilds/linux-x86_64/GjsifyLightningcss-1.0.typelib"
+        },
+        {
+          "type": "file",
+          "path": "../packages/infra/lightningcss-native/prebuilds/linux-x86_64/libgjsify_lightningcss.so"
+        },
+        {
+          "type": "file",
+          "path": "../packages/infra/lightningcss-native/prebuilds/linux-x86_64/libgjsifylightningcss.so"
+        },
+        {
+          "type": "script",
+          "dest-filename": "gjsify",
+          "commands": [
+            "GJSIFY_SDK=/usr/lib/sdk/gjsify",
+            "export GI_TYPELIB_PATH=\"$GJSIFY_SDK/lib/girepository-1.0${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}\"",
+            "export LD_LIBRARY_PATH=\"$GJSIFY_SDK/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\"",
+            "exec gjs -m \"$GJSIFY_SDK/lib/gjsify/dist/cli.gjs.mjs\" \"$@\""
+          ]
+        },
+        {
+          "type": "script",
+          "dest-filename": "enable.sh",
+          "commands": [
+            "export PATH=$PATH:/usr/lib/sdk/gjsify/bin",
+            "export GI_TYPELIB_PATH=/usr/lib/sdk/gjsify/lib/girepository-1.0${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}",
+            "export LD_LIBRARY_PATH=/usr/lib/sdk/gjsify/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          ]
+        },
+        {
+          "type": "file",
+          "path": "org.freedesktop.Sdk.Extension.gjsify.metainfo.xml"
+        }
+      ],
+      "build-commands": [
+        "install -Dm644 cli.gjs.mjs ${FLATPAK_DEST}/lib/gjsify/dist/cli.gjs.mjs",
+        "install -Dm644 cli-package.json ${FLATPAK_DEST}/lib/gjsify/package.json",
+        "install -Dm644 console-gjs.js unicorn-magic.js module-resolve.js -t ${FLATPAK_DEST}/lib/gjsify/shims/",
+        "mkdir -p ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/rolldown-native/lib ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/lightningcss-native/lib",
+        "cp -r rn-lib/. ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/rolldown-native/lib/",
+        "install -Dm644 rn-package.json ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/rolldown-native/package.json",
+        "cp -r ln-lib/. ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/lightningcss-native/lib/",
+        "install -Dm644 ln-package.json ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/lightningcss-native/package.json",
+        "install -Dm644 GjsifyRolldown-1.0.typelib -t ${FLATPAK_DEST}/lib/girepository-1.0/",
+        "install -Dm644 GjsifyLightningcss-1.0.typelib -t ${FLATPAK_DEST}/lib/girepository-1.0/",
+        "install -Dm755 libgjsify_rolldown.so libgjsifyrolldown.so libgjsify_lightningcss.so libgjsifylightningcss.so -t ${FLATPAK_DEST}/lib/",
+        "install -Dm755 gjsify -t ${FLATPAK_DEST}/bin/",
+        "install -Dm755 enable.sh -t ${FLATPAK_DEST}/",
+        "install -Dm644 ${FLATPAK_ID}.metainfo.xml -t ${FLATPAK_DEST}/share/metainfo/"
+      ]
+    }
+  ]
+}
