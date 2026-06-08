@@ -72,14 +72,28 @@ export const tscCommand: Command<unknown, TscOptions> = {
         // (e.g. `packages/web/fetch`) still finds the hoisted `@gjsify/tsc`
         // at the root's `node_modules`. Falls back to cwd for standalone
         // (non-monorepo) projects that have the package locally.
+        // Resolve `@gjsify/tsc/bundle` from two anchors, in order:
+        //   1. the consumer's workspace root / cwd (the normal install — a
+        //      project that has `@gjsify/tsc` as a dev dependency), then
+        //   2. the running CLI bundle's own location (`import.meta.url`).
+        // Anchor 2 is what makes a *bundled* gjsify (the Flatpak SDK
+        // extension's `node_modules/@gjsify/tsc`, or any install where the CLI
+        // ships its own toolchain) resolve `@gjsify/tsc` even when the consumer
+        // project has none — mirroring how `bundler-pick.ts` dual-anchors the
+        // native bridges at cwd AND the bundle.
         const anchorDir = findWorkspaceRoot(cwd) ?? cwd;
-        const anchor = pathToFileURL(`${anchorDir}/__gjsify_tsc__.js`).href;
-        const require = createRequire(anchor);
+        const anchors = [pathToFileURL(`${anchorDir}/__gjsify_tsc__.js`).href, import.meta.url];
 
-        let bundlePath: string;
-        try {
-            bundlePath = require.resolve('@gjsify/tsc/bundle');
-        } catch {
+        let bundlePath: string | undefined;
+        for (const anchor of anchors) {
+            try {
+                bundlePath = createRequire(anchor).resolve('@gjsify/tsc/bundle');
+                break;
+            } catch {
+                // try the next anchor
+            }
+        }
+        if (!bundlePath) {
             console.error('gjsify tsc: @gjsify/tsc is not installed.');
             console.error('  Install with: gjsify install --save-dev @gjsify/tsc');
             process.exit(1);

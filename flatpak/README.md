@@ -16,21 +16,28 @@ Mounted at `/usr/lib/sdk/gjsify`:
 | Path | Content |
 |---|---|
 | `bin/gjsify` | wrapper → `gjs -m …/dist/cli.gjs.mjs` (sets `GI_TYPELIB_PATH` + `LD_LIBRARY_PATH` itself) |
+| `bin/gjsify-tsc` | wrapper → `gjs -m …/node_modules/@gjsify/tsc/dist/tsc.gjs.mjs` (the Node-free `tsc`) |
 | `lib/gjsify/dist/cli.gjs.mjs` | the committed Node-free GJS bundle of the `@gjsify/cli` |
 | `lib/gjsify/package.json` | `@gjsify/cli`'s package.json (so `gjsify --version` is correct) |
 | `lib/gjsify/shims/*.js` | the `rolldown-plugin-gjsify` build shims (`console-gjs`, `unicorn-magic`, `module-resolve`) that `gjsify build --app gjs` injects |
 | `lib/gjsify/node_modules/@gjsify/{rolldown,lightningcss}-native/` | the native-bridge JS wrappers (`@gjsify/cli` dynamic-imports these at runtime; their `gi://` typelib resolves via `GI_TYPELIB_PATH`) |
-| `lib/girepository-1.0/*.typelib` | `GjsifyRolldown` + `GjsifyLightningcss` GI typelibs |
+| `lib/gjsify/node_modules/@gjsify/tsc/` | the `gjsify tsc` bundle + its 108 `lib*.d.ts` (so `gjsify check`/`gjsify tsc` work in the sandbox) |
+| `lib/girepository-1.0/*.typelib` | `GjsifyRolldown` + `GjsifyLightningcss` GI typelibs (arch-specific) |
 | `lib/*.so` | the matching native shared libraries (Rust bridges) |
 | `enable.sh` | `PATH += /usr/lib/sdk/gjsify/bin` + the GI env |
+
+The native prebuilds (typelibs + `.so`) are shipped per-architecture via
+`only-arches`-tagged sources — currently `x86_64` and `aarch64` (whichever the
+build is for is the only one fetched). The JS payload (CLI bundle, shims, tsc
+libs, native JS wrappers) is architecture-independent.
 
 **GJS itself is NOT bundled** — it is provided by the consuming SDK
 (`org.gnome.Sdk`), exactly as `node24` relies on its base `org.freedesktop.Sdk`.
 The extension builds against `org.freedesktop.Sdk//24.08`, so it mounts into any
 SDK that inherits the freedesktop `Extension` point — including `org.gnome.Sdk`
-(where `gjs` lives). `gjsify build` / `gjsify run` work; `gjsify tsc` (type-check)
-is a follow-up (its `lib*.d.ts` resolution needs the bundled-toolchain
-node_modules layout — see STATUS.md Open TODOs).
+(where `gjs` lives). `gjsify build`, `gjsify run` and `gjsify tsc` / `gjsify check`
+all work (the CLI resolves `@gjsify/tsc` and the native bridges from the
+extension's own `node_modules`, anchored at the bundle location).
 
 ## Build it
 

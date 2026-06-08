@@ -60,27 +60,77 @@
         },
         {
           "type": "file",
+          "path": "../packages/infra/tsc/dist/tsc.gjs.mjs"
+        },
+        {
+          "type": "dir",
+          "path": "../packages/infra/tsc/lib",
+          "dest": "tsc-lib"
+        },
+        {
+          "type": "file",
+          "path": "../packages/infra/tsc/package.json",
+          "dest-filename": "tsc-package.json"
+        },
+        {
+          "type": "file",
+          "only-arches": ["x86_64"],
           "path": "../packages/infra/rolldown-native/prebuilds/linux-x86_64/GjsifyRolldown-1.0.typelib"
         },
         {
           "type": "file",
+          "only-arches": ["x86_64"],
           "path": "../packages/infra/rolldown-native/prebuilds/linux-x86_64/libgjsify_rolldown.so"
         },
         {
           "type": "file",
+          "only-arches": ["x86_64"],
           "path": "../packages/infra/rolldown-native/prebuilds/linux-x86_64/libgjsifyrolldown.so"
         },
         {
           "type": "file",
+          "only-arches": ["x86_64"],
           "path": "../packages/infra/lightningcss-native/prebuilds/linux-x86_64/GjsifyLightningcss-1.0.typelib"
         },
         {
           "type": "file",
+          "only-arches": ["x86_64"],
           "path": "../packages/infra/lightningcss-native/prebuilds/linux-x86_64/libgjsify_lightningcss.so"
         },
         {
           "type": "file",
+          "only-arches": ["x86_64"],
           "path": "../packages/infra/lightningcss-native/prebuilds/linux-x86_64/libgjsifylightningcss.so"
+        },
+        {
+          "type": "file",
+          "only-arches": ["aarch64"],
+          "path": "../packages/infra/rolldown-native/prebuilds/linux-aarch64/GjsifyRolldown-1.0.typelib"
+        },
+        {
+          "type": "file",
+          "only-arches": ["aarch64"],
+          "path": "../packages/infra/rolldown-native/prebuilds/linux-aarch64/libgjsify_rolldown.so"
+        },
+        {
+          "type": "file",
+          "only-arches": ["aarch64"],
+          "path": "../packages/infra/rolldown-native/prebuilds/linux-aarch64/libgjsifyrolldown.so"
+        },
+        {
+          "type": "file",
+          "only-arches": ["aarch64"],
+          "path": "../packages/infra/lightningcss-native/prebuilds/linux-aarch64/GjsifyLightningcss-1.0.typelib"
+        },
+        {
+          "type": "file",
+          "only-arches": ["aarch64"],
+          "path": "../packages/infra/lightningcss-native/prebuilds/linux-aarch64/libgjsify_lightningcss.so"
+        },
+        {
+          "type": "file",
+          "only-arches": ["aarch64"],
+          "path": "../packages/infra/lightningcss-native/prebuilds/linux-aarch64/libgjsifylightningcss.so"
         },
         {
           "type": "script",
@@ -90,6 +140,14 @@
             "export GI_TYPELIB_PATH=\"$GJSIFY_SDK/lib/girepository-1.0${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}\"",
             "export LD_LIBRARY_PATH=\"$GJSIFY_SDK/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\"",
             "exec gjs -m \"$GJSIFY_SDK/lib/gjsify/dist/cli.gjs.mjs\" \"$@\""
+          ]
+        },
+        {
+          "type": "script",
+          "dest-filename": "gjsify-tsc",
+          "commands": [
+            "GJSIFY_SDK=/usr/lib/sdk/gjsify",
+            "exec gjs -m \"$GJSIFY_SDK/lib/gjsify/node_modules/@gjsify/tsc/dist/tsc.gjs.mjs\" \"$@\""
           ]
         },
         {
@@ -110,15 +168,18 @@
         "install -Dm644 cli.gjs.mjs ${FLATPAK_DEST}/lib/gjsify/dist/cli.gjs.mjs",
         "install -Dm644 cli-package.json ${FLATPAK_DEST}/lib/gjsify/package.json",
         "install -Dm644 console-gjs.js unicorn-magic.js module-resolve.js -t ${FLATPAK_DEST}/lib/gjsify/shims/",
-        "mkdir -p ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/rolldown-native/lib ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/lightningcss-native/lib",
+        "mkdir -p ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/rolldown-native/lib ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/lightningcss-native/lib ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/tsc/dist ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/tsc/lib",
         "cp -r rn-lib/. ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/rolldown-native/lib/",
         "install -Dm644 rn-package.json ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/rolldown-native/package.json",
         "cp -r ln-lib/. ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/lightningcss-native/lib/",
         "install -Dm644 ln-package.json ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/lightningcss-native/package.json",
+        "install -Dm644 tsc.gjs.mjs ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/tsc/dist/tsc.gjs.mjs",
+        "cp -r tsc-lib/. ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/tsc/lib/",
+        "install -Dm644 tsc-package.json ${FLATPAK_DEST}/lib/gjsify/node_modules/@gjsify/tsc/package.json",
         "install -Dm644 GjsifyRolldown-1.0.typelib -t ${FLATPAK_DEST}/lib/girepository-1.0/",
         "install -Dm644 GjsifyLightningcss-1.0.typelib -t ${FLATPAK_DEST}/lib/girepository-1.0/",
         "install -Dm755 libgjsify_rolldown.so libgjsifyrolldown.so libgjsify_lightningcss.so libgjsifylightningcss.so -t ${FLATPAK_DEST}/lib/",
-        "install -Dm755 gjsify -t ${FLATPAK_DEST}/bin/",
+        "install -Dm755 gjsify gjsify-tsc -t ${FLATPAK_DEST}/bin/",
         "install -Dm755 enable.sh -t ${FLATPAK_DEST}/",
         "install -Dm644 ${FLATPAK_ID}.metainfo.xml -t ${FLATPAK_DEST}/share/metainfo/"
       ]
