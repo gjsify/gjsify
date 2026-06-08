@@ -7,8 +7,10 @@ Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and W
 ## Installation
 
 ```bash
+gjsify install @gjsify/worker_threads
+
+# npm or yarn also work (e.g. adding it to an existing project):
 npm install @gjsify/worker_threads
-# or
 yarn add @gjsify/worker_threads
 ```
 

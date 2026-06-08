@@ -7,9 +7,7 @@ Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and W
 ## Installation
 
 ```bash
-npm install @gjsify/runtime
-# or
-yarn add @gjsify/runtime
+gjsify install @gjsify/runtime
 ```
 
 ## Usage

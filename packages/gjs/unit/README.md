@@ -7,9 +7,7 @@ Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and W
 ## Installation
 
 ```bash
-npm install @gjsify/unit
-# or
-yarn add @gjsify/unit
+gjsify install @gjsify/unit
 ```
 
 ## Usage

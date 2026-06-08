@@ -22,9 +22,12 @@ On top of the fixes, it spreads `@gjsify/vite-plugin-gjsify`'s `gjsifyNativescri
 The package's only hard dependency is `@gjsify/vite-plugin-gjsify`. Everything from the NativeScript side is an **optional peer** — install it in your NativeScript app alongside the rest of your NS toolchain:
 
 ```bash
-npm install -D @gjsify/nativescript-vite @nativescript/vite vite
+gjsify install -D @gjsify/nativescript-vite @nativescript/vite vite
 # plus whatever your app already uses, e.g.:
-npm install @nativescript/core @nativescript/canvas @nativescript/canvas-polyfill
+gjsify install @nativescript/core @nativescript/canvas @nativescript/canvas-polyfill
+
+# npm or yarn also work (e.g. alongside your existing NativeScript npm toolchain):
+npm install -D @gjsify/nativescript-vite @nativescript/vite vite
 ```
 
 Optional peers: `@nativescript/vite`, `@nativescript/core`, `nativescript`, `@nativescript/canvas`, `@nativescript/canvas-polyfill`, and `vite` (`^8.0.14`). They are not installed by this package — your NativeScript app provides them. If `@nativescript/vite` is missing, the config factory throws a clear, actionable error.

@@ -7,9 +7,7 @@ Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and W
 ## Installation
 
 ```bash
-npm install @gjsify/resolve-npm
-# or
-yarn add @gjsify/resolve-npm
+gjsify install @gjsify/resolve-npm
 ```
 
 ## Usage
