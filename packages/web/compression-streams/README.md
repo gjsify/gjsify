@@ -7,8 +7,10 @@ Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and W
 ## Installation
 
 ```bash
+gjsify install @gjsify/compression-streams
+
+# npm or yarn also work (e.g. adding it to an existing project):
 npm install @gjsify/compression-streams
-# or
 yarn add @gjsify/compression-streams
 ```
 

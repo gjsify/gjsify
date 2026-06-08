@@ -1,13 +1,27 @@
 # @gjsify/tsc
 
 [TypeScript][typescript] for [GJS][gjs] — the upstream `typescript` compiler
-bundled to a single GJS module and shipped with a `tsc` bin that runs
+bundled to a single GJS module and shipped with a `gjsify-tsc` bin that runs
 **directly under [SpiderMonkey][spidermonkey] via GJS**, without Node.js in
 the loop.
 
+Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
+
+## Installation
+
+```bash
+gjsify install @gjsify/tsc
+
+# npm or yarn also work (e.g. adding it to an existing project):
+npm install @gjsify/tsc
+yarn add @gjsify/tsc
+```
+
+## Usage
+
 ```bash
 # Node-free TypeScript checking on any GJS-equipped system:
-gjsify-tsc --version              # → Version 5.9.3
+gjsify-tsc --version              # → Version 6.0.3
 gjsify-tsc -p tsconfig.json       # type-check (--noEmit-style usage)
 gjsify-tsc --diagnostics foo.ts   # tsc perf info works the same as on Node
 ```
@@ -20,11 +34,11 @@ that's it. With `@gjsify/cli`'s `--app gjs` target, the same compiler runs
 unchanged under GJS, polyfilled by the rest of the gjsify family
 (`@gjsify/fs`, `@gjsify/path`, `@gjsify/process`, `@gjsify/perf_hooks`, …).
 
-This package is the first proof-of-concept that **the gjsify build chain can
-be Node-free** — the long-standing goal tracked in the project's
-`STATUS.md`. The `gjsify` CLI itself already ships as a GJS bundle; pairing
-that with `gjsify-tsc` removes Node from the type-check step of any
-gjsify-built app.
+gjsify **self-hosts** its type-checking on this package: every workspace
+`check` and `.d.ts` emit runs `gjsify-tsc`, not Node's `tsc`. Together with
+the `gjsify` CLI (also a GJS bundle) and the native Rolldown bundler engine,
+the gjsify build chain now runs Node-free under GJS — the long-standing goal
+tracked in the project's `STATUS.md`.
 
 ## Layout
 
@@ -87,6 +101,10 @@ case.
 - [`refs/typescript`][typescript] — Microsoft's reference implementation.
 - Originally implemented for Node.js / SpiderMonkey; this package bundles
   upstream's pre-built `_tsc.js` CLI entry, not a reimplementation.
+
+## License
+
+MIT
 
 [typescript]: https://github.com/microsoft/TypeScript
 [gjs]: https://gitlab.gnome.org/GNOME/gjs
