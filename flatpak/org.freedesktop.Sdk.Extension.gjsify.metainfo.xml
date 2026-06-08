@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="addon">
+  <id>org.freedesktop.Sdk.Extension.gjsify</id>
+  <extends>org.freedesktop.Sdk</extends>
+  <name>gjsify SDK Extension</name>
+  <summary>Node-free gjsify build toolchain for GJS apps</summary>
+  <description>
+    <p>
+      Provides the gjsify command-line build toolchain inside a Flatpak build
+      sandbox, so a GJS/GNOME application can run "gjsify build" at build time
+      without a network connection or a Node.js toolchain. The extension ships
+      the committed GJS bundle of the gjsify CLI together with its native
+      Rolldown and LightningCSS bridges (GObject-Introspection typelibs +
+      shared libraries), mounted at /usr/lib/sdk/gjsify.
+    </p>
+    <p>
+      Enable it in a build with:
+      append-path "/usr/lib/sdk/gjsify/bin" and source
+      /usr/lib/sdk/gjsify/enable.sh in the build-commands. The GJS runtime
+      itself is provided by the consuming SDK (org.gnome.Sdk), exactly as the
+      node24 extension relies on the base SDK.
+    </p>
+  </description>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <url type="homepage">https://github.com/gjsify/gjsify</url>
+  <url type="bugtracker">https://github.com/gjsify/gjsify/issues</url>
+</component>

@@ -158,6 +158,10 @@ const IGNORE = [
     /^docs\//,
     /^\.github\/workflows\/(deploy-docs|commitlint|release|audit-runtimes|prebuilds)\.yml$/,
     /^\.githooks\//,
+    // Flatpak build/distribution tooling (SDK-extension manifest + metainfo).
+    // Like `.githooks/`, it has no package-test consumers; its own
+    // `tests/e2e/flatpak-sdk-extension` runs on `tests/e2e/**` / global triggers.
+    /^flatpak\//,
     /^LICENSE/,
     /^\.gitignore$/,
     /^\.gjsify-[^/]*\.md$/,
