@@ -152,6 +152,38 @@ describe('CLI self-host loop', { timeout: 5 * 60 * 1000 }, () => {
         }
     });
 
+    it('GJS-CLI rebuilds ITSELF under gjs + native rolldown (Node-free self-host; bridge bugs A+B)', () => {
+        // The committed GJS-CLI rebuilds its OWN entry — the "previous gjsify
+        // builds next gjsify" milestone. This is the only build that hits BOTH
+        // native-bridge edge cases that broke the self-build before:
+        //   A) `transform` on rolldown's virtual `\0rolldown/empty.js` (the
+        //      externalized typescript/lib stub, code "") — the C glue returned
+        //      NULL for an empty-but-present payload → "missing payload bytes"
+        //      (@gjsify/rolldown-native glue fix).
+        //   B) the `unicorn-magic` alias shim was resolved relative to the
+        //      bundle (not the plugin) under the GJS-bundled CLI → NotFound
+        //      (rolldown-plugin-gjsify `resolveShim` exports-map fallback).
+        // Both bugs fire during the single bundling pass, so a clean exit 0 +
+        // a real multi-MB bundle is the proof. We pass `--globals none` to skip
+        // the (slow) auto-globals multi-pass — it's the BRIDGE fix we guard, not
+        // the globals detector, and the full `--globals auto` build of the whole
+        // CLI under native rolldown blows past gjs()'s 120 s spawn cap on CI
+        // (~5 s with `none` locally vs ~21 s with `auto`).
+        const cliEntry = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'src', 'index.ts');
+        const outfile = join(OUT_DIR, 'cli-self.gjs.mjs');
+        const r = gjs(
+            ['-m', GJS_CLI_BUNDLE, 'build', cliEntry, '--app', 'gjs', '--globals', 'none', '--outfile', outfile],
+            { timeout: 240 * 1000 },
+        );
+        assert.equal(r.status, 0, `CLI self-rebuild failed (native bridge regression?): ${r.stderr}`);
+        assert.ok(existsSync(outfile), `self-rebuilt CLI bundle missing: ${outfile}`);
+        // A real multi-MB bundle, not an empty/partial file.
+        assert.ok(
+            statSync(outfile).size > 1_000_000,
+            `self-rebuilt CLI bundle implausibly small: ${statSync(outfile).size} B`,
+        );
+    });
+
     it('GJS-CLI bundles the yargs integration suite and all 52 tests pass', () => {
         const outfile = join(OUT_DIR, 'yargs.gjs.mjs');
         const r = gjs(['-m', GJS_CLI_BUNDLE, 'build', YARGS_FIXTURE, '--app', 'gjs', '--outfile', outfile]);

@@ -29,10 +29,10 @@ import { shebangPlugin, resolveShebangLine, inputShebangStripPlugin } from '../p
 
 const _shimDir = dirname(fileURLToPath(import.meta.url));
 
-function resolveConsoleShim(): string {
+function resolveShim(shimName: string): string {
     // Preferred: relative to this module's directory. Works under the
     // normal Node consumer flow where `_shimDir` = `<pkg>/lib/app/`.
-    const relative = resolve(_shimDir, '../shims/console-gjs.js');
+    const relative = resolve(_shimDir, `../shims/${shimName}.js`);
     let fs: typeof NodeFs | null = null;
     try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -45,13 +45,14 @@ function resolveConsoleShim(): string {
     // (GJS-CLI self-host loop) `_shimDir` collapses to the bundle's
     // own directory and the relative lookup misses. createRequire's
     // resolver is `exports`-map-aware (Phase C), so the published
-    // subpath export `./shims/console-gjs` works under both Node and
-    // GJS without further walking.
+    // subpath export `./shims/<name>` works under both Node and GJS
+    // without further walking. Each shim MUST be a `./shims/<name>`
+    // subpath export in package.json for this fallback to resolve.
     try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const Module = require('node:module') as typeof NodeModule;
         const require_ = Module.createRequire(import.meta.url);
-        return require_.resolve('@gjsify/rolldown-plugin-gjsify/shims/console-gjs');
+        return require_.resolve(`@gjsify/rolldown-plugin-gjsify/shims/${shimName}`);
     } catch {
         return relative;
     }
@@ -125,7 +126,7 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     // around `conditionNames` below). Route the package to our
     // bundled shim so the API is reachable under --app gjs without
     // turning on the node condition globally.
-    const unicornMagicShim = resolve(_shimDir, '../shims/unicorn-magic.js');
+    const unicornMagicShim = resolveShim('unicorn-magic');
 
     const aliasMap = {
         ...getAliasesForGjs({ external }),
@@ -145,7 +146,7 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     // resolution lands at a non-existent location. Walk up via
     // createRequire's node_modules-aware resolver as a fallback.
     const consoleShimEnabled = input.pluginOptions.consoleShim !== false;
-    const consoleShimPath = consoleShimEnabled ? resolveConsoleShim() : null;
+    const consoleShimPath = consoleShimEnabled ? resolveShim('console-gjs') : null;
 
     // The auto-globals inject stub (when present) is side-effect-imported
     // via a virtual entry — its register modules write to globalThis, so
