@@ -852,17 +852,28 @@ function buildBinShim(
                   );
               })();
     if (nodeAbs && gjsAbs) {
-        // Prefer the Node entry when present; fall back to the GJS bundle.
-        // NOTE: a GJS-first flip is desirable (gjsify is Node-free under GJS)
-        // but NOT yet safe as the default — running the full workspace build
-        // under GJS surfaced two blockers that must land first: (1) some
-        // builds fail under native rolldown/lightningcss that pass under npm
-        // (e.g. @gjsify/adwaita-web's css-as-string on adwaita-fonts CSS), and
-        // (2) `gjsify foreach`/`workspace` does not exit on a child failure
-        // under GJS (the process hangs instead of failing fast → CI timeout).
-        // Until both are fixed, Node stays the shim default; GJS remains fully
-        // available (run `gjs -m dist/cli.gjs.mjs`, or the gjs-only bins).
-        return `#!/bin/sh\nif [ -f "${nodeAbs}" ]; then\n  exec node "${nodeAbs}" "$@"\nfi\n${gjsPreamble}exec gjs -m "${gjsAbs}" "$@"\n`;
+        // GJS-FIRST: prefer the committed Node-free GJS bundle when `gjs` is on
+        // PATH AND the bundle exists; fall back to the Node entry otherwise (a
+        // Node-only machine, or before the bundle is built). gjsify is
+        // GJS-first but stays fully runnable under Node.
+        //
+        // Safe to default to GJS now that the blockers earlier flip attempts
+        // surfaced are all fixed: css-as-string file://-resolve, `foreach`
+        // fail-fast, the @gjsify/tsc lib-refresh race, native-rolldown
+        // node-target externals — and the make-or-break one, the nested-gjs
+        // build thrash: `gjsify run` now dispatches a single `gjsify <cmd>`
+        // script IN-PROCESS under GJS (see cli-app.ts) instead of spawning yet
+        // another gjs, so the build no longer chains ~5 heavyweight gjs per
+        // package and oversubscribes CI's few cores. Verified: the faithful
+        // `foreach build -tp --jobs 4` over @gjsify/* with a piped stdout
+        // completes in ~83s under GJS (was a multi-hour hang).
+        return (
+            `#!/bin/sh\n` +
+            `if command -v gjs >/dev/null 2>&1 && [ -f "${gjsAbs}" ]; then\n` +
+            `${gjsPreamble}exec gjs -m "${gjsAbs}" "$@"\n` +
+            `fi\n` +
+            `exec node "${nodeAbs}" "$@"\n`
+        );
     }
     if (nodeAbs) return `#!/bin/sh\nexec node "${nodeAbs}" "$@"\n`;
     if (gjsAbs) return `#!/bin/sh\n${gjsPreamble}exec gjs -m "${gjsAbs}" "$@"\n`;
