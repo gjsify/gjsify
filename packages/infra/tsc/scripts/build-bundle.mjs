@@ -102,6 +102,11 @@ const { action, reason } = pickLibSource({
     pinnedVersion: pinnedTypescriptVersion,
     sourceLibs,
     committedLibs,
+    // Normally KEEP already-complete committed libs (no rm+copy → no race with
+    // concurrent `gjsify tsc` readers during a parallel build). Set
+    // GJSIFY_TSC_REFRESH_LIBS=1 to force a regeneration — used when bumping
+    // TYPESCRIPT_VERSION, where the committed libs must be replaced.
+    forceRefresh: process.env.GJSIFY_TSC_REFRESH_LIBS === '1',
 });
 
 let libCount;
