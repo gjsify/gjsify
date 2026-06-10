@@ -7,14 +7,16 @@
 //   2. FUNCTIONAL (only when `flatpak-builder` + `org.freedesktop.Sdk//24.08`
 //      are available, e.g. a dev machine) — actually build the extension and
 //      prove the resulting payload runs: `gjsify --version` is the workspace
-//      version, and `gjsify build` bundles a trivial app using the native
-//      Rolldown bridge loaded from the extension's own typelib.
+//      version, `gjsify build` bundles a trivial app using the native
+//      Rolldown bridge loaded from the extension's own typelib, and
+//      `gjsify tsc` / the `gjsify-tsc` bundle report the pinned
+//      TYPESCRIPT_VERSION + type-check against the shipped lib*.d.ts.
 //
 // CI containers without flatpak tooling run tier 1 only and LOG the skip — no
 // silent pass.
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -64,8 +66,33 @@ for (const arch of ['x86_64', 'aarch64']) {
 }
 const scriptNames = sources.filter((s) => s.type === 'script').map((s) => s['dest-filename']);
 assert(scriptNames.includes('gjsify'), 'gjsify wrapper script source present');
+assert(scriptNames.includes('gjsify-tsc'), 'gjsify-tsc wrapper script source present');
 assert(scriptNames.includes('enable.sh'), 'enable.sh script source present');
 assert(existsSync(join(FLATPAK_DIR, `${ID}.metainfo.xml`)), 'metainfo.xml present');
+
+// The @gjsify/tsc payload must be declared explicitly: the GJS tsc bundle plus
+// its default-library dir (tsc resolves lib.*.d.ts relative to the installed
+// @gjsify/tsc package at runtime — without the libs every type-check TS6053s).
+assert(
+    fileSources.some((s) => s.path.endsWith('packages/infra/tsc/dist/tsc.gjs.mjs')),
+    'tsc bundle declared as manifest source',
+);
+assert(
+    fileSources.some((s) => s.type === 'dir' && s.path.endsWith('packages/infra/tsc/lib')),
+    'tsc default-lib dir declared as manifest source',
+);
+// Guard against the historical "empty lib/" regression: the committed lib dir
+// must actually contain the full default-library set, not just exist.
+const committedLibCount = readdirSync(resolve(FLATPAK_DIR, '../packages/infra/tsc/lib')).filter((f) =>
+    /^lib.*\.d\.ts$/.test(f),
+).length;
+assert(committedLibCount >= 100, `committed tsc lib dir has the default libs (${committedLibCount} lib*.d.ts)`);
+
+// The pinned upstream TypeScript version — tier 2 asserts the shipped bundle
+// reports exactly this.
+const tscIndexSrc = readFileSync(join(ROOT, 'packages/infra/tsc/src/index.ts'), 'utf8');
+const TYPESCRIPT_VERSION = tscIndexSrc.match(/TYPESCRIPT_VERSION = '([^']+)'/)?.[1];
+assert(typeof TYPESCRIPT_VERSION === 'string', `TYPESCRIPT_VERSION pin found (${TYPESCRIPT_VERSION})`);
 
 // ── Tier 2: functional (conditional) ────────────────────────────────────────
 const canBuild = has('flatpak-builder');
@@ -144,11 +171,52 @@ if (!canBuild || !sdkInstalled) {
 
             // `gjsify tsc` must resolve @gjsify/tsc from the extension's own
             // node_modules (the bundle-location anchor) — the consumer `app`
-            // dir has no @gjsify/tsc — and the bundled tsc must find its libs.
+            // dir has no @gjsify/tsc — and report exactly the pinned version.
             const tscVersion = execFileSync('gjs', ['-m', bundle, 'tsc', '--version'], { env: giEnv, cwd: app })
                 .toString()
                 .trim();
-            assert(/Version \d+\.\d+\.\d+/.test(tscVersion), `gjsify tsc resolves + runs (got "${tscVersion}")`);
+            assert(
+                tscVersion === `Version ${TYPESCRIPT_VERSION}`,
+                `gjsify tsc runs the pinned TS ${TYPESCRIPT_VERSION} (got "${tscVersion}")`,
+            );
+
+            // The `gjsify-tsc` bin path: the wrapper script execs the tsc
+            // bundle directly (`gjs -m …/@gjsify/tsc/dist/tsc.gjs.mjs`), but
+            // its hardcoded /usr/lib/sdk/gjsify prefix only exists inside the
+            // sandbox — run the same exec line against the built tree.
+            const tscBundle = join(files, 'lib/gjsify/node_modules/@gjsify/tsc/dist/tsc.gjs.mjs');
+            const binVersion = execFileSync('gjs', ['-m', tscBundle, '--version'], { env: giEnv, cwd: app })
+                .toString()
+                .trim();
+            assert(
+                binVersion === `Version ${TYPESCRIPT_VERSION}`,
+                `gjsify-tsc reports the pinned TS ${TYPESCRIPT_VERSION} (got "${binVersion}")`,
+            );
+
+            // The shipped default-library set must be complete (mirror of the
+            // committed set) and actually resolvable at runtime: a real
+            // --noEmit type-check TS6053s without the libs.
+            const builtLibCount = readdirSync(join(files, 'lib/gjsify/node_modules/@gjsify/tsc/lib')).filter((f) =>
+                /^lib.*\.d\.ts$/.test(f),
+            ).length;
+            assert(
+                builtLibCount === committedLibCount,
+                `built tree ships the full default-lib set (${builtLibCount}/${committedLibCount})`,
+            );
+            writeFileSync(
+                join(app, 'tsconfig.json'),
+                JSON.stringify({
+                    compilerOptions: { target: 'esnext', module: 'esnext', strict: true, noEmit: true },
+                    files: ['check-me.ts'],
+                }) + '\n',
+            );
+            writeFileSync(join(app, 'check-me.ts'), 'const n: number = [1, 2, 3].length;\nexport default n;\n');
+            try {
+                execFileSync('gjs', ['-m', tscBundle, '-p', '.'], { env: giEnv, cwd: app, stdio: 'ignore' });
+                ok('gjsify-tsc type-checks (default libs resolve from the extension layout)');
+            } catch {
+                fail('gjsify-tsc type-check failed (default-lib resolution broken in the extension layout)');
+            }
         } else {
             console.log('  (gjs not on PATH — payload-run sub-steps skipped)');
         }
