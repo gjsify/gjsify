@@ -13,7 +13,8 @@
         },
         "./globals-map": "./lib/globals-map.mjs",
         "./runtime-aliases": "./lib/runtime-aliases.mjs",
-        "./package.json": "./package.json"
+        "./package.json": "./package.json",
+        "./register-globals-closure": "./lib/register-globals-closure.mjs"
     },
     "files": [
         "lib"
