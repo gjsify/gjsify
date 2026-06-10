@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-tls-session",
-    "description": "Integration tests: TLS session resumption + channel binding round-trip on GJS and Node. Validates @gjsify/tls-native Phase 2 SessionAccess end-to-end against a real TLS handshake \u2014 the follow-up to PR #360 that deferred the round-trip test once the C shim landed.",
+    "description": "Integration tests: TLS session resumption + channel binding round-trip on GJS and Node. Validates @gjsify/tls-native Phase 2 SessionAccess end-to-end against a real TLS handshake — the follow-up to PR #360 that deferred the round-trip test once the C shim landed.",
     "type": "module",
     "private": true,
     "engines": {
@@ -26,7 +26,7 @@
         "@gjsify/runtime": "workspace:^",
         "@gjsify/tls": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.9.1",
+        "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",

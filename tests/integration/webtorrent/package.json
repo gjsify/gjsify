@@ -24,13 +24,13 @@
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.9.1",
-        "bittorrent-protocol": "^5.0.0",
-        "parse-torrent": "^11.0.19",
+        "@types/node": "^25.9.2",
+        "bittorrent-protocol": "^5.0.6",
+        "parse-torrent": "^11.0.21",
         "randombytes": "^2.1.0",
         "typescript": "^6.0.3",
-        "webtorrent": "^2.8.5",
-        "webtorrent-fixtures": "2.0.2"
+        "webtorrent": "^3.0.16",
+        "webtorrent-fixtures": "2.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",
     "license": "MIT"

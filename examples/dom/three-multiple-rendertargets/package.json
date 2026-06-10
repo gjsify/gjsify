@@ -21,7 +21,7 @@
     "@girs/gjs": "4.0.4",
     "@girs/gtk-4.0": "4.23.0-4.0.4",
     "@gjsify/cli": "workspace:^",
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.2",
     "@types/three": "^0.184.1",
     "http-server": "^14.1.1",
     "three": "0.184.0",

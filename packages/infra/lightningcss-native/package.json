@@ -52,7 +52,7 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@ts-for-gir/cli": "^4.0.4",
-        "@types/node": "^25.9.1",
+        "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",

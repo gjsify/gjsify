@@ -30,7 +30,7 @@
     "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/cli": "workspace:^",
     "@gjsify/vite-plugin-blueprint": "workspace:^",
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.2",
     "@types/three": "^0.184.1",
     "http-server": "^14.1.1",
     "three": "0.184.0",

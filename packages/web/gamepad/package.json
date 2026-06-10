@@ -51,7 +51,7 @@
         "@girs/manette-0.2": "0.2.13-4.0.4",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.9.1",
+        "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
     },
     "gjsify": {

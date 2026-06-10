@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-debug",
-    "description": "Integration tests: `debug` (TJ Holowaychuk) on GJS and Node. Validates @gjsify/tty (isatty), @gjsify/process (process.stderr.write + process.stderr.fd), and @gjsify/util (formatWithOptions + inspect format specifiers) end-to-end \u2014 the same code paths Express / socket.io / eslint pull through `debug` on every log.",
+    "description": "Integration tests: `debug` (TJ Holowaychuk) on GJS and Node. Validates @gjsify/tty (isatty), @gjsify/process (process.stderr.write + process.stderr.fd), and @gjsify/util (formatWithOptions + inspect format specifiers) end-to-end — the same code paths Express / socket.io / eslint pull through `debug` on every log.",
     "type": "module",
     "private": true,
     "engines": {
@@ -22,7 +22,7 @@
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.9.1",
+        "@types/node": "^25.9.2",
         "debug": "^4.4.3",
         "typescript": "^6.0.3"
     },

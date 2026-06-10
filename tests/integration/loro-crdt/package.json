@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-loro-crdt",
-    "description": "Integration tests: loro-crdt on GJS and Node. Validates @gjsify/webassembly Promise APIs + @gjsify/web-globals TextEncoder/TextDecoder + crypto.getRandomValues against wasm-bindgen-generated bindings (the canonical real-world consumer pattern). Loro is a CRDT (Conflict-free Replicated Data Type) framework distributed as base64-embedded WASM \u2014 no fetch/fs required at load time. Exercises LoroDoc, LoroText, LoroList, LoroMap, snapshot export/import, and bidirectional sync.",
+    "description": "Integration tests: loro-crdt on GJS and Node. Validates @gjsify/webassembly Promise APIs + @gjsify/web-globals TextEncoder/TextDecoder + crypto.getRandomValues against wasm-bindgen-generated bindings (the canonical real-world consumer pattern). Loro is a CRDT (Conflict-free Replicated Data Type) framework distributed as base64-embedded WASM — no fetch/fs required at load time. Exercises LoroDoc, LoroText, LoroList, LoroMap, snapshot export/import, and bidirectional sync.",
     "type": "module",
     "private": true,
     "engines": {
@@ -22,8 +22,8 @@
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.9.1",
-        "loro-crdt": "^1.12.1",
+        "@types/node": "^25.9.2",
+        "loro-crdt": "^1.13.1",
         "typescript": "^6.0.3"
     }
 }

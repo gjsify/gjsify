@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-typescript-tsc",
-    "description": "Integration tests: TypeScript compiler (tsc) + language-server API on GJS and Node. Currently every `gjsify check` invocation shells out to `node tsc` (TypeScript is JS but the bin script reaches for Node-shaped fs / child_process / readline). The goal of this suite is to find out whether the TypeScript compiler API can run end-to-end under GJS via @gjsify/* polyfills \u2014 Program creation, type-checking, diagnostics emission \u2014 and what gaps surface for tsserver (the language server's LSP-over-stdio loop). Failures are documented in the suite's TODO comments and surface as test results, not silent skips.",
+    "description": "Integration tests: TypeScript compiler (tsc) + language-server API on GJS and Node. Currently every `gjsify check` invocation shells out to `node tsc` (TypeScript is JS but the bin script reaches for Node-shaped fs / child_process / readline). The goal of this suite is to find out whether the TypeScript compiler API can run end-to-end under GJS via @gjsify/* polyfills — Program creation, type-checking, diagnostics emission — and what gaps surface for tsserver (the language server's LSP-over-stdio loop). Failures are documented in the suite's TODO comments and surface as test results, not silent skips.",
     "type": "module",
     "private": true,
     "engines": {
@@ -22,7 +22,7 @@
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.9.1",
+        "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
     }
 }

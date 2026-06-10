@@ -64,7 +64,7 @@
     },
     "peerDependencies": {
         "@gjsify/lightningcss-native": "workspace:^",
-        "rolldown": "^1.0.3"
+        "rolldown": "^1.1.0"
     },
     "peerDependenciesMeta": {
         "@gjsify/lightningcss-native": {
@@ -75,8 +75,8 @@
         }
     },
     "devDependencies": {
-        "@types/node": "^25.9.1",
-        "rolldown": "^1.0.3",
+        "@types/node": "^25.9.2",
+        "rolldown": "^1.1.0",
         "typescript": "^6.0.3"
     }
 }

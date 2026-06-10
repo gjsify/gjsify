@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-execa",
-    "description": "Integration tests: execa on GJS and Node. Validates @gjsify/child_process (spawn/exec), @gjsify/stream (stdout/stderr pipes), @gjsify/events (EventEmitter) \u2014 the same code paths used by @gjsify/vite-plugin-blueprint and @gjsify/vite-plugin-gettext to invoke blueprint-compiler / xgettext / msgfmt.",
+    "description": "Integration tests: execa on GJS and Node. Validates @gjsify/child_process (spawn/exec), @gjsify/stream (stdout/stderr pipes), @gjsify/events (EventEmitter) — the same code paths used by @gjsify/vite-plugin-blueprint and @gjsify/vite-plugin-gettext to invoke blueprint-compiler / xgettext / msgfmt.",
     "type": "module",
     "private": true,
     "engines": {
@@ -22,7 +22,7 @@
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.9.1",
+        "@types/node": "^25.9.2",
         "execa": "^9.6.1",
         "typescript": "^6.0.3"
     },

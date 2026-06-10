@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-dotenv",
-    "description": "Integration tests: dotenv on GJS and Node. Validates @gjsify/process (process.env Proxy round-tripping through GLib.{get,set,unset}env) + @gjsify/fs (readFileSync of .env files, URL-path argument) \u2014 the two pillars dotenv pulls together end-to-end.",
+    "description": "Integration tests: dotenv on GJS and Node. Validates @gjsify/process (process.env Proxy round-tripping through GLib.{get,set,unset}env) + @gjsify/fs (readFileSync of .env files, URL-path argument) — the two pillars dotenv pulls together end-to-end.",
     "type": "module",
     "private": true,
     "engines": {
@@ -25,7 +25,7 @@
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.9.1",
+        "@types/node": "^25.9.2",
         "dotenv": "^17.4.2",
         "typescript": "^6.0.3"
     },
