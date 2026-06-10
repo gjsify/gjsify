@@ -36,6 +36,20 @@ GBytes *gjsify_oxfmt_glue_format (const char  *filename,
                                   GBytes      *code,
                                   GError     **error);
 
+/**
+ * gjsify_oxfmt_glue_run:
+ * @args: (array length=n_args): CLI arguments (without the program name)
+ * @n_args: number of arguments
+ *
+ * Runs the oxfmt CLI in-process (config resolution, file walking,
+ * write/check/list-different). Prints to stdout/stderr like the `oxfmt`
+ * binary.
+ *
+ * Returns: the process exit code (0 success, 1 warning, 2 fatal).
+ */
+int gjsify_oxfmt_glue_run (char **args,
+                           int    n_args);
+
 G_END_DECLS
 
 #endif /* GJSIFY_OXFMT_GLUE_H */

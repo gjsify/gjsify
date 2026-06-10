@@ -24,6 +24,10 @@ namespace GjsifyOxfmt {
     private extern GLib.Bytes? _glue_format (string? filename,
                                              GLib.Bytes code) throws GLib.Error;
 
+    [CCode (cname = "gjsify_oxfmt_glue_run",
+            cheader_filename = "gjsify-oxfmt-glue.h")]
+    private extern int _glue_run (string[] args);
+
     /**
      * Formatter — stateless one-shot oxc formatter.
      *
@@ -51,6 +55,25 @@ namespace GjsifyOxfmt {
                 throw new GLib.Error (GLib.Quark.from_string ("gjsify-oxfmt-error-quark"),
                                       0, "oxfmt: unknown error (NULL result without GError)");
             return bytes;
+        }
+
+        /**
+         * run:
+         * @args: CLI arguments WITHOUT the program name
+         *        (`process.argv.slice(2)` shaped) — e.g.
+         *        `["--check", "--config", "/abs/.oxfmtrc.json", "src"]`
+         *
+         * Runs the full oxfmt CLI in-process: `.oxfmtrc(.json)` +
+         * `.editorconfig` resolution, ignore handling, parallel file
+         * walking, `--write` / `--check` / `--list-different` modes.
+         * Reports to stdout/stderr exactly like the `oxfmt` binary.
+         * Working directory = the current process working directory.
+         *
+         * Returns: the process exit code (0 = success, 1 = config error or
+         *          `--check` mismatch, 2 = no files found / format failed).
+         */
+        public int run (string[] args) {
+            return _glue_run (args);
         }
     }
 }

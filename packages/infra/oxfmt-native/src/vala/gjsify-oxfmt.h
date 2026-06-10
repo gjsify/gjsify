@@ -36,6 +36,11 @@ GjsifyResult gjsify_oxfmt_format (GjsifyFormatOpts opts);
 
 void gjsify_oxfmt_result_free (GjsifyResult result);
 
+/* Run the oxfmt CLI in-process. argv = the CLI arguments WITHOUT the
+ * program name (process.argv.slice(2) shaped). Prints to stdout/stderr
+ * like the oxfmt binary; returns the process exit code. */
+int gjsify_oxfmt_run (const char * const *argv, size_t argc);
+
 G_END_DECLS
 
 #endif /* GJSIFY_OXFMT_H */

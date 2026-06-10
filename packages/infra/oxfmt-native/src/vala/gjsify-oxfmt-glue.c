@@ -51,3 +51,13 @@ gjsify_oxfmt_glue_format (const char  *filename,
   gjsify_oxfmt_result_free (res);
   return out;
 }
+
+int
+gjsify_oxfmt_glue_run (char **args,
+                       int    n_args)
+{
+  if (n_args < 0)
+    n_args = 0;
+
+  return gjsify_oxfmt_run ((const char * const *) args, (size_t) n_args);
+}

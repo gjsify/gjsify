@@ -31,6 +31,24 @@
 				</parameter>
 			</parameters>
 		</method>
+		<method name="run" c:identifier="gjsify_oxfmt_formatter_run">
+			<return-value transfer-ownership="full">
+				<type name="gint" c:type="gint"/>
+			</return-value>
+			<parameters>
+				<instance-parameter name="self" transfer-ownership="none">
+					<type name="GjsifyOxfmt.Formatter" c:type="GjsifyOxfmtFormatter*"/>
+				</instance-parameter>
+				<parameter name="args" transfer-ownership="none">
+					<array length="1" c:type="gchar**">
+						<type name="utf8" c:type="gchar*"/>
+					</array>
+				</parameter>
+				<parameter name="args_length1" transfer-ownership="none">
+					<type name="gint" c:type="gint"/>
+				</parameter>
+			</parameters>
+		</method>
 		<constructor name="new" c:identifier="gjsify_oxfmt_formatter_new">
 			<return-value transfer-ownership="full">
 				<type name="GjsifyOxfmt.Formatter" c:type="GjsifyOxfmtFormatter*"/>

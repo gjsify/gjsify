@@ -21,6 +21,8 @@
 interface FormatterInstance {
     /** Format `code`, typed from `filename`'s extension. Throws on fatal error. */
     format(filename: string | null, code: unknown): unknown;
+    /** Run the oxfmt CLI in-process (argv WITHOUT program name) → exit code. */
+    run(args: string[]): number;
 }
 interface FormatterCtor {
     new (): FormatterInstance;
@@ -95,4 +97,33 @@ export function format(code: string, filename = 'input.ts'): string {
     const out = fmt.format(filename, bytes) as { get_data(): Uint8Array | null } | null;
     const data = out?.get_data() ?? new Uint8Array();
     return new TextDecoder().decode(data);
+}
+
+/**
+ * Run the full oxfmt CLI in-process, under GJS, without Node.
+ *
+ * `args` are the CLI arguments WITHOUT the program name
+ * (`process.argv.slice(2)` shaped) — e.g.
+ * `['--check', '--config', '/abs/.oxfmtrc.json', 'src']`. This covers the
+ * complete pure-Rust oxfmt surface: `.oxfmtrc(.json)` + `.editorconfig`
+ * resolution, ignore handling, parallel file walking, `--write` /
+ * `--check` / `--list-different`. Reports to stdout/stderr exactly like
+ * the npm `oxfmt` binary. The working directory is the current process
+ * working directory.
+ *
+ * Not covered (requires oxfmt's Node-API host): embedded CSS/HTML/Vue/
+ * Markdown via the Prettier ExternalFormatter, JS/TS config files
+ * (`.oxfmtrc.ts`), `--init` / `--migrate`, LSP and stdin mode.
+ *
+ * Returns the process exit code (0 = success, 1 = config error or
+ * `--check` mismatch, 2 = no files found / format failed). Throws if the
+ * native prebuild is unavailable.
+ */
+export function runOxfmt(args: string[]): number {
+    const mod = loadNativeOxfmt();
+    if (!mod) {
+        throw _loadError ?? new Error('@gjsify/oxfmt-native: prebuild not available');
+    }
+    const fmt = new mod.Formatter();
+    return fmt.run(args);
 }
