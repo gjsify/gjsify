@@ -307,20 +307,31 @@ async function runTopologicalParallel(
                 inflight++;
                 runOne(byName.get(next)!, script, args, /* prefixOutput */ true, verbose, exec)
                     .then(() => {
-                        inflight--;
                         done.add(next);
-                        if (remaining.size === 0 && inflight === 0) {
-                            resolve();
-                            return;
-                        }
-                        pump();
                     })
                     .catch((e: unknown) => {
-                        error = e instanceof Error ? e : new Error(String(e));
-                        // Wait for in-flight tasks to finish (yarn does the
-                        // same — surfaces all errors instead of abruptly
-                        // killing siblings).
-                        if (inflight === 0) reject(error);
+                        // First error wins; surface it after in-flight siblings
+                        // finish (yarn does the same — don't abruptly kill them).
+                        if (!error) error = e instanceof Error ? e : new Error(String(e));
+                    })
+                    .finally(() => {
+                        // Release the slot on BOTH success AND failure. The old
+                        // code decremented `inflight` only in `.then`, so a
+                        // FAILED task left `inflight` stuck above 0 → the
+                        // `inflight === 0` guard never held → the promise never
+                        // settled → hang. Under Node the empty event loop bails
+                        // it out (exiting 0, silently masking the failure);
+                        // under GJS `ensureMainLoop()` keeps the process alive
+                        // forever (the 6-hour CI timeout). Settling here fixes
+                        // both: fail-fast with the real error, on either runtime.
+                        inflight--;
+                        if (error) {
+                            if (inflight === 0) reject(error);
+                        } else if (remaining.size === 0 && inflight === 0) {
+                            resolve();
+                        } else {
+                            pump();
+                        }
                     });
             }
             if (remaining.size > 0 && inflight === 0 && !error) {

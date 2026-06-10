@@ -113,7 +113,14 @@ async function tryLoadNativeBundler(): Promise<Bundler | null> {
         // optional peer dep at build time. Resolution happens only at
         // runtime under GJS (where the prebuild is installed).
         const specifier = '@gjsify/lightningcss-native';
-        const mod = (await import(/* @vite-ignore */ specifier)) as NativeLightningcssSurface;
+        // GJS's native ESM loader has NO node_modules resolver, so a BARE
+        // `import('@gjsify/lightningcss-native')` throws "Module not found"
+        // under GJS — which is exactly the runtime this native path is for.
+        // Resolve the bare specifier to a concrete file path first (anchored
+        // at the bundle's own location), then import the resulting file:// URL
+        // — mirroring how `bundler-pick.ts` loads `@gjsify/rolldown-native`.
+        const resolved = createRequire(import.meta.url).resolve(specifier);
+        const mod = (await import(/* @vite-ignore */ pathToFileURL(resolved).href)) as NativeLightningcssSurface;
         if (!mod.hasNativeLightningcss()) return null;
         return async (filename, targets) => {
             // The native shim accepts a browserslist string; the npm

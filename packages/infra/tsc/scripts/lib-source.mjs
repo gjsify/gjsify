@@ -36,12 +36,33 @@ export const SUPER_LIB = 'lib.esnext.full.d.ts';
  *               valid → leave them untouched.
  *   - `error`  : neither source can supply a valid set → abort the build.
  */
-export function pickLibSource({ tsVersion, pinnedVersion, sourceLibs, committedLibs }) {
+export function pickLibSource({ tsVersion, pinnedVersion, sourceLibs, committedLibs, forceRefresh = false }) {
     const sourceHasSuperLib = sourceLibs.includes(SUPER_LIB);
     // A complete source has the super-lib AND at least as many files as we
     // already ship (guards against a partial install with fewer files).
     const sourceComplete = sourceHasSuperLib && sourceLibs.length >= committedLibs.length;
+    // The committed set is complete when it has the super-lib AND at least as
+    // many files as the installed devDep would supply.
+    const committedComplete = committedLibs.includes(SUPER_LIB) && committedLibs.length >= sourceLibs.length;
     const versionMatches = tsVersion === pinnedVersion;
+
+    // When the committed libs are ALREADY complete and the pin matches, they
+    // ARE the correct, version-locked set — KEEP them. Refreshing would rm +
+    // re-copy byte-identical files, and that rm-then-copy window RACES with
+    // concurrent `gjsify tsc` consumers reading the libs during a parallel
+    // `foreach build`: a reader catches `lib.esnext.full.d.ts` mid-refresh and
+    // fails with TS6053 + a TS2318 'Cannot find global type' cascade (the
+    // recurring Fedora CI flake; also blocked the full-workspace GJS build).
+    // A deliberate `TYPESCRIPT_VERSION` bump that must regenerate the committed
+    // libs passes `forceRefresh: true`.
+    if (!forceRefresh && versionMatches && committedComplete) {
+        return {
+            action: 'keep',
+            reason:
+                `committed lib/ is already complete (${committedLibs.length} files) and ` +
+                `typescript@${tsVersion} matches the pin — no refresh needed (avoids the rebuild race)`,
+        };
+    }
 
     if (versionMatches && sourceComplete) {
         return {

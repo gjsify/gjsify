@@ -55,10 +55,24 @@ export const setupLib = async (input: LibFactoryInput): Promise<LibBuildConfig> 
     // emitted package re-exports its dep tree by reference. Rolldown's
     // default behaviour would inline workspace packages into the output
     // directory; we mark anything not starting with `./` or `/` as external.
-    const external = (id: string): boolean => {
-        if (id.startsWith('./') || id.startsWith('../') || id.startsWith('/')) return false;
-        return true;
-    };
+    //
+    // This `external` predicate is honoured by npm rolldown (Node), but
+    // `@gjsify/rolldown-native` JSON.stringify's its options to the Rust core
+    // which silently DROPS function values (same hazard commit 78a6042ac
+    // fixed for app/node.ts). Under native rolldown — the Node-free GJS build
+    // — the predicate is therefore ignored and every *resolvable* dep
+    // (`@gjsify/web-streams`, `@girs/*`, `@gjsify/utils`) gets INLINED into
+    // the package's own `lib/esm/` subtree. That bakes a private copy of e.g.
+    // `@gjsify/web-streams` into each consumer; a later app bundle then carries
+    // TWO web-streams copies whose module-level brand Symbols (`kState`/`kType`)
+    // differ, so a `ReadableStream` made by one copy fails the other's
+    // `isReadableStream` brand check (`transform.readable must be a
+    // ReadableStream` from `Blob.stream().pipeThrough(new DecompressionStream)`).
+    // The `externalizeBareImportsPlugin` below enforces the SAME policy via a
+    // `resolveId` hook returning `{ external: true }`, which the native facade
+    // honours (`normalizeResolveIdResult` forwards `external`) — so the engine
+    // can never inline a workspace dep regardless of how it serializes options.
+    const external = isExternalSpecifier;
 
     const options: RolldownOptions = {
         input: entryPoints,
@@ -86,6 +100,11 @@ export const setupLib = async (input: LibFactoryInput): Promise<LibBuildConfig> 
 
     const plugins: RolldownPluginOption[] = [
         aliasPlugin({ entries: flattenAliases(aliasMap) }),
+        // Enforce the library-mode externals policy in a form native rolldown
+        // honours (the top-level `external` function is dropped under the
+        // Node-free GJS build — see the note on `external` above). Runs after
+        // the alias plugin's `pre`-order resolveId so user aliases still apply.
+        externalizeBareImportsPlugin(),
         // Rolldown removed experimental CSS bundling — `.css` files would
         // error at the bundler level. Library-mode packages that bundle
         // CSS as a string (e.g. `@gjsify/adwaita-fonts/index.css`) need
@@ -97,6 +116,40 @@ export const setupLib = async (input: LibFactoryInput): Promise<LibBuildConfig> 
 
     return { options, plugins };
 };
+
+/**
+ * Whether a specifier should stay external in library mode: a bare /
+ * scoped / protocol specifier (`@gjsify/web-streams`, `node:fs`, `gi://Gtk`)
+ * is external; the package's own relative/absolute source modules — and
+ * rolldown's `\0`-prefixed virtual modules (its runtime helper, plugin
+ * stubs) — are bundled.
+ */
+function isExternalSpecifier(id: string): boolean {
+    if (id.startsWith('./') || id.startsWith('../') || id.startsWith('/')) return false;
+    if (id.startsWith('\0')) return false;
+    return true;
+}
+
+/**
+ * Externalize bare/workspace imports via a `resolveId` hook — the
+ * engine-agnostic equivalent of the (native-dropped) `external` function.
+ * Returning `{ id, external: true }` keeps the ORIGINAL specifier in the
+ * emitted module (`preserveModules` writes `import … from '@gjsify/web-streams'`
+ * unchanged) so the published package re-exports its dep tree by reference.
+ */
+function externalizeBareImportsPlugin(): RolldownPluginOption {
+    return {
+        name: 'gjsify-lib-externalize',
+        resolveId(source: string, importer: string | undefined, options: { isEntry?: boolean }) {
+            // Entry modules MUST be resolved + emitted, never externalized.
+            // Rolldown's `external` OPTION skips entries implicitly, but a
+            // resolveId HOOK fires for them too — guard on the absent importer
+            // (and `isEntry`) so `src/index.ts` etc. aren't marked external.
+            if (importer === undefined || options?.isEntry) return null;
+            return isExternalSpecifier(source) ? { id: source, external: true } : null;
+        },
+    };
+}
 
 /**
  * Compute the common-ancestor directory of a set of entry paths so

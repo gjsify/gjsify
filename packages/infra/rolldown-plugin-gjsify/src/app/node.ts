@@ -78,7 +78,22 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     const options: RolldownOptions = {
         input: entryPoints,
         platform: 'node',
-        external,
+        // Pass the EXACT-MATCH external set as a plain string array, NOT the
+        // `external` predicate function. `@gjsify/rolldown-native` ships the
+        // whole options object to its Rust core via `JSON.stringify` — a
+        // function value does not survive serialization (it is silently
+        // dropped), so a function `external` is honoured under npm rolldown
+        // (Node) but IGNORED under native rolldown (GJS), leaving
+        // `node-datachannel` (and the rest of EXTERNALS_NODE) bundled. That
+        // descends into node-datachannel's `require('…/node_datachannel.node')`
+        // and fails the `--app node` build with `Module not found`. The
+        // predicate here is pure exact membership, so the array is
+        // behaviourally identical under both engines AND JSON-serializable.
+        // (The gjs/browser targets keep a function predicate because their
+        // gi://-prefix logic is handled by plugins, not the `external` option.)
+        // The function form is still used for `getAliasesForNode({ external })`
+        // above — that runs in-process and is never serialized.
+        external: exactExternal,
         resolve: {
             mainFields: format === 'esm' ? ['module', 'main', 'browser'] : ['main', 'module', 'browser'],
             // CJS-priority conditions for Node bundles. Rolldown uses the first

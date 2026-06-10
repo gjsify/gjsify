@@ -123,12 +123,36 @@ describe('@gjsify/tsc build — lib source selection (pickLibSource)', () => {
     const set = (n, withSuper = true) =>
         Array.from({ length: n }, (_, i) => (i === 0 && withSuper ? SUPER_LIB : `lib.x${i}.d.ts`));
 
-    it('refreshes when the install matches the pin and is complete', () => {
+    it('keeps committed libs when already complete + pin matches (no refresh race)', () => {
+        // The common case every build: committed libs are already the correct,
+        // complete, version-locked set. KEEP them — do NOT rm + re-copy, which
+        // races with concurrent `gjsify tsc` readers in a parallel foreach build.
         const r = pickLibSource({
             tsVersion: '6.0.3',
             pinnedVersion: '6.0.3',
             sourceLibs: set(108),
             committedLibs: set(108),
+        });
+        assert.equal(r.action, 'keep', r.reason);
+    });
+
+    it('refreshes when committed is incomplete but the install matches + is complete', () => {
+        const r = pickLibSource({
+            tsVersion: '6.0.3',
+            pinnedVersion: '6.0.3',
+            sourceLibs: set(108),
+            committedLibs: set(40), // committed lib/ partial → populate from the devDep
+        });
+        assert.equal(r.action, 'refresh', r.reason);
+    });
+
+    it('force-refreshes even when committed is complete (e.g. a TYPESCRIPT_VERSION bump)', () => {
+        const r = pickLibSource({
+            tsVersion: '6.0.3',
+            pinnedVersion: '6.0.3',
+            sourceLibs: set(108),
+            committedLibs: set(108),
+            forceRefresh: true,
         });
         assert.equal(r.action, 'refresh', r.reason);
     });
