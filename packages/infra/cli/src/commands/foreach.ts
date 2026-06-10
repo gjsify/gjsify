@@ -400,11 +400,25 @@ function spawnPrefixed(cmd: string, args: readonly string[], cwd: string, prefix
             stdio: prefix ? ['ignore', 'pipe', 'pipe'] : 'inherit',
             env: { ...process.env, ...colorEnv },
         });
+        // Under GJS, `process.stdout.write` is a BLOCKING `Gio.write_all`.
+        // Writing each prefixed line LIVE during a PARALLEL foreach to a
+        // backpressuring pipe (a CI log collector that drains slowly) stalls
+        // the single GLib main loop on a full pipe → every parallel child's
+        // pipe backs up → their reads stall → the whole run HANGS. (A tty or a
+        // file sink never backpressures, which is why it only bites in CI.)
+        // On a NON-tty sink we therefore BUFFER each child's prefixed output
+        // and flush it as ONE write when that child closes: the child is
+        // already done by then, so its own read can't stall, and concurrent
+        // flushes serialize into brief loop stalls instead of a deadlock. On a
+        // tty (interactive) we keep live line-prefixing for responsive output.
+        const buffered = !process.stdout.isTTY;
+        const flushers: Array<() => void> = [];
         if (prefix && child.stdout && child.stderr) {
-            prefixLines(child.stdout, process.stdout, prefix);
-            prefixLines(child.stderr, process.stderr, prefix);
+            flushers.push(prefixLines(child.stdout, process.stdout, prefix, buffered));
+            flushers.push(prefixLines(child.stderr, process.stderr, prefix, buffered));
         }
         child.on('close', (code) => {
+            for (const flush of flushers) flush();
             if (code === 0) resolve();
             else reject(new Error(`${cmd} ${args.join(' ')} exited with code ${code}`));
         });
@@ -412,18 +426,41 @@ function spawnPrefixed(cmd: string, args: readonly string[], cwd: string, prefix
     });
 }
 
-function prefixLines(src: NodeJS.ReadableStream, sink: NodeJS.WritableStream, prefix: string): void {
+/**
+ * Prefix every line of `src` with `prefix` and route it to `sink`. When
+ * `buffered` is false (tty), lines are written live. When true (non-tty / CI
+ * pipe), they are accumulated and emitted only by the returned `flush()` — call
+ * it once the child has closed so the blocking `process.stdout.write` under GJS
+ * can't stall the parallel run's GLib loop (see `spawnPrefixed`).
+ */
+function prefixLines(
+    src: NodeJS.ReadableStream,
+    sink: NodeJS.WritableStream,
+    prefix: string,
+    buffered: boolean,
+): () => void {
     let buf = '';
+    let acc = '';
+    const emit = (line: string): void => {
+        if (buffered) acc += line;
+        else sink.write(line);
+    };
     src.setEncoding('utf-8');
     src.on('data', (chunk: string) => {
         buf += chunk;
         let idx: number;
         while ((idx = buf.indexOf('\n')) !== -1) {
-            sink.write(prefix + buf.slice(0, idx + 1));
+            emit(prefix + buf.slice(0, idx + 1));
             buf = buf.slice(idx + 1);
         }
     });
     src.on('end', () => {
-        if (buf.length > 0) sink.write(prefix + buf + '\n');
+        if (buf.length > 0) emit(prefix + buf + '\n');
     });
+    return () => {
+        if (acc.length > 0) {
+            sink.write(acc);
+            acc = '';
+        }
+    };
 }
