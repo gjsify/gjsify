@@ -14,11 +14,11 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
-        "@types/node": "^25.9.1",
+        "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
     },
     "dependencies": {
         "@hono/node-server": "^2.0.4",
-        "hono": "^4.12.23"
+        "hono": "^4.12.25"
     }
 }

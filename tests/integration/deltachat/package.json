@@ -17,13 +17,13 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@deltachat/jsonrpc-client": "^2.51.0",
-        "@deltachat/stdio-rpc-server": "^2.51.0",
+        "@deltachat/jsonrpc-client": "^2.52.0",
+        "@deltachat/stdio-rpc-server": "^2.52.0",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.9.1",
+        "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
     }
 }

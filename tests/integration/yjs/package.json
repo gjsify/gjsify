@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-yjs",
-    "description": "Integration tests: Yjs (the de-facto CRDT for collaborative apps \u2014 TipTap, ProseMirror, BlockNote, Hocuspocus). Yjs is pure-JS at its core (no WASM) and exercises a different cross-section of GJS engine surface than Loro: heavy TypedArray / DataView use for the binary wire format, `Map`/`Set`/`WeakMap` for delete-set bookkeeping, structured-clone-style snapshot serialization, and EventEmitter-shaped Observer wiring. Validates `@gjsify/buffer`, `@gjsify/crypto.randomBytes` (Y.Doc clientID generation), `@gjsify/events`, the SpiderMonkey 140 typed-array surface, and `y-protocols/awareness` (the standard Yjs sync companion).",
+    "description": "Integration tests: Yjs (the de-facto CRDT for collaborative apps — TipTap, ProseMirror, BlockNote, Hocuspocus). Yjs is pure-JS at its core (no WASM) and exercises a different cross-section of GJS engine surface than Loro: heavy TypedArray / DataView use for the binary wire format, `Map`/`Set`/`WeakMap` for delete-set bookkeeping, structured-clone-style snapshot serialization, and EventEmitter-shaped Observer wiring. Validates `@gjsify/buffer`, `@gjsify/crypto.randomBytes` (Y.Doc clientID generation), `@gjsify/events`, the SpiderMonkey 140 typed-array surface, and `y-protocols/awareness` (the standard Yjs sync companion).",
     "type": "module",
     "private": true,
     "engines": {
@@ -22,9 +22,9 @@
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.9.1",
+        "@types/node": "^25.9.2",
         "typescript": "^6.0.3",
-        "y-protocols": "^1.0.6",
+        "y-protocols": "^1.0.7",
         "yjs": "^13.6.31"
     }
 }

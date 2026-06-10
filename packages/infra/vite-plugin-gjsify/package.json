@@ -46,7 +46,7 @@
         "@gjsify/vite-plugin-blueprint": "workspace:^"
     },
     "peerDependencies": {
-        "vite": "^8.0.14"
+        "vite": "^8.0.16"
     },
     "peerDependenciesMeta": {
         "vite": {
@@ -54,8 +54,8 @@
         }
     },
     "devDependencies": {
-        "@types/node": "^25.9.1",
+        "@types/node": "^25.9.2",
         "typescript": "^6.0.3",
-        "vite": "^8.0.14"
+        "vite": "^8.0.16"
     }
 }

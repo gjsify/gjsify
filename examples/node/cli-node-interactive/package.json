@@ -20,8 +20,8 @@
   "devDependencies": {
     "@gjsify/cli": "workspace:^",
     "@gjsify/node-globals": "workspace:^",
-    "@inquirer/prompts": "^8.5.1",
-    "@types/node": "^25.9.1",
+    "@inquirer/prompts": "^8.5.2",
+    "@types/node": "^25.9.2",
     "@types/yargs": "^17.0.35",
     "typescript": "^6.0.3",
     "yargs": "^18.0.0"

@@ -18,7 +18,7 @@
         "@girs/gtk-4.0": "4.23.0-4.0.4",
         "@gjsify/cli": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^",
-        "@types/node": "^25.9.1",
+        "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
     },
     "dependencies": {

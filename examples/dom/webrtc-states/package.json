@@ -22,7 +22,7 @@
     "@gjsify/runtime": "workspace:^",
     "@gjsify/video": "workspace:^",
     "@gjsify/webrtc": "workspace:^",
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.2",
     "typescript": "^6.0.3"
   },
   "private": true,

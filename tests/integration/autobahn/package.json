@@ -29,7 +29,7 @@
         "@gjsify/utils": "workspace:^",
         "@gjsify/websocket": "workspace:^",
         "@gjsify/ws": "workspace:^",
-        "@types/node": "^25.9.1",
+        "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",

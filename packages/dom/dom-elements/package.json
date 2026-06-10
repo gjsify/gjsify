@@ -80,7 +80,7 @@
         "@girs/gst-1.0": "1.28.1-4.0.4",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@types/node": "^25.9.1",
+        "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
     },
     "gjsify": {
