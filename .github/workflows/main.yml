@@ -198,7 +198,21 @@ jobs:
             echo "::error::Then commit packages/infra/cli/dist/cli.gjs.mjs."
             exit 1
           fi
-          echo "GJS bundle OK — reports v$ACTUAL matching package.json."
+          # Invariant: exactly ONE copy of @gjsify/web-streams in the bundle.
+          # A library build that fails to externalize a workspace dep (e.g. the
+          # native-rolldown `external`-function drop fixed in rolldown-plugin-gjsify
+          # library/lib.ts) bakes a 2nd web-streams copy into the bundle; its
+          # module-level brand Symbols then differ, breaking the `ReadableStream`
+          # brand check that `gjsify install`'s tar/DecompressionStream path relies
+          # on (`transform.readable must be a ReadableStream`). Count the unique
+          # brand-check string — must be 1, never 2+.
+          WS_COPIES=$(grep -o 'must be a ReadableStream' packages/infra/cli/dist/cli.gjs.mjs | wc -l | tr -d '[:space:]')
+          if [ "$WS_COPIES" != "1" ]; then
+            echo "::error::packages/infra/cli/dist/cli.gjs.mjs embeds $WS_COPIES copies of @gjsify/web-streams (expected 1)."
+            echo "::error::A library build inlined a workspace dep instead of keeping it external — rebuild all libs from a clean tree (gjsify foreach build:gjsify) then rebuild + commit the CLI bundle."
+            exit 1
+          fi
+          echo "GJS bundle OK — reports v$ACTUAL matching package.json, single web-streams copy."
 
       # Same logic as the CLI bundle check above, applied to the `@gjsify/tsc`
       # GJS bundle. The committed `dist/tsc.gjs.mjs` wraps upstream
