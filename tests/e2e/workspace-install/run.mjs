@@ -11,7 +11,16 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, lstatSync, readlinkSync } from 'node:fs';
+import {
+    mkdtempSync,
+    rmSync,
+    existsSync,
+    writeFileSync,
+    mkdirSync,
+    lstatSync,
+    readFileSync,
+    readlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer } from 'node:http';
@@ -97,6 +106,9 @@ function runCli(cliEntry, args, { cwd, env, timeoutMs = 30_000 } = {}) {
 
 describe('gjsify install — workspace-aware (Phase D.3)', { timeout: 60_000 }, () => {
     let server, registryUrl, root, cliEntry, envForCli;
+    // When true, the mock registry 404s every tarball download — used to
+    // simulate an install whose download/extract phase fails mid-way.
+    let failTarballs = false;
 
     const PACKAGES = {
         'lib-ext': { versions: { '4.5.0': { dependencies: {} } } },
@@ -129,7 +141,7 @@ describe('gjsify install — workspace-aware (Phase D.3)', { timeout: 60_000 }, 
                 const tarMatch = url.match(/^\/-\/([^/]+)\/([^/]+)\.tgz$/);
                 if (tarMatch) {
                     const v = index[tarMatch[1]]?.versions[tarMatch[2]];
-                    if (!v) {
+                    if (!v || failTarballs) {
                         res.writeHead(404).end('not found');
                         return;
                     }
@@ -163,6 +175,10 @@ describe('gjsify install — workspace-aware (Phase D.3)', { timeout: 60_000 }, 
             ...process.env,
             GJSIFY_INSTALL_BACKEND: 'native',
             npm_config_registry: registryUrl,
+            // Isolate the gjsify tarball/packument cache — the `failTarballs`
+            // tests below must actually hit the mock registry, not a warm
+            // user-level cache.
+            XDG_CACHE_HOME: mkdtempSync(join(tmpdir(), 'gjsify-e2e-ws-cache-')),
         };
 
         // Root + 3 workspaces.
@@ -228,11 +244,31 @@ describe('gjsify install — workspace-aware (Phase D.3)', { timeout: 60_000 }, 
                 2,
             ) + '\n',
         );
+
+        // tools — declares both a Node `bin` and a GJS `gjsify.bin` (the
+        // @gjsify/cli dual-entry shape). Install must write a runner shim
+        // for it into the root `node_modules/.bin/`.
+        mkdirSync(join(root, 'packages', 'tools'), { recursive: true });
+        writeFileSync(
+            join(root, 'packages', 'tools', 'package.json'),
+            JSON.stringify(
+                {
+                    name: '@scope/tools',
+                    version: '0.9.0',
+                    type: 'module',
+                    bin: { toolbin: './lib/cli.js' },
+                    gjsify: { bin: { toolbin: './dist/cli.gjs.mjs' } },
+                },
+                null,
+                2,
+            ) + '\n',
+        );
     });
 
     after(() => {
         if (server) server.close();
         if (root) rmSync(root, { recursive: true, force: true });
+        if (envForCli?.XDG_CACHE_HOME) rmSync(envForCli.XDG_CACHE_HOME, { recursive: true, force: true });
     });
 
     it('discovers workspaces + installs external deps at root', async () => {
@@ -325,6 +361,103 @@ describe('gjsify install — workspace-aware (Phase D.3)', { timeout: 60_000 }, 
             );
         } finally {
             rmSync(orphanRoot, { recursive: true, force: true });
+        }
+    });
+
+    // ---- bin-shim regeneration (regression: stale/missing .bin/ shims) ----
+    //
+    // Bin shims are derived artifacts: every install — including --immutable
+    // on an already-materialized tree — must regenerate them, and they must
+    // be written BEFORE the download/extract phase so a failed install can
+    // never leave the workspace without its runner shim.
+
+    it('writes a shim for workspace-declared bins into node_modules/.bin/', async () => {
+        const shim = join(root, 'node_modules', '.bin', 'toolbin');
+        assert.ok(existsSync(shim), 'node_modules/.bin/toolbin missing after install');
+        const content = readFileSync(shim, 'utf-8');
+        assert.match(content, /^#!\/bin\/sh\n/, 'shim must be a shell script');
+        assert.ok(content.includes(join(root, 'packages', 'tools')), 'shim must point at the workspace location');
+    });
+
+    it('regenerates a stale shim on re-install (incl. --immutable)', async () => {
+        const shim = join(root, 'node_modules', '.bin', 'toolbin');
+        // Simulate a shim written by an older CLI whose template has since
+        // changed — the mtime/content must NOT survive a re-install.
+        writeFileSync(shim, '#!/bin/sh\necho STALE-SHIM-CONTENT\n', { mode: 0o755 });
+
+        const r = await runCli(cliEntry, ['install', '--immutable'], { cwd: root, env: envForCli });
+        assert.equal(r.status, 0, `install --immutable failed: ${r.stderr}\n${r.stdout}`);
+
+        const content = readFileSync(shim, 'utf-8');
+        assert.ok(
+            !content.includes('STALE-SHIM-CONTENT'),
+            'stale shim content must be regenerated by install --immutable',
+        );
+        assert.ok(content.includes(join(root, 'packages', 'tools')), 'regenerated shim must point at the workspace');
+    });
+
+    it('recreates a deleted shim on install --immutable', async () => {
+        const shim = join(root, 'node_modules', '.bin', 'toolbin');
+        rmSync(shim, { force: true });
+
+        const r = await runCli(cliEntry, ['install', '--immutable'], { cwd: root, env: envForCli });
+        assert.equal(r.status, 0, `install --immutable failed after shim removal: ${r.stderr}\n${r.stdout}`);
+        assert.ok(existsSync(shim), 'deleted node_modules/.bin/toolbin must be recreated');
+    });
+
+    it('writes shims before the download phase — a failed install keeps them', async () => {
+        // Fresh monorepo + fresh cache so the tarball download actually hits
+        // the (now failing) mock registry instead of a warm cache.
+        const failRoot = mkdtempSync(join(tmpdir(), 'gjsify-e2e-ws-binfail-'));
+        const failCache = mkdtempSync(join(tmpdir(), 'gjsify-e2e-ws-binfail-cache-'));
+        try {
+            writeFileSync(
+                join(failRoot, 'package.json'),
+                JSON.stringify(
+                    {
+                        name: 'binfail-root',
+                        version: '0.0.0',
+                        private: true,
+                        type: 'module',
+                        workspaces: ['packages/*'],
+                    },
+                    null,
+                    2,
+                ) + '\n',
+            );
+            writeFileSync(join(failRoot, '.npmrc'), `registry=${registryUrl}\n`);
+            mkdirSync(join(failRoot, 'packages', 'tools'), { recursive: true });
+            writeFileSync(
+                join(failRoot, 'packages', 'tools', 'package.json'),
+                JSON.stringify(
+                    {
+                        name: '@scope/tools',
+                        version: '0.9.0',
+                        type: 'module',
+                        bin: { toolbin: './lib/cli.js' },
+                        dependencies: { 'lib-ext': '^4.5.0' },
+                    },
+                    null,
+                    2,
+                ) + '\n',
+            );
+
+            failTarballs = true;
+            const r = await runCli(cliEntry, ['install'], {
+                cwd: failRoot,
+                env: { ...envForCli, XDG_CACHE_HOME: failCache },
+            });
+            assert.notEqual(r.status, 0, 'install must fail when every tarball download 404s');
+
+            const shim = join(failRoot, 'node_modules', '.bin', 'toolbin');
+            assert.ok(
+                existsSync(shim),
+                'bin shim must exist even though the install failed mid-download (early shim write)',
+            );
+        } finally {
+            failTarballs = false;
+            rmSync(failRoot, { recursive: true, force: true });
+            rmSync(failCache, { recursive: true, force: true });
         }
     });
 });
