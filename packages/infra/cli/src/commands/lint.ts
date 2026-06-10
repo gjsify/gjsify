@@ -9,7 +9,13 @@
 
 import { resolve } from 'node:path';
 import type { Command } from '../types/index.js';
-import { OxcNotFoundError, findOxlintConfig, printOxcNotFound, runOxlint } from '../utils/oxc-resolve.js';
+import {
+    OxcNotFoundError,
+    findOxlintConfig,
+    printOxcNotFound,
+    runOxlint,
+    setOxcExitCode,
+} from '../utils/oxc-resolve.js';
 
 interface LintOptions {
     paths?: string[];
@@ -58,11 +64,11 @@ export const lintCommand: Command<unknown, LintOptions> = {
 
         try {
             const code = await runOxlint(oxlintArgs, { cwd, verbose: args.verbose });
-            process.exitCode = code;
+            setOxcExitCode(code);
         } catch (err) {
             if (err instanceof OxcNotFoundError) {
                 printOxcNotFound(err);
-                process.exitCode = 1;
+                setOxcExitCode(1);
                 return;
             }
             throw err;

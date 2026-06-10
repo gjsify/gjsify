@@ -16,6 +16,7 @@ import {
     printOxcNotFound,
     runOxfmt,
     runOxlint,
+    setOxcExitCode,
 } from '../utils/oxc-resolve.js';
 
 interface FixOptions {
@@ -73,11 +74,11 @@ export const fixCommand: Command<unknown, FixOptions> = {
             lintArgs.push(...paths);
             const lintCode = await runOxlint(lintArgs, { cwd, verbose });
 
-            process.exitCode = fmtCode || lintCode;
+            setOxcExitCode(fmtCode || lintCode);
         } catch (err) {
             if (err instanceof OxcNotFoundError) {
                 printOxcNotFound(err);
-                process.exitCode = 1;
+                setOxcExitCode(1);
                 return;
             }
             throw err;

@@ -145,9 +145,13 @@
         "typescript": "^6.0.3"
     },
     "peerDependencies": {
+        "@gjsify/oxfmt-native": "workspace:^",
         "@gjsify/rolldown-native": "workspace:^"
     },
     "peerDependenciesMeta": {
+        "@gjsify/oxfmt-native": {
+            "optional": true
+        },
         "@gjsify/rolldown-native": {
             "optional": true
         }

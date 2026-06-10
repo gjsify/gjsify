@@ -25,6 +25,7 @@ import {
     loadOxlintTemplate,
     printOxcNotFound,
     runOxfmt,
+    setOxcExitCode,
 } from '../utils/oxc-resolve.js';
 
 interface FormatOptions {
@@ -108,11 +109,11 @@ export const formatCommand: Command<unknown, FormatOptions> = {
 
         try {
             const code = await runOxfmt(oxfmtArgs, { cwd, verbose: args.verbose });
-            process.exitCode = code;
+            setOxcExitCode(code);
         } catch (err) {
             if (err instanceof OxcNotFoundError) {
                 printOxcNotFound(err);
-                process.exitCode = 1;
+                setOxcExitCode(1);
                 return;
             }
             throw err;

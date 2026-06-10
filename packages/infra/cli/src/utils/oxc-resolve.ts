@@ -28,13 +28,34 @@
 // We still reuse Biome's platform/arch/musl detection — it's used to name the
 // expected NAPI binding package in the not-found install hint, so the user
 // knows exactly which optionalDependency npm failed to place.
+//
+// NATIVE ENGINE (GJS) — `@gjsify/oxfmt-native`
+// ────────────────────────────────────────────
+// Under GJS the Node launcher path is a dead end: there is no Node host to
+// spawn. For oxfmt the dual-engine pick mirrors `bundler-pick.ts`'s
+// native/npm pattern exactly: `shouldUseNativeOxfmt()` prefers the
+// `@gjsify/oxfmt-native` GI bridge (Vala/Rust prebuild wrapping the full
+// pure-Rust oxfmt CLI — config resolution, ignore handling, file walking,
+// --write/--check/--list-different) when running under GJS and the prebuild
+// is loadable, and falls back to spawning the Node launcher otherwise.
+// `GJSIFY_OXFMT=native|npm` is the explicit override (native throws when the
+// prebuild isn't loadable instead of silently switching engines).
+//
+// oxlint has NO native path yet: its JS-plugin host (the internal
+// `gjsify/register-class-order` rule wired via `.oxlintrc.json` jsPlugins)
+// lives in the Node launcher, so a native oxlint bridge could only run the
+// Rust rule subset. Lint stays Node-spawned until that trade-off is decided
+// (tracked in STATUS.md Open TODOs).
 
 import { existsSync, readFileSync } from 'node:fs';
 import type * as NodeFs from 'node:fs';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import type { SpawnOptions } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import { findWorkspaceRoot } from './workspace-root.js';
+import { resolveNpmPackage } from './resolve-npm-package.js';
 
 export type OxcTool = 'oxlint' | 'oxfmt';
 
@@ -190,17 +211,108 @@ export interface RunOxcOptions {
     verbose?: boolean;
 }
 
+/** Surface of `@gjsify/oxfmt-native` that the CLI consumes. */
+interface NativeOxfmtSurface {
+    hasNativeOxfmt(): boolean;
+    runOxfmt(args: string[]): number;
+}
+
+let _nativeOxfmtProbe: Promise<NativeOxfmtSurface | null> | null = null;
+
 /**
- * Spawn an oxc tool (oxlint / oxfmt) via its Node ESM launcher. Inherits
- * stdio so the tool's own output (diagnostics, reformatted files, summary
- * lines) reaches the user.
+ * Try to load `@gjsify/oxfmt-native` (GJS only). Same multi-anchor
+ * resolution as `bundler-pick.ts`'s `tryLoadNative()` — GJS's native ESM
+ * loader has no node_modules walker, so bare specifiers must be resolved
+ * to a `file://` URL via createRequire/resolveNpmPackage first.
+ */
+async function tryLoadNativeOxfmt(): Promise<NativeOxfmtSurface | null> {
+    if (_nativeOxfmtProbe) return _nativeOxfmtProbe;
+    _nativeOxfmtProbe = (async (): Promise<NativeOxfmtSurface | null> => {
+        const isGjs = typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
+        if (!isGjs) return null;
+        try {
+            const specifier = '@gjsify/oxfmt-native';
+            const resolved =
+                resolveNpmPackage(specifier, { bundleUrl: import.meta.url }) ??
+                createRequire(import.meta.url).resolve(specifier);
+            const target = pathToFileURL(resolved).href;
+            const mod = (await import(/* @vite-ignore */ target)) as NativeOxfmtSurface;
+            if (!mod.hasNativeOxfmt()) return null;
+            return mod;
+        } catch {
+            return null;
+        }
+    })();
+    return _nativeOxfmtProbe;
+}
+
+/**
+ * Engine pick for oxfmt — mirrors `bundler-pick.ts`'s `shouldUseNative()`:
+ *   - `GJSIFY_OXFMT=npm` forces the Node launcher.
+ *   - `GJSIFY_OXFMT=native` forces the GI bridge and throws when it is not
+ *     loadable (instead of silently switching engines).
+ *   - Default: native under GJS when loadable (the Node launcher cannot run
+ *     without a Node host), npm launcher on Node.
+ */
+export async function shouldUseNativeOxfmt(): Promise<boolean> {
+    const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
+    const choice = env.GJSIFY_OXFMT;
+
+    if (choice === 'npm') return false;
+    if (choice === 'native') {
+        const native = await tryLoadNativeOxfmt();
+        if (!native) {
+            throw new Error(
+                'GJSIFY_OXFMT=native but @gjsify/oxfmt-native is not loadable (no prebuild for this architecture, or not running under GJS).',
+            );
+        }
+        return true;
+    }
+
+    const isGjs = typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
+    if (!isGjs) return false;
+    return (await tryLoadNativeOxfmt()) !== null;
+}
+
+/**
+ * Run an oxc tool (oxlint / oxfmt).
  *
- * The launcher is run with the current Node executable (`process.execPath`)
- * so the JS plugin host is available — required for oxlint's `jsPlugins`.
+ * oxfmt: dual-engine — under GJS the `@gjsify/oxfmt-native` GI bridge runs
+ * the full oxfmt CLI in-process (Node-free); otherwise the npm Node ESM
+ * launcher is spawned. `GJSIFY_OXFMT=native|npm` overrides the pick.
+ *
+ * oxlint: always spawned via its Node ESM launcher with the current Node
+ * executable (`process.execPath`) so the JS plugin host is available —
+ * required for the `jsPlugins`-wired `gjsify/register-class-order` rule.
+ *
+ * Inherits stdio so the tool's own output (diagnostics, reformatted files,
+ * summary lines) reaches the user.
  *
  * Returns the exit code; never throws on non-zero exit (callers check it).
  */
-export function runOxc(tool: OxcTool, args: string[], opts: RunOxcOptions = {}): Promise<number> {
+export async function runOxc(tool: OxcTool, args: string[], opts: RunOxcOptions = {}): Promise<number> {
+    if (tool === 'oxfmt' && (await shouldUseNativeOxfmt())) {
+        const native = await tryLoadNativeOxfmt();
+        if (!native) {
+            // Unreachable: shouldUseNativeOxfmt() returned true above.
+            throw new Error('@gjsify/oxfmt-native not loadable');
+        }
+        if (opts.verbose) {
+            console.log(`[gjsify oxc] @gjsify/oxfmt-native (in-process) ${args.join(' ')}`);
+        }
+        // The native runner walks from the process working directory; the
+        // command handlers always pass cwd = process.cwd(), so no chdir is
+        // needed here.
+        return native.runOxfmt(args);
+    }
+    return spawnOxcLauncher(tool, args, opts);
+}
+
+/**
+ * Spawn an oxc tool via its Node ESM launcher (`node_modules/<tool>/bin/…`)
+ * with the current Node executable.
+ */
+function spawnOxcLauncher(tool: OxcTool, args: string[], opts: RunOxcOptions = {}): Promise<number> {
     const cwd = opts.cwd ?? process.cwd();
     const launcher = findOxcLauncher(tool, cwd);
     const node = process.execPath || 'node';
@@ -260,6 +372,28 @@ export function loadOxfmtTemplate(): string {
 /** Helper for callers to surface the install hint to the user cleanly. */
 export function printOxcNotFound(err: OxcNotFoundError): void {
     console.error(err.message);
+}
+
+/**
+ * Propagate an oxc tool's exit code from a command handler.
+ *
+ * On Node, setting `process.exitCode` is the gentle idiom (streams flush,
+ * the process ends naturally). Under GJS there is no atexit hook, so
+ * `process.exitCode` alone is NOT honored at natural shutdown — the gjs
+ * process would exit 0 after a failed `--check`. Call `imports.system.exit`
+ * directly for non-zero codes there: SpiderMonkey raises its uncatchable
+ * exit exception from any context — including the yargs `parseAsync`
+ * microtask continuation this runs in — and stdout writes are synchronous
+ * under GJS, so the tool's report is already flushed. (`process.exit`'s
+ * idle-scheduled path is NOT used here: the scheduled idle never fires from
+ * this continuation — the module's top-level await is still pending and gjs
+ * exits 0 before the hook-registered loop runs.)
+ */
+export function setOxcExitCode(code: number): void {
+    process.exitCode = code;
+    if (code === 0) return;
+    const gjs = (globalThis as { imports?: { system?: { exit?: (c: number) => void } } }).imports;
+    if (gjs?.system?.exit) gjs.system.exit(code);
 }
 
 /**
