@@ -132,6 +132,39 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
         npm_package_version: pkg.version ?? '',
     };
 
+    // In-process fast path: under GJS, the build orchestration chains a
+    // heavyweight gjs per level (`foreach → npm → gjsify run X → gjsify <cmd>`),
+    // which oversubscribes CI's few cores and thrashes. When the script is a
+    // single `gjsify <subcommand>` (no shell operators / substitutions /
+    // unquoted globs), dispatch it through the same yargs surface IN THIS
+    // process instead of spawning another gjs — collapsing two gjs into one.
+    // Anything fancier (compound `&&`, pipes, a non-gjsify command) falls
+    // through to the shell spawn below. Node keeps spawning (cheap there); this
+    // only triggers under GJS, where the nesting actually hurts. See cli-app.ts.
+    const inProcArgv = runningUnderGjs() ? gjsifyInProcessArgv(literal, extraArgs) : null;
+    if (inProcArgv) {
+        // The subcommand runs in our process, so surface the script env on
+        // `process.env` (PATH with the workspace .bin dirs, npm_* lifecycle
+        // vars) exactly as the spawn path would. We process.exit afterwards, so
+        // mutating the global env is fine.
+        process.env.PATH = env.PATH;
+        process.env.npm_lifecycle_event = env.npm_lifecycle_event;
+        process.env.npm_package_name = env.npm_package_name;
+        process.env.npm_package_version = env.npm_package_version;
+        if (env.FORCE_COLOR !== undefined) process.env.FORCE_COLOR = env.FORCE_COLOR;
+        try {
+            // Dynamic import to avoid a static cli-app ↔ run.ts import cycle;
+            // cli-app is already loaded (the CLI is running through it), so this
+            // resolves from cache instantly.
+            const { runCli } = await import('../cli-app.js');
+            await runCli(inProcArgv);
+        } catch (err) {
+            console.error((err as Error).message);
+            process.exit(1);
+        }
+        process.exit(0);
+    }
+
     const fullCmd = extraArgs.length > 0 ? `${literal} ${extraArgs.map(shellEscape).join(' ')}` : literal;
     // ensureMainLoop() (called inside spawn) keeps GJS alive after the
     // child exits — without an explicit process.exit() the success path
@@ -153,4 +186,73 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
 function shellEscape(arg: string): string {
     if (/^[a-zA-Z0-9_\-./=:@,]+$/.test(arg)) return arg;
     return `'${arg.replace(/'/g, "'\\''")}'`;
+}
+
+// Detected at CALL time (a module-load const reads `undefined` in the bundled
+// `--app gjs` form). `bundler-pick.ts` uses the same expression.
+function runningUnderGjs(): boolean {
+    return typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
+}
+
+/**
+ * If `literal` is a SINGLE `gjsify <subcommand> …` command with no shell
+ * operators / substitutions / unquoted globs, return the argv to feed `runCli`
+ * (the subcommand + its args, with `extraArgs` appended). Otherwise null — the
+ * caller falls back to the shell spawn path. Quotes are honoured so a quoted
+ * glob (`'src/**'`) survives as a single literal token, exactly as the shell
+ * would hand it to `gjsify` (which does its own glob expansion).
+ */
+function gjsifyInProcessArgv(literal: string, extraArgs: readonly string[]): string[] | null {
+    const tokens = tokenizeSimpleCommand(literal);
+    if (!tokens || tokens.length < 2 || tokens[0] !== 'gjsify') return null;
+    return [...tokens.slice(1), ...extraArgs];
+}
+
+/**
+ * Quote-aware tokenizer for a SIMPLE command line (no shell features beyond
+ * single/double quoting). Returns the tokens, or null if the string contains
+ * anything the shell would treat specially — operators (`&& | ; < > &`),
+ * substitutions (`$(...)` / backticks / `$VAR`), unquoted globs/expansions
+ * (`* ? { } [ ] ~`), comments (`#`), or an unterminated quote — in which case
+ * the caller MUST use the real shell instead.
+ */
+function tokenizeSimpleCommand(cmd: string): string[] | null {
+    const tokens: string[] = [];
+    let cur = '';
+    let has = false;
+    let quote: "'" | '"' | null = null;
+    for (let i = 0; i < cmd.length; i++) {
+        const c = cmd[i]!;
+        if (quote === "'") {
+            if (c === "'") quote = null;
+            else cur += c;
+            continue;
+        }
+        if (quote === '"') {
+            if (c === '"') quote = null;
+            else if (c === '\\' && (cmd[i + 1] === '"' || cmd[i + 1] === '\\')) cur += cmd[++i];
+            else if (c === '$' || c === '`') return null; // substitution inside "…"
+            else cur += c;
+            continue;
+        }
+        if (c === "'" || c === '"') {
+            quote = c;
+            has = true;
+            continue;
+        }
+        if (c === ' ' || c === '\t') {
+            if (has) {
+                tokens.push(cur);
+                cur = '';
+                has = false;
+            }
+            continue;
+        }
+        if ('|&;<>`$()\\\n\r*?{}[]~#!'.includes(c)) return null;
+        cur += c;
+        has = true;
+    }
+    if (quote) return null; // unterminated quote
+    if (has) tokens.push(cur);
+    return tokens;
 }

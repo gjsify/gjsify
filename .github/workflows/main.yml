@@ -296,12 +296,18 @@ jobs:
 
       # Root `build` uses --no-private, so private example workspaces are skipped; tests need dist/.
       - name: Build examples
-        # Targeted guard: the example workspaces fan out the most parallel
-        # build work. A legitimate run finishes in a few minutes; 30 min is
-        # ample headroom but fails fast if a build hang ever creeps in, instead
-        # of waiting out the 120-min job ceiling.
-        timeout-minutes: 30
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run build:examples'
+        # Under the GJS-first flip these build via native rolldown, whose
+        # `--globals auto` multi-pass is memory-heavy. The example workspaces
+        # include several large three.js bundles; building them at cpu-count
+        # parallelism (the `build:examples` script default) exhausts the
+        # runner's RAM → swap/thrash → stall. Cap concurrency to 1 here
+        # (sequential — individual examples build in seconds; the parallel
+        # MEMORY is the problem, not per-build time) until Step 3 (native
+        # rolldown perf/memory) lets us restore parallelism. 45-min headroom;
+        # still fails fast vs the 120-min job ceiling. Local dev keeps the
+        # parallel `build:examples` script.
+        timeout-minutes: 45
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify foreach build -ptv --include "@gjsify/example-*" --jobs 1'
 
       # Workspace-wide dependency consistency drift detection. The CLI's
       # `upgrade --check` mode walks every `package.json` in the monorepo,
