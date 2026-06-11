@@ -13,7 +13,15 @@
 // mis-translating filters when real-world plugin shapes change.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { toNativePlugin, isPluginObject, shouldUseNative, type NativePlugin } from './bundler-pick.js';
+import {
+    toNativePlugin,
+    isPluginObject,
+    shouldUseNative,
+    stripUnserializable,
+    translateSourcemapOption,
+    mapToInjectArray,
+    type NativePlugin,
+} from './bundler-pick.js';
 import {
     cssAsStringPlugin,
     shebangPlugin,
@@ -275,6 +283,135 @@ export default async () => {
             } finally {
                 if (prev !== undefined) process.env.GJSIFY_BUNDLER = prev;
             }
+        });
+    });
+
+    await describe('stripUnserializable — native options JSON boundary', async () => {
+        // Function values do not survive JSON.stringify to the Rust core —
+        // the recurring footgun behind the dropped-`external` bug class.
+        // The sanitize layer must (a) never ship a function, (b) WARN when
+        // it drops one (silent drops are how three instances shipped),
+        // (c) translate `sourcemap` spellings instead of dropping them.
+
+        await it('drops function values and emits a console.warn naming the key', () => {
+            const warnings: string[] = [];
+            const origWarn = console.warn;
+            console.warn = (...args: unknown[]) => warnings.push(args.map(String).join(' '));
+            try {
+                const out = stripUnserializable({
+                    input: [{ import: 'src/index.ts' }],
+                    external: (id: string) => id === 'x',
+                } as unknown as Record<string, unknown>);
+                expect('external' in out).toBe(false);
+                expect(out['input'] !== undefined).toBe(true);
+                expect(warnings.length).toBeGreaterThan(0);
+                expect(warnings[0].includes('"external"')).toBe(true);
+                expect(warnings[0].includes('externalsPlugin')).toBe(true);
+            } finally {
+                console.warn = origWarn;
+            }
+        });
+
+        await it('warns at most once per key (multi-pass --globals auto builds)', () => {
+            const warnings: string[] = [];
+            const origWarn = console.warn;
+            console.warn = (...args: unknown[]) => warnings.push(args.map(String).join(' '));
+            try {
+                // 'external' already warned in the previous test (module-level
+                // warn-once registry) — a second drop must stay silent.
+                stripUnserializable({ external: () => true } as unknown as Record<string, unknown>);
+                stripUnserializable({ external: () => true } as unknown as Record<string, unknown>);
+                expect(warnings.length).toBe(0);
+            } finally {
+                console.warn = origWarn;
+            }
+        });
+
+        await it('keeps string-array external entries untouched', () => {
+            const out = stripUnserializable({ external: ['cairo', 'system'] } as unknown as Record<string, unknown>);
+            expect(out['external']).toStrictEqual(['cairo', 'system']);
+        });
+
+        await it('rejects RegExp external entries with a NAMED error (not an opaque serde crash)', () => {
+            // A RegExp JSON-serializes to `{}` → Rust `Vec<String>` serde
+            // column error. Fail loudly with an actionable message instead.
+            expect(() =>
+                stripUnserializable({ external: ['ok', /^@scope\//] } as unknown as Record<string, unknown>),
+            ).toThrow();
+            try {
+                stripUnserializable({ external: [/^@scope\//] } as unknown as Record<string, unknown>);
+            } catch (e) {
+                expect((e as Error).message.includes('exact string names')).toBe(true);
+            }
+        });
+
+        await it('translates sourcemap spellings to the Rust enum casing', () => {
+            const t = (v: unknown) =>
+                stripUnserializable({ sourcemap: v } as unknown as Record<string, unknown>)['sourcemap'];
+            expect(t(true)).toBe('File');
+            expect(t('inline')).toBe('Inline');
+            expect(t('hidden')).toBe('Hidden');
+            // `false` → key omitted entirely (same effect on the Rust side).
+            expect('sourcemap' in stripUnserializable({ sourcemap: false } as unknown as Record<string, unknown>)).toBe(
+                false,
+            );
+        });
+    });
+
+    await describe('translateSourcemapOption — all JS-API spellings', async () => {
+        await it('maps boolean and string forms onto SourceMapType variants', () => {
+            expect(translateSourcemapOption(true)).toBe('File');
+            expect(translateSourcemapOption('file')).toBe('File');
+            expect(translateSourcemapOption('inline')).toBe('Inline');
+            expect(translateSourcemapOption('hidden')).toBe('Hidden');
+            // Already-translated values pass through idempotently.
+            expect(translateSourcemapOption('File')).toBe('File');
+            expect(translateSourcemapOption('Inline')).toBe('Inline');
+            expect(translateSourcemapOption('Hidden')).toBe('Hidden');
+        });
+
+        await it('returns undefined for false / unknown shapes (omit the key)', () => {
+            expect(translateSourcemapOption(false)).toBe(undefined);
+            expect(translateSourcemapOption(undefined)).toBe(undefined);
+            expect(translateSourcemapOption('bogus')).toBe(undefined);
+        });
+    });
+
+    await describe('mapToInjectArray — Rust InjectImport descriptor shapes', async () => {
+        // The Rust enum has ONLY `named` and `namespace` variants
+        // (tag = "type", camelCase). Default imports are encoded as
+        // `{type:'named', imported:'default'}` — `{type:'default'}` crashes
+        // the deserializer with `unknown variant`.
+
+        await it("string value → default import encoded as named 'default'", () => {
+            expect(mapToInjectArray({ Buffer: '@gjsify/buffer' })).toStrictEqual([
+                { type: 'named', imported: 'default', from: '@gjsify/buffer', alias: 'Buffer' },
+            ]);
+        });
+
+        await it('tuple [from, name] → named import', () => {
+            expect(mapToInjectArray({ console: ['./shims/console-gjs.js', 'console'] })).toStrictEqual([
+                { type: 'named', from: './shims/console-gjs.js', imported: 'console', alias: 'console' },
+            ]);
+        });
+
+        await it("tuple [from, '*'] → namespace import", () => {
+            expect(mapToInjectArray({ fs: ['node:fs', '*'] })).toStrictEqual([
+                { type: 'namespace', from: 'node:fs', alias: 'fs' },
+            ]);
+        });
+
+        await it('mixes all three forms in one map', () => {
+            const out = mapToInjectArray({
+                $: 'jquery',
+                Promise: ['es6-promise', 'Promise'],
+                ns: ['some-mod', '*'],
+            });
+            expect(out).toStrictEqual([
+                { type: 'named', imported: 'default', from: 'jquery', alias: '$' },
+                { type: 'named', from: 'es6-promise', imported: 'Promise', alias: 'Promise' },
+                { type: 'namespace', from: 'some-mod', alias: 'ns' },
+            ]);
         });
     });
 };

@@ -22,6 +22,7 @@ import oxcResolveSuite from './utils/oxc-resolve.spec.js';
 // a dependency. The predicate itself is re-exported from the plugin's
 // public API.
 import autoGlobalsSuite from './auto-globals.spec.js';
+import externalsPluginSuite from './externals-plugin.spec.js';
 import affectedClassifierSuite from './affected-classifier.spec.js';
 
 run({
@@ -39,5 +40,6 @@ run({
     resolveNpmPackageSuite,
     oxcResolveSuite,
     autoGlobalsSuite,
+    externalsPluginSuite,
     affectedClassifierSuite,
 });

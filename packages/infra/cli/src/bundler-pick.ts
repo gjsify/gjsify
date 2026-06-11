@@ -178,6 +178,7 @@ export async function bundleToChunks(input: {
         );
         delete (opts as { plugins?: unknown }).plugins;
         const result = await native.bundleWithPlugins(opts as unknown as Record<string, unknown>, nativePlugins);
+        reportNativeWarnings(result, input.rolldownInput as Record<string, unknown>);
         const codes: string[] = [];
         for (const item of result.output) {
             if (item.type === 'chunk') codes.push(item.code);
@@ -349,6 +350,7 @@ async function runNativeBundle(finalOpts: BundlerOptions): Promise<RolldownOutpu
         console.error('[gjsify-bundler-pick] native opts JSON:', JSON.stringify(bundlerOpts));
     }
     const result = await native.bundleWithPlugins(bundlerOpts as unknown as Record<string, unknown>, nativePlugins);
+    reportNativeWarnings(result, finalOpts as unknown as Record<string, unknown>);
 
     // The native facade returns the BundleOutput shape but doesn't
     // write files — replicate `.write()` here so callers see the same
@@ -371,6 +373,14 @@ async function runNativeBundle(finalOpts: BundlerOptions): Promise<RolldownOutpu
         await fs.mkdir(path.dirname(target), { recursive: true });
         if (item.type === 'chunk') {
             await fs.writeFile(target, item.code, 'utf8');
+            // `.write()` parity: npm rolldown emits `<fileName>.map` next to
+            // each chunk when `sourcemap: 'File'|'Hidden'` is set. The native
+            // facade carries the map JSON on the chunk (`map` is undefined for
+            // inline/disabled sourcemaps) — write it or sourcemaps would be
+            // silently unavailable under the GJS-default engine.
+            if (typeof item.map === 'string') {
+                await fs.writeFile(`${target}.map`, item.map, 'utf8');
+            }
         } else if (item.sourceText !== undefined) {
             await fs.writeFile(target, item.sourceText, 'utf8');
         }
@@ -381,25 +391,111 @@ async function runNativeBundle(finalOpts: BundlerOptions): Promise<RolldownOutpu
 }
 
 /**
- * Drop fields the JSON encoder can't ship to the Rust deserializer.
- * `external` may be a function predicate (npm rolldown supports this);
- * functions vanish under `JSON.stringify` and surface as parse errors on
- * the Rust side. Strip top-level function values so the option object
- * is JSON-clean. (The actual external behavior under native rolldown
- * comes from arrays/regex strings, set elsewhere by the orchestrator.)
- *
- * Also drops `sourcemap: false` — the JS API accepts a boolean while
- * the Rust deserializer expects an enum (`'File' | 'Inline' | 'Hidden'`).
- * Omitting the field has the same effect as `false`.
+ * Surface native-engine bundle warnings through the same channel npm
+ * rolldown uses (its default `onLog` prints warnings at logLevel 'info').
+ * The Rust side collects rolldown warnings + plugin `this.warn()` calls
+ * into `BundleResult.warnings`; never reading them is what let the
+ * dropped-options hazard class ship unnoticed — UNRESOLVED_IMPORT (the
+ * only runtime signal that an import is riding the unresolved-fallback
+ * accident) and every plugin warning were invisible on the GJS-default
+ * engine. De-duplicated per call; respects `logLevel: 'silent'` (the
+ * `--globals auto` analysis passes set it, so analysis stays quiet).
  */
-function stripUnserializable<T extends Record<string, unknown>>(opts: T): T {
+function reportNativeWarnings(result: BundleResult, opts: Record<string, unknown>): void {
+    if (opts['logLevel'] === 'silent') return;
+    if (!Array.isArray(result.warnings) || result.warnings.length === 0) return;
+    const seen = new Set<string>();
+    for (const warning of result.warnings) {
+        if (seen.has(warning)) continue;
+        seen.add(warning);
+        console.warn(`[gjsify-bundler] ${warning}`);
+    }
+}
+
+// Warn-once registry for `stripUnserializable` — one warning per option
+// key per process, so a 3-pass `--globals auto` build doesn't repeat the
+// same message. The silent drop of function-valued options is the
+// recurring footgun behind three shipped/near-shipped bugs (app/node.ts,
+// library/lib.ts, app/gjs.ts external predicates) — never drop silently.
+const warnedDroppedKeys = new Set<string>();
+
+/**
+ * Sanitize fields the JSON encoder can't ship to the Rust deserializer.
+ *
+ * Functions vanish under `JSON.stringify` (the key disappears from the
+ * JSON), silently changing build behavior vs npm rolldown — so dropping
+ * one now WARNS (once per key). `external` gets a dedicated message: the
+ * orchestrators express externals as exact-name arrays + an
+ * `externalsPlugin` resolveId hook precisely because a function predicate
+ * cannot cross this boundary; a function here means a regression (or a
+ * user config) reintroduced the dropped-predicate class.
+ *
+ * `external` array elements must be plain strings — the Rust
+ * `deserialize_external` only accepts `Vec<String>` and a RegExp
+ * serializes to `{}`, producing an opaque serde column error. Reject
+ * RegExp/non-string elements with a NAMED error instead.
+ *
+ * `sourcemap` is TRANSLATED, not dropped: the JS API accepts
+ * `boolean | 'inline' | 'hidden'` while the Rust `SourceMapType` enum
+ * (plain serde derive, no rename_all) only accepts `'File' | 'Inline' |
+ * 'Hidden'`. `true` → `'File'`, `'inline'` → `'Inline'`, `'hidden'` →
+ * `'Hidden'`; `false` is omitted (same effect).
+ *
+ * Exported for the unit tests in `bundler-pick.spec.ts`.
+ */
+export function stripUnserializable<T extends Record<string, unknown>>(opts: T): T {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(opts)) {
-        if (typeof v === 'function') continue;
-        if (k === 'sourcemap' && typeof v === 'boolean') continue;
+        if (typeof v === 'function') {
+            if (!warnedDroppedKeys.has(k)) {
+                warnedDroppedKeys.add(k);
+                const hint =
+                    k === 'external'
+                        ? ' Function `external` predicates are NOT supported by the native engine — ' +
+                          'pass exact names as a string array and/or enforce shape rules via a ' +
+                          'resolveId plugin returning `{ external: true }` (see externalsPlugin in ' +
+                          '@gjsify/rolldown-plugin-gjsify).'
+                        : ' Function-valued options do not survive the JSON boundary to the Rust core.';
+                console.warn(
+                    `[gjsify-bundler] dropping non-serializable option "${k}" for the native rolldown engine —` +
+                        ` behavior may diverge from npm rolldown.${hint}`,
+                );
+            }
+            continue;
+        }
+        if (k === 'external' && Array.isArray(v)) {
+            const bad = v.find((el) => typeof el !== 'string');
+            if (bad !== undefined) {
+                throw new Error(
+                    'gjsify build: `external` entries must be exact string names under the native ' +
+                        `rolldown engine (got ${bad instanceof RegExp ? bad.toString() : typeof bad}). ` +
+                        'RegExp/function externals are only supported by npm rolldown — use exact names ' +
+                        'or a resolveId plugin returning `{ external: true }`.',
+                );
+            }
+            out[k] = v;
+            continue;
+        }
+        if (k === 'sourcemap') {
+            const mapped = translateSourcemapOption(v);
+            if (mapped !== undefined) out[k] = mapped;
+            continue;
+        }
         out[k] = v;
     }
     return out as T;
+}
+
+/**
+ * Map the JS-API `sourcemap` spellings onto the Rust `SourceMapType` enum
+ * variants. Returns `undefined` for `false`/unknown shapes (omit the key).
+ * Exported for the unit tests in `bundler-pick.spec.ts`.
+ */
+export function translateSourcemapOption(v: unknown): 'File' | 'Inline' | 'Hidden' | undefined {
+    if (v === true || v === 'file' || v === 'File') return 'File';
+    if (v === 'inline' || v === 'Inline') return 'Inline';
+    if (v === 'hidden' || v === 'Hidden') return 'Hidden';
+    return undefined;
 }
 
 /**
@@ -434,16 +530,45 @@ function liftTransformExtras<T extends Record<string, unknown>>(opts: T): T {
     } as T;
 }
 
-function mapToInjectArray(map: Record<string, string | [string, string]>): Array<Record<string, string>> {
+/**
+ * Convert npm rolldown's `transform.inject` map shorthand into the array
+ * of descriptors the native Rust deserializer expects. The Rust
+ * `InjectImport` enum (`tag = "type"`, `rename_all = "camelCase"`) has
+ * exactly TWO variants:
+ *
+ *   - `{ type: 'named', imported, alias?, from }`
+ *   - `{ type: 'namespace', alias, from }`
+ *
+ * npm rolldown's map spellings translate as:
+ *
+ *   - `{ alias: 'module' }`        → default import →
+ *     `{ type: 'named', imported: 'default', alias, from: 'module' }`
+ *     (the Rust `InjectImport::default()` constructor encodes default
+ *     imports as a named import of `default` — there is NO `'default'`
+ *     variant; emitting `{ type: 'default' }` crashes the deserializer
+ *     with `unknown variant \`default\``).
+ *   - `{ alias: ['module', '*'] }` → namespace import →
+ *     `{ type: 'namespace', alias, from: 'module' }`.
+ *   - `{ alias: ['module', 'name'] }` → named import →
+ *     `{ type: 'named', from: 'module', imported: 'name', alias }`.
+ *
+ * Exported for the unit tests in `bundler-pick.spec.ts`.
+ */
+export function mapToInjectArray(map: Record<string, string | [string, string]>): Array<Record<string, string>> {
     const out: Array<Record<string, string>> = [];
     for (const [alias, value] of Object.entries(map)) {
         if (typeof value === 'string') {
             // Default-import binding: `import alias from 'module'`
-            out.push({ type: 'default', from: value, alias });
+            out.push({ type: 'named', imported: 'default', from: value, alias });
         } else {
-            // Named-import binding: `import { imported as alias } from 'from'`
             const [from, imported] = value;
-            out.push({ type: 'named', from, imported, alias });
+            if (imported === '*') {
+                // Namespace-import binding: `import * as alias from 'from'`
+                out.push({ type: 'namespace', from, alias });
+            } else {
+                // Named-import binding: `import { imported as alias } from 'from'`
+                out.push({ type: 'named', from, imported, alias });
+            }
         }
     }
     return out;

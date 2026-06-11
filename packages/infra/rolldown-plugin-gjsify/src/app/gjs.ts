@@ -15,6 +15,7 @@ import type * as NodeFs from 'node:fs';
 import type * as NodeModule from 'node:module';
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 import { aliasPlugin } from '../plugins/alias.js';
+import { externalsPlugin } from '../plugins/externals.js';
 
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
@@ -88,33 +89,24 @@ export interface GjsFactoryInput {
 
 export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfig> => {
     const userExternal = input.userExternal ?? [];
-    // Rolldown's `external` array does not support glob patterns the way
-    // esbuild's did (`gi://*`). We use a function predicate so any
-    // `gi://Foo?version=…` URI matches by prefix and the GJS-built-in
-    // string specifiers stay externalised by name.
-    const exactExternal = ['cairo', 'gettext', 'system', ...userExternal];
-    const external = (id: string): boolean => {
-        // `@gjsify/<pkg>/register[/<feature>]` and the bare-`<pkg>/register`
-        // form MUST NEVER be externalized for `--app gjs`. These are the
-        // side-effect entry points that `--globals auto` injects to wire
-        // up `globalThis.{Buffer,fetch,…}`; GJS's native ESM loader has no
-        // node_modules walker AND does not follow `package.json#exports`
-        // maps for bare specifiers, so an externalized
-        // `import '@gjsify/buffer/register/buffer'` at runtime would throw
-        // `Module not found` even when `<pkg>/lib/esm/register/buffer.js`
-        // is on disk via the exports map.
-        //
-        // Inlining is the only safe option — the exclusion is by SHAPE
-        // (`*/register` or `*/register/*` substring), not by an explicit
-        // package list, so the invariant scales to every package added
-        // by the tree-shakeable-globals convention. See AGENTS.md
-        // §Tree-shakeable globals — /register subpath convention, and
-        // §Build — Rolldown, platform plugins for the externals policy.
-        if (isRegisterSubpath(id)) return false;
-        if (id.startsWith('gi://')) return true;
-        if (exactExternal.includes(id)) return true;
-        return false;
-    };
+    // Externals policy — enforced in TWO serializable forms so it is
+    // identical under npm rolldown (Node) AND `@gjsify/rolldown-native`
+    // (the GJS-default engine, which JSON.stringify's its options to the
+    // Rust core and silently DROPS function values — the bug class that
+    // already shipped via app/node.ts and library/lib.ts predicates):
+    //
+    //   1. `options.external` = a plain string array of EXACT names
+    //      (`cairo`/`gettext`/`system` + user `bundler.external` entries).
+    //      Arrays serialize fine on both engines.
+    //   2. `externalsPlugin(external)` in the plugin chain for the SHAPE
+    //      rules an exact array can't express (`gi://` prefix match) —
+    //      a resolveId hook returning `{ external: true }` is honoured by
+    //      both engines via `normalizeResolveIdResult`.
+    //
+    // `exactExternal` filters out register subpaths so a user external
+    // entry can never override the force-inline carve-out below.
+    const exactExternal = ['cairo', 'gettext', 'system', ...userExternal.filter((id) => !isRegisterSubpath(id))];
+    const external = createGjsExternalsPredicate(userExternal);
     const format = input.pluginOptions.format ?? 'esm';
 
     const exclude = input.pluginOptions.exclude ?? [];
@@ -163,7 +155,11 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     const options: RolldownOptions = {
         input: finalInput,
         platform: 'neutral',
-        external,
+        // EXACT names only — the `gi://` prefix + register-subpath shape
+        // rules live in `externalsPlugin` below (see the policy note at
+        // the top of this function). A function predicate here would be
+        // silently dropped by the native engine's JSON options boundary.
+        external: exactExternal,
         // 'browser' field is needed so packages like create-hash, create-hmac,
         // randombytes use their pure-JS browser entry instead of index.js
         // (which does require('crypto') and causes circular dependencies via
@@ -240,6 +236,12 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
                 ...flattenAliases(aliasMap),
             },
         }),
+        // Enforce the full `--app gjs` externals policy (gi:// prefix,
+        // exact names, register-subpath force-inline) via resolveId —
+        // the only form BOTH engines honour (the native engine drops
+        // function `external` options at its JSON boundary). Runs after
+        // the alias plugin's `pre`-order resolveId so aliases apply first.
+        externalsPlugin(external, { name: 'gjsify-gjs-externalize' }),
         blueprintPlugin() as RolldownPluginOption,
         deepkitPlugin({ reflection: input.pluginOptions.reflection }),
         // GTK4's CSS engine is much older than browser engines — its
@@ -361,6 +363,40 @@ function flattenAliases(map: Record<string, string>): Record<string, string> {
         if (to) out[from] = to;
     }
     return out;
+}
+
+/**
+ * Build the canonical `--app gjs` externals predicate:
+ *
+ *   - `@gjsify/<pkg>/register[/<feature>]` (and the bare `<pkg>/register`
+ *     form) MUST NEVER be externalized — these are the side-effect entry
+ *     points `--globals auto` injects to wire up
+ *     `globalThis.{Buffer,fetch,…}`. GJS's native ESM loader has no
+ *     node_modules walker AND does not follow `package.json#exports` maps
+ *     for bare specifiers, so an externalized
+ *     `import '@gjsify/buffer/register/buffer'` throws `Module not found`
+ *     at runtime even when the file is on disk via the exports map.
+ *     Inlining is the only safe option — the exclusion is by SHAPE
+ *     (`isRegisterSubpath`), not an explicit package list, so it scales
+ *     to every package added by the tree-shakeable-globals convention.
+ *     It short-circuits BEFORE the user-external check so `bundler.external`
+ *     can never override it. See AGENTS.md §Tree-shakeable globals.
+ *   - `gi://*` URIs are external by prefix (GJS-native imports).
+ *   - `cairo`/`gettext`/`system` + user externals match by exact name.
+ *
+ * Used by `setupForGjs` for the in-process alias layer AND as the
+ * predicate behind `externalsPlugin` (resolveId `{ external: true }`,
+ * honoured by both bundler engines). Exported for the regression tests
+ * in `auto-globals.spec.ts` — canonical contract, change-detector status.
+ */
+export function createGjsExternalsPredicate(userExternal: string[] = []): (id: string) => boolean {
+    const exact = ['cairo', 'gettext', 'system', ...userExternal];
+    return (id: string): boolean => {
+        if (isRegisterSubpath(id)) return false;
+        if (id.startsWith('gi://')) return true;
+        if (exact.includes(id)) return true;
+        return false;
+    };
 }
 
 /**
