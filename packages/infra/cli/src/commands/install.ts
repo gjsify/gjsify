@@ -438,6 +438,18 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
         `gjsify install: ${workspaces.length} workspace(s), ${externalSpecs.size} external dep spec(s), ${symlinks.length} workspace symlink(s)`,
     );
 
+    // Write workspace bin shims EARLY — before the download/extract phase.
+    // The shims are cheap derived artifacts (workspace manifests only), and
+    // the heavy phase that follows can fail or die mid-way (network errors,
+    // timeouts, runtime crashes). Writing them up-front guarantees the
+    // workspace never loses its runner shim (`node_modules/.bin/gjsify`) to
+    // a failed install, and an in-place re-install on an already-materialized
+    // tree refreshes a stale shim even when a later phase aborts. The same
+    // shims are re-written at the end of this function so the GJS-preamble
+    // (GI_TYPELIB_PATH for native prebuilds) reflects the freshly installed
+    // tree — see the final `writeWorkspaceBinShims` call below.
+    writeWorkspaceBinShims(cwd, workspaces);
+
     // Read top-level package.json's `overrides` (npm-native) or `resolutions`
     // (yarn-native, kept as the existing field name in pre-Phase-D.8 repos).
     // Flat `name → range` entries become global overrides applied to every
@@ -570,9 +582,7 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
             plans.push({ linkPath, relTarget });
         }
         // Phase 1: one mkdir per unique parent (max ~213 instead of ~793).
-        await Promise.all(
-            [...parentDirs].map((dir) => fsp.mkdir(dir, { recursive: true })),
-        );
+        await Promise.all([...parentDirs].map((dir) => fsp.mkdir(dir, { recursive: true })));
         // Phase 2: per-link rm + symlink, pooled. A semaphore-style cursor
         // keeps the concurrent in-flight count bounded so we don't blow up
         // the file-descriptor table on huge monorepos.
@@ -655,18 +665,43 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
         console.log(`gjsify install: hoisted ${rootHoisted} workspace(s) to root node_modules/`);
     }
 
-    // Link workspace bins into `node_modules/.bin/`. Without this,
-    // `npm run <script>` (or any `node_modules/.bin`-PATH consumer)
-    // cannot find the `gjsify` binary on a fresh checkout — yarn
-    // creates these shims at install time; we need to match.
-    //
-    // Each workspace's `bin` entry maps `<binName>` → `<relative-target>`.
-    // For GJS-runnable bins, `gjsify.bin` is preferred — its target is the
-    // committed `dist/cli.gjs.mjs` bundle that exists on a fresh checkout,
-    // versus the `bin` field which typically points at `lib/index.js`
-    // (a build artifact that may not yet exist). The shim wraps the
-    // target in a shell script that picks the right interpreter (`gjs -m`
-    // for `.mjs` bundles, `node` for `.js` files).
+    // Re-write workspace bins into `node_modules/.bin/` now that the tree is
+    // fully materialized. The early pass at the top of this function already
+    // guaranteed the shims exist; this final pass refreshes their GJS-preamble
+    // with the native prebuild dirs that only became discoverable after the
+    // install (fresh checkout: `detectNativePackages` finds nothing before the
+    // packages are extracted). Running last also keeps workspace shims
+    // authoritative over any same-named external bin linked by the install
+    // backend (yarn semantics: workspace bins win).
+    const wsBinsCreated = writeWorkspaceBinShims(cwd, workspaces);
+    if (wsBinsCreated > 0) {
+        console.log(`gjsify install: linked ${wsBinsCreated} workspace bin(s) into node_modules/.bin/`);
+    }
+}
+
+/**
+ * (Re)write the shell shims for every workspace-declared bin into the root
+ * `node_modules/.bin/`. Without this, `npm run <script>` (or any
+ * `node_modules/.bin`-PATH consumer) cannot find the `gjsify` binary on a
+ * fresh checkout — yarn creates these shims at install time; we match.
+ *
+ * Each workspace's `bin` entry maps `<binName>` → `<relative-target>`.
+ * For GJS-runnable bins, `gjsify.bin` is preferred — its target is the
+ * committed `dist/cli.gjs.mjs` bundle that exists on a fresh checkout,
+ * versus the `bin` field which typically points at `lib/index.js`
+ * (a build artifact that may not yet exist). The shim wraps the
+ * target in a shell script that picks the right interpreter (`gjs -m`
+ * for `.mjs` bundles, `node` for `.js` files).
+ *
+ * IDEMPOTENT + UNCONDITIONAL: shims are derived artifacts and are always
+ * regenerated — never skipped because a file already exists, never a
+ * failure because one is missing. `workspaceInstall` calls this twice:
+ * once BEFORE the download/extract phase (so a failed/aborted install can
+ * never leave the workspace without its runner shim, and a stale shim is
+ * refreshed even when a later phase dies) and once after (to pick up
+ * native prebuild dirs that only exist post-extract).
+ */
+function writeWorkspaceBinShims(cwd: string, workspaces: ReturnType<typeof discoverWorkspaces>): number {
     const wsBinDir = join(cwd, 'node_modules', '.bin');
     // Discover native prebuilds reachable from the workspace cwd so the
     // workspace-local `node_modules/.bin/gjsify` shim sets GI_TYPELIB_PATH /
@@ -704,9 +739,7 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
             wsBinsCreated++;
         }
     }
-    if (wsBinsCreated > 0) {
-        console.log(`gjsify install: linked ${wsBinsCreated} workspace bin(s) into node_modules/.bin/`);
-    }
+    return wsBinsCreated;
 }
 
 /**
@@ -800,9 +833,7 @@ function extractOverrides(
                 }
                 continue;
             }
-            console.warn(
-                `gjsify install: ${fieldName}["${key}"] is not a string or object — skipping`,
-            );
+            console.warn(`gjsify install: ${fieldName}["${key}"] is not a string or object — skipping`);
         }
     };
     merge(rootManifest.overrides as Record<string, unknown> | undefined, 'overrides');
