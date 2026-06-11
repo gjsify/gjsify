@@ -984,7 +984,10 @@ Exits non-zero when nothing was removed (no matching install found).
 
 ## `gjsify format`
 
-Format JS/TS source files via [oxfmt](https://oxc.rs/docs/guide/usage/formatter) (oxc's formatter). gjsify resolves oxfmt's npm package Node launcher from `node_modules/oxfmt/bin/oxfmt` and spawns it with the current Node executable. The per-platform native code ships as the `@oxfmt/binding-<target>` napi optionalDependency.
+Format JS/TS source files via [oxfmt](https://oxc.rs/docs/guide/usage/formatter) (oxc's formatter). Dual-engine:
+
+- **Under GJS** (the `gjs -m cli.gjs.mjs` bundle), gjsify prefers the `@gjsify/oxfmt-native` GI bridge — the full oxfmt CLI runs in-process, **Node-free** (config resolution, ignore handling, file walking, `--write`/`--check`/`--list-different` all included). Override with `GJSIFY_OXFMT=npm` (force the Node launcher) or `GJSIFY_OXFMT=native` (error instead of falling back when the prebuild is unavailable).
+- **On Node** (or when the native prebuild is missing), gjsify resolves oxfmt's npm package Node launcher from `node_modules/oxfmt/bin/oxfmt` and spawns it with the current Node executable. The per-platform native code ships as the `@oxfmt/binding-<target>` napi optionalDependency.
 
 > **CSS/JSON formatting is not supported.** oxfmt formats JS/TS (+TOML) only. The previous Biome toolchain formatted CSS and JSON too; that is intentionally dropped in the oxc migration and not replaced by another formatter.
 

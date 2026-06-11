@@ -1,0 +1,29 @@
+{
+    "name": "@gjsify/integration-oxfmt-native",
+    "description": "Integration tests for @gjsify/oxfmt-native — locks in the Node-free `gjsify format` contract end-to-end. Exercises the GI bridge under GJS: hasNativeOxfmt(), the single-shot format(), and the full in-process CLI runOxfmt() (write / check / list-different / `.oxfmtrc.json` honoring via --config). GJS-only because the native bridge needs the Vala/GIR typelib that only loads under SpiderMonkey + GLib.",
+    "type": "module",
+    "private": true,
+    "engines": {
+        "node": ">=22.12.0"
+    },
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo || exit 0",
+        "check": "gjsify tsc --noEmit",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile dist/test.gjs.mjs",
+        "build:test": "gjsify run build:test:gjs",
+        "test": "gjsify run build:test && gjsify run test:gjs",
+        "test:gjs": "gjsify run dist/test.gjs.mjs"
+    },
+    "devDependencies": {
+        "@girs/gjs": "4.0.4",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/oxfmt-native": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}

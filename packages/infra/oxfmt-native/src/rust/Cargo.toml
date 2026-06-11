@@ -1,0 +1,38 @@
+[package]
+name = "gjsify_oxfmt"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+# cdylib for the FFI .so; rlib so `cargo test` can build the unit-test harness
+# against the pure-Rust `format_impl` core.
+crate-type = ["cdylib", "rlib"]
+
+# NOTE on dependency resolution
+# ─────────────────────────────
+# oxc's formatter crates (`oxc_formatter`, the `oxfmt` app crate) are NOT
+# usable from crates.io — all published `oxc_formatter` versions were yanked
+# (last 0.4.0, 2023) and `oxfmt` is `publish = false`. The current formatter
+# lives only in-tree, so — exactly like @gjsify/rolldown-native builds
+# against refs/rolldown — we path-dep into the refs/oxc submodule (pinned to
+# the `oxfmt_v0.54.0` rev that the npm `oxfmt@0.54.0` ships). Cargo locates
+# each crate's workspace root (refs/oxc/Cargo.toml) and resolves its
+# `workspace = true` deps. Contributors need
+# `git submodule update --init refs/oxc` to build the cdylib from source;
+# downstream npm consumers only ever consume the prebuilt .so + .typelib.
+#
+# `oxfmt` with `default-features = false` disables the `napi` feature — the
+# Node-API host (ExternalFormatter, JS configs, LSP, stdin mode) — leaving
+# the pure-Rust CLI core (`oxfmt::cli`) that the standalone `oxfmt` binary
+# (apps/oxfmt/src/main.rs) is built from.
+[dependencies]
+oxc_allocator = { path = "../../../../../refs/oxc/crates/oxc_allocator" }
+oxc_formatter = { path = "../../../../../refs/oxc/crates/oxc_formatter" }
+oxc_span = { path = "../../../../../refs/oxc/crates/oxc_span" }
+oxfmt = { path = "../../../../../refs/oxc/apps/oxfmt", default-features = false }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
