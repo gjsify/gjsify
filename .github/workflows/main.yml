@@ -95,9 +95,14 @@ jobs:
     name: Fedora ${{ matrix.fedora-version }} (${{ matrix.gjs-info }})
     runs-on: ubuntu-latest
     # Cap the whole job well under GitHub's 6h default so a runaway (e.g. a
-    # hung build step) fails in ~2h instead of burning a runner for 6h. The
+    # hung build step) fails early instead of burning a runner for 6h. The
     # per-step guard on "Build examples" below is the tighter, targeted net.
-    timeout-minutes: 120
+    # TEMPORARILY 240 (was 120): under the GJS-first flip a CACHE-MISS run
+    # cold-builds the whole workspace under gjs/native-rolldown (~110 min for
+    # the Build step alone on the 2-core runner; warm-cache runs need ~1h20
+    # total). The parallel-scheduling perf track shrinks this again — revisit
+    # the cap once cold builds are fast enough.
+    timeout-minutes: 240
     container:
       image: fedora:${{ matrix.fedora-version }}
 
