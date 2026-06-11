@@ -16,6 +16,7 @@
 // (since the typescript-check binding is positional `[paths..]`).
 
 import { spawn, spawnSync } from 'node:child_process';
+import { prefixLines } from '../utils/prefixed-output.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cpus } from 'node:os';
@@ -59,22 +60,28 @@ function runCheck(ws: Workspace, prefix: string | null): Promise<number> {
             stdio: prefix === null ? 'inherit' : ['ignore', 'pipe', 'pipe'],
         });
 
+        // Shared with `foreach`: live line-prefixing on a tty, buffered
+        // flush-on-close on a non-tty sink. The previous inline forwarder
+        // wrote every line live — under GJS `process.stdout.write` is a
+        // blocking `Gio.write_all`, so a parallel check into a
+        // backpressuring CI pipe could stall the GLib loop the same way
+        // the foreach examples build did. See utils/prefixed-output.ts.
+        const buffered = !process.stdout.isTTY;
+        const flushers: Array<() => void> = [];
         if (prefix !== null && child.stdout && child.stderr) {
             const tag = `[${prefix}] `;
-            const forward = (stream: NodeJS.ReadableStream, dest: NodeJS.WriteStream) => {
-                stream.on('data', (chunk: Buffer) => {
-                    const text = chunk.toString('utf-8');
-                    for (const line of text.split('\n')) {
-                        if (line.length > 0) dest.write(`${tag}${line}\n`);
-                    }
-                });
-            };
-            forward(child.stdout, process.stdout);
-            forward(child.stderr, process.stderr);
+            flushers.push(prefixLines(child.stdout, process.stdout, tag, buffered));
+            flushers.push(prefixLines(child.stderr, process.stderr, tag, buffered));
         }
 
-        child.on('close', (code) => resolve(code ?? 1));
-        child.on('error', () => resolve(1));
+        child.on('close', (code) => {
+            for (const flush of flushers) flush();
+            resolve(code ?? 1);
+        });
+        child.on('error', () => {
+            for (const flush of flushers) flush();
+            resolve(1);
+        });
     });
 }
 

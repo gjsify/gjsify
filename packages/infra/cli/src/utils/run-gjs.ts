@@ -53,7 +53,26 @@ export function computeNativeEnvForBundle(
  * for any installed native gjsify packages discoverable from either the CWD
  * or the bundle's own node_modules tree.
  */
-export async function runGjsBundle(bundlePath: string, extraArgs: string[] = []): Promise<void> {
+export interface RunGjsBundleOptions {
+    /**
+     * Exit this process with code 0 once the child succeeds. Under GJS,
+     * `ensureMainLoop()` (armed by spawn) keeps the parent's GLib loop alive
+     * after the child exits — a TERMINAL caller (`gjsify run <file>`, `dlx`)
+     * must opt in here or it parks forever (this exact gap hung CI's
+     * "Test WebGL conformance" for 83 min: the suite finished in 1.35 s, the
+     * parent `gjsify run conformance.gjs.js` never exited). Callers that
+     * continue after the bundle (e.g. `gjsify test`'s multi-runtime
+     * aggregation loop) MUST leave this false — an unconditional exit here
+     * truncated `gjsify test` after the first gjs bundle.
+     */
+    exitOnSuccess?: boolean;
+}
+
+export async function runGjsBundle(
+    bundlePath: string,
+    extraArgs: string[] = [],
+    options: RunGjsBundleOptions = {},
+): Promise<void> {
     const { env: nativeEnv, envPrefix } = computeNativeEnvForBundle(bundlePath);
 
     const env = {
@@ -84,14 +103,7 @@ export async function runGjsBundle(bundlePath: string, extraArgs: string[] = [])
         console.error(err.message);
         process.exit(1);
     });
-    // Under GJS, `ensureMainLoop()` (armed by spawn) keeps THIS process's
-    // GLib loop alive after the child exits — without an explicit exit the
-    // success path parks forever. The error path above already exits; this
-    // mirrors it (and the explicit success exits in `workspace.ts` /
-    // `run.ts`'s script path). Every caller (run/test/dlx/showcase) invokes
-    // runGjsBundle as its terminal statement, so exiting here is safe under
-    // Node too. This exact gap hung CI's "Test WebGL conformance" for 83 min
-    // under the GJS-first flip: the suite finished in 1.35 s, but the parent
-    // `gjsify run conformance.gjs.js` gjs never exited.
-    process.exit(0);
+    // See RunGjsBundleOptions.exitOnSuccess — terminal callers opt in,
+    // mid-flow callers (test.ts's runtime loop) keep the process alive.
+    if (options.exitOnSuccess) process.exit(0);
 }

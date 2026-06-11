@@ -60,7 +60,9 @@ export const runCommand: Command<unknown, RunOptions> = {
 
         if (!hasScript && looksLikeFile(target)) {
             const file = resolve(target);
-            await runGjsBundle(file, extraArgs);
+            // Terminal call — exit on success, or the GJS main loop parks
+            // this process forever (see RunGjsBundleOptions.exitOnSuccess).
+            await runGjsBundle(file, extraArgs, { exitOnSuccess: true });
             return;
         }
 
@@ -162,7 +164,10 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
             console.error((err as Error).message);
             process.exit(1);
         }
-        process.exit(0);
+        // Honor a non-zero `process.exitCode` set by the dispatched handler
+        // (e.g. a failing check that sets the code instead of exiting) —
+        // a bare exit(0) here masked such failures as success.
+        process.exit(process.exitCode != null ? Number(process.exitCode) : 0);
     }
 
     const fullCmd = extraArgs.length > 0 ? `${literal} ${extraArgs.map(shellEscape).join(' ')}` : literal;
