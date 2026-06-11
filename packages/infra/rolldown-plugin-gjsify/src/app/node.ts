@@ -89,8 +89,10 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         // and fails the `--app node` build with `Module not found`. The
         // predicate here is pure exact membership, so the array is
         // behaviourally identical under both engines AND JSON-serializable.
-        // (The gjs/browser targets keep a function predicate because their
-        // gi://-prefix logic is handled by plugins, not the `external` option.)
+        // (The gjs target follows the same rule: exact names as an array,
+        // plus an `externalsPlugin` resolveId hook for its gi://-prefix and
+        // register-subpath shape rules — see app/gjs.ts. The browser target
+        // already uses a plain array.)
         // The function form is still used for `getAliasesForNode({ external })`
         // above — that runs in-process and is never serialized.
         external: exactExternal,

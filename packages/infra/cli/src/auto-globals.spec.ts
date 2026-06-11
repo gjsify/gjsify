@@ -23,7 +23,7 @@
 // already declares the plugin as a dependency.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { isRegisterSubpath } from '@gjsify/rolldown-plugin-gjsify';
+import { isRegisterSubpath, createGjsExternalsPredicate } from '@gjsify/rolldown-plugin-gjsify';
 
 export default async () => {
     await describe('--app gjs externals: /register subpath invariant', async () => {
@@ -89,6 +89,51 @@ export default async () => {
             expect(isRegisterSubpath('webcrypto/register')).toBe(true);
             expect(isRegisterSubpath('dom-exception/register')).toBe(true);
             expect(isRegisterSubpath('domparser/register')).toBe(true);
+        });
+    });
+
+    await describe('createGjsExternalsPredicate — full --app gjs externals policy', async () => {
+        // The predicate backs BOTH the in-process alias layer and the
+        // `externalsPlugin` resolveId hook in setupForGjs's plugin chain.
+        // The hook form is what makes the policy hold under the native
+        // engine (a function `external` OPTION is dropped at the JSON
+        // boundary — the third shipped instance of that class).
+
+        await it('externalizes gi:// URIs by prefix', () => {
+            const external = createGjsExternalsPredicate();
+            expect(external('gi://Gtk?version=4.0')).toBe(true);
+            expect(external('gi://GLib?version=2.0')).toBe(true);
+        });
+
+        await it('externalizes the GJS built-in string specifiers by exact name', () => {
+            const external = createGjsExternalsPredicate();
+            expect(external('cairo')).toBe(true);
+            expect(external('gettext')).toBe(true);
+            expect(external('system')).toBe(true);
+        });
+
+        await it('externalizes user bundler.external entries by exact name', () => {
+            const external = createGjsExternalsPredicate(['typedoc', 'prettier']);
+            expect(external('typedoc')).toBe(true);
+            expect(external('prettier')).toBe(true);
+            // Exact match only — no prefix/glob semantics for user entries.
+            expect(external('typedoc-plugin-foo')).toBe(false);
+        });
+
+        await it('does NOT externalize ordinary resolvable packages', () => {
+            const external = createGjsExternalsPredicate();
+            expect(external('three')).toBe(false);
+            expect(external('@gjsify/buffer')).toBe(false);
+        });
+
+        await it('force-inlines register subpaths even when listed in user externals', () => {
+            // The AGENTS.md invariant: `<pkg>/register[/<feature>]` MUST
+            // NEVER be externalized for --app gjs — the carve-out fires
+            // BEFORE the user-external check.
+            const external = createGjsExternalsPredicate(['@gjsify/buffer/register', 'fetch/register']);
+            expect(external('@gjsify/buffer/register')).toBe(false);
+            expect(external('fetch/register')).toBe(false);
+            expect(external('@gjsify/node-globals/register/buffer')).toBe(false);
         });
     });
 };

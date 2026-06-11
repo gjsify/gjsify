@@ -119,7 +119,7 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
             })
             .option('external', {
                 description:
-                    'Module names that should NOT be bundled. Repeat the flag or pass a comma-separated list (e.g. --external typedoc,prettier). Globs are forwarded to esbuild as-is. See https://esbuild.github.io/api/#external',
+                    'Module names that should NOT be bundled — EXACT package names only, matched literally on both bundler engines (no globs). Repeat the flag or pass a comma-separated list (e.g. --external typedoc,prettier). Appended to the per-app built-in externals; register subpaths (`<pkg>/register[/…]`) are always force-inlined for --app gjs regardless of this flag.',
                 array: true,
                 type: 'string',
                 default: [] as string[],
