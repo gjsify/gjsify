@@ -74,6 +74,10 @@ for (const registerPath of registerPaths) {
         { app: 'gjs', format: 'esm', exclude: [], consoleShim: false },
         gjsifyPluginFactory,
         false,
+        // CRITICAL: bypass the committed closure map — generating THROUGH it
+        // would re-import every stale identifier from the old entries (the
+        // map could only ever grow; removed globals would never leave).
+        { disableClosureExpansion: true },
     );
 
     // Keep only identifiers that are themselves mapped — others can't be
