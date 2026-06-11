@@ -84,4 +84,14 @@ export async function runGjsBundle(bundlePath: string, extraArgs: string[] = [])
         console.error(err.message);
         process.exit(1);
     });
+    // Under GJS, `ensureMainLoop()` (armed by spawn) keeps THIS process's
+    // GLib loop alive after the child exits — without an explicit exit the
+    // success path parks forever. The error path above already exits; this
+    // mirrors it (and the explicit success exits in `workspace.ts` /
+    // `run.ts`'s script path). Every caller (run/test/dlx/showcase) invokes
+    // runGjsBundle as its terminal statement, so exiting here is safe under
+    // Node too. This exact gap hung CI's "Test WebGL conformance" for 83 min
+    // under the GJS-first flip: the suite finished in 1.35 s, but the parent
+    // `gjsify run conformance.gjs.js` gjs never exited.
+    process.exit(0);
 }
