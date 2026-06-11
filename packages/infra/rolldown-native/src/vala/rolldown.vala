@@ -233,6 +233,35 @@ namespace GjsifyRolldown {
             _ctx_response_source_id = ctx_chan.add_watch (GLib.IOCondition.IN, on_ctx_response_ready);
         }
 
+        /**
+         * close — release the session's resources.
+         *
+         * Removes the three GLib eventfd watch sources and drops the owned
+         * Rust handle (whose `free_function`, gjsify_rolldown_session_free,
+         * tears down the bundler + tokio runtime + eventfds). Without this,
+         * every bundle leaked its session for the process lifetime — the
+         * watch sources hold a ref on the session, so neither the GObject
+         * nor the Rust side could ever be collected. Idempotent; safe to
+         * call before start() (no-op) and from a JS signal-handler
+         * continuation (the watches are removed by id, not from within
+         * their own dispatch).
+         */
+        public void close () {
+            if (_request_source_id != 0) {
+                GLib.Source.remove (_request_source_id);
+                _request_source_id = 0;
+            }
+            if (_complete_source_id != 0) {
+                GLib.Source.remove (_complete_source_id);
+                _complete_source_id = 0;
+            }
+            if (_ctx_response_source_id != 0) {
+                GLib.Source.remove (_ctx_response_source_id);
+                _ctx_response_source_id = 0;
+            }
+            _handle = null;
+        }
+
         private bool on_ctx_response_ready (GLib.IOChannel source, GLib.IOCondition cond) {
             char[] sink = new char[8];
             try {

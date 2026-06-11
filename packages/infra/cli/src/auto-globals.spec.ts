@@ -24,6 +24,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import { isRegisterSubpath, createGjsExternalsPredicate } from '@gjsify/rolldown-plugin-gjsify';
+import { detectAutoGlobals } from '@gjsify/rolldown-plugin-gjsify/globals';
 
 export default async () => {
     await describe('--app gjs externals: /register subpath invariant', async () => {
@@ -134,6 +135,47 @@ export default async () => {
             expect(external('@gjsify/buffer/register')).toBe(false);
             expect(external('fetch/register')).toBe(false);
             expect(external('@gjsify/node-globals/register/buffer')).toBe(false);
+        });
+    });
+
+    await describe('detectAutoGlobals — closure-map expansion vs generator bypass', async () => {
+        // A fake AnalysisBundler whose output only ever references
+        // `ReadableStream`. With the closure map active, pass 1 expands that
+        // to the register module's full transitive set (Buffer, process, …)
+        // and pass 2 verifies subset-convergence. With
+        // `disableClosureExpansion` (the GENERATOR mode), the loop must stay
+        // at exactly the detected identifier — generating THROUGH the
+        // committed map would ratchet stale identifiers forever.
+        const fakeBundler = async () => ['ReadableStream;\n'];
+        const legacyFactory = () => [] as never;
+        const analysis = { input: 'virtual-entry.ts', format: 'esm' as const };
+        const pluginOpts = { app: 'gjs', format: 'esm' } as never;
+
+        await it('expands pass-1 detection through the committed closure map by default', async () => {
+            const { detected } = await detectAutoGlobals(
+                analysis,
+                pluginOpts,
+                legacyFactory,
+                false,
+                {},
+                fakeBundler,
+            );
+            expect(detected.has('ReadableStream')).toBe(true);
+            // The web-streams register closure pulls shared infra globals.
+            expect(detected.size > 1).toBe(true);
+        });
+
+        await it('disableClosureExpansion keeps the pure iterative result (generator mode)', async () => {
+            const { detected } = await detectAutoGlobals(
+                analysis,
+                pluginOpts,
+                legacyFactory,
+                false,
+                { disableClosureExpansion: true },
+                fakeBundler,
+            );
+            expect(detected.has('ReadableStream')).toBe(true);
+            expect(detected.size).toBe(1);
         });
     });
 };

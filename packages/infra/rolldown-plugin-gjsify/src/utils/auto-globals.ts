@@ -154,6 +154,18 @@ export interface DetectAutoGlobalsOptions {
      * unavailable native libraries.
      */
     excludeGlobals?: string[];
+    /**
+     * Skip the committed register-globals closure-map expansion and run the
+     * pure iterative loop. Used by the closure-map GENERATOR
+     * (`packages/infra/cli/scripts/generate-register-closure.mjs`): computing
+     * a register module's closure THROUGH the committed map would re-add
+     * every identifier the OLD entry contained — removed globals could never
+     * leave the map (a ratchet, with transitive pollution into sibling
+     * entries) and `--check` would stay green on semantically stale data.
+     * Builds never set this; the expansion is exactly what makes them
+     * converge after one detection pass.
+     */
+    disableClosureExpansion?: boolean;
 }
 
 /**
@@ -374,7 +386,9 @@ export async function detectAutoGlobals(
         // Union with the previously-injected set keeps growth monotonic
         // (an over-approximated superset must never shrink, or the subset
         // convergence check could oscillate).
-        const expanded = expandWithClosure(newDetected, excludeSet);
+        const expanded = options.disableClosureExpansion
+            ? newDetected
+            : expandWithClosure(newDetected, excludeSet);
         if (verbose && expanded.size > newDetected.size) {
             console.debug(
                 `[gjsify] --globals auto: closure map expanded ${newDetected.size} → ${expanded.size} global(s)`,

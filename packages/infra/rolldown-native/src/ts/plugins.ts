@@ -400,6 +400,22 @@ export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[
         );
     }
 
+    // Release the session once the bundle settles: the GLib watch sources
+    // hold a ref on the session, so without an explicit close() every bundle
+    // leaked its session (Rust bundler + tokio runtime + eventfds) for the
+    // process lifetime — which compounds under the in-process dispatch where
+    // one gjs runs several bundles (`--globals auto` alone is 3 sessions per
+    // build). `.finally` runs as a microtask AFTER the emitting GLib source
+    // callback returns, so the sources are never removed from within their
+    // own dispatch. Feature-detected: older prebuilds have no close().
+    const closeSession = () => {
+        const s = session as unknown as { close?: () => void };
+        try {
+            s.close?.();
+        } catch {
+            /* best-effort teardown */
+        }
+    };
     return new Promise<BundleResult>((resolve, reject) => {
         session.connect('completed', (_self: SessionInstance, output: GLib.Bytes) => {
             try {
@@ -424,7 +440,7 @@ export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[
         } catch (e) {
             reject(e instanceof Error ? e : new Error(String(e)));
         }
-    });
+    }).finally(closeSession);
 }
 
 async function runHook(p: NativePlugin, hookName: string, args: HookArgs, ctx: NativePluginContext): Promise<unknown> {
