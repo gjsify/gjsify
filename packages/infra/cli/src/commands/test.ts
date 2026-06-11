@@ -154,6 +154,11 @@ export const testCommand: Command<unknown, TestOptions> = {
         if (anyFailed) {
             process.exit(1);
         }
+        // Explicit success exit: under GJS the spawn-armed main loop would
+        // otherwise park this process after the summary. (runGjsBundle
+        // deliberately does NOT exit mid-flow — an unconditional exit there
+        // truncated this multi-runtime loop after the first gjs bundle.)
+        process.exit(0);
     },
 };
 

@@ -20,6 +20,7 @@ import {
     type Workspace,
 } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
+import { prefixLines } from '../utils/prefixed-output.js';
 
 interface ForeachOptions {
     script?: string;
@@ -131,6 +132,15 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
         // --tag/--access/etc. as its own options.
         let cmd: string | undefined = args.script;
         let cmdArgs: readonly string[] = args.args ?? [];
+        if (!exec) {
+            // Script mode silently DROPPED everything after `--` (only --exec
+            // consumed args['--']). Forward them to each child invocation,
+            // matching `yarn workspaces foreach run <script> -- <flags>`.
+            const fromDoubleDash = (((args as Record<string, unknown>)['--'] as unknown[]) ?? []).filter(
+                (v): v is string => typeof v === 'string',
+            );
+            if (fromDoubleDash.length > 0) cmdArgs = [...cmdArgs, ...fromDoubleDash];
+        }
         if (exec) {
             // With populate--:true, anything after the literal `--`
             // separator lands in top-level args['--']. yargs DOES NOT
@@ -426,41 +436,3 @@ function spawnPrefixed(cmd: string, args: readonly string[], cwd: string, prefix
     });
 }
 
-/**
- * Prefix every line of `src` with `prefix` and route it to `sink`. When
- * `buffered` is false (tty), lines are written live. When true (non-tty / CI
- * pipe), they are accumulated and emitted only by the returned `flush()` — call
- * it once the child has closed so the blocking `process.stdout.write` under GJS
- * can't stall the parallel run's GLib loop (see `spawnPrefixed`).
- */
-function prefixLines(
-    src: NodeJS.ReadableStream,
-    sink: NodeJS.WritableStream,
-    prefix: string,
-    buffered: boolean,
-): () => void {
-    let buf = '';
-    let acc = '';
-    const emit = (line: string): void => {
-        if (buffered) acc += line;
-        else sink.write(line);
-    };
-    src.setEncoding('utf-8');
-    src.on('data', (chunk: string) => {
-        buf += chunk;
-        let idx: number;
-        while ((idx = buf.indexOf('\n')) !== -1) {
-            emit(prefix + buf.slice(0, idx + 1));
-            buf = buf.slice(idx + 1);
-        }
-    });
-    src.on('end', () => {
-        if (buf.length > 0) emit(prefix + buf + '\n');
-    });
-    return () => {
-        if (acc.length > 0) {
-            sink.write(acc);
-            acc = '';
-        }
-    };
-}
