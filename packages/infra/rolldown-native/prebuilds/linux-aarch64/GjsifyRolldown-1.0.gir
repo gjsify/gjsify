@@ -61,6 +61,16 @@
 				</parameter>
 			</parameters>
 		</method>
+		<method name="close" c:identifier="gjsify_rolldown_bundler_session_close">
+			<return-value transfer-ownership="full">
+				<type name="none" c:type="void"/>
+			</return-value>
+			<parameters>
+				<instance-parameter name="self" transfer-ownership="none">
+					<type name="GjsifyRolldown.BundlerSession" c:type="GjsifyRolldownBundlerSession*"/>
+				</instance-parameter>
+			</parameters>
+		</method>
 		<method name="respond" c:identifier="gjsify_rolldown_bundler_session_respond">
 			<return-value transfer-ownership="full">
 				<type name="none" c:type="void"/>
