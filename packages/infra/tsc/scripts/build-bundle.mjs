@@ -127,13 +127,21 @@ if (action === 'refresh') {
 }
 
 const t0 = Date.now();
-const r = spawnSync(
-    'gjsify',
-    ['build', entry, '--app', 'gjs', '--outfile', outfile, '--shebang'],
-    { stdio: 'inherit', cwd: pkgRoot, env },
-);
+// Since the GJS-first bin-shim flip, a PATH-resolved `gjsify` is the GJS
+// bundle — but bundling the ~8 MB `_tsc.js` under GJS/native-rolldown is
+// pathologically slow on few-core runners (issue #497's residual cold-CI
+// stall: >17 min on 2 cores with zero output vs ~1 min under Node). This
+// script already runs under Node, so spawn the workspace Node CLI entry
+// directly — same pattern as @gjsify/cli's own `build:gjs-bundle`
+// (`node lib/index.js build …`). Fall back to PATH resolution only when
+// the workspace layout isn't present.
+const nodeCliEntry = join(pkgRoot, '..', 'cli', 'lib', 'index.js');
+const buildArgv = ['build', entry, '--app', 'gjs', '--outfile', outfile, '--shebang'];
+const r = existsSync(nodeCliEntry)
+    ? spawnSync(process.execPath, [nodeCliEntry, ...buildArgv], { stdio: 'inherit', cwd: pkgRoot, env })
+    : spawnSync('gjsify', buildArgv, { stdio: 'inherit', cwd: pkgRoot, env });
 if (r.status !== 0) {
-    console.error(`[@gjsify/tsc] build failed (exit ${r.status})`);
+    console.error(`[@gjsify/tsc] build failed (exit ${r.status}${r.signal ? `, signal ${r.signal}` : ''})`);
     process.exit(r.status ?? 1);
 }
 
