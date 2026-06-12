@@ -133,12 +133,20 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
             // `treecheck` mirrors `killcheck` but utils' sleeper spawns a
             // detached GRANDCHILD (see spawn-tree.cjs) — the fail-fast kill
             // must take down the whole process tree, not just the direct
-            // `npm run` child.
+            // `npm run` child. The failer (app) waits for the grandchild's
+            // PID file before exiting 1 — a fixed delay raced on slow CI
+            // runners: if the kill fires BEFORE the grandchild spawned, the
+            // TERM-time snapshot can't contain it and once its parent dies
+            // it reparents to init where no fresh walk can reach it (the
+            // inherent tree-kill TOCTOU window; observed on the 2-core
+            // Fedora runners). 20s safety cap so a broken fixture still
+            // terminates.
+            const pidFileForFailer = join(root, 'marks', 'grandchild.pid');
             const treecheck =
                 w.dir === 'utils'
                     ? `node ${join(root, 'spawn-tree.cjs')}`
                     : w.dir === 'app'
-                      ? `node -e "setTimeout(() => process.exit(1), 1000)"`
+                      ? `node -e "const fs=require('fs');const t0=Date.now();(function w(){if(fs.existsSync('${pidFileForFailer}')||Date.now()-t0>20000)process.exit(1);setTimeout(w,100)})()"`
                       : undefined;
             writeFileSync(
                 join(root, 'packages', w.dir, 'package.json'),
