@@ -10,6 +10,7 @@
 // process failed; first failure's stderr is forwarded.
 
 import { spawn, type ChildProcess } from 'node:child_process';
+import { readFileSync, readdirSync } from 'node:fs';
 import { cpus } from 'node:os';
 import type { Command } from '../types/index.js';
 import {
@@ -35,21 +36,135 @@ const KILL_GRACE_MS = 5_000;
 // never emits 'close', so we must not wait on it unboundedly.
 const DRAIN_DEADLINE_MS = 15_000;
 
-function killActiveChildren(): void {
-    for (const child of activeChildren) {
+// Read the direct child PIDs of `pid` from /proc/<pid>/task/*/children
+// (Linux, CONFIG_PROC_CHILDREN — standard on every mainstream kernel). When
+// the per-task children files are unavailable, fall back to one full
+// /proc/*/stat scan building a ppid→children map. Both paths use only
+// `node:fs` reads, so they behave identically under Node and GJS
+// (@gjsify/fs) — unlike a process-group kill, which GJS cannot issue
+// (`@gjsify/process.kill` shells out `kill <sig> <pid>` where a negative
+// PID parses as an option, and Gio.Subprocess has no group-signal API).
+function readDirectChildren(pid: number): number[] | null {
+    let taskIds: string[];
+    try {
+        taskIds = readdirSync(`/proc/${pid}/task`);
+    } catch {
+        // Process already gone (common) or /proc unavailable.
+        return null;
+    }
+    const kids: number[] = [];
+    let readAny = false;
+    for (const tid of taskIds) {
         try {
-            child.kill('SIGTERM');
+            const data = readFileSync(`/proc/${pid}/task/${tid}/children`, 'utf-8');
+            readAny = true;
+            for (const tok of data.trim().split(/\s+/)) {
+                const n = Number(tok);
+                if (Number.isInteger(n) && n > 0) kids.push(n);
+            }
+        } catch {
+            // Thread vanished mid-walk, or kernel lacks CONFIG_PROC_CHILDREN.
+        }
+    }
+    return readAny ? kids : null;
+}
+
+// Fallback: scan every /proc/<pid>/stat once and build ppid → children.
+// O(#processes) small reads — fine for the rare kill path.
+function buildPpidMap(): Map<number, number[]> {
+    const map = new Map<number, number[]>();
+    let entries: string[] = [];
+    try {
+        entries = readdirSync('/proc');
+    } catch {
+        return map;
+    }
+    for (const entry of entries) {
+        const pid = Number(entry);
+        if (!Number.isInteger(pid) || pid <= 0) continue;
+        try {
+            const stat = readFileSync(`/proc/${pid}/stat`, 'utf-8');
+            // comm (field 2) may contain spaces/parens — parse after last ')'.
+            const rest = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+            const ppid = Number(rest[1]);
+            if (!Number.isInteger(ppid) || ppid <= 0) continue;
+            const siblings = map.get(ppid);
+            if (siblings) siblings.push(pid);
+            else map.set(ppid, [pid]);
+        } catch {
+            // Process exited between readdir and read — fine.
+        }
+    }
+    return map;
+}
+
+// Snapshot every transitive descendant of `pid`, breadth-first (so
+// reversing the list yields deepest-first order for signalling).
+function collectDescendants(pid: number): number[] {
+    const result: number[] = [];
+    const seen = new Set<number>([pid]);
+    const queue = [pid];
+    let ppidMap: Map<number, number[]> | null = null;
+    while (queue.length > 0) {
+        const cur = queue.shift()!;
+        let kids = readDirectChildren(cur);
+        if (kids === null) {
+            // children files unreadable — use (and lazily build) the
+            // full-scan fallback for this and subsequent levels.
+            ppidMap ??= buildPpidMap();
+            kids = ppidMap.get(cur) ?? [];
+        }
+        for (const kid of kids) {
+            if (seen.has(kid)) continue;
+            seen.add(kid);
+            result.push(kid);
+            queue.push(kid);
+        }
+    }
+    return result;
+}
+
+// Signal an already-collected descendant set deepest-first, then the direct
+// child itself. Snapshot-then-signal (not signal-while-walking) so killing
+// the parent can't orphan grandchildren before we enumerated them. The
+// snapshot has the usual tree-kill PID-reuse race (a descendant exits and
+// the kernel recycles its PID before our signal lands) — accepted, same as
+// Node's tree-kill packages; the window is milliseconds.
+function signalTree(child: ChildProcess, descendants: readonly number[], signal: 'SIGTERM' | 'SIGKILL'): void {
+    for (let i = descendants.length - 1; i >= 0; i--) {
+        try {
+            process.kill(descendants[i]!, signal);
         } catch {
             // already gone — fine
         }
     }
+    try {
+        child.kill(signal);
+    } catch {
+        // already gone — fine
+    }
+}
+
+function killActiveChildren(): void {
+    // The direct child is `npm run <script>` — killing only it leaves the
+    // npm-spawned shell → gjs/node build grandchildren alive (observed: an
+    // orphaned gjs bundler at 100% CPU for 19+ min after a fail-fast kill).
+    // So terminate the whole process TREE of each child via a /proc walk.
+    const termSnapshots = new Map<ChildProcess, number[]>();
+    for (const child of activeChildren) {
+        const descendants = child.pid ? collectDescendants(child.pid) : [];
+        termSnapshots.set(child, descendants);
+        signalTree(child, descendants, 'SIGTERM');
+    }
     const escalate = setTimeout(() => {
         for (const child of activeChildren) {
-            try {
-                child.kill('SIGKILL');
-            } catch {
-                // already gone — fine
-            }
+            // Union a FRESH walk (catches processes spawned after the TERM)
+            // with the TERM-time snapshot (catches survivors that were
+            // reparented to init when their parent died on SIGTERM — a
+            // fresh walk from child.pid can no longer see those).
+            const union = new Set<number>(child.pid ? collectDescendants(child.pid) : []);
+            for (const pid of termSnapshots.get(child) ?? []) union.add(pid);
+            signalTree(child, [...union], 'SIGKILL');
         }
     }, KILL_GRACE_MS);
     // Don't let the escalation timer keep the process alive (Node returns a

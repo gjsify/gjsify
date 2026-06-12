@@ -8,7 +8,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -74,6 +74,41 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
         // workspace ref from `app` → `core` → `utils` so `--topological`
         // has order to enforce.
         mkdirSync(join(root, 'marks'), { recursive: true });
+
+        // Fixtures for the process-TREE kill test: `spawn-tree.cjs` (run as
+        // utils' `treecheck` script) spawns a DETACHED grandchild and then
+        // sleeps 30s itself. The grandchild records its PID immediately and
+        // would write a survived-marker after 30s. `detached: true` puts the
+        // grandchild in its own process group/session, so it survives BOTH a
+        // naive direct-child kill AND a process-group kill — only a real
+        // descendant walk (PPID-based) reaches it.
+        writeFileSync(
+            join(root, 'grandchild.cjs'),
+            [
+                "const { writeFileSync } = require('fs');",
+                "const { join } = require('path');",
+                "writeFileSync(join(__dirname, 'marks', 'grandchild.pid'), String(process.pid));",
+                'setTimeout(() => {',
+                "    writeFileSync(join(__dirname, 'marks', 'grandchild-survived.txt'), '');",
+                '}, 30000);',
+                '',
+            ].join('\n'),
+        );
+        writeFileSync(
+            join(root, 'spawn-tree.cjs'),
+            [
+                "const { spawn } = require('child_process');",
+                "const { join } = require('path');",
+                "spawn(process.execPath, [join(__dirname, 'grandchild.cjs')], {",
+                '    detached: true,',
+                "    stdio: 'ignore',",
+                '}).unref();',
+                '// Keep the middle process alive so the kill arrives while the',
+                '// npm → sh → node chain is fully in flight.',
+                'setTimeout(() => {}, 30000);',
+                '',
+            ].join('\n'),
+        );
         const workspaces = [
             { dir: 'utils', name: '@test/utils', deps: {} },
             { dir: 'core', name: '@test/core', deps: { '@test/utils': 'workspace:^' } },
@@ -95,6 +130,16 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
                     : w.dir === 'app'
                       ? `node -e "setTimeout(() => process.exit(1), 500)"`
                       : undefined;
+            // `treecheck` mirrors `killcheck` but utils' sleeper spawns a
+            // detached GRANDCHILD (see spawn-tree.cjs) — the fail-fast kill
+            // must take down the whole process tree, not just the direct
+            // `npm run` child.
+            const treecheck =
+                w.dir === 'utils'
+                    ? `node ${join(root, 'spawn-tree.cjs')}`
+                    : w.dir === 'app'
+                      ? `node -e "setTimeout(() => process.exit(1), 1000)"`
+                      : undefined;
             writeFileSync(
                 join(root, 'packages', w.dir, 'package.json'),
                 JSON.stringify(
@@ -110,6 +155,7 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
                             fail: `node -e "process.exit(1)"`,
                             echo: `node -e "console.log('${w.name}')"`,
                             ...(killcheck ? { killcheck } : {}),
+                            ...(treecheck ? { treecheck } : {}),
                         },
                     },
                     null,
@@ -193,6 +239,47 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
         // after app's 500ms failure (SIGTERM + bounded drain ≪ 15s).
         assert.ok(elapsed < 15_000, `foreach waited on a killed sibling: ${elapsed}ms`);
         assert.ok(!existsSync(join(root, 'marks', 'survived.txt')), 'sleeper survived the fail-fast kill');
+    });
+
+    it('foreach -tp fail-fast kills GRANDCHILDREN too (process-tree kill)', async () => {
+        rmSync(join(root, 'marks'), { recursive: true, force: true });
+        mkdirSync(join(root, 'marks'), { recursive: true });
+        const started = Date.now();
+        const r = await runCli(cliEntry, ['foreach', 'treecheck', '--topological', '--parallel'], {
+            cwd: root,
+            timeoutMs: 45_000,
+        });
+        const elapsed = Date.now() - started;
+        assert.notEqual(r.status, 0, 'expected failure for `treecheck` run');
+        // app fails after 1s; SIGTERM + bounded drain must end the run well
+        // below the sleeper's 30s.
+        assert.ok(elapsed < 20_000, `foreach waited on a killed sibling tree: ${elapsed}ms`);
+        // The grandchild recorded its PID before the kill — it must have
+        // actually spawned for this test to prove anything.
+        const pidFile = join(root, 'marks', 'grandchild.pid');
+        assert.ok(existsSync(pidFile), 'grandchild never spawned — fixture broken');
+        const grandchildPid = Number(readFileSync(pidFile, 'utf-8').trim());
+        assert.ok(Number.isInteger(grandchildPid) && grandchildPid > 0, 'bad grandchild pid');
+        // The grandchild is detached (own process group) — a naive
+        // direct-child kill or even a process-group kill would leave it
+        // alive for 30s. Poll for its death: signal 0 throws ESRCH once
+        // it's gone.
+        const deadline = Date.now() + 10_000;
+        let alive = true;
+        while (alive && Date.now() < deadline) {
+            try {
+                process.kill(grandchildPid, 0);
+                await new Promise((res) => setTimeout(res, 200));
+            } catch {
+                alive = false;
+            }
+        }
+        assert.ok(!alive, `detached grandchild (pid ${grandchildPid}) survived the fail-fast tree kill`);
+        assert.ok(
+            !existsSync(join(root, 'marks', 'grandchild-survived.txt')),
+            'grandchild survived long enough to write its marker',
+        );
+        assert.ok(!existsSync(join(root, 'marks', 'survived.txt')), 'sleeper middle process survived the kill');
     });
 
     it("workspace <name> <script> runs only that workspace's script", async () => {
