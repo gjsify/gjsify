@@ -270,15 +270,26 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
         assert.ok(Number.isInteger(grandchildPid) && grandchildPid > 0, 'bad grandchild pid');
         // The grandchild is detached (own process group) — a naive
         // direct-child kill or even a process-group kill would leave it
-        // alive for 30s. Poll for its death: signal 0 throws ESRCH once
-        // it's gone.
+        // alive for 30s. Poll for its death via /proc state, NOT
+        // `kill(pid, 0)`: in the CI container PID 1 is not an init that
+        // reaps orphans, so the killed (reparented) grandchild lingers as
+        // a ZOMBIE — for which signal-0 still succeeds. State 'Z'/'X'
+        // counts as dead; a vanished /proc entry too.
+        const isAlive = (pid) => {
+            try {
+                const stat = readFileSync(`/proc/${pid}/stat`, 'utf-8');
+                const state = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[0];
+                return state !== 'Z' && state !== 'X';
+            } catch {
+                return false;
+            }
+        };
         const deadline = Date.now() + 10_000;
         let alive = true;
         while (alive && Date.now() < deadline) {
-            try {
-                process.kill(grandchildPid, 0);
+            if (isAlive(grandchildPid)) {
                 await new Promise((res) => setTimeout(res, 200));
-            } catch {
+            } else {
                 alive = false;
             }
         }
