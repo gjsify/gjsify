@@ -368,8 +368,10 @@ pub struct JsPluginProxy {
     /// the same session via Arc clone in the session constructor.
     pub next_request_id: std::sync::Arc<AtomicU64>,
     /// Wakeup pipe written after each request.send() so the Vala
-    /// source on the main loop can react.
-    pub request_eventfd: i32,
+    /// source on the main loop can react. Owned handle (see
+    /// `SessionShared`): keeps the fd number reserved even when this
+    /// proxy outlives the session's runtime shutdown.
+    pub request_eventfd: std::sync::Arc<std::os::fd::OwnedFd>,
     /// Maximum time we wait for a JS response before failing the
     /// build with a timeout error. Defaults to 60s.
     pub response_timeout: Duration,
@@ -467,14 +469,7 @@ impl JsPluginProxy {
             return Err(anyhow!("rolldown: plugin channel closed (session aborted)"));
         }
 
-        let one: u64 = 1;
-        unsafe {
-            libc::write(
-                self.request_eventfd,
-                &one as *const u64 as *const libc::c_void,
-                8,
-            );
-        }
+        crate::session::wake_eventfd(&self.request_eventfd);
 
         let result = tokio::time::timeout(self.response_timeout, reply_rx).await;
         // Clear the context registration regardless of outcome; the

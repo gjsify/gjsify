@@ -462,6 +462,93 @@ export default async () => {
                 // with `moduleType: 'js'` → rolldown parsed + inlined.
                 expect(chunk.code.includes('const length = 49')).toBe(true);
             });
+
+            await it('survives forced GC sweeps mid-build — session must not be collected (issue #501)', async () => {
+                // Regression guard for the multi-session liveness stall:
+                // while a build runs, the BundlerSession JS wrapper used
+                // to be reachable only through its own signal-handler
+                // closures (a self cycle) and the GLib watch sources held
+                // no GObject ref — so a GC sweep landing BETWEEN two hook
+                // dispatches collected the wrapper, dispose() removed the
+                // eventfd watches and the build stalled forever. We force
+                // that window: a high-frequency GLib timeout hammers
+                // System.gc() while several sequential multi-module
+                // builds run. With the fix (watch sources hold a strong
+                // ref + the facade strong-roots in-flight sessions) every
+                // build completes; without it this stalls with high
+                // probability — bounded by the watchdog below so a
+                // regression fails loudly instead of hanging the suite.
+                const System = (globalThis as unknown as { imports: { system: { gc(): void } } }).imports.system;
+                const dir = tmpdir('rdn-int-gc-stall');
+
+                // A module graph wide enough for many hook round-trips
+                // (each load/transform dispatch is a GC opportunity).
+                const MODULES = 40;
+                let mainSrc = '';
+                let sum = '0';
+                for (let i = 0; i < MODULES; i++) {
+                    writeFile(`${dir}/m${i}.mjs`, `export const v${i} = ${i};\n// pad ${'x'.repeat(2048)}`);
+                    mainSrc += `import { v${i} } from "./m${i}.mjs";\n`;
+                    sum += ` + v${i}`;
+                }
+                writeFile(`${dir}/main.mjs`, `${mainSrc}export const total = ${sum};`);
+
+                const gcSource = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1, () => {
+                    System.gc();
+                    return GLib.SOURCE_CONTINUE;
+                });
+                try {
+                    for (let round = 0; round < 3; round++) {
+                        let transformCalls = 0;
+                        const passThrough: NativePlugin = {
+                            name: `gc-stall-probe-${round}`,
+                            transform(code) {
+                                // Allocation pressure comparable to a real
+                                // transform — fresh strings each call. (The
+                                // appended comment is dropped by codegen;
+                                // the assertion below counts calls instead.)
+                                transformCalls++;
+                                return { code: `${code}\n// round ${round} ${'y'.repeat(1024)}` };
+                            },
+                        };
+                        const build = bundleWithPlugins(
+                            {
+                                input: [{ name: 'main', import: `${dir}/main.mjs` }],
+                                cwd: dir,
+                                format: 'esm',
+                            },
+                            [passThrough],
+                        );
+                        const watchdog = new Promise<never>((_, reject) => {
+                            let fired = false;
+                            const id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 60, () => {
+                                fired = true;
+                                reject(
+                                    new Error(
+                                        `round ${round}: build stalled >60s under GC pressure (issue #501 regression)`,
+                                    ),
+                                );
+                                return GLib.SOURCE_REMOVE;
+                            });
+                            void build
+                                .finally(() => {
+                                    if (!fired) GLib.source_remove(id);
+                                })
+                                .catch(() => {});
+                        });
+                        const result = await Promise.race([build, watchdog]);
+                        const chunk = result.output[0];
+                        if (chunk.type !== 'chunk') throw new Error('expected chunk');
+                        // Every module's transform fired and the build
+                        // produced the folded entry — i.e. the session
+                        // survived all GC windows between dispatches.
+                        expect(transformCalls >= MODULES).toBe(true);
+                        expect(chunk.code.includes('total')).toBe(true);
+                    }
+                } finally {
+                    GLib.source_remove(gcSource);
+                }
+            });
         });
     });
 };

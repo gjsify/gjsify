@@ -213,17 +213,33 @@ namespace GjsifyRolldown {
             // Watch the eventfds on the GLib main loop. add_full hands
             // the source priority + condition; we own the fd lifetime
             // via Rust, so don't pass close_fd:true.
+            //
+            // IMPORTANT: each watch source holds a strong GObject ref on
+            // the session (the explicit `this.ref ()` below, released 1:1
+            // in teardown_sources()/close() when the source is removed).
+            // `add_watch (cond, on_request_ready)` alone passes `this` as
+            // raw user_data WITHOUT a ref, so a session whose JS wrapper
+            // became unreachable mid-build (it is only kept alive through
+            // its own signal-handler closures — a self cycle) gets
+            // collected by the SpiderMonkey GC: dispose() removes the
+            // watch sources while the Rust build is still running, every
+            // later eventfd wake lands on an unwatched fd, and the build
+            // stalls forever (issue #501). The extra refs also flip GJS's
+            // toggle-ref into "keep the JS wrapper rooted" mode, so the
+            // signal closures survive until the sources are dropped.
             var req_chan = new GLib.IOChannel.unix_new (req_fd);
             req_chan.set_close_on_unref (false);
             req_chan.set_encoding (null);
             req_chan.set_buffered (false);
             _request_source_id = req_chan.add_watch (GLib.IOCondition.IN, on_request_ready);
+            this.ref ();
 
             var comp_chan = new GLib.IOChannel.unix_new (comp_fd);
             comp_chan.set_close_on_unref (false);
             comp_chan.set_encoding (null);
             comp_chan.set_buffered (false);
             _complete_source_id = comp_chan.add_watch (GLib.IOCondition.IN, on_complete_ready);
+            this.ref ();
 
             int ctx_fd = _session_context_response_fd (_handle);
             var ctx_chan = new GLib.IOChannel.unix_new (ctx_fd);
@@ -231,6 +247,7 @@ namespace GjsifyRolldown {
             ctx_chan.set_encoding (null);
             ctx_chan.set_buffered (false);
             _ctx_response_source_id = ctx_chan.add_watch (GLib.IOCondition.IN, on_ctx_response_ready);
+            this.ref ();
         }
 
         /**
@@ -247,18 +264,7 @@ namespace GjsifyRolldown {
          * their own dispatch).
          */
         public void close () {
-            if (_request_source_id != 0) {
-                GLib.Source.remove (_request_source_id);
-                _request_source_id = 0;
-            }
-            if (_complete_source_id != 0) {
-                GLib.Source.remove (_complete_source_id);
-                _complete_source_id = 0;
-            }
-            if (_ctx_response_source_id != 0) {
-                GLib.Source.remove (_ctx_response_source_id);
-                _ctx_response_source_id = 0;
-            }
+            teardown_sources ();
             _handle = null;
         }
 
@@ -392,17 +398,24 @@ namespace GjsifyRolldown {
         }
 
         private void teardown_sources () {
+            // Each removal releases the strong ref taken in start()
+            // when the source was added — strictly 1:1 (the id is
+            // zeroed before unref, so a re-entrant call can never
+            // double-release).
             if (_request_source_id != 0) {
                 GLib.Source.remove (_request_source_id);
                 _request_source_id = 0;
+                this.unref ();
             }
             if (_complete_source_id != 0) {
                 GLib.Source.remove (_complete_source_id);
                 _complete_source_id = 0;
+                this.unref ();
             }
             if (_ctx_response_source_id != 0) {
                 GLib.Source.remove (_ctx_response_source_id);
                 _ctx_response_source_id = 0;
+                this.unref ();
             }
         }
 

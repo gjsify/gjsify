@@ -210,6 +210,18 @@ type HookArgs = LoadArgs | ResolveIdArgs | TransformArgs | RenderChunkArgs | Add
 // --------------------------------------------------------------------
 
 /**
+ * Strong roots for in-flight sessions. While a build runs, the
+ * BundlerSession wrapper is otherwise only reachable through its own
+ * signal-handler closures (a self cycle), so the SpiderMonkey GC may
+ * collect it mid-build — dispose() then removes the GLib watch
+ * sources and the build stalls forever, all hook wakes landing on
+ * unwatched eventfds (issue #501). The native layer also defends
+ * itself (the watch sources hold a GObject ref since the same fix),
+ * but the facade must not rely on that with older prebuilds.
+ */
+const activeSessions = new Set<SessionInstance>();
+
+/**
  * Drive a `BundlerSession` through to completion against a list of
  * user plugins. Returns the standard `BundleResult` JSON envelope
  * shape that the synchronous `bundle()` facade also returns.
@@ -225,6 +237,7 @@ export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[
     const NativeMod = native as unknown as { BundlerSession: { new (): SessionInstance } };
 
     const session = new NativeMod.BundlerSession();
+    activeSessions.add(session);
     const ctxResolveSlots = new Map<
         number,
         { resolve: (v: { id: string; external: boolean } | null) => void; reject: (e: Error) => void }
@@ -409,6 +422,7 @@ export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[
     // callback returns, so the sources are never removed from within their
     // own dispatch. Feature-detected: older prebuilds have no close().
     const closeSession = () => {
+        activeSessions.delete(session);
         const s = session as unknown as { close?: () => void };
         try {
             s.close?.();
