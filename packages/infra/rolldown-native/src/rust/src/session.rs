@@ -17,6 +17,7 @@
 //!      eventfd, see Phase B.2 — for B.1 we expose `wait()` only).
 
 use std::ffi::CString;
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::raw::{c_char, c_int};
 use std::ptr;
 use std::sync::Arc;
@@ -69,7 +70,10 @@ pub struct SessionShared {
     pub contexts: Mutex<std::collections::HashMap<u64, PluginContext>>,
     pub next_child_id: AtomicU64,
     pub context_response_tx: Sender<ContextResolveResponse>,
-    pub context_response_eventfd: c_int,
+    /// Owned handle — the fd stays reserved for as long as any clone
+    /// (incl. leaked post-shutdown tasks) is alive, so a stale write
+    /// can never land in a recycled fd number of a later session.
+    pub context_response_eventfd: Arc<OwnedFd>,
     pub context_warnings: Mutex<Vec<String>>,
     /// Phase B.4 — parallel bytes-payload slots keyed by req_id.
     /// `request_payloads` holds Rust → JS payloads (e.g. transform
@@ -93,11 +97,11 @@ pub struct BundleSession {
     /// Pending requests waiting on JS reply. Keyed by req_id.
     pub pending: Mutex<std::collections::HashMap<u64, oneshot::Sender<HookResponse>>>,
     /// eventfd for "request available" wakeup → GLib main loop watches.
-    pub request_eventfd: c_int,
+    pub request_eventfd: Arc<OwnedFd>,
     /// Result of the bundle task once complete. None while still running.
     pub result: Mutex<Option<Result<String, String>>>,
     /// Completion eventfd: written exactly once when `result` is set.
-    pub complete_eventfd: c_int,
+    pub complete_eventfd: Arc<OwnedFd>,
     /// Cancel flag — set by the C side via `cancel()`. tokio task
     /// observes via shared atomic and aborts.
     pub cancelled: Arc<std::sync::atomic::AtomicBool>,
@@ -167,26 +171,34 @@ pub extern "C" fn gjsify_rolldown_session_start(
     // Create the eventfd pair. EFD_NONBLOCK so writes never block;
     // EFD_SEMAPHORE off (we use counter-mode so JS can read once
     // per drain cycle and process all pending requests in a loop).
+    // Each fd is wrapped in Arc<OwnedFd> immediately: every holder
+    // (proxies, the bundle task, SessionShared, the session itself)
+    // keeps a clone, so the fd number stays reserved until the LAST
+    // user — including tasks leaked past the runtime shutdown
+    // timeout — has dropped it. Closing eagerly in session_free while
+    // such tasks still hold the raw number let their deferred
+    // `libc::write` land in whatever fd the kernel recycled the
+    // number into (issue #501's stale-fd hazard).
     let request_eventfd = unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
     if request_eventfd < 0 {
         unsafe { *err_out = err_to_cstr("rolldown: eventfd(request) failed".to_string()) };
         return ptr::null_mut();
     }
+    let request_eventfd = Arc::new(unsafe { OwnedFd::from_raw_fd(request_eventfd) });
     let complete_eventfd = unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
     if complete_eventfd < 0 {
-        unsafe { libc::close(request_eventfd) };
         unsafe { *err_out = err_to_cstr("rolldown: eventfd(complete) failed".to_string()) };
         return ptr::null_mut();
     }
+    let complete_eventfd = Arc::new(unsafe { OwnedFd::from_raw_fd(complete_eventfd) });
 
     let context_response_eventfd =
         unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
     if context_response_eventfd < 0 {
-        unsafe { libc::close(request_eventfd) };
-        unsafe { libc::close(complete_eventfd) };
         unsafe { *err_out = err_to_cstr("rolldown: eventfd(context_response) failed".to_string()) };
         return ptr::null_mut();
     }
+    let context_response_eventfd = Arc::new(unsafe { OwnedFd::from_raw_fd(context_response_eventfd) });
 
     let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let (request_tx, request_rx) = unbounded::<HookRequest>();
@@ -197,7 +209,7 @@ pub extern "C" fn gjsify_rolldown_session_start(
         contexts: Mutex::new(std::collections::HashMap::new()),
         next_child_id: AtomicU64::new(1),
         context_response_tx,
-        context_response_eventfd,
+        context_response_eventfd: context_response_eventfd.clone(),
         context_warnings: Mutex::new(Vec::new()),
         request_payloads: Mutex::new(std::collections::HashMap::new()),
         response_payloads: Mutex::new(std::collections::HashMap::new()),
@@ -222,7 +234,7 @@ pub extern "C" fn gjsify_rolldown_session_start(
                 hooks: meta.hooks.clone(),
                 request_tx: request_tx.clone(),
                 next_request_id: next_request_id.clone(),
-                request_eventfd,
+                request_eventfd: request_eventfd.clone(),
                 response_timeout: Duration::from_secs(60),
                 load_id_filter,
                 transform_id_filter,
@@ -234,9 +246,6 @@ pub extern "C" fn gjsify_rolldown_session_start(
     {
         Ok(v) => v,
         Err(msg) => {
-            unsafe { libc::close(request_eventfd) };
-            unsafe { libc::close(complete_eventfd) };
-            unsafe { libc::close(context_response_eventfd) };
             unsafe { *err_out = err_to_cstr(msg) };
             return ptr::null_mut();
         }
@@ -254,9 +263,6 @@ pub extern "C" fn gjsify_rolldown_session_start(
     {
         Ok(r) => r,
         Err(e) => {
-            unsafe { libc::close(request_eventfd) };
-            unsafe { libc::close(complete_eventfd) };
-            unsafe { libc::close(context_response_eventfd) };
             unsafe { *err_out = err_to_cstr(format!("rolldown: tokio init: {e}")) };
             return ptr::null_mut();
         }
@@ -264,7 +270,7 @@ pub extern "C" fn gjsify_rolldown_session_start(
 
     let result_slot: Arc<Mutex<Option<Result<String, String>>>> = Arc::new(Mutex::new(None));
     let result_slot_clone = result_slot.clone();
-    let complete_eventfd_for_task = complete_eventfd;
+    let complete_eventfd_for_task = complete_eventfd.clone();
     let cancelled_for_task = cancelled.clone();
     let shared_for_task = shared.clone();
 
@@ -276,14 +282,7 @@ pub extern "C" fn gjsify_rolldown_session_start(
         };
         *result_slot_clone.lock().unwrap() = Some(final_json);
         // Signal completion to the GLib main loop.
-        let one: u64 = 1;
-        unsafe {
-            libc::write(
-                complete_eventfd_for_task,
-                &one as *const u64 as *const libc::c_void,
-                8,
-            );
-        }
+        wake_eventfd(&complete_eventfd_for_task);
     });
 
     let session = Box::new(BundleSession {
@@ -390,7 +389,7 @@ pub extern "C" fn gjsify_rolldown_session_request_fd(session: *mut BundleSession
     if session.is_null() {
         return -1;
     }
-    unsafe { (*session).request_eventfd }
+    unsafe { (*session).request_eventfd.as_raw_fd() }
 }
 
 #[unsafe(no_mangle)]
@@ -398,7 +397,7 @@ pub extern "C" fn gjsify_rolldown_session_complete_fd(session: *mut BundleSessio
     if session.is_null() {
         return -1;
     }
-    unsafe { (*session).complete_eventfd }
+    unsafe { (*session).complete_eventfd.as_raw_fd() }
 }
 
 /// Drain one pending request. Returns NULL when the channel is
@@ -541,14 +540,12 @@ pub extern "C" fn gjsify_rolldown_session_free(session: *mut BundleSession) {
     }
     unregister_result_slot(session);
     let boxed = unsafe { Box::from_raw(session) };
-    unsafe {
-        libc::close(boxed.request_eventfd);
-        libc::close(boxed.complete_eventfd);
-        libc::close(boxed.shared.context_response_eventfd);
-    }
-    // Dropping the runtime aborts all in-flight tasks. shutdown_timeout
-    // gives them up to 500ms to drain; any remaining workers are
-    // terminated. Prevents the GJS process exit from hanging.
+    // Shut the runtime down FIRST (up to 500ms drain; workers that
+    // don't finish in time are leaked), THEN let the eventfds drop.
+    // The fds are Arc<OwnedFd>, so even a task leaked past the
+    // shutdown timeout keeps its clone alive — the fd number stays
+    // reserved and a deferred stale write can never corrupt whatever
+    // fd the kernel would otherwise have recycled the number into.
     boxed.runtime.shutdown_timeout(Duration::from_millis(500));
 }
 
@@ -612,7 +609,7 @@ pub extern "C" fn gjsify_rolldown_session_context_resolve(
                 error: Some(format!("rolldown: malformed context_resolve args JSON: {e}")),
             };
             let _ = session.shared.context_response_tx.send(resp);
-            wake_eventfd(session.shared.context_response_eventfd);
+            wake_eventfd(&session.shared.context_response_eventfd);
             return child_id;
         }
     };
@@ -657,7 +654,7 @@ pub extern "C" fn gjsify_rolldown_session_context_resolve(
             },
         };
         let _ = shared.context_response_tx.send(resp);
-        wake_eventfd(shared.context_response_eventfd);
+        wake_eventfd(&shared.context_response_eventfd);
     });
 
     child_id
@@ -693,7 +690,7 @@ pub extern "C" fn gjsify_rolldown_session_context_response_fd(
         return -1;
     }
     let session = unsafe { &*session };
-    session.shared.context_response_eventfd
+    session.shared.context_response_eventfd.as_raw_fd()
 }
 
 /// FFI: drain one pending context-resolve response. Returns NULL when
@@ -723,10 +720,10 @@ pub extern "C" fn gjsify_rolldown_session_next_context_response(
     CString::new(json).ok().map(|c| c.into_raw()).unwrap_or(ptr::null_mut())
 }
 
-fn wake_eventfd(fd: c_int) {
+pub(crate) fn wake_eventfd(fd: &OwnedFd) {
     let one: u64 = 1;
     unsafe {
-        libc::write(fd, &one as *const u64 as *const libc::c_void, 8);
+        libc::write(fd.as_raw_fd(), &one as *const u64 as *const libc::c_void, 8);
     }
 }
 
