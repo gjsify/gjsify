@@ -339,11 +339,62 @@ async function runTopologicalParallel(
         remaining.set(ws.name, wsDeps);
     }
     const byName = new Map(workspaces.map((w) => [w.name, w]));
+    const total = workspaces.length;
     const done = new Set<string>();
     let inflight = 0;
 
+    // Stall observability + self-protection. With prefixed output BUFFERED on
+    // non-tty sinks (flush-on-close), a CI log shows only COMPLETED children —
+    // when the run stalls, nothing identifies who is stuck (issue #497's
+    // 3h45-silence-to-the-cap pattern). So on non-tty (or --verbose) every
+    // start is echoed live on foreach's own stderr, a watchdog WARNS once no
+    // workspace has completed for a while, and after a hard stall budget the
+    // run aborts with the in-flight set named instead of riding the CI job cap.
+    const liveProgress = !process.stdout.isTTY || verbose;
+    const inflightStarts = new Map<string, number>();
+    const STALL_WARN_MS = 5 * 60_000;
+    const stallAbortMinutes = Number(process.env['GJSIFY_FOREACH_STALL_MINUTES'] ?? '20');
+    const STALL_ABORT_MS = (Number.isFinite(stallAbortMinutes) && stallAbortMinutes > 0 ? stallAbortMinutes : 20) * 60_000;
+
     return new Promise<void>((resolve, reject) => {
         let error: Error | null = null;
+        let lastActivity = Date.now();
+        const describeInflight = (): string =>
+            [...inflightStarts.entries()]
+                .map(([n, t]) => `${n} (${Math.round((Date.now() - t) / 1000)}s)`)
+                .join(', ');
+        const failFast = (e: Error): void => {
+            // First error wins. KILL the in-flight siblings instead of
+            // waiting for them (yarn waits — but a sibling's nested build
+            // chain can stall for hours on CI, see issue #497), and bound
+            // the drain with a hard deadline in case a killed child's pipe
+            // never closes.
+            if (error) return;
+            error = e;
+            killActiveChildren();
+            const deadline = setTimeout(() => settle(), DRAIN_DEADLINE_MS);
+            (deadline as { unref?: () => void }).unref?.();
+        };
+        const watchdog = setInterval(() => {
+            const idle = Date.now() - lastActivity;
+            if (idle < STALL_WARN_MS || inflightStarts.size === 0) return;
+            console.error(
+                `[gjsify foreach] WARNING: no workspace completed for ${Math.round(idle / 60_000)}min — in-flight: ${describeInflight()}`,
+            );
+            if (idle >= STALL_ABORT_MS) {
+                failFast(
+                    new Error(
+                        `gjsify foreach: stalled — no workspace completed for ${Math.round(idle / 60_000)}min (override via GJSIFY_FOREACH_STALL_MINUTES); killed in-flight: ${describeInflight()}`,
+                    ),
+                );
+            }
+        }, 60_000);
+        (watchdog as { unref?: () => void }).unref?.();
+        const settle = (): void => {
+            clearInterval(watchdog);
+            if (error) reject(error);
+            else resolve();
+        };
         const pump = (): void => {
             if (error) return;
             while (inflight < concurrency) {
@@ -354,22 +405,16 @@ async function runTopologicalParallel(
                 const next = ready.sort()[0]!;
                 remaining.delete(next);
                 inflight++;
+                inflightStarts.set(next, Date.now());
+                if (liveProgress) {
+                    console.error(`[gjsify foreach] start ${next} (${done.size}/${total} done, ${inflight} in flight)`);
+                }
                 runOne(byName.get(next)!, script, args, /* prefixOutput */ true, verbose, exec)
                     .then(() => {
                         done.add(next);
                     })
                     .catch((e: unknown) => {
-                        // First error wins. KILL the in-flight siblings instead
-                        // of waiting for them (yarn waits — but a sibling's
-                        // nested build chain can stall for hours on CI, see
-                        // issue #497), and bound the drain with a hard deadline
-                        // in case a killed child's pipe never closes.
-                        if (!error) {
-                            error = e instanceof Error ? e : new Error(String(e));
-                            killActiveChildren();
-                            const deadline = setTimeout(() => reject(error!), DRAIN_DEADLINE_MS);
-                            (deadline as { unref?: () => void }).unref?.();
-                        }
+                        failFast(e instanceof Error ? e : new Error(String(e)));
                     })
                     .finally(() => {
                         // Release the slot on BOTH success AND failure. The old
@@ -382,16 +427,19 @@ async function runTopologicalParallel(
                         // forever (the 6-hour CI timeout). Settling here fixes
                         // both: fail-fast with the real error, on either runtime.
                         inflight--;
+                        inflightStarts.delete(next);
+                        lastActivity = Date.now();
                         if (error) {
-                            if (inflight === 0) reject(error);
+                            if (inflight === 0) settle();
                         } else if (remaining.size === 0 && inflight === 0) {
-                            resolve();
+                            settle();
                         } else {
                             pump();
                         }
                     });
             }
             if (remaining.size > 0 && inflight === 0 && !error) {
+                clearInterval(watchdog);
                 reject(
                     new Error(
                         `gjsify foreach --topological: stuck — workspaces ${[...remaining.keys()].join(', ')} have unsatisfied deps in the selected set`,
