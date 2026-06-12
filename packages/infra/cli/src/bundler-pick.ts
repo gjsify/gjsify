@@ -44,6 +44,22 @@ import { resolveNpmPackage } from './utils/resolve-npm-package.js';
 // Dynamic import keeps it off the GJS code path entirely; the native
 // branch (`@gjsify/rolldown-native`) handles bundling there.
 async function loadNpmRolldown(): Promise<typeof Rolldown.rolldown> {
+    // Under GJS the npm crate can NEVER run (its JS wrapper requires a
+    // napi binary). Reaching this loader under GJS means the native
+    // engine probe failed — historically that surfaced as an opaque
+    // `ImportError: Unsupported URI scheme for importing: node` from deep
+    // inside the crate's wrapper (e.g. on a truly-cold workspace where
+    // `@gjsify/rolldown-native`'s lib/ is not built yet, issue #497).
+    // Fail with the actionable diagnosis instead.
+    const isGjs = typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
+    if (isGjs) {
+        throw new Error(
+            'gjsify build: no usable bundler engine under GJS — `@gjsify/rolldown-native` is not loadable ' +
+                '(its JS facade lib/ is not built, or its prebuild typelib is missing from GI_TYPELIB_PATH), ' +
+                'and the npm `rolldown` engine is a Rust napi crate that cannot run under GJS. ' +
+                'Build the facade first (`gjsify workspace @gjsify/rolldown-native build` under Node) or run this build under Node.',
+        );
+    }
     // Indirect specifier so Rolldown's static-analysis doesn't try to
     // bundle the npm crate into a GJS target build.
     const specifier = 'rolldown';

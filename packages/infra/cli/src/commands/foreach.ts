@@ -9,7 +9,7 @@
 // matching yarn's interactive flow. Exit code is non-zero if any child
 // process failed; first failure's stderr is forwarded.
 
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { cpus } from 'node:os';
 import type { Command } from '../types/index.js';
 import {
@@ -21,6 +21,41 @@ import {
 } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import { prefixLines } from '../utils/prefixed-output.js';
+
+// Every child spawned by spawnPrefixed registers here so fail-fast can
+// terminate the whole in-flight set instead of waiting on it. On CI a
+// single failed package used to leave foreach awaiting its still-running
+// siblings — whose nested gjs chains can stall for hours (issue #497).
+const activeChildren = new Set<ChildProcess>();
+
+// Grace window between SIGTERM and the SIGKILL escalation.
+const KILL_GRACE_MS = 5_000;
+// Hard deadline for the in-flight set to drain after a fail-fast kill. A
+// killed child whose grandchildren inherit (and keep open) the stdio pipe
+// never emits 'close', so we must not wait on it unboundedly.
+const DRAIN_DEADLINE_MS = 15_000;
+
+function killActiveChildren(): void {
+    for (const child of activeChildren) {
+        try {
+            child.kill('SIGTERM');
+        } catch {
+            // already gone — fine
+        }
+    }
+    const escalate = setTimeout(() => {
+        for (const child of activeChildren) {
+            try {
+                child.kill('SIGKILL');
+            } catch {
+                // already gone — fine
+            }
+        }
+    }, KILL_GRACE_MS);
+    // Don't let the escalation timer keep the process alive (Node returns a
+    // Timeout with unref(); GJS returns a plain handle without it).
+    (escalate as { unref?: () => void }).unref?.();
+}
 
 interface ForeachOptions {
     script?: string;
@@ -230,6 +265,10 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
                 await runSequential(selected, finalCmd, cmdArgs, verbose, exec);
             }
         } catch (err) {
+            // Plain --parallel rejects on the FIRST failure (Promise.all) while
+            // sibling children are still running — terminate them so we don't
+            // leave orphans holding the CI step's stdio open.
+            killActiveChildren();
             console.error((err as Error).message);
             process.exit(1);
         }
@@ -300,11 +339,62 @@ async function runTopologicalParallel(
         remaining.set(ws.name, wsDeps);
     }
     const byName = new Map(workspaces.map((w) => [w.name, w]));
+    const total = workspaces.length;
     const done = new Set<string>();
     let inflight = 0;
 
+    // Stall observability + self-protection. With prefixed output BUFFERED on
+    // non-tty sinks (flush-on-close), a CI log shows only COMPLETED children —
+    // when the run stalls, nothing identifies who is stuck (issue #497's
+    // 3h45-silence-to-the-cap pattern). So on non-tty (or --verbose) every
+    // start is echoed live on foreach's own stderr, a watchdog WARNS once no
+    // workspace has completed for a while, and after a hard stall budget the
+    // run aborts with the in-flight set named instead of riding the CI job cap.
+    const liveProgress = !process.stdout.isTTY || verbose;
+    const inflightStarts = new Map<string, number>();
+    const STALL_WARN_MS = 5 * 60_000;
+    const stallAbortMinutes = Number(process.env['GJSIFY_FOREACH_STALL_MINUTES'] ?? '20');
+    const STALL_ABORT_MS = (Number.isFinite(stallAbortMinutes) && stallAbortMinutes > 0 ? stallAbortMinutes : 20) * 60_000;
+
     return new Promise<void>((resolve, reject) => {
         let error: Error | null = null;
+        let lastActivity = Date.now();
+        const describeInflight = (): string =>
+            [...inflightStarts.entries()]
+                .map(([n, t]) => `${n} (${Math.round((Date.now() - t) / 1000)}s)`)
+                .join(', ');
+        const failFast = (e: Error): void => {
+            // First error wins. KILL the in-flight siblings instead of
+            // waiting for them (yarn waits — but a sibling's nested build
+            // chain can stall for hours on CI, see issue #497), and bound
+            // the drain with a hard deadline in case a killed child's pipe
+            // never closes.
+            if (error) return;
+            error = e;
+            killActiveChildren();
+            const deadline = setTimeout(() => settle(), DRAIN_DEADLINE_MS);
+            (deadline as { unref?: () => void }).unref?.();
+        };
+        const watchdog = setInterval(() => {
+            const idle = Date.now() - lastActivity;
+            if (idle < STALL_WARN_MS || inflightStarts.size === 0) return;
+            console.error(
+                `[gjsify foreach] WARNING: no workspace completed for ${Math.round(idle / 60_000)}min — in-flight: ${describeInflight()}`,
+            );
+            if (idle >= STALL_ABORT_MS) {
+                failFast(
+                    new Error(
+                        `gjsify foreach: stalled — no workspace completed for ${Math.round(idle / 60_000)}min (override via GJSIFY_FOREACH_STALL_MINUTES); killed in-flight: ${describeInflight()}`,
+                    ),
+                );
+            }
+        }, 60_000);
+        (watchdog as { unref?: () => void }).unref?.();
+        const settle = (): void => {
+            clearInterval(watchdog);
+            if (error) reject(error);
+            else resolve();
+        };
         const pump = (): void => {
             if (error) return;
             while (inflight < concurrency) {
@@ -315,14 +405,16 @@ async function runTopologicalParallel(
                 const next = ready.sort()[0]!;
                 remaining.delete(next);
                 inflight++;
+                inflightStarts.set(next, Date.now());
+                if (liveProgress) {
+                    console.error(`[gjsify foreach] start ${next} (${done.size}/${total} done, ${inflight} in flight)`);
+                }
                 runOne(byName.get(next)!, script, args, /* prefixOutput */ true, verbose, exec)
                     .then(() => {
                         done.add(next);
                     })
                     .catch((e: unknown) => {
-                        // First error wins; surface it after in-flight siblings
-                        // finish (yarn does the same — don't abruptly kill them).
-                        if (!error) error = e instanceof Error ? e : new Error(String(e));
+                        failFast(e instanceof Error ? e : new Error(String(e)));
                     })
                     .finally(() => {
                         // Release the slot on BOTH success AND failure. The old
@@ -335,16 +427,19 @@ async function runTopologicalParallel(
                         // forever (the 6-hour CI timeout). Settling here fixes
                         // both: fail-fast with the real error, on either runtime.
                         inflight--;
+                        inflightStarts.delete(next);
+                        lastActivity = Date.now();
                         if (error) {
-                            if (inflight === 0) reject(error);
+                            if (inflight === 0) settle();
                         } else if (remaining.size === 0 && inflight === 0) {
-                            resolve();
+                            settle();
                         } else {
                             pump();
                         }
                     });
             }
             if (remaining.size > 0 && inflight === 0 && !error) {
+                clearInterval(watchdog);
                 reject(
                     new Error(
                         `gjsify foreach --topological: stuck — workspaces ${[...remaining.keys()].join(', ')} have unsatisfied deps in the selected set`,
@@ -410,6 +505,7 @@ function spawnPrefixed(cmd: string, args: readonly string[], cwd: string, prefix
             stdio: prefix ? ['ignore', 'pipe', 'pipe'] : 'inherit',
             env: { ...process.env, ...colorEnv },
         });
+        activeChildren.add(child);
         // Under GJS, `process.stdout.write` is a BLOCKING `Gio.write_all`.
         // Writing each prefixed line LIVE during a PARALLEL foreach to a
         // backpressuring pipe (a CI log collector that drains slowly) stalls
@@ -428,11 +524,15 @@ function spawnPrefixed(cmd: string, args: readonly string[], cwd: string, prefix
             flushers.push(prefixLines(child.stderr, process.stderr, prefix, buffered));
         }
         child.on('close', (code) => {
+            activeChildren.delete(child);
             for (const flush of flushers) flush();
             if (code === 0) resolve();
             else reject(new Error(`${cmd} ${args.join(' ')} exited with code ${code}`));
         });
-        child.on('error', (err) => reject(err));
+        child.on('error', (err) => {
+            activeChildren.delete(child);
+            reject(err);
+        });
     });
 }
 

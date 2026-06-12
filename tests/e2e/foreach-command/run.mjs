@@ -82,7 +82,19 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
         for (const w of workspaces) {
             const safeName = w.name.replace('/', '-');
             const markPath = join(root, 'marks', `${safeName}.txt`).replace(/'/g, "\\'");
+            const survivedPath = join(root, 'marks', 'survived.txt').replace(/'/g, "\\'");
             mkdirSync(join(root, 'packages', w.dir), { recursive: true });
+            // `killcheck` exists only on utils + app, so script-mode filtering
+            // drops core → both selected workspaces are dep-free and start
+            // concurrently under -tp. utils sleeps 30s then writes a marker;
+            // app fails after 500ms. Fail-fast must KILL the sleeper (issue
+            // #497) — asserted via elapsed time + the absent marker.
+            const killcheck =
+                w.dir === 'utils'
+                    ? `node -e "setTimeout(() => require('fs').writeFileSync('${survivedPath}', ''), 30000)"`
+                    : w.dir === 'app'
+                      ? `node -e "setTimeout(() => process.exit(1), 500)"`
+                      : undefined;
             writeFileSync(
                 join(root, 'packages', w.dir, 'package.json'),
                 JSON.stringify(
@@ -97,6 +109,7 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
                             mark: `node -e "require('fs').writeFileSync('${markPath}', new Date().toISOString())"`,
                             fail: `node -e "process.exit(1)"`,
                             echo: `node -e "console.log('${w.name}')"`,
+                            ...(killcheck ? { killcheck } : {}),
                         },
                     },
                     null,
@@ -164,6 +177,22 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
     it('foreach surfaces non-zero exit codes', async () => {
         const r = await runCli(cliEntry, ['foreach', 'fail'], { cwd: root });
         assert.notEqual(r.status, 0, 'expected failure for `fail` script');
+    });
+
+    it('foreach -tp fail-fast kills in-flight siblings instead of waiting (issue #497)', async () => {
+        rmSync(join(root, 'marks'), { recursive: true, force: true });
+        mkdirSync(join(root, 'marks'), { recursive: true });
+        const started = Date.now();
+        const r = await runCli(cliEntry, ['foreach', 'killcheck', '--topological', '--parallel'], {
+            cwd: root,
+            timeoutMs: 45_000,
+        });
+        const elapsed = Date.now() - started;
+        assert.notEqual(r.status, 0, 'expected failure for `killcheck` run');
+        // The sleeper runs 30s; fail-fast + kill must end the run shortly
+        // after app's 500ms failure (SIGTERM + bounded drain ≪ 15s).
+        assert.ok(elapsed < 15_000, `foreach waited on a killed sibling: ${elapsed}ms`);
+        assert.ok(!existsSync(join(root, 'marks', 'survived.txt')), 'sleeper survived the fail-fast kill');
     });
 
     it("workspace <name> <script> runs only that workspace's script", async () => {
