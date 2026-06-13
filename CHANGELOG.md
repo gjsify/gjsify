@@ -1,5 +1,76 @@
 # Changelog
 
+## [0.4.45](https://github.com/gjsify/gjsify/compare/v0.4.44...v0.4.45) (2026-06-13)
+
+### Features
+
+* **cli:** dispatch single gjsify-command scripts in-process under GJS ([2ac6d17](https://github.com/gjsify/gjsify/commit/2ac6d1712e6112067bc9ff3b0575e873b54c9f0e))
+* **cli:** gjs-first bin-shim default ([87855d9](https://github.com/gjsify/gjsify/commit/87855d9bcebc573f09ebce4523cb89834f664008))
+* **cli:** gjsify tsc Node fallback (npm typescript) ([694e7a3](https://github.com/gjsify/gjsify/commit/694e7a31dc06327c345237eeda1fc54d0ce3bc9f))
+* **cli:** node-free gjsify format under gjs ([ebae533](https://github.com/gjsify/gjsify/commit/ebae533fd751d45e283933b013a80b70916bdae3))
+* **flatpak:** gjsify SDK extension ([50600ef](https://github.com/gjsify/gjsify/commit/50600efddb81f3a6cec6cccbf22c1b0d6c3f0dfc))
+* **flatpak:** ship tsc + multi-arch in SDK extension ([0003001](https://github.com/gjsify/gjsify/commit/00030012f8f8c0784acd117b8d8610514e344ecc))
+* **oxfmt-native:** in-process oxfmt cli run() ([068cfef](https://github.com/gjsify/gjsify/commit/068cfef31a0b022b659aa3735f41cc60fda57c76))
+* **oxfmt-native:** node-free oxc formatter as a GI bridge ([4759142](https://github.com/gjsify/gjsify/commit/4759142acd1ad466cdc96653f0b5769483a593a4))
+
+### Bug Fixes
+
+* **cli:** buffer foreach output on non-tty to avoid gjs hang ([f64f82a](https://github.com/gjsify/gjsify/commit/f64f82a4cec999da084792be8575b2c9d42f6872))
+* **cli:** dual-anchor @gjsify/tsc resolution ([53af6c8](https://github.com/gjsify/gjsify/commit/53af6c865d750a762caec11c6710dce4f29f279b))
+* **cli:** exit gjsify run file path after child success ([85d9ba8](https://github.com/gjsify/gjsify/commit/85d9ba8f0edda1253b018e64b5537ec6ae71ab67))
+* **cli:** exit semantics + check backpressure + foreach args ([dacdec3](https://github.com/gjsify/gjsify/commit/dacdec3ea3f5d3eaf6c3cab82c403a130130987b))
+* **cli:** foreach fail-fasts on child failure (no GJS hang) ([a8ed79a](https://github.com/gjsify/gjsify/commit/a8ed79ac8bf794cc466325673013ecf457681d7a))
+* **cli:** kill children on foreach fail-fast ([7e39023](https://github.com/gjsify/gjsify/commit/7e3902300abb75d60966fc771a67336968ead6e7)), closes [#497](https://github.com/gjsify/gjsify/issues/497)
+* **cli:** kill the whole process tree on fail-fast ([8002ec0](https://github.com/gjsify/gjsify/commit/8002ec0f4c390d7e3da39b3e39043f1a424e38af))
+* **cli:** native rolldown options serialization ([7c03c0b](https://github.com/gjsify/gjsify/commit/7c03c0bb79a080c150b4b42d6ae897895a6f8371))
+* **cli:** stall watchdog + live progress in foreach -tp ([013a7ec](https://github.com/gjsify/gjsify/commit/013a7ecbeacd041d78437eead7d47656ac36f150))
+* **cli:** write bin shims before download phase ([d669159](https://github.com/gjsify/gjsify/commit/d6691593479235eb8fab656e9b0e75764efba2ee)), closes [#489](https://github.com/gjsify/gjsify/issues/489)
+* **rolldown-native:** keep session alive during build ([47ff5ad](https://github.com/gjsify/gjsify/commit/47ff5adecf0c9c74ccf07d659e42ff96c322bcee)), closes [#501](https://github.com/gjsify/gjsify/issues/501) [#501](https://github.com/gjsify/gjsify/issues/501)
+* **rolldown-native:** session teardown + closure-generator bypass ([47b9ba6](https://github.com/gjsify/gjsify/commit/47b9ba6d0ee453fcfcaf505dd28f3edcd3118d78))
+* **rolldown-plugin-gjsify:** externalize lib deps via resolveId ([1fb4ab4](https://github.com/gjsify/gjsify/commit/1fb4ab4437fe4b014db242f61dc2ef4a6c231f59)), closes [#487](https://github.com/gjsify/gjsify/issues/487)
+* **rolldown-plugin-gjsify:** externalize node-target deps as array for native rolldown ([78a6042](https://github.com/gjsify/gjsify/commit/78a6042ac1ac44d994b44aa45dc4436505c4cb3a))
+* **rolldown-plugin-gjsify:** file://-resolve lightningcss-native under GJS ([efe6a9f](https://github.com/gjsify/gjsify/commit/efe6a9fd30809b6ba022daaa3acf8bc116bd16a3))
+* **tsc:** bundle via the workspace node cli, not PATH ([857e347](https://github.com/gjsify/gjsify/commit/857e347424ad867475598e52006aad764e9d83a1))
+* **tsc:** keep complete committed libs (no parallel-build refresh race) ([7680ede](https://github.com/gjsify/gjsify/commit/7680ede03e2f5b3bf9afe5a0d8d4becd46910e88))
+* **zlib:** declare @gjsify/stream as runtime dep ([6912c65](https://github.com/gjsify/gjsify/commit/6912c6523ae5c0990ba63c1475cfc2ff8747b17b))
+
+### Performance Improvements
+
+* **rolldown-plugin-gjsify:** single-detection --globals auto via closure map ([d7f5599](https://github.com/gjsify/gjsify/commit/d7f5599f080ded9a1287cf034419095ed41c7f99))
+
+### Documentation
+
+* oxfmt-native bridge + dual-engine format ([3d173dd](https://github.com/gjsify/gjsify/commit/3d173ddb977d1eb6bb001b65f33675cf648341b8))
+* **status:** link upstream GLib issue [#3981](https://github.com/gjsify/gjsify/issues/3981) for the pid gap ([b08afe1](https://github.com/gjsify/gjsify/commit/b08afe1eef7ab1e2fc1d062432bd3dd837dadab3)), closes [#503](https://github.com/gjsify/gjsify/issues/503)
+
+### Build System
+
+* bootstrap native facades in build:infra ([ce4e660](https://github.com/gjsify/gjsify/commit/ce4e66099e56f0e8ac449e810d20350bdc8386f9))
+* **cli:** rebuild gjs bundle on rebased base ([25afc18](https://github.com/gjsify/gjsify/commit/25afc18e001797018bf5ed124af7bf9010385962))
+
+### Continuous Integration
+
+* **affected:** ignore flatpak/ build tooling ([c6cc6c7](https://github.com/gjsify/gjsify/commit/c6cc6c753079bfdd3a8c5424877d70f18af13dca))
+* cap GJS build job + Build-examples step timeouts ([4b1162a](https://github.com/gjsify/gjsify/commit/4b1162a2a495963563045fd4bdde875f10249049))
+* raise job cap for cold gjs builds ([a6c4d34](https://github.com/gjsify/gjsify/commit/a6c4d34a49a5f6520c3c8f2677c7212047ad23b6))
+* serialize gjs examples build to avoid oom stall ([8fd806b](https://github.com/gjsify/gjsify/commit/8fd806b7398cef31e4d676b19f96771be10f050c))
+
+### Maintenance
+
+* **deps:** upgrade dependencies to latest ([880d28b](https://github.com/gjsify/gjsify/commit/880d28b447d0daa3429222e93b9fc40ff11f8b6b))
+* **rolldown-native:** rebuild linux-x86_64 prebuild ([727fee8](https://github.com/gjsify/gjsify/commit/727fee834f6a70f6fdddc0c5af1666e10eadbbbc)), closes [#501](https://github.com/gjsify/gjsify/issues/501)
+* update native prebuilds [skip ci] ([746b007](https://github.com/gjsify/gjsify/commit/746b0074ca350f0021150550c1f633c1540986e4))
+* update native prebuilds [skip ci] ([0102bbd](https://github.com/gjsify/gjsify/commit/0102bbd162247bde482f540d6305ad259f5cb192))
+
+### Tests
+
+* **child_process:** de-flake spawn-event under CI saturation ([4137266](https://github.com/gjsify/gjsify/commit/4137266ff04fae50bbef6e3890c5a72e8fee0acd)), closes [post-#502](https://github.com/gjsify/post-/issues/502) [#503](https://github.com/gjsify/gjsify/issues/503)
+* **child_process:** make pid test deterministic ([52f1c95](https://github.com/gjsify/gjsify/commit/52f1c9527f80559a4a65c21e48179df9755394c5)), closes [#503](https://github.com/gjsify/gjsify/issues/503)
+* **e2e:** deracify the grandchild tree-kill test ([4dbb659](https://github.com/gjsify/gjsify/commit/4dbb6594646d9b8db9e358b81a1c3cd7a02a80e7))
+* **e2e:** pin sdk-extension tsc check + wire ci ([5315d67](https://github.com/gjsify/gjsify/commit/5315d6757460269e4dfe29d240490ec982dc16f4))
+* **e2e:** zombie-aware liveness check in tree-kill test ([e18f1cf](https://github.com/gjsify/gjsify/commit/e18f1cf156de4dc464cf90bff25b2a469db798d7))
+* **rolldown-native:** gc-pressure regression guard ([0ba2fd8](https://github.com/gjsify/gjsify/commit/0ba2fd8e8545b75e338fb05da16098db4bc39f8d)), closes [#501](https://github.com/gjsify/gjsify/issues/501)
+
 ## [0.4.44](https://github.com/gjsify/gjsify/compare/v0.4.43...v0.4.44) (2026-06-08)
 
 ### Features
