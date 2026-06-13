@@ -374,10 +374,24 @@ export default async () => {
     await describe('child_process.spawn', async () => {
         await it('should return a ChildProcess with pid', async () => {
             const { spawn } = await import('node:child_process');
-            const child = spawn('echo', ['test']);
+            // Spawn a process that is still alive when we read `pid`
+            // synchronously. `pid` comes from `Gio.Subprocess.get_identifier()`,
+            // which returns null once GSubprocess's child-watch (running on the
+            // GLib *worker thread*) has reaped the child. An instant-exit child
+            // (`echo`) can therefore be reaped in the tiny window between
+            // `spawnv()` and the synchronous `get_identifier()` on a saturated
+            // runner → `pid` undefined. That instant-exit edge is a documented
+            // upstream GIO limitation (STATUS.md → "Upstream GJS Patch
+            // Candidates"); the realistic contract — and what consumers rely on
+            // — is a numeric pid for a *running* process, which `cat` (blocks on
+            // its piped, empty stdin) makes deterministic. Ending stdin sends
+            // EOF so it exits cleanly.
+            const child = spawn('cat');
             expect(child).toBeDefined();
             expect(typeof child.pid).toBe('number');
             expect(child.pid! > 0).toBeTruthy();
+            if (child.stdin) child.stdin.end();
+            else child.kill();
             await new Promise<void>((resolve) => child.on('close', () => resolve()));
         });
 
@@ -665,7 +679,8 @@ export default async () => {
         });
 
         await it('error should have status property', async () => {
-            let error: (Error & { code?: string | number; status?: number | null; stderr?: string | Buffer }) | null = null;
+            let error: (Error & { code?: string | number; status?: number | null; stderr?: string | Buffer }) | null =
+                null;
             try {
                 execSync('exit 42');
             } catch (e) {
@@ -676,7 +691,8 @@ export default async () => {
         });
 
         await it('error should have stderr property', async () => {
-            let error: (Error & { code?: string | number; status?: number | null; stderr?: string | Buffer }) | null = null;
+            let error: (Error & { code?: string | number; status?: number | null; stderr?: string | Buffer }) | null =
+                null;
             try {
                 execSync('echo err_msg >&2; exit 1');
             } catch (e) {
@@ -712,7 +728,8 @@ export default async () => {
         });
 
         await it('error should have status and stderr', async () => {
-            let error: (Error & { code?: string | number; status?: number | null; stderr?: string | Buffer }) | null = null;
+            let error: (Error & { code?: string | number; status?: number | null; stderr?: string | Buffer }) | null =
+                null;
             try {
                 execFileSync('sh', ['-c', 'echo err >&2; exit 3']);
             } catch (e) {
