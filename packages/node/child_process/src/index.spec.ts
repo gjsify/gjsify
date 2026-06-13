@@ -384,11 +384,19 @@ export default async () => {
         await it('should emit spawn event', async () => {
             const { spawn } = await import('node:child_process');
             const child = spawn('echo', ['test']);
-            const spawned = await new Promise<boolean>((resolve) => {
-                child.on('spawn', () => resolve(true));
-                setTimeout(() => resolve(false), 5000);
+            // Await 'spawn' directly. The previous version raced it against a
+            // fixed `setTimeout(() => resolve(false), 5000)` fallback — which
+            // turned a merely-late 'spawn' into a hard failure whenever a
+            // saturated CI runner stalled the GLib main loop for ~5s (the
+            // child_process bundle runs many subprocess tests; on a 2-core box
+            // under parallel test load the loop can go several seconds without
+            // CPU). The per-test harness timeout (raised bundle-wide in
+            // test.mts) is the real guard now; a genuine spawn failure rejects
+            // via the 'error' event.
+            await new Promise<void>((resolve, reject) => {
+                child.on('spawn', () => resolve());
+                child.on('error', reject);
             });
-            expect(spawned).toBeTruthy();
             await new Promise<void>((resolve) => child.on('close', () => resolve()));
         });
 
