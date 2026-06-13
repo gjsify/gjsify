@@ -203,7 +203,14 @@ export class Request extends Body {
     }
 
     get _uri() {
-        return GLib.Uri.parse(this.url, GLib.UriFlags.NONE);
+        // ENCODED, not NONE: `this.url` (a WHATWG-serialized URL) is already
+        // percent-encoded, so re-parsing with NONE would DECODE it a second
+        // time — turning an intentionally-escaped `%2F` in a path segment back
+        // into a literal `/`. That breaks scoped-package registry routes like
+        // `PUT /@scope%2Fname` (npm's package-create + OIDC token-exchange
+        // endpoints 404 on the decoded `/@scope/name` form). ENCODED preserves
+        // the existing escaping on round-trip. See request.ts uri construction.
+        return GLib.Uri.parse(this.url, GLib.UriFlags.ENCODED);
     }
 
     get _session() {
@@ -330,7 +337,18 @@ export class Request extends Body {
             session = getSharedSession();
             message = new Soup.Message({
                 method,
-                uri: GLib.Uri.parse(parsedURL.toString(), GLib.UriFlags.NONE),
+                // ENCODED, not NONE: `parsedURL.toString()` is already a
+                // percent-encoded WHATWG URL. Parsing with NONE decodes it a
+                // second time, collapsing an escaped `%2F` in a path segment to
+                // a literal `/` — which sends `PUT /@scope/name` instead of the
+                // required `PUT /@scope%2Fname`. npm's registry tolerates the
+                // literal slash when UPDATING an existing package but 404s on
+                // the package-CREATE route and the OIDC token-exchange endpoint
+                // (`/-/npm/v1/oidc/token/exchange/package/@scope%2Fname`), which
+                // broke first-publish of new scoped packages + Trusted-Publisher
+                // OIDC auth once the CLI began running under GJS. ENCODED keeps
+                // the escaping intact on the wire.
+                uri: GLib.Uri.parse(parsedURL.toString(), GLib.UriFlags.ENCODED),
             });
         }
 

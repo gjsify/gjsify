@@ -146,5 +146,24 @@ export default async () => {
                 expect(stderr.includes('libsoup-CRITICAL')).toBe(false);
             });
         });
+
+        // Regression: @gjsify/fetch re-parsed the already-encoded request URL
+        // with `GLib.UriFlags.NONE`, which DECODES a second time — collapsing an
+        // escaped `%2F` inside a path segment back to a literal `/`. That sent
+        // `PUT /@scope/name` instead of the required `PUT /@scope%2Fname`, so
+        // npm's package-CREATE route and the OIDC token-exchange endpoint
+        // (`/-/npm/v1/oidc/token/exchange/package/@scope%2Fname`) 404'd — only
+        // visible once the CLI began running under GJS (the Node path preserved
+        // it). Fix: parse with `GLib.UriFlags.ENCODED`. See request.ts `_uri` +
+        // Soup.Message construction.
+        await describe('@gjsify/fetch — percent-encoded path segments (scoped-registry %2F)', async () => {
+            await it('preserves %2F in the request URI instead of decoding it to a literal /', () => {
+                const req = new RequestCtor('https://registry.npmjs.org/@gjsify%2Ffetch');
+                const uriStr = (req as unknown as { _uri: GLibNS.Uri })._uri.to_string();
+                // %2F (any hex case) must survive; the decoded literal-slash form must NOT appear.
+                expect(/@gjsify%2[Ff]fetch/.test(uriStr)).toBe(true);
+                expect(/@gjsify\/fetch/.test(uriStr)).toBe(false);
+            });
+        });
     });
 };
