@@ -155,17 +155,28 @@ function decompressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
 
 // ---- Compression helpers using Web Compression API ----
 
-async function compressWithWeb(data: Uint8Array, format: CompressionFormat): Promise<Uint8Array> {
-    const cs = new CompressionStream(format);
-    const writer = cs.writable.getWriter();
-    // Fire-and-forget: driven by the reader below. `.catch(() => {})` silences
-    // the GJS "Unhandled promise rejection" warning that fires on teardown when
-    // the readable side is already closed before these Promises settle.
-    writer.write(new Uint8Array(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength)).catch(() => {});
-    writer.close().catch(() => {});
+// Drive a (de)compression Transform by piping a single-chunk source through it
+// and draining the result. Using `pipeThrough` (rather than a manual
+// `getWriter()` + fire-and-forget `write()`/`close()`) keeps the stream
+// internals in charge of the writable lifecycle, so no writer-level promise is
+// left to reject unobserved. The old getWriter pattern intermittently leaked an
+// "Unhandled promise rejection" on GJS when the readable side closed before the
+// writer's close/closed promises settled, which is fatal under SpiderMonkey and
+// flaked CI. A malformed/truncated input still rejects the reader's `read()`,
+// so the returned promise rejects exactly as before.
+async function runWebTransform(
+    data: Uint8Array,
+    transform: ReadableWritablePair<Uint8Array, Uint8Array>,
+): Promise<Uint8Array> {
+    const source = new ReadableStream<Uint8Array>({
+        start(controller) {
+            controller.enqueue(new Uint8Array(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength));
+            controller.close();
+        },
+    });
 
     const chunks: Uint8Array[] = [];
-    const reader = cs.readable.getReader();
+    const reader = source.pipeThrough(transform).getReader();
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -182,30 +193,12 @@ async function compressWithWeb(data: Uint8Array, format: CompressionFormat): Pro
     return result;
 }
 
+async function compressWithWeb(data: Uint8Array, format: CompressionFormat): Promise<Uint8Array> {
+    return runWebTransform(data, new CompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>);
+}
+
 async function decompressWithWeb(data: Uint8Array, format: CompressionFormat): Promise<Uint8Array> {
-    const ds = new DecompressionStream(format);
-    const writer = ds.writable.getWriter();
-    // Fire-and-forget: driven by the reader below. `.catch(() => {})` silences
-    // the GJS "Unhandled promise rejection" warning on inflate teardown.
-    writer.write(new Uint8Array(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength)).catch(() => {});
-    writer.close().catch(() => {});
-
-    const chunks: Uint8Array[] = [];
-    const reader = ds.readable.getReader();
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-    }
-
-    const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
-    const result = new Uint8Array(totalLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-        result.set(chunk, offset);
-        offset += chunk.length;
-    }
-    return result;
+    return runWebTransform(data, new DecompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>);
 }
 
 // ---- Unified compress/decompress ----
