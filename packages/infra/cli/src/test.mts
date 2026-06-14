@@ -24,6 +24,7 @@ import oxcResolveSuite from './utils/oxc-resolve.spec.js';
 import autoGlobalsSuite from './auto-globals.spec.js';
 import externalsPluginSuite from './externals-plugin.spec.js';
 import affectedClassifierSuite from './affected-classifier.spec.js';
+import runStdioSafeSuite from './run-stdio-safe.spec.js';
 
 run({
     bundlerPickSuite,
@@ -42,4 +43,5 @@ run({
     autoGlobalsSuite,
     externalsPluginSuite,
     affectedClassifierSuite,
+    runStdioSafeSuite,
 });
