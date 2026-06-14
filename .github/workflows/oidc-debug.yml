@@ -29,9 +29,9 @@ jobs:
               seg += '=' * (-len(seg) % 4)
               print(name, json.dumps(json.loads(base64.urlsafe_b64decode(seg)), indent=2))
           "
-          echo "=== exchange attempt for @gjsify/cli ==="
+          echo "=== exchange attempt for @gjsify/cli (lowercase %2f, npm convention) ==="
           curl -s -w '\nHTTP_STATUS %{http_code}\n' -X POST \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
-            "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/@gjsify%2Fcli" \
+            "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/@gjsify%2fcli" \
             -d '{}'
