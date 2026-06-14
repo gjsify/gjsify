@@ -37,7 +37,8 @@
 import type { Command } from '../types/index.js';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { DEFAULT_REGISTRY, registryFor, buildHeaders } from '@gjsify/npm-registry';
+import { DEFAULT_REGISTRY, registryFor } from '@gjsify/npm-registry';
+import { buildPublishHeaders, escapePackageName } from '../utils/publish-headers.js';
 import { packWorkspace, type PackWorkspaceOptions } from './pack.js';
 import { getNpmTrustedToken, hasGithubOidcEnv, OidcExchangeError, OidcUnavailableError } from '../utils/npm-oidc.js';
 import { diagnose404, is404DiagnosticCandidate } from '../utils/publish-diagnose.js';
@@ -237,18 +238,12 @@ export const publishCommand: Command<unknown, PublishOptions> = {
         const npmrc = await loadNpmrc(wsDir);
         const registry = process.env.npm_config_registry ?? registryFor(packed.name, npmrc) ?? DEFAULT_REGISTRY;
         const registryClean = registry.endsWith('/') ? registry.slice(0, -1) : registry;
-        // npm-package-arg's escapedName convention for scoped packages:
-        // `@${scope-without-leading-@}%2f${name}` (lowercase %2f, literal @).
-        // Unscoped: `encodeURIComponent(name)`. Match it exactly — the
-        // npm registry is picky about the publish PUT URL shape.
-        const escapedName = packed.name.startsWith('@')
-            ? (() => {
-                  const slash = packed.name.indexOf('/');
-                  const scope = packed.name.slice(1, slash);
-                  const base = packed.name.slice(slash + 1);
-                  return `@${encodeURIComponent(scope)}%2f${encodeURIComponent(base)}`;
-              })()
-            : encodeURIComponent(packed.name);
+        // npm-package-arg's escapedName convention (npa.js:188):
+        // `name.replace('/', '%2f')` — scoped `@scope/name` → `@scope%2fname`
+        // (literal @, lowercase %2f, segments NOT otherwise re-encoded);
+        // unscoped names pass through. Match it exactly — the npm registry is
+        // picky about the publish PUT URL shape.
+        const escapedName = escapePackageName(packed.name);
         const url = `${registryClean}/${escapedName}`;
         // npm publish convention: the dist.tarball URL + _attachments key both
         // use the UNSCOPED basename — `cli-0.4.5.tgz`, not
@@ -272,13 +267,15 @@ export const publishCommand: Command<unknown, PublishOptions> = {
             provenance,
         });
 
-        const headers = buildHeaders(url, { npmrc });
-        headers['content-type'] = 'application/json';
-        headers['accept'] = '*/*';
-        // 2FA OTP — sent as the `npm-otp` header (npm-registry-fetch convention,
-        // verified in refs/npm-cli/node_modules/npm-registry-fetch/lib/index.js
-        // line ~243: `if (opts.otp) headers['npm-otp'] = opts.otp`).
-        if (otp) headers['npm-otp'] = otp;
+        // Build the publish-PUT headers to match what `npm publish` sends via
+        // npm-registry-fetch's `getHeaders` — critically `npm-command: publish`
+        // (the routing header npm's create-package frontdoor keys on; without it
+        // a first-publish of a brand-new scoped package returns a bare 404
+        // `Not Found`), plus `npm-auth-type` (legacy when --otp, else web), a
+        // real `user-agent`, and `npm-otp` when an OTP is supplied. See
+        // `utils/publish-headers.ts` for the field-by-field refs/npm-cli
+        // evidence.
+        const headers = buildPublishHeaders(url, { npmrc, otp });
 
         // Trusted Publishing path. `--trusted` forces OIDC (errors if env
         // vars are missing); the default `undefined` triggers auto-detect:
@@ -338,7 +335,8 @@ export const publishCommand: Command<unknown, PublishOptions> = {
                     handleOidcFailure(err, packed.name, args.json === true);
                     process.exit(1);
                 }
-                // Auto-detect: fall back to whatever buildHeaders found.
+                // Auto-detect: fall back to the npmrc token auth that
+                // buildPublishHeaders already resolved into `headers`.
                 if (verbose) {
                     const msg = err instanceof Error ? err.message : String(err);
                     console.error(`gjsify publish: OIDC auto-detect failed (${msg}) — falling back to token auth`);
