@@ -25,6 +25,7 @@ import autoGlobalsSuite from './auto-globals.spec.js';
 import externalsPluginSuite from './externals-plugin.spec.js';
 import affectedClassifierSuite from './affected-classifier.spec.js';
 import runStdioSafeSuite from './run-stdio-safe.spec.js';
+import buildCommandGjsGuardSuite from './build-command-gjs-guard.spec.js';
 
 run({
     bundlerPickSuite,
@@ -44,4 +45,5 @@ run({
     externalsPluginSuite,
     affectedClassifierSuite,
     runStdioSafeSuite,
+    buildCommandGjsGuardSuite,
 });
