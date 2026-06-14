@@ -73,6 +73,29 @@ jobs:
         with:
           node-version: '24.x'
 
+      # TEMP DIAGNOSTIC (verify_only only): raw-curl OIDC probe from THIS
+      # workflow (release.yml) — the only JWT whose workflow_ref matches the
+      # packages' Trusted Publisher config. Isolates "config correct but
+      # exchange fails" (npm/gjsify-code issue) from "config just needs adding".
+      # Bypasses gjsify's npm-oidc.ts entirely. Remove once TP is sorted.
+      - name: OIDC raw-curl probe (verify_only)
+        if: ${{ inputs.verify_only }}
+        run: |
+          set -uo pipefail
+          URL="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm:registry.npmjs.org"
+          TOKEN=$(curl -s -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$URL" \
+            | sed -E 's/.*"value":"([^"]+)".*/\1/')
+          echo "workflow_ref in JWT:"
+          echo "$TOKEN" | awk -F. '{print $2}' | tr '_-' '/+' | base64 -d 2>/dev/null \
+            | grep -oE '"workflow_ref":"[^"]*"' || echo "(decode skipped)"
+          for enc in "@gjsify%2fcli" "@gjsify%2Fcli"; do
+            echo "=== raw exchange $enc ==="
+            curl -s -w '\nHTTP %{http_code}\n' -X POST \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/$enc" -d '{}'
+          done
+
       # Phase D.7d: Node-free install via the committed GJS bundle.
       # Mirrors main.yml — see that workflow for rationale.
       - name: Install dependencies (gjsify install --immutable)
