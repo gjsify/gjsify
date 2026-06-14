@@ -62,13 +62,23 @@ fi
 
 WHO=$(npm whoami 2>/dev/null) || { echo "ERROR: not authenticated. Run 'npm login' first."; exit 1; }
 echo "Authenticated as: $WHO"
+
+# npm's registry (since 2026-05-20) REQUIRES an allowed action on a trusted
+# publisher, sent via `--allow-publish`. That flag landed after npm 11.12.1,
+# so fall back to `npx -y npm@latest` when the local npm is too old.
+if npm trust github --help 2>&1 | grep -q -- '--allow-publish'; then
+  NPM_TRUST="npm trust"
+else
+  echo "Local npm ($(npm --version)) lacks 'trust --allow-publish' → using 'npx -y npm@latest'."
+  NPM_TRUST="npx -y npm@latest trust"
+fi
 echo "Starting — accept the npmjs.com '2FA skip (5 min)' prompt on the first call."
 echo
 
 ok=0; fail=0; failed=()
 for pkg in "${PKGS[@]}"; do
   printf '→ %-45s ' "$pkg"
-  if npm trust github "$pkg" --file "$WORKFLOW" --repository "$REPO" --allow-publish --yes; then
+  if $NPM_TRUST github "$pkg" --file "$WORKFLOW" --repository "$REPO" --allow-publish --yes; then
     ok=$((ok+1))
   else
     fail=$((fail+1)); failed+=("$pkg")
