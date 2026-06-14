@@ -1043,6 +1043,44 @@ export default async () => {
             });
             expect(new TextDecoder().decode(result)).toBe('abcdef');
         });
+
+        // Regression guard for the *streaming* gunzip path. The one-shot
+        // `gunzip()`/`gunzipSync()` above are already member-aware (see
+        // `decompressWithGio` in index.ts), but `createGunzip()` decodes through
+        // the Transform in transform-streams.ts, whose single Gio convert stops
+        // at the first member. Under native Node (`runtime: node = none`) these
+        // pass; under the GJS polyfill they fail until the member-aware streaming
+        // Gunzip lands. The fix lives in the streaming codec classes added by
+        // PR #508 (fix/zlib-streaming-classes) — these tests belong with it.
+        await it('createGunzip (stream) should decompress concatenated gzip members', async () => {
+            // The streaming Gunzip Transform must walk every gzip member to EOF,
+            // matching Node's createGunzip(). A single Gio convert stops after
+            // the first member and silently drops the rest.
+            const concatenated = Buffer.concat([gzipSync('abc'), gzipSync('def')]);
+            const result = await new Promise<Buffer>((resolve, reject) => {
+                const chunks: Buffer[] = [];
+                const gunz = createGunzip();
+                gunz.on('data', (c: Buffer) => chunks.push(c));
+                gunz.on('end', () => resolve(Buffer.concat(chunks)));
+                gunz.on('error', reject);
+                gunz.end(concatenated);
+            });
+            expect(result.toString()).toBe('abcdef');
+        });
+
+        await it('createGunzip (stream) should still error on truncated input', async () => {
+            // Truncation must remain an error — the member walk must not mask it.
+            const full = Buffer.concat([gzipSync('abc'), gzipSync('def')]);
+            const truncated = full.subarray(0, full.length - 4);
+            const errored = await new Promise<boolean>((resolve) => {
+                const gunz = createGunzip();
+                gunz.on('data', () => {});
+                gunz.on('end', () => resolve(false));
+                gunz.on('error', () => resolve(true));
+                gunz.end(truncated);
+            });
+            expect(errored).toBe(true);
+        });
     });
 
     // --- Sync functions with empty string ---
