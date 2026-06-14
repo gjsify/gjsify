@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.5.0](https://github.com/gjsify/gjsify/compare/v0.4.46...v0.5.0) (2026-06-14)
+
+### Features
+
+* **publish:** surface npm 401 body + decoded JWT claims in --check-trusted ([344b6c2](https://github.com/gjsify/gjsify/commit/344b6c22a5fb19634dda0a9cd1a86c464ab7b81b))
+
+### Bug Fixes
+
+* **auto-globals:** skip unresolvable register imports ([053b825](https://github.com/gjsify/gjsify/commit/053b825c3898ef80d953a5039a7e881518506fa4))
+* **auto-globals:** wire cwd gate into build + STATUS ([2d3b642](https://github.com/gjsify/gjsify/commit/2d3b64237dff1ef457e21ccbd37e53a0d65a909c))
+* **cli:** clear error for `build` under GJS bundle ([c4ed9fb](https://github.com/gjsify/gjsify/commit/c4ed9fb019f8ad8e8f245bab71a1b5835631ff56))
+* **cli:** rebuild bundle + STATUS for run stdio fix ([40e0a2d](https://github.com/gjsify/gjsify/commit/40e0a2d231c237d70ddbb1159578d227e522304b))
+* **cli:** rebuild bundle with [#514](https://github.com/gjsify/gjsify/issues/514) auto-globals (build-order) ([089d75a](https://github.com/gjsify/gjsify/commit/089d75aa90c15247f89cc5364ec6729251dc0770))
+* **cli:** send run banner to stderr, forward -- args ([0368b80](https://github.com/gjsify/gjsify/commit/0368b80cf8722e0a0e06ffce2670c22bf9581c52))
+* **compression-streams:** decode multi-chunk input ([9b88efa](https://github.com/gjsify/gjsify/commit/9b88efa686ad8c073942f4d462d9a73e5700c642))
+* **process:** auto-resume ProcessReadStream on 'data' listener ([ffb720a](https://github.com/gjsify/gjsify/commit/ffb720ac9796a0897ca8cf4aa99bc7e7024d10ae))
+* **publish:** send OIDC audience via string concat, not URL.searchParams ([b175c1d](https://github.com/gjsify/gjsify/commit/b175c1d5db315009b8da51801083c921a2944ec1))
+* **release:** npm trust needs --allow-publish; npx fallback for old npm ([ecfcb9f](https://github.com/gjsify/gjsify/commit/ecfcb9fc94a0f370fa645beb6ba64b9ca976b88d))
+* **zlib:** add streaming codec classes for GJS ([5bbad3a](https://github.com/gjsify/gjsify/commit/5bbad3a1657883d85328762e804f5df57741e27d))
+* **zlib:** pipeThrough web (de)compress to stop GJS rejection leak ([6d33a85](https://github.com/gjsify/gjsify/commit/6d33a850bbc74c8f273bea7bf29a3d21e1b0b45d))
+* **zlib:** silence writer teardown rejection on GJS ([9dfa7a6](https://github.com/gjsify/gjsify/commit/9dfa7a6bea6bc5efbacd5b5b7fa5c627c868bea7))
+
+### Reverts
+
+* **cli:** drop [#510](https://github.com/gjsify/gjsify/issues/510) GJS build guard — it broke the Node-free release build ([92dde1b](https://github.com/gjsify/gjsify/commit/92dde1bfc3e6c1b6127e4e08a584d28e83fa8f4a)), closes [#483](https://github.com/gjsify/gjsify/issues/483)
+
+### Documentation
+
+* **gjs:** analyse TLA + main-loop exit deadlock ([4856b93](https://github.com/gjsify/gjsify/commit/4856b939a308aadab75f692103fd17b22e53074f))
+* **status:** note gjsify-build-under-GJS guard ([#510](https://github.com/gjsify/gjsify/issues/510)) ([80f95b0](https://github.com/gjsify/gjsify/commit/80f95b01e85eb2ec09f82a8382a4b35b5ca21abf))
+
+### Build System
+
+* **cli:** reconcile bundle with [#516](https://github.com/gjsify/gjsify/issues/516) zlib pipeThrough web (de)compress ([b3c56c2](https://github.com/gjsify/gjsify/commit/b3c56c200f89fb02bcc26c6a71db394043426279))
+
+### Continuous Integration
+
+* probe @gjsify/cli OIDC exchange with lowercase %2f ([15d79e2](https://github.com/gjsify/gjsify/commit/15d79e2f083f633a5ceb53fac42e3a77e42cc90a))
+* remove temp OIDC debug scaffolding (audience bug fixed) ([c265bb8](https://github.com/gjsify/gjsify/commit/c265bb80e79ce98309077fd5ef93ce633702342c))
+* temp OIDC debug workflow (dump JWT issuer/claims + exchange probe) ([977501b](https://github.com/gjsify/gjsify/commit/977501b90aed1ab8a8bc17ebc2584ab16847c500))
+* temp raw-curl OIDC probe in release.yml (verify_only) ([a5cdfd7](https://github.com/gjsify/gjsify/commit/a5cdfd7e571d0e1ac760c2026e1f0de52e385617))
+
+### Maintenance
+
+* **release:** add bulk npm Trusted Publisher config script ([52960ef](https://github.com/gjsify/gjsify/commit/52960ef9b1f824cd9b60a8166a3ca4c77875f16b))
+
+### Tests
+
+* **zlib:** repro streaming gunzip concat members ([d66ef5d](https://github.com/gjsify/gjsify/commit/d66ef5da518fcf7b1ebcf5079567ad75797dd972)), closes [#508](https://github.com/gjsify/gjsify/issues/508) [#508](https://github.com/gjsify/gjsify/issues/508)
+
 ## [0.4.46](https://github.com/gjsify/gjsify/compare/v0.4.45...v0.4.46) (2026-06-14)
 
 ### Bug Fixes
