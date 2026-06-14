@@ -55,7 +55,7 @@ const defaultBundler: AnalysisBundler = async ({ rolldownInput, format }) => {
     }
 };
 import { detectFreeGlobals } from './detect-free-globals.js';
-import { resolveGlobalsList, writeRegisterInjectFile } from './scan-globals.js';
+import { resolveGlobalsList, writeRegisterInjectFile, filterResolvableRegisterPaths } from './scan-globals.js';
 import { GJS_GLOBALS_MAP } from '@gjsify/resolve-npm/globals-map';
 import { REGISTER_GLOBALS_CLOSURE } from '@gjsify/resolve-npm/register-globals-closure';
 import type { PluginOptions } from '../types/plugin-options.js';
@@ -119,13 +119,15 @@ async function applyExcludeGlobals(
     currentInject: string | undefined,
     extraRegisterPaths: Set<string>,
     excludeGlobals: string[] | undefined,
+    cwd?: string,
 ): Promise<AutoGlobalsResult> {
     if (!excludeGlobals?.length) return { detected, injectPath: currentInject };
 
     for (const id of excludeGlobals) detected.delete(id);
-    const filtered = detectedToRegisterPaths(detected);
+    let filtered = detectedToRegisterPaths(detected);
     for (const p of extraRegisterPaths) filtered.add(p);
-    const injectPath = filtered.size > 0 ? ((await writeRegisterInjectFile(filtered)) ?? undefined) : undefined;
+    if (cwd) filtered = filterResolvableRegisterPaths(filtered, cwd);
+    const injectPath = filtered.size > 0 ? ((await writeRegisterInjectFile(filtered, cwd)) ?? undefined) : undefined;
     return { detected, injectPath };
 }
 
@@ -166,6 +168,18 @@ export interface DetectAutoGlobalsOptions {
      * converge after one detection pass.
      */
     disableClosureExpansion?: boolean;
+    /**
+     * Working directory of the project being built. Used to locate the
+     * project's `node_modules` when checking whether a detected global's
+     * polyfill package is actually installed.
+     *
+     * When omitted the resolvability gate is BYPASSED (every detected
+     * register path is written as-is) to preserve the original behaviour
+     * for callers that don't know the project root. The real CLI build
+     * (`actions/build.ts`) passes `process.cwd()` so the gate is active in
+     * a normal `gjsify build`.
+     */
+    cwd?: string;
 }
 
 /**
@@ -242,12 +256,16 @@ export async function detectAutoGlobals(
         : new Set<string>();
 
     const excludeSet = new Set(options.excludeGlobals ?? []);
+    const cwd = options.cwd;
 
     let detected = new Set<string>();
     let currentInject: string | undefined = undefined;
 
     if (extraRegisterPaths.size > 0) {
-        currentInject = (await writeRegisterInjectFile(extraRegisterPaths)) ?? undefined;
+        const resolvableExtra = cwd
+            ? filterResolvableRegisterPaths(extraRegisterPaths, cwd)
+            : extraRegisterPaths;
+        currentInject = (await writeRegisterInjectFile(resolvableExtra, cwd)) ?? undefined;
     }
 
     // Caller-provided plugins (e.g. PnP relay) survive every pass; the
@@ -377,7 +395,7 @@ export async function detectAutoGlobals(
                     `[gjsify] --globals auto: converged after ${iteration - 1} iteration(s), ${detected.size} global(s)${sorted.length ? ': ' + sorted.join(', ') : ''}${extras}`,
                 );
             }
-            return applyExcludeGlobals(detected, currentInject, extraRegisterPaths, options.excludeGlobals);
+            return applyExcludeGlobals(detected, currentInject, extraRegisterPaths, options.excludeGlobals, cwd);
         }
 
         // Seed the next pass with the PRECOMPUTED closure of every detected
@@ -406,14 +424,21 @@ export async function detectAutoGlobals(
             );
         }
         detected = new Set([...detected, ...expanded]);
-        const registerPaths = detectedToRegisterPaths(detected);
+        let registerPaths = detectedToRegisterPaths(detected);
         for (const p of extraRegisterPaths) registerPaths.add(p);
+
+        // Filter out register paths whose polyfill package is not installed
+        // in the project. An unresolvable import in the analysis bundle causes
+        // a hard Rolldown error — emitting it is strictly worse than skipping
+        // with a warning. The caller can add the dep or use --exclude-globals
+        // to acknowledge the gap. See AGENTS.md fix (a) rationale.
+        if (cwd) registerPaths = filterResolvableRegisterPaths(registerPaths, cwd);
 
         if (registerPaths.size === 0) {
             return { detected, injectPath: undefined };
         }
 
-        currentInject = (await writeRegisterInjectFile(registerPaths)) ?? undefined;
+        currentInject = (await writeRegisterInjectFile(registerPaths, cwd)) ?? undefined;
 
         if (verbose) {
             const sorted = [...detected].sort();
@@ -426,7 +451,7 @@ export async function detectAutoGlobals(
     if (verbose) {
         console.debug(`[gjsify] --globals auto: hit max iterations (${MAX_ITERATIONS}), using last detected set`);
     }
-    return applyExcludeGlobals(detected, currentInject, extraRegisterPaths, options.excludeGlobals);
+    return applyExcludeGlobals(detected, currentInject, extraRegisterPaths, options.excludeGlobals, cwd);
 }
 
 /**
