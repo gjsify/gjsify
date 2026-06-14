@@ -85,8 +85,10 @@ export async function runGjsBundle(
     // Print the exact command being executed so users can copy-paste it to
     // run gjs directly without the wrapper. Env vars are only shown if we
     // actually set any (i.e. native gjsify packages were detected).
+    // Use stderr so that children speaking a protocol on stdout (e.g. an
+    // MCP stdio server) receive an uncontaminated stdout stream.
     const gjsCommand = ['gjs', ...gjsArgs.map((a) => (a.includes(' ') ? `"${a}"` : a))].join(' ');
-    console.log(`$ ${envPrefix ? `${envPrefix} ` : ''}${gjsCommand}`);
+    console.error(`$ ${envPrefix ? `${envPrefix} ` : ''}${gjsCommand}`);
 
     const child = spawn('gjs', gjsArgs, { env, stdio: 'inherit' });
 

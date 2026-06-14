@@ -44,10 +44,27 @@ export const runCommand: Command<unknown, RunOptions> = {
                 type: 'string',
                 array: true,
                 default: [],
+            })
+            .parserConfiguration({
+                // Preserve `--` as args['--'] so callers can write
+                //   gjsify run ./server.mjs -- --port 8080
+                // without yargs intercepting --port as its own option.
+                // Without this, anything after `--` lands in args._ and is
+                // silently dropped by the handler.
+                'populate--': true,
             }),
     handler: async (args) => {
         const target = args.target as string;
-        const extraArgs = (args.args as string[]) ?? [];
+        // Collect positional args AND anything after the `--` separator.
+        // With `parserConfiguration({ 'populate--': true })` in the builder,
+        // `gjsify run target -- a b c` puts a, b, c into args['--'] rather
+        // than silently discarding them (without it they land in args._ and
+        // are never forwarded to the child).
+        const positionalArgs = (args.args as string[]) ?? [];
+        const doubleDashArgs = (((args as Record<string, unknown>)['--'] as unknown[]) ?? []).filter(
+            (v): v is string => typeof v === 'string',
+        );
+        const extraArgs = [...positionalArgs, ...doubleDashArgs];
 
         // Script lookup wins over file detection. Without this, a bare
         // `gjsify run build` would resolve to a file when a `./build`
