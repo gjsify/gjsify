@@ -1,0 +1,37 @@
+name: OIDC Debug
+
+# Temporary diagnostic: dumps the GitHub Actions OIDC id-token issuer + claims
+# and attempts a single npm token exchange, to root-cause the systemic
+# "OIDC token exchange error - unauthorized" (0/N) on Trusted Publishing.
+# Safe: prints only non-secret JWT claims (iss/aud/repository/workflow_ref/…),
+# never the raw token. Remove once the TP config is sorted.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: OIDC issuer + claims + exchange probe
+        run: |
+          set -euo pipefail
+          URL="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm:registry.npmjs.org"
+          TOKEN=$(curl -s -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$URL" \
+            | python3 -c "import sys,json;print(json.load(sys.stdin)['value'])")
+          echo "=== JWT header + payload (non-secret claims only) ==="
+          echo "$TOKEN" | python3 -c "
+          import sys, base64, json
+          t = sys.stdin.read().strip()
+          for name, seg in zip(('HEADER','PAYLOAD'), t.split('.')[:2]):
+              seg += '=' * (-len(seg) % 4)
+              print(name, json.dumps(json.loads(base64.urlsafe_b64decode(seg)), indent=2))
+          "
+          echo "=== exchange attempt for @gjsify/cli ==="
+          curl -s -w '\nHTTP_STATUS %{http_code}\n' -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/@gjsify%2Fcli" \
+            -d '{}'
