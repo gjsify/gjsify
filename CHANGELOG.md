@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.46](https://github.com/gjsify/gjsify/compare/v0.4.45...v0.4.46) (2026-06-14)
+
+### Bug Fixes
+
+* **fetch:** preserve %2F in URL paths under GJS (UriFlags.ENCODED) ([3596e53](https://github.com/gjsify/gjsify/commit/3596e53b6118dabd948a93f72c8674833f976fa7))
+
 ## [0.4.45](https://github.com/gjsify/gjsify/compare/v0.4.44...v0.4.45) (2026-06-13)
 
 ### Features
