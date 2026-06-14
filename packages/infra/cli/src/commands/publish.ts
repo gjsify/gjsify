@@ -660,7 +660,7 @@ function handleOidcFailure(err: unknown, packageName: string, asJson: boolean): 
             if (err.body) process.stderr.write(`    ↳ npm said: ${err.body.slice(0, 300)}\n`);
             if (err.claims) {
                 const c = err.claims;
-                const shown = ['repository', 'repository_owner', 'workflow_ref', 'job_workflow_ref', 'ref', 'environment', 'sub']
+                const shown = ['aud', 'iss', 'repository', 'repository_owner', 'workflow_ref', 'job_workflow_ref', 'ref', 'environment', 'sub']
                     .filter((k) => c[k] !== undefined)
                     .map((k) => `${k}=${JSON.stringify(c[k])}`)
                     .join(', ');

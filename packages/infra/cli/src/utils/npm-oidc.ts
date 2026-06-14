@@ -109,12 +109,21 @@ export async function fetchGithubOidcToken(audience: string, log?: (msg: string)
         );
     }
 
-    const requestUrl = new URL(url);
-    requestUrl.searchParams.set('audience', audience);
+    // Append the audience by STRING CONCATENATION, mirroring @actions/core's
+    // getIDToken (`${runtimeUrl}&audience=${encodeURIComponent(aud)}`) and the
+    // raw-curl probe that returns HTTP 201. Do NOT use `URL.searchParams.set` +
+    // `.href`: under GJS that serialization dropped the `audience` query param,
+    // so GitHub issued an id-token with the DEFAULT audience (the repo API URL)
+    // instead of `npm:registry.npmjs.org`. npm then rejected the otherwise-valid
+    // token with 401 "unauthorized" — the JWT's repository/workflow_ref/sub
+    // claims all matched the Trusted Publisher, only `aud` was wrong, which is
+    // exactly the failure we saw (curl from the same workflow → 201).
+    const sep = url.includes('?') ? '&' : '?';
+    const requestUrl = `${url}${sep}audience=${encodeURIComponent(audience)}`;
 
-    log?.(`gjsify oidc: GET ${requestUrl.href.replace(bearer, '<bearer>')}`);
+    log?.(`gjsify oidc: GET ${requestUrl.replace(bearer, '<bearer>')}`);
 
-    const res = await fetch(requestUrl.href, {
+    const res = await fetch(requestUrl, {
         method: 'GET',
         headers: {
             Accept: 'application/json',
