@@ -649,9 +649,24 @@ function handleOidcFailure(err: unknown, packageName: string, asJson: boolean): 
                 : err.message;
         if (asJson)
             process.stdout.write(
-                `${JSON.stringify({ ok: false, name: packageName, error: 'oidc-exchange', status: err.status, body: err.body, message: err.message })}\n`,
+                `${JSON.stringify({ ok: false, name: packageName, error: 'oidc-exchange', status: err.status, body: err.body, claims: err.claims, message: err.message })}\n`,
             );
-        else process.stderr.write(`✗ ${packageName}: ${friendly}\n`);
+        else {
+            process.stderr.write(`✗ ${packageName}: ${friendly}\n`);
+            // Diagnostics: the raw npm body often names the rejected claim, and
+            // the decoded JWT claims are exactly what the TP config must match
+            // (repository + workflow_ref + environment). Print both so a 401 is
+            // actionable without re-running in --json/--verbose mode.
+            if (err.body) process.stderr.write(`    ↳ npm said: ${err.body.slice(0, 300)}\n`);
+            if (err.claims) {
+                const c = err.claims;
+                const shown = ['repository', 'repository_owner', 'workflow_ref', 'job_workflow_ref', 'ref', 'environment', 'sub']
+                    .filter((k) => c[k] !== undefined)
+                    .map((k) => `${k}=${JSON.stringify(c[k])}`)
+                    .join(', ');
+                if (shown) process.stderr.write(`    ↳ JWT claims npm received: ${shown}\n`);
+            }
+        }
         return;
     }
     const msg = err instanceof Error ? err.message : String(err);

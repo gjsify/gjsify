@@ -52,9 +52,35 @@ export class OidcExchangeError extends Error {
         public readonly status: number,
         public readonly body: string,
         public readonly packageName: string,
+        /**
+         * The non-secret claims decoded from the GitHub OIDC JWT that npm
+         * rejected — `repository`, `workflow_ref`, `environment`, … These are
+         * exactly what npm matches a Trusted Publisher config against, so on a
+         * 401/403 they tell you precisely which fields the config must carry.
+         */
+        public readonly claims?: Record<string, unknown>,
     ) {
         super(message);
         this.name = 'OidcExchangeError';
+    }
+}
+
+/**
+ * Decode the (non-secret) payload of a JWT — the middle base64url segment.
+ * A GitHub OIDC id-token's payload is public metadata about the workflow run
+ * (`repository`, `repository_owner`, `workflow_ref`, `job_workflow_ref`,
+ * `ref`, `environment`, `sub`, …); the SIGNATURE is what makes it trustworthy.
+ * Returns null if the token isn't a well-formed three-part JWT.
+ */
+export function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
+    const parts = jwt.split('.');
+    if (parts.length !== 3) return null;
+    try {
+        const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const json = typeof atob === 'function' ? atob(b64) : Buffer.from(b64, 'base64').toString('binary');
+        return JSON.parse(json) as Record<string, unknown>;
+    } catch {
+        return null;
     }
 }
 
@@ -157,6 +183,7 @@ export async function exchangeOidcForNpmToken(args: OidcExchangeOptions & { idTo
             res.status,
             text,
             packageName,
+            decodeJwtPayload(idToken) ?? undefined,
         );
     }
 
