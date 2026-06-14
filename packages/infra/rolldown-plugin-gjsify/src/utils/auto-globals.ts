@@ -173,8 +173,11 @@ export interface DetectAutoGlobalsOptions {
      * project's `node_modules` when checking whether a detected global's
      * polyfill package is actually installed.
      *
-     * Defaults to `process.cwd()`. Override when the build is invoked from
-     * a different directory than the project root (e.g. workspace builds).
+     * When omitted the resolvability gate is BYPASSED (every detected
+     * register path is written as-is) to preserve the original behaviour
+     * for callers that don't know the project root. The real CLI build
+     * (`actions/build.ts`) passes `process.cwd()` so the gate is active in
+     * a normal `gjsify build`.
      */
     cwd?: string;
 }

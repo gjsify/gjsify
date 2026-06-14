@@ -30,7 +30,8 @@ import {
     isRegisterPathResolvable,
     filterResolvableRegisterPaths,
 } from '@gjsify/rolldown-plugin-gjsify/globals';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
 
 export default async () => {
     await describe('--app gjs externals: /register subpath invariant', async () => {
@@ -401,6 +402,44 @@ export default async () => {
                 fakeBundler,
             );
             expect(detected.has('document')).toBe(true);
+        });
+    });
+
+    // -------------------------------------------------------------------------
+    // Fix (a) wiring: the REAL CLI build path must pass `cwd` into
+    // detectAutoGlobals — otherwise the resolvability gate is dead code in
+    // production (the gate is opt-in via `options.cwd`). This regression
+    // guard fails if a refactor drops the `cwd` argument from the call site
+    // in `actions/build.ts`, silently disabling the gate again.
+    //
+    // Resolve the source relative to process.cwd(): the test runner always
+    // executes from the @gjsify/cli package root (same assumption as
+    // affected-classifier.spec.ts).
+    // -------------------------------------------------------------------------
+    await describe('actions/build.ts — wires cwd into the auto-globals gate (fix a)', async () => {
+        const buildActionPath = resolve(process.cwd(), 'src/actions/build.ts');
+
+        await it('passes cwd into the detectAutoGlobals options object', async () => {
+            const src = await readFile(buildActionPath, 'utf-8');
+
+            // Locate the detectAutoGlobals(...) call in buildApp.
+            const callIdx = src.indexOf('detectAutoGlobals(');
+            expect(callIdx).toBeGreaterThan(-1);
+
+            // Inspect the call body up to the next gjsifyPlugin call (the
+            // final build) — the options object must contain `cwd:`.
+            const after = src.slice(callIdx, callIdx + 1500);
+            expect(after.includes('cwd: process.cwd()')).toBe(true);
+        });
+
+        await it('keeps passing the existing extraGlobalsList + excludeGlobals options', async () => {
+            // Guard against an accidental options-object rewrite that drops
+            // the pre-existing fields when adding cwd.
+            const src = await readFile(buildActionPath, 'utf-8');
+            const callIdx = src.indexOf('detectAutoGlobals(');
+            const after = src.slice(callIdx, callIdx + 1500);
+            expect(after.includes('extraGlobalsList: extras')).toBe(true);
+            expect(after.includes('excludeGlobals')).toBe(true);
         });
     });
 };

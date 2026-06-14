@@ -310,7 +310,14 @@ export class BuildAction {
                 pluginOpts,
                 gjsifyPluginFactory,
                 verbose,
-                { extraGlobalsList: extras, excludeGlobals },
+                // Pass the project working dir so the resolvability gate in
+                // detectAutoGlobals can check whether each detected global's
+                // polyfill package is installed before writing a register
+                // import. Without `cwd` the gate is bypassed and an
+                // unresolvable import would hard-crash the analysis pass.
+                // Mirrors the explicit-globals path (resolveGlobalsInject)
+                // and resolveUserPlugins above, which already anchor on cwd.
+                { extraGlobalsList: extras, excludeGlobals, cwd: process.cwd() },
                 bundleToChunks,
             );
 
