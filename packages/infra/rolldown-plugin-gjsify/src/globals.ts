@@ -5,7 +5,7 @@
 // stub that the plugin picks up via its `autoGlobalsInject` option. See the
 // "Tree-shakeable Globals" section in AGENTS.md for the architecture.
 
-export { resolveGlobalsList, writeRegisterInjectFile } from './utils/scan-globals.js';
+export { resolveGlobalsList, writeRegisterInjectFile, isRegisterPathResolvable, filterResolvableRegisterPaths } from './utils/scan-globals.js';
 export { detectFreeGlobals } from './utils/detect-free-globals.js';
 export { detectAutoGlobals } from './utils/auto-globals.js';
 export type { AutoGlobalsResult, DetectAutoGlobalsOptions, AnalysisOptions } from './utils/auto-globals.js';

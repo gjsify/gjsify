@@ -12,10 +12,12 @@
 // the "Tree-shakeable Globals" section in AGENTS.md for the rationale.
 
 import { writeFile, mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
 import { GJS_GLOBALS_MAP, GJS_GLOBALS_GROUPS } from '@gjsify/resolve-npm/globals-map';
+import { ALIASES_WEB_FOR_GJS } from '@gjsify/resolve-npm';
 
 const GLOBALS_MAP: Record<string, string> = GJS_GLOBALS_MAP;
 const GLOBALS_GROUPS: Record<string, string[]> = GJS_GLOBALS_GROUPS;
@@ -59,6 +61,115 @@ export function resolveGlobalsList(globalsArg: string): Set<string> {
         }
     }
     return result;
+}
+
+/**
+ * Extract the npm package name from a register specifier.
+ *
+ * Examples:
+ *   `@gjsify/dom-elements/register/document` → `@gjsify/dom-elements`
+ *   `@gjsify/fetch/register`                 → `@gjsify/fetch`
+ *   `fetch/register`                         → `fetch`
+ */
+function packageNameFromRegisterPath(registerPath: string): string {
+    if (registerPath.startsWith('@')) {
+        // scoped: @scope/pkg/...
+        const parts = registerPath.split('/');
+        return parts.slice(0, 2).join('/');
+    }
+    // unscoped: pkg/...
+    return registerPath.split('/')[0] ?? registerPath;
+}
+
+const ALIAS_MAP_FOR_GJS: Record<string, string> = ALIASES_WEB_FOR_GJS as Record<string, string>;
+
+/**
+ * Resolve a bare-specifier register path to its canonical `@gjsify/`
+ * form using the ALIASES_WEB_FOR_GJS alias table (e.g.
+ * `fetch/register/fetch` → `@gjsify/fetch/register/fetch`).
+ *
+ * The globals-map uses bare specifiers for packages that the gjsify alias
+ * plugin rewrites at build time. For the resolvability check we need the
+ * CANONICAL package name so we look in the right `node_modules` directory.
+ * If no alias is found the original path is returned unchanged.
+ */
+function resolveRegisterAlias(registerPath: string): string {
+    // Direct alias lookup first (handles full `fetch/register/fetch` etc).
+    if (ALIAS_MAP_FOR_GJS[registerPath]) return ALIAS_MAP_FOR_GJS[registerPath];
+    // Prefix lookup: `web-streams/register/readable` → check `web-streams` alias.
+    const pkgName = packageNameFromRegisterPath(registerPath);
+    const aliasedPkg = ALIAS_MAP_FOR_GJS[pkgName];
+    if (aliasedPkg && !registerPath.startsWith('@')) {
+        // Replace the bare-package prefix with the aliased @gjsify/ package name.
+        const tail = registerPath.slice(pkgName.length); // e.g. '/register/readable'
+        return aliasedPkg + tail;
+    }
+    return registerPath;
+}
+
+/**
+ * Return true if `registerPath`'s base package is present in the
+ * project's node_modules tree (checked by walking up from `fromDir`).
+ *
+ * Bare-specifier register paths (e.g. `fetch/register/fetch`) are first
+ * resolved to their canonical `@gjsify/` form via the alias map so the
+ * presence check searches the right `node_modules` directory.
+ *
+ * The check is a simple `package.json` existence test — the same fast
+ * approach Node's own resolver uses as the first step. We walk up the
+ * directory tree (like Node's require algorithm) so nested
+ * `node_modules` trees (e.g. workspace setups) are handled correctly.
+ *
+ * Returns false — never throws — so a missing package causes a graceful
+ * skip rather than a build crash.
+ */
+export function isRegisterPathResolvable(registerPath: string, fromDir: string): boolean {
+    // Resolve bare-specifier aliases to @gjsify/ canonical form first.
+    const canonical = resolveRegisterAlias(registerPath);
+    const pkgName = packageNameFromRegisterPath(canonical);
+    const parts = pkgName.split('/');
+    // Walk up the directory tree mirroring Node's module-resolution
+    // algorithm: check <dir>/node_modules/<pkg>/package.json at each level.
+    let dir = fromDir;
+    const root = dir.slice(0, dir.indexOf('/') + 1) || '/';
+    while (true) {
+        const candidate = join(dir, 'node_modules', ...parts, 'package.json');
+        if (existsSync(candidate)) return true;
+        if (dir === root) break;
+        const parent = join(dir, '..');
+        if (parent === dir) break;
+        dir = parent;
+    }
+    return false;
+}
+
+/**
+ * Filter `registerPaths` to only those whose base package is resolvable
+ * from `fromDir`. Emits a `console.warn` for each skipped path —
+ * skipping silently would mask genuine missing-polyfill cases.
+ *
+ * Trade-off: if a project intentionally relies on a bundled polyfill
+ * for a global that is also referenced in a typeof-guard inside an npm
+ * dep, and that polyfill is not a direct/transitive dep, the warn makes
+ * the gap visible so the developer can add the dep explicitly.
+ */
+export function filterResolvableRegisterPaths(
+    registerPaths: Set<string>,
+    fromDir: string,
+): Set<string> {
+    const out = new Set<string>();
+    for (const p of registerPaths) {
+        if (isRegisterPathResolvable(p, fromDir)) {
+            out.add(p);
+        } else {
+            console.warn(
+                `[gjsify] --globals auto: skipping register import '${p}' — ` +
+                `package '${packageNameFromRegisterPath(p)}' is not installed in this project. ` +
+                `If you need this global, add the package as a dependency or use --exclude-globals to suppress this warning.`,
+            );
+        }
+    }
+    return out;
 }
 
 /**

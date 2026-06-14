@@ -145,9 +145,21 @@ function extractBindingNames(node: acorn.AnyNode): string[] {
  * declared-names check is a safety net for edge cases where esbuild
  * keeps the original name.
  *
- * `typeof X` references ARE included — if code guards with
- * `typeof fetch !== 'undefined'`, it intends to use fetch when available
- * and we can provide it.
+ * `typeof X` references that appear in presence-check guards
+ * (`typeof document !== 'undefined'`) and NOWHERE ELSE in the bundle are
+ * NOT counted as free-global uses. Such guards are pervasive in
+ * isomorphic npm packages that support both browser and non-browser
+ * runtimes; on GJS the guarded branch is dead but the bundler cannot DCE
+ * a `typeof` expression (its value depends on the runtime). If the same
+ * identifier also appears in a genuine reference position the injection
+ * still fires — the typeof-guard suppression only applies when the guard
+ * is the SOLE occurrence.
+ *
+ * If `typeof X` was the ONLY reference to a global AND its polyfill
+ * package is unresolvable, silently skipping avoids an unresolved-import
+ * hard error at bundle time. The resolvability gate in `auto-globals.ts`
+ * provides the second layer of protection for cases where `X` does appear
+ * in a real reference position but the package is still absent.
  */
 export function detectFreeGlobals(code: string): Set<string> {
     const ast = acorn.parse(code, {
@@ -221,6 +233,12 @@ export function detectFreeGlobals(code: string): Set<string> {
     // all four host-object names for safety (esbuild also never renames
     // these because they are language keywords / pre-defined globals).
     const freeGlobals = new Set<string>();
+    // Globals seen only inside `typeof X` expressions so far. Moved into
+    // freeGlobals the moment the same name is detected in a real-use
+    // position. Names that remain here at the end were only ever
+    // presence-checked — not genuinely used — and are excluded from the
+    // injection set (see JSDoc above).
+    const typeofGuardGlobals = new Set<string>();
     const HOST_OBJECTS = new Set(['globalThis', 'global', 'window', 'self', 'globalObject']);
 
     walk.ancestor(ast, {
@@ -342,8 +360,25 @@ export function detectFreeGlobals(code: string): Set<string> {
                 case 'ImportDefaultSpecifier':
                 case 'ImportNamespaceSpecifier':
                     return;
+                // `typeof X` — presence-check guard. Defer: record in the
+                // typeof-guard set and only promote to freeGlobals if the
+                // same name also appears in a real-use position elsewhere
+                // in the bundle. See JSDoc on detectFreeGlobals.
+                case 'UnaryExpression': {
+                    const unary = parent as acorn.UnaryExpression;
+                    if (unary.operator === 'typeof') {
+                        if (!freeGlobals.has(name)) {
+                            typeofGuardGlobals.add(name);
+                        }
+                        return;
+                    }
+                    break;
+                }
             }
 
+            // Real-use position. Promote from typeofGuardGlobals if
+            // this name was previously seen only as a typeof argument.
+            typeofGuardGlobals.delete(name);
             freeGlobals.add(name);
         },
     });

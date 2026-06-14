@@ -24,7 +24,13 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import { isRegisterSubpath, createGjsExternalsPredicate } from '@gjsify/rolldown-plugin-gjsify';
-import { detectAutoGlobals } from '@gjsify/rolldown-plugin-gjsify/globals';
+import {
+    detectAutoGlobals,
+    detectFreeGlobals,
+    isRegisterPathResolvable,
+    filterResolvableRegisterPaths,
+} from '@gjsify/rolldown-plugin-gjsify/globals';
+import { join } from 'node:path';
 
 export default async () => {
     await describe('--app gjs externals: /register subpath invariant', async () => {
@@ -176,6 +182,225 @@ export default async () => {
             );
             expect(detected.has('ReadableStream')).toBe(true);
             expect(detected.size).toBe(1);
+        });
+    });
+
+    // -------------------------------------------------------------------------
+    // Fix (b): typeof-guard-only suppression in detectFreeGlobals
+    // -------------------------------------------------------------------------
+    await describe('detectFreeGlobals — typeof guard suppression (fix b)', async () => {
+        await it('does NOT detect a global that appears only in a typeof guard', () => {
+            // `typeof document !== 'undefined'` is a dead compat check on GJS.
+            // It must NOT trigger injection of @gjsify/dom-elements/register/document.
+            const code = `
+                function guard() {
+                    if (typeof document !== 'undefined') {
+                        // dead branch — never reached on GJS
+                    }
+                }
+                guard();
+            `;
+            const result = detectFreeGlobals(code);
+            expect(result.has('document')).toBe(false);
+        });
+
+        await it('does NOT detect navigator appearing only in a typeof guard', () => {
+            const code = `
+                if (typeof navigator !== 'undefined') {
+                    console.log('browser only');
+                }
+            `;
+            const result = detectFreeGlobals(code);
+            expect(result.has('navigator')).toBe(false);
+        });
+
+        await it('DOES detect a global that appears in a real use (not just typeof guard)', () => {
+            // `document.getElementById` is a genuine use → must inject.
+            const code = `
+                if (typeof document !== 'undefined') {
+                    document.getElementById('app');
+                }
+            `;
+            const result = detectFreeGlobals(code);
+            expect(result.has('document')).toBe(true);
+        });
+
+        await it('DOES detect a global with only a real use and no typeof guard', () => {
+            const code = `document.getElementById('app');`;
+            const result = detectFreeGlobals(code);
+            expect(result.has('document')).toBe(true);
+        });
+
+        await it('handles multiple globals — suppresses typeof-only, keeps real uses', () => {
+            // navigator: typeof guard only → suppressed
+            // fetch: genuine call → kept
+            const code = `
+                if (typeof navigator !== 'undefined') { /* guard */ }
+                fetch('/api');
+            `;
+            const result = detectFreeGlobals(code);
+            expect(result.has('navigator')).toBe(false);
+            expect(result.has('fetch')).toBe(true);
+        });
+    });
+
+    // -------------------------------------------------------------------------
+    // Fix (a): resolvability gate in scan-globals / auto-globals
+    // -------------------------------------------------------------------------
+    await describe('isRegisterPathResolvable — package presence check (fix a)', async () => {
+        // Walk up from process.cwd() — when this test runs from packages/infra/cli,
+        // the gjsify monorepo node_modules is two or three levels above. The
+        // isRegisterPathResolvable walker will find it automatically.
+        const monoroot = process.cwd();
+
+        await it('returns true for a package that is installed', () => {
+            // @gjsify/fetch is a workspace dep — its package.json exists.
+            expect(isRegisterPathResolvable('@gjsify/fetch/register/xhr', monoroot)).toBe(true);
+        });
+
+        await it('returns false for a package that is NOT installed', () => {
+            // Use a deliberately-fictional package name.
+            expect(isRegisterPathResolvable('@gjsify/__fixture-not-installed__/register', monoroot)).toBe(false);
+        });
+
+        await it('handles unscoped bare-specifier register paths', () => {
+            // 'fetch/register' bare form — fetch is in node_modules via alias
+            // resolution in most projects. Use the known-present one.
+            // We can't guarantee 'fetch' (unscoped) is resolvable, so just
+            // verify the function doesn't throw and returns a boolean.
+            const result = isRegisterPathResolvable('fetch/register', monoroot);
+            expect(typeof result).toBe('boolean');
+        });
+    });
+
+    await describe('filterResolvableRegisterPaths — warns + filters unresolvable (fix a)', async () => {
+        const monoroot = process.cwd();
+
+        await it('passes through resolvable paths unchanged', () => {
+            const paths = new Set(['@gjsify/fetch/register/xhr']);
+            const result = filterResolvableRegisterPaths(paths, monoroot);
+            expect(result.has('@gjsify/fetch/register/xhr')).toBe(true);
+            expect(result.size).toBe(1);
+        });
+
+        await it('drops unresolvable paths and emits a warning', () => {
+            const warnMessages: string[] = [];
+            const origWarn = console.warn.bind(console);
+            console.warn = (...args: unknown[]) => warnMessages.push(args.join(' '));
+            try {
+                const paths = new Set([
+                    '@gjsify/fetch/register/xhr',
+                    '@gjsify/__fixture-not-installed__/register/document',
+                ]);
+                const result = filterResolvableRegisterPaths(paths, monoroot);
+                expect(result.has('@gjsify/fetch/register/xhr')).toBe(true);
+                expect(result.has('@gjsify/__fixture-not-installed__/register/document')).toBe(false);
+                expect(result.size).toBe(1);
+                // A warning must have been emitted for the dropped path.
+                expect(warnMessages.some((m) => m.includes('__fixture-not-installed__'))).toBe(true);
+                expect(warnMessages.some((m) => m.includes('not installed'))).toBe(true);
+            } finally {
+                console.warn = origWarn;
+            }
+        });
+    });
+
+    await describe('detectAutoGlobals — skips injection when package absent (fix a)', async () => {
+        // Repro for the bug: a bundle that references `document` only inside
+        // a typeof guard AND @gjsify/dom-elements is NOT installed in the
+        // project. Before the fix this caused an unresolved import error in
+        // the analysis bundle on the NEXT pass.
+        //
+        // We simulate `@gjsify/dom-elements` being absent by using a fake cwd
+        // that has no node_modules (the system /tmp directory).
+        const fakeCwd = '/tmp';
+        const legacyFactory = () => [] as never;
+        const pluginOpts = { app: 'gjs', format: 'esm' } as never;
+
+        await it('does not produce a register inject path when the package is absent (typeof-guard-only)', async () => {
+            // Bundle output: `document` appears only in a typeof guard.
+            // Fix (b) suppresses the detection; fix (a) provides the second
+            // layer in case the detection somehow slips through.
+            const fakeBundler = async () => [
+                `if (typeof document !== 'undefined') { /* dead guard */ }\n`,
+            ];
+            const { injectPath } = await detectAutoGlobals(
+                { input: 'entry.ts', format: 'esm' },
+                pluginOpts,
+                legacyFactory,
+                false,
+                { cwd: fakeCwd },
+                fakeBundler,
+            );
+            // No inject stub should be written — document was only in a typeof guard.
+            expect(injectPath).toBe(undefined);
+        });
+
+        await it('emits no unresolved register import when dom-elements is absent and document is typeof-guard-only', async () => {
+            // This is the verbatim repro of the reported bug.
+            // A dependency bundles: if (typeof document !== 'undefined') { ... }
+            // @gjsify/dom-elements is NOT installed → before the fix this
+            // caused a Rolldown ImportError on the analysis bundle.
+            const fakeBundler = async () => [
+                `// simulated npm dep with browser compat guard\n` +
+                `var __guard = typeof document !== 'undefined';\n` +
+                `if (__guard) { console.log('browser'); }\n`,
+            ];
+            // Should complete without throwing.
+            let threw = false;
+            try {
+                await detectAutoGlobals(
+                    { input: 'entry.ts', format: 'esm' },
+                    pluginOpts,
+                    legacyFactory,
+                    false,
+                    { cwd: fakeCwd },
+                    fakeBundler,
+                );
+            } catch {
+                threw = true;
+            }
+            expect(threw).toBe(false);
+        });
+    });
+
+    await describe('detectAutoGlobals — regression: genuine use still injects (fix a guard)', async () => {
+        // When @gjsify/fetch IS resolvable from the project and fetch is
+        // genuinely used in the bundle, injection must still fire.
+        // process.cwd() resolves into the gjsify monorepo which has @gjsify/fetch.
+        const monoroot = process.cwd();
+        const legacyFactory = () => [] as never;
+        const pluginOpts = { app: 'gjs', format: 'esm' } as never;
+
+        await it('injects fetch/register when fetch is genuinely used and package is installed', async () => {
+            // Simulate a bundle that calls fetch() directly — a real use.
+            const fakeBundler = async () => [`fetch('/api');\n`];
+            const { detected } = await detectAutoGlobals(
+                { input: 'entry.ts', format: 'esm' },
+                pluginOpts,
+                legacyFactory,
+                false,
+                { cwd: monoroot },
+                fakeBundler,
+            );
+            expect(detected.has('fetch')).toBe(true);
+        });
+
+        await it('does NOT suppress a global that appears in typeof guard + real use', async () => {
+            // `document` is in BOTH a typeof guard AND a real call.
+            // Fix (b) must NOT suppress it when there is a genuine use.
+            const fakeBundler = async () => [
+                `if (typeof document !== 'undefined') { document.getElementById('x'); }\n`,
+            ];
+            const { detected } = await detectAutoGlobals(
+                { input: 'entry.ts', format: 'esm' },
+                pluginOpts,
+                legacyFactory,
+                false,
+                { cwd: monoroot },
+                fakeBundler,
+            );
+            expect(detected.has('document')).toBe(true);
         });
     });
 };
