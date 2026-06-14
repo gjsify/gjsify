@@ -17,6 +17,23 @@ let _loop: GLib.MainLoop | null = null;
  *   `dgram.Socket.bind()` etc.
  * - GTK apps should NOT call this — they use `Gtk.Application.runAsync()` instead.
  *
+ * ## Teardown hazard with top-level `await`
+ *
+ * This registers a main-loop hook via `runAsync()` → `setMainLoopHook`. With a
+ * hook set, GJS's `eval_module` drives the hook's *blocking* `loop.run()`. If
+ * the entry module also has a pending top-level `await`, terminating the
+ * process with a **bare `imports.system.exit()` from an async/Promise
+ * continuation deadlocks**: `system.exit()` only sets GJS's internal exit flag,
+ * it does not call `loop.quit()`, so the parked `loop.run()` never returns and
+ * `eval_module` never reaches the real `::exit()`. Microtask draining itself is
+ * unaffected (the promise-job dispatcher GSource keeps draining); only the exit
+ * hangs. See `docs/poc/tla-microtask-draining.md`.
+ *
+ * Safe teardown: exit through `process.exit()` (which idle-schedules
+ * `quitMainLoop()` + `system.exit()` — see `@gjsify/process`'s `exitProcess`)
+ * or call {@link quitMainLoop} yourself before exiting. For a long-running
+ * server entry, prefer a `main().catch(…)` body over a top-level `await`.
+ *
  * @returns The MainLoop instance on GJS, or `undefined` on Node.js.
  */
 /** GJS runtime bootstrap shape we read here. Pre-dates `@girs/*` resolution. */
