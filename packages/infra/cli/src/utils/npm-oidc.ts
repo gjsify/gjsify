@@ -20,6 +20,16 @@
 // Reference: refs/npm-cli/lib/utils/oidc.js
 // Original: Copyright (c) npm contributors. Artistic-2.0.
 
+/**
+ * User-agent string for the npm OIDC token-exchange request. npm's exchange
+ * endpoint authorizes the npm-cli request envelope; it expects an `npm/<ver>`
+ * user-agent (npm Trusted Publishing requires npm >= 11.5.1, which npm derives
+ * from this prefix). Mirrors `npm-registry-fetch`'s `npm/<v> node/<v> <plat>
+ * <arch> workspaces/<bool>` format. Pinned to the `refs/npm-cli` version gjsify
+ * tracks; bump alongside it.
+ */
+const NPM_OIDC_USER_AGENT = 'npm/11.12.1 node/v24.0.0 linux x64 workspaces/false';
+
 interface OidcExchangeOptions {
     /** Full package name including scope, e.g. `@gjsify/cli`. */
     packageName: string;
@@ -137,16 +147,25 @@ export async function exchangeOidcForNpmToken(args: OidcExchangeOptions & { idTo
     const exchangeUrl = `${registryClean}/-/npm/v1/oidc/token/exchange/package/${escapedName}`;
     log?.(`gjsify oidc: POST ${exchangeUrl}`);
 
+    // Mirror npm-cli's (npm-registry-fetch) OIDC-exchange request shape EXACTLY.
+    // The GitHub OIDC JWT is identical regardless of which client requests it
+    // (same audience + workflow context), so when npm-cli's exchange succeeds
+    // and ours returns `401 "OIDC token exchange error - unauthorized"` with the
+    // SAME token, the difference must be the request envelope. npm tightened the
+    // exchange endpoint around 2026-06-14 (publishes that worked on 2026-06-08
+    // began 401ing with an unchanged JWT): it now expects the npm-cli envelope —
+    // an `npm/<ver>` user-agent + `npm-command: publish` header and NO request
+    // body (npm-registry-fetch only attaches a body when one is given; our prior
+    // `Content-Type: application/json` + `'{}'` is what regressed).
     const res = await fetch(exchangeUrl, {
         method: 'POST',
         headers: {
-            Authorization: `Bearer ${idToken}`,
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
+            authorization: `Bearer ${idToken}`,
+            accept: 'application/json',
+            'user-agent': NPM_OIDC_USER_AGENT,
+            'npm-command': 'publish',
         },
-        // npm's exchange endpoint accepts an empty JSON body — the JWT is
-        // the proof, no additional claims needed from us.
-        body: '{}',
+        // No body — matches npm-cli (its exchange call passes no `opts.body`).
     });
 
     const text = await res.text().catch(() => '');
