@@ -287,7 +287,7 @@ The project comprises **41 Node.js modules** (+1 meta, +5 native bridges), **18 
 | **tty** | GjsifyTerminal | 29 | ReadStream/WriteStream, isatty (Posix or GLib fallback), ANSI, clearLine, cursorTo, getColorDepth (env-based), hasColors, getWindowSize (ioctl or env/default fallback), setRawMode (termios or no-op fallback) — all terminal primitives via `@gjsify/terminal-native` when installed |
 | **url** | GLib | 278 | URL, URLSearchParams via GLib.Uri |
 | **util** | — | 245 (2 specs) | inspect (**colors, styles, custom symbol, defaultOptions**, edge cases), format (%%, %s/%d/%j/%i/%f, args), promisify (**custom symbol**), callbackify, deprecate, inherits (**super_**), isDeepStrictEqual, **types** (isDate/RegExp/Map/Set/Promise/ArrayBuffer/TypedArray/Async/Generator/WeakMap/WeakSet/DataView), TextEncoder/TextDecoder |
-| **zlib** | — | 102 | gzip/deflate/deflateRaw round-trip, constants, Unicode, binary, cross-format errors, sync methods, double compression, consistency |
+| **zlib** | — | 113 (2 specs) | gzip/deflate/deflateRaw round-trip, constants, Unicode, binary, cross-format errors, sync methods, double compression, consistency, **streaming classes** (`Gzip`/`Gunzip`/`Deflate`/`Inflate`/`DeflateRaw`/`InflateRaw`/`Unzip` as real `Transform` subclasses over `Gio.ZlibCompressor`/`ZlibDecompressor`; `Unzip` auto-detects gzip-vs-zlib by magic byte; `inherits(Sub, zlib.Inflate)` module-init compat for sync-inflate/pngjs/qrcode) |
 
 ### Native Bridges
 
