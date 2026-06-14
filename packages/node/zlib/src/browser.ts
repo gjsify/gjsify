@@ -104,8 +104,12 @@ async function runStream(
     const transform = new StreamCtor(format);
     const writer = transform.writable.getWriter();
     const reader = transform.readable.getReader();
-    void writer.write(data as BufferSource);
-    void writer.close();
+    // Fire-and-forget: we drive the stream via the reader below.
+    // `.catch(() => {})` silences the "Unhandled promise rejection" GJS warning
+    // that fires during teardown when the readable side is already closed before
+    // the writer Promises settle (benign — data was already fully consumed).
+    void writer.write(data as BufferSource).catch(() => {});
+    void writer.close().catch(() => {});
     const chunks: Uint8Array[] = [];
     let total = 0;
     // eslint-disable-next-line no-constant-condition

@@ -158,8 +158,11 @@ function decompressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
 async function compressWithWeb(data: Uint8Array, format: CompressionFormat): Promise<Uint8Array> {
     const cs = new CompressionStream(format);
     const writer = cs.writable.getWriter();
-    writer.write(new Uint8Array(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength));
-    writer.close();
+    // Fire-and-forget: driven by the reader below. `.catch(() => {})` silences
+    // the GJS "Unhandled promise rejection" warning that fires on teardown when
+    // the readable side is already closed before these Promises settle.
+    writer.write(new Uint8Array(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength)).catch(() => {});
+    writer.close().catch(() => {});
 
     const chunks: Uint8Array[] = [];
     const reader = cs.readable.getReader();
@@ -182,8 +185,10 @@ async function compressWithWeb(data: Uint8Array, format: CompressionFormat): Pro
 async function decompressWithWeb(data: Uint8Array, format: CompressionFormat): Promise<Uint8Array> {
     const ds = new DecompressionStream(format);
     const writer = ds.writable.getWriter();
-    writer.write(new Uint8Array(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength));
-    writer.close();
+    // Fire-and-forget: driven by the reader below. `.catch(() => {})` silences
+    // the GJS "Unhandled promise rejection" warning on inflate teardown.
+    writer.write(new Uint8Array(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength)).catch(() => {});
+    writer.close().catch(() => {});
 
     const chunks: Uint8Array[] = [];
     const reader = ds.readable.getReader();
