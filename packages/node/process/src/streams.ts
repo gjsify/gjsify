@@ -195,6 +195,50 @@ export class ProcessReadStream extends EventEmitter {
         return this;
     }
 
+    // Node contract: attaching a 'data' listener switches a Readable to flowing
+    // mode automatically (no explicit .resume() needed). The MCP SDK's
+    // StdioServerTransport and many other stdin-driven libraries rely on this.
+    // We override the listener-management methods to enforce the Node semantics:
+    //   - first 'data' listener added  → resume()
+    //   - last 'data' listener removed → pause()
+
+    override on(type: string | symbol, listener: (...args: unknown[]) => void): this {
+        const wasEmpty = type === 'data' && this.listenerCount('data') === 0;
+        super.on(type, listener);
+        if (wasEmpty && type === 'data') this.resume();
+        return this;
+    }
+
+    override addListener(type: string | symbol, listener: (...args: unknown[]) => void): this {
+        return this.on(type, listener);
+    }
+
+    override once(type: string | symbol, listener: (...args: unknown[]) => void): this {
+        // super.once() calls this.on() internally (via _onceWrap), so our on()
+        // override already handles the resume() call for 'data' events.
+        super.once(type, listener);
+        return this;
+    }
+
+    override removeListener(type: string | symbol, listener: (...args: unknown[]) => void): this {
+        super.removeListener(type, listener);
+        if (type === 'data' && this.listenerCount('data') === 0) this.pause();
+        return this;
+    }
+
+    override off(type: string | symbol, listener: (...args: unknown[]) => void): this {
+        return this.removeListener(type, listener);
+    }
+
+    override removeAllListeners(type?: string | symbol): this {
+        const hadData = type === undefined || type === 'data'
+            ? this.listenerCount('data') > 0
+            : false;
+        super.removeAllListeners(type);
+        if (hadData && this.listenerCount('data') === 0) this.pause();
+        return this;
+    }
+
     resume(): this {
         this._flowing = true;
         if (this._gio && this.fd === 0 && !this._reading) {
