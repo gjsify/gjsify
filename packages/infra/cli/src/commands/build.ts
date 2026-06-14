@@ -2,15 +2,6 @@ import { Config } from '../config.js';
 import { BuildAction } from '../actions/build.js';
 import type { Command, CliBuildOptions } from '../types/index.js';
 
-// Same detection used throughout bundler-pick.ts: GJS exposes
-// `globalThis.imports.gi` — Node never does.  Must be checked BEFORE
-// any node:* import can execute (those are deferred inside actions/build.ts
-// and bundler-pick.ts, so this top-level guard fires first).
-// Exported for unit-testing the guard logic.
-export function isGjsRuntime(): boolean {
-    return typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
-}
-
 export const buildCommand: Command<unknown, CliBuildOptions> = {
     command: 'build [entryPoints..]',
     description: 'Build and bundle your Gjs project',
@@ -177,28 +168,10 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
             });
     },
     handler: async (args) => {
-        // `gjsify build` requires Node's module resolver (rolldown, node:fs,
-        // node:path, …) which GJS does not provide.  Catch this early and
-        // print an actionable message instead of letting the error bubble up
-        // as a cryptic low-level ImportError or a confused rolldown-native
-        // diagnostic.  `gjsify run` and `gjsify test` are fine under GJS.
-        if (isGjsRuntime()) {
-            const msg =
-                '`gjsify build` must run under Node.js — it uses Node\'s module resolver\n' +
-                'and the rolldown bundler, neither of which are available under GJS.\n\n' +
-                'Run the build with the Node-installed CLI:\n' +
-                '  npx gjsify build …\n\n' +
-                'The GJS bundle (`gjs -m dist/cli.gjs.mjs`) supports `run` and `test`,\n' +
-                'but NOT `build`.';
-            console.error(msg);
-            // GJS does not call process.exit, use the @gjsify/process polyfill
-            // if present; otherwise throw so the process exits non-zero.
-            const proc = (globalThis as { process?: { exit?: (code: number) => never } }).process;
-            if (typeof proc?.exit === 'function') {
-                proc.exit(1);
-            }
-            throw new Error(msg);
-        }
+        // NOTE: `gjsify build` runs under BOTH Node (npm `rolldown`) and GJS
+        // (native `@gjsify/rolldown-native`, PR #483). The Node-free release
+        // pipeline dogfoods the GJS path — `gjsify run build` under the
+        // GJS-bundled CLI rebuilds the bundle. Do NOT gate this on the runtime.
         const config = new Config();
         const configData = await config.forBuild(args);
         const action = new BuildAction(configData);
