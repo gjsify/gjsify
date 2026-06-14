@@ -24,6 +24,7 @@ import oxcResolveSuite from './utils/oxc-resolve.spec.js';
 import autoGlobalsSuite from './auto-globals.spec.js';
 import externalsPluginSuite from './externals-plugin.spec.js';
 import affectedClassifierSuite from './affected-classifier.spec.js';
+import buildCommandGjsGuardSuite from './build-command-gjs-guard.spec.js';
 
 run({
     bundlerPickSuite,
@@ -42,4 +43,5 @@ run({
     autoGlobalsSuite,
     externalsPluginSuite,
     affectedClassifierSuite,
+    buildCommandGjsGuardSuite,
 });
