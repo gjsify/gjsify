@@ -285,4 +285,87 @@ export default async () => {
             expect(decoded).toBe(original);
         });
     });
+
+    // ==================== Multi-chunk decompression input ====================
+    //
+    // Regression: the GJS backend used to decompress each WRITTEN chunk
+    // independently (one `gunzipSync` per chunk). A single compressed stream
+    // delivered to DecompressionStream across several writes — exactly what
+    // @gjsify/fetch does when a >4 KB gzipped body arrives in multiple
+    // `read_bytes` reads — then failed, because no individual chunk is a
+    // complete gzip/deflate stream ("Ungültige komprimierte Daten" /
+    // "Weitere Eingaben erforderlich"). The fix buffers all writes and decodes
+    // the reassembled stream once. This was the @gjsify/fetch "Norman" failure.
+    await describe('DecompressionStream multi-chunk input', async () => {
+        // Build a compressed payload large enough that a real body reader would
+        // split it, and feed it to DecompressionStream in several small writes.
+        const buildCompressed = async (format: CompressionFormat, original: string): Promise<Uint8Array> => {
+            const cs = new CompressionStream(format);
+            const w = cs.writable.getWriter();
+            const r = cs.readable.getReader();
+            w.write(new TextEncoder().encode(original));
+            w.close();
+            const parts: Uint8Array[] = [];
+            while (true) {
+                const { done, value } = await r.read();
+                if (done) break;
+                parts.push(value);
+            }
+            let n = 0;
+            for (const p of parts) n += p.length;
+            const out = new Uint8Array(n);
+            let o = 0;
+            for (const p of parts) {
+                out.set(p, o);
+                o += p.length;
+            }
+            return out;
+        };
+
+        const decompressInChunks = async (
+            format: CompressionFormat,
+            data: Uint8Array,
+            chunkSize: number,
+        ): Promise<string> => {
+            const ds = new DecompressionStream(format);
+            const w = ds.writable.getWriter();
+            const r = ds.readable.getReader();
+            // Write the compressed stream split into `chunkSize` pieces.
+            (async () => {
+                for (let i = 0; i < data.length; i += chunkSize) {
+                    await w.write(data.subarray(i, Math.min(i + chunkSize, data.length)));
+                }
+                await w.close();
+            })();
+            const parts: Uint8Array[] = [];
+            while (true) {
+                const { done, value } = await r.read();
+                if (done) break;
+                parts.push(value);
+            }
+            let n = 0;
+            for (const p of parts) n += p.length;
+            const out = new Uint8Array(n);
+            let o = 0;
+            for (const p of parts) {
+                out.set(p, o);
+                o += p.length;
+            }
+            return new TextDecoder().decode(out);
+        };
+
+        for (const format of ['gzip', 'deflate', 'deflate-raw'] as CompressionFormat[]) {
+            await it(`reassembles a multi-write ${format} stream`, async () => {
+                // Varied text so the compressed form stays comfortably > one chunk.
+                const original = Array.from({ length: 300 }, (_, i) => `line ${i}: the quick brown fox ${i * 7}`).join(
+                    '\n',
+                );
+                const compressed = await buildCompressed(format, original);
+                expect(compressed.length > 256).toBe(true);
+                // Split into small chunks to force cross-chunk reassembly.
+                const decoded = await decompressInChunks(format, compressed, 256);
+                expect(decoded).toBe(original);
+            });
+        }
+    });
 };

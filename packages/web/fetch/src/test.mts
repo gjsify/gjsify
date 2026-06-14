@@ -6,5 +6,6 @@ import { run } from '@gjsify/unit';
 
 import testSuite from './index.spec.js';
 import soupSessionSuite from './soup-session.gjs.spec.js';
+import partialInputSuite from './partial-input.gjs.spec.js';
 
-run({ testSuite, soupSessionSuite });
+run({ testSuite, soupSessionSuite, partialInputSuite });

@@ -37,7 +37,9 @@ let _inflateRawSync: (buf: Uint8Array) => Uint8Array;
 
 /** Subset of `node:zlib` that this module uses. Avoids depending on
  *  `@types/node` here — the surface we need is a handful of `*Sync` fns
- *  with the standard `Buffer`-ish input/output shape. */
+ *  with the standard `Buffer`-ish input/output shape. The GJS backend's gunzip
+ *  is member-aware (it decodes concatenated gzip members), which is why we run
+ *  it once over the fully-buffered stream rather than per chunk. */
 interface _ZlibSync {
     gzipSync: (buf: Uint8Array) => Uint8Array;
     gunzipSync: (buf: Uint8Array) => Uint8Array;
@@ -81,6 +83,20 @@ function getDecompressFn(format: CompressionFormat): (chunk: Uint8Array) => Uint
     }
 }
 
+/** Concatenate the buffered stream chunks into one contiguous buffer. */
+function concatChunks(chunks: Uint8Array[]): Uint8Array {
+    if (chunks.length === 1) return chunks[0];
+    let total = 0;
+    for (const c of chunks) total += c.length;
+    const out = new Uint8Array(total);
+    let offset = 0;
+    for (const c of chunks) {
+        out.set(c, offset);
+        offset += c.length;
+    }
+    return out;
+}
+
 // ---- Exported classes ----
 
 let CompressionStreamImpl: {
@@ -114,16 +130,32 @@ if (hasNative) {
 
         constructor(format: CompressionFormat | string) {
             const validFormat = validateFormat(format);
+            const collected: Uint8Array[] = [];
             const ts = new TransformStream<Uint8Array, Uint8Array>({
-                // Await the lazy zlib load inside the (async) transform rather than
-                // requiring it at construction. `loadZlib()` is kicked off at module
-                // init but resolves on a later microtask, so a CompressionStream built
-                // synchronously right after import (e.g. `gjsify pack` → tar gzip)
-                // would otherwise race it and throw. The GJS backend is itself sync.
-                async transform(chunk, controller) {
+                // BUFFER every chunk and run the (de)compressor ONCE over the
+                // concatenated stream in `flush`, instead of compressing each
+                // chunk independently. The GJS zlib backend's `*Sync` functions
+                // are one-shot — they encode/decode a complete member and emit a
+                // self-contained gzip/deflate stream (with its own header +
+                // trailer). Calling them per chunk produces concatenated members
+                // on compress, and FAILS on decompress whenever a single
+                // compressed stream is split across chunks (a 4 KB+ gzip body —
+                // the norm for any non-trivial fetch response — arrives in
+                // several `read_bytes` chunks; the first chunk alone is not a
+                // complete gzip stream, so `Gio.ZlibDecompressor` raises
+                // "Ungültige komprimierte Daten" / "Weitere Eingaben
+                // erforderlich"). Native (Node/browser) DecompressionStream keeps
+                // inflate state across chunks; concatenating before a single
+                // decode is the equivalent for the one-shot GJS backend and
+                // mirrors `@gjsify/zlib`'s own `ZlibTransform` (_flush decode).
+                transform(chunk) {
+                    collected.push(chunk);
+                },
+                async flush(controller) {
                     try {
                         await zlibReady;
-                        controller.enqueue(getCompressFn(validFormat)(chunk));
+                        const out = getCompressFn(validFormat)(concatChunks(collected));
+                        if (out.length > 0) controller.enqueue(out);
                     } catch (err) {
                         controller.error(err);
                     }
@@ -140,13 +172,20 @@ if (hasNative) {
 
         constructor(format: CompressionFormat | string) {
             const validFormat = validateFormat(format);
+            const collected: Uint8Array[] = [];
             const ts = new TransformStream<Uint8Array, Uint8Array>({
-                // See CompressionStream above: await the lazy zlib load in the async
-                // transform to avoid the construct-before-loaded race.
-                async transform(chunk, controller) {
+                // See CompressionStream above: accumulate the whole compressed
+                // body, then decode it in one pass at flush. This is what makes a
+                // multi-chunk gzip/deflate response (the Norman fetch failure)
+                // decode correctly on GJS.
+                transform(chunk) {
+                    collected.push(chunk);
+                },
+                async flush(controller) {
                     try {
                         await zlibReady;
-                        controller.enqueue(getDecompressFn(validFormat)(chunk));
+                        const out = getDecompressFn(validFormat)(concatChunks(collected));
+                        if (out.length > 0) controller.enqueue(out);
                     } catch (err) {
                         controller.error(err);
                     }
