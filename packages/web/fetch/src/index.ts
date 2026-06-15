@@ -327,14 +327,19 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
         }
 
         if (format) {
-            const webBody = new Response(readable, responseOptions).body;
-            if (webBody) {
-                const decompressed = webBody.pipeThrough(
-                    new DecompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>,
-                );
-                finalize();
-                return new Response(decompressed as unknown as ReadableStream, responseOptions);
-            }
+            // Buffer the full compressed body before decompressing.
+            // Streaming pipeThrough(DecompressionStream) directly from the Soup
+            // body ReadableStream trips Gio.IOErrorEnum: G_IO_ERROR_PARTIAL_INPUT
+            // when libsoup closes the connection at a non-chunk boundary (observed
+            // on npm-CDN gzip responses). The full body is received intact — only
+            // the streaming decode is fragile. Buffer first, then decompress the
+            // complete in-memory blob — the same pattern @gjsify/tar uses for .tgz.
+            const rawBuffer = await new Response(readable, responseOptions).arrayBuffer();
+            const decompressed = new Blob([rawBuffer]).stream().pipeThrough(
+                new DecompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>,
+            );
+            finalize();
+            return new Response(decompressed as unknown as ReadableStream, responseOptions);
         }
     }
 

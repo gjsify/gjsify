@@ -176,18 +176,7 @@ export async function fetchPackumentConditional(
 
     const res = await fetchWithRetry(
         url,
-        // `compress: false` tells the fetch layer NOT to transparently decode
-        // the gzip body. We decode it ourselves with a full-buffer gunzip
-        // (decodeJsonBody) because GJS's @gjsify/fetch decompresses by STREAMING
-        // the body through a DecompressionStream, and that streaming decode
-        // trips libsoup's G_IO_ERROR_PARTIAL_INPUT on npm-CDN gzip responses
-        // (the connection closes at a non-chunk boundary). The full body is
-        // received intact — only the streaming decode is fragile — so buffering
-        // then decoding (the same pattern @gjsify/tar uses for .tgz) is robust.
-        // On Node, undici ignores `compress` and may auto-decompress anyway;
-        // decodeJsonBody's gzip-magic-byte sniff handles both (decoded → no
-        // magic → parse as-is; raw gzip → magic → gunzip).
-        { headers, signal: opts.signal, compress: false },
+        { headers, signal: opts.signal },
         {
             fetch: opts.fetch,
             retries: opts.retries,
@@ -225,48 +214,12 @@ export async function fetchPackumentConditional(
 }
 
 /**
- * Read a JSON response body, transparently gunzipping it when it arrives
- * gzip-encoded. Detection is by the gzip magic bytes (`0x1f 0x8b`) of the raw
- * `arrayBuffer`, NOT the `Content-Encoding` header — this is runtime-agnostic:
- *   - Node/undici may have already decoded the body (no magic → parse as-is).
- *   - GJS/@gjsify/fetch with `compress: false` yields the raw gzip (magic →
- *     gunzip with a full-buffer DecompressionStream, which — unlike streaming
- *     decode — is reliable; the same pattern @gjsify/tar uses for `.tgz`).
+ * Read a JSON response body. fetch() transparently decompresses Content-Encoding:
+ * gzip (buffer-first via Blob.stream().pipeThrough, robust against libsoup's
+ * partial-input at stream close), so this always receives plain JSON.
  */
 async function decodeJsonBody(res: Response): Promise<unknown> {
-    const buf = new Uint8Array(await res.arrayBuffer());
-    const isGzip = buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b;
-    const bytes = isGzip ? await gunzip(buf) : buf;
-    return JSON.parse(new TextDecoder().decode(bytes));
-}
-
-/** Full-buffer gzip decode via the Web DecompressionStream (cross-platform). */
-async function gunzip(input: Uint8Array): Promise<Uint8Array> {
-    const Decomp = (globalThis as { DecompressionStream?: typeof DecompressionStream }).DecompressionStream;
-    if (typeof Decomp !== 'function') {
-        throw new Error(
-            '@gjsify/npm-registry: globalThis.DecompressionStream is unavailable — ' +
-                "cannot decode a gzip registry response (on GJS, register '@gjsify/compression-streams')",
-        );
-    }
-    const stream = new Blob([new Uint8Array(input)]).stream().pipeThrough(new Decomp('gzip'));
-    const reader = (stream as ReadableStream<Uint8Array>).getReader();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const chunk = value instanceof Uint8Array ? value : new Uint8Array(value as ArrayBufferLike);
-        chunks.push(chunk);
-        total += chunk.length;
-    }
-    const out = new Uint8Array(total);
-    let pos = 0;
-    for (const c of chunks) {
-        out.set(c, pos);
-        pos += c.length;
-    }
-    return out;
+    return res.json();
 }
 
 /** Fetch + parse a packument. Retries on transient errors (see fetchWithRetry). */

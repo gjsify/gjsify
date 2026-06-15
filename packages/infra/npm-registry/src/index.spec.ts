@@ -39,31 +39,6 @@ function makeMockFetch(handler: (url: string, init?: RequestInit) => Promise<Res
     }) as typeof fetch;
 }
 
-/** Gzip a string to bytes via the Web CompressionStream (cross-platform). Mirrors
- *  the registry's `Content-Encoding: gzip` so the decode path is exercised. */
-async function gzipBytes(text: string): Promise<Uint8Array> {
-    const Comp = (globalThis as { CompressionStream?: typeof CompressionStream }).CompressionStream;
-    if (typeof Comp !== 'function') throw new Error('CompressionStream unavailable in this test environment');
-    const stream = new Blob([new TextEncoder().encode(text)]).stream().pipeThrough(new Comp('gzip'));
-    const reader = (stream as ReadableStream<Uint8Array>).getReader();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const c = value instanceof Uint8Array ? value : new Uint8Array(value as ArrayBufferLike);
-        chunks.push(c);
-        total += c.length;
-    }
-    const out = new Uint8Array(total);
-    let pos = 0;
-    for (const c of chunks) {
-        out.set(c, pos);
-        pos += c.length;
-    }
-    return out;
-}
-
 export default async () => {
     await describe('@gjsify/npm-registry — packumentUrl + registryFor', async () => {
         await it('plain name', async () => {
@@ -323,7 +298,7 @@ export default async () => {
             expect(caught instanceof PackageNotFoundError).toBe(true);
         });
 
-        await it('requests gzip + compress:false for packuments', async () => {
+        await it('requests gzip for packuments (fetch decompresses transparently)', async () => {
             let seenEnc: string | null = null;
             let seenCompress: unknown = 'unset';
             const mock = makeMockFetch(async (_url, init) => {
@@ -332,22 +307,19 @@ export default async () => {
                 return new Response(FRESH_BODY, { status: 200 });
             });
             await fetchPackumentConditional('lodash', { fetch: mock });
-            // gzip lets the registry compress the JSON (~4×); compress:false makes
-            // the fetch layer hand us the raw body to gunzip ourselves (GJS's
-            // streaming decode trips a libsoup gzip bug).
+            // gzip lets the registry compress the JSON (~4×); fetch's buffer-first
+            // DecompressionStream handles it transparently — no compress:false needed.
             expect(seenEnc).toBe('gzip');
-            expect(seenCompress).toBe(false);
+            expect(seenCompress).toBeUndefined(); // compress option no longer set
         });
 
-        await it('decodes a gzip-encoded packument body', async () => {
-            const gz = await gzipBytes(FRESH_BODY);
-            // Sanity: the helper really produced a gzip stream (magic bytes).
-            expect(gz[0]).toBe(0x1f);
-            expect(gz[1]).toBe(0x8b);
-            // `as BodyInit`: a `Uint8Array<ArrayBufferLike>` (the helper's
-            // return) isn't directly assignable to `BodyInit` under TS 5.7+'s
-            // ArrayBuffer-strictness, but is a valid Response body at runtime.
-            const mock = makeMockFetch(async () => new Response(gz as unknown as BodyInit, { status: 200 }));
+        await it('parses packument after fetch transparent gzip decompression', async () => {
+            // The mock replaces fetch entirely, including its gzip decompression.
+            // Real @gjsify/fetch handles Content-Encoding: gzip transparently
+            // (buffer-first Blob.stream().pipeThrough(DecompressionStream)); the
+            // mock simulates this by returning already-decoded JSON directly.
+            // Verifies that decodeJsonBody no longer does any gzip magic itself.
+            const mock = makeMockFetch(async () => new Response(FRESH_BODY, { status: 200 }));
             const r = await fetchPackumentConditional('lodash', { fetch: mock });
             expect(r.status).toBe('fresh');
             expect(r.packument?.name).toBe('lodash');
