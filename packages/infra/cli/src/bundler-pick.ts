@@ -28,7 +28,7 @@
 // of those, so we don't gate on it; future incompatibilities surface
 // as build errors rather than silent wrong behavior.
 
-import { promises as fs } from 'node:fs';
+import { promises as fs, existsSync } from 'node:fs';
 import * as path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -282,6 +282,39 @@ export async function shouldUseNative(): Promise<boolean> {
     return native !== null;
 }
 
+/**
+ * Walk parent directories from `startDir` (and optionally a second anchor
+ * `bundleDir`) looking for `node_modules/@gjsify/rolldown-native/package.json`.
+ * Returns the package root path (parent of its `package.json`) on the first
+ * hit, or null when nothing is found within 12 levels.
+ *
+ * This is a raw `existsSync`-based probe that bypasses both `createRequire`
+ * (whose GJS polyfill may not walk the full chain when anchored inside a
+ * sub-package dir) and `findWorkspaceRoot` (which requires `discoverWorkspaces`
+ * to map the sub-package to a workspace member, a step that can fail under
+ * the GJS polyfill stack). Used by `tryLoadNative` as an explicit fallback
+ * when the standard `resolveNpmPackage` anchors miss.
+ */
+export function findRolldownNativeDir(startDir: string, bundleDir?: string): string | null {
+    const relPath = path.join('node_modules', '@gjsify', 'rolldown-native', 'package.json');
+    const dirsToSearch: string[] = [startDir];
+    if (bundleDir && bundleDir !== startDir) dirsToSearch.push(bundleDir);
+
+    for (const anchor of dirsToSearch) {
+        let dir = anchor;
+        for (let i = 0; i < 12; i++) {
+            const candidate = path.join(dir, relPath);
+            if (existsSync(candidate)) {
+                return path.join(dir, 'node_modules', '@gjsify', 'rolldown-native');
+            }
+            const parent = path.resolve(dir, '..');
+            if (parent === dir) break;
+            dir = parent;
+        }
+    }
+    return null;
+}
+
 async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
     if (_nativeProbe) return _nativeProbe;
     _nativeProbe = (async (): Promise<NativeRolldownSurface | null> => {
@@ -310,8 +343,39 @@ async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
                 // install dir, anchoring solely at `import.meta.url`
                 // misses node_modules layouts where the user's cwd
                 // or the workspace root carries the package instead.
+                //
+                // When `resolveNpmPackage`'s standard anchors all miss
+                // (e.g. invoked from a package subdir whose own
+                // node_modules doesn't carry the optional-peer
+                // `@gjsify/rolldown-native`), fall back to a raw
+                // `existsSync`-based parent-dir walk — it bypasses
+                // both the GJS `createRequire` polyfill's walk
+                // limitations and `findWorkspaceRoot`'s dependency on
+                // `discoverWorkspaces`, both of which can fail to map a
+                // sub-package dir up to the hoisted workspace root.
+                const bundleDir = path.dirname(
+                    new URL(import.meta.url).pathname,
+                );
+                const resolvedFromNpm = resolveNpmPackage(specifier, { bundleUrl: import.meta.url });
+                const resolvedFromFs = resolvedFromNpm
+                    ? null
+                    : (() => {
+                          const pkgDir = findRolldownNativeDir(process.cwd(), bundleDir);
+                          if (!pkgDir) return null;
+                          // Resolve the package entry via createRequire anchored
+                          // inside the found package dir so we get the correct
+                          // exports-map / main field entry point.
+                          try {
+                              return createRequire(
+                                  pathToFileURL(path.join(pkgDir, '__gjsify_resolve__.js')).href,
+                              ).resolve(specifier);
+                          } catch {
+                              return null;
+                          }
+                      })();
                 const resolved =
-                    resolveNpmPackage(specifier, { bundleUrl: import.meta.url }) ??
+                    resolvedFromNpm ??
+                    resolvedFromFs ??
                     createRequire(import.meta.url).resolve(specifier);
                 target = pathToFileURL(resolved).href;
             }
