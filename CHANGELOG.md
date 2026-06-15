@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.1](https://github.com/gjsify/gjsify/compare/v0.5.0...v0.5.1) (2026-06-15)
+
+### Bug Fixes
+
+* **publish:** send npm-command header for new-package PUT ([ffd5a2a](https://github.com/gjsify/gjsify/commit/ffd5a2a9c9b85e545bc8b5378fea5bb8185c7162))
+
+### Build System
+
+* **cli:** reconcile bundle with publish-headers fix ([#518](https://github.com/gjsify/gjsify/issues/518)) ([6b9e606](https://github.com/gjsify/gjsify/commit/6b9e6064beddceb580711dc126d1bf1c04be07b6))
+
 ## [0.5.0](https://github.com/gjsify/gjsify/compare/v0.4.46...v0.5.0) (2026-06-14)
 
 ### Features
