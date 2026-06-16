@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.2](https://github.com/gjsify/gjsify/compare/v0.5.1...v0.5.2) (2026-06-16)
+
+### Bug Fixes
+
+* **cli:** walk parent dirs to find rolldown-native from subdir cwd ([#522](https://github.com/gjsify/gjsify/issues/522)) ([b047439](https://github.com/gjsify/gjsify/commit/b04743909dbb443f556b7bc49f7ff475a1044467))
+* **fetch:** buffer body before gzip decompress to avoid G_IO_ERROR_PARTIAL_INPUT ([#519](https://github.com/gjsify/gjsify/issues/519)) ([72e33cf](https://github.com/gjsify/gjsify/commit/72e33cfddafbe26493201fb46966135817862876))
+* **webgl:** colorSpace default, FBO detach docs, cache MAX_RENDERBUFFER_SIZE ([#521](https://github.com/gjsify/gjsify/issues/521)) ([a5e9d88](https://github.com/gjsify/gjsify/commit/a5e9d88312bc8577b1b0c32141617ed8d647212a))
+
+### Documentation
+
+* **status:** mark zlib Zstd stubs done (PR [#404](https://github.com/gjsify/gjsify/issues/404)) ([#520](https://github.com/gjsify/gjsify/issues/520)) ([3ebec45](https://github.com/gjsify/gjsify/commit/3ebec456e63fb608b406c03c87ea8d087e513298))
+
 ## [0.5.1](https://github.com/gjsify/gjsify/compare/v0.5.0...v0.5.1) (2026-06-15)
 
 ### Bug Fixes
