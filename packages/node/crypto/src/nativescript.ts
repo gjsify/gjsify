@@ -7,7 +7,9 @@
 // random module (NS does ship crypto.getRandomValues), and ENOTSUP stubs for
 // everything that needs a native crypto backend.
 //
-// Runtime slot: nativescript = "partial"
+// The package-level runtimes.nativescript slot stays "none" because the
+// default entry (./index) uses GLib.Checksum (GJS-only); reach this backend
+// explicitly via the "@gjsify/crypto/nativescript" subpath.
 //   ✓ createHash — sha1, sha224, sha256, sha384, sha512, md5 (sync)
 //   ✓ createHmac — all the above algorithms (sync)
 //   ✓ randomBytes / randomFillSync / randomFill / randomUUID / randomInt

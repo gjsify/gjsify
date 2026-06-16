@@ -8,34 +8,7 @@
 
 import { Buffer } from 'node:buffer';
 import { hmac } from '@noble/hashes/hmac';
-import { sha256, sha224, sha384, sha512, sha512_256 } from '@noble/hashes/sha2';
-import { sha1, md5 } from '@noble/hashes/legacy';
-import { type CHash } from '@noble/hashes/utils';
-
-function normalizeAlgorithm(algorithm: string): string {
-    return algorithm.toLowerCase().replace(/-/g, '');
-}
-
-const NOBLE_ALGOS: Record<string, CHash> = {
-    sha1,
-    sha224,
-    sha256,
-    sha384,
-    sha512,
-    sha512256: sha512_256,
-    md5,
-};
-
-function getNobleHash(algorithm: string): CHash {
-    const normalized = normalizeAlgorithm(algorithm);
-    const fn = NOBLE_ALGOS[normalized];
-    if (!fn) {
-        const err: NodeJS.ErrnoException = new Error(`Unknown message digest: ${algorithm}`);
-        err.code = 'ERR_CRYPTO_HASH_UNKNOWN';
-        throw err;
-    }
-    return fn;
-}
+import { getNobleHash } from './algos.js';
 
 // Minimal interface matching what @noble/hashes HMAC hashers expose.
 interface NobleHmac {
