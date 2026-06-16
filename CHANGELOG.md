@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.0](https://github.com/gjsify/gjsify/compare/v0.6.1...v0.7.0) (2026-06-16)
+
+### Features
+
+* **native-platform:** add NativeScript platform detection package ([#528](https://github.com/gjsify/gjsify/issues/528)) ([3f9a987](https://github.com/gjsify/gjsify/commit/3f9a987d2087a10c76130b1430ff1f53fa9a4db2)), closes [#525](https://github.com/gjsify/gjsify/issues/525)
+
 ## [0.6.1](https://github.com/gjsify/gjsify/compare/v0.6.0...v0.6.1) (2026-06-16)
 
 ### Code Refactoring

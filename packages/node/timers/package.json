@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/timers",
-    "version": "0.6.1",
+    "version": "0.7.0",
     "description": "Node.js timers module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",
