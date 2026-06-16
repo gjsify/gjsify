@@ -1411,9 +1411,9 @@ Tracked follow-up work that has been deliberately deferred. Every "out of scope"
 
 `@gjsify/child_process`'s `spawn()`/`exec` read `child.pid` from `Gio.Subprocess.get_identifier()`, which returns `null` once GSubprocess's child-watch (GLib **worker thread** context) reaps the child — so an instant-exit child on a saturated runner can lose its pid (Node always reports one). **Resolved at the test layer** (deterministic alive-when-checked process) + **documented as an upstream GIO limitation** ("Upstream GJS Patch Candidates"). The `GLib.spawn_async_with_pipes_and_fds` + `DO_NOT_REAP_CHILD` rewrite (own the reaping → reliable pid) was scoped and **rejected for now**: it regresses `child.kill()` to a `/bin/kill` shell-out (no GLib kill-a-raw-pid in the GIR) and reimplements env/cwd/stdio/wait-status reaping on a critical path (execa/release-it/CLI) — disproportionate for an instant-exit-only edge. Revisit IF: (a) a real consumer needs a reliable pid for instant-exit children, or (b) upstream GIO exposes a spawn-time pid / preserves `get_identifier()` after reap (then no `kill()` regression). **Filed upstream 2026-06-13: [GNOME/glib#3981](https://gitlab.gnome.org/GNOME/glib/-/work_items/3981)** (pure-C reproducer + proposed `g_subprocess_get_initial_identifier()` accessor). Watch for maintainer response; if a fix lands, drop the alive-process test workaround.
 
-### BLOCKER (maintainer action) — first-publish + Trusted Publisher for `@gjsify/oxfmt-native`
+### ~~BLOCKER — first-publish + Trusted Publisher for `@gjsify/oxfmt-native`~~ ✓ already published (v0.4.44+)
 
-`@gjsify/oxfmt-native` is a **NEW npm package**. Per "New `@gjsify/*` package: first-publish + Trusted Publisher bootstrap" (AGENTS.md), npm Trusted Publishing (OIDC) requires the package to already exist on npmjs.com — the first publish is a **manual maintainer action** (`@gjsify` scope publish access + 2FA OTP), not a CI release. If skipped, the next `release.yml` serialized publish loop breaks for every package alphabetically after it. Run `gjsify workspace @gjsify/oxfmt-native build`, then `cd packages/infra/oxfmt-native && gjsify publish --access public --otp <code>` + configure the Trusted Publisher (repo `gjsify/gjsify`, workflow `release.yml`) before the next release.
+Package exists on npm since v0.4.44 (`npm view @gjsify/oxfmt-native versions` confirms). CI OIDC publishes it normally. No action needed.
 
 ### oxlint native path — deferred (JS-plugin host needs Node)
 
@@ -1427,9 +1427,9 @@ Only `prebuilds/linux-x86_64/` was built locally (Fedora 44, rustc 1.95.0, GLIBC
 
 `gjsify build` invoked under GJS with cwd = a workspace **package** dir (e.g. `packages/web/compression-streams`) can't load `@gjsify/rolldown-native`: only `resolveNpmPackage`'s caller-cwd anchor finds it (a package's `node_modules` carries only its own declared deps, NOT the optional-peer `@gjsify/rolldown-native` hoisted to the workspace root), and the workspace-root + bundle-URL fallback anchors miss under GJS (`createRequire`'s upward node_modules walk from `@gjsify/module` doesn't reach the root from a sub-package, and `findWorkspaceRoot` from a package dir doesn't surface the root either). So `shouldUseNative()` returns false → `loadNpmRolldown()` → `import('rolldown')` → the Rust N-API crate's `import('node:…')` throws `Unsupported URI scheme for importing: node`. Effect: a **fully** Node-free `gjs -m dist/cli.gjs.mjs foreach build:gjsify` (each child building from its package cwd) crashes; it only works today because CI builds libs via the **Node** CLI when `cli/lib/index.js` is cache-present (the `.bin/gjsify` wrapper short-circuits to `node lib/index.js`), or when the in-process `gjsify run` dispatch (the `feat/gjsify-run-in-process` branch) keeps native memoized from the root probe. Building from ROOT cwd works (caller-cwd anchor = root/node_modules). **Fix (option b, 2026-06-15):** `tryLoadNative()` in `bundler-pick.ts` now includes a raw `existsSync`-based parent-dir walk (`findRolldownNativeDir`) that probes `node_modules/@gjsify/rolldown-native/package.json` at each ancestor of both `process.cwd()` and the bundle dir — bypassing both `createRequire` polyfill limitations and `findWorkspaceRoot`'s `discoverWorkspaces` dependency. Fires only when the existing `resolveNpmPackage` anchors miss. 3 new unit tests in `bundler-pick.spec.ts`. Guarded indirectly by the cross-cwd-resolve concern in `tests/e2e/cli-bundle-cross-cwd-resolve` (which tests the resolver in isolation under Node, not the GJS sub-package path).
 
-### BLOCKER (maintainer action) — first-publish + Trusted Publisher for `@gjsify/nativescript-vite`
+### ~~BLOCKER — first-publish + Trusted Publisher for `@gjsify/nativescript-vite`~~ ✓ already published (v0.4.36+)
 
-`@gjsify/nativescript-vite` is a **NEW npm package**. Per "New `@gjsify/*` package: first-publish + Trusted Publisher bootstrap" (AGENTS.md), npm Trusted Publishing (OIDC) requires the package to already exist on npmjs.com — the first publish is a **manual maintainer action** (`@gjsify` scope publish access + 2FA OTP), not a CI release. If skipped, the next `release.yml` serialized publish loop breaks for every package alphabetically after it. Do the `gjsify publish --access public --otp <code>` bootstrap + configure the Trusted Publisher (repo `gjsify/gjsify`, workflow `release.yml`) before the next release.
+Package exists on npm since v0.4.36. CI OIDC publishes it normally. No action needed.
 
 ### gjsify on Flatpak — SDK extension + fully Node-free self-build (roadmap)
 
@@ -1502,14 +1502,9 @@ Investigated 2026-06-03 (validated by porting `three-geometry-teapot`'s shared `
 - ~~Spec coverage under `packages/node/zlib/src/index.spec.ts`: each named export is callable + throws with `code: 'ERR_UNSUPPORTED_OPERATION'`~~
 - ~~After landing, re-run `cd tests/integration/undici && gjsify run test:gjs` and fill in the live `### undici` per-port GJS counts in STATUS.md (currently `blocked (zstd)`)~~
 - ~~If real Zstd compression on GJS is wanted later (low priority — GTK ecosystem doesn't ship Zstd responses today), it'd come via `Gio.ZlibCompressor`'s sibling APIs in glib-networking 2.84+ or a Vala/libzstd-1.5 prebuild — not part of this stub work~~
-### BLOCKER (maintainer action) — first-publish + Trusted Publisher for `@gjsify/vite-plugin-gjsify`
+### ~~BLOCKER — first-publish + Trusted Publisher for `@gjsify/vite-plugin-gjsify`~~ ✓ already published (v0.4.27+)
 
-`@gjsify/vite-plugin-gjsify` is a **NEW npm package** (added with the Vite-plugin-track PR). Per the AGENTS.md section "New `@gjsify/*` package: first-publish + Trusted Publisher bootstrap", npm Trusted Publishing (OIDC) requires the package to **already exist** on npmjs.com — so the first publish is a **manual maintainer action** (needs `@gjsify` scope publish access + 2FA OTP), not a CI release. If this is skipped, the next `release.yml` run's serialized `npm:publish` loop breaks: every package alphabetically after `vite-plugin-gjsify` fails with `404 — OIDC token exchange error - package not found` and the workflow exits 1 (this is exactly the v0.4.25 `@gjsify/tls-native` incident). The agent that authored the package **cannot** perform this step (no maintainer 2FA). Required maintainer action **before the next release**:
-
-1. `gjsify workspace @gjsify/vite-plugin-gjsify build`
-2. `cd packages/infra/vite-plugin-gjsify && npm publish --access public --otp <code>`
-3. Configure Trusted Publisher at `https://www.npmjs.com/package/@gjsify/vite-plugin-gjsify/access` — Repository `gjsify/gjsify`, Workflow `release.yml`, Environment empty, Permission `npm publish`.
-4. (Optional) verify: `gh workflow run release.yml -f verify_only=true` — the new package should report `✓`.
+Package exists on npm since v0.4.27. CI OIDC publishes it normally. No action needed.
 
 ### Medium priority — Website & docs follow-ups
 
