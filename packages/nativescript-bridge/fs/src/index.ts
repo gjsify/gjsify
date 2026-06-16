@@ -2,11 +2,14 @@
 // Reimplemented for NativeScript using java.io.File (Android) + NSFileManager (iOS)
 // Reference: Node.js lib/fs/promises.js
 
-// ===== Platform detection =====
+import { isAndroid, assertNativeScript } from '@gjsify/native-platform';
+
+// ===== Platform globals =====
 
 // NativeScript exposes Java classes as global identifiers on Android
-// and Objective-C classes as global identifiers on iOS.
-// Neither is available on GJS, Node.js, or browser runtimes.
+// and Objective-C classes as global identifiers on iOS. Platform *detection*
+// lives in @gjsify/native-platform (imported above); here we only need the
+// typed shapes of the globals the file operations actually call into.
 declare const java:
     | {
           io: {
@@ -64,16 +67,6 @@ interface NSDataType {
 
 interface NSDataClass {
     dataWithBytesLength_(ptr: ArrayBufferLike, length: number): NSDataType;
-}
-
-const isAndroid = typeof java !== 'undefined';
-const isIOS = typeof NSFileManager !== 'undefined';
-const isNativeScript = isAndroid || isIOS;
-
-function assertNativeScript(): void {
-    if (!isNativeScript) {
-        throw new Error('Platform not supported');
-    }
 }
 
 // Typed accessors for the NativeScript platform globals. Each is only ever
@@ -321,9 +314,15 @@ function iosWriteFile(path: string, data: string | Uint8Array, encoding: BufferE
     return new Promise((resolve, reject) => {
         try {
             const bytes = typeof data === 'string' ? new Uint8Array(stringToBytes(data, encoding)) : data;
+            // A passed-in Uint8Array may be a view into a larger ArrayBuffer
+            // (byteOffset > 0) — e.g. a Buffer slice. `.buffer` points at the
+            // start of the underlying buffer, so copy to a tightly-packed array
+            // unless the view already spans its whole buffer.
+            const tight =
+                bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength ? bytes : bytes.slice();
             // Build NSData from the byte buffer via the ObjC class global.
             const NSData = (globalThis as unknown as Record<string, NSDataClass>).NSData;
-            const nsdata = NSData.dataWithBytesLength_(bytes.buffer, bytes.byteLength);
+            const nsdata = NSData.dataWithBytesLength_(tight.buffer, tight.byteLength);
             if (!nsdata.writeToFileAtomically_(path, true)) {
                 return reject(fsError('EACCES', 'open', path));
             }
