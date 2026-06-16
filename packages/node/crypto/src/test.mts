@@ -14,6 +14,7 @@ import testSuiteKeyObject from './key-object.spec.js';
 import testSuiteX509 from './x509.spec.js';
 
 import testSuiteExtended from './extended.spec.js';
+import testSuiteNativescript from './nativescript/nativescript.spec.js';
 
 run({
     testSuiteHash,
@@ -29,4 +30,5 @@ run({
     testSuiteKeyObject,
     testSuiteX509,
     testSuiteExtended,
+    testSuiteNativescript,
 });

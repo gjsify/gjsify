@@ -7,36 +7,7 @@
 // @noble/hashes: Copyright (c) 2022 Paul Miller (https://paulmillr.com), MIT.
 
 import { Buffer } from 'node:buffer';
-import { sha256, sha224, sha384, sha512, sha512_256 } from '@noble/hashes/sha2';
-import { sha1, md5 } from '@noble/hashes/legacy';
-import { type CHash } from '@noble/hashes/utils';
-
-// Normalise algorithm name to lowercase without hyphens:
-// "SHA-256" → "sha256"
-function normalizeAlgorithm(algorithm: string): string {
-    return algorithm.toLowerCase().replace(/-/g, '');
-}
-
-const NOBLE_ALGOS: Record<string, CHash> = {
-    sha1,
-    sha224,
-    sha256,
-    sha384,
-    sha512,
-    sha512256: sha512_256,
-    md5,
-};
-
-function getNobleHash(algorithm: string): CHash {
-    const normalized = normalizeAlgorithm(algorithm);
-    const fn = NOBLE_ALGOS[normalized];
-    if (!fn) {
-        const err: NodeJS.ErrnoException = new Error(`Unknown message digest: ${algorithm}`);
-        err.code = 'ERR_CRYPTO_HASH_UNKNOWN';
-        throw err;
-    }
-    return fn;
-}
+import { getNobleHash, normalizeAlgorithm, SUPPORTED_HASHES } from './algos.js';
 
 // Minimal interface matching what @noble/hashes hashers expose.
 // Using a structural interface avoids the recursive generic constraint.
@@ -101,7 +72,7 @@ export function createHash(algorithm: string): Hash {
 }
 
 export function getHashes(): string[] {
-    return ['md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512', 'sha512-256'];
+    return [...SUPPORTED_HASHES];
 }
 
 export function hash(

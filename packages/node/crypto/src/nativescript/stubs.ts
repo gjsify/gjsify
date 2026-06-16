@@ -4,7 +4,7 @@
 // and native DH/EC crypto primitives. Each function throws a structured error
 // pointing at the limitation — no silent failures.
 
-import { Buffer } from 'node:buffer';
+import type { Buffer } from 'node:buffer';
 
 function notSupported(name: string, hint?: string): never {
     const msg = `${name} is not supported in NativeScript builds.${hint ? ' ' + hint : ''}`;
@@ -26,7 +26,10 @@ export function createCipheriv(..._args: unknown[]): never {
 }
 
 export function createDecipher(..._args: unknown[]): never {
-    return notSupported('createDecipher', 'AES decipher requires a native crypto backend not available on NativeScript.');
+    return notSupported(
+        'createDecipher',
+        'AES decipher requires a native crypto backend not available on NativeScript.',
+    );
 }
 
 export function createDecipheriv(..._args: unknown[]): never {
