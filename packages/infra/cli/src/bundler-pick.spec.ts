@@ -12,6 +12,9 @@
 // These tests prevent the adapter from silently dropping hooks /
 // mis-translating filters when real-world plugin shapes change.
 
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from '@gjsify/unit';
 import {
     toNativePlugin,
@@ -20,6 +23,7 @@ import {
     stripUnserializable,
     translateSourcemapOption,
     mapToInjectArray,
+    findRolldownNativeDir,
     type NativePlugin,
 } from './bundler-pick.js';
 import {
@@ -374,6 +378,83 @@ export default async () => {
             expect(translateSourcemapOption(false)).toBe(undefined);
             expect(translateSourcemapOption(undefined)).toBe(undefined);
             expect(translateSourcemapOption('bogus')).toBe(undefined);
+        });
+    });
+
+    await describe('findRolldownNativeDir — parent-dir filesystem walk', async () => {
+        // This covers the sub-package cwd scenario: `@gjsify/rolldown-native`
+        // is hoisted to the workspace root's node_modules but the cwd is a
+        // deeply nested package dir whose own node_modules doesn't carry it.
+        // The helper must walk up and find it, bypassing createRequire and
+        // findWorkspaceRoot (both of which can fail under GJS polyfills from
+        // a sub-package dir).
+
+        let tmpDir: string | null = null;
+
+        const setup = () => {
+            tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-native-dir-spec-'));
+            // Workspace root with the hoisted package
+            const pkgJson = join(
+                tmpDir,
+                'node_modules',
+                '@gjsify',
+                'rolldown-native',
+                'package.json',
+            );
+            mkdirSync(join(tmpDir, 'node_modules', '@gjsify', 'rolldown-native'), {
+                recursive: true,
+            });
+            writeFileSync(pkgJson, JSON.stringify({ name: '@gjsify/rolldown-native' }));
+            // Sub-package directory (no node_modules of its own)
+            const subPkg = join(tmpDir, 'packages', 'web', 'compression-streams');
+            mkdirSync(subPkg, { recursive: true });
+            return { wsRoot: tmpDir, subPkg };
+        };
+
+        const teardown = () => {
+            if (tmpDir) {
+                rmSync(tmpDir, { recursive: true, force: true });
+                tmpDir = null;
+            }
+        };
+
+        await it('finds the package when cwd is a deep sub-package dir', () => {
+            const { wsRoot, subPkg } = setup();
+            try {
+                const found = findRolldownNativeDir(subPkg);
+                expect(found !== null).toBe(true);
+                // Path must end at rolldown-native inside wsRoot/node_modules
+                expect(found!.includes('rolldown-native')).toBe(true);
+                expect(found!.startsWith(wsRoot)).toBe(true);
+            } finally {
+                teardown();
+            }
+        });
+
+        await it('returns null when the package is nowhere in the ancestor chain', () => {
+            const tmp = mkdtempSync(join(tmpdir(), 'gjsify-native-dir-miss-'));
+            try {
+                const isolated = join(tmp, 'deep', 'pkg');
+                mkdirSync(isolated, { recursive: true });
+                const found = findRolldownNativeDir(isolated);
+                expect(found).toBe(null);
+            } finally {
+                rmSync(tmp, { recursive: true, force: true });
+            }
+        });
+
+        await it('finds the package via the bundleDir anchor when cwd misses', () => {
+            const { wsRoot, subPkg } = setup();
+            // cwd has no node_modules; bundleDir (bundle's dist/) is at wsRoot/dist
+            const bundleDir = join(wsRoot, 'dist');
+            mkdirSync(bundleDir, { recursive: true });
+            try {
+                const found = findRolldownNativeDir(subPkg, bundleDir);
+                expect(found !== null).toBe(true);
+                expect(found!.includes('rolldown-native')).toBe(true);
+            } finally {
+                teardown();
+            }
         });
     });
 
