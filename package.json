@@ -109,6 +109,7 @@
         "packages/web/*",
         "packages/dom/*",
         "packages/framework/*",
+        "packages/nativescript-bridge/*",
         "templates/*",
         "examples/node/*",
         "examples/dom/*",
