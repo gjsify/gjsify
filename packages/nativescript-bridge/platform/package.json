@@ -1,7 +1,7 @@
 {
-    "name": "@gjsify/native-fs-bridge",
+    "name": "@gjsify/native-platform",
     "version": "0.6.1",
-    "description": "NativeScript native bridge for node:fs/promises — Android (java.io.File) + iOS (NSFileManager)",
+    "description": "NativeScript platform detection — Android/iOS runtime, OS version, SDK level and device model",
     "type": "module",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -30,7 +30,7 @@
     "keywords": [
         "gjs",
         "nativescript",
-        "fs",
+        "platform",
         "android",
         "ios"
     ],
@@ -39,9 +39,6 @@
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
-    },
-    "dependencies": {
-        "@gjsify/native-platform": "workspace:^"
     },
     "gjsify": {
         "runtimes": {
@@ -55,10 +52,10 @@
     "repository": {
         "type": "git",
         "url": "git+https://github.com/gjsify/gjsify.git",
-        "directory": "packages/nativescript-bridge/fs"
+        "directory": "packages/nativescript-bridge/platform"
     },
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/fs#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/platform#readme"
 }

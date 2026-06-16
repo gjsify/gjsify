@@ -26,10 +26,11 @@ export class Hash {
     private _hasher: NobleHasher;
     private _finalized = false;
 
-    constructor(algorithm: string) {
-        const fn = getNobleHash(algorithm);
+    // `existing` lets copy() reuse a cloned hasher instead of creating a fresh
+    // one only to discard it.
+    constructor(algorithm: string, existing?: NobleHasher) {
         this._algorithm = normalizeAlgorithm(algorithm);
-        this._hasher = fn.create() as unknown as NobleHasher;
+        this._hasher = existing ?? (getNobleHash(algorithm).create() as unknown as NobleHasher);
     }
 
     update(data: string | Buffer | Uint8Array, inputEncoding?: BufferEncoding): this {
@@ -61,9 +62,7 @@ export class Hash {
         if (this._finalized) {
             throw new Error('Digest already called');
         }
-        const copy = new Hash(this._algorithm);
-        copy._hasher = this._hasher.clone();
-        return copy;
+        return new Hash(this._algorithm, this._hasher.clone());
     }
 }
 

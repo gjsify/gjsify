@@ -4,8 +4,6 @@
 // and native DH/EC crypto primitives. Each function throws a structured error
 // pointing at the limitation — no silent failures.
 
-import type { Buffer } from 'node:buffer';
-
 function notSupported(name: string, hint?: string): never {
     const msg = `${name} is not supported in NativeScript builds.${hint ? ' ' + hint : ''}`;
     const err: NodeJS.ErrnoException = new Error(msg);
@@ -209,7 +207,3 @@ export class X509Certificate {
         notSupported('X509Certificate');
     }
 }
-
-// Re-export Buffer to satisfy type-only references in consumers that import
-// from this module.
-export type { Buffer };
