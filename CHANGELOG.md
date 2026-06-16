@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.1](https://github.com/gjsify/gjsify/compare/v0.6.0...v0.6.1) (2026-06-16)
+
+### Code Refactoring
+
+* dedupe NativeScript crypto/fs-bridge code, add crypto NS tests ([#527](https://github.com/gjsify/gjsify/issues/527)) ([04c1938](https://github.com/gjsify/gjsify/commit/04c1938270f5843e0f077e4ff02ca5329ad34b54))
+
 ## [0.6.0](https://github.com/gjsify/gjsify/compare/v0.5.2...v0.6.0) (2026-06-16)
 
 ### Features
