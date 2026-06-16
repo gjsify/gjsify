@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.6.0](https://github.com/gjsify/gjsify/compare/v0.5.2...v0.6.0) (2026-06-16)
+
+### Features
+
+* **crypto:** add @noble/hashes fallback for NativeScript (no GLib.Checksum/crypto.subtle) ([#526](https://github.com/gjsify/gjsify/issues/526)) ([db58d59](https://github.com/gjsify/gjsify/commit/db58d597b24c30854467baca8c3b25786a6699e5))
+* **native-fs-bridge:** welle 5-B — add @gjsify/native-fs-bridge package ([#525](https://github.com/gjsify/gjsify/issues/525)) ([840cf1f](https://github.com/gjsify/gjsify/commit/840cf1f008e91f60db9730a343711dad55e9d9e6))
+
+### Documentation
+
+* **status:** strike stale BLOCKER entries — all 3 packages already on npm ([#523](https://github.com/gjsify/gjsify/issues/523)) ([208ab14](https://github.com/gjsify/gjsify/commit/208ab14e835def654436bd7736e7e33d039c255b))
+
+### Maintenance
+
+* **lint:** clear remaining consistent-type-imports warnings ([#524](https://github.com/gjsify/gjsify/issues/524)) ([96d59d7](https://github.com/gjsify/gjsify/commit/96d59d743a889b946b0eb84566af942cadc04b03))
+
 ## [0.5.2](https://github.com/gjsify/gjsify/compare/v0.5.1...v0.5.2) (2026-06-16)
 
 ### Bug Fixes
