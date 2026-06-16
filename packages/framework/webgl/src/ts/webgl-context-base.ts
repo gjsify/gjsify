@@ -86,14 +86,19 @@ export abstract class WebGLContextBase {
     canvas: HTMLCanvasElement;
 
     /**
-     * Static `PredefinedColorSpace` placeholder — honouring `'display-p3'`
+     * The color space used for the WebGL drawing buffer.
+     *
+     * Per the WebGL spec the default is `'srgb'`. Honouring `'display-p3'`
      * end-to-end requires per-context surface-format selection through Cairo/GTK
-     * GL output (no consumer requests it today). Tracked in STATUS.md
-     * "Open TODOs" under WebGL Workstream D: drawingBufferColorSpace
-     * colorimetry plumbing.
+     * GL output; GTK 4 does not expose a per-surface color-space API today, so
+     * this field is a best-effort JS-side stub: the getter/setter work correctly
+     * (a value assigned here is readable back), but the GTK GL surface always
+     * renders in the display's native color space regardless of this setting.
+     * Consumers that only use `'srgb'` (the overwhelming majority) are correct.
+     *
      * @see https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/drawingBufferColorSpace
      */
-    drawingBufferColorSpace: PredefinedColorSpace;
+    drawingBufferColorSpace: PredefinedColorSpace = 'srgb';
 
     unpackColorSpace: PredefinedColorSpace = 'srgb';
 
@@ -498,10 +503,17 @@ export abstract class WebGLContextBase {
             case this.FRONT_FACE:
             case this.GENERATE_MIPMAP_HINT:
             case this.GREEN_BITS:
+                return this._gl.getParameteri(pname);
+
+            // GL_MAX_RENDERBUFFER_SIZE is a per-context invariant — sampled once at
+            // _init() time alongside _maxTextureSize and returned from the JS-side
+            // cache on every call to avoid a native round-trip.
+            case this.MAX_RENDERBUFFER_SIZE:
+                return this._maxRenderbufferSize;
+
             case this.MAX_COMBINED_TEXTURE_IMAGE_UNITS:
             case this.MAX_CUBE_MAP_TEXTURE_SIZE:
             case this.MAX_FRAGMENT_UNIFORM_VECTORS:
-            case this.MAX_RENDERBUFFER_SIZE:
             case this.MAX_TEXTURE_IMAGE_UNITS:
             case this.MAX_TEXTURE_SIZE:
             case this.MAX_VARYING_VECTORS:
