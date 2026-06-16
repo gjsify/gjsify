@@ -2,7 +2,7 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.5.2, ESM-only, GNOME libs. Bootstraps via the committed `packages/infra/cli/dist/cli.gjs.mjs` GJS bundle — `gjsify install --immutable` is the supported install path (no yarn / no Node-only npm CLI required at runtime, see Phase D.7d). Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (21 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra.
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.5.2, ESM-only, GNOME libs. Bootstraps via the committed `packages/infra/cli/dist/cli.gjs.mjs` GJS bundle — `gjsify install --immutable` is the supported install path (no yarn / no Node-only npm CLI required at runtime, see Phase D.7d). Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (21 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra. **NativeScript Bridge** `packages/nativescript-bridge/` (1 pkg — `@gjsify/native-fs-bridge`) = native mobile API wrappers for the NativeScript runtime axis (Welle 5+).
 
 ## Governance — non-negotiable
 
@@ -145,6 +145,16 @@ Dispatch: W3C UIEvents. Coords: GTK widget-relative → DOM offsetX/Y/clientX/Y.
 ### Context factory registry
 
 `HTMLCanvasElement.registerContextFactory` — `@gjsify/canvas2d` registers `'2d'`→CanvasRenderingContext2D(Cairo); `@gjsify/webgl` registers `'webgl'`/`'webgl2'` via subclass override + fallthrough.
+
+## NativeScript Bridge — `packages/nativescript-bridge/*`
+
+Native API wrappers for the NativeScript (Android/iOS) runtime axis. Packages here use `java.*` / `NS*` globals exposed by the NativeScript V8 runtime bridge — analogous to how `packages/framework/*` uses `gi://` GNOME libs. `runtimes.nativescript:'native'`; all other slots `'none'` (not usable on GJS/Node/browser). Mirror of `packages/framework/{webgl,canvas2d}` for the mobile axis (Welle 5+).
+
+**Convention:** pure-TS, no `gi://` / `@girs/*` value imports. Platform detection via `typeof java !== 'undefined'` (Android) / `typeof NSFileManager !== 'undefined'` (iOS). `assertNativeScript()` synchronous guard throws `'Platform not supported'` on non-NS runtimes — spec tests exploit this to run on GJS + Node without a device.
+
+| Pkg | Platforms | Implements |
+|-----|-----------|------------|
+| fs (`@gjsify/native-fs-bridge`) | Android + iOS | `readFile`, `writeFile`, `readdir`, `stat`, `mkdir`, `unlink`, `exists` via `java.io.File` (Android) + `NSFileManager` (iOS). 7 tests. |
 
 ## Build — Rolldown, platform plugins
 
