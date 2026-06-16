@@ -10,6 +10,10 @@
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
         },
+        "./nativescript": {
+            "types": "./lib/types/nativescript.d.ts",
+            "default": "./lib/esm/nativescript.js"
+        },
         "./browser": {
             "types": "./lib/types/browser.d.ts",
             "default": "./lib/esm/browser.js"
@@ -80,7 +84,8 @@
         "@girs/glib-2.0": "2.88.0-4.0.4",
         "@gjsify/buffer": "workspace:^",
         "@gjsify/stream": "workspace:^",
-        "@gjsify/utils": "workspace:^"
+        "@gjsify/utils": "workspace:^",
+        "@noble/hashes": "^1.5.0"
     },
     "gjsify": {
         "runtimes": {
