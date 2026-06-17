@@ -28,9 +28,17 @@ export interface GithubTrustClaims {
     environment?: string;
 }
 
+// Registry permission tokens (npm >= 11.10, the 2026-05-20 trust-API change).
+// `createPackage` is what `--allow-publish` grants; `createStagedPackage` is
+// `--allow-stage-publish`. The registry rejects a config with no permissions
+// (`400 "permissions is required and must contain at least one valid route"`).
+export const PERMISSION_PUBLISH = 'createPackage';
+export const PERMISSION_STAGE_PUBLISH = 'createStagedPackage';
+
 export interface GithubTrustConfig {
     type: 'github';
     claims: GithubTrustClaims;
+    permissions: string[];
 }
 
 /** A single entry as returned by the list endpoint. */
@@ -46,19 +54,22 @@ export interface TrustEntry {
 
 /**
  * The POST body for `trust github`. npm always sends an ARRAY with a single
- * config object (refs/npm-cli/lib/trust-cmd.js:181).
+ * config object carrying `type`, `claims` AND `permissions` (the last is
+ * required — `--allow-publish` → `['createPackage']`).
  */
 export function githubTrustBody(opts: {
     repository: string;
     workflow: string;
     environment?: string;
+    permissions?: string[];
 }): GithubTrustConfig[] {
     const claims: GithubTrustClaims = {
         repository: opts.repository,
         workflow_ref: { file: normalizeWorkflowFile(opts.workflow) },
     };
     if (opts.environment) claims.environment = opts.environment;
-    return [{ type: 'github', claims }];
+    const permissions = opts.permissions && opts.permissions.length > 0 ? opts.permissions : [PERMISSION_PUBLISH];
+    return [{ type: 'github', claims, permissions }];
 }
 
 /** npm requires the workflow as a bare basename (no directory), `.yml`/`.yaml`. */
