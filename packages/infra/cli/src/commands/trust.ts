@@ -19,7 +19,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_REGISTRY, buildHeaders, registryFor } from '@gjsify/npm-registry';
+import { DEFAULT_REGISTRY, buildHeaders, registryFor, whoami } from '@gjsify/npm-registry';
 import { discoverWorkspaces, filterWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { hasAnyCredential, loadNpmrc } from '../utils/load-npmrc.js';
@@ -106,6 +106,36 @@ export const trustCommand: Command<unknown, TrustOptions> = {
         if (!hasAnyCredential(npmrc)) {
             console.error('gjsify trust: no npm token configured. Run `gjsify login` first.');
             process.exit(1);
+        }
+
+        // Pre-flight: a present-but-DEAD token would otherwise surface as a
+        // confusing per-package `401 "You must be logged in to publish
+        // packages"`. Probe `/-/whoami` once and fail early with the real fix.
+        // (Skipped for --dry-run, which never writes.) `whoami` throws on a
+        // 401/non-2xx and returns `{}` on a dead-but-200 token — both are dead.
+        const probeRegistry = args.registry ?? process.env.npm_config_registry ?? npmrc.registry ?? DEFAULT_REGISTRY;
+        if (args['dry-run'] !== true) {
+            let who: { username?: string };
+            try {
+                who = await whoami(probeRegistry, npmrc);
+            } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                console.error(
+                    `gjsify trust: npm auth check failed (${msg}).\n` +
+                        'Your ~/.npmrc token is dead or revoked — refresh it with `npm login`, then re-run.\n' +
+                        '(`gjsify trust` uses the ~/.npmrc bearer token directly — unlike `npm trust`, which logs in via the browser.)',
+                );
+                process.exit(1);
+                return;
+            }
+            if (!who.username) {
+                console.error(
+                    'gjsify trust: your npm token appears dead or revoked (registry returned an empty whoami).\n' +
+                        'Refresh it with `npm login`, then re-run.',
+                );
+                process.exit(1);
+            }
+            console.log(`gjsify trust: authenticated as ${who.username}`);
         }
 
         // Repository: flag wins, else infer from the origin remote.
