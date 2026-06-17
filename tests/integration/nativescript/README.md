@@ -20,6 +20,8 @@ Currently covered (extend by adding `app/specs/<pkg>.smoke.ts` + an import in
 
 - **`@gjsify/path`** — posix `join`/`resolve`/`normalize`, `basename`/`extname`/`parse`, `sep`/`delimiter`
 - **`@gjsify/buffer`** — `from`/`toString` (utf8/base64/hex), `byteLength`, `concat`, `alloc`, `writeUInt8`/`readUInt8`
+- **`@gjsify/stream`** (`nativescript:'polyfill'`) — `Readable.from`, `PassThrough` round-trip, `Transform` map, `pipeline`, async-iteration
+- **`@gjsify/native-platform`** (`nativescript:'native'`) — `isNativeScript`/`isAndroid`/`isIOS`, `platformName()`, `assertNativeScript()`, `platformInfo()` (real OS version / SDK level / device model read from `android.os.Build` / `UIDevice`)
 
 ## Why a custom reporter, not `@gjsify/unit`
 
@@ -46,8 +48,11 @@ therefore:
   `test:node` script) and **not** in any GitHub Actions workflow.
 
 It is installed and run standalone, against the **published** `@gjsify/*`
-packages (`^0.4.36`), so it validates the real shipped artifacts on V8. To smoke
-an unpublished workspace change, `npm pack` it and point the dep at the tarball.
+packages (`^0.7.0`), so it validates the real shipped artifacts on V8. To smoke
+an unpublished workspace change, `gjsify pack` it and point the dep at the tarball
+(this is how `@gjsify/native-platform` was validated on-device before its first
+npm publish — `gjsify pack` → `"@gjsify/native-platform": "file:./<tarball>.tgz"`
+→ `npm install`).
 
 > **`"type": "module"` is intentionally absent** from `package.json`. NativeScript
 > generates CommonJS build-tools under `platforms/` (the Static Binding Generator's
@@ -55,24 +60,22 @@ an unpublished workspace change, `npm pack` it and point the dep at the tarball.
 > those `.js` files as ESM and the gradle build fails with `require is not defined
 > in ES module scope`. The app code is ESM regardless — Vite/Rolldown bundles it.
 
-> **Build-chain version floor (until the release that supersedes 0.4.36).** The
-> 0.4.36 artifacts predate the fixes this suite needs:
+> **Build-chain version floor — RESOLVED at `^0.7.0` (2026-06-17).** The deps are
+> now pinned `^0.7.0`; that line ships all the fixes the suite needs and the
+> 27/27 run below was against it. For the record, the `0.4.36` artifacts the suite
+> was previously pinned to predated:
 > - `@gjsify/resolve-npm` — the `module → @gjsify/module` NS alias (#457); 0.4.36
->   routes `module → @gjsify/empty`, so css-tree's `createRequire` import fails the
+>   routed `module → @gjsify/empty`, so css-tree's `createRequire` import failed the
 >   build.
-> - `@gjsify/buffer` — lazy `TextEncoder`/`TextDecoder` init; 0.4.36 constructs
->   them at module-eval time and crashes on NS V8.
-> - `@gjsify/vite-plugin-gjsify` — `gjsifyNativescript()` now aliases `css-tree`
+> - `@gjsify/buffer` — lazy `TextEncoder`/`TextDecoder` init; 0.4.36 constructed
+>   them at module-eval time and crashed on NS V8.
+> - `@gjsify/vite-plugin-gjsify` — `gjsifyNativescript()` aliases `css-tree`
 >   to its bundled dist (data inlined), keeping `@nativescript/core` → css-tree's
 >   `createRequire` data-loads out of the bundle (they throw on NS V8); 0.4.36
->   has no such alias.
+>   had no such alias.
 > - `@gjsify/nativescript-vite@0.4.36` — a `workspace:` range leaked into its npm
->   manifest during the manual first-publish, making it uninstallable from npm
->   (CI's `gjsify publish` resolves it, so the next release self-heals it).
->
-> Until the next release lands, validate against local packs: `gjsify pack` each of
-> `@gjsify/{nativescript-vite,vite-plugin-gjsify,resolve-npm,buffer}`, point the deps /
-> an `overrides` block at the tarballs, then `npm install`.
+>   manifest during the manual first-publish, making it uninstallable from npm; the
+>   `0.7.0` line is clean (the release self-healed it).
 
 ## Running locally
 
@@ -101,8 +104,14 @@ also see a `PASS n/total` / `FAIL n/total` Label as a visual fallback.
 
 ## Validated
 
-`@gjsify/path` (7/7) and `@gjsify/buffer` (7/7) — **14/14 green on the Android NS
-V8 runtime** (NS CLI 9.0.6 / runtime 9.0.4, `@nativescript/core` 9.x, Vite 8.0.16).
-Surfaced + fixed `@gjsify/buffer`'s top-level `new TextEncoder()` (it ran at module
-eval, before NS registers the global — crashed the bundle; now lazy-initialised).
-Record outcomes in `STATUS.md` → *Integration Test Coverage*.
+`@gjsify/path` (7/7), `@gjsify/buffer` (7/7), `@gjsify/stream` (5/5) and
+`@gjsify/native-platform` (8/8) — **27/27 green on the Android NS V8 runtime**
+(NS CLI 9.0.6 / runtime 9.0.4, `@nativescript/core` 9.x, Vite 8.0.16, deps `^0.7.0`,
+2026-06-17). The `stream` run confirms the pure-TS stream polyfill (`Readable`/
+`Writable`/`Transform`/`PassThrough`/`pipeline` + async-iteration) executes on V8;
+the `native-platform` run confirms the `'native'` slot reads real `android.os.Build`
+values (`platformInfo()` returned a concrete OS version / SDK level / device model,
+not the off-platform `'unknown'` sentinel). Earlier run surfaced + fixed
+`@gjsify/buffer`'s top-level `new TextEncoder()` (it ran at module eval, before NS
+registers the global — crashed the bundle; now lazy-initialised). Record outcomes
+in `STATUS.md` → *Integration Test Coverage*.

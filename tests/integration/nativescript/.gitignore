@@ -2,6 +2,8 @@ platforms/
 hooks/
 node_modules/
 dist/
+.ns-vite-build/
 *.log
+*.tgz
 tsconfig.tsbuildinfo
 package-lock.json
