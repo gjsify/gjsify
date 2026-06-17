@@ -40,6 +40,9 @@ export default async () => {
             expect(body[0].claims.repository).toBe('gjsify/gjsify');
             expect(body[0].claims.workflow_ref.file).toBe('release.yml');
             expect('environment' in body[0].claims).toBe(false);
+            // permissions is required by the registry (--allow-publish → createPackage).
+            expect(body[0].permissions.length).toBe(1);
+            expect(body[0].permissions[0]).toBe('createPackage');
         });
         await it('includes environment only when given', async () => {
             const body = githubTrustBody({ repository: 'o/r', workflow: 'release.yml', environment: 'prod' });
