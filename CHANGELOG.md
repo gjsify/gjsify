@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2](https://github.com/gjsify/gjsify/compare/v0.7.1...v0.7.2) (2026-06-17)
+
+### Bug Fixes
+
+* **trust:** send required `permissions` in the trust POST body ([#533](https://github.com/gjsify/gjsify/issues/533)) ([3f0df4c](https://github.com/gjsify/gjsify/commit/3f0df4cca50296afece047aa555c03f963f41de6))
+* **trust:** try without OTP first + accept CR-terminated prompt input ([#534](https://github.com/gjsify/gjsify/issues/534)) ([539ace9](https://github.com/gjsify/gjsify/commit/539ace9ae113b663f647e68011f902fec7bece7c))
+
 ## [0.7.1](https://github.com/gjsify/gjsify/compare/v0.7.0...v0.7.1) (2026-06-17)
 
 ### Features
