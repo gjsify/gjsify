@@ -460,4 +460,81 @@ describe('gjsify install — workspace-aware (Phase D.3)', { timeout: 60_000 }, 
             rmSync(failCache, { recursive: true, force: true });
         }
     });
+
+    it('wires workspace symlinks before the download phase — a failed install keeps them', async () => {
+        // Regression: workspace↔workspace symlinks used to be materialised only
+        // at the TAIL of the install, after the external download/extract. A
+        // failed/interrupted external phase then left the tree with NO
+        // workspace symlinks, so a workspace's dependency on a sibling
+        // workspace failed to resolve even though every package was on disk.
+        // They are now wired up-front (like the bin shims), so they survive a
+        // failed external fetch.
+        const failRoot = mkdtempSync(join(tmpdir(), 'gjsify-e2e-ws-symfail-'));
+        const failCache = mkdtempSync(join(tmpdir(), 'gjsify-e2e-ws-symfail-cache-'));
+        try {
+            writeFileSync(
+                join(failRoot, 'package.json'),
+                JSON.stringify(
+                    {
+                        name: 'symfail-root',
+                        version: '0.0.0',
+                        private: true,
+                        type: 'module',
+                        workspaces: ['packages/*'],
+                    },
+                    null,
+                    2,
+                ) + '\n',
+            );
+            writeFileSync(join(failRoot, '.npmrc'), `registry=${registryUrl}\n`);
+            // A leaf workspace with no external deps — the symlink target.
+            mkdirSync(join(failRoot, 'packages', 'lib'), { recursive: true });
+            writeFileSync(
+                join(failRoot, 'packages', 'lib', 'package.json'),
+                JSON.stringify({ name: '@scope/lib', version: '1.0.0', type: 'module' }, null, 2) + '\n',
+            );
+            // A workspace that depends on the sibling workspace AND an external
+            // dep — so the (failing) download phase is reached after the early
+            // symlink wiring.
+            mkdirSync(join(failRoot, 'packages', 'app'), { recursive: true });
+            writeFileSync(
+                join(failRoot, 'packages', 'app', 'package.json'),
+                JSON.stringify(
+                    {
+                        name: '@scope/app',
+                        version: '1.0.0',
+                        type: 'module',
+                        dependencies: { '@scope/lib': 'workspace:^', 'lib-ext': '^4.5.0' },
+                    },
+                    null,
+                    2,
+                ) + '\n',
+            );
+
+            failTarballs = true;
+            const r = await runCli(cliEntry, ['install'], {
+                cwd: failRoot,
+                env: { ...envForCli, XDG_CACHE_HOME: failCache },
+            });
+            assert.notEqual(r.status, 0, 'install must fail when the external tarball download 404s');
+
+            // The workspace→workspace symlink must exist despite the failed
+            // external phase (early wiring).
+            const appLib = join(failRoot, 'packages', 'app', 'node_modules', '@scope', 'lib');
+            assert.ok(
+                existsSync(appLib) && lstatSync(appLib).isSymbolicLink(),
+                'packages/app/node_modules/@scope/lib symlink must exist after a failed install (early wiring)',
+            );
+            // And the root hoist of the workspace package.
+            const rootLib = join(failRoot, 'node_modules', '@scope', 'lib');
+            assert.ok(
+                existsSync(rootLib) && lstatSync(rootLib).isSymbolicLink(),
+                'root node_modules/@scope/lib hoist must exist after a failed install (early wiring)',
+            );
+        } finally {
+            failTarballs = false;
+            rmSync(failRoot, { recursive: true, force: true });
+            rmSync(failCache, { recursive: true, force: true });
+        }
+    });
 });
