@@ -26,6 +26,7 @@ import autoGlobalsSuite from './auto-globals.spec.js';
 import externalsPluginSuite from './externals-plugin.spec.js';
 import affectedClassifierSuite from './affected-classifier.spec.js';
 import runStdioSafeSuite from './run-stdio-safe.spec.js';
+import trustRegistrySuite from './utils/trust-registry.spec.js';
 
 run({
     bundlerPickSuite,
@@ -46,4 +47,5 @@ run({
     externalsPluginSuite,
     affectedClassifierSuite,
     runStdioSafeSuite,
+    trustRegistrySuite,
 });

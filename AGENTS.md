@@ -651,11 +651,12 @@ Run before the merge that adds the package (or immediately after, before the nex
    ```
 
    **Diagnostic — `404 Not Found` on PUT.** A 404 on the publish PUT is ambiguous: the npm registry returns it for both a dead `_authToken` and a genuinely-missing package. `gjsify publish` now probes `GET /-/whoami` with the same Authorization header to disambiguate: body `{}` (status 200) → the `_authToken` in `~/.npmrc` is revoked/expired, refresh via `npm login`; body `{"username": "..."}` → the package doesn't exist on npm yet, run the first-publish bootstrap above. The probe is best-effort (token-auth path only, skipped under `--otp` or `--trusted`/OIDC where the error surfaces are already clear); on a network failure the generic error message is used instead.
-3. **Configure Trusted Publisher** at `https://www.npmjs.com/package/@gjsify/<name>/access`:
-   - Repository: `gjsify/gjsify`
-   - Workflow: `release.yml`
-   - Environment: (empty)
-   - Permission: `npm publish`
+3. **Configure Trusted Publisher** — natively, no `npm` and no web UI:
+   ```bash
+   gjsify trust @gjsify/<name>          # one package
+   gjsify trust                         # or: sweep every publishable workspace (idempotent)
+   ```
+   `gjsify trust` infers `repository` from the `origin` remote and defaults `workflow` to `release.yml`; it reads each package's current trust state and skips ones already configured, reports unpublished ones separately, and POSTs the GitHub config for the rest (`owner/repo` + `release.yml` + permission `publish`). 2FA is handled via the `npm-otp` header (prompted on demand, or `--otp <code>`) — the same legacy/header path as `gjsify login`, no browser flow. `--dry-run` previews, `--list` only reports state, `--force` re-applies. The web UI at `https://www.npmjs.com/package/@gjsify/<name>/access` (Repository `gjsify/gjsify`, Workflow `release.yml`, Environment empty, Permission `npm publish`) remains a hand-off fallback.
 4. **(Optional)** verify the config from CI before the next real release:
    ```bash
    gh workflow run release.yml -f verify_only=true

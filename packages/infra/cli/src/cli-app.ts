@@ -42,6 +42,7 @@ import {
     whoamiCommand as whoami,
     loginCommand as login,
     logoutCommand as logout,
+    trustCommand as trust,
     selfUpdateCommand as selfUpdate,
     generateInstallerCommand as generateInstaller,
     uninstallCommand as uninstall,
@@ -131,6 +132,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .command(whoami.command, whoami.description, whoami.builder, whoami.handler)
         .command(login.command, login.description, login.builder, login.handler)
         .command(logout.command, logout.description, logout.builder, logout.handler)
+        .command(trust.command, trust.description, trust.builder, trust.handler)
         .command(selfUpdate.command, selfUpdate.description, selfUpdate.builder, selfUpdate.handler)
         .command(
             generateInstaller.command,
