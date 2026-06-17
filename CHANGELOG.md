@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.1](https://github.com/gjsify/gjsify/compare/v0.7.0...v0.7.1) (2026-06-17)
+
+### Features
+
+* **cli:** add native `gjsify trust` command for npm Trusted Publishers ([#532](https://github.com/gjsify/gjsify/issues/532)) ([6e420a9](https://github.com/gjsify/gjsify/commit/6e420a9edc5d6dc2471ed0381ab2f4e547d15599))
+
+### Bug Fixes
+
+* **install:** wire workspace symlinks before the download phase ([#529](https://github.com/gjsify/gjsify/issues/529)) ([6bcc115](https://github.com/gjsify/gjsify/commit/6bcc115fc775298aa2759c4a21a42d9929faf736))
+
+### Tests
+
+* **nativescript:** add stream + native-platform on-device smoke specs ([#530](https://github.com/gjsify/gjsify/issues/530)) ([22dc556](https://github.com/gjsify/gjsify/commit/22dc5563c76bf099bfc100683580b23da544593d))
+
 ## [0.7.0](https://github.com/gjsify/gjsify/compare/v0.6.1...v0.7.0) (2026-06-16)
 
 ### Features

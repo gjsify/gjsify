@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/oxlint-plugin-gjsify",
-    "version": "0.7.0",
+    "version": "0.7.1",
     "description": "Internal oxlint JS plugin for gjsify — GObject.registerClass field-ordering rule. NOT published to npm.",
     "private": true,
     "type": "module",
