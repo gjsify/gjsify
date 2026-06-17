@@ -450,6 +450,131 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
     // tree — see the final `writeWorkspaceBinShims` call below.
     writeWorkspaceBinShims(cwd, workspaces);
 
+    // Materialise the workspace↔workspace symlinks: per-requester links
+    // (`<requester>/node_modules/<dep>`) plus a root hoist of every workspace
+    // into `node_modules/<name>` so transitive workspace deps resolve via
+    // Node's parent-walk from any descendant. Idempotent (rm + symlink, and
+    // the hoist skips entries that already exist), so it's safe to run more
+    // than once.
+    const wireWorkspaceSymlinks = async (): Promise<void> => {
+        // Per-requester symlinks — pre-dedup the parent-dir mkdirs (every
+        // symlink for the same workspace shares a single `node_modules`
+        // parent), then run the per-link rm + symlink steps with bounded
+        // concurrency. Pure sync loops here used to dominate the tail of large
+        // installs (~793 symlinks × ~10ms each for mkdir+rm+symlink = ~24s of
+        // serial syscalls). With async + a 32-wide pool the same set lands in
+        // 1-2s.
+        if (symlinks.length > 0) {
+            const fsp = await import('node:fs/promises');
+            const parentDirs = new Set<string>();
+            const plans: Array<{ linkPath: string; relTarget: string }> = [];
+            for (const link of symlinks) {
+                const target = byName.get(link.fromWorkspaceName);
+                if (!target) continue;
+                const linkPath = join(target.location, 'node_modules', link.depName);
+                parentDirs.add(dirname(linkPath));
+                const relTarget = relative(dirname(linkPath), link.targetLocation);
+                plans.push({ linkPath, relTarget });
+            }
+            // Phase 1: one mkdir per unique parent (max ~213 instead of ~793).
+            await Promise.all([...parentDirs].map((dir) => fsp.mkdir(dir, { recursive: true })));
+            // Phase 2: per-link rm + symlink, pooled. A semaphore-style cursor
+            // keeps the concurrent in-flight count bounded so we don't blow up
+            // the file-descriptor table on huge monorepos.
+            const SYMLINK_CONCURRENCY = 32;
+            let cursor = 0;
+            const workers: Promise<void>[] = [];
+            const wireOne = async (linkPath: string, relTarget: string) => {
+                // Remove any prior entry — regular dir, broken symlink, file,
+                // or a normal symlink left over from a previous install.
+                // `{ recursive: true, force: true }` handles every shape (rm
+                // no-ops on missing paths under force; recursive covers dirs).
+                try {
+                    await fsp.rm(linkPath, { recursive: true, force: true });
+                } catch {
+                    /* unexpected; symlink call below will surface the real
+                       cause if it persists. */
+                }
+                await fsp.symlink(relTarget, linkPath);
+            };
+            for (let i = 0; i < Math.min(SYMLINK_CONCURRENCY, plans.length); i++) {
+                workers.push(
+                    (async () => {
+                        while (true) {
+                            const idx = cursor++;
+                            if (idx >= plans.length) return;
+                            const p = plans[idx];
+                            if (!p) return;
+                            await wireOne(p.linkPath, p.relTarget);
+                        }
+                    })(),
+                );
+            }
+            await Promise.all(workers);
+            console.log(`gjsify install: wired ${symlinks.length} workspace symlink(s)`);
+        }
+
+        // Hoist EVERY workspace package to the repo root's `node_modules/` so
+        // transitive workspace deps are reachable from any descendant via
+        // standard Node parent-walk resolution. yarn's `nodeLinker:
+        // node-modules` does the same thing — the entire workspace graph is
+        // materialised at the root, which is how rolldown's resolver finds
+        // e.g. `@gjsify/abort-controller/register` injected from a
+        // deeply-nested package's `node_modules/.cache/gjsify/` cache file
+        // when the consumer didn't declare a direct dep on it (auto-globals
+        // injection at build time).
+        //
+        // Without this hoist, each workspace's `node_modules/` only contains
+        // its direct declared deps, and any auto-injected register import for
+        // a workspace package the consumer didn't list as a dep externalises
+        // and the bundle fails at runtime with `Module not found`.
+        const rootBinDir = join(cwd, 'node_modules');
+        let rootHoisted = 0;
+        for (const ws of workspaces) {
+            // Skip the root workspace itself (its location IS cwd; it can't
+            // symlink itself into its own node_modules).
+            if (ws.location === cwd) continue;
+            if (!ws.name) continue;
+            const linkPath = join(rootBinDir, ws.name);
+            // If a symlink already exists here (from the per-requester loop
+            // above when the root workspace declared this dep directly), it
+            // already points at the right place — skip. We don't try to
+            // remove + recreate because under GJS's Gio-backed fs polyfill,
+            // `rmSync` on a symlink can race with `symlinkSync` and surface
+            // EEXIST. A real directory at this path is also left alone —
+            // someone else (npm, yarn) seeded it and we shouldn't clobber.
+            let existsHere = false;
+            try {
+                lstatSync(linkPath);
+                existsHere = true;
+            } catch {
+                /* ENOENT */
+            }
+            if (existsHere) continue;
+            mkdirSync(dirname(linkPath), { recursive: true });
+            const relTarget = relative(dirname(linkPath), ws.location);
+            symlinkSync(relTarget, linkPath);
+            rootHoisted++;
+        }
+        if (rootHoisted > 0) {
+            console.log(`gjsify install: hoisted ${rootHoisted} workspace(s) to root node_modules/`);
+        }
+    };
+
+    // Wire workspace↔workspace symlinks EARLY too — same rationale as the bin
+    // shims. These symlinks point at local workspace source trees and never
+    // depend on the external download, yet they USED to run only at the tail
+    // of the install. An interrupted/timed-out external fetch then left the
+    // tree with NO workspace symlinks at all, so cross-package imports
+    // (`@gjsify/native-fs-bridge` → `@gjsify/native-platform`) failed to
+    // resolve even though every package was on disk. Materialising them here
+    // makes workspace resolution survive a failed external phase. Safe to run
+    // before `installPackages`: that phase only fetches NON-workspace names
+    // (workspace-named deps are routed to symlinks and excluded from
+    // `externalSpecs`), and `extractOne` only `rm`s the individual external
+    // package dest it is about to write — never a workspace symlink.
+    await wireWorkspaceSymlinks();
+
     // Read top-level package.json's `overrides` (npm-native) or `resolutions`
     // (yarn-native, kept as the existing field name in pre-Phase-D.8 repos).
     // Flat `name → range` entries become global overrides applied to every
@@ -563,107 +688,13 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
         });
     }
 
-    // Workspace symlink wiring — pre-dedup the parent-dir mkdirs (every
-    // symlink for the same workspace shares a single `node_modules` parent),
-    // then run the per-link rm + symlink steps with bounded concurrency.
-    // Pure sync loops here used to dominate the tail of large installs
-    // (~793 symlinks × ~10ms each for mkdir+rm+symlink = ~24s of serial
-    // syscalls). With async + a 32-wide pool the same set lands in 1-2s.
-    if (symlinks.length > 0) {
-        const fsp = await import('node:fs/promises');
-        const parentDirs = new Set<string>();
-        const plans: Array<{ linkPath: string; relTarget: string }> = [];
-        for (const link of symlinks) {
-            const target = byName.get(link.fromWorkspaceName);
-            if (!target) continue;
-            const linkPath = join(target.location, 'node_modules', link.depName);
-            parentDirs.add(dirname(linkPath));
-            const relTarget = relative(dirname(linkPath), link.targetLocation);
-            plans.push({ linkPath, relTarget });
-        }
-        // Phase 1: one mkdir per unique parent (max ~213 instead of ~793).
-        await Promise.all([...parentDirs].map((dir) => fsp.mkdir(dir, { recursive: true })));
-        // Phase 2: per-link rm + symlink, pooled. A semaphore-style cursor
-        // keeps the concurrent in-flight count bounded so we don't blow up
-        // the file-descriptor table on huge monorepos.
-        const SYMLINK_CONCURRENCY = 32;
-        let cursor = 0;
-        const workers: Promise<void>[] = [];
-        const wireOne = async (linkPath: string, relTarget: string) => {
-            // Remove any prior entry — regular dir, broken symlink, file, or
-            // a normal symlink left over from a previous install.
-            // `{ recursive: true, force: true }` handles every shape (rm
-            // no-ops on missing paths under force; recursive covers dirs).
-            try {
-                await fsp.rm(linkPath, { recursive: true, force: true });
-            } catch {
-                /* unexpected; symlink call below will surface the real
-                   cause if it persists. */
-            }
-            await fsp.symlink(relTarget, linkPath);
-        };
-        for (let i = 0; i < Math.min(SYMLINK_CONCURRENCY, plans.length); i++) {
-            workers.push(
-                (async () => {
-                    while (true) {
-                        const idx = cursor++;
-                        if (idx >= plans.length) return;
-                        const p = plans[idx];
-                        if (!p) return;
-                        await wireOne(p.linkPath, p.relTarget);
-                    }
-                })(),
-            );
-        }
-        await Promise.all(workers);
-        console.log(`gjsify install: wired ${symlinks.length} workspace symlink(s)`);
-    }
-
-    // Hoist EVERY workspace package to the repo root's `node_modules/` so
-    // transitive workspace deps are reachable from any descendant via
-    // standard Node parent-walk resolution. yarn's `nodeLinker: node-modules`
-    // does the same thing — the entire workspace graph is materialised at
-    // the root, which is how rolldown's resolver finds e.g.
-    // `@gjsify/abort-controller/register` injected from a deeply-nested
-    // package's `node_modules/.cache/gjsify/` cache file when the consumer
-    // didn't declare a direct dep on it (auto-globals injection at build
-    // time).
-    //
-    // Without this hoist, each workspace's `node_modules/` only contains
-    // its direct declared deps, and any auto-injected register import for
-    // a workspace package the consumer didn't list as a dep externalises
-    // and the bundle fails at runtime with `Module not found`.
-    const rootBinDir = join(cwd, 'node_modules');
-    let rootHoisted = 0;
-    for (const ws of workspaces) {
-        // Skip the root workspace itself (its location IS cwd; it can't
-        // symlink itself into its own node_modules).
-        if (ws.location === cwd) continue;
-        if (!ws.name) continue;
-        const linkPath = join(rootBinDir, ws.name);
-        // If a symlink already exists here (from the per-workspace loop
-        // above when the root workspace declared this dep directly), it
-        // already points at the right place — skip. We don't try to
-        // remove + recreate because under GJS's Gio-backed fs polyfill,
-        // `rmSync` on a symlink can race with `symlinkSync` and surface
-        // EEXIST. A real directory at this path is also left alone —
-        // someone else (npm, yarn) seeded it and we shouldn't clobber.
-        let existsHere = false;
-        try {
-            lstatSync(linkPath);
-            existsHere = true;
-        } catch {
-            /* ENOENT */
-        }
-        if (existsHere) continue;
-        mkdirSync(dirname(linkPath), { recursive: true });
-        const relTarget = relative(dirname(linkPath), ws.location);
-        symlinkSync(relTarget, linkPath);
-        rootHoisted++;
-    }
-    if (rootHoisted > 0) {
-        console.log(`gjsify install: hoisted ${rootHoisted} workspace(s) to root node_modules/`);
-    }
+    // Re-wire workspace symlinks once more now that the external + scoped
+    // installs are done. The EARLY pass above already created them so workspace
+    // resolution survives a failed external phase; this final idempotent pass
+    // is a cheap safety net in case any later step disturbed one (the per-link
+    // rm+symlink re-establishes them, the root hoist skips entries that already
+    // exist — so it's a near no-op when nothing changed).
+    await wireWorkspaceSymlinks();
 
     // Re-write workspace bins into `node_modules/.bin/` now that the tree is
     // fully materialized. The early pass at the top of this function already
