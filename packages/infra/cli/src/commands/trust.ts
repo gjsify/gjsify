@@ -186,10 +186,15 @@ export const trustCommand: Command<unknown, TrustOptions> = {
         if (dryRun) console.log('(dry-run — nothing will be written)');
         console.log();
 
-        let otp = args.otp;
+        // A one-shot OTP supplied via --otp, used on the FIRST challenge then
+        // cleared (a TOTP code is single-use within its ~30s window). After the
+        // first successful OTP the registry opens a ~5-min skip window, so we
+        // do NOT cache + re-send the code — that would re-challenge once it
+        // expires. Instead each request tries WITHOUT an OTP first (the window
+        // covers it) and only prompts when actually challenged. Mirrors npm's
+        // `otplease`.
+        let pendingOtp = args.otp;
 
-        // One request with header-OTP retry. Tries with the current OTP (if
-        // any), and on an OTP challenge prompts once and retries.
         const request = async (
             method: string,
             url: string,
@@ -206,15 +211,30 @@ export const trustCommand: Command<unknown, TrustOptions> = {
                     body: body === undefined ? undefined : JSON.stringify(body),
                 });
             };
-            let res = await doFetch(otp);
+            // 1) Try without an OTP — succeeds outright (read) or via an active
+            //    2FA-skip window.
+            let res = await doFetch();
+            // 2) On a challenge, use the --otp (once) or prompt, and retry.
             if (await isOtpChallenge(res)) {
-                const code = await promptLine('This operation requires a one-time password.\nEnter OTP: ');
+                let code = pendingOtp;
+                pendingOtp = undefined; // one-shot — never reuse a stale code
+                if (!code) {
+                    code = await promptLine('This operation requires a one-time password.\nEnter OTP: ');
+                }
                 if (!code) {
                     console.error('gjsify trust: no OTP entered.');
                     process.exit(1);
                 }
-                otp = code;
-                res = await doFetch(otp);
+                res = await doFetch(code);
+                // 3) Still challenged → the code was stale/expired. Prompt fresh once.
+                if (await isOtpChallenge(res)) {
+                    const fresh = await promptLine('OTP rejected (expired?) — enter a fresh code: ');
+                    if (!fresh) {
+                        console.error('gjsify trust: no OTP entered.');
+                        process.exit(1);
+                    }
+                    res = await doFetch(fresh);
+                }
             }
             const text = await res.text().catch(() => '');
             let json: unknown = undefined;

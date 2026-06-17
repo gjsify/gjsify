@@ -70,10 +70,13 @@ function readLine(): Promise<string> {
         let buf = '';
         const onData = (chunk: Buffer | string) => {
             buf += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
-            const nl = buf.indexOf('\n');
-            if (nl >= 0) {
+            // Accept CR, LF, or CRLF as the line terminator. A bare CR (`\r`)
+            // is what some terminals / the GJS terminal-native stdin deliver on
+            // Enter — keying only on `\n` made the prompt hang forever there.
+            const m = buf.search(/[\r\n]/);
+            if (m >= 0) {
                 cleanup();
-                resolve(buf.slice(0, nl).replace(/\r$/, ''));
+                resolve(buf.slice(0, m));
             }
         };
         const onEnd = () => {
