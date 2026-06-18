@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { fetchPackument, type Packument } from '@gjsify/npm-registry';
 import type { Argv } from 'yargs';
 import type { Command } from '../types/index.js';
-import { installPackages } from '../utils/install-backend.js';
+import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
 import { defaultGlobalLayout, linkGlobalBins } from '../utils/install-global.js';
 
 interface SelfUpdateOptions {
@@ -134,12 +134,14 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
         const pullDeps = !args.skipDeps;
         const depNote = pullDeps ? ' + runtime dependencies' : ' (bundle only)';
         console.log(`Installing ${PACKAGE_NAME}@${target}${depNote} ...`);
+        const progress = makeProgressReporter();
         try {
             await installPackages({
                 prefix: layout.prefix,
                 specs: [`${PACKAGE_NAME}@${target}`],
                 verbose: false,
                 skipDeps: !pullDeps,
+                progress,
             });
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
