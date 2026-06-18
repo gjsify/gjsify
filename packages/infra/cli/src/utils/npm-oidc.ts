@@ -27,7 +27,25 @@ interface OidcExchangeOptions {
     registry: string;
     /** Optional verbose logger — receives single-line strings. */
     log?: (msg: string) => void;
+    /**
+     * Max retries on a TRANSIENT exchange failure (5xx / 429 / network error).
+     * Default 3. A transient npm-side blip (e.g. a 503 Service Unavailable on a
+     * single package mid-release) used to fall straight through to token auth,
+     * which in OIDC-only CI has no token → a 404 that broke the release while
+     * the workflow stayed green (the `@gjsify/process@0.7.3` v0.7.3 incident).
+     * Retrying the exchange keeps the publish on the OIDC path. Non-transient
+     * statuses (404 "package not found", 401/403 misconfig) are NOT retried —
+     * they're surfaced immediately so `--tolerate-untrusted-new` etc. still work.
+     */
+    maxRetries?: number;
+    /** Base backoff in ms for transient retries; doubles each attempt (capped 8s). Default 1000. Tests pass 0. */
+    retryBaseMs?: number;
 }
+
+/** HTTP statuses worth retrying — npm-side transient/overload conditions. */
+const TRANSIENT_EXCHANGE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 export interface OidcExchangeResult {
     /** Short-lived npm token (`Authorization: Bearer <token>`-compatible). */
@@ -172,52 +190,85 @@ export async function exchangeOidcForNpmToken(args: OidcExchangeOptions & { idTo
     const exchangeUrl = `${registryClean}/-/npm/v1/oidc/token/exchange/package/${escapedName}`;
     log?.(`gjsify oidc: POST ${exchangeUrl}`);
 
-    const res = await fetch(exchangeUrl, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${idToken}`,
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-        },
-        // npm's exchange endpoint accepts an empty JSON body — the JWT is
-        // the proof, no additional claims needed from us.
-        body: '{}',
-    });
+    const maxRetries = args.maxRetries ?? 3;
+    const retryBaseMs = args.retryBaseMs ?? 1000;
 
-    const text = await res.text().catch(() => '');
+    for (let attempt = 0; ; attempt++) {
+        let res: Response;
+        try {
+            res = await fetch(exchangeUrl, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${idToken}`,
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                },
+                // npm's exchange endpoint accepts an empty JSON body — the JWT
+                // is the proof, no additional claims needed from us.
+                body: '{}',
+            });
+        } catch (netErr) {
+            // Network-level failure (DNS, connection reset, TLS): transient.
+            if (attempt < maxRetries) {
+                const delay = Math.min(retryBaseMs * 2 ** attempt, 8000);
+                log?.(`gjsify oidc: network error for ${packageName} (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`);
+                await sleep(delay);
+                continue;
+            }
+            throw new OidcExchangeError(
+                `npm OIDC token exchange network error for ${packageName} after ${attempt + 1} attempt(s): ${netErr instanceof Error ? netErr.message : String(netErr)}`,
+                0,
+                '',
+                packageName,
+                decodeJwtPayload(idToken) ?? undefined,
+            );
+        }
 
-    if (!res.ok) {
-        throw new OidcExchangeError(
-            `npm OIDC token exchange failed for ${packageName}: ${res.status} ${res.statusText} — ${text.slice(0, 300)}`,
-            res.status,
-            text,
-            packageName,
-            decodeJwtPayload(idToken) ?? undefined,
-        );
+        const text = await res.text().catch(() => '');
+
+        if (!res.ok) {
+            // Retry only TRANSIENT npm-side failures; surface everything else
+            // (404/401/403 etc.) immediately so the caller's diagnostics —
+            // `--tolerate-untrusted-new`, Trusted-Publisher misconfig hints —
+            // still fire on the first response.
+            if (TRANSIENT_EXCHANGE_STATUSES.has(res.status) && attempt < maxRetries) {
+                const delay = Math.min(retryBaseMs * 2 ** attempt, 8000);
+                log?.(`gjsify oidc: transient ${res.status} ${res.statusText} for ${packageName} (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`);
+                await sleep(delay);
+                continue;
+            }
+            throw new OidcExchangeError(
+                `npm OIDC token exchange failed for ${packageName}: ${res.status} ${res.statusText} — ${text.slice(0, 300)}`,
+                res.status,
+                text,
+                packageName,
+                decodeJwtPayload(idToken) ?? undefined,
+            );
+        }
+
+        let json: { token?: string };
+        try {
+            json = JSON.parse(text) as { token?: string };
+        } catch {
+            throw new OidcExchangeError(
+                `npm OIDC token exchange returned non-JSON body for ${packageName}: ${text.slice(0, 200)}`,
+                res.status,
+                text,
+                packageName,
+            );
+        }
+
+        if (!json.token) {
+            throw new OidcExchangeError(
+                `npm OIDC token exchange returned no \`token\` field for ${packageName}`,
+                res.status,
+                text,
+                packageName,
+            );
+        }
+
+        return json.token;
     }
-
-    let json: { token?: string };
-    try {
-        json = JSON.parse(text) as { token?: string };
-    } catch {
-        throw new OidcExchangeError(
-            `npm OIDC token exchange returned non-JSON body for ${packageName}: ${text.slice(0, 200)}`,
-            res.status,
-            text,
-            packageName,
-        );
-    }
-
-    if (!json.token) {
-        throw new OidcExchangeError(
-            `npm OIDC token exchange returned no \`token\` field for ${packageName}`,
-            res.status,
-            text,
-            packageName,
-        );
-    }
-
-    return json.token;
 }
 
 /**
