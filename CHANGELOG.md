@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.3](https://github.com/gjsify/gjsify/compare/v0.7.2...v0.7.3) (2026-06-18)
+
+### Features
+
+* **cli:** add progress bar to gjsify self-update ([0af3876](https://github.com/gjsify/gjsify/commit/0af3876189eb183bbe0d09411c2f1355d0a0e811))
+* support `using`/Symbol.dispose on GJS ([#537](https://github.com/gjsify/gjsify/issues/537)) ([194d686](https://github.com/gjsify/gjsify/commit/194d68646f0f36d929ea15e32bfad0bdffd2f5ee))
+
+### Bug Fixes
+
+* **sqlite:** comment-aware exec() splitter ([#536](https://github.com/gjsify/gjsify/issues/536)) ([9fff06e](https://github.com/gjsify/gjsify/commit/9fff06efbc9be4280cd916d01985ff443026cd5c))
+
+### Continuous Integration
+
+* scope, parallelize and cache the PR pipeline ([#538](https://github.com/gjsify/gjsify/issues/538)) ([4250886](https://github.com/gjsify/gjsify/commit/4250886cc9e566a2e2da8fea93abb1f25fa27933))
+
 ## [0.7.2](https://github.com/gjsify/gjsify/compare/v0.7.1...v0.7.2) (2026-06-17)
 
 ### Bug Fixes

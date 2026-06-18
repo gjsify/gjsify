@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/message-channel",
-    "version": "0.7.2",
+    "version": "0.7.3",
     "description": "W3C MessageChannel + MessagePort for GJS — EventTarget-based, transport-pluggable. Same surface backs in-process channels (default), the @gjsify/iframe WebKit bridge, and (future) @gjsify/worker_threads cross-process workers.",
     "type": "module",
     "module": "lib/esm/index.js",
