@@ -40,6 +40,17 @@ export interface InstallOptions {
     /** Use `<prefix>/gjsify-lock.json` as the source of truth — fail if missing. */
     frozen?: boolean;
     /**
+     * Native backend only: force a fresh re-resolution that bumps every spec to
+     * the newest version satisfying its range, rewriting the lockfile — the
+     * pre-0.7.x behaviour. By default (this flag off) a resolve that has to run
+     * (a new/changed/removed dep) PRESERVES the versions already pinned in the
+     * existing lockfile and only resolves the genuinely new/changed deps, the
+     * way `npm install` / `yarn install` / `pnpm install` do. Set this to
+     * intentionally pick up in-range updates (≈ `yarn install
+     * --mode=update-lockfile` / `npm update` / `pnpm update`).
+     */
+    refreshLockfile?: boolean;
+    /**
      * Per-package version overrides — `<name> → <range>`. Applied to every
      * edge during dependency resolution, irrespective of the requester.
      * Mirrors npm's top-level `overrides` field and yarn's `resolutions`

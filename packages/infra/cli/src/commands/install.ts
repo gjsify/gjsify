@@ -45,6 +45,7 @@ interface InstallOptions {
     'save-peer'?: boolean;
     'save-optional'?: boolean;
     immutable?: boolean;
+    'refresh-lockfile'?: boolean;
     verbose: boolean;
     quiet?: boolean;
     progress?: boolean;
@@ -84,6 +85,12 @@ export const installCommand: Command<unknown, InstallOptions> = {
             .option('immutable', {
                 description:
                     'CI mode: install strictly from gjsify-lock.json, fail if the lockfile is missing or stale. Equivalent to yarn --immutable / npm ci --frozen-lockfile.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('refresh-lockfile', {
+                description:
+                    'Re-resolve every dependency to the newest version satisfying its range and rewrite the lockfile (bumps in-range transitive deps). Without it, a resolve preserves versions already pinned in the lockfile and only resolves new/changed deps — the npm/yarn/pnpm default. Mirrors yarn install --mode=update-lockfile.',
                 type: 'boolean',
                 default: false,
             })
@@ -129,6 +136,13 @@ export const installCommand: Command<unknown, InstallOptions> = {
             }
             if (args.global) {
                 console.error('gjsify install --immutable is incompatible with --global.');
+                process.exit(1);
+            }
+            if (args['refresh-lockfile']) {
+                console.error(
+                    'gjsify install --immutable is incompatible with --refresh-lockfile ' +
+                        '(--immutable forbids rewriting the lockfile). Drop one.',
+                );
                 process.exit(1);
             }
         }
@@ -308,6 +322,7 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
         // it (the whole point is byte-stability under CI).
         lockfile: !args.immutable,
         frozen: args.immutable,
+        refreshLockfile: args['refresh-lockfile'],
         signal,
         progress,
     });
@@ -656,6 +671,7 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
             verbose: args.verbose,
             lockfile: !args.immutable,
             frozen: args.immutable,
+            refreshLockfile: args['refresh-lockfile'],
             overrides,
             signal,
             progress,

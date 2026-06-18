@@ -130,12 +130,35 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
         }
         log('install: --immutable, using lockfile (%d package(s))', Object.keys(existingLock.packages).length);
         nodes = lockfileToNodes(existingLock);
-    } else if (existingLock && lockfileMatchesRequest(existingLock, opts.specs)) {
+    } else if (!opts.refreshLockfile && existingLock && lockfileMatchesRequest(existingLock, opts.specs)) {
         log('install: using lockfile (%d package(s))', Object.keys(existingLock.packages).length);
         nodes = lockfileToNodes(existingLock);
     } else {
-        log('install: resolving %d top-level spec(s) → %s', opts.specs.length, opts.prefix);
-        nodes = await resolveDeps(opts.specs, npmrc, log, opts.overrides, opts.skipDeps, opts.signal, progress);
+        // A resolve has to run (new/changed/removed dep, or no lockfile yet).
+        // Unless --refresh-lockfile was passed, seed it with the versions
+        // already pinned in the existing lockfile so unchanged deps keep their
+        // resolved version and only the genuinely new/changed deps move — the
+        // npm/yarn/pnpm `install` default. Without this, every `^`-range would
+        // re-resolve to the newest registry version, churning the whole tree
+        // (and silently bumping transitive deps) on a one-package add.
+        const preferred =
+            !opts.refreshLockfile && existingLock ? buildPreferredVersions(existingLock) : undefined;
+        log(
+            'install: resolving %d top-level spec(s) → %s%s',
+            opts.specs.length,
+            opts.prefix,
+            preferred ? ` (preserving ${preferred.size} locked name(s))` : '',
+        );
+        nodes = await resolveDeps(
+            opts.specs,
+            npmrc,
+            log,
+            opts.overrides,
+            opts.skipDeps,
+            opts.signal,
+            progress,
+            preferred,
+        );
         if (opts.lockfile) {
             writeLockfile(lockfilePath, opts.specs, nodes);
             log('install: wrote %s (%d entries)', LOCKFILE_NAME, nodes.length);
@@ -208,6 +231,14 @@ async function resolveDeps(
     skipDeps?: boolean,
     signal?: AbortSignal,
     progress?: import('./install-progress.js').ProgressReporter,
+    /**
+     * Lockfile-preservation oracle: `name → versions already pinned in the
+     * existing lockfile`. When an edge's range is satisfiable by a pinned
+     * version, that version is reused instead of the newest registry match.
+     * Undefined ⇒ a fresh resolve that always picks the newest in-range version
+     * (first install, or an explicit `--refresh-lockfile`).
+     */
+    preferredVersions?: Map<string, Set<string>>,
 ): Promise<ResolvedNode[]> {
     progress?.beginPhase('resolve', specs.length);
     const applyOverride = (name: string, range: string): string => {
@@ -293,11 +324,14 @@ async function resolveDeps(
                 continue;
             }
 
-            // No compatible existing placement. Resolve a fresh version.
+            // No compatible existing placement. Resolve a version — preferring a
+            // version already pinned in the lockfile when it satisfies the range
+            // (so an add doesn't gratuitously bump unchanged deps).
             let version: string | null = null;
             try {
                 const packument = await fetchPkg(edge.name);
-                version = pickVersion(packument, edge.range);
+                const preferred = preferredVersionFor(preferredVersions?.get(edge.name), edge.range);
+                version = pickVersion(packument, edge.range, preferred);
                 if (!version) {
                     if (!edge.required) continue;
                     throw new Error(`No version of ${edge.name} satisfies ${edge.range}`);
@@ -561,6 +595,43 @@ function writeLockfile(lockfilePath: string, specs: string[], nodes: ResolvedNod
     fs.writeFileSync(lockfilePath, JSON.stringify(lockfile, null, 2) + '\n');
 }
 
+/**
+ * Build the lockfile-preservation oracle: `name → every version currently
+ * pinned in the lockfile` (a name can appear at more than one install path /
+ * version when the tree nested a conflicting copy). Consulted during a resolve
+ * so unchanged deps keep their pinned version instead of bumping to the newest
+ * in-range match.
+ */
+function buildPreferredVersions(lockfile: Lockfile): Map<string, Set<string>> {
+    const byName = new Map<string, Set<string>>();
+    for (const [installPath, entry] of Object.entries(lockfile.packages)) {
+        const name = nameFromInstallPath(installPath);
+        let set = byName.get(name);
+        if (!set) {
+            set = new Set<string>();
+            byName.set(name, set);
+        }
+        set.add(entry.version);
+    }
+    return byName;
+}
+
+/**
+ * Pick the pinned version to reuse for an edge: the highest lockfile version of
+ * the name that still satisfies the edge's range, or undefined when none do
+ * (range was tightened/changed, or the name is brand new) — in which case the
+ * resolver falls back to the newest registry match.
+ */
+function preferredVersionFor(locked: Set<string> | undefined, range: string): string | undefined {
+    if (!locked || locked.size === 0) return undefined;
+    let best: string | undefined;
+    for (const v of locked) {
+        if (!satisfiesRange(v, range)) continue;
+        if (best === undefined || new SemVer(v).compare(new SemVer(best)) > 0) best = v;
+    }
+    return best;
+}
+
 function lockfileToNodes(lockfile: Lockfile): ResolvedNode[] {
     return Object.entries(lockfile.packages).map(([installPath, entry]) => ({
         // Recover the package name from the path: the last segment is
@@ -639,7 +710,15 @@ export function parseSpec(raw: string): ParsedSpec {
 }
 
 // Exported for unit-testing. Internal API.
-export function pickVersion(packument: Packument, range: string): string | null {
+export function pickVersion(packument: Packument, range: string, preferred?: string): string | null {
+    // Lockfile preservation: if a version already pinned in the lockfile still
+    // satisfies the range and is still published, reuse it instead of bumping to
+    // the newest match. `preferred` is only ever a concrete semver (never a
+    // dist-tag), so this never hijacks a `latest`/`next` range.
+    if (preferred && packument.versions[preferred] && satisfiesRange(preferred, range)) {
+        return preferred;
+    }
+
     // dist-tag fast path: `latest`, `next`, ...
     if (packument['dist-tags'][range]) return packument['dist-tags'][range];
 
