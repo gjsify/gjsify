@@ -134,7 +134,7 @@ export interface Namespaces {
     [key: string]: () => Promise<void> | Namespaces;
 }
 
-export type Callback = () => Promise<void>;
+export type Callback = () => void | Promise<void>;
 
 export type Runtime = 'Gjs' | 'Deno' | 'Node.js' | 'Unknown' | 'Browser' | 'Display';
 
@@ -178,6 +178,86 @@ export function formatValue(value: unknown): string {
             return String(value); // number, boolean, undefined
     }
 }
+
+/** Deep partial match: every key/index in `expected` must be present and match in `actual` (extra actual keys ignored). */
+function matchesObject(actual: unknown, expected: unknown): boolean {
+    if (Object.is(actual, expected)) return true;
+    if (typeof expected !== 'object' || expected === null) return actual === expected;
+    if (typeof actual !== 'object' || actual === null) return false;
+    if (Array.isArray(expected)) {
+        if (!Array.isArray(actual) || actual.length !== expected.length) return false;
+        return expected.every((v, i) => matchesObject((actual as unknown[])[i], v));
+    }
+    if (Array.isArray(actual)) return false;
+    return Object.keys(expected as Record<string, unknown>).every((k) =>
+        matchesObject((actual as Record<string, unknown>)[k], (expected as Record<string, unknown>)[k]),
+    );
+}
+
+// --- vitest-compatible mock + environment-stub helpers (`vi`) ---
+// oxlint-disable-next-line typescript/no-explicit-any -- a mock must wrap any function signature
+type AnyFn = (...args: any[]) => any;
+
+/** A vitest-style mock function: callable with any args + records `.mock.calls`. */
+export interface MockFn<T extends AnyFn = AnyFn> {
+    // oxlint-disable-next-line typescript/no-explicit-any -- a mock replaces arbitrary functions, so it accepts any call shape
+    (...args: any[]): ReturnType<T>;
+    // oxlint-disable-next-line typescript/no-explicit-any -- recorded call args are intentionally untyped
+    mock: { calls: any[][] };
+}
+
+const stubbedGlobals: Array<{ key: string; had: boolean; prev: unknown }> = [];
+const stubbedEnvs: Array<{ key: string; had: boolean; prev: string | undefined }> = [];
+
+function envBag(): Record<string, string | undefined> | undefined {
+    return (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+}
+
+/** Minimal vitest-compatible `vi`: fn, stubGlobal/unstubAllGlobals, stubEnv/unstubAllEnvs. */
+export const vi = {
+    fn<T extends AnyFn>(impl?: T): MockFn<T> {
+        // oxlint-disable-next-line typescript/no-explicit-any -- recorded call args are intentionally untyped
+        const calls: any[][] = [];
+        // oxlint-disable-next-line typescript/no-explicit-any -- a mock accepts any call shape
+        const f = function (this: unknown, ...args: any[]): ReturnType<T> {
+            calls.push(args);
+            return (impl ? impl.apply(this, args) : undefined) as ReturnType<T>;
+        } as MockFn<T>;
+        f.mock = { calls };
+        return f;
+    },
+    stubGlobal(name: string, value: unknown): void {
+        const g = globalThis as Record<string, unknown>;
+        stubbedGlobals.push({ key: name, had: name in g, prev: g[name] });
+        g[name] = value;
+    },
+    unstubAllGlobals(): void {
+        const g = globalThis as Record<string, unknown>;
+        for (let i = stubbedGlobals.length - 1; i >= 0; i--) {
+            const s = stubbedGlobals[i]!;
+            if (s.had) g[s.key] = s.prev;
+            else delete g[s.key];
+        }
+        stubbedGlobals.length = 0;
+    },
+    stubEnv(name: string, value: string | undefined): void {
+        const env = envBag();
+        if (!env) return;
+        stubbedEnvs.push({ key: name, had: name in env, prev: env[name] });
+        if (value === undefined) delete env[name];
+        else env[name] = value;
+    },
+    unstubAllEnvs(): void {
+        const env = envBag();
+        if (!env) return;
+        for (let i = stubbedEnvs.length - 1; i >= 0; i--) {
+            const s = stubbedEnvs[i]!;
+            if (s.had) env[s.key] = s.prev;
+            else delete env[s.key];
+        }
+        stubbedEnvs.length = 0;
+    },
+};
 
 class MatcherFactory {
     public not: MatcherFactory;
@@ -243,12 +323,47 @@ class MatcherFactory {
         );
     }
 
+    toMatchObject(expected: unknown) {
+        this.triggerResult(
+            matchesObject(this.actualValue, expected),
+            `      Expected value to match object (partial deep match)\n` +
+                `      Expected: ${formatValue(expected)}\n` +
+                `      Actual: ${formatValue(this.actualValue)}`,
+        );
+    }
+
+    /** Read the recorded calls off a vi.fn() mock (empty when the value is not a mock). */
+    private mockCalls(): unknown[][] {
+        return (this.actualValue as { mock?: { calls?: unknown[][] } })?.mock?.calls ?? [];
+    }
+
+    toHaveBeenCalled() {
+        this.triggerResult(this.mockCalls().length > 0, `      Expected mock function to have been called`);
+    }
+
+    toHaveBeenCalledTimes(times: number) {
+        const actual = this.mockCalls().length;
+        this.triggerResult(
+            actual === times,
+            `      Expected mock to have been called ${times} time(s)\n      Actual: ${actual} time(s)`,
+        );
+    }
+
+    toHaveBeenCalledWith(...args: unknown[]) {
+        const matched = this.mockCalls().some((call) => {
+            try {
+                nodeAssert.deepStrictEqual(call, args);
+                return true;
+            } catch {
+                return false;
+            }
+        });
+        this.triggerResult(matched, `      Expected mock to have been called with ${formatValue(args)}`);
+    }
+
     toEqualArray(expectedValue: Array<unknown> | Uint8Array) {
         const arr = this.actualValue as unknown[];
-        let success =
-            Array.isArray(arr) &&
-            Array.isArray(expectedValue) &&
-            arr.length === expectedValue.length;
+        let success = Array.isArray(arr) && Array.isArray(expectedValue) && arr.length === expectedValue.length;
 
         for (let i = 0; i < arr.length; i++) {
             const actualVal = arr[i];
@@ -315,6 +430,13 @@ class MatcherFactory {
 
     toBeFalsy() {
         this.triggerResult(!this.actualValue, `      Expected value to be falsy`);
+    }
+
+    toBeNaN() {
+        this.triggerResult(
+            Number.isNaN(this.actualValue as number),
+            `      Expected value to be NaN\n      Actual: ${formatValue(this.actualValue)}`,
+        );
     }
 
     toContain(needle: unknown) {
@@ -458,6 +580,21 @@ class MatcherFactory {
             didResolve,
             `      Expected promise to ${this.positive ? 'resolve' : 'reject'}${!didResolve ? `, but it rejected with "${errorMessage}"` : ''}`,
         );
+    }
+
+    /** vitest-compatible async chain: `await expect(promise).rejects.toThrow(expected?)`. */
+    get rejects() {
+        return {
+            toThrow: (expected?: typeof Error | string | RegExp) => this.toReject(expected),
+            toReject: (expected?: typeof Error | string | RegExp) => this.toReject(expected),
+        };
+    }
+
+    /** vitest-compatible async chain: `await expect(promise).resolves.toResolve()`. */
+    get resolves() {
+        return {
+            toResolve: () => this.toResolve(),
+        };
     }
 }
 
@@ -619,7 +756,9 @@ it.skip = async function (expectation: string, _callback?: () => void | Promise<
     print(`  ${BLUE}-${RESET} ${GRAY}${expectation} (skipped)${RESET}`);
 };
 
-export const expect = function (actualValue: unknown) {
+// The optional second argument mirrors vitest/jest `expect(value, message?)`;
+// it is a human label for the assertion and does not affect matching.
+export const expect = function (actualValue: unknown, _message?: string) {
     ++countTestsOverall;
 
     const expecter = new MatcherFactory(actualValue, true);
@@ -855,4 +994,5 @@ export default {
     describe,
     configure,
     print,
+    vi,
 };
