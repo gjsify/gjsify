@@ -256,6 +256,75 @@ export default async () => {
             }
         });
 
+        await it('retries a transient 503 then succeeds (the v0.7.3 @gjsify/process incident)', async () => {
+            let calls = 0;
+            const stub = mockFetch(() => {
+                calls += 1;
+                return calls < 3
+                    ? { status: 503, body: JSON.stringify({ error: 'Service Unavailable' }) }
+                    : { status: 200, body: JSON.stringify({ token: 'npm-after-retry' }) };
+            });
+            try {
+                const tok = await exchangeOidcForNpmToken({
+                    packageName: '@gjsify/process',
+                    registry: 'https://registry.npmjs.org',
+                    idToken: 'jwt',
+                    retryBaseMs: 0, // no real backoff in tests
+                });
+                expect(tok).toBe('npm-after-retry');
+                expect(stub.requests.length).toBe(3); // 2 × 503 + 1 × 200
+            } finally {
+                stub.restore();
+            }
+        });
+
+        await it('does NOT retry a 404 — surfaces it immediately so --tolerate-untrusted-new still fires', async () => {
+            let calls = 0;
+            const stub = mockFetch(() => {
+                calls += 1;
+                return { status: 404, body: JSON.stringify({ message: 'OIDC token exchange error - package not found' }) };
+            });
+            try {
+                let thrown: OidcExchangeError | null = null;
+                try {
+                    await exchangeOidcForNpmToken({
+                        packageName: '@gjsify/brand-new',
+                        registry: 'https://registry.npmjs.org',
+                        idToken: 'jwt',
+                        retryBaseMs: 0,
+                    });
+                } catch (e) {
+                    thrown = e as OidcExchangeError;
+                }
+                expect(thrown?.status).toBe(404);
+                expect(calls).toBe(1); // immediate — a non-transient status is never retried
+            } finally {
+                stub.restore();
+            }
+        });
+
+        await it('gives up after maxRetries transient failures and throws the last status', async () => {
+            const stub = mockFetch(() => ({ status: 503, body: '{}' }));
+            try {
+                let thrown: OidcExchangeError | null = null;
+                try {
+                    await exchangeOidcForNpmToken({
+                        packageName: '@gjsify/a',
+                        registry: 'https://registry.npmjs.org',
+                        idToken: 'jwt',
+                        maxRetries: 2,
+                        retryBaseMs: 0,
+                    });
+                } catch (e) {
+                    thrown = e as OidcExchangeError;
+                }
+                expect(thrown?.status).toBe(503);
+                expect(stub.requests.length).toBe(3); // initial attempt + 2 retries
+            } finally {
+                stub.restore();
+            }
+        });
+
         await it('throws OidcExchangeError when response body has no .token field', async () => {
             const stub = mockFetch(() => ({ status: 200, body: JSON.stringify({ unexpected: 'shape' }) }));
             try {

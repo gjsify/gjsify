@@ -336,7 +336,30 @@ export const publishCommand: Command<unknown, PublishOptions> = {
                     process.exit(1);
                 }
                 // Auto-detect: fall back to the npmrc token auth that
-                // buildPublishHeaders already resolved into `headers`.
+                // buildPublishHeaders already resolved into `headers` — BUT only
+                // if one actually exists. In OIDC-only CI there is no npmrc
+                // token, so a "fallback" would PUT with no credentials, get a
+                // 404, and risk being mistaken for a tolerable outcome — exactly
+                // the v0.7.3 incident where a transient OIDC 503 on
+                // `@gjsify/process` left it unpublished while the release stayed
+                // green. Refuse loudly so a transient OIDC failure can never
+                // silently drop a package from a release.
+                if (!headers['authorization']) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    console.error(
+                        `gjsify publish: OIDC token exchange failed for ${packed.name} (${msg}) and no fallback npm token is configured — refusing to publish without credentials.`,
+                    );
+                    if (args.json) {
+                        process.stdout.write(
+                            `${JSON.stringify(
+                                { ok: false, name: packed.name, version: packed.version, error: 'oidc-failed-no-token' },
+                                null,
+                                2,
+                            )}\n`,
+                        );
+                    }
+                    process.exit(1);
+                }
                 if (verbose) {
                     const msg = err instanceof Error ? err.message : String(err);
                     console.error(`gjsify publish: OIDC auto-detect failed (${msg}) — falling back to token auth`);
