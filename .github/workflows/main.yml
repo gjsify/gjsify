@@ -12,6 +12,35 @@ on:
     - cron: '0 4 * * *'
 
 jobs:
+  # Matrix planner — decides which Fedora legs the `linux` job runs.
+  # A GitHub matrix axis cannot read `github.event_name` directly, so we
+  # emit the leg list as a JSON job output and `fromJSON` it into the matrix.
+  # Each entry is a full object {v, gjs} — we do NOT use a static `include:`
+  # for the gjs label, because a static include for a version that ISN'T in
+  # the (PR-reduced) axis would spawn a phantom extra job (GitHub adds an
+  # unmatched include as a brand-new combination).
+  #   - pull_request    → Fedora 44 only (GJS 1.88, the newest platform — most
+  #                       likely to surface a new GNOME-library regression;
+  #                       both legs share SpiderMonkey 140 so JS-engine
+  #                       coverage is identical either way).
+  #   - push / schedule → FULL matrix (43 + 44), so the documented minimum
+  #                       runtime (GJS 1.86 / Fedora 43) is always re-covered
+  #                       before merge + on the nightly sweep.
+  # Flip the PR leg to 43 if protecting the minimum runtime pre-merge matters
+  # more than catching new-platform regressions.
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      fedora-matrix: ${{ steps.plan.outputs.fedora-matrix }}
+    steps:
+      - id: plan
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo 'fedora-matrix=[{"v":"44","gjs":"GJS 1.88 / SM 140"}]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'fedora-matrix=[{"v":"43","gjs":"GJS 1.86 / SM 140"},{"v":"44","gjs":"GJS 1.88 / SM 140"}]' >> "$GITHUB_OUTPUT"
+          fi
+
   # Classifier job — diffs HEAD vs the PR's base SHA, emits per-test-tier
   # gates as job outputs. Runs in seconds on plain ubuntu-latest with no
   # Fedora image and no `gjsify install` — it boots the committed CLI
@@ -75,24 +104,25 @@ jobs:
               --format=github-actions
 
   linux:
-    needs: changes
+    needs: [changes, setup]
     # Run unless the classifier explicitly says skip-all. `always()`
     # ensures we proceed even when the `changes` job was itself skipped
     # (main / schedule path) — those land here with empty outputs and the
-    # gates below default to "run everything".
+    # gates below default to "run everything". `setup` has no `if:` so it
+    # always runs and always emits the `fedora-matrix` array that `fromJSON`
+    # expands below.
     if: ${{ always() && needs.changes.outputs.skip-all != 'true' }}
     strategy:
       fail-fast: false
       matrix:
         node-version: [24.x]
-        fedora-version: [43, 44]
-        include:
-          - fedora-version: 43
-            gjs-info: "GJS 1.86 / SM 140"
-          - fedora-version: 44
-            gjs-info: "GJS 1.88 / SM 140"
+        # Single leg on PRs (Fedora 44), full matrix on main/schedule — the
+        # `setup` job emits each entry as an object {v: version, gjs: label}.
+        # Object-axis (not a static `include:`) so a PR-reduced axis never
+        # gains a phantom leg.
+        fedora: ${{ fromJSON(needs.setup.outputs.fedora-matrix) }}
 
-    name: Fedora ${{ matrix.fedora-version }} (${{ matrix.gjs-info }})
+    name: Fedora ${{ matrix.fedora.v }} (${{ matrix.fedora.gjs }})
     runs-on: ubuntu-latest
     # Cap the whole job well under GitHub's 6h default so a runaway (e.g. a
     # hung build step) fails early instead of burning a runner for 6h. The
@@ -104,7 +134,7 @@ jobs:
     # the cap once cold builds are fast enough.
     timeout-minutes: 240
     container:
-      image: fedora:${{ matrix.fedora-version }}
+      image: fedora:${{ matrix.fedora.v }}
 
     steps:
       - name: Install container prerequisites
@@ -165,9 +195,31 @@ jobs:
         # so `which yarn` succeeds.
         run: corepack enable
 
+      # Persistent tarball cache for `gjsify install`. Under `--immutable`
+      # the resolve/metadata phase is skipped, so the ~9 min install is
+      # almost entirely DOWNLOAD + EXTRACT of the ~2 GB of tarballs the
+      # lockfile pins. The native backend reads the content-addressed
+      # tarball store ($XDG_CACHE_HOME/gjsify/tarballs/v1, keyed by SRI
+      # integrity) BEFORE every network fetch, so a warm store skips the
+      # whole download phase. We relocate the store via XDG_CACHE_HOME into
+      # a workspace-relative dir below so actions/cache can save/restore it
+      # AND the `su testuser` install can read it. Keyed by lockfile hash
+      # ONLY — tarballs are OS-independent content bytes, so one entry is
+      # shared across both Fedora matrix legs (no per-Fedora 2 GB dup).
+      - name: Cache gjsify tarball download store
+        uses: actions/cache@v4
+        with:
+          path: .gjsify-cache/gjsify/tarballs
+          key: gjsify-tarballs-v1-${{ hashFiles('gjsify-lock.json') }}
+          restore-keys: |
+            gjsify-tarballs-v1-
+
       - name: Create non-root user for tests
         run: |
           useradd -m testuser
+          # Pre-create the (possibly cache-restored) gjsify cache dir so the
+          # chown below hands it to testuser for the install step.
+          mkdir -p .gjsify-cache
           chown -R testuser:testuser .
 
       # Phase D.7d: Node-free install. The committed GJS bundle
@@ -176,7 +228,11 @@ jobs:
       # workspace `.bin/` shims so `gjsify run …` finds `gjsify` on PATH).
       # No yarn anywhere in the bootstrap.
       - name: Install dependencies (gjsify install --immutable)
-        run: su testuser -c 'gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable'
+        # XDG_CACHE_HOME redirects ~/.cache/gjsify into the workspace-relative
+        # .gjsify-cache so the cache step above can save/restore the tarball
+        # store. Passed explicitly through the `su testuser -c` boundary —
+        # su strips the parent env. gjsifyCacheRoot() honours XDG_CACHE_HOME.
+        run: su testuser -c "XDG_CACHE_HOME='$PWD/.gjsify-cache' gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable"
 
       # The CLI's GJS bundle is committed to enable Node-free bootstrap (Phase D.7b).
       # We can't enforce a byte-exact freshness check — the build is not perfectly
@@ -291,16 +347,22 @@ jobs:
             packages/*/*/dist
             !packages/infra/cli/dist/cli.gjs.mjs
             !packages/infra/tsc/dist/tsc.gjs.mjs
-          key: build-v2-${{ runner.os }}-fedora${{ matrix.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
+          key: build-v2-${{ runner.os }}-fedora${{ matrix.fedora.v }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
           restore-keys: |
-            build-v2-${{ runner.os }}-fedora${{ matrix.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-
-            build-v2-${{ runner.os }}-fedora${{ matrix.fedora-version }}-
+            build-v2-${{ runner.os }}-fedora${{ matrix.fedora.v }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-
+            build-v2-${{ runner.os }}-fedora${{ matrix.fedora.v }}-
 
       - name: Build
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run build'
 
       # Root `build` uses --no-private, so private example workspaces are skipped; tests need dist/.
       - name: Build examples
+        # Gated: build all examples only when an example/showcase is in the
+        # affected closure (or on a full/global/empty-output run). ALL example
+        # steps below (Check examples, Test CLI/net examples) MUST share this
+        # exact gate — they read the dist/ this step produces, so running them
+        # while this is skipped would fail on missing dist/.
+        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
         # Under the GJS-first flip these build via native rolldown, whose
         # `--globals auto` multi-pass is memory-heavy. The example workspaces
         # include several large three.js bundles; building them at cpu-count
@@ -332,6 +394,8 @@ jobs:
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run check'
 
       - name: Check examples
+        # Same gate as Build examples — type-checks the dist/ that step builds.
+        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run check:examples'
 
       # Test step — gated by the classifier's output. Three observable
@@ -369,11 +433,15 @@ jobs:
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify workspace @gjsify/webgl test:conformance'
 
       - name: Test CLI examples
-        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '' }}
+        # Same example gate as Build/Check examples (was: any non-empty
+        # closure) — keeps the four example steps consistent and skips them
+        # together when no example/showcase is affected.
+        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:examples'
 
       - name: Test net examples
-        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '' }}
+        # Same example gate as Build/Check examples.
+        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:examples:net'
 
       # E2E tests — gated when an `e2e` path was touched OR on a full

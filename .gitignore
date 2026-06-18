@@ -98,5 +98,9 @@ tests/e2e/*/out/
 # `new URL('./fixtures/...', import.meta.url)` resolves from the test bundle).
 packages/node/worker_threads/fixtures/
 
+# CI-only gjsify download cache (XDG_CACHE_HOME redirect target in
+# .github/workflows/main.yml — never committed, restored by actions/cache).
+.gjsify-cache/
+
 # Claude Code agent worktree state (per-session, must never enter commits)
 .claude/
