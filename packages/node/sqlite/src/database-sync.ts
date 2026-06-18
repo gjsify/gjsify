@@ -427,37 +427,107 @@ export class DatabaseSync {
     }
 
     #splitStatements(sql: string): string[] {
-        // Split SQL by semicolons, respecting string literals
+        // Split SQL into individual statements at top-level semicolons, and strip
+        // comments from each emitted chunk.
+        //
+        // node:sqlite hands the whole string to SQLite, whose tokenizer never
+        // treats a ';' inside a comment or quoted region as a statement boundary.
+        // We mirror that boundary detection: scan the string and skip over every
+        // region a ';' could hide in —
+        //   - '…' string literals          (with the '' escape)
+        //   - "…" / `…` quoted identifiers  (with the ""/`` escape)
+        //   - [ … ] quoted identifiers      (no escape; ']' ends it)
+        //   - -- line comments              (to end of line)
+        //   - /* … */ block comments        (not nestable, per SQLite)
+        // so split-relevant tokens inside those regions never produce a spurious
+        // boundary.
+        //
+        // Comments are then DROPPED rather than handed to the parser. libgda's
+        // Gda.SqlParser.parse_string() corrupts the heap ("free(): invalid
+        // pointer", an abort that takes the whole process down) when it parses a
+        // statement that contains a /* … */ block comment, so passing comment
+        // text through is unsafe. Stripping is semantically transparent — SQL
+        // comments are inert except inside quoted regions, which we keep verbatim.
+        // A line comment is removed but its terminating newline is left in place;
+        // a block comment is replaced by a single space so tokens that abutted it
+        // stay separated (CREATE/**/TABLE → CREATE TABLE). A chunk that strips to
+        // nothing (a standalone or trailing comment) trims to empty and is
+        // dropped, matching node:sqlite which silently ignores such comments.
         const stmts: string[] = [];
         let current = '';
-        let inString = false;
-        for (let i = 0; i < sql.length; i++) {
-            const ch = sql[i];
-            if (ch === "'" && !inString) {
-                inString = true;
-                current += ch;
-            } else if (ch === "'" && inString) {
-                if (sql[i + 1] === "'") {
-                    current += "''";
-                    i++;
-                } else {
-                    inString = false;
-                    current += ch;
-                }
-            } else if (ch === ';' && !inString) {
-                const trimmed = current.trim();
-                if (trimmed.length > 0) {
-                    stmts.push(trimmed);
-                }
-                current = '';
-            } else {
-                current += ch;
+        const n = sql.length;
+        let i = 0;
+
+        const flush = () => {
+            const trimmed = current.trim();
+            if (trimmed.length > 0) {
+                stmts.push(trimmed);
             }
+            current = '';
+        };
+
+        while (i < n) {
+            const ch = sql[i];
+            const next = sql[i + 1];
+
+            // -- line comment: drop it; the terminating newline is left in place.
+            if (ch === '-' && next === '-') {
+                let j = i + 2;
+                while (j < n && sql[j] !== '\n') {
+                    j++;
+                }
+                i = j;
+                continue;
+            }
+
+            // /* … */ block comment: drop it (replaced by a single space),
+            // consuming through the closing delimiter or to the end of input.
+            if (ch === '/' && next === '*') {
+                let j = i + 2;
+                while (j < n && !(sql[j] === '*' && sql[j + 1] === '/')) {
+                    j++;
+                }
+                i = j < n ? j + 2 : n;
+                current += ' ';
+                continue;
+            }
+
+            // Quoted regions, kept verbatim: '…' literal, "…"/`…` identifiers
+            // (doubled-quote escape), and [ … ] identifier (first ']' ends it).
+            if (ch === "'" || ch === '"' || ch === '`' || ch === '[') {
+                const close = ch === '[' ? ']' : ch;
+                const doubled = ch !== '['; // brackets have no escape sequence
+                let j = i + 1;
+                current += ch;
+                while (j < n) {
+                    if (sql[j] === close) {
+                        if (doubled && sql[j + 1] === close) {
+                            current += close + close;
+                            j += 2;
+                            continue;
+                        }
+                        current += close;
+                        j++;
+                        break;
+                    }
+                    current += sql[j];
+                    j++;
+                }
+                i = j;
+                continue;
+            }
+
+            // Top-level statement boundary.
+            if (ch === ';') {
+                flush();
+                i++;
+                continue;
+            }
+
+            current += ch;
+            i++;
         }
-        const trimmed = current.trim();
-        if (trimmed.length > 0) {
-            stmts.push(trimmed);
-        }
+        flush();
         return stmts;
     }
 

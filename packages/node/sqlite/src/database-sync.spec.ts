@@ -173,6 +173,52 @@ export default async () => {
             }).toThrow();
             db.close();
         });
+
+        await it('ignores a semicolon inside a line comment', async () => {
+            const db = new DatabaseSync(nextDb());
+            db.exec(`CREATE TABLE a(x TEXT); -- note; semicolon
+                CREATE TABLE b(y TEXT);`);
+            const names = db
+                .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+                .all() as Array<{ name: string }>;
+            expect(names.map((r) => r.name)).toStrictEqual(['a', 'b']);
+            db.close();
+        });
+
+        await it('ignores a quote inside a line comment', async () => {
+            const db = new DatabaseSync(nextDb());
+            db.exec(`CREATE TABLE a(x TEXT); -- it's a comment with a ' quote
+                CREATE TABLE b(y TEXT);`);
+            const names = db
+                .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+                .all() as Array<{ name: string }>;
+            expect(names.map((r) => r.name)).toStrictEqual(['a', 'b']);
+            db.close();
+        });
+
+        await it('ignores a semicolon inside a block comment', async () => {
+            const db = new DatabaseSync(nextDb());
+            db.exec('CREATE TABLE a(x TEXT); /* spans ; a boundary */ CREATE TABLE b(y TEXT);');
+            const names = db
+                .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+                .all() as Array<{ name: string }>;
+            expect(names.map((r) => r.name)).toStrictEqual(['a', 'b']);
+            db.close();
+        });
+
+        await it("respects '' escapes inside a string literal", async () => {
+            const db = new DatabaseSync(nextDb());
+            db.exec(`CREATE TABLE a(x TEXT);
+                INSERT INTO a (x) VALUES ('a;b''c');
+                CREATE TABLE b(y TEXT);`);
+            const names = db
+                .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+                .all() as Array<{ name: string }>;
+            expect(names.map((r) => r.name)).toStrictEqual(['a', 'b']);
+            const row = db.prepare('SELECT x FROM a').get() as { x: string };
+            expect(row.x).toBe("a;b'c");
+            db.close();
+        });
     });
 
     await describe('DatabaseSync.prototype.prepare()', async () => {
