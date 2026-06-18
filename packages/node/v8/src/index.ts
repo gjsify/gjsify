@@ -133,3 +133,5 @@ export default {
     GCProfiler,
     startCpuProfile,
 };
+
+// CI classifier scope-check probe — throwaway (PR will be closed, branch deleted).
