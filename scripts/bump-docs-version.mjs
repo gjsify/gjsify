@@ -1,12 +1,25 @@
 #!/usr/bin/env node
-// Bump hard-coded version strings in docs during `release-it`.
+// Bump the "current version" string in docs during `release-it`.
 //
 // Invoked from `.release-it.json` as:
 //   node scripts/bump-docs-version.mjs ${latestVersion} ${version}
 //
-// Replaces every occurrence of `v<latest>` and `<latest>` with the new
-// version across the configured docs list. Safe to re-run: if the version
-// is already current the file is left untouched (no timestamp churn).
+// ANCHORED, not blunt. Each TARGETS entry bumps ONLY the version string that
+// immediately follows a distinctive anchor phrase (a known "current version"
+// spot). A blunt whole-file version replace is a footgun: it rewrites EVERY
+// past `vX` reference, corrupting historical prose. That is exactly what the
+// old version of this script did during the v0.7.3 release — it silently
+// rewrote 34 historical `v0.7.2` entries in STATUS.md (a point-in-time log)
+// and ~7 in AGENTS.md to `v0.7.3`, making the changelog claim things shipped
+// in a version they predate.
+//
+// RULES (keep this script trustworthy):
+//   - NEVER list STATUS.md / CHANGELOG.md here — they are point-in-time logs;
+//     their version mentions are history, never "current version".
+//   - NEVER blunt-replace across a prose doc that carries version-tagged
+//     history (AGENTS.md). Anchor on a phrase that ONLY ever precedes the
+//     CURRENT version (e.g. the monorepo header `monorepo, v`).
+//   - Safe to re-run: if the anchored version is already current, no change.
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -24,56 +37,57 @@ if (latestVersion === nextVersion) {
     process.exit(0);
 }
 
-// Files to scan. Globs intentionally NOT used — we want the list to be explicit
-// so a renamed file can't be silently skipped.
-const FILES = [
-    'AGENTS.md',
-    'STATUS.md',
-    'README.md',
-    'website/src/content/docs/packages/overview.md',
-    'website/src/content/docs/packages/node.md',
-    'website/src/content/docs/packages/web.md',
-    'website/src/content/docs/packages/dom.md',
+// Each entry bumps the version that IMMEDIATELY follows `anchor` (the anchor
+// ends in the `v` of `vX.Y.Z`). The anchor must be unique to the current-version
+// mention — never a phrase that also precedes a historical version.
+const TARGETS = [
+    // AGENTS.md monorepo header: "...npm-workspaces monorepo, v0.7.3, ESM-only..."
+    { file: 'AGENTS.md', anchor: 'monorepo, v' },
+    // AGENTS.md package convention: "...`@gjsify/<name>`, v0.7.3, `\"type\":\"module\"`..."
+    { file: 'AGENTS.md', anchor: '@gjsify/<name>`, v' },
 ];
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), '..', '..');
 
-function escapeRegex(str) {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** file -> { content, changed } | null (missing) */
+const byFile = new Map();
+
+for (const { file, anchor } of TARGETS) {
+    if (!byFile.has(file)) {
+        try {
+            byFile.set(file, { content: await readFile(resolve(repoRoot, file), 'utf8'), changed: false });
+        } catch (err) {
+            if (err.code === 'ENOENT') {
+                console.warn(`[bump-docs-version] skip (missing): ${file}`);
+                byFile.set(file, null);
+                continue;
+            }
+            throw err;
+        }
+    }
+    const entry = byFile.get(file);
+    if (!entry) continue;
+
+    const from = `${anchor}${latestVersion}`;
+    const to = `${anchor}${nextVersion}`;
+    if (entry.content.includes(from)) {
+        entry.content = entry.content.split(from).join(to);
+        entry.changed = true;
+    } else {
+        console.warn(`[bump-docs-version] anchor not found in ${file}: "${from}" (already current, or anchor drifted)`);
+    }
 }
 
-// Match `v1.2.3` OR bare `1.2.3` only when it's a standalone token (not a
-// substring of `0.1.150` etc.). Lookbehind/lookahead keep us off unrelated
-// numerics.
-const escaped = escapeRegex(latestVersion);
-const versionPattern = new RegExp(`(?<=^|[^\\w.-])(v?)${escaped}(?=[^\\w.-]|$)`, 'gm');
-
-let changedCount = 0;
-
-for (const relPath of FILES) {
-    const absPath = resolve(repoRoot, relPath);
-    let content;
-    try {
-        content = await readFile(absPath, 'utf8');
-    } catch (err) {
-        if (err.code === 'ENOENT') {
-            console.warn(`[bump-docs-version] skip (missing): ${relPath}`);
-            continue;
-        }
-        throw err;
-    }
-
-    const next = content.replace(versionPattern, (_m, prefix) => `${prefix}${nextVersion}`);
-    if (next === content) continue;
-
-    await writeFile(absPath, next);
-    const hits = (content.match(versionPattern) ?? []).length;
-    console.log(`[bump-docs-version] ${relPath}: ${hits} occurrence(s) ${latestVersion} -> ${nextVersion}`);
-    changedCount += 1;
+let changedFiles = 0;
+for (const [file, entry] of byFile) {
+    if (!entry || !entry.changed) continue;
+    await writeFile(resolve(repoRoot, file), entry.content);
+    changedFiles += 1;
+    console.log(`[bump-docs-version] ${file}: anchored current-version ${latestVersion} -> ${nextVersion}`);
 }
 
 console.log(
-    changedCount === 0
-        ? `[bump-docs-version] no docs referenced ${latestVersion}`
-        : `[bump-docs-version] updated ${changedCount} file(s)`,
+    changedFiles === 0
+        ? `[bump-docs-version] no anchored current-version mentions referenced ${latestVersion}`
+        : `[bump-docs-version] updated ${changedFiles} file(s)`,
 );
