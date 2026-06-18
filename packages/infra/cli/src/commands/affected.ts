@@ -139,6 +139,13 @@ const GLOBAL_TRIGGERS = [
     /^packages\/infra\/cli\//,
     /^packages\/infra\/rolldown-plugin-gjsify\//,
     /^packages\/infra\/resolve-npm\//,
+    // The test framework every spec imports. It is a *devDependency* of
+    // virtually every workspace, so with the prod-deps-only closure below
+    // (`includeDev: false`) a change to it would otherwise yield a near-empty
+    // closure and silently skip every downstream test — yet a bug in a matcher
+    // can break assertions anywhere. Treat it as a global trigger so a
+    // `@gjsify/unit` change re-runs the full suite.
+    /^packages\/gjs\/unit\//,
     // Cross-cutting dep + lockfile + root config.
     /^gjsify-lock\.json$/,
     /^package\.json$/,
@@ -259,12 +266,29 @@ function classifyAndExpand(
             skipAll: false,
         };
     }
-    // Default: closure walk.
-    const reverse = buildReverseDependencyGraph(workspaces, { includeDev: true });
+    // Default: closure walk over PRODUCTION dependencies only (`includeDev:
+    // false`). The closure answers "whose tests must re-run because a package
+    // they depend on changed" — and that is a RUNTIME relationship. Walking
+    // devDependency edges instead conflated it with the build/test toolchain:
+    // every workspace devDepends `@gjsify/cli`/`@gjsify/tsc`/`@gjsify/unit`,
+    // and the umbrella `@gjsify/node-polyfills` prod-depends every polyfill, so
+    // ANY single-package change fanned out to ~210 of 221 workspaces — the
+    // closure was the whole monorepo and selective CI bought almost nothing.
+    // Prod-only collapses a typical seed to a handful (e.g. sqlite 210→4,
+    // fetch 210→34) while keeping every real runtime dependent. Safe against
+    // under-selection: no `*.spec.ts` imports a *cross-package* sibling via a
+    // devDependency (the only such spec imports are self-imports, which are
+    // covered by the package being its own seed); the universal test framework
+    // `@gjsify/unit` is handled by GLOBAL_TRIGGERS above; and every push-to-
+    // main + the nightly cron still run the FULL suite as the backstop.
+    const reverse = buildReverseDependencyGraph(workspaces, { includeDev: false });
     const closure = affectedClosure(reverse, [...matched]);
     // Integration suites whose forward deps overlap with the closure also
-    // need to run. We walk the forward graph and pull any integration ws
-    // that depends on something inside the closure.
+    // need to run. We walk the forward graph with `includeDev: true` here
+    // (deliberately broader than the reverse closure) so an integration suite
+    // is never missed: integration packages declare the pillars they exercise
+    // as `dependencies`, but the wider walk also tolerates a devDep-declared
+    // edge. Over-running an integration suite is cheap; missing one is not.
     const forward = buildDependencyGraph(workspaces, { includeDev: true });
     let runIntegration = false;
     for (const [from, deps] of forward.edges) {

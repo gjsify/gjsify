@@ -43,13 +43,22 @@ function makeMonorepo(): string {
         }) + '\n',
     );
     const pkgs = [
-        { rel: 'packages/node/fs', name: '@gjsify/fs', deps: {} },
-        { rel: 'packages/node/path', name: '@gjsify/path', deps: {} },
-        // A depends on fs — fs change should cascade to A
+        { rel: 'packages/node/fs', name: '@gjsify/fs', deps: {}, devDeps: {} },
+        { rel: 'packages/node/path', name: '@gjsify/path', deps: {}, devDeps: {} },
+        // A depends on fs at RUNTIME — an fs change must cascade to A.
         {
             rel: 'packages/node/A',
             name: '@gjsify/A',
             deps: { '@gjsify/fs': 'workspace:*' },
+            devDeps: {},
+        },
+        // B depends on fs only as a DEV dependency (the build/test-tooling edge
+        // shape). The prod-deps-only closure must NOT pull B in when fs changes.
+        {
+            rel: 'packages/node/B',
+            name: '@gjsify/B',
+            deps: {},
+            devDeps: { '@gjsify/fs': 'workspace:*' },
         },
     ];
     for (const p of pkgs) {
@@ -57,7 +66,12 @@ function makeMonorepo(): string {
         mkdirSync(dir, { recursive: true });
         writeFileSync(
             join(dir, 'package.json'),
-            JSON.stringify({ name: p.name, version: '0.0.0', dependencies: p.deps }) + '\n',
+            JSON.stringify({
+                name: p.name,
+                version: '0.0.0',
+                dependencies: p.deps,
+                devDependencies: p.devDeps,
+            }) + '\n',
         );
     }
     return root;
@@ -169,13 +183,33 @@ export default async (): Promise<void> => {
             expect(r.skipAll).toBe(true);
         });
 
-        await it('single-pkg code change → seeds + dependents', async () => {
+        await it('single-pkg code change → seeds + prod dependents only', async () => {
             const r = await runClassify(root, ['packages/node/fs/src/index.ts']);
             expect(r.global).toBe(false);
-            // fs and its dependent A — closure size 2.
+            // fs and its RUNTIME dependent A — closure size 2. B (devDep on fs)
+            // is intentionally excluded by the prod-deps-only closure.
             expect(r.workspaces.length).toBe(2);
             expect(r.workspaces.includes('@gjsify/fs')).toBeTruthy();
             expect(r.workspaces.includes('@gjsify/A')).toBeTruthy();
+        });
+
+        await it('devDependent is NOT pulled into the closure (prod-deps only)', async () => {
+            // @gjsify/B devDepends @gjsify/fs; a change to fs must not re-test B.
+            // This is the core of the prod-only closure — build/test-tool devDep
+            // edges no longer fan a single-package change out across the monorepo
+            // (the cause of the historical 210/221-workspace closure explosion).
+            const r = await runClassify(root, ['packages/node/fs/src/index.ts']);
+            expect(r.workspaces.includes('@gjsify/B')).toBe(false);
+            expect(r.workspaces.includes('@gjsify/A')).toBeTruthy();
+        });
+
+        await it('@gjsify/unit (universal test framework) change → global=true', async () => {
+            // packages/gjs/unit is a GLOBAL_TRIGGERS path: under the prod-deps-
+            // only closure a unit change would otherwise yield a near-empty
+            // closure, but a matcher bug can break assertions anywhere — so a
+            // change to the test framework must force a full run.
+            const r = await runClassify(root, ['packages/gjs/unit/src/index.ts']);
+            expect(r.global).toBe(true);
         });
 
         await it('test-only change for one ws → no closure expansion', async () => {
