@@ -1,0 +1,33 @@
+{
+    "name": "@gjsify/integration-claude-agent-sdk",
+    "description": "Integration tests: @anthropic-ai/claude-agent-sdk on GJS and Node. Validates that the pure-JS SDK layer (InMemorySessionStore, foldSessionSummary, constants) works under @gjsify/* — the ground-truth compatibility check for building AI-agent tooling on GNOME.",
+    "type": "module",
+    "private": true,
+    "engines": {
+        "node": ">=22.12.0"
+    },
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo || exit 0",
+        "check": "gjsify tsc --noEmit",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --globals auto --outfile dist/test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile dist/test.node.mjs",
+        "build:test": "gjsify run build:test:node && gjsify run build:test:gjs",
+        "test": "gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:node": "node dist/test.node.mjs",
+        "test:gjs": "gjsify run dist/test.gjs.mjs"
+    },
+    "devDependencies": {
+        "@anthropic-ai/claude-agent-sdk": "^0.3.0",
+        "@girs/gjs": "4.0.4",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@modelcontextprotocol/sdk": "^1.29.0",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3",
+        "zod": "^4.0.0"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}
