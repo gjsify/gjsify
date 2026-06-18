@@ -1,4 +1,4 @@
-import { describe, it, expect, assert, beforeEach, afterEach, configure } from '@gjsify/unit';
+import { describe, it, expect, assert, beforeEach, afterEach, configure, formatValue } from '@gjsify/unit';
 
 export default async () => {
     await describe('assert', async () => {
@@ -76,6 +76,22 @@ export default async () => {
             expect(false).not.toBe(0);
             expect('test').not.toBe('test2');
             expect(obj).not.toBe(obj2);
+        });
+
+        await it('should handle Symbol operands without throwing', async () => {
+            // Regression: toBe() builds its failure message eagerly via
+            // `${expectedValue}`, which throws "Cannot convert a Symbol value to
+            // a string" — so even a PASSING comparison used to crash. These
+            // passing assertions would throw a TypeError before the formatValue fix.
+            const sym = Symbol('s');
+            expect(sym).toBe(sym);
+            expect(Symbol.for('x')).toBe(Symbol.for('x'));
+            expect(Symbol('a')).not.toBe(Symbol('b'));
+        });
+
+        await it('should handle bigint operands without throwing', async () => {
+            expect(10n).toBe(10n);
+            expect(10n).not.toBe(11n);
         });
     });
 
@@ -306,5 +322,26 @@ export default async () => {
             await new Promise<void>((resolve) => setTimeout(resolve, 10));
             expect(true).toBeTruthy();
         }, 0);
+    });
+
+    await describe('formatValue', async () => {
+        await it('renders symbols and bigints without throwing', async () => {
+            expect(formatValue(Symbol('desc'))).toBe('Symbol(desc)');
+            expect(formatValue(10n)).toBe('10n');
+        });
+
+        await it('renders primitives', async () => {
+            expect(formatValue('hi')).toBe('hi');
+            expect(formatValue(42)).toBe('42');
+            expect(formatValue(true)).toBe('true');
+            expect(formatValue(undefined)).toBe('undefined');
+            expect(formatValue(null)).toBe('null');
+        });
+
+        await it('renders objects, arrays and functions', async () => {
+            expect(formatValue({ a: 1 })).toBe('{"a":1}');
+            expect(formatValue([1, 2])).toBe('[1,2]');
+            expect(formatValue(function named() {})).toBe('[Function named]');
+        });
     });
 };

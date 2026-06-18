@@ -316,6 +316,18 @@ export class Interface extends EventEmitter {
     }
 }
 
+// Explicit Resource Management: `using rl = createInterface(…)` (and the
+// `await using` form, whose downlevel helper falls back to Symbol.dispose).
+// GJS lacks the native well-known symbol, so register the method under the
+// registered-symbol key that tsc/esbuild/babel `using` helpers resolve to
+// (`Symbol.dispose || Symbol.for("Symbol.dispose")`).
+// Reference: refs/node/lib/internal/readline/interface.js
+//            (Interface.prototype[SymbolDispose] = () => this.close()).
+const kDispose: symbol = (Symbol as { dispose?: symbol }).dispose ?? Symbol.for('Symbol.dispose');
+(Interface.prototype as unknown as Record<symbol, unknown>)[kDispose] = function (this: Interface): void {
+    this.close();
+};
+
 export function createInterface(
     input?: Readable | InterfaceOptions,
     output?: Writable,

@@ -147,6 +147,38 @@ const _isGjsProcess = typeof runtimeGlobals().process?.versions?.gjs === 'string
 export const print =
     !_isGjsProcess && typeof runtimeGlobals().document !== 'undefined' ? console.log : globalThis.print || console.log;
 
+/**
+ * Render any value as a human-readable string for assertion failure messages
+ * WITHOUT throwing. Template-literal / `+` interpolation throws a TypeError on
+ * `symbol` and `bigint` operands (`Cannot convert a Symbol value to a string`),
+ * which would mask the real assertion result, so matchers route operands
+ * through this instead of interpolating them directly.
+ */
+export function formatValue(value: unknown): string {
+    switch (typeof value) {
+        case 'symbol':
+            return value.toString(); // "Symbol(desc)" — never throws
+        case 'bigint':
+            return `${value}n`;
+        case 'string':
+            return value;
+        case 'function':
+            return (value as { name?: string }).name
+                ? `[Function ${(value as { name?: string }).name}]`
+                : '[Function (anonymous)]';
+        case 'object': {
+            if (value === null) return 'null';
+            try {
+                return JSON.stringify(value) ?? String(value);
+            } catch {
+                return Object.prototype.toString.call(value);
+            }
+        }
+        default:
+            return String(value); // number, boolean, undefined
+    }
+}
+
 class MatcherFactory {
     public not: MatcherFactory;
 
@@ -179,8 +211,8 @@ class MatcherFactory {
         this.triggerResult(
             this.actualValue === expectedValue,
             `      Expected values to match using ===\n` +
-                `      Expected: ${expectedValue} (${typeof expectedValue})\n` +
-                `      Actual: ${this.actualValue} (${typeof this.actualValue})`,
+                `      Expected: ${formatValue(expectedValue)} (${typeof expectedValue})\n` +
+                `      Actual: ${formatValue(this.actualValue)} (${typeof this.actualValue})`,
         );
     }
 
@@ -188,8 +220,8 @@ class MatcherFactory {
         this.triggerResult(
             this.actualValue == expectedValue,
             `      Expected values to match using ==\n` +
-                `      Expected: ${expectedValue} (${typeof expectedValue})\n` +
-                `      Actual: ${this.actualValue} (${typeof this.actualValue})`,
+                `      Expected: ${formatValue(expectedValue)} (${typeof expectedValue})\n` +
+                `      Actual: ${formatValue(this.actualValue)} (${typeof this.actualValue})`,
         );
     }
 
@@ -228,8 +260,8 @@ class MatcherFactory {
         this.triggerResult(
             success,
             `      Expected array items to match using ==\n` +
-                `      Expected: ${expectedValue} (${typeof expectedValue})\n` +
-                `      Actual: ${this.actualValue} (${typeof this.actualValue})`,
+                `      Expected: ${formatValue(expectedValue)} (${typeof expectedValue})\n` +
+                `      Actual: ${formatValue(this.actualValue)} (${typeof this.actualValue})`,
         );
     }
 
@@ -258,10 +290,10 @@ class MatcherFactory {
             !!v.match(expectedValue),
             '      Expected values to match using regular expression\n' +
                 '      Expression: ' +
-                expectedValue +
+                formatValue(expectedValue) +
                 '\n' +
                 '      Actual: ' +
-                this.actualValue,
+                formatValue(this.actualValue),
         );
     }
 
@@ -295,30 +327,30 @@ class MatcherFactory {
         } else {
             contains = false;
         }
-        this.triggerResult(contains, `      Expected ` + value + ` to contain ` + needle);
+        this.triggerResult(contains, `      Expected ` + formatValue(value) + ` to contain ` + formatValue(needle));
     }
     toBeLessThan(greaterValue: number) {
         this.triggerResult(
             (this.actualValue as number) < greaterValue,
-            `      Expected ` + this.actualValue + ` to be less than ` + greaterValue,
+            `      Expected ` + formatValue(this.actualValue) + ` to be less than ` + greaterValue,
         );
     }
     toBeGreaterThan(smallerValue: number) {
         this.triggerResult(
             (this.actualValue as number) > smallerValue,
-            `      Expected ` + this.actualValue + ` to be greater than ` + smallerValue,
+            `      Expected ` + formatValue(this.actualValue) + ` to be greater than ` + smallerValue,
         );
     }
     toBeGreaterThanOrEqual(value: number) {
         this.triggerResult(
             (this.actualValue as number) >= value,
-            `      Expected ${this.actualValue} to be greater than or equal to ${value}`,
+            `      Expected ${formatValue(this.actualValue)} to be greater than or equal to ${value}`,
         );
     }
     toBeLessThanOrEqual(value: number) {
         this.triggerResult(
             (this.actualValue as number) <= value,
-            `      Expected ${this.actualValue} to be less than or equal to ${value}`,
+            `      Expected ${formatValue(this.actualValue)} to be less than or equal to ${value}`,
         );
     }
     toBeCloseTo(expectedValue: number, precision: number) {
@@ -326,7 +358,12 @@ class MatcherFactory {
         this.triggerResult(
             Math.round((this.actualValue as unknown as number) * shiftHelper) / shiftHelper ===
                 Math.round(expectedValue * shiftHelper) / shiftHelper,
-            `      Expected ` + this.actualValue + ` with precision ` + precision + ` to be close to ` + expectedValue,
+            `      Expected ` +
+                formatValue(this.actualValue) +
+                ` with precision ` +
+                precision +
+                ` to be close to ` +
+                expectedValue,
         );
     }
     toThrow(expected?: typeof Error | string | RegExp) {

@@ -7,6 +7,7 @@ import { nextTick } from '@gjsify/utils';
 import type { ReadableOptions } from 'node:stream';
 
 import { Stream_ } from './stream-base.js';
+import { kAsyncDispose, streamAsyncDispose } from './internal/dispose.js';
 import { getDefaultHighWaterMark } from './internal/state.js';
 import type { ErrCallback } from './internal/types.js';
 import type { PipeState } from './utils/pipe.js';
@@ -581,3 +582,12 @@ export class Readable_ extends Stream_ {
         return readable;
     }
 }
+
+// Explicit Resource Management: `await using stream = createReadStream(…)`.
+// GJS lacks native Symbol.asyncDispose, so we patch the prototype under the
+// registered-symbol key (see ./internal/dispose.ts). Done as a prototype
+// assignment rather than a computed class member because the symbol must be
+// resolved at runtime, not at class-definition time.
+(Readable_.prototype as unknown as Record<symbol, unknown>)[kAsyncDispose] = function (this: Readable_): Promise<void> {
+    return streamAsyncDispose(this, this.readableEnded);
+};

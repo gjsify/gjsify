@@ -7,6 +7,7 @@ import { nextTick } from '@gjsify/utils';
 import type { WritableOptions } from 'node:stream';
 
 import { Stream_ } from './stream-base.js';
+import { kAsyncDispose, streamAsyncDispose } from './internal/dispose.js';
 import { getDefaultHighWaterMark } from './internal/state.js';
 import type { BufferedWrite, ErrCallback } from './internal/types.js';
 
@@ -431,6 +432,12 @@ export class Writable_ extends Stream_ {
         return this;
     }
 }
+
+// Explicit Resource Management: `await using stream = createWriteStream(…)`.
+// See ./internal/dispose.ts for why this is a runtime prototype assignment.
+(Writable_.prototype as unknown as Record<symbol, unknown>)[kAsyncDispose] = function (this: Writable_): Promise<void> {
+    return streamAsyncDispose(this, this.writableFinished);
+};
 
 /** Length of a stream chunk (string/Buffer/Uint8Array → .length, otherwise 1). */
 function chunkLen(chunk: unknown): number {

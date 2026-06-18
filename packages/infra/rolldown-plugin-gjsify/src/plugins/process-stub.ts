@@ -17,6 +17,7 @@
 import type { Plugin } from 'rolldown';
 
 import { BUNDLE_URL_BANNER } from './bundle-url-banner.js';
+import { GJS_WELLKNOWN_SYMBOLS_STUB } from './wellknown-symbols-banner.js';
 
 export const GJS_PROCESS_STUB =
     'if(typeof globalThis.process==="undefined"){' +
@@ -90,8 +91,12 @@ export interface ProcessStubPluginOptions {
 
 export function processStubPlugin(options: ProcessStubPluginOptions = {}): Plugin {
     // The anchor capture must precede the process stub so it runs at the very
-    // top of the chunk (where `import.meta.url` is the bundle's own URL).
-    const stub = (options.captureBundleUrl ? BUNDLE_URL_BANNER : '') + GJS_PROCESS_STUB;
+    // top of the chunk (where `import.meta.url` is the bundle's own URL). The
+    // well-known-symbols polyfill must also run before any module init, so it
+    // joins the byte-1 banner. All three pieces are single-line (no source-map
+    // drift) and idempotent.
+    const stub =
+        (options.captureBundleUrl ? BUNDLE_URL_BANNER : '') + GJS_WELLKNOWN_SYMBOLS_STUB + GJS_PROCESS_STUB;
     const banner = composeBanner(stub, options.userBanner ?? '');
     return {
         name: 'gjsify-process-stub',

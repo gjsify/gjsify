@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": ["@girs/gjs", "node"],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/smoke.spec.ts",
+        "src/in-memory-store.spec.ts",
+        "src/session-summary.spec.ts",
+        "src/mcp-server.spec.ts",
+        "src/session-fs.spec.ts",
+        "src/dispose.spec.ts"
+    ]
+}
