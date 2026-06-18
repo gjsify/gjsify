@@ -146,6 +146,8 @@ export default async (): Promise<void> => {
             };
             runMod.runCommand.builder(mockYargs as unknown as Parameters<typeof runMod.runCommand.builder>[0]);
             expect(capturedConfig?.['populate--']).toBe(true);
+            // Also forwards unknown flags without a `--` separator.
+            expect(capturedConfig?.['unknown-options-as-args']).toBe(true);
         });
 
         await it('yargs puts -- args in args["--"], handler merges them into extraArgs', async () => {
@@ -154,9 +156,7 @@ export default async (): Promise<void> => {
             // We call yargs without .strict() here because the bundled yargs
             // may not expose .strict() on the factory return value.
             const yargsLib = (await import('yargs')) as { default: (args: string[]) => unknown };
-            const yargs = yargsLib.default as unknown as (
-                args: string[],
-            ) => {
+            const yargs = yargsLib.default as unknown as (args: string[]) => {
                 command(
                     cmd: string,
                     desc: string,
@@ -186,6 +186,45 @@ export default async (): Promise<void> => {
             // With populate-- true, args['--'] must hold the post-separator values.
             expect(Array.isArray(handlerArgs?.['--'])).toBe(true);
             expect((handlerArgs?.['--'] as string[]).includes('from-double-dash')).toBe(true);
+        });
+
+        await it('forwards unknown --flags WITHOUT a -- separator (unknown-options-as-args)', async () => {
+            // The common case: `gjsify run app.gjs.mjs serve --port 8080 --year 2025`.
+            // Without `unknown-options-as-args`, --port/--year are parsed as the
+            // run command's own options (and rejected by the top-level .strict());
+            // with it, they route into the `[args..]` positional and reach the child.
+            const yargsLib = (await import('yargs')) as { default: (args: string[]) => unknown };
+            const yargs = yargsLib.default as unknown as (args: string[]) => {
+                command(
+                    cmd: string,
+                    desc: string,
+                    builder: (y: {
+                        positional(name: string, opts: unknown): unknown;
+                        parserConfiguration(cfg: unknown): unknown;
+                    }) => unknown,
+                    handler: (args: Record<string, unknown>) => void,
+                ): { parseAsync(): Promise<void> };
+            };
+            let handlerArgs: Record<string, unknown> | null = null;
+            await yargs(['run', 'mytarget', 'serve', '--port', '8080', '--year', '2025'])
+                .command(
+                    'run <target> [args..]',
+                    'run cmd',
+                    (y) =>
+                        y
+                            .positional('target', { type: 'string', demandOption: true })
+                            .positional('args', { type: 'string', array: true, default: [] })
+                            .parserConfiguration({ 'populate--': true, 'unknown-options-as-args': true }),
+                    (args) => {
+                        handlerArgs = JSON.parse(JSON.stringify(args)) as Record<string, unknown>;
+                    },
+                )
+                .parseAsync();
+
+            const forwarded = (handlerArgs?.args as string[]) ?? [];
+            expect(forwarded.includes('--port')).toBe(true);
+            expect(forwarded.includes('8080')).toBe(true);
+            expect(forwarded.includes('--year')).toBe(true);
         });
 
         // ------------------------------------------------------------------ //

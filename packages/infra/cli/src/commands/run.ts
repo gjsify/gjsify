@@ -52,6 +52,14 @@ export const runCommand: Command<unknown, RunOptions> = {
                 // Without this, anything after `--` lands in args._ and is
                 // silently dropped by the handler.
                 'populate--': true,
+                // Forward UNKNOWN flags to the target without requiring `--`:
+                //   gjsify run dist/app.gjs.mjs serve --port 8080 --year 2025
+                // Without this, the top-level `.strict()` (cli-app.ts) rejects
+                // --port/--year as "unknown arguments" before they reach the
+                // target. Treating unknown options as positional args routes
+                // them into the `[args..]` positional (then to the child).
+                // Known options (--help / --version) are still handled by gjsify.
+                'unknown-options-as-args': true,
             }),
     handler: async (args) => {
         const target = args.target as string;
@@ -253,7 +261,8 @@ function tokenizeSimpleCommand(cmd: string): string[] | null {
         if (quote === '"') {
             if (c === '"') quote = null;
             else if (c === '\\' && (cmd[i + 1] === '"' || cmd[i + 1] === '\\')) cur += cmd[++i];
-            else if (c === '$' || c === '`') return null; // substitution inside "…"
+            else if (c === '$' || c === '`')
+                return null; // substitution inside "…"
             else cur += c;
             continue;
         }
