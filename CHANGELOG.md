@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.7.4](https://github.com/gjsify/gjsify/compare/v0.7.3...v0.7.4) (2026-06-19)
+
+### Features
+
+* **unit:** vitest compatibility (vi, toMatchObject, async matchers, more) ([#544](https://github.com/gjsify/gjsify/issues/544)) ([8d566c8](https://github.com/gjsify/gjsify/commit/8d566c800eb7851d6c73095ae0d325f8e24bba30))
+
+### Bug Fixes
+
+* **cli:** `gjsify run` forwards unknown --flags to the child without `--` ([#541](https://github.com/gjsify/gjsify/issues/541)) ([77884b6](https://github.com/gjsify/gjsify/commit/77884b60ebfa906eabfb62c500da33e16a716445))
+* **cli:** gjsify install preserves the lockfile ([#543](https://github.com/gjsify/gjsify/issues/543)) ([28408fb](https://github.com/gjsify/gjsify/commit/28408fbf698ddda608e4538a1dc27b8c41acb7f1)), closes [#537](https://github.com/gjsify/gjsify/issues/537)
+* **cli:** gjsify login password prompt submits on Enter under GJS ([#546](https://github.com/gjsify/gjsify/issues/546)) ([45a4777](https://github.com/gjsify/gjsify/commit/45a4777e65153c64bf253027b55623a6a715b7ea))
+* **cli:** retry transient OIDC 5xx + fail loudly without a token ([#542](https://github.com/gjsify/gjsify/issues/542)) ([1b25b25](https://github.com/gjsify/gjsify/commit/1b25b254ee90a2f13df3dbb2349f02557441bda3))
+
+### Documentation
+
+* anchor the version-bumper + repair rewritten history ([#545](https://github.com/gjsify/gjsify/issues/545)) ([9a4141e](https://github.com/gjsify/gjsify/commit/9a4141ed7c5a96d2fd290cefa1d04e111fb081ab))
+
+### Continuous Integration
+
+* **affected:** walk production deps only in the closure ([#539](https://github.com/gjsify/gjsify/issues/539)) ([9450744](https://github.com/gjsify/gjsify/commit/9450744d6d7525fb4cddbb570b9d67efa0b4953d))
+
 ## [0.7.3](https://github.com/gjsify/gjsify/compare/v0.7.2...v0.7.3) (2026-06-18)
 
 ### Features
