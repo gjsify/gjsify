@@ -96,4 +96,22 @@ export default async () => {
             await expect(Promise.resolve(1)).resolves.toResolve();
         });
     });
+
+    // Regression guard: a matcher-failure caught by a throw/rejection matcher must
+    // NOT leak into the global failure tally. Each inner assertion below fails on
+    // purpose and is consumed as the expected throw/rejection — the suite summary
+    // must stay at "0 failed". A reintroduced leak turns the whole run red (exit 1)
+    // even though every it() here reports a pass.
+    await describe('throwing matchers do not corrupt the failure count', async () => {
+        await it('toThrow wrapping a failing matcher counts as one pass, not a failure', async () => {
+            expect(() => expect(1).toBe(2)).toThrow();
+            expect(() => expect({ a: 1 }).toMatchObject({ a: 2 })).toThrow();
+        });
+        await it('rejects.toThrow wrapping a matcher-rejection does not leak a failure', async () => {
+            const rejectsViaMatcher = (async () => {
+                expect('actual').toBe('expected');
+            })();
+            await expect(rejectsViaMatcher).rejects.toThrow();
+        });
+    });
 };
