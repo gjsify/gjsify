@@ -39,6 +39,7 @@ The project comprises **41 Node.js modules** (+1 meta, +5 native bridges), **18 
 | Browser UI / Adwaita assets | 3 | 3 (adwaita-web, adwaita-fonts, adwaita-icons) | — | — |
 | DOM | 2 | 2 (dom-elements, canvas2d-core) | — | — |
 | Framework bridges | 6 | 6 (bridge-types, canvas2d, event-bridge, iframe, video, webgl) | — | — |
+| Framework storybook | 2 | 2 (stories, storybook) | — | — |
 | GJS Infrastructure | 3 | 3 (runtime, unit, utils) | — | — |
 | Build/Infra Tools | 16 | 16 | — | — |
 | Showcases | 8 | 8 | — | — |
@@ -250,6 +251,8 @@ Tests that exercise `webrtcbin` (construction, close, loopback, getStats) auto-s
 | **event-bridge** | Gtk 4.0, Gdk 4.0 | — | attachEventControllers(): GTK4 controllers→DOM MouseEvent/PointerEvent/KeyboardEvent/WheelEvent/FocusEvent, **window-level keyboard listeners** |
 | **iframe** | WebKit 6.0 | — | HTMLIFrameElement, IFrameBridge→WebKit.WebView, postMessage bridge |
 | **video** | Gst 1.0, Gtk 4.0 | — | VideoBridge→Gtk.Picture(gtk4paintablesink). Supports srcObject(MediaStream from getUserMedia/WebRTC) + src(URI via playbin). Phase 1 |
+| **stories** | — | 10 (args + isStoryModule) | Story-authoring contract — `ControlType`, discriminated-union `StoryControl`, `StoryArgs`, `StoryMeta`, `StoryModule`/`StoryDecorator` (generic), `argsFromControls`, `isStoryModule`. Pure TS (no platform imports) so a future web / nativescript renderer can reuse it; consumed today only by `@gjsify/storybook` (GTK), so declared `gjs`-only (framework axis) until a cross-runtime renderer lands |
+| **storybook** | Adw 1, Gtk 4, Gdk 4, Gio, GLib, `@gjsify/stories` | 9 (discover + registry) | GTK/Adwaita storybook: `StoryWidget` base (programmatic chrome, `fromMeta`/`teardown`), `StoryRegistryService` (no singleton), `StorybookWindow` component browser (sidebar-by-category + 6 live-bound control kinds, programmatic UI — no `.blp` so it builds as a `--library`), `StorybookApplication`, `runStorybook` + `collectStoryModules`, `withActionGroup` decorator. Launched by `gjsify storybook` (auto-discovers `*.story.ts`) |
 
 ## Browser UI Packages (`packages/web/adwaita-web/`)
 
@@ -385,6 +388,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 | Web native bridge | 1 (webrtc-native) |
 | DOM packages | 2 (dom-elements, canvas2d-core) |
 | Framework / bridge packages | 6 (bridge-types, canvas2d, event-bridge, iframe, video, webgl) |
+| Framework storybook packages | 2 (stories, storybook) |
 | Browser UI packages | 3 (adwaita-web, adwaita-fonts, adwaita-icons) |
 | GJS infrastructure packages | 3 (runtime, unit, utils) |
 | Build / infra tools | 18 (infra/, incl. the `@gjsify/oxfmt-native` GI bridge) |

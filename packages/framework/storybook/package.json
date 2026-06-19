@@ -1,0 +1,70 @@
+{
+    "name": "@gjsify/storybook",
+    "version": "0.7.5",
+    "description": "Reusable GTK/Adwaita storybook for GJS — author *.story.ts and browse them in a generic component explorer",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "files": [
+        "lib"
+    ],
+    "scripts": {
+        "clear": "rm -rf lib tmp tsconfig.tsbuildinfo test.gjs.mjs || exit 0",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "storybook",
+        "stories",
+        "gtk",
+        "adwaita",
+        "ui"
+    ],
+    "dependencies": {
+        "@girs/adw-1": "1.10.0-4.0.4",
+        "@girs/gdk-4.0": "4.0.0-4.0.4",
+        "@girs/gio-2.0": "2.88.0-4.0.4",
+        "@girs/gjs": "4.0.4",
+        "@girs/glib-2.0": "2.88.0-4.0.4",
+        "@girs/gobject-2.0": "2.88.0-4.0.4",
+        "@girs/gtk-4.0": "4.23.0-4.0.4",
+        "@gjsify/stories": "workspace:^"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        }
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/framework/storybook"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/storybook#readme"
+}
