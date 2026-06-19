@@ -41,6 +41,7 @@
     ],
     "dependencies": {
         "@gjsify/events": "workspace:^",
+        "@gjsify/string_decoder": "workspace:^",
         "@gjsify/terminal-native": "workspace:^",
         "@gjsify/utils": "workspace:^"
     },

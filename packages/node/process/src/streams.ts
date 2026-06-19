@@ -7,6 +7,7 @@
 import { EventEmitter } from '@gjsify/events';
 import { ensureMainLoop, quitMainLoop } from '@gjsify/utils';
 import { nativeTerminal } from '@gjsify/terminal-native';
+import { StringDecoder } from '@gjsify/string_decoder';
 import { getGjsGlobal, getGioNamespace } from './internal/gjs.js';
 
 const _encoder = new TextEncoder();
@@ -124,6 +125,11 @@ export class ProcessReadStream extends EventEmitter {
     // True while a read_bytes_async is in-flight. Prevents a second concurrent
     // read from starting when pause()+resume() fires between GLib iterations.
     private _pendingRead = false;
+    // Set by setEncoding(): when present, 'data' emits decoded strings (Node
+    // contract) instead of Buffers. A StringDecoder buffers partial multi-byte
+    // sequences split across reads, so a UTF-8 char straddling two 4 KiB chunks
+    // is never mangled.
+    private _decoder: InstanceType<typeof StringDecoder> | null = null;
 
     constructor(fd: number) {
         super();
@@ -191,8 +197,29 @@ export class ProcessReadStream extends EventEmitter {
         }
     }
 
-    setEncoding(_enc: string): this {
+    // Node contract: after setEncoding(enc), 'data' events emit decoded STRINGS
+    // (not Buffers). Previously this was a no-op stub that silently ignored the
+    // encoding while `_pushData` always emitted a Buffer — so any consumer that
+    // relied on `setEncoding('utf-8')` (e.g. a raw-mode TTY reader iterating
+    // chars) received bytes and broke (`ch === '\r'` never matched). Now we
+    // honour it via StringDecoder, exactly as Node's Readable does internally.
+    setEncoding(enc: string): this {
+        this._decoder = new StringDecoder(enc);
         return this;
+    }
+
+    // Single emit path shared by the real Gio read callback AND the test
+    // harness. Applies the StringDecoder set by setEncoding() — emit a decoded
+    // string when an encoding is active, otherwise the raw Buffer. An empty
+    // decoded string (a chunk that is only the tail of a split multi-byte
+    // sequence) is held back, never emitted as `''`.
+    protected _pushData(buf: Buffer): void {
+        if (this._decoder) {
+            const str = this._decoder.write(buf);
+            if (str.length > 0) this.emit('data', str);
+        } else {
+            this.emit('data', buf);
+        }
     }
 
     // Node contract: attaching a 'data' listener switches a Readable to flowing
@@ -333,9 +360,14 @@ export class ProcessReadStream extends EventEmitter {
                     const bytes = src.read_bytes_finish(res);
                     const data: Uint8Array | null = bytes?.get_data?.() ?? null;
                     if (data && data.byteLength > 0) {
-                        this.emit('data', Buffer.from(data));
+                        this._pushData(Buffer.from(data));
                     } else if (data !== null && data.byteLength === 0) {
                         this._reading = false;
+                        // Flush any buffered partial multi-byte sequence before end.
+                        if (this._decoder) {
+                            const tail = this._decoder.end();
+                            if (tail.length > 0) this.emit('data', tail);
+                        }
                         this.emit('end');
                         return;
                     }
