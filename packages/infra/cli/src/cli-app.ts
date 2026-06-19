@@ -53,6 +53,7 @@ import {
     barrelsCommand as barrels,
     tscCommand as tsc,
     affectedCommand as affected,
+    storybookCommand as storybook,
 } from './commands/index.js';
 import { APP_NAME } from './constants.js';
 
@@ -148,6 +149,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .command(barrels.command, barrels.description, barrels.builder, barrels.handler)
         .command(tsc.command, tsc.description, tsc.builder, tsc.handler)
         .command(affected.command, affected.description, affected.builder, affected.handler)
+        .command(storybook.command, storybook.description, storybook.builder, storybook.handler)
         .demandCommand(1)
         .epilogue(`Running on ${runtimeLabel()}`)
         .help()
