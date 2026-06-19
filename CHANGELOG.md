@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.5](https://github.com/gjsify/gjsify/compare/v0.7.4...v0.7.5) (2026-06-19)
+
+### Bug Fixes
+
+* **process:** setEncoding emits decoded strings (Node contract) ([24d87a3](https://github.com/gjsify/gjsify/commit/24d87a314a41af595aee7ac45fdbc0cfc92bd7be)), closes [#546](https://github.com/gjsify/gjsify/issues/546)
+* **unit:** throw matchers don't leak fail count ([#547](https://github.com/gjsify/gjsify/issues/547)) ([33e5604](https://github.com/gjsify/gjsify/commit/33e5604eada452f68aa86ce11ca325cf00017ce9))
+
+### Documentation
+
+* make STATUS.md a current snapshot, drop the append-log ([#548](https://github.com/gjsify/gjsify/issues/548)) ([7c8a945](https://github.com/gjsify/gjsify/commit/7c8a945dd89eb62cfd69da2ed3399bb9cc4133ac))
+
 ## [0.7.4](https://github.com/gjsify/gjsify/compare/v0.7.3...v0.7.4) (2026-06-19)
 
 ### Features

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/rolldown-plugin-gjsify",
-    "version": "0.7.4",
+    "version": "0.7.5",
     "description": "Rolldown / Rollup / Vite plugin orchestrator for GJS, Node, and Browser targets",
     "type": "module",
     "main": "lib/index.js",
