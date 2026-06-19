@@ -173,12 +173,14 @@ export class ProcessReadStream extends EventEmitter {
             // Makes stty inherit our fd 0 (the real TTY) so tcsetattr targets the same tty.
             const STDIN_INHERIT = Gio.SubprocessFlags?.STDIN_INHERIT ?? 2;
             // Match the termios settings from GjsifyTerminal's set_raw_mode:
-            //   c_lflag &= ~(ICANON | ECHO)  →  -icanon -echo
-            //   c_iflag &= ~ICRNL            →  -icrnl
-            //   VMIN=1, VTIME=0              →  min 1 time 0
+            //   c_lflag &= ~(ICANON | ECHO | ISIG)  →  -icanon -echo -isig
+            //   c_iflag &= ~ICRNL                   →  -icrnl
+            //   VMIN=1, VTIME=0                      →  min 1 time 0
+            // -isig keeps Ctrl-C a keystroke (\x03) the prompt restores from,
+            // rather than a SIGINT that would leave the tty in raw mode.
             const argv = mode
-                ? ['stty', '-icanon', '-echo', '-icrnl', 'min', '1', 'time', '0']
-                : ['stty', 'icanon', 'echo', 'icrnl'];
+                ? ['stty', '-icanon', '-echo', '-icrnl', '-isig', 'min', '1', 'time', '0']
+                : ['stty', 'icanon', 'echo', 'icrnl', 'isig'];
             const launcher = new Gio.SubprocessLauncher({ flags: STDIN_INHERIT });
             const proc = launcher.spawnv(argv);
             proc.wait(null);

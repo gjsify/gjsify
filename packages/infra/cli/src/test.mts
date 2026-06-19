@@ -14,6 +14,7 @@ import installTarballCacheSuite from './utils/install-tarball-cache.spec.js';
 import installPackumentCacheSuite from './utils/install-packument-cache.spec.js';
 import installCacheFsSuite from './utils/install-cache-fs.spec.js';
 import authNpmrcSuite from './utils/auth-npmrc.spec.js';
+import promptKeySuite from './utils/prompt.spec.js';
 import inlineStaticReadsSuite from './inline-static-reads.spec.js';
 import resolveNpmPackageSuite from './utils/resolve-npm-package.spec.js';
 import oxcResolveSuite from './utils/oxc-resolve.spec.js';
@@ -39,6 +40,7 @@ run({
     installTarballCacheSuite,
     installPackumentCacheSuite,
     authNpmrcSuite,
+    promptKeySuite,
     installCacheFsSuite,
     inlineStaticReadsSuite,
     resolveNpmPackageSuite,
