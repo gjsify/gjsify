@@ -1,82 +1,147 @@
-// Minimal interactive prompts for `gjsify login` — a visible line prompt and a
-// hidden (no-echo) password prompt. Cross-runtime: `process.stdin.setRawMode`
-// is provided by Node and by `@gjsify/process` (terminal-native) under GJS.
+// Interactive prompts for `gjsify login` / `gjsify trust`.
 //
-// Non-TTY stdin (piped input, CI) is supported: both helpers read a single line
-// without raw-mode masking, so `printf 'user\npass\n' | gjsify login` works for
-// automation.
+// On a TTY every prompt runs inside a single RAW-mode session (`runRawSession`)
+// that reads key-by-key with manual echo and a guaranteed cooked-mode restore
+// (try/finally). This deliberately does NOT rely on the terminal's cooked
+// line-discipline nor on the shared `process.stdin` resume/pause cycle:
+//   - The old visible prompt read a cooked line via `process.stdin` 'data'
+//     events. With the line discipline in an unexpected state (e.g. ICRNL off
+//     after a prior raw prompt) Enter arrived as a bare `\r` that never
+//     terminated the cooked line — the prompt hung showing `name^M`. The
+//     resume/pause churn on the shared stdin singleton between two sequential
+//     prompts also intermittently dropped the line or resolved it empty.
+//   - Reading raw + handling `\r`/`\n` ourselves removes both failure modes.
+//
+// Raw mode (via @gjsify/process → terminal-native) now also clears ISIG, so
+// Ctrl-C is delivered as a `\x03` keystroke we handle (restore + exit) instead
+// of a SIGINT that would kill the process leaving the terminal in raw mode.
+//
+// Non-TTY stdin (piped input, CI) keeps a plain line read so
+// `printf 'user\npass\n' | gjsify login` still works.
 
-const CTRL_C = String.fromCharCode(3); // ETX (Ctrl-C)
-const DEL = String.fromCharCode(127); // DEL (Backspace on most terminals)
-const BACKSPACE = String.fromCharCode(8); // BS
+const CTRL_C = '\x03'; // ETX (Ctrl-C)
+const DEL = '\x7f'; // DEL (Backspace on most terminals)
+const BACKSPACE = '\x08'; // BS
 
-/** Print a question and read one line from stdin (visible). */
-export async function promptLine(question: string): Promise<string> {
-    process.stdout.write(question);
-    return readLine();
+/** Credentials read from the terminal. */
+export interface PromptedCredentials {
+    username: string;
+    password: string;
+}
+
+type StdinTty = NodeJS.ReadStream & { setRawMode?: (mode: boolean) => void };
+
+function isTtyStdin(): boolean {
+    const stdin = process.stdin as StdinTty;
+    return Boolean(stdin.isTTY) && typeof stdin.setRawMode === 'function';
+}
+
+/** Result of feeding one keystroke to the raw-mode line editor. */
+export interface KeyOutcome {
+    /** The line buffer after this key. */
+    buf: string;
+    /** Text to echo to the terminal for this key (`''` = nothing). */
+    echo: string;
+    /** The line is complete (Enter). */
+    done: boolean;
+    /** Ctrl-C was pressed (caller should restore + exit). */
+    interrupt: boolean;
 }
 
 /**
- * Print a question and read one line WITHOUT echoing it (passwords). Uses raw
- * mode + manual key handling on a TTY; falls back to a plain line read when
- * stdin is not a TTY (piped). Ctrl-C aborts the process.
+ * Pure key handler for the raw-mode line editor — the single source of truth
+ * for how a keystroke updates the buffer + echo. Kept pure (no I/O) so it is
+ * unit-testable: this is what makes Enter (`\r` OR `\n`) reliably submit, masks
+ * passwords, and treats Ctrl-C as an interrupt rather than text.
  */
-export async function promptHidden(question: string): Promise<string> {
-    process.stdout.write(question);
-    const stdin = process.stdin as NodeJS.ReadStream & { setRawMode?: (mode: boolean) => void };
-    if (!stdin.isTTY || typeof stdin.setRawMode !== 'function') {
-        // Non-interactive: read a line as-is (no masking possible/needed).
-        return readLine();
+export function applyKey(buf: string, ch: string, mask: boolean): KeyOutcome {
+    if (ch === '\r' || ch === '\n') {
+        return { buf, echo: '\n', done: true, interrupt: false };
     }
-    return new Promise<string>((resolve) => {
-        let buf = '';
-        stdin.setRawMode!(true);
-        stdin.resume();
-        // setEncoding makes 'data' emit decoded STRINGS — including under GJS,
-        // where @gjsify/process honours it via StringDecoder (was a no-op stub;
-        // bytes broke `ch === '\r'` so Enter never submitted). So we can iterate
-        // characters directly here; do NOT reintroduce a byte-normalising shim.
-        stdin.setEncoding('utf-8');
-        const onData = (chunk: string) => {
-            for (const ch of chunk) {
-                if (ch === '\r' || ch === '\n') {
-                    cleanup();
-                    process.stdout.write('\n');
-                    resolve(buf);
-                    return;
-                } else if (ch === CTRL_C) {
-                    cleanup();
-                    process.stdout.write('\n');
-                    process.exit(130);
-                } else if (ch === DEL || ch === BACKSPACE) {
-                    if (buf.length > 0) {
-                        buf = buf.slice(0, -1);
-                        process.stdout.write('\b \b');
-                    }
-                } else if (ch >= ' ') {
-                    buf += ch;
-                    process.stdout.write('*');
-                }
-            }
-        };
-        const cleanup = () => {
-            stdin.setRawMode!(false);
-            stdin.removeListener('data', onData);
-            stdin.pause();
-        };
-        stdin.on('data', onData);
-    });
+    if (ch === CTRL_C) {
+        return { buf, echo: '\n', done: false, interrupt: true };
+    }
+    if (ch === DEL || ch === BACKSPACE) {
+        if (buf.length > 0) {
+            return { buf: buf.slice(0, -1), echo: '\b \b', done: false, interrupt: false };
+        }
+        return { buf, echo: '', done: false, interrupt: false };
+    }
+    if (ch >= ' ') {
+        return { buf: buf + ch, echo: mask ? '*' : ch, done: false, interrupt: false };
+    }
+    // Other control characters (arrows, tabs, escapes) are ignored.
+    return { buf, echo: '', done: false, interrupt: false };
 }
 
-/** Read a single line from stdin (shared by both prompts on non-TTY). */
+/** Reads one line on TTY (echo or mask) within an open raw session. */
+type ReadKey = (question: string, mask: boolean) => Promise<string>;
+
+/**
+ * Open ONE raw-mode stdin session, run `fn` (which may read several lines via
+ * the supplied reader), and always restore cooked mode afterwards. Keeping a
+ * single session for the whole credential exchange avoids per-prompt
+ * resume/pause races on the shared stdin singleton.
+ */
+async function runRawSession<T>(fn: (read: ReadKey) => Promise<T>): Promise<T> {
+    const stdin = process.stdin as StdinTty;
+    const out = process.stdout;
+
+    let pending: { mask: boolean; buf: string; resolve: (value: string) => void } | null = null;
+
+    const cleanup = (): void => {
+        stdin.removeListener('data', onData);
+        try {
+            stdin.setRawMode!(false);
+        } catch {
+            /* not a TTY any more */
+        }
+        if (typeof stdin.pause === 'function') stdin.pause();
+    };
+
+    const onData = (chunk: string | Buffer): void => {
+        const text = typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
+        for (const ch of text) {
+            if (!pending) continue; // ignore type-ahead between prompts
+            const r = applyKey(pending.buf, ch, pending.mask);
+            pending.buf = r.buf;
+            if (r.echo) out.write(r.echo);
+            if (r.interrupt) {
+                cleanup();
+                process.exit(130);
+            }
+            if (r.done) {
+                const { resolve } = pending;
+                pending = null;
+                resolve(r.buf);
+            }
+        }
+    };
+
+    stdin.setRawMode!(true);
+    if (typeof stdin.resume === 'function') stdin.resume();
+    stdin.setEncoding('utf-8');
+    stdin.on('data', onData);
+
+    const read: ReadKey = (question, mask) =>
+        new Promise<string>((resolve) => {
+            out.write(question);
+            pending = { mask, buf: '', resolve };
+        });
+
+    try {
+        return await fn(read);
+    } finally {
+        cleanup();
+    }
+}
+
+/** Read a single line from non-TTY stdin (piped). Accepts CR, LF, or CRLF. */
 function readLine(): Promise<string> {
     return new Promise((resolve) => {
         let buf = '';
         const onData = (chunk: Buffer | string) => {
             buf += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
-            // Accept CR, LF, or CRLF as the line terminator. A bare CR (`\r`)
-            // is what some terminals / the GJS terminal-native stdin deliver on
-            // Enter — keying only on `\n` made the prompt hang forever there.
             const m = buf.search(/[\r\n]/);
             if (m >= 0) {
                 cleanup();
@@ -95,5 +160,48 @@ function readLine(): Promise<string> {
         if (typeof process.stdin.isPaused === 'function' && process.stdin.isPaused()) process.stdin.resume();
         process.stdin.on('data', onData);
         process.stdin.once('end', onEnd);
+    });
+}
+
+/** Print a question and read one visible line. */
+export async function promptLine(question: string): Promise<string> {
+    if (!isTtyStdin()) {
+        process.stdout.write(question);
+        return readLine();
+    }
+    return runRawSession((read) => read(question, false));
+}
+
+/** Print a question and read one line WITHOUT echoing it (passwords). */
+export async function promptHidden(question: string): Promise<string> {
+    if (!isTtyStdin()) {
+        process.stdout.write(question);
+        return readLine();
+    }
+    return runRawSession((read) => read(question, true));
+}
+
+/**
+ * Read npm credentials. On a TTY both the visible username and the masked
+ * password are read in ONE raw session (no cooked-line dependency, no
+ * inter-prompt resume/pause race). `providedUsername` (from `--username`) skips
+ * the username prompt.
+ */
+export async function promptCredentials(providedUsername?: string): Promise<PromptedCredentials> {
+    if (!isTtyStdin()) {
+        let username = providedUsername;
+        if (!username) {
+            process.stdout.write('Username: ');
+            username = await readLine();
+        }
+        process.stdout.write('Password: ');
+        const password = await readLine();
+        return { username, password };
+    }
+
+    return runRawSession(async (read) => {
+        const username = providedUsername ?? (await read('Username: ', false));
+        const password = await read('Password: ', true);
+        return { username, password };
     });
 }

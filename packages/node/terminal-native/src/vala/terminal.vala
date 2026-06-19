@@ -79,12 +79,17 @@ namespace GjsifyTerminal {
             var t = Posix.termios ();
             if (_tcgetattr (fd, ref t) != 0) return false;
             if (enable) {
-                t.c_lflag &= ~(Posix.ICANON | Posix.ECHO);
+                // Node-parity raw mode: also clear ISIG so Ctrl-C / Ctrl-Z
+                // arrive as keystrokes (\x03 / \x1a) for the app to handle,
+                // not as signals that would kill the process and leave the
+                // terminal stuck in raw mode. Matches Node's tty
+                // ReadStream.setRawMode(true).
+                t.c_lflag &= ~(Posix.ICANON | Posix.ECHO | Posix.ISIG);
                 t.c_iflag &= ~Posix.ICRNL;
                 t.c_cc[Posix.VMIN]  = 1;
                 t.c_cc[Posix.VTIME] = 0;
             } else {
-                t.c_lflag |= (Posix.ICANON | Posix.ECHO);
+                t.c_lflag |= (Posix.ICANON | Posix.ECHO | Posix.ISIG);
                 t.c_iflag |= Posix.ICRNL;
             }
             return _tcsetattr (fd, Posix.TCSAFLUSH, ref t) == 0;

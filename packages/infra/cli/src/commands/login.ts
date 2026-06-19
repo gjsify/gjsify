@@ -23,7 +23,7 @@ import type { Command } from '../types/index.js';
 import { DEFAULT_REGISTRY, registryFor, whoami } from '@gjsify/npm-registry';
 import { loadNpmrc } from '../utils/load-npmrc.js';
 import { writeAuthToken } from '../utils/auth-npmrc.js';
-import { promptLine, promptHidden } from '../utils/prompt.js';
+import { promptCredentials, promptLine } from '../utils/prompt.js';
 
 interface LoginOptions {
     registry?: string;
@@ -70,12 +70,15 @@ export const loginCommand: Command<unknown, LoginOptions> = {
             DEFAULT_REGISTRY;
         const registryClean = registry.endsWith('/') ? registry : `${registry}/`;
 
-        const username = args.username ?? (await promptLine(`Username: `));
+        // Read username (visible) + password (masked) in a single raw-mode TTY
+        // session — robust against cooked line-discipline state + the shared
+        // stdin resume/pause race that intermittently broke the old two-prompt
+        // sequence (Enter showing `^M`, or an empty username).
+        const { username, password } = await promptCredentials(args.username);
         if (!username) {
             console.error('gjsify login: a username is required.');
             process.exit(1);
         }
-        const password = await promptHidden(`Password: `);
         if (!password) {
             console.error('gjsify login: a password is required.');
             process.exit(1);
