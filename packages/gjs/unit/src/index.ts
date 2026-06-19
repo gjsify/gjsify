@@ -50,6 +50,22 @@ const mainloop: GLib.MainLoop | undefined = runtimeGlobals().imports?.mainloop;
 let countTestsOverall = 0;
 let countTestsFailed = 0;
 let countTestsIgnored = 0;
+
+/**
+ * A branded matcher-failure caught by a throw/rejection matcher (`toThrow`,
+ * `toReject`, `toResolve`) is used as a control-flow signal — those matchers
+ * assert that a throw/rejection *happens*, so the inner assertion's throw is the
+ * expected outcome, not a failure. `triggerResult` already did `++countTestsFailed`
+ * at the inner throw site, so roll that eager increment back here and let the
+ * catching matcher's own `triggerResult` decide the real result. Without this,
+ * `expect(() => expect(x).toMatchObject(y)).toThrow()` leaks a phantom failure
+ * into the global tally even though the test itself passes.
+ */
+const uncountBrandedFailure = (e: unknown): void => {
+    if (e && (e as _CountedError).__testFailureCounted) {
+        --countTestsFailed;
+    }
+};
 let runtime = '';
 let runStartTime = 0;
 let currentSuite = '';
@@ -498,6 +514,7 @@ class MatcherFactory {
             fn();
             didThrow = false;
         } catch (e) {
+            uncountBrandedFailure(e);
             errorMessage = (e as { message?: string })?.message || '';
             didThrow = true;
             if (typeof expected === 'function') {
@@ -539,6 +556,7 @@ class MatcherFactory {
             await this.actualValue;
             didReject = false;
         } catch (e) {
+            uncountBrandedFailure(e);
             didReject = true;
             errorMessage = e?.message || String(e);
             if (typeof expected === 'function') {
@@ -573,6 +591,7 @@ class MatcherFactory {
             await this.actualValue;
             didResolve = true;
         } catch (e) {
+            uncountBrandedFailure(e);
             didResolve = false;
             errorMessage = e?.message || String(e);
         }

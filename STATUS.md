@@ -336,7 +336,7 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 | Package | Function | Status |
 |---------|----------|--------|
-| **@gjsify/unit** | Test framework (describe/it/expect) | Full |
+| **@gjsify/unit** | Test framework (describe/it/expect) + vitest-compat surface (`vi.fn`/`stubGlobal`/`stubEnv`, `toMatchObject`/`toBeNaN`/`toHaveBeenCalled*`, `expect().rejects.toThrow`/`.resolves.toResolve`) | Full |
 | **@gjsify/utils** | Gio wrappers, process info, encoding, ensureMainLoop | Full |
 | **@gjsify/runtime** | Platform-independent runtime detection (isGJS, isNode, runtimeName) | Full |
 | **@gjsify/types** | GIR TypeScript bindings | Manual |
