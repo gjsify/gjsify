@@ -7,7 +7,7 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.
 ## Governance — non-negotiable
 
 |doc: update AGENTS.md immediately on any architectural decision (package boundaries, API patterns, build, deps, cross-cutting) — never leave drift between sessions
-|status: update STATUS.md in EVERY PR/commit that changes code or tests — new/promoted packages, test counts, Completed items, Metrics, Open TODOs; STATUS.md drift = blocked PR
+|status: STATUS.md is a CURRENT SNAPSHOT (package status tables, metrics, integration coverage, open TODOs) — edit it IN PLACE only when those facts change; it is NOT an append-only log (no dated `Current state (…)` blocks, no `### Completed` done-log). Per-change narrative → the commit message + CHANGELOG.md. See "STATUS.md & CHANGELOG.md Maintenance"
 |polyfills: browser-compat patches belong in packages, not examples — add to `@gjsify/dom-elements` or the right pkg
 |root-cause: fix bugs in the core package in the SAME PR that exposed them — no "known limitation" notes, no skip-guards, no TODO-for-later (workarounds ossify); examples/tests/CI exist to surface impl gaps
 |scope: expanding PR scope is the *expected* cost, not a reason to defer — goal is `@gjsify/*` running arbitrary npm packages unmodified on GJS
@@ -745,26 +745,27 @@ Every impl → A or B. Every ported test → C. Original: `// <Module> for GJS �
 
 ## STATUS.md & CHANGELOG.md Maintenance
 
-**STATUS.md always reflects current codebase state.** Feature lands / bug fixed / test added / workaround discovered / deferred item identified → update STATUS.md in the same commit. Never leave drift.
+**STATUS.md is a CURRENT SNAPSHOT, not a changelog.** It records the present state — package status tables, metrics, integration coverage, open TODOs — kept current *in place*. It is **NOT** an append-only log: do not add dated `Current state (…)` blocks, a `### Completed` done-log, "Latest:" lines, or per-session summaries. (That append-only log was removed 2026-06-19 — it duplicated git/CHANGELOG, ballooned to ~940 KB nobody read end-to-end, taxed every PR, and got silently corrupted by a blunt doc-version bump.)
 
-**Every PR that touches code or tests MUST include a STATUS.md update.** No exceptions. PRs without the update are incomplete. Checklist:
+**Per-change history goes in the COMMIT MESSAGE + CHANGELOG.md, not STATUS.md.** Write the detailed narrative (root cause, what/why, gotchas) in the commit body — it is co-located with the diff and discoverable via `git log`/`git blame`. CHANGELOG.md records what shipped + when (release-it generates it from the conventional commits).
 
-| Trigger | Required STATUS.md change |
+**Update STATUS.md only when the SNAPSHOT it describes actually changes** — in the same PR, edited *in place* (not appended):
+
+| Trigger | STATUS.md edit (in place) |
 |---|---|
-| New package added | Add row to the correct table (Fully/Partially/Stub or new section); add entry to GNOME Library Usage if it uses a GNOME lib; update Metrics package counts |
-| Package promoted (Stub→Partial, Partial→Full) | Move row to new table; update summary table percentages; add to `### Completed` |
-| Tests added or counts change | Update test count in the package row; update Metrics "Total test cases" |
-| New integration test suite | Add section under "Integration Test Coverage"; update Metrics suite count + test total |
-| Bug fixed / workaround removed | Update Working/Missing column; strike through "Upstream GJS Patch Candidates" entry if resolved |
-| Deferred item identified | Add entry to "Open TODOs" with priority and next steps |
-| Deferred item resolved | Move from "Open TODOs" to `### Completed` (or delete if trivial) |
-| Native Vala bridge added | Add dedicated package table + GNOME Library Usage row; update multi-arch prebuild list |
-| New architecture/platform supported | Update all affected package prebuild lists; update Metrics |
-| Header `> Last updated:` | Always update to the current date with a one-line summary of what changed |
+| New package added | Add a row to the correct table (Fully/Partially/Stub); add a GNOME Library Usage row if it uses a GNOME lib; bump Metrics package counts |
+| Package promoted (Stub→Partial→Full) | Move the row to the new table; update Summary percentages |
+| Test counts change | Update the count in the package row + Metrics "Total test cases" |
+| New integration suite | Add a section under "Integration Test Coverage"; bump Metrics suite count + total |
+| Bug fixed / workaround removed | Update the Working/Missing column; strike the "Upstream GJS Patch Candidates" entry if resolved |
+| Deferred item identified / resolved | Add to / **delete from** "Open TODOs" (a resolved item is removed — its record is the commit/CHANGELOG that closed it; there is no `### Completed` log) |
+| New Vala bridge / arch | Add the package table + GNOME row / update prebuild lists; bump Metrics |
 
-**Track deferred work in dedicated `Open TODOs` section.** Every "out of scope" / "follow-up" / "later" note from PR description / plan file / commit message must have a corresponding entry — otherwise forgotten. Resolved TODO → move to `### Completed` list (or delete if trivial).
+A docs-only / pure-refactor / CI PR that changes none of the above needs **no** STATUS.md edit.
 
-**Changelog entries ONLY in CHANGELOG.md.** STATUS.md = current state; CHANGELOG.md = what changed + when. Do NOT add dated "Latest:" lines, changelog highlights, or per-session summaries to STATUS.md. Update CHANGELOG.md after work sessions with dated entries describing what changed and why.
+**Track open work in the `Open TODOs` section.** Every "out of scope" / "follow-up" / "later" note must have an entry there. A resolved TODO is **deleted** — its record is the commit + CHANGELOG that closed it.
+
+**Changelog entries ONLY in CHANGELOG.md** (release-it, from conventional commits). Never add dated changelog lines, "Latest:" entries, or per-session summaries to STATUS.md.
 
 ## Commit conventions
 
