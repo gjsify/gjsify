@@ -39,9 +39,11 @@ class TestableProcessReadStream extends ProcessReadStream {
         this.resumeCallCount++;
         super.resume();
         // Flush any synthetic chunks immediately (simulates async I/O resolving).
+        // Route through `_pushData` — the same emit path the real Gio callback
+        // uses — so the setEncoding/StringDecoder wiring is exercised by tests.
         while (this._pendingChunks.length > 0) {
             const chunk = this._pendingChunks.shift()!;
-            this.emit('data', Buffer.from(chunk));
+            this._pushData(Buffer.from(chunk));
         }
         return this;
     }
@@ -142,6 +144,42 @@ export default async () => {
             stream.on('data', () => {});
             // resume() should only be called once (when the first 'data' listener appears)
             expect(stream.resumeCallCount).toBe(1);
+        });
+    });
+
+    await describe('ProcessReadStream: setEncoding emits decoded strings (Node contract)', async () => {
+        await it("setEncoding('utf-8') makes 'data' emit strings, not Buffers", async () => {
+            const stream = new TestableProcessReadStream();
+            stream.setEncoding('utf-8');
+            stream.feedChunk(new TextEncoder().encode('hi'));
+            const received: unknown[] = [];
+            stream.on('data', (c: unknown) => received.push(c));
+            expect(received.length).toBe(1);
+            expect(typeof received[0]).toBe('string');
+            expect(received[0]).toBe('hi');
+        });
+
+        await it("without setEncoding, 'data' still emits Buffers (unchanged)", async () => {
+            const stream = new TestableProcessReadStream();
+            stream.feedChunk(new TextEncoder().encode('hi'));
+            const received: unknown[] = [];
+            stream.on('data', (c: unknown) => received.push(c));
+            expect(received.length).toBe(1);
+            expect(typeof received[0]).not.toBe('string'); // a Buffer
+            expect(Buffer.from(received[0] as Uint8Array).toString()).toBe('hi');
+        });
+
+        await it("setEncoding('utf-8') decodes a multi-byte char split across chunks", async () => {
+            // 'é' = 0xC3 0xA9, fed as two separate reads. A naive per-chunk
+            // toString() would mangle it; StringDecoder buffers the partial tail.
+            const stream = new TestableProcessReadStream();
+            stream.setEncoding('utf-8');
+            stream.feedChunk(new Uint8Array([0xc3]));
+            stream.feedChunk(new Uint8Array([0xa9]));
+            const received: string[] = [];
+            stream.on('data', (c: string) => received.push(c));
+            expect(received.join('')).toBe('é');
+            for (const c of received) expect(typeof c).toBe('string');
         });
     });
 };

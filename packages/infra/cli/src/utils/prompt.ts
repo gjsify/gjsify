@@ -32,16 +32,12 @@ export async function promptHidden(question: string): Promise<string> {
         let buf = '';
         stdin.setRawMode!(true);
         stdin.resume();
+        // setEncoding makes 'data' emit decoded STRINGS — including under GJS,
+        // where @gjsify/process honours it via StringDecoder (was a no-op stub;
+        // bytes broke `ch === '\r'` so Enter never submitted). So we can iterate
+        // characters directly here; do NOT reintroduce a byte-normalising shim.
         stdin.setEncoding('utf-8');
-        // Do NOT assume `chunk` is a string: under GJS `@gjsify/process` does
-        // not honour `setEncoding('utf-8')` in raw mode, so each chunk arrives
-        // as bytes (a Buffer). Iterating bytes makes `ch === '\r'` always false
-        // and Enter (byte 13) coerce past `ch >= ' '` (→ `13 >= 0`) so it was
-        // masked as another `*` and the prompt never submitted. Normalise to a
-        // string first (same shape as readLine's handler), so this works on
-        // both Node (string) and GJS (bytes) — aligning with `npm login`.
-        const onData = (raw: string | Buffer) => {
-            const chunk = typeof raw === 'string' ? raw : raw.toString('utf-8');
+        const onData = (chunk: string) => {
             for (const ch of chunk) {
                 if (ch === '\r' || ch === '\n') {
                     cleanup();
