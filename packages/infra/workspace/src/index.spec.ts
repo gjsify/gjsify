@@ -112,6 +112,30 @@ export default async (): Promise<void> => {
                     rmSync(root, { recursive: true, force: true });
                 }
             });
+
+            await it('dedupes dirs matched by overlapping patterns', () => {
+                // A glob plus an explicit entry for the same dir (a real config:
+                // `["packages/*", "packages/app-android", "packages/app-web"]`).
+                // Each overlapped dir must appear exactly once — duplicates flow
+                // into double symlink plans that race to EEXIST in install.
+                const root = makeFixture({
+                    '.': {
+                        name: 'root',
+                        private: true,
+                        workspaces: ['packages/*', 'packages/app-android', 'packages/app-web'],
+                    },
+                    'packages/core': { name: 'core', version: '1.0.0' },
+                    'packages/app-android': { name: 'app-android', version: '1.0.0' },
+                    'packages/app-web': { name: 'app-web', version: '1.0.0' },
+                });
+                try {
+                    const ws = discoverWorkspaces(root);
+                    expect(ws.map((w) => w.name).sort()).toStrictEqual(['app-android', 'app-web', 'core']);
+                    expect(ws.length).toBe(3);
+                } finally {
+                    rmSync(root, { recursive: true, force: true });
+                }
+            });
         });
 
         await describe('resolveWorkspaceProtocol', async () => {
