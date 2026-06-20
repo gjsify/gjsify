@@ -269,3 +269,6 @@
 [submodule "refs/nativescript-canvas"]
 	path = refs/nativescript-canvas
 	url = git@github.com:NativeScript/canvas.git
+[submodule "refs/gtkx"]
+	path = refs/gtkx
+	url = https://github.com/gtkx-org/gtkx.git
