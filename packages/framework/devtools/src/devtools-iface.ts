@@ -1,8 +1,7 @@
 // @gjsify/devtools — the org.gjsify.Devtools DBus interface XML.
 // Original implementation.
 
-/** Well-known interface name implemented on each app's own bus name + object path. */
-export const DEVTOOLS_INTERFACE = 'org.gjsify.Devtools';
+import { DEVTOOLS_INTERFACE } from '@gjsify/devtools-protocol';
 
 /** The generic (Phase 1) method fragments — JSON-in-strings carry the contract envelope. */
 const GENERIC_METHODS_XML = `    <method name="GetStatus">

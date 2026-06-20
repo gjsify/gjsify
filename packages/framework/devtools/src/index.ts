@@ -8,7 +8,7 @@ export { captureWidgetPng } from './screenshot.js';
 export { buildVariant, variantKindFor } from './gvariant.js';
 export type { VariantKind } from './gvariant.js';
 export { activateAction, changeActionState, describeActions } from './actions.js';
-export { buildDevtoolsIfaceXml, DEVTOOLS_INTERFACE } from './devtools-iface.js';
+export { buildDevtoolsIfaceXml } from './devtools-iface.js';
 
 // Re-export the transport-agnostic contract so a consumer needs one import.
 export * from '@gjsify/devtools-protocol';
