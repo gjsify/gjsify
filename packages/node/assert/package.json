@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/assert",
-    "version": "0.7.5",
+    "version": "0.8.0",
     "description": "Node.js assert module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

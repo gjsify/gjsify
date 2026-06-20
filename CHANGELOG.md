@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.0](https://github.com/gjsify/gjsify/compare/v0.7.5...v0.8.0) (2026-06-20)
+
+### Features
+
+* add @gjsify/storybook + @gjsify/stories ([#551](https://github.com/gjsify/gjsify/issues/551)) ([76812a2](https://github.com/gjsify/gjsify/commit/76812a20533f17547e9c0597573356b65b0f2a7e))
+
+### Bug Fixes
+
+* robust gjsify login prompt (raw-mode rework) ([#553](https://github.com/gjsify/gjsify/issues/553)) ([b81a181](https://github.com/gjsify/gjsify/commit/b81a181e6205c530099a03675db805f303117e7c))
+
+### Build System
+
+* bootstrap process with -d so string_decoder builds first ([9f03b0b](https://github.com/gjsify/gjsify/commit/9f03b0bf58ecf15ce5dee812f6c758fabd3a2ee8))
+* exclude specs from buffer/string_decoder tsc ([2059710](https://github.com/gjsify/gjsify/commit/20597102b756de48a231a6c105b961d2f05c063b))
+
 ## [0.7.5](https://github.com/gjsify/gjsify/compare/v0.7.4...v0.7.5) (2026-06-19)
 
 ### Bug Fixes
