@@ -80,6 +80,12 @@ export function discoverWorkspaces(root: string, options: DiscoverWorkspacesOpti
     const excludeMatchers = patterns.filter((p) => p.startsWith('!')).map((p) => globToRegex(p.slice(1)));
 
     const out: Workspace[] = [];
+    // Dedupe by directory: overlapping patterns (e.g. `packages/*` plus an
+    // explicit `packages/app-android`) match the same dir more than once. Yarn
+    // collapses these to a single workspace; without dedup the duplicate flows
+    // downstream into double symlink plans (a concurrent `rm`+`symlink` race
+    // that throws EEXIST in `gjsify install`).
+    const seenLocations = new Set<string>();
     if (options.includeRoot && rootManifest.name) {
         out.push({
             location: root,
@@ -89,10 +95,12 @@ export function discoverWorkspaces(root: string, options: DiscoverWorkspacesOpti
             manifest: rootManifest,
             private: rootManifest.private === true,
         });
+        seenLocations.add(root);
     }
 
     for (const pattern of includePatterns) {
         for (const matchedDir of expandPattern(root, pattern)) {
+            if (seenLocations.has(matchedDir)) continue;
             const relativeLocation = relative(root, matchedDir).split(sep).join('/');
             if (excludeMatchers.some((re) => re.test(relativeLocation))) continue;
             const pkgPath = join(matchedDir, 'package.json');
@@ -104,6 +112,7 @@ export function discoverWorkspaces(root: string, options: DiscoverWorkspacesOpti
                 continue;
             }
             if (!manifest.name) continue;
+            seenLocations.add(matchedDir);
             out.push({
                 location: matchedDir,
                 relativeLocation,
