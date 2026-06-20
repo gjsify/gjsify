@@ -41,6 +41,7 @@
         "@girs/glib-2.0": "2.88.0-4.0.4",
         "@girs/gobject-2.0": "2.88.0-4.0.4",
         "@girs/gtk-4.0": "4.23.0-4.0.4",
+        "@gjsify/devtools": "workspace:^",
         "@gjsify/stories": "workspace:^"
     },
     "devDependencies": {
