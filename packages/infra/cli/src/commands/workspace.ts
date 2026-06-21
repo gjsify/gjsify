@@ -24,6 +24,7 @@ import {
     type Workspace,
 } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
+import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 interface WorkspaceCmdOptions {
     name: string;
@@ -238,6 +239,11 @@ async function runOne(
 }
 
 function detectPackageManager(): 'yarn' | 'npm' | 'gjsify' {
+    // Under GJS there is no Node, so neither `npm` nor `yarn` can run scripts —
+    // the only option is `gjsify` itself, resolved via the GJS shim on PATH
+    // (see `ensureGjsifyShimOnPath`). This is what makes node-free multi-package
+    // orchestration work in the Flatpak sandbox.
+    if (isGjs()) return 'gjsify';
     const ua = process.env.npm_config_user_agent ?? '';
     if (ua.startsWith('yarn/')) return 'yarn';
     if (ua.startsWith('gjsify/')) return 'gjsify';

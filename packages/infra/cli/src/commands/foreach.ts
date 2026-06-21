@@ -22,6 +22,7 @@ import {
 } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import { prefixLines } from '../utils/prefixed-output.js';
+import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 // Every child spawned by spawnPrefixed registers here so fail-fast can
 // terminate the whole in-flight set instead of waiting on it. On CI a
@@ -599,6 +600,10 @@ async function runOne(
 }
 
 function detectPackageManager(): 'yarn' | 'npm' | 'gjsify' {
+    // Under GJS there is no Node — neither `npm` nor `yarn` can run scripts, so
+    // the runner is `gjsify` itself via the GJS shim on PATH
+    // (`ensureGjsifyShimOnPath`). Makes node-free `gjsify foreach` work.
+    if (isGjs()) return 'gjsify';
     // `npm_config_user_agent` is set by npm/yarn/pnpm — first token is
     // `<name>/<version>`. Reuse it so `gjsify foreach build` invoked
     // through `yarn run` keeps using yarn, etc.
