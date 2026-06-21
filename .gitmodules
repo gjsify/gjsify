@@ -113,9 +113,6 @@
 [submodule "refs/astro"]
 	path = refs/astro
 	url = git@github.com:withastro/astro.git
-[submodule "examples/dom/three-geometry-shapes/refs/gjsify-vite"]
-	path = examples/dom/three-geometry-shapes/refs/gjsify-vite
-	url = git@github.com:gjsify/vite.git
 [submodule "refs/app-mockups"]
 	path = refs/app-mockups
 	url = https://gitlab.gnome.org/Teams/Design/app-mockups.git
@@ -272,3 +269,6 @@
 [submodule "refs/developer.gnome.org-hig"]
 	path = refs/developer.gnome.org-hig
 	url = https://gitlab.gnome.org/Teams/Websites/developer.gnome.org-hig.git
+[submodule "refs/loro"]
+	path = refs/loro
+	url = git@github.com:loro-dev/loro.git
