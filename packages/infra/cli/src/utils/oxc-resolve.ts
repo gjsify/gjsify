@@ -56,6 +56,7 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { findWorkspaceRoot } from './workspace-root.js';
 import { resolveNpmPackage } from './resolve-npm-package.js';
+import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 export type OxcTool = 'oxlint' | 'oxfmt';
 
@@ -228,8 +229,7 @@ let _nativeOxfmtProbe: Promise<NativeOxfmtSurface | null> | null = null;
 async function tryLoadNativeOxfmt(): Promise<NativeOxfmtSurface | null> {
     if (_nativeOxfmtProbe) return _nativeOxfmtProbe;
     _nativeOxfmtProbe = (async (): Promise<NativeOxfmtSurface | null> => {
-        const isGjs = typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
-        if (!isGjs) return null;
+        if (!isGjs()) return null;
         try {
             const specifier = '@gjsify/oxfmt-native';
             const resolved =
@@ -269,8 +269,7 @@ export async function shouldUseNativeOxfmt(): Promise<boolean> {
         return true;
     }
 
-    const isGjs = typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
-    if (!isGjs) return false;
+    if (!isGjs()) return false;
     return (await tryLoadNativeOxfmt()) !== null;
 }
 

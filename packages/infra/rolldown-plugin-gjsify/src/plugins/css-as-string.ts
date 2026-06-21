@@ -42,6 +42,7 @@ import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { Plugin } from 'rolldown';
 import type { Targets } from 'lightningcss';
+import { isGjs } from '../utils/runtime.js';
 
 export interface CssAsStringOptions {
     /**
@@ -105,8 +106,7 @@ async function tryLoadNativeBundler(): Promise<Bundler | null> {
     // The native bridge only exists under GJS — `imports.gi` marker. Skip
     // the dynamic import entirely on Node so it doesn't even register as a
     // resolved dep, which would inflate the CLI's bundled output.
-    const isGjs = typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
-    if (!isGjs) return null;
+    if (!isGjs()) return null;
 
     try {
         // Indirect specifier so tsc + Rolldown don't try to resolve the

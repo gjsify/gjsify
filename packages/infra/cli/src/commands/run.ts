@@ -21,6 +21,7 @@ import type { Command } from '../types/index.js';
 import { runGjsBundle } from '../utils/run-gjs.js';
 import { readPackageJson } from '../utils/pkg-json-edit.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
+import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 interface RunOptions {
     target: string;
@@ -168,7 +169,7 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
     // Anything fancier (compound `&&`, pipes, a non-gjsify command) falls
     // through to the shell spawn below. Node keeps spawning (cheap there); this
     // only triggers under GJS, where the nesting actually hurts. See cli-app.ts.
-    const inProcArgv = runningUnderGjs() ? gjsifyInProcessArgv(literal, extraArgs) : null;
+    const inProcArgv = isGjs() ? gjsifyInProcessArgv(literal, extraArgs) : null;
     if (inProcArgv) {
         // The subcommand runs in our process, so surface the script env on
         // `process.env` (PATH with the workspace .bin dirs, npm_* lifecycle
@@ -216,12 +217,6 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
 function shellEscape(arg: string): string {
     if (/^[a-zA-Z0-9_\-./=:@,]+$/.test(arg)) return arg;
     return `'${arg.replace(/'/g, "'\\''")}'`;
-}
-
-// Detected at CALL time (a module-load const reads `undefined` in the bundled
-// `--app gjs` form). `bundler-pick.ts` uses the same expression.
-function runningUnderGjs(): boolean {
-    return typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
 }
 
 /**
