@@ -32,7 +32,18 @@ export async function runDevtoolsMcp(profile: DevtoolsToolProfile): Promise<void
 
     const loop = GLib.MainLoop.new(null, false);
     const transport = new GjsStdioTransport(() => loop.quit());
-    await server.connect(transport);
-    console.error(`[gjsify-devtools-mcp] ${profile.name} on stdio (DBus base: ${profile.busNameBase})`);
+
+    // Kick the connect (which starts the stdio read loop) WITHOUT awaiting, then
+    // run the GLib main loop SYNCHRONOUSLY. Running `loop.run()` after an `await`
+    // (i.e. from inside a promise/microtask continuation) breaks the nested main
+    // loop under GJS — the read loop never gets pumped. Same structure as the
+    // map-editor bridge: connect fire-and-forget, loop.run() on the sync stack.
+    server.connect(transport).then(
+        () => console.error(`[gjsify-devtools-mcp] ${profile.name} on stdio (DBus base: ${profile.busNameBase})`),
+        (error: unknown) => {
+            console.error('[gjsify-devtools-mcp] failed to connect:', error);
+            loop.quit();
+        },
+    );
     loop.run();
 }
