@@ -55,13 +55,19 @@ const defaultBundler: AnalysisBundler = async ({ rolldownInput, format }) => {
     }
 };
 import { detectFreeGlobals } from './detect-free-globals.js';
-import { resolveGlobalsList, writeRegisterInjectFile, filterResolvableRegisterPaths } from './scan-globals.js';
-import { GJS_GLOBALS_MAP } from '@gjsify/resolve-npm/globals-map';
+import {
+    resolveGlobalsList,
+    writeRegisterInjectFile,
+    filterResolvableRegisterPaths,
+    isRegisterPathResolvable,
+} from './scan-globals.js';
+import { GJS_GLOBALS_MAP, GJS_GI_BACKED_REGISTERS } from '@gjsify/resolve-npm/globals-map';
 import { REGISTER_GLOBALS_CLOSURE } from '@gjsify/resolve-npm/register-globals-closure';
 import type { PluginOptions } from '../types/plugin-options.js';
 
 const GLOBALS_MAP: Record<string, string> = GJS_GLOBALS_MAP;
 const CLOSURE_MAP: Record<string, readonly string[]> = REGISTER_GLOBALS_CLOSURE;
+const GI_BACKED: Record<string, readonly string[]> = GJS_GI_BACKED_REGISTERS;
 
 /** Maximum iterations to prevent runaway loops on pathological inputs. */
 const MAX_ITERATIONS = 5;
@@ -121,12 +127,23 @@ async function applyExcludeGlobals(
     excludeGlobals: string[] | undefined,
     cwd?: string,
 ): Promise<AutoGlobalsResult> {
+    if (excludeGlobals?.length) {
+        for (const id of excludeGlobals) detected.delete(id);
+    }
+
+    // Final register set that will be injected (detected → register paths,
+    // plus any --globals auto,<extras>). Computed for BOTH paths so the
+    // GI-backed diagnostic below fires whether or not excludeGlobals is set.
+    const finalPaths = detectedToRegisterPaths(detected);
+    for (const p of extraRegisterPaths) finalPaths.add(p);
+    emitGiBackedDiagnostic(finalPaths, detected, cwd);
+
+    // No exclude: `currentInject` already reflects `finalPaths` (built in the
+    // loop), so reuse it — re-running filterResolvableRegisterPaths here would
+    // emit its skip warnings a second time.
     if (!excludeGlobals?.length) return { detected, injectPath: currentInject };
 
-    for (const id of excludeGlobals) detected.delete(id);
-    let filtered = detectedToRegisterPaths(detected);
-    for (const p of extraRegisterPaths) filtered.add(p);
-    if (cwd) filtered = filterResolvableRegisterPaths(filtered, cwd);
+    const filtered = cwd ? filterResolvableRegisterPaths(finalPaths, cwd) : finalPaths;
     const injectPath = filtered.size > 0 ? ((await writeRegisterInjectFile(filtered, cwd)) ?? undefined) : undefined;
     return { detected, injectPath };
 }
@@ -138,6 +155,89 @@ function detectedToRegisterPaths(detected: Set<string>): Set<string> {
         if (path) paths.add(path);
     }
     return paths;
+}
+
+/**
+ * GI namespaces a register path pulls at import, or null when it is not
+ * GI-backed. Prefix match against `GJS_GI_BACKED_REGISTERS` so one entry per
+ * package covers every granular subpath (`…/register/document`, `…/register/canvas`).
+ */
+function giNamespacesForRegister(registerPath: string): readonly string[] | null {
+    for (const prefix of Object.keys(GI_BACKED)) {
+        if (registerPath === prefix || registerPath.startsWith(prefix + '/')) {
+            return GI_BACKED[prefix];
+        }
+    }
+    return null;
+}
+
+/**
+ * Build the build-time note for any GI-backed register modules in a final
+ * inject set, or null when none are GI-backed. Pure (no I/O) so it is
+ * unit-testable; `emitGiBackedDiagnostic` is the side-effecting wrapper.
+ *
+ * `--globals auto` injecting a GI-backed register makes the bundle
+ * hard-require a GTK/GNOME runtime at load — under a GTK-less host (headless
+ * type-check container, SSR generator, plain CI) it throws `Typelib … not
+ * found`. The note names which globals triggered the injection so that
+ * otherwise-silent runtime crash is traceable at build time.
+ *
+ * @param registerPaths the final register paths to be injected
+ * @param detected the converged detected-global set (for naming trigger refs)
+ */
+export function describeGiBackedInjection(registerPaths: Set<string>, detected: Set<string>): string | null {
+    const giRegisters = new Set<string>();
+    const namespaces = new Set<string>();
+    for (const path of registerPaths) {
+        const gi = giNamespacesForRegister(path);
+        if (!gi) continue;
+        giRegisters.add(path);
+        for (const ns of gi) namespaces.add(ns);
+    }
+    if (giRegisters.size === 0) return null;
+
+    const triggers = [...detected]
+        .filter((id) => {
+            const p = GLOBALS_MAP[id];
+            return !!p && giRegisters.has(p);
+        })
+        .sort();
+    const giList = [...namespaces]
+        .sort()
+        .map((n) => `gi://${n}`)
+        .join(', ');
+
+    return (
+        '[gjsify] note: --globals auto injected GTK/GNOME-backed register(s) — this bundle now requires ' +
+        `${giList} at load.` +
+        (triggers.length ? ` Triggered by: ${triggers.join(', ')}.` : '') +
+        ' If it runs headless / SSR / in a GTK-less container it will throw "Typelib … not found"; drop those ' +
+        'globals via excludeGlobals or pin an explicit --globals allowlist (e.g. node).'
+    );
+}
+
+/** Emitted at most once per process so multi-pass / multi-build runs stay quiet. */
+let giNoteEmitted = false;
+
+/**
+ * console.warn the GI-backed-injection note once per process. Pre-filters
+ * `registerPaths` to the ones that will ACTUALLY be injected — GI-backed AND
+ * (quietly) resolvable from the project — so the note never mentions a
+ * register that gets dropped. Uses `isRegisterPathResolvable` (no warning),
+ * not `filterResolvableRegisterPaths`, to avoid duplicating its skip warnings.
+ */
+function emitGiBackedDiagnostic(registerPaths: Set<string>, detected: Set<string>, cwd?: string): void {
+    if (giNoteEmitted) return;
+    const candidates = new Set<string>();
+    for (const path of registerPaths) {
+        if (!giNamespacesForRegister(path)) continue;
+        if (cwd && !isRegisterPathResolvable(path, cwd)) continue;
+        candidates.add(path);
+    }
+    const note = describeGiBackedInjection(candidates, detected);
+    if (!note) return;
+    giNoteEmitted = true;
+    console.warn(note);
 }
 
 export interface DetectAutoGlobalsOptions {
