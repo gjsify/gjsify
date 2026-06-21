@@ -142,6 +142,15 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
     if (monorepoRoot && monorepoRoot !== cwd) {
         binDirs.push(join(monorepoRoot, 'node_modules', '.bin'));
     }
+    // Under GJS, the GJS-runnable `gjsify` shim (see `ensureGjsifyShimOnPath`)
+    // MUST shadow the workspace `node_modules/.bin/gjsify`, which is the Node
+    // entry and unusable in a node-free sandbox. So put the shim dir ahead of
+    // the `.bin` dirs in the child's PATH — otherwise a compound script like
+    // `gjsify run a && gjsify run b` resolves `gjsify` to the Node bin and
+    // fails. `GJSIFY_SHIM_DIR` is only set under GJS, so this is a no-op on Node.
+    if (process.env.GJSIFY_SHIM_DIR) {
+        binDirs.unshift(process.env.GJSIFY_SHIM_DIR);
+    }
     // Default FORCE_COLOR=1 when not already set, matching yarn / npm
     // script-runner behaviour. Without this, tools that check
     // `process.stdout.isTTY` (chalk, picocolors, biome, …) disable colors
