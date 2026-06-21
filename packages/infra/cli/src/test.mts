@@ -30,6 +30,7 @@ import runStdioSafeSuite from './run-stdio-safe.spec.js';
 import trustRegistrySuite from './utils/trust-registry.spec.js';
 import resolvePluginByNameSuite from './utils/resolve-plugin-by-name.spec.js';
 import runtimeSuite from './runtime.spec.js';
+import gjsEntryWrapperSuite from './gjs-entry-wrapper.spec.js';
 
 run({
     bundlerPickSuite,
@@ -54,4 +55,5 @@ run({
     trustRegistrySuite,
     resolvePluginByNameSuite,
     runtimeSuite,
+    gjsEntryWrapperSuite,
 });

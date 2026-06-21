@@ -305,13 +305,19 @@ export class BuildAction {
 
         try {
             await mkdir(cacheDir, { recursive: true });
+            // `--globals auto` stays on so the plugin's own runtime globals
+            // (the MDX/unified toolchain touches `document`, etc.) are injected
+            // — but that injection wraps the entry with `export * from <entry>`,
+            // which drops the `default` export the plugin factory lives on.
+            // `preserveDefaultExport` makes the wrapper re-export `default` too,
+            // so the bundled plugin imports correctly as a library.
             // shebang is intentionally left unset — the artifact is imported,
             // not executed, so it must NOT carry a `#!` line.
             const pluginBuild = new BuildAction({
                 verbose,
                 bundler: { input: resolvedPath, output: { file: outfile } },
             });
-            await pluginBuild.buildApp('gjs');
+            await pluginBuild.buildApp('gjs', { preserveDefaultExport: true });
         } catch (err) {
             throw new Error(
                 `gjsify config: failed to bundle plugin "${pluginName}" for GJS ` +
@@ -339,7 +345,10 @@ export class BuildAction {
     }
 
     /** Application mode */
-    async buildApp(app: App = 'gjs', opts: { watch?: boolean } = {}): Promise<RolldownOutput[]> {
+    async buildApp(
+        app: App = 'gjs',
+        opts: { watch?: boolean; preserveDefaultExport?: boolean } = {},
+    ): Promise<RolldownOutput[]> {
         const { verbose, typescript, exclude, library: pkg, aliases, excludeGlobals } = this.configData;
 
         const userBundler = normalizeBundlerOptions(this.configData);
@@ -380,6 +389,7 @@ export class BuildAction {
             reflection: typescript?.reflection,
             consoleShim,
             ...(aliases ? { aliases } : {}),
+            ...(opts.preserveDefaultExport ? { preserveDefaultExport: true } : {}),
         };
 
         const { autoMode, extras } = this.parseGlobalsValue(globals);
