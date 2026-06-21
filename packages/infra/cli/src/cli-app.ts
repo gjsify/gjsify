@@ -56,6 +56,7 @@ import {
     storybookCommand as storybook,
 } from './commands/index.js';
 import { APP_NAME } from './constants.js';
+import { isNode } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 // Detect which runtime is executing the CLI (GJS or Node.js).
 // GJS MUST be checked first because @gjsify/process sets
@@ -71,7 +72,7 @@ function runtimeLabel(): string {
     } catch {
         /* not GJS */
     }
-    if (typeof process !== 'undefined' && typeof process.versions?.node === 'string') {
+    if (isNode()) {
         return `Node.js ${process.version}`;
     }
     return 'unknown runtime';

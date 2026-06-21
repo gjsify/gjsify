@@ -15,6 +15,10 @@
             "types": "./lib/globals.d.ts",
             "default": "./lib/globals.js"
         },
+        "./runtime": {
+            "types": "./lib/utils/runtime.d.ts",
+            "default": "./lib/utils/runtime.js"
+        },
         "./shims/console-gjs": {
             "default": "./lib/shims/console-gjs.js"
         },

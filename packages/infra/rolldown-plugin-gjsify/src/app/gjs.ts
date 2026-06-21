@@ -149,7 +149,9 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     const sideEffectImports: string[] = [];
     if (input.pluginOptions.autoGlobalsInject) sideEffectImports.push(input.pluginOptions.autoGlobalsInject);
 
-    const virtualEntries = wrapInputWithSideEffects(entryPoints, sideEffectImports);
+    const virtualEntries = wrapInputWithSideEffects(entryPoints, sideEffectImports, {
+        preserveDefaultExport: input.pluginOptions.preserveDefaultExport === true,
+    });
     const finalInput = virtualEntries.input;
 
     const options: RolldownOptions = {
@@ -280,7 +282,11 @@ interface VirtualEntriesResult {
  * `\0`-prefixed ids are Rollup's convention for synthetic modules — Rolldown
  * recognises and treats them as not-from-disk, skipping the default loader.
  */
-function wrapInputWithSideEffects(input: RolldownOptions['input'], sideEffects: string[]): VirtualEntriesResult {
+function wrapInputWithSideEffects(
+    input: RolldownOptions['input'],
+    sideEffects: string[],
+    opts: { preserveDefaultExport?: boolean } = {},
+): VirtualEntriesResult {
     if (sideEffects.length === 0 || input === undefined) {
         return { input, plugin: null };
     }
@@ -343,6 +349,22 @@ function wrapInputWithSideEffects(input: RolldownOptions['input'], sideEffects: 
             // resolveId-side `moduleSideEffects: 'no-treeshake'` mark
             // forces the body to run — `run({...})` calls in test entries,
             // top-level await, etc.
+            //
+            // `export *` also never carries the `default` export. For an
+            // executable that's irrelevant, but a library bundle imported for
+            // its default API (a bundler plugin) needs it preserved. When
+            // requested, import the target as a namespace (which also runs the
+            // body, so it doubles as the side-effect import) and re-export its
+            // `default` — safely `undefined` when the entry has none.
+            if (opts.preserveDefaultExport) {
+                const ns = '__gjsify_entry__';
+                return {
+                    code:
+                        `${sideEffectImports}\nimport * as ${ns} from ${JSON.stringify(target)};\n` +
+                        `export * from ${JSON.stringify(target)};\nexport default ${ns}.default;\n`,
+                    moduleSideEffects: 'no-treeshake',
+                };
+            }
             return {
                 code: `${sideEffectImports}\nimport ${JSON.stringify(target)};\nexport * from ${JSON.stringify(target)};\n`,
                 moduleSideEffects: 'no-treeshake',

@@ -3,11 +3,13 @@ import type { App, PluginOptions } from '@gjsify/rolldown-plugin-gjsify';
 import type { RolldownOutput, RolldownPluginOption } from 'rolldown';
 import { runBundle, runWatch, bundleToChunks } from '../bundler-pick.js';
 import { gjsifyPlugin, textLoaderPlugin, resolveShebangLine, NODE_SHEBANG } from '@gjsify/rolldown-plugin-gjsify';
+import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { resolveUserPlugins } from '../utils/resolve-plugin-by-name.js';
 import { resolveGlobalsList, writeRegisterInjectFile, detectAutoGlobals } from '@gjsify/rolldown-plugin-gjsify/globals';
 import { pnpPlugin } from '@gjsify/rolldown-plugin-pnp';
-import { dirname, extname } from 'node:path';
-import { chmod, readFile, writeFile } from 'node:fs/promises';
+import { dirname, extname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize-bundler-options.js';
 
 const DEFAULT_GJS_SHEBANG = '#!/usr/bin/env -S gjs -m';
@@ -37,6 +39,45 @@ function isUnsafeDefaultOutput(path: string): boolean {
  */
 async function buildPnpPlugin(): Promise<RolldownPluginOption | null> {
     return pnpPlugin({ issuerUrl: import.meta.url });
+}
+
+/**
+ * Stable, filesystem-safe short hash of a string (djb2 → 8 hex chars).
+ * Used to key a plugin's cached GJS bundle by its resolved source path.
+ * Dependency-free on purpose — avoids pulling crypto into this hot path.
+ */
+function shortHash(value: string): string {
+    let h = 5381;
+    for (let i = 0; i < value.length; i++) {
+        h = ((h << 5) + h + value.charCodeAt(i)) >>> 0;
+    }
+    return h.toString(16).padStart(8, '0');
+}
+
+function isTruthyEnv(v: string | undefined): boolean {
+    return v === '1' || v === 'true' || v === 'yes';
+}
+
+/**
+ * Lockfiles whose change implies a plugin's *transitive* deps may have moved.
+ * A dep bump (`npm/yarn/pnpm/gjsify install`) rewrites one of these but leaves
+ * the plugin's own entry-file mtime untouched — so the plugin GJS-bundle cache
+ * must invalidate on these too, not only on the entry.
+ */
+const PLUGIN_CACHE_DEP_SIGNALS = ['gjsify-lock.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml'];
+
+/** Newest mtime (ms) among known lockfiles in `cwd`, or 0 when none exist. */
+async function newestLockfileMtime(cwd: string): Promise<number> {
+    let newest = 0;
+    for (const name of PLUGIN_CACHE_DEP_SIGNALS) {
+        try {
+            const s = await stat(join(cwd, name));
+            if (s.mtimeMs > newest) newest = s.mtimeMs;
+        } catch {
+            // not present — ignore
+        }
+    }
+    return newest;
 }
 
 export class BuildAction {
@@ -206,8 +247,108 @@ export class BuildAction {
         if (verbose) console.debug(`[gjsify] --shebang: wrote ${line} + chmod 0o755 to ${outfile}`);
     }
 
+    /**
+     * GJS plugin loader — bundle the resolved plugin module to a single
+     * self-contained ESM file, then import that. Works around GJS's native
+     * ESM loader not following `package.json#exports` subpath maps for bare
+     * specifiers: Rolldown resolves those subpaths at bundle time, so the
+     * emitted file has no unresolvable bare-specifier imports left. Injected
+     * as the `loadModule` strategy in `buildApp` only when running under GJS.
+     */
+    private async loadPluginViaGjsBundle(
+        resolvedPath: string,
+        pluginName: string,
+        verbose: boolean | undefined,
+    ): Promise<Record<string, unknown>> {
+        const outfile = await this.bundlePluginForGjs(resolvedPath, pluginName, verbose);
+        try {
+            return (await import(pathToFileURL(outfile).href)) as Record<string, unknown>;
+        } catch (err) {
+            throw new Error(
+                `gjsify config: failed to import the GJS bundle for plugin "${pluginName}" ` +
+                    `(bundled to ${outfile}). (${(err as Error).message})`,
+            );
+        }
+    }
+
+    /**
+     * Bundle a single plugin entry for `--app gjs` to a cached temp file and
+     * return its path. Reuses the full `--app gjs` pipeline (exports-map-aware
+     * resolution, `node:`→`@gjsify` aliases, `--globals auto`, single-file
+     * output) via a nested `BuildAction`. The nested config carries no
+     * `bundler.plugins`, so it never recurses back into plugin resolution.
+     *
+     * Cached under `node_modules/.cache/gjsify/plugins/`, keyed by the resolved
+     * source path. Invalidated when the plugin entry OR the project lockfile is
+     * newer than the cached bundle — a dep bump rewrites the lockfile but not
+     * the plugin's own entry mtime. The one window neither mtime catches (a
+     * transitive dep edited in place) is covered by the `GJSIFY_NO_PLUGIN_CACHE=1`
+     * escape hatch. Failures are rethrown with context naming the plugin.
+     */
+    private async bundlePluginForGjs(
+        resolvedPath: string,
+        pluginName: string,
+        verbose: boolean | undefined,
+    ): Promise<string> {
+        const cwd = process.cwd();
+        const cacheDir = join(cwd, 'node_modules', '.cache', 'gjsify', 'plugins');
+        const safeName = pluginName.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const outfile = join(cacheDir, `${safeName}-${shortHash(resolvedPath)}.mjs`);
+
+        const cacheDisabled = isTruthyEnv(process.env.GJSIFY_NO_PLUGIN_CACHE);
+        if (!cacheDisabled && (await this.isPluginBundleFresh(outfile, resolvedPath, cwd))) {
+            if (verbose) console.debug(`[gjsify] plugin "${pluginName}": reusing cached GJS bundle ${outfile}`);
+            return outfile;
+        }
+
+        if (verbose) console.debug(`[gjsify] plugin "${pluginName}": bundling for GJS → ${outfile}`);
+
+        try {
+            await mkdir(cacheDir, { recursive: true });
+            // `--globals auto` stays on so the plugin's own runtime globals
+            // (the MDX/unified toolchain touches `document`, etc.) are injected
+            // — but that injection wraps the entry with `export * from <entry>`,
+            // which drops the `default` export the plugin factory lives on.
+            // `preserveDefaultExport` makes the wrapper re-export `default` too,
+            // so the bundled plugin imports correctly as a library.
+            // shebang is intentionally left unset — the artifact is imported,
+            // not executed, so it must NOT carry a `#!` line.
+            const pluginBuild = new BuildAction({
+                verbose,
+                bundler: { input: resolvedPath, output: { file: outfile } },
+            });
+            await pluginBuild.buildApp('gjs', { preserveDefaultExport: true });
+        } catch (err) {
+            throw new Error(
+                `gjsify config: failed to bundle plugin "${pluginName}" for GJS ` +
+                    `(needed because GJS can't import packages that use exports-map subpaths directly; ` +
+                    `cache dir ${cacheDir}). (${(err as Error).message})`,
+            );
+        }
+        return outfile;
+    }
+
+    /**
+     * Fresh when the cached bundle is newer than BOTH the plugin entry AND the
+     * project's lockfile (the dep-change signal). Missing bundle/source → not
+     * fresh (rebuild).
+     */
+    private async isPluginBundleFresh(outfile: string, resolvedPath: string, cwd: string): Promise<boolean> {
+        try {
+            const outStat = await stat(outfile);
+            const srcStat = await stat(resolvedPath);
+            const depMtime = await newestLockfileMtime(cwd);
+            return outStat.mtimeMs >= Math.max(srcStat.mtimeMs, depMtime);
+        } catch {
+            return false;
+        }
+    }
+
     /** Application mode */
-    async buildApp(app: App = 'gjs', opts: { watch?: boolean } = {}): Promise<RolldownOutput[]> {
+    async buildApp(
+        app: App = 'gjs',
+        opts: { watch?: boolean; preserveDefaultExport?: boolean } = {},
+    ): Promise<RolldownOutput[]> {
         const { verbose, typescript, exclude, library: pkg, aliases, excludeGlobals } = this.configData;
 
         const userBundler = normalizeBundlerOptions(this.configData);
@@ -248,6 +389,7 @@ export class BuildAction {
             reflection: typescript?.reflection,
             consoleShim,
             ...(aliases ? { aliases } : {}),
+            ...(opts.preserveDefaultExport ? { preserveDefaultExport: true } : {}),
         };
 
         const { autoMode, extras } = this.parseGlobalsValue(globals);
@@ -271,7 +413,19 @@ export class BuildAction {
         // auto-globals pre-build to avoid claiming the same files via
         // Rolldown's default classifier.
         if (userBundler.plugins?.length) {
-            const resolved = await resolveUserPlugins(userBundler.plugins, process.cwd());
+            // Under GJS, plugin modules can't always be imported directly:
+            // GJS's native ESM loader doesn't follow `package.json#exports`
+            // subpath maps, so a plugin whose source imports an internal
+            // subpath (e.g. `@mdx-js/mdx/internal-…`) throws `Module not
+            // found` even when the file is on disk. The injected loader
+            // first bundles such a plugin to a single self-contained ESM
+            // (Rolldown resolves the exports map at bundle time) and imports
+            // that instead. On Node the default direct-import path is used.
+            const resolved = await resolveUserPlugins(
+                userBundler.plugins,
+                process.cwd(),
+                isGjs() ? { loadModule: (p, name) => this.loadPluginViaGjsBundle(p, name, verbose) } : {},
+            );
             userPlugins.push(...resolved);
         }
 
