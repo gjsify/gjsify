@@ -157,6 +157,12 @@ export class Config {
         configData.exclude = cliArgs.exclude || [];
         if (cliArgs.consoleShim !== undefined) configData.consoleShim = cliArgs.consoleShim;
         if (cliArgs.globals !== undefined) configData.globals = cliArgs.globals;
+        // Fallback applied post-merge (not as a yargs `default:`) so a
+        // `globals` declared in package.json#gjsify / `.gjsifyrc.*` survives —
+        // a yargs default is indistinguishable from a user value and would
+        // overwrite the config one. Precedence: CLI flag > config file > 'auto'
+        // (mirrors the `bundler.input` fallback below).
+        configData.globals ??= 'auto';
         if (cliArgs.shebang !== undefined) configData.shebang = cliArgs.shebang;
         if (cliArgs.excludeGlobals) {
             const raw = Array.isArray(cliArgs.excludeGlobals)
