@@ -6,6 +6,10 @@ export interface IFrameBridgeOptions {
     enableDeveloperExtras?: boolean;
     /** Enable JavaScript execution in the WebView. Default: true */
     enableJavascript?: boolean;
+    /** Mirror the page's `console.*` output to the host so it can be read via
+     *  `getConsoleLogs()` / `onConsole()`. Off by default — it wraps `console`
+     *  on every page, so it is opt-in. Default: false */
+    captureConsole?: boolean;
 }
 
 /** Data structure for messages crossing the GJS/WebView boundary */
@@ -30,3 +34,14 @@ export interface LoadErrorInfo {
 
 /** Callback invoked when a load fails. */
 export type LoadErrorCallback = (info: LoadErrorInfo) => void;
+
+/** A captured `console.*` call forwarded from the page. */
+export interface ConsoleLogEntry {
+    /** The console level (`log` / `warn` / `error` / `info` / `debug`). */
+    level: string;
+    /** The call arguments, stringified in-page. */
+    args: string[];
+}
+
+/** Callback invoked for each captured console entry. */
+export type ConsoleCallback = (entry: ConsoleLogEntry) => void;

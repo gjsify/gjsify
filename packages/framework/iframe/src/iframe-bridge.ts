@@ -7,6 +7,13 @@ import WebKit from 'gi://WebKit?version=6.0';
 
 import { notifyElementResize } from '@gjsify/dom-elements';
 
+import {
+    buildClickElementExpression,
+    buildGetLinksExpression,
+    buildQueryDomExpression,
+    type ElementInfo,
+    type LinkInfo,
+} from './dom-queries.js';
 import { buildEvalScript, parseEvalResult } from './eval.js';
 import { HTMLIFrameElement } from './html-iframe-element.js';
 import { IFrameWindowProxy } from './iframe-window-proxy.js';
@@ -15,7 +22,14 @@ import * as PS from './property-symbol.js';
 // Install the Promise-returning overloads of evaluate_javascript / get_snapshot.
 import './promisify.js';
 
-import type { IFrameBridgeOptions, IFrameReadyCallback, LoadErrorCallback, LoadErrorInfo } from './types/index.js';
+import type {
+    ConsoleCallback,
+    ConsoleLogEntry,
+    IFrameBridgeOptions,
+    IFrameReadyCallback,
+    LoadErrorCallback,
+    LoadErrorInfo,
+} from './types/index.js';
 
 /** A pending {@link IFrameBridge.waitForNavigation} promise. `sourceId` is the
  *  GLib timeout source backing its deadline (null when no timeout). */
@@ -60,7 +74,7 @@ export const IFrameBridge = GObject.registerClass(
         _loadErrorCallbacks: LoadErrorCallback[] = [];
 
         constructor(options?: IFrameBridgeOptions & Partial<WebKit.WebView.ConstructorProps>) {
-            const { enableDeveloperExtras, enableJavascript, ...webViewProps } = options ?? {};
+            const { enableDeveloperExtras, enableJavascript, captureConsole, ...webViewProps } = options ?? {};
 
             const userContentManager = new WebKit.UserContentManager();
             const settings = new WebKit.Settings();
@@ -73,14 +87,14 @@ export const IFrameBridge = GObject.registerClass(
                 settings,
             });
 
-            this._options = { enableDeveloperExtras, enableJavascript };
+            this._options = { enableDeveloperExtras, enableJavascript, captureConsole };
 
             // Create the DOM element and link it to this widget
             this._iframe = new HTMLIFrameElement();
             this._iframe[PS.iframeWidget] = this as unknown as IFrameBridge;
 
             // Set up the message bridge
-            this._messageBridge = new MessageBridge(this);
+            this._messageBridge = new MessageBridge(this, { captureConsole });
 
             // Create the window proxy and connect it
             const windowProxy = new IFrameWindowProxy(this._messageBridge);
@@ -325,6 +339,61 @@ export const IFrameBridge = GObject.registerClass(
                 if (error) waiter.reject(error);
                 else waiter.resolve();
             }
+        }
+
+        /** Current size of the WebView content region, in widget pixels. */
+        getViewportSize(): { width: number; height: number } {
+            return { width: this.get_allocated_width(), height: this.get_allocated_height() };
+        }
+
+        /**
+         * Request a content-region size (e.g. for responsive testing). This sets
+         * the widget's size request; the actual allocation still depends on the
+         * parent layout, and `getViewportSize()` reflects the realised size.
+         */
+        setViewportSize(width: number, height: number): void {
+            this.set_size_request(width, height);
+        }
+
+        /** Buffered page `console.*` output. Empty unless the bridge was created
+         *  with `{ captureConsole: true }`. */
+        getConsoleLogs(): ConsoleLogEntry[] {
+            return this._messageBridge.getConsoleLogs();
+        }
+
+        /** Drop all buffered console entries. */
+        clearConsoleLogs(): void {
+            this._messageBridge.clearConsoleLogs();
+        }
+
+        /** Subscribe to captured console entries as they arrive. Requires
+         *  `{ captureConsole: true }` to receive anything. */
+        onConsole(cb: ConsoleCallback): void {
+            this._messageBridge.onConsole(cb);
+        }
+
+        /** Every `<a href>` on the page (resolved href, trimmed text, title). */
+        async getLinks(): Promise<LinkInfo[]> {
+            const result = await this.evaluateJavaScript(buildGetLinksExpression());
+            return Array.isArray(result) ? (result as LinkInfo[]) : [];
+        }
+
+        /** Metadata for elements matching a CSS selector (capped at `limit`). */
+        async queryDom(selector: string, limit = 200): Promise<ElementInfo[]> {
+            const result = await this.evaluateJavaScript(buildQueryDomExpression(selector, limit));
+            return Array.isArray(result) ? (result as ElementInfo[]) : [];
+        }
+
+        /**
+         * Click the first element matching `selectorOrText` — a CSS selector, or
+         * (failing that) an `<a>` matched by exact trimmed text. Resolves to true
+         * when an element was found + clicked. Does NOT wait for navigation: to
+         * await a resulting page change, register `waitForNavigation()` *before*
+         * calling this, then await it (a fast navigation may finish first).
+         */
+        async clickElement(selectorOrText: string): Promise<boolean> {
+            const result = await this.evaluateJavaScript(buildClickElementExpression(selectorOrText));
+            return result === true;
         }
 
         /**
