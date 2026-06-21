@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.9.0](https://github.com/gjsify/gjsify/compare/v0.8.0...v0.9.0) (2026-06-21)
+
+### Features
+
+* auto-bundle by-name plugins under GJS ([#556](https://github.com/gjsify/gjsify/issues/556)) ([e14c99c](https://github.com/gjsify/gjsify/commit/e14c99cf14dc63e594926d181b0b9aab308ee912))
+
+### Bug Fixes
+
+* **e2e:** move self-host to the serial e2e tail ([1f64043](https://github.com/gjsify/gjsify/commit/1f640434edf2fb1ff3c135b4a55265974b0695a1))
+* **workspace:** dedupe overlapping workspace globs ([#555](https://github.com/gjsify/gjsify/issues/555)) ([f6230b9](https://github.com/gjsify/gjsify/commit/f6230b94f22e51ffbd5361faa23d3e903437424c))
+
 ## [0.8.0](https://github.com/gjsify/gjsify/compare/v0.7.5...v0.8.0) (2026-06-20)
 
 ### Features
