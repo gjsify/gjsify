@@ -203,6 +203,138 @@ export function registerGenericTools(ctx: McpToolContext, which: GenericToolName
         );
     }
 
+    if (want('list_toplevels')) {
+        server.registerTool(
+            'list_toplevels',
+            {
+                description: 'List the app’s live toplevel windows (path, type, title, mapped, focused).',
+                inputSchema: z.object({ ...instanceArg }),
+            },
+            async ({ instance }) => {
+                try {
+                    return ok(await client.jsonCall(instance, 'ListToplevels'));
+                } catch (error) {
+                    return dbusError(error, instance);
+                }
+            },
+        );
+    }
+
+    if (want('dump_tree')) {
+        server.registerTool(
+            'dump_tree',
+            {
+                description:
+                    'Dump the widget tree as JSON from `root` (a widget path like "toplevel:0/child:2", or omit ' +
+                    'for the active window), bounded by `depth`.',
+                inputSchema: z.object({ root: z.string().optional(), depth: z.number().optional(), ...instanceArg }),
+            },
+            async ({ root, depth, instance }) => {
+                try {
+                    const params = GLib.Variant.new_tuple([strv(root ?? ''), GLib.Variant.new_int32(depth ?? 8)]);
+                    return ok(await client.jsonCall(instance, 'DumpTree', params));
+                } catch (error) {
+                    return dbusError(error, instance);
+                }
+            },
+        );
+    }
+
+    if (want('get_property')) {
+        server.registerTool(
+            'get_property',
+            {
+                description: 'Read a widget’s GObject property by widget path + property name (JSON-safe value).',
+                inputSchema: z.object({ path: z.string(), prop: z.string(), ...instanceArg }),
+            },
+            async ({ path, prop, instance }) => {
+                try {
+                    const params = GLib.Variant.new_tuple([strv(path), strv(prop)]);
+                    return ok(await client.jsonCall(instance, 'GetProperty', params));
+                } catch (error) {
+                    return dbusError(error, instance);
+                }
+            },
+        );
+    }
+
+    if (want('get_focused')) {
+        server.registerTool(
+            'get_focused',
+            {
+                description: 'The currently-focused widget (path, name, type), or null.',
+                inputSchema: z.object({ ...instanceArg }),
+            },
+            async ({ instance }) => {
+                try {
+                    return ok(await client.jsonCall(instance, 'GetFocused'));
+                } catch (error) {
+                    return dbusError(error, instance);
+                }
+            },
+        );
+    }
+
+    if (want('dump_gsettings')) {
+        server.registerTool(
+            'dump_gsettings',
+            {
+                description: 'Dump every key + value of an installed GSettings schema (read-only).',
+                inputSchema: z.object({ schema: z.string(), ...instanceArg }),
+            },
+            async ({ schema, instance }) => {
+                try {
+                    return ok(await client.jsonCall(instance, 'DumpGSettings', GLib.Variant.new_tuple([strv(schema)])));
+                } catch (error) {
+                    return dbusError(error, instance);
+                }
+            },
+        );
+    }
+
+    if (want('dump_css')) {
+        server.registerTool(
+            'dump_css',
+            {
+                description: 'List the devtools-installed CSS provider names.',
+                inputSchema: z.object({ ...instanceArg }),
+            },
+            async ({ instance }) => {
+                try {
+                    return ok(await client.jsonCall(instance, 'DumpCss'));
+                } catch (error) {
+                    return dbusError(error, instance);
+                }
+            },
+        );
+    }
+
+    if (want('swap_css')) {
+        server.registerTool(
+            'swap_css',
+            {
+                description:
+                    'Live-install or replace a named CSS provider (high priority) — re-theme the running app ' +
+                    'without a restart. Returns applied.',
+                inputSchema: z.object({ name: z.string(), css: z.string(), ...instanceArg }),
+            },
+            async ({ name, css, instance }) => {
+                try {
+                    const reply = await client.control(
+                        instance,
+                        'SwapCss',
+                        GLib.Variant.new_tuple([strv(name), strv(css)]),
+                        '(b)',
+                    );
+                    const [applied] = reply.recursiveUnpack() as [boolean];
+                    return ok(applied ? `Applied CSS provider "${name}".` : 'No display — CSS not applied.');
+                } catch (error) {
+                    return dbusError(error, instance);
+                }
+            },
+        );
+    }
+
     if (want('list_instances')) {
         server.registerTool(
             'list_instances',

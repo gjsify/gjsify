@@ -14,7 +14,14 @@ export type GenericToolName =
     | 'change_action_state'
     | 'present_window'
     | 'resize_window'
-    | 'list_instances';
+    | 'list_instances'
+    | 'list_toplevels'
+    | 'dump_tree'
+    | 'get_property'
+    | 'get_focused'
+    | 'dump_gsettings'
+    | 'dump_css'
+    | 'swap_css';
 
 /** Context handed to the generic tool registrations and to a profile's `registerTools`. */
 export interface McpToolContext {

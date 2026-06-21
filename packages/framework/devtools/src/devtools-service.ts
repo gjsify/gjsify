@@ -15,6 +15,16 @@ import { activateAction, changeActionState, describeActions } from './actions.js
 import { buildDevtoolsIfaceXml } from './devtools-iface.js';
 import type { DevtoolsExtension, InstallDevtoolsOptions } from './extension.js';
 import { captureWidgetPng } from './screenshot.js';
+import { dumpCss, swapCss } from './css.js';
+import { dumpGSettings } from './gsettings.js';
+import {
+    dumpTree,
+    getWidgetProperty,
+    listToplevels,
+    pathOfWidget,
+    resolveWidgetPath,
+    widgetType,
+} from './widget-tree.js';
 
 type ActionScope = 'app' | 'win';
 
@@ -136,7 +146,64 @@ export class DevtoolsService {
         return [w, h];
     }
 
+    // --- Phase 3: introspection (read-only) + CSS hot-swap ---
+
+    /** `ListToplevels() -> s` — JSON of live toplevel windows. */
+    ListToplevels(): string {
+        return JSON.stringify(listToplevels());
+    }
+
+    /** `DumpTree(root, depth) -> s` — JSON widget tree from `root` ('' = active window). */
+    DumpTree(root: string, depth: number): string {
+        const resolved = this._resolveRootWidget(root);
+        if (!resolved) throw new Error(formatDbusErrorMessage('not-found', `no widget at '${root || 'active window'}'`));
+        return JSON.stringify(dumpTree(resolved.widget, depth > 0 ? depth : 8, resolved.path));
+    }
+
+    /** `GetProperty(path, prop) -> s` — JSON value of a widget's GObject property. */
+    GetProperty(path: string, prop: string): string {
+        const resolved = this._resolveRootWidget(path);
+        if (!resolved) throw new Error(formatDbusErrorMessage('not-found', `no widget at '${path}'`));
+        const value = getWidgetProperty(resolved.widget, prop);
+        if (value === undefined) throw new Error(formatDbusErrorMessage('not-found', `widget has no property '${prop}'`));
+        return JSON.stringify(value);
+    }
+
+    /** `GetFocused() -> s` — JSON {path,name,type} of the focused widget, or null. */
+    GetFocused(): string {
+        const win = this._app.get_active_window();
+        const focus = win ? win.get_focus() : null;
+        if (!focus) return JSON.stringify(null);
+        return JSON.stringify({ path: pathOfWidget(focus), name: focus.get_name() || null, type: widgetType(focus) });
+    }
+
+    /** `DumpGSettings(schema_id) -> s` — JSON of a schema's keys + values. */
+    DumpGSettings(schemaId: string): string {
+        return JSON.stringify(dumpGSettings(schemaId));
+    }
+
+    /** `DumpCss() -> s` — JSON of the devtools-installed CSS provider names. */
+    DumpCss(): string {
+        return JSON.stringify(dumpCss());
+    }
+
+    /** `SwapCss(name, css) -> b` — live-install/replace a named CSS provider. */
+    SwapCss(name: string, css: string): boolean {
+        this._guard('SwapCss');
+        return swapCss(name, css);
+    }
+
     // --- internals ---
+
+    private _resolveRootWidget(root: string): { widget: Gtk.Widget; path: string } | null {
+        if (!root || root === 'window' || root === 'active') {
+            const win = this._app.get_active_window();
+            if (!win) return null;
+            return { widget: win, path: pathOfWidget(win) ?? 'toplevel:0' };
+        }
+        const widget = resolveWidgetPath(root);
+        return widget ? { widget, path: root } : null;
+    }
 
     private _isPaused(): boolean {
         return this._options.paused?.() ?? false;

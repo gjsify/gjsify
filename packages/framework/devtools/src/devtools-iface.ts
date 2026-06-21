@@ -30,6 +30,34 @@ const GENERIC_METHODS_XML = `    <method name="GetStatus">
       <arg type="i" direction="in" name="height"/>
       <arg type="i" direction="out" name="result_width"/>
       <arg type="i" direction="out" name="result_height"/>
+    </method>
+    <method name="ListToplevels">
+      <arg type="s" direction="out" name="toplevels_json"/>
+    </method>
+    <method name="DumpTree">
+      <arg type="s" direction="in" name="root"/>
+      <arg type="i" direction="in" name="depth"/>
+      <arg type="s" direction="out" name="tree_json"/>
+    </method>
+    <method name="GetProperty">
+      <arg type="s" direction="in" name="path"/>
+      <arg type="s" direction="in" name="prop"/>
+      <arg type="s" direction="out" name="value_json"/>
+    </method>
+    <method name="GetFocused">
+      <arg type="s" direction="out" name="focused_json"/>
+    </method>
+    <method name="DumpGSettings">
+      <arg type="s" direction="in" name="schema_id"/>
+      <arg type="s" direction="out" name="settings_json"/>
+    </method>
+    <method name="DumpCss">
+      <arg type="s" direction="out" name="css_json"/>
+    </method>
+    <method name="SwapCss">
+      <arg type="s" direction="in" name="name"/>
+      <arg type="s" direction="in" name="css"/>
+      <arg type="b" direction="out" name="applied"/>
     </method>`;
 
 /**

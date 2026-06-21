@@ -9,6 +9,18 @@ export { buildVariant, variantKindFor } from './gvariant.js';
 export type { VariantKind } from './gvariant.js';
 export { activateAction, changeActionState, describeActions } from './actions.js';
 export { buildDevtoolsIfaceXml } from './devtools-iface.js';
+export {
+    buildWidgetPath,
+    dumpTree,
+    getWidgetProperty,
+    listToplevels,
+    parseWidgetPath,
+    pathOfWidget,
+    resolveWidgetPath,
+    widgetType,
+} from './widget-tree.js';
+export { dumpCss, removeCss, swapCss } from './css.js';
+export { dumpGSettings } from './gsettings.js';
 
 // Re-export the transport-agnostic contract so a consumer needs one import.
 export * from '@gjsify/devtools-protocol';
