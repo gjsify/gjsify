@@ -269,3 +269,6 @@
 [submodule "refs/nativescript-canvas"]
 	path = refs/nativescript-canvas
 	url = git@github.com:NativeScript/canvas.git
+[submodule "refs/developer.gnome.org-hig"]
+	path = refs/developer.gnome.org-hig
+	url = https://gitlab.gnome.org/Teams/Websites/developer.gnome.org-hig.git
