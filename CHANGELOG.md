@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.0](https://github.com/gjsify/gjsify/compare/v0.9.0...v0.10.0) (2026-06-21)
+
+### Features
+
+* node-free multi-package orchestration under GJS ([#558](https://github.com/gjsify/gjsify/issues/558)) ([eb4f6b2](https://github.com/gjsify/gjsify/commit/eb4f6b2b46e6a21764962308e7cd27e19a5401fd))
+
 ## [0.9.0](https://github.com/gjsify/gjsify/compare/v0.8.0...v0.9.0) (2026-06-21)
 
 ### Features
