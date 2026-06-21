@@ -3,13 +3,13 @@
 // Copyright (c) PixelRPG contributors. MIT license.
 // Modifications: Simplified to standard postMessage semantics (no JSON-RPC layer)
 
-import Gio from 'gi://Gio?version=2.0';
 import WebKit from 'gi://WebKit?version=6.0';
 import type JavaScriptCore from 'gi://JavaScriptCore?version=6.0';
 import { MessageEvent } from '@gjsify/dom-events';
 
-// Promisify evaluate_javascript so it returns a Promise in GJS
-Gio._promisify(WebKit.WebView.prototype, 'evaluate_javascript', 'evaluate_javascript_finish');
+// Install the Promise-returning overloads of the WebKit.WebView async methods
+// (evaluate_javascript / get_snapshot) used across this package.
+import './promisify.js';
 
 import type { IFrameWindowProxy } from './iframe-window-proxy.js';
 import type { IFrameMessageData } from './types/index.js';
