@@ -586,6 +586,73 @@ npx @gjsify/cli showcase three-geometry-teapot
 | `--list` | `false` | Force list mode |
 | `--json` | `false` | Output as JSON (list mode only) |
 
+## `gjsify storybook`
+
+Discover every `*.story.ts` in the project and launch the GTK/Adwaita component browser from [`@gjsify/storybook`](https://www.npmjs.com/package/@gjsify/storybook) — a sidebar grouped by category, a live preview pane, and an auto-generated controls panel. No per-project storybook *application* to maintain.
+
+```bash
+gjsify storybook                       # discover src/**/*.story.ts and launch
+gjsify storybook --stories packages    # scan a different directory
+gjsify storybook --watch               # rebuild + relaunch on story change
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--stories <dir>` | `src` or `gjsify.storybook.stories` | Directory scanned recursively for `*.story.ts`. |
+| `--app-id <id>` | `gjsify.storybook.applicationId` or derived from the package name | GApplication id. |
+| `--title <text>` | — | Window title. |
+| `--globals <value>` | `auto` | Value for `gjsify build --globals` (use `auto,dom` for canvas/DOM stories). |
+| `--out <path>` | `node_modules/.cache/gjsify-storybook` | Output bundle path. |
+| `--watch` | `false` | Rebuild and relaunch when a story file changes. |
+| `--build-only` | `false` | Build the bundle but do not launch it. |
+
+Configure defaults in `package.json#gjsify.storybook` (`applicationId`, `title`, `stories`, `globals`). With `GJSIFY_DEVTOOLS=1`, the storybook host also exposes the devtools control plane, so an agent can drive it via `gjsify debug --profile storybook`. See the [Debugging & remote control guide](./guides/devtools/).
+
+## `gjsify debug`
+
+Launch an **MCP↔devtools bridge** for a running, devtools-enabled gjsify app (its `org.gjsify.Devtools` DBus control plane). An MCP client (e.g. Claude Code) uses this as its server command; the bridge speaks JSON-RPC on stdio and translates each tool call to the app's DBus interface. Provided by [`@gjsify/devtools-mcp`](https://www.npmjs.com/package/@gjsify/devtools-mcp).
+
+```bash
+# Point an MCP client at it (.mcp.json):
+#   { "mcpServers": { "my-app": { "command": "gjsify", "args": ["debug", "--bus-name", "org.example.App"] } } }
+
+gjsify debug --bus-name org.example.App         # generic profile
+gjsify debug --profile storybook                # storybook tools (list/open/set-arg/screenshot)
+gjsify debug --build-only --out dist/bridge.gjs.mjs   # build once; point .mcp.json at the bundle
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--bus-name <name>` | `gjsify.devtools.busNameBase`, or the storybook/browser app-id | App DBus base name. |
+| `--profile <kind>` | auto | `generic` \| `storybook` \| `browser`. Auto: `storybook` if `@gjsify/storybook` is a dep, `browser` if `@gjsify/devtools-browser` is, else `generic`. |
+| `--globals <value>` | `auto` | Value for `gjsify build --globals`. |
+| `--out <path>` | `node_modules/.cache/gjsify-debug` | Output bundle path. |
+| `--build-only` | `false` | Build the bridge bundle but do not launch it (for a `.mcp.json` command pointing at the bundle). |
+
+> **MCP cleanliness:** `gjsify debug` logs **only to stderr** — stdout is the JSON-RPC channel. The bridge resolves `@gjsify/devtools-mcp` from the *consumer's* `node_modules`. Full workflow: [Debugging & remote control guide](./guides/devtools/).
+
+## `gjsify browse`
+
+Launch the minimalist **Adwaita web browser** from [`@gjsify/devtools-browser`](https://www.npmjs.com/package/@gjsify/devtools-browser), optionally pointed at a URL. With `--devtools` it exposes the same `org.gjsify.Devtools` control plane (browser profile), so an agent can navigate, screenshot the rendered page, eval JS, inspect elements, and read the DOM/network/accessibility trees over MCP — purpose-built for debugging gjsify-built **web** apps.
+
+```bash
+gjsify browse                              # open page:welcome
+gjsify browse https://gnome.org            # open a URL
+gjsify browse https://localhost:8080 --devtools   # + MCP control plane (drive via `gjsify debug --profile browser`)
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `[url]` | `page:welcome` | Initial URL (a `page:*` built-in page or `https://…`). |
+| `--app-id <id>` | `gjsify.browse.applicationId` or derived from the package name | GApplication id. |
+| `--title <text>` | — | Window title. |
+| `--globals <value>` | `auto,dom` | Value for `gjsify build --globals` (WebKit/iframe need DOM globals). |
+| `--out <path>` | `node_modules/.cache/gjsify-browse` | Output bundle path. |
+| `--devtools` | `false` | Enable the MCP devtools control plane (sets `GJSIFY_DEVTOOLS=1`). |
+| `--build-only` | `false` | Build the bundle but do not launch it. |
+
+The browser is built on [`@gjsify/iframe`](https://www.npmjs.com/package/@gjsify/iframe) (a `WebKit.WebView` postMessage bridge). See the [Debugging & remote control guide](./guides/devtools/) for the agent workflow.
+
 ## `gjsify gresource`
 
 Compile a GResource XML descriptor into a binary `.gresource` bundle. Thin wrapper around `glib-compile-resources` — useful when you want to package UI templates and assets into the app bundle without pulling in meson/autotools.

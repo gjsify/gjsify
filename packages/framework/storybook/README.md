@@ -82,6 +82,17 @@ await runStorybook({
 });
 ```
 
+## Debug it over MCP
+
+Run the storybook with `GJSIFY_DEVTOOLS=1` and it exposes the [`@gjsify/devtools`](../devtools) control plane, so an AI agent can drive it:
+
+```bash
+GJSIFY_DEVTOOLS=1 gjsify storybook        # exposes org.gjsify.Devtools
+gjsify debug --profile storybook          # MCP bridge: list_stories / get_current_story / open_story / set_story_arg (+ generic screenshot)
+```
+
+See the [Debugging & remote control guide](https://gjsify.github.io/gjsify/guides/devtools/).
+
 ## Exports
 
 - `StoryWidget` — Adw.Bin base class; `fromMeta()`, `addContent()`, `initialize()`/`updateArgs()`/`teardown()` hooks
