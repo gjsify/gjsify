@@ -225,6 +225,12 @@ jobs:
       - name: Create non-root user for tests
         run: |
           useradd -m testuser
+          # Raise testuser's open-file limit via PAM. `su testuser -c` resets the
+          # soft nofile limit back to the login default (~1024), undoing the
+          # container's --ulimit — which is why the F43 test leg still hit
+          # `GLib-ERROR: Creating pipes for GWakeup: Too many open files`. A
+          # limits.conf entry is applied by pam_limits on every `su testuser`.
+          echo "testuser - nofile 1048576" >> /etc/security/limits.conf
           # Pre-create the (possibly cache-restored) gjsify cache dir so the
           # chown below hands it to testuser for the install step.
           mkdir -p .gjsify-cache
@@ -451,6 +457,8 @@ jobs:
           INCLUDE_ARGS: ${{ needs.changes.outputs.include-args }}
         run: |
           su testuser -c "PATH=\"\$PWD/node_modules/.bin:\$PATH\" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args=\"-screen 0 1280x720x24\" sh -c '
+            ulimit -n \"\$(ulimit -Hn)\" 2>/dev/null || true
+            echo \"[ci] nofile limit: soft=\$(ulimit -Sn) hard=\$(ulimit -Hn)\"
             if [ \"\$GLOBAL\" = \"true\" ] || [ -z \"\$GLOBAL\" ]; then
               gjsify run test
             else
