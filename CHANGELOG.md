@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.11.0](https://github.com/gjsify/gjsify/compare/v0.10.0...v0.11.0) (2026-06-22)
+
+### Features
+
+* **devtools-browser:** MCP-drivable Adwaita web browser ([#566](https://github.com/gjsify/gjsify/issues/566)) ([5537592](https://github.com/gjsify/gjsify/commit/55375924f9cb9ef484db2459bead7bf21d182018))
+* **devtools:** add DBus + MCP debug control plane ([6228c53](https://github.com/gjsify/gjsify/commit/6228c53fad07825d0e5c9ecee5cd1ed970d5492d))
+* **iframe:** add page eval, screenshot, nav-wait ([98e3915](https://github.com/gjsify/gjsify/commit/98e3915161f634fe4399abf18cd359a50b7f5bf7))
+* **iframe:** console capture + DOM helpers ([f15b6c9](https://github.com/gjsify/gjsify/commit/f15b6c9cf7b6c2593ca0cb5b92b53fcd8d989bb9))
+* warn on GI-backed --globals auto injection ([9a83f19](https://github.com/gjsify/gjsify/commit/9a83f1935b867f592923e109c817bf63a3ee26ac))
+
+### Bug Fixes
+
+* **cli:** honor config globals over yargs default ([63cae36](https://github.com/gjsify/gjsify/commit/63cae36f374182cc36e587279832bc26b87c9e1c)), closes [package.json#gjsify](https://github.com/gjsify/package.json/issues/gjsify)
+* **devtools-mcp:** align zod range to ^4.4.3 ([e65587a](https://github.com/gjsify/gjsify/commit/e65587a9f0d9984063b1db7bc09de771fb1557ca)), closes [#557](https://github.com/gjsify/gjsify/issues/557)
+
+### Documentation
+
+* document devtools control plane + debug/browse/storybook CLI ([#567](https://github.com/gjsify/gjsify/issues/567)) ([1839953](https://github.com/gjsify/gjsify/commit/183995334a90ff294fd3b4026290cd99511133ac))
+
+### Continuous Integration
+
+* raise nofile limit to fix F43 test EMFILE ([f02a1f4](https://github.com/gjsify/gjsify/commit/f02a1f466797cd20a03504a7fdf72b311dc82c59))
+* raise testuser nofile limit for F43 tests ([a3c1938](https://github.com/gjsify/gjsify/commit/a3c19381f26f92827c5ce21254e795fa1967cef7))
+
+### Maintenance
+
+* **refs:** Add GNOME HIG ([74e17cc](https://github.com/gjsify/gjsify/commit/74e17cc10e7a5f57ca00f176b247b083a0701e70))
+* **refs:** update submodules to latest upstream ([e67efe1](https://github.com/gjsify/gjsify/commit/e67efe1f6daee0fbe2aa6d4019b967d8e70f8091)), closes [#277](https://github.com/gjsify/gjsify/issues/277)
+
 ## [0.10.0](https://github.com/gjsify/gjsify/compare/v0.9.0...v0.10.0) (2026-06-21)
 
 ### Features
