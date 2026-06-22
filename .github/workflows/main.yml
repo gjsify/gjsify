@@ -135,6 +135,14 @@ jobs:
     timeout-minutes: 240
     container:
       image: fedora:${{ matrix.fedora.v }}
+      # Raise the open-file limit for every step. The parallel GJS `foreach`
+      # test run opens many fds (GStreamer/webrtc pipelines, in-process bundler
+      # eventfds), exhausting the default nofile soft limit on the Fedora 43 leg
+      # — it aborts with `GLib-ERROR: Creating pipes for GWakeup: Too many open
+      # files`. Fedora 44's higher default hides it, so PRs (44-only) stay green
+      # while push-to-main (43 + 44) goes red. Setting it on the container fixes
+      # both legs uniformly.
+      options: --ulimit nofile=1048576:1048576
 
     steps:
       - name: Install container prerequisites
