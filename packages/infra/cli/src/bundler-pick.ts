@@ -36,6 +36,7 @@ import type { RolldownOutput, InputOptions, RolldownWatcher } from 'rolldown';
 import type * as Rolldown from 'rolldown';
 import type { BundlerOptions } from './types/index.js';
 import { resolveNpmPackage } from './utils/resolve-npm-package.js';
+import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 // npm `rolldown` is a Rust crate with platform-specific prebuilds; loading
 // it eagerly at module init pulls musl-detection code that does
@@ -51,8 +52,7 @@ async function loadNpmRolldown(): Promise<typeof Rolldown.rolldown> {
     // inside the crate's wrapper (e.g. on a truly-cold workspace where
     // `@gjsify/rolldown-native`'s lib/ is not built yet, issue #497).
     // Fail with the actionable diagnosis instead.
-    const isGjs = typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
-    if (isGjs) {
+    if (isGjs()) {
         throw new Error(
             'gjsify build: no usable bundler engine under GJS — `@gjsify/rolldown-native` is not loadable ' +
                 '(its JS facade lib/ is not built, or its prebuild typelib is missing from GI_TYPELIB_PATH), ' +
@@ -91,8 +91,7 @@ async function loadNpmRolldown(): Promise<typeof Rolldown.rolldown> {
  * rolldown` even though the package is present under the install dir.
  */
 function resolveImportTargetForGjs(specifier: string): string {
-    const isGjs = typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
-    if (!isGjs) return specifier;
+    if (!isGjs()) return specifier;
     const resolved = resolveNpmPackage(specifier, { bundleUrl: import.meta.url });
     if (resolved) return pathToFileURL(resolved).href;
     return specifier;
@@ -276,8 +275,7 @@ export async function shouldUseNative(): Promise<boolean> {
     //   GJS:     try @gjsify/rolldown-native — it's the only engine
     //            that can actually run here (npm rolldown is a Rust
     //            crate). Fall back to npm only on Node.
-    const isGjs = typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
-    if (!isGjs) return false;
+    if (!isGjs()) return false;
     const native = await tryLoadNative();
     return native !== null;
 }
@@ -318,8 +316,7 @@ export function findRolldownNativeDir(startDir: string, bundleDir?: string): str
 async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
     if (_nativeProbe) return _nativeProbe;
     _nativeProbe = (async (): Promise<NativeRolldownSurface | null> => {
-        const isGjs = typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
-        if (!isGjs) return null;
+        if (!isGjs()) return null;
         try {
             // Under GJS the ESM loader has no node_modules resolver — a bare
             // `import('@gjsify/rolldown-native')` would throw `Module not
@@ -337,7 +334,7 @@ async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
             // to npm rolldown (which then throws ImportError for `rolldown`).
             const specifier = '@gjsify/rolldown-native';
             let target: string = specifier;
-            if (isGjs) {
+            if (isGjs()) {
                 // Same multi-anchor resolution as `loadNpmRolldown` —
                 // when the bundle is invoked from a cwd outside the
                 // install dir, anchoring solely at `import.meta.url`

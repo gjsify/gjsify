@@ -216,6 +216,31 @@ export const GJS_GLOBALS_MAP = {
     navigator:            '@gjsify/dom-elements/register/navigator',
 };
 
+/**
+ * Register subpaths whose module imports a GObject-Introspection typelib
+ * (`gi://…`) at load time, keyed by register-path PREFIX → the GI namespaces
+ * they pull. `--globals auto` injecting one of these makes the resulting
+ * bundle hard-require a GTK/GNOME runtime: under a GTK-less host (a headless
+ * type-check container, SSR generator, plain CI) the bundle crashes at import
+ * with `Typelib for <Ns> not found`.
+ *
+ * Consumed by `auto-globals.ts` to turn that otherwise-silent runtime crash
+ * into an actionable build-time note naming the trigger references. Matched by
+ * `path.startsWith(prefix)` so it covers every granular subpath of a package
+ * (e.g. `…/register/document`, `…/register/canvas`) with one entry.
+ *
+ * Keep in lockstep with the GI-backed register modules: when a package's
+ * `register/*` starts (or stops) importing a `gi://` namespace, update this
+ * map. (Step in the "Adding a new global" checklist when the register is
+ * GI-backed.) Only registers reachable via `GJS_GLOBALS_MAP` need an entry.
+ */
+export const GJS_GI_BACKED_REGISTERS = {
+    '@gjsify/dom-elements/register': ['Gdk', 'GdkPixbuf', 'Pango', 'PangoCairo'],
+    '@gjsify/webaudio/register':     ['Gst', 'GstApp'],
+    '@gjsify/webrtc/register':       ['Gst', 'GstWebRTC', 'GstSdp'],
+    '@gjsify/gamepad/register':      ['Manette'],
+};
+
 // ─── Browser target ────────────────────────────────────────────────────────
 //
 // `GJS_GLOBALS_MAP` is the GJS-target authority — every identifier needs a

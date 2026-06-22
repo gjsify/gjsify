@@ -57,6 +57,8 @@ import {
     debugCommand as debug,
 } from './commands/index.js';
 import { APP_NAME } from './constants.js';
+import { isNode } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { ensureGjsifyShimOnPath } from './utils/gjsify-shim.js';
 
 // Detect which runtime is executing the CLI (GJS or Node.js).
 // GJS MUST be checked first because @gjsify/process sets
@@ -72,7 +74,7 @@ function runtimeLabel(): string {
     } catch {
         /* not GJS */
     }
-    if (typeof process !== 'undefined' && typeof process.versions?.node === 'string') {
+    if (isNode()) {
         return `Node.js ${process.version}`;
     }
     return 'unknown runtime';
@@ -106,6 +108,11 @@ function readBundleVersion(): string {
  * exit before any async work runs.
  */
 export async function runCli(argv: readonly string[]): Promise<void> {
+    // Under GJS, make a GJS-runnable `gjsify` available on PATH for child
+    // processes (workspace/foreach orchestration + compound `gjsify run`
+    // scripts) so node-free builds don't fall back to the Node bin. No-op on
+    // Node.
+    ensureGjsifyShimOnPath();
     const cli = yargs(argv as string[]);
     await cli
         .scriptName(APP_NAME)

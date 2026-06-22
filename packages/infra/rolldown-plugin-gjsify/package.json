@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/rolldown-plugin-gjsify",
-    "version": "0.8.0",
+    "version": "0.10.0",
     "description": "Rolldown / Rollup / Vite plugin orchestrator for GJS, Node, and Browser targets",
     "type": "module",
     "main": "lib/index.js",
@@ -14,6 +14,10 @@
         "./globals": {
             "types": "./lib/globals.d.ts",
             "default": "./lib/globals.js"
+        },
+        "./runtime": {
+            "types": "./lib/utils/runtime.d.ts",
+            "default": "./lib/utils/runtime.js"
         },
         "./shims/console-gjs": {
             "default": "./lib/shims/console-gjs.js"

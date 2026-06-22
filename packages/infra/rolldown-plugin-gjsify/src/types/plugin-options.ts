@@ -45,4 +45,17 @@ export interface PluginOptions {
      * applies to `--app gjs`.
      */
     autoGlobalsInject?: string;
+    /**
+     * Preserve the entry module's `default` export through the `--app gjs`
+     * side-effect entry wrapper. The wrapper normally re-exports the entry with
+     * `export * from <entry>`, which carries named bindings but NOT `default`.
+     * That's correct for executables (run, not imported), but wrong when the
+     * bundle is imported as a library whose API is a default export — e.g. a
+     * bundler plugin bundled for GJS by `gjsify build`'s plugin loader, where
+     * the plugin factory IS the default export. When set, the wrapper also
+     * re-exports `default` (safely `undefined` when the entry has none).
+     * Only meaningful for `--app gjs` and only when globals injection forces
+     * the wrapper. Defaults to `false`.
+     */
+    preserveDefaultExport?: boolean;
 }

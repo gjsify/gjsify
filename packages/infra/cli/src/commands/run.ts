@@ -21,6 +21,7 @@ import type { Command } from '../types/index.js';
 import { runGjsBundle } from '../utils/run-gjs.js';
 import { readPackageJson } from '../utils/pkg-json-edit.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
+import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 interface RunOptions {
     target: string;
@@ -141,6 +142,15 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
     if (monorepoRoot && monorepoRoot !== cwd) {
         binDirs.push(join(monorepoRoot, 'node_modules', '.bin'));
     }
+    // Under GJS, the GJS-runnable `gjsify` shim (see `ensureGjsifyShimOnPath`)
+    // MUST shadow the workspace `node_modules/.bin/gjsify`, which is the Node
+    // entry and unusable in a node-free sandbox. So put the shim dir ahead of
+    // the `.bin` dirs in the child's PATH — otherwise a compound script like
+    // `gjsify run a && gjsify run b` resolves `gjsify` to the Node bin and
+    // fails. `GJSIFY_SHIM_DIR` is only set under GJS, so this is a no-op on Node.
+    if (process.env.GJSIFY_SHIM_DIR) {
+        binDirs.unshift(process.env.GJSIFY_SHIM_DIR);
+    }
     // Default FORCE_COLOR=1 when not already set, matching yarn / npm
     // script-runner behaviour. Without this, tools that check
     // `process.stdout.isTTY` (chalk, picocolors, biome, …) disable colors
@@ -168,7 +178,7 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
     // Anything fancier (compound `&&`, pipes, a non-gjsify command) falls
     // through to the shell spawn below. Node keeps spawning (cheap there); this
     // only triggers under GJS, where the nesting actually hurts. See cli-app.ts.
-    const inProcArgv = runningUnderGjs() ? gjsifyInProcessArgv(literal, extraArgs) : null;
+    const inProcArgv = isGjs() ? gjsifyInProcessArgv(literal, extraArgs) : null;
     if (inProcArgv) {
         // The subcommand runs in our process, so surface the script env on
         // `process.env` (PATH with the workspace .bin dirs, npm_* lifecycle
@@ -216,12 +226,6 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
 function shellEscape(arg: string): string {
     if (/^[a-zA-Z0-9_\-./=:@,]+$/.test(arg)) return arg;
     return `'${arg.replace(/'/g, "'\\''")}'`;
-}
-
-// Detected at CALL time (a module-load const reads `undefined` in the bundled
-// `--app gjs` form). `bundler-pick.ts` uses the same expression.
-function runningUnderGjs(): boolean {
-    return typeof (globalThis as { imports?: { gi?: unknown } }).imports?.gi !== 'undefined';
 }
 
 /**

@@ -109,7 +109,12 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
                     "Comma-separated list of global identifiers, 'auto' (default) to detect automatically from the bundled output, or 'none' to disable. The 'auto' token may be combined with explicit identifiers/groups (e.g. 'auto,dom') for cases where the detector cannot statically see a global because it's accessed via indirection. Each identifier is mapped to the corresponding `@gjsify/<pkg>/register` module and injected into the bundle. See the CLI Reference docs for the full list of known identifiers. Only applies to GJS app builds.",
                 type: 'string',
                 normalize: true,
-                default: 'auto',
+                // No yargs `default: 'auto'` — a yargs default is
+                // indistinguishable from a user-set value and would always
+                // clobber `package.json#gjsify.globals` / `.gjsifyrc.*` in
+                // config.ts (same footgun as `entryPoints`/`bundler.input`).
+                // The 'auto' fallback is applied post-merge in `Config.forBuild`
+                // so precedence is: CLI flag > config file > 'auto'.
             })
             .option('shebang', {
                 description:

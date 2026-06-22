@@ -27,6 +27,32 @@ export interface PluginByName {
     options?: unknown;
 }
 
+/**
+ * Strategy for turning a resolved plugin file path into its module namespace.
+ *
+ * On Node this is a plain dynamic `import()`. Under GJS it cannot be — GJS's
+ * native ESM loader does not follow npm `package.json#exports` subpath maps
+ * for bare specifiers, so importing a plugin whose source does
+ * `import … from '@scope/pkg/internal-subpath'` throws
+ * `Module not found: @scope/pkg/internal-subpath` even when the file is on
+ * disk. The CLI injects a GJS strategy that first bundles the plugin to a
+ * single self-contained ESM file (Rolldown resolves the exports map at
+ * bundle time), then imports that. See `BuildAction.loadPluginViaGjsBundle`.
+ */
+export type LoadPluginModule = (resolvedPath: string, pluginName: string) => Promise<Record<string, unknown>>;
+
+export interface ResolveUserPluginsOptions {
+    /**
+     * Override how a resolved plugin path is turned into its module
+     * namespace. Defaults to a direct dynamic `import()` (correct on Node).
+     */
+    loadModule?: LoadPluginModule;
+}
+
+/** Default loader: a plain dynamic import of the resolved file URL (Node path). */
+const defaultLoadModule: LoadPluginModule = async (resolvedPath) =>
+    (await import(pathToFileURL(resolvedPath).href)) as Record<string, unknown>;
+
 /** Type-guard: a `PluginByName` shape rather than a Rolldown plugin object. */
 export function isPluginByName(value: unknown): value is PluginByName {
     return (
@@ -57,7 +83,9 @@ export function isPluginByName(value: unknown): value is PluginByName {
 export async function resolveUserPlugins(
     plugins: ReadonlyArray<RolldownPluginOption | PluginByName>,
     projectDir: string,
+    options: ResolveUserPluginsOptions = {},
 ): Promise<RolldownPluginOption[]> {
+    const loadModule = options.loadModule ?? defaultLoadModule;
     const requireFromProject = createRequire(join(projectDir, 'package.json'));
     const out: RolldownPluginOption[] = [];
 
@@ -78,12 +106,12 @@ export async function resolveUserPlugins(
             );
         }
 
-        const mod = await import(pathToFileURL(resolvedPath).href);
+        const mod = await loadModule(resolvedPath, entry.name);
         const exportName = entry.export ?? 'default';
-        const factory = (mod as Record<string, unknown>)[exportName];
+        const factory = mod[exportName];
 
         if (typeof factory !== 'function') {
-            const available = Object.keys(mod).filter((k) => typeof (mod as Record<string, unknown>)[k] === 'function');
+            const available = Object.keys(mod).filter((k) => typeof mod[k] === 'function');
             throw new Error(
                 `gjsify config: plugin "${entry.name}" has no function export "${exportName}". ` +
                     `Available function exports: ${available.length ? available.join(', ') : '(none)'}.`,

@@ -3,21 +3,29 @@
 // Copyright (c) PixelRPG contributors. MIT license.
 // Modifications: Simplified to standard postMessage semantics (no JSON-RPC layer)
 
-import Gio from 'gi://Gio?version=2.0';
 import WebKit from 'gi://WebKit?version=6.0';
 import type JavaScriptCore from 'gi://JavaScriptCore?version=6.0';
 import { MessageEvent } from '@gjsify/dom-events';
 
-// Promisify evaluate_javascript so it returns a Promise in GJS
-Gio._promisify(WebKit.WebView.prototype, 'evaluate_javascript', 'evaluate_javascript_finish');
+// Install the Promise-returning overloads of the WebKit.WebView async methods
+// (evaluate_javascript / get_snapshot) used across this package.
+import './promisify.js';
 
 import type { IFrameWindowProxy } from './iframe-window-proxy.js';
-import type { IFrameMessageData } from './types/index.js';
+import type { ConsoleCallback, ConsoleLogEntry, IFrameMessageData } from './types/index.js';
 import type { MessagePort } from '@gjsify/message-channel';
 import { BridgePortTransport } from './iframe-message-channel.js';
 import { encodeBinariesForJson, decodeBinariesFromJson, BINARY_SERIALIZER_INJECTED_SRC } from './serialize.js';
+import { buildConsoleCaptureScript, ConsoleBuffer, parseConsoleEnvelope } from './console-capture.js';
 
 const CHANNEL_NAME = 'gjsify-iframe';
+
+/** Options for {@link MessageBridge}. */
+export interface MessageBridgeOptions {
+    /** Inject the console-capture UserScript so the page's console.* is
+     *  forwarded to the host. Default: false. */
+    captureConsole?: boolean;
+}
 
 /**
  * Synthetic origin attached to messages travelling FROM the GJS host
@@ -236,12 +244,39 @@ export class MessageBridge {
         if (this._transport === null) this._transport = new BridgePortTransport(this);
         return this._transport;
     }
+    private _captureConsole: boolean;
+    private _consoleBuffer = new ConsoleBuffer();
+    private _consoleCallbacks: ConsoleCallback[] = [];
 
-    constructor(webView: WebKit.WebView) {
+    constructor(webView: WebKit.WebView, options?: MessageBridgeOptions) {
         this._webView = webView;
+        this._captureConsole = options?.captureConsole ?? false;
         this._userContentManager = webView.get_user_content_manager();
         this._setupReceiver();
         this._injectBootstrapScript();
+        if (this._captureConsole) this._injectConsoleCaptureScript();
+    }
+
+    /** Buffered console entries captured from the page (oldest first). Empty
+     *  unless the bridge was created with `captureConsole`. */
+    getConsoleLogs(): ConsoleLogEntry[] {
+        return this._consoleBuffer.list();
+    }
+
+    /** Drop all buffered console entries. */
+    clearConsoleLogs(): void {
+        this._consoleBuffer.clear();
+    }
+
+    /** Subscribe to console entries as they arrive. */
+    onConsole(cb: ConsoleCallback): void {
+        this._consoleCallbacks.push(cb);
+    }
+
+    /** @internal Record a parsed console entry + fan out to subscribers. */
+    private _recordConsole(entry: ConsoleLogEntry): void {
+        this._consoleBuffer.push(entry);
+        for (const cb of this._consoleCallbacks) cb(entry);
     }
 
     /** Connect the IFrameWindowProxy that will receive messages from the WebView */
@@ -396,18 +431,25 @@ export class MessageBridge {
         this._signalId = this._userContentManager.connect(
             `script-message-received::${CHANNEL_NAME}`,
             (_ucm: WebKit.UserContentManager, jsValue: JavaScriptCore.Value) => {
-                if (!this._windowProxy) return;
-
                 try {
                     // The bootstrap script sends JSON.stringify({data, targetOrigin, origin})
                     // — or a port-routed shape `{__gjsifyPortMessage: id, payload}` /
-                    // `{__gjsifyPortClose: id}` — so jsValue is a JSC string. Use
+                    // `{__gjsifyPortClose: id}`, or a console shape
+                    // `{__gjsifyConsole: level, args}` — so jsValue is a JSC string. Use
                     // to_string() to get the raw JSON.
                     const json = jsValue.to_string();
                     const envelope = JSON.parse(json) as
                         | IFrameMessageData
                         | { __gjsifyPortMessage: number; payload: unknown }
-                        | { __gjsifyPortClose: number };
+                        | { __gjsifyPortClose: number }
+                        | { __gjsifyConsole: string; args: unknown };
+
+                    // Console message → buffer + fan out (no windowProxy needed).
+                    const consoleEntry = parseConsoleEnvelope(envelope);
+                    if (consoleEntry) {
+                        this._recordConsole(consoleEntry);
+                        return;
+                    }
 
                     // Port message → route to the corresponding GJS-side endpoint.
                     if (typeof (envelope as { __gjsifyPortMessage?: number }).__gjsifyPortMessage === 'number') {
@@ -424,6 +466,8 @@ export class MessageBridge {
                         return;
                     }
 
+                    // Remaining shapes target the window proxy.
+                    if (!this._windowProxy) return;
                     const windowMsg = envelope as IFrameMessageData;
                     // Bootstrap already enforces targetOrigin against GJS_HOST_ORIGIN.
                     // Re-validate here as defense-in-depth: a tampered WebView could
@@ -463,6 +507,22 @@ export class MessageBridge {
     private _injectBootstrapScript(): void {
         const script = new WebKit.UserScript(
             BOOTSTRAP_SCRIPT,
+            WebKit.UserContentInjectedFrames.ALL_FRAMES,
+            WebKit.UserScriptInjectionTime.START,
+            null, // allow list (null = all)
+            null, // block list (null = none)
+        );
+        this._userContentManager.add_script(script);
+    }
+
+    /**
+     * Inject the opt-in console-capture UserScript so the page's `console.*`
+     * output is mirrored to the host. Self-contained (own handler reference +
+     * idempotency guard), so it is independent of the bootstrap script.
+     */
+    private _injectConsoleCaptureScript(): void {
+        const script = new WebKit.UserScript(
+            buildConsoleCaptureScript(CHANNEL_NAME),
             WebKit.UserContentInjectedFrames.ALL_FRAMES,
             WebKit.UserScriptInjectionTime.START,
             null, // allow list (null = all)
