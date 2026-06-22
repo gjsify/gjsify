@@ -58,6 +58,7 @@ export default defineConfig({
                         { slug: 'guides/self-executing-package' },
                         { slug: 'guides/flatpak-app' },
                         { slug: 'guides/flatpak-cli-tool' },
+                        { slug: 'guides/devtools' },
                     ],
                 },
                 {
