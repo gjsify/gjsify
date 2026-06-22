@@ -141,14 +141,9 @@ export const IFrameBridge = GObject.registerClass(
                 },
             );
 
-            // Surface WebKit.WebView allocation changes to any ResizeObserver
-            // observing the paired HTMLIFrameElement (or any ancestor of it —
-            // see notifyElementResize for the ancestor-walk rationale).
-            this.connect('resize', () => {
-                const width = this.get_allocated_width();
-                const height = this.get_allocated_height();
-                notifyElementResize(this._iframe, width, height);
-            });
+            // Allocation changes are surfaced to ResizeObserver via the
+            // vfunc_size_allocate override below — Gtk.Widget/WebKit.WebView has
+            // no `resize` signal in GTK4 (only Gtk.DrawingArea/GLArea do).
 
             this.connect('unrealize', () => {
                 this._messageBridge.destroy();
@@ -159,6 +154,18 @@ export const IFrameBridge = GObject.registerClass(
                 this._iframe[PS.iframeWidget] = null;
                 this._iframe[PS.windowProxy] = null;
             });
+        }
+
+        /**
+         * GTK4 allocation hook — surfaces WebKit.WebView size changes to any
+         * ResizeObserver watching the paired HTMLIFrameElement (or an ancestor;
+         * see notifyElementResize). GTK4 has no `resize` signal on Gtk.Widget
+         * (only Gtk.DrawingArea/GLArea), so the allocation vfunc is the portable
+         * way to observe the widget's size.
+         */
+        vfunc_size_allocate(width: number, height: number, baseline: number): void {
+            super.vfunc_size_allocate(width, height, baseline);
+            notifyElementResize(this._iframe, width, height);
         }
 
         /** The HTMLIFrameElement wrapping this WebView. */
