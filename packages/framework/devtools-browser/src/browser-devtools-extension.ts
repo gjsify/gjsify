@@ -13,6 +13,12 @@ import type { IFrameBridge } from '@gjsify/iframe';
 
 import type { BrowserCore } from './browser-core.js';
 import type { BrowserWindow } from './browser-window.js';
+import {
+    buildAccessibilityExpression,
+    buildDomTreeExpression,
+    buildInspectElementExpression,
+    buildNetworkExpression,
+} from './inspector.js';
 
 export interface BrowserDevtoolsExtensionOptions {
     bridge: IFrameBridge;
@@ -50,6 +56,12 @@ export function browserDevtoolsExtension(options: BrowserDevtoolsExtensionOption
             '<method name="BrowserQueryDom"><arg type="s" direction="in" name="selector"/><arg type="s" direction="out" name="elements_json"/></method>',
             '<method name="BrowserWaitForLoad"><arg type="i" direction="in" name="timeout_ms"/><arg type="b" direction="out" name="ok"/></method>',
             '<method name="BrowserGetConsole"><arg type="s" direction="out" name="logs_json"/></method>',
+            '<method name="BrowserInspectElement"><arg type="s" direction="in" name="selector"/><arg type="s" direction="out" name="element_json"/></method>',
+            '<method name="BrowserDomTree"><arg type="s" direction="in" name="selector"/><arg type="i" direction="in" name="max_depth"/><arg type="s" direction="out" name="tree_json"/></method>',
+            '<method name="BrowserGetNetwork"><arg type="s" direction="out" name="network_json"/></method>',
+            '<method name="BrowserGetAccessibility"><arg type="s" direction="in" name="selector"/><arg type="i" direction="in" name="max_depth"/><arg type="s" direction="out" name="a11y_json"/></method>',
+            '<method name="BrowserOpenInspector"></method>',
+            '<method name="BrowserCloseInspector"></method>',
         ],
         handlers: {
             BrowserNavigate: (url: string): void => {
@@ -117,6 +129,38 @@ export function browserDevtoolsExtension(options: BrowserDevtoolsExtensionOption
                 }
             },
             BrowserGetConsole: (): string => JSON.stringify(bridge.getConsoleLogs(), null, 2),
+            // Inspector data (Tier B) — the Web Inspector panels via in-page eval.
+            BrowserInspectElement: async (selector: string): Promise<string> =>
+                JSON.stringify(
+                    (await bridge.evaluateJavaScript(buildInspectElementExpression(selector))) ?? null,
+                    null,
+                    2,
+                ),
+            BrowserDomTree: async (selector: string, maxDepth: number): Promise<string> =>
+                JSON.stringify(
+                    (await bridge.evaluateJavaScript(
+                        buildDomTreeExpression(selector || undefined, maxDepth > 0 ? maxDepth : 3),
+                    )) ?? null,
+                    null,
+                    2,
+                ),
+            BrowserGetNetwork: async (): Promise<string> =>
+                JSON.stringify((await bridge.evaluateJavaScript(buildNetworkExpression())) ?? null, null, 2),
+            BrowserGetAccessibility: async (selector: string, maxDepth: number): Promise<string> =>
+                JSON.stringify(
+                    (await bridge.evaluateJavaScript(
+                        buildAccessibilityExpression(selector || undefined, maxDepth > 0 ? maxDepth : 4),
+                    )) ?? null,
+                    null,
+                    2,
+                ),
+            // Open/close the WebKit Web Inspector panel (Tier A — UI, not data).
+            BrowserOpenInspector: (): void => {
+                bridge.get_inspector()?.show();
+            },
+            BrowserCloseInspector: (): void => {
+                bridge.get_inspector()?.close();
+            },
         },
         methodKinds: {
             BrowserNavigate: 'mutating',
@@ -133,6 +177,12 @@ export function browserDevtoolsExtension(options: BrowserDevtoolsExtensionOption
             BrowserQueryDom: 'read-only',
             BrowserWaitForLoad: 'read-only',
             BrowserGetConsole: 'read-only',
+            BrowserInspectElement: 'read-only',
+            BrowserDomTree: 'read-only',
+            BrowserGetNetwork: 'read-only',
+            BrowserGetAccessibility: 'read-only',
+            BrowserOpenInspector: 'presence',
+            BrowserCloseInspector: 'presence',
         },
         contributeStatus: () => ({
             browser: {

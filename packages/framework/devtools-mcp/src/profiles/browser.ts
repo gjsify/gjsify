@@ -245,6 +245,121 @@ export function registerBrowserTools(ctx: McpToolContext): void {
             }
         },
     );
+
+    // -- Inspector data (Tier B): the Web Inspector panels via in-page eval. --
+
+    server.registerTool(
+        'inspect_element',
+        {
+            description:
+                'Inspect the first element matching a CSS selector — tag/id/class + attributes + bounding rect + ' +
+                'box model (margin/border/padding/content) + a curated set of computed styles. The Elements + ' +
+                'Computed + Box Model panels in one call.',
+            inputSchema: z.object({ selector: z.string(), ...instanceArg }),
+        },
+        async ({ selector, instance }) => {
+            try {
+                const reply = await client.control(
+                    instance,
+                    'BrowserInspectElement',
+                    GLib.Variant.new_tuple([strv(selector)]),
+                    '(s)',
+                );
+                const [json] = reply.recursiveUnpack() as [string];
+                return ok(json);
+            } catch (error) {
+                return dbusError(error, instance);
+            }
+        },
+    );
+
+    server.registerTool(
+        'dom_tree',
+        {
+            description:
+                'The DOM/Elements tree from a selector (default: document root) down to max_depth, capped per node.',
+            inputSchema: z.object({
+                selector: z.string().optional().default(''),
+                maxDepth: z.number().int().optional().default(3),
+                ...instanceArg,
+            }),
+        },
+        async ({ selector, maxDepth, instance }) => {
+            try {
+                const reply = await client.control(
+                    instance,
+                    'BrowserDomTree',
+                    GLib.Variant.new_tuple([strv(selector), intv(maxDepth)]),
+                    '(s)',
+                );
+                const [json] = reply.recursiveUnpack() as [string];
+                return ok(json);
+            } catch (error) {
+                return dbusError(error, instance);
+            }
+        },
+    );
+
+    server.registerTool(
+        'get_network',
+        {
+            description: 'Page network activity via the Resource Timing API — the navigation entry + each resource.',
+            inputSchema: z.object({ ...instanceArg }),
+        },
+        async ({ instance }) => {
+            try {
+                return ok(await client.jsonCall(instance, 'BrowserGetNetwork'));
+            } catch (error) {
+                return dbusError(error, instance);
+            }
+        },
+    );
+
+    server.registerTool(
+        'get_accessibility',
+        {
+            description:
+                'Approximate accessibility tree from a selector (default: body) — role + accessible name + aria-* ' +
+                'per node, down to max_depth.',
+            inputSchema: z.object({
+                selector: z.string().optional().default(''),
+                maxDepth: z.number().int().optional().default(4),
+                ...instanceArg,
+            }),
+        },
+        async ({ selector, maxDepth, instance }) => {
+            try {
+                const reply = await client.control(
+                    instance,
+                    'BrowserGetAccessibility',
+                    GLib.Variant.new_tuple([strv(selector), intv(maxDepth)]),
+                    '(s)',
+                );
+                const [json] = reply.recursiveUnpack() as [string];
+                return ok(json);
+            } catch (error) {
+                return dbusError(error, instance);
+            }
+        },
+    );
+
+    for (const [tool, method, desc] of [
+        ['open_inspector', 'BrowserOpenInspector', 'Open the WebKit Web Inspector panel on the browser window.'],
+        ['close_inspector', 'BrowserCloseInspector', 'Close the WebKit Web Inspector panel.'],
+    ] as const) {
+        server.registerTool(
+            tool,
+            { description: desc, inputSchema: z.object({ ...instanceArg }) },
+            async ({ instance }) => {
+                try {
+                    await client.control(instance, method, null, null);
+                    return ok(desc);
+                } catch (error) {
+                    return dbusError(error, instance);
+                }
+            },
+        );
+    }
 }
 
 /** Tool profile for a @gjsify/devtools-browser app. */
