@@ -10,6 +10,7 @@ export type { ToolResult } from './tool-result.js';
 export { GjsStdioTransport } from './stdio-transport.js';
 export type { DevtoolsToolProfile, GenericToolName, McpToolContext } from './profile.js';
 export { registerStorybookTools, storybookProfile } from './profiles/storybook.js';
+export { registerBrowserTools, browserProfile } from './profiles/browser.js';
 
 // Re-export the transport-agnostic contract so a profile needs one import.
 export * from '@gjsify/devtools-protocol';
