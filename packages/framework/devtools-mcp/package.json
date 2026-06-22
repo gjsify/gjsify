@@ -40,7 +40,7 @@
         "@girs/glib-2.0": "2.88.0-4.0.4",
         "@gjsify/devtools-protocol": "workspace:^",
         "@modelcontextprotocol/sdk": "^1.29.0",
-        "zod": "4.3.6"
+        "zod": "^4.4.3"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
