@@ -1,7 +1,7 @@
 {
-    "name": "@gjsify/storybook",
+    "name": "@gjsify/devtools-protocol",
     "version": "0.10.0",
-    "description": "Reusable GTK/Adwaita storybook for GJS — author *.story.ts and browse them in a generic component explorer",
+    "description": "Transport-agnostic devtools contract (methods, JSON envelope, method-kinds, transport interface) shared by every gjsify devtools adapter and the MCP bridge",
     "type": "module",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -27,23 +27,13 @@
     },
     "keywords": [
         "gjs",
-        "storybook",
-        "stories",
-        "gtk",
-        "adwaita",
-        "ui"
+        "devtools",
+        "debug",
+        "mcp",
+        "dbus",
+        "gtk"
     ],
-    "dependencies": {
-        "@girs/adw-1": "1.10.0-4.0.4",
-        "@girs/gdk-4.0": "4.0.0-4.0.4",
-        "@girs/gio-2.0": "2.88.0-4.0.4",
-        "@girs/gjs": "4.0.4",
-        "@girs/glib-2.0": "2.88.0-4.0.4",
-        "@girs/gobject-2.0": "2.88.0-4.0.4",
-        "@girs/gtk-4.0": "4.23.0-4.0.4",
-        "@gjsify/devtools": "workspace:^",
-        "@gjsify/stories": "workspace:^"
-    },
+    "dependencies": {},
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
@@ -62,10 +52,10 @@
     "repository": {
         "type": "git",
         "url": "git+https://github.com/gjsify/gjsify.git",
-        "directory": "packages/framework/storybook"
+        "directory": "packages/framework/devtools-protocol"
     },
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/storybook#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/devtools-protocol#readme"
 }

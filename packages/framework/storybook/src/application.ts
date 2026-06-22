@@ -6,6 +6,8 @@ import Gdk from '@girs/gdk-4.0';
 import Gio from '@girs/gio-2.0';
 import GObject from '@girs/gobject-2.0';
 import Gtk from '@girs/gtk-4.0';
+import { installDevtools } from '@gjsify/devtools';
+import { storybookDevtoolsExtension } from './devtools-extension.js';
 import { StoryRegistryService } from './registry.js';
 import type { StoryModule } from './story-widget.js';
 import { STORYBOOK_CSS } from './styles.js';
@@ -21,6 +23,8 @@ export interface StorybookOptions {
     stories: StoryModule[];
     /** Consumer's own widget stylesheet, layered on top of the built-in chrome CSS. */
     css?: string;
+    /** Force-enable the devtools control plane (otherwise gated on `GJSIFY_DEVTOOLS`). */
+    devtools?: boolean;
 }
 
 /**
@@ -71,6 +75,12 @@ export class StorybookApplication extends Adw.Application {
             } catch (error) {
                 console.error('Failed to create story instances:', error);
             }
+            // Opt-in devtools control plane: a no-op unless GJSIFY_DEVTOOLS is set
+            // (or `devtools: true`), so production runs are unaffected.
+            installDevtools(this, {
+                enabled: this._options.devtools || undefined,
+                extend: [storybookDevtoolsExtension(this._registry, this._window)],
+            });
         }
         this._window.present();
     }

@@ -28,6 +28,7 @@ export type { StoryDecorator, StoryModule, StoryWidgetConstructor } from './stor
 export { StoryRegistryService } from './registry.js';
 export { installActionGroup, withActionGroup, type StoryAction } from './decorators.js';
 export { StorybookWindow } from './window.js';
+export { storybookDevtoolsExtension } from './devtools-extension.js';
 export { StorybookApplication, type StorybookOptions } from './application.js';
 export { runStorybook } from './run.js';
 export { collectStoryModules } from './discover.js';

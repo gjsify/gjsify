@@ -1,0 +1,163 @@
+// @gjsify/devtools — GTK widget-tree introspection (toplevels, tree dump,
+// stable index paths, property read, focused-widget path). Original implementation.
+
+import Gtk from '@girs/gtk-4.0';
+import type { NodeInfo } from '@gjsify/devtools-protocol';
+
+/** A parsed widget path: a toplevel index + a chain of child indices. */
+export interface ParsedWidgetPath {
+    toplevel: number;
+    children: number[];
+}
+
+/**
+ * Parse a stable widget path like `toplevel:0/child:2/child:0` into its
+ * indices. Pure (no GTK) so it is unit-testable on node + gjs. Returns null
+ * for a malformed path.
+ */
+export function parseWidgetPath(path: string): ParsedWidgetPath | null {
+    const parts = path.split('/').filter((p) => p.length > 0);
+    if (parts.length === 0) return null;
+    const head = parts[0].match(/^toplevel:(\d+)$/);
+    if (!head) return null;
+    const children: number[] = [];
+    for (const part of parts.slice(1)) {
+        const m = part.match(/^child:(\d+)$/);
+        if (!m) return null;
+        children.push(Number(m[1]));
+    }
+    return { toplevel: Number(head[1]), children };
+}
+
+/** Build a widget path from a toplevel index + child-index chain. */
+export function buildWidgetPath(toplevel: number, children: readonly number[]): string {
+    return [`toplevel:${toplevel}`, ...children.map((i) => `child:${i}`)].join('/');
+}
+
+/** The registered GType name of a widget instance (best-effort). */
+export function widgetType(widget: Gtk.Widget): string {
+    const ctor = (widget as unknown as { constructor?: { $gtype?: { name?: string } } }).constructor;
+    return ctor?.$gtype?.name ?? 'GtkWidget';
+}
+
+function nthChild(widget: Gtk.Widget, index: number): Gtk.Widget | null {
+    let child = widget.get_first_child();
+    let i = 0;
+    while (child && i < index) {
+        child = child.get_next_sibling();
+        i++;
+    }
+    return i === index ? child : null;
+}
+
+/** Enumerate live toplevel windows as `{ path, type, title, mapped, focused }`. */
+export function listToplevels(): Array<{ path: string; type: string; title: string | null; mapped: boolean; focused: boolean }> {
+    const model = Gtk.Window.get_toplevels();
+    const count = model.get_n_items();
+    const out: Array<{ path: string; type: string; title: string | null; mapped: boolean; focused: boolean }> = [];
+    for (let i = 0; i < count; i++) {
+        const win = model.get_item(i) as unknown as Gtk.Window | null;
+        if (!win) continue;
+        out.push({
+            path: `toplevel:${i}`,
+            type: widgetType(win),
+            title: win.get_title?.() ?? null,
+            mapped: win.get_mapped(),
+            focused: win.is_active ?? false,
+        });
+    }
+    return out;
+}
+
+/** Resolve a widget path to its live widget, or null if it no longer exists. */
+export function resolveWidgetPath(path: string): Gtk.Widget | null {
+    const parsed = parseWidgetPath(path);
+    if (!parsed) return null;
+    const model = Gtk.Window.get_toplevels();
+    let node = model.get_item(parsed.toplevel) as unknown as Gtk.Widget | null;
+    if (!node) return null;
+    for (const idx of parsed.children) {
+        node = nthChild(node, idx);
+        if (!node) return null;
+    }
+    return node;
+}
+
+/** Dump a widget subtree to {@link NodeInfo}, bounded by `maxDepth`. */
+export function dumpTree(root: Gtk.Widget, maxDepth: number, basePath: string): NodeInfo {
+    const node: NodeInfo = {
+        path: basePath,
+        type: widgetType(root),
+        name: root.get_name() || null,
+        cssClasses: root.get_css_classes(),
+        mapped: root.get_mapped(),
+        visible: root.get_visible(),
+        children: [],
+    };
+    if (maxDepth <= 0) return node;
+    let child = root.get_first_child();
+    let i = 0;
+    while (child) {
+        node.children.push(dumpTree(child, maxDepth - 1, `${basePath}/child:${i}`));
+        child = child.get_next_sibling();
+        i++;
+    }
+    return node;
+}
+
+/** Coerce a marshalled GObject value to a JSON-safe representation. */
+function jsonSafe(value: unknown): unknown {
+    const t = typeof value;
+    if (value === null || value === undefined || t === 'string' || t === 'number' || t === 'boolean') {
+        return value ?? null;
+    }
+    return `[${t}]`;
+}
+
+/**
+ * Read a GObject property by name, trying the original, snake_case and
+ * camelCase accessor forms GJS exposes. Returns a JSON-safe value (non-scalars
+ * become a `[type]` marker).
+ */
+export function getWidgetProperty(widget: Gtk.Widget, prop: string): unknown {
+    const obj = widget as unknown as Record<string, unknown>;
+    const snake = prop.replace(/-/g, '_');
+    const camel = prop.replace(/[-_]([a-z])/g, (_, c: string) => c.toUpperCase());
+    for (const key of [prop, snake, camel]) {
+        if (key in obj) return jsonSafe(obj[key]);
+    }
+    return undefined;
+}
+
+function childIndex(parent: Gtk.Widget, child: Gtk.Widget): number {
+    let c = parent.get_first_child();
+    let i = 0;
+    while (c) {
+        if (c === child) return i;
+        c = c.get_next_sibling();
+        i++;
+    }
+    return -1;
+}
+
+/** Compute the stable path of a live widget by walking up to its toplevel. */
+export function pathOfWidget(widget: Gtk.Widget): string | null {
+    const chain: number[] = [];
+    let node: Gtk.Widget = widget;
+    let parent = node.get_parent();
+    while (parent) {
+        const idx = childIndex(parent, node);
+        if (idx < 0) return null;
+        chain.unshift(idx);
+        node = parent;
+        parent = node.get_parent();
+    }
+    const model = Gtk.Window.get_toplevels();
+    const count = model.get_n_items();
+    for (let i = 0; i < count; i++) {
+        if ((model.get_item(i) as unknown as Gtk.Widget) === node) {
+            return buildWidgetPath(i, chain);
+        }
+    }
+    return null;
+}

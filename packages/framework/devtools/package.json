@@ -1,7 +1,7 @@
 {
-    "name": "@gjsify/storybook",
+    "name": "@gjsify/devtools",
     "version": "0.10.0",
-    "description": "Reusable GTK/Adwaita storybook for GJS — author *.story.ts and browse them in a generic component explorer",
+    "description": "In-app DBus devtools control plane for GJS/GTK apps — inspect, screenshot, and drive a running app over org.gjsify.Devtools (gdbus or the MCP bridge)",
     "type": "module",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -27,11 +27,12 @@
     },
     "keywords": [
         "gjs",
-        "storybook",
-        "stories",
         "gtk",
         "adwaita",
-        "ui"
+        "devtools",
+        "debug",
+        "dbus",
+        "mcp"
     ],
     "dependencies": {
         "@girs/adw-1": "1.10.0-4.0.4",
@@ -40,9 +41,9 @@
         "@girs/gjs": "4.0.4",
         "@girs/glib-2.0": "2.88.0-4.0.4",
         "@girs/gobject-2.0": "2.88.0-4.0.4",
+        "@girs/graphene-1.0": "1.0.0-4.0.4",
         "@girs/gtk-4.0": "4.23.0-4.0.4",
-        "@gjsify/devtools": "workspace:^",
-        "@gjsify/stories": "workspace:^"
+        "@gjsify/devtools-protocol": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
@@ -62,10 +63,10 @@
     "repository": {
         "type": "git",
         "url": "git+https://github.com/gjsify/gjsify.git",
-        "directory": "packages/framework/storybook"
+        "directory": "packages/framework/devtools"
     },
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/storybook#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/devtools#readme"
 }

@@ -54,6 +54,7 @@ import {
     tscCommand as tsc,
     affectedCommand as affected,
     storybookCommand as storybook,
+    debugCommand as debug,
 } from './commands/index.js';
 import { APP_NAME } from './constants.js';
 import { isNode } from '@gjsify/rolldown-plugin-gjsify/runtime';
@@ -157,6 +158,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .command(tsc.command, tsc.description, tsc.builder, tsc.handler)
         .command(affected.command, affected.description, affected.builder, affected.handler)
         .command(storybook.command, storybook.description, storybook.builder, storybook.handler)
+        .command(debug.command, debug.description, debug.builder, debug.handler)
         .demandCommand(1)
         .epilogue(`Running on ${runtimeLabel()}`)
         .help()

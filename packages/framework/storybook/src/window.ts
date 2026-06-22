@@ -217,6 +217,43 @@ export class StorybookWindow extends Adw.ApplicationWindow {
         storyRow.storyWidget = story;
     }
 
+    // --- devtools control surface (driven by @gjsify/devtools when enabled) ---
+
+    /** The currently-displayed story, or null. */
+    get activeStory(): StoryWidget | null {
+        return this._activeStory;
+    }
+
+    /**
+     * Select + show a story by its full `Category/Name` title; the sidebar
+     * selection updates too, so the UI stays in sync. Returns false when no
+     * story with that title exists.
+     */
+    openStoryByTitle(title: string): boolean {
+        let child = this._sidebar_list.get_first_child();
+        while (child) {
+            const row = child as StoryRow;
+            if (row.storyWidget && row.storyWidget.meta.title === title) {
+                this._sidebar_list.select_row(row);
+                return true;
+            }
+            child = child.get_next_sibling();
+        }
+        return false;
+    }
+
+    /**
+     * Set one arg on the active story — drives the same `args` path as the
+     * control panel, so the visible control rows refresh via `notify::args`.
+     * Returns false when no story is active.
+     */
+    setActiveArg(name: string, value: StoryArgValue): boolean {
+        const story = this._activeStory;
+        if (!story) return false;
+        story.args = { ...story.args, [name]: value };
+        return true;
+    }
+
     private _onStorySelected(_listbox: Gtk.ListBox, row: Gtk.ListBoxRow | null): void {
         if (!row) return;
 
