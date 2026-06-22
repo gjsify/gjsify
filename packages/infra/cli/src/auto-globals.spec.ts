@@ -29,6 +29,7 @@ import {
     detectFreeGlobals,
     isRegisterPathResolvable,
     filterResolvableRegisterPaths,
+    describeGiBackedInjection,
 } from '@gjsify/rolldown-plugin-gjsify/globals';
 import { join, resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
@@ -440,6 +441,65 @@ export default async () => {
             const after = src.slice(callIdx, callIdx + 1500);
             expect(after.includes('extraGlobalsList: extras')).toBe(true);
             expect(after.includes('excludeGlobals')).toBe(true);
+        });
+    });
+
+    // -------------------------------------------------------------------------
+    // GI-backed register diagnostic (B): when --globals auto injects a register
+    // that pulls a gi:// typelib, the build emits an actionable note instead of
+    // letting the bundle crash silently at runtime in a GTK-less host.
+    // -------------------------------------------------------------------------
+    await describe('describeGiBackedInjection — GI-backed register note', async () => {
+        await it('returns null when no injected register is GI-backed', () => {
+            const registers = new Set(['@gjsify/node-globals/register/buffer', 'fetch/register/fetch']);
+            const detected = new Set(['Buffer', 'fetch']);
+            expect(describeGiBackedInjection(registers, detected)).toBeNull();
+        });
+
+        await it('names the gi:// namespaces and the triggering globals', () => {
+            const registers = new Set([
+                '@gjsify/dom-elements/register/document',
+                '@gjsify/dom-elements/register/canvas',
+            ]);
+            // Buffer is detected too but maps to a non-GI register → not a trigger.
+            const detected = new Set(['document', 'HTMLElement', 'HTMLCanvasElement', 'Buffer']);
+            const note = describeGiBackedInjection(registers, detected);
+            expect(note).toBeTruthy();
+            const msg = note as string;
+            expect(msg.includes('gi://Gdk')).toBe(true);
+            expect(msg.includes('gi://GdkPixbuf')).toBe(true);
+            // Trigger refs: the DOM globals that map into the injected GI registers.
+            expect(msg.includes('document')).toBe(true);
+            expect(msg.includes('HTMLElement')).toBe(true);
+            expect(msg.includes('HTMLCanvasElement')).toBe(true);
+            // Buffer must NOT be listed as a trigger (non-GI register).
+            expect(msg.includes('Buffer')).toBe(false);
+            // Actionable hint present.
+            expect(msg.includes('excludeGlobals')).toBe(true);
+        });
+
+        await it('reports only the GI-backed subset in a mixed inject set', () => {
+            const registers = new Set([
+                '@gjsify/dom-elements/register/document',
+                '@gjsify/node-globals/register/process',
+            ]);
+            const detected = new Set(['document', 'process']);
+            const note = describeGiBackedInjection(registers, detected);
+            expect(note).toBeTruthy();
+            const msg = note as string;
+            expect(msg.includes('gi://GdkPixbuf')).toBe(true);
+            expect(msg.includes('document')).toBe(true);
+            // `process` (non-GI) is not a trigger.
+            expect(msg.includes('process')).toBe(false);
+        });
+
+        await it('matches every granular subpath of a GI-backed package via prefix', () => {
+            // observers + font-face are also dom-elements register subpaths.
+            const registers = new Set(['@gjsify/dom-elements/register/observers']);
+            const detected = new Set(['IntersectionObserver']);
+            const note = describeGiBackedInjection(registers, detected);
+            expect(note).toBeTruthy();
+            expect((note as string).includes('IntersectionObserver')).toBe(true);
         });
     });
 };
