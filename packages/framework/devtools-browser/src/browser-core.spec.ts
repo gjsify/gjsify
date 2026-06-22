@@ -10,6 +10,9 @@ import { BrowserCore, type IFrameHandle, type NavState } from './browser-core.js
  *  iframe where setting one clears the other. contentWindow stays null (the
  *  message listener is a no-op in these tests). */
 class FakeIFrame implements IFrameHandle {
+    // Stored independently — like the real HTMLIFrameElement, setting one does
+    // NOT clear the other (srcdoc takes precedence per the HTML spec). So a
+    // test can verify that BrowserCore itself keeps them mutually exclusive.
     private _src = '';
     private _srcdoc = '';
     get src(): string {
@@ -17,14 +20,12 @@ class FakeIFrame implements IFrameHandle {
     }
     set src(value: string) {
         this._src = value;
-        this._srcdoc = '';
     }
     get srcdoc(): string {
         return this._srcdoc;
     }
     set srcdoc(value: string) {
         this._srcdoc = value;
-        this._src = '';
     }
     get contentWindow(): null {
         return null;
@@ -79,6 +80,24 @@ export default async () => {
             expect(fake.src).toBe('https://example.com');
             core.navigate('page:welcome');
             expect(fake.srcdoc.length > 0).toBe(true);
+        });
+
+        await it('keeps src and srcdoc mutually exclusive across transitions', async () => {
+            // Regression: srcdoc takes precedence over src (HTML spec), so a
+            // page:* must clear src and a real URL must clear srcdoc — otherwise
+            // navigating back to a real URL after a built-in page leaves the
+            // stale srcdoc showing.
+            const fake = new FakeIFrame();
+            const core = new BrowserCore(fake);
+            core.navigate('page:welcome');
+            expect(fake.srcdoc.length > 0).toBe(true);
+            expect(fake.src).toBe('');
+            core.navigate('https://example.com');
+            expect(fake.src).toBe('https://example.com');
+            expect(fake.srcdoc).toBe('');
+            core.navigate('page:about');
+            expect(fake.srcdoc.length > 0).toBe(true);
+            expect(fake.src).toBe('');
         });
     });
 };

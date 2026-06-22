@@ -284,11 +284,22 @@ export class BrowserCore implements BrowserHandle {
     }
 
     /** Internal: route a URL into the iframe, picking `srcdoc` for the
-     *  `page:<name>` scheme and `src` for everything else. */
+     *  `page:<name>` scheme and `src` for everything else.
+     *
+     *  `src` and `srcdoc` are kept mutually exclusive: per the HTML spec
+     *  `srcdoc` takes precedence over `src`, and the iframe element dedups an
+     *  unchanged value. So when switching to a `page:*` we clear `src`, and when
+     *  loading a real URL we clear `srcdoc` first — otherwise navigating back to
+     *  a real URL after a built-in page (e.g. page:welcome → https://…) would be
+     *  a no-op (the `src` attribute never changed) and leave the stale srcdoc
+     *  showing. Clearing to `''` only updates the attribute (the element's
+     *  setters skip the load when the value is empty), so it triggers no extra
+     *  navigation. */
     private _loadInto(url: string): void {
         if (url.startsWith('page:')) {
             const name = url.slice('page:'.length);
             const page = PAGES[name];
+            this._iframe.src = '';
             if (!page) {
                 this._iframe.srcdoc = pageTemplate(
                     'Not found',
@@ -303,8 +314,8 @@ export class BrowserCore implements BrowserHandle {
             this._iframe.srcdoc = page.html;
             return;
         }
-        // Normal URL — set src directly. Both real iframe and IFrameBridge
-        // honour the same setter.
+        // Real URL — clear srcdoc (it would otherwise win over src), then load.
+        this._iframe.srcdoc = '';
         this._iframe.src = url;
     }
 
