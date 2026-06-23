@@ -133,6 +133,16 @@ export const browseCommand: Command<unknown, BrowseCliOptions> = {
         // runGjsBundle spreads process.env into the child, so set the devtools
         // gate here (RunGjsBundleOptions has no env field).
         if (devtools) process.env.GJSIFY_DEVTOOLS = '1';
+        // Set the inspector env in the LAUNCHER so the spawned gjs has it from
+        // process start. WebKit reads WEBKIT_INSPECTOR_HTTP_SERVER once, at
+        // WebKitInitialize (triggered as the first WebView type initializes —
+        // before the app's own constructor runs), so setting it only inside the
+        // app is too late to bind the server. This is the authoritative place;
+        // the BrowserApplication constructor keeps a best-effort fallback for
+        // direct runBrowserDevtools() callers.
+        if (inspectorPort !== undefined) {
+            process.env.WEBKIT_INSPECTOR_HTTP_SERVER = `127.0.0.1:${inspectorPort}`;
+        }
         const { runGjsBundle } = await import('../utils/run-gjs.js');
         await runGjsBundle(outPath, [], { exitOnSuccess: true });
     },

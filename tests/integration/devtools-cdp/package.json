@@ -1,0 +1,32 @@
+{
+    "name": "@gjsify/integration-devtools-cdp",
+    "description": "Integration test: @gjsify/devtools-cdp's InspectorProtocolClient against a LIVE WebKit remote inspector (ported from refs/webkit LayoutTests/inspector). Opt-in + skip-if-unreachable — needs a real browser, not headless/CI.",
+    "type": "module",
+    "private": true,
+    "engines": {
+        "node": ">=22.12.0"
+    },
+    "scripts": {
+        "clear": "rm -rf dist tsconfig.tsbuildinfo || exit 0",
+        "check": "gjsify tsc --noEmit",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --globals auto --outfile dist/test.gjs.mjs",
+        "build:test": "gjsify run build:test:gjs",
+        "test": "gjsify run build:test:gjs && gjsify run test:gjs",
+        "test:gjs": "gjsify run dist/test.gjs.mjs"
+    },
+    "dependencies": {
+        "@gjsify/devtools-cdp": "workspace:^",
+        "@gjsify/fetch": "workspace:^",
+        "@gjsify/websocket": "workspace:^"
+    },
+    "devDependencies": {
+        "@girs/gjs": "4.0.4",
+        "@girs/glib-2.0": "2.88.0-4.0.4",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}

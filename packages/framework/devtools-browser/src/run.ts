@@ -48,9 +48,13 @@ export class BrowserApplication extends Adw.Application {
             flags: Gio.ApplicationFlags.DEFAULT_FLAGS,
         });
         this._options = options;
-        // The WebKit remote-inspector HTTP server binds once per process at the
-        // first WebView, reading this env var — so it MUST be set before the
-        // BrowserWindow (and its IFrameBridge WebView) is constructed on activate.
+        // Best-effort: WebKit reads WEBKIT_INSPECTOR_HTTP_SERVER once, at
+        // WebKitInitialize — triggered as the first WebView type initializes,
+        // which may be at module import (before this constructor). So this only
+        // binds the server when WebKit has not initialized yet. The authoritative
+        // place is the LAUNCHER env (`gjsify browse --inspector-port` sets it
+        // before spawning gjs); direct callers should likewise export it before
+        // importing this module for a guaranteed bind.
         if (options.inspectorPort !== undefined) {
             GLib.setenv('WEBKIT_INSPECTOR_HTTP_SERVER', `127.0.0.1:${options.inspectorPort}`, true);
         }
