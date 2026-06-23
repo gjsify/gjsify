@@ -4,7 +4,7 @@ A client for the **WebKit Remote Inspector Protocol** — the CDP-shaped (Chrome
 
 > **CDP?** WebKit's protocol is *shaped like* Chrome's CDP (same domain/command/event structure, many identical names) but is **not** CDP — it's WebKit's own "Remote Inspector Protocol", with real differences (`DOM.getOuterHTML`, no `Page.navigate`, …). The `-cdp` name is the widely-recognized shorthand for "this family of protocols".
 
-It ships two layers: the **transport-pure** protocol client + target discovery (usable standalone), and the **in-app `DevtoolsExtension`** that exposes the protocol over the `org.gjsify.Devtools` control plane (so an agent reaches it through the same MCP bridge as everything else). The protocol→MCP tool generator and the curated `cdpProfile` land in later phases.
+It ships three layers: the **transport-pure** protocol client + target discovery (usable standalone), the **in-app `DevtoolsExtension`** that exposes the protocol over the `org.gjsify.Devtools` control plane, and the **protocol→MCP tool generator**. The curated `cdpProfile` that registers those tools (driven by `gjsify debug --profile cdp`) lives in [`@gjsify/devtools-mcp`](../devtools-mcp), where zod lives.
 
 ## Protocol client
 
@@ -57,7 +57,7 @@ Targets only appear once a page has begun loading, so a caller racing startup sh
 
 The WebSocket(s) live **in the app process** (one client per connected target, cached) — never in the MCP bridge — so the bridge runs no second GLib main loop; it just calls these DBus methods.
 
-`@gjsify/devtools-browser` wires this in automatically: **`gjsify browse --inspector-port 9222 --devtools`** sets `WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9222` before the WebView, marks the view inspectable, and adds the extension. (The curated `cdpProfile` MCP tools — a thin marshaller over `CdpSend` — follow in a later phase; until then `eval_js` over the generic bridge + raw `CdpSend` cover the surface.)
+`@gjsify/devtools-browser` wires this in automatically: **`gjsify browse --inspector-port 9222 --devtools`** sets `WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9222` before the WebView, marks the view inspectable, and adds the extension. Then **`gjsify debug --profile cdp`** bridges it to MCP — the `cdp_send` escape hatch + the curated typed tools.
 
 ## Protocol spec + tool generation
 
@@ -73,7 +73,7 @@ const tools = generateCdpTools(PROTOCOL_SPEC);
 const curated = generateCdpTools(PROTOCOL_SPEC, { include: (d, c) => d === 'Runtime' && c === 'evaluate' });
 ```
 
-Each descriptor flattens the command's parameters to simplified JS types (`$ref` resolved one level to its base type) — no zod/MCP dependency here, so it stays pure + headless-testable. The curated `cdpProfile` (a later phase, in `@gjsify/devtools-mcp` where zod lives) turns these descriptors into registered tools; regenerate the snapshot with `node scripts/generate-spec-data.mjs <protocolDir>` after a WebKit protocol bump.
+Each descriptor flattens the command's parameters to simplified JS types (`$ref` resolved one level to its base type) — no zod/MCP dependency here, so it stays pure + headless-testable. The curated `cdpProfile` (in `@gjsify/devtools-mcp`, where zod lives) turns these descriptors into registered MCP tools; regenerate the snapshot with `node scripts/generate-spec-data.mjs <protocolDir>` after a WebKit protocol bump.
 
 ## Exports
 

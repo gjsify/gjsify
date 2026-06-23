@@ -38,6 +38,7 @@
         "@girs/giounix-2.0": "2.0.0-4.0.4",
         "@girs/gjs": "4.0.4",
         "@girs/glib-2.0": "2.88.0-4.0.4",
+        "@gjsify/devtools-cdp": "workspace:^",
         "@gjsify/devtools-protocol": "workspace:^",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "zod": "^4.4.3"
