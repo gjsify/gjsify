@@ -1,4 +1,4 @@
-// _spinner.scss — adw-spinner styling (ring with a spinning accent arc).
+// _spinner.scss — adw-spinner styling (ring with a spinning arc).
 // Reference: refs/adwaita-web/adwaita-web/scss/_spinner.scss
 // Reference: refs/libadwaita (Adw.Spinner)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -9,8 +9,10 @@ adw-spinner {
   box-sizing: border-box;
   width: 24px;
   height: 24px;
+  // Neutral arc (currentColor, theme-aware) over a faint track — Adw.Spinner
+  // is a neutral indicator, NOT accent-coloured.
   border: 3px solid rgba(127, 127, 127, 0.25);
-  border-top-color: var(--accent-color);
+  border-top-color: currentColor;
   border-radius: 50%;
   animation: adw-spinner-spin 0.8s linear infinite;
 
