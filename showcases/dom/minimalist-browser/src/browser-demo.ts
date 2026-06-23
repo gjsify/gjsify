@@ -76,12 +76,20 @@ function pageTemplate(title: string, url: string, body: string): string {
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>${title}</title>
 <style>
-  body { font-family: system-ui, sans-serif; padding: 24px; line-height: 1.6;
-         background: #fdfcfb; color: #1d1c1a; max-width: 760px; margin: 0 auto; }
-  h1 { color: #4a5fb8; margin-top: 0; }
-  a { color: #4a5fb8; }
-  pre { background: #efeee8; padding: 12px; border-radius: 4px; overflow-x: auto; }
-  code { background: #efeee8; padding: 1px 6px; border-radius: 3px; }
+  :root {
+    color-scheme: light dark;
+    --bg: #fafafb; --fg: rgba(0, 0, 6, 0.8); --accent: #1c71d8; --code-bg: rgba(0, 0, 6, 0.07);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1d1d20; --fg: #ffffff; --accent: #78aeed; --code-bg: rgba(255, 255, 255, 0.1); }
+  }
+  body { font-family: 'Adwaita Sans', 'Cantarell', system-ui, sans-serif; padding: 28px;
+         line-height: 1.6; background: var(--bg); color: var(--fg); max-width: 720px; margin: 0 auto; }
+  h1 { font-weight: 800; font-size: 1.55rem; margin-top: 0; }
+  a { color: var(--accent); }
+  pre { background: var(--code-bg); padding: 12px; border-radius: 8px; overflow-x: auto; }
+  code { background: var(--code-bg); padding: 1px 6px; border-radius: 5px;
+         font-family: 'Adwaita Mono', ui-monospace, monospace; }
 </style></head>
 <body>
 ${body}
