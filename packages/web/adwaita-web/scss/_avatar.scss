@@ -1,0 +1,31 @@
+// _avatar.scss — adw-avatar styling (round, initials or fallback icon).
+// Reference: refs/adwaita-web/adwaita-web/scss/_avatar.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_avatar.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  box-sizing: border-box;
+  font-weight: 700;
+  user-select: none;
+  background-color: rgba(127, 127, 127, 0.25);
+  color: var(--window-fg-color);
+
+  .adw-avatar-text {
+    line-height: 1;
+    text-align: center;
+  }
+
+  .adw-avatar-icon {
+    background-color: currentColor;
+    opacity: 0.7;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+  }
+}

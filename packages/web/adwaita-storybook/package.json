@@ -1,0 +1,58 @@
+{
+    "name": "@gjsify/adwaita-storybook",
+    "version": "0.11.0",
+    "description": "Browser renderer for the @gjsify/stories contract — the web counterpart of @gjsify/storybook, built on @gjsify/adwaita-web",
+    "type": "module",
+    "main": "src/index.ts",
+    "types": "src/index.ts",
+    "exports": {
+        ".": {
+            "types": "./src/index.ts",
+            "default": "./src/index.ts"
+        }
+    },
+    "files": [
+        "src",
+        "lib"
+    ],
+    "scripts": {
+        "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.ts' --exclude 'src/**/*.spec.ts'",
+        "build:types": "gjsify tsc"
+    },
+    "keywords": [
+        "storybook",
+        "stories",
+        "adwaita",
+        "web-components",
+        "browser"
+    ],
+    "dependencies": {
+        "@gjsify/adwaita-web": "workspace:^",
+        "@gjsify/stories": "workspace:^"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "typescript": "^6.0.3"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "none",
+            "node": "none",
+            "browser": "polyfill",
+            "nativescript": "none"
+        }
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/web/adwaita-storybook"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-storybook#readme"
+}

@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { spinnerMeta } from './spinner.meta.js';
 
 /** Story: Adw.Spinner sized via width/height requests. */
 export class SpinnerStory extends StoryWidget {
@@ -19,14 +20,7 @@ export class SpinnerStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Presentation/Spinner',
-            description: 'Adw.Spinner — a lightweight loading indicator that spins continuously while visible.',
-            component: Adw.Spinner.$gtype,
-            controls: [
-                { name: 'size', label: 'Size', type: ControlType.RANGE, min: 16, max: 64, step: 4, defaultValue: 48 },
-            ],
-        };
+        return { ...spinnerMeta, component: Adw.Spinner.$gtype };
     }
 
     initialize(): void {

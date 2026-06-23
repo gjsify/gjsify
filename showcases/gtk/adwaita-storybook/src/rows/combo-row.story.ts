@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { COMBO_ROW_OPTIONS, comboRowMeta } from './combo-row.meta.js';
 
 /** Story: Adw.ComboRow inside a boxed list, selecting from a Gtk.StringList. */
 export class ComboRowStory extends StoryWidget {
@@ -19,36 +20,14 @@ export class ComboRowStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Boxed Lists/Combo Row',
-            description: 'Adw.ComboRow — a preferences row with an inline drop-down backed by a Gtk.StringList.',
-            component: Adw.ComboRow.$gtype,
-            controls: [
-                { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'Accent colour' },
-                {
-                    name: 'subtitle',
-                    label: 'Subtitle',
-                    type: ControlType.TEXT,
-                    defaultValue: 'Used to highlight selected items',
-                },
-                {
-                    name: 'selected',
-                    label: 'Selected',
-                    type: ControlType.NUMBER,
-                    min: 0,
-                    max: 4,
-                    step: 1,
-                    defaultValue: 1,
-                },
-            ],
-        };
+        return { ...comboRowMeta, component: Adw.ComboRow.$gtype };
     }
 
     initialize(): void {
         this._row = new Adw.ComboRow({
             title: this.args.title as string,
             subtitle: this.args.subtitle as string,
-            model: new Gtk.StringList({ strings: ['Blue', 'Teal', 'Green', 'Orange', 'Purple'] }),
+            model: new Gtk.StringList({ strings: [...COMBO_ROW_OPTIONS] }),
             selected: this.args.selected as number,
         });
 

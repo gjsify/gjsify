@@ -1,0 +1,26 @@
+// _spinner.scss — adw-spinner styling (ring with a spinning accent arc).
+// Reference: refs/adwaita-web/adwaita-web/scss/_spinner.scss
+// Reference: refs/libadwaita (Adw.Spinner)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-spinner {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(127, 127, 127, 0.25);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: adw-spinner-spin 0.8s linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes adw-spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -3,7 +3,8 @@
 
 import Adw from '@girs/adw-1';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { avatarMeta } from './avatar.meta.js';
 
 /** Story: Adw.Avatar with live text / size / icon controls. */
 export class AvatarStory extends StoryWidget {
@@ -18,28 +19,7 @@ export class AvatarStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Presentation/Avatar',
-            description:
-                'A circular avatar that derives initials (and a colour) from a name, or shows a symbolic icon.',
-            component: Adw.Avatar.$gtype,
-            controls: [
-                { name: 'text', label: 'Name', type: ControlType.TEXT, defaultValue: 'Ada Lovelace' },
-                { name: 'size', label: 'Size', type: ControlType.RANGE, min: 24, max: 160, step: 8, defaultValue: 96 },
-                { name: 'showInitials', label: 'Show initials', type: ControlType.BOOLEAN, defaultValue: true },
-                {
-                    name: 'iconName',
-                    label: 'Fallback icon',
-                    type: ControlType.SELECT,
-                    options: [
-                        { label: 'Person', value: 'avatar-default-symbolic' },
-                        { label: 'Contact', value: 'contact-new-symbolic' },
-                        { label: 'Camera', value: 'camera-photo-symbolic' },
-                    ],
-                    defaultValue: 'avatar-default-symbolic',
-                },
-            ],
-        };
+        return { ...avatarMeta, component: Adw.Avatar.$gtype };
     }
 
     initialize(): void {

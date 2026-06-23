@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { buttonStylesMeta } from './button-styles.meta.js';
 
 const STYLE_CLASSES = ['pill', 'circular', 'suggested-action', 'destructive-action', 'flat'] as const;
 
@@ -21,28 +22,7 @@ export class ButtonStylesStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Buttons/Button Styles',
-            description:
-                'Gtk.Button with Adwaita style classes: .pill, .circular, .suggested-action, .destructive-action, .flat.',
-            component: Gtk.Button.$gtype,
-            controls: [
-                { name: 'label', label: 'Demo label', type: ControlType.TEXT, defaultValue: 'Click me' },
-                {
-                    name: 'style',
-                    label: 'Demo style',
-                    type: ControlType.SELECT,
-                    options: [
-                        { label: 'Pill', value: 'pill' },
-                        { label: 'Circular (icon)', value: 'circular' },
-                        { label: 'Suggested', value: 'suggested-action' },
-                        { label: 'Destructive', value: 'destructive-action' },
-                        { label: 'Flat', value: 'flat' },
-                    ],
-                    defaultValue: 'suggested-action',
-                },
-            ],
-        };
+        return { ...buttonStylesMeta, component: Gtk.Button.$gtype };
     }
 
     initialize(): void {

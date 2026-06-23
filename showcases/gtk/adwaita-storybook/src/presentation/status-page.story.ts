@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { statusPageMeta } from './status-page.meta.js';
 
 /** Story: Adw.StatusPage with a suggested-action pill button. */
 export class StatusPageStory extends StoryWidget {
@@ -19,33 +20,7 @@ export class StatusPageStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Presentation/Status Page',
-            description:
-                'Adw.StatusPage — a full-page empty state with an icon, title, description and optional action.',
-            component: Adw.StatusPage.$gtype,
-            controls: [
-                {
-                    name: 'iconName',
-                    label: 'Icon',
-                    type: ControlType.SELECT,
-                    options: [
-                        { label: 'Folder', value: 'folder-symbolic' },
-                        { label: 'Mail', value: 'mail-unread-symbolic' },
-                        { label: 'Search', value: 'system-search-symbolic' },
-                        { label: 'Star', value: 'starred-symbolic' },
-                    ],
-                    defaultValue: 'folder-symbolic',
-                },
-                { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'No Documents' },
-                {
-                    name: 'description',
-                    label: 'Description',
-                    type: ControlType.TEXT,
-                    defaultValue: 'Documents you create or open will appear here.',
-                },
-            ],
-        };
+        return { ...statusPageMeta, component: Adw.StatusPage.$gtype };
     }
 
     initialize(): void {

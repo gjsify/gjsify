@@ -20,6 +20,26 @@ adw-combo-row {
   }
 }
 
+// Shared title/subtitle text column used by every row type (action/switch/
+// combo/spin). The title is the primary label; the subtitle is dimmed and
+// hidden when empty.
+.adw-row-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.adw-row-subtitle {
+  font-size: var(--font-size-small);
+  opacity: var(--dim-opacity);
+  color: var(--card-fg-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 // Utility separator (used by content layouts)
 .adw-separator-vertical {
   width: 1px;

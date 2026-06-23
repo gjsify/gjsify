@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { bannerMeta } from './banner.meta.js';
 
 /** Story: Adw.Banner shown full-width inside a sized container. */
 export class BannerStory extends StoryWidget {
@@ -19,22 +20,7 @@ export class BannerStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Presentation/Banner',
-            description: 'Adw.Banner — a full-width strip carrying a status message and an optional action button.',
-            component: Adw.Banner.$gtype,
-            controls: [
-                {
-                    name: 'title',
-                    label: 'Title',
-                    type: ControlType.TEXT,
-                    defaultValue: 'Metered connection — updates paused',
-                },
-                { name: 'buttonLabel', label: 'Button label', type: ControlType.TEXT, defaultValue: 'Resume' },
-                { name: 'revealed', label: 'Revealed', type: ControlType.BOOLEAN, defaultValue: true },
-                { name: 'useMarkup', label: 'Use markup', type: ControlType.BOOLEAN, defaultValue: false },
-            ],
-        };
+        return { ...bannerMeta, component: Adw.Banner.$gtype };
     }
 
     initialize(): void {

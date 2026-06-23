@@ -21,14 +21,24 @@ if (typeof document !== 'undefined' && !document.getElementById('adwaita-web-sty
 }
 
 // Register custom elements (side-effect imports)
+export { AdwAvatar } from './elements/adw-avatar.js';
+export { AdwBanner } from './elements/adw-banner.js';
 export { AdwCard } from './elements/adw-card.js';
+export { AdwClamp } from './elements/adw-clamp.js';
+export { AdwSpinner } from './elements/adw-spinner.js';
+export { AdwStatusPage } from './elements/adw-status-page.js';
 export { AdwWindow } from './elements/adw-window.js';
 export { AdwHeaderBar } from './elements/adw-header-bar.js';
+export { AdwWindowTitle } from './elements/adw-window-title.js';
 export { AdwButton } from './elements/adw-button.js';
 export { AdwEntry } from './elements/adw-entry.js';
 export { AdwPreferencesGroup } from './elements/adw-preferences-group.js';
+export { AdwActionRow } from './elements/adw-action-row.js';
+export { AdwEntryRow } from './elements/adw-entry-row.js';
 export { AdwSwitchRow } from './elements/adw-switch-row.js';
 export { AdwComboRow } from './elements/adw-combo-row.js';
 export { AdwSpinRow } from './elements/adw-spin-row.js';
 export { AdwToastOverlay } from './elements/adw-toast-overlay.js';
+export { AdwToolbarView } from './elements/adw-toolbar-view.js';
 export { AdwOverlaySplitView } from './elements/adw-overlay-split-view.js';
+export { AdwNavigationSplitView } from './elements/adw-navigation-split-view.js';

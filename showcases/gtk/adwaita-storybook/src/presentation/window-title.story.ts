@@ -3,7 +3,8 @@
 
 import Adw from '@girs/adw-1';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { windowTitleMeta } from './window-title.meta.js';
 
 /** Story: Adw.WindowTitle with live title / subtitle controls. */
 export class WindowTitleStory extends StoryWidget {
@@ -18,15 +19,7 @@ export class WindowTitleStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Presentation/Window Title',
-            description: 'Adw.WindowTitle — a compact title/subtitle widget intended for a window or header bar.',
-            component: Adw.WindowTitle.$gtype,
-            controls: [
-                { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'Inbox' },
-                { name: 'subtitle', label: 'Subtitle', type: ControlType.TEXT, defaultValue: '3 unread messages' },
-            ],
-        };
+        return { ...windowTitleMeta, component: Adw.WindowTitle.$gtype };
     }
 
     initialize(): void {

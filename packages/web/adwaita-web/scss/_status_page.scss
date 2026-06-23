@@ -1,0 +1,40 @@
+// _status_page.scss — adw-status-page styling (centered empty state).
+// Reference: refs/adwaita-web/adwaita-web/scss/_status_page.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_status-page.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-status-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--spacing-m);
+  padding: var(--spacing-xl);
+  color: var(--window-fg-color);
+
+  .adw-status-page-icon {
+    width: 96px;
+    height: 96px;
+    background-color: currentColor;
+    opacity: 0.45;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+  }
+
+  .adw-status-page-title {
+    font-size: 18pt;
+    font-weight: 800;
+  }
+
+  .adw-status-page-description {
+    font-size: var(--font-size-base);
+    opacity: var(--dim-opacity);
+    max-width: 32ch;
+  }
+
+  .adw-status-page-child {
+    margin-top: var(--spacing-s);
+  }
+}

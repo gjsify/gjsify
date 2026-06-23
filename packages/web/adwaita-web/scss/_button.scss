@@ -128,32 +128,18 @@ adw-button {
   -webkit-mask-size: 16px;
   -webkit-mask-repeat: no-repeat;
   -webkit-mask-position: center;
+
+  // `display: inline-block` (author CSS) otherwise beats the UA `[hidden]`
+  // rule, so a hidden icon (e.g. an avatar's fallback icon while initials
+  // show) would still render as a solid maskless square. Honor `hidden`.
+  &[hidden] {
+    display: none;
+  }
 }
 
-.adw-icon--go-previous {
-  mask-image: var(--icon-go-previous);
-  -webkit-mask-image: var(--icon-go-previous);
-}
-
-.adw-icon--go-next {
-  mask-image: var(--icon-go-next);
-  -webkit-mask-image: var(--icon-go-next);
-}
-
-.adw-icon--view-refresh {
-  mask-image: var(--icon-view-refresh);
-  -webkit-mask-image: var(--icon-view-refresh);
-}
-
-.adw-icon--open-menu {
-  mask-image: var(--icon-open-menu);
-  -webkit-mask-image: var(--icon-open-menu);
-}
-
-.adw-icon--go-home {
-  mask-image: var(--icon-go-home);
-  -webkit-mask-image: var(--icon-go-home);
-}
+// The per-name `.adw-icon--<name>` mask classes are generated into
+// scss/_icons.generated.scss by scripts/build-scss.mjs (one entry per icon in
+// its ICONS map), so adding an icon is a single map edit.
 
 // Linked group — adjacent buttons share edges (segmented control).
 .adw-linked {

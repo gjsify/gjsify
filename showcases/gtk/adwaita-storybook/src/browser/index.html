@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Adwaita Storybook — gjsify showcase</title>
+    <style>
+        html, body { margin: 0; height: 100%; }
+        body {
+            box-sizing: border-box;
+            display: grid;
+            padding: 28px;
+            /* A neutral "desktop" so the Adwaita window's rounded corners +
+               shadow read the way a GNOME app does on a session. */
+            background: radial-gradient(120% 120% at 25% 15%, #5b6b87 0%, #353a4a 55%, #20242e 100%);
+        }
+        body > adw-window { min-height: 0; min-width: 0; }
+    </style>
+</head>
+<body>
+    <script type="module" src="browser-main.js"></script>
+</body>
+</html>
