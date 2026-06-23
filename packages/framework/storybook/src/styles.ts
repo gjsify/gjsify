@@ -13,11 +13,20 @@ export const STORYBOOK_CSS = `
     border-radius: 12px;
 }
 
+/* Controls panel shares the window (story) background; only the left
+   navigation sidebar keeps a distinct shade. The overlay-split-view sidebar is
+   otherwise drawn on the sidebar shade — flatten it onto the window colour. */
+.storybook-controls > .sidebar,
+.storybook-controls > .sidebar > * {
+    background-color: @window_bg_color;
+}
+
 /* Subtle dashed frame around the live preview so the widget's bounds stay
    locatable even when it is transparent or in an empty state (e.g. a collapsed
-   bottom sheet, a status page, a bare button). currentColor adapts to light/dark. */
+   bottom sheet, a status page, a bare button). @window_fg_color flips with the
+   theme (alpha(currentColor, …) does not resolve in a Gtk.CssProvider). */
 .story-stage {
-    border: 1px dashed alpha(currentColor, 0.25);
+    border: 1px dashed alpha(@window_fg_color, 0.28);
     border-radius: 12px;
     padding: 18px;
 }
