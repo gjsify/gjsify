@@ -1,0 +1,80 @@
+// Adw.SpinRow — a boxed-list row embedding a spin button over an adjustment.
+// original implementation.
+
+import Adw from '@girs/adw-1';
+import Gtk from '@girs/gtk-4.0';
+import GObject from '@girs/gobject-2.0';
+import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+
+/** Story: Adw.SpinRow inside a boxed list, driven by a Gtk.Adjustment. */
+export class SpinRowStory extends StoryWidget {
+    private _row: Adw.SpinRow | null = null;
+
+    static {
+        GObject.registerClass({ GTypeName: 'AdwStorybookSpinRow' }, SpinRowStory);
+    }
+
+    constructor() {
+        super(StoryWidget.fromMeta(SpinRowStory.getMetadata(), 'Default'));
+    }
+
+    static getMetadata(): StoryMeta {
+        return {
+            title: 'Boxed Lists/Spin Row',
+            description: 'Adw.SpinRow — a preferences row with an inline spin button over a numeric adjustment.',
+            component: Adw.SpinRow.$gtype,
+            controls: [
+                { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'Font size' },
+                {
+                    name: 'value',
+                    label: 'Value',
+                    type: ControlType.NUMBER,
+                    min: 0,
+                    max: 100,
+                    step: 1,
+                    defaultValue: 16,
+                },
+                {
+                    name: 'digits',
+                    label: 'Digits',
+                    type: ControlType.NUMBER,
+                    min: 0,
+                    max: 4,
+                    step: 1,
+                    defaultValue: 0,
+                },
+            ],
+        };
+    }
+
+    initialize(): void {
+        this._row = new Adw.SpinRow({
+            title: this.args.title as string,
+            adjustment: new Gtk.Adjustment({
+                lower: 0,
+                upper: 100,
+                value: this.args.value as number,
+                stepIncrement: 1,
+                pageIncrement: 10,
+            }),
+            digits: this.args.digits as number,
+        });
+
+        const group = new Adw.PreferencesGroup();
+        group.add(this._row);
+
+        const clamp = new Adw.Clamp({ maximumSize: 400, child: group });
+        this.addContent(clamp);
+    }
+
+    updateArgs(_args: StoryArgs): void {
+        if (!this._row) return;
+        this._row.title = this.args.title as string;
+        this._row.value = this.args.value as number;
+        this._row.digits = this.args.digits as number;
+    }
+}
+
+GObject.type_ensure(SpinRowStory.$gtype);
+
+export const SpinRowStories: StoryModule = { stories: [SpinRowStory] };
