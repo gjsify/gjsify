@@ -12,4 +12,13 @@ export const STORYBOOK_CSS = `
 .story-range-row > box {
     border-radius: 12px;
 }
+
+/* Subtle dashed frame around the live preview so the widget's bounds stay
+   locatable even when it is transparent or in an empty state (e.g. a collapsed
+   bottom sheet, a status page, a bare button). currentColor adapts to light/dark. */
+.story-stage {
+    border: 1px dashed alpha(currentColor, 0.25);
+    border-radius: 12px;
+    padding: 18px;
+}
 `;
