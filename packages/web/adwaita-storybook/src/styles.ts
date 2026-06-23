@@ -28,6 +28,18 @@ export const STORYBOOK_WEB_CSS = `
     overflow: hidden;
 }
 
+/* Background scheme: the content header + preview + controls all sit on the
+   window (story) background as one surface; only the left story-list column
+   (its header + list) keeps the distinct sidebar shade. Matches the native
+   renderer. The default adw-header-bar background is its own headerbar shade,
+   so override it per pane here. */
+.sb-content-pane adw-header-bar {
+    background-color: var(--window-bg-color);
+}
+.sb-sidebar-pane adw-header-bar {
+    background-color: var(--sidebar-bg-color);
+}
+
 .sb-sidebar-scroll {
     flex: 1 1 auto;
     min-height: 0;
