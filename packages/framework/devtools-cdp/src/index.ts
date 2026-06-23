@@ -19,3 +19,15 @@ export type { DiscoverInspectorTargetsOptions, InspectorTarget } from './target-
 
 export { inspectorProtocolExtension } from './inspector-protocol-extension.js';
 export type { InspectorProtocolExtensionOptions } from './inspector-protocol-extension.js';
+
+export { PROTOCOL_SPEC, PROTOCOL_SOURCE, buildTypeIndex, resolveRef } from './protocol-spec.js';
+export type {
+    ProtocolDomain,
+    ProtocolCommand,
+    ProtocolType,
+    ProtocolParameter,
+    ProtocolSpec,
+} from './protocol-spec.js';
+
+export { generateCdpTools, cdpToolName, snakeCase } from './tool-generator.js';
+export type { CdpToolDescriptor, CdpToolParam, CdpJsType, GenerateCdpToolsOptions } from './tool-generator.js';

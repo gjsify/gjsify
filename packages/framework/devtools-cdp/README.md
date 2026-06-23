@@ -59,11 +59,29 @@ The WebSocket(s) live **in the app process** (one client per connected target, c
 
 `@gjsify/devtools-browser` wires this in automatically: **`gjsify browse --inspector-port 9222 --devtools`** sets `WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9222` before the WebView, marks the view inspectable, and adds the extension. (The curated `cdpProfile` MCP tools — a thin marshaller over `CdpSend` — follow in a later phase; until then `eval_js` over the generic bridge + raw `CdpSend` cover the surface.)
 
+## Protocol spec + tool generation
+
+The 27 WebKit protocol domains are embedded as a **pruned snapshot** in `src/spec-data.ts` (generated from `refs/webkit` by `scripts/generate-spec-data.mjs`), so the package needs no `refs/webkit` at runtime. `generateCdpTools(PROTOCOL_SPEC)` turns it into MCP-tool descriptors — one per command (248 of them):
+
+```ts
+import { PROTOCOL_SPEC, generateCdpTools } from '@gjsify/devtools-cdp';
+
+const tools = generateCdpTools(PROTOCOL_SPEC);
+// [{ name: 'cdp_runtime_evaluate', method: 'Runtime.evaluate', domain, command,
+//    description, parameters: [{ name, jsType, optional, description, enum? }] }, …]
+
+const curated = generateCdpTools(PROTOCOL_SPEC, { include: (d, c) => d === 'Runtime' && c === 'evaluate' });
+```
+
+Each descriptor flattens the command's parameters to simplified JS types (`$ref` resolved one level to its base type) — no zod/MCP dependency here, so it stays pure + headless-testable. The curated `cdpProfile` (a later phase, in `@gjsify/devtools-mcp` where zod lives) turns these descriptors into registered tools; regenerate the snapshot with `node scripts/generate-spec-data.mjs <protocolDir>` after a WebKit protocol bump.
+
 ## Exports
 
 - `InspectorProtocolClient`, `ProtocolError` (+ types `InspectorProtocolClientOptions`, `ProtocolEvent`, `ProtocolEventListener`, `WebSocketLike`, `WebSocketFactory`)
 - `discoverInspectorTargets`, `parseInspectorTargetsHtml` (+ types `InspectorTarget`, `DiscoverInspectorTargetsOptions`)
 - `inspectorProtocolExtension` (+ type `InspectorProtocolExtensionOptions`)
+- `PROTOCOL_SPEC`, `PROTOCOL_SOURCE`, `buildTypeIndex`, `resolveRef` (+ protocol types `ProtocolDomain` / `ProtocolCommand` / `ProtocolType` / `ProtocolParameter`)
+- `generateCdpTools`, `cdpToolName`, `snakeCase` (+ types `CdpToolDescriptor`, `CdpToolParam`, `CdpJsType`, `GenerateCdpToolsOptions`)
 
 ## Build / test
 
@@ -72,4 +90,4 @@ gjsify workspace @gjsify/devtools-cdp build
 gjsify workspace @gjsify/devtools-cdp test
 ```
 
-62 headless tests: `inspector-protocol-client.spec.ts` (mock WebSocket — id correlation, events, timeout, close), `target-discovery.spec.ts` (captured WebKit listing + injected fetch), `inspector-protocol-extension.spec.ts` (auto-replying mock WS + injected fetch driving the `Cdp*` handlers).
+86 headless tests: `inspector-protocol-client.spec.ts` (mock WebSocket — id correlation, events, timeout, close), `target-discovery.spec.ts` (captured WebKit listing + injected fetch), `inspector-protocol-extension.spec.ts` (auto-replying mock WS driving the `Cdp*` handlers), `tool-generator.spec.ts` (fixture domain + the embedded spec).
