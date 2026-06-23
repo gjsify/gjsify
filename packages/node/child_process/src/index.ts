@@ -912,7 +912,12 @@ function _execImpl(
             }
         });
 
-        deferEmit(child, 'spawn');
+        // Emit 'spawn' on the microtask queue (Node emits it on nextTick), NOT via
+        // deferEmit's setTimeout(0): a 0ms GLib timeout source can be starved for
+        // seconds on a loaded CI runner, spuriously tripping the spawn-event test's
+        // timeout. Microtasks drain with the JS job queue (immune to loop pressure)
+        // and still fire before the exit/close macrotasks, preserving event order.
+        queueMicrotask(() => child.emit('spawn'));
     } catch (err: unknown) {
         disarmTimeout();
         disarmAbort();
@@ -1253,7 +1258,12 @@ export function spawn(
             _activeProcesses.delete(child);
         });
 
-        deferEmit(child, 'spawn');
+        // Emit 'spawn' on the microtask queue (Node emits it on nextTick), NOT via
+        // deferEmit's setTimeout(0): a 0ms GLib timeout source can be starved for
+        // seconds on a loaded CI runner, spuriously tripping the spawn-event test's
+        // timeout. Microtasks drain with the JS job queue (immune to loop pressure)
+        // and still fire before the exit/close macrotasks, preserving event order.
+        queueMicrotask(() => child.emit('spawn'));
     } catch (err: unknown) {
         // Normalise the spawn-time error so consumers can match on
         // `err.code === 'ENOENT'` / `err.errno === -2` etc. The spawn-side
