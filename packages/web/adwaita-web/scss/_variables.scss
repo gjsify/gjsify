@@ -19,6 +19,11 @@
   --headerbar-fg-color: rgba(0, 0, 6, 0.8);
   --headerbar-shade-color: rgba(0, 0, 6, 0.12);
 
+  // Hairline separators (header underline, sidebar/pane dividers). Subtle in
+  // BOTH themes — dark theme flips to a faint light line, the way libadwaita
+  // draws separators, instead of a harsh near-black line on a dark surface.
+  --separator-color: rgba(0, 0, 6, 0.1);
+
   // Sidebar
   --sidebar-bg-color: #ebebed;
 
