@@ -8,17 +8,24 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 // A subset of the libadwaita avatar palette (saturated background + light text).
-const AVATAR_COLORS: ReadonlyArray<{ bg: string; fg: string }> = [
-    { bg: '#3584e4', fg: '#ffffff' }, // blue
-    { bg: '#2596be', fg: '#ffffff' }, // cyan
-    { bg: '#3a944a', fg: '#ffffff' }, // green
-    { bg: '#c0bb35', fg: '#000000' }, // lime
-    { bg: '#cd9309', fg: '#ffffff' }, // yellow
-    { bg: '#ed5b00', fg: '#ffffff' }, // orange
-    { bg: '#e62d42', fg: '#ffffff' }, // red
-    { bg: '#d56199', fg: '#ffffff' }, // pink
-    { bg: '#9141ac', fg: '#ffffff' }, // purple
-    { bg: '#b5835a', fg: '#ffffff' }, // brown
+// The exact libadwaita avatar palette: 14 entries of { fg (a light tint), and a
+// start→stop gradient background }. Reference:
+// refs/libadwaita/src/stylesheet/widgets/_avatar.scss ($avatarcolorlist).
+const AVATAR_COLORS: ReadonlyArray<{ fg: string; start: string; stop: string }> = [
+    { fg: '#cfe1f5', start: '#83b6ec', stop: '#337fdc' }, // blue
+    { fg: '#caeaf2', start: '#7ad9f1', stop: '#0f9ac8' }, // cyan
+    { fg: '#cef8d8', start: '#8de6b1', stop: '#29ae74' }, // green
+    { fg: '#e6f9d7', start: '#b5e98a', stop: '#6ab85b' }, // lime
+    { fg: '#f9f4e1', start: '#f8e359', stop: '#d29d09' }, // yellow
+    { fg: '#ffead1', start: '#ffcb62', stop: '#d68400' }, // gold
+    { fg: '#ffe5c5', start: '#ffa95a', stop: '#ed5b00' }, // orange
+    { fg: '#f8d2ce', start: '#f78773', stop: '#e62d42' }, // raspberry
+    { fg: '#fac7de', start: '#e973ab', stop: '#e33b6a' }, // magenta
+    { fg: '#e7c2e8', start: '#cb78d4', stop: '#9945b5' }, // purple
+    { fg: '#d5d2f5', start: '#9e91e8', stop: '#7a59ca' }, // violet
+    { fg: '#f2eade', start: '#e3cf9c', stop: '#b08952' }, // beige
+    { fg: '#e5d6ca', start: '#be916d', stop: '#785336' }, // brown
+    { fg: '#d8d7d3', start: '#c0bfbc', stop: '#6e6d71' }, // gray
 ];
 
 function initialsOf(text: string): string {
@@ -28,10 +35,16 @@ function initialsOf(text: string): string {
     return (words[0][0] + words[words.length - 1][0]).toUpperCase();
 }
 
-function colorFor(text: string): { bg: string; fg: string } {
-    let hash = 0;
-    for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
-    return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+// GLib's g_str_hash (DJB2 variant: h = h*33 + c, as uint32) so the picked colour
+// matches Adw.Avatar exactly (it uses g_str_hash(text) % 14).
+function gStrHash(text: string): number {
+    let h = 5381;
+    for (let i = 0; i < text.length; i++) h = (Math.imul(h, 33) + text.charCodeAt(i)) >>> 0;
+    return h >>> 0;
+}
+
+function colorFor(text: string): { fg: string; start: string; stop: string } {
+    return AVATAR_COLORS[gStrHash(text) % AVATAR_COLORS.length];
 }
 
 export class AdwAvatar extends HTMLElement {
@@ -73,14 +86,14 @@ export class AdwAvatar extends HTMLElement {
         const showInitials = this.hasAttribute('show-initials') && initials.length > 0;
 
         if (showInitials) {
-            const { bg, fg } = colorFor(text || 'default');
-            this.style.backgroundColor = bg;
+            const { fg, start, stop } = colorFor(text || 'default');
+            this.style.backgroundImage = `linear-gradient(${start}, ${stop})`;
             this.style.color = fg;
             this._textEl.textContent = initials;
             this._textEl.hidden = false;
             this._iconEl.hidden = true;
         } else {
-            this.style.backgroundColor = '';
+            this.style.backgroundImage = '';
             this.style.color = '';
             this._textEl.hidden = true;
             const icon = (this.getAttribute('icon') ?? 'avatar-default').replace(/-symbolic$/, '');

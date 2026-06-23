@@ -12,8 +12,9 @@ adw-banner {
   padding: var(--spacing-xs) var(--spacing-m);
   width: 100%;
   box-sizing: border-box;
-  background-color: var(--accent-bg-color);
-  color: var(--accent-fg-color);
+  // Adw.Banner uses a neutral elevated surface, not the accent colour.
+  background-color: var(--sidebar-bg-color);
+  color: var(--window-fg-color);
 
   // Adw.Banner stays hidden until revealed.
   &:not(.revealed) {
@@ -31,15 +32,15 @@ adw-banner {
     border: none;
     border-radius: var(--button-radius);
     padding: 4px 14px;
-    background: rgba(255, 255, 255, 0.25);
-    color: var(--accent-fg-color);
+    background: var(--button-bg-color);
+    color: var(--window-fg-color);
     font-family: var(--font-family);
     font-size: var(--font-size-base);
     font-weight: 700;
     cursor: pointer;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.35);
+      background: var(--button-hover-color);
     }
   }
 }
