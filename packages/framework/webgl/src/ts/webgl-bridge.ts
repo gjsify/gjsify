@@ -44,6 +44,14 @@ export const WebGLBridge = GObject.registerClass(
         _renderTag: number | null = null;
         _tickCallbackId: number | null = null;
         _frameCallback: FrameRequestCallback | null = null;
+        // The most recently fired frame callback, retained AFTER invocation. A
+        // GTK-initiated repaint with no pending rAF — an offscreen snapshot (the
+        // devtools Screenshot re-renders via Gtk.WidgetPaintable), an expose, or
+        // an occlusion change — would otherwise clear the GLArea FBO and capture
+        // a blank frame for demand-driven apps (Three.js render-on-demand renders
+        // on OrbitControls 'change', not a loop). The 'render' handler replays
+        // this so the framebuffer keeps reflecting current content.
+        _lastFrameCallback: FrameRequestCallback | null = null;
         // ID of the pending frame callback (matches the value returned by the
         // most recent requestAnimationFrame call). `cancelAnimationFrame(id)`
         // only clears the callback when this matches — without ID tracking a
@@ -121,8 +129,8 @@ export const WebGLBridge = GObject.registerClass(
                 // Clears _frameCallback before invoking it so re-entrant rAF calls
                 // (standard game loop pattern) set a fresh pending callback correctly.
                 this._renderTag = this.connect('render', (_widget: Gtk.GLArea) => {
+                    const time = (GLib.get_monotonic_time() - this._timeOrigin) / 1000;
                     if (this._frameCallback !== null) {
-                        const time = (GLib.get_monotonic_time() - this._timeOrigin) / 1000;
                         if ((globalThis as { __GJSIFY_DEBUG_RAF?: boolean }).__GJSIFY_DEBUG_RAF === true) {
                             console.log(`[rAF] frame callback fires t=${time.toFixed(1)}`);
                         }
@@ -135,7 +143,20 @@ export const WebGLBridge = GObject.registerClass(
                         // and immediately get cancelled by stray cancel calls.
                         this._frameCallback = null;
                         this._frameCallbackId = 0;
+                        // Retain for replay on GTK-initiated repaints (see below).
+                        this._lastFrameCallback = cb;
                         cb(time);
+                    } else if (this._lastFrameCallback !== null) {
+                        // No app frame is pending, yet GTK asked us to repaint —
+                        // typically an OFFSCREEN SNAPSHOT (devtools Screenshot via
+                        // Gtk.WidgetPaintable), an expose, or an occlusion change.
+                        // Demand-driven apps (Three.js render-on-demand) would draw
+                        // nothing here, leaving the FBO blank → the snapshot captures
+                        // an empty GLArea. Replay the last frame so the framebuffer
+                        // reflects current content. Continuous loops never reach this
+                        // branch (they always have a pending callback). The replay
+                        // draws the current scene; it does not advance the app's loop.
+                        this._lastFrameCallback(time);
                     }
                     return true;
                 });
@@ -187,6 +208,8 @@ export const WebGLBridge = GObject.registerClass(
                     this.remove_tick_callback(this._tickCallbackId);
                     this._tickCallbackId = null;
                 }
+                this._frameCallback = null;
+                this._lastFrameCallback = null;
                 this._canvas = null;
             });
         }
