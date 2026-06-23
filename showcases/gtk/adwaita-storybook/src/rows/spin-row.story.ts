@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { spinRowMeta } from './spin-row.meta.js';
 
 /** Story: Adw.SpinRow inside a boxed list, driven by a Gtk.Adjustment. */
 export class SpinRowStory extends StoryWidget {
@@ -19,32 +20,7 @@ export class SpinRowStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Boxed Lists/Spin Row',
-            description: 'Adw.SpinRow — a preferences row with an inline spin button over a numeric adjustment.',
-            component: Adw.SpinRow.$gtype,
-            controls: [
-                { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'Font size' },
-                {
-                    name: 'value',
-                    label: 'Value',
-                    type: ControlType.NUMBER,
-                    min: 0,
-                    max: 100,
-                    step: 1,
-                    defaultValue: 16,
-                },
-                {
-                    name: 'digits',
-                    label: 'Digits',
-                    type: ControlType.NUMBER,
-                    min: 0,
-                    max: 4,
-                    step: 1,
-                    defaultValue: 0,
-                },
-            ],
-        };
+        return { ...spinRowMeta, component: Adw.SpinRow.$gtype };
     }
 
     initialize(): void {

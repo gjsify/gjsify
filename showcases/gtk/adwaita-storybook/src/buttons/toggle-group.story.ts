@@ -3,7 +3,8 @@
 
 import Adw from '@girs/adw-1';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { toggleGroupMeta } from './toggle-group.meta.js';
 
 const STYLE_CLASSES = ['flat', 'round'] as const;
 
@@ -20,35 +21,7 @@ export class ToggleGroupStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Buttons/Toggle Group',
-            description: 'Adw.ToggleGroup — a linked group of Adw.Toggle buttons where exactly one is active.',
-            component: Adw.ToggleGroup.$gtype,
-            controls: [
-                {
-                    name: 'active',
-                    label: 'Active toggle',
-                    type: ControlType.SELECT,
-                    options: [
-                        { label: 'List', value: 0 },
-                        { label: 'Grid', value: 1 },
-                        { label: 'Columns', value: 2 },
-                    ],
-                    defaultValue: 0,
-                },
-                {
-                    name: 'style',
-                    label: 'Style',
-                    type: ControlType.SELECT,
-                    options: [
-                        { label: 'Default', value: 'default' },
-                        { label: 'Flat', value: 'flat' },
-                        { label: 'Round', value: 'round' },
-                    ],
-                    defaultValue: 'default',
-                },
-            ],
-        };
+        return { ...toggleGroupMeta, component: Adw.ToggleGroup.$gtype };
     }
 
     initialize(): void {

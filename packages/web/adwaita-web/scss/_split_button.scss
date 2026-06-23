@@ -1,0 +1,222 @@
+// _split_button.scss — adw-split-button styling: a primary action button fused
+// with a dropdown that opens a menu of related actions, split by a thin divider.
+// The suggested/destructive/flat style classes recolor the whole control like
+// the matching Adwaita button variants.
+// Reference: refs/libadwaita/src/adw-split-button.c (splitbutton CSS node)
+// Reference: refs/adwaita-web/adwaita-web/scss/_split_button.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+.adw-split-button {
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: stretch;
+  vertical-align: middle;
+  min-height: 34px;
+  border-radius: var(--button-radius);
+  background-color: var(--button-bg-color);
+  color: var(--window-fg-color);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  user-select: none;
+  -webkit-user-select: none;
+
+  &:focus-within {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 1px;
+  }
+
+  // Primary action half — fills the available width, rounded on the leading
+  // side only so it meets the dropdown flush.
+  .adw-split-button-action {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex-grow: 1;
+    min-height: 34px;
+    margin: 0;
+    padding: 4px 14px;
+    border: none;
+    border-radius: var(--button-radius) 0 0 var(--button-radius);
+    background-color: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+
+    &:focus,
+    &:focus-visible {
+      outline: none;
+    }
+
+    // Icon-only action half — square, no horizontal text padding.
+    &.icon-only {
+      padding: 0;
+      width: 34px;
+      flex-grow: 0;
+    }
+  }
+
+  // Thin divider between the two halves (the splitbutton `separator` node).
+  .adw-split-button-dropdown {
+    position: relative;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    width: 28px;
+    margin: 0;
+    padding: 0 var(--spacing-xs);
+    border: none;
+    border-left: 1px solid var(--separator-color);
+    border-radius: 0 var(--button-radius) var(--button-radius) 0;
+    background-color: transparent;
+    color: inherit;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+
+    .adw-icon {
+      width: 14px;
+      height: 14px;
+      mask-size: 14px;
+      -webkit-mask-size: 14px;
+    }
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+
+    &:focus,
+    &:focus-visible {
+      outline: none;
+    }
+  }
+
+  // --- Dropdown menu (popover) ---
+  .adw-split-button-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    min-width: 160px;
+    padding: var(--spacing-xs);
+    border-radius: var(--button-radius);
+    background-color: var(--popover-bg-color, var(--window-bg-color, #fff));
+    color: var(--window-fg-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 0 1px var(--separator-color);
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .adw-split-button-menu-item {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 32px;
+    margin: 0;
+    padding: var(--spacing-xs) var(--spacing-s);
+    border: none;
+    border-radius: calc(var(--button-radius) - 2px);
+    background-color: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: -2px;
+    }
+  }
+
+  // --- Suggested action — accent-coloured whole control ---
+  &.suggested-action {
+    background-color: var(--accent-bg-color);
+    color: var(--accent-fg-color);
+
+    .adw-split-button-dropdown {
+      border-left-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .adw-split-button-action:hover,
+    .adw-split-button-dropdown:hover {
+      background-color: var(--accent-color);
+    }
+
+    .adw-split-button-action:active,
+    .adw-split-button-dropdown:active {
+      background-color: var(--accent-color);
+      filter: brightness(0.92);
+    }
+  }
+
+  // --- Destructive action — red whole control ---
+  &.destructive-action {
+    background-color: var(--destructive-bg-color);
+    color: var(--destructive-fg-color);
+
+    .adw-split-button-dropdown {
+      border-left-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .adw-split-button-action:hover,
+    .adw-split-button-dropdown:hover {
+      filter: brightness(1.06);
+    }
+
+    .adw-split-button-action:active,
+    .adw-split-button-dropdown:active {
+      filter: brightness(0.9);
+    }
+  }
+
+  // --- Flat — no resting background; only reacts on hover/active ---
+  &.flat {
+    background-color: transparent;
+  }
+
+  // --- Disabled ---
+  &.disabled {
+    opacity: 0.45;
+    cursor: default;
+
+    .adw-split-button-action,
+    .adw-split-button-dropdown {
+      cursor: default;
+      pointer-events: none;
+    }
+  }
+}

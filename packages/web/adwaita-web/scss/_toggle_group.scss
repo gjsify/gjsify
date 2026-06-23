@@ -1,0 +1,124 @@
+// _toggle_group.scss — adw-toggle-group styling (a linked set of toggle buttons
+// with a single active item, recolored with the Adwaita active-toggle accent).
+// Reference: refs/libadwaita/src/stylesheet/widgets/_toggle-group.scss (AdwToggleGroup)
+// Reference: refs/adwaita-web/adwaita-web/scss/_toggle_group.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+// The active toggle uses a white-on-fg "raised" chip. These tokens default to
+// libadwaita's light-theme values; _theme.scss overrides them for dark.
+:root {
+  --active-toggle-bg-color: #ffffff;
+  --active-toggle-fg-color: var(--window-fg-color);
+}
+
+adw-toggle-group {
+  // libadwaita's ---group-padding: a small inset so the active chip floats
+  // inside the group's pill, leaving a hairline of group background around it.
+  --group-padding: 3px;
+
+  display: inline-flex;
+  box-sizing: border-box;
+  padding: var(--group-padding);
+  border-radius: var(--button-radius);
+  background-color: var(--button-bg-color);
+
+  .adw-toggle-group-inner {
+    display: flex;
+    align-items: stretch;
+    gap: var(--group-padding);
+  }
+
+  // Each toggle is a button-shaped chip with the group's inner radius.
+  .adw-toggle {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+    min-width: 34px;
+    min-height: 28px;
+    margin: 0;
+    padding: 4px 11px;
+    border: none;
+    border-radius: calc(var(--button-radius) - var(--group-padding));
+    background-color: transparent;
+    color: var(--window-fg-color);
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition:
+      color 0.2s ease,
+      background-color 0.2s ease,
+      box-shadow 0.2s ease;
+    user-select: none;
+    -webkit-user-select: none;
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: 1px;
+    }
+
+    // The active toggle — a raised white chip, the way libadwaita draws it.
+    &.active {
+      background-color: var(--active-toggle-bg-color);
+      color: var(--active-toggle-fg-color);
+      box-shadow:
+        0 1px 3px 1px rgba(0, 0, 6, 0.07),
+        0 2px 6px 2px rgba(0, 0, 6, 0.03);
+
+      &:hover {
+        background-color: var(--active-toggle-bg-color);
+      }
+    }
+  }
+
+  // Round — group + toggles become pill-shaped.
+  &.round {
+    border-radius: 17px;
+
+    .adw-toggle {
+      border-radius: calc(17px - var(--group-padding));
+      padding-left: calc(15px - var(--group-padding));
+      padding-right: calc(15px - var(--group-padding));
+    }
+  }
+
+  // Flat — no group background; the active toggle uses a subtle fill instead of
+  // the raised white chip.
+  &.flat {
+    --group-padding: 0px;
+
+    padding: 0;
+    background: none;
+
+    .adw-toggle {
+      border-radius: var(--button-radius);
+
+      &.active {
+        background-color: var(--button-active-color);
+        color: inherit;
+        box-shadow: none;
+
+        &:hover {
+          background-color: var(--button-active-color);
+        }
+      }
+    }
+
+    &.round .adw-toggle {
+      border-radius: 17px;
+    }
+  }
+}

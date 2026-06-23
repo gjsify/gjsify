@@ -28,6 +28,9 @@
   --destructive-fg-color: #ffffff;
   --switch-off-bg: rgba(255, 255, 255, 0.2);
   --switch-knob-bg: #deddda;
+  // The active toggle is a raised near-white chip in both themes, so its text
+  // must be dark in dark mode (the default token is the light window-fg).
+  --active-toggle-fg-color: rgba(0, 0, 6, 0.8);
 }
 
 // Auto dark theme via prefers-color-scheme — opt out with .theme-light

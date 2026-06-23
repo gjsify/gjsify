@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { buttonContentMeta } from './button-content.meta.js';
 
 /** Story: Adw.ButtonContent placed inside a Gtk.Button. */
 export class ButtonContentStory extends StoryWidget {
@@ -20,27 +21,7 @@ export class ButtonContentStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Buttons/Button Content',
-            description: 'Adw.ButtonContent — pairs a symbolic icon with a label inside a Gtk.Button.',
-            component: Adw.ButtonContent.$gtype,
-            controls: [
-                { name: 'label', label: 'Label', type: ControlType.TEXT, defaultValue: 'Download' },
-                {
-                    name: 'iconName',
-                    label: 'Icon',
-                    type: ControlType.SELECT,
-                    options: [
-                        { label: 'Download', value: 'folder-download-symbolic' },
-                        { label: 'Add', value: 'list-add-symbolic' },
-                        { label: 'Send', value: 'mail-send-symbolic' },
-                        { label: 'Star', value: 'starred-symbolic' },
-                    ],
-                    defaultValue: 'folder-download-symbolic',
-                },
-                { name: 'canShrink', label: 'Can shrink', type: ControlType.BOOLEAN, defaultValue: false },
-            ],
-        };
+        return { ...buttonContentMeta, component: Adw.ButtonContent.$gtype };
     }
 
     initialize(): void {

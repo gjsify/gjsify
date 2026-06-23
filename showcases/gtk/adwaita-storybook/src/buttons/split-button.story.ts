@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gio from '@girs/gio-2.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { splitButtonFlatMeta, splitButtonMeta } from './split-button.meta.js';
 
 /** Builds the shared dropdown menu model used by both split-button variants. */
 function buildMenu(): Gio.Menu {
@@ -28,26 +29,7 @@ export class SplitButtonStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Buttons/Split Button',
-            description: 'Adw.SplitButton — a primary action button paired with a dropdown menu of related actions.',
-            component: Adw.SplitButton.$gtype,
-            controls: [
-                { name: 'label', label: 'Label', type: ControlType.TEXT, defaultValue: 'Save' },
-                {
-                    name: 'iconName',
-                    label: 'Icon',
-                    type: ControlType.SELECT,
-                    options: [
-                        { label: 'None', value: '' },
-                        { label: 'Save', value: 'document-save-symbolic' },
-                        { label: 'Send', value: 'mail-send-symbolic' },
-                        { label: 'Add', value: 'list-add-symbolic' },
-                    ],
-                    defaultValue: 'document-save-symbolic',
-                },
-            ],
-        };
+        return { ...splitButtonMeta, component: Adw.SplitButton.$gtype };
     }
 
     initialize(): void {
@@ -88,26 +70,7 @@ export class SplitButtonFlatStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Buttons/Split Button Flat',
-            description: 'Adw.SplitButton with the .flat style class, as used inside header bars and toolbars.',
-            component: Adw.SplitButton.$gtype,
-            controls: [
-                { name: 'label', label: 'Label', type: ControlType.TEXT, defaultValue: 'Reply' },
-                {
-                    name: 'iconName',
-                    label: 'Icon',
-                    type: ControlType.SELECT,
-                    options: [
-                        { label: 'None', value: '' },
-                        { label: 'Reply', value: 'mail-reply-sender-symbolic' },
-                        { label: 'Edit', value: 'document-edit-symbolic' },
-                        { label: 'Open', value: 'document-open-symbolic' },
-                    ],
-                    defaultValue: 'mail-reply-sender-symbolic',
-                },
-            ],
-        };
+        return { ...splitButtonFlatMeta, component: Adw.SplitButton.$gtype };
     }
 
     initialize(): void {

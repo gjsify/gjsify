@@ -1,0 +1,48 @@
+// _button_content.scss — adw-button-content styling (icon + label box used as a
+// button child). Mirrors libadwaita's `buttoncontent > box > {image, label}`
+// node: a horizontal box with 6px spacing between icon and label and a bold
+// label, plus optional ellipsizing when `.can-shrink` is set.
+// Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (buttoncontent)
+// Reference: refs/libadwaita/src/adw-button-content.c (AdwButtonContent)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-button-content {
+  display: inline-flex;
+  align-items: center;
+  // Centered as a group, matching the box's halign:center in AdwButtonContent.
+  justify-content: center;
+  min-width: 0;
+
+  // The inner box holds the image + label nodes (border-spacing 6px upstream).
+  .adw-button-content-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .adw-button-content-label {
+    // libadwaita: `buttoncontent > box > label { font-weight: bold; }` with a
+    // 2px trailing pad (LTR) so the label does not hug the button edge.
+    font-weight: 700;
+    line-height: 1;
+    padding-right: 2px;
+  }
+
+  // can-shrink — the label ellipsizes instead of forcing the button wider
+  // (Gtk.Label PANGO_ELLIPSIZE_END). The icon keeps its natural size.
+  &.can-shrink {
+    .adw-button-content-box {
+      min-width: 0;
+    }
+
+    .adw-button-content-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+  }
+}
