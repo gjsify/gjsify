@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { actionRowMeta } from './action-row.meta.js';
 
 /** Story: Adw.ActionRow with a prefix icon and a suffix button inside a boxed list. */
 export class ActionRowStory extends StoryWidget {
@@ -21,33 +22,7 @@ export class ActionRowStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Boxed Lists/Action Row',
-            description:
-                'Adw.ActionRow — a preferences row with a title/subtitle, a prefix icon and a suffix button, shown inside a boxed list.',
-            component: Adw.ActionRow.$gtype,
-            controls: [
-                { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'Wi-Fi' },
-                {
-                    name: 'subtitle',
-                    label: 'Subtitle',
-                    type: ControlType.TEXT,
-                    defaultValue: 'Connected to Highgarden 5GHz',
-                },
-                {
-                    name: 'iconName',
-                    label: 'Prefix icon',
-                    type: ControlType.SELECT,
-                    options: [
-                        { label: 'Network', value: 'network-wireless-symbolic' },
-                        { label: 'Folder', value: 'folder-symbolic' },
-                        { label: 'Starred', value: 'starred-symbolic' },
-                    ],
-                    defaultValue: 'network-wireless-symbolic',
-                },
-                { name: 'activatable', label: 'Activatable', type: ControlType.BOOLEAN, defaultValue: true },
-            ],
-        };
+        return { ...actionRowMeta, component: Adw.ActionRow.$gtype };
     }
 
     initialize(): void {

@@ -3,7 +3,8 @@
 
 import Adw from '@girs/adw-1';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { switchRowMeta } from './switch-row.meta.js';
 
 /** Story: Adw.SwitchRow inside a boxed list (Adw.PreferencesGroup). */
 export class SwitchRowStory extends StoryWidget {
@@ -18,21 +19,7 @@ export class SwitchRowStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Boxed Lists/Switch Row',
-            description: 'Adw.SwitchRow — a preferences row with a trailing switch, shown inside a boxed list.',
-            component: Adw.SwitchRow.$gtype,
-            controls: [
-                { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'Automatic updates' },
-                {
-                    name: 'subtitle',
-                    label: 'Subtitle',
-                    type: ControlType.TEXT,
-                    defaultValue: 'Download and install updates without asking',
-                },
-                { name: 'active', label: 'Active', type: ControlType.BOOLEAN, defaultValue: true },
-            ],
-        };
+        return { ...switchRowMeta, component: Adw.SwitchRow.$gtype };
     }
 
     initialize(): void {

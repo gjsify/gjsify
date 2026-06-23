@@ -9,7 +9,11 @@
     "check": "gjsify tsc --noEmit",
     "start": "gjsify storybook",
     "start:watch": "gjsify storybook --watch",
+    "start:browser": "http-server dist -o -c-1",
     "build": "gjsify storybook --build-only",
+    "build:browser": "gjsify build src/browser/main.ts --app browser --outfile dist/browser-main.js",
+    "build:assets": "mkdir -p dist && cp -f src/browser/index.html dist/index.html",
+    "build:web": "gjsify run build:browser && gjsify run build:assets",
     "debug": "gjsify debug --profile storybook"
   },
   "gjsify": {
@@ -27,8 +31,10 @@
     "@girs/glib-2.0": "2.88.0-4.0.4",
     "@girs/gobject-2.0": "2.88.0-4.0.4",
     "@girs/gtk-4.0": "4.23.0-4.0.4",
+    "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/cli": "workspace:^",
     "@gjsify/storybook": "workspace:^",
+    "@gjsify/adwaita-storybook": "workspace:^",
     "@types/node": "^25.9.2",
     "typescript": "^6.0.3"
   },
