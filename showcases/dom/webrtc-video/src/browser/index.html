@@ -2,9 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>WebRTC Video — Webcam Preview</title>
     <style>
-        html, body { margin: 0; background: #1e1e2e; min-height: 100vh; }
+        html, body { margin: 0; height: 100%; }
+        body {
+            box-sizing: border-box;
+            display: grid;
+            padding: 28px;
+            background: radial-gradient(120% 120% at 25% 15%, #5b6b87 0%, #353a4a 55%, #20242e 100%);
+        }
+        body > adw-window { min-height: 0; min-width: 0; }
     </style>
 </head>
 <body>
