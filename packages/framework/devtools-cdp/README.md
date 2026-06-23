@@ -1,0 +1,59 @@
+# @gjsify/devtools-cdp
+
+A client for the **WebKit Remote Inspector Protocol** — the CDP-shaped (Chrome DevTools Protocol-shaped) JSON-RPC protocol that WebKitGTK speaks over a per-target WebSocket. It is the foundation for driving a real WebKitGTK page's devtools (Runtime / DOM / CSS / Network / Console / Debugger) from an agent over MCP — the "Tier C" companion to [`@gjsify/devtools-browser`](../devtools-browser)'s in-page eval tools.
+
+> **CDP?** WebKit's protocol is *shaped like* Chrome's CDP (same domain/command/event structure, many identical names) but is **not** CDP — it's WebKit's own "Remote Inspector Protocol", with real differences (`DOM.getOuterHTML`, no `Page.navigate`, …). The `-cdp` name is the widely-recognized shorthand for "this family of protocols".
+
+This package (P1 of the Tier C roadmap) ships the **transport-pure** pieces — the protocol client and target discovery. The in-app DBus bridge, the protocol→MCP tool generator, and the `cdpProfile` land in later phases.
+
+## Protocol client
+
+```ts
+import { InspectorProtocolClient } from '@gjsify/devtools-cdp';
+
+const client = new InspectorProtocolClient('ws://127.0.0.1:9222/socket/1/1/web-page');
+await client.connect();
+await client.enableDomains(['Inspector', 'Runtime', 'DOM', 'Console']);
+
+const result = await client.send('Runtime.evaluate', { expression: '1 + 1', returnByValue: true });
+// → { result: { type: 'number', value: 2 }, wasThrown: false }
+
+client.on('Console.messageAdded', (params) => console.log('console:', params));
+const events = client.drainEvents(); // poll buffered events (for a stateless MCP bridge)
+client.close();
+```
+
+- **`send(method, params?)`** — id-correlated request; resolves with the `result`, rejects with a `ProtocolError` on a protocol error or on timeout.
+- **`on(method, cb)` / `awaitEvent(method, predicate?, timeoutMs?)`** — subscribe to pushed events.
+- **`drainEvents()`** — return + clear a bounded ring buffer of events (the poll a request/response MCP transport uses for pushed notifications).
+- **`enableDomains([...])`** — send `<Domain>.enable` for each (tolerates domains with no `enable`).
+
+One client == one WebSocket == one target (WebKit has no session multiplexing). The client is written against a minimal `WebSocketLike` surface with an injectable factory, so it is **fully unit-testable headless** — and under GJS it uses the global `WebSocket` from [`@gjsify/websocket`](../../web/websocket) (libsoup).
+
+## Target discovery
+
+WebKit's inspector HTTP server (enabled with `WEBKIT_INSPECTOR_HTTP_SERVER=host:port`) has **no `/json` endpoint** — `GET /` returns an HTML listing of `<a href="/socket/{conn}/{target}/{type}">` anchors. This package parses them:
+
+```ts
+import { discoverInspectorTargets } from '@gjsify/devtools-cdp';
+
+const targets = await discoverInspectorTargets(9222); // [{ connectionId, targetId, targetType, wsUrl, title }]
+const page = targets.find((t) => t.targetType === 'web-page');
+const client = new InspectorProtocolClient(page!.wsUrl);
+```
+
+Targets only appear once a page has begun loading, so a caller racing startup should poll — an empty array is a valid "not ready yet". `parseInspectorTargetsHtml(html, host, port)` is the pure, exported core (`fetch` is injectable for tests).
+
+## Exports
+
+- `InspectorProtocolClient`, `ProtocolError` (+ types `InspectorProtocolClientOptions`, `ProtocolEvent`, `ProtocolEventListener`, `WebSocketLike`, `WebSocketFactory`)
+- `discoverInspectorTargets`, `parseInspectorTargetsHtml` (+ types `InspectorTarget`, `DiscoverInspectorTargetsOptions`)
+
+## Build / test
+
+```bash
+gjsify workspace @gjsify/devtools-cdp build
+gjsify workspace @gjsify/devtools-cdp test
+```
+
+The protocol client is covered by `src/inspector-protocol-client.spec.ts` (mock WebSocket — id correlation, events, timeout, close); discovery by `src/target-discovery.spec.ts` (captured WebKit listing + injected fetch).
