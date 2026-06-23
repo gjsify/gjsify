@@ -730,6 +730,8 @@ Discovery: `gjsify showcase` lists; `<name>` runs `check` then shared `runGjsBun
 
 **Dep rule:** esbuild-bundled → `devDependencies`. Only packages with native prebuilds needed by `gjsify run` at runtime (only `@gjsify/webgl` today) stay in `dependencies`.
 
+**`showcases/gtk/*` — native GTK/Adwaita showcases.** A third category alongside `dom`/`node`, for showcases that demonstrate the GTK/Adwaita platform itself (not gjsify's DOM/Web polyfills). First member: `@gjsify/example-gtk-adwaita-storybook` — a Libadwaita component browser built on `@gjsify/storybook` + `@gjsify/devtools`. It is **launched by `gjsify storybook`** (discovers `*.story.ts`, builds `--app gjs`, runs), NOT by `gjsify showcase <name>` / `gjsify run start`, so it is **not** registered as a `@gjsify/example-*` dep in the CLI (no step 5/6). It is `"private": true` + versioned — a dev-tooling showcase, like the existing private `webrtc-video` / `three-geometry-teapot-nativescript` showcases — so the release publish loop skips it (`gjsify publish` skips `private`). Workspace member (`showcases/gtk/*` in root `package.json#workspaces`) so CI type-checks it via `gjsify foreach check`.
+
 ## Implementation workflow (TDD)
 
 1. Study API: `refs/node/lib/<name>.js`

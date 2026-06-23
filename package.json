@@ -118,6 +118,7 @@
         "showcases/dom/*",
         "!showcases/dom/three-geometry-teapot-nativescript",
         "showcases/node/*",
+        "showcases/gtk/*",
         "tests/browser",
         "tests/dom/*",
         "tests/integration/*",
