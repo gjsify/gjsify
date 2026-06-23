@@ -3,6 +3,7 @@
 // ControlDbusService (apps/maker-gjs/src/services/control-dbus.service.ts).
 
 import Gio from '@girs/gio-2.0';
+import GLib from '@girs/glib-2.0';
 import Gtk from '@girs/gtk-4.0';
 import {
     type ActionList,
@@ -27,6 +28,32 @@ import {
 } from './widget-tree.js';
 
 type ActionScope = 'app' | 'win';
+
+/** Resolve after `ms`, yielding to the GLib main loop so layout/render can progress. */
+function frameDelay(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+            resolve();
+            return GLib.SOURCE_REMOVE;
+        });
+    });
+}
+
+/**
+ * Capture `widget` to PNG, retrying across a handful of frames. A window that is
+ * mapped but not yet realised/allocated (e.g. right after launch, or while a
+ * heavy view is still being laid out) produces a zero-size GSK frame — giving it
+ * a few main-loop iterations to lay out turns those transient empty captures into
+ * a real screenshot. Returns null only if it never becomes renderable.
+ */
+async function captureWidgetWhenRenderable(widget: Gtk.Widget, tries = 12, gapMs = 50): Promise<Uint8Array | null> {
+    for (let i = 0; i < tries; i++) {
+        const png = captureWidgetPng(widget);
+        if (png) return png;
+        await frameDelay(gapMs);
+    }
+    return captureWidgetPng(widget);
+}
 
 /**
  * The permanent `org.gjsify.Devtools` DBus interface for a GTK app — lets
@@ -100,7 +127,19 @@ export class DevtoolsService {
     async Screenshot(_scope: string): Promise<Uint8Array> {
         const win = this._app.get_active_window();
         if (!win) return new Uint8Array(0);
-        return captureWidgetPng(win) ?? new Uint8Array(0);
+        // Fast path: already renderable. Otherwise present it and retry across a
+        // few frames — a just-launched or mid-layout window yields a zero-size
+        // GSK frame. Previously that returned empty bytes on the very first try,
+        // so callers (the MCP bridge, gdbus, screenshot scripts) saw spurious
+        // "empty screenshot" results during window warm-up. Waiting here makes a
+        // successful capture the norm; the empty-bytes contract is preserved as
+        // the genuine-failure signal (window truly never realises / is occluded).
+        let png = captureWidgetPng(win);
+        if (!png) {
+            win.present();
+            png = await captureWidgetWhenRenderable(win);
+        }
+        return png ?? new Uint8Array(0);
     }
 
     /** `ListActions() -> s` — JSON of the `app.*` + `win.*` actions. */
@@ -156,7 +195,8 @@ export class DevtoolsService {
     /** `DumpTree(root, depth) -> s` — JSON widget tree from `root` ('' = active window). */
     DumpTree(root: string, depth: number): string {
         const resolved = this._resolveRootWidget(root);
-        if (!resolved) throw new Error(formatDbusErrorMessage('not-found', `no widget at '${root || 'active window'}'`));
+        if (!resolved)
+            throw new Error(formatDbusErrorMessage('not-found', `no widget at '${root || 'active window'}'`));
         return JSON.stringify(dumpTree(resolved.widget, depth > 0 ? depth : 8, resolved.path));
     }
 
@@ -165,7 +205,8 @@ export class DevtoolsService {
         const resolved = this._resolveRootWidget(path);
         if (!resolved) throw new Error(formatDbusErrorMessage('not-found', `no widget at '${path}'`));
         const value = getWidgetProperty(resolved.widget, prop);
-        if (value === undefined) throw new Error(formatDbusErrorMessage('not-found', `widget has no property '${prop}'`));
+        if (value === undefined)
+            throw new Error(formatDbusErrorMessage('not-found', `widget has no property '${prop}'`));
         return JSON.stringify(value);
     }
 
