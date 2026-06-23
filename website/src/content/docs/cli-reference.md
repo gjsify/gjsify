@@ -649,9 +649,10 @@ gjsify browse https://localhost:8080 --devtools   # + MCP control plane (drive v
 | `--globals <value>` | `auto,dom` | Value for `gjsify build --globals` (WebKit/iframe need DOM globals). |
 | `--out <path>` | `node_modules/.cache/gjsify-browse` | Output bundle path. |
 | `--devtools` | `false` | Enable the MCP devtools control plane (sets `GJSIFY_DEVTOOLS=1`). |
+| `--inspector-port <n>` | — | Enable WebKit's remote inspector protocol on this port + the `Cdp*` deep-protocol methods (implies `--devtools`). |
 | `--build-only` | `false` | Build the bundle but do not launch it. |
 
-The browser is built on [`@gjsify/iframe`](https://www.npmjs.com/package/@gjsify/iframe) (a `WebKit.WebView` postMessage bridge). See the [Debugging & remote control guide](./guides/devtools/) for the agent workflow.
+The browser is built on [`@gjsify/iframe`](https://www.npmjs.com/package/@gjsify/iframe) (a `WebKit.WebView` postMessage bridge). With `--inspector-port`, it also sets `WEBKIT_INSPECTOR_HTTP_SERVER` and exposes the [`@gjsify/devtools-cdp`](https://www.npmjs.com/package/@gjsify/devtools-cdp) `Cdp*` methods (`CdpDiscoverTargets` / `CdpConnect` / `CdpSend` / `CdpDrainEvents`) over the control plane — the deep Runtime/DOM/CSS/Network/Console/Debugger protocol. See the [Debugging & remote control guide](./guides/devtools/) for the agent workflow.
 
 ## `gjsify gresource`
 

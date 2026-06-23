@@ -1,10 +1,10 @@
 # @gjsify/devtools-cdp
 
-A client for the **WebKit Remote Inspector Protocol** — the CDP-shaped (Chrome DevTools Protocol-shaped) JSON-RPC protocol that WebKitGTK speaks over a per-target WebSocket. It is the foundation for driving a real WebKitGTK page's devtools (Runtime / DOM / CSS / Network / Console / Debugger) from an agent over MCP — the "Tier C" companion to [`@gjsify/devtools-browser`](../devtools-browser)'s in-page eval tools.
+A client for the **WebKit Remote Inspector Protocol** — the CDP-shaped (Chrome DevTools Protocol-shaped) JSON-RPC protocol that WebKitGTK speaks over a per-target WebSocket. It is the foundation for driving a real WebKitGTK page's deep devtools (Runtime / DOM / CSS / Network / Console / Debugger) from an agent over MCP — the deep-protocol companion to [`@gjsify/devtools-browser`](../devtools-browser)'s in-page-eval inspector tools.
 
 > **CDP?** WebKit's protocol is *shaped like* Chrome's CDP (same domain/command/event structure, many identical names) but is **not** CDP — it's WebKit's own "Remote Inspector Protocol", with real differences (`DOM.getOuterHTML`, no `Page.navigate`, …). The `-cdp` name is the widely-recognized shorthand for "this family of protocols".
 
-This package (P1 of the Tier C roadmap) ships the **transport-pure** pieces — the protocol client and target discovery. The in-app DBus bridge, the protocol→MCP tool generator, and the `cdpProfile` land in later phases.
+It ships two layers: the **transport-pure** protocol client + target discovery (usable standalone), and the **in-app `DevtoolsExtension`** that exposes the protocol over the `org.gjsify.Devtools` control plane (so an agent reaches it through the same MCP bridge as everything else). The protocol→MCP tool generator and the curated `cdpProfile` land in later phases.
 
 ## Protocol client
 
@@ -44,10 +44,26 @@ const client = new InspectorProtocolClient(page!.wsUrl);
 
 Targets only appear once a page has begun loading, so a caller racing startup should poll — an empty array is a valid "not ready yet". `parseInspectorTargetsHtml(html, host, port)` is the pure, exported core (`fetch` is injectable for tests).
 
+## In-app bridge
+
+`inspectorProtocolExtension({ port })` returns a [`DevtoolsExtension`](../devtools) that adds four methods to the app's `org.gjsify.Devtools` control plane:
+
+| DBus method | MCP-facing | Kind |
+|---|---|---|
+| `CdpDiscoverTargets()` | list inspectable targets | read-only |
+| `CdpConnect(target_json)` | connect (defaults to the first `web-page`) + auto-`enable` Inspector/Runtime/DOM/Console | read-only |
+| `CdpSend(method, params_json)` | the universal escape hatch to any `Domain.command` | mutating |
+| `CdpDrainEvents()` | poll + clear buffered protocol events | read-only |
+
+The WebSocket(s) live **in the app process** (one client per connected target, cached) — never in the MCP bridge — so the bridge runs no second GLib main loop; it just calls these DBus methods.
+
+`@gjsify/devtools-browser` wires this in automatically: **`gjsify browse --inspector-port 9222 --devtools`** sets `WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9222` before the WebView, marks the view inspectable, and adds the extension. (The curated `cdpProfile` MCP tools — a thin marshaller over `CdpSend` — follow in a later phase; until then `eval_js` over the generic bridge + raw `CdpSend` cover the surface.)
+
 ## Exports
 
 - `InspectorProtocolClient`, `ProtocolError` (+ types `InspectorProtocolClientOptions`, `ProtocolEvent`, `ProtocolEventListener`, `WebSocketLike`, `WebSocketFactory`)
 - `discoverInspectorTargets`, `parseInspectorTargetsHtml` (+ types `InspectorTarget`, `DiscoverInspectorTargetsOptions`)
+- `inspectorProtocolExtension` (+ type `InspectorProtocolExtensionOptions`)
 
 ## Build / test
 
@@ -56,4 +72,4 @@ gjsify workspace @gjsify/devtools-cdp build
 gjsify workspace @gjsify/devtools-cdp test
 ```
 
-The protocol client is covered by `src/inspector-protocol-client.spec.ts` (mock WebSocket — id correlation, events, timeout, close); discovery by `src/target-discovery.spec.ts` (captured WebKit listing + injected fetch).
+62 headless tests: `inspector-protocol-client.spec.ts` (mock WebSocket — id correlation, events, timeout, close), `target-discovery.spec.ts` (captured WebKit listing + injected fetch), `inspector-protocol-extension.spec.ts` (auto-replying mock WS + injected fetch driving the `Cdp*` handlers).
