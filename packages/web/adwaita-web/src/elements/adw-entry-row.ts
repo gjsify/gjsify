@@ -43,7 +43,12 @@ export class AdwEntryRow extends HTMLElement {
             this.dispatchEvent(new CustomEvent('changed', { bubbles: true, detail: { text: this._input.value } }));
         });
 
-        this.replaceChildren(this._titleEl, this._input);
+        // Title floats as a small label above the value (the filled
+        // Adw.EntryRow look), both left-aligned in a text column.
+        const text = document.createElement('div');
+        text.className = 'adw-entry-row-text';
+        text.append(this._titleEl, this._input);
+        this.replaceChildren(text);
     }
 
     attributeChangedCallback(name: string, _old: string | null, value: string | null) {
