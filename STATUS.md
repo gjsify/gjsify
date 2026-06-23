@@ -570,6 +570,17 @@ No cases are excluded from the baseline. The full Autobahn suite is enabled: cor
 
 **Not wired into CI yet** — Podman-in-CI on Fedora requires privileged containers or socket sharing that our current CI config doesn't enable. Manual `yarn test` + baseline commit is the Phase 1 workflow. Baseline JSON under `reports/baseline/<agent>.json` is tracked; regressions surface in PR diffs.
 
+### devtools-cdp (`tests/integration/devtools-cdp/`)
+
+Validates `@gjsify/devtools-cdp`'s `InspectorProtocolClient` against a **live WebKit remote inspector** (the CDP-shaped JSON-RPC protocol WebKitGTK exposes over a per-target WebSocket). Ported from `refs/webkit/LayoutTests/inspector/{runtime,dom}`.
+
+Like autobahn it can't run headlessly, so it is **opt-in + skip-if-unreachable**: with `GJSIFY_CDP_INSPECTOR_PORT` unset (the CI default) the suite registers a single passing "skipped" test and exits 0. Pointed at a reachable inspector it connects, enables `Inspector`/`Runtime`/`DOM`/`Console`, and asserts real round-trips:
+
+- **Runtime** — `Runtime.evaluate('1 + 1', returnByValue)` → `2`; `({x:1})` yields an object handle with an `objectId`; an undefined reference sets `wasThrown`.
+- **DOM** — `DOM.getDocument` returns the `#document` root (`nodeType` 9); `DOM.querySelector('body')` + `DOM.getOuterHTML` returns `<body…>`; `DOM.querySelectorAll('div')` returns a `nodeIds` array.
+
+Launch recipe: `gjsify browse <url> --inspector-port 9222`, then `GJSIFY_CDP_INSPECTOR_PORT=9222 gjsify workspace @gjsify/integration-devtools-cdp test`. **Not wired into CI** — needs a real WebKitGTK display, not available in the headless Fedora container.
+
 ### mcp-typescript-sdk (`tests/integration/mcp-typescript-sdk/`)
 
 Validates `@gjsify/http`, `@gjsify/fetch`, `@gjsify/net`, `@gjsify/ws`, `@gjsify/events`, `@gjsify/child_process`, `@gjsify/buffer`, and the SDK's pure-JS surfaces (URI templates, tool-name validation, in-memory transport, stdio framing) against the [Model Context Protocol TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk). **Node: 281/281 green. GJS: 281/287 green (6 pre-existing `streamable-http.spec.ts` timeouts under flaky libsoup long-poll SSE pause behaviour; tracked separately, not introduced by this expansion).**
