@@ -47,6 +47,9 @@ export class StorybookWebApp {
     private _previewEl!: HTMLElement;
     private _previewTitle!: HTMLElement;
     private _controlsGroup!: HTMLElement;
+    private _navSplit!: HTMLElement;
+    private _controlsSplit!: HTMLElement;
+    private _backBtn!: HTMLElement;
 
     private _activeStory: StoryElement | null = null;
     private _rowByTitle = new Map<string, HTMLElement>();
@@ -65,12 +68,45 @@ export class StorybookWebApp {
         const modules = this._registry.createStoryInstances();
         this._buildUI();
         this._populateSidebar(modules);
+        this._observeBreakpoint();
         this._exposeGlobal();
 
         if (this._options.openFirst !== false) {
             const first = this._firstStory();
             if (first) this._showStory(first);
         }
+    }
+
+    /**
+     * Collapse the split views on narrow widths, mirroring the native
+     * StorybookWindow's `Adw.Breakpoint` at 720sp: instead of squishing the
+     * three columns, the sidebar/content navigate one pane at a time and the
+     * controls become an on-demand overlay.
+     */
+    private _observeBreakpoint(): void {
+        const apply = (): void => this._applyBreakpoint();
+        if (typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(apply).observe(this._navSplit);
+        } else {
+            globalThis.addEventListener?.('resize', apply);
+        }
+        apply();
+    }
+
+    private _applyBreakpoint(): void {
+        const width = this._navSplit.clientWidth;
+        if (width === 0) return; // not laid out yet — the observer will re-fire
+        const collapsed = width < 720;
+        const nav = this._navSplit as HTMLElement & { collapsed: boolean };
+        const osv = this._controlsSplit as HTMLElement & { collapsed: boolean; showSidebar: boolean };
+        if (nav.collapsed !== collapsed) nav.collapsed = collapsed;
+        if (osv.collapsed !== collapsed) osv.collapsed = collapsed;
+        // Collapsing shows the story list first (like native); the back button
+        // only appears once a story is pushed onto the content pane.
+        this._navSplit.removeAttribute('show-content');
+        this._backBtn.hidden = true;
+        // Controls are docked when expanded, an on-demand overlay when collapsed.
+        osv.showSidebar = !collapsed;
     }
 
     // --- control surface (mirrors StorybookWindow; driven by host-level MCP via window.__storybook) ---
@@ -162,6 +198,19 @@ export class StorybookWebApp {
             [previewSlot, controlsScroll],
         );
 
+        this._controlsSplit = controlsSplit;
+
+        // Back button — only shown when collapsed, returns to the story list.
+        this._backBtn = h('button', {
+            class: 'adw-header-btn sb-back-btn',
+            slot: 'start',
+            title: 'Back to stories',
+            'aria-label': 'Back to stories',
+        });
+        this._backBtn.append(h('span', { class: 'adw-icon adw-icon--go-previous' }));
+        this._backBtn.hidden = true;
+        this._backBtn.addEventListener('click', () => this._navSplit.removeAttribute('show-content'));
+
         this._previewTitle = h('adw-window-title', { slot: 'center', title: 'Preview' });
         const toggleControls = h('button', {
             class: 'adw-header-btn sb-toggle-controls',
@@ -175,18 +224,18 @@ export class StorybookWebApp {
                 controlsSplit as HTMLElement & { showSidebar: boolean }
             ).showSidebar;
         });
-        const previewHeader = h('adw-header-bar', { slot: 'top' }, [this._previewTitle, toggleControls]);
+        const previewHeader = h('adw-header-bar', { slot: 'top' }, [this._backBtn, this._previewTitle, toggleControls]);
 
         const contentPane = h('div', { slot: 'content', class: 'sb-content-pane' }, [
             h('adw-toolbar-view', {}, [previewHeader, controlsSplit]),
         ]);
 
         // --- Outer split + window ---
-        const navSplit = h('adw-navigation-split-view', { 'min-sidebar-width': '220', 'max-sidebar-width': '320' }, [
+        this._navSplit = h('adw-navigation-split-view', { 'min-sidebar-width': '220', 'max-sidebar-width': '320' }, [
             sidebarPane,
             contentPane,
         ]);
-        const window_ = h('adw-window', { class: 'sb-window' }, [navSplit]);
+        const window_ = h('adw-window', { class: 'sb-window' }, [this._navSplit]);
         this._container.replaceChildren(window_);
     }
 
@@ -232,6 +281,12 @@ export class StorybookWebApp {
 
         this._updateControlPanel(story);
         this._activeStory = story;
+
+        // When collapsed (narrow), selecting a story navigates to the content
+        // pane (push-navigation), mirroring the native split view.
+        if ((this._navSplit as HTMLElement & { collapsed: boolean }).collapsed) {
+            this._navSplit.setAttribute('show-content', '');
+        }
     }
 
     private _updateControlPanel(story: StoryElement): void {

@@ -10,7 +10,7 @@ adw-entry-row {
   align-items: center;
   gap: var(--spacing-m);
   min-height: 50px;
-  padding: var(--spacing-s) var(--spacing-m);
+  padding: var(--spacing-xs) var(--spacing-m);
   border-bottom: 1px solid var(--card-shade-color);
 
   &:last-child {
@@ -22,22 +22,32 @@ adw-entry-row {
     box-shadow: inset 0 0 0 2px var(--accent-color);
   }
 
+  // Filled Adw.EntryRow layout: a small floating title above the value,
+  // both left-aligned in a column.
+  .adw-entry-row-text {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 1px;
+  }
+
   .adw-row-title {
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-small);
     color: var(--card-fg-color);
     opacity: var(--dim-opacity);
-    flex-shrink: 0;
   }
 
   .adw-entry-row-input {
-    flex: 1 1 auto;
+    width: 100%;
     min-width: 0;
     border: none;
     background: transparent;
     color: var(--card-fg-color);
     font-family: var(--font-family);
     font-size: var(--font-size-base);
-    text-align: right;
+    text-align: left;
     outline: none;
     padding: 0;
   }

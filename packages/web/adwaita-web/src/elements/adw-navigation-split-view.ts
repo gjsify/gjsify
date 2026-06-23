@@ -58,14 +58,26 @@ export class AdwNavigationSplitView extends HTMLElement {
     attributeChangedCallback(name: string) {
         if (!this._initialized) return;
         if (name === 'min-sidebar-width' || name === 'max-sidebar-width') this._syncWidth();
-        else this._syncClasses();
+        else {
+            this._syncClasses();
+            // Collapsing flips whether the sidebar is width-capped, so re-apply.
+            this._syncWidth();
+        }
     }
 
     private _syncWidth() {
+        // When collapsed the visible pane fills the whole view, so the sidebar's
+        // min/max width caps must not apply (an inline cap would otherwise win
+        // over any stylesheet rule and leave a dead strip beside the pane).
+        if (this.collapsed) {
+            this._sidebarEl.style.minWidth = '';
+            this._sidebarEl.style.maxWidth = '';
+            return;
+        }
         const min = this.getAttribute('min-sidebar-width');
         const max = this.getAttribute('max-sidebar-width');
-        if (min) this._sidebarEl.style.minWidth = `${parseFloat(min)}px`;
-        if (max) this._sidebarEl.style.maxWidth = `${parseFloat(max)}px`;
+        this._sidebarEl.style.minWidth = min ? `${parseFloat(min)}px` : '';
+        this._sidebarEl.style.maxWidth = max ? `${parseFloat(max)}px` : '';
     }
 
     private _syncClasses() {

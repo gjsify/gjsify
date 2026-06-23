@@ -16,7 +16,7 @@ adw-navigation-split-view {
     flex-direction: column;
     min-height: 0;
     flex-shrink: 0;
-    border-right: 1px solid var(--headerbar-shade-color);
+    border-right: 1px solid var(--separator-color);
     background-color: var(--sidebar-bg-color);
   }
 

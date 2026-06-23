@@ -70,7 +70,12 @@ export class StorybookWindow extends Adw.ApplicationWindow {
             title_widget: new Adw.WindowTitle({ title: 'Stories' }),
             show_end_title_buttons: false,
         });
-        const sidebarToolbar = new Adw.ToolbarView({ content: sidebarScroll });
+        // Flat top bar so the sidebar header shares the sidebar background
+        // (the left column reads as one distinct shade).
+        const sidebarToolbar = new Adw.ToolbarView({
+            content: sidebarScroll,
+            top_bar_style: Adw.ToolbarStyle.FLAT,
+        });
         sidebarToolbar.add_top_bar(sidebarHeader);
         const sidebarPage = new Adw.NavigationPage({ title: 'Stories', tag: 'stories', child: sidebarToolbar });
 
@@ -90,6 +95,9 @@ export class StorybookWindow extends Adw.ApplicationWindow {
             max_sidebar_width: 360,
             content: contentScroll,
             sidebar: controlsScroll,
+            // Controls panel shares the window (story) background — only the
+            // left navigation sidebar keeps a distinct shade (see STORYBOOK_CSS).
+            css_classes: ['storybook-controls'],
         });
 
         // --- Preview header ---
@@ -101,7 +109,12 @@ export class StorybookWindow extends Adw.ApplicationWindow {
         });
         const previewHeader = new Adw.HeaderBar({ title_widget: this._preview_title });
         previewHeader.pack_end(this._show_controls_button);
-        const previewToolbar = new Adw.ToolbarView({ content: this._controls_split_view });
+        // Flat top bar so the preview header shares the window (story)
+        // background instead of a distinct headerbar shade.
+        const previewToolbar = new Adw.ToolbarView({
+            content: this._controls_split_view,
+            top_bar_style: Adw.ToolbarStyle.FLAT,
+        });
         previewToolbar.add_top_bar(previewHeader);
         const previewPage = new Adw.NavigationPage({ title: 'Preview', tag: 'preview', child: previewToolbar });
 
