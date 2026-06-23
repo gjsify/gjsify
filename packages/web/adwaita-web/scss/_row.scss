@@ -40,6 +40,17 @@ adw-combo-row {
   text-overflow: ellipsis;
 }
 
+// Trailing edit pencil shared by editable rows (entry/password) — the
+// Adw.EntryRow edit affordance. Dimmed; clicking focuses the entry.
+.adw-row-edit {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--card-fg-color);
+  opacity: 0.55;
+  cursor: pointer;
+}
+
 // Utility separator (used by content layouts)
 .adw-separator-vertical {
   width: 1px;

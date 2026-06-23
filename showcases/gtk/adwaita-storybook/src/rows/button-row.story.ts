@@ -3,7 +3,8 @@
 
 import Adw from '@girs/adw-1';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { buttonRowMeta } from './button-row.meta.js';
 
 const STYLE_CLASSES = ['suggested-action', 'destructive-action'];
 
@@ -20,37 +21,7 @@ export class ButtonRowStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Boxed Lists/Button Row',
-            description:
-                'Adw.ButtonRow — a full-width row that acts as a button, with an optional icon and style class.',
-            component: Adw.ButtonRow.$gtype,
-            controls: [
-                { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'Add account' },
-                {
-                    name: 'startIconName',
-                    label: 'Start icon',
-                    type: ControlType.SELECT,
-                    options: [
-                        { label: 'Add', value: 'list-add-symbolic' },
-                        { label: 'Trash', value: 'user-trash-symbolic' },
-                        { label: 'None', value: '' },
-                    ],
-                    defaultValue: 'list-add-symbolic',
-                },
-                {
-                    name: 'style',
-                    label: 'Style',
-                    type: ControlType.SELECT,
-                    options: [
-                        { label: 'None', value: 'none' },
-                        { label: 'Suggested', value: 'suggested-action' },
-                        { label: 'Destructive', value: 'destructive-action' },
-                    ],
-                    defaultValue: 'suggested-action',
-                },
-            ],
-        };
+        return { ...buttonRowMeta, component: Adw.ButtonRow.$gtype };
     }
 
     initialize(): void {

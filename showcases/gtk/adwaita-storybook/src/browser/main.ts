@@ -11,7 +11,10 @@ import { SpinnerWebStories } from './presentation/spinner.web.js';
 import { StatusPageWebStories } from './presentation/status-page.web.js';
 import { WindowTitleWebStories } from './presentation/window-title.web.js';
 import { ActionRowWebStories } from './rows/action-row.web.js';
+import { ButtonRowWebStories } from './rows/button-row.web.js';
 import { ComboRowWebStories } from './rows/combo-row.web.js';
+import { ExpanderRowWebStories } from './rows/expander-row.web.js';
+import { PasswordEntryRowWebStories } from './rows/password-entry-row.web.js';
 import { SwitchRowWebStories } from './rows/switch-row.web.js';
 import { ButtonStylesWebStories } from './buttons/button-styles.web.js';
 
@@ -24,7 +27,10 @@ const stories: WebStoryModule[] = [
     StatusPageWebStories,
     WindowTitleWebStories,
     ActionRowWebStories,
+    ButtonRowWebStories,
     ComboRowWebStories,
+    ExpanderRowWebStories,
+    PasswordEntryRowWebStories,
     SwitchRowWebStories,
     ButtonStylesWebStories,
 ];
