@@ -7,8 +7,7 @@
 // Exposes `mount(container, options?)` so the website slideshow can embed the
 // showcase. Standalone runs through `browser-main.ts` (`mount(document.body)`).
 
-import '@gjsify/adwaita-web';
-import adwaitaCss from '@gjsify/adwaita-web/style.css';
+import '@gjsify/adwaita-web'; // registers the custom elements + self-injects the stylesheet
 import type { AdwEntry, AdwHeaderBar } from '@gjsify/adwaita-web';
 import { BrowserCore, BUILTIN_PAGE_URLS, DEFAULT_HOME_URL, type IFrameHandle } from '../browser-demo.js';
 
@@ -55,12 +54,8 @@ const SHOWCASE_CSS = `
 `;
 
 function ensureStyles(): void {
-    if (!document.getElementById('adwaita-web-style')) {
-        const s = document.createElement('style');
-        s.id = 'adwaita-web-style';
-        s.textContent = adwaitaCss;
-        document.head.appendChild(s);
-    }
+    // The Adwaita stylesheet is self-injected by `import '@gjsify/adwaita-web'`;
+    // only the showcase's own layout chrome needs injecting here.
     if (!document.getElementById('minimalist-browser-style')) {
         const s = document.createElement('style');
         s.id = 'minimalist-browser-style';

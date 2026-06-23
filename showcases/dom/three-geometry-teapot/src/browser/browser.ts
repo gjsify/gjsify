@@ -1,8 +1,7 @@
 // Browser UI for three-geometry-teapot example.
 // Mirrors the GJS/Adwaita UI from gjs/teapot-window.ts using @gjsify/adwaita-web.
 
-import '@gjsify/adwaita-web';
-import '@gjsify/adwaita-web/style.css';
+import '@gjsify/adwaita-web'; // registers the custom elements + self-injects the stylesheet
 import type { AdwOverlaySplitView, AdwHeaderBar } from '@gjsify/adwaita-web';
 import { mediaPlaybackPauseSymbolic, mediaPlaybackStartSymbolic } from '@gjsify/adwaita-icons/actions';
 import {

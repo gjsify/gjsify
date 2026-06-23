@@ -6,7 +6,7 @@
 // Exposes `mount(container, options?)` so the website slideshow can embed the
 // showcase. Standalone runs go through `browser-main.ts` (`mount(document.body)`).
 
-import '@gjsify/adwaita-web';
+import '@gjsify/adwaita-web'; // registers the custom elements + self-injects the stylesheet
 import { startVideo } from '../video-demo.js';
 
 export interface MountOptions {

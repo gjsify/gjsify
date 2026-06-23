@@ -3,8 +3,7 @@
 // Ported from refs/three/examples/webgl_postprocessing_pixel.html
 // Original: MIT license, three.js authors (https://threejs.org)
 
-import '@gjsify/adwaita-web';
-import '@gjsify/adwaita-web/style.css';
+import '@gjsify/adwaita-web'; // registers the custom elements + self-injects the stylesheet
 import type { AdwOverlaySplitView, AdwHeaderBar } from '@gjsify/adwaita-web';
 import { mediaPlaybackPauseSymbolic, mediaPlaybackStartSymbolic } from '@gjsify/adwaita-icons/actions';
 import { start, type PixelDemo } from '../three-demo.js';
@@ -176,12 +175,12 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
         if (!demo && canvas.width > 0 && canvas.height > 0) {
             demo = start(canvas, { assetBase });
             connectControls(
-                    demo,
-                    pixelSizeRow as AdwRow,
-                    normalEdgeRow as AdwRow,
-                    depthEdgeRow as AdwRow,
-                    pixelAlignRow as AdwRow,
-                );
+                demo,
+                pixelSizeRow as AdwRow,
+                normalEdgeRow as AdwRow,
+                depthEdgeRow as AdwRow,
+                pixelAlignRow as AdwRow,
+            );
             if (pendingPause) {
                 demo.pause();
                 pendingPause = false;
