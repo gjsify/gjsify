@@ -27,7 +27,19 @@
 @use 'switch_row';
 @use 'combo_row';
 @use 'spin_row';
+@use 'button_row';
+@use 'expander_row';
+@use 'password_entry_row';
 @use 'toast';
 @use 'toolbar_view';
 @use 'overlay_split_view';
 @use 'navigation_split_view';
+
+// Ensure the `hidden` attribute always wins: components that toggle visibility
+// via `element.hidden = true` set the HTML attribute, but a custom `display`
+// from a layout class (e.g. `.adw-switch { display: inline-flex }`) has equal
+// specificity and would otherwise override the UA `[hidden] { display: none }`,
+// leaving the element laid out (and stealing width from its siblings).
+[hidden] {
+  display: none !important;
+}

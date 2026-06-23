@@ -1,0 +1,134 @@
+// _expander_row.scss — adw-expander-row styling (disclosure header + nested rows).
+// Reference: refs/adwaita-web/adwaita-web/scss/_expander_row.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_expander-row.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-expander-row {
+  display: block;
+  border-bottom: 1px solid var(--card-shade-color);
+  color: var(--card-fg-color);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  // Header — styled like an activatable action row.
+  .adw-expander-row-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-m);
+    min-height: 50px;
+    padding: var(--spacing-s) var(--spacing-m);
+    cursor: pointer;
+
+    &:hover {
+      background-color: var(--button-bg-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+  }
+
+  .adw-row-title {
+    font-size: var(--font-size-base);
+    color: var(--card-fg-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // Disclosure chevron — points down when collapsed, flips up when expanded,
+  // matching libadwaita's Adw.ExpanderRow arrow.
+  .adw-expander-row-chevron {
+    opacity: var(--dim-opacity);
+    transform: rotate(0deg);
+    transition: transform 0.2s ease-out;
+    flex-shrink: 0;
+  }
+
+  &.expanded .adw-expander-row-chevron {
+    transform: rotate(180deg);
+  }
+
+  // The optional enable switch reuses the shared .adw-switch markup.
+  .adw-expander-row-enable-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+
+    input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+
+    .adw-switch-slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background-color: var(--switch-off-bg);
+      border-radius: 12px;
+      transition: background-color 0.15s ease-out;
+
+      &::before {
+        content: "";
+        position: absolute;
+        height: 20px;
+        width: 20px;
+        left: 2px;
+        bottom: 2px;
+        background-color: var(--switch-knob-bg);
+        border-radius: 50%;
+        transition: transform 0.15s ease-out;
+        box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+      }
+    }
+
+    input:checked + .adw-switch-slider {
+      background-color: var(--accent-bg-color);
+
+      &::before {
+        transform: translateX(20px);
+      }
+    }
+
+    input:focus-visible + .adw-switch-slider {
+      outline: 2px solid var(--accent-color);
+      outline-offset: 2px;
+    }
+  }
+
+  // Disclosed content — a nested listbox of rows, hidden until expanded. The
+  // nested surface is slightly inset/recessed, the way libadwaita draws it.
+  .adw-expander-row-content {
+    display: none;
+    flex-direction: column;
+    background-color: var(--window-bg-color);
+    border-top: 1px solid var(--card-shade-color);
+
+    &.expanded {
+      display: flex;
+    }
+
+    // Nested rows: indent the text column and keep the hairline separators,
+    // dropping the last one (the content area's own edge closes it off).
+    > adw-action-row,
+    > adw-entry-row,
+    > adw-switch-row,
+    > adw-combo-row,
+    > adw-spin-row {
+      padding-left: var(--spacing-xl);
+      border-bottom: 1px solid var(--card-shade-color);
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+  }
+}

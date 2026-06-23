@@ -3,7 +3,8 @@
 
 import Adw from '@girs/adw-1';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { passwordEntryRowMeta } from './password-entry-row.meta.js';
 
 /** Story: Adw.PasswordEntryRow inside a boxed list. */
 export class PasswordEntryRowStory extends StoryWidget {
@@ -18,15 +19,7 @@ export class PasswordEntryRowStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Boxed Lists/Password Entry Row',
-            description: 'Adw.PasswordEntryRow — an entry row that masks its contents and shows a peek toggle.',
-            component: Adw.PasswordEntryRow.$gtype,
-            controls: [
-                { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'Password' },
-                { name: 'text', label: 'Text', type: ControlType.TEXT, defaultValue: 'correct-horse-battery' },
-            ],
-        };
+        return { ...passwordEntryRowMeta, component: Adw.PasswordEntryRow.$gtype };
     }
 
     initialize(): void {

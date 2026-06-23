@@ -3,7 +3,8 @@
 
 import Adw from '@girs/adw-1';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { expanderRowMeta } from './expander-row.meta.js';
 
 /** Story: Adw.ExpanderRow with two nested rows inside a boxed list. */
 export class ExpanderRowStory extends StoryWidget {
@@ -18,28 +19,7 @@ export class ExpanderRowStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Boxed Lists/Expander Row',
-            description:
-                'Adw.ExpanderRow — a preferences row that discloses nested rows and can carry an enable switch.',
-            component: Adw.ExpanderRow.$gtype,
-            controls: [
-                { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'Proxy settings' },
-                {
-                    name: 'subtitle',
-                    label: 'Subtitle',
-                    type: ControlType.TEXT,
-                    defaultValue: 'Route traffic through a custom proxy',
-                },
-                { name: 'expanded', label: 'Expanded', type: ControlType.BOOLEAN, defaultValue: true },
-                {
-                    name: 'showEnableSwitch',
-                    label: 'Show enable switch',
-                    type: ControlType.BOOLEAN,
-                    defaultValue: false,
-                },
-            ],
-        };
+        return { ...expanderRowMeta, component: Adw.ExpanderRow.$gtype };
     }
 
     initialize(): void {

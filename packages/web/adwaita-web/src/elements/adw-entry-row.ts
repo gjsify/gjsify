@@ -48,7 +48,15 @@ export class AdwEntryRow extends HTMLElement {
         const text = document.createElement('div');
         text.className = 'adw-entry-row-text';
         text.append(this._titleEl, this._input);
-        this.replaceChildren(text);
+
+        // Trailing edit affordance, mirroring Adw.EntryRow's pencil; clicking
+        // it focuses the entry.
+        const edit = document.createElement('span');
+        edit.className = 'adw-row-edit adw-icon adw-icon--document-edit';
+        edit.setAttribute('aria-hidden', 'true');
+        edit.addEventListener('click', () => this._input.focus());
+
+        this.replaceChildren(text, edit);
     }
 
     attributeChangedCallback(name: string, _old: string | null, value: string | null) {

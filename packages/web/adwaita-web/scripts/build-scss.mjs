@@ -8,6 +8,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
     contactNewSymbolic,
+    documentEditSymbolic,
     editPasteSymbolic,
     goDownSymbolic,
     goHomeSymbolic,
@@ -17,10 +18,12 @@ import {
     openMenuSymbolic,
     sidebarShowSymbolic,
     systemSearchSymbolic,
+    viewConcealSymbolic,
     viewRefreshSymbolic,
+    viewRevealSymbolic,
 } from '@gjsify/adwaita-icons/actions';
 import { cameraPhotoSymbolic, networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
-import { folderSymbolic } from '@gjsify/adwaita-icons/places';
+import { folderSymbolic, userTrashSymbolic } from '@gjsify/adwaita-icons/places';
 import { avatarDefaultSymbolic, mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { toDataUri } from '@gjsify/adwaita-icons/utils';
 
@@ -52,6 +55,10 @@ const ICONS = {
     'mail-unread': mailUnreadSymbolic,
     'avatar-default': avatarDefaultSymbolic,
     'camera-photo': cameraPhotoSymbolic,
+    'user-trash': userTrashSymbolic,
+    'view-reveal': viewRevealSymbolic,
+    'view-conceal': viewConcealSymbolic,
+    'document-edit': documentEditSymbolic,
 };
 
 const iconVars = Object.entries(ICONS)
