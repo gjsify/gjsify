@@ -10,6 +10,8 @@ import '@gjsify/adwaita-fonts'; // Registers @font-face (fontsource pattern)
 export { AdwCard } from './elements/adw-card.js';
 export { AdwWindow } from './elements/adw-window.js';
 export { AdwHeaderBar } from './elements/adw-header-bar.js';
+export { AdwButton } from './elements/adw-button.js';
+export { AdwEntry } from './elements/adw-entry.js';
 export { AdwPreferencesGroup } from './elements/adw-preferences-group.js';
 export { AdwSwitchRow } from './elements/adw-switch-row.js';
 export { AdwComboRow } from './elements/adw-combo-row.js';
