@@ -5,6 +5,19 @@
 // Reference: refs/libadwaita (colors/sizing), refs/adwaita-web (component patterns).
 
 import '@gjsify/adwaita-fonts'; // Registers @font-face (fontsource pattern)
+import { ADWAITA_WEB_CSS } from './styles.generated.js';
+
+// Self-apply the compiled stylesheet on import. This makes `import
+// '@gjsify/adwaita-web'` enough to style the components under ANY bundler —
+// a separate `import '@gjsify/adwaita-web/style.css'` is a no-op under a gjsify
+// `--app browser` build (css-as-string yields a string a side-effect import
+// discards), which used to leave consumers unstyled. Idempotent + browser-only.
+if (typeof document !== 'undefined' && !document.getElementById('adwaita-web-style')) {
+    const style = document.createElement('style');
+    style.id = 'adwaita-web-style';
+    style.textContent = ADWAITA_WEB_CSS;
+    document.head.appendChild(style);
+}
 
 // Register custom elements (side-effect imports)
 export { AdwCard } from './elements/adw-card.js';
