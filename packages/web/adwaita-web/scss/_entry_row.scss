@@ -1,0 +1,44 @@
+// _entry_row.scss — adw-entry-row styling (inline editable boxed-list row).
+// Reference: refs/adwaita-web/adwaita-web/scss/_entry_row.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_entries.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-entry-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-m);
+  min-height: 50px;
+  padding: var(--spacing-s) var(--spacing-m);
+  border-bottom: 1px solid var(--card-shade-color);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  // Focus ring matching libadwaita's row focus (inset accent outline).
+  &:focus-within {
+    box-shadow: inset 0 0 0 2px var(--accent-color);
+  }
+
+  .adw-row-title {
+    font-size: var(--font-size-base);
+    color: var(--card-fg-color);
+    opacity: var(--dim-opacity);
+    flex-shrink: 0;
+  }
+
+  .adw-entry-row-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    color: var(--card-fg-color);
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    text-align: right;
+    outline: none;
+    padding: 0;
+  }
+}

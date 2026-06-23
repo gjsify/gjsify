@@ -1,0 +1,31 @@
+// _toolbar_view.scss — adw-toolbar-view styling (content framed by top/bottom bars).
+// Reference: refs/adwaita-web/adwaita-web/scss/_toolbar_view.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_toolbars.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-toolbar-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+
+  .adw-toolbar-view-top,
+  .adw-toolbar-view-bottom {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .adw-toolbar-view-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--window-bg-color);
+  }
+}

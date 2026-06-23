@@ -1,0 +1,48 @@
+// _navigation_split_view.scss — adw-navigation-split-view styling (docked sidebar).
+// Reference: refs/adwaita-web/adwaita-web/docs/widgets/navigationsplitview.md
+// Reference: refs/libadwaita/src/stylesheet/widgets/_sidebars.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-navigation-split-view {
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+
+  .adw-nsv-sidebar {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex-shrink: 0;
+    border-right: 1px solid var(--headerbar-shade-color);
+    background-color: var(--sidebar-bg-color);
+  }
+
+  .adw-nsv-content {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    background-color: var(--window-bg-color);
+  }
+
+  // Collapsed (narrow): one pane at a time.
+  &.collapsed.show-content .adw-nsv-sidebar {
+    display: none;
+  }
+
+  &.collapsed:not(.show-content) {
+    .adw-nsv-content {
+      display: none;
+    }
+
+    .adw-nsv-sidebar {
+      flex: 1 1 auto;
+      max-width: none;
+      border-right: none;
+    }
+  }
+}

@@ -1,0 +1,45 @@
+// _banner.scss — adw-banner styling (full-width accent message strip).
+// Reference: refs/adwaita-web/adwaita-web/scss/_banner.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_banner.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-m);
+  padding: var(--spacing-xs) var(--spacing-m);
+  width: 100%;
+  box-sizing: border-box;
+  background-color: var(--accent-bg-color);
+  color: var(--accent-fg-color);
+
+  // Adw.Banner stays hidden until revealed.
+  &:not(.revealed) {
+    display: none;
+  }
+
+  .adw-banner-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--font-size-base);
+  }
+
+  .adw-banner-button {
+    flex-shrink: 0;
+    border: none;
+    border-radius: var(--button-radius);
+    padding: 4px 14px;
+    background: rgba(255, 255, 255, 0.25);
+    color: var(--accent-fg-color);
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    font-weight: 700;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.35);
+    }
+  }
+}

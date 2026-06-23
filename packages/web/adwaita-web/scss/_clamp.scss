@@ -1,0 +1,11 @@
+// _clamp.scss — adw-clamp styling (max-width + centered).
+// Reference: refs/adwaita-web/adwaita-web/scss/_clamp.scss
+// Reference: refs/libadwaita (Adw.Clamp)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-clamp {
+  display: block;
+  width: 100%;
+  margin-inline: auto;
+}

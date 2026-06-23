@@ -1,0 +1,65 @@
+// _action_row.scss — adw-action-row styling (title/subtitle + prefix/suffix).
+// Reference: refs/adwaita-web/adwaita-web/scss/_action_row.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-action-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-m);
+  min-height: 50px;
+  padding: var(--spacing-s) var(--spacing-m);
+  border-bottom: 1px solid var(--card-shade-color);
+  color: var(--card-fg-color);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &.activatable {
+    cursor: pointer;
+
+    &:hover {
+      background-color: var(--button-bg-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+  }
+
+  .adw-action-row-prefix,
+  .adw-action-row-suffix {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-shrink: 0;
+  }
+
+  .adw-action-row-text {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .adw-row-title {
+    font-size: var(--font-size-base);
+    color: var(--card-fg-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .adw-row-subtitle {
+    font-size: var(--font-size-small);
+    opacity: var(--dim-opacity);
+    color: var(--card-fg-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

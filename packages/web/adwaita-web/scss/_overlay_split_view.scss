@@ -42,6 +42,25 @@ adw-overlay-split-view {
     pointer-events: none;
   }
 
+  // Docked + sidebar-end — dock the sidebar to the RIGHT of the content
+  // (the Adw.OverlaySplitView { sidebar-position: end } layout). flex `order`
+  // flips the visual order without changing the slotting DOM order.
+  &:not(.collapsed).sidebar-end {
+    .adw-osv-content {
+      order: 1;
+    }
+
+    .adw-osv-sidebar {
+      order: 2;
+      border-inline-start: 1px solid var(--headerbar-shade-color);
+    }
+  }
+
+  // Docked hide when the sidebar is on the end edge: slide RIGHT, not left.
+  &:not(.collapsed):not(.show-sidebar).sidebar-end .adw-osv-sidebar {
+    transform: translateX(100%);
+  }
+
   // Overlay mode (collapsed) — sidebar on top of content
   &.collapsed .adw-osv-sidebar {
     position: absolute;
