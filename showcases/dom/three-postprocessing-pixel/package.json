@@ -35,6 +35,7 @@
     "@gjsify/adwaita-icons": "workspace:^",
     "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/cli": "workspace:^",
+    "@gjsify/devtools": "workspace:^",
     "@gjsify/vite-plugin-blueprint": "workspace:^",
     "@types/node": "^25.9.2",
     "@types/three": "^0.184.1",

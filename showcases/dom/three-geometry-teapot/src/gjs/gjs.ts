@@ -3,12 +3,16 @@
 
 import Adw from 'gi://Adw?version=1';
 import Gio from 'gi://Gio?version=2.0';
+
+import { installDevtools } from '@gjsify/devtools';
 import { TeapotWindow } from './teapot-window.js';
 
 const app = new Adw.Application({
     application_id: 'gjsify.examples.three-geometry-teapot',
     flags: Gio.ApplicationFlags.FLAGS_NONE,
 });
+
+app.connect('startup', () => installDevtools(app));
 
 app.connect('activate', () => {
     let win = app.get_active_window();
