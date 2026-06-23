@@ -624,7 +624,7 @@ gjsify debug --build-only --out dist/bridge.gjs.mjs   # build once; point .mcp.j
 | Option | Default | Description |
 |---|---|---|
 | `--bus-name <name>` | `gjsify.devtools.busNameBase`, or the storybook/browser app-id | App DBus base name. |
-| `--profile <kind>` | auto | `generic` \| `storybook` \| `browser`. Auto: `storybook` if `@gjsify/storybook` is a dep, `browser` if `@gjsify/devtools-browser` is, else `generic`. |
+| `--profile <kind>` | auto | `generic` \| `storybook` \| `browser` \| `cdp`. Auto: `storybook` if `@gjsify/storybook` is a dep, `browser` if `@gjsify/devtools-browser` is, `cdp` if `@gjsify/devtools-cdp` is, else `generic`. |
 | `--globals <value>` | `auto` | Value for `gjsify build --globals`. |
 | `--out <path>` | `node_modules/.cache/gjsify-debug` | Output bundle path. |
 | `--build-only` | `false` | Build the bridge bundle but do not launch it (for a `.mcp.json` command pointing at the bundle). |

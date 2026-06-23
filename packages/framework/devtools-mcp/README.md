@@ -34,6 +34,7 @@ A `DevtoolsToolProfile` maps the generic + app-specific DBus methods to MCP tool
 - **generic** — `get_status`, `screenshot`, `list_actions`, `activate_action`, `resize_window`, `present_window`, and the introspection tools.
 - **storybook** — `list_stories`, `get_current_story`, `open_story`, `set_story_arg` (+ generics; screenshot via the generic `screenshot`).
 - **browser** — the [`@gjsify/devtools-browser`](../devtools-browser) web-debugging tools: `navigate`, `page_screenshot`, `eval_js`, `inspect_element`, `dom_tree`, `get_network`, … (+ generics).
+- **cdp** — the [`@gjsify/devtools-cdp`](../devtools-cdp) WebKit-remote-inspector tools: `cdp_send` (any `Domain.command`), `cdp_connect` / `cdp_discover_targets` / `cdp_drain_events`, plus ~13 curated typed tools (`cdp_runtime_evaluate`, `cdp_dom_get_document`, `cdp_css_get_computed_style_for_node`, …) generated from the protocol spec (+ generics).
 
 ## Library API
 
