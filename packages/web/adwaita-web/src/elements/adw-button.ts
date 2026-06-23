@@ -59,11 +59,21 @@ export class AdwButton extends HTMLElement {
         if (icon) {
             const span = document.createElement('span');
             span.className = `adw-icon adw-icon--${icon}`;
+            span.setAttribute('aria-hidden', 'true'); // decorative (mask-image only, no text)
             btn.appendChild(span);
         }
         if (label) btn.appendChild(document.createTextNode(label));
 
-        btn.title = this.getAttribute('tooltip') ?? '';
+        const tooltip = this.getAttribute('tooltip');
+        btn.title = tooltip ?? '';
+        // An icon-only button has no text content, so screen readers would
+        // announce it as unlabeled. Give it an accessible name — prefer the
+        // tooltip, fall back to the symbolic icon name (WCAG 4.1.2).
+        if (icon && !label) {
+            btn.setAttribute('aria-label', tooltip ?? icon);
+        } else {
+            btn.removeAttribute('aria-label');
+        }
         btn.disabled = this.hasAttribute('disabled');
     }
 }

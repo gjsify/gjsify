@@ -82,8 +82,8 @@ adw-button {
 
   // Destructive action — red.
   &.destructive-action {
-    background-color: #e01b24;
-    color: #ffffff;
+    background-color: var(--destructive-bg-color);
+    color: var(--destructive-fg-color);
 
     &:hover {
       filter: brightness(1.06);
