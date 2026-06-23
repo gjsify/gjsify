@@ -1,7 +1,8 @@
 // @gjsify/adwaita-web — Adwaita/Libadwaita web components for browser targets.
-// Importing this module registers all custom elements. The accompanying
-// stylesheet must be imported separately as `@gjsify/adwaita-web/style.css`
-// (or via SCSS partials at `@gjsify/adwaita-web/scss/...`).
+// Importing this module registers all custom elements AND self-applies the
+// compiled stylesheet — no separate CSS import is needed. The compiled CSS is
+// still exported at `@gjsify/adwaita-web/style.css` (e.g. for a <link>) and the
+// SCSS partials at `@gjsify/adwaita-web/scss/...` for custom theming.
 // Reference: refs/libadwaita (colors/sizing), refs/adwaita-web (component patterns).
 
 import '@gjsify/adwaita-fonts'; // Registers @font-face (fontsource pattern)
