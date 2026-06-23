@@ -16,3 +16,6 @@ export type {
 
 export { discoverInspectorTargets, parseInspectorTargetsHtml } from './target-discovery.js';
 export type { DiscoverInspectorTargetsOptions, InspectorTarget } from './target-discovery.js';
+
+export { inspectorProtocolExtension } from './inspector-protocol-extension.js';
+export type { InspectorProtocolExtensionOptions } from './inspector-protocol-extension.js';

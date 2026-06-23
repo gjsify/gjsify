@@ -33,7 +33,11 @@
         "devtools",
         "mcp"
     ],
-    "dependencies": {},
+    "dependencies": {
+        "@gjsify/devtools": "workspace:^",
+        "@gjsify/fetch": "workspace:^",
+        "@gjsify/websocket": "workspace:^"
+    },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
