@@ -9,7 +9,7 @@ import Gtk from '@girs/gtk-4.0';
 
 import { IFrameBridge } from '@gjsify/iframe';
 
-import { BrowserCore, BUILTIN_PAGE_URLS, DEFAULT_HOME_URL, type IFrameHandle } from './browser-core.js';
+import { BrowserCore, DEFAULT_HOME_URL, type IFrameHandle } from './browser-core.js';
 
 export interface BrowserWindowOptions {
     /** Window title (default: "Minimalist Browser"). */
@@ -20,8 +20,8 @@ export interface BrowserWindowOptions {
 
 /**
  * A self-contained Adwaita browser window: HeaderBar with back/forward/reload +
- * URL entry, a quick-nav strip over the built-in pages, the WebKit content area,
- * and a status line. The embedded {@link IFrameBridge} captures the page console
+ * URL entry, the WebKit content area, and a status line. The embedded
+ * {@link IFrameBridge} captures the page console
  * so devtools `get_console` works.
  */
 export class BrowserWindow {
@@ -52,11 +52,12 @@ export class BrowserWindow {
         headerBar.pack_start(forwardBtn);
         headerBar.pack_start(reloadBtn);
 
-        // URL bar in the title area.
+        // URL bar in the title area. No fixed `width_chars` — it would pin a
+        // large minimum width and stop the window from being resized small;
+        // `hexpand` already grows it to fill the header bar.
         const urlEntry = new Gtk.Entry({
             placeholder_text: 'page:welcome or https://…',
             hexpand: true,
-            width_chars: 50,
         });
         urlEntry.set_text(homeUrl);
         headerBar.set_title_widget(urlEntry);
@@ -65,27 +66,11 @@ export class BrowserWindow {
         const goBtn = new Gtk.Button({ label: 'Go', css_classes: ['suggested-action'] });
         headerBar.pack_end(goBtn);
 
-        // Main content: quick-nav strip + the iframe + status line.
+        // Main content: the WebKit content area + a status line. (The old
+        // "Quick nav" strip of page:* demo pages was minimalist-browser showcase
+        // cruft — confusing in a general debug browser, and its non-wrapping
+        // buttons pinned the window's minimum width — so it is omitted here.)
         const contentBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 0 });
-
-        const quickRow = new Gtk.Box({
-            orientation: Gtk.Orientation.HORIZONTAL,
-            spacing: 8,
-            margin_start: 12,
-            margin_end: 12,
-            margin_top: 6,
-            margin_bottom: 6,
-        });
-        const quickLabel = new Gtk.Label({ label: 'Quick nav:' });
-        quickLabel.add_css_class('dim-label');
-        quickRow.append(quickLabel);
-        for (const url of BUILTIN_PAGE_URLS) {
-            const btn = new Gtk.Button({ label: url });
-            btn.add_css_class('flat');
-            btn.connect('clicked', () => this._core.navigate(url));
-            quickRow.append(btn);
-        }
-        contentBox.append(quickRow);
 
         // The content area — IFrameBridge (WebKit.WebView). captureConsole is on
         // so the devtools `get_console` tool has something to read.

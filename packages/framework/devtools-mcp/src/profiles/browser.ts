@@ -12,6 +12,10 @@ import { image } from '../tool-result.js';
 
 const strv = (value: string): GLib.Variant => GLib.Variant.new_string(value);
 const intv = (value: number): GLib.Variant => GLib.Variant.new_int32(value);
+
+/** Returned by the storybook tools when the page is not a @gjsify/adwaita-storybook. */
+const NO_STORYBOOK = '(not a storybook page: window.__storybook is undefined)';
+
 const instanceArg = {
     instance: z.string().optional().describe('Browser instance label; omit for the default app'),
 };
@@ -140,6 +144,94 @@ export function registerBrowserTools(ctx: McpToolContext): void {
                 );
                 const [json] = reply.recursiveUnpack() as [string];
                 return ok(json);
+            } catch (error) {
+                return dbusError(error, instance);
+            }
+        },
+    );
+
+    // --- Storybook convenience (for @gjsify/adwaita-storybook pages) ---------
+    // The web storybook exposes a small control surface on `window.__storybook`.
+    // These wrap it via BrowserEvalJs so an agent drives a *running*
+    // browser-storybook with the same first-class tools as the native one —
+    // open a story, then `page_screenshot`, in a loop, no relaunch per shot.
+    const storybookEval = async (instance: string | undefined, expr: string): Promise<string> => {
+        const script = `(function(){var s=window.__storybook;if(!s)return ${JSON.stringify(NO_STORYBOOK)};return ${expr};})()`;
+        const reply = await client.control(instance, 'BrowserEvalJs', GLib.Variant.new_tuple([strv(script)]), '(s)');
+        const [json] = reply.recursiveUnpack() as [string];
+        return json;
+    };
+
+    server.registerTool(
+        'list_stories',
+        {
+            description:
+                'Storybook: list the stories on a @gjsify/adwaita-storybook page (title, story, category, controls).',
+            inputSchema: z.object({ ...instanceArg }),
+        },
+        async ({ instance }) => {
+            try {
+                return ok(await storybookEval(instance, 'JSON.stringify(s.listStories())'));
+            } catch (error) {
+                return dbusError(error, instance);
+            }
+        },
+    );
+
+    server.registerTool(
+        'open_story',
+        {
+            description: 'Storybook: open a story by its "Category/Name" title; returns the now-current story.',
+            inputSchema: z.object({ title: z.string(), ...instanceArg }),
+        },
+        async ({ title, instance }) => {
+            try {
+                return ok(
+                    await storybookEval(
+                        instance,
+                        `JSON.stringify({opened:s.openStory(${JSON.stringify(title)}),current:s.getCurrentStory()})`,
+                    ),
+                );
+            } catch (error) {
+                return dbusError(error, instance);
+            }
+        },
+    );
+
+    server.registerTool(
+        'get_current_story',
+        {
+            description: 'Storybook: the active story as {title, story, args}.',
+            inputSchema: z.object({ ...instanceArg }),
+        },
+        async ({ instance }) => {
+            try {
+                return ok(await storybookEval(instance, 'JSON.stringify(s.getCurrentStory())'));
+            } catch (error) {
+                return dbusError(error, instance);
+            }
+        },
+    );
+
+    server.registerTool(
+        'set_story_arg',
+        {
+            description:
+                'Storybook: set one control arg on the active story (drives the live preview); value is string|number|boolean.',
+            inputSchema: z.object({
+                name: z.string(),
+                value: z.union([z.string(), z.number(), z.boolean()]),
+                ...instanceArg,
+            }),
+        },
+        async ({ name, value, instance }) => {
+            try {
+                return ok(
+                    await storybookEval(
+                        instance,
+                        `JSON.stringify(s.setArg(${JSON.stringify(name)}, ${JSON.stringify(value)}))`,
+                    ),
+                );
             } catch (error) {
                 return dbusError(error, instance);
             }

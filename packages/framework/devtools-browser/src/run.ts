@@ -27,6 +27,14 @@ export interface RunBrowserDevtoolsOptions extends BrowserWindowOptions {
      * deep protocol (Runtime/DOM/CSS/Network/Console/Debugger) over MCP.
      */
     inspectorPort?: number;
+    /**
+     * One-shot mode: once the initial page has loaded, capture a WebKit
+     * screenshot to this path and quit. Turns `gjsify browse <url> --screenshot
+     * out.png` into a build→load→shoot→exit command (CI / quick single captures).
+     * For many stories in one session, drive a *running* browser over the
+     * `Browser*` control plane instead (no relaunch per shot).
+     */
+    screenshot?: string;
 }
 
 /**
@@ -89,8 +97,47 @@ export class BrowserApplication extends Adw.Application {
                 winActionGroup: this._window.window as unknown as Gio.ActionGroup,
                 extend,
             });
+            if (this._options.screenshot) {
+                this._scheduleOneShot(this._options.screenshot);
+            }
         }
         this._window.present();
+    }
+
+    /**
+     * One-shot screenshot: capture the page once it has loaded (plus a short
+     * settle so it has painted), write it, then quit. Uses the WebKit snapshot
+     * (`bridge.takeScreenshot`) — the generic GSK Screenshot would be blank
+     * because WebKit composites out-of-process.
+     */
+    private _scheduleOneShot(path: string): void {
+        const win = this._window;
+        if (!win) return;
+        let captured = false;
+        const capture = (): void => {
+            if (captured) return;
+            captured = true;
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+                win.bridge
+                    .takeScreenshot('full')
+                    .then((bytes) => {
+                        GLib.file_set_contents(path, bytes);
+                        console.log(`[gjsify browse] screenshot → ${path} (${bytes.length} bytes)`);
+                        this.quit();
+                    })
+                    .catch((error: unknown) => {
+                        console.error(`[gjsify browse] screenshot failed: ${error}`);
+                        this.quit();
+                    });
+                return GLib.SOURCE_REMOVE;
+            });
+        };
+        win.core.onPageLoaded(() => capture());
+        // Fallback if the load event never fires (e.g. a page:* built-in page).
+        GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 10, () => {
+            capture();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 }
 
