@@ -18,7 +18,17 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { statSync, existsSync, readdirSync, readFileSync, writeFileSync, rmSync, mkdirSync, copyFileSync } from 'node:fs';
+import {
+    statSync,
+    existsSync,
+    readdirSync,
+    readFileSync,
+    writeFileSync,
+    renameSync,
+    rmSync,
+    mkdirSync,
+    copyFileSync,
+} from 'node:fs';
 import { pickLibSource } from './lib-source.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -136,11 +146,20 @@ const t0 = Date.now();
 // (`node lib/index.js build …`). Fall back to PATH resolution only when
 // the workspace layout isn't present.
 const nodeCliEntry = join(pkgRoot, '..', 'cli', 'lib', 'index.js');
-const buildArgv = ['build', entry, '--app', 'gjs', '--outfile', outfile, '--shebang'];
+// Build to a temp file + atomically rename into place. `dist/tsc.gjs.mjs` is read
+// by every other workspace's `build:types` (via `gjsify tsc`) during the parallel
+// `gjsify run build`, so a direct (non-atomic) write here races with those reads —
+// a truncated read crashes the consumer ("SyntaxError: expected expression, got
+// end of script", a flaky main-red on the slower CI runner). renameSync(2) on the
+// same filesystem is atomic, so a concurrent reader always sees the complete old
+// or complete new bundle, never a half-written one.
+const buildTmp = `${outfile}.building`;
+const buildArgv = ['build', entry, '--app', 'gjs', '--outfile', buildTmp, '--shebang'];
 const r = existsSync(nodeCliEntry)
     ? spawnSync(process.execPath, [nodeCliEntry, ...buildArgv], { stdio: 'inherit', cwd: pkgRoot, env })
     : spawnSync('gjsify', buildArgv, { stdio: 'inherit', cwd: pkgRoot, env });
 if (r.status !== 0) {
+    rmSync(buildTmp, { force: true });
     console.error(`[@gjsify/tsc] build failed (exit ${r.status}${r.signal ? `, signal ${r.signal}` : ''})`);
     process.exit(r.status ?? 1);
 }
@@ -157,7 +176,7 @@ if (r.status !== 0) {
 // change (0) or a string-collision with tsc's own data (>2) fails loudly. The
 // minifier may emit either a double-quoted (`"…"`) or a backtick (`` `…` ``)
 // literal, so match — and rewrite — both quote styles.
-let code = readFileSync(outfile, 'utf-8');
+let code = readFileSync(buildTmp, 'utf-8');
 const specLiterals = [JSON.stringify(ENTRY_SPEC), '`' + ENTRY_SPEC + '`'];
 const retargetLiterals = [JSON.stringify(RETARGET_SPEC), '`' + RETARGET_SPEC + '`'];
 const occurrences = specLiterals.reduce((sum, lit) => sum + (code.split(lit).length - 1), 0);
@@ -178,7 +197,9 @@ if (occurrences > 2) {
 for (let i = 0; i < specLiterals.length; i++) {
     code = code.split(specLiterals[i]).join(retargetLiterals[i]);
 }
-writeFileSync(outfile, code);
+writeFileSync(buildTmp, code);
+// Atomic swap into place — see the buildTmp comment above.
+renameSync(buildTmp, outfile);
 
 const dt = ((Date.now() - t0) / 1000).toFixed(2);
 const bytes = statSync(outfile).size;
