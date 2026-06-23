@@ -13,7 +13,7 @@ Purpose: stress-test `@gjsify/iframe`'s feature-completeness against a non-trivi
 | Back / Forward / Reload | Application-side history stack + `iframe.src = url` | Same — symmetric code path |
 | postMessage (page → parent) | Native `window.parent.postMessage()` | WebKit script-message-handler → `MessageBridge` → `MessageEvent` |
 | Built-in srcdoc pages | `iframe.srcdoc = html` | `IFrameBridge.loadHtml(html)` (calls through to `WebKit.WebView.load_html`) |
-| Adwaita design language | `@gjsify/adwaita-web` web components | Native Adw widgets (`Gtk.ApplicationWindow`, `Adw.HeaderBar`, `Gtk.Entry`, `Gtk.Button`) |
+| Adwaita design language | `@gjsify/adwaita-web` web components | Native Adw widgets (`Adw.ApplicationWindow`, `Adw.HeaderBar` with flat nav buttons + a `Gtk.Entry` URL title-widget + home button, `Adw.ToolbarView` bottom status bar) |
 
 The application-side history stack keeps both variants symmetric — browsers won't allow cross-origin `iframe.contentWindow.history.go(-1)` programmatically, so both variants pop the parent-tracked stack and re-load the URL the same way. (`IFrameBridge` also exposes WebKit's internal `goBack` / `goForward` / `reload` / `canGoBack` / `canGoForward` for apps that prefer the WebKit-side back/forward list — see the API table below.)
 

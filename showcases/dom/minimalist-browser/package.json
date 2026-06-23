@@ -1,7 +1,7 @@
 {
   "name": "@gjsify/example-dom-minimalist-browser",
   "version": "0.11.0",
-  "description": "Minimalist browser with URL bar + back/forward/reload + iframe content area; same code runs in browser (real <iframe>) and GJS (IFrameBridge over WebKit.WebView)",
+  "description": "Minimalist Adwaita browser — an Epiphany-style header bar (flat back/forward/reload, URL entry, home) that looks identical natively (GTK/Adw) and in the browser (@gjsify/adwaita-web), driving a shared iframe core (real <iframe> on the web, IFrameBridge over WebKit.WebView on GJS)",
   "main": "dist/gjs.js",
   "type": "module",
   "files": [
@@ -35,7 +35,10 @@
     "@girs/gjs": "4.0.4",
     "@girs/glib-2.0": "2.88.0-4.0.4",
     "@girs/gtk-4.0": "4.23.0-4.0.4",
+    "@girs/pango-1.0": "1.57.1-4.0.4",
+    "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/cli": "workspace:^",
+    "@gjsify/devtools": "workspace:^",
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/runtime": "workspace:^",
     "@types/node": "^25.9.2",

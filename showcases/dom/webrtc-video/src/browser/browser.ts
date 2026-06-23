@@ -1,13 +1,16 @@
-// Browser entry — WebRTC video preview with native <video> element.
+// Browser entry — WebRTC webcam preview in an Adwaita window (via
+// @gjsify/adwaita-web), mirroring the native GJS chrome (src/gjs/gjs.ts): an
+// Adw.ApplicationWindow + Adw.HeaderBar + the video filling the content. The
+// browser uses a real <video>; the GJS variant uses a VideoBridge.
 //
-// Exposes `mount(container, options?)` so the website slideshow can embed
-// the showcase. Standalone runs go through `browser-main.ts` which calls
-// `mount(document.body)`.
+// Exposes `mount(container, options?)` so the website slideshow can embed the
+// showcase. Standalone runs go through `browser-main.ts` (`mount(document.body)`).
 
+import '@gjsify/adwaita-web'; // registers the custom elements + self-injects the stylesheet
 import { startVideo } from '../video-demo.js';
 
 export interface MountOptions {
-    /** Override the heading shown above the video. */
+    /** Override the header bar title. */
     title?: string;
 }
 
@@ -21,45 +24,54 @@ export interface ShowcaseHandle {
     stop(): void;
 }
 
+const SHOWCASE_CSS = `
+.wv-window { height: 100%; width: 100%; overflow: hidden; }
+.wv-content {
+    flex: 1; min-height: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px; padding: 18px;
+    background: var(--window-bg-color);
+}
+.wv-video { max-width: 100%; max-height: 100%; border-radius: 12px; background: #000; }
+.wv-status {
+    color: var(--window-fg-color); opacity: var(--dim-opacity);
+    font-family: ui-monospace, 'Adwaita Mono', monospace; font-size: var(--font-size-small);
+}
+`;
+
+function ensureStyles(): void {
+    if (document.getElementById('webrtc-video-style')) return;
+    const s = document.createElement('style');
+    s.id = 'webrtc-video-style';
+    s.textContent = SHOWCASE_CSS;
+    document.head.appendChild(s);
+}
+
 export function mount(container: HTMLElement, options?: MountOptions): ShowcaseHandle {
     const title = options?.title ?? 'WebRTC Video — Webcam Preview';
+    ensureStyles();
 
-    const root = document.createElement('section');
-    root.style.fontFamily = 'monospace';
-    root.style.background = '#1e1e2e';
-    root.style.color = '#cdd6f4';
-    root.style.display = 'flex';
-    root.style.flexDirection = 'column';
-    root.style.alignItems = 'center';
-    root.style.justifyContent = 'center';
-    root.style.padding = '1rem';
-    root.style.minHeight = '100%';
-    root.style.boxSizing = 'border-box';
+    const win = document.createElement('adw-window');
+    win.classList.add('wv-window');
 
-    const headingEl = document.createElement('h1');
-    headingEl.textContent = title;
-    headingEl.style.fontSize = '1.2rem';
-    headingEl.style.color = '#89b4fa';
-    headingEl.style.margin = '0 0 0.75rem 0';
+    const header = document.createElement('adw-header-bar');
+    header.setAttribute('title', title);
+
+    const content = document.createElement('div');
+    content.className = 'wv-content';
 
     const video = document.createElement('video');
     video.autoplay = true;
     video.playsInline = true;
     video.muted = true;
-    video.style.maxWidth = '100%';
-    video.style.maxHeight = '70vh';
-    video.style.borderRadius = '12px';
-    video.style.background = '#000';
+    video.className = 'wv-video';
 
     const statusEl = document.createElement('div');
-    statusEl.textContent = 'Initializing...';
-    statusEl.style.fontSize = '0.9rem';
-    statusEl.style.marginTop = '0.75rem';
+    statusEl.className = 'wv-status';
+    statusEl.textContent = 'Initializing…';
 
-    root.appendChild(headingEl);
-    root.appendChild(video);
-    root.appendChild(statusEl);
-    container.appendChild(root);
+    content.append(video, statusEl);
+    win.append(header, content);
+    container.appendChild(win);
 
     let paused = false;
     let stream: MediaStream | null = null;
@@ -95,7 +107,7 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
                 for (const track of stream.getTracks()) track.stop();
                 stream = null;
             }
-            if (root.parentNode) root.parentNode.removeChild(root);
+            if (win.parentNode) win.parentNode.removeChild(win);
         },
     };
 }

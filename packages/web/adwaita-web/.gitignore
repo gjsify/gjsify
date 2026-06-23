@@ -6,3 +6,7 @@ dist/
 
 # Generated SCSS partial (icons resolved from @gjsify/adwaita-icons at build time)
 scss/_icons.generated.scss
+
+# Generated TS module: the compiled stylesheet inlined for JS self-injection
+# (written by scripts/build-scss.mjs, imported by src/index.ts).
+src/styles.generated.ts

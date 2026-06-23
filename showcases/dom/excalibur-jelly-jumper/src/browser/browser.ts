@@ -2,8 +2,7 @@
 // Mirrors the GJS/Adwaita UI using @gjsify/adwaita-web — HeaderBar with
 // pause/resume button only (no sidebar: the game has no configurable params).
 
-import '@gjsify/adwaita-web';
-import '@gjsify/adwaita-web/style.css';
+import '@gjsify/adwaita-web'; // registers the custom elements + self-injects the stylesheet
 import type { AdwHeaderBar } from '@gjsify/adwaita-web';
 import { mediaPlaybackPauseSymbolic, mediaPlaybackStartSymbolic } from '@gjsify/adwaita-icons/actions';
 import { audioVolumeHighSymbolic, audioVolumeMutedSymbolic } from '@gjsify/adwaita-icons/status';

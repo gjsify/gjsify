@@ -6,6 +6,7 @@ import '@girs/adw-1';
 
 import Adw from 'gi://Adw?version=1';
 import GLib from 'gi://GLib?version=2.0';
+import { installDevtools } from '@gjsify/devtools';
 import { VideoBridge } from '@gjsify/video';
 
 import { startVideo } from '../video-demo.js';
@@ -55,4 +56,5 @@ app.connect('activate', () => {
     });
 });
 
+app.connect('startup', () => installDevtools(app));
 app.run([]);

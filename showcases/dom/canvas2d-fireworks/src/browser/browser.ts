@@ -1,8 +1,7 @@
 // Browser UI for canvas2d-fireworks example.
 // Mirrors the GJS/Adwaita UI using @gjsify/adwaita-web.
 
-import '@gjsify/adwaita-web';
-import '@gjsify/adwaita-web/style.css';
+import '@gjsify/adwaita-web'; // registers the custom elements + self-injects the stylesheet
 import type { AdwOverlaySplitView, AdwHeaderBar } from '@gjsify/adwaita-web';
 import { mediaPlaybackPauseSymbolic, mediaPlaybackStartSymbolic } from '@gjsify/adwaita-icons/actions';
 import { start, type FireworksDemo } from '../fireworks.js';
@@ -167,12 +166,12 @@ export function mount(container: HTMLElement): ShowcaseHandle {
         if (!demo && canvas.width > 0 && canvas.height > 0) {
             demo = start(canvas);
             connectControls(
-                    demo,
-                    particleCountRow as AdwRow,
-                    autoIntervalRow as AdwRow,
-                    maxBurstRadiusRow as AdwRow,
-                    autoFireworksRow as AdwRow,
-                );
+                demo,
+                particleCountRow as AdwRow,
+                autoIntervalRow as AdwRow,
+                maxBurstRadiusRow as AdwRow,
+                autoFireworksRow as AdwRow,
+            );
             if (pendingPause) {
                 demo.pause();
                 pendingPause = false;

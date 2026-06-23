@@ -1,0 +1,49 @@
+// _entry.scss — adw-entry / .adw-entry text input (e.g. a browser URL bar).
+// Reference: refs/libadwaita/src/stylesheet/widgets/_entries.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+// <adw-entry> hosts an inner <input class="adw-entry">; it fills its flex slot.
+adw-entry {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.adw-entry {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 34px;
+  margin: 0;
+  padding: 5px 12px;
+  border: none;
+  border-radius: var(--button-radius);
+  background-color: var(--entry-bg-color);
+  color: var(--view-fg-color);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  box-shadow: inset 0 0 0 1px var(--entry-border-color);
+  transition: box-shadow 0.1s ease;
+
+  &::placeholder {
+    color: var(--view-fg-color);
+    opacity: var(--dim-opacity);
+  }
+
+  &:hover {
+    box-shadow: inset 0 0 0 1px var(--entry-border-hover-color);
+  }
+
+  &:focus,
+  &:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--accent-color);
+  }
+
+  // Dimmed disabled state, mirroring .adw-button:disabled.
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+    box-shadow: inset 0 0 0 1px var(--entry-border-color);
+  }
+}
