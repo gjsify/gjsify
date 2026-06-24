@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { inlineViewSwitcherMeta } from './inline-view-switcher.meta.js';
 
 /** Story: Adw.InlineViewSwitcher driving an Adw.ViewStack of three pages. */
 export class InlineViewSwitcherStory extends StoryWidget {
@@ -19,25 +20,7 @@ export class InlineViewSwitcherStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'View Switching/Inline View Switcher',
-            description:
-                'Adw.InlineViewSwitcher — a compact inline switcher that can show labels, icons, or both for an Adw.ViewStack.',
-            component: Adw.InlineViewSwitcher.$gtype,
-            controls: [
-                {
-                    name: 'displayMode',
-                    label: 'Display mode',
-                    type: ControlType.SELECT,
-                    options: [
-                        { label: 'Labels', value: 'labels' },
-                        { label: 'Icons', value: 'icons' },
-                        { label: 'Both', value: 'both' },
-                    ],
-                    defaultValue: 'both',
-                },
-            ],
-        };
+        return { ...inlineViewSwitcherMeta, component: Adw.InlineViewSwitcher.$gtype };
     }
 
     private buildPage(title: string, icon: string, body: string): Gtk.Widget {

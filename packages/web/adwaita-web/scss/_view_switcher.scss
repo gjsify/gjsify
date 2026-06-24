@@ -1,0 +1,133 @@
+// _view_switcher.scss — adw-view-switcher styling: an adaptive, tab-style
+// switcher (single `viewswitcher` node) above a content area showing one page
+// at a time. Buttons are always icon + label, laid out side by side (`.wide`)
+// or stacked (`.narrow`), matching libadwaita's policy style classes.
+// Reference: refs/libadwaita/src/stylesheet/widgets/_view-switcher.scss (AdwViewSwitcher)
+// Reference: refs/adwaita-web/adwaita-web/scss/_viewswitcher.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-view-switcher {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+
+    // The segmented button bar — the single `viewswitcher` node in libadwaita.
+    // Homogeneous tabs (equal width via flex:1) with a small gutter between them.
+    .adw-view-switcher-bar {
+        display: flex;
+        align-items: stretch;
+        gap: 3px; // libadwaita's `border-spacing: 3px`
+        min-height: 34px;
+    }
+
+    // Each tab is a flat, transparent toggle that lights up with a subtle fill
+    // when hovered and shows the active page with an accent-tinted background.
+    .adw-view-switcher-button {
+        box-sizing: border-box;
+        display: inline-flex;
+        flex: 1 1 0; // homogeneous — every tab gets equal width
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        padding: 2px 12px;
+        border: none;
+        border-radius: var(--button-radius);
+        background-color: transparent;
+        color: var(--window-fg-color);
+        font-family: var(--font-family);
+        font-size: var(--font-size-base);
+        font-weight: 700;
+        line-height: 1.2;
+        cursor: pointer;
+        transition:
+            color 0.2s ease,
+            background-color 0.2s ease;
+        user-select: none;
+        -webkit-user-select: none;
+
+        .adw-icon {
+            width: 16px;
+            height: 16px;
+            flex: none;
+        }
+
+        .adw-view-switcher-label {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        &:hover {
+            background-color: var(--button-hover-color);
+        }
+
+        &:active {
+            background-color: var(--button-active-color);
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--accent-color);
+            outline-offset: -2px;
+        }
+
+        // The selected view — a neutral filled chip (libadwaita darkens the
+        // whole button; the icon/label keep the normal foreground colour
+        // rather than turning accent).
+        &.active {
+            background-color: var(--button-active-color);
+            color: var(--window-fg-color);
+
+            &:hover {
+                background-color: var(--button-active-color);
+            }
+        }
+    }
+
+    // Wide policy — icon and label side by side.
+    &.wide .adw-view-switcher-button {
+        flex-direction: row;
+        gap: var(--spacing-xs);
+    }
+
+    // Narrow policy — icon stacked above a smaller label, the compact layout
+    // libadwaita drops to in a header bar at narrow window widths.
+    &.narrow {
+        .adw-view-switcher-bar {
+            min-height: 6px;
+        }
+
+        .adw-view-switcher-button {
+            flex-direction: column;
+            gap: 1px;
+            padding-top: 4px;
+            padding-bottom: 2px;
+            font-size: 0.75rem;
+
+            .adw-view-switcher-label {
+                min-height: 18px;
+                line-height: 18px;
+            }
+        }
+    }
+
+    // The paired content area showing the active page — a card-like surface
+    // below the switcher (the web stand-in for the Adw.ViewStack body).
+    .adw-view-switcher-content {
+        flex: 1 1 auto;
+        margin-top: var(--spacing-s);
+        padding: var(--spacing-m);
+        background-color: var(--view-bg-color);
+        border: 1px solid var(--separator-color);
+        border-radius: var(--card-radius);
+    }
+
+    .adw-view-switcher-page {
+        display: none;
+
+        &.active-view {
+            display: block;
+        }
+    }
+}

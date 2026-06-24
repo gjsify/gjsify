@@ -3,7 +3,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { carouselDotsMeta, carouselLinesMeta } from './carousel.meta.js';
 
 const PAGES: ReadonlyArray<{ title: string; css: string }> = [
     { title: 'Welcome', css: 'accent' },
@@ -42,21 +43,7 @@ export class CarouselDotsStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'View Switching/Carousel (Dots)',
-            description:
-                'Adw.Carousel — a horizontally swipeable pager with three pages, paired with Adw.CarouselIndicatorDots.',
-            component: Adw.Carousel.$gtype,
-            controls: [
-                {
-                    name: 'allowScrollWheel',
-                    label: 'Allow scroll wheel',
-                    type: ControlType.BOOLEAN,
-                    defaultValue: true,
-                },
-                { name: 'allowLongSwipes', label: 'Allow long swipes', type: ControlType.BOOLEAN, defaultValue: false },
-            ],
-        };
+        return { ...carouselDotsMeta, component: Adw.Carousel.$gtype };
     }
 
     initialize(): void {
@@ -105,21 +92,7 @@ export class CarouselLinesStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'View Switching/Carousel (Lines)',
-            description:
-                'Adw.Carousel — the same swipeable pager paired with Adw.CarouselIndicatorLines instead of dots.',
-            component: Adw.Carousel.$gtype,
-            controls: [
-                {
-                    name: 'allowScrollWheel',
-                    label: 'Allow scroll wheel',
-                    type: ControlType.BOOLEAN,
-                    defaultValue: true,
-                },
-                { name: 'allowLongSwipes', label: 'Allow long swipes', type: ControlType.BOOLEAN, defaultValue: false },
-            ],
-        };
+        return { ...carouselLinesMeta, component: Adw.Carousel.$gtype };
     }
 
     initialize(): void {

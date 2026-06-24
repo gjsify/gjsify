@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { viewSwitcherMeta } from './view-switcher.meta.js';
 
 /** Story: Adw.ViewSwitcher mounted above an Adw.ViewStack with three pages. */
 export class ViewSwitcherStory extends StoryWidget {
@@ -19,24 +20,7 @@ export class ViewSwitcherStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'View Switching/View Switcher',
-            description:
-                'Adw.ViewSwitcher — a segmented switcher whose buttons select pages in a paired Adw.ViewStack.',
-            component: Adw.ViewSwitcher.$gtype,
-            controls: [
-                {
-                    name: 'policy',
-                    label: 'Policy',
-                    type: ControlType.SELECT,
-                    options: [
-                        { label: 'Wide', value: 'wide' },
-                        { label: 'Narrow', value: 'narrow' },
-                    ],
-                    defaultValue: 'wide',
-                },
-            ],
-        };
+        return { ...viewSwitcherMeta, component: Adw.ViewSwitcher.$gtype };
     }
 
     private buildPage(title: string, icon: string, body: string): Gtk.Widget {

@@ -38,6 +38,10 @@
 @use 'wrap_box';
 @use 'overlay_split_view';
 @use 'navigation_split_view';
+@use 'carousel';
+@use 'tab_view';
+@use 'view_switcher';
+@use 'inline_view_switcher';
 
 // Ensure the `hidden` attribute always wins: components that toggle visibility
 // via `element.hidden = true` set the HTML attribute, but a custom `display`

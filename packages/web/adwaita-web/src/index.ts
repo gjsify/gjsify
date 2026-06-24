@@ -49,3 +49,7 @@ export { AdwToolbarView } from './elements/adw-toolbar-view.js';
 export { AdwWrapBox } from './elements/adw-wrap-box.js';
 export { AdwOverlaySplitView } from './elements/adw-overlay-split-view.js';
 export { AdwNavigationSplitView } from './elements/adw-navigation-split-view.js';
+export { AdwCarousel, AdwCarouselIndicatorDots, AdwCarouselIndicatorLines } from './elements/adw-carousel.js';
+export { AdwTabPage, AdwTabView } from './elements/adw-tab-view.js';
+export { AdwViewSwitcher, AdwViewSwitcherPage } from './elements/adw-view-switcher.js';
+export { AdwInlineViewSwitcher, AdwViewStackPage } from './elements/adw-inline-view-switcher.js';

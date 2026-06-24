@@ -27,6 +27,10 @@ import { ClampWebStories } from './layout/clamp.web.js';
 import { HeaderBarWebStories } from './layout/header-bar.web.js';
 import { ToolbarViewWebStories } from './layout/toolbar-view.web.js';
 import { WrapBoxWebStories } from './layout/wrap-box.web.js';
+import { CarouselWebStories } from './view-switching/carousel.web.js';
+import { InlineViewSwitcherWebStories } from './view-switching/inline-view-switcher.web.js';
+import { TabViewWebStories } from './view-switching/tab-view.web.js';
+import { ViewSwitcherWebStories } from './view-switching/view-switcher.web.js';
 
 // Order mirrors the native sidebar's category order (Presentation, Boxed
 // Lists, Buttons, …).
@@ -53,6 +57,10 @@ const stories: WebStoryModule[] = [
     HeaderBarWebStories,
     ToolbarViewWebStories,
     WrapBoxWebStories,
+    CarouselWebStories,
+    InlineViewSwitcherWebStories,
+    TabViewWebStories,
+    ViewSwitcherWebStories,
 ];
 
 mountStorybook(document.body, { title: 'Adwaita Storybook', stories });
