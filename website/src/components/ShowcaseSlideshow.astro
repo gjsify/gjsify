@@ -39,6 +39,12 @@ interface Slide {
   terminalOutput?: string;
   /** For terminal variant: title shown in the terminal headerbar. */
   terminalTitle?: string;
+  /**
+   * Override the "try it" terminal command. Defaults to
+   * `npx @gjsify/cli showcase <name>`. Showcases that launch differently
+   * (e.g. the storybook, run via `gjsify storybook`) set this explicitly.
+   */
+  tryIt?: string;
 }
 
 const slides: Slide[] = [
@@ -88,6 +94,26 @@ app.listen(3000, () => {
 [12:34:56] GET /app.js
 [12:34:56] GET /api/runtime
 [12:34:56] GET /api/posts`,
+  },
+  {
+    id: 'storybook',
+    name: 'adwaita-storybook',
+    title: 'storybook.ts',
+    github: 'showcases/gtk/adwaita-storybook',
+    tryIt: 'gjsify storybook',
+    annotations: [
+      { text: 'Real Libadwaita widgets,\nlive in the browser', top: '-90px', right: '8%' },
+    ],
+    code: `import { mountStorybook } from '@gjsify/adwaita-storybook';
+import { stories } from './stories.js';
+
+// The same Libadwaita widgets that render natively under GJS —
+// AdwSwitchRow, AdwAvatar, AdwCarousel … — here in the browser
+// as @gjsify/adwaita-web custom elements, from one shared story.
+mountStorybook(document.body, {
+  title: 'Adwaita Storybook',
+  stories,
+});`,
   },
   {
     id: 'pixel',
@@ -267,7 +293,7 @@ app.connect('activate', () => {
             </div>
             <div class="slide-try-it focusable" tabindex="0">
               <Code
-                code={`npx @gjsify/cli showcase ${slide.name}`}
+                code={slide.tryIt ?? `npx @gjsify/cli showcase ${slide.name}`}
                 lang="sh"
                 title="Terminal"
                 frame="terminal"
@@ -279,6 +305,38 @@ app.connect('activate', () => {
     })}
   </div>
 </div>
+
+<script is:inline>
+  // Randomize which showcase is shown first — a different one each visit.
+  // This runs inline (synchronously, before first paint) so swapping the
+  // `.active` slide produces no load-time flash: the chosen slide simply
+  // renders active from the start, and CSS transitions don't fire on the
+  // initial render. We avoid repeating the previous visit's slide via
+  // sessionStorage so it visibly rotates. The deferred module script below
+  // then picks up whichever slide ended up active.
+  (function () {
+    var slides = document.querySelectorAll('.slideshow .slideshow-slide');
+    if (slides.length < 2) return;
+    var last = -1;
+    try {
+      last = parseInt(sessionStorage.getItem('gjsify-slideshow-last') || '-1', 10);
+    } catch (e) {
+      /* sessionStorage may be unavailable (private mode) — fall back to pure random */
+    }
+    var idx;
+    do {
+      idx = Math.floor(Math.random() * slides.length);
+    } while (idx === last);
+    try {
+      sessionStorage.setItem('gjsify-slideshow-last', String(idx));
+    } catch (e) {
+      /* ignore */
+    }
+    for (var i = 0; i < slides.length; i++) {
+      slides[i].classList.toggle('active', i === idx);
+    }
+  })();
+</script>
 
 <script>
   // Lazy-mount showcases on first view.
@@ -305,6 +363,12 @@ app.connect('activate', () => {
     if (!container) return;
 
     switch (id) {
+      case 'storybook': {
+        const { mount } = await import('@gjsify/example-gtk-adwaita-storybook/browser');
+        const handle = mount(container);
+        if (handle) handles.set(id, handle);
+        break;
+      }
       case 'pixel': {
         const { mount } = await import('@gjsify/example-dom-three-postprocessing-pixel/browser');
         const handle = mount(container, { assetBase: `${base}demos/pixel/` });
@@ -338,7 +402,9 @@ app.connect('activate', () => {
     const slides = slideshow.querySelectorAll<HTMLElement>('.slideshow-slide');
     const prevBtn = slideshow.querySelector('.slideshow-arrow-prev');
     const nextBtn = slideshow.querySelector('.slideshow-arrow-next');
-    let activeIndex = 0;
+    // The active slide is randomized before paint by the inline script below, so
+    // start from whichever slide actually carries `.active` (falling back to 0).
+    let activeIndex = Math.max(0, Array.from(slides).findIndex((s) => s.classList.contains('active')));
     let animating = false;
 
     function showSlide(targetIndex: number, direction: 'next' | 'prev') {
@@ -397,8 +463,8 @@ app.connect('activate', () => {
       showSlide((activeIndex + 1) % slides.length, 'next');
     });
 
-    // Mount the first slide immediately
-    const firstId = slides[0]?.dataset.slideId;
+    // Mount the active slide immediately (random per visit — see inline script).
+    const firstId = slides[activeIndex]?.dataset.slideId;
     if (firstId) mountSlide(firstId);
   }
 

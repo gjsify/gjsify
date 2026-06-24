@@ -1,0 +1,62 @@
+---
+title: "Adwaita Storybook"
+description: An interactive component browser for Libadwaita widgets — the same stories render natively under GJS/GTK and in the browser as @gjsify/adwaita-web custom elements.
+---
+
+import ShowcaseEmbed from '../../../components/ShowcaseEmbed.astro';
+
+A component browser for the GNOME Libadwaita widget set: a sidebar of stories grouped by category, a live preview, and a controls panel that binds to each story's args. Every widget renders **natively under GJS/GTK** and — from the *same* renderer-free story metadata — **in the browser** as [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web) custom elements.
+
+## Live demo
+
+<ShowcaseEmbed name="adwaita-storybook" />
+
+The embed above is the real browser storybook: pick a widget in the sidebar, tweak its controls, watch it update. It is built from the identical stories the native GTK storybook shows.
+
+## What it exercises
+
+| Pillar | What it needs |
+|---|---|
+| [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web) | The full Adwaita widget set as light-DOM custom elements (rows, buttons, carousel, tab/view switchers, navigation, dialogs …) |
+| [`@gjsify/adwaita-storybook`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-storybook) | The browser storybook renderer — sidebar, preview, live controls, responsive collapse |
+| [`@gjsify/storybook`](https://github.com/gjsify/gjsify/tree/main/packages/framework/storybook) | The native GTK storybook (`gjsify storybook`) |
+| [`@gjsify/stories`](https://github.com/gjsify/gjsify/tree/main/packages/framework/stories) | The renderer-free `StoryMeta` contract shared by both targets |
+| [`@gjsify/devtools`](https://github.com/gjsify/gjsify/tree/main/packages/framework/devtools) | DBus/MCP control plane for screenshotting + driving the native window |
+
+## Run it on GJS
+
+```bash
+gjsify storybook
+```
+
+Run from the showcase directory, this opens the native GTK4 storybook window — real `Adw.*` widgets, an `Adw.NavigationSplitView` sidebar, and an `Adw.Breakpoint` that collapses to single-pane navigation on narrow widths.
+
+## Run it in the browser
+
+```ts
+import { mount } from '@gjsify/example-gtk-adwaita-storybook/browser';
+mount(document.getElementById('app')!);
+```
+
+`mount()` renders the storybook into any container via `@gjsify/adwaita-storybook`'s `mountStorybook`, drawing from the same story list. The renderer is responsive — it collapses to single-pane navigation below 720px, mirroring the native breakpoint.
+
+## Source
+
+[`showcases/gtk/adwaita-storybook/`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/adwaita-storybook)
+
+- `src/<category>/<name>.meta.ts` — the renderer-free `StoryMeta` (title, category, controls) — the single source of truth
+- `src/<category>/<name>.story.ts` — the native GTK twin (`{ ...meta, component: Adw.X.$gtype }`)
+- `src/browser/<category>/<name>.web.ts` — the browser twin (a `StoryElement` building `@gjsify/adwaita-web` elements)
+- `src/browser/stories.ts` — the shared story list consumed by both `main.ts` (standalone) and `embed.ts` (`mount()`)
+
+## One story, two renderers
+
+The point of this showcase is the **shared contract**. A story's metadata — its title, category, and the controls that drive it — lives in a `*.meta.ts` file that imports no renderer. The native `*.story.ts` and the browser `*.web.ts` each consume that metadata and bind it to their respective widget toolkit. Because the controls are declared once, the two targets expose identical knobs, so a native screenshot and a browser screenshot can be compared 1:1 — which is exactly how the widget port is validated.
+
+If a widget renders correctly in the GTK window but not in the browser (or vice-versa), that divergence is a bug to fix in `@gjsify/adwaita-web` — never a per-story patch.
+
+## Related
+
+- [Showcases overview](../) — the full cross-platform catalog
+- [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web) — the browser Adwaita widget library this storybook exercises
+- [`refs/libadwaita/`](https://github.com/gjsify/gjsify/tree/main/refs/libadwaita) — the upstream Libadwaita source the widgets mirror

@@ -4,6 +4,10 @@
   "private": true,
   "description": "Interactive component browser for Libadwaita widgets — a native Adwaita storybook built on @gjsify/storybook, debuggable over DBus/MCP via @gjsify/devtools",
   "type": "module",
+  "exports": {
+    "./browser": "./src/browser/embed.ts",
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "clear": "rm -rf dist tsconfig.tsbuildinfo node_modules/.cache/gjsify-storybook",
     "check": "gjsify tsc --noEmit",
