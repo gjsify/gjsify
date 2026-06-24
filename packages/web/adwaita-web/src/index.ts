@@ -56,3 +56,6 @@ export { AdwInlineViewSwitcher, AdwViewStackPage } from './elements/adw-inline-v
 export { AdwNavigationPage, AdwNavigationView } from './elements/adw-navigation-view.js';
 export { AdwBottomSheet, AdwBottomSheetContent, AdwBottomSheetSheet } from './elements/adw-bottom-sheet.js';
 export { AdwSidebar, AdwSidebarItem, AdwSidebarSection } from './elements/adw-sidebar.js';
+export { AdwAboutDialog } from './elements/adw-about-dialog.js';
+export { AdwAlertDialog, AdwAlertResponse } from './elements/adw-alert-dialog.js';
+export { AdwPreferencesDialog, AdwPreferencesPage } from './elements/adw-preferences-dialog.js';

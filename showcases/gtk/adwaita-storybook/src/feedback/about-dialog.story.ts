@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { aboutDialogMeta } from './about-dialog.meta.js';
 
 /** Story: Adw.AboutDialog presented from a button, with app metadata + credits. */
 export class AboutDialogStory extends StoryWidget {
@@ -19,21 +20,7 @@ export class AboutDialogStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Feedback/About Dialog',
-            description:
-                'Adw.AboutDialog — the standard Adwaita about window with application name, version, credits and license.',
-            component: Adw.AboutDialog.$gtype,
-            controls: [
-                {
-                    name: 'applicationName',
-                    label: 'Application name',
-                    type: ControlType.TEXT,
-                    defaultValue: 'Adwaita Storybook',
-                },
-                { name: 'version', label: 'Version', type: ControlType.TEXT, defaultValue: '0.11.0' },
-            ],
-        };
+        return { ...aboutDialogMeta, component: Adw.AboutDialog.$gtype };
     }
 
     initialize(): void {

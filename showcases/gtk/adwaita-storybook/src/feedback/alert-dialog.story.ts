@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { alertDialogMeta } from './alert-dialog.meta.js';
 
 /** Story: Adw.AlertDialog presented from a button, with cancel/destructive responses. */
 export class AlertDialogStory extends StoryWidget {
@@ -19,22 +20,7 @@ export class AlertDialogStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Feedback/Alert Dialog',
-            description:
-                'Adw.AlertDialog — a modal dialog with a heading, body text and responses, including a destructive action.',
-            component: Adw.AlertDialog.$gtype,
-            controls: [
-                { name: 'heading', label: 'Heading', type: ControlType.TEXT, defaultValue: 'Delete Project?' },
-                {
-                    name: 'body',
-                    label: 'Body',
-                    type: ControlType.TEXT,
-                    defaultValue:
-                        'This will permanently remove the project and all of its files. This action cannot be undone.',
-                },
-            ],
-        };
+        return { ...alertDialogMeta, component: Adw.AlertDialog.$gtype };
     }
 
     initialize(): void {

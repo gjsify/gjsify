@@ -1,4 +1,8 @@
 // _toast.scss — adw-toast and adw-toast-overlay styling.
+// adw-toast-overlay wraps content and layers transient `.adw-toast` banners over
+// the bottom of its own bounds (the Adw.ToastOverlay model). Each banner carries
+// a title, an optional action button and a CSS-drawn "×" close button, and slides
+// up on show / down on dismiss (mirroring Adw.Toast).
 // Reference: refs/adwaita-web/adwaita-web/scss/_toast.scss
 // Reference: refs/adwaita-web/adwaita-web/scss/_toast_overlay.scss
 // Reference: refs/libadwaita/src/stylesheet/widgets/_toast.scss
@@ -7,27 +11,40 @@
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
 adw-toast-overlay {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 9999;
-  display: flex;
-  flex-direction: column-reverse;
-  gap: 9px;
-  align-items: center;
-  pointer-events: none;
+  position: relative;
+  display: block;
+
+  // The wrapped content (Adw.ToastOverlay :child) occupies the overlay's box.
+  .adw-toast-overlay-content {
+    width: 100%;
+    height: 100%;
+  }
+
+  // Toasts are layered over the bottom edge of the overlay, stacked newest-last
+  // and centered, the way AdwToastOverlay floats them above its child.
+  .adw-toast-overlay-toasts {
+    position: absolute;
+    bottom: var(--spacing-m);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: var(--spacing-s);
+    align-items: center;
+    pointer-events: none;
+  }
 }
 
 .adw-toast {
   background-color: #3d3846;
   color: #ffffff;
-  padding: 9px 12px;
+  padding: var(--spacing-s) var(--spacing-m);
   border-radius: var(--card-radius);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.25);
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--spacing-s);
   width: max-content;
   max-width: 400px;
   min-height: 36px;
@@ -53,8 +70,101 @@ adw-toast-overlay {
     transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
   }
 
+  .adw-toast-content-wrapper {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
   .adw-toast-title {
     font-weight: normal;
     line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // Action button — a flat pill tinted with the accent color so it reads as
+  // suggested against the dark toast surface (Adw.Toast:button-label).
+  .adw-toast-action-button {
+    flex-shrink: 0;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 4px var(--spacing-m);
+    border: none;
+    border-radius: var(--button-radius);
+    background-color: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: var(--font-size-base);
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 150ms ease-in-out;
+
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    &:active {
+      background-color: rgba(255, 255, 255, 0.26);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: 1px;
+    }
+  }
+
+  // Close affordance — a CSS-drawn "×" (mirrors adw-tab-view's .adw-tab-close;
+  // no symbolic close icon ships in the curated adwaita-web icon set).
+  .adw-toast-close-button {
+    box-sizing: border-box;
+    flex-shrink: 0;
+    position: relative;
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 9999px;
+    background-color: transparent;
+    color: #ffffff;
+    cursor: pointer;
+    opacity: 0.7;
+    transition:
+      background-color 150ms ease-in-out,
+      opacity 150ms ease-in-out;
+
+    &:hover {
+      opacity: 1;
+      background-color: rgba(255, 255, 255, 0.12);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: 1px;
+    }
+
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 11px;
+      height: 1.5px;
+      background-color: currentColor;
+      border-radius: 1px;
+    }
+
+    &::before {
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+
+    &::after {
+      transform: translate(-50%, -50%) rotate(-45deg);
+    }
   }
 }

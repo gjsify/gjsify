@@ -35,6 +35,8 @@ import { cameraPhotoSymbolic, networkWirelessSymbolic } from '@gjsify/adwaita-ic
 import { folderDownloadSymbolic, folderMusicSymbolic, folderSymbolic, userTrashSymbolic } from '@gjsify/adwaita-icons/places';
 import { avatarDefaultSymbolic, mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { emblemSystemSymbolic } from '@gjsify/adwaita-icons/legacy';
+import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
+import { applicationXExecutableSymbolic } from '@gjsify/adwaita-icons/mimetypes';
 import { toDataUri } from '@gjsify/adwaita-icons/utils';
 
 // view-columns-symbolic is not in the vendored icon theme @gjsify/adwaita-icons
@@ -89,6 +91,8 @@ const ICONS = {
     'folder-music': folderMusicSymbolic,
     'edit-copy': editCopySymbolic,
     'emblem-system': emblemSystemSymbolic,
+    'preferences-system': preferencesSystemSymbolic,
+    'application-x-executable': applicationXExecutableSymbolic,
 };
 
 const iconVars = Object.entries(ICONS)
