@@ -41,7 +41,6 @@ const SHOWCASE_CSS = `
     color: var(--window-fg-color); opacity: var(--dim-opacity);
     font-size: var(--font-size-small);
 }
-.mb-quicknav .adw-button { min-height: 26px; padding: 2px 10px; font-weight: normal; }
 .mb-iframe { flex: 1; min-height: 0; border: none; width: 100%; background: var(--view-bg-color); }
 .mb-status {
     padding: 4px 12px;
@@ -129,8 +128,45 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
         quicknav.appendChild(b);
     }
 
-    // Wire the shared navigation core.
-    const core = new BrowserCore(iframe as unknown as IFrameHandle);
+    // Wire the shared navigation core. The built-in `page:*` documents announce
+    // themselves with `window.parent.postMessage(...)` — which, in a real
+    // browser, dispatches the `message` event on the HOST window, NOT on the
+    // iframe's own `contentWindow`. And because the iframe is a sandboxed
+    // (allow-scripts, no allow-same-origin) cross-origin frame, even *reading*
+    // `iframe.contentWindow.addEventListener` throws a SecurityError. So instead
+    // of handing `BrowserCore` the raw iframe (whose `contentWindow` is the
+    // wrong, inaccessible target), we wrap it in an `IFrameHandle` whose
+    // `contentWindow.addEventListener` subscribes on `window`, filtered to
+    // messages originating from this iframe. The GJS variant doesn't need this:
+    // its `IFrameBridge.iframeElement.contentWindow` is a same-process proxy that
+    // bridges WebKit's script-message-handler, so listening there is correct.
+    const iframeHandle: IFrameHandle = {
+        get src() {
+            return iframe.src;
+        },
+        set src(value: string) {
+            iframe.src = value;
+        },
+        get srcdoc() {
+            return iframe.srcdoc;
+        },
+        set srcdoc(value: string) {
+            iframe.srcdoc = value;
+        },
+        get contentWindow() {
+            return {
+                addEventListener(_type: 'message', listener: (event: { data: unknown }) => void): void {
+                    window.addEventListener('message', (event) => {
+                        // Identity-compare the source WindowProxy (allowed even
+                        // for cross-origin frames; reading its properties is not)
+                        // so we only surface messages from our own iframe.
+                        if (event.source === iframe.contentWindow) listener(event);
+                    });
+                },
+            };
+        },
+    };
+    const core = new BrowserCore(iframeHandle);
     let paused = false;
 
     core.onStateChange((state) => {
