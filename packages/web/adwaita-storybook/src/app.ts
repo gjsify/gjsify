@@ -14,10 +14,12 @@ import type { WebStoryModule } from './types.js';
 
 /**
  * Width (px) below which the controls panel folds into an on-demand overlay so
- * the sidebar + preview keep their room — a medium embed (e.g. the docs page)
- * sits below this, a full storybook window above it.
+ * the sidebar + preview keep their room. It docks only in a genuinely roomy
+ * standalone window — both embeds sit below this (the docs page ~712px and the
+ * home-page slideshow ~907px), so they show sidebar + preview with the controls
+ * closed by default (reopen via the header button).
  */
-const CONTROLS_BREAKPOINT = 900;
+const CONTROLS_BREAKPOINT = 1000;
 
 /** Width (px) below which even the sidebar folds away and nav goes single-pane. */
 const NAV_BREAKPOINT = 620;
