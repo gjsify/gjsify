@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { navigationSplitViewMeta } from './navigation-split-view.meta.js';
 
 /** Story: Adw.NavigationSplitView with a boxed-list sidebar and a content page. */
 export class NavigationSplitViewStory extends StoryWidget {
@@ -19,16 +20,7 @@ export class NavigationSplitViewStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Navigation/Navigation Split View',
-            description:
-                'Adw.NavigationSplitView — a resizable sidebar beside a content pane. When collapsed it folds into a navigation stack.',
-            component: Adw.NavigationSplitView.$gtype,
-            controls: [
-                { name: 'showContent', label: 'Show content', type: ControlType.BOOLEAN, defaultValue: true },
-                { name: 'collapsed', label: 'Collapsed', type: ControlType.BOOLEAN, defaultValue: false },
-            ],
-        };
+        return { ...navigationSplitViewMeta, component: Adw.NavigationSplitView.$gtype };
     }
 
     private buildSidebar(): Adw.NavigationPage {

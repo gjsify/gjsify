@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { overlaySplitViewMeta } from './overlay-split-view.meta.js';
 
 /** Story: Adw.OverlaySplitView with a boxed-list sidebar and a status-page content. */
 export class OverlaySplitViewStory extends StoryWidget {
@@ -19,16 +20,7 @@ export class OverlaySplitViewStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Navigation/Overlay Split View',
-            description:
-                'Adw.OverlaySplitView — a sidebar shown beside the content, or overlaid on top of it when collapsed.',
-            component: Adw.OverlaySplitView.$gtype,
-            controls: [
-                { name: 'showSidebar', label: 'Show sidebar', type: ControlType.BOOLEAN, defaultValue: true },
-                { name: 'collapsed', label: 'Collapsed', type: ControlType.BOOLEAN, defaultValue: false },
-            ],
-        };
+        return { ...overlaySplitViewMeta, component: Adw.OverlaySplitView.$gtype };
     }
 
     private buildSidebar(): Gtk.Widget {

@@ -11,6 +11,7 @@ import {
     documentEditSymbolic,
     documentOpenSymbolic,
     documentSaveSymbolic,
+    editCopySymbolic,
     editPasteSymbolic,
     goDownSymbolic,
     goHomeSymbolic,
@@ -31,8 +32,9 @@ import {
     viewRevealSymbolic,
 } from '@gjsify/adwaita-icons/actions';
 import { cameraPhotoSymbolic, networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
-import { folderDownloadSymbolic, folderSymbolic, userTrashSymbolic } from '@gjsify/adwaita-icons/places';
+import { folderDownloadSymbolic, folderMusicSymbolic, folderSymbolic, userTrashSymbolic } from '@gjsify/adwaita-icons/places';
 import { avatarDefaultSymbolic, mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
+import { emblemSystemSymbolic } from '@gjsify/adwaita-icons/legacy';
 import { toDataUri } from '@gjsify/adwaita-icons/utils';
 
 // view-columns-symbolic is not in the vendored icon theme @gjsify/adwaita-icons
@@ -84,6 +86,9 @@ const ICONS = {
     'view-columns': viewColumnsSymbolic,
     'list-remove': listRemoveSymbolic,
     'send-to': sendToSymbolic,
+    'folder-music': folderMusicSymbolic,
+    'edit-copy': editCopySymbolic,
+    'emblem-system': emblemSystemSymbolic,
 };
 
 const iconVars = Object.entries(ICONS)
