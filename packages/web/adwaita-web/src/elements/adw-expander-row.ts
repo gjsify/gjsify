@@ -2,7 +2,10 @@
 // with an optional enable switch. Mirrors Adw.ExpanderRow.
 // Attributes: title, subtitle, expanded (boolean), enable-expansion (boolean),
 //   show-enable-switch (boolean).
-// Slots: any child <adw-*-row> is moved into the disclosed content listbox.
+// Slots: slot="prefix" / slot="suffix" widgets sit in the header row beside the
+//   title (before the enable switch + disclosure chevron), like Adw.ExpanderRow's
+//   add_prefix / add_suffix; any other child <adw-*-row> is moved into the
+//   disclosed content listbox.
 // Properties: expanded, enableExpansion (get/set, reflect to attributes).
 // Events: notify::expanded (CustomEvent), notify::enable-expansion (CustomEvent)
 //   — mirror Adw.ExpanderRow's GObject signal names so the same code path drives
@@ -20,6 +23,8 @@ export class AdwExpanderRow extends HTMLElement {
     private _enableLabel!: HTMLLabelElement;
     private _chevronEl!: HTMLSpanElement;
     private _contentEl!: HTMLDivElement;
+    private _prefixEl!: HTMLDivElement;
+    private _suffixEl!: HTMLDivElement;
     private _initialized = false;
 
     static get observedAttributes() {
@@ -48,12 +53,26 @@ export class AdwExpanderRow extends HTMLElement {
         return this._contentEl;
     }
 
+    /** The header suffix section — append controls here imperatively. */
+    get suffixSection(): HTMLDivElement {
+        return this._suffixEl;
+    }
+
+    /** The header prefix section — append icons/widgets here imperatively. */
+    get prefixSection(): HTMLDivElement {
+        return this._prefixEl;
+    }
+
     connectedCallback() {
         if (this._initialized) return;
         this._initialized = true;
 
-        // Any pre-existing children are the nested rows to disclose.
-        const rows = Array.from(this.childNodes);
+        // Slotted prefix/suffix widgets go in the header; everything else is a
+        // nested row to disclose.
+        const prefixChildren = Array.from(this.querySelectorAll(':scope > [slot="prefix"]'));
+        const suffixChildren = Array.from(this.querySelectorAll(':scope > [slot="suffix"]'));
+        const claimed = new Set<Node>([...prefixChildren, ...suffixChildren]);
+        const rows = Array.from(this.childNodes).filter((node) => !claimed.has(node));
 
         // Header row — looks like an action row: a text column, an optional
         // enable switch, and the disclosure chevron.
@@ -82,7 +101,16 @@ export class AdwExpanderRow extends HTMLElement {
         this._chevronEl = document.createElement('span');
         this._chevronEl.className = 'adw-icon adw-icon--go-down adw-expander-row-chevron';
 
-        this._headerEl.append(textEl, this._enableLabel, this._chevronEl);
+        // Header prefix / suffix widget slots (Adw.ExpanderRow add_prefix/add_suffix).
+        this._prefixEl = document.createElement('div');
+        this._prefixEl.className = 'adw-expander-row-prefix';
+        for (const child of prefixChildren) this._prefixEl.appendChild(child);
+
+        this._suffixEl = document.createElement('div');
+        this._suffixEl.className = 'adw-expander-row-suffix';
+        for (const child of suffixChildren) this._suffixEl.appendChild(child);
+
+        this._headerEl.append(this._prefixEl, textEl, this._suffixEl, this._enableLabel, this._chevronEl);
 
         // Disclosed content — a nested listbox holding the rows.
         this._contentEl = document.createElement('div');
@@ -127,6 +155,9 @@ export class AdwExpanderRow extends HTMLElement {
         const showSwitch = this.hasAttribute('show-enable-switch');
         this._enableLabel.hidden = !showSwitch;
         this._enableSwitch.checked = this.enableExpansion;
+
+        this._prefixEl.hidden = this._prefixEl.childElementCount === 0;
+        this._suffixEl.hidden = this._suffixEl.childElementCount === 0;
 
         this.classList.toggle('expanded', this.expanded);
         this._contentEl.classList.toggle('expanded', this.expanded);

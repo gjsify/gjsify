@@ -1,14 +1,11 @@
 ---
-// Web platform coverage section — Adwaita-styled boxed list with
-// accordion sub-categories. Data lives in `src/data/web-standards.ts`.
-//
-// Visual model:
-//   - Group header (uppercase, dim 9pt) above the card
-//   - Boxed list (card with shadow, no border) containing one <details>
-//     per category
-//   - Summary row: category name + headline pill + Adwaita progress bar
-//   - Open details: per-API list with status pills
-//   - Aggregate footer card showing total coverage
+// Web platform coverage — a genuine @gjsify/adwaita-web boxed list. Each
+// category is an <adw-expander-row> (single native disclosure chevron) carrying
+// a header suffix with its count + segmented coverage meter; each standard is a
+// nested <adw-action-row> with a status pill in its suffix. The elements are
+// registered + hydrated by the client script at the bottom (importing
+// @gjsify/adwaita-web), so the section looks and behaves like the native GTK
+// storybook's boxed lists. Data lives in `src/data/web-standards.ts`.
 
 import {
 	webStandardsCategories,
@@ -66,54 +63,35 @@ function statusLabel(status: StandardStatus): string {
 		</div>
 	</div>
 
-	<style>
-		/* Hide the browser's native <summary> disclosure triangle so only the
-		   custom .adw-chevron span is shown — prevents the double-chevron bug. */
-		summary.adw-row-summary {
-			list-style: none;
-		}
-		summary.adw-row-summary::-webkit-details-marker {
-			display: none;
-		}
-	</style>
-
-	<div class="adw-boxed-list">
+	<adw-preferences-group class="adw-cov-group">
 		{webStandardsCategories.map((cat) => {
 			const t = tallyCategory(cat);
 			const implemented = t.full + t.partial;
 			return (
-				<details class="adw-row adw-row-expander">
-					<summary class="adw-row-summary">
-						<span class="adw-row-title">
-							<span class="adw-chevron" aria-hidden="true" />
-							{cat.name}
+				<adw-expander-row title={cat.name}>
+					<span slot="suffix" class="adw-cov-suffix">
+						<span class="adw-meta-count">{implemented} / {t.total}</span>
+						<span class="adw-bar adw-bar-inline" role="img" aria-label={`${cat.name}: ${implemented} of ${t.total} implemented`}>
+							<span class="adw-bar-seg seg-full" style={`width: ${(t.full / t.total) * 100}%`} />
+							<span class="adw-bar-seg seg-partial" style={`width: ${(t.partial / t.total) * 100}%`} />
+							<span class="adw-bar-seg seg-missing" style={`width: ${(t.missing / t.total) * 100}%`} />
+							<span class="adw-bar-seg seg-out" style={`width: ${(t.outOfScope / t.total) * 100}%`} />
 						</span>
-						<span class="adw-row-meta">
-							<span class="adw-meta-count">{implemented} / {t.total}</span>
-							<span class="adw-bar adw-bar-inline" role="img" aria-label={`${cat.name}: ${implemented} of ${t.total} implemented`}>
-								<span class="adw-bar-seg seg-full" style={`width: ${(t.full / t.total) * 100}%`} />
-								<span class="adw-bar-seg seg-partial" style={`width: ${(t.partial / t.total) * 100}%`} />
-								<span class="adw-bar-seg seg-missing" style={`width: ${(t.missing / t.total) * 100}%`} />
-								<span class="adw-bar-seg seg-out" style={`width: ${(t.outOfScope / t.total) * 100}%`} />
-							</span>
-						</span>
-					</summary>
-					<ul class="adw-api-list">
-						{cat.standards.map((s) => (
-							<li class="adw-api-item">
-								<span class="adw-api-name">
-									{s.name}
-									{s.pkg && <code class="adw-api-pkg">{s.pkg}</code>}
-								</span>
-								<span class="adw-api-meta">
-									{s.note && <span class="adw-api-note">{s.note}</span>}
-									<span class={pillClass(s.status)}>{statusLabel(s.status)}</span>
-								</span>
-							</li>
-						))}
-					</ul>
-				</details>
+					</span>
+					{cat.standards.map((s) => (
+						<adw-action-row title={s.name} subtitle={s.pkg ?? ""}>
+							{s.note && <span slot="suffix" class="adw-api-note">{s.note}</span>}
+							<span slot="suffix" class={pillClass(s.status)}>{statusLabel(s.status)}</span>
+						</adw-action-row>
+					))}
+				</adw-expander-row>
 			);
 		})}
-	</div>
+	</adw-preferences-group>
 </section>
+
+<script>
+	// Register + hydrate the adwaita-web custom elements used above (and inject
+	// the Adwaita stylesheet). Idempotent across the other coverage sections.
+	import "@gjsify/adwaita-web";
+</script>

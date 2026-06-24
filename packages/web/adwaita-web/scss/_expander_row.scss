@@ -40,6 +40,22 @@ adw-expander-row {
     text-overflow: ellipsis;
   }
 
+  // The text column takes the free space so prefix/suffix widgets, the enable
+  // switch and the chevron sit at their respective edges.
+  .adw-expander-row-header > .adw-row-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  // Header prefix / suffix widget slots (Adw.ExpanderRow add_prefix/add_suffix).
+  .adw-expander-row-prefix,
+  .adw-expander-row-suffix {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-s);
+    flex-shrink: 0;
+  }
+
   // Disclosure chevron — points down when collapsed, flips up when expanded,
   // matching libadwaita's Adw.ExpanderRow arrow.
   .adw-expander-row-chevron {
