@@ -26,10 +26,12 @@ The embed above is the real browser storybook: pick a widget in the sidebar, twe
 ## Run it on GJS
 
 ```bash
-gjsify storybook
+gjsify showcase adwaita-storybook
 ```
 
-Run from the showcase directory, this opens the native GTK4 storybook window — real `Adw.*` widgets, an `Adw.NavigationSplitView` sidebar, and an `Adw.Breakpoint` that collapses to single-pane navigation on narrow widths.
+This opens the native GTK4 storybook window — real `Adw.*` widgets, an `Adw.NavigationSplitView` sidebar, and an `Adw.Breakpoint` that collapses to single-pane navigation on narrow widths.
+
+(From a checkout of the showcase, `gjsify storybook` does the same thing — it discovers the `*.story.ts` files and launches the GTK browser.)
 
 ## Run it in the browser
 

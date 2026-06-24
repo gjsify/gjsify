@@ -12,6 +12,16 @@ import type { StoryElement } from './story-element.js';
 import { injectStorybookStyles } from './styles.js';
 import type { WebStoryModule } from './types.js';
 
+/**
+ * Width (px) below which the controls panel folds into an on-demand overlay so
+ * the sidebar + preview keep their room — a medium embed (e.g. the docs page)
+ * sits below this, a full storybook window above it.
+ */
+const CONTROLS_BREAKPOINT = 900;
+
+/** Width (px) below which even the sidebar folds away and nav goes single-pane. */
+const NAV_BREAKPOINT = 620;
+
 /** Options that adapt the storybook to a host project. */
 export interface StorybookWebOptions {
     /** Story modules to display. */
@@ -78,10 +88,14 @@ export class StorybookWebApp {
     }
 
     /**
-     * Collapse the split views on narrow widths, mirroring the native
-     * StorybookWindow's `Adw.Breakpoint` at 720sp: instead of squishing the
-     * three columns, the sidebar/content navigate one pane at a time and the
-     * controls become an on-demand overlay.
+     * Adapt the two split views to the available width, the way a desktop
+     * Adwaita window sheds panes as it narrows. There are two thresholds:
+     *
+     *   - below {@link CONTROLS_BREAKPOINT} the controls panel folds away into an
+     *     on-demand overlay, so the sidebar + preview keep their room (this is
+     *     what a medium embed — e.g. the docs page — wants);
+     *   - below {@link NAV_BREAKPOINT} there isn't room for the sidebar either,
+     *     so the whole thing goes single-pane and navigates one column at a time.
      */
     private _observeBreakpoint(): void {
         const apply = (): void => this._applyBreakpoint();
@@ -96,17 +110,19 @@ export class StorybookWebApp {
     private _applyBreakpoint(): void {
         const width = this._navSplit.clientWidth;
         if (width === 0) return; // not laid out yet — the observer will re-fire
-        const collapsed = width < 720;
+        const navCollapsed = width < NAV_BREAKPOINT;
+        const controlsCollapsed = width < CONTROLS_BREAKPOINT;
         const nav = this._navSplit as HTMLElement & { collapsed: boolean };
         const osv = this._controlsSplit as HTMLElement & { collapsed: boolean; showSidebar: boolean };
-        if (nav.collapsed !== collapsed) nav.collapsed = collapsed;
-        if (osv.collapsed !== collapsed) osv.collapsed = collapsed;
-        // Collapsing shows the story list first (like native); the back button
-        // only appears once a story is pushed onto the content pane.
+        if (nav.collapsed !== navCollapsed) nav.collapsed = navCollapsed;
+        if (osv.collapsed !== controlsCollapsed) osv.collapsed = controlsCollapsed;
+        // Single-pane nav shows the story list first (like native); the back
+        // button only appears once a story is pushed onto the content pane.
         this._navSplit.removeAttribute('show-content');
         this._backBtn.hidden = true;
-        // Controls are docked when expanded, an on-demand overlay when collapsed.
-        osv.showSidebar = !collapsed;
+        // The controls panel docks only when there's room; otherwise it's an
+        // on-demand overlay so the sidebar + preview keep their space.
+        osv.showSidebar = !controlsCollapsed;
     }
 
     // --- control surface (mirrors StorybookWindow; driven by host-level MCP via window.__storybook) ---
