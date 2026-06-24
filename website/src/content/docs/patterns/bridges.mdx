@@ -3,7 +3,11 @@ title: Bridge widgets
 description: Canvas2DBridge, WebGLBridge, IFrameBridge, VideoBridge — pairing a polyfill DOM element with a real GTK widget without the wrong layering choices.
 ---
 
+import BridgesGrid from '../../../components/BridgesGrid.astro';
+
 A *bridge* pairs one [DOM-spec polyfill](../../packages/dom/) element with a real GTK widget so that browser-shaped code — `canvas.getContext('webgl')`, `iframe.contentWindow.postMessage`, `video.srcObject = stream` — drives the GTK surface directly. No `WebKit.WebView` wrapper, no JSON-RPC, no separate renderer process. The HTML element and the GTK widget share one SpiderMonkey heap and one GLib main context.
+
+<BridgesGrid />
 
 This page documents the four bridges that ship in `@gjsify/*` today, the lifecycle they all share (`onReady` / `installGlobals` / `_canvas|_video|_iframe`), and the rough edges to recognise before they bite (ResizeObserver wiring, GC pinning, environment isolation, parent-child ordering).
 

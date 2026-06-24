@@ -1,0 +1,19 @@
+---
+title: Coverage
+description: How complete gjsify is — pillar entries, Node.js modules and W3C/WHATWG web standards, rendered live from STATUS.md.
+---
+
+import PillarCoverage from '../../components/PillarCoverage.astro';
+import NodeApiCoverage from '../../components/NodeApiCoverage.astro';
+import WebStandardsCoverage from '../../components/WebStandardsCoverage.astro';
+import IntegrationTests from '../../components/IntegrationTests.astro';
+
+gjsify's progress is tracked in [`STATUS.md`](https://github.com/gjsify/gjsify/blob/main/STATUS.md) and regenerated into these dashboards on every build, so the bars never lag behind reality.
+
+<PillarCoverage />
+
+<NodeApiCoverage />
+
+<WebStandardsCoverage />
+
+<IntegrationTests />

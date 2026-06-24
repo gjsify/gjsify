@@ -7,23 +7,11 @@ hero:
 ---
 
 import QuickStartCta from '../../components/QuickStartCta.astro';
-import ThreeWorldsFusion from '../../components/ThreeWorldsFusion.astro';
-import PillarCoverage from '../../components/PillarCoverage.astro';
-import WebStandardsCoverage from '../../components/WebStandardsCoverage.astro';
-import NodeApiCoverage from '../../components/NodeApiCoverage.astro';
-import BridgesGrid from '../../components/BridgesGrid.astro';
-import IntegrationTests from '../../components/IntegrationTests.astro';
+
+{/* The home page stays deliberately minimal: the hero + showcase slideshow
+    (rendered by the custom Hero override) already tell the story, followed by a
+    single "get started" call-to-action. The deeper material — what makes gjsify
+    different, the coverage dashboards, the bridge widgets — lives in the
+    documentation subpages (Overview, Coverage, Patterns/Bridges). */}
 
 <QuickStartCta />
-
-<ThreeWorldsFusion />
-
-<PillarCoverage />
-
-<WebStandardsCoverage />
-
-<NodeApiCoverage />
-
-<BridgesGrid />
-
-<IntegrationTests />
