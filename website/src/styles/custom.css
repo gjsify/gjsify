@@ -654,6 +654,15 @@ a[aria-current='page']:hover {
   min-width: 0;
 }
 
+/* Header suffix of an adwaita-web <adw-expander-row> coverage category:
+   the count + inline coverage meter, right-aligned before the chevron. */
+.adw-cov-suffix {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--adw-spacing-m);
+  flex-shrink: 0;
+}
+
 .adw-meta-count {
   font-variant-numeric: tabular-nums;
   font-size: 0.875rem;

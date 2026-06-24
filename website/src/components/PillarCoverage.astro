@@ -1,11 +1,9 @@
 ---
-// Top-level pillar coverage — one bar per pillar (Node / Web / DOM /
-// Framework / Adwaita / Infra / Build/Infra / Showcases / Integration
-// suites). Reuses the .adw-bar / .seg-full / .seg-partial styling that
-// NodeApiCoverage and WebStandardsCoverage already define.
-//
-// Data is generated from STATUS.md by website/scripts/generate-coverage.mjs
-// so the bars always reflect the canonical Summary table.
+// Top-level pillar coverage — one @gjsify/adwaita-web boxed-list row per pillar
+// (Node / Web / DOM / Framework / Adwaita / Infra / Build / Showcases /
+// Integration). Each <adw-action-row> carries its count + progress meter in the
+// suffix. Data is generated from STATUS.md by generate-coverage.mjs so the bars
+// always reflect the canonical Summary table.
 
 import { overviewPillars, tallyOverview } from "../data/coverage.ts";
 
@@ -49,14 +47,13 @@ function shortLabel(category: string): string {
         </div>
     </div>
 
-    <div class="adw-boxed-list">
+    <adw-preferences-group class="adw-cov-group">
         {overviewPillars.map((p) => {
             const implemented = p.full + p.partial;
             const pct = p.total === 0 ? 0 : Math.round((implemented / p.total) * 100);
             return (
-                <div class="adw-row">
-                    <span class="adw-row-title">{shortLabel(p.category)}</span>
-                    <span class="adw-row-meta">
+                <adw-action-row title={shortLabel(p.category)}>
+                    <span slot="suffix" class="adw-cov-suffix">
                         <span class="adw-meta-count">{implemented} / {p.total} ({pct}%)</span>
                         <span class="adw-bar adw-bar-inline" role="img" aria-label={`${p.category}: ${p.full} full, ${p.partial} partial, ${p.stub} stub of ${p.total} total`}>
                             <span class="adw-bar-seg seg-full" style={`width: ${(p.full / p.total) * 100}%`} />
@@ -64,8 +61,12 @@ function shortLabel(category: string): string {
                             <span class="adw-bar-seg seg-out" style={`width: ${(p.stub / p.total) * 100}%`} />
                         </span>
                     </span>
-                </div>
+                </adw-action-row>
             );
         })}
-    </div>
+    </adw-preferences-group>
 </section>
+
+<script>
+    import "@gjsify/adwaita-web";
+</script>
