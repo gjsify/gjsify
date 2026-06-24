@@ -47,7 +47,13 @@ export default defineConfig({
             sidebar: [
                 {
                     label: 'Documentation',
-                    items: [{ slug: 'getting-started' }, { slug: 'cli-reference' }, { slug: 'how-it-works' }],
+                    items: [
+                        { slug: 'overview' },
+                        { slug: 'getting-started' },
+                        { slug: 'cli-reference' },
+                        { slug: 'how-it-works' },
+                        { slug: 'coverage' },
+                    ],
                 },
                 {
                     label: 'Guides',
@@ -86,6 +92,7 @@ export default defineConfig({
                     label: 'Showcases',
                     items: [
                         { slug: 'showcases', label: 'Overview' },
+                        { slug: 'showcases/adwaita-storybook' },
                         { slug: 'showcases/canvas2d-fireworks' },
                         { slug: 'showcases/excalibur-jelly-jumper' },
                         { slug: 'showcases/three-geometry-teapot' },
