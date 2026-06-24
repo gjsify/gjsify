@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { sidebarMeta } from './sidebar.meta.js';
 
 /** Story: Adw.Sidebar with a titled Adw.SidebarSection driving a content pane. */
 export class SidebarStory extends StoryWidget {
@@ -20,33 +21,7 @@ export class SidebarStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Navigation/Sidebar',
-            description:
-                'Adw.Sidebar — a selectable list of Adw.SidebarItem grouped into sections. Selecting an item updates the content.',
-            component: Adw.Sidebar.$gtype,
-            controls: [
-                {
-                    name: 'mode',
-                    label: 'Mode',
-                    type: ControlType.SELECT,
-                    options: [
-                        { label: 'Sidebar', value: 'sidebar' },
-                        { label: 'Page', value: 'page' },
-                    ],
-                    defaultValue: 'sidebar',
-                },
-                {
-                    name: 'selected',
-                    label: 'Selected index',
-                    type: ControlType.NUMBER,
-                    min: 0,
-                    max: 3,
-                    step: 1,
-                    defaultValue: 0,
-                },
-            ],
-        };
+        return { ...sidebarMeta, component: Adw.Sidebar.$gtype };
     }
 
     private readonly items: readonly { title: string; subtitle: string; icon: string }[] = [

@@ -1,0 +1,154 @@
+// _preferences_dialog.scss — adw-preferences-dialog styling (scrim + dialog box).
+// Reference: refs/libadwaita/src/stylesheet/widgets/_dialogs.scss (floating-sheet
+//   scrim/dimming + sheet radius + box-shadow + outline)
+// Reference: refs/libadwaita/src/adw-preferences-dialog.ui (flat header + title)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-preferences-dialog {
+  // Hidden until presented (the `open` class is toggled by the component). The
+  // element itself contributes nothing to layout while closed.
+  display: none;
+
+  &.open {
+    display: block;
+  }
+
+  // Full-cover scrim — a fixed dimming layer behind the dialog box. Adwaita
+  // dims with `--shade-color` at double alpha (see _dialogs.scss `floating-sheet
+  // > dimming`); --shade-color isn't in the adwaita-web token subset, so use the
+  // equivalent neutral wash.
+  .adw-preferences-dialog-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background-color: rgba(0, 0, 6, 0.32);
+  }
+
+  // The centred floating dialog box. Mirrors `floating-sheet > sheet`: the
+  // dialog radius (= --window-radius in Adwaita), the layered drop shadow and a
+  // 1px window outline.
+  .adw-preferences-dialog-box {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1001;
+    display: flex;
+    flex-direction: column;
+    width: min(var(--adw-dialog-content-width, 640px), calc(100vw - 48px));
+    max-height: calc(100vh - 48px);
+    overflow: hidden;
+    background-color: var(--window-bg-color);
+    color: var(--window-fg-color);
+    border-radius: var(--window-radius);
+    outline: 1px solid var(--separator-color);
+    outline-offset: -1px;
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.05),
+      0 0 5px 2px rgba(0, 0, 6, 0.1),
+      0 0 14px 2px rgba(0, 0, 6, 0.03);
+  }
+
+  // Flat header bar — transparent over the window background (Adw's preferences
+  // dialog header uses a flat AdwHeaderBar), title centred against the trailing
+  // close button.
+  .adw-preferences-dialog-header {
+    display: flex;
+    align-items: center;
+    min-height: 47px;
+    padding: 0 6px;
+    flex-shrink: 0;
+  }
+
+  // Equal-width sides keep the title optically centred (strict centering).
+  .adw-preferences-dialog-header-side {
+    display: flex;
+    align-items: center;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .adw-preferences-dialog-header-side--end {
+    justify-content: flex-end;
+  }
+
+  .adw-preferences-dialog-title {
+    flex: 0 0 auto;
+    font-weight: bold;
+    font-size: var(--font-size-base);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 6px;
+  }
+
+  // Round flat close button drawing a CSS "×" glyph (no symbolic close icon
+  // ships in @gjsify/adwaita-icons — same approach as <adw-tab-view>).
+  .adw-preferences-dialog-close {
+    appearance: none;
+    border: none;
+    margin: 0;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    background-color: transparent;
+    color: var(--window-fg-color);
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.1s ease;
+
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 12px;
+      height: 1.5px;
+      background-color: currentColor;
+      border-radius: 1px;
+    }
+
+    &::before {
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+
+    &::after {
+      transform: translate(-50%, -50%) rotate(-45deg);
+    }
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+
+    &.locked {
+      opacity: var(--dim-opacity);
+      cursor: default;
+    }
+  }
+
+  // Scrolled body holding the stacked pages. Adwaita preferences pages sit on
+  // the window background (the boxed-list groups carry their own card surface).
+  .adw-preferences-dialog-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  // Clamped column of preferences groups — Adw.PreferencesPage clamps content to
+  // a comfortable reading width and stacks groups with generous spacing.
+  .adw-preferences-dialog-pages {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xl);
+    max-width: 600px;
+    margin: 0 auto;
+    padding: var(--spacing-xl) var(--spacing-m);
+  }
+}

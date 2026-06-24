@@ -1,0 +1,193 @@
+// _tab_view.scss — adw-tab-view styling (a dynamic tabbed container with a tab
+// bar header; one page visible at a time). The bar is a headerbar-colored strip
+// of rounded chips; the selected chip is raised onto the view background, the
+// way libadwaita draws AdwTabBar over an AdwTabView.
+// Reference: refs/libadwaita/src/stylesheet/widgets/_tab-view.scss (tabbar/tabbox/tab)
+// Reference: refs/adwaita-web/adwaita-web/scss/_tabs.scss
+// Copyright (c) 2020-2022 Purism SPC / GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-tab-view {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  background-color: var(--window-bg-color);
+  color: var(--window-fg-color);
+
+  // --- Tab bar (the AdwTabBar strip) ---
+  .adw-tab-bar {
+    display: flex;
+    align-items: flex-end;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    padding: 0 var(--spacing-xs);
+    background-color: var(--headerbar-bg-color);
+    color: var(--headerbar-fg-color);
+    // libadwaita's inset bottom shade under the bar.
+    box-shadow: inset 0 -1px var(--headerbar-shade-color);
+    overflow-x: auto;
+    scrollbar-width: thin;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .adw-tab-box {
+    display: flex;
+    align-items: stretch;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) 0;
+    min-height: 34px;
+  }
+
+  // --- A single tab chip ---
+  .adw-tab {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    max-width: 200px;
+    min-height: 26px;
+    margin: 0;
+    padding: 4px var(--spacing-s);
+    border: none;
+    border-radius: var(--button-radius);
+    background-color: transparent;
+    color: var(--headerbar-fg-color);
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition:
+      background-color 150ms ease-in-out,
+      color 150ms ease-in-out,
+      box-shadow 150ms ease-in-out;
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color, var(--button-hover-color));
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: -1px;
+    }
+
+    // The selected tab — a raised chip on the view background, the way
+    // libadwaita lifts the active tab off the bar.
+    &.active {
+      background-color: var(--view-bg-color);
+      color: var(--view-fg-color);
+      box-shadow:
+        0 1px 3px 1px rgba(0, 0, 6, 0.07),
+        0 2px 6px 2px rgba(0, 0, 6, 0.03);
+
+      &:hover {
+        background-color: var(--view-bg-color);
+      }
+    }
+  }
+
+  .adw-tab-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  // --- Close affordance (CSS-drawn "×", no symbolic icon ships) ---
+  .adw-tab-close {
+    box-sizing: border-box;
+    flex-shrink: 0;
+    position: relative;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 9999px;
+    background-color: transparent;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.7;
+    transition:
+      background-color 150ms ease-in-out,
+      opacity 150ms ease-in-out;
+
+    &:hover {
+      opacity: 1;
+      background-color: var(--button-hover-color);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: 1px;
+    }
+
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 9px;
+      height: 1.5px;
+      background-color: currentColor;
+      border-radius: 1px;
+    }
+
+    &::before {
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+
+    &::after {
+      transform: translate(-50%, -50%) rotate(-45deg);
+    }
+  }
+
+  // Single-tab bars dim the close affordance (libadwaita keeps a lone tab
+  // non-interactive-looking).
+  .adw-tab-bar.single-tab .adw-tab {
+    &,
+    &:hover,
+    &:active {
+      background: none;
+      box-shadow: none;
+      color: var(--headerbar-fg-color);
+    }
+  }
+
+  // --- Pages (the AdwTabView content area) ---
+  .adw-tab-view-pages {
+    flex: 1 1 auto;
+    position: relative;
+    box-sizing: border-box;
+    overflow: hidden;
+    background-color: var(--view-bg-color);
+    color: var(--view-fg-color);
+  }
+
+  .adw-tab-page {
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+
+    &[hidden] {
+      display: none;
+    }
+
+    &.active-page {
+      display: block;
+    }
+  }
+}

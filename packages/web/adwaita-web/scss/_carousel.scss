@@ -1,0 +1,130 @@
+// _carousel.scss — adw-carousel + its dot/line page indicators.
+//
+// A horizontal scroll-snap pager (adw-carousel) plus two indicator widgets that
+// bind to it. The indicators reproduce libadwaita's snapshot drawing as CSS: a
+// per-marker `--adw-carousel-progress` (0 = inactive, 1 = focused) lerps between
+// the inactive and selected size/opacity exactly as AdwCarousel does.
+//
+// Dots:  DOTS_RADIUS 3 → DOTS_RADIUS_SELECTED 4 (6px → 8px), DOTS_SPACING 7,
+//        DOTS_OPACITY 0.3 → DOTS_OPACITY_SELECTED 0.9, active fill = accent.
+// Lines: LINE_LENGTH 35, LINE_WIDTH 3, LINE_SPACING 5, LINE_OPACITY 0.3 →
+//        LINE_OPACITY_ACTIVE 0.9, active fill = accent.
+//
+// Reference: refs/libadwaita/src/adw-carousel.c
+// Reference: refs/libadwaita/src/adw-carousel-indicator-dots.c
+// Reference: refs/libadwaita/src/adw-carousel-indicator-lines.c
+// Reference: refs/adwaita-web/adwaita-web/scss/_carousel_indicators.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-carousel {
+  display: block;
+  overflow: hidden;
+
+  .adw-carousel-track {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    // Hide the scrollbar — the carousel is paged, not scrolled by chrome.
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .adw-carousel-page {
+    flex: 0 0 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+}
+
+// Shared layout for both indicator kinds — a centered, horizontally-laid-out
+// row of markers (matching the AdwCarouselIndicator* widgets).
+adw-carousel-indicator-dots,
+adw-carousel-indicator-lines {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xs);
+
+  // The clickable marker resets the button chrome — the visible shape is drawn
+  // by the per-kind rules below.
+  button {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+}
+
+// Dots — DOTS_SPACING 7px between centers; base diameter 6px (radius 3) growing
+// to 8px (radius 4) on the focused dot, opacity ramping 0.3 → 0.9.
+adw-carousel-indicator-dots {
+  gap: 7px;
+
+  .adw-carousel-dot {
+    width: 8px;
+    height: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    // The painted disc lives in ::before so the 8px hit-target stays constant
+    // while the visible dot grows from 6px → 8px with progress.
+    &::before {
+      content: '';
+      display: block;
+      // 6px + (8px - 6px) * progress
+      width: calc(6px + 2px * var(--adw-carousel-progress, 0));
+      height: calc(6px + 2px * var(--adw-carousel-progress, 0));
+      border-radius: 50%;
+      background-color: var(--window-fg-color);
+      // 0.3 + (0.9 - 0.3) * progress
+      opacity: calc(0.3 + 0.6 * var(--adw-carousel-progress, 0));
+      transition:
+        width 0.2s ease,
+        height 0.2s ease,
+        opacity 0.2s ease,
+        background-color 0.2s ease;
+    }
+
+    &.active::before {
+      background-color: var(--window-fg-color);
+    }
+  }
+}
+
+// Lines — LINE_LENGTH 35px, LINE_WIDTH 3px, LINE_SPACING 5px; opacity ramps
+// 0.3 → 0.9; the active line recolors to the accent.
+adw-carousel-indicator-lines {
+  gap: 5px;
+
+  .adw-carousel-line {
+    width: 35px;
+    height: 3px;
+    border-radius: 1.5px;
+    background-color: var(--window-fg-color);
+    // 0.3 + (0.9 - 0.3) * progress
+    opacity: calc(0.3 + 0.6 * var(--adw-carousel-progress, 0));
+    transition:
+      opacity 0.2s ease,
+      background-color 0.2s ease;
+
+    &.active {
+      background-color: var(--window-fg-color);
+    }
+  }
+}

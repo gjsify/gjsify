@@ -1,0 +1,213 @@
+// _sidebar.scss — adw-sidebar styling (a selectable navigation sidebar built
+// from titled sections of icon + title + subtitle items). In sidebar mode it
+// renders as the flat AdwSidebar navigation list (`.navigation-sidebar`); in
+// page mode it renders as boxed lists with a trailing chevron on each row (the
+// AdwPreferencesPage look the native widget switches to when collapsed).
+// Reference: refs/libadwaita/src/stylesheet/widgets/_sidebars.scss (.navigation-sidebar, sidebar)
+// Reference: refs/libadwaita/src/adw-sidebar.c (row/header/section structure)
+// Copyright (c) 2025 GNOME Foundation Inc. (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-sidebar {
+  display: block;
+  box-sizing: border-box;
+  overflow-y: auto;
+  background-color: var(--sidebar-bg-color, var(--window-bg-color));
+  color: var(--sidebar-fg-color, var(--window-fg-color));
+
+  .adw-sidebar-list {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    // libadwaita's menu margins around the navigation list.
+    padding: var(--spacing-xs) 0;
+  }
+
+  .adw-sidebar-section {
+    display: flex;
+    flex-direction: column;
+  }
+
+  // --- Section headers (heading or separator) ---
+  .adw-sidebar-section-header {
+    &[hidden] {
+      display: none;
+    }
+
+    // Untitled section → a horizontal separator before its rows (the way the
+    // AdwSidebar header stack shows its "separator" child).
+    &.separator {
+      height: 1px;
+      margin: var(--spacing-xs) var(--spacing-s);
+      background-color: var(--separator-color, var(--card-shade-color));
+    }
+
+    &.has-title {
+      padding: var(--spacing-s) calc(var(--spacing-s) + 6px) var(--spacing-xs);
+
+      // The first header sits flush with the top (mirrors `.header.first`).
+      &.first {
+        padding-top: 0;
+      }
+    }
+  }
+
+  .adw-sidebar-section-heading {
+    font-size: var(--font-size-small);
+    font-weight: 700;
+    opacity: var(--dim-opacity);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // --- A single item row ---
+  .adw-sidebar-item {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-m);
+    width: 100%;
+    min-height: 36px;
+    // The native row has a context menu, so padding lives on the inner box and
+    // the row itself carries the menu margin + radius.
+    margin: 0 var(--spacing-xs) 2px;
+    padding: 3px 14px;
+    border: none;
+    border-radius: var(--button-radius, 6px);
+    background-color: transparent;
+    color: inherit;
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    text-align: start;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition:
+      background-color 150ms ease-in-out,
+      color 150ms ease-in-out;
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color, var(--button-hover-color));
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: -2px;
+    }
+
+    // Selected row — a neutral filled highlight; libadwaita's AdwSidebar
+    // selection is a subtle fill with the normal foreground, not accent.
+    &.selected {
+      background-color: var(--button-active-color);
+      color: var(--window-fg-color);
+
+      &:hover,
+      &:active {
+        background-color: var(--button-active-color);
+      }
+    }
+  }
+
+  .adw-sidebar-item-icon {
+    flex-shrink: 0;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .adw-sidebar-item-text {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .adw-sidebar-item-title {
+    font-size: var(--font-size-base);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .adw-sidebar-item-subtitle {
+    font-size: var(--font-size-small);
+    opacity: var(--dim-opacity);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  // The trailing chevron is only drawn in page (boxed-list) mode.
+  .adw-sidebar-item-arrow {
+    flex-shrink: 0;
+    opacity: var(--dim-opacity);
+    display: none;
+  }
+
+  // --- Page mode (boxed lists) ---
+  // Sections become bordered, rounded cards (the AdwPreferencesGroup look) and
+  // each row gains its trailing chevron; selection no longer fills the row with
+  // the accent color, matching how the native widget drops the list selection
+  // in page mode.
+  &.page {
+    .adw-sidebar-list {
+      padding: var(--spacing-m);
+      gap: var(--spacing-xs);
+    }
+
+    .adw-sidebar-section {
+      border: 1px solid var(--card-shade-color);
+      border-radius: var(--card-radius, 12px);
+      background-color: var(--card-bg-color);
+      color: var(--card-fg-color);
+      overflow: hidden;
+    }
+
+    .adw-sidebar-section-header.has-title {
+      padding: var(--spacing-m) var(--spacing-xs) var(--spacing-xs);
+
+      &.first {
+        padding-top: var(--spacing-m);
+      }
+    }
+
+    .adw-sidebar-item {
+      margin: 0;
+      padding: var(--spacing-s) var(--spacing-m);
+      border-radius: 0;
+      border-bottom: 1px solid var(--card-shade-color);
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      &.selected {
+        background-color: transparent;
+        color: var(--card-fg-color);
+
+        &:hover {
+          background-color: var(--button-hover-color);
+        }
+      }
+    }
+
+    .adw-sidebar-item-arrow {
+      display: inline-block;
+    }
+  }
+}

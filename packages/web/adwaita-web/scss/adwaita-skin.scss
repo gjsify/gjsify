@@ -35,8 +35,19 @@
 @use 'password_entry_row';
 @use 'toast';
 @use 'toolbar_view';
+@use 'wrap_box';
 @use 'overlay_split_view';
 @use 'navigation_split_view';
+@use 'carousel';
+@use 'tab_view';
+@use 'view_switcher';
+@use 'inline_view_switcher';
+@use 'navigation_view';
+@use 'bottom_sheet';
+@use 'sidebar';
+@use 'about_dialog';
+@use 'alert_dialog';
+@use 'preferences_dialog';
 
 // Ensure the `hidden` attribute always wins: components that toggle visibility
 // via `element.hidden = true` set the HTML attribute, but a custom `display`

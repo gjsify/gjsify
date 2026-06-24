@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { bottomSheetMeta } from './bottom-sheet.meta.js';
 
 /** Story: Adw.BottomSheet with a toggleable sheet child. */
 export class BottomSheetStory extends StoryWidget {
@@ -19,16 +20,7 @@ export class BottomSheetStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Navigation/Bottom Sheet',
-            description: 'Adw.BottomSheet — a sheet that slides up over the content. Toggle "Open" to reveal it.',
-            component: Adw.BottomSheet.$gtype,
-            controls: [
-                { name: 'open', label: 'Open', type: ControlType.BOOLEAN, defaultValue: true },
-                { name: 'modal', label: 'Modal', type: ControlType.BOOLEAN, defaultValue: true },
-                { name: 'canClose', label: 'Can close', type: ControlType.BOOLEAN, defaultValue: true },
-            ],
-        };
+        return { ...bottomSheetMeta, component: Adw.BottomSheet.$gtype };
     }
 
     private buildContent(): Gtk.Widget {

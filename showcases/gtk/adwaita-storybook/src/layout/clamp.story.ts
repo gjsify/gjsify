@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { clampMeta } from './clamp.meta.js';
 
 /** Story: Adw.Clamp constraining a wide child so the clamping is visible. */
 export class ClampStory extends StoryWidget {
@@ -19,32 +20,7 @@ export class ClampStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Layout/Clamp',
-            description:
-                'Adw.Clamp limits its child to a maximum width and centres it, tightening the layout as space shrinks.',
-            component: Adw.Clamp.$gtype,
-            controls: [
-                {
-                    name: 'maximumSize',
-                    label: 'Maximum size',
-                    type: ControlType.RANGE,
-                    min: 200,
-                    max: 600,
-                    step: 10,
-                    defaultValue: 400,
-                },
-                {
-                    name: 'tighteningThreshold',
-                    label: 'Tightening threshold',
-                    type: ControlType.RANGE,
-                    min: 100,
-                    max: 600,
-                    step: 10,
-                    defaultValue: 300,
-                },
-            ],
-        };
+        return { ...clampMeta, component: Adw.Clamp.$gtype };
     }
 
     initialize(): void {

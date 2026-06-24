@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { navigationViewMeta } from './navigation-view.meta.js';
 
 /** Story: Adw.NavigationView with a root page that pushes a detail page. */
 export class NavigationViewStory extends StoryWidget {
@@ -19,22 +20,7 @@ export class NavigationViewStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Navigation/Navigation View',
-            description:
-                'Adw.NavigationView — a navigation stack. The root page pushes a detail page, which gets an automatic back button.',
-            component: Adw.NavigationView.$gtype,
-            controls: [
-                { name: 'rootTitle', label: 'Root title', type: ControlType.TEXT, defaultValue: 'Contacts' },
-                { name: 'detailTitle', label: 'Detail title', type: ControlType.TEXT, defaultValue: 'Ada Lovelace' },
-                {
-                    name: 'animateTransitions',
-                    label: 'Animate transitions',
-                    type: ControlType.BOOLEAN,
-                    defaultValue: true,
-                },
-            ],
-        };
+        return { ...navigationViewMeta, component: Adw.NavigationView.$gtype };
     }
 
     private buildPage(title: string, body: Gtk.Widget): Adw.NavigationPage {

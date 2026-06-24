@@ -3,7 +3,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { tabViewMeta } from './tab-view.meta.js';
 
 const TABS: ReadonlyArray<{ title: string; body: string }> = [
     { title: 'Overview', body: 'A summary of everything at a glance.' },
@@ -24,13 +25,7 @@ export class TabViewStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'View Switching/Tab View',
-            description:
-                'Adw.TabView with an Adw.TabBar header — three tabbed pages; the tab bar can auto-hide when only one tab remains.',
-            component: Adw.TabView.$gtype,
-            controls: [{ name: 'autohide', label: 'Autohide tab bar', type: ControlType.BOOLEAN, defaultValue: false }],
-        };
+        return { ...tabViewMeta, component: Adw.TabView.$gtype };
     }
 
     private buildPageBody(title: string, body: string): Gtk.Widget {

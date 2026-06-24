@@ -1,0 +1,257 @@
+// _about_dialog.scss — adw-about-dialog styling (a modal AdwDialog floating
+// sheet hosting the About navigation view: a full-cover scrim + a centred,
+// rounded, scrollable sheet box). Mirrors libadwaita's AdwDialog floating-sheet
+// node tree (dimming + rounded sheet with the outline + layered shadow) and the
+// AdwAboutDialog main page layout (large icon, title-1 name, dimmed developer
+// line, the version pill, then the navigation rows).
+// Reference: refs/libadwaita/src/stylesheet/widgets/_dialogs.scss
+//   (floating-sheet > dimming / > sheet radius + box-shadow + outline)
+// Reference: refs/libadwaita/src/adw-about-dialog.ui (page tree, content-width 360)
+// Reference: refs/adwaita-web/adwaita-web/scss/_about_dialog.scss (web layout)
+// Copyright (c) 2022-2024 GNOME Foundation Inc. / Purism SPC (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-about-dialog {
+  // The host is inert until presented; `.open` reveals the scrim + sheet.
+  display: none;
+
+  &.open {
+    display: block;
+  }
+
+  // --- Full-cover modal scrim ---
+  // libadwaita: floating-sheet > dimming { background shade-color × 2 }.
+  .adw-about-dialog-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background-color: rgba(0, 0, 6, 0.32);
+    animation: adw-about-dialog-scrim-in 200ms ease;
+  }
+
+  // --- Centred floating sheet ---
+  // libadwaita: floating-sheet > sheet { dialog radius; layered shadow; 1px
+  // outline -1px offset }. content-width 360 → a comfortable ~360px sheet.
+  .adw-about-dialog-sheet {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1001;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: 360px;
+    max-width: calc(100vw - 48px);
+    max-height: calc(100vh - 48px);
+    overflow: hidden;
+    background-color: var(--window-bg-color);
+    color: var(--window-fg-color);
+    border-radius: var(--window-radius);
+    outline: 1px solid var(--separator-color);
+    outline-offset: -1px;
+    box-shadow:
+      0 0 14px 2px rgba(0, 0, 6, 0.03),
+      0 0 5px 2px rgba(0, 0, 6, 0.1),
+      0 0 0 1px rgba(0, 0, 0, 0.05);
+    animation: adw-about-dialog-sheet-in 200ms cubic-bezier(0, 0, 0.2, 1);
+
+    &:focus {
+      outline: 1px solid var(--separator-color);
+      outline-offset: -1px;
+    }
+  }
+
+  // The navigation view fills the sheet; each page is a column.
+  adw-navigation-view,
+  .adw-navigation-view-pages,
+  .adw-navigation-page {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  // --- Toolbar view (flat header bar over the window background + scroller) ---
+  .adw-about-dialog-toolbar-view {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  // The dialog header bar is flat: transparent over the window background, no
+  // bottom separator (libadwaita: window.about headerbar.titlebar { flat }).
+  adw-header-bar {
+    background-color: transparent;
+    box-shadow: none;
+    min-height: 47px;
+  }
+
+  // The close button — a flat circular button drawing a "×" glyph (no
+  // window-close symbolic icon ships in @gjsify/adwaita-icons).
+  .adw-about-dialog-close {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    line-height: 1;
+
+    &::before {
+      content: '\00d7'; // ×
+    }
+  }
+
+  // --- Scrolling content area ---
+  .adw-about-dialog-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .adw-about-dialog-clamp {
+    width: 100%;
+    max-width: 360px;
+    margin-inline: auto;
+    box-sizing: border-box;
+  }
+
+  .adw-about-dialog-page-body {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    padding: 0 var(--spacing-m) var(--spacing-l);
+  }
+
+  // --- Main page header title: hidden until the content scrolls ---
+  // Mirrors AdwAboutDialog's update_headerbar_cb (show title once scrolled > 0).
+  .main-page {
+    adw-header-bar .adw-header-bar-title {
+      opacity: 0;
+      transition: opacity 150ms ease;
+    }
+
+    &.scrolled adw-header-bar .adw-header-bar-title {
+      opacity: 1;
+    }
+  }
+
+  // --- App icon (the large recessed glyph) ---
+  .adw-about-dialog-icon {
+    align-self: center;
+    width: 96px;
+    height: 96px;
+    margin-top: var(--spacing-s);
+    margin-bottom: var(--spacing-m);
+    // Mask-driven adw-icon scaled up to the about-dialog app-icon size.
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    background-color: currentColor;
+  }
+
+  // --- App name (title-1) ---
+  .adw-about-dialog-name {
+    align-self: center;
+    text-align: center;
+    font-size: 18pt;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-bottom: var(--spacing-xs);
+  }
+
+  // --- Developer / vendor line ---
+  .adw-about-dialog-developer {
+    align-self: center;
+    text-align: center;
+    font-size: var(--font-size-base);
+    opacity: var(--dim-opacity);
+    margin-bottom: var(--spacing-m);
+  }
+
+  // --- Version pill ---
+  // libadwaita: .app-version { small accent chip }.
+  .adw-about-dialog-version {
+    align-self: center;
+    padding: 2px 12px;
+    margin-bottom: var(--spacing-l);
+    border-radius: 99px;
+    font-size: var(--font-size-small);
+    line-height: 1.4;
+    background-color: color-mix(in srgb, var(--accent-bg-color) 14%, transparent);
+    color: var(--accent-color);
+  }
+
+  // --- Row groups (Details / Credits / Legal navigation, link rows) ---
+  .adw-about-dialog-rows {
+    width: 100%;
+    margin-top: var(--spacing-m);
+
+    & + .adw-about-dialog-rows {
+      margin-top: var(--spacing-l);
+    }
+  }
+
+  // The trailing chevron / link affordance on a navigation or link row.
+  .adw-about-dialog-chevron {
+    width: 16px;
+    height: 16px;
+    opacity: var(--dim-opacity);
+  }
+
+  // --- Subpage content (Details / Credits / Legal) ---
+  .adw-about-dialog-comments {
+    margin: var(--spacing-s) 0 0;
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+    text-align: start;
+    white-space: pre-wrap;
+  }
+
+  .adw-about-dialog-copyright {
+    margin: var(--spacing-s) 0 0;
+    font-size: var(--font-size-small);
+    opacity: var(--dim-opacity);
+    text-align: center;
+  }
+
+  .adw-about-dialog-license {
+    margin: var(--spacing-s) 0 0;
+    font-size: var(--font-size-small);
+    opacity: var(--dim-opacity);
+    text-align: center;
+
+    a {
+      color: var(--accent-color);
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+}
+
+@keyframes adw-about-dialog-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes adw-about-dialog-sheet-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}

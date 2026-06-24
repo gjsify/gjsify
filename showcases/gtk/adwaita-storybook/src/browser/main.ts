@@ -23,6 +23,23 @@ import { ButtonContentWebStories } from './buttons/button-content.web.js';
 import { ButtonStylesWebStories } from './buttons/button-styles.web.js';
 import { SplitButtonWebStories } from './buttons/split-button.web.js';
 import { ToggleGroupWebStories } from './buttons/toggle-group.web.js';
+import { ClampWebStories } from './layout/clamp.web.js';
+import { HeaderBarWebStories } from './layout/header-bar.web.js';
+import { ToolbarViewWebStories } from './layout/toolbar-view.web.js';
+import { WrapBoxWebStories } from './layout/wrap-box.web.js';
+import { CarouselWebStories } from './view-switching/carousel.web.js';
+import { InlineViewSwitcherWebStories } from './view-switching/inline-view-switcher.web.js';
+import { TabViewWebStories } from './view-switching/tab-view.web.js';
+import { ViewSwitcherWebStories } from './view-switching/view-switcher.web.js';
+import { BottomSheetWebStories } from './navigation/bottom-sheet.web.js';
+import { NavigationSplitViewWebStories } from './navigation/navigation-split-view.web.js';
+import { NavigationViewWebStories } from './navigation/navigation-view.web.js';
+import { OverlaySplitViewWebStories } from './navigation/overlay-split-view.web.js';
+import { SidebarWebStories } from './navigation/sidebar.web.js';
+import { AboutDialogWebStories } from './feedback/about-dialog.web.js';
+import { AlertDialogWebStories } from './feedback/alert-dialog.web.js';
+import { PreferencesDialogWebStories } from './feedback/preferences-dialog.web.js';
+import { ToastWebStories } from './feedback/toast.web.js';
 
 // Order mirrors the native sidebar's category order (Presentation, Boxed
 // Lists, Buttons, …).
@@ -45,6 +62,23 @@ const stories: WebStoryModule[] = [
     ButtonStylesWebStories,
     SplitButtonWebStories,
     ToggleGroupWebStories,
+    ClampWebStories,
+    HeaderBarWebStories,
+    ToolbarViewWebStories,
+    WrapBoxWebStories,
+    CarouselWebStories,
+    InlineViewSwitcherWebStories,
+    TabViewWebStories,
+    ViewSwitcherWebStories,
+    BottomSheetWebStories,
+    NavigationSplitViewWebStories,
+    NavigationViewWebStories,
+    OverlaySplitViewWebStories,
+    SidebarWebStories,
+    AboutDialogWebStories,
+    AlertDialogWebStories,
+    PreferencesDialogWebStories,
+    ToastWebStories,
 ];
 
 mountStorybook(document.body, { title: 'Adwaita Storybook', stories });

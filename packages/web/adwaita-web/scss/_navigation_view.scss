@@ -1,0 +1,80 @@
+// _navigation_view.scss — adw-navigation-view styling (a page-based navigation
+// container; one page visible at a time, controlled with push/pop). The visible
+// page fills the view on the window background; an automatic back button is
+// drawn flat at the start of the visible page's header bar.
+// Reference: refs/libadwaita/src/adw-navigation-view.c (css node "navigation-view")
+// Reference: refs/adwaita-web/adwaita-web/docs/widgets/navigationview.md
+// Copyright (c) 2022-2023 Purism SPC / GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-navigation-view {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+  background-color: var(--window-bg-color);
+  color: var(--window-fg-color);
+
+  // The page stack — fills the view; positioned so pages can stack.
+  .adw-navigation-view-pages {
+    flex: 1 1 auto;
+    position: relative;
+    box-sizing: border-box;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  // A single navigation page — the visible one fills the view, the rest are
+  // hidden. Positioned absolutely so a transition can overlap two pages.
+  .adw-navigation-page {
+    box-sizing: border-box;
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+    background-color: var(--window-bg-color);
+    color: var(--window-fg-color);
+
+    &[hidden] {
+      display: none;
+    }
+
+    &.visible-page {
+      display: flex;
+    }
+
+    // Let a page whose direct child fills (a toolbar-view / status-page)
+    // stretch to the full height.
+    > * {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+  }
+
+  // The injected automatic back button — flat, sits at the start of the visible
+  // page's header bar (mirrors AdwHeaderBar's grown-in back button).
+  .adw-navigation-back-button {
+    flex-shrink: 0;
+  }
+
+  // Slide transition for the visible page when transitions are animated. The
+  // entering page fades up from a slight horizontal offset (LTR push), matching
+  // libadwaita's spring-driven slide closely enough for the web target.
+  &.animated .adw-navigation-page.visible-page {
+    animation: adw-navigation-page-in 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+}
+
+@keyframes adw-navigation-page-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

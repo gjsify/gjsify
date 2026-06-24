@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { preferencesDialogMeta } from './preferences-dialog.meta.js';
 
 /** Story: Adw.PreferencesDialog presented from a button, with one page of rows. */
 export class PreferencesDialogStory extends StoryWidget {
@@ -19,16 +20,7 @@ export class PreferencesDialogStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Feedback/Preferences Dialog',
-            description:
-                'Adw.PreferencesDialog — a preferences window with a page, a group and a handful of boxed-list rows.',
-            component: Adw.PreferencesDialog.$gtype,
-            controls: [
-                { name: 'pageTitle', label: 'Page title', type: ControlType.TEXT, defaultValue: 'General' },
-                { name: 'groupTitle', label: 'Group title', type: ControlType.TEXT, defaultValue: 'Appearance' },
-            ],
-        };
+        return { ...preferencesDialogMeta, component: Adw.PreferencesDialog.$gtype };
     }
 
     initialize(): void {

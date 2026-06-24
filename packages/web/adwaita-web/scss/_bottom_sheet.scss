@@ -1,0 +1,113 @@
+// _bottom_sheet.scss — adw-bottom-sheet styling (a content area with a sheet
+// that slides up from the bottom edge over the content, with an overlaid drag
+// handle). Mirrors libadwaita's AdwBottomSheet CSS node tree: a persistent
+// content layer, a dimming layer that fades in over it while open (modal), and
+// the sheet itself anchored to the bottom edge with rounded top corners + the
+// pill-shaped drag handle.
+// Reference: refs/libadwaita/src/stylesheet/widgets/_bottom-sheet.scss
+//   (dimming / sheet box-shadow / drag-handle pill / dialog top radius)
+// Reference: refs/libadwaita/src/adw-bottom-sheet.c (open / modal / can-close)
+// Copyright (c) 2023-2024 GNOME Foundation Inc. (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-bottom-sheet {
+  display: block;
+  position: relative;
+  box-sizing: border-box;
+  overflow: hidden;
+  background-color: var(--window-bg-color);
+  color: var(--window-fg-color);
+
+  // --- Persistent content layer ---
+  .adw-bottom-sheet-content {
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+  }
+
+  // --- Dimming layer (modal scrim over the content) ---
+  // libadwaita: > dimming { background: shade-color × 2 }. Non-interactive +
+  // transparent when the sheet is closed.
+  .adw-bottom-sheet-dimming {
+    position: absolute;
+    inset: 0;
+    box-sizing: border-box;
+    background-color: rgba(0, 0, 6, 0.32);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      opacity 200ms ease,
+      visibility 0s linear 200ms;
+
+    &.visible {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transition:
+        opacity 200ms ease,
+        visibility 0s;
+    }
+  }
+
+  // --- The slide-up sheet ---
+  // Anchored to the bottom edge, full-width, rounded top corners (dialog
+  // radius), slid off-screen when closed. The spring-driven AdwBottomSheet uses
+  // a translate; the web port uses an eased transform for the same effect.
+  .adw-bottom-sheet-sheet {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    box-sizing: border-box;
+    max-height: 100%;
+    overflow: auto;
+    background-color: var(--view-bg-color);
+    color: var(--view-fg-color);
+    border-top-left-radius: var(--window-radius);
+    border-top-right-radius: var(--window-radius);
+    box-shadow:
+      0 0 14px 2px rgba(0, 0, 6, 0.03),
+      0 0 5px 2px rgba(0, 0, 6, 0.1),
+      0 0 0 1px rgba(0, 0, 0, 0.05);
+    transform: translateY(100%);
+    transition:
+      transform 250ms ease,
+      box-shadow 250ms ease;
+    will-change: transform;
+  }
+
+  // --- Drag handle (overlaid pill at the top of the sheet) ---
+  // libadwaita: > drag-handle { min-width 54px; min-height 6px; margin 15px;
+  // border-radius 99px; background currentColor @ 25% }.
+  .adw-bottom-sheet-drag-handle {
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 54px;
+    min-height: 6px;
+    height: 6px;
+    margin: 15px auto;
+    border-radius: 99px;
+    background-color: color-mix(in srgb, currentColor 25%, transparent);
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: 4px;
+    }
+  }
+
+  .adw-bottom-sheet-sheet-body {
+    box-sizing: border-box;
+  }
+
+  // --- Open state ---
+  &.open .adw-bottom-sheet-sheet {
+    transform: translateY(0);
+  }
+
+  // A non-modal sheet must not block the content beneath it.
+  &:not(.modal) .adw-bottom-sheet-dimming {
+    display: none;
+  }
+}
