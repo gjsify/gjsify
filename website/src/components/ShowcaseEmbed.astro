@@ -24,10 +24,11 @@ interface MountOpts {
 
 interface Props {
   /**
-   * Showcase package suffix — combined with `@gjsify/example-dom-` to import
-   * the browser entry. Must correspond to a workspace package declared as a
-   * dependency of @gjsify/website AND a directory under `showcases/dom/<name>/`
-   * exporting `./browser` with a named `mount()` function.
+   * Showcase identifier. Most map to `@gjsify/example-dom-<name>` and a
+   * directory under `showcases/dom/<name>/`; `adwaita-storybook` is the one
+   * GTK-category showcase (`@gjsify/example-gtk-adwaita-storybook`, under
+   * `showcases/gtk/`). Each must be a dependency of @gjsify/website and export
+   * `./browser` with a named `mount()` function.
    */
   name:
     | 'three-postprocessing-pixel'
@@ -35,7 +36,8 @@ interface Props {
     | 'excalibur-jelly-jumper'
     | 'canvas2d-fireworks'
     | 'minimalist-browser'
-    | 'webrtc-loopback';
+    | 'webrtc-loopback'
+    | 'adwaita-storybook';
   /**
    * DOM id for the mount container. Defaults to the showcase name. Override
    * if a single page renders multiple embeds of the same showcase.
@@ -101,7 +103,8 @@ const mountOptsJson = JSON.stringify(resolvedMountOpts);
     | 'excalibur-jelly-jumper'
     | 'canvas2d-fireworks'
     | 'minimalist-browser'
-    | 'webrtc-loopback';
+    | 'webrtc-loopback'
+    | 'adwaita-storybook';
 
   const mounted = new WeakSet<Element>();
   const handles = new WeakMap<Element, ShowcaseHandle>();
@@ -178,6 +181,13 @@ const mountOptsJson = JSON.stringify(resolvedMountOpts);
       case 'webrtc-loopback': {
         const { mount } = await import(
           '@gjsify/example-dom-webrtc-loopback/browser'
+        );
+        handle = mount(container, opts as { title?: string });
+        break;
+      }
+      case 'adwaita-storybook': {
+        const { mount } = await import(
+          '@gjsify/example-gtk-adwaita-storybook/browser'
         );
         handle = mount(container, opts as { title?: string });
         break;
