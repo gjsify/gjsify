@@ -49,6 +49,13 @@
             "package": "@gjsify/example-node-express-webserver",
             "description": "Express web server on GJS via @gjsify/http",
             "needsWebgl": false
+        },
+        {
+            "name": "adwaita-storybook",
+            "category": "gtk",
+            "package": "@gjsify/example-gtk-adwaita-storybook",
+            "description": "Interactive Libadwaita component browser — author one story per widget, rendered natively (GTK) and in the browser",
+            "needsWebgl": false
         }
     ]
 }

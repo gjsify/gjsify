@@ -98,22 +98,24 @@ app.listen(3000, () => {
   {
     id: 'storybook',
     name: 'adwaita-storybook',
-    title: 'storybook.ts',
+    title: 'switch-row.meta.ts',
     github: 'showcases/gtk/adwaita-storybook',
-    tryIt: 'gjsify storybook',
     annotations: [
-      { text: 'Real Libadwaita widgets,\nlive in the browser', top: '-90px', right: '8%' },
+      { text: 'One story per widget —\nnative GTK and the browser', top: '-90px', right: '8%' },
     ],
-    code: `import { mountStorybook } from '@gjsify/adwaita-storybook';
-import { stories } from './stories.js';
+    code: `import { ControlType, type StoryMeta } from '@gjsify/stories';
 
-// The same Libadwaita widgets that render natively under GJS —
-// AdwSwitchRow, AdwAvatar, AdwCarousel … — here in the browser
-// as @gjsify/adwaita-web custom elements, from one shared story.
-mountStorybook(document.body, {
-  title: 'Adwaita Storybook',
-  stories,
-});`,
+// Author a widget's story once — renderer-free metadata + controls.
+// The native GTK storybook (gjsify storybook) and the browser one
+// both render it from this same source, so the two stay in lockstep.
+export const switchRowMeta: StoryMeta = {
+  title: 'Boxed Lists/Switch Row',
+  description: 'Adw.SwitchRow — a row with a trailing switch.',
+  controls: [
+    { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'Automatic updates' },
+    { name: 'active', label: 'Active', type: ControlType.BOOLEAN, defaultValue: true },
+  ],
+};`,
   },
   {
     id: 'pixel',

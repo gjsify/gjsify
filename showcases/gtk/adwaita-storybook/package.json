@@ -1,9 +1,13 @@
 {
   "name": "@gjsify/example-gtk-adwaita-storybook",
   "version": "0.11.0",
-  "private": true,
   "description": "Interactive component browser for Libadwaita widgets — a native Adwaita storybook built on @gjsify/storybook, debuggable over DBus/MCP via @gjsify/devtools",
   "type": "module",
+  "main": "dist/gjs.js",
+  "files": [
+    "dist",
+    "src"
+  ],
   "exports": {
     "./browser": "./src/browser/embed.ts",
     "./package.json": "./package.json"
@@ -14,13 +18,14 @@
     "start": "gjsify storybook",
     "start:watch": "gjsify storybook --watch",
     "start:browser": "http-server dist -o -c-1",
-    "build": "gjsify storybook --build-only",
+    "build": "gjsify storybook --build-only --out dist/gjs.js",
     "build:browser": "gjsify build src/browser/main.ts --app browser --outfile dist/browser-main.js",
     "build:assets": "mkdir -p dist && cp -f src/browser/index.html dist/index.html",
     "build:web": "gjsify run build:browser && gjsify run build:assets",
     "debug": "gjsify debug --profile storybook"
   },
   "gjsify": {
+    "main": "dist/gjs.js",
     "storybook": {
       "applicationId": "org.gjsify.AdwaitaStorybook",
       "title": "Adwaita Storybook",
