@@ -8,13 +8,39 @@
 adw-preferences-group {
   display: block;
 
+  // The header is a flex row: a title/description label column on the left
+  // (stretches to fill) and the optional header-suffix on the trailing edge.
   .adw-preferences-group-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-s);
     padding: var(--spacing-xs) 2px;
+  }
+
+  .adw-preferences-group-labels {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .adw-preferences-group-suffix {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
   }
 
   .adw-preferences-group-title {
     font-size: var(--font-size-base);
     font-weight: 700;
+    margin: 0;
+    color: var(--window-fg-color);
+  }
+
+  // Dimmed description line below the title.
+  .adw-preferences-group-description {
+    font-size: var(--font-size-small);
+    opacity: var(--dim-opacity);
     margin: 0;
     color: var(--window-fg-color);
   }

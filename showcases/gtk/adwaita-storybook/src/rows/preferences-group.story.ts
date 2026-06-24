@@ -5,7 +5,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { preferencesGroupMeta } from './preferences-group.meta.js';
 
 /** Story: Adw.PreferencesGroup wrapping several rows, with a header-suffix button. */
 export class PreferencesGroupStory extends StoryWidget {
@@ -20,21 +21,7 @@ export class PreferencesGroupStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Boxed Lists/Preferences Group',
-            description:
-                'Adw.PreferencesGroup — the boxed-list container that gathers a title, description, header-suffix widget and rows.',
-            component: Adw.PreferencesGroup.$gtype,
-            controls: [
-                { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'Account' },
-                {
-                    name: 'description',
-                    label: 'Description',
-                    type: ControlType.TEXT,
-                    defaultValue: 'Manage how this device signs in and syncs.',
-                },
-            ],
-        };
+        return { ...preferencesGroupMeta, component: Adw.PreferencesGroup.$gtype };
     }
 
     initialize(): void {

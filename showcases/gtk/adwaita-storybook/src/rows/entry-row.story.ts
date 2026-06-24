@@ -3,7 +3,8 @@
 
 import Adw from '@girs/adw-1';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { entryRowMeta } from './entry-row.meta.js';
 
 /** Story: Adw.EntryRow inside a boxed list, with a toggleable apply button. */
 export class EntryRowStory extends StoryWidget {
@@ -18,17 +19,7 @@ export class EntryRowStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Boxed Lists/Entry Row',
-            description:
-                'Adw.EntryRow — a preferences row whose title doubles as placeholder text for an inline entry.',
-            component: Adw.EntryRow.$gtype,
-            controls: [
-                { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'Display name' },
-                { name: 'text', label: 'Text', type: ControlType.TEXT, defaultValue: 'Ada Lovelace' },
-                { name: 'showApplyButton', label: 'Show apply button', type: ControlType.BOOLEAN, defaultValue: true },
-            ],
-        };
+        return { ...entryRowMeta, component: Adw.EntryRow.$gtype };
     }
 
     initialize(): void {
