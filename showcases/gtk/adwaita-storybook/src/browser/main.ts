@@ -23,6 +23,10 @@ import { ButtonContentWebStories } from './buttons/button-content.web.js';
 import { ButtonStylesWebStories } from './buttons/button-styles.web.js';
 import { SplitButtonWebStories } from './buttons/split-button.web.js';
 import { ToggleGroupWebStories } from './buttons/toggle-group.web.js';
+import { ClampWebStories } from './layout/clamp.web.js';
+import { HeaderBarWebStories } from './layout/header-bar.web.js';
+import { ToolbarViewWebStories } from './layout/toolbar-view.web.js';
+import { WrapBoxWebStories } from './layout/wrap-box.web.js';
 
 // Order mirrors the native sidebar's category order (Presentation, Boxed
 // Lists, Buttons, …).
@@ -45,6 +49,10 @@ const stories: WebStoryModule[] = [
     ButtonStylesWebStories,
     SplitButtonWebStories,
     ToggleGroupWebStories,
+    ClampWebStories,
+    HeaderBarWebStories,
+    ToolbarViewWebStories,
+    WrapBoxWebStories,
 ];
 
 mountStorybook(document.body, { title: 'Adwaita Storybook', stories });

@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { wrapBoxMeta } from './wrap-box.meta.js';
 
 /** Story: Adw.WrapBox flowing a set of chip-like buttons across multiple lines. */
 export class WrapBoxStory extends StoryWidget {
@@ -19,32 +20,7 @@ export class WrapBoxStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Layout/Wrap Box',
-            description:
-                'Adw.WrapBox flows its children horizontally and wraps them onto new lines when they run out of room.',
-            component: Adw.WrapBox.$gtype,
-            controls: [
-                {
-                    name: 'childSpacing',
-                    label: 'Child spacing',
-                    type: ControlType.RANGE,
-                    min: 0,
-                    max: 36,
-                    step: 1,
-                    defaultValue: 8,
-                },
-                {
-                    name: 'lineSpacing',
-                    label: 'Line spacing',
-                    type: ControlType.RANGE,
-                    min: 0,
-                    max: 36,
-                    step: 1,
-                    defaultValue: 8,
-                },
-            ],
-        };
+        return { ...wrapBoxMeta, component: Adw.WrapBox.$gtype };
     }
 
     initialize(): void {

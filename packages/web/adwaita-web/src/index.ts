@@ -46,5 +46,6 @@ export { AdwExpanderRow } from './elements/adw-expander-row.js';
 export { AdwPasswordEntryRow } from './elements/adw-password-entry-row.js';
 export { AdwToastOverlay } from './elements/adw-toast-overlay.js';
 export { AdwToolbarView } from './elements/adw-toolbar-view.js';
+export { AdwWrapBox } from './elements/adw-wrap-box.js';
 export { AdwOverlaySplitView } from './elements/adw-overlay-split-view.js';
 export { AdwNavigationSplitView } from './elements/adw-navigation-split-view.js';

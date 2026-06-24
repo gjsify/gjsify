@@ -17,9 +17,11 @@ import {
     goNextSymbolic,
     goPreviousSymbolic,
     listAddSymbolic,
+    listRemoveSymbolic,
     mailReplySenderSymbolic,
     mailSendSymbolic,
     openMenuSymbolic,
+    sendToSymbolic,
     sidebarShowSymbolic,
     systemSearchSymbolic,
     viewConcealSymbolic,
@@ -80,6 +82,8 @@ const ICONS = {
     'view-grid': viewGridSymbolic,
     'view-list': viewListSymbolic,
     'view-columns': viewColumnsSymbolic,
+    'list-remove': listRemoveSymbolic,
+    'send-to': sendToSymbolic,
 };
 
 const iconVars = Object.entries(ICONS)

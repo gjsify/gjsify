@@ -5,7 +5,8 @@ import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import Gio from '@girs/gio-2.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { headerBarMeta } from './header-bar.meta.js';
 
 /** Story: Adw.HeaderBar with an Adw.WindowTitle, a start icon button and an end menu button. */
 export class HeaderBarStory extends StoryWidget {
@@ -21,17 +22,7 @@ export class HeaderBarStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Layout/Header Bar',
-            description:
-                'Adw.HeaderBar hosts a custom title widget with start and end controls — the standard top chrome of an Adwaita window.',
-            component: Adw.HeaderBar.$gtype,
-            controls: [
-                { name: 'title', label: 'Title', type: ControlType.TEXT, defaultValue: 'Text Editor' },
-                { name: 'subtitle', label: 'Subtitle', type: ControlType.TEXT, defaultValue: 'notes.md' },
-                { name: 'showTitle', label: 'Show title', type: ControlType.BOOLEAN, defaultValue: true },
-            ],
-        };
+        return { ...headerBarMeta, component: Adw.HeaderBar.$gtype };
     }
 
     initialize(): void {

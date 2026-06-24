@@ -4,7 +4,8 @@
 import Adw from '@girs/adw-1';
 import Gtk from '@girs/gtk-4.0';
 import GObject from '@girs/gobject-2.0';
-import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
+import { toolbarViewMeta } from './toolbar-view.meta.js';
 
 /** Story: Adw.ToolbarView with a header bar, status-page content and a bottom action bar. */
 export class ToolbarViewStory extends StoryWidget {
@@ -19,21 +20,7 @@ export class ToolbarViewStory extends StoryWidget {
     }
 
     static getMetadata(): StoryMeta {
-        return {
-            title: 'Layout/Toolbar View',
-            description:
-                'Adw.ToolbarView pins a top header bar and a bottom toolbar around its content, each independently revealable.',
-            component: Adw.ToolbarView.$gtype,
-            controls: [
-                { name: 'revealTopBars', label: 'Reveal top bars', type: ControlType.BOOLEAN, defaultValue: true },
-                {
-                    name: 'revealBottomBars',
-                    label: 'Reveal bottom bars',
-                    type: ControlType.BOOLEAN,
-                    defaultValue: true,
-                },
-            ],
-        };
+        return { ...toolbarViewMeta, component: Adw.ToolbarView.$gtype };
     }
 
     initialize(): void {

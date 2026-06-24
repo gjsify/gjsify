@@ -1,0 +1,20 @@
+// _wrap_box.scss — adw-wrap-box styling (a box that wraps its children onto new
+// lines, the web analog of flexbox `flex-wrap: wrap`). Mirrors Adw.WrapBox.
+// Reference: refs/adwaita-web/adwaita-web/scss/_wrap_box.scss
+// Reference: refs/libadwaita/src/adw-wrap-box.c / adw-wrap-layout.c (Adw.WrapBox)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+// Layout (flex-direction, gaps, justify-content, align-items, align-content) is
+// driven imperatively by the component from its attributes — these are the
+// libadwaita defaults (horizontal, packed to the start of each line, lines
+// wrapping downwards from the top). A wrap box is a pure layout container, so it
+// carries no background of its own; children handle their own theming.
+adw-wrap-box {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: flex-start;
+  align-content: flex-start;
+}
