@@ -45,7 +45,7 @@
             "gjs": "polyfill",
             "node": "none",
             "browser": "none",
-            "nativescript": "none"
+            "nativescript": "polyfill"
         }
     },
     "license": "MIT",

@@ -13,5 +13,15 @@ export { registerStorybookTools, storybookProfile } from './profiles/storybook.j
 export { registerBrowserTools, browserProfile } from './profiles/browser.js';
 export { registerCdpTools, cdpProfile } from './profiles/cdp.js';
 
+// NativeScript transport + profile (V8 CDP inspector instead of DBus).
+export { NsCdpClient } from './transports/ns-cdp-client.js';
+export type { NsCdpConnectOptions } from './transports/ns-cdp-client.js';
+export {
+    nativescriptProfile,
+    registerNsGenericTools,
+    runNativescriptMcp,
+} from './profiles/nativescript.js';
+export type { NativescriptToolProfile, NsMcpToolContext } from './profiles/nativescript.js';
+
 // Re-export the transport-agnostic contract so a profile needs one import.
 export * from '@gjsify/devtools-protocol';

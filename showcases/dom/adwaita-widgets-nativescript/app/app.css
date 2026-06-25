@@ -1,0 +1,30 @@
+/* NativeScript core theme (resets / base widget styling). */
+@import '@nativescript/theme/css/core.css';
+
+/* The Libadwaita look. Copied from @gjsify/adwaita-nativescript/theme/adwaita.css
+   into the app dir for reliable NS @import resolution; importing it straight from
+   the package export (`@gjsify/adwaita-nativescript/theme/adwaita.css`) is the
+   long-term path once verified through the NS CSS pipeline. */
+@import '~/adwaita.css';
+
+/* Adwaita Sans. Android resolves the font-family by the TTF file name in
+   app/fonts/ (AdwaitaSans-Regular.ttf); iOS resolves by the PostScript name
+   ("Adwaita Sans"). Listing both keeps one rule cross-platform. */
+Page {
+    font-family: 'AdwaitaSans-Regular', 'Adwaita Sans';
+}
+
+Label,
+Button,
+TextField {
+    font-family: 'AdwaitaSans-Regular', 'Adwaita Sans';
+}
+
+/* Showcase-local: the Actions button row. */
+.adw-action-buttons {
+    padding: 4 8 8 8;
+}
+
+.adw-action-buttons .adw-button {
+    margin: 0 6 0 6;
+}
