@@ -1,0 +1,23 @@
+{
+  "name": "@gjsify/example-gtk-adwaita-reference",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Native GJS + Libadwaita reference page used as the visual gold reference for the NativeScript port comparison.",
+  "scripts": {
+    "build:gjs": "gjsify build src/gjs.ts --app gjs --outfile dist/gjs.mjs",
+    "start": "gjsify run dist/gjs.mjs"
+  },
+  "dependencies": {
+    "@girs/adw-1": "*",
+    "@girs/gdk-4.0": "*",
+    "@girs/gio-2.0": "*",
+    "@girs/glib-2.0": "*",
+    "@girs/graphene-1.0": "*",
+    "@girs/gsk-4.0": "*",
+    "@girs/gtk-4.0": "*"
+  },
+  "devDependencies": {
+    "@gjsify/cli": "*"
+  }
+}

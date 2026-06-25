@@ -117,6 +117,7 @@
         "examples/dom/*",
         "showcases/dom/*",
         "!showcases/dom/three-geometry-teapot-nativescript",
+        "!showcases/dom/adwaita-widgets-nativescript",
         "showcases/node/*",
         "showcases/gtk/*",
         "tests/browser",

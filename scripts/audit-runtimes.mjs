@@ -822,6 +822,20 @@ function diffDeclared(rows) {
             continue;
         }
         const slots = ['gjs', 'node', 'browser', 'nativescript'];
+        // A pure-TS framework contract (framework axis, no `.imports?.gi` guard
+        // and none of the hard GJS-binding signals) is platform-agnostic: it can
+        // legitimately opt INTO `nativescript:"polyfill"` (it runs unmodified on
+        // NS' V8, resolving to its real `lib/esm/index.js`) even though the
+        // conservative heuristic suggests `none` for the framework axis. Both
+        // `none` (opt-out) and `polyfill` (opt-in) are honest for these — do not
+        // flag the NS slot as drift either way. GJS-bound framework packages stay
+        // strictly `none` (the heuristic's suggestion is enforced as usual).
+        const isPureTsFrameworkContract =
+            r.axis === 'framework-gjs' &&
+            !r.signals.gjs_imports_guard &&
+            !r.signals.girs_value &&
+            !r.signals.gi_url &&
+            !r.signals.imports_legacy;
         const mismatches = slots.filter((s) => {
             // `nativescript` is a Foundation-time addition (Welle 4-T). Existing
             // packages declared their triplet before NS was an axis; treat the
@@ -829,6 +843,15 @@ function diffDeclared(rows) {
             // If the package doesn't declare `nativescript`, skip drift check
             // on that slot (the suggestion is just a hint, not a hard target).
             if (s === 'nativescript' && r.declared[s] === undefined) return false;
+            // Pure-TS framework contract: `none` and `polyfill` are both valid
+            // NS-slot choices (see above) — neither drifts.
+            if (
+                s === 'nativescript' &&
+                isPureTsFrameworkContract &&
+                (r.declared[s] === 'polyfill' || r.declared[s] === 'none')
+            ) {
+                return false;
+            }
             return r.declared[s] !== r.suggested[s];
         });
         if (mismatches.length > 0) {
