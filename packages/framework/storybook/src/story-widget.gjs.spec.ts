@@ -1,0 +1,119 @@
+// StoryWidget — GTK-only checks that the core delegation wrapper keeps the
+// GObject `notify::args` signal firing (the window's controls-refresh depends on
+// it) and that the core-owned state surface (meta/story/args/setArg/
+// onArgsChanged/addContent) reaches through the wrapper.
+//
+// GJS-only (extends Adw.Bin → needs the Gtk/Adw typelibs), so direct @gjsify
+// imports are fine here (testing rule 2/2b).
+
+import Adw from '@girs/adw-1';
+import GObject from '@girs/gobject-2.0';
+import Gtk from '@girs/gtk-4.0';
+import { ControlType, type StoryMeta } from '@gjsify/stories';
+import { describe, expect, it, on } from '@gjsify/unit';
+import { StoryWidget } from './story-widget.js';
+
+const META: StoryMeta = {
+    title: 'Test/Widget',
+    description: 'A test story',
+    controls: [
+        { name: 'label', type: ControlType.TEXT, label: 'Label', defaultValue: 'hi' },
+        { name: 'enabled', type: ControlType.BOOLEAN, label: 'Enabled', defaultValue: true },
+    ],
+};
+
+// A real story subclass — a GObject class must be registered once at module
+// scope (registering twice with the same GTypeName throws), so the subclass
+// lives here rather than inside an `it()` body.
+let lastUpdatedLabel: string | undefined;
+class SubStory extends StoryWidget {
+    static {
+        GObject.registerClass({ GTypeName: 'StorybookSpecSubStory' }, SubStory);
+    }
+    constructor() {
+        super(StoryWidget.fromMeta(META, 'Default'));
+    }
+    override updateArgs(): void {
+        lastUpdatedLabel = this.args.label as string;
+    }
+}
+GObject.type_ensure(SubStory.$gtype);
+
+export default async () => {
+    await on('Gjs', async () => {
+        Gtk.init();
+
+        await describe('StoryWidget — GObject notify::args bridge', async () => {
+            await it('fires notify::args when args is set', async () => {
+                const w = new StoryWidget(StoryWidget.fromMeta(META, 'Default'));
+                let fired = 0;
+                w.connect('notify::args', () => {
+                    fired++;
+                });
+                w.args = { ...w.args, label: 'changed' };
+                expect(fired).toBe(1);
+                expect(w.args.label).toBe('changed');
+            });
+
+            await it('fires notify::args via setArg', async () => {
+                const w = new StoryWidget(StoryWidget.fromMeta(META, 'Default'));
+                let fired = 0;
+                w.connect('notify::args', () => {
+                    fired++;
+                });
+                w.setArg('enabled', false);
+                expect(fired).toBe(1);
+                expect(w.args.enabled).toBe(false);
+            });
+
+            await it('does not fire when set to the same args object', async () => {
+                const w = new StoryWidget(StoryWidget.fromMeta(META, 'Default'));
+                const sameRef = w.args;
+                let fired = 0;
+                w.connect('notify::args', () => {
+                    fired++;
+                });
+                w.args = sameRef; // identical reference — the guard short-circuits
+                expect(fired).toBe(0);
+            });
+
+            await it('also notifies onArgsChanged listeners', async () => {
+                const w = new StoryWidget(StoryWidget.fromMeta(META, 'Default'));
+                const seen: string[] = [];
+                const unsub = w.onArgsChanged((args) => {
+                    seen.push(args.label as string);
+                });
+                w.setArg('label', 'via-listener');
+                expect(seen).toContain('via-listener');
+                unsub();
+                w.setArg('label', 'after-unsub');
+                expect(seen).not.toContain('after-unsub');
+            });
+        });
+
+        await describe('StoryWidget — core state surface through the wrapper', async () => {
+            await it('exposes meta/story and seeds args from controls', async () => {
+                const w = new StoryWidget(StoryWidget.fromMeta(META, 'Default'));
+                expect(w.meta.title).toBe('Test/Widget');
+                expect(w.story).toBe('Default');
+                expect(w.args.label).toBe('hi');
+                expect(w.args.enabled).toBe(true);
+            });
+
+            await it('runs updateArgs on the subclass when args change', async () => {
+                const w = new SubStory();
+                lastUpdatedLabel = undefined;
+                w.setArg('label', 'updated');
+                expect(lastUpdatedLabel).toBe('updated');
+            });
+
+            await it('addContent installs the child into the default stage', async () => {
+                const w = new StoryWidget(StoryWidget.fromMeta(META, 'Default'));
+                const child = new Gtk.Label({ label: 'preview' });
+                w.addContent(child);
+                // The default chrome roots an Adw.PreferencesPage in the Bin.
+                expect(w.get_child() instanceof Adw.PreferencesPage).toBeTruthy();
+            });
+        });
+    });
+};

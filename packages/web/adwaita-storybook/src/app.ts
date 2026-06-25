@@ -3,14 +3,29 @@
 // adwaita-web rows from each story's controls. The web counterpart of
 // @gjsify/storybook's StorybookWindow, built from @gjsify/adwaita-web custom
 // elements so it looks and behaves like the native GTK storybook.
+//
+// The app state machine (register/instantiate, category grouping, show + wire
+// controls, the MCP control surface) lives in @gjsify/storybook-core's
+// StorybookController. This class is the browser StorybookView<StoryElement>:
+// it owns ONLY the adwaita-web split-views chrome (_buildUI), the browser-only
+// responsive breakpoint fold (_observeBreakpoint/_applyBreakpoint), and the
+// window.__storybook MCP bridge (_exposeGlobal, delegating to the controller).
 
 import '@gjsify/adwaita-web'; // registers the custom elements + self-injects the adwaita stylesheet
 import type { StoryArgValue } from '@gjsify/stories';
+import {
+    type CategoryGroup,
+    type ControlRow,
+    StorybookController,
+    type StorybookView,
+    type StorySummary,
+} from '@gjsify/storybook-core';
 import { createControlRow } from './controls.js';
-import { StoryRegistry } from './registry.js';
 import type { StoryElement } from './story-element.js';
 import { injectStorybookStyles } from './styles.js';
 import type { WebStoryModule } from './types.js';
+
+export type { StorySummary } from '@gjsify/storybook-core';
 
 /**
  * Width (px) below which the controls panel folds into an on-demand overlay so
@@ -34,14 +49,6 @@ export interface StorybookWebOptions {
     openFirst?: boolean;
 }
 
-/** A flat description of a story, returned by {@link StorybookWebApp.listStories}. */
-export interface StorySummary {
-    title: string;
-    story: string;
-    category: string;
-    controls: unknown[];
-}
-
 /** Tiny element builder — sets attributes and appends children. */
 function h(tag: string, attrs: Record<string, string> = {}, children: Array<Node | string> = []): HTMLElement {
     const el = document.createElement(tag);
@@ -50,8 +57,8 @@ function h(tag: string, attrs: Record<string, string> = {}, children: Array<Node
     return el;
 }
 
-export class StorybookWebApp {
-    private _registry = new StoryRegistry();
+export class StorybookWebApp implements StorybookView<StoryElement> {
+    private _controller = new StorybookController<StoryElement>(this, (story) => this._buildControls(story));
     private _options: StorybookWebOptions;
     private _container: HTMLElement;
 
@@ -63,10 +70,7 @@ export class StorybookWebApp {
     private _controlsSplit!: HTMLElement;
     private _backBtn!: HTMLElement;
 
-    private _activeStory: StoryElement | null = null;
     private _rowByTitle = new Map<string, HTMLElement>();
-    private _refreshers: Array<(args: Record<string, unknown>) => void> = [];
-    private _unsubArgs: (() => void) | null = null;
 
     constructor(container: HTMLElement, options: StorybookWebOptions) {
         this._container = container;
@@ -76,17 +80,10 @@ export class StorybookWebApp {
     /** Build the UI, instantiate stories, and select the first one. */
     mount(): void {
         injectStorybookStyles();
-        this._registry.registerStories(this._options.stories);
-        const modules = this._registry.createStoryInstances();
         this._buildUI();
-        this._populateSidebar(modules);
         this._observeBreakpoint();
         this._exposeGlobal();
-
-        if (this._options.openFirst !== false) {
-            const first = this._firstStory();
-            if (first) this._showStory(first);
-        }
+        this._controller.mount(this._options.stories, this._options.openFirst !== false);
     }
 
     /**
@@ -127,62 +124,99 @@ export class StorybookWebApp {
         osv.showSidebar = !controlsCollapsed;
     }
 
-    // --- control surface (mirrors StorybookWindow; driven by host-level MCP via window.__storybook) ---
+    // --- control surface (delegates to the controller; driven by host-level MCP via window.__storybook) ---
 
     /** The currently-displayed story, or null. */
     get activeStory(): StoryElement | null {
-        return this._activeStory;
+        return this._controller.activeStory;
     }
 
     /** Every story flattened to a summary. */
     listStories(): StorySummary[] {
-        return this._registry.getStories().flatMap((module) =>
-            (module.instances ?? []).map((instance) => ({
-                title: instance.meta.title,
-                story: instance.story,
-                category: instance.meta.title.split('/')[0],
-                controls: instance.meta.controls ?? [],
-            })),
-        );
+        return this._controller.listStories();
     }
 
     /** Select + show a story by its full `Category/Name` title. */
     openStoryByTitle(title: string): boolean {
-        const instance = this._findByTitle(title);
-        if (!instance) return false;
-        this._showStory(instance);
-        return true;
+        return this._controller.openStoryByTitle(title);
     }
 
     /** The active story as `{ title, story, args }`, or null. */
     getCurrentStory(): { title: string; story: string; args: Record<string, unknown> } | null {
-        const s = this._activeStory;
-        return s ? { title: s.meta.title, story: s.story, args: s.args } : null;
+        return this._controller.getCurrentStory();
     }
 
     /** Set one arg on the active story — drives the same path as the controls. */
     setActiveArg(name: string, value: StoryArgValue): boolean {
-        const story = this._activeStory;
-        if (!story) return false;
-        story.setArg(name, value);
-        return true;
+        return this._controller.setActiveArg(name, value);
     }
 
-    private _findByTitle(title: string): StoryElement | null {
-        for (const module of this._registry.getStories()) {
-            for (const instance of module.instances ?? []) {
-                if (instance.meta.title === title) return instance;
+    // --- StorybookView<StoryElement> render seams (driven by the controller) ---
+
+    renderSidebar(
+        groups: Array<CategoryGroup<StoryElement>>,
+        onSelect: (instance: StoryElement) => void,
+    ): void {
+        this._listEl.replaceChildren();
+        this._rowByTitle.clear();
+
+        for (const { category, stories } of groups) {
+            this._listEl.append(h('div', { class: 'sb-category' }, [category]));
+            for (const { instance, name } of stories) {
+                const row = h('div', { class: 'sb-story-row', role: 'button', tabindex: '0' }, [name]);
+                row.addEventListener('click', () => onSelect(instance));
+                row.addEventListener('keydown', (e) => {
+                    if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+                        e.preventDefault();
+                        onSelect(instance);
+                    }
+                });
+                this._listEl.append(row);
+                this._rowByTitle.set(instance.meta.title, row);
             }
         }
-        return null;
     }
 
-    private _firstStory(): StoryElement | null {
-        for (const module of this._registry.getStories()) {
-            const first = (module.instances ?? [])[0];
-            if (first) return first;
+    markSelected(title: string): void {
+        for (const [rowTitle, row] of this._rowByTitle) {
+            row.classList.toggle('selected', rowTitle === title);
         }
-        return null;
+    }
+
+    setPreviewTitle(title: string): void {
+        this._previewTitle.setAttribute('title', title);
+    }
+
+    showPreview(instance: StoryElement): void {
+        this._previewEl.replaceChildren(instance.element);
+        // When collapsed (narrow), selecting a story navigates to the content
+        // pane (push-navigation), mirroring the native split view.
+        if ((this._navSplit as HTMLElement & { collapsed: boolean }).collapsed) {
+            this._navSplit.setAttribute('show-content', '');
+        }
+    }
+
+    renderControls(rows: Array<ControlRow<unknown>>): void {
+        const listbox = this._controlsGroup.querySelector('.adw-preferences-group-listbox');
+        if (!listbox) return;
+        listbox.replaceChildren();
+        for (const row of rows) listbox.append(row.view as HTMLElement);
+    }
+
+    private _buildControls(story: StoryElement): Array<ControlRow<unknown>> {
+        const rows: Array<ControlRow<unknown>> = [];
+        const controls = story.meta.controls;
+        if (Array.isArray(controls)) {
+            for (const control of controls) {
+                if (!control?.name || !control?.type) {
+                    console.warn('Invalid control configuration:', control);
+                    continue;
+                }
+                const built = createControlRow(story, control);
+                if (built) rows.push(built);
+            }
+        }
+        return rows;
     }
 
     private _buildUI(): void {
@@ -257,87 +291,6 @@ export class StorybookWebApp {
         this._container.replaceChildren(window_);
     }
 
-    private _populateSidebar(modules: WebStoryModule[]): void {
-        this._listEl.replaceChildren();
-        this._rowByTitle.clear();
-
-        const categories = new Map<string, StoryElement[]>();
-        for (const module of modules) {
-            for (const instance of module.instances ?? []) {
-                const [category] = instance.meta.title.split('/');
-                if (!categories.has(category)) categories.set(category, []);
-                categories.get(category)!.push(instance);
-            }
-        }
-
-        for (const [category, stories] of categories) {
-            this._listEl.append(h('div', { class: 'sb-category' }, [category]));
-            for (const story of stories) {
-                const parts = story.meta.title.split('/');
-                const name = parts.length > 1 ? parts[1] : story.meta.title;
-                const row = h('div', { class: 'sb-story-row', role: 'button', tabindex: '0' }, [name || 'Unnamed']);
-                row.addEventListener('click', () => this._showStory(story));
-                row.addEventListener('keydown', (e) => {
-                    if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-                        e.preventDefault();
-                        this._showStory(story);
-                    }
-                });
-                this._listEl.append(row);
-                this._rowByTitle.set(story.meta.title, row);
-            }
-        }
-    }
-
-    private _showStory(story: StoryElement): void {
-        this._previewTitle.setAttribute('title', `${story.meta.title} — ${story.story}`);
-        this._previewEl.replaceChildren(story.element);
-
-        for (const [title, row] of this._rowByTitle) {
-            row.classList.toggle('selected', title === story.meta.title);
-        }
-
-        this._updateControlPanel(story);
-        this._activeStory = story;
-
-        // When collapsed (narrow), selecting a story navigates to the content
-        // pane (push-navigation), mirroring the native split view.
-        if ((this._navSplit as HTMLElement & { collapsed: boolean }).collapsed) {
-            this._navSplit.setAttribute('show-content', '');
-        }
-    }
-
-    private _updateControlPanel(story: StoryElement): void {
-        const listbox = this._controlsGroup.querySelector('.adw-preferences-group-listbox');
-        if (listbox) listbox.replaceChildren();
-        this._refreshers = [];
-        if (this._unsubArgs) {
-            this._unsubArgs();
-            this._unsubArgs = null;
-        }
-
-        const controls = story.meta.controls;
-        if (Array.isArray(controls) && listbox) {
-            for (const control of controls) {
-                if (!control?.name || !control?.type) {
-                    console.warn('Invalid control configuration:', control);
-                    continue;
-                }
-                const built = createControlRow(story, control);
-                if (built) {
-                    listbox.append(built.element);
-                    this._refreshers.push(built.refresh);
-                }
-            }
-        }
-
-        // Re-sync every control widget when the story's args change (e.g. a
-        // toggle clicked directly in the preview, or a host-driven setArg).
-        this._unsubArgs = story.onArgsChanged((args) => {
-            for (const refresh of this._refreshers) refresh(args);
-        });
-    }
-
     private _exposeGlobal(): void {
         // Expose a tiny control surface so the host browser's MCP `eval_js` can
         // drive stories without an in-page devtools channel.
@@ -346,7 +299,7 @@ export class StorybookWebApp {
             openStory: (title: string) => this.openStoryByTitle(title),
             getCurrentStory: () => this.getCurrentStory(),
             setArg: (name: string, value: StoryArgValue) => this.setActiveArg(name, value),
-            getArgs: () => this._activeStory?.args ?? null,
+            getArgs: () => this.activeStory?.args ?? null,
         };
     }
 }

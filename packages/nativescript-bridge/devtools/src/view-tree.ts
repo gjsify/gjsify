@@ -40,14 +40,24 @@ export interface NsView {
     [key: string]: unknown;
 }
 
-/** The NS application surface used to find the root view (duck-typed). */
+/**
+ * The NS application surface used to find the root view (duck-typed).
+ * `getRootView()` is typed as returning `unknown` (not `NsView`) so the real
+ * `@nativescript/core` `Application` — whose `getRootView(): View` lacks the
+ * internal `NsView` index signature — is assignable without a cast at the call
+ * site. {@link rootView} narrows the result to `NsView` for the walk.
+ */
 export interface NsApplicationLike {
-    getRootView?(): NsView | null | undefined;
+    getRootView?(): unknown;
 }
 
-/** The NS `Frame.topmost()` surface used to find the current page (duck-typed). */
+/**
+ * The NS `Frame.topmost()` surface used to find the current page (duck-typed).
+ * `currentPage` is `unknown` for the same reason as {@link NsApplicationLike} —
+ * so the real `@nativescript/core` `Frame` module is assignable without a cast.
+ */
 export interface NsFrameLike {
-    topmost?(): { currentPage?: NsView | null } | null | undefined;
+    topmost?(): { currentPage?: unknown } | null | undefined;
 }
 
 /** A parsed view path: a toplevel index + a chain of child indices. */
@@ -131,9 +141,9 @@ function viewText(view: NsView): string | null {
  * Returns null when neither is available (app not yet bootstrapped).
  */
 export function rootView(app: NsApplicationLike | null, frame: NsFrameLike | null): NsView | null {
-    const fromApp = app?.getRootView?.();
+    const fromApp = app?.getRootView?.() as NsView | null | undefined;
     if (fromApp) return fromApp;
-    const page = frame?.topmost?.()?.currentPage;
+    const page = frame?.topmost?.()?.currentPage as NsView | null | undefined;
     return page ?? null;
 }
 

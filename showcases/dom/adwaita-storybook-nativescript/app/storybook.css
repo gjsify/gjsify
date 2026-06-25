@@ -1,0 +1,192 @@
+/*
+ * storybook.css — storybook chrome for @gjsify/storybook-nativescript.
+ *
+ * Pairs with @gjsify/adwaita-nativescript's `theme/adwaita.css` (import BOTH into
+ * your app CSS). It styles only the storybook-specific chrome classes
+ * (`.sb-*` + `.story-stage`) — the rows + groups inherit the Adwaita look from
+ * the adwaita-nativescript stylesheet.
+ *
+ * NativeScript CSS subset ONLY: color / background-color / font-size /
+ * font-weight / padding / margin / width / height / border-* / border-radius /
+ * opacity. NO flexbox cascade, NO z-index, NO CSS custom properties (NS does not
+ * resolve `var()`) — the Adwaita tokens are inlined per rule, matching the
+ * adwaita-nativescript stylesheet's light palette
+ * (window bg #fafafb / fg rgba(0,0,0,.8); accent #3584e4; sidebar #ebebed).
+ *
+ * Color tokens ported from @gjsify/adwaita-web's `_variables.scss` / `_theme.scss`
+ * (mirroring refs/libadwaita/src/stylesheet/_colors.scss).
+ * Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+ *
+ * Toggle dark mode by adding `ns-dark` to the page/root (mirrors the
+ * adwaita-nativescript theme convention).
+ */
+
+/* ===== Window / panes ===== */
+
+.sb-window {
+    background-color: #fafafb;
+    color: rgba(0, 0, 0, 0.8);
+}
+
+.sb-content-pane {
+    background-color: #fafafb;
+}
+
+/* ===== Sidebar (story list) — distinct shade, mirrors GTK .navigation-sidebar ===== */
+
+.sb-sidebar-pane {
+    background-color: #ebebed;
+    width: 240;
+}
+
+.sb-sidebar-header {
+    padding: 12 12 8 12;
+    background-color: #ebebed;
+}
+
+.sb-sidebar-scroll {
+    background-color: #ebebed;
+}
+
+.sb-sidebar-list {
+    padding: 4;
+}
+
+.sb-category {
+    font-size: 11;
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.55);
+    padding: 10 8 4 8;
+}
+
+.sb-story-row {
+    border-radius: 6;
+    margin: 1 4 1 4;
+    padding: 8 12 8 12;
+    background-color: transparent;
+}
+
+.sb-story-row-label {
+    font-size: 15;
+    color: rgba(0, 0, 0, 0.8);
+}
+
+.sb-story-row-selected {
+    background-color: #3584e4;
+    border-radius: 6;
+    margin: 1 4 1 4;
+    padding: 8 12 8 12;
+}
+
+.sb-story-row-selected .sb-story-row-label {
+    color: #ffffff;
+}
+
+/* ===== Detail header (back button + story title) ===== */
+
+.sb-detail-header {
+    background-color: #fafafb;
+}
+
+.sb-back-button {
+    font-size: 15;
+}
+
+/* ===== Detail area (scrolled preview + controls) ===== */
+
+.sb-detail-scroll,
+.sb-detail-body {
+    background-color: #fafafb;
+}
+
+.sb-preview-pane {
+    padding: 24 12 24 12;
+}
+
+.sb-story-page {
+    padding: 0;
+}
+
+.sb-story-group-header {
+    padding: 4 2 4 2;
+}
+
+.sb-story-group-title {
+    font-size: 20;
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.8);
+}
+
+.sb-story-group-description {
+    font-size: 15;
+    color: rgba(0, 0, 0, 0.55);
+    margin: 2 0 0 0;
+}
+
+/*
+ * Centered, dashed-framed preview stage (mirrors the browser .story-stage and
+ * the native renderer's .story-stage). NS supports a dashed border style.
+ */
+.story-stage {
+    border-width: 1;
+    border-color: rgba(127, 127, 127, 0.28);
+    border-style: dashed;
+    border-radius: 12;
+    padding: 16;
+    margin: 8 0 0 0;
+}
+
+/* ===== Controls panel ===== */
+
+.sb-controls-section {
+    background-color: #fafafb;
+    border-top-width: 1;
+    border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+.sb-controls-scroll {
+    background-color: #fafafb;
+}
+
+.sb-controls-group {
+    margin: 12;
+}
+
+/* ===== Dark mode ===== */
+
+.ns-dark.sb-window,
+.ns-dark .sb-content-pane,
+.ns-dark .sb-detail-scroll,
+.ns-dark .sb-detail-body,
+.ns-dark .sb-preview-pane,
+.ns-dark .sb-detail-header,
+.ns-dark .sb-controls-section {
+    background-color: #1d1d20;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.ns-dark .sb-sidebar-pane,
+.ns-dark .sb-sidebar-header,
+.ns-dark .sb-sidebar-scroll {
+    background-color: #242428;
+}
+
+.ns-dark .sb-category {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.ns-dark .sb-story-row-label {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.ns-dark .sb-story-group-title {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.ns-dark .sb-story-group-description {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.ns-dark .story-stage {
+    border-color: rgba(160, 160, 160, 0.28);
+}

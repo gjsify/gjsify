@@ -1,0 +1,129 @@
+// AdwPreferencesDialog — a Libadwaita-style preferences dialog for NativeScript.
+//
+// Renders a REAL NativeScript `GridLayout` overlay holding a titled card with a
+// close button over a scrollable body that hosts `AdwPreferencesPage`s. Mirrors
+// `Adw.PreferencesDialog`: `add(page)`, `present()` / `close()`, `title`.
+//
+// FIDELITY: approximated, same model as {@link AdwAboutDialog}. This is an in-page
+// modal overlay the consumer adds to their root layout and reveals on demand — NOT
+// a separate OS window. COMPROMISES: no backdrop blur / drop shadow / slide-in
+// animation (CSS subset has none). The titled-card-over-scrim LOOK and the
+// page-hosting + present/close are faithful; an `AdwPreferencesPage` dropped in
+// renders exactly as it does standalone.
+//
+// Visual spec ported from `@gjsify/adwaita-web`'s `adw-preferences-dialog`.
+// Reference: refs/libadwaita/src/stylesheet/widgets/_dialog.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+
+import { Button, GridLayout, ItemSpec, Label, StackLayout, View, type EventData } from '@nativescript/core';
+
+/** Event name emitted when the dialog is closed. */
+export const CLOSED = 'closed';
+
+export class AdwPreferencesDialog extends GridLayout {
+    protected readonly _card: GridLayout;
+    protected readonly _headerBox: GridLayout;
+    protected readonly _titleLabel: Label;
+    protected readonly _body: StackLayout;
+
+    constructor() {
+        super();
+
+        this.className = 'adw-preferences-dialog';
+        this.visibility = 'collapse';
+        this.addColumn(new ItemSpec(1, 'star'));
+        this.addRow(new ItemSpec(1, 'star'));
+
+        // Card: rows `auto, *` — a header bar and a scroll-stack body.
+        const card = new GridLayout();
+        card.className = 'adw-preferences-dialog-card';
+        card.verticalAlignment = 'middle';
+        card.horizontalAlignment = 'center';
+        card.addColumn(new ItemSpec(1, 'star'));
+        card.addRow(new ItemSpec(1, 'auto'));
+        card.addRow(new ItemSpec(1, 'star'));
+        GridLayout.setColumn(card, 0);
+        GridLayout.setRow(card, 0);
+        this.addChild(card);
+        this._card = card;
+
+        // Header: title (col 0) + close button (col 1).
+        const header = new GridLayout();
+        header.className = 'adw-preferences-dialog-header';
+        header.addColumn(new ItemSpec(1, 'star'));
+        header.addColumn(new ItemSpec(1, 'auto'));
+        header.addRow(new ItemSpec(1, 'auto'));
+        GridLayout.setRow(header, 0);
+        card.addChild(header);
+        this._headerBox = header;
+
+        const titleLabel = new Label();
+        titleLabel.className = 'adw-preferences-dialog-title';
+        titleLabel.text = 'Preferences';
+        GridLayout.setColumn(titleLabel, 0);
+        header.addChild(titleLabel);
+        this._titleLabel = titleLabel;
+
+        const closeButton = new Button();
+        closeButton.text = '✕';
+        closeButton.className = 'adw-preferences-dialog-close';
+        closeButton.set('androidElevation', 0);
+        closeButton.addEventListener('tap', () => this.close());
+        GridLayout.setColumn(closeButton, 1);
+        header.addChild(closeButton);
+
+        // Body: a vertical stack the consumer adds AdwPreferencesPages to.
+        const body = new StackLayout();
+        body.orientation = 'vertical';
+        body.className = 'adw-preferences-dialog-body';
+        GridLayout.setRow(body, 1);
+        card.addChild(body);
+        this._body = body;
+    }
+
+    /** The dialog title. */
+    get title(): string {
+        return this._titleLabel.text ?? '';
+    }
+
+    set title(value: string) {
+        this._titleLabel.text = value ?? 'Preferences';
+    }
+
+    /** Add an `AdwPreferencesPage` (or any view) to the dialog body. */
+    add(view: View): void {
+        this._body.addChild(view);
+    }
+
+    /** Remove a previously-added page from the body. */
+    remove(view: View): void {
+        this._body.removeChild(view);
+    }
+
+    /** Reveal the preferences overlay. */
+    present(): void {
+        this.visibility = 'visible';
+    }
+
+    /** Hide the preferences overlay and emit `closed`. */
+    close(): void {
+        this.visibility = 'collapse';
+        const data: EventData = { eventName: CLOSED, object: this };
+        this.notify(data);
+    }
+
+    /** Whether the dialog is currently shown. */
+    get open(): boolean {
+        return this.visibility === 'visible';
+    }
+
+    set open(value: boolean) {
+        if (value) this.present();
+        else this.close();
+    }
+
+    /** The scrollable body that hosts the preferences pages. */
+    get body(): StackLayout {
+        return this._body;
+    }
+}

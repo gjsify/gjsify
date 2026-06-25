@@ -1,0 +1,40 @@
+// NativeScript port of the Avatar story. Shares metadata with the GTK
+// avatar.story.ts and browser avatar.web.ts (imported from the GTK showcase's
+// renderer-agnostic *.meta.ts barrel).
+
+import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
+import { AdwAvatar } from '@gjsify/adwaita-nativescript';
+import { avatarMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
+
+export class AvatarNsStory extends StoryView {
+    private _avatar: AdwAvatar | null = null;
+
+    constructor() {
+        super(AvatarNsStory.getMetadata(), 'Default');
+    }
+
+    static getMetadata(): StoryMeta {
+        return avatarMeta;
+    }
+
+    initialize(): void {
+        this._avatar = new AdwAvatar();
+        this._sync();
+        this.addContent(this._avatar);
+    }
+
+    updateArgs(_args: StoryArgs): void {
+        this._sync();
+    }
+
+    private _sync(): void {
+        if (!this._avatar) return;
+        // AdwAvatar (NS) supports `text` (→ derived initials) and `size`. The
+        // `showInitials`/`iconName` args have no NS equivalent — the CSS-subset
+        // avatar has no icon-theme lookup, so it always shows derived initials.
+        this._avatar.text = this.args.text as string;
+        this._avatar.size = this.args.size as number;
+    }
+}
+
+export const AvatarNsStories: NsStoryModule = { stories: [AvatarNsStory] };

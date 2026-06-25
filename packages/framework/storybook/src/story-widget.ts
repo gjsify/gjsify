@@ -1,10 +1,20 @@
-// StoryWidget — base class for GTK story implementations.
-// original implementation using Adwaita/GTK + the @gjsify/stories contract.
+// StoryWidget — GTK/Adwaita adapter for the renderer-agnostic StoryViewBase.
+//
+// The lifecycle/state logic (meta/story/args, onArgsChanged, setArg,
+// initialize/updateArgs/teardown, addContent, chrome-text formatting) lives in
+// @gjsify/storybook-core's StoryViewBase. GObject forces a delegation wrapper:
+// StoryWidget MUST stay an `Adw.Bin` subclass with a registered `args` GObject
+// property (the window subscribes via `connect('notify::args')`), and a GObject
+// class cannot also extend the plain-TS base. So StoryWidget owns a private
+// `_core` (a small StoryViewBase<Gtk.Widget> subclass) and forwards to it; the
+// core's `emitArgs` override calls back to fire `this.notify('args')`, keeping
+// the live-refresh signal intact.
 
 import Adw from '@girs/adw-1';
 import GObject from '@girs/gobject-2.0';
 import Gtk from '@girs/gtk-4.0';
-import { argsFromControls, type StoryArgs, type StoryMeta } from '@gjsify/stories';
+import { argsFromControls, type StoryArgs, type StoryArgValue, type StoryMeta } from '@gjsify/stories';
+import { type StoryChrome, StoryViewBase } from '@gjsify/storybook-core';
 
 export namespace StoryWidget {
     export interface ConstructorProps {
@@ -15,7 +25,92 @@ export namespace StoryWidget {
 }
 
 /**
- * Base class for GJS story widgets.
+ * The GTK chrome around a story preview — a centered `Adw.PreferencesPage` /
+ * `Adw.PreferencesGroup` with title + description above a `.story-stage` content
+ * box. Returned by {@link StoryCore.createChrome} as a {@link StoryChrome}.
+ */
+function buildGtkChrome(bin: Adw.Bin): StoryChrome<Gtk.Widget> {
+    const page = new Adw.PreferencesPage();
+    const group = new Adw.PreferencesGroup();
+    const content = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        halign: Gtk.Align.CENTER,
+        valign: Gtk.Align.CENTER,
+        margin_top: 12,
+        margin_bottom: 12,
+        spacing: 12,
+        hexpand: true,
+    });
+    // Subtle dashed frame so the preview's bounds are visible even when the
+    // widget itself is transparent or in an empty state (see `.story-stage`).
+    content.add_css_class('story-stage');
+
+    group.add(content);
+    page.add(group);
+    bin.set_child(page);
+
+    return {
+        root: bin,
+        hasStage: true,
+        setStageContent(child: Gtk.Widget): void {
+            let existing = content.get_first_child();
+            while (existing) {
+                existing.unparent();
+                existing = content.get_first_child();
+            }
+            content.append(child);
+        },
+        setChromeText(title: string, description: string): void {
+            group.set_title(title);
+            group.set_description(description);
+        },
+    };
+}
+
+/**
+ * Inner core state object. A subclass of the renderer-agnostic
+ * {@link StoryViewBase} whose chrome is the GTK Adwaita layout and whose
+ * `emitArgs` override ALSO fires the outer widget's GObject `notify('args')`.
+ * The `Adw.Bin` it renders into is the outer {@link StoryWidget} itself.
+ */
+class StoryCore extends StoryViewBase<Gtk.Widget> {
+    constructor(
+        private readonly _widget: StoryWidget,
+        meta: StoryMeta,
+        story: string,
+    ) {
+        super();
+        this.initBase(meta, story);
+    }
+
+    protected createChrome(_meta: StoryMeta): StoryChrome<Gtk.Widget> {
+        return buildGtkChrome(this._widget);
+    }
+
+    // Run the outer widget's overrides (a subclass overrides StoryWidget's
+    // initialize/updateArgs/teardown, not the core's).
+    override initialize(): void {
+        this._widget.initialize();
+    }
+
+    override updateArgs(args: StoryArgs): void {
+        this._widget.updateArgs(args);
+    }
+
+    override teardown(): void {
+        this._widget.teardown();
+    }
+
+    // ALSO fire the GObject notify so `connect('notify::args')` keeps working.
+    protected override emitArgs(value: StoryArgs): void {
+        super.emitArgs(value);
+        this._widget.notify('args');
+    }
+}
+
+/**
+ * Base class for GJS story widgets — a thin GTK adapter over
+ * {@link StoryViewBase}.
  *
  * Provides default chrome — a centered `Adw.PreferencesPage` /
  * `Adw.PreferencesGroup` with title + description above a content slot — built
@@ -24,12 +119,7 @@ export namespace StoryWidget {
  * providing their own composite template (then {@link addContent} is a no-op).
  */
 export class StoryWidget extends Adw.Bin {
-    private _meta!: StoryMeta;
-    private _story = '';
-    private _args!: StoryArgs;
-
-    private _storyContent: Gtk.Box | null = null;
-    private _group: Adw.PreferencesGroup | null = null;
+    private _core!: StoryCore;
 
     static {
         GObject.registerClass(
@@ -66,13 +156,8 @@ export class StoryWidget extends Adw.Bin {
     constructor(params: StoryWidget.ConstructorProps, adwParams: Partial<Adw.Bin.ConstructorProps> = {}) {
         super(adwParams);
 
-        this._meta = params.meta;
-        this._story = params.story;
-        this._args = params.args;
-
-        if (this.get_child() == null) {
-            this._installDefaultChrome();
-        }
+        // Building the core installs the GTK chrome into this Bin (set_child).
+        this._core = new StoryCore(this, params.meta, params.story);
     }
 
     /**
@@ -84,36 +169,30 @@ export class StoryWidget extends Adw.Bin {
     }
 
     get meta(): StoryMeta {
-        return this._meta;
-    }
-
-    set meta(value: StoryMeta) {
-        if (this._meta === value) return;
-        this._meta = value;
-        this.notify('meta');
-        this._refreshChromeText();
+        return this._core.meta;
     }
 
     get story(): string {
-        return this._story;
-    }
-
-    set story(value: string) {
-        if (this._story === value) return;
-        this._story = value;
-        this.notify('story');
-        this._refreshChromeText();
+        return this._core.story;
     }
 
     get args(): StoryArgs {
-        return this._args;
+        return this._core.args;
     }
 
     set args(value: StoryArgs) {
-        if (this._args === value) return;
-        this._args = value;
-        this.notify('args');
-        this.updateArgs(value);
+        // Drives core's updateArgs + emitArgs (the latter fires notify('args')).
+        this._core.args = value;
+    }
+
+    /** Subscribe to args changes; returns an unsubscribe function. */
+    onArgsChanged(listener: (args: StoryArgs) => void): () => void {
+        return this._core.onArgsChanged(listener);
+    }
+
+    /** Set a single arg — drives {@link updateArgs} and notifies listeners. */
+    setArg(name: string, value: StoryArgValue): void {
+        this._core.setArg(name, value);
     }
 
     /** Override in subclasses — build the preview. Runs in the registry init path. */
@@ -130,51 +209,7 @@ export class StoryWidget extends Adw.Bin {
      * installed its own composite template.
      */
     addContent(widget: Gtk.Widget): void {
-        if (!this._storyContent) return;
-
-        let child = this._storyContent.get_first_child();
-        while (child) {
-            child.unparent();
-            child = this._storyContent.get_first_child();
-        }
-        this._storyContent.append(widget);
-    }
-
-    private _installDefaultChrome(): void {
-        const page = new Adw.PreferencesPage();
-        const group = new Adw.PreferencesGroup();
-        const content = new Gtk.Box({
-            orientation: Gtk.Orientation.VERTICAL,
-            halign: Gtk.Align.CENTER,
-            valign: Gtk.Align.CENTER,
-            margin_top: 12,
-            margin_bottom: 12,
-            spacing: 12,
-            hexpand: true,
-        });
-        // Subtle dashed frame so the preview's bounds are visible even when the
-        // widget itself is transparent or in an empty state (see `.story-stage`).
-        content.add_css_class('story-stage');
-
-        group.add(content);
-        page.add(group);
-        this.set_child(page);
-
-        this._group = group;
-        this._storyContent = content;
-        this._refreshChromeText();
-    }
-
-    private _refreshChromeText(): void {
-        if (!this._group) return;
-        const title = this._meta
-            ? this._story
-                ? `${this._meta.title} — ${this._story}`
-                : this._meta.title
-            : this._story;
-        const description = this._meta?.description ?? '';
-        this._group.set_title(title);
-        this._group.set_description(description);
+        this._core.addContent(widget);
     }
 }
 

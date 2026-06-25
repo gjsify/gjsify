@@ -10,6 +10,7 @@
   ],
   "exports": {
     "./browser": "./src/browser/embed.ts",
+    "./metas": "./src/metas.ts",
     "./package.json": "./package.json"
   },
   "scripts": {

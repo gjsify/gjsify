@@ -1,6 +1,14 @@
 // StorybookWindow — the generic component browser: a sidebar of stories grouped
 // by category, a preview pane, and a controls panel that renders live-bound
-// Adwaita rows from each story's controls. original implementation.
+// Adwaita rows from each story's controls.
+//
+// The window is the GTK adapter: it keeps ALL the GTK chrome construction
+// (NavigationSplitView + OverlaySplitView + Adw.Breakpoint + the Gtk.ListBox
+// sidebar + the controls PreferencesGroup) and the Adwaita control widgets, and
+// implements the renderer-agnostic StorybookView<StoryWidget> seams. A
+// StorybookController<StoryWidget> from @gjsify/storybook-core owns the state
+// machine (registration, instantiation, category grouping, selection, the
+// controls refresh cycle, and the MCP/devtools surface).
 //
 // The window tree is built programmatically rather than from a .blp template so
 // the package is self-contained — a published library cannot rely on the
@@ -10,26 +18,265 @@ import Adw from '@girs/adw-1';
 import Gdk from '@girs/gdk-4.0';
 import GObject from '@girs/gobject-2.0';
 import Gtk from '@girs/gtk-4.0';
+import type { StoryArgValue, StoryNumberControl, StorySelectControl } from '@gjsify/stories';
 import {
-    ControlType,
-    type StoryArgValue,
-    type StoryBooleanControl,
-    type StoryColorControl,
-    type StoryControl,
-    type StoryNumberControl,
-    type StorySelectControl,
-    type StoryTextControl,
-} from '@gjsify/stories';
+    bindControl,
+    type CategoryGroup,
+    type ControlRow,
+    type ControlWidget,
+    type ControlWidgetFactory,
+    StorybookController,
+    type StorybookView,
+} from '@gjsify/storybook-core';
 import type { StoryModule, StoryWidget } from './story-widget.js';
 import type { StoryRow } from './types.js';
+
+/**
+ * Builds the Adwaita leaf control widgets — the single renderer-specific seam
+ * `bindControl` consumes. Each returns a {@link ControlWidget} exposing the
+ * row's view node, a get/set for its decoded value, and an onChange hook.
+ */
+function adwControlWidgetFactory(): ControlWidgetFactory<Gtk.Widget> {
+    return {
+        text(label, desc) {
+            const row = new Adw.EntryRow({ title: label });
+            if (desc) row.set_tooltip_text(desc);
+            let onChange: ((v: string) => void) | null = null;
+            row.connect('changed', () => onChange?.(row.get_text()));
+            return {
+                node: row,
+                get: () => row.get_text(),
+                set: (value) => row.set_text(value),
+                onChange: (cb) => {
+                    onChange = cb;
+                },
+            };
+        },
+
+        boolean(label, desc) {
+            const row = new Adw.SwitchRow({ title: label, subtitle: desc ?? '' });
+            let onChange: ((v: boolean) => void) | null = null;
+            row.connect('notify::active', () => onChange?.(row.get_active()));
+            return {
+                node: row,
+                get: () => row.get_active(),
+                set: (value) => row.set_active(value),
+                onChange: (cb) => {
+                    onChange = cb;
+                },
+            };
+        },
+
+        number(control) {
+            const row = Adw.SpinRow.new_with_range(control.min ?? 0, control.max ?? 100, control.step ?? 1);
+            row.set_title(control.label || control.name);
+            if (control.description) row.set_subtitle(control.description);
+            let onChange: ((v: number) => void) | null = null;
+            row.connect('changed', () => onChange?.(row.get_value()));
+            return {
+                node: row,
+                get: () => row.get_value(),
+                set: (value) => row.set_value(value),
+                onChange: (cb) => {
+                    onChange = cb;
+                },
+            };
+        },
+
+        range(control) {
+            return buildRangeWidget(control);
+        },
+
+        select(control) {
+            return buildSelectWidget(control);
+        },
+
+        color(label, desc) {
+            return buildColorWidget(label, desc);
+        },
+    };
+}
+
+/**
+ * The RANGE control: a vertical card so the label + description don't get
+ * squashed into a single-letter column when the controls sidebar is narrow. The
+ * widget's value is the scale's numeric value.
+ */
+function buildRangeWidget(config: StoryNumberControl): ControlWidget<Gtk.Widget, number> {
+    const min = config.min ?? 0;
+    const max = config.max ?? 100;
+    const step = config.step ?? 1;
+    const initial = typeof config.min === 'number' ? config.min : 0;
+    const shouldRound = Number.isInteger(step) && Number.isInteger(initial);
+
+    const adjustment = new Gtk.Adjustment({
+        lower: min,
+        upper: max,
+        step_increment: step,
+        value: initial,
+    });
+    adjustment.step_increment = step;
+
+    const row = new Gtk.ListBoxRow({ selectable: false, activatable: false });
+    row.add_css_class('story-range-row');
+
+    const box = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        spacing: 6,
+        margin_top: 12,
+        margin_bottom: 12,
+        margin_start: 12,
+        margin_end: 12,
+    });
+
+    const header = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 12 });
+    const titleLabel = new Gtk.Label({
+        label: config.label || config.name,
+        halign: Gtk.Align.START,
+        hexpand: true,
+        ellipsize: 3, // PANGO_ELLIPSIZE_END
+    });
+    titleLabel.add_css_class('heading');
+
+    const formatValue = (value: number): string => (shouldRound ? String(Math.round(value)) : value.toFixed(2));
+
+    const valueLabel = new Gtk.Label({
+        label: formatValue(initial),
+        halign: Gtk.Align.END,
+    });
+    valueLabel.add_css_class('numeric');
+    valueLabel.add_css_class('dim-label');
+
+    header.append(titleLabel);
+    header.append(valueLabel);
+    box.append(header);
+
+    if (config.description) {
+        const desc = new Gtk.Label({
+            label: config.description,
+            halign: Gtk.Align.START,
+            xalign: 0,
+            wrap: true,
+            max_width_chars: 32,
+        });
+        desc.add_css_class('caption');
+        desc.add_css_class('dim-label');
+        box.append(desc);
+    }
+
+    const scale = new Gtk.Scale({
+        orientation: Gtk.Orientation.HORIZONTAL,
+        adjustment,
+        draw_value: false,
+        hexpand: true,
+    });
+
+    let onChange: ((v: number) => void) | null = null;
+    let suppress = false;
+    scale.connect('value-changed', () => {
+        if (suppress) return;
+        let value = scale.get_value();
+        if (shouldRound) {
+            const rounded = Math.round(value);
+            if (rounded !== value) {
+                scale.set_value(rounded);
+                return;
+            }
+            value = rounded;
+        }
+        valueLabel.set_label(formatValue(value));
+        onChange?.(value);
+    });
+
+    box.append(scale);
+    row.set_child(box);
+
+    return {
+        node: row,
+        get: () => scale.get_value(),
+        set: (value) => {
+            suppress = true;
+            scale.set_value(value);
+            suppress = false;
+            valueLabel.set_label(formatValue(value));
+        },
+        onChange: (cb) => {
+            onChange = cb;
+        },
+    };
+}
+
+/** The SELECT control: an Adw.ComboRow. Index-valued (the selected option's index). */
+function buildSelectWidget(config: StorySelectControl): ControlWidget<Gtk.Widget, number> {
+    const options = config.options ?? [];
+    const model = Gtk.StringList.new(options.map((opt) => opt.label));
+    const row = new Adw.ComboRow({
+        title: config.label || config.name,
+        subtitle: config.description ?? '',
+        model,
+    });
+
+    let onChange: ((v: number) => void) | null = null;
+    row.connect('notify::selected', () => onChange?.(row.get_selected()));
+
+    return {
+        node: row,
+        get: () => row.get_selected(),
+        set: (value) => row.set_selected(value),
+        onChange: (cb) => {
+            onChange = cb;
+        },
+    };
+}
+
+/** The COLOR control: an Adw.ActionRow with a Gtk.ColorDialogButton; value is hex `#rrggbb`. */
+function buildColorWidget(label: string, desc: string | undefined): ControlWidget<Gtk.Widget, string> {
+    const row = new Adw.ActionRow({ title: label, subtitle: desc ?? '' });
+    const button = new Gtk.ColorDialogButton({
+        dialog: new Gtk.ColorDialog({ title: label }),
+        valign: Gtk.Align.CENTER,
+    });
+    row.add_suffix(button);
+    row.set_activatable_widget(button);
+
+    const channel = (v: number): string =>
+        Math.round(Math.max(0, Math.min(1, v)) * 255)
+            .toString(16)
+            .padStart(2, '0');
+    const rgbaToHex = (rgba: Gdk.RGBA): string => `#${channel(rgba.red)}${channel(rgba.green)}${channel(rgba.blue)}`;
+
+    let onChange: ((v: string) => void) | null = null;
+    let suppress = false;
+    button.connect('notify::rgba', () => {
+        if (suppress) return;
+        onChange?.(rgbaToHex(button.get_rgba()));
+    });
+
+    return {
+        node: row,
+        get: () => rgbaToHex(button.get_rgba()),
+        set: (value) => {
+            const rgba = new Gdk.RGBA();
+            if (rgba.parse(value)) {
+                suppress = true;
+                button.set_rgba(rgba);
+                suppress = false;
+            }
+        },
+        onChange: (cb) => {
+            onChange = cb;
+        },
+    };
+}
 
 /**
  * Main window for the storybook. The sidebar lists story instances grouped by
  * the `Category/Name` title prefix; the preview pane holds the active
  * {@link StoryWidget} and an `Adw.PreferencesGroup` of controls drives its
- * `args` with two-way binding.
+ * `args` with two-way binding. Implements {@link StorybookView} so the shared
+ * {@link StorybookController} drives it.
  */
-export class StorybookWindow extends Adw.ApplicationWindow {
+export class StorybookWindow extends Adw.ApplicationWindow implements StorybookView<StoryWidget> {
     private _sidebar_list!: Gtk.ListBox;
     private _content_area!: Adw.Bin;
     private _control_panel!: Adw.PreferencesGroup;
@@ -39,9 +286,11 @@ export class StorybookWindow extends Adw.ApplicationWindow {
     private _main_split_view!: Adw.NavigationSplitView;
 
     private _controlRows: Gtk.Widget[] = [];
-    private _controlRefreshers: Array<(args: Record<string, unknown>) => void> = [];
-    private _activeStoryHandlerId = 0;
-    private _activeStory: StoryWidget | null = null;
+    private _rowByTitle = new Map<string, StoryRow>();
+    private _controller: StorybookController<StoryWidget>;
+    private _onSelect: ((instance: StoryWidget) => void) | null = null;
+    // Guards the markSelected → select_row → row-selected feedback loop.
+    private _suppressSelect = false;
 
     static {
         GObject.registerClass({ GTypeName: 'StorybookWindow' }, StorybookWindow);
@@ -56,9 +305,41 @@ export class StorybookWindow extends Adw.ApplicationWindow {
 
         this._buildUI();
 
-        this._sidebar_list.connect('row-selected', this._onStorySelected.bind(this));
+        // The controller owns the app state machine; this window is its view.
+        // `buildControls` maps each story's controls through bindControl with the
+        // Adwaita widget factory.
+        this._controller = new StorybookController<StoryWidget>(this, (instance) => this._buildControls(instance));
+
+        this._sidebar_list.connect('row-selected', this._onRowSelected.bind(this));
         this._show_controls_button.connect('toggled', this._onToggleControls.bind(this));
         this._controls_split_view.set_show_sidebar(true);
+    }
+
+    private _onRowSelected(_listbox: Gtk.ListBox, row: Gtk.ListBoxRow | null): void {
+        if (this._suppressSelect || !row) return;
+        const storyRow = row as StoryRow;
+        if (storyRow.storyWidget) this._onSelect?.(storyRow.storyWidget);
+    }
+
+    /** The controller driving this window (exposed for the devtools extension). */
+    get controller(): StorybookController<StoryWidget> {
+        return this._controller;
+    }
+
+    private _buildControls(instance: StoryWidget): Array<ControlRow<unknown>> {
+        const controls = instance.meta.controls;
+        if (!Array.isArray(controls)) return [];
+        const factory = adwControlWidgetFactory();
+        const rows: Array<ControlRow<unknown>> = [];
+        for (const control of controls) {
+            if (!control?.name || !control?.type) {
+                console.warn('Invalid control configuration:', control);
+                continue;
+            }
+            const row = bindControl<Gtk.Widget>(instance, control, factory);
+            if (row) rows.push(row as ControlRow<unknown>);
+        }
+        return rows;
     }
 
     private _buildUI(): void {
@@ -148,23 +429,61 @@ export class StorybookWindow extends Adw.ApplicationWindow {
         this._controls_split_view.set_show_sidebar(button.get_active());
     }
 
-    /** Populate the sidebar with story instances grouped by category. */
+    /**
+     * Populate the sidebar with story modules. Registers + instantiates them via
+     * the controller (which renders the sidebar through this view's
+     * {@link renderSidebar} seam) and opens the first story.
+     */
     populateSidebar(storyModules: StoryModule[]): void {
+        this._controller.mount(storyModules, true);
+    }
+
+    // --- StorybookView<StoryWidget> seams (driven by the controller) ---
+
+    renderSidebar(groups: Array<CategoryGroup<StoryWidget>>, onSelect: (instance: StoryWidget) => void): void {
+        this._onSelect = onSelect;
+        this._suppressSelect = true;
         this._clearSidebar();
+        this._rowByTitle.clear();
 
-        if (!storyModules.some((module) => module.instances?.length)) {
-            console.error('Story modules do not have instances. Call createStoryInstances first.');
-            return;
+        for (const group of groups) {
+            this._addCategoryToSidebar(group.category);
+            for (const { instance, name } of group.stories) {
+                this._addStoryToSidebar(instance, name);
+            }
         }
+        this._suppressSelect = false;
+    }
 
-        const categories = this._groupStoriesByCategory(storyModules);
+    markSelected(title: string): void {
+        const row = this._rowByTitle.get(title);
+        if (row && this._sidebar_list.get_selected_row() !== row) {
+            // Programmatic selection — don't re-enter the controller via row-selected.
+            this._suppressSelect = true;
+            this._sidebar_list.select_row(row);
+            this._suppressSelect = false;
+        }
+    }
 
-        categories.forEach((stories, category) => {
-            this._addCategoryToSidebar(category);
-            stories.forEach((story) => {
-                this._addStoryToSidebar(story);
-            });
-        });
+    setPreviewTitle(title: string): void {
+        this._preview_title.set_title(title);
+    }
+
+    showPreview(instance: StoryWidget): void {
+        this._content_area.set_child(instance);
+        if (this._main_split_view.get_collapsed()) {
+            this._main_split_view.set_show_content(true);
+        }
+    }
+
+    renderControls(rows: Array<ControlRow<unknown>>): void {
+        this._clearControlPanel();
+        for (const row of rows) {
+            const widget = row.view as Gtk.Widget;
+            this._control_panel.add(widget);
+            this._controlRows.push(widget);
+        }
+        this._show_controls_button.set_active(true);
     }
 
     private _clearSidebar(): void {
@@ -174,24 +493,6 @@ export class StorybookWindow extends Adw.ApplicationWindow {
             child.unparent();
             child = next;
         }
-    }
-
-    private _groupStoriesByCategory(storyModules: StoryModule[]): Map<string, StoryWidget[]> {
-        const categories = new Map<string, StoryWidget[]>();
-
-        storyModules.forEach((storyModule) => {
-            if (!storyModule.instances?.length) return;
-
-            storyModule.instances.forEach((storyInstance) => {
-                const [category] = storyInstance.meta.title.split('/');
-                if (!categories.has(category)) {
-                    categories.set(category, []);
-                }
-                categories.get(category)!.push(storyInstance);
-            });
-        });
-
-        return categories;
     }
 
     private _addCategoryToSidebar(category: string): void {
@@ -212,13 +513,10 @@ export class StorybookWindow extends Adw.ApplicationWindow {
         this._sidebar_list.append(categoryRow);
     }
 
-    private _addStoryToSidebar(story: StoryWidget): void {
-        const titleParts = story.meta.title.split('/');
-        const storyName = titleParts.length > 1 ? titleParts[1] : story.meta.title;
-
+    private _addStoryToSidebar(story: StoryWidget, name: string): void {
         const storyRow = new Gtk.ListBoxRow() as StoryRow;
         const storyLabel = new Gtk.Label({
-            label: storyName || 'Unnamed Story',
+            label: name || 'Unnamed Story',
             halign: Gtk.Align.START,
             margin_start: 20,
             margin_top: 6,
@@ -228,13 +526,21 @@ export class StorybookWindow extends Adw.ApplicationWindow {
         storyRow.set_child(storyLabel);
         this._sidebar_list.append(storyRow);
         storyRow.storyWidget = story;
+        this._rowByTitle.set(story.meta.title, storyRow);
+    }
+
+    private _clearControlPanel(): void {
+        for (const row of this._controlRows) {
+            this._control_panel.remove(row);
+        }
+        this._controlRows = [];
     }
 
     // --- devtools control surface (driven by @gjsify/devtools when enabled) ---
 
     /** The currently-displayed story, or null. */
     get activeStory(): StoryWidget | null {
-        return this._activeStory;
+        return this._controller.activeStory;
     }
 
     /**
@@ -243,342 +549,16 @@ export class StorybookWindow extends Adw.ApplicationWindow {
      * story with that title exists.
      */
     openStoryByTitle(title: string): boolean {
-        let child = this._sidebar_list.get_first_child();
-        while (child) {
-            const row = child as StoryRow;
-            if (row.storyWidget && row.storyWidget.meta.title === title) {
-                this._sidebar_list.select_row(row);
-                return true;
-            }
-            child = child.get_next_sibling();
-        }
-        return false;
+        return this._controller.openStoryByTitle(title);
     }
 
     /**
      * Set one arg on the active story — drives the same `args` path as the
-     * control panel, so the visible control rows refresh via `notify::args`.
-     * Returns false when no story is active.
+     * control panel, so the visible control rows refresh via the controller's
+     * args subscription. Returns false when no story is active.
      */
     setActiveArg(name: string, value: StoryArgValue): boolean {
-        const story = this._activeStory;
-        if (!story) return false;
-        story.args = { ...story.args, [name]: value };
-        return true;
-    }
-
-    private _onStorySelected(_listbox: Gtk.ListBox, row: Gtk.ListBoxRow | null): void {
-        if (!row) return;
-
-        const storyRow = row as StoryRow;
-        if (!storyRow.storyWidget) return;
-
-        this._showStory(storyRow.storyWidget);
-
-        if (this._main_split_view.get_collapsed()) {
-            this._main_split_view.set_show_content(true);
-        }
-    }
-
-    private _showStory(storyWidget: StoryWidget): void {
-        this._preview_title.set_title(`${storyWidget.meta.title} - ${storyWidget.story}`);
-        this._content_area.set_child(storyWidget);
-        this._updateControlPanel(storyWidget);
-    }
-
-    private _updateControlPanel(storyWidget: StoryWidget): void {
-        this._clearControlPanel();
-
-        const controls = storyWidget.meta.controls;
-        if (!Array.isArray(controls)) return;
-
-        controls.forEach((control) => {
-            if (!control?.name || !control?.type) {
-                console.warn('Invalid control configuration:', control);
-                return;
-            }
-            const row = this._createControlRow(storyWidget, control);
-            if (row) {
-                this._control_panel.add(row);
-                this._controlRows.push(row);
-            }
-        });
-
-        // Subscribe to the story's `args` so external mutations (e.g. a toggle
-        // clicked directly in the preview) refresh every control widget.
-        if (this._activeStory && this._activeStoryHandlerId) {
-            this._activeStory.disconnect(this._activeStoryHandlerId);
-        }
-        this._activeStory = storyWidget;
-        this._activeStoryHandlerId = storyWidget.connect('notify::args', () => {
-            for (const refresh of this._controlRefreshers) refresh(storyWidget.args);
-        });
-
-        this._show_controls_button.set_active(true);
-    }
-
-    private _clearControlPanel(): void {
-        for (const row of this._controlRows) {
-            this._control_panel.remove(row);
-        }
-        this._controlRows = [];
-        this._controlRefreshers = [];
-    }
-
-    private _createControlRow(storyWidget: StoryWidget, control: StoryControl): Gtk.Widget | null {
-        const currentValue = storyWidget.args[control.name];
-
-        switch (control.type) {
-            case ControlType.TEXT:
-                return this._createTextRow(storyWidget, control, typeof currentValue === 'string' ? currentValue : '');
-
-            case ControlType.NUMBER:
-                return this._createNumberRow(
-                    storyWidget,
-                    control,
-                    typeof currentValue === 'number' ? currentValue : (control.min ?? 0),
-                );
-
-            case ControlType.BOOLEAN:
-                return this._createBooleanRow(
-                    storyWidget,
-                    control,
-                    typeof currentValue === 'boolean' ? currentValue : false,
-                );
-
-            case ControlType.RANGE:
-                return this._createRangeRow(
-                    storyWidget,
-                    control,
-                    typeof currentValue === 'number' ? currentValue : (control.min ?? 0),
-                );
-
-            case ControlType.SELECT:
-                return this._createSelectRow(storyWidget, control, currentValue ?? null);
-
-            case ControlType.COLOR:
-                return this._createColorRow(
-                    storyWidget,
-                    control,
-                    typeof currentValue === 'string' ? currentValue : '#000000',
-                );
-
-            default:
-                console.warn(`Unsupported control type: ${(control as StoryControl).type}`);
-                return null;
-        }
-    }
-
-    private _writeArg(storyWidget: StoryWidget, name: string, value: StoryArgValue): void {
-        storyWidget.args = { ...storyWidget.args, [name]: value };
-    }
-
-    private _createTextRow(storyWidget: StoryWidget, config: StoryTextControl, current: string): Adw.EntryRow {
-        const row = new Adw.EntryRow({ title: config.label || config.name });
-        row.set_text(current);
-        if (config.description) row.set_tooltip_text(config.description);
-        row.connect('changed', () => this._writeArg(storyWidget, config.name, row.get_text()));
-        this._controlRefreshers.push((args) => {
-            const next = typeof args[config.name] === 'string' ? (args[config.name] as string) : '';
-            if (row.get_text() !== next) row.set_text(next);
-        });
-        return row;
-    }
-
-    private _createNumberRow(storyWidget: StoryWidget, config: StoryNumberControl, current: number): Adw.SpinRow {
-        const row = Adw.SpinRow.new_with_range(config.min ?? 0, config.max ?? 100, config.step ?? 1);
-        row.set_title(config.label || config.name);
-        if (config.description) row.set_subtitle(config.description);
-        row.set_value(current);
-        row.connect('changed', () => this._writeArg(storyWidget, config.name, row.get_value()));
-        this._controlRefreshers.push((args) => {
-            const next = typeof args[config.name] === 'number' ? (args[config.name] as number) : 0;
-            if (row.get_value() !== next) row.set_value(next);
-        });
-        return row;
-    }
-
-    private _createBooleanRow(storyWidget: StoryWidget, config: StoryBooleanControl, current: boolean): Adw.SwitchRow {
-        const row = new Adw.SwitchRow({
-            title: config.label || config.name,
-            subtitle: config.description ?? '',
-            active: current,
-        });
-        row.connect('notify::active', () => this._writeArg(storyWidget, config.name, row.get_active()));
-        this._controlRefreshers.push((args) => {
-            const next = Boolean(args[config.name]);
-            if (row.get_active() !== next) row.set_active(next);
-        });
-        return row;
-    }
-
-    private _createRangeRow(storyWidget: StoryWidget, config: StoryNumberControl, current: number): Gtk.Widget {
-        const min = config.min ?? 0;
-        const max = config.max ?? 100;
-        const step = config.step ?? 1;
-        const shouldRound = Number.isInteger(step) && Number.isInteger(current);
-
-        const adjustment = new Gtk.Adjustment({
-            lower: min,
-            upper: max,
-            step_increment: step,
-            value: current,
-        });
-        adjustment.step_increment = step;
-
-        // Vertical card so the label + description don't get squashed into a
-        // single-letter column when the controls sidebar is narrow.
-        const row = new Gtk.ListBoxRow({ selectable: false, activatable: false });
-        row.add_css_class('story-range-row');
-
-        const box = new Gtk.Box({
-            orientation: Gtk.Orientation.VERTICAL,
-            spacing: 6,
-            margin_top: 12,
-            margin_bottom: 12,
-            margin_start: 12,
-            margin_end: 12,
-        });
-
-        const header = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 12 });
-        const titleLabel = new Gtk.Label({
-            label: config.label || config.name,
-            halign: Gtk.Align.START,
-            hexpand: true,
-            ellipsize: 3, // PANGO_ELLIPSIZE_END
-        });
-        titleLabel.add_css_class('heading');
-
-        const valueLabel = new Gtk.Label({
-            label: this._formatRangeValue(current, shouldRound),
-            halign: Gtk.Align.END,
-        });
-        valueLabel.add_css_class('numeric');
-        valueLabel.add_css_class('dim-label');
-
-        header.append(titleLabel);
-        header.append(valueLabel);
-        box.append(header);
-
-        if (config.description) {
-            const desc = new Gtk.Label({
-                label: config.description,
-                halign: Gtk.Align.START,
-                xalign: 0,
-                wrap: true,
-                max_width_chars: 32,
-            });
-            desc.add_css_class('caption');
-            desc.add_css_class('dim-label');
-            box.append(desc);
-        }
-
-        const scale = new Gtk.Scale({
-            orientation: Gtk.Orientation.HORIZONTAL,
-            adjustment,
-            draw_value: false,
-            hexpand: true,
-        });
-
-        scale.connect('value-changed', () => {
-            let value = scale.get_value();
-            if (shouldRound) {
-                const rounded = Math.round(value);
-                if (rounded !== value) {
-                    scale.set_value(rounded);
-                    return;
-                }
-                value = rounded;
-            }
-            valueLabel.set_label(this._formatRangeValue(value, shouldRound));
-            this._writeArg(storyWidget, config.name, value);
-        });
-
-        box.append(scale);
-        row.set_child(box);
-
-        this._controlRefreshers.push((args) => {
-            const value = typeof args[config.name] === 'number' ? (args[config.name] as number) : current;
-            if (scale.get_value() !== value) {
-                scale.set_value(value);
-                valueLabel.set_label(this._formatRangeValue(value, shouldRound));
-            }
-        });
-        return row;
-    }
-
-    private _formatRangeValue(value: number, asInteger: boolean): string {
-        return asInteger ? String(Math.round(value)) : value.toFixed(2);
-    }
-
-    private _createSelectRow(
-        storyWidget: StoryWidget,
-        config: StorySelectControl,
-        current: StoryArgValue,
-    ): Adw.ComboRow | null {
-        const options = config.options;
-        if (!options?.length) {
-            console.warn(`SELECT control "${config.name}" has no options`);
-            return null;
-        }
-
-        const model = Gtk.StringList.new(options.map((opt) => opt.label));
-        const row = new Adw.ComboRow({
-            title: config.label || config.name,
-            subtitle: config.description ?? '',
-            model,
-        });
-
-        const selected = options.findIndex((opt) => opt.value === current);
-        if (selected >= 0) row.set_selected(selected);
-
-        row.connect('notify::selected', () => {
-            const idx = row.get_selected();
-            if (idx >= 0 && idx < options.length) {
-                this._writeArg(storyWidget, config.name, options[idx].value);
-            }
-        });
-
-        this._controlRefreshers.push((args) => {
-            const value = args[config.name];
-            const idx = options.findIndex((opt) => opt.value === value);
-            if (idx >= 0 && row.get_selected() !== idx) row.set_selected(idx);
-        });
-
-        return row;
-    }
-
-    private _createColorRow(storyWidget: StoryWidget, config: StoryColorControl, current: string): Adw.ActionRow {
-        const row = new Adw.ActionRow({
-            title: config.label || config.name,
-            subtitle: config.description ?? '',
-        });
-
-        const button = new Gtk.ColorDialogButton({
-            dialog: new Gtk.ColorDialog({ title: config.label || config.name }),
-            valign: Gtk.Align.CENTER,
-        });
-
-        const initial = new Gdk.RGBA();
-        if (initial.parse(current)) {
-            button.set_rgba(initial);
-        }
-
-        button.connect('notify::rgba', () => {
-            this._writeArg(storyWidget, config.name, this._rgbaToHex(button.get_rgba()));
-        });
-
-        row.add_suffix(button);
-        row.set_activatable_widget(button);
-        return row;
-    }
-
-    private _rgbaToHex(rgba: Gdk.RGBA): string {
-        const channel = (v: number) =>
-            Math.round(Math.max(0, Math.min(1, v)) * 255)
-                .toString(16)
-                .padStart(2, '0');
-        return `#${channel(rgba.red)}${channel(rgba.green)}${channel(rgba.blue)}`;
+        return this._controller.setActiveArg(name, value);
     }
 }
 

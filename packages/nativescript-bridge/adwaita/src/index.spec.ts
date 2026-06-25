@@ -181,6 +181,174 @@ class MockExpanderRow {
     }
 }
 
+// --- Mocks for the new Tier-2 widgets (mirror their accessor logic, kept in
+// lockstep with the corresponding src/widgets/adw-*.ts modules). ---
+
+// Mirrors AdwViewSwitcherBase's selection: visibility + active-button + clamp +
+// the don't-emit-on-no-change/out-of-range guard (selected setter).
+class MockViewSwitcher {
+    private _selected = 0;
+    pageVisibility: string[] = [];
+    activeButtons: boolean[] = [];
+    notified: number[] = [];
+    constructor(private _count: number) {
+        this._apply();
+    }
+    private _apply(): void {
+        this.pageVisibility = Array.from({ length: this._count }, (_, i) =>
+            i === this._selected ? 'visible' : 'collapse',
+        );
+        this.activeButtons = Array.from({ length: this._count }, (_, i) => i === this._selected);
+    }
+    get selected(): number {
+        return this._selected;
+    }
+    set selected(value: number) {
+        const next = Number.isFinite(value) ? value : 0;
+        if (next === this._selected || next < 0 || next >= this._count) return;
+        this._selected = next;
+        this._apply();
+        this.notified.push(next);
+    }
+}
+
+// Mirrors AdwCarousel's clamped scrollToPage + dot-active + nPages.
+class MockCarousel {
+    private _position = 0;
+    private _pages = 0;
+    notified: number[] = [];
+    addPage(): void {
+        this._pages += 1;
+    }
+    get nPages(): number {
+        return this._pages;
+    }
+    get position(): number {
+        return this._position;
+    }
+    scrollToPage(index: number): void {
+        const clamped = Math.max(0, Math.min(this._pages - 1, index));
+        if (clamped !== this._position) {
+            this._position = clamped;
+            this.notified.push(clamped);
+        }
+    }
+    activeDots(): boolean[] {
+        return Array.from({ length: this._pages }, (_, i) => i === this._position);
+    }
+}
+
+// Mirrors AdwNavigationView's manual push/pop stack (first add auto-pushes).
+class MockNavigationView {
+    private _registered: string[] = [];
+    private _stack: string[] = [];
+    add(tag: string): void {
+        this._registered.push(tag);
+        if (this._stack.length === 0) this._stack.push(tag);
+    }
+    push(tag: string): void {
+        if (this._registered.includes(tag)) this._stack.push(tag);
+    }
+    pop(): boolean {
+        if (this._stack.length <= 1) return false;
+        this._stack.pop();
+        return true;
+    }
+    get visibleTag(): string | null {
+        return this._stack[this._stack.length - 1] ?? null;
+    }
+    get depth(): number {
+        return this._stack.length;
+    }
+}
+
+// Mirrors AdwSplitViewBase's show/collapse state + the don't-emit-on-no-change guard.
+class MockSplitView {
+    private _collapsed = false;
+    private _showSidebar = true;
+    notified: boolean[] = [];
+    get collapsed(): boolean {
+        return this._collapsed;
+    }
+    set collapsed(v: boolean) {
+        this._collapsed = !!v;
+    }
+    get showSidebar(): boolean {
+        return this._showSidebar;
+    }
+    set showSidebar(v: boolean) {
+        const next = !!v;
+        if (next === this._showSidebar) return;
+        this._showSidebar = next;
+        this.notified.push(next);
+    }
+}
+
+// Mirrors AdwToggleGroup's selected + selectedValue over an options list.
+class MockToggleGroup {
+    private _options: string[] = [];
+    private _selected = 0;
+    set options(v: string[]) {
+        this._options = v;
+    }
+    get selected(): number {
+        return this._selected;
+    }
+    set selected(v: number) {
+        this._selected = Number.isFinite(v) ? v : 0;
+    }
+    get selectedValue(): string {
+        return this._options[this._selected] ?? '';
+    }
+}
+
+// Mirrors AdwAlertDialog._orderResponses (default→ok, last→cancel, middle→neutral)
+// and the resolve mapping confirm(true|false|undefined) → response id.
+class MockAlertDialog {
+    private _responses: Array<{ id: string; label: string }> = [];
+    private _default: string | null = null;
+    private _close = 'close';
+    addResponse(id: string, label: string): void {
+        this._responses.push({ id, label });
+    }
+    set defaultResponse(id: string | null) {
+        this._default = id;
+    }
+    set closeResponse(id: string) {
+        this._close = id || 'close';
+    }
+    order(): { ok?: string; cancel?: string; neutral?: string } {
+        const ok = this._responses.find((r) => r.id === this._default) ?? this._responses[0];
+        const remaining = this._responses.filter((r) => r !== ok);
+        const cancel = remaining[remaining.length - 1];
+        const neutral = remaining.length >= 2 ? remaining[0] : undefined;
+        return { ok: ok?.id, cancel: cancel?.id, neutral: neutral?.id };
+    }
+    resolve(result: boolean | undefined): string {
+        const o = this.order();
+        if (result === true && o.ok) return o.ok;
+        if (result === false && o.cancel) return o.cancel;
+        if (result === undefined && o.neutral) return o.neutral;
+        return this._close;
+    }
+    usesActionSheet(): boolean {
+        return this._responses.length > 3;
+    }
+}
+
+// Mirrors the AdwToast value object (timeout/buttonLabel defaulting).
+const DEFAULT_TOAST_TIMEOUT = 5000;
+class MockToast {
+    title: string;
+    timeout: number;
+    buttonLabel: string;
+    constructor(title = '', options: { timeout?: number; buttonLabel?: string } = {}) {
+        this.title = title;
+        this.timeout = options.timeout ?? DEFAULT_TOAST_TIMEOUT;
+        this.buttonLabel = options.buttonLabel ?? '';
+    }
+}
+
 export default async () => {
     await describe('@gjsify/adwaita-nativescript outside NativeScript', async () => {
         await it('isNativeScript is false off-device', () => {
@@ -365,6 +533,140 @@ export default async () => {
         await it('returns empty string for blank input', () => {
             expect(mockAvatarInitials('   ')).toBe('');
             expect(mockAvatarInitials('')).toBe('');
+        });
+    });
+
+    await describe('AdwViewSwitcher / TabView / InlineViewSwitcher selection (mock)', async () => {
+        await it('shows only the selected page and marks its button active', () => {
+            const sw = new MockViewSwitcher(3);
+            sw.selected = 1;
+            expect(sw.pageVisibility).toStrictEqual(['collapse', 'visible', 'collapse']);
+            expect(sw.activeButtons).toStrictEqual([false, true, false]);
+        });
+
+        await it('emits on change but ignores out-of-range / no-change', () => {
+            const sw = new MockViewSwitcher(2);
+            sw.selected = 1;
+            sw.selected = 1; // no change
+            sw.selected = 9; // out of range
+            sw.selected = -1; // out of range
+            expect(sw.notified).toStrictEqual([1]);
+        });
+    });
+
+    await describe('AdwCarousel paging (mock)', async () => {
+        await it('clamps scrollToPage and tracks active dot', () => {
+            const c = new MockCarousel();
+            c.addPage();
+            c.addPage();
+            c.addPage();
+            c.scrollToPage(1);
+            expect(c.position).toBe(1);
+            expect(c.activeDots()).toStrictEqual([false, true, false]);
+            c.scrollToPage(99);
+            expect(c.position).toBe(2); // clamped to last
+        });
+
+        await it('reports nPages and emits only on real moves', () => {
+            const c = new MockCarousel();
+            c.addPage();
+            c.addPage();
+            expect(c.nPages).toBe(2);
+            c.scrollToPage(1);
+            c.scrollToPage(1); // no change
+            expect(c.notified).toStrictEqual([1]);
+        });
+    });
+
+    await describe('AdwNavigationView stack (mock)', async () => {
+        await it('auto-pushes the first added page and never empties', () => {
+            const nav = new MockNavigationView();
+            nav.add('home');
+            expect(nav.visibleTag).toBe('home');
+            expect(nav.depth).toBe(1);
+            expect(nav.pop()).toBe(false); // can't pop the root
+        });
+
+        await it('pushes and pops registered pages', () => {
+            const nav = new MockNavigationView();
+            nav.add('home');
+            nav.add('detail');
+            nav.push('detail');
+            expect(nav.visibleTag).toBe('detail');
+            expect(nav.depth).toBe(2);
+            expect(nav.pop()).toBe(true);
+            expect(nav.visibleTag).toBe('home');
+        });
+    });
+
+    await describe('AdwNavigationSplitView / AdwOverlaySplitView state (mock)', async () => {
+        await it('toggles showSidebar, emitting only on change', () => {
+            const sv = new MockSplitView();
+            sv.collapsed = true;
+            sv.showSidebar = false;
+            sv.showSidebar = false; // no change
+            sv.showSidebar = true;
+            expect(sv.notified).toStrictEqual([false, true]);
+        });
+    });
+
+    await describe('AdwToggleGroup selection (mock)', async () => {
+        await it('resolves selectedValue from the options list', () => {
+            const tg = new MockToggleGroup();
+            tg.options = ['Day', 'Week', 'Month'];
+            tg.selected = 2;
+            expect(tg.selectedValue).toBe('Month');
+        });
+
+        await it('returns empty string when out of range', () => {
+            const tg = new MockToggleGroup();
+            tg.options = ['Day'];
+            tg.selected = 5;
+            expect(tg.selectedValue).toBe('');
+        });
+    });
+
+    await describe('AdwAlertDialog response ordering (mock)', async () => {
+        await it('maps confirm(true|false|undefined) to ok/cancel/neutral ids', () => {
+            const d = new MockAlertDialog();
+            d.addResponse('save', 'Save');
+            d.addResponse('discard', 'Discard');
+            d.addResponse('cancel', 'Cancel');
+            d.defaultResponse = 'save';
+            expect(d.resolve(true)).toBe('save'); // OK = default
+            expect(d.resolve(false)).toBe('cancel'); // cancel = last
+            expect(d.resolve(undefined)).toBe('discard'); // neutral = middle
+        });
+
+        await it('falls back to closeResponse when a slot is absent', () => {
+            const d = new MockAlertDialog();
+            d.addResponse('ok', 'OK');
+            d.closeResponse = 'dismissed';
+            expect(d.resolve(undefined)).toBe('dismissed'); // no neutral
+        });
+
+        await it('switches to an action sheet for more than three responses', () => {
+            const d = new MockAlertDialog();
+            d.addResponse('a', 'A');
+            d.addResponse('b', 'B');
+            d.addResponse('c', 'C');
+            d.addResponse('d', 'D');
+            expect(d.usesActionSheet()).toBe(true);
+        });
+    });
+
+    await describe('AdwToast value object (mock)', async () => {
+        await it('defaults the timeout and has no button by default', () => {
+            const t = new MockToast('Saved');
+            expect(t.title).toBe('Saved');
+            expect(t.timeout).toBe(5000);
+            expect(t.buttonLabel).toBe('');
+        });
+
+        await it('honours explicit timeout and action label', () => {
+            const t = new MockToast('Deleted', { timeout: 2000, buttonLabel: 'Undo' });
+            expect(t.timeout).toBe(2000);
+            expect(t.buttonLabel).toBe('Undo');
         });
     });
 };

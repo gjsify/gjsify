@@ -19,7 +19,12 @@ import { fetchPackument, type Packument } from '@gjsify/npm-registry';
 import type { Argv } from 'yargs';
 import type { Command } from '../types/index.js';
 import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
-import { defaultGlobalLayout, linkGlobalBins } from '../utils/install-global.js';
+import {
+    defaultGlobalLayout,
+    hasBundlerEngineInstalled,
+    installGjsEnginePackages,
+    linkGlobalBins,
+} from '../utils/install-global.js';
 
 interface SelfUpdateOptions {
     check?: boolean;
@@ -99,10 +104,35 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
 
         console.log(`Latest matching --tag ${args.tag}: v${target}`);
 
-        if (currentVersion === target && !args.force) {
+        // A version match is NOT sufficient to declare "up to date": a global
+        // GJS install can be on the right `@gjsify/cli` version yet be MISSING
+        // the GJS bundler engine (`@gjsify/rolldown-native`) — it's an optional
+        // peer the native backend never resolves, so an install.mjs bootstrap
+        // before this fix laid down the cli but not the engine, and `gjsify
+        // build` hard-fails ("no usable bundler engine"). When the version
+        // matches but the engine is absent, REPAIR it (install the engine +
+        // re-link) instead of printing "Already up to date". `--skip-deps`
+        // still honours its contract (don't touch on-disk deps) and `--check`
+        // only reports, so neither triggers the repair.
+        const engineMissing = installedAtPrefix && !hasBundlerEngineInstalled(layout.prefix);
+        const needsEngineRepair = engineMissing && !args.skipDeps && !args.check;
+
+        if (currentVersion === target && !args.force && !needsEngineRepair) {
             console.log(`Already up to date (v${target}).`);
+            if (engineMissing && args.skipDeps) {
+                console.log(
+                    `Note: the GJS bundler engine @gjsify/rolldown-native is not installed — ` +
+                        `re-run without --skip-deps to repair it (\`gjsify build\` needs it under GJS).`,
+                );
+            }
             if (!args.check) console.log(`Run with --force to reinstall anyway.`);
             return;
+        }
+
+        if (needsEngineRepair && currentVersion === target && !args.force) {
+            console.log(
+                `@gjsify/cli is at v${target} but the GJS bundler engine @gjsify/rolldown-native is missing — repairing.`,
+            );
         }
 
         if (args.check) {
@@ -150,6 +180,16 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
             process.exit(1);
             return;
         }
+
+        // Lay down (or repair) the GJS-native engine bridges in lockstep with
+        // the bundle — same set + best-effort handling as the global installer.
+        // Gated on `pullDeps` so `--skip-deps` keeps its bundle-only contract.
+        // Must run BEFORE linkGlobalBins so the launcher's detectNativePackages()
+        // bakes the engine's prebuild dirs into the wrapper env preamble.
+        if (pullDeps) {
+            await installGjsEnginePackages(layout.prefix, target, { verbose: false });
+        }
+
         const linked = linkGlobalBins([PACKAGE_NAME], layout);
         if (linked.length === 0) {
             console.warn(

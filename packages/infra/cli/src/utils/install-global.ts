@@ -50,6 +50,92 @@ export function defaultGlobalLayout(): GlobalLayout {
     };
 }
 
+/**
+ * The GJS-native tooling bridges the global CLI needs to run a build under GJS.
+ *
+ * These are declared OPTIONAL peer dependencies of `@gjsify/cli` (so a plain
+ * `npm install @gjsify/cli` on Node — where the npm `rolldown` / `lightningcss`
+ * / `oxfmt` crates work — does not force a linux prebuild fetch). But a *global
+ * GJS install* exists precisely to run the GJS CLI, where there is NO npm
+ * fallback: `@gjsify/rolldown-native` is the only bundler engine (`gjsify build`
+ * hard-fails without it), `@gjsify/lightningcss-native` backs CSS lowering, and
+ * `@gjsify/oxfmt-native` backs `gjsify format`/`fix`. So the global installer
+ * lays them down explicitly, on top of the cli's resolved runtime deps.
+ *
+ * `@gjsify/rolldown-native` is the load-bearing one (build is dead without it);
+ * the other two degrade gracefully at runtime (CSS / format fall back), so all
+ * three are installed best-effort: a platform with no published prebuild for
+ * the engine just gets a warning + continue, mirroring how the optional-peer
+ * story already degrades on Node.
+ */
+export const GJS_ENGINE_PACKAGES = [
+    '@gjsify/rolldown-native',
+    '@gjsify/lightningcss-native',
+    '@gjsify/oxfmt-native',
+] as const;
+
+/** True when `<prefix>/node_modules/@gjsify/rolldown-native` is laid down. */
+export function hasBundlerEngineInstalled(prefix: string): boolean {
+    return fs.existsSync(path.join(prefix, 'node_modules', '@gjsify/rolldown-native', 'package.json'));
+}
+
+/**
+ * Best-effort install of the GJS-native engine packages into a global prefix.
+ *
+ * Each engine is installed in its own `installPackages` call so one engine that
+ * has no published prebuild for the current platform (the resolver throws "No
+ * version of … satisfies …", or the registry 404s) does NOT abort the others —
+ * it warns and continues. The bundler engine (`@gjsify/rolldown-native`) is the
+ * one a build truly needs; the failure surfaces a clear, actionable message.
+ *
+ * `version` is the dist-tag / version the top-level `@gjsify/cli` resolved to,
+ * so the engines move in lockstep with the bundle. It may be a concrete version
+ * (`0.11.0`) or a dist-tag (`latest`, `next`); both are valid spec suffixes.
+ *
+ * @param installFn Injected to keep this unit-testable without a real registry —
+ *   defaults to the production `installPackages` backend.
+ */
+export async function installGjsEnginePackages(
+    prefix: string,
+    version: string,
+    opts: {
+        verbose?: boolean;
+        installFn?: (spec: string) => Promise<void>;
+    } = {},
+): Promise<void> {
+    const verbose = opts.verbose ?? false;
+    const installOne =
+        opts.installFn ??
+        (async (spec: string) => {
+            // Lazy import to avoid a static cycle (install-backend → … → here)
+            // and to keep this module importable from the lighter unit tests.
+            const { installPackages } = await import('./install-backend.js');
+            await installPackages({ prefix, specs: [spec], verbose });
+        });
+
+    for (const name of GJS_ENGINE_PACKAGES) {
+        const spec = version ? `${name}@${version}` : name;
+        try {
+            await installOne(spec);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            // `@gjsify/rolldown-native` is the bundler engine — its absence
+            // means `gjsify build` (and storybook / anything that builds) will
+            // hard-fail under GJS. Make that one loud; the other two degrade
+            // gracefully so a plain note suffices.
+            if (name === '@gjsify/rolldown-native') {
+                console.warn(
+                    `\nWarning: could not install the GJS bundler engine ${name}@${version} — ${msg}\n` +
+                        `  \`gjsify build\` (and storybook / flatpak) will fail under GJS until it is present.\n` +
+                        `  This usually means no prebuild is published for this platform (${process.platform}/${process.arch}).`,
+                );
+            } else if (verbose) {
+                console.warn(`gjsify install: optional GJS engine ${name}@${version} not installed — ${msg}`);
+            }
+        }
+    }
+}
+
 export interface LinkedBin {
     /** The bin-name (key from `bin` / `gjsify.bin`). */
     name: string;

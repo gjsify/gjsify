@@ -1,0 +1,121 @@
+// NativeScript port of the Preferences Dialog story. Shares metadata with the
+// GTK preferences-dialog.story.ts and browser preferences-dialog.web.ts
+// (imported from the GTK showcase's renderer-agnostic *.meta.ts barrel).
+
+import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
+import {
+    AdwButton,
+    AdwComboRow,
+    AdwPreferencesDialog,
+    AdwPreferencesGroup,
+    AdwPreferencesPage,
+    AdwSpinRow,
+    AdwSwitchRow,
+} from '@gjsify/adwaita-nativescript';
+import { preferencesDialogMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
+import { GridLayout, ItemSpec } from '@nativescript/core';
+
+/**
+ * Story: AdwPreferencesDialog presented from a button, with one page of rows.
+ *
+ * FIDELITY: NS AdwPreferencesDialog is an in-page modal overlay card (not a
+ * separate OS window). The dialog overlay is stacked over the trigger button in
+ * a single GridLayout cell so its dimmed scrim covers the stage when presented;
+ * the page/group/rows are rebuilt from the latest args on each present, like the
+ * twins.
+ */
+export class PreferencesDialogNsStory extends StoryView {
+    private _stack: GridLayout | null = null;
+    private _dialog: AdwPreferencesDialog | null = null;
+
+    constructor() {
+        super(PreferencesDialogNsStory.getMetadata(), 'Default');
+    }
+
+    static getMetadata(): StoryMeta {
+        return preferencesDialogMeta;
+    }
+
+    /** Build the single page of grouped rows, mirroring the native story. */
+    private _buildDialog(): AdwPreferencesDialog {
+        const dialog = new AdwPreferencesDialog();
+        dialog.title = 'Preferences';
+
+        const page = new AdwPreferencesPage();
+
+        const group = new AdwPreferencesGroup();
+        group.title = (this.args.groupTitle as string) ?? 'Appearance';
+
+        // Dark style — a switch row, on by default (matches the native SwitchRow).
+        const darkStyle = new AdwSwitchRow();
+        darkStyle.title = 'Dark style';
+        darkStyle.subtitle = 'Use a dark colour scheme';
+        darkStyle.active = true;
+        group.addRow(darkStyle);
+
+        // Accent colour — a combo row over the same five options.
+        const accent = new AdwComboRow();
+        accent.title = 'Accent colour';
+        accent.options = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'].map((label) => ({ label, value: label }));
+        accent.selectedIndex = 0;
+        group.addRow(accent);
+
+        // Font size — a spin row bounded 8–24, defaulting to 12.
+        const fontSize = new AdwSpinRow();
+        fontSize.title = 'Font size';
+        fontSize.min = 8;
+        fontSize.max = 24;
+        fontSize.step = 1;
+        fontSize.value = 12;
+        group.addRow(fontSize);
+
+        page.addGroup(group);
+        dialog.add(page);
+        return dialog;
+    }
+
+    initialize(): void {
+        // Single-cell grid: the trigger button sits underneath, the collapsed
+        // dialog overlay paints over it when presented (mirrors the web twin
+        // mounting the dialog so its scrim covers the content).
+        const stack = new GridLayout();
+        stack.addColumn(new ItemSpec(1, 'star'));
+        stack.addRow(new ItemSpec(1, 'star'));
+
+        const button = new AdwButton();
+        button.text = 'Show dialog';
+        button.variant = 'pill';
+        button.horizontalAlignment = 'center';
+        button.verticalAlignment = 'middle';
+        button.addEventListener('tap', () => this._present());
+        GridLayout.setColumn(button, 0);
+        GridLayout.setRow(button, 0);
+        stack.addChild(button);
+
+        this._stack = stack;
+        this.addContent(stack);
+    }
+
+    private _present(): void {
+        if (!this._stack) return;
+        // Rebuild the dialog from the latest args each time it is presented (the
+        // native story does the same), then reveal it.
+        if (this._dialog) this._stack.removeChild(this._dialog);
+        this._dialog = this._buildDialog();
+        GridLayout.setColumn(this._dialog, 0);
+        GridLayout.setRow(this._dialog, 0);
+        this._stack.addChild(this._dialog);
+        this._dialog.present();
+    }
+
+    updateArgs(_args: StoryArgs): void {
+        // The dialog is rebuilt from the latest args each time it is presented.
+    }
+
+    teardown(): void {
+        if (this._dialog && this._stack) this._stack.removeChild(this._dialog);
+        this._dialog = null;
+    }
+}
+
+export const PreferencesDialogNsStories: NsStoryModule = { stories: [PreferencesDialogNsStory] };

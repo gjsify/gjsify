@@ -1,0 +1,36 @@
+{
+    "name": "@gjsify/example-dom-adwaita-storybook-nativescript",
+    "version": "0.11.0",
+    "description": "The full Adwaita storybook as a real NativeScript-Android app — the SAME stories as the native GTK (@gjsify/storybook) and browser (@gjsify/adwaita-storybook) targets, rendered with REAL native @gjsify/adwaita-nativescript widgets via @gjsify/storybook-nativescript. Shares the renderer-agnostic *.meta.ts with the GTK showcase for 1:1 comparison. MCP-drivable via @gjsify/devtools-nativescript over the V8 CDP inspector.",
+    "private": true,
+    "main": "app/app.ts",
+    "scripts": {
+        "prepare:android": "nativescript prepare android --no-hmr --disable-npm-install",
+        "build:android": "nativescript build android --no-hmr --disable-npm-install",
+        "run:android": "nativescript run android --no-hmr --disable-npm-install",
+        "debug:android": "nativescript debug android --disable-npm-install"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "showcases/dom/adwaita-storybook-nativescript"
+    },
+    "license": "MIT",
+    "dependencies": {
+        "@gjsify/adwaita-nativescript": "^0.11.0",
+        "@gjsify/devtools-nativescript": "^0.11.0",
+        "@gjsify/example-gtk-adwaita-storybook": "^0.11.0",
+        "@gjsify/nativescript-vite": "^0.11.0",
+        "@gjsify/storybook-nativescript": "^0.11.0",
+        "@nativescript/core": "9.1.0-alpha.11",
+        "@nativescript/theme": "^3.1.0"
+    },
+    "devDependencies": {
+        "@nativescript/android": "9.1.0-alpha.6",
+        "@nativescript/types": "~9.0.0",
+        "@nativescript/vite": "8.0.0-alpha.57",
+        "nativescript": "9.1.0-alpha.10",
+        "typescript": "~5.4.0",
+        "vite": "^8.0.16"
+    }
+}

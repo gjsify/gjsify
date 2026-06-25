@@ -1,0 +1,25 @@
+/* NativeScript core theme (resets / base widget styling). */
+@import '@nativescript/theme/css/core.css';
+
+/* The Libadwaita look for the widgets (rows / groups / buttons / …). Copied from
+   @gjsify/adwaita-nativescript/theme/adwaita.css into the app dir for reliable NS
+   @import resolution (the package-export path is the long-term route once the NS
+   CSS pipeline is verified for it). Keep in sync with the package on a widget bump. */
+@import '~/adwaita.css';
+
+/* Storybook chrome (.sb-* + .story-stage). Copied from
+   @gjsify/storybook-nativescript/theme/storybook.css; pairs with adwaita.css. */
+@import '~/storybook.css';
+
+/* Adwaita Sans. Android resolves the font-family by the TTF file name in
+   app/fonts/ (AdwaitaSans-Regular.ttf); iOS resolves by the PostScript name
+   ("Adwaita Sans"). Listing both keeps one rule cross-platform. */
+Page {
+    font-family: 'AdwaitaSans-Regular', 'Adwaita Sans';
+}
+
+Label,
+Button,
+TextField {
+    font-family: 'AdwaitaSans-Regular', 'Adwaita Sans';
+}

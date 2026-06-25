@@ -365,7 +365,11 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
     // triplet model — they ship the toolchain itself, not a polyfill.
     if (axis === 'infra') return null;
 
-    // GJS-only by construction.
+    // GJS-only by construction. (A PURE-TS framework contract — no GJS-binding
+    // signal at all, e.g. `@gjsify/stories` / `@gjsify/storybook-core` — may
+    // legitimately opt the node/browser/nativescript slots INTO `polyfill` since
+    // it runs unmodified on those runtimes; `diffDeclared` tolerates both the
+    // conservative `none` suggested here and the opt-in `polyfill`.)
     if (axis === 'framework-gjs') return { gjs: 'polyfill', node: 'none', browser: 'none' };
 
     // Design-identity (adwaita-*): GJS already has Libadwaita native, browser
@@ -823,19 +827,24 @@ function diffDeclared(rows) {
         }
         const slots = ['gjs', 'node', 'browser', 'nativescript'];
         // A pure-TS framework contract (framework axis, no `.imports?.gi` guard
-        // and none of the hard GJS-binding signals) is platform-agnostic: it can
-        // legitimately opt INTO `nativescript:"polyfill"` (it runs unmodified on
-        // NS' V8, resolving to its real `lib/esm/index.js`) even though the
-        // conservative heuristic suggests `none` for the framework axis. Both
-        // `none` (opt-out) and `polyfill` (opt-in) are honest for these — do not
-        // flag the NS slot as drift either way. GJS-bound framework packages stay
-        // strictly `none` (the heuristic's suggestion is enforced as usual).
+        // and none of the hard GJS-binding signals) is platform-agnostic: it runs
+        // unmodified on Node, the browser and NS' V8 (resolving to its real
+        // `lib/esm/index.js`), so it can legitimately opt the node / browser /
+        // nativescript slots INTO `"polyfill"` even though the conservative
+        // heuristic suggests `none` for the framework axis. Both `none` (opt-out,
+        // GJS-only) and `polyfill` (opt-in, cross-runtime) are honest for these
+        // slots — do not flag either as drift. The GJS slot stays `polyfill`
+        // (enforced as usual); GJS-bound framework packages get no tolerance.
+        // Examples: `@gjsify/stories` + `@gjsify/storybook-core` (all-polyfill,
+        // shared by the GTK/browser/NS renderers).
         const isPureTsFrameworkContract =
             r.axis === 'framework-gjs' &&
             !r.signals.gjs_imports_guard &&
             !r.signals.girs_value &&
             !r.signals.gi_url &&
-            !r.signals.imports_legacy;
+            !r.signals.imports_legacy &&
+            !r.signals.dynamic_gi;
+        const portableFrameworkSlot = (s) => s === 'node' || s === 'browser' || s === 'nativescript';
         const mismatches = slots.filter((s) => {
             // `nativescript` is a Foundation-time addition (Welle 4-T). Existing
             // packages declared their triplet before NS was an axis; treat the
@@ -843,11 +852,12 @@ function diffDeclared(rows) {
             // If the package doesn't declare `nativescript`, skip drift check
             // on that slot (the suggestion is just a hint, not a hard target).
             if (s === 'nativescript' && r.declared[s] === undefined) return false;
-            // Pure-TS framework contract: `none` and `polyfill` are both valid
-            // NS-slot choices (see above) — neither drifts.
+            // Pure-TS framework contract: `none` (opt-out) and `polyfill` (opt-in)
+            // are both valid choices for the portable node/browser/nativescript
+            // slots (see above) — neither drifts.
             if (
-                s === 'nativescript' &&
                 isPureTsFrameworkContract &&
+                portableFrameworkSlot(s) &&
                 (r.declared[s] === 'polyfill' || r.declared[s] === 'none')
             ) {
                 return false;

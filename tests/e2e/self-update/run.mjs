@@ -183,13 +183,24 @@ describe('gjsify self-update E2E', { timeout: 60_000 }, () => {
         requestLogPath = join(tmpRoot, 'registry-requests.json');
         writeFileSync(requestLogPath, '[]');
 
-        // Build a global prefix that looks like a real install (has @gjsify/cli).
+        // Build a global prefix that looks like a HEALTHY real install: it has
+        // @gjsify/cli AND the GJS bundler engine @gjsify/rolldown-native. The
+        // engine must be present so the version-match tests short-circuit at
+        // "Already up to date" — self-update now treats a version-matched-but-
+        // engine-missing prefix as needing a REPAIR (covered separately in
+        // tests/e2e/global-install-engine), not as up-to-date.
         prefixWithCli = join(tmpRoot, 'global-with-cli');
         const cliPkgDir = join(prefixWithCli, 'node_modules', PACKAGE_NAME);
         mkdirSync(cliPkgDir, { recursive: true });
         writeFileSync(
             join(cliPkgDir, 'package.json'),
             JSON.stringify({ name: PACKAGE_NAME, version: currentVersion }) + '\n',
+        );
+        const enginePkgDir = join(prefixWithCli, 'node_modules', '@gjsify', 'rolldown-native');
+        mkdirSync(enginePkgDir, { recursive: true });
+        writeFileSync(
+            join(enginePkgDir, 'package.json'),
+            JSON.stringify({ name: '@gjsify/rolldown-native', version: currentVersion, gjsify: { prebuilds: 'prebuilds' } }) + '\n',
         );
 
         // Empty prefix (no @gjsify/cli).
@@ -617,6 +628,45 @@ globalThis.fetch = async (input, init = {}) => {
         assert.ok(
             !/Unknown argument/i.test(combined),
             `--skip-deps was rejected as an unknown argument — option wiring regression:\n${combined}`,
+        );
+    });
+
+    // ── 10. --skip-deps HONOURS its contract when the engine is missing ───────
+    // When the cli version matches but @gjsify/rolldown-native is absent,
+    // self-update normally REPAIRS (installs the engine). But `--skip-deps`
+    // means "don't touch on-disk deps", so it must NOT trigger the repair — it
+    // short-circuits at "Already up to date" and just NOTES the missing engine.
+    // Uses prefixEmptyEngine: has @gjsify/cli but no engine. install
+    // short-circuits before any network, so no tarball server is needed.
+
+    it('--skip-deps does not repair a missing engine — only notes it', async () => {
+        const prefixEmptyEngine = join(tmpRoot, 'global-cli-no-engine');
+        const ceDir = join(prefixEmptyEngine, 'node_modules', PACKAGE_NAME);
+        mkdirSync(ceDir, { recursive: true });
+        writeFileSync(join(ceDir, 'package.json'), JSON.stringify({ name: PACKAGE_NAME, version: currentVersion }) + '\n');
+
+        const result = await runSelfUpdate(['--skip-deps'], {
+            preloadPath,
+            env: {
+                GJSIFY_GLOBAL_PREFIX: prefixEmptyEngine,
+                GJSIFY_GLOBAL_BIN_DIR: join(tmpRoot, 'bin-skip-deps-noengine'),
+                GJSIFY_E2E_REGISTRY_URL: registryUrl,
+                GJSIFY_E2E_LATEST_VERSION: currentVersion,
+            },
+        });
+
+        const combined = result.stdout + result.stderr;
+        assert.equal(result.status, 0, `Expected exit 0 (--skip-deps, version match):\n${combined}`);
+        assert.match(combined, /Already up to date/, `--skip-deps must short-circuit, not repair:\n${combined}`);
+        assert.match(
+            combined,
+            /@gjsify\/rolldown-native is not installed/,
+            `--skip-deps should NOTE the missing engine:\n${combined}`,
+        );
+        // It must NOT have attempted the repair install.
+        assert.ok(
+            !/repairing|Installing @gjsify\/cli/.test(combined),
+            `--skip-deps must not trigger an install:\n${combined}`,
         );
     });
 });

@@ -33,6 +33,53 @@ export {
     AdwWindowTitle,
     AdwClamp,
     DEFAULT_CLAMP_MAX_SIZE,
+    // Presentation / layout
+    AdwHeaderBar,
+    AdwToolbarView,
+    AdwWrapBox,
+    AdwSpinner,
+    DEFAULT_SPINNER_SIZE,
+    AdwStatusPage,
+    AdwButtonRow,
+    ACTIVATED,
+    AdwButtonContent,
+    AdwSplitButton,
+    CLICKED,
+    MENU_TAPPED,
+    AdwToggleGroup,
+    NOTIFY_TOGGLE_SELECTED,
+    // View switching
+    AdwViewSwitcherBase,
+    NOTIFY_VIEW_SELECTED,
+    AdwViewSwitcher,
+    AdwInlineViewSwitcher,
+    AdwTabView,
+    AdwCarousel,
+    DEFAULT_CAROUSEL_PAGE_WIDTH,
+    NOTIFY_POSITION,
+    // Navigation
+    AdwNavigationView,
+    NOTIFY_VISIBLE_PAGE,
+    AdwSplitViewBase,
+    DEFAULT_SIDEBAR_WIDTH,
+    NOTIFY_SHOW_SIDEBAR,
+    AdwNavigationSplitView,
+    AdwOverlaySplitView,
+    AdwSidebar,
+    NOTIFY_SIDEBAR_SELECTED,
+    AdwBottomSheet,
+    NOTIFY_OPEN,
+    // Feedback / dialogs
+    AdwToast,
+    AdwToastOverlay,
+    DEFAULT_TOAST_TIMEOUT,
+    TOAST_BUTTON_CLICKED,
+    AdwAlertDialog,
+    NOTIFY_RESPONSE,
+    AdwAboutDialog,
+    ABOUT_CLOSED,
+    AdwPreferencesDialog,
+    PREFERENCES_CLOSED,
     registerAdwaitaElements,
 } from './widgets/index.js';
 export type {
@@ -43,6 +90,21 @@ export type {
     NotifyValueEventData,
     NotifyExpandedEventData,
     AdwButtonVariant,
+    // Presentation / layout
+    MenuTappedEventData,
+    NotifyToggleSelectedEventData,
+    // View switching
+    AdwViewPage,
+    NotifyViewSelectedEventData,
+    NotifyPositionEventData,
+    // Navigation
+    NotifyVisiblePageEventData,
+    NotifyShowSidebarEventData,
+    NotifySidebarSelectedEventData,
+    NotifyOpenEventData,
+    // Feedback / dialogs
+    AdwToastOptions,
+    NotifyResponseEventData,
 } from './widgets/index.js';
 
 // Fonts

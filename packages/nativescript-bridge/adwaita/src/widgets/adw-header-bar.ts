@@ -1,0 +1,136 @@
+// AdwHeaderBar — a Libadwaita-style header bar for NativeScript.
+//
+// Renders a REAL NativeScript `GridLayout` (columns `auto, *, auto`): a start
+// slot, a centered title widget, and an end slot. The centered title defaults to
+// an {@link AdwWindowTitle} (so `title`/`subtitle` work out of the box) but can be
+// replaced with any custom widget via {@link setTitleWidget}. Mirrors
+// `Adw.HeaderBar`: start/end packing + a centered title-widget. A `flat` option
+// drops the bottom hairline / background fill for the "flat" header style.
+//
+// FIDELITY: faithful for the structural layout (start / center / end + flat).
+// The NS CSS subset has no box-shadow, so the non-flat header's bottom separator
+// is a 1px bottom border rather than libadwaita's subtle shadow — a close visual
+// approximation.
+//
+// Visual spec ported from `@gjsify/adwaita-web`'s `adw-header-bar` / `_headerbar.scss`.
+// Reference: refs/libadwaita/src/stylesheet/widgets/_header-bar.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+
+import { GridLayout, ItemSpec, StackLayout, View } from '@nativescript/core';
+import { AdwWindowTitle } from './adw-window-title.js';
+
+export class AdwHeaderBar extends GridLayout {
+    /** The start (left) slot — a horizontal stack. */
+    protected readonly _startBox: StackLayout;
+    /** The end (right) slot — a horizontal stack. */
+    protected readonly _endBox: StackLayout;
+    /** The centered title widget (default {@link AdwWindowTitle}). */
+    private _titleWidget: View;
+    private _flat = false;
+
+    constructor() {
+        super();
+
+        this.className = 'adw-header-bar';
+
+        // Columns: `auto, *, auto` — start hugs, center expands, end hugs.
+        this.addColumn(new ItemSpec(1, 'auto'));
+        this.addColumn(new ItemSpec(1, 'star'));
+        this.addColumn(new ItemSpec(1, 'auto'));
+        this.addRow(new ItemSpec(1, 'auto'));
+
+        const startBox = new StackLayout();
+        startBox.orientation = 'horizontal';
+        startBox.className = 'adw-header-bar-start';
+        GridLayout.setColumn(startBox, 0);
+        this.addChild(startBox);
+        this._startBox = startBox;
+
+        const title = new AdwWindowTitle();
+        title.horizontalAlignment = 'center';
+        title.verticalAlignment = 'middle';
+        GridLayout.setColumn(title, 1);
+        this.addChild(title);
+        this._titleWidget = title;
+
+        const endBox = new StackLayout();
+        endBox.orientation = 'horizontal';
+        endBox.className = 'adw-header-bar-end';
+        endBox.horizontalAlignment = 'right';
+        GridLayout.setColumn(endBox, 2);
+        this.addChild(endBox);
+        this._endBox = endBox;
+    }
+
+    /** The header title — forwarded to the default {@link AdwWindowTitle}. */
+    get title(): string {
+        return this._titleWidget instanceof AdwWindowTitle ? this._titleWidget.title : '';
+    }
+
+    set title(value: string) {
+        if (this._titleWidget instanceof AdwWindowTitle) {
+            this._titleWidget.title = value ?? '';
+        }
+    }
+
+    /** The header subtitle — forwarded to the default {@link AdwWindowTitle}. */
+    get subtitle(): string {
+        return this._titleWidget instanceof AdwWindowTitle ? this._titleWidget.subtitle : '';
+    }
+
+    set subtitle(value: string) {
+        if (this._titleWidget instanceof AdwWindowTitle) {
+            this._titleWidget.subtitle = value ?? '';
+        }
+    }
+
+    /**
+     * Whether the header bar is flat (no background fill / no bottom separator),
+     * matching `Adw.HeaderBar`'s `.flat` style. Toggling swaps the `flat` class.
+     */
+    get flat(): boolean {
+        return this._flat;
+    }
+
+    set flat(value: boolean) {
+        this._flat = !!value;
+        this.className = this._flat ? 'adw-header-bar flat' : 'adw-header-bar';
+    }
+
+    /** Append a widget to the start (left) slot. */
+    packStart(view: View): void {
+        this._startBox.addChild(view);
+    }
+
+    /** Append a widget to the end (right) slot. */
+    packEnd(view: View): void {
+        this._endBox.addChild(view);
+    }
+
+    /** Replace the centered title widget with a custom one (e.g. a URL entry). */
+    setTitleWidget(view: View): void {
+        if (this._titleWidget) {
+            this.removeChild(this._titleWidget);
+        }
+        view.horizontalAlignment = 'center';
+        view.verticalAlignment = 'middle';
+        GridLayout.setColumn(view, 1);
+        this.addChild(view);
+        this._titleWidget = view;
+    }
+
+    /** The centered title widget. */
+    get titleWidget(): View {
+        return this._titleWidget;
+    }
+
+    /** The start (left) slot container. */
+    get startBox(): StackLayout {
+        return this._startBox;
+    }
+
+    /** The end (right) slot container. */
+    get endBox(): StackLayout {
+        return this._endBox;
+    }
+}
