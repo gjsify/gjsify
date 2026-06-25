@@ -50,10 +50,12 @@ const NOOP_REPORTER: ProgressReporter = {
  * - stderr is not a TTY → fall back to one line per phase (begin + end).
  * - stderr is a TTY → live single-line progress bar (\r-updated, 30fps).
  */
-export function makeProgressReporter(opts: {
-    enabled?: boolean;
-    stream?: NodeJS.WriteStream;
-} = {}): ProgressReporter {
+export function makeProgressReporter(
+    opts: {
+        enabled?: boolean;
+        stream?: NodeJS.WriteStream;
+    } = {},
+): ProgressReporter {
     if (opts.enabled === false) return NOOP_REPORTER;
     const stream = opts.stream ?? process.stderr;
     const isTty = Boolean(stream.isTTY);
@@ -101,15 +103,37 @@ function makeTtyReporter(stream: NodeJS.WriteStream): ProgressReporter {
     };
 }
 
-// ──── Plain reporter — one line per phase begin + end (non-TTY) ────────────
+// ──── Plain reporter — phase begin/end + periodic heartbeat (non-TTY) ──────
+//
+// On a non-TTY (piped to a log file, CI, or captured output) the bar can't
+// `\r`-overwrite, so per-package lines are suppressed to avoid flooding the
+// log. But emitting NOTHING between `beginPhase` and `endPhase` makes a long
+// download/extract phase look frozen — the exact "no further output for 25+
+// minutes" symptom of a slow install. So we emit a low-frequency heartbeat:
+// at most one line per HEARTBEAT_MS, AND only after at least a few packages of
+// real progress, so a fast warm install (most nodes skipped) stays quiet while
+// a genuinely long phase reports `… N/M (X%)` every few seconds. This mirrors
+// what npm (`--loglevel http`) and pnpm log on non-TTY: progress you can watch
+// without it being one line per file.
+const HEARTBEAT_MS = 5_000;
 
 function makePlainReporter(stream: NodeJS.WriteStream): ProgressReporter {
+    let lastHeartbeat = 0;
+    let lastReported = 0;
     return {
         beginPhase(phase, total) {
+            lastHeartbeat = Date.now();
+            lastReported = 0;
             stream.write(`gjsify install: ${PHASE_LABEL[phase]} ${total} package(s)\n`);
         },
-        update() {
-            // Per-package output would flood logs; skip on non-TTY.
+        update(ev) {
+            const now = Date.now();
+            if (now - lastHeartbeat < HEARTBEAT_MS) return;
+            if (ev.current <= lastReported) return;
+            lastHeartbeat = now;
+            lastReported = ev.current;
+            const pct = ev.total > 0 ? Math.round((ev.current / ev.total) * 100) : 0;
+            stream.write(`gjsify install: ${PHASE_LABEL[ev.phase]} ${ev.current}/${ev.total} (${pct}%)\n`);
         },
         endPhase(phase) {
             stream.write(`gjsify install: ${PHASE_LABEL[phase]} done\n`);
@@ -119,7 +143,13 @@ function makePlainReporter(stream: NodeJS.WriteStream): ProgressReporter {
 
 // ──── Bar formatter ────────────────────────────────────────────────────────
 
-function formatBar(phase: ProgressPhase, current: number, total: number, name: string | undefined, columns: number): string {
+function formatBar(
+    phase: ProgressPhase,
+    current: number,
+    total: number,
+    name: string | undefined,
+    columns: number,
+): string {
     const label = PHASE_LABEL[phase];
     const ratio = total > 0 ? Math.min(1, current / total) : 0;
     const pct = `${current}/${total}`;

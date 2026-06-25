@@ -141,8 +141,7 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
         // npm/yarn/pnpm `install` default. Without this, every `^`-range would
         // re-resolve to the newest registry version, churning the whole tree
         // (and silently bumping transitive deps) on a one-package add.
-        const preferred =
-            !opts.refreshLockfile && existingLock ? buildPreferredVersions(existingLock) : undefined;
+        const preferred = !opts.refreshLockfile && existingLock ? buildPreferredVersions(existingLock) : undefined;
         log(
             'install: resolving %d top-level spec(s) → %s%s',
             opts.specs.length,
@@ -759,8 +758,13 @@ async function downloadAndExtractAll(
     const concurrency = Math.max(1, Math.min(DEFAULT_CONCURRENCY, queue.length));
     progress?.beginPhase('download', queue.length);
     let completed = 0;
-    const tickProgress = (node: ResolvedNode) => {
+    // Count how many nodes were already correctly materialised on disk and
+    // skipped (the npm "unchanged" set). Surfaced in the summary log so a warm
+    // install makes it obvious why the phase finished in seconds.
+    let skipped = 0;
+    const tickProgress = (node: ResolvedNode, wasSkipped: boolean) => {
         completed++;
+        if (wasSkipped) skipped++;
         progress?.update({
             phase: 'download',
             current: completed,
@@ -777,10 +781,11 @@ async function downloadAndExtractAll(
 
     // Serial root pass.
     while (cursor < splitAt) {
+        if (signal?.aborted) throw abortError(signal);
         const node = queue[cursor++];
         if (!node) break;
-        await extractOne(node, prefix, npmrc, log, signal);
-        tickProgress(node);
+        const wasSkipped = await extractOne(node, prefix, npmrc, log, signal);
+        tickProgress(node, wasSkipped);
     }
 
     // Concurrent nested pass.
@@ -788,27 +793,87 @@ async function downloadAndExtractAll(
         workers.push(
             (async () => {
                 while (true) {
+                    // Honour an aborted overall-install budget inside the pool.
+                    // Without this, a fired --timeout (or Ctrl-C) only aborts
+                    // the NETWORK fetches; a tree that is mostly cache-hits /
+                    // already-extracted keeps churning the extract loop to
+                    // completion, so the install never actually stops when
+                    // asked to (a contributor to the observed "it never
+                    // completed; I killed it" hang).
+                    if (signal?.aborted) throw abortError(signal);
                     const idx = cursor++;
                     if (idx >= queue.length) return;
                     const node = queue[idx];
                     if (!node) return;
-                    await extractOne(node, prefix, npmrc, log, signal);
-                    tickProgress(node);
+                    const wasSkipped = await extractOne(node, prefix, npmrc, log, signal);
+                    tickProgress(node, wasSkipped);
                 }
             })(),
         );
     }
     await Promise.all(workers);
     progress?.endPhase('download');
+    if (skipped > 0) {
+        log(
+            'install: %d/%d package(s) already up to date — extracted %d',
+            skipped,
+            queue.length,
+            queue.length - skipped,
+        );
+    }
 }
 
+/**
+ * Is `name@version` already correctly materialised at `dest`? Reads
+ * `<dest>/package.json` and returns true iff its `name` AND `version` match the
+ * resolved node exactly. This is the npm/yarn/pnpm "unchanged node" check — an
+ * already-present, correct copy is skipped instead of being `rm`-ed and
+ * re-extracted.
+ *
+ * Conservative by design: a missing / unreadable / unparseable package.json, or
+ * ANY name/version mismatch, returns false so the caller falls through to the
+ * full rm + extract. The only thing this fast-paths is the exact-match case,
+ * which is the overwhelming majority of nodes on a warm re-install (the whole
+ * resolved tree minus the genuinely-new subtree). Skipping the re-extract is
+ * what turns a warm `gjsify install` on a 2000+-package workspace from a
+ * many-minute re-extract of every tarball (each gunzip routed through GJS's
+ * Gio.ZlibDecompressor on the single GLib main loop) into a near-instant no-op.
+ */
+function isAlreadyExtracted(dest: string, node: ResolvedNode): boolean {
+    const manifestPath = path.join(dest, 'package.json');
+    let raw: string;
+    try {
+        raw = fs.readFileSync(manifestPath, 'utf-8');
+    } catch {
+        return false;
+    }
+    try {
+        const parsed = JSON.parse(raw) as { name?: unknown; version?: unknown };
+        // Match version exactly. Match name too when present — a stale dir from
+        // a previous resolve could hold a different package at the same path
+        // (e.g. a nested placement that moved), in which case the version alone
+        // could coincidentally collide. A missing `name` (rare, malformed) is
+        // tolerated as long as the version matches.
+        if (parsed.version !== node.version) return false;
+        if (typeof parsed.name === 'string' && parsed.name !== node.name) return false;
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Download + extract one node, or skip it when an identical copy is already on
+ * disk. Returns `true` when the node was skipped (already up to date), `false`
+ * when it was (re-)extracted.
+ */
 async function extractOne(
     node: ResolvedNode,
     prefix: string,
     npmrc: NpmrcConfig,
     log: Logger,
     signal?: AbortSignal,
-): Promise<void> {
+): Promise<boolean> {
     const dest = path.join(prefix, node.installPath);
     // Defense-in-depth against the workspace-source-wipe data-loss bug:
     // every extractable node MUST land inside a `node_modules/` directory.
@@ -819,6 +884,17 @@ async function extractOne(
     // source dir — the realpath check additionally rejects a `dest` that
     // resolves THROUGH a symlink into a directory outside node_modules.
     assertNodeModulesDest(dest, node);
+
+    // Idempotent fast-path: the package is already extracted at the resolved
+    // version. Skip the cache read + rm + re-extract entirely — this is the
+    // npm/yarn/pnpm default (only added/changed nodes are written), and it is
+    // the dominant cost on a warm re-install. Force a full re-extract with
+    // GJSIFY_INSTALL_FORCE_EXTRACT=1 (debug / corrupted-tree recovery).
+    if (process.env.GJSIFY_INSTALL_FORCE_EXTRACT !== '1' && isAlreadyExtracted(dest, node)) {
+        log('up-to-date: %s@%s (already extracted at %s)', node.name, node.version, node.installPath);
+        return true;
+    }
+
     // Hit the content-addressable cache before touching the network.
     // Tarballs are immutable per SRI integrity, so a hash hit means the
     // cached bytes are byte-identical to whatever the registry would
@@ -858,6 +934,21 @@ async function extractOne(
     fs.rmSync(dest, { recursive: true, force: true });
     fs.mkdirSync(dest, { recursive: true });
     await extractTarball(bytes, dest);
+    return false;
+}
+
+/**
+ * Canonical AbortError carrying the signal's `reason` when it is an Error
+ * (e.g. the overall-install timeout sentinel), so `isAbortedFromOverallTimeout`
+ * in the install command recognises it and prints the actionable timeout
+ * message instead of a raw stack.
+ */
+function abortError(signal: AbortSignal | undefined): Error {
+    const reason = signal && 'reason' in signal ? (signal as { reason?: unknown }).reason : undefined;
+    if (reason instanceof Error) return reason;
+    const err = new Error('Aborted');
+    err.name = 'AbortError';
+    return err;
 }
 
 /**
