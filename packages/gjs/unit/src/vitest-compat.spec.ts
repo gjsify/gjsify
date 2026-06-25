@@ -113,5 +113,34 @@ export default async () => {
             })();
             await expect(rejectsViaMatcher).rejects.toThrow();
         });
+
+        // A matcher whose throw is caught BY THE TEST ITSELF (not by a throw-
+        // matcher) must not count: counting is owned by the it() boundary, and
+        // the throw never escaped the callback. Guards the regression where the
+        // throw site eagerly bumped the global fail count (the @gjsify/tls
+        // `test:node` flake: a stray increment with no owning it()).
+        await it('a matcher throw caught inside the test does not count as a failure', async () => {
+            let threw = false;
+            try {
+                expect(1).toBe(2);
+            } catch {
+                threw = true;
+            }
+            expect(threw).toBe(true);
+        });
+
+        // Same, across an await boundary — the assertion fails on an awaited
+        // value but is caught locally; the it() resolves cleanly so nothing is
+        // charged to the run.
+        await it('an awaited matcher throw caught locally does not count', async () => {
+            let threw = false;
+            try {
+                await Promise.resolve();
+                expect('x').toBeUndefined();
+            } catch {
+                threw = true;
+            }
+            expect(threw).toBe(true);
+        });
     });
 };
