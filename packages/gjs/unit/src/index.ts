@@ -40,7 +40,18 @@ interface _RuntimeGlobals {
 
 const runtimeGlobals = (): _RuntimeGlobals => globalThis as unknown as _RuntimeGlobals;
 
-/** Brand for `Error` instances we've already counted via `++countTestsFailed`. */
+/**
+ * Brand for `Error` instances produced by our own matchers / `assert.*`
+ * helpers. It marks an error as a *deliberate assertion-failure signal* (vs an
+ * unexpected impl error). The throw/rejection matchers (`toThrow`, `toReject`,
+ * `toResolve`) read it to recognise an inner matcher throw they are *expecting*
+ * and must not re-surface.
+ *
+ * It deliberately does NOT mean "already added to the failure count". Failure
+ * counting is owned exclusively by the boundary that OBSERVES the outcome —
+ * `it()` (and the run/suite timeout handlers) — never by the throw site. See
+ * `triggerResult`.
+ */
 interface _CountedError {
     __testFailureCounted?: boolean;
 }
@@ -52,19 +63,32 @@ let countTestsFailed = 0;
 let countTestsIgnored = 0;
 
 /**
- * A branded matcher-failure caught by a throw/rejection matcher (`toThrow`,
- * `toReject`, `toResolve`) is used as a control-flow signal — those matchers
- * assert that a throw/rejection *happens*, so the inner assertion's throw is the
- * expected outcome, not a failure. `triggerResult` already did `++countTestsFailed`
- * at the inner throw site, so roll that eager increment back here and let the
- * catching matcher's own `triggerResult` decide the real result. Without this,
- * `expect(() => expect(x).toMatchObject(y)).toThrow()` leaks a phantom failure
- * into the global tally even though the test itself passes.
+ * True only while an `it()` callback is on the stack. A matcher/assert that
+ * throws while this is false escaped its test (a leaked late assertion fired by
+ * a settled test's timer/promise, or an `expect()` used outside any `it`). Such
+ * a stray throw must NOT corrupt the global pass/fail tally of a bystander test
+ * — `it()` only counts errors that escape ITS OWN callback. This flag lets the
+ * (rare) out-of-band failure be surfaced as its own distinct entry instead of
+ * silently poisoning whichever test happens to be active. See `it()` and
+ * `noteStrayFailure`.
  */
-const uncountBrandedFailure = (e: unknown): void => {
-    if (e && (e as _CountedError).__testFailureCounted) {
-        --countTestsFailed;
-    }
+let activeTestDepth = 0;
+const strayFailures: Array<{ suite: string; message: string }> = [];
+
+/**
+ * Record an assertion failure that fired with no `it()` on the stack. These are
+ * real bugs in a test (a missing `await`, an unclosed socket, a late callback),
+ * but they belong to NO currently-running test, so they get their own pseudo-
+ * test in the summary rather than being charged to an innocent bystander.
+ */
+const noteStrayFailure = (message: string): void => {
+    ++countTestsFailed;
+    strayFailures.push({ suite: currentSuite, message });
+    testErrors.push({
+        suite: currentSuite,
+        test: '<stray assertion outside any it()>',
+        message,
+    });
 };
 let runtime = '';
 let runStartTime = 0;
@@ -294,7 +318,12 @@ class MatcherFactory {
         if ((success && !this.positive) || (!success && this.positive)) {
             const error = new Error(msg);
             (error as Error & _CountedError).__testFailureCounted = true;
-            ++countTestsFailed;
+            // Counting is owned by the observing boundary, not the throw site.
+            // While an it() is on the stack, that it()'s catch will count this
+            // error exactly once. If NO it() is active, the throw escaped its
+            // test (a leaked late assertion); attribute it to its own pseudo-
+            // test instead of corrupting whichever it() is mid-flight.
+            if (activeTestDepth === 0) noteStrayFailure(msg);
             throw error;
         }
     }
@@ -514,7 +543,6 @@ class MatcherFactory {
             fn();
             didThrow = false;
         } catch (e) {
-            uncountBrandedFailure(e);
             errorMessage = (e as { message?: string })?.message || '';
             didThrow = true;
             if (typeof expected === 'function') {
@@ -556,7 +584,6 @@ class MatcherFactory {
             await this.actualValue;
             didReject = false;
         } catch (e) {
-            uncountBrandedFailure(e);
             didReject = true;
             errorMessage = e?.message || String(e);
             if (typeof expected === 'function') {
@@ -591,7 +618,6 @@ class MatcherFactory {
             await this.actualValue;
             didResolve = true;
         } catch (e) {
-            uncountBrandedFailure(e);
             didResolve = false;
             errorMessage = e?.message || String(e);
         }
@@ -744,6 +770,12 @@ export const it = async function (
     const timeoutMs = typeof options === 'number' ? options : (options?.timeout ?? timeoutConfig.testTimeout);
 
     const t0 = now();
+    // Mark an it() as on the stack so a matcher throw is attributed to THIS
+    // test (counted once in the catch below) rather than routed to a stray
+    // pseudo-test. Balanced in `finally` so a settled test leaves depth at 0 —
+    // a late assertion that fires after this test resolved is then correctly
+    // recognised as out-of-band (see triggerResult / noteStrayFailure).
+    ++activeTestDepth;
     try {
         if (typeof beforeEachCb === 'function') {
             await beforeEachCb();
@@ -759,14 +791,16 @@ export const it = async function (
         print(`  ${GREEN}✔${RESET} ${GRAY}${expectation}  (${formatDuration(duration)})${RESET}`);
     } catch (e) {
         const duration = now() - t0;
-        if (!e.__testFailureCounted) {
-            ++countTestsFailed;
-        }
+        // The error escaped THIS test's callback → it is this test's single
+        // failure. Count it exactly once here (the throw site no longer counts).
+        ++countTestsFailed;
         testErrors.push({ suite: currentSuite, test: expectation, message: e.message ?? String(e) });
         const icon = e instanceof TimeoutError ? '⏱' : '❌';
         print(`  ${RED}${icon}${RESET} ${GRAY}${expectation}  (${formatDuration(duration)})${RESET}`);
         print(`${RED}${e.message}${RESET}`);
         if (e.stack) print(e.stack);
+    } finally {
+        --activeTestDepth;
     }
 };
 
@@ -785,18 +819,25 @@ export const expect = function (actualValue: unknown, _message?: string) {
     return expecter;
 };
 
+/**
+ * Brand an assertion error and rethrow. Failure counting is owned by the
+ * observing boundary: while an it() is on the stack its catch counts the
+ * escaped error once; with no it() active the failure is out-of-band and gets
+ * its own stray pseudo-test (never charged to a bystander). Mirrors
+ * `MatcherFactory.triggerResult`.
+ */
+const failAssertion = (error: unknown): never => {
+    (error as Error & _CountedError).__testFailureCounted = true;
+    if (activeTestDepth === 0) noteStrayFailure((error as { message?: string })?.message ?? String(error));
+    throw error;
+};
+
 export const assert = function (success: unknown, message?: string | Error) {
     ++countTestsOverall;
-
-    if (!success) {
-        ++countTestsFailed;
-    }
-
     try {
         nodeAssert(success, message);
     } catch (error) {
-        (error as Error & _CountedError).__testFailureCounted = true;
-        throw error;
+        failAssertion(error);
     }
 };
 
@@ -805,9 +846,7 @@ assert.strictEqual = function <T>(actual: unknown, expected: T, message?: string
     try {
         nodeAssert.strictEqual(actual, expected, message);
     } catch (error) {
-        ++countTestsFailed;
-        (error as Error & _CountedError).__testFailureCounted = true;
-        throw error;
+        failAssertion(error);
     }
 };
 
@@ -820,15 +859,17 @@ assert.throws = function (promiseFn: () => unknown, ...args: [AssertPredicate?, 
         error = e;
     }
 
-    if (!error) ++countTestsFailed;
-
-    nodeAssert.throws(
-        () => {
-            if (error) throw error;
-        },
-        args[0],
-        args[1],
-    );
+    try {
+        nodeAssert.throws(
+            () => {
+                if (error) throw error;
+            },
+            args[0],
+            args[1],
+        );
+    } catch (assertionError) {
+        failAssertion(assertionError);
+    }
 };
 
 assert.deepStrictEqual = function <T>(actual: unknown, expected: T, message?: string | Error): asserts actual is T {
@@ -836,9 +877,7 @@ assert.deepStrictEqual = function <T>(actual: unknown, expected: T, message?: st
     try {
         nodeAssert.deepStrictEqual(actual, expected, message);
     } catch (error) {
-        ++countTestsFailed;
-        (error as Error & _CountedError).__testFailureCounted = true;
-        throw error;
+        failAssertion(error);
     }
 };
 
@@ -879,6 +918,18 @@ const printResult = () => {
     if (countTestsIgnored) {
         // some tests ignored
         print(`\n${BLUE}✔ ${countTestsIgnored} ignored test${countTestsIgnored > 1 ? 's' : ''}${RESET}`);
+    }
+
+    if (strayFailures.length) {
+        // Late assertions that fired with no it() on the stack (a leaked timer
+        // / unawaited promise in some test). Surface them as their own line so
+        // they read as a distinct problem, not a corrupted bystander test.
+        print(
+            `\n${RED}⚠ ${strayFailures.length} assertion${strayFailures.length > 1 ? 's' : ''} fired outside any it() (leaked from a settled test)${RESET}`,
+        );
+        for (const s of strayFailures) {
+            print(`  ${RED}↳ ${s.message.trim().split('\n')[0]}${RESET}`);
+        }
     }
 
     if (countTestsFailed) {
