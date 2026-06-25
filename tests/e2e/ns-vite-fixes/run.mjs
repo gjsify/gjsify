@@ -28,8 +28,9 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, copyFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -105,7 +106,11 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
     }
 
     it('drops function-replacement aliases, keeps string-replacement aliases', () => {
-        const fixed = applyVite8Fixes(makeSyntheticConfig());
+        // Pin the legacy <= 2 line explicitly: the function-alias drop is part of
+        // the FULL patch set, and `@nativescript/vite@8.x` may be installed in this
+        // workspace (auto-detect would then skip fix 1). The override arg makes the
+        // assertion deterministic regardless of what's on disk.
+        const fixed = applyVite8Fixes(makeSyntheticConfig(), 2);
 
         assert.ok(Array.isArray(fixed.resolve.alias), 'resolve.alias should remain an array');
 
@@ -159,7 +164,10 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
     });
 
     it("removes every 'commonjs' plugin (incl. nested), keeps all others", () => {
-        const fixed = applyVite8Fixes(makeSyntheticConfig());
+        // Pin the legacy <= 2 line explicitly (the commonjs strip is part of the
+        // FULL patch set, skipped on 8.x which may be installed here) — see the
+        // function-alias test above.
+        const fixed = applyVite8Fixes(makeSyntheticConfig(), 2);
 
         assert.ok(Array.isArray(fixed.plugins), 'plugins should remain an array');
 
@@ -210,6 +218,237 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
             recordAlias,
             'record-form resolve.alias must be passed through unchanged',
         );
+    });
+
+    // ─── Conditional on the @nativescript/vite major (override arg) ──────────
+    //
+    // The 2nd `nsViteMajor` argument bypasses the auto-detection (which would
+    // return `undefined` here — @nativescript/vite isn't installed in CI — and
+    // fail-safe to the full <= 2 patch set). It exercises both branches without
+    // two installs.
+
+    it('on @nativescript/vite >= 8: skips fixes 1 & 2, still strips ns-typescript-check', () => {
+        // 8.x ships native Vite-8/Rolldown support (string-only aliases, no
+        // @rollup/plugin-commonjs), so the function-alias drop + commonjs strip
+        // must be SKIPPED — but the bundler-shouldn't-type-check strip stays.
+        const fixed = applyVite8Fixes(
+            {
+                resolve: {
+                    alias: [
+                        { find: '~', replacement: '/abs/app/src' },
+                        { find: /^.*$/, replacement: () => '/resolved/platform/main' }, // would be dropped on <=2
+                    ],
+                },
+                plugins: [
+                    { name: 'nativescript-package-resolver' }, // KEEP
+                    { name: 'commonjs' }, // would be dropped on <=2 — KEPT on 8.x
+                    { name: 'ns-typescript-check' }, // DROP on either line
+                    { name: 'vite:esbuild' }, // KEEP
+                ],
+            },
+            8,
+        );
+        // Fix (1) skipped — the function-replacement alias survives untouched.
+        const hasFunctionAlias = fixed.resolve.alias.some((a) => typeof a.replacement === 'function');
+        assert.equal(hasFunctionAlias, true, 'on 8.x the function-replacement alias must be left in place (fix skipped)');
+        // Fix (2) skipped — the commonjs plugin survives.
+        const names = pluginNames(fixed.plugins);
+        assert.ok(names.includes('commonjs'), 'on 8.x the commonjs plugin must be left in place (fix skipped)');
+        // Fix (3) still applied — ns-typescript-check is gone.
+        assert.equal(
+            names.includes('ns-typescript-check'),
+            false,
+            "ns-typescript-check must still be stripped on 8.x — a bundler doesn't type-check",
+        );
+        assert.deepEqual(
+            names,
+            ['nativescript-package-resolver', 'commonjs', 'vite:esbuild'],
+            'on 8.x only ns-typescript-check is removed; commonjs + the rest survive',
+        );
+    });
+
+    it('on @nativescript/vite <= 2 (explicit major): applies the full patch set', () => {
+        // Passing 2 explicitly must reproduce the auto-detect-unknown default.
+        const fixed = applyVite8Fixes(makeSyntheticConfig(), 2);
+        const hasFunctionAlias = fixed.resolve.alias.some((a) => typeof a.replacement === 'function');
+        assert.equal(hasFunctionAlias, false, 'on <=2 every function-replacement alias must be dropped');
+        const names = pluginNames(fixed.plugins);
+        assert.equal(names.includes('commonjs'), false, 'on <=2 every commonjs plugin must be dropped');
+        assert.deepEqual(
+            names,
+            ['nativescript-package-resolver', 'vite:esbuild', 'nested-keeper', 'vite:define'],
+            'on <=2 the full patch set runs (function aliases + commonjs removed, others kept)',
+        );
+    });
+});
+
+// ── Isolated-fixture helpers (Bug 1 + Bug 2) ─────────────────────────────────
+//
+// Both Bug 1 (exports-gated detection) and Bug 2 (missing-peer stubs) must run the
+// BUILT lib against a FIXTURE `@nativescript/vite`, not the workspace's real one.
+// Because the workspace symlinks `node_modules/@gjsify/nativescript-vite` → the
+// package source, a bare import of the lib from a CWD inside the repo resolves the
+// workspace copy (and the workspace `@nativescript/vite`). So the fixture lives in
+// the OS tmp dir, OUTSIDE the repo, with a parent whose `node_modules` symlinks the
+// workspace `node_modules` (for the lib's deep deps: `vite`, `@gjsify/vite-plugin-gjsify`,
+// …) and an `app/` child whose own `node_modules` shadows with a COPY of the built
+// lib + the fixture `@nativescript/vite`. Running the lib (bare import) from `app/`
+// then resolves the fixture `@nativescript/vite` while deep deps fall through to the
+// workspace.
+const WORKSPACE_NODE_MODULES = fileURLToPath(new URL('../../../node_modules', import.meta.url));
+const ALL_TMP = [];
+
+/**
+ * Build an isolated fixture app and return its `app/` dir (the CWD to run in) plus
+ * the path to the lib copy. `nsVite` describes the fixture `@nativescript/vite`
+ * (`{ version, peerName?, eagerImport? }`); pass `null` to install NO
+ * `@nativescript/vite` at all (the genuinely-absent case).
+ */
+function makeIsolatedFixture(nsVite) {
+    const root = mkdtempSync(join(tmpdir(), 'gjsify-nsvite-'));
+    ALL_TMP.push(root);
+    if (nsVite) {
+        // Parent node_modules → the whole workspace (deep deps + a fall-through
+        // workspace `@nativescript/vite`; the fixture below shadows it in `app/`).
+        symlinkSync(WORKSPACE_NODE_MODULES, join(root, 'node_modules'), 'dir');
+    } else {
+        // GENUINELY-ABSENT case: symlink ONLY the lib's deep deps, NOT the
+        // workspace's `@nativescript/vite` — so detection sees no peer at all.
+        // A symlinked package resolves its own transitive deps from its real
+        // (workspace) location, so these two links suffice to load the lib.
+        const parentNm = join(root, 'node_modules');
+        mkdirSync(join(parentNm, '@gjsify'), { recursive: true });
+        symlinkSync(join(WORKSPACE_NODE_MODULES, 'vite'), join(parentNm, 'vite'), 'dir');
+        symlinkSync(
+            join(WORKSPACE_NODE_MODULES, '@gjsify', 'vite-plugin-gjsify'),
+            join(parentNm, '@gjsify', 'vite-plugin-gjsify'),
+            'dir',
+        );
+    }
+
+    const app = join(root, 'app');
+    const appNm = join(app, 'node_modules');
+    // Shadowing lib copy.
+    const libDir = join(appNm, '@gjsify', 'nativescript-vite');
+    mkdirSync(libDir, { recursive: true });
+    copyFileSync(fileURLToPath(LIB_URL), join(libDir, 'index.js'));
+    writeFileSync(
+        join(libDir, 'package.json'),
+        JSON.stringify({ name: '@gjsify/nativescript-vite', version: '0.0.0', type: 'module', exports: { '.': './index.js' } }),
+    );
+
+    if (nsVite) {
+        const pkg = join(appNm, '@nativescript', 'vite');
+        mkdirSync(pkg, { recursive: true });
+        const pkgJson = {
+            name: '@nativescript/vite',
+            version: nsVite.version,
+            type: 'module',
+            // exports-gated: root entry only, NO ./package.json subpath (the 8.x shape).
+            exports: { '.': { import: './index.js', default: './index.js' } },
+        };
+        if (nsVite.peerName) {
+            pkgJson.peerDependencies = { [nsVite.peerName]: '*' };
+            pkgJson.peerDependenciesMeta = { [nsVite.peerName]: { optional: true } };
+        }
+        writeFileSync(join(pkg, 'package.json'), JSON.stringify(pkgJson));
+        const body = nsVite.eagerImport
+            ? // Eager NAMED import of the (absent) peer at module-eval — the
+              // `@vue/compiler-sfc` failure shape that breaks ESM link.
+              `import { compileScript, parse } from '${nsVite.peerName}';\n` +
+                  `export const typescriptConfig = () => ({ plugins: [], _peerSeen: typeof compileScript + ',' + typeof parse });\n`
+            : `export const typescriptConfig = () => ({ plugins: [] });\n`;
+        writeFileSync(join(pkg, 'index.js'), body);
+    }
+    return { app };
+}
+
+/**
+ * Run `expr` (an async expression over the default-imported lib `mod`) from `app/`
+ * and return its result. The lib emits informational notices (e.g. the "8.x
+ * detected" one) on stdout/stderr, so the result is bracketed in a unique marker
+ * and extracted — keeping the assertion immune to that noise.
+ */
+function runInFixture(app, expr) {
+    const M = '<<<NSVITE-RESULT>>>';
+    const code =
+        `import mod, { detectNativescriptViteMajor } from '@gjsify/nativescript-vite';` +
+        `void detectNativescriptViteMajor;` +
+        `let r;` +
+        `try { r = String(await (${expr})); }` +
+        `catch (e) { r = 'ERR:' + ((e && (e.cause?.code || e.code)) || String(e && e.message)); }` +
+        `process.stdout.write('${M}' + r + '${M}');`;
+    const out = execFileSync(process.execPath, ['--input-type=module', '-e', code], {
+        cwd: app,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const start = out.indexOf(M);
+    const end = out.indexOf(M, start + M.length);
+    return start >= 0 && end > start ? out.slice(start + M.length, end) : out.trim();
+}
+
+after(() => {
+    for (const d of ALL_TMP) rmSync(d, { recursive: true, force: true });
+});
+
+// ─── Bug 1: major detection works against an exports-gated package ────────────
+//
+// `@nativescript/vite@8.x`'s `package.json#exports` does NOT expose the
+// `./package.json` subpath. The old detector resolved `@nativescript/vite/package.json`
+// directly → Node threw `ERR_PACKAGE_PATH_NOT_EXPORTED` → caught → `undefined`, so
+// the major-8 gate never fired and the full legacy patch set ran. The fix resolves
+// the package's MAIN entry (always exported) and walks up to its `package.json`.
+describe('@gjsify/nativescript-vite detectNativescriptViteMajor (Bug 1: exports-gated package)', () => {
+    function detect(nsVite) {
+        const { app } = makeIsolatedFixture(nsVite);
+        return runInFixture(app, 'detectNativescriptViteMajor()');
+    }
+
+    it('detects the major of an exports-gated @nativescript/vite (no ./package.json subpath)', () => {
+        // Under the OLD code this came back "undefined" (ERR_PACKAGE_PATH_NOT_EXPORTED);
+        // the fix walks up from the main entry and reads the package root.
+        assert.equal(detect({ version: '8.0.0-alpha.57' }), '8', 'major of an 8.x exports-gated package must be detected');
+        assert.equal(detect({ version: '2.0.3' }), '2', 'major of a 2.x exports-gated package must be detected');
+    });
+
+    it('returns "undefined" when @nativescript/vite is genuinely not installed', () => {
+        assert.equal(
+            detect(null),
+            'undefined',
+            'an absent optional peer must keep the graceful undefined fallback (fail-safe to full patch set)',
+        );
+    });
+});
+
+// ─── Bug 2: a framework-less Core app loads the config (missing-peer stubs) ───
+//
+// `@nativescript/vite@8.x`'s config chain STATICALLY imports the framework
+// compilers (`@vue/compiler-sfc`, etc.) at module-eval. They are `peerDependencies`,
+// so a framework-LESS NativeScript-Core app can't even `import('@nativescript/vite')`
+// — Node throws `ERR_MODULE_NOT_FOUND: Cannot find package '@vue/compiler-sfc'`.
+// `defineNativescriptConfig()` stubs the missing peers (no-op modules) so the
+// config loads. Verified against a fixture `@nativescript/vite` whose config eagerly
+// NAMED-imports a framework peer that is NOT installed.
+describe('@gjsify/nativescript-vite missing-framework-peer stubs (Bug 2: Core app)', () => {
+    function compose(nsVite) {
+        const { app } = makeIsolatedFixture(nsVite);
+        return runInFixture(
+            app,
+            `(async () => { const cfg = await mod()({ command: 'build', mode: 'production' });` +
+                ` return 'OK:' + (Array.isArray(cfg.plugins) ? 'config' : typeof cfg); })()`,
+        );
+    }
+
+    it('composes a Core-app config without throwing when a framework peer is missing', () => {
+        // Under the OLD code: `ERR_MODULE_NOT_FOUND` (Cannot find package
+        // '@gjsify/fake-vue-compiler'). With the stub: the config composes.
+        const out = compose({ version: '8.0.0-alpha.57', peerName: '@gjsify/fake-vue-compiler', eagerImport: true });
+        assert.ok(
+            out.startsWith('OK:'),
+            `a framework-less Core app must compose without throwing — got "${out}" (the missing peer should be stubbed)`,
+        );
+        assert.ok(out.includes('config'), `the composed result must be a real Vite config object — got "${out}"`);
     });
 });
 
