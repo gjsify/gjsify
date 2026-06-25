@@ -43,6 +43,34 @@ export interface ScreenshotResult {
     data: string | null;
 }
 
+/**
+ * One app-specific devtools method an extension contributes — a name, a pause
+ * classification, and a handler over the registry's named-`params` record (the
+ * NS transport sends `{ method, params }`, so the extension maps the params it
+ * needs; e.g. the storybook adapter reads `params.title` / `params.name`).
+ */
+export interface NsDevtoolsMethod {
+    /** Method name (unique across the registry). */
+    name: string;
+    /** Pause classification (`'mutating'` methods reject while paused). */
+    kind: MethodKind;
+    /** Implementation — receives the request's params, returns the result value. */
+    handler: (params: Record<string, unknown>) => unknown | Promise<unknown>;
+}
+
+/**
+ * An app-specific devtools surface merged into the registry (e.g. the storybook
+ * `ListStories`/`OpenStory`/… methods from
+ * `buildStorybookDevtoolsExtension(controller)`). Structurally compatible with
+ * `@gjsify/storybook-core`'s `StorybookDevtoolsExtension`.
+ */
+export interface NsDevtoolsExtension {
+    /** Extra methods registered alongside the generic ones. */
+    methods: NsDevtoolsMethod[];
+    /** Extra keys merged into `GetStatus()`. */
+    contributeStatus?: () => Record<string, unknown>;
+}
+
 /** Wiring inputs — the live NS application + frame surfaces (duck-typed). */
 export interface NsDevtoolsContext {
     /** A label for this devtools instance (multi-instance side-by-side). */
@@ -55,6 +83,12 @@ export interface NsDevtoolsContext {
     readonly paused?: () => boolean;
     /** App id reported by `GetStatus` (defaults to the NS bundle id when known). */
     readonly appId?: string;
+    /**
+     * App-specific devtools surfaces merged into the registry — extra methods +
+     * `GetStatus` keys (e.g. the storybook control surface). Backward-compatible:
+     * omitted by the spike showcase install.
+     */
+    readonly extensions?: readonly NsDevtoolsExtension[];
 }
 
 function rootOf(ctx: NsDevtoolsContext): NsView | null {
@@ -103,6 +137,11 @@ export function createNativescriptRegistry(ctx: NsDevtoolsContext): MethodRegist
                 focusedWidget: null,
                 paused: ctx.paused?.() ?? false,
             };
+            // Extensions (e.g. the storybook surface) merge extra status keys.
+            for (const ext of ctx.extensions ?? []) {
+                const extra = ext.contributeStatus?.();
+                if (extra) Object.assign(status, extra);
+            }
             return status;
         },
     });
@@ -165,6 +204,17 @@ export function createNativescriptRegistry(ctx: NsDevtoolsContext): MethodRegist
             return { tapped: resolved.path };
         },
     });
+
+    // --- App-specific extension methods (e.g. the storybook control surface). ---
+    for (const ext of ctx.extensions ?? []) {
+        for (const method of ext.methods) {
+            registry.register({
+                name: method.name,
+                kind: method.kind,
+                handler: (params) => method.handler(params),
+            });
+        }
+    }
 
     return registry;
 }

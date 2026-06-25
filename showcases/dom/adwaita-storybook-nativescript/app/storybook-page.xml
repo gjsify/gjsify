@@ -1,0 +1,6 @@
+<Page navigatingTo="onNavigatingTo" class="adw-window" xmlns="http://schemas.nativescript.org/tns.xsd">
+    <!-- The storybook root view (sidebar + preview + controls) is built
+         programmatically in the code-behind and set as this page's content. -->
+    <ActionBar title="Adwaita Storybook" flat="true" />
+    <ContentView id="host" />
+</Page>

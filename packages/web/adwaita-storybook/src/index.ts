@@ -1,11 +1,15 @@
-// @gjsify/storybook-web — browser renderer for the @gjsify/stories contract.
+// @gjsify/adwaita-storybook — browser renderer for the @gjsify/stories contract.
 // The web counterpart of @gjsify/storybook: author *.web.ts files as
 // StoryElement subclasses and render them in a generic Adwaita component browser
 // built from @gjsify/adwaita-web, looking and behaving like the native GTK
 // storybook so the two targets can be screenshot-compared 1:1.
+//
+// A thin DOM adapter over @gjsify/storybook-core — the renderer-agnostic logic
+// (story base, registry, control binding, app controller) lives in core; this
+// package keeps only the @gjsify/adwaita-web view layer.
 
 // Re-export the renderer-agnostic authoring contract so a story only needs one
-// import (`@gjsify/storybook-web`). The web-specific WebStoryModule /
+// import (`@gjsify/adwaita-storybook`). The web-specific WebStoryModule /
 // WebStoryDecorator (which reference StoryElement) intentionally shadow the
 // generic ones from @gjsify/stories.
 export {

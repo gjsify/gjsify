@@ -20,6 +20,8 @@ export {
 export {
     createNativescriptRegistry,
     type NsDevtoolsContext,
+    type NsDevtoolsExtension,
+    type NsDevtoolsMethod,
     type ScreenshotResult,
 } from './handlers.js';
 

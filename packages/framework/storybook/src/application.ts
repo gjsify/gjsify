@@ -8,7 +8,6 @@ import GObject from '@girs/gobject-2.0';
 import Gtk from '@girs/gtk-4.0';
 import { installDevtools } from '@gjsify/devtools';
 import { storybookDevtoolsExtension } from './devtools-extension.js';
-import { StoryRegistryService } from './registry.js';
 import type { StoryModule } from './story-widget.js';
 import { STORYBOOK_CSS } from './styles.js';
 import { StorybookWindow } from './window.js';
@@ -34,7 +33,6 @@ export interface StorybookOptions {
  */
 export class StorybookApplication extends Adw.Application {
     private _window: StorybookWindow | null = null;
-    private _registry = new StoryRegistryService();
     private _options: StorybookOptions;
 
     static {
@@ -68,10 +66,10 @@ export class StorybookApplication extends Adw.Application {
             if (this._options.title) {
                 this._window.set_title(this._options.title);
             }
-            this._registry.registerStories(this._options.stories);
             try {
-                const modules = this._registry.createStoryInstances();
-                this._window.populateSidebar(modules);
+                // The window's controller registers + instantiates the modules,
+                // renders the sidebar, and opens the first story.
+                this._window.populateSidebar(this._options.stories);
             } catch (error) {
                 console.error('Failed to create story instances:', error);
             }
@@ -79,7 +77,7 @@ export class StorybookApplication extends Adw.Application {
             // (or `devtools: true`), so production runs are unaffected.
             installDevtools(this, {
                 enabled: this._options.devtools || undefined,
-                extend: [storybookDevtoolsExtension(this._registry, this._window)],
+                extend: [storybookDevtoolsExtension(this._window)],
             });
         }
         this._window.present();

@@ -1,7 +1,8 @@
-// Web story-module contract — mirrors @gjsify/storybook's StoryModule but over
-// the DOM StoryElement base.
+// Web story-module contract — the DOM specialisation of @gjsify/storybook-core's
+// generic StoryModuleLike, bound to the DOM StoryElement base.
 
 import type { StoryMeta } from '@gjsify/stories';
+import type { StoryModuleLike } from '@gjsify/storybook-core';
 import type { StoryElement } from './story-element.js';
 
 /** Constructor contract for a web story class: zero-arg `new`, static metadata. */
@@ -13,8 +14,12 @@ export interface WebStoryConstructor {
 /** Wraps a story's content-build step (e.g. to install a shared environment). */
 export type WebStoryDecorator = (build: () => void, story: StoryElement) => void;
 
-/** A group of related web stories, optionally wrapped by module-level decorators. */
-export interface WebStoryModule {
+/**
+ * A group of related web stories, optionally wrapped by module-level decorators.
+ * The DOM binding of {@link StoryModuleLike} over {@link StoryElement} +
+ * {@link WebStoryConstructor}.
+ */
+export interface WebStoryModule extends StoryModuleLike<StoryElement, WebStoryConstructor> {
     stories: WebStoryConstructor[];
     /** Populated by {@link StoryRegistry.createStoryInstances}. */
     instances?: StoryElement[];

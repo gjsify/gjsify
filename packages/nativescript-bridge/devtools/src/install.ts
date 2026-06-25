@@ -18,7 +18,7 @@ import {
     type MethodRegistry,
 } from '@gjsify/devtools-protocol';
 import { assertNativeScript, isNativeScript } from '@gjsify/native-platform';
-import { createNativescriptRegistry, type NsDevtoolsContext } from './handlers.js';
+import { createNativescriptRegistry, type NsDevtoolsContext, type NsDevtoolsExtension } from './handlers.js';
 import type { NsApplicationLike, NsFrameLike } from './view-tree.js';
 
 /** The agent object attached to `globalThis.__adwDevtools`. */
@@ -53,6 +53,13 @@ export interface InstallNsDevtoolsOptions {
     application?: NsApplicationLike;
     /** The NS `Frame` module (`topmost()?.currentPage`). Same rationale as `application`. */
     frame?: NsFrameLike;
+    /**
+     * App-specific devtools surfaces merged into the registry — extra methods +
+     * `GetStatus` keys (e.g. `buildStorybookDevtoolsExtension(controller)` so an
+     * MCP/CDP agent can ListStories/OpenStory/SetStoryArg against a running NS
+     * storybook). Backward-compatible — the spike showcase omits it.
+     */
+    extensions?: readonly NsDevtoolsExtension[];
 }
 
 /** GC/scope root: keep each installed agent reachable for the app's lifetime. */
@@ -121,6 +128,7 @@ export function installDevtools(options: InstallNsDevtoolsOptions = {}): NsDevto
         paused: options.paused,
         application: options.application ?? null,
         frame: options.frame ?? null,
+        extensions: options.extensions,
     };
 
     const registry = createNativescriptRegistry(ctx);

@@ -1,64 +1,56 @@
 // @gjsify/storybook — devtools extension exposing the story surface over org.gjsify.Devtools.
-// Original implementation.
+//
+// The five methods (ListStories/GetCurrentStory/OpenStory/SetStoryArg/
+// GetStoryArgs) + their handlers + contributeStatus are built renderer-neutrally
+// by @gjsify/storybook-core's buildStorybookDevtoolsExtension(controller); this
+// adapter wraps that into the GTK `DevtoolsExtension` shape (methodsXml +
+// handlers + methodKinds) the org.gjsify.Devtools bridge consumes. The DBus
+// method names + JSON shapes are unchanged.
 
 import type { DevtoolsExtension } from '@gjsify/devtools';
-import type { StoryRegistryService } from './registry.js';
+import { buildStorybookDevtoolsExtension } from '@gjsify/storybook-core';
 import type { StorybookWindow } from './window.js';
+
+/** The pause classification for each storybook method (core `read-only`/`mutating` ⊆ MethodKind). */
+type StorybookMethodKind = 'read-only' | 'mutating';
+
+/** The static `<method>` XML — the DBus signatures the bridge merges in. */
+const METHODS_XML: Record<string, string> = {
+    ListStories: '<method name="ListStories"><arg type="s" direction="out" name="stories_json"/></method>',
+    GetCurrentStory: '<method name="GetCurrentStory"><arg type="s" direction="out" name="story_json"/></method>',
+    OpenStory:
+        '<method name="OpenStory"><arg type="s" direction="in" name="title"/><arg type="b" direction="out" name="opened"/></method>',
+    SetStoryArg:
+        '<method name="SetStoryArg"><arg type="s" direction="in" name="name"/><arg type="s" direction="in" name="value_json"/><arg type="b" direction="out" name="applied"/></method>',
+    GetStoryArgs: '<method name="GetStoryArgs"><arg type="s" direction="out" name="args_json"/></method>',
+};
 
 /**
  * Build a {@link DevtoolsExtension} that exposes the storybook's story surface
  * — list/open stories, read/set the active story's args — so an agent (via the
  * MCP bridge) can drive and debug widgets in isolation. Wired by
- * {@link runStorybook} when `GJSIFY_DEVTOOLS` is set.
+ * {@link StorybookApplication} when `GJSIFY_DEVTOOLS` is set.
+ *
+ * Delegates the method set to the window's {@link StorybookController}.
  */
-export function storybookDevtoolsExtension(
-    registry: StoryRegistryService,
-    window: StorybookWindow,
-): DevtoolsExtension {
-    const listStories = () =>
-        registry.getStories().flatMap((module) =>
-            (module.instances ?? []).map((instance) => ({
-                title: instance.meta.title,
-                story: instance.story,
-                category: instance.meta.title.split('/')[0],
-                controls: instance.meta.controls ?? [],
-            })),
-        );
+export function storybookDevtoolsExtension(window: StorybookWindow): DevtoolsExtension {
+    const ext = buildStorybookDevtoolsExtension(window.controller);
+
+    const methodsXml: string[] = [];
+    const handlers: Record<string, (...args: never[]) => unknown> = {};
+    const methodKinds: Record<string, StorybookMethodKind> = {};
+
+    for (const method of ext.methods) {
+        const xml = METHODS_XML[method.name];
+        if (xml) methodsXml.push(xml);
+        handlers[method.name] = method.handler;
+        methodKinds[method.name] = method.kind;
+    }
 
     return {
-        methodsXml: [
-            '<method name="ListStories"><arg type="s" direction="out" name="stories_json"/></method>',
-            '<method name="GetCurrentStory"><arg type="s" direction="out" name="story_json"/></method>',
-            '<method name="OpenStory"><arg type="s" direction="in" name="title"/><arg type="b" direction="out" name="opened"/></method>',
-            '<method name="SetStoryArg"><arg type="s" direction="in" name="name"/><arg type="s" direction="in" name="value_json"/><arg type="b" direction="out" name="applied"/></method>',
-            '<method name="GetStoryArgs"><arg type="s" direction="out" name="args_json"/></method>',
-        ],
-        handlers: {
-            ListStories: () => JSON.stringify(listStories(), null, 2),
-            GetCurrentStory: () => {
-                const s = window.activeStory;
-                return JSON.stringify(s ? { title: s.meta.title, story: s.story, args: s.args } : null, null, 2);
-            },
-            OpenStory: (title: string) => window.openStoryByTitle(title),
-            SetStoryArg: (name: string, valueJson: string) =>
-                window.setActiveArg(name, valueJson ? JSON.parse(valueJson) : null),
-            GetStoryArgs: () => JSON.stringify(window.activeStory?.args ?? {}, null, 2),
-        },
-        methodKinds: {
-            ListStories: 'read-only',
-            GetCurrentStory: 'read-only',
-            OpenStory: 'mutating',
-            SetStoryArg: 'mutating',
-            GetStoryArgs: 'read-only',
-        },
-        contributeStatus: () => {
-            const s = window.activeStory;
-            return {
-                storybook: {
-                    currentStory: s ? { title: s.meta.title, story: s.story } : null,
-                    storyCount: listStories().length,
-                },
-            };
-        },
+        methodsXml,
+        handlers,
+        methodKinds,
+        contributeStatus: ext.contributeStatus,
     };
 }

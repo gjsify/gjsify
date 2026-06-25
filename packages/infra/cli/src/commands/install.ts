@@ -27,7 +27,13 @@ import type { Command } from '../types/index.js';
 import { buildInstallCommand, detectPackageManager, runMinimalChecks } from '../utils/check-system-deps.js';
 import { detectNativePackages } from '../utils/detect-native-packages.js';
 import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
-import { binDirOnPath, defaultGlobalLayout, linkGlobalBins, specToPackageName } from '../utils/install-global.js';
+import {
+    binDirOnPath,
+    defaultGlobalLayout,
+    installGjsEnginePackages,
+    linkGlobalBins,
+    specToPackageName,
+} from '../utils/install-global.js';
 import {
     addDependencyEntry,
     defaultRangeFromVersion,
@@ -1036,13 +1042,30 @@ async function installGlobalAndLink(specs: string[], opts: { verbose: boolean })
     console.log(`gjsify install --global  → ${layout.prefix}`);
     console.log(`                  bins → ${layout.binDir}`);
 
-    await installPackages({
+    const result = await installPackages({
         prefix: layout.prefix,
         specs,
         verbose: opts.verbose,
     });
 
     const packageNames = specs.map(specToPackageName);
+
+    // A global GJS install of `@gjsify/cli` must also lay down the GJS-native
+    // bundler engine (`@gjsify/rolldown-native`) + the sibling format/CSS
+    // bridges. They are declared OPTIONAL peers of `@gjsify/cli` (so plain
+    // `npm install @gjsify/cli` on Node doesn't force a linux prebuild), and
+    // the native backend doesn't resolve peerDependencies at all — so without
+    // this they'd never be installed, and `gjsify build` would hard-fail under
+    // GJS ("no usable bundler engine"). Installed best-effort at the cli's
+    // resolved version so they move in lockstep with the bundle; a platform
+    // with no published prebuild degrades to a warning. Must run BEFORE
+    // linkGlobalBins so the launcher's detectNativePackages() bakes the
+    // engine's prebuild dirs into the wrapper's GI_TYPELIB_PATH/LD_LIBRARY_PATH.
+    if (packageNames.includes('@gjsify/cli')) {
+        const cliVersion = result.installed.find((r) => r.name === '@gjsify/cli')?.version ?? 'latest';
+        await installGjsEnginePackages(layout.prefix, cliVersion, { verbose: opts.verbose });
+    }
+
     const created = linkGlobalBins(packageNames, layout);
 
     if (created.length === 0) {

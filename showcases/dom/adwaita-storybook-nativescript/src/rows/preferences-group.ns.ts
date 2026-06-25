@@ -1,0 +1,79 @@
+// NativeScript port of the Preferences Group story. Shares metadata with the
+// GTK preferences-group.story.ts and browser preferences-group.web.ts (imported
+// from the GTK showcase's renderer-agnostic *.meta.ts barrel).
+
+import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
+import {
+    AdwButton,
+    AdwClamp,
+    AdwComboRow,
+    AdwEntryRow,
+    AdwPreferencesGroup,
+    AdwSwitchRow,
+} from '@gjsify/adwaita-nativescript';
+import { preferencesGroupMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
+
+const REGION_OPTIONS = ['Europe', 'Americas', 'Asia', 'Oceania'];
+
+export class PreferencesGroupNsStory extends StoryView {
+    private _group: AdwPreferencesGroup | null = null;
+
+    constructor() {
+        super(PreferencesGroupNsStory.getMetadata(), 'Default');
+    }
+
+    static getMetadata(): StoryMeta {
+        return preferencesGroupMeta;
+    }
+
+    initialize(): void {
+        this._group = new AdwPreferencesGroup();
+
+        const nameRow = new AdwEntryRow();
+        nameRow.title = 'Display name';
+        nameRow.text = 'Grace Hopper';
+        this._group.addRow(nameRow);
+
+        const syncRow = new AdwSwitchRow();
+        syncRow.title = 'Sync over Wi-Fi only';
+        syncRow.subtitle = 'Avoid using mobile data for backups';
+        syncRow.active = true;
+        this._group.addRow(syncRow);
+
+        const regionRow = new AdwComboRow();
+        regionRow.title = 'Region';
+        regionRow.options = REGION_OPTIONS.map((s) => ({ label: s, value: s }));
+        regionRow.selectedIndex = 0;
+        this._group.addRow(regionRow);
+
+        // The native story's `headerSuffix` is a flat "Sign out" Gtk.Button in the
+        // group header. AdwPreferencesGroup (NS) has no header-suffix slot, so the
+        // closest static presentation is a flat button placed as the trailing row.
+        const signOut = new AdwButton();
+        signOut.variant = 'flat';
+        signOut.text = 'Sign out';
+        this._group.addRow(signOut);
+
+        this._syncGroup();
+
+        const clamp = new AdwClamp();
+        clamp.maximumSize = 400;
+        clamp.setChild(this._group);
+
+        this.addContent(clamp);
+    }
+
+    updateArgs(_args: StoryArgs): void {
+        this._syncGroup();
+    }
+
+    private _syncGroup(): void {
+        if (!this._group) return;
+        this._group.title = this.args.title as string;
+        // `description` has no NS equivalent on AdwPreferencesGroup (only the dim
+        // uppercase title header exists); the arg stays bound but is inert.
+        void (this.args.description as string);
+    }
+}
+
+export const PreferencesGroupNsStories: NsStoryModule = { stories: [PreferencesGroupNsStory] };

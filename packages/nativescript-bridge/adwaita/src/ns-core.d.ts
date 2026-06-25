@@ -58,6 +58,8 @@ declare module '@nativescript/core' {
     /** A view that can hold children. */
     export class LayoutBase extends View {
         addChild(view: View): void;
+        /** Insert a child at a specific index (paint/stacking order). */
+        insertChild(view: View, atIndex: number): void;
         removeChild(view: View): void;
         getChildAt(index: number): View;
         getChildrenCount(): number;
@@ -116,6 +118,14 @@ declare module '@nativescript/core' {
     export class ScrollView extends View {
         orientation: 'horizontal' | 'vertical';
         content: View;
+        /** Programmatically scroll to a horizontal offset (DIPs). */
+        scrollToHorizontalOffset(value: number, animated: boolean): void;
+        /** Programmatically scroll to a vertical offset (DIPs). */
+        scrollToVerticalOffset(value: number, animated: boolean): void;
+        /** Current horizontal scroll offset, in DIPs. */
+        readonly horizontalOffset: number;
+        /** Current vertical scroll offset, in DIPs. */
+        readonly verticalOffset: number;
     }
 
     /** A single-child container — `<ContentView>`. */
@@ -128,6 +138,64 @@ declare module '@nativescript/core' {
         items: unknown[];
         selectedIndex: number;
     }
+
+    /** A flowing wrap container — `<WrapLayout>`. Children flow to the next line. */
+    export class WrapLayout extends LayoutBase {
+        orientation: 'horizontal' | 'vertical';
+        /** Fixed slot width for each item, in DIPs (optional). */
+        itemWidth: number;
+        /** Fixed slot height for each item, in DIPs (optional). */
+        itemHeight: number;
+    }
+
+    /** A layout whose children are positioned by absolute left/top — `<AbsoluteLayout>`. */
+    export class AbsoluteLayout extends LayoutBase {
+        static setLeft(view: View, value: number): void;
+        static setTop(view: View, value: number): void;
+        static getLeft(view: View): number;
+        static getTop(view: View): number;
+    }
+
+    /** A spinning busy indicator — `<ActivityIndicator>`. */
+    export class ActivityIndicator extends View {
+        /** Whether the indicator spins. */
+        busy: boolean;
+    }
+
+    /** An image view — `<Image>`. */
+    export class Image extends View {
+        /** Image source: a URI, `data:` URL, `~/`-relative path, or `res://` resource. */
+        src: string;
+        /** Stretch mode (`'none' | 'aspectFill' | 'aspectFit' | 'fill'`). */
+        stretch: string;
+    }
+
+    /** One segment of a {@link SegmentedBar}. */
+    export class SegmentedBarItem extends Observable {
+        title: string;
+    }
+
+    /** A segmented (linked) control — `<SegmentedBar>`. Exactly one item is selected. */
+    export class SegmentedBar extends View {
+        items: SegmentedBarItem[];
+        selectedIndex: number;
+    }
+
+    /** Options accepted by the {@link confirm} dialog. */
+    export interface ConfirmOptions {
+        title?: string;
+        message?: string;
+        okButtonText?: string;
+        cancelButtonText?: string;
+        neutralButtonText?: string;
+        cancelable?: boolean;
+    }
+
+    /**
+     * Show a native confirm dialog. Resolves `true` (OK), `false` (cancel), or
+     * `undefined` (neutral / dismissed). NativeScript free function.
+     */
+    export function confirm(options: ConfirmOptions): Promise<boolean | undefined>;
 
     /** Bitmask of gesture types (only `tap` is used here). */
     export enum GestureTypes {
