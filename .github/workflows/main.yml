@@ -131,6 +131,13 @@ jobs:
 
     name: Fedora ${{ matrix.fedora.v }} (${{ matrix.fedora.gjs }})
     runs-on: ubuntu-latest
+    # `packages: read` lets the job pull the prebuilt container image from
+    # GHCR (the ci-fedora package is private). `contents: read` is the
+    # default checkout scope, restated since declaring permissions resets
+    # the set.
+    permissions:
+      contents: read
+      packages: read
     # Cap the whole job well under GitHub's 6h default so a runaway (e.g. a
     # hung build step) fails early instead of burning a runner for 6h. The
     # per-step guard on "Build examples" below is the tighter, targeted net.
@@ -141,7 +148,17 @@ jobs:
     # the cap once cold builds are fast enough.
     timeout-minutes: 240
     container:
-      image: fedora:${{ matrix.fedora.v }}
+      # Prebuilt image baked by .github/workflows/build-ci-image.yml — ships
+      # every GJS/GNOME/Vala dnf package preinstalled, so the per-job `dnf
+      # install` steps (3-5 min/leg) are gone. .docker/ci-fedora.Dockerfile is
+      # the source of truth for the package set; keep it in lockstep. Falls
+      # back to nothing — a missing/private image fails the pull loudly.
+      # `credentials` because the GHCR package is private; remove them if the
+      # package is made public (which also enables fork-PR pulls).
+      image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
       # Raise the open-file limit for every step. The parallel GJS `foreach`
       # test run opens many fds (GStreamer/webrtc pipelines, in-process bundler
       # eventfds), exhausting the default nofile soft limit on the Fedora 43 leg
@@ -152,13 +169,19 @@ jobs:
       options: --ulimit nofile=1048576:1048576
 
     steps:
-      - name: Install container prerequisites
-        # `libatomic` BEFORE setup-node: Node >= 26's prebuilt binary links
-        # libatomic.so.1, which the minimal Fedora container lacks — without it
-        # `node` fails with "error while loading shared libraries: libatomic.so.1"
-        # the moment setup-node runs it. (The GNOME dnf below also pulls it in,
-        # but that runs after setup-node, too late.)
-        run: dnf install -y git tar xz findutils libatomic
+      - name: Verify prebuilt CI image
+        # The image bakes /etc/gjsify-ci-fedora-version. Its presence confirms
+        # we booted the prebuilt ghcr.io/gjsify/ci-fedora image (with all dnf
+        # packages incl. git/tar/xz/findutils/libatomic that checkout +
+        # setup-node need) and not a bare fallback. Non-fatal: a genuinely
+        # missing package would fail Build/Check/Test anyway — this just makes
+        # the diagnosis instant.
+        run: |
+          if [ -f /etc/gjsify-ci-fedora-version ]; then
+            echo "Prebuilt CI image OK (Fedora $(cat /etc/gjsify-ci-fedora-version))"
+          else
+            echo "::warning::/etc/gjsify-ci-fedora-version missing — not the prebuilt ci-fedora image; dnf packages may be absent."
+          fi
 
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -168,43 +191,13 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: Install GJS and GNOME development libraries
-        # gstreamer1-{,plugins-base-,plugins-bad-free-}devel provide the
-        # gstreamer-1.0 / gstreamer-sdp-1.0 / gstreamer-webrtc-1.0 pkg-config
-        # files + headers needed to compile @gjsify/webrtc-native at Vala
-        # build time. libnice-gstreamer1 provides the `nice` plugin that
-        # webrtcbin needs at runtime for the WebRTC test suite.
-        #
-        # `glib2` (NOT just `glib2-devel`) ships the `glib-compile-resources`
-        # binary that tests/e2e/cli-only/run.mjs hard-requires for the
-        # `gjsify gresource` test (silent-skip was hiding the gap in CI).
-        # `gettext` ships `msgfmt` for the parallel `gjsify gettext` test.
-        run: >
-          dnf install -y
-          gjs
-          glib2
-          glib2-devel
-          gettext
-          gobject-introspection-devel
-          gtk4-devel
-          libsoup3-devel
-          webkitgtk6.0-devel
-          libadwaita-devel
-          gdk-pixbuf2-devel
-          libepoxy-devel
-          gstreamer1-devel
-          gstreamer1-plugins-base-devel
-          gstreamer1-plugins-bad-free-devel
-          libnice-gstreamer1
-          libgda
-          libgda-sqlite
-          xorg-x11-server-Xvfb
-          mesa-dri-drivers
-          mesa-libGL
-
-
-      - name: Install Meson, Vala and Blueprint Compiler
-        run: dnf install -y meson vala gcc pkgconf blueprint-compiler
+      # GJS / GNOME devel libs (gjs, glib2[-devel], gettext, gtk4-devel,
+      # libsoup3-devel, webkitgtk6.0-devel, libadwaita-devel, gstreamer1-*,
+      # libnice-gstreamer1, libgda*, xvfb, mesa, …) AND the native-bridge
+      # toolchain (meson, vala, gcc, pkgconf, blueprint-compiler) are baked
+      # into the prebuilt image — see .docker/ci-fedora.Dockerfile. No
+      # per-job dnf install. When a build needs a NEW system package, add it
+      # to the Dockerfile (the push to main rebuilds + pushes the image).
 
       - name: Enable corepack (yarn shim for PnP e2e suite)
         # tests/e2e/{cli-only-pnp,pnp-zip-static-reads}/ hard-require yarn
