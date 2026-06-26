@@ -32,6 +32,9 @@ import {
 // `@nativescript/core` value import and loads off-device. We test the REAL helper.
 import { attachRowPressFeedback } from './widgets/row-press.js';
 import type { TouchGestureEventData, View } from '@nativescript/core';
+// `icon-path.js` is pure (no `@nativescript/core` import), so the real symbolic-icon
+// path extraction is unit-testable off-device.
+import { extractIconPaths, extractPathData } from './widgets/icon-path.js';
 
 // The XML-registration helper only touches the global `registerElement` (it does
 // not extend any `@nativescript/core` class at module-eval), so its own module is
@@ -731,6 +734,39 @@ export default async () => {
             row.fire('down');
             row.fire('move');
             expect(row.pseudo.has('highlighted')).toBe(true);
+        });
+    });
+
+    await describe('symbolic-icon path extraction (Adwaita icons → native render)', async () => {
+        // A single-path icon (like go-previous-symbolic).
+        const SINGLE = '<svg viewBox="0 0 16 16"><path d="m 12 2 l -6 6 z" fill="currentColor"/></svg>';
+        // A multi-path icon with a dimmed sub-fill (like sidebar-show-right-symbolic).
+        const MULTI =
+            '<svg viewBox="0 0 16 16"><g fill="currentColor">' +
+            '<path d="m 10 13 v -10 z" fill-opacity="0.34902"/>' +
+            '<path d="m 13 1 c 1 1 1 1 z"/></g></svg>';
+
+        await it('extracts a single path at full opacity', () => {
+            const paths = extractIconPaths(SINGLE);
+            expect(paths.length).toBe(1);
+            expect(paths[0]!.d).toBe('m 12 2 l -6 6 z');
+            expect(paths[0]!.opacity).toBe(1);
+        });
+
+        await it('keeps each path separate with its own fill-opacity', () => {
+            const paths = extractIconPaths(MULTI);
+            expect(paths.length).toBe(2);
+            expect(paths[0]!.opacity).toBeLessThan(1);
+            expect(paths[0]!.opacity).toBeGreaterThan(0.3);
+            expect(paths[1]!.opacity).toBe(1);
+        });
+
+        await it('returns no paths for an SVG without path data', () => {
+            expect(extractIconPaths('<svg viewBox="0 0 16 16"></svg>')).toStrictEqual([]);
+        });
+
+        await it('extractPathData concatenates every path d', () => {
+            expect(extractPathData(MULTI)).toBe('m 10 13 v -10 z m 13 1 c 1 1 1 1 z');
         });
     });
 };

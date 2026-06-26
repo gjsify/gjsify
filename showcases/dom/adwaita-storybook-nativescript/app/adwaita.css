@@ -257,6 +257,28 @@ Page.adw-window {
     background-color: #ebebeb;
 }
 
+/* ===== Image button (circular flat icon button — header bars) ===== */
+
+/* Adwaita header buttons are flat CIRCULAR icon buttons: transparent at rest,
+ * darkening on press (the flat-button `:active` shade). 34×34 with a 16px symbolic
+ * icon, matching libadwaita's `button.image-button`. The `:highlighted` press state
+ * is wired by `attachRowPressFeedback()` (NS only auto-highlights `Button`). */
+.adw-image-button {
+    background-color: transparent;
+    width: 34;
+    height: 34;
+    border-radius: 9999;
+    margin: 0 2 0 2;
+}
+
+.adw-image-button:highlighted {
+    background-color: rgba(0, 0, 0, 0.13);
+}
+
+.adw-image-button-icon {
+    margin: 0;
+}
+
 /* ===== Banner (neutral info strip — Adw.Banner default is NOT accent-filled) ===== */
 
 .adw-banner {
@@ -894,6 +916,11 @@ Page.ns-dark.adw-window {
 .ns-dark .adw-button-row:highlighted,
 .ns-dark .adw-combo-row:highlighted {
     background-color: #44444a;
+}
+
+/* Dark circular header icon button press (flat-button `:active`, white overlay). */
+.ns-dark .adw-image-button:highlighted {
+    background-color: rgba(255, 255, 255, 0.15);
 }
 
 /* ===== Dark: banner (neutral dark strip) ===== */
