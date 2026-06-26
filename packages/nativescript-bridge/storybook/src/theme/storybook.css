@@ -82,20 +82,21 @@
     color: #ffffff;
 }
 
-/* ===== Detail header (back button + story title) ===== */
+/* ===== Detail header (back + story title + controls toggle) ===== */
 
 .sb-detail-header {
     background-color: #fafafb;
 }
 
-.sb-back-button {
-    font-size: 15;
+.sb-back-button,
+.sb-controls-toggle {
+    font-size: 18;
 }
 
-/* ===== Detail area (scrolled preview + controls) ===== */
+/* ===== Detail area (preview content + right controls overlay) ===== */
 
-.sb-detail-scroll,
-.sb-detail-body {
+.sb-controls-split,
+.sb-preview-scroll {
     background-color: #fafafb;
 }
 
@@ -136,33 +137,37 @@
     margin: 8 0 0 0;
 }
 
-/* ===== Controls panel ===== */
-
-.sb-controls-section {
-    background-color: #fafafb;
-    border-top-width: 1;
-    border-top-color: rgba(0, 0, 0, 0.08);
-}
+/* ===== Controls panel — a RIGHT overlay (sidebar_position=END) ===== */
+/* Opaque so it covers the preview when toggled on; the left hairline + tinted
+   fill read as a distinct sidebar (the GTK OverlaySplitView controls pane). */
 
 .sb-controls-scroll {
-    background-color: #fafafb;
+    background-color: #ebebed;
+    border-left-width: 1;
+    border-left-color: rgba(0, 0, 0, 0.1);
 }
 
 .sb-controls-group {
-    margin: 12;
+    margin: 8 12 12 12;
+    background-color: #ebebed;
 }
 
 /* ===== Dark mode ===== */
 
 .ns-dark.sb-window,
 .ns-dark .sb-content-pane,
-.ns-dark .sb-detail-scroll,
-.ns-dark .sb-detail-body,
+.ns-dark .sb-controls-split,
+.ns-dark .sb-preview-scroll,
 .ns-dark .sb-preview-pane,
-.ns-dark .sb-detail-header,
-.ns-dark .sb-controls-section {
+.ns-dark .sb-detail-header {
     background-color: #1d1d20;
     color: rgba(255, 255, 255, 0.8);
+}
+
+.ns-dark .sb-controls-scroll,
+.ns-dark .sb-controls-group {
+    background-color: #242428;
+    border-left-color: rgba(255, 255, 255, 0.1);
 }
 
 .ns-dark .sb-sidebar-pane,

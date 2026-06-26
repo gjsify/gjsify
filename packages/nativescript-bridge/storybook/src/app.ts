@@ -24,10 +24,11 @@ import {
 } from '@gjsify/storybook-core';
 import {
     AdwButton,
-    AdwClamp,
     AdwHeaderBar,
     AdwNavigationSplitView,
+    AdwOverlaySplitView,
     AdwPreferencesGroup,
+    AdwToolbarView,
     AdwWindowTitle,
 } from '@gjsify/adwaita-nativescript';
 import { Label, ScrollView, StackLayout, type View } from '@nativescript/core';
@@ -59,6 +60,8 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
     private _previewSlot!: StackLayout;
     private _previewTitle!: AdwWindowTitle;
     private _controlsGroup!: AdwPreferencesGroup;
+    /** Right controls overlay (the GTK OverlaySplitView, sidebar_position=END). */
+    private _controlsSplit!: AdwOverlaySplitView;
 
     private _rowByTitle = new Map<string, StackLayout>();
 
@@ -184,15 +187,22 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
     }
 
     private _buildUI(): void {
-        // --- Sidebar pane (master): header + scrollable boxed story list ---
-        const sidebar = new StackLayout();
-        sidebar.orientation = 'vertical';
-        sidebar.className = 'sb-sidebar-pane';
+        // Each pane is an AdwToolbarView with its OWN header bar — the collapsed
+        // navigation split shows one pane at a time, so only that pane's header is
+        // visible. There is NO page-level ActionBar (set on the NS Page), so the
+        // app shows a SINGLE header bar, matching the GTK storybook where each
+        // Adw.NavigationPage carries its own Adw.HeaderBar.
 
+        // --- Sidebar pane (master): header "Adwaita Storybook" + story list ---
+        const sidebar = new AdwToolbarView();
+        sidebar.className = `${sidebar.className} sb-sidebar-pane`.trim();
+
+        const sidebarHeader = new AdwHeaderBar();
+        sidebarHeader.className = `${sidebarHeader.className} sb-sidebar-header`.trim();
         const sidebarTitle = new AdwWindowTitle();
         sidebarTitle.title = this._options.title ?? 'Stories';
-        sidebarTitle.className = `${sidebarTitle.className} sb-sidebar-header`.trim();
-        sidebar.addChild(sidebarTitle);
+        sidebarHeader.setTitleWidget(sidebarTitle);
+        sidebar.addTopBar(sidebarHeader);
 
         this._listColumn = new StackLayout();
         this._listColumn.orientation = 'vertical';
@@ -200,20 +210,20 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         const sidebarScroll = new ScrollView();
         sidebarScroll.className = 'sb-sidebar-scroll';
         sidebarScroll.content = this._listColumn;
-        sidebar.addChild(sidebarScroll);
+        sidebar.setContent(sidebarScroll);
         this.root.setSidebar(sidebar);
 
-        // --- Detail pane: a header bar (back button + story title) above the
-        //     scrolled preview + its live controls. Mirrors the GTK
-        //     NavigationSplitView's collapsed detail page. ---
-        const detail = new StackLayout();
-        detail.orientation = 'vertical';
-        detail.className = 'sb-content-pane';
+        // --- Detail pane: a header bar (back + story title + a controls toggle)
+        //     over an OverlaySplitView whose content is the preview and whose
+        //     RIGHT (sidebar_position=END) overlay is the controls — the GTK
+        //     preview NavigationPage + its OverlaySplitView controls sidebar. ---
+        const detail = new AdwToolbarView();
+        detail.className = `${detail.className} sb-content-pane`.trim();
 
         const header = new AdwHeaderBar();
         header.className = `${header.className} sb-detail-header`.trim();
         const back = new AdwButton();
-        back.text = '‹  Stories';
+        back.text = '‹';
         back.variant = 'flat';
         back.className = `${back.className} sb-back-button`.trim();
         back.addEventListener('tap', () => this.root.showSidebarPane());
@@ -222,31 +232,44 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         this._previewTitle = new AdwWindowTitle();
         this._previewTitle.title = 'Preview';
         header.setTitleWidget(this._previewTitle);
-        detail.addChild(header);
 
-        // The preview + its live controls share one vertical scroll (the phone
-        // detail page).
-        const detailBody = new StackLayout();
-        detailBody.orientation = 'vertical';
-        detailBody.className = 'sb-detail-body';
+        const controlsToggle = new AdwButton();
+        controlsToggle.text = '☰';
+        controlsToggle.variant = 'flat';
+        controlsToggle.className = `${controlsToggle.className} sb-controls-toggle`.trim();
+        controlsToggle.addEventListener('tap', () => {
+            this._controlsSplit.showSidebar = !this._controlsSplit.showSidebar;
+        });
+        header.packEnd(controlsToggle);
+        detail.addTopBar(header);
+
+        // The overlay split: preview as content, controls as a right overlay.
+        this._controlsSplit = new AdwOverlaySplitView();
+        this._controlsSplit.collapsed = true;
+        this._controlsSplit.sidebarPosition = 'end';
+        this._controlsSplit.sidebarWidth = 320;
+        this._controlsSplit.className = `${this._controlsSplit.className} sb-controls-split`.trim();
 
         this._previewSlot = new StackLayout();
         this._previewSlot.orientation = 'vertical';
         this._previewSlot.className = 'sb-preview-pane';
-        detailBody.addChild(this._previewSlot);
+        const previewScroll = new ScrollView();
+        previewScroll.className = 'sb-preview-scroll';
+        previewScroll.content = this._previewSlot;
+        this._controlsSplit.setContent(previewScroll);
 
-        const controlsClamp = new AdwClamp();
-        controlsClamp.className = `${controlsClamp.className} sb-controls-section`.trim();
         this._controlsGroup = new AdwPreferencesGroup();
         this._controlsGroup.title = 'Controls';
         this._controlsGroup.className = `${this._controlsGroup.className} sb-controls-group`.trim();
-        controlsClamp.setChild(this._controlsGroup);
-        detailBody.addChild(controlsClamp);
+        const controlsScroll = new ScrollView();
+        controlsScroll.className = 'sb-controls-scroll';
+        controlsScroll.content = this._controlsGroup;
+        this._controlsSplit.setSidebar(controlsScroll);
+        // Controls start hidden (full-width preview); the toggle reveals the right
+        // overlay — the phone form of the GTK collapsed OverlaySplitView.
+        this._controlsSplit.hideSidebarPane();
 
-        const detailScroll = new ScrollView();
-        detailScroll.className = 'sb-detail-scroll';
-        detailScroll.content = detailBody;
-        detail.addChild(detailScroll);
+        detail.setContent(this._controlsSplit);
         this.root.setContent(detail);
 
         // Start on the story list (the master pane).

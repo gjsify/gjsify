@@ -38,6 +38,7 @@ export abstract class AdwSplitViewBase extends GridLayout {
     protected _collapsed = false;
     protected _showSidebar = true;
     protected _sidebarWidth = DEFAULT_SIDEBAR_WIDTH;
+    protected _sidebarPosition: 'start' | 'end' = 'start';
 
     constructor(rootClass: string) {
         super();
@@ -121,6 +122,18 @@ export abstract class AdwSplitViewBase extends GridLayout {
     set sidebarWidth(value: number) {
         this._sidebarWidth = Number.isFinite(value) && value > 0 ? value : DEFAULT_SIDEBAR_WIDTH;
         if (this._sidebar) this._sidebar.width = this._sidebarWidth;
+    }
+
+    /** Which side the sidebar sits on — `'start'` (leading / left) or `'end'`
+     *  (trailing / right). Mirrors `Adw.OverlaySplitView`'s `sidebar-position`
+     *  (the storybook controls overlay uses `'end'`). */
+    get sidebarPosition(): 'start' | 'end' {
+        return this._sidebarPosition;
+    }
+
+    set sidebarPosition(value: 'start' | 'end') {
+        this._sidebarPosition = value === 'end' ? 'end' : 'start';
+        this._applyLayout();
     }
 
     /** The sidebar pane, or `null`. */

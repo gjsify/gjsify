@@ -1,6 +1,7 @@
-<Page navigatingTo="onNavigatingTo" class="adw-window" xmlns="http://schemas.nativescript.org/tns.xsd">
-    <!-- The storybook root view (sidebar + preview + controls) is built
-         programmatically in the code-behind and set as this page's content. -->
-    <ActionBar title="Adwaita Storybook" flat="true" />
+<Page navigatingTo="onNavigatingTo" class="adw-window" actionBarHidden="true" xmlns="http://schemas.nativescript.org/tns.xsd">
+    <!-- The storybook root view is built programmatically in the code-behind and
+         set as this page's content. The page ActionBar is hidden — each split-view
+         pane carries its OWN AdwHeaderBar (AdwToolbarView), so a SINGLE header bar
+         shows at a time, matching the native GTK storybook. -->
     <ContentView id="host" />
 </Page>
