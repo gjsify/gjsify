@@ -85,11 +85,17 @@ export function lookup(
         callback = args[1];
     }
 
-    // Handle empty hostname — Node.js returns null for address
+    // Reject an empty/non-string hostname synchronously, matching Node (>=25),
+    // which validates the argument with ERR_INVALID_ARG_VALUE before scheduling
+    // the lookup. Older Node leniently called back with a null address; this was
+    // tightened under Node 26 (see #601), so follow it for cross-runtime parity.
     if (!hostname) {
-        const family = options.family || 4;
-        callback(null, null as unknown as string, family);
-        return;
+        const received = hostname === '' ? "''" : String(hostname);
+        const err = new TypeError(
+            `The argument 'hostname' must be a non-empty string. Received ${received}`,
+        ) as NodeJS.ErrnoException;
+        err.code = 'ERR_INVALID_ARG_VALUE';
+        throw err;
     }
 
     // Handle IP addresses directly (no DNS needed)

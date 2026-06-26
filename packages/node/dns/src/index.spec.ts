@@ -186,26 +186,27 @@ export default async () => {
                 });
             });
 
-            await it('should return null for empty hostname', async () => {
-                await new Promise<void>((resolve) => {
-                    lookup('', (err, address, family) => {
-                        expect(err).toBeNull();
-                        expect(address).toBeNull();
-                        expect(family).toBe(4);
-                        resolve();
-                    });
-                });
+            await it('should throw ERR_INVALID_ARG_VALUE for empty hostname', async () => {
+                // Node (>=25) and @gjsify/dns both reject an empty hostname
+                // synchronously with ERR_INVALID_ARG_VALUE — older Node called
+                // back with a null address; tightened under Node 26 (see #601).
+                let code: string | undefined;
+                try {
+                    lookup('', () => {});
+                } catch (e) {
+                    code = (e as any).code;
+                }
+                expect(code).toBe('ERR_INVALID_ARG_VALUE');
             });
 
-            await it('should return null for empty hostname with family 6', async () => {
-                await new Promise<void>((resolve) => {
-                    lookup('', { family: 6 }, (err, address, family) => {
-                        expect(err).toBeNull();
-                        expect(address).toBeNull();
-                        expect(family).toBe(6);
-                        resolve();
-                    });
-                });
+            await it('should throw ERR_INVALID_ARG_VALUE for empty hostname with family 6', async () => {
+                let code: string | undefined;
+                try {
+                    lookup('', { family: 6 }, () => {});
+                } catch (e) {
+                    code = (e as any).code;
+                }
+                expect(code).toBe('ERR_INVALID_ARG_VALUE');
             });
 
             await it('should return all addresses with all: true', async () => {
