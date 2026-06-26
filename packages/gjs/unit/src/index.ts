@@ -914,6 +914,11 @@ const browserSignalDone = () => {
 const printResult = () => {
     const totalMs = runStartTime > 0 ? now() - runStartTime : 0;
     const durationStr = totalMs > 0 ? `  ${GRAY}(${formatDuration(totalMs)})` : '';
+    // Tag the summary with the runtime so a failure is self-identifying in a
+    // concatenated multi-package, multi-runtime CI log — a native-Node failure
+    // reads as `[Node.js …]`, not as a GJS/gjsify problem. `runtime` is set by
+    // getRuntime() during the run's startup printRuntime().
+    const rtTag = runtime ? `[${runtime}] ` : '';
 
     if (countTestsIgnored) {
         // some tests ignored
@@ -934,10 +939,10 @@ const printResult = () => {
 
     if (countTestsFailed) {
         // some tests failed
-        print(`\n${RED}❌ ${countTestsFailed} of ${countTestsOverall} tests failed${durationStr}${RESET}`);
+        print(`\n${RED}❌ ${rtTag}${countTestsFailed} of ${countTestsOverall} tests failed${durationStr}${RESET}`);
     } else {
         // all tests okay
-        print(`\n${GREEN}✔ ${countTestsOverall} completed${durationStr}${RESET}`);
+        print(`\n${GREEN}✔ ${rtTag}${countTestsOverall} completed${durationStr}${RESET}`);
     }
 };
 
