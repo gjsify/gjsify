@@ -571,6 +571,12 @@ Page.adw-window {
     background-color: #ebebed;
 }
 
+/* Tap-to-dismiss scrim drawn between content and the overlaid sidebar. Faded in/out
+ * by the slide animation; matches the dialog scrim dim (NS subset has no blur). */
+.adw-overlay-scrim {
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
 /* ===== Sidebar (boxed navigation list) ===== */
 
 .adw-sidebar {
@@ -997,6 +1003,10 @@ Page.ns-dark.adw-window {
 
 .ns-dark .adw-split-view-content {
     background-color: #222226;
+}
+
+.ns-dark .adw-overlay-scrim {
+    background-color: rgba(0, 0, 0, 0.55);
 }
 
 /* ===== Dark: sidebar ===== */
