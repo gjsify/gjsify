@@ -153,7 +153,12 @@ jobs:
 
     steps:
       - name: Install container prerequisites
-        run: dnf install -y git tar xz findutils
+        # `libatomic` BEFORE setup-node: Node >= 26's prebuilt binary links
+        # libatomic.so.1, which the minimal Fedora container lacks — without it
+        # `node` fails with "error while loading shared libraries: libatomic.so.1"
+        # the moment setup-node runs it. (The GNOME dnf below also pulls it in,
+        # but that runs after setup-node, too late.)
+        run: dnf install -y git tar xz findutils libatomic
 
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -206,9 +211,11 @@ jobs:
         # (>= 4 via corepack's `packageManager` field). Yarn-PnP is a
         # first-class gjsify consumer scenario — silent-skipping the suite
         # when yarn was missing hid real coverage gaps for PnP users
-        # (ts-for-gir, easy6502). Node 24 ships corepack; enable it once
-        # so `which yarn` succeeds.
-        run: corepack enable
+        # (ts-for-gir, easy6502). Node >= 25 UNBUNDLED corepack (Node 24 shipped
+        # it), so install it via the bundled npm before enabling it.
+        run: |
+          npm install -g corepack
+          corepack enable
 
       # Persistent tarball cache for `gjsify install`. Under `--immutable`
       # the resolve/metadata phase is skipped, so the ~9 min install is
