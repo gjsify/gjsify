@@ -1,5 +1,63 @@
 # Changelog
 
+## [0.12.0](https://github.com/gjsify/gjsify/compare/v0.11.0...v0.12.0) (2026-06-26)
+
+### Features
+
+* add Adwaita slider row + boxed-list rounding ([#606](https://github.com/gjsify/gjsify/issues/606)) ([92128c4](https://github.com/gjsify/gjsify/commit/92128c41024d4f06ba0efcd207d23b2395e76ddd))
+* add browser storybook renderer and adwaita-web parity components ([#576](https://github.com/gjsify/gjsify/issues/576)) ([26079a6](https://github.com/gjsify/gjsify/commit/26079a6251d2a8781bced9e6e556b716cf71e1ab))
+* add press feedback to NS Adwaita rows ([#604](https://github.com/gjsify/gjsify/issues/604)) ([b879f87](https://github.com/gjsify/gjsify/commit/b879f87ae228fc8f30fc639a8ae40e609809196e)), closes [#ffffff](https://github.com/gjsify/gjsify/issues/ffffff) [#ebebeb](https://github.com/gjsify/gjsify/issues/ebebeb) [#34343a](https://github.com/gjsify/gjsify/issues/34343a) [#44444a](https://github.com/gjsify/gjsify/issues/44444a) [#ffffff](https://github.com/gjsify/gjsify/issues/ffffff) [#ebebeb](https://github.com/gjsify/gjsify/issues/ebebeb)
+* add the cdp MCP profile + `gjsify debug --profile cdp` ([#574](https://github.com/gjsify/gjsify/issues/574)) ([f723a25](https://github.com/gjsify/gjsify/commit/f723a25a151072ed79858a2cf3bf1acdae41bc96))
+* adwaita storybook on nativescript ([#594](https://github.com/gjsify/gjsify/issues/594)) ([051479e](https://github.com/gjsify/gjsify/commit/051479ed8649e42f10e5a481c9ba6dfe9bb23cdb))
+* **adwaita-storybook:** standard gjsify showcase + medium-width controls fold ([#588](https://github.com/gjsify/gjsify/issues/588)) ([7bcd7c6](https://github.com/gjsify/gjsify/commit/7bcd7c6bf1b1fa2fe4b21f74435d1b00ae93cb37))
+* adwaita-web browser parity for showcases + components, devtools & webgl snapshot ([f24f215](https://github.com/gjsify/gjsify/commit/f24f215b4fe225781bf0415397f5a92442bf3984))
+* **adwaita-web:** button, expander and password rows + entry-row pencil ([#580](https://github.com/gjsify/gjsify/issues/580)) ([968e69f](https://github.com/gjsify/gjsify/commit/968e69f6c1d019129dd531f3adffe43fe89f6de4))
+* **adwaita-web:** buttons widgets and the remaining boxed-list rows ([#581](https://github.com/gjsify/gjsify/issues/581)) ([abe1578](https://github.com/gjsify/gjsify/commit/abe15783b8e430ee8121b1135a14b78dca200095))
+* **adwaita-web:** complete the storybook port (layout, view switching, navigation, feedback) ([#582](https://github.com/gjsify/gjsify/issues/582)) ([900c23b](https://github.com/gjsify/gjsify/commit/900c23b3ff15883c311f7796128fb2a16160e1cb))
+* **browse:** resizable window, one-shot --screenshot, and storybook driving tools ([#577](https://github.com/gjsify/gjsify/issues/577)) ([16e46b5](https://github.com/gjsify/gjsify/commit/16e46b5660387b4b594aae3cc17e2ee617ad565c))
+* **devtools-cdp:** add WebKit Remote Inspector Protocol client ([#568](https://github.com/gjsify/gjsify/issues/568)) ([7938696](https://github.com/gjsify/gjsify/commit/7938696d8897254692b801bf3a410c3df0041a4e))
+* **devtools-cdp:** expose the inspector protocol over the control plane ([#570](https://github.com/gjsify/gjsify/issues/570)) ([1ef200f](https://github.com/gjsify/gjsify/commit/1ef200fd3f5e93125a79cab28fcd2899e3d0a4c6))
+* **devtools-cdp:** generate MCP tool descriptors from the protocol ([#571](https://github.com/gjsify/gjsify/issues/571)) ([af11825](https://github.com/gjsify/gjsify/commit/af11825299d292839f382165f0e3e215b74de3e1))
+* native Adwaita icons for NS header buttons ([#605](https://github.com/gjsify/gjsify/issues/605)) ([d7dcf3f](https://github.com/gjsify/gjsify/commit/d7dcf3f9991d74c924d67b3a6ec5e6766c10f81c))
+* native Adwaita widgets + devtools for NativeScript ([#592](https://github.com/gjsify/gjsify/issues/592)) ([0b2f255](https://github.com/gjsify/gjsify/commit/0b2f25549bedc3ba1ef3e7ea1e8d61f903886145))
+* render coverage dashboards with adwaita-web (single chevron, GNOME HIG) ([#587](https://github.com/gjsify/gjsify/issues/587)) ([72351a4](https://github.com/gjsify/gjsify/commit/72351a44500dc0580a0b7ab3fc6213d50f8d5a75))
+* render NS combo-row chevron via AdwIcon ([#607](https://github.com/gjsify/gjsify/issues/607)) ([492a98a](https://github.com/gjsify/gjsify/commit/492a98a93f792b407696894f191932ae44727308)), closes [#605](https://github.com/gjsify/gjsify/issues/605)
+* single-header master-detail NS storybook layout ([#598](https://github.com/gjsify/gjsify/issues/598)) ([96a7ede](https://github.com/gjsify/gjsify/commit/96a7ede5c949193134cd538f549157899cc89bb5))
+* **storybook:** add Adwaita storybook showcase ([878f8db](https://github.com/gjsify/gjsify/commit/878f8db079ae0e652b6f45222d88d82cd27e0245))
+* **storybook:** outline the story preview stage ([abfc275](https://github.com/gjsify/gjsify/commit/abfc275a38c477c4b66f6d4d6b7ec0123e8077db))
+* **website:** declutter the home page into documentation subpages ([#586](https://github.com/gjsify/gjsify/issues/586)) ([364b544](https://github.com/gjsify/gjsify/commit/364b5448486ffa5ec025f62b04b93d8a20b9df66))
+
+### Bug Fixes
+
+* **adwaita-storybook:** keep storybook controls closed at embed widths (+ slide copy) ([#589](https://github.com/gjsify/gjsify/issues/589)) ([b3d6973](https://github.com/gjsify/gjsify/commit/b3d6973a55fb189c5f428757f2fcdfd11596cc72))
+* **adwaita-web:** match native colours for spinner, banner, avatar + group title ([#579](https://github.com/gjsify/gjsify/issues/579)) ([cdd354b](https://github.com/gjsify/gjsify/commit/cdd354bfcb6a0852e59a744be018faea8a31fbbf))
+* **child_process:** capture pid at spawn before reap ([#596](https://github.com/gjsify/gjsify/issues/596)) ([c476fcd](https://github.com/gjsify/gjsify/commit/c476fcd18e4f596b360345f01e1d2568373dbe5f)), closes [GNOME/glib#3981](https://github.com/GNOME/glib/issues/3981) [GNOME/glib#1866](https://github.com/GNOME/glib/issues/1866)
+* **child_process:** emit 'spawn' via microtask, not setTimeout(0) ([c77fd30](https://github.com/gjsify/gjsify/commit/c77fd3090b86b5e21db1cebeb801f9b726605f0b))
+* **cli:** clean error and exit 1 on CLI rejection ([#602](https://github.com/gjsify/gjsify/issues/602)) ([6e054b2](https://github.com/gjsify/gjsify/commit/6e054b2593cd9ed084549effd819682082de5463))
+* **cli:** gjsify tsc — degrade to upstream tsc when gjs is absent (was exit 254) ([#595](https://github.com/gjsify/gjsify/issues/595)) ([fb582eb](https://github.com/gjsify/gjsify/commit/fb582eb212863ff883876d8857bc5d8b8a84704d))
+* **cli:** skip re-extracting unchanged packages on install ([#590](https://github.com/gjsify/gjsify/issues/590)) ([8d6b7e6](https://github.com/gjsify/gjsify/commit/8d6b7e673ae1809956734bd7422fac6b3d915d8c))
+* converge the native and web Adwaita storybooks (backgrounds, separators, responsive) ([#578](https://github.com/gjsify/gjsify/issues/578)) ([69dc920](https://github.com/gjsify/gjsify/commit/69dc92021c2cb4516ce4ef5a018d66f6e4c9baba))
+* **devtools-browser:** republish 0.11.1 with built lib (0.11.0 shipped empty) ([0244b77](https://github.com/gjsify/gjsify/commit/0244b7751d5267c9d367cdb85148d0a911e71655))
+* **devtools:** retry Screenshot until renderable ([f5916eb](https://github.com/gjsify/gjsify/commit/f5916eb8a47226274d1a350f8a96ced24aadb07a))
+* **nativescript-vite:** support @nativescript/vite 8 + stub peers ([#591](https://github.com/gjsify/gjsify/issues/591)) ([2dd87e1](https://github.com/gjsify/gjsify/commit/2dd87e17c53f8e0d7052b60d553475339fbff8ce))
+* **stories:** resolve from source for browser bundlers so the docs site builds ([#585](https://github.com/gjsify/gjsify/issues/585)) ([20a2284](https://github.com/gjsify/gjsify/commit/20a22848a0ae35ac640b6e872b802a63c7337047))
+* **tsc:** write the bundle atomically to avoid a concurrent-read race ([#572](https://github.com/gjsify/gjsify/issues/572)) ([5dda200](https://github.com/gjsify/gjsify/commit/5dda2009beeb33c046b37d8694a53dbeabf31b9b))
+* **unit:** attribute failures to the running it() ([#593](https://github.com/gjsify/gjsify/issues/593)) ([5ec97d1](https://github.com/gjsify/gjsify/commit/5ec97d1b9ec38e052b6dc349d79aa4a14868e1a3))
+* **website:** build @gjsify/stories before the docs build ([#584](https://github.com/gjsify/gjsify/issues/584)) ([a045329](https://github.com/gjsify/gjsify/commit/a04532913cbb0a3cd14322bd8532263555436815))
+
+### Continuous Integration
+
+* test on Node 26 + runtime-labeled unit summaries ([#601](https://github.com/gjsify/gjsify/issues/601)) ([ca7d393](https://github.com/gjsify/gjsify/commit/ca7d39351dc8d454ea77d4631715fb42c5c79b61))
+
+### Maintenance
+
+* **refs:** update all submodules to latest ([74a162c](https://github.com/gjsify/gjsify/commit/74a162cebfddc51bf1395927ecd34a3e1c2dde07))
+
+### Tests
+
+* **devtools-cdp:** live-inspector suite + set the inspector env in the browse launcher ([#575](https://github.com/gjsify/gjsify/issues/575)) ([3a6b44d](https://github.com/gjsify/gjsify/commit/3a6b44d22d3d810f70c46b2ff7847e4f05fc8f56))
+* **tls:** gjs-scope IPv6 IP-SAN check (native node regression) ([#600](https://github.com/gjsify/gjsify/issues/600)) ([0c1f204](https://github.com/gjsify/gjsify/commit/0c1f204bdc594d014e9b90afbb01685cdd625730))
+
 ## [0.11.0](https://github.com/gjsify/gjsify/compare/v0.10.0...v0.11.0) (2026-06-22)
 
 ### Features
