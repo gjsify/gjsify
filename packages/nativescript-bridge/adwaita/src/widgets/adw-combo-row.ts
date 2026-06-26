@@ -12,8 +12,10 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_combo-row.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import { panDownSymbolic } from '@gjsify/adwaita-icons/ui';
 import { action, Label, StackLayout, type EventData } from '@nativescript/core';
 import { AdwActionRow } from './adw-action-row.js';
+import { AdwIcon } from './adw-icon.js';
 import { attachRowPressFeedback } from './row-press.js';
 
 /** One selectable option in an {@link AdwComboRow}. */
@@ -38,8 +40,8 @@ export interface NotifySelectedEventData extends EventData {
 export class AdwComboRow extends AdwActionRow {
     /** The dim inline value label (selected option). */
     protected readonly _valueLabel: Label;
-    /** The down-chevron label. */
-    protected readonly _chevronLabel: Label;
+    /** The down-chevron — a real Adwaita `pan-down-symbolic` icon. */
+    protected readonly _chevron: AdwIcon;
     private _options: AdwComboOption[] = [];
     private _selectedIndex = 0;
 
@@ -56,16 +58,18 @@ export class AdwComboRow extends AdwActionRow {
         valueLabel.className = 'adw-combo-value';
         valueLabel.text = '';
 
-        const chevronLabel = new Label();
-        chevronLabel.className = 'adw-combo-chevron';
-        chevronLabel.text = '⌄'; // U+2304 DOWN ARROWHEAD
+        const chevron = new AdwIcon();
+        chevron.className = 'adw-combo-chevron';
+        chevron.iconColor = '#9a9a9a'; // dim — matches the old chevron's ~0.45 alpha
+        chevron.iconSize = 16;
+        chevron.icon = panDownSymbolic;
 
         suffix.addChild(valueLabel);
-        suffix.addChild(chevronLabel);
+        suffix.addChild(chevron);
         this.setSuffix(suffix);
 
         this._valueLabel = valueLabel;
-        this._chevronLabel = chevronLabel;
+        this._chevron = chevron;
 
         // Tapping anywhere on the row opens the native chooser...
         this.addEventListener('tap', () => {

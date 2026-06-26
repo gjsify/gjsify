@@ -26,6 +26,7 @@ export type { NotifyExpandedEventData } from './adw-expander-row.js';
 export { AdwButton } from './adw-button.js';
 export type { AdwButtonVariant } from './adw-button.js';
 export { AdwImageButton, DEFAULT_ICON_BUTTON_ICON_SIZE } from './adw-image-button.js';
+export { AdwIcon, DEFAULT_ADW_ICON_SIZE } from './adw-icon.js';
 export { AdwBanner, BUTTON_CLICKED } from './adw-banner.js';
 export { AdwAvatar, DEFAULT_AVATAR_SIZE, avatarInitials } from './adw-avatar.js';
 export { AdwWindowTitle } from './adw-window-title.js';
@@ -103,6 +104,7 @@ import { AdwSliderRow } from './adw-slider-row.js';
 import { AdwExpanderRow } from './adw-expander-row.js';
 import { AdwButton } from './adw-button.js';
 import { AdwImageButton } from './adw-image-button.js';
+import { AdwIcon } from './adw-icon.js';
 import { AdwBanner } from './adw-banner.js';
 import { AdwAvatar } from './adw-avatar.js';
 import { AdwWindowTitle } from './adw-window-title.js';
@@ -143,6 +145,7 @@ const ELEMENTS = {
     AdwExpanderRow,
     AdwButton,
     AdwImageButton,
+    AdwIcon,
     AdwBanner,
     AdwAvatar,
     AdwWindowTitle,

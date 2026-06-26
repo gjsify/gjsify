@@ -29,6 +29,8 @@ export {
     AdwButton,
     AdwImageButton,
     DEFAULT_ICON_BUTTON_ICON_SIZE,
+    AdwIcon,
+    DEFAULT_ADW_ICON_SIZE,
     AdwBanner,
     BUTTON_CLICKED,
     AdwAvatar,

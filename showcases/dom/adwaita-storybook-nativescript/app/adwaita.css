@@ -153,9 +153,10 @@ Page.adw-window {
 }
 
 .adw-combo-chevron {
-    font-size: 15;
-    color: rgba(0, 0, 0, 0.45);
-    margin: 0;
+    /* An AdwIcon (Image) rendering `pan-down-symbolic`; size + dim colour are set
+     * on the widget. Only the gap to the value label is styled here. */
+    margin: 0 0 0 2;
+    vertical-align: middle;
 }
 
 /* ===== Spin row (− value + stepper) ===== */
