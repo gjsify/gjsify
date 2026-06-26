@@ -362,11 +362,25 @@ export class ChildProcess extends EventEmitter {
 
     private _subprocess: Gio.Subprocess | null = null;
 
-    /** @internal Set the underlying Gio.Subprocess and extract PID. */
-    _setSubprocess(proc: Gio.Subprocess): void {
+    /**
+     * @internal Adopt the underlying Gio.Subprocess.
+     *
+     * `pid` is supplied by the caller (`_spawnSubprocess`) rather than read
+     * here via `proc.get_identifier()`, because that accessor is RACY for an
+     * instant-exit child: `g_subprocess_get_identifier()` returns the pid only
+     * while `subprocess->pid != 0`, and GSubprocess's child-watch (running on
+     * the GLib *worker thread*, not the main context — see
+     * `g_subprocess_exited` in glib's `gio/gsubprocess.c`) sets `pid = 0` the
+     * instant it reaps the child. For a fast child like `echo`, that reap can
+     * win the race against any synchronous JS read, leaving `get_identifier()`
+     * permanently null. Node guarantees `cp.pid` is a positive integer
+     * synchronously, so we capture the pid at spawn time — the one moment it
+     * is provably still alive — and hand it in here. See
+     * `_capturePidAtSpawn` / `_spawnSubprocess`.
+     */
+    _setSubprocess(proc: Gio.Subprocess, pid: number): void {
         this._subprocess = proc;
-        const pid = proc.get_identifier();
-        if (pid) this.pid = parseInt(pid, 10);
+        if (pid > 0) this.pid = pid;
     }
 
     /**
@@ -507,11 +521,23 @@ interface _SpawnLowOptions {
     windowsVerbatimArguments?: boolean;
 }
 
+/**
+ * Result of `_spawnSubprocess`: the live Gio.Subprocess plus the pid captured
+ * at the single instant the child is provably still alive (right after
+ * `spawnv()` returns, before the GLib worker-thread child-watch can reap an
+ * instant-exit child and null out `get_identifier()`). See the long note on
+ * `ChildProcess._setSubprocess` for why the pid cannot be read later.
+ */
+interface _SpawnResult {
+    proc: Gio.Subprocess;
+    pid: number;
+}
+
 function _spawnSubprocess(
     argv: string[],
     flags: Gio.SubprocessFlags,
     options?: _SpawnLowOptions,
-): Gio.Subprocess {
+): _SpawnResult {
     const launcher = new Gio.SubprocessLauncher({ flags });
     const cwd = _normalizeCwd(options?.cwd);
     // Distinguish "no cwd supplied" (undefined → don't call set_cwd) from
@@ -569,7 +595,44 @@ function _spawnSubprocess(
     if (options?.detached === true) {
         realArgv = ['/usr/bin/setsid', ...realArgv];
     }
-    return launcher.spawnv(realArgv);
+    // Spawn, then capture the pid on the VERY NEXT statement. This ordering is
+    // load-bearing: `get_identifier()` is only valid while the child is alive,
+    // and GSubprocess's child-watch (GLib worker thread) nulls it out the
+    // instant a fast child is reaped (see `_capturePidAtSpawn`). Reading the
+    // pid here — before any other JS allocation/work runs — minimises that
+    // window to the bare spawn→read gap.
+    const proc = launcher.spawnv(realArgv);
+    const pid = _capturePidAtSpawn(proc);
+    return { proc, pid };
+}
+
+/**
+ * Read a freshly-spawned child's pid from `Gio.Subprocess.get_identifier()`.
+ *
+ * `g_subprocess_get_identifier()` returns the decimal pid only while the child
+ * is unreaped (`subprocess->pid != 0`); once GSubprocess's child-watch —
+ * dispatched on GLib's *worker thread*, not the main context (see
+ * `g_subprocess_exited` in glib `gio/gsubprocess.c`, which sets `pid = 0`) —
+ * reaps the child, the accessor is permanently null and the pid is
+ * unrecoverable through any public Gio/GLib API. The kernel pid of an
+ * already-reaped child cannot be re-derived (it is gone from `/proc`, and
+ * GSubprocess exposes no post-reap accessor). The only robust mitigation is to
+ * read at the earliest possible instant after spawn, which the caller does.
+ * Filed upstream as GNOME/glib#3981 (proposed `g_subprocess_get_initial_identifier()`);
+ * the maintainer keeps it low-priority (pidfds, GNOME/glib#1866, are the
+ * preferred correlation path), so this spawn-time capture is the stable answer.
+ *
+ * Returns the positive pid, or 0 when the read lost the reap race (caller
+ * leaves `ChildProcess.pid` undefined, matching Node's behaviour for a child
+ * that has already exited and been reaped before pid was observed).
+ */
+function _capturePidAtSpawn(proc: Gio.Subprocess): number {
+    const id = proc.get_identifier();
+    if (id) {
+        const n = parseInt(id, 10);
+        if (n > 0) return n;
+    }
+    return 0;
 }
 
 // Execute a command in a shell and buffer the output (sync).
@@ -585,7 +648,7 @@ export function execSync(command: string, options?: ExecSyncOptions): Buffer | s
     const shell = typeof options?.shell === 'string' ? options.shell : '/bin/sh';
     let proc: Gio.Subprocess;
     try {
-        proc = _spawnSubprocess([shell, '-c', command], flags, options);
+        ({ proc } = _spawnSubprocess([shell, '-c', command], flags, options));
     } catch (err: unknown) {
         // Spawn-time failure (binary missing, invalid argv, …) — Node's
         // execSync surfaces this as a thrown Error with `.code = 'ENOENT'`
@@ -800,8 +863,8 @@ function _execImpl(
     };
 
     try {
-        const proc = _spawnSubprocess(argv, flags, opts);
-        child._setSubprocess(proc);
+        const { proc, pid } = _spawnSubprocess(argv, flags, opts);
+        child._setSubprocess(proc, pid);
         _activeProcesses.add(child);
         ensureMainLoop();
         armTimeout(proc);
@@ -1020,7 +1083,7 @@ export function execFileSync(
 
     let proc: Gio.Subprocess;
     try {
-        proc = _spawnSubprocess([file, ..._args], flags, _options);
+        ({ proc } = _spawnSubprocess([file, ..._args], flags, _options));
     } catch (err: unknown) {
         throw _gioErrorToNodeError(err, file, _args);
     }
@@ -1154,8 +1217,8 @@ export function spawn(
     if (stdioTriple[2] === 'ignore') flags |= Gio.SubprocessFlags.STDERR_SILENCE;
 
     try {
-        const proc = _spawnSubprocess(argv, flags, options);
-        child._setSubprocess(proc);
+        const { proc, pid } = _spawnSubprocess(argv, flags, options);
+        child._setSubprocess(proc, pid);
         _activeProcesses.add(child);
 
         // Stdin: wire the pipe as a Writable when caller asked for 'pipe'
@@ -1385,8 +1448,12 @@ export function spawnSync(
         encoding === 'buffer' || encoding === null || encoding === undefined ? Buffer.alloc(0) : '';
 
     let proc: Gio.Subprocess;
+    // `spawnPid` is captured at spawn time (the one instant the child is
+    // provably alive) so the SpawnSyncResult.pid is never lost to the
+    // worker-thread reap race — same fix as the async ChildProcess.pid path.
+    let spawnPid = 0;
     try {
-        proc = _spawnSubprocess(argv, flags, options);
+        ({ proc, pid: spawnPid } = _spawnSubprocess(argv, flags, options));
     } catch (err: unknown) {
         // Surface spawn-time failure (most commonly ENOENT for a missing
         // binary) as Node does — a SpawnSyncResult with `error` set, never
@@ -1413,7 +1480,6 @@ export function spawnSync(
     // path AFTER communicate via the exit code (124 = SIGTERM, 137 =
     // SIGKILL — the conventional `timeout(1)` exit codes).
 
-    const pid = proc.get_identifier();
     const stdinBytes = input
         ? new GLib.Bytes(typeof input === 'string' ? new TextEncoder().encode(input) : (input as Uint8Array))
         : null;
@@ -1460,7 +1526,7 @@ export function spawnSync(
     }
 
     const result: SpawnSyncResult = {
-        pid: pid ? parseInt(pid, 10) : 0,
+        pid: spawnPid,
         output: [null, stdoutData, stderrData],
         stdout: stdoutData,
         stderr: stderrData,
