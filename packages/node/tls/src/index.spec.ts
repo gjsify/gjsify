@@ -16,6 +16,8 @@ import tls, {
     DEFAULT_MIN_VERSION,
     DEFAULT_MAX_VERSION,
     DEFAULT_CIPHERS,
+    // @ts-expect-error CI-PROBE temporary freshness marker (not in @types/node)
+    __TLS_BUILD_MARKER,
 } from 'node:tls';
 import type { PeerCertificate } from 'node:tls';
 import type { Socket } from 'node:net';
@@ -654,6 +656,9 @@ export default async () => {
                                 implReason: (result && (result as { reason?: string }).reason) || null,
                                 implHost: (result && (result as { host?: string }).host) || null,
                                 fnLen: checkServerIdentity.toString().length,
+                                // If undefined → the bundled tls is a STALE shadow copy
+                                // that predates this marker (not the rebuilt source).
+                                buildMarker: (__TLS_BUILD_MARKER as string | undefined) ?? null,
                             }),
                     );
                     expect(inlineValid).toBe(true);

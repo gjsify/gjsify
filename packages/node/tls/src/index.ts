@@ -76,7 +76,7 @@ export const rootCertificates: string[] = [];
 // Type + class re-exports
 export type { CertSubject, PeerCertificate } from './internal/cert-utils.js';
 export type { CertAltNameError } from './internal/hostname.js';
-export { checkServerIdentity } from './internal/hostname.js';
+export { checkServerIdentity, __TLS_BUILD_MARKER } from './internal/hostname.js';
 export type { SecureContext, SecureContextOptions } from './secure-context.js';
 export { createSecureContext } from './secure-context.js';
 export type { TlsConnectOptions } from './tls-socket.js';

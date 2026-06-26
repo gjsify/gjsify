@@ -8,6 +8,10 @@
 
 import type { PeerCertificate } from './cert-utils.js';
 
+/** CI-PROBE (temporary): freshness marker — if the bundled tls is rebuilt from
+ *  the current source, this is present; a stale shadow copy lacks it. */
+export const __TLS_BUILD_MARKER = 'ipv6-fresh-001';
+
 /** Removes a trailing dot from a fully-qualified domain name. */
 export function unfqdn(host: string): string {
     return host.endsWith('.') ? host.slice(0, -1) : host;
