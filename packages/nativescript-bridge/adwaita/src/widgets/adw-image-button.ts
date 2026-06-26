@@ -34,8 +34,11 @@ export class AdwImageButton extends GridLayout {
         super();
 
         this.className = 'adw-image-button';
-        this.addRow(new ItemSpec(1, 'auto'));
-        this.addColumn(new ItemSpec(1, 'auto'));
+        // `star` (not `auto`) so the single cell FILLS the 34px button — an `auto`
+        // cell shrinks to the 16px icon and pins it top-left; a filled cell lets the
+        // icon's center/middle alignment actually centre it.
+        this.addRow(new ItemSpec(1, 'star'));
+        this.addColumn(new ItemSpec(1, 'star'));
 
         const image = new Image();
         image.className = 'adw-image-button-icon';

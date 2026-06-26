@@ -168,6 +168,37 @@ class MockSpinRow {
     }
 }
 
+// Mirrors AdwSliderRow's clamp-then-snap-to-step (the RANGE slider). Kept in
+// lockstep with src/widgets/adw-slider-row.ts `_snap`.
+class MockSliderRow {
+    private _value = 0;
+    private _min = 0;
+    private _max = 100;
+    private _step = 1;
+    private _snap(n: number): number {
+        const clamped = Math.min(this._max, Math.max(this._min, n));
+        const steps = Math.round((clamped - this._min) / this._step);
+        return Math.min(this._max, this._min + steps * this._step);
+    }
+    get value(): number {
+        return this._value;
+    }
+    set value(v: number) {
+        this._value = this._snap(Number.isFinite(v) ? v : 0);
+    }
+    set min(v: number) {
+        this._min = v;
+        this.value = this._value;
+    }
+    set max(v: number) {
+        this._max = v;
+        this.value = this._value;
+    }
+    set step(v: number) {
+        this._step = v > 0 ? v : 1;
+    }
+}
+
 // Mirrors avatarInitials() from src/widgets/adw-avatar.ts.
 function mockAvatarInitials(text: string): string {
     const words = (text ?? '').trim().split(/\s+/).filter(Boolean);
@@ -536,6 +567,38 @@ export default async () => {
             row.value = 3;
             row.min = 5;
             expect(row.value).toBe(5);
+        });
+    });
+
+    await describe('AdwSliderRow range snap (mock)', async () => {
+        await it('clamps to [min, max]', () => {
+            const row = new MockSliderRow();
+            row.min = 16;
+            row.max = 64;
+            row.value = 99;
+            expect(row.value).toBe(64);
+            row.value = 0;
+            expect(row.value).toBe(16);
+        });
+
+        await it('snaps to the nearest step from min', () => {
+            const row = new MockSliderRow();
+            row.min = 0;
+            row.max = 100;
+            row.step = 5;
+            row.value = 23;
+            expect(row.value).toBe(25);
+            row.value = 21;
+            expect(row.value).toBe(20);
+        });
+
+        await it('snaps relative to a non-zero min', () => {
+            const row = new MockSliderRow();
+            row.min = 16;
+            row.max = 64;
+            row.step = 4;
+            row.value = 49; // 16 + round(33/4)*4 = 16 + 8*4 = 48
+            expect(row.value).toBe(48);
         });
     });
 

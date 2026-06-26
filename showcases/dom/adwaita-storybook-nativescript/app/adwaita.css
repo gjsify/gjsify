@@ -51,7 +51,12 @@ Page.adw-window {
 /* ===== Rows ===== */
 
 .adw-row {
-    background-color: #ffffff;
+    /* TRANSPARENT, not opaque white: the `.boxed-list` parent paints the rounded
+     * white card, and NS does NOT clip children to a parent's border-radius — an
+     * opaque row would overflow the rounded corners and read as a SHARP card. A
+     * transparent row lets the card's rounded fill show through (Adwaita rows are
+     * transparent at rest anyway; they tint only on hover/press). */
+    background-color: transparent;
     /* Tight Adwaita ~56px rhythm; rows in a boxed list are flush (margin 0). */
     padding: 10 16 10 16;
     margin: 0;
@@ -178,6 +183,42 @@ Page.adw-window {
     margin: 0 4 0 4;
 }
 
+/* ===== Slider row (RANGE control — vertical card: title+value header over a slider) ===== */
+
+.adw-slider-row {
+    /* A boxed-list row: transparent so the card's rounded fill shows (see .adw-row). */
+    background-color: transparent;
+    padding: 10 16 12 16;
+    margin: 0;
+}
+
+.boxed-list .adw-slider-row {
+    border-top-width: 1;
+    border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+.adw-slider-header {
+    margin: 0 0 2 0;
+}
+
+.adw-slider-title {
+    font-size: 15;
+    color: rgba(0, 0, 0, 0.8);
+    margin: 0;
+}
+
+.adw-slider-value {
+    font-size: 15;
+    color: rgba(0, 0, 0, 0.55);
+    margin: 0;
+}
+
+.adw-slider {
+    /* NS tints the active track + thumb from `color`; Adwaita accent. */
+    color: #3584e4;
+    margin: 0;
+}
+
 /* ===== Expander row (disclosure) ===== */
 
 .adw-expander-toggle {
@@ -248,13 +289,12 @@ Page.adw-window {
 
 /* Activatable boxed-list rows (button row / combo row) darken on press, like
  * Adwaita's `row.activatable:active` (`$view_active_color` = currentColor 8%).
- * NS `background-color` REPLACES rather than overlays, so the 8% black is
- * pre-blended over the row's opaque white base (#ffffff → #ebebeb). The
- * `highlighted` pseudo-class is added by `attachRowPressFeedback()` (NS only
- * auto-applies it to Button). */
+ * The rows are transparent at rest, so the press is a true rgba overlay over the
+ * boxed-list's white card. The `highlighted` pseudo-class is added by
+ * `attachRowPressFeedback()` (NS only auto-applies it to Button). */
 .adw-button-row:highlighted,
 .adw-combo-row:highlighted {
-    background-color: #ebebeb;
+    background-color: rgba(0, 0, 0, 0.08);
 }
 
 /* ===== Image button (circular flat icon button — header bars) ===== */
@@ -797,11 +837,17 @@ Page.ns-dark.adw-window {
     color: rgba(255, 255, 255, 0.55);
 }
 
+/* The dark boxed-list CARD paints the rounded dark fill; the rows are TRANSPARENT
+ * (see the light `.adw-row` note) so the card's rounded corners show. */
 .ns-dark .boxed-list,
-.ns-dark .adw-preferences-group-listbox,
+.ns-dark .adw-preferences-group-listbox {
+    background-color: #34343a;
+    color: #ffffff;
+}
+
 .ns-dark .adw-row,
 .ns-dark .adw-action-row {
-    background-color: #34343a;
+    background-color: transparent;
     color: #ffffff;
 }
 
@@ -860,6 +906,19 @@ Page.ns-dark.adw-window {
     color: #ffffff;
 }
 
+/* Dark: slider row */
+.ns-dark .boxed-list .adw-slider-row {
+    border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.ns-dark .adw-slider-title {
+    color: #ffffff;
+}
+
+.ns-dark .adw-slider-value {
+    color: rgba(255, 255, 255, 0.55);
+}
+
 /* ===== Dark: expander row ===== */
 
 .ns-dark .adw-expander-toggle {
@@ -911,11 +970,10 @@ Page.ns-dark.adw-window {
     background-color: rgba(192, 28, 40, 0.3);
 }
 
-/* Dark activatable boxed-list rows: 8% white pre-blended over the dark row base
- * (#34343a → #44444a). */
+/* Dark activatable boxed-list rows: 8% white press overlay over the dark card. */
 .ns-dark .adw-button-row:highlighted,
 .ns-dark .adw-combo-row:highlighted {
-    background-color: #44444a;
+    background-color: rgba(255, 255, 255, 0.08);
 }
 
 /* Dark circular header icon button press (flat-button `:active`, white overlay). */

@@ -8,10 +8,12 @@
 // guard) now lives in @gjsify/storybook-core's bindControl. This file supplies
 // ONLY the adwaita-nativescript leaf-widget factory — the single renderer seam.
 //
-// Mapping (NS has no native color/slider rows):
+// Mapping:
 //   TEXT        -> AdwEntryRow
 //   BOOLEAN     -> AdwSwitchRow
-//   NUMBER/RANGE-> AdwSpinRow  (NS has no Adwaita slider; the stepper covers both)
+//   NUMBER      -> AdwSpinRow   (stepper)
+//   RANGE       -> AdwSliderRow (real slider — matches the GTK Gtk.Scale / browser
+//                                input[type=range] RANGE card)
 //   SELECT      -> AdwComboRow
 //   COLOR       -> AdwEntryRow (hex fallback — NS has no native color row)
 
@@ -25,14 +27,17 @@ import {
 import {
     AdwComboRow,
     AdwEntryRow,
+    AdwSliderRow,
     AdwSpinRow,
     AdwSwitchRow,
     NOTIFY_ACTIVE,
     NOTIFY_SELECTED,
+    NOTIFY_SLIDER_VALUE,
     NOTIFY_TEXT,
     NOTIFY_VALUE,
     type NotifyActiveEventData,
     type NotifySelectedEventData,
+    type NotifySliderValueEventData,
     type NotifyTextEventData,
     type NotifyValueEventData,
 } from '@gjsify/adwaita-nativescript';
@@ -114,9 +119,10 @@ const ADWAITA_NS_FACTORY: ControlWidgetFactory<View> = {
         return spinRow(control);
     },
 
-    // NS has no Adwaita slider; the AdwSpinRow stepper covers RANGE too.
+    // RANGE renders as a real slider card (matching the GTK Gtk.Scale + browser
+    // input[type=range]), not the stepper used for plain NUMBER.
     range(control: StoryNumberControl): ControlWidget<View, number> {
-        return spinRow(control);
+        return sliderRow(control);
     },
 
     select(control: StorySelectControl): ControlWidget<View, number> {
@@ -150,6 +156,27 @@ function spinRow(control: StoryNumberControl): ControlWidget<View, number> {
     row.step = control.step ?? 1;
     let cb: (v: number) => void = () => {};
     row.addEventListener(NOTIFY_VALUE, (e) => cb((e as NotifyValueEventData).value));
+    return {
+        node: row,
+        get: () => row.value,
+        set: (v) => {
+            row.value = v;
+        },
+        onChange: (fn) => {
+            cb = fn;
+        },
+    };
+}
+
+/** Build an AdwSliderRow leaf widget for RANGE controls (a real slider card). */
+function sliderRow(control: StoryNumberControl): ControlWidget<View, number> {
+    const row = new AdwSliderRow();
+    row.title = label(control);
+    row.min = control.min ?? 0;
+    row.max = control.max ?? 100;
+    row.step = control.step ?? 1;
+    let cb: (v: number) => void = () => {};
+    row.addEventListener(NOTIFY_SLIDER_VALUE, (e) => cb((e as NotifySliderValueEventData).value));
     return {
         node: row,
         get: () => row.value,

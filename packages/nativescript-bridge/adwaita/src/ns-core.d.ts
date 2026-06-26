@@ -163,6 +163,13 @@ declare module '@nativescript/core' {
         checked: boolean;
     }
 
+    /** A horizontal slider — `<Slider>`. Fires `'valueChange'` as it moves. */
+    export class Slider extends View {
+        value: number;
+        minValue: number;
+        maxValue: number;
+    }
+
     /** A single-line text input — `<TextField>`. */
     export class TextField extends View {
         text: string;

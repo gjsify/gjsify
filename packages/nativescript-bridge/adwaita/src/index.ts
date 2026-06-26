@@ -22,6 +22,8 @@ export {
     NOTIFY_SELECTED,
     AdwSpinRow,
     NOTIFY_VALUE,
+    AdwSliderRow,
+    NOTIFY_SLIDER_VALUE,
     AdwExpanderRow,
     NOTIFY_EXPANDED,
     AdwButton,
@@ -98,6 +100,7 @@ export type {
     AdwComboOption,
     NotifySelectedEventData,
     NotifyValueEventData,
+    NotifySliderValueEventData,
     NotifyExpandedEventData,
     AdwButtonVariant,
     // Presentation / layout
