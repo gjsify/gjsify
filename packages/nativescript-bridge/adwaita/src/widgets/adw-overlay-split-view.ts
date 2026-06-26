@@ -28,24 +28,26 @@ export class AdwOverlaySplitView extends AdwSplitViewBase {
     }
 
     protected _applyLayout(): void {
+        const sidebarEnd = this._sidebarPosition === 'end';
         if (!this._collapsed) {
-            // Side-by-side, same as the navigation split view's expanded layout.
+            // Side-by-side. `sidebar-position` decides which column each pane takes
+            // (the storybook controls overlay uses `'end'` → controls on the right).
             if (this._sidebar) {
                 this._sidebar.visibility = 'visible';
-                GridLayout.setColumn(this._sidebar, 0);
+                GridLayout.setColumn(this._sidebar, sidebarEnd ? 1 : 0);
                 GridLayout.setColumnSpan(this._sidebar, 1);
                 this._sidebar.width = this._sidebarWidth;
             }
             if (this._content) {
                 this._content.visibility = 'visible';
-                GridLayout.setColumn(this._content, 1);
+                GridLayout.setColumn(this._content, sidebarEnd ? 0 : 1);
                 GridLayout.setColumnSpan(this._content, 1);
             }
             return;
         }
-        // Collapsed: content fills both columns; sidebar overlays column 0 on top
-        // (NS paints children in add order — the sidebar was added after content
-        // in setSidebar/setContent order, so re-assert it draws last when shown).
+        // Collapsed: content fills both columns; the sidebar overlays on top (NS
+        // paints children in add order — the sidebar was added after content, so it
+        // draws last when shown). `'end'` anchors the overlay to the right edge.
         if (this._content) {
             this._content.visibility = 'visible';
             GridLayout.setColumn(this._content, 0);
@@ -54,8 +56,9 @@ export class AdwOverlaySplitView extends AdwSplitViewBase {
         if (this._sidebar) {
             this._sidebar.visibility = this._showSidebar ? 'visible' : 'collapse';
             GridLayout.setColumn(this._sidebar, 0);
-            GridLayout.setColumnSpan(this._sidebar, 1);
+            GridLayout.setColumnSpan(this._sidebar, 2);
             this._sidebar.width = this._sidebarWidth;
+            this._sidebar.horizontalAlignment = sidebarEnd ? 'right' : 'left';
             this._sidebar.className = `${this._stripOverlay(this._sidebar.className)} adw-split-view-sidebar adw-overlay-active`.trim();
         }
     }
