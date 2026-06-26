@@ -47,7 +47,8 @@
         "design-system"
     ],
     "dependencies": {
-        "@gjsify/adwaita-fonts": "workspace:^"
+        "@gjsify/adwaita-fonts": "workspace:^",
+        "@gjsify/adwaita-icons": "workspace:^"
     },
     "peerDependencies": {
         "@nativescript/core": "*"
