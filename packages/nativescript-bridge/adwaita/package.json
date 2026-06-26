@@ -48,7 +48,8 @@
     ],
     "dependencies": {
         "@gjsify/adwaita-fonts": "workspace:^",
-        "@gjsify/adwaita-icons": "workspace:^"
+        "@gjsify/adwaita-icons": "workspace:^",
+        "@gjsify/native-platform": "workspace:^"
     },
     "peerDependencies": {
         "@nativescript/core": "*"
