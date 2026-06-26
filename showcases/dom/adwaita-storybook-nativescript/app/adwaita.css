@@ -227,6 +227,25 @@ Page.adw-window {
     padding: 10 32 10 32;
 }
 
+/* Pressed (`:highlighted`) — Adwaita darkens the button on press rather than
+ * showing a Material ripple. Mirrors adwaita-web's `:active` shades
+ * (`--button-active-color` / darker `--accent-color`). Pill inherits the base. */
+.adw-button:highlighted {
+    background-color: rgba(0, 0, 0, 0.19);
+}
+
+.adw-button.flat:highlighted {
+    background-color: rgba(0, 0, 0, 0.19);
+}
+
+.adw-button.suggested-action:highlighted {
+    background-color: #1c71d8;
+}
+
+.adw-button.destructive-action:highlighted {
+    background-color: rgba(224, 27, 36, 0.24);
+}
+
 /* ===== Banner (neutral info strip — Adw.Banner default is NOT accent-filled) ===== */
 
 .adw-banner {
@@ -571,6 +590,12 @@ Page.adw-window {
     background-color: #ebebed;
 }
 
+/* Tap-to-dismiss scrim drawn between content and the overlaid sidebar. Faded in/out
+ * by the slide animation; matches the dialog scrim dim (NS subset has no blur). */
+.adw-overlay-scrim {
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
 /* ===== Sidebar (boxed navigation list) ===== */
 
 .adw-sidebar {
@@ -825,6 +850,23 @@ Page.ns-dark.adw-window {
     color: #ffffff;
 }
 
+/* Dark pressed (`:highlighted`) — Adwaita's lighter-overlay press shade. */
+.ns-dark .adw-button:highlighted {
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+.ns-dark .adw-button.flat:highlighted {
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+.ns-dark .adw-button.suggested-action:highlighted {
+    background-color: #2c75d6;
+}
+
+.ns-dark .adw-button.destructive-action:highlighted {
+    background-color: rgba(192, 28, 40, 0.3);
+}
+
 /* ===== Dark: banner (neutral dark strip) ===== */
 
 .ns-dark .adw-banner {
@@ -997,6 +1039,10 @@ Page.ns-dark.adw-window {
 
 .ns-dark .adw-split-view-content {
     background-color: #222226;
+}
+
+.ns-dark .adw-overlay-scrim {
+    background-color: rgba(0, 0, 0, 0.55);
 }
 
 /* ===== Dark: sidebar ===== */

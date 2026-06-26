@@ -53,6 +53,49 @@ declare module '@nativescript/core' {
         opacity: number;
         /** Visibility (`'visible' | 'hidden' | 'collapse'`). */
         visibility: string;
+        /** Horizontal translation offset in DIPs (animatable). */
+        translateX: number;
+        /** Vertical translation offset in DIPs (animatable). */
+        translateY: number;
+        /** Whether the view is currently loaded / attached to the visual tree.
+         *  Off-screen (pre-load) transitions skip animation. */
+        readonly isLoaded: boolean;
+        /** Animate one or more properties to their target values. Resolves when the
+         *  animation finishes; the returned promise can also be `cancel()`ed. */
+        animate(options: AnimationDefinition): AnimationPromise;
+        /** Post-layout actual size in DIPs (`{ width, height }`). */
+        getActualSize(): { width: number; height: number };
+    }
+
+    /** An `(x, y)` pair — a translate/scale animation target. */
+    export interface Pair {
+        x: number;
+        y: number;
+    }
+
+    /** An async operation that can be cancelled mid-flight. */
+    export interface Cancelable {
+        cancel(): void;
+    }
+
+    /** A running animation: a `Promise` that is also {@link Cancelable}. */
+    export type AnimationPromise = Promise<void> & Cancelable;
+
+    /** The slice of NativeScript's animation definition the Adwaita widgets use. */
+    export interface AnimationDefinition {
+        target?: View;
+        opacity?: number;
+        backgroundColor?: string;
+        translate?: Pair;
+        scale?: Pair;
+        width?: number | string;
+        height?: number | string;
+        rotate?: number;
+        duration?: number;
+        delay?: number;
+        iterations?: number;
+        /** Easing curve name — `'ease' | 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | 'spring'`. */
+        curve?: string;
     }
 
     /** A view that can hold children. */

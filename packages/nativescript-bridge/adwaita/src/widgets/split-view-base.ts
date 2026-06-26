@@ -10,13 +10,16 @@
 // FIDELITY: approximated. NS has no responsive two-pane container and no automatic
 // width breakpoint, so `collapsed` is a manual flag the consumer toggles (e.g.
 // from an orientation/size listener) rather than an automatic narrow-width
-// collapse. Slide-over is an instant `visibility`/overlay swap (no slide
-// animation — the CSS subset has no transform transition).
+// collapse. The collapsed show/hide IS animated on-device: the overlay subclass
+// slides the sidebar in/out and fades a tap-to-dismiss scrim via the native
+// `View.animate()` API (not the CSS subset — a real per-property animation),
+// falling back to an instant `visibility` swap off-screen / off-device. The
+// `_transitionSidebar()` seam keeps structural re-layouts instant.
 //
 // Reference: refs/libadwaita/src/stylesheet/widgets/_navigation-split-view.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, ItemSpec, View, type EventData } from '@nativescript/core';
+import { type Cancelable, type EventData, GridLayout, ItemSpec, type View } from '@nativescript/core';
 
 /** Event name emitted when the sidebar visibility changes. */
 export const NOTIFY_SHOW_SIDEBAR = 'notify::show-sidebar';
@@ -51,6 +54,54 @@ export abstract class AdwSplitViewBase extends GridLayout {
 
     /** Subclass-specific layout application for the current collapsed/show state. */
     protected abstract _applyLayout(): void;
+
+    /** Apply a user-initiated show/hide toggle. The default is an instant re-layout;
+     *  the subclasses override this to slide the panes (and, for the overlay, fade a
+     *  scrim) when collapsed. Kept separate from {@link _applyLayout} so structural
+     *  re-layouts (setSidebar/collapsed/position changes) stay instant — only an
+     *  on-screen `showSidebar` toggle animates. */
+    protected _transitionSidebar(): void {
+        this._applyLayout();
+    }
+
+    // --- shared animation plumbing (used by both split-view subclasses) ---
+
+    /** In-flight animations, cancelled when a new transition supersedes them. */
+    protected _pending: Cancelable[] = [];
+
+    /** Whether to run a real animation now: native `animate()` present AND on-screen.
+     *  Off-device (the mock view tree in specs) or pre-load it returns false, so the
+     *  caller falls back to an instant `visibility` swap. */
+    protected _shouldAnimate(): boolean {
+        const probe = (this._sidebar ?? this._content ?? this) as unknown as { animate?: unknown };
+        return typeof probe.animate === 'function' && this.isLoaded === true;
+    }
+
+    /** Register an animation so a later transition can cancel it; returns a plain promise. */
+    protected _track(anim: Promise<void> & Cancelable): Promise<void> {
+        this._pending.push(anim);
+        return anim;
+    }
+
+    /** Cancel any in-flight animations before starting a new transition. */
+    protected _cancelPending(): void {
+        for (const p of this._pending) {
+            try {
+                p.cancel();
+            } catch {
+                /* already settled */
+            }
+        }
+        this._pending = [];
+    }
+
+    /** Whether `view` is currently a child of this layout. */
+    protected _isChild(view: View): boolean {
+        for (let i = 0; i < this.getChildrenCount(); i++) {
+            if (this.getChildAt(i) === view) return true;
+        }
+        return false;
+    }
 
     /** Set (or replace) the sidebar pane. */
     setSidebar(view: View | null): void {
@@ -104,7 +155,7 @@ export abstract class AdwSplitViewBase extends GridLayout {
         const next = !!value;
         if (next === this._showSidebar) return;
         this._showSidebar = next;
-        this._applyLayout();
+        this._transitionSidebar();
         const data: NotifyShowSidebarEventData = {
             eventName: NOTIFY_SHOW_SIDEBAR,
             object: this,
