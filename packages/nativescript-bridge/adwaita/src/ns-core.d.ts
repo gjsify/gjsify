@@ -22,7 +22,12 @@ declare module '@nativescript/core' {
     /** Base of every NativeScript object — carries the event system. */
     export class Observable {
         /** Subscribe to an event (e.g. `'checkedChange'`, `'notify::active'`). */
-        addEventListener(eventName: string, callback: (data: EventData) => void, thisArg?: unknown, once?: boolean): void;
+        addEventListener(
+            eventName: string,
+            callback: (data: EventData) => void,
+            thisArg?: unknown,
+            once?: boolean,
+        ): void;
         /** Unsubscribe from an event. */
         removeEventListener(eventName: string, callback?: (data: EventData) => void, thisArg?: unknown): void;
         /** Emit an event to all listeners. */
@@ -65,6 +70,23 @@ declare module '@nativescript/core' {
         animate(options: AnimationDefinition): AnimationPromise;
         /** Post-layout actual size in DIPs (`{ width, height }`). */
         getActualSize(): { width: number; height: number };
+        /** Add a CSS pseudo-class (e.g. `'highlighted'`) and reapply matching
+         *  style. NS aliases `highlighted` → `active`/`pressed`. */
+        addPseudoClass(name: string): void;
+        /** Remove a previously-added CSS pseudo-class and reapply style. */
+        deletePseudoClass(name: string): void;
+    }
+
+    /** Payload of the `'touch'` gesture — fires repeatedly through a touch. */
+    export interface TouchGestureEventData extends EventData {
+        /** Touch phase: `'down'` on press, `'move'` while held, `'up'` on release,
+         *  `'cancel'` when an ancestor (e.g. a scrolling `ScrollView`) claims the
+         *  gesture. */
+        action: 'down' | 'up' | 'move' | 'cancel';
+        /** X coordinate relative to the view, in DIPs. */
+        getX(): number;
+        /** Y coordinate relative to the view, in DIPs. */
+        getY(): number;
     }
 
     /** An `(x, y)` pair — a translate/scale animation target. */

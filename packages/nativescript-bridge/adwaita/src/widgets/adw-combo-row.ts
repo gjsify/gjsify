@@ -14,6 +14,7 @@
 
 import { action, Label, StackLayout, type EventData } from '@nativescript/core';
 import { AdwActionRow } from './adw-action-row.js';
+import { attachRowPressFeedback } from './row-press.js';
 
 /** One selectable option in an {@link AdwComboRow}. */
 export interface AdwComboOption {
@@ -66,10 +67,12 @@ export class AdwComboRow extends AdwActionRow {
         this._valueLabel = valueLabel;
         this._chevronLabel = chevronLabel;
 
-        // Tapping anywhere on the row opens the native chooser.
+        // Tapping anywhere on the row opens the native chooser...
         this.addEventListener('tap', () => {
             void this._openChooser();
         });
+        // ...and the row darkens while held, like an Adwaita activatable row.
+        attachRowPressFeedback(this);
     }
 
     /** Open the native action chooser and apply the picked option. */

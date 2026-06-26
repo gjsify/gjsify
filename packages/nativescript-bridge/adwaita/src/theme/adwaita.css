@@ -246,6 +246,17 @@ Page.adw-window {
     background-color: rgba(224, 27, 36, 0.24);
 }
 
+/* Activatable boxed-list rows (button row / combo row) darken on press, like
+ * Adwaita's `row.activatable:active` (`$view_active_color` = currentColor 8%).
+ * NS `background-color` REPLACES rather than overlays, so the 8% black is
+ * pre-blended over the row's opaque white base (#ffffff → #ebebeb). The
+ * `highlighted` pseudo-class is added by `attachRowPressFeedback()` (NS only
+ * auto-applies it to Button). */
+.adw-button-row:highlighted,
+.adw-combo-row:highlighted {
+    background-color: #ebebeb;
+}
+
 /* ===== Banner (neutral info strip — Adw.Banner default is NOT accent-filled) ===== */
 
 .adw-banner {
@@ -617,6 +628,17 @@ Page.adw-window {
     background-color: rgba(53, 132, 228, 0.16);
 }
 
+/* Sidebar nav rows darken on press (Adwaita activatable-row `:active`). The base
+ * is transparent, so the 8% overlay applies directly; a pressed-yet-selected row
+ * deepens its accent tint instead of losing it. */
+.adw-sidebar-row:highlighted {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+.adw-sidebar-row.active:highlighted {
+    background-color: rgba(53, 132, 228, 0.28);
+}
+
 .adw-sidebar-row-title {
     font-size: 15;
     color: rgba(0, 0, 0, 0.8);
@@ -867,6 +889,13 @@ Page.ns-dark.adw-window {
     background-color: rgba(192, 28, 40, 0.3);
 }
 
+/* Dark activatable boxed-list rows: 8% white pre-blended over the dark row base
+ * (#34343a → #44444a). */
+.ns-dark .adw-button-row:highlighted,
+.ns-dark .adw-combo-row:highlighted {
+    background-color: #44444a;
+}
+
 /* ===== Dark: banner (neutral dark strip) ===== */
 
 .ns-dark .adw-banner {
@@ -1053,6 +1082,15 @@ Page.ns-dark.adw-window {
 
 .ns-dark .adw-sidebar-row.active {
     background-color: rgba(120, 174, 237, 0.2);
+}
+
+/* Dark sidebar nav rows: 8% white press overlay; pressed-yet-selected deepens. */
+.ns-dark .adw-sidebar-row:highlighted {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.ns-dark .adw-sidebar-row.active:highlighted {
+    background-color: rgba(120, 174, 237, 0.34);
 }
 
 .ns-dark .adw-sidebar-row-title {

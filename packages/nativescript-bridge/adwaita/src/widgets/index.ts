@@ -47,21 +47,13 @@ export type { AdwViewPage, NotifyViewSelectedEventData } from './view-switcher-b
 export { AdwViewSwitcher } from './adw-view-switcher.js';
 export { AdwInlineViewSwitcher } from './adw-inline-view-switcher.js';
 export { AdwTabView } from './adw-tab-view.js';
-export {
-    AdwCarousel,
-    DEFAULT_CAROUSEL_PAGE_WIDTH,
-    NOTIFY_POSITION,
-} from './adw-carousel.js';
+export { AdwCarousel, DEFAULT_CAROUSEL_PAGE_WIDTH, NOTIFY_POSITION } from './adw-carousel.js';
 export type { NotifyPositionEventData } from './adw-carousel.js';
 
 // --- Navigation ---
 export { AdwNavigationView, NOTIFY_VISIBLE_PAGE } from './adw-navigation-view.js';
 export type { NotifyVisiblePageEventData } from './adw-navigation-view.js';
-export {
-    AdwSplitViewBase,
-    DEFAULT_SIDEBAR_WIDTH,
-    NOTIFY_SHOW_SIDEBAR,
-} from './split-view-base.js';
+export { AdwSplitViewBase, DEFAULT_SIDEBAR_WIDTH, NOTIFY_SHOW_SIDEBAR } from './split-view-base.js';
 export type { NotifyShowSidebarEventData } from './split-view-base.js';
 export { AdwNavigationSplitView } from './adw-navigation-split-view.js';
 export { AdwOverlaySplitView } from './adw-overlay-split-view.js';
@@ -71,17 +63,17 @@ export { AdwBottomSheet, NOTIFY_OPEN } from './adw-bottom-sheet.js';
 export type { NotifyOpenEventData } from './adw-bottom-sheet.js';
 
 // --- Feedback / dialogs ---
-export {
-    AdwToast,
-    AdwToastOverlay,
-    DEFAULT_TOAST_TIMEOUT,
-    TOAST_BUTTON_CLICKED,
-} from './adw-toast-overlay.js';
+export { AdwToast, AdwToastOverlay, DEFAULT_TOAST_TIMEOUT, TOAST_BUTTON_CLICKED } from './adw-toast-overlay.js';
 export type { AdwToastOptions } from './adw-toast-overlay.js';
 export { AdwAlertDialog, NOTIFY_RESPONSE } from './adw-alert-dialog.js';
 export type { NotifyResponseEventData } from './adw-alert-dialog.js';
 export { AdwAboutDialog, CLOSED as ABOUT_CLOSED } from './adw-about-dialog.js';
 export { AdwPreferencesDialog, CLOSED as PREFERENCES_CLOSED } from './adw-preferences-dialog.js';
+
+// --- Interaction helpers ---
+// Wire Adwaita press-darken onto a custom activatable row (the built-in
+// activatable rows already call this internally).
+export { attachRowPressFeedback } from './row-press.js';
 
 import { AdwPreferencesPage } from './adw-preferences-page.js';
 import { AdwPreferencesGroup } from './adw-preferences-group.js';

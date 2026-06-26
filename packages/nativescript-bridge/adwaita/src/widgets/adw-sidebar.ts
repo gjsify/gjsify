@@ -15,6 +15,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, Label, ScrollView, StackLayout, type EventData } from '@nativescript/core';
+import { attachRowPressFeedback } from './row-press.js';
 
 /** Event name emitted when {@link AdwSidebar.selected} changes. Mirrors GObject `notify::selected`. */
 export const NOTIFY_SELECTED = 'notify::selected';
@@ -69,6 +70,8 @@ export class AdwSidebar extends ScrollView {
             row.addEventListener('tap', () => {
                 this.selected = index;
             });
+            // Darken the row while held (Adwaita activatable-row `:active`).
+            attachRowPressFeedback(row);
 
             this._list.addChild(row);
             this._rows.push(row);
