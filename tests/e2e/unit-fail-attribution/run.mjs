@@ -155,8 +155,9 @@ describe('@gjsify/unit failure attribution E2E', { timeout: 5 * 60 * 1000 }, () 
 
         // The summary's "N completed" counts expect() calls, not it()s. The
         // point is that it reports completed (0 failures), with all three it()s
-        // green and no stray.
-        assert.match(plain, /✔ \d+ completed/, 'clean run reports completed, 0 failed');
+        // green and no stray. The optional `[<runtime>]` label (e.g.
+        // `✔ [Node.js 26.4.0] 4 completed`) sits between the tick and the count.
+        assert.match(plain, /✔ (?:\[[^\]]+\] )?\d+ completed/, 'clean run reports completed, 0 failed');
         assert.match(plain, /✔ passes 1/);
         assert.match(plain, /✔ toThrow does not leak/);
         assert.doesNotMatch(plain, /tests failed/, 'no failure summary');
