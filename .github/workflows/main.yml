@@ -115,7 +115,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [24.x]
+        # Track the latest stable Node (Current line) on purpose. NOTE: a
+        # floating `<major>.x` auto-adopts security/patch releases that can
+        # change behaviour — e.g. the CVE-2026-48618 hostname-normalization in
+        # v24.17.0 broke IPv6 IP-SAN matching in native Node and surfaced here
+        # as a mystery red (see the `on('Gjs')` scope in the tls IPv6 spec).
+        # @gjsify/unit now tags each run summary with its runtime so such a
+        # native-Node failure reads as `[Node.js …]`, not a GJS/gjsify bug.
+        node-version: [26.x]
         # Single leg on PRs (Fedora 44), full matrix on main/schedule — the
         # `setup` job emits each entry as an object {v: version, gjs: label}.
         # Object-axis (not a static `include:`) so a PR-reduced axis never
