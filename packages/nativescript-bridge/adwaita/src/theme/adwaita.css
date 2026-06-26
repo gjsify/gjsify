@@ -545,23 +545,43 @@ Page.adw-window {
 
 .adw-split-button-action {
     background-color: rgba(0, 0, 0, 0.08);
-    color: rgba(0, 0, 0, 0.8);
     border-radius: 9;
-    font-weight: 700;
-    padding: 5 16 5 16;
+    padding: 5 14 5 14;
     height: 38;
     margin: 0;
 }
 
+.adw-split-button-label {
+    font-size: 15;
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.8);
+    vertical-align: center;
+}
+
 .adw-split-button-dropdown {
     background-color: rgba(0, 0, 0, 0.08);
-    color: rgba(0, 0, 0, 0.8);
     border-radius: 9;
-    font-size: 15;
     width: 36;
     height: 38;
     padding: 0;
     margin: 0 0 0 1;
+}
+
+/* Flat variant — transparent at rest (header-bar / toolbar split buttons). */
+.adw-split-button.flat .adw-split-button-action,
+.adw-split-button.flat .adw-split-button-dropdown {
+    background-color: transparent;
+}
+
+.adw-split-button.flat .adw-split-button-action:highlighted,
+.adw-split-button.flat .adw-split-button-dropdown:highlighted {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+/* Non-flat press — darken the linked halves (Adwaita's `:active` shade). */
+.adw-split-button-action:highlighted,
+.adw-split-button-dropdown:highlighted {
+    background-color: rgba(0, 0, 0, 0.16);
 }
 
 /* ===== Toggle group (segmented control) ===== */
