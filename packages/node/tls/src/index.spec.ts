@@ -16,9 +16,8 @@ import tls, {
     DEFAULT_MIN_VERSION,
     DEFAULT_MAX_VERSION,
     DEFAULT_CIPHERS,
-    // @ts-expect-error CI-PROBE temporary freshness marker (not in @types/node)
-    __TLS_BUILD_MARKER,
 } from 'node:tls';
+import { readFileSync } from 'node:fs';
 import type { PeerCertificate } from 'node:tls';
 import type { Socket } from 'node:net';
 
@@ -656,10 +655,30 @@ export default async () => {
                                 implReason: (result && (result as { reason?: string }).reason) || null,
                                 implHost: (result && (result as { host?: string }).host) || null,
                                 fnLen: checkServerIdentity.toString().length,
-                                // If undefined → the bundled tls is a STALE shadow copy
-                                // that predates this marker (not the rebuilt source).
-                                buildMarker: (__TLS_BUILD_MARKER as string | undefined) ?? null,
                             }),
+                    );
+                    // Read the ON-DISK workspace lib the build refreshes — does it
+                    // carry the marker (→ build refreshed it, staleness is in module
+                    // RESOLUTION elsewhere) or not (→ build never refreshed it)?
+                    const candidates = [
+                        'lib/esm/internal/hostname.js',
+                        '../tls/lib/esm/internal/hostname.js',
+                        'node_modules/@gjsify/tls/lib/esm/internal/hostname.js',
+                    ];
+                    const onDisk: Record<string, unknown> = {};
+                    for (const p of candidates) {
+                        try {
+                            const c = readFileSync(p, 'utf-8');
+                            onDisk[p] = {
+                                hasMarker: c.includes('__TLS_BUILD_MARKER'),
+                                hasIPv6: c.includes("includes(':')") || c.includes('includes(`:`)'),
+                                len: c.length,
+                            };
+                        } catch (e) {
+                            onDisk[p] = 'ERR ' + (e as Error).message;
+                        }
+                    }
+                    console.error('CI_PROBE_ONDISK ' + JSON.stringify(onDisk),
                     );
                     expect(inlineValid).toBe(true);
                 });
