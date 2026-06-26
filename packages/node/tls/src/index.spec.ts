@@ -626,6 +626,39 @@ export default async () => {
                     expect(result).toBeUndefined();
                 });
 
+                // CI-PROBE (temporary): root-causing a CI-only false-fail of the
+                // IPv6 SAN test (provably-deterministic-pass locally). Prints the
+                // exact runtime values to stderr so we can see, on CI, whether the
+                // parse, the compare, or the impl diverges. Always passes.
+                await it('CI-PROBE IPv6 SAN diagnostic', async () => {
+                    const alt = 'IP Address:::1';
+                    const host = '::1';
+                    const cert = fakeCert({ subject: {}, subjectaltname: alt });
+                    const result = checkServerIdentity(host, cert);
+                    const parsed = alt
+                        .split(', ')
+                        .filter((n) => n.startsWith('IP Address:'))
+                        .map((n) => n.slice(11).trim());
+                    const inlineValid = parsed.some((ip) => ip.toLowerCase() === host.toLowerCase());
+                    console.error(
+                        'CI_PROBE_IPV6 ' +
+                            JSON.stringify({
+                                altCodes: Array.from(alt).map((c) => c.charCodeAt(0)),
+                                parsed,
+                                parsedLens: parsed.map((s) => s.length),
+                                host,
+                                hostLen: host.length,
+                                inlineValid,
+                                implUndef: result === undefined,
+                                implType: typeof result,
+                                implReason: (result && (result as { reason?: string }).reason) || null,
+                                implHost: (result && (result as { host?: string }).host) || null,
+                                fnLen: checkServerIdentity.toString().length,
+                            }),
+                    );
+                    expect(inlineValid).toBe(true);
+                });
+
                 await it('should handle IPv6 in IP Address SAN', async () => {
                     const result = checkServerIdentity(
                         '::1',
@@ -634,6 +667,15 @@ export default async () => {
                             subjectaltname: 'IP Address:::1',
                         }),
                     );
+                    if (result !== undefined) {
+                        console.error(
+                            'CI_PROBE_IPV6_FAIL ' +
+                                JSON.stringify({
+                                    reason: (result as { reason?: string }).reason ?? null,
+                                    host: (result as { host?: string }).host ?? null,
+                                }),
+                        );
+                    }
                     expect(result).toBeUndefined();
                 });
 
