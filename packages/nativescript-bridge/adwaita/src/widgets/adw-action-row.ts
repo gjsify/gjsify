@@ -1,9 +1,11 @@
 // AdwActionRow — a Libadwaita-style action row for NativeScript.
 //
-// Renders a REAL NativeScript `GridLayout` (columns `*, auto`): a title+subtitle
-// `Label` stack in column 0 and a suffix slot in column 1. Styled to look like
-// `Adw.ActionRow` via the `adw-row adw-action-row` CSS classes (see
-// `src/theme/adwaita.css`) — NOT a webview.
+// Renders a REAL NativeScript `GridLayout` (columns `auto, *, auto`): a leading
+// PREFIX slot in column 0, a title+subtitle `Label` stack in column 1, and a
+// trailing SUFFIX slot in column 2 — matching `Adw.ActionRow`'s prefix / text /
+// suffix layout (the prefix typically holds an `AdwIcon` symbolic icon). Styled
+// via the `adw-row adw-action-row` CSS classes (see `src/theme/adwaita.css`) —
+// NOT a webview.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-action-row` / `_row.scss`.
 // Reference: refs/libadwaita/src/stylesheet/widgets/_action-row.scss
@@ -12,14 +14,16 @@
 import { GridLayout, ItemSpec, StackLayout, Label, View } from '@nativescript/core';
 
 export class AdwActionRow extends GridLayout {
-    /** The text/value column (column 0). */
+    /** The text/value column (column 1). */
     protected readonly _textStack: StackLayout;
     /** The title label. */
     protected readonly _titleLabel: Label;
     /** The subtitle label (created lazily — only added to the tree when set). */
     protected readonly _subtitleLabel: Label;
     private _hasSubtitle = false;
-    /** The currently-installed suffix view (column 1), if any. */
+    /** The currently-installed prefix view (column 0), if any. */
+    private _prefix: View | null = null;
+    /** The currently-installed suffix view (column 2), if any. */
     private _suffix: View | null = null;
 
     constructor() {
@@ -27,16 +31,17 @@ export class AdwActionRow extends GridLayout {
 
         this.className = 'adw-row adw-action-row';
 
-        // Columns: `*, auto` — text expands, suffix hugs its content.
+        // Columns: `auto, *, auto` — prefix hugs, text expands, suffix hugs.
+        this.addColumn(new ItemSpec(1, 'auto'));
         this.addColumn(new ItemSpec(1, 'star'));
         this.addColumn(new ItemSpec(1, 'auto'));
         this.addRow(new ItemSpec(1, 'auto'));
 
-        // Column 0: a vertical stack holding title (+ optional subtitle).
+        // Column 1: a vertical stack holding title (+ optional subtitle).
         const textStack = new StackLayout();
         textStack.orientation = 'vertical';
         textStack.className = 'adw-row-text';
-        GridLayout.setColumn(textStack, 0);
+        GridLayout.setColumn(textStack, 1);
 
         const titleLabel = new Label();
         titleLabel.className = 'adw-row-title';
@@ -52,6 +57,28 @@ export class AdwActionRow extends GridLayout {
         this._textStack = textStack;
         this._titleLabel = titleLabel;
         this._subtitleLabel = subtitleLabel;
+    }
+
+    /**
+     * Install a prefix widget in column 0 (e.g. an `AdwIcon` symbolic icon).
+     * Replaces any previously-installed prefix. Pass `null` to clear it.
+     */
+    setPrefix(view: View | null): void {
+        if (this._prefix) {
+            this.removeChild(this._prefix);
+            this._prefix = null;
+        }
+        if (view) {
+            view.className = `${view.className ?? ''} adw-row-prefix`.trim();
+            GridLayout.setColumn(view, 0);
+            this.addChild(view);
+            this._prefix = view;
+        }
+    }
+
+    /** The currently-installed prefix view, or `null`. */
+    get prefix(): View | null {
+        return this._prefix;
     }
 
     /** The row title (column 0, top line). */
@@ -96,7 +123,7 @@ export class AdwActionRow extends GridLayout {
         }
         if (view) {
             view.className = `${view.className ?? ''} adw-row-suffix`.trim();
-            GridLayout.setColumn(view, 1);
+            GridLayout.setColumn(view, 2);
             this.addChild(view);
             this._suffix = view;
         }

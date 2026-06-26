@@ -113,15 +113,15 @@
 }
 
 .sb-story-group-title {
-    font-size: 20;
+    font-size: 17;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.8);
 }
 
 .sb-story-group-description {
-    font-size: 15;
+    font-size: 14;
     color: rgba(0, 0, 0, 0.55);
-    margin: 2 0 0 0;
+    margin: 3 0 0 0;
 }
 
 /*
@@ -130,11 +130,11 @@
  */
 .story-stage {
     border-width: 1;
-    border-color: rgba(127, 127, 127, 0.28);
+    border-color: rgba(0, 0, 0, 0.28);
     border-style: dashed;
     border-radius: 12;
-    padding: 16;
-    margin: 8 0 0 0;
+    padding: 18;
+    margin: 12 0 0 0;
 }
 
 /* ===== Controls panel — a RIGHT overlay (sidebar_position=END) ===== */
@@ -193,5 +193,5 @@
 }
 
 .ns-dark .story-stage {
-    border-color: rgba(160, 160, 160, 0.28);
+    border-color: rgba(255, 255, 255, 0.28);
 }

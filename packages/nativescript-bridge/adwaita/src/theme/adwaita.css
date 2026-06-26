@@ -65,22 +65,34 @@ Page.adw-window {
 /*
  * Hairline separator between rows in a boxed list — Adwaita draws a 1px
  * @borders line BETWEEN rows (not above the first / below the last). NS has no
- * `:not(:first-child)`, so we approximate with a 1px top border on the boxed
- * list's direct row children; the listbox clips the first row's border under
- * its rounded corner, which reads as "between rows".
+ * `:not(:first-child)`, so we put a 1px top border on every row and let the
+ * group's `_refreshRowEdges()` flag the FIRST row with `.adw-row-flush-top`
+ * (NS does NOT clip the first row's border under the card's rounded corner, so
+ * without the flag it reads as a stray line above the first row).
  */
 .boxed-list .adw-row {
     border-top-width: 1;
     border-top-color: rgba(0, 0, 0, 0.08);
 }
 
+.boxed-list .adw-row-flush-top {
+    border-top-width: 0;
+}
+
 .adw-action-row {
-    /* GridLayout `*, auto` — sizing handled by the widget, only chrome here. */
+    /* GridLayout `auto, *, auto` — sizing handled by the widget, only chrome here. */
     color: rgba(0, 0, 0, 0.8);
 }
 
 .adw-row-text {
     margin: 0;
+}
+
+/* Leading symbolic icon (column 0) — Adwaita sets a 12px gap to the title and
+ * centers it vertically against the title/subtitle stack. */
+.adw-row-prefix {
+    margin: 0 12 0 0;
+    vertical-align: center;
 }
 
 .adw-row-title {
@@ -97,6 +109,7 @@ Page.adw-window {
 
 .adw-row-suffix {
     margin: 0;
+    vertical-align: center;
 }
 
 /* ===== Switch ===== */
@@ -165,23 +178,26 @@ Page.adw-window {
     margin: 0;
 }
 
-.adw-spin-button {
-    width: 32;
-    height: 32;
-    border-radius: 9;
+/* The stepper buttons are AdwImageButtons (symbolic value-decrease/increase
+ * icons). Compound selector so it beats the later `.adw-image-button` rule:
+ * keep the circular shape but give the subtle persistent fill Adw.SpinRow's
+ * stepper shows (the bare image-button is transparent at rest). */
+.adw-image-button.adw-spin-button {
+    width: 30;
+    height: 30;
     background-color: rgba(128, 128, 128, 0.12);
-    color: rgba(0, 0, 0, 0.8);
-    font-size: 18;
-    font-weight: 700;
-    padding: 0;
     margin: 0 2 0 2;
+}
+
+.ns-dark .adw-image-button.adw-spin-button {
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 .adw-spin-value {
     font-size: 15;
     color: rgba(0, 0, 0, 0.8);
-    width: 48;
-    margin: 0 4 0 4;
+    margin: 0 6 0 4;
+    vertical-align: center;
 }
 
 /* ===== Slider row (RANGE control — vertical card: title+value header over a slider) ===== */

@@ -10,8 +10,10 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_spin-button.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { Button, Label, StackLayout, type EventData } from '@nativescript/core';
+import { Label, StackLayout, type EventData } from '@nativescript/core';
+import { valueDecreaseSymbolic, valueIncreaseSymbolic } from '@gjsify/adwaita-icons/actions';
 import { AdwActionRow } from './adw-action-row.js';
+import { AdwImageButton } from './adw-image-button.js';
 
 /** Event name emitted when {@link AdwSpinRow.value} changes. Mirrors GObject `notify::value`. */
 export const NOTIFY_VALUE = 'notify::value';
@@ -23,11 +25,11 @@ export interface NotifyValueEventData extends EventData {
 }
 
 export class AdwSpinRow extends AdwActionRow {
-    /** The `−` decrement button. */
-    protected readonly _minusButton: Button;
-    /** The `+` increment button. */
-    protected readonly _plusButton: Button;
-    /** The value display between the buttons. */
+    /** The `−` decrement button (circular icon button, value-decrease symbolic). */
+    protected readonly _minusButton: AdwImageButton;
+    /** The `+` increment button (circular icon button, value-increase symbolic). */
+    protected readonly _plusButton: AdwImageButton;
+    /** The value display before the stepper buttons. */
     protected readonly _valueLabel: Label;
 
     private _value = 0;
@@ -44,23 +46,23 @@ export class AdwSpinRow extends AdwActionRow {
         control.orientation = 'horizontal';
         control.className = 'adw-spin-control';
 
-        const minus = new Button();
-        minus.text = '−'; // U+2212 MINUS SIGN
-        minus.className = 'adw-spin-button adw-spin-minus';
-        // Adwaita buttons are FLAT — kill the Android Material elevation/shadow.
-        minus.set('androidElevation', 0);
-
         const valueLabel = new Label();
         valueLabel.className = 'adw-spin-value';
         valueLabel.text = String(this._value);
 
-        const plus = new Button();
-        plus.text = '+';
-        plus.className = 'adw-spin-button adw-spin-plus';
-        plus.set('androidElevation', 0);
+        // REAL Adwaita symbolic icons in circular flat buttons (value-decrease /
+        // value-increase), matching Adw.SpinRow's stepper — not `−`/`+` glyphs.
+        const minus = new AdwImageButton();
+        minus.icon = valueDecreaseSymbolic;
+        minus.className = `${minus.className} adw-spin-button adw-spin-minus`.trim();
 
-        control.addChild(minus);
+        const plus = new AdwImageButton();
+        plus.icon = valueIncreaseSymbolic;
+        plus.className = `${plus.className} adw-spin-button adw-spin-plus`.trim();
+
+        // Native order: the value sits BEFORE the stepper buttons (`16  −  +`).
         control.addChild(valueLabel);
+        control.addChild(minus);
         control.addChild(plus);
         this.setSuffix(control);
 
