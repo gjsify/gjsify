@@ -25,6 +25,8 @@ export {
     AdwExpanderRow,
     NOTIFY_EXPANDED,
     AdwButton,
+    AdwImageButton,
+    DEFAULT_ICON_BUTTON_ICON_SIZE,
     AdwBanner,
     BUTTON_CLICKED,
     AdwAvatar,
@@ -80,6 +82,14 @@ export {
     ABOUT_CLOSED,
     AdwPreferencesDialog,
     PREFERENCES_CLOSED,
+    // Interaction + icon helpers
+    attachRowPressFeedback,
+    renderSymbolicIcon,
+    extractIconPaths,
+    extractPathData,
+    ADWAITA_ICON_GRID,
+    DEFAULT_ICON_COLOR,
+    DEFAULT_ICON_COLOR_DARK,
     registerAdwaitaElements,
 } from './widgets/index.js';
 export type {
@@ -105,6 +115,9 @@ export type {
     // Feedback / dialogs
     AdwToastOptions,
     NotifyResponseEventData,
+    // Icon helpers
+    SymbolicIconOptions,
+    IconPath,
 } from './widgets/index.js';
 
 // Fonts

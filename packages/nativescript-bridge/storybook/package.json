@@ -39,6 +39,7 @@
         "gnome"
     ],
     "dependencies": {
+        "@gjsify/adwaita-icons": "workspace:^",
         "@gjsify/adwaita-nativescript": "workspace:^",
         "@gjsify/devtools-nativescript": "workspace:^",
         "@gjsify/stories": "workspace:^",

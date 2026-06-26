@@ -23,14 +23,15 @@ import {
     type StorySummary,
 } from '@gjsify/storybook-core';
 import {
-    AdwButton,
     AdwHeaderBar,
+    AdwImageButton,
     AdwNavigationSplitView,
     AdwOverlaySplitView,
     AdwPreferencesGroup,
     AdwToolbarView,
     AdwWindowTitle,
 } from '@gjsify/adwaita-nativescript';
+import { goPreviousSymbolic, sidebarShowRightSymbolic } from '@gjsify/adwaita-icons/actions';
 import { Label, ScrollView, StackLayout, type View } from '@nativescript/core';
 import { createControlRow } from './controls.js';
 import type { StoryView } from './story-view.js';
@@ -222,9 +223,8 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
 
         const header = new AdwHeaderBar();
         header.className = `${header.className} sb-detail-header`.trim();
-        const back = new AdwButton();
-        back.text = '‹';
-        back.variant = 'flat';
+        const back = new AdwImageButton();
+        back.icon = goPreviousSymbolic;
         back.className = `${back.className} sb-back-button`.trim();
         back.addEventListener('tap', () => this.root.showSidebarPane());
         header.packStart(back);
@@ -233,9 +233,8 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         this._previewTitle.title = 'Preview';
         header.setTitleWidget(this._previewTitle);
 
-        const controlsToggle = new AdwButton();
-        controlsToggle.text = '☰';
-        controlsToggle.variant = 'flat';
+        const controlsToggle = new AdwImageButton();
+        controlsToggle.icon = sidebarShowRightSymbolic;
         controlsToggle.className = `${controlsToggle.className} sb-controls-toggle`.trim();
         controlsToggle.addEventListener('tap', () => {
             this._controlsSplit.showSidebar = !this._controlsSplit.showSidebar;

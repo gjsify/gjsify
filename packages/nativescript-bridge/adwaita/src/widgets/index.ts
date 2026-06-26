@@ -23,6 +23,7 @@ export { AdwExpanderRow, NOTIFY_EXPANDED } from './adw-expander-row.js';
 export type { NotifyExpandedEventData } from './adw-expander-row.js';
 export { AdwButton } from './adw-button.js';
 export type { AdwButtonVariant } from './adw-button.js';
+export { AdwImageButton, DEFAULT_ICON_BUTTON_ICON_SIZE } from './adw-image-button.js';
 export { AdwBanner, BUTTON_CLICKED } from './adw-banner.js';
 export { AdwAvatar, DEFAULT_AVATAR_SIZE, avatarInitials } from './adw-avatar.js';
 export { AdwWindowTitle } from './adw-window-title.js';
@@ -75,6 +76,19 @@ export { AdwPreferencesDialog, CLOSED as PREFERENCES_CLOSED } from './adw-prefer
 // activatable rows already call this internally).
 export { attachRowPressFeedback } from './row-press.js';
 
+// --- Icon rendering ---
+// Rasterise an Adwaita symbolic SVG (e.g. from `@gjsify/adwaita-icons`) to a native
+// image — NativeScript has no SVG decoder. `AdwImageButton` uses this internally.
+export {
+    ADWAITA_ICON_GRID,
+    DEFAULT_ICON_COLOR,
+    DEFAULT_ICON_COLOR_DARK,
+    extractIconPaths,
+    extractPathData,
+    renderSymbolicIcon,
+} from './icons.js';
+export type { IconPath, SymbolicIconOptions } from './icons.js';
+
 import { AdwPreferencesPage } from './adw-preferences-page.js';
 import { AdwPreferencesGroup } from './adw-preferences-group.js';
 import { AdwActionRow } from './adw-action-row.js';
@@ -85,6 +99,7 @@ import { AdwComboRow } from './adw-combo-row.js';
 import { AdwSpinRow } from './adw-spin-row.js';
 import { AdwExpanderRow } from './adw-expander-row.js';
 import { AdwButton } from './adw-button.js';
+import { AdwImageButton } from './adw-image-button.js';
 import { AdwBanner } from './adw-banner.js';
 import { AdwAvatar } from './adw-avatar.js';
 import { AdwWindowTitle } from './adw-window-title.js';
@@ -123,6 +138,7 @@ const ELEMENTS = {
     AdwSpinRow,
     AdwExpanderRow,
     AdwButton,
+    AdwImageButton,
     AdwBanner,
     AdwAvatar,
     AdwWindowTitle,

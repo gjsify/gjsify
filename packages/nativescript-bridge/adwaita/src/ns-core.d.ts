@@ -227,13 +227,34 @@ declare module '@nativescript/core' {
         busy: boolean;
     }
 
+    /** A decoded native image (wraps an `android.graphics.Bitmap` / `UIImage`). */
+    export class ImageSource {
+        /** Wrap a native bitmap/image source (e.g. an `android.graphics.Bitmap`). */
+        constructor(nativeSource?: unknown);
+        readonly width: number;
+        readonly height: number;
+    }
+
     /** An image view — `<Image>`. */
     export class Image extends View {
         /** Image source: a URI, `data:` URL, `~/`-relative path, or `res://` resource. */
-        src: string;
+        src: string | ImageSource;
+        /** A pre-decoded native image source (preferred for in-memory bitmaps). */
+        imageSource: ImageSource;
         /** Stretch mode (`'none' | 'aspectFill' | 'aspectFit' | 'fill'`). */
         stretch: string;
     }
+
+    /** A connected display. */
+    export interface ScreenMetrics {
+        /** Device pixel density (logical→physical scale factor). */
+        readonly scale: number;
+        readonly widthDIPs: number;
+        readonly heightDIPs: number;
+    }
+
+    /** Static access to the device's screen(s). */
+    export const Screen: { readonly mainScreen: ScreenMetrics };
 
     /** One segment of a {@link SegmentedBar}. */
     export class SegmentedBarItem extends Observable {
