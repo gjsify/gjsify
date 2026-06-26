@@ -584,11 +584,57 @@ Page.adw-window {
     background-color: rgba(0, 0, 0, 0.16);
 }
 
-/* ===== Toggle group (segmented control) ===== */
-
+/* ===== Toggle group (Adwaita LINKED segmented control) ===== */
+/* A tinted rounded container; the selected segment is raised to a white pill
+ * (Adwaita has a soft shadow there — the NS subset has no shadow, so a white
+ * fill stands in). */
 .adw-toggle-group {
-    color: #3584e4;
+    background-color: rgba(0, 0, 0, 0.08);
+    border-radius: 9;
+    padding: 3;
     margin: 0;
+}
+
+.adw-toggle-button {
+    background-color: transparent;
+    border-radius: 7;
+    padding: 5 14 5 14;
+    margin: 0;
+}
+
+.adw-toggle-button.active {
+    background-color: #ffffff;
+}
+
+.adw-toggle-button:highlighted {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+.adw-toggle-label {
+    font-size: 14;
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.8);
+    vertical-align: center;
+}
+
+.adw-toggle-icon {
+    margin: 0 6 0 0;
+    vertical-align: center;
+}
+
+/* Flat variant — no container fill (toolbar/header context). */
+.adw-toggle-group.flat {
+    background-color: transparent;
+    padding: 0;
+}
+
+/* Round variant — fully-pill container + segments. */
+.adw-toggle-group.round {
+    border-radius: 9999;
+}
+
+.adw-toggle-group.round .adw-toggle-button {
+    border-radius: 9999;
 }
 
 /* ===== View switcher (top pill bar) ===== */
@@ -1138,7 +1184,23 @@ Page.ns-dark.adw-window {
 /* ===== Dark: toggle group ===== */
 
 .ns-dark .adw-toggle-group {
-    color: #78aeed;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.ns-dark .adw-toggle-group.flat {
+    background-color: transparent;
+}
+
+.ns-dark .adw-toggle-button.active {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.ns-dark .adw-toggle-button:highlighted {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.ns-dark .adw-toggle-label {
+    color: rgba(255, 255, 255, 0.85);
 }
 
 /* ===== Dark: view switcher ===== */
