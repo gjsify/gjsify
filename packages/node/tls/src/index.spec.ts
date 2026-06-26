@@ -4,7 +4,7 @@
 // Original: Copyright (c) Node.js contributors. MIT.
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
 
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
 import tls, {
     TLSSocket,
     connect,
@@ -626,15 +626,28 @@ export default async () => {
                     expect(result).toBeUndefined();
                 });
 
-                await it('should handle IPv6 in IP Address SAN', async () => {
-                    const result = checkServerIdentity(
-                        '::1',
-                        fakeCert({
-                            subject: {},
-                            subjectaltname: 'IP Address:::1',
-                        }),
-                    );
-                    expect(result).toBeUndefined();
+                // GJS-only: this validates OUR IPv6 IP-SAN matching. Newer native
+                // Node (24.16+) cannot match an IPv6 IP-SAN at all: its
+                // `checkServerIdentity` runs the host through `domainToASCII()`
+                // before the `net.isIP()` gate (refs/node/lib/tls.js:412/434), and
+                // `domainToASCII('::1') === ''` (an IPv6 literal is not a valid
+                // domain) → `net.isIP('') === 0` → it skips IP matching and returns
+                // `Cert does not contain a DNS name`. IPv4 is unaffected (dotted-
+                // decimal survives `domainToASCII`). `@gjsify/tls` matches the IPv6
+                // host directly (no `domainToASCII`), so it is correct here while
+                // native Node regressed — running this on `test:node` would assert
+                // our (correct) result against native Node's broken one and fail.
+                await on('Gjs', async () => {
+                    await it('should handle IPv6 in IP Address SAN', async () => {
+                        const result = checkServerIdentity(
+                            '::1',
+                            fakeCert({
+                                subject: {},
+                                subjectaltname: 'IP Address:::1',
+                            }),
+                        );
+                        expect(result).toBeUndefined();
+                    });
                 });
 
                 await it('should fail IPv4 in DNS SAN (IP should use IP Address SAN)', async () => {
