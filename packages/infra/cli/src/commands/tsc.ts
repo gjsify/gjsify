@@ -147,12 +147,22 @@ export const tscCommand: Command<unknown, TscOptions> = {
         // `gjs` is not on PATH (ENOENT), transparently fall back to upstream
         // `typescript` under Node when available.
         if (bundlePath) {
+            // A failed spawn (notably ENOENT when `gjs` is absent) emits BOTH
+            // 'error' AND 'close'. The 'error' handler owns the outcome (Node
+            // fallback or a clear exit), so the 'close' handler must NOT also
+            // exit — otherwise it races and exits with the spawn errno (e.g.
+            // ENOENT → -2), which surfaced as a misleading 254 and pre-empted the
+            // fallback (gjsify tsc died instead of degrading to upstream tsc on a
+            // gjs-less host such as a CI runner).
+            let gjsSpawnFailed = false;
             const child = spawn('gjs', ['-m', bundlePath, ...tscArgs], { env, stdio: 'inherit' });
             await new Promise<void>((resolvePromise) => {
                 child.on('close', (code) => {
+                    if (gjsSpawnFailed) return;
                     process.exit(code ?? 1);
                 });
                 child.on('error', (err: NodeJS.ErrnoException) => {
+                    gjsSpawnFailed = true;
                     if (err.code === 'ENOENT' && nodeTscPath) {
                         // No gjs on PATH — run upstream typescript under Node.
                         runNodeTsc();
