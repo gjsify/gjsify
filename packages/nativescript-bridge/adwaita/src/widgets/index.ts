@@ -19,6 +19,8 @@ export { AdwComboRow, NOTIFY_SELECTED } from './adw-combo-row.js';
 export type { AdwComboOption, NotifySelectedEventData } from './adw-combo-row.js';
 export { AdwSpinRow, NOTIFY_VALUE } from './adw-spin-row.js';
 export type { NotifyValueEventData } from './adw-spin-row.js';
+export { AdwSliderRow, NOTIFY_SLIDER_VALUE } from './adw-slider-row.js';
+export type { NotifySliderValueEventData } from './adw-slider-row.js';
 export { AdwExpanderRow, NOTIFY_EXPANDED } from './adw-expander-row.js';
 export type { NotifyExpandedEventData } from './adw-expander-row.js';
 export { AdwButton } from './adw-button.js';
@@ -97,6 +99,7 @@ import { AdwEntryRow } from './adw-entry-row.js';
 import { AdwPasswordEntryRow } from './adw-password-entry-row.js';
 import { AdwComboRow } from './adw-combo-row.js';
 import { AdwSpinRow } from './adw-spin-row.js';
+import { AdwSliderRow } from './adw-slider-row.js';
 import { AdwExpanderRow } from './adw-expander-row.js';
 import { AdwButton } from './adw-button.js';
 import { AdwImageButton } from './adw-image-button.js';
@@ -136,6 +139,7 @@ const ELEMENTS = {
     AdwPasswordEntryRow,
     AdwComboRow,
     AdwSpinRow,
+    AdwSliderRow,
     AdwExpanderRow,
     AdwButton,
     AdwImageButton,
