@@ -16,6 +16,7 @@
 
 import { Label, StackLayout, type EventData } from '@nativescript/core';
 import { AdwActionRow } from './adw-action-row.js';
+import { attachRowPressFeedback } from './row-press.js';
 
 /** Event name emitted when the row is tapped. Mirrors `Adw.ButtonRow::activated`. */
 export const ACTIVATED = 'activated';
@@ -60,6 +61,8 @@ export class AdwButtonRow extends AdwActionRow {
             const data: EventData = { eventName: ACTIVATED, object: this };
             this.notify(data);
         });
+        // ...and darkens on press, like an Adwaita `.button` row.
+        attachRowPressFeedback(this);
     }
 
     /**

@@ -27,6 +27,11 @@ import {
     adwaitaFontInstallInstructions,
     hasAdwaitaSans,
 } from './fonts.js';
+// `row-press.js` imports only TYPES from `@nativescript/core` (no `extends
+// GridLayout`), so — unlike the widget classes — it carries no runtime
+// `@nativescript/core` value import and loads off-device. We test the REAL helper.
+import { attachRowPressFeedback } from './widgets/row-press.js';
+import type { TouchGestureEventData, View } from '@nativescript/core';
 
 // The XML-registration helper only touches the global `registerElement` (it does
 // not extend any `@nativescript/core` class at module-eval), so its own module is
@@ -349,6 +354,32 @@ class MockToast {
     }
 }
 
+// Minimal View stand-in for attachRowPressFeedback: records pseudo-class
+// add/delete and exposes the captured `touch` handler so the test can drive the
+// gesture phases the real platform would dispatch.
+class MockPressRow {
+    pseudo = new Set<string>();
+    private _touch: ((e: TouchGestureEventData) => void) | null = null;
+    addEventListener(name: string, cb: (e: TouchGestureEventData) => void): void {
+        if (name === 'touch') this._touch = cb;
+    }
+    addPseudoClass(name: string): void {
+        this.pseudo.add(name);
+    }
+    deletePseudoClass(name: string): void {
+        this.pseudo.delete(name);
+    }
+    fire(action: TouchGestureEventData['action']): void {
+        this._touch?.({
+            eventName: 'touch',
+            object: this as unknown as View,
+            action,
+            getX: () => 0,
+            getY: () => 0,
+        });
+    }
+}
+
 export default async () => {
     await describe('@gjsify/adwaita-nativescript outside NativeScript', async () => {
         await it('isNativeScript is false off-device', () => {
@@ -667,6 +698,39 @@ export default async () => {
             const t = new MockToast('Deleted', { timeout: 2000, buttonLabel: 'Undo' });
             expect(t.timeout).toBe(2000);
             expect(t.buttonLabel).toBe('Undo');
+        });
+    });
+
+    await describe('attachRowPressFeedback (activatable-row press state)', async () => {
+        await it('adds the highlighted pseudo-class on touch-down', () => {
+            const row = new MockPressRow();
+            attachRowPressFeedback(row as unknown as View);
+            row.fire('down');
+            expect(row.pseudo.has('highlighted')).toBe(true);
+        });
+
+        await it('clears it on release (up)', () => {
+            const row = new MockPressRow();
+            attachRowPressFeedback(row as unknown as View);
+            row.fire('down');
+            row.fire('up');
+            expect(row.pseudo.has('highlighted')).toBe(false);
+        });
+
+        await it('clears it on scroll-cancel', () => {
+            const row = new MockPressRow();
+            attachRowPressFeedback(row as unknown as View);
+            row.fire('down');
+            row.fire('cancel');
+            expect(row.pseudo.has('highlighted')).toBe(false);
+        });
+
+        await it('keeps the highlight through a move (no premature clear)', () => {
+            const row = new MockPressRow();
+            attachRowPressFeedback(row as unknown as View);
+            row.fire('down');
+            row.fire('move');
+            expect(row.pseudo.has('highlighted')).toBe(true);
         });
     });
 };
