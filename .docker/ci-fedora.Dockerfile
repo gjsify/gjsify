@@ -24,11 +24,17 @@ FROM fedora:${FEDORA_VERSION}
 # Container prerequisites (used by actions/checkout, actions/setup-node,
 # the install step, and the test runners). Pre-install here so the main
 # workflow's "Install container prerequisites" step becomes a no-op.
-RUN dnf install -y --setopt=install_weak_deps=False \
+# `libatomic` BEFORE setup-node: Node >= 26's prebuilt binary links
+# libatomic.so.1, which the minimal Fedora container lacks.
+# NOTE: weak deps are left ON (no --setopt=install_weak_deps=False) so this
+# image installs EXACTLY what `main.yml`'s plain `dnf install -y` pulled —
+# parity with the known-good environment matters more than image size.
+RUN dnf install -y \
     git \
     tar \
     xz \
     findutils \
+    libatomic \
     && dnf clean all
 
 # GJS + GNOME devel libs. gstreamer1-{,plugins-base-,plugins-bad-free-}
@@ -36,9 +42,17 @@ RUN dnf install -y --setopt=install_weak_deps=False \
 # pkg-config files + headers needed to compile @gjsify/webrtc-native at
 # Vala build time. libnice-gstreamer1 provides the `nice` plugin webrtcbin
 # needs at runtime for the WebRTC test suite.
-RUN dnf install -y --setopt=install_weak_deps=False \
+#
+# `glib2` (NOT just `glib2-devel`) ships the `glib-compile-resources` binary
+# that the `gjsify gresource` test hard-requires; `gettext` ships `msgfmt`
+# for the `gjsify gettext` test. This list MUST stay in lockstep with the
+# "Install GJS and GNOME development libraries" step in
+# `.github/workflows/main.yml` — that file is the source of truth.
+RUN dnf install -y \
     gjs \
+    glib2 \
     glib2-devel \
+    gettext \
     gobject-introspection-devel \
     gtk4-devel \
     libsoup3-devel \
@@ -60,7 +74,7 @@ RUN dnf install -y --setopt=install_weak_deps=False \
 # Meson + Vala + Blueprint compiler for the native bridge builds
 # (@gjsify/{webrtc-native, tls-native, terminal-native, sab-native,
 # http2-native, http-soup-bridge}).
-RUN dnf install -y --setopt=install_weak_deps=False \
+RUN dnf install -y \
     meson \
     vala \
     gcc \
