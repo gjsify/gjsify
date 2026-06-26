@@ -102,8 +102,16 @@ export default async () => {
         });
 
         await it('should return pid', async () => {
-            const result = spawnSync('echo', ['test']);
+            // spawnSync captures the pid at spawn time (before the blocking
+            // communicate() that runs the child to completion). A child that
+            // is still alive across that spawn→capture window makes the read
+            // deterministic — an instant-exit `echo` can be reaped by the GLib
+            // worker-thread child-watch first, nulling get_identifier() (the
+            // documented upstream GLib limitation, issue #3981). `sleep`
+            // guarantees the window; the assertion is unchanged (pid > 0).
+            const result = spawnSync('sleep', ['0.05']);
             expect(typeof result.pid).toBe('number');
+            expect(result.pid > 0).toBeTruthy();
         });
 
         await it('should respect cwd option', async () => {
@@ -145,9 +153,23 @@ export default async () => {
         });
 
         await it('should return ChildProcess', async () => {
-            const child = exec('echo test', () => {});
+            // `exec` captures the pid at spawn time (the one instant the child
+            // is provably alive — see `_capturePidAtSpawn` in index.ts). To
+            // assert the real Node contract ("exec returns a ChildProcess with
+            // a positive numeric pid") DETERMINISTICALLY, the shell must still
+            // be alive when we read it: `cat` blocks on its empty piped stdin,
+            // so the GLib worker-thread child-watch cannot reap it out from
+            // under `get_identifier()`. An instant-exit `echo` would be reaped
+            // in the spawn→read window on a saturated runner, nulling the pid —
+            // the documented upstream GLib limitation (issue #3981). This is
+            // the same de-flake the spawn test uses (PR #505); it does NOT
+            // weaken the assertion — pid must be a number > 0.
+            const child = exec('cat', () => {});
             expect(child).toBeDefined();
             expect(typeof child.pid).toBe('number');
+            expect(child.pid! > 0).toBeTruthy();
+            child.kill();
+            await new Promise<void>((resolve) => child.on('close', () => resolve()));
         });
     });
 
@@ -540,10 +562,14 @@ export default async () => {
         });
 
         await it('should return ChildProcess with pid', async () => {
-            // Testing child_process API — hardcoded safe literal
-            const child = exec('echo test', () => {});
+            // `cat` blocks on its empty piped stdin so it is still alive when
+            // the pid is read at spawn time — deterministic, vs an instant-exit
+            // `echo` whose pid the GLib worker-thread reap can null out (upstream
+            // GLib issue #3981). Assertion unchanged: pid must be a number > 0.
+            const child = exec('cat', () => {});
             expect(typeof child.pid).toBe('number');
             expect(child.pid! > 0).toBeTruthy();
+            child.kill();
             await new Promise<void>((resolve) => child.on('close', () => resolve()));
         });
 
