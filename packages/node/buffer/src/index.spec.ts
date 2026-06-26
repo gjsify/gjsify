@@ -1217,8 +1217,8 @@ export default async () => {
     });
 
     await describe('Buffer.poolSize', async () => {
-        await it('should have default poolSize of 8192', async () => {
-            expect(Buffer.poolSize).toBe(8192);
+        await it('should have default poolSize of 65536', async () => {
+            expect(Buffer.poolSize).toBe(65536);
         });
     });
 };

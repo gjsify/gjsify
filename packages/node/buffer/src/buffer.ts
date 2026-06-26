@@ -245,7 +245,10 @@ export class Buffer extends Uint8Array {
         return result;
     }
 
-    static poolSize = 8192;
+    // Node's default Buffer pool size. Bumped 8192 → 65536 in Node upstream
+    // (≈ v24.x / v26): `Buffer.poolSize` defaults to 64 KiB. Track the current
+    // default so `Buffer.poolSize` matches native Node on the Node axis too.
+    static poolSize = 65536;
 
     // ---- Instance methods ----
 
