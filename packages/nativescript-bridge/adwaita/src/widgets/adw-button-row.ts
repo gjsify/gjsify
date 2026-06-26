@@ -6,27 +6,31 @@
 // Use inside an {@link AdwPreferencesGroup} like any other row.
 //
 // FIDELITY: faithful. The row is a real tappable `GridLayout`; the centered accent
-// label matches `Adw.ButtonRow`'s default. The optional `startIcon` is a leading
-// glyph `Label` (NS subset has no icon-theme lookup — pass an emoji / font glyph),
-// the same approximation `AdwStatusPage` uses.
+// label matches `Adw.ButtonRow`'s default. The optional `startIcon` is a REAL
+// Adwaita symbolic icon (an {@link AdwIcon}, accent-coloured to match the title).
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-button-row`.
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (.row.button)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { Label, StackLayout, type EventData } from '@nativescript/core';
+import { StackLayout, type EventData } from '@nativescript/core';
 import { AdwActionRow } from './adw-action-row.js';
+import { AdwIcon } from './adw-icon.js';
 import { attachRowPressFeedback } from './row-press.js';
+
+/** The Adwaita accent (suggested) colour the button-row title + start icon use. */
+const ADW_ACCENT = '#3584e4';
 
 /** Event name emitted when the row is tapped. Mirrors `Adw.ButtonRow::activated`. */
 export const ACTIVATED = 'activated';
 
 export class AdwButtonRow extends AdwActionRow {
-    /** The horizontal content box (leading glyph + centered title). */
+    /** The horizontal content box (leading icon + centered title). */
     protected readonly _contentBox: StackLayout;
-    /** The leading glyph label (lazily added — only when an icon is set). */
-    protected readonly _startIconLabel: Label;
+    /** The leading symbolic icon (lazily added — only when an icon is set). */
+    protected readonly _startIcon: AdwIcon;
     private _hasStartIcon = false;
+    private _startIconSvg = '';
 
     constructor() {
         super();
@@ -47,14 +51,16 @@ export class AdwButtonRow extends AdwActionRow {
         contentBox.className = 'adw-button-row-content';
         contentBox.horizontalAlignment = 'center';
 
-        const startIcon = new Label();
-        startIcon.className = 'adw-button-row-start-icon';
+        const startIcon = new AdwIcon();
+        startIcon.className = `${startIcon.className} adw-button-row-start-icon`.trim();
+        startIcon.verticalAlignment = 'middle';
+        startIcon.iconColor = ADW_ACCENT;
 
         contentBox.addChild(this._titleLabel);
         this._textStack.addChild(contentBox);
         this._textStack.horizontalAlignment = 'center';
         this._contentBox = contentBox;
-        this._startIconLabel = startIcon;
+        this._startIcon = startIcon;
 
         // The whole row is the button.
         this.addEventListener('tap', () => {
@@ -66,26 +72,40 @@ export class AdwButtonRow extends AdwActionRow {
     }
 
     /**
-     * A leading glyph before the centered title (emoji / font glyph). Setting a
-     * non-empty value inserts it; empty removes it.
+     * A leading Adwaita symbolic SVG string before the centered title (e.g.
+     * `listAddSymbolic`). Setting a non-empty value inserts it; empty removes it.
      */
     get startIcon(): string {
-        return this._hasStartIcon ? (this._startIconLabel.text ?? '') : '';
+        return this._startIconSvg;
     }
 
     set startIcon(value: string) {
-        const text = value ?? '';
-        this._startIconLabel.text = text;
-        const want = text.length > 0;
+        this._startIconSvg = value ?? '';
+        this._startIcon.icon = this._startIconSvg;
+        const want = this._startIconSvg.length > 0;
         if (want && !this._hasStartIcon) {
-            // Glyph goes BEFORE the title (index 0 in the content box).
+            // Icon goes BEFORE the title (index 0 in the content box).
             this._contentBox.removeChild(this._titleLabel);
-            this._contentBox.addChild(this._startIconLabel);
+            this._contentBox.addChild(this._startIcon);
             this._contentBox.addChild(this._titleLabel);
             this._hasStartIcon = true;
         } else if (!want && this._hasStartIcon) {
-            this._contentBox.removeChild(this._startIconLabel);
+            this._contentBox.removeChild(this._startIcon);
             this._hasStartIcon = false;
         }
+    }
+
+    /**
+     * The start icon's fill colour (hex). Defaults to the Adwaita accent; callers
+     * set the destructive red when the row carries `destructive-action` so the
+     * symbolic icon matches the title colour (the icon bitmap is pre-coloured, so
+     * CSS cannot recolour it).
+     */
+    get startIconColor(): string {
+        return this._startIcon.iconColor;
+    }
+
+    set startIconColor(value: string) {
+        this._startIcon.iconColor = value || ADW_ACCENT;
     }
 }

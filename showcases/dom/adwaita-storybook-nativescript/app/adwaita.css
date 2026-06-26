@@ -459,7 +459,13 @@ Page.adw-window {
     padding: 24 32 24 32;
 }
 
+/* The symbolic icon (AdwIcon) — only spacing; size/colour are baked by AdwIcon. */
 .adw-status-page-icon {
+    margin: 0 0 12 0;
+}
+
+/* The legacy glyph fallback (a Label) — large + dim. */
+.adw-status-page-icon-glyph {
     font-size: 56;
     color: rgba(0, 0, 0, 0.35);
     margin: 0 0 12 0;
@@ -522,6 +528,17 @@ Page.adw-window {
     font-weight: 700;
     color: rgba(0, 0, 0, 0.8);
     margin: 0;
+}
+
+/* On a suggested/destructive button the label must take the button's foreground
+ * (the explicit dark label colour above would otherwise win over the inherited
+ * one). The matching ICON colour is pre-baked by the caller via AdwIcon.iconColor. */
+.adw-button.suggested-action .adw-button-content-label {
+    color: #ffffff;
+}
+
+.adw-button.destructive-action .adw-button-content-label {
+    color: #c01c28;
 }
 
 /* ===== Split button (action + dropdown) ===== */
@@ -1064,7 +1081,7 @@ Page.ns-dark.adw-window {
     background-color: #222226;
 }
 
-.ns-dark .adw-status-page-icon {
+.ns-dark .adw-status-page-icon-glyph {
     color: rgba(255, 255, 255, 0.35);
 }
 

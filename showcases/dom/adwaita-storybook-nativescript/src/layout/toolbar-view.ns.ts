@@ -4,12 +4,14 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import {
-    AdwButton,
     AdwHeaderBar,
+    AdwImageButton,
     AdwStatusPage,
     AdwToolbarView,
     AdwWindowTitle,
 } from '@gjsify/adwaita-nativescript';
+import { listAddSymbolic, listRemoveSymbolic, sendToSymbolic } from '@gjsify/adwaita-icons/actions';
+import { folderSymbolic } from '@gjsify/adwaita-icons/places';
 import { toolbarViewMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class ToolbarViewNsStory extends StoryView {
@@ -40,7 +42,7 @@ export class ToolbarViewNsStory extends StoryView {
 
         // Content — a status page sits between the toolbars.
         const content = new AdwStatusPage();
-        content.iconText = '📁';
+        content.icon = folderSymbolic;
         content.title = 'Your library';
         content.description = 'Content sits between the toolbars and scrolls independently of them.';
         view.setContent(content);
@@ -51,23 +53,20 @@ export class ToolbarViewNsStory extends StoryView {
         // start / center-title / end packing the bottom action bar needs.
         const bottomBar = new AdwHeaderBar();
 
-        const addButton = new AdwButton();
-        addButton.text = '+';
-        addButton.variant = 'flat';
+        const addButton = new AdwImageButton();
+        addButton.icon = listAddSymbolic;
         bottomBar.packStart(addButton);
 
-        const removeButton = new AdwButton();
-        removeButton.text = '−';
-        removeButton.variant = 'flat';
+        const removeButton = new AdwImageButton();
+        removeButton.icon = listRemoveSymbolic;
         bottomBar.packStart(removeButton);
 
         const selectionLabel = new AdwWindowTitle();
         selectionLabel.title = 'Selection: none';
         bottomBar.setTitleWidget(selectionLabel);
 
-        const shareButton = new AdwButton();
-        shareButton.text = '⤴';
-        shareButton.variant = 'flat';
+        const shareButton = new AdwImageButton();
+        shareButton.icon = sendToSymbolic;
         bottomBar.packEnd(shareButton);
 
         view.addBottomBar(bottomBar);
