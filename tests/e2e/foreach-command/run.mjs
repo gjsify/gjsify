@@ -233,6 +233,39 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
         assert.notEqual(r.status, 0, 'expected failure for `fail` script');
     });
 
+    it('foreach --shard runs a deterministic disjoint slice; union = full set', async () => {
+        // 3 workspaces, sorted by name: @test/app, @test/core, @test/utils.
+        // Round-robin N=3 → shard 1=app, 2=core, 3=utils. Each shard marks
+        // exactly its slice; the union across all shards is the full set.
+        const expected = { 1: '@test-app', 2: '@test-core', 3: '@test-utils' };
+        const seen = new Set();
+        for (const i of [1, 2, 3]) {
+            rmSync(join(root, 'marks'), { recursive: true, force: true });
+            mkdirSync(join(root, 'marks'), { recursive: true });
+            const r = await runCli(cliEntry, ['foreach', 'mark', '--shard', `${i}/3`], { cwd: root });
+            assert.equal(r.status, 0, `shard ${i}/3 failed: ${r.stderr}`);
+            const present = ['@test-utils', '@test-core', '@test-app'].filter((n) =>
+                existsSync(join(root, 'marks', `${n}.txt`)),
+            );
+            assert.deepEqual(present, [expected[i]], `shard ${i}/3 marked ${JSON.stringify(present)}`);
+            present.forEach((n) => seen.add(n));
+        }
+        assert.deepEqual(
+            [...seen].sort(),
+            ['@test-app', '@test-core', '@test-utils'],
+            'union of all shards must equal the full set (disjoint + complete)',
+        );
+    });
+
+    it('foreach --shard rejects an out-of-range / malformed index', async () => {
+        const oor = await runCli(cliEntry, ['foreach', 'mark', '--shard', '4/3'], { cwd: root });
+        assert.notEqual(oor.status, 0, 'expected non-zero exit for shard 4/3');
+        assert.match(oor.stdout + oor.stderr, /invalid --shard/i);
+        const bad = await runCli(cliEntry, ['foreach', 'mark', '--shard', 'nope'], { cwd: root });
+        assert.notEqual(bad.status, 0, 'expected non-zero exit for malformed shard');
+        assert.match(bad.stdout + bad.stderr, /invalid --shard/i);
+    });
+
     it('foreach -tp fail-fast kills in-flight siblings instead of waiting (issue #497)', async () => {
         rmSync(join(root, 'marks'), { recursive: true, force: true });
         mkdirSync(join(root, 'marks'), { recursive: true });

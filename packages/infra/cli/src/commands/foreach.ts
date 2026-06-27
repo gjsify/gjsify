@@ -182,6 +182,7 @@ interface ForeachOptions {
     'topological-dev'?: boolean;
     include?: string[];
     exclude?: string[];
+    shard?: string;
     private?: boolean;
     verbose?: boolean;
     jobs?: number;
@@ -261,6 +262,11 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
                 type: 'boolean',
                 default: false,
             })
+            .option('shard', {
+                description:
+                    'Run only a deterministic slice "<index>/<total>" (1-based) of the matched workspaces, e.g. --shard 2/4. For fanning a long run across parallel CI jobs. Partitions by sorted name (round-robin) so the shards are disjoint and their union is the full set; order-independent, so safe for tests but NOT for ordered builds.',
+                type: 'string',
+            })
             .parserConfiguration({
                 // Preserve `--` as args._['--'] so callers can write
                 //   gjsify foreach --exec -- npm publish --tag latest
@@ -338,6 +344,38 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
                 const scripts = (ws.manifest.scripts as Record<string, string> | undefined) ?? {};
                 return typeof scripts[scriptName] === 'string';
             });
+        }
+
+        // Optional sharding: run only a deterministic slice of the matched set,
+        // for fanning a long foreach (e.g. tests) across N parallel CI jobs.
+        // "<index>/<total>", 1-based. Partition by sorted name, round-robin, so
+        // the shards are disjoint and their union is exactly the full matched
+        // set with even-ish balance. Applied AFTER include/exclude + the
+        // script-presence filter so each shard is a slice of the actually-
+        // runnable set. Order-independent → safe for tests, NOT for ordered
+        // builds (it runs before the topological sort below, which then just
+        // orders whatever this shard kept).
+        if (typeof args.shard === 'string' && args.shard.length > 0) {
+            const m = /^\s*(\d+)\s*\/\s*(\d+)\s*$/.exec(args.shard);
+            if (!m) {
+                console.error(
+                    `gjsify foreach: invalid --shard "${args.shard}" — expected "<index>/<total>" (1-based), e.g. 2/4.`,
+                );
+                process.exit(1);
+            }
+            const index = Number(m[1]);
+            const total = Number(m[2]);
+            if (total < 1 || index < 1 || index > total) {
+                console.error(
+                    `gjsify foreach: invalid --shard "${args.shard}" — need 1 <= index <= total and total >= 1.`,
+                );
+                process.exit(1);
+            }
+            if (total > 1) {
+                const byName = [...selected].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+                selected = byName.filter((_, i) => i % total === index - 1);
+                console.log(`gjsify foreach: shard ${index}/${total} → ${selected.length} of ${byName.length} workspace(s)`);
+            }
         }
 
         if (selected.length === 0) {
