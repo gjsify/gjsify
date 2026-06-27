@@ -44,6 +44,16 @@ import {
     themeIconColor,
     toggleAdwaitaColorScheme,
 } from './widgets/color-scheme.js';
+// `breakpoint.js` imports only TYPES from `@nativescript/core`, so the real
+// condition parser / evaluator / AdwBreakpoint state machine is unit-testable
+// off-device (addBreakpoints is exercised against a tiny mock view).
+import {
+    AdwBreakpoint,
+    addBreakpoints,
+    evaluateBreakpointCondition,
+    parseBreakpointCondition,
+} from './widgets/breakpoint.js';
+import type { BreakpointConditionGroup, BreakpointConditionLeaf } from './widgets/breakpoint.js';
 
 // The XML-registration helper only touches the global `registerElement` (it does
 // not extend any `@nativescript/core` class at module-eval), so its own module is
@@ -883,6 +893,129 @@ export default async () => {
             expect(isThemeIconColor(DEFAULT_ICON_COLOR_DARK)).toBe(true);
             expect(isThemeIconColor('#3584e4')).toBe(false); // accent — a pinned context colour
             expect(isThemeIconColor('#9a9a9a')).toBe(false); // dim chevron — pinned
+        });
+    });
+
+    await describe('responsive breakpoints (Adw.Breakpoint)', async () => {
+        await it('parses a single max-width leaf (sp unit read as DIPs)', () => {
+            const node = parseBreakpointCondition('max-width: 720sp') as BreakpointConditionLeaf;
+            expect(node).not.toBe(null);
+            expect(node.dimension).toBe('width');
+            expect(node.bound).toBe('max');
+            expect(node.value).toBe(720);
+        });
+
+        await it('parses min-height and bare px/no-unit values', () => {
+            expect((parseBreakpointCondition('min-height: 480px') as BreakpointConditionLeaf).value).toBe(480);
+            const leaf = parseBreakpointCondition('min-width:600') as BreakpointConditionLeaf;
+            expect(leaf.bound).toBe('min');
+            expect(leaf.value).toBe(600);
+        });
+
+        await it('returns null for an unparseable condition', () => {
+            expect(parseBreakpointCondition('garbage')).toBe(null);
+            expect(parseBreakpointCondition('')).toBe(null);
+            expect(parseBreakpointCondition('max-depth: 5px')).toBe(null);
+        });
+
+        await it('parses an and-group with the operator as the root', () => {
+            const node = parseBreakpointCondition('max-width: 720sp and max-height: 480sp') as BreakpointConditionGroup;
+            expect(node.op).toBe('and');
+            expect((node.left as BreakpointConditionLeaf).dimension).toBe('width');
+            expect((node.right as BreakpointConditionLeaf).dimension).toBe('height');
+        });
+
+        await it('parses parenthesised groups', () => {
+            const node = parseBreakpointCondition('(min-width: 360px)') as BreakpointConditionLeaf;
+            expect(node.dimension).toBe('width');
+            expect(node.bound).toBe('min');
+        });
+
+        await it('evaluates max-width: true when narrow, false when wide', () => {
+            const node = parseBreakpointCondition('max-width: 720sp')!;
+            expect(evaluateBreakpointCondition(node, { width: 411, height: 900 })).toBe(true); // phone
+            expect(evaluateBreakpointCondition(node, { width: 928, height: 1280 })).toBe(false); // tablet
+            expect(evaluateBreakpointCondition(node, { width: 720, height: 900 })).toBe(true); // boundary inclusive
+        });
+
+        await it('evaluates and/or combinations', () => {
+            const and = parseBreakpointCondition('max-width: 720sp and max-height: 480sp')!;
+            expect(evaluateBreakpointCondition(and, { width: 600, height: 400 })).toBe(true);
+            expect(evaluateBreakpointCondition(and, { width: 600, height: 900 })).toBe(false);
+            const or = parseBreakpointCondition('max-width: 360sp or min-width: 1200sp')!;
+            expect(evaluateBreakpointCondition(or, { width: 300, height: 900 })).toBe(true);
+            expect(evaluateBreakpointCondition(or, { width: 1300, height: 900 })).toBe(true);
+            expect(evaluateBreakpointCondition(or, { width: 700, height: 900 })).toBe(false);
+        });
+
+        await it('AdwBreakpoint fires apply/unapply only on transitions', () => {
+            let applies = 0;
+            let unapplies = 0;
+            const bp = new AdwBreakpoint('max-width: 720sp', {
+                onApply: () => applies++,
+                onUnapply: () => unapplies++,
+            });
+            expect(bp.applied).toBe(false);
+            bp.evaluate({ width: 411, height: 900 }); // narrow → apply
+            expect(bp.applied).toBe(true);
+            expect(applies).toBe(1);
+            bp.evaluate({ width: 400, height: 900 }); // still narrow → no re-fire
+            expect(applies).toBe(1);
+            bp.evaluate({ width: 928, height: 1280 }); // wide → unapply
+            expect(bp.applied).toBe(false);
+            expect(unapplies).toBe(1);
+            bp.evaluate({ width: 1000, height: 1280 }); // still wide → no re-fire
+            expect(unapplies).toBe(1);
+        });
+
+        await it('AdwBreakpoint with an invalid condition never applies', () => {
+            let applies = 0;
+            const bp = new AdwBreakpoint('not a condition', { onApply: () => applies++ });
+            expect(bp.condition).toBe(null);
+            expect(bp.evaluate({ width: 100, height: 100 })).toBe(false);
+            expect(applies).toBe(0);
+        });
+
+        await it('addBreakpoints wires layoutChanged + seeds, and disposes', () => {
+            // Minimal mock of the NS View surface addBreakpoints touches.
+            const listeners = new Map<string, Array<() => void>>();
+            let actual = { width: 0, height: 0 };
+            const mockView = {
+                getActualSize: () => actual,
+                addEventListener(name: string, cb: () => void) {
+                    const arr = listeners.get(name) ?? [];
+                    arr.push(cb);
+                    listeners.set(name, arr);
+                },
+                removeEventListener(name: string, cb: () => void) {
+                    listeners.set(name, (listeners.get(name) ?? []).filter((c) => c !== cb));
+                },
+            } as unknown as View;
+            const fire = (name: string) => (listeners.get(name) ?? []).forEach((c) => c());
+
+            let collapsed = false;
+            const bp = new AdwBreakpoint('max-width: 720sp', {
+                onApply: () => {
+                    collapsed = true;
+                },
+                onUnapply: () => {
+                    collapsed = false;
+                },
+            });
+            const dispose = addBreakpoints(mockView, [bp]);
+            // Seeded recompute saw a 0x0 (unmeasured) view → no apply yet.
+            expect(collapsed).toBe(false);
+
+            actual = { width: 411, height: 900 }; // phone width
+            fire('layoutChanged');
+            expect(collapsed).toBe(true);
+
+            actual = { width: 928, height: 1280 }; // tablet width
+            fire('layoutChanged');
+            expect(collapsed).toBe(false);
+
+            dispose();
+            expect(listeners.get('layoutChanged')!.length).toBe(0);
         });
     });
 };

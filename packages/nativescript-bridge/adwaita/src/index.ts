@@ -101,6 +101,11 @@ export {
     setAdwaitaColorScheme,
     themeIconColor,
     toggleAdwaitaColorScheme,
+    // Responsive breakpoints
+    AdwBreakpoint,
+    addBreakpoints,
+    evaluateBreakpointCondition,
+    parseBreakpointCondition,
     registerAdwaitaElements,
 } from './widgets/index.js';
 export type {
@@ -132,6 +137,14 @@ export type {
     IconPath,
     // Color scheme
     AdwColorScheme,
+    // Responsive breakpoints
+    AdwBreakpointHandlers,
+    BreakpointBound,
+    BreakpointConditionGroup,
+    BreakpointConditionLeaf,
+    BreakpointConditionNode,
+    BreakpointDimension,
+    BreakpointSize,
 } from './widgets/index.js';
 
 // Fonts
