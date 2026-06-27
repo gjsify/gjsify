@@ -440,6 +440,55 @@ Page.adw-window {
     border-top-color: rgba(0, 0, 0, 0.1);
 }
 
+/* ===== View stack (page container) ===== */
+
+.adw-view-stack {
+    background-color: transparent;
+}
+
+/* ===== View switcher bar (narrow policy: bottom bar, icon over label) ===== */
+
+.adw-viewswitcherbar {
+    background-color: #ffffff;
+    border-top-width: 1;
+    border-top-color: rgba(0, 0, 0, 0.1);
+}
+
+.adw-viewswitcherbar-box {
+    background-color: transparent;
+    padding: 4 0 4 0;
+}
+
+/* Each button is a tappable vertical StackLayout (icon over label). The label
+ * carries the colour (NS does not inherit `color` to a child Label); the active
+ * label is accent-coloured. */
+.adw-viewswitcherbar-button {
+    background-color: transparent;
+    border-radius: 8;
+    padding: 4 2 4 2;
+    margin: 2 4 2 4;
+}
+
+.adw-viewswitcherbar-button:highlighted {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.adw-viewswitcherbar-button-icon {
+    margin: 0 0 2 0;
+    horizontal-align: center;
+}
+
+.adw-viewswitcherbar-button-label {
+    font-size: 11;
+    color: rgba(0, 0, 0, 0.6);
+    horizontal-align: center;
+    text-align: center;
+}
+
+.adw-viewswitcherbar-button.active .adw-viewswitcherbar-button-label {
+    color: #3584e4;
+}
+
 /* ===== Wrap box ===== */
 
 .adw-wrap-box {
@@ -1184,6 +1233,25 @@ Page.ns-dark.adw-window {
 .ns-dark .adw-toolbar-view-bottom {
     background-color: #2e2e32;
     border-top-color: rgba(255, 255, 255, 0.12);
+}
+
+/* ===== Dark: view switcher bar ===== */
+
+.ns-dark .adw-viewswitcherbar {
+    background-color: #2e2e32;
+    border-top-color: rgba(255, 255, 255, 0.12);
+}
+
+.ns-dark .adw-viewswitcherbar-button:highlighted {
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+.ns-dark .adw-viewswitcherbar-button-label {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.ns-dark .adw-viewswitcherbar-button.active .adw-viewswitcherbar-button-label {
+    color: #78aeed;
 }
 
 /* ===== Dark: spinner ===== */
