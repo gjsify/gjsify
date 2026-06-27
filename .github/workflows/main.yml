@@ -291,7 +291,8 @@ jobs:
       fail-fast: false
       matrix:
         fedora: ${{ fromJSON(needs.setup.outputs.fedora-matrix) }}
-    name: E2E Fedora ${{ matrix.fedora.v }}
+        shard: [1, 2, 3, 4]
+    name: E2E ${{ matrix.shard }}/4 Fedora ${{ matrix.fedora.v }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -308,14 +309,18 @@ jobs:
       - uses: ./.github/actions/gjsify-setup
         with:
           fedora-version: ${{ matrix.fedora.v }}
+      # Only shard 1 runs lint-engines (the suite that asserts example dist),
+      # so only it needs the artifact — skip the download on the other shards.
       - name: Download example build output
+        if: ${{ matrix.shard == 1 }}
         uses: actions/download-artifact@v8
         with:
           name: example-dist-fedora${{ matrix.fedora.v }}
       - name: Fix example dist ownership for testuser
+        if: ${{ matrix.shard == 1 }}
         run: chown -R testuser:testuser showcases examples
-      - name: E2E tests
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:e2e'
+      - name: E2E tests (shard ${{ matrix.shard }}/4)
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" node scripts/e2e-shard.mjs ${{ matrix.shard }} 4'
 
   # ── Examples (test) ─────────────────────────────────────────────────
   # Runs the example/showcase test suites against the dist the build job
