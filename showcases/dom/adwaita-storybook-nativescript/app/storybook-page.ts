@@ -13,8 +13,10 @@ const APP_ID = 'studio.artandcode.gjsify.adwaita.storybook';
 export function onNavigatingTo(args: NavigatedData): void {
     const page = args.object as Page;
 
-    // Build + mount the storybook (returns the app with its root view + controller).
-    const app = runStorybook({ stories, title: 'Adwaita Storybook' });
+    // Build + mount the storybook. Passing `Application` makes it follow the OS
+    // color scheme (NS flips the `ns-dark` CSS class; the storybook recolours the
+    // symbolic icon bitmaps to match — seeded now + re-synced on system changes).
+    const app = runStorybook({ stories, title: 'Adwaita Storybook', application: Application });
 
     const host = page.getViewById<ContentView>('host');
     if (host) {

@@ -92,6 +92,19 @@ export {
 } from './icons.js';
 export type { IconPath, SymbolicIconOptions } from './icons.js';
 
+// --- Color scheme (light/dark) ---
+// The host app flips this alongside the `ns-dark` class; theme-aware icons
+// re-render their bitmap in the light/dark fg.
+export {
+    adwaitaColorScheme,
+    isThemeIconColor,
+    onAdwaitaColorSchemeChanged,
+    setAdwaitaColorScheme,
+    themeIconColor,
+    toggleAdwaitaColorScheme,
+} from './color-scheme.js';
+export type { AdwColorScheme } from './color-scheme.js';
+
 import { AdwPreferencesPage } from './adw-preferences-page.js';
 import { AdwPreferencesGroup } from './adw-preferences-group.js';
 import { AdwActionRow } from './adw-action-row.js';

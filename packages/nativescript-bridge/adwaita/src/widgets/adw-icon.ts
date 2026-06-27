@@ -13,6 +13,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { Image } from '@nativescript/core';
+import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
 import { DEFAULT_ICON_COLOR } from './icon-path.js';
 import { renderSymbolicIcon } from './icons.js';
 
@@ -21,8 +22,12 @@ export const DEFAULT_ADW_ICON_SIZE = 16;
 
 export class AdwIcon extends Image {
     private _iconSvg = '';
-    private _iconColor = DEFAULT_ICON_COLOR;
+    // Default fill follows the active color scheme (dark fg on light, near-white
+    // on dark); an explicit `iconColor` pins it and stops following the theme.
+    private _iconColor = themeIconColor();
+    private _explicitColor = false;
     private _iconSize = DEFAULT_ADW_ICON_SIZE;
+    private _unsubScheme: (() => void) | null = null;
 
     constructor() {
         super();
@@ -30,6 +35,27 @@ export class AdwIcon extends Image {
         this.stretch = 'aspectFit';
         this.width = this._iconSize;
         this.height = this._iconSize;
+
+        // Re-render the pre-coloured bitmap in the light/dark fg when the scheme
+        // flips — but only while on screen (subscribe on load, drop on unload, so
+        // the listener registry only ever holds visible icons + can't leak).
+        this.addEventListener('loaded', () => {
+            this._syncThemeColor();
+            this._unsubScheme ??= onAdwaitaColorSchemeChanged(() => this._syncThemeColor());
+        });
+        this.addEventListener('unloaded', () => {
+            this._unsubScheme?.();
+            this._unsubScheme = null;
+        });
+    }
+
+    /** Adopt the active scheme's default fill (no-op if the caller pinned a colour). */
+    private _syncThemeColor(): void {
+        if (this._explicitColor) return;
+        const next = themeIconColor();
+        if (next === this._iconColor) return;
+        this._iconColor = next;
+        this._render();
     }
 
     private _render(): void {
@@ -48,12 +74,15 @@ export class AdwIcon extends Image {
         this._render();
     }
 
-    /** The icon fill colour (hex). Re-renders. Light/dark callers set this per theme. */
+    /** The icon fill colour (hex). Setting it PINS the colour (it no longer follows
+     *  the light/dark scheme) — use it for context colours like white on a suggested
+     *  button or destructive red, which must survive both schemes. */
     get iconColor(): string {
         return this._iconColor;
     }
 
     set iconColor(value: string) {
+        this._explicitColor = true;
         this._iconColor = value || DEFAULT_ICON_COLOR;
         this._render();
     }
