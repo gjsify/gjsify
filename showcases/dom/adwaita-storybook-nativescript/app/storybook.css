@@ -52,8 +52,11 @@
     padding: 4;
 }
 
+/* Category separator = Adwaita `.heading` + `.dim-label`: BODY size (same as the
+ * story rows), bold, dimmed — NOT a shrunk caption (matches the native GTK
+ * `.navigation-sidebar` section header). */
 .sb-category {
-    font-size: 11;
+    font-size: 14;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.55);
     padding: 10 8 4 8;
@@ -66,20 +69,29 @@
     background-color: transparent;
 }
 
+/* Press/hover shade — Adwaita `.navigation-sidebar row.activatable:hover`
+ * ($hover_color = currentColor 7%). Wired via attachRowPressFeedback() (NS only
+ * auto-applies :highlighted to Button). */
+.sb-story-row:highlighted {
+    background-color: rgba(0, 0, 0, 0.07);
+}
+
 .sb-story-row-label {
     font-size: 15;
     color: rgba(0, 0, 0, 0.8);
 }
 
+/* Selected row — Adwaita `row:selected` uses $selected_color (currentColor 10%),
+ * a GREY shade, NOT the accent; the label stays the normal dark fg. */
 .sb-story-row-selected {
-    background-color: #3584e4;
+    background-color: rgba(0, 0, 0, 0.1);
     border-radius: 6;
     margin: 1 4 1 4;
     padding: 8 12 8 12;
 }
 
-.sb-story-row-selected .sb-story-row-label {
-    color: #ffffff;
+.sb-story-row-selected:highlighted {
+    background-color: rgba(0, 0, 0, 0.13);
 }
 
 /* ===== Detail header (back + story title + controls toggle) ===== */
@@ -142,14 +154,14 @@
    fill read as a distinct sidebar (the GTK OverlaySplitView controls pane). */
 
 .sb-controls-scroll {
-    background-color: #ebebed;
+    background-color: #f3f3f5;
     border-left-width: 1;
     border-left-color: rgba(0, 0, 0, 0.1);
 }
 
 .sb-controls-group {
     margin: 8 12 12 12;
-    background-color: #ebebed;
+    background-color: #f3f3f5;
 }
 
 /* ===== Dark mode ===== */
@@ -166,14 +178,14 @@
 
 .ns-dark .sb-controls-scroll,
 .ns-dark .sb-controls-group {
-    background-color: #242428;
+    background-color: #28282c;
     border-left-color: rgba(255, 255, 255, 0.1);
 }
 
 .ns-dark .sb-sidebar-pane,
 .ns-dark .sb-sidebar-header,
 .ns-dark .sb-sidebar-scroll {
-    background-color: #242428;
+    background-color: #2e2e32;
 }
 
 .ns-dark .sb-category {
@@ -182,6 +194,19 @@
 
 .ns-dark .sb-story-row-label {
     color: rgba(255, 255, 255, 0.8);
+}
+
+/* Dark selection/press — currentColor (white) overlay, mirroring the light rules. */
+.ns-dark .sb-story-row:highlighted {
+    background-color: rgba(255, 255, 255, 0.07);
+}
+
+.ns-dark .sb-story-row-selected {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.ns-dark .sb-story-row-selected:highlighted {
+    background-color: rgba(255, 255, 255, 0.13);
 }
 
 .ns-dark .sb-story-group-title {

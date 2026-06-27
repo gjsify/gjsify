@@ -28,19 +28,29 @@ export class InlineViewSwitcherNsStory extends StoryView {
     }
 
     initialize(): void {
-        const switcher = new AdwInlineViewSwitcher();
-        switcher.setViews(PAGES.map((page): AdwViewPage => ({ title: page.title, content: this._buildPage(page) })));
-        this._switcher = switcher;
-        // displayMode (labels / icons / both) has no NS equivalent — the switcher
-        // buttons are always text labels (see fidelity note). Read it to keep the
-        // control bound.
-        void (this.args.displayMode as string);
-        this.addContent(switcher);
+        this._switcher = new AdwInlineViewSwitcher();
+        this._syncViews();
+        this.addContent(this._switcher);
     }
 
     updateArgs(_args: StoryArgs): void {
+        this._syncViews();
+    }
+
+    /** Rebuild the switcher buttons honouring the displayMode control
+     *  (labels / icons / both) — the native Adw.InlineViewSwitcher display modes. */
+    private _syncViews(): void {
         if (!this._switcher) return;
-        void (this.args.displayMode as string);
+        const mode = (this.args.displayMode as string) ?? 'both';
+        this._switcher.setViews(
+            PAGES.map(
+                (page): AdwViewPage => ({
+                    title: mode === 'icons' ? '' : page.title,
+                    icon: mode === 'labels' ? undefined : page.icon,
+                    content: this._buildPage(page),
+                }),
+            ),
+        );
     }
 
     private _buildPage(page: { title: string; icon: string; body: string }): AdwStatusPage {
