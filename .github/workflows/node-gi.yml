@@ -1,0 +1,53 @@
+name: node-gi
+
+# Dedicated CI for @gjsify/node-gi — the Node-native GObject-Introspection
+# engine (Axis 5). It is NOT a gjsify workspace member (the GJS-first
+# install/foreach tooling can't build a node-gyp addon), so the main GJS
+# workflow does not build or test it; this workflow is its source of truth.
+# Builds the N-API addon against girepository-2.0 and runs the smoke tests on
+# Node, mirroring the Fedora 44 environment the rest of CI uses.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/node-gi/**'
+      - '.github/workflows/node-gi.yml'
+  pull_request:
+    paths:
+      - 'packages/node-gi/**'
+      - '.github/workflows/node-gi.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: node-gi-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build & test (Node / Fedora 44)
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:44
+    steps:
+      - name: Install toolchain + GObject-Introspection dev headers
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            git nodejs npm gcc-c++ make python3 pkgconf-pkg-config \
+            glib2-devel gobject-introspection-devel gobject-introspection
+          node --version
+          npm --version
+          echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build native addon (node-gyp)
+        working-directory: packages/node-gi/node-gi
+        run: npm install --no-audit --no-fund --foreground-scripts
+
+      - name: Smoke test (node --test)
+        working-directory: packages/node-gi/node-gi
+        run: npm test

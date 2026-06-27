@@ -1,0 +1,51 @@
+{
+  "name": "@gjsify/node-gi",
+  "version": "0.13.0",
+  "description": "GObject-Introspection runtime for Node.js — load gi:// namespaces (GLib/GObject/Gio/…) with GJS-compatible semantics. Vendored + rewritten from node-gtk under MIT.",
+  "type": "module",
+  "license": "MIT",
+  "gypfile": true,
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "src",
+    "binding.gyp",
+    "prebuilds"
+  ],
+  "gjsify": {
+    "runtimes": {
+      "gjs": "none",
+      "node": "polyfill",
+      "browser": "none",
+      "nativescript": "none"
+    }
+  },
+  "scripts": {
+    "install": "node-gyp rebuild",
+    "build": "node-gyp rebuild",
+    "build:native": "node-gyp rebuild",
+    "rebuild": "node-gyp rebuild",
+    "clean": "node-gyp clean",
+    "test": "node --test",
+    "test:node": "node --test"
+  },
+  "dependencies": {
+    "node-addon-api": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gjsify/gjsify.git",
+    "directory": "packages/node-gi/node-gi"
+  }
+}
