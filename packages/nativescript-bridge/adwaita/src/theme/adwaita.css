@@ -180,7 +180,7 @@ Page.adw-window {
 
 /* The stepper buttons are AdwImageButtons (symbolic value-decrease/increase
  * icons). Compound selector so it beats the later `.adw-image-button` rule:
- * keep the circular shape but give the subtle persistent fill Adw.SpinRow's
+ * keep the rounded-square shape but give the subtle persistent fill Adw.SpinRow's
  * stepper shows (the bare image-button is transparent at rest). */
 .adw-image-button.adw-spin-button {
     width: 30;
@@ -316,15 +316,18 @@ Page.adw-window {
 
 /* ===== Image button (circular flat icon button — header bars) ===== */
 
-/* Adwaita header buttons are flat CIRCULAR icon buttons: transparent at rest,
+/* Adwaita flat icon buttons are ROUNDED SQUARES, not circles: transparent at rest,
  * darkening on press (the flat-button `:active` shade). 34×34 with a 16px symbolic
- * icon, matching libadwaita's `button.image-button`. The `:highlighted` press state
- * is wired by `attachRowPressFeedback()` (NS only auto-highlights `Button`). */
+ * icon and the standard `$button_radius: 9px` corner, matching libadwaita's
+ * `button.image-button` (a full circle is the explicit `.circular` exception —
+ * window controls / FABs — which none of the storybook's icon buttons are). The
+ * `:highlighted` press state is wired by `attachRowPressFeedback()` (NS only
+ * auto-highlights `Button`). */
 .adw-image-button {
     background-color: transparent;
     width: 34;
     height: 34;
-    border-radius: 9999;
+    border-radius: 9;
     margin: 0 2 0 2;
 }
 
@@ -650,18 +653,33 @@ Page.adw-window {
     margin: 6;
 }
 
+/* Each button is a tappable StackLayout (icon + label) — the label carries the
+ * text colour (NS does not inherit `color` to a child Label) and the icon its
+ * right margin. Active = raised white pill. */
 .adw-view-switcher-button {
     background-color: transparent;
-    color: rgba(0, 0, 0, 0.65);
     border-radius: 7;
-    font-weight: 700;
     padding: 5 14 5 14;
     margin: 0;
 }
 
 .adw-view-switcher-button.active {
     background-color: #ffffff;
-    color: rgba(0, 0, 0, 0.85);
+}
+
+.adw-view-switcher-button:highlighted {
+    background-color: rgba(0, 0, 0, 0.07);
+}
+
+.adw-view-switcher-button-label {
+    color: rgba(0, 0, 0, 0.75);
+    font-weight: 700;
+    vertical-align: center;
+}
+
+.adw-view-switcher-button-icon {
+    margin: 0 6 0 0;
+    vertical-align: center;
 }
 
 /* ===== Inline view switcher (compact pill bar) ===== */
@@ -675,16 +693,28 @@ Page.adw-window {
 
 .adw-inline-view-switcher-button {
     background-color: transparent;
-    color: rgba(0, 0, 0, 0.65);
     border-radius: 6;
-    font-weight: 700;
     padding: 3 10 3 10;
     margin: 0;
 }
 
 .adw-inline-view-switcher-button.active {
     background-color: #ffffff;
-    color: rgba(0, 0, 0, 0.85);
+}
+
+.adw-inline-view-switcher-button:highlighted {
+    background-color: rgba(0, 0, 0, 0.07);
+}
+
+.adw-inline-view-switcher-button-label {
+    color: rgba(0, 0, 0, 0.75);
+    font-weight: 700;
+    vertical-align: center;
+}
+
+.adw-inline-view-switcher-button-icon {
+    margin: 0 5 0 0;
+    vertical-align: center;
 }
 
 /* ===== Tab view (top tab strip) ===== */
@@ -696,19 +726,40 @@ Page.adw-window {
     margin: 0;
 }
 
+/* Each tab is a tappable StackLayout (label + a close ✕ on the active tab). The
+ * active tab is a raised rounded PILL (Adw.TabBar), NOT an accent underline. */
 .adw-tab-view-tab {
     background-color: transparent;
-    color: rgba(0, 0, 0, 0.6);
-    font-weight: 700;
-    padding: 8 16 8 16;
-    margin: 0;
+    border-radius: 7;
+    padding: 6 10 6 14;
+    margin: 4 3 4 3;
 }
 
 .adw-tab-view-tab.active {
-    color: #3584e4;
-    /* Accent underline approximated by a bottom border. */
-    border-bottom-width: 2;
-    border-bottom-color: #3584e4;
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
+.adw-tab-view-tab:highlighted {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+.adw-tab-view-tab-label {
+    color: rgba(0, 0, 0, 0.75);
+    font-weight: 700;
+    vertical-align: center;
+}
+
+.adw-tab-view-tab-icon {
+    margin: 0 6 0 0;
+    vertical-align: center;
+}
+
+/* The per-tab close button — a small flat ✕ shown only on the active tab. */
+.adw-tab-close {
+    width: 22;
+    height: 22;
+    margin: 0 0 0 4;
+    border-radius: 7;
 }
 
 /* ===== Carousel (swipeable pager) ===== */
@@ -1210,15 +1261,14 @@ Page.ns-dark.adw-window {
     background-color: rgba(255, 255, 255, 0.08);
 }
 
-.ns-dark .adw-view-switcher-button,
-.ns-dark .adw-inline-view-switcher-button {
-    color: rgba(255, 255, 255, 0.65);
+.ns-dark .adw-view-switcher-button-label,
+.ns-dark .adw-inline-view-switcher-button-label {
+    color: rgba(255, 255, 255, 0.7);
 }
 
 .ns-dark .adw-view-switcher-button.active,
 .ns-dark .adw-inline-view-switcher-button.active {
     background-color: #45454c;
-    color: #ffffff;
 }
 
 /* ===== Dark: tab view ===== */
@@ -1228,13 +1278,12 @@ Page.ns-dark.adw-window {
     border-bottom-color: rgba(255, 255, 255, 0.12);
 }
 
-.ns-dark .adw-tab-view-tab {
-    color: rgba(255, 255, 255, 0.6);
+.ns-dark .adw-tab-view-tab-label {
+    color: rgba(255, 255, 255, 0.7);
 }
 
 .ns-dark .adw-tab-view-tab.active {
-    color: #78aeed;
-    border-bottom-color: #78aeed;
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 /* ===== Dark: carousel ===== */

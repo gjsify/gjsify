@@ -80,6 +80,26 @@ export default async () => {
             expect(result[0]!.instances!.length).toBe(1);
             expect(result[0]!.instances![0]!.initialized).toBe(true);
         });
+
+        await it('resets (does not accumulate) instances across re-instantiation', () => {
+            // Story modules are shared singletons; a second mount (e.g. a second
+            // runStorybook on NS page re-navigation) must NOT append to the previous
+            // run's instances — else the renderer re-selects a stale, still-parented
+            // view and crashes. Each createStoryInstances() rebuilds a fresh set.
+            const module: FakeModule = { stories: [FakeStory, FakeStory] };
+            const registryA = new StoryRegistry<FakeStory>();
+            registryA.registerStory(module);
+            const first = registryA.createStoryInstances()[0]!.instances!;
+            expect(first.length).toBe(2);
+
+            // A second registry sharing the same module re-instantiates from scratch.
+            const registryB = new StoryRegistry<FakeStory>();
+            registryB.registerStory(module);
+            const second = registryB.createStoryInstances()[0]!.instances!;
+            expect(second.length).toBe(2);
+            // Fresh instances — none carried over from the first run.
+            expect(second.some((i) => first.includes(i))).toBe(false);
+        });
     });
 
     await describe('StoryRegistry decorator fold', async () => {

@@ -1,13 +1,14 @@
-// AdwImageButton — a Libadwaita-style circular icon button for NativeScript.
+// AdwImageButton — a Libadwaita-style flat icon button for NativeScript.
 //
-// Adwaita header bars use flat, CIRCULAR icon buttons (`button.image-button`): a
-// 16px symbolic icon centered in a ~34px circle that is transparent at rest and
-// darkens on press. NativeScript's `Button` is text-only (it cannot host a child
-// view), so an icon button is a tappable `GridLayout` holding a centered `Image`
-// whose source is an Adwaita symbolic icon rasterised by {@link renderSymbolicIcon}.
-// Press feedback reuses the same {@link attachRowPressFeedback} the activatable rows
-// use (NS only auto-highlights `Button`); the circular shape + flat fill come from
-// the `.adw-image-button` CSS.
+// Adwaita header bars use flat icon buttons (`button.image-button`): a 16px symbolic
+// icon centered in a ~34px ROUNDED SQUARE (the `$button_radius: 9px` corner — a full
+// circle is the explicit `.circular` exception, e.g. window controls / FABs) that is
+// transparent at rest and darkens on press. NativeScript's `Button` is text-only (it
+// cannot host a child view), so an icon button is a tappable `GridLayout` holding a
+// centered `Image` whose source is an Adwaita symbolic icon rasterised by
+// {@link renderSymbolicIcon}. Press feedback reuses the same
+// {@link attachRowPressFeedback} the activatable rows use (NS only auto-highlights
+// `Button`); the rounded-square shape + flat fill come from the `.adw-image-button` CSS.
 //
 // Pass an Adwaita symbolic SVG string (e.g. `goPreviousSymbolic` from
 // `@gjsify/adwaita-icons`) to {@link icon}. Add a `tap` listener for the click.

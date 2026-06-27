@@ -29,7 +29,11 @@ export class ViewSwitcherNsStory extends StoryView {
 
     initialize(): void {
         const switcher = new AdwViewSwitcher();
-        switcher.setViews(PAGES.map((page): AdwViewPage => ({ title: page.title, content: this._buildPage(page) })));
+        // Pass the symbolic icon to the switcher button too (icon + label), matching
+        // the native Adw.ViewSwitcher whose buttons show an icon beside the label.
+        switcher.setViews(
+            PAGES.map((page): AdwViewPage => ({ title: page.title, icon: page.icon, content: this._buildPage(page) })),
+        );
         this._switcher = switcher;
         // policy (wide / narrow) has no NS equivalent — the switcher is always the
         // centered pill bar (see fidelity note). Read it to keep the control bound.
