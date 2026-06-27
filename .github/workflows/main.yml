@@ -416,8 +416,47 @@ jobs:
           chown -R testuser:testuser packages/infra/resolve-npm/lib
           su testuser -c "git -c safe.directory='*' checkout HEAD -- packages/infra/resolve-npm/lib"
 
+      # Selective build/check (below) rebuild ONLY the affected closure and
+      # rely on the build cache having restored a COMPLETE baseline of lib/ +
+      # dist/ for every UNCHANGED forward-dependency — `gjsify foreach
+      # --include` only FILTERS, it does not pull in deps outside the matched
+      # set (foreach.ts: topological sort is within the selected set). That
+      # baseline exists only on a warm cache. Probe a few foundational packages
+      # across pillars; if any lib/ is missing the restore was a true cold miss
+      # → fall back to a FULL build/check. (Infra packages are global triggers,
+      # so they are never in a selective closure → their cached lib/ is always
+      # correct here.)
+      - name: Detect warm build cache
+        id: buildwarm
+        run: |
+          if [ -d packages/gjs/utils/lib ] && [ -d packages/node/stream/lib ] && [ -d packages/web/fetch/lib ]; then
+            echo "warm=true" >> "$GITHUB_OUTPUT"
+            echo "[ci] build cache warm — selective build/check eligible"
+          else
+            echo "warm=false" >> "$GITHUB_OUTPUT"
+            echo "[ci] build cache cold — forcing full build/check"
+          fi
+
+      # Full build on global / main / schedule / empty-classifier OR a cold
+      # cache; otherwise rebuild only the affected closure (its unchanged
+      # forward-deps come from the warm build cache). Same su/env quoting as the
+      # Test step so the selective path behaves identically to the proven test
+      # gating.
       - name: Build
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run build'
+        env:
+          GLOBAL: ${{ needs.changes.outputs.global }}
+          INCLUDE_ARGS: ${{ needs.changes.outputs.include-args }}
+          WARM: ${{ steps.buildwarm.outputs.warm }}
+        run: |
+          su testuser -c "PATH=\"\$PWD/node_modules/.bin:\$PATH\" sh -c '
+            if [ \"\$GLOBAL\" = \"true\" ] || [ -z \"\$GLOBAL\" ] || [ -z \"\$INCLUDE_ARGS\" ] || [ \"\$WARM\" != \"true\" ]; then
+              echo \"[ci] full build\"
+              gjsify run build
+            else
+              echo \"[ci] selective build: \$INCLUDE_ARGS\"
+              gjsify foreach build \$INCLUDE_ARGS -tp --no-private --exclude \"@girs/*\" --exclude \"@gjsify/example-*\" --exclude \"@gjsify/website\"
+            fi
+          '"
 
       # Root `build` uses --no-private, so private example workspaces are skipped; tests need dist/.
       - name: Build examples
@@ -454,8 +493,24 @@ jobs:
           su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH"
           gjsify upgrade --check --exclude-workspace "@gjsify/integration-*"'
 
+      # Same gate as Build: full type-check on a full build, otherwise
+      # type-check only the affected closure (deps' .d.ts come from the warm
+      # cache, exactly like the selective build above).
       - name: Check
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run check'
+        env:
+          GLOBAL: ${{ needs.changes.outputs.global }}
+          INCLUDE_ARGS: ${{ needs.changes.outputs.include-args }}
+          WARM: ${{ steps.buildwarm.outputs.warm }}
+        run: |
+          su testuser -c "PATH=\"\$PWD/node_modules/.bin:\$PATH\" sh -c '
+            if [ \"\$GLOBAL\" = \"true\" ] || [ -z \"\$GLOBAL\" ] || [ -z \"\$INCLUDE_ARGS\" ] || [ \"\$WARM\" != \"true\" ]; then
+              echo \"[ci] full check\"
+              gjsify run check
+            else
+              echo \"[ci] selective check: \$INCLUDE_ARGS\"
+              gjsify foreach check \$INCLUDE_ARGS -ptv --exclude \"@girs/*\" --exclude \"@gjsify/example-*\" --exclude \"@gjsify/website\"
+            fi
+          '"
 
       - name: Check examples
         # Same gate as Build examples — type-checks the dist/ that step builds.
