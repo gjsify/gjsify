@@ -30,6 +30,7 @@ import {
     AdwPreferencesGroup,
     AdwToolbarView,
     AdwWindowTitle,
+    attachRowPressFeedback,
 } from '@gjsify/adwaita-nativescript';
 import { goPreviousSymbolic, sidebarShowRightSymbolic } from '@gjsify/adwaita-icons/actions';
 import { Label, ScrollView, StackLayout, type View } from '@nativescript/core';
@@ -137,6 +138,10 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
                 rowLabel.text = name;
                 rowLabel.className = 'sb-story-row-label';
                 row.addChild(rowLabel);
+                // Press-darken on touch ($hover_color), like the native
+                // `.navigation-sidebar` activatable rows — NS only auto-applies
+                // :highlighted to Button, so wire it by hand.
+                attachRowPressFeedback(row);
                 // Tapping a story selects it AND navigates to the detail pane
                 // (the collapsed split view hides the sidebar) — the phone
                 // master→detail step of the GTK NavigationSplitView.
