@@ -11,23 +11,23 @@ on:
     # classifier would mark as a global trigger.
     - cron: '0 4 * * *'
 
+# Cancel superseded runs on the SAME PR branch (a force-push / new commit
+# obsoletes the in-flight run). main pushes + the nightly schedule are NOT
+# cancelled — each landed commit + sweep must complete on its own.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  # Matrix planner — decides which Fedora legs the `linux` job runs.
+  # Matrix planner — decides which Fedora legs the build/test jobs run.
   # A GitHub matrix axis cannot read `github.event_name` directly, so we
   # emit the leg list as a JSON job output and `fromJSON` it into the matrix.
   # Each entry is a full object {v, gjs} — we do NOT use a static `include:`
   # for the gjs label, because a static include for a version that ISN'T in
-  # the (PR-reduced) axis would spawn a phantom extra job (GitHub adds an
-  # unmatched include as a brand-new combination).
-  #   - pull_request    → Fedora 44 only (GJS 1.88, the newest platform — most
-  #                       likely to surface a new GNOME-library regression;
-  #                       both legs share SpiderMonkey 140 so JS-engine
-  #                       coverage is identical either way).
+  # the (PR-reduced) axis would spawn a phantom extra job.
+  #   - pull_request    → Fedora 44 only (GJS 1.88, the newest platform).
   #   - push / schedule → FULL matrix (43 + 44), so the documented minimum
-  #                       runtime (GJS 1.86 / Fedora 43) is always re-covered
-  #                       before merge + on the nightly sweep.
-  # Flip the PR leg to 43 if protecting the minimum runtime pre-merge matters
-  # more than catching new-platform regressions.
+  #                       runtime (GJS 1.86 / Fedora 43) is always re-covered.
   setup:
     runs-on: ubuntu-latest
     outputs:
@@ -44,18 +44,17 @@ jobs:
   # Classifier job — diffs HEAD vs the PR's base SHA, emits per-test-tier
   # gates as job outputs. Runs in seconds on plain ubuntu-latest with no
   # Fedora image and no `gjsify install` — it boots the committed CLI
-  # bundle (`packages/infra/cli/dist/cli.gjs.mjs`) which has zero runtime
+  # bundle (`packages/infra/cli/dist/cli.gjs.mjs`), which has zero runtime
   # dependencies. `continue-on-error` + missing-output defaults mean a
   # classifier crash falls back to a full run (fail-safe).
   #
   # Skipped on main pushes and on the nightly schedule — those branches
-  # MUST run the full suite unconditionally. The downstream `linux` job
-  # observes `needs.changes.outputs.*` as empty in those cases and falls
-  # back to the historical `gjsify run test` path.
+  # MUST run the full suite unconditionally. The downstream build/test jobs
+  # observe `needs.changes.outputs.*` as empty in those cases and fall back
+  # to the historical full-run path.
   #
-  # Repo-level kill switch: set `vars.GJSIFY_CI_FORCE_FULL=1` in the repo
-  # settings and the classifier emits `global=true` regardless of the
-  # diff. Lets maintainers force a full run without editing this file.
+  # Repo-level kill switch: set `vars.GJSIFY_CI_FORCE_FULL=1` and the
+  # classifier emits `global=true` regardless of the diff.
   changes:
     if: ${{ github.event_name != 'schedule' && github.ref != 'refs/heads/main' }}
     runs-on: ubuntu-latest
@@ -83,7 +82,7 @@ jobs:
           fi
       - id: classify
         name: Classify affected workspaces
-        # On classifier failure we leave outputs unset; the linux job's
+        # On classifier failure we leave outputs unset; the build/test jobs'
         # gates then default to "global" via the `||` fallbacks below.
         continue-on-error: true
         env:
@@ -103,329 +102,49 @@ jobs:
               --base "${{ steps.base.outputs.sha }}" \
               --format=github-actions
 
-  linux:
+  # ── Build + type-check + examples ───────────────────────────────────
+  # Compiles + type-checks the workspace packages and, when examples are in
+  # scope, builds them too (build:examples MUST run right after a full build
+  # in the SAME job — an example `--app browser` build resolves into workspace
+  # package sources and fails off a build-cache-only state). Leaves package
+  # lib/dist in the build-output cache and uploads the example dist as an
+  # artifact the e2e + examples jobs download.
+  #
+  # FULL build on global / main / schedule / empty-classifier / cold cache /
+  # whenever examples are needed (their build needs the full package tree);
+  # otherwise rebuild only the affected closure.
+  build:
     needs: [changes, setup]
-    # Run unless the classifier explicitly says skip-all. `always()`
-    # ensures we proceed even when the `changes` job was itself skipped
-    # (main / schedule path) — those land here with empty outputs and the
-    # gates below default to "run everything". `setup` has no `if:` so it
-    # always runs and always emits the `fedora-matrix` array that `fromJSON`
-    # expands below.
     if: ${{ always() && needs.changes.outputs.skip-all != 'true' }}
     strategy:
       fail-fast: false
       matrix:
-        # Track the latest stable Node (Current line) on purpose. NOTE: a
-        # floating `<major>.x` auto-adopts security/patch releases that can
-        # change behaviour — e.g. the CVE-2026-48618 hostname-normalization in
-        # v24.17.0 broke IPv6 IP-SAN matching in native Node and surfaced here
-        # as a mystery red (see the `on('Gjs')` scope in the tls IPv6 spec).
-        # @gjsify/unit now tags each run summary with its runtime so such a
-        # native-Node failure reads as `[Node.js …]`, not a GJS/gjsify bug.
         node-version: [26.x]
-        # Single leg on PRs (Fedora 44), full matrix on main/schedule — the
-        # `setup` job emits each entry as an object {v: version, gjs: label}.
-        # Object-axis (not a static `include:`) so a PR-reduced axis never
-        # gains a phantom leg.
         fedora: ${{ fromJSON(needs.setup.outputs.fedora-matrix) }}
-
-    name: Fedora ${{ matrix.fedora.v }} (${{ matrix.fedora.gjs }})
+    name: Build Fedora ${{ matrix.fedora.v }} (${{ matrix.fedora.gjs }})
     runs-on: ubuntu-latest
-    # `packages: read` lets the job pull the prebuilt container image from
-    # GHCR (the ci-fedora package is private). `contents: read` is the
-    # default checkout scope, restated since declaring permissions resets
-    # the set.
     permissions:
       contents: read
       packages: read
-    # Cap the whole job well under GitHub's 6h default so a runaway (e.g. a
-    # hung build step) fails early instead of burning a runner for 6h. The
-    # per-step guard on "Build examples" below is the tighter, targeted net.
-    # TEMPORARILY 240 (was 120): under the GJS-first flip a CACHE-MISS run
-    # cold-builds the whole workspace under gjs/native-rolldown (~110 min for
-    # the Build step alone on the 2-core runner; warm-cache runs need ~1h20
-    # total). The parallel-scheduling perf track shrinks this again — revisit
-    # the cap once cold builds are fast enough.
-    timeout-minutes: 240
+    timeout-minutes: 180
     container:
-      # Prebuilt image baked by .github/workflows/build-ci-image.yml — ships
-      # every GJS/GNOME/Vala dnf package preinstalled, so the per-job `dnf
-      # install` steps (3-5 min/leg) are gone. .docker/ci-fedora.Dockerfile is
-      # the source of truth for the package set; keep it in lockstep. Falls
-      # back to nothing — a missing/private image fails the pull loudly.
-      # `credentials` because the GHCR package is private; remove them if the
-      # package is made public (which also enables fork-PR pulls).
       image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-      # Raise the open-file limit for every step. The parallel GJS `foreach`
-      # test run opens many fds (GStreamer/webrtc pipelines, in-process bundler
-      # eventfds), exhausting the default nofile soft limit on the Fedora 43 leg
-      # — it aborts with `GLib-ERROR: Creating pipes for GWakeup: Too many open
-      # files`. Fedora 44's higher default hides it, so PRs (44-only) stay green
-      # while push-to-main (43 + 44) goes red. Setting it on the container fixes
-      # both legs uniformly.
       options: --ulimit nofile=1048576:1048576
-
     steps:
-      - name: Verify prebuilt CI image
-        # The image bakes /etc/gjsify-ci-fedora-version. Its presence confirms
-        # we booted the prebuilt ghcr.io/gjsify/ci-fedora image (with all dnf
-        # packages incl. git/tar/xz/findutils/libatomic that checkout +
-        # setup-node need) and not a bare fallback. Non-fatal: a genuinely
-        # missing package would fail Build/Check/Test anyway — this just makes
-        # the diagnosis instant.
-        run: |
-          if [ -f /etc/gjsify-ci-fedora-version ]; then
-            echo "Prebuilt CI image OK (Fedora $(cat /etc/gjsify-ci-fedora-version))"
-          else
-            echo "::warning::/etc/gjsify-ci-fedora-version missing — not the prebuilt ci-fedora image; dnf packages may be absent."
-          fi
-
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/gjsify-setup
         with:
+          fedora-version: ${{ matrix.fedora.v }}
           node-version: ${{ matrix.node-version }}
 
-      # GJS / GNOME devel libs (gjs, glib2[-devel], gettext, gtk4-devel,
-      # libsoup3-devel, webkitgtk6.0-devel, libadwaita-devel, gstreamer1-*,
-      # libnice-gstreamer1, libgda*, xvfb, mesa, …) AND the native-bridge
-      # toolchain (meson, vala, gcc, pkgconf, blueprint-compiler) are baked
-      # into the prebuilt image — see .docker/ci-fedora.Dockerfile. No
-      # per-job dnf install. When a build needs a NEW system package, add it
-      # to the Dockerfile (the push to main rebuilds + pushes the image).
-
-      - name: Enable corepack (yarn shim for PnP e2e suite)
-        # tests/e2e/{cli-only-pnp,pnp-zip-static-reads}/ hard-require yarn
-        # (>= 4 via corepack's `packageManager` field). Yarn-PnP is a
-        # first-class gjsify consumer scenario — silent-skipping the suite
-        # when yarn was missing hid real coverage gaps for PnP users
-        # (ts-for-gir, easy6502). Node >= 25 UNBUNDLED corepack (Node 24 shipped
-        # it), so install it via the bundled npm before enabling it.
-        run: |
-          npm install -g corepack
-          corepack enable
-
-      # Persistent node_modules cache for `gjsify install`. The native install
-      # backend is idempotent: `isAlreadyExtracted()` skips any package whose
-      # on-disk node_modules copy already matches the lockfile (name+version).
-      # So a warm node_modules turns the ~16 min EXTRACT phase — every tarball
-      # gunzipped through GJS's single-main-loop Gio.ZlibDecompressor on a
-      # fresh checkout — into a near-instant no-op; `--immutable` then only
-      # extracts the genuinely-new subtree. (CI history: the install step was
-      # 16m34s even with a warm tarball cache, because the bottleneck was the
-      # extract, not the download.)
-      #
-      # node_modules content is OS-independent (pure JS/TS; the @gjsify/*
-      # workspace symlinks + the few native prebuilds live in the repo, not
-      # here), so ONE entry is shared across both Fedora legs. The restore-key
-      # fallback makes a lockfile bump incremental: it restores the previous
-      # tree and the install re-extracts only the delta.
-      #
-      # This SUPERSEDES the old tarball-download cache: on a warm hit the
-      # install skips download AND extract. On a rare true-cold miss the delta
-      # tarballs are re-fetched from the network, exactly as before that cache
-      # existed. Dropping it also keeps total cache usage under GitHub's 10 GB
-      # repo budget (node_modules is ~5.8 GB on disk).
-      #
-      # MUST run BEFORE "Create non-root user" so the chown -R below hands the
-      # restored tree to testuser (the install + build user).
-      - name: Cache node_modules
-        uses: actions/cache@v6
-        with:
-          path: |
-            node_modules
-            packages/*/*/node_modules
-          key: node-modules-v1-${{ hashFiles('gjsify-lock.json') }}
-          restore-keys: |
-            node-modules-v1-
-
-      - name: Create non-root user for tests
-        run: |
-          useradd -m testuser
-          # Raise testuser's open-file limit via PAM. `su testuser -c` resets the
-          # soft nofile limit back to the login default (~1024), undoing the
-          # container's --ulimit — which is why the F43 test leg still hit
-          # `GLib-ERROR: Creating pipes for GWakeup: Too many open files`. A
-          # limits.conf entry is applied by pam_limits on every `su testuser`.
-          echo "testuser - nofile 1048576" >> /etc/security/limits.conf
-          # Pre-create the (possibly cache-restored) gjsify cache dir so the
-          # chown below hands it to testuser for the install step.
-          mkdir -p .gjsify-cache
-          chown -R testuser:testuser .
-
-      # Phase D.7d: Node-free install. The committed GJS bundle
-      # (`packages/infra/cli/dist/cli.gjs.mjs`) consumes
-      # `gjsify-lock.json` and materialises `node_modules/` (incl.
-      # workspace `.bin/` shims so `gjsify run …` finds `gjsify` on PATH).
-      # No yarn anywhere in the bootstrap.
-      - name: Install dependencies (gjsify install --immutable)
-        # On a warm node_modules cache hit this is a near-instant no-op (every
-        # package already materialised → isAlreadyExtracted skips it). On a
-        # miss it re-extracts the delta, fetching any uncached tarballs from
-        # the network. XDG_CACHE_HOME keeps the (now un-cached) tarball store
-        # workspace-relative + testuser-writable; passed explicitly through the
-        # `su testuser -c` boundary since su strips the parent env.
-        run: su testuser -c "XDG_CACHE_HOME='$PWD/.gjsify-cache' gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable"
-
-      # The CLI's GJS bundle is committed to enable Node-free bootstrap (Phase D.7b).
-      # We can't enforce a byte-exact freshness check — the build is not perfectly
-      # cross-environment deterministic (Node patch version + system libs perturb
-      # the rolldown output). Instead we run a functional check: the committed
-      # bundle must execute under stock GJS AND report the *current* package.json
-      # version. That catches both "bundle is broken" and "bundle is from the
-      # previous release" without forcing every CI environment to produce
-      # byte-identical output.
-      #
-      # MUST run BEFORE the Build step — `gjsify run build` rebuilds
-      # `dist/cli.gjs.mjs`, overwriting the committed copy with one assembled
-      # from the just-installed node_modules layout. Verifying after a rebuild
-      # would test the rebuilt bundle (not the committed one), defeating the
-      # purpose of the freshness check.
-      - name: Verify committed CLI GJS bundle is functional + up-to-date
-        run: |
-          set -e
-          EXPECTED=$(node -p "require('./packages/infra/cli/package.json').version")
-          ACTUAL=$(gjs -m packages/infra/cli/dist/cli.gjs.mjs --version 2>&1 | head -1 | tr -d '[:space:]')
-          if [ "$ACTUAL" != "$EXPECTED" ]; then
-            echo "::error::packages/infra/cli/dist/cli.gjs.mjs reports version '$ACTUAL', package.json says '$EXPECTED'."
-            echo "::error::Refresh locally: gjsify workspace @gjsify/cli build && gjsify workspace @gjsify/cli build:gjs-bundle"
-            echo "::error::Then commit packages/infra/cli/dist/cli.gjs.mjs."
-            exit 1
-          fi
-          # Invariant: exactly ONE copy of @gjsify/web-streams in the bundle.
-          # A library build that fails to externalize a workspace dep (e.g. the
-          # native-rolldown `external`-function drop fixed in rolldown-plugin-gjsify
-          # library/lib.ts) bakes a 2nd web-streams copy into the bundle; its
-          # module-level brand Symbols then differ, breaking the `ReadableStream`
-          # brand check that `gjsify install`'s tar/DecompressionStream path relies
-          # on (`transform.readable must be a ReadableStream`). Count the unique
-          # brand-check string — must be 1, never 2+.
-          WS_COPIES=$(grep -o 'must be a ReadableStream' packages/infra/cli/dist/cli.gjs.mjs | wc -l | tr -d '[:space:]')
-          if [ "$WS_COPIES" != "1" ]; then
-            echo "::error::packages/infra/cli/dist/cli.gjs.mjs embeds $WS_COPIES copies of @gjsify/web-streams (expected 1)."
-            echo "::error::A library build inlined a workspace dep instead of keeping it external — rebuild all libs from a clean tree (gjsify foreach build:gjsify) then rebuild + commit the CLI bundle."
-            exit 1
-          fi
-          echo "GJS bundle OK — reports v$ACTUAL matching package.json, single web-streams copy."
-
-      # Same logic as the CLI bundle check above, applied to the `@gjsify/tsc`
-      # GJS bundle. The committed `dist/tsc.gjs.mjs` wraps upstream
-      # `typescript`'s `_tsc.js` CLI — its `--version` output (`Version <X>`)
-      # must match the `TYPESCRIPT_VERSION` constant pinned in
-      # `packages/infra/tsc/src/index.ts`. A drift between the two means
-      # either the bundle wasn't rebuilt after a typescript devDep bump
-      # (stale artifact) or `TYPESCRIPT_VERSION` wasn't updated to reflect a
-      # rebuild (wrong constant). Both are real bugs — `@gjsify/tsc`'s only
-      # value is being a Node-free TypeScript CLI, and downstream
-      # `tsc --version` checks rely on the reported number matching the
-      # actual bundled compiler.
-      #
-      # Must also run BEFORE Build, for the same reason as the CLI check —
-      # `gjsify run build` would rebuild the bundle in-place.
-      - name: Verify committed @gjsify/tsc GJS bundle is functional + up-to-date
-        run: |
-          set -e
-          EXPECTED=$(grep "TYPESCRIPT_VERSION = " packages/infra/tsc/src/index.ts | sed "s/.*'\([^']*\)'.*/\1/")
-          ACTUAL=$(gjs -m packages/infra/tsc/dist/tsc.gjs.mjs --version 2>&1 | head -1 | sed 's/^Version //' | tr -d '[:space:]')
-          if [ "$ACTUAL" != "$EXPECTED" ]; then
-            echo "::error::packages/infra/tsc/dist/tsc.gjs.mjs reports 'Version $ACTUAL', TYPESCRIPT_VERSION constant says '$EXPECTED'."
-            echo "::error::Refresh locally: gjsify workspace @gjsify/tsc build"
-            echo "::error::Then commit packages/infra/tsc/dist/tsc.gjs.mjs (and TYPESCRIPT_VERSION in packages/infra/tsc/src/index.ts if upstream typescript was bumped)."
-            exit 1
-          fi
-          echo "@gjsify/tsc bundle OK — reports v$ACTUAL matching TYPESCRIPT_VERSION."
-
-      # Restore previously-built `lib/` directories + `tsbuildinfo` files.
-      # TypeScript with `composite: true` (the standard tsconfig template in
-      # this monorepo) reads `tsconfig.tsbuildinfo` and only re-emits files
-      # whose source signature changed. The cache key is content-addressable
-      # over every input that affects build output, so a PR touching only
-      # docs / a single workspace's src lands on a near-perfect cache hit:
-      #
-      #   primary key: includes the hash of all `packages/**/src/**` files.
-      #                exact-hit only on a perfect no-source-change PR.
-      #   restore-key 1: drops the src hash → restores the most-recent
-      #                  cached lib/ for the same lockfile+tsconfig set.
-      #                  tsc + rolldown then re-emit only the files whose
-      #                  src changed; the rest stay byte-identical.
-      #   restore-key 2: just the Fedora version → ultimate fallback,
-      #                  useful when the lockfile bumps en masse.
-      #
-      # Per-Fedora-major scope because the bundler output (rolldown) can
-      # diverge by host libs; Fedora 43 vs 44 would otherwise share the
-      # same cache and produce stale bundles.
-      # IMPORTANT: paths use `packages/*/*/...` (pillar/name), NOT
-      # `packages/**/...`. The double-star globs into node_modules and
-      # blew up the cache POST upload to multi-gigabyte tars that hung
-      # for hours. The pillar/name shape covers every real workspace
-      # while skipping the deps tree.
-      - name: Cache build output (lib/ + tsbuildinfo)
-        uses: actions/cache@v6
-        with:
-          # NEVER cache git-committed, version-locked artifacts. `@gjsify/tsc`'s
-          # `lib/` (the ~108 default `lib.*.d.ts`) and the committed `.gjs.mjs`
-          # bundles are TRACKED DATA, not build output. Caching them lets a cache
-          # restore overwrite the correct checked-out files with a stale set — a
-          # Fedora-44-only run could then type-check the workspace with an
-          # incomplete lib (e.g. crypto: `TS2550 padStart` / `TS2339
-          # toStringTag`) non-deterministically. The `!` excludes keep them = the
-          # git checkout, so `build-bundle.mjs`'s pickLibSource() `keep` branch is
-          # always safe. (In a `|` block scalar the `!` lines are literal — no
-          # quoting, and a leading `#` would be a path, not a comment.)
-          #
-          # `@gjsify/resolve-npm` is the same class: a NO-BUILD package
-          # (`"build": "echo 'nothing to do'"`) whose `lib/*.mjs` (globals-map,
-          # register-globals-closure, runtime-aliases) are TRACKED SOURCE, not
-          # output. Its cache key only hashes `src/**`, so a `.mjs` edit doesn't
-          # bust it; on a restore-key fallback the stale cached `lib/` would
-          # overwrite the checkout and resolve-npm would silently lose a new
-          # export (e.g. `GJS_GI_BACKED_REGISTERS`), failing every consumer that
-          # imports it. Exclude it so it always = the git checkout.
-          path: |
-            packages/*/*/lib
-            !packages/infra/tsc/lib
-            !packages/infra/resolve-npm/lib
-            packages/*/*/tsconfig.tsbuildinfo
-            packages/*/*/tsconfig.*.tsbuildinfo
-            packages/*/*/dist
-            !packages/infra/cli/dist/cli.gjs.mjs
-            !packages/infra/tsc/dist/tsc.gjs.mjs
-          key: build-v2-${{ runner.os }}-fedora${{ matrix.fedora.v }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
-          restore-keys: |
-            build-v2-${{ runner.os }}-fedora${{ matrix.fedora.v }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-
-            build-v2-${{ runner.os }}-fedora${{ matrix.fedora.v }}-
-
-      # @gjsify/resolve-npm is a no-build package; its lib/*.mjs are TRACKED
-      # SOURCE. The build cache globbed packages/*/*/lib before the `!`-exclude
-      # above, and the cache key only hashes src/**, so a restore-key fallback
-      # on this transition run can extract an OLD archive whose stale
-      # resolve-npm/lib shadows the checkout (dropping e.g.
-      # GJS_GI_BACKED_REGISTERS) — actions/cache does not filter an
-      # already-saved archive by the current exclude list. Re-checkout just that
-      # dir from HEAD. Run as testuser (the Build user) — and chown first in
-      # case the cache extracted it root-owned — so file ownership stays correct
-      # for the Build step. Cheap; a no-op once the cache rotates past the
-      # `!`-exclude. (tsc/lib is already `!`-excluded, so it needs no re-checkout.)
-      - name: Re-assert committed resolve-npm source over the build cache
-        run: |
-          chown -R testuser:testuser packages/infra/resolve-npm/lib
-          su testuser -c "git -c safe.directory='*' checkout HEAD -- packages/infra/resolve-npm/lib"
-
-      # Selective build/check (below) rebuild ONLY the affected closure and
-      # rely on the build cache having restored a COMPLETE baseline of lib/ +
-      # dist/ for every UNCHANGED forward-dependency — `gjsify foreach
-      # --include` only FILTERS, it does not pull in deps outside the matched
-      # set (foreach.ts: topological sort is within the selected set). That
-      # baseline exists only on a warm cache. Probe a few foundational packages
-      # across pillars; if any lib/ is missing the restore was a true cold miss
-      # → fall back to a FULL build/check. (Infra packages are global triggers,
-      # so they are never in a selective closure → their cached lib/ is always
-      # correct here.)
+      # Selective build/check rebuild ONLY the affected closure and rely on the
+      # build cache having restored a complete lib/+dist/ baseline for the
+      # unchanged forward-deps (`gjsify foreach --include` only FILTERS). That
+      # baseline exists only on a warm cache → probe a few foundational packages
+      # and fall back to a FULL build when cold.
       - name: Detect warm build cache
         id: buildwarm
         run: |
@@ -437,19 +156,16 @@ jobs:
             echo "[ci] build cache cold — forcing full build/check"
           fi
 
-      # Full build on global / main / schedule / empty-classifier OR a cold
-      # cache; otherwise rebuild only the affected closure (its unchanged
-      # forward-deps come from the warm build cache). Same su/env quoting as the
-      # Test step so the selective path behaves identically to the proven test
-      # gating.
       - name: Build
         env:
-          GLOBAL: ${{ needs.changes.outputs.global }}
+          # FULL is computed as a GitHub expression (cleaner than shell logic).
+          # Note it SUPERSETS the examples gate below, so whenever build:examples
+          # runs the build was full → it has the complete package tree.
+          FULL: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args == '' || steps.buildwarm.outputs.warm != 'true' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
           INCLUDE_ARGS: ${{ needs.changes.outputs.include-args }}
-          WARM: ${{ steps.buildwarm.outputs.warm }}
         run: |
           su testuser -c "PATH=\"\$PWD/node_modules/.bin:\$PATH\" sh -c '
-            if [ \"\$GLOBAL\" = \"true\" ] || [ -z \"\$GLOBAL\" ] || [ -z \"\$INCLUDE_ARGS\" ] || [ \"\$WARM\" != \"true\" ]; then
+            if [ \"\$FULL\" = \"true\" ]; then
               echo \"[ci] full build\"
               gjsify run build
             else
@@ -458,52 +174,31 @@ jobs:
             fi
           '"
 
-      # Root `build` uses --no-private, so private example workspaces are skipped; tests need dist/.
+      # Build examples (+ check below) only when an example/showcase is in the
+      # closure, e2e will run (its lint-engines suite asserts example dist), or
+      # a full run. --jobs 1: native rolldown's --globals auto multi-pass is
+      # memory-heavy and the three.js example bundles exhaust the runner's RAM
+      # at cpu-count parallelism.
       - name: Build examples
-        # Gated: build all examples only when an example/showcase is in the
-        # affected closure (or on a full/global/empty-output run). ALL example
-        # steps below (Check examples, Test CLI/net examples) MUST share this
-        # exact gate — they read the dist/ this step produces, so running them
-        # while this is skipped would fail on missing dist/.
-        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
-        # Under the GJS-first flip these build via native rolldown, whose
-        # `--globals auto` multi-pass is memory-heavy. The example workspaces
-        # include several large three.js bundles; building them at cpu-count
-        # parallelism (the `build:examples` script default) exhausts the
-        # runner's RAM → swap/thrash → stall. Cap concurrency to 1 here
-        # (sequential — individual examples build in seconds; the parallel
-        # MEMORY is the problem, not per-build time) until Step 3 (native
-        # rolldown perf/memory) lets us restore parallelism. 45-min headroom;
-        # still fails fast vs the 120-min job ceiling. Local dev keeps the
-        # parallel `build:examples` script.
+        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
         timeout-minutes: 45
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify foreach build -ptv --include "@gjsify/example-*" --jobs 1'
 
-      # Workspace-wide dependency consistency drift detection. The CLI's
-      # `upgrade --check` mode walks every `package.json` in the monorepo,
-      # groups by dep name, and fails if the same dep is declared at
-      # multiple ranges across workspaces. `--exclude-workspace
-      # '@gjsify/integration-*'` carves out integration-test packages
-      # whose pins to specific upstream versions are intentional (e.g.
-      # `zod@4.3.6` exact in `integration-mcp-typescript-sdk`,
-      # `typescript@^5.x` in `integration-deepkit-type-compiler`).
-      # Pairs with `gjsify upgrade --align` as the local fix.
+      # Workspace-wide dependency-range drift detection. `--exclude-workspace
+      # '@gjsify/integration-*'` carves out integration tests whose pins to
+      # specific upstream versions are intentional.
       - name: Check dependency consistency
         run: >
           su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH"
           gjsify upgrade --check --exclude-workspace "@gjsify/integration-*"'
 
-      # Same gate as Build: full type-check on a full build, otherwise
-      # type-check only the affected closure (deps' .d.ts come from the warm
-      # cache, exactly like the selective build above).
       - name: Check
         env:
-          GLOBAL: ${{ needs.changes.outputs.global }}
+          FULL: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args == '' || steps.buildwarm.outputs.warm != 'true' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
           INCLUDE_ARGS: ${{ needs.changes.outputs.include-args }}
-          WARM: ${{ steps.buildwarm.outputs.warm }}
         run: |
           su testuser -c "PATH=\"\$PWD/node_modules/.bin:\$PATH\" sh -c '
-            if [ \"\$GLOBAL\" = \"true\" ] || [ -z \"\$GLOBAL\" ] || [ -z \"\$INCLUDE_ARGS\" ] || [ \"\$WARM\" != \"true\" ]; then
+            if [ \"\$FULL\" = \"true\" ]; then
               echo \"[ci] full check\"
               gjsify run check
             else
@@ -513,75 +208,156 @@ jobs:
           '"
 
       - name: Check examples
-        # Same gate as Build examples — type-checks the dist/ that step builds.
-        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
+        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run check:examples'
 
-      # Test step — gated by the classifier's output. Three observable
-      # paths:
-      #   1. main / schedule / global trigger / classifier failed → full
-      #      `gjsify run test` (workspace foreach across the monorepo).
-      #   2. include-args non-empty (typical PR) → `gjsify foreach
-      #      <include args> --exclude '@gjsify/integration-*' test`. The
-      #      integration carve-out keeps the heavy suites in their own
-      #      gate below.
-      #   3. neither → step is skipped (the `if:` below). The whole job
-      #      run as a no-op is intentional: build + check + lint still
-      #      ran so the PR has SOMETHING green to merge against, but no
-      #      test time is wasted.
+      # Hand the freshly-built example dist to the e2e + examples jobs. They
+      # CANNOT rebuild examples themselves (build:examples needs the full
+      # package tree of THIS job), so the dist travels as an artifact instead.
+      - name: Upload example build output
+        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: example-dist-fedora${{ matrix.fedora.v }}
+          path: |
+            showcases/*/*/dist
+            examples/*/*/dist
+          retention-days: 1
+          if-no-files-found: error
+
+  # ── Unit tests (sharded) ────────────────────────────────────────────
+  # Restores the build job's output and runs the workspace test suite split
+  # across 4 parallel shards (gjsify foreach --shard). WebGL conformance rides
+  # shard 1. On a small selective closure most shards are near-empty no-ops; on
+  # a global/main run the full suite is split 4 ways.
+  test:
+    needs: [changes, setup, build]
+    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ${{ fromJSON(needs.setup.outputs.fedora-matrix) }}
+        shard: [1, 2, 3, 4]
+    name: Test ${{ matrix.shard }}/4 Fedora ${{ matrix.fedora.v }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: --ulimit nofile=1048576:1048576
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/gjsify-setup
+        with:
+          fedora-version: ${{ matrix.fedora.v }}
+
+      # Full sharded sweep on global/main/schedule/empty; selective + sharded
+      # otherwise. The full path inlines the root `test` script's filters so it
+      # can take --shard. Integration tests stay opt-in.
       - name: Test
-        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '' }}
         env:
           GLOBAL: ${{ needs.changes.outputs.global }}
           INCLUDE_ARGS: ${{ needs.changes.outputs.include-args }}
+          SHARD: ${{ matrix.shard }}
         run: |
           su testuser -c "PATH=\"\$PWD/node_modules/.bin:\$PATH\" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args=\"-screen 0 1280x720x24\" sh -c '
             ulimit -n \"\$(ulimit -Hn)\" 2>/dev/null || true
-            echo \"[ci] nofile limit: soft=\$(ulimit -Sn) hard=\$(ulimit -Hn)\"
+            echo \"[ci] nofile soft=\$(ulimit -Sn) hard=\$(ulimit -Hn); shard \$SHARD/4\"
             if [ \"\$GLOBAL\" = \"true\" ] || [ -z \"\$GLOBAL\" ]; then
-              gjsify run test
+              gjsify foreach test -v --no-private --exclude \"@girs/*\" --exclude \"@gjsify/example-*\" --exclude \"@gjsify/website\" --shard \$SHARD/4
             else
-              gjsify foreach test \$INCLUDE_ARGS --exclude \"@gjsify/integration-*\"
+              gjsify foreach test \$INCLUDE_ARGS --exclude \"@gjsify/integration-*\" --shard \$SHARD/4
             fi
           '"
 
-      # WebGL conformance — only when @gjsify/webgl (or its consumers)
-      # are in the closure, OR on the full-run paths. The classifier
-      # emits @gjsify/webgl as part of include-args when warranted; we
-      # check for its presence to gate this expensive xvfb-run.
       - name: Test WebGL conformance
-        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/webgl') }}
+        if: ${{ matrix.shard == 1 && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/webgl')) }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify workspace @gjsify/webgl test:conformance'
 
-      - name: Test CLI examples
-        # Same example gate as Build/Check examples (was: any non-empty
-        # closure) — keeps the four example steps consistent and skips them
-        # together when no example/showcase is affected.
-        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:examples'
-
-      - name: Test net examples
-        # Same example gate as Build/Check examples.
-        if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:examples:net'
-
-      # E2E tests — gated when an `e2e` path was touched OR on a full
-      # run. Tests live under `tests/e2e/` and exercise the CLI end-to-
-      # end (install, build, dlx, …). Slow enough to skip on docs-only
-      # / single-workspace-impl PRs.
+  # ── E2E tests ───────────────────────────────────────────────────────
+  # Exercises the CLI end-to-end (install, build, dlx, publish, …) in its own
+  # parallel job. Downloads the example dist the build job produced (its
+  # lint-engines suite asserts every example has built output). Gated when an
+  # `e2e` path was touched OR on a full run.
+  e2e:
+    needs: [changes, setup, build]
+    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ${{ fromJSON(needs.setup.outputs.fedora-matrix) }}
+    name: E2E Fedora ${{ matrix.fedora.v }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: --ulimit nofile=1048576:1048576
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/gjsify-setup
+        with:
+          fedora-version: ${{ matrix.fedora.v }}
+      - name: Download example build output
+        uses: actions/download-artifact@v8
+        with:
+          name: example-dist-fedora${{ matrix.fedora.v }}
+      - name: Fix example dist ownership for testuser
+        run: chown -R testuser:testuser showcases examples
       - name: E2E tests
-        if: ${{ needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:e2e'
 
-      # Integration tests — NOT wired into CI yet. AGENTS.md "Integration
-      # tests" section explicitly classifies them as opt-in
-      # ("NOT part of `gjsify foreach test` — opt-in to avoid blocking
-      # PRs on tracked gaps."). Individual suites have CI-incompatible
-      # preconditions today: `integration-autobahn` needs Podman/Docker
-      # for the crossbario fuzzingserver, `integration-axios` (and
-      # likely others) hang on test:gjs in this Fedora container.
-      #
-      # The classifier still emits `run-integration` so we can re-enable
-      # the gate per-suite once each integration package has been
-      # individually hardened for the Fedora-in-Ubuntu environment.
-      # Tracked as a STATUS.md "Open TODO" follow-up.
+  # ── Examples (test) ─────────────────────────────────────────────────
+  # Runs the example/showcase test suites against the dist the build job
+  # produced (downloaded as an artifact — examples can't be rebuilt off a
+  # cache-only state). Gated when an example/showcase is in the closure (or a
+  # full run).
+  examples:
+    needs: [changes, setup, build]
+    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/example-')) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ${{ fromJSON(needs.setup.outputs.fedora-matrix) }}
+    name: Examples Fedora ${{ matrix.fedora.v }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: --ulimit nofile=1048576:1048576
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/gjsify-setup
+        with:
+          fedora-version: ${{ matrix.fedora.v }}
+      - name: Download example build output
+        uses: actions/download-artifact@v8
+        with:
+          name: example-dist-fedora${{ matrix.fedora.v }}
+      - name: Fix example dist ownership for testuser
+        run: chown -R testuser:testuser showcases examples
+      - name: Test CLI examples
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:examples'
+      - name: Test net examples
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:examples:net'
+
+  # Integration tests are NOT wired into CI yet (opt-in; suites have
+  # CI-incompatible preconditions). The classifier still emits run-integration
+  # so the gate can be re-enabled per-suite once each is hardened. Tracked in
+  # STATUS.md Open TODOs.
