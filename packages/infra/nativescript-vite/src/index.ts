@@ -93,6 +93,10 @@ export function defineNativescriptConfig(
     return async (env: ConfigEnv): Promise<UserConfig> => {
         const base = await loadUpstreamConfig(env);
         const fixed = applyVite8Fixes(base);
+        // Correct `@nativescript/vite`'s fragile "monorepo `packages/core` IS
+        // @nativescript/core" heuristic when the HOST monorepo's own packages/core
+        // is a DIFFERENT package (see {@link repointMistargetedCoreAlias}).
+        repointMistargetedCoreAlias(fixed);
         // Layer gjsify's NS transforms (a Vite plugin array whose `config()` hook
         // supplies the gi:// → empty redirect, platform resolution, defines, and
         // node-builtin aliases) — the same composition proven to produce a
@@ -107,6 +111,81 @@ export function defineNativescriptConfig(
 }
 
 export default defineNativescriptConfig;
+
+/**
+ * Repoint a mis-targeted `@nativescript/core` resolve.alias.
+ *
+ * `@nativescript/vite`'s base config (`configuration/base.js`) sets the
+ * @nativescript/core root to `<project>/../../packages/core` whenever that path
+ * EXISTS — without verifying the directory's package name. It assumes the
+ * NativeScript monorepo layout, where `packages/core` IS @nativescript/core. In
+ * ANY OTHER monorepo whose own `packages/core` is a DIFFERENT package — e.g.
+ * `@learn6502/core` in the Learn6502 workspace, or any `packages/core` — that
+ * heuristic mis-fires: @nativescript/core is aliased to the wrong package, and
+ * every `@nativescript/core/<sub>` import (`globals/index`, `application`,
+ * `ui/frame/activity.android`, `inspector_modules`, …) fails to resolve with
+ * "No such file or directory", breaking the bundle. (A non-monorepo app, or one
+ * without a sibling `packages/core`, falls through to node_modules resolution and
+ * is unaffected — which is why it bites only some layouts.)
+ *
+ * Fix: scan the composed `resolve.alias` and, for any entry targeting
+ * @nativescript/core whose replacement directory's `package.json#name` is NOT
+ * `@nativescript/core`, repoint the replacement at the REAL installed
+ * @nativescript/core (resolved from the project root, `process.cwd()` — where
+ * Vite runs the config). Correctly-targeted aliases (a real @nativescript/core,
+ * source or node_modules) are left untouched, so this is a safe no-op outside the
+ * name-collision case.
+ */
+function repointMistargetedCoreAlias(config: UserConfig): void {
+    const alias = config.resolve?.alias;
+    if (!Array.isArray(alias)) return;
+    let realRoot: string;
+    try {
+        const req = createRequire(import.meta.url);
+        realRoot = dirname(
+            req.resolve('@nativescript/core/package.json', { paths: [process.cwd()] }),
+        ).replace(/\\/g, '/');
+    } catch {
+        return; // @nativescript/core not resolvable from the project — leave config as-is
+    }
+    repointCoreAliasEntries(alias as Alias[], realRoot, (dir) => {
+        try {
+            return (JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { name?: string }).name;
+        } catch {
+            return undefined; // unreadable target → treat as mis-targeted
+        }
+    });
+}
+
+/**
+ * Pure core of {@link repointMistargetedCoreAlias} (exported for testing, since
+ * the wrapper resolves the real `@nativescript/core` from disk).
+ *
+ * Mutates `aliases` in place: for every entry whose `find` matches
+ * `@nativescript/core`, repoint its string `replacement` at `realRoot` UNLESS the
+ * replacement's current root directory already resolves to a real
+ * `@nativescript/core` — decided by `nameOf(dir)` returning `'@nativescript/core'`.
+ * A trailing `/$1` capture-group suffix is preserved.
+ *
+ * @internal
+ */
+export function repointCoreAliasEntries(
+    aliases: Alias[],
+    realRoot: string,
+    nameOf: (dir: string) => string | undefined,
+): void {
+    for (const entry of aliases) {
+        const { find, replacement } = entry;
+        if (typeof replacement !== 'string') continue;
+        // `find` is a RegExp like /^@nativescript\/core$/; strip escapes to match.
+        if (!String(find).replace(/\\/g, '').includes('@nativescript/core')) continue;
+        // Replacements look like `${ROOT}` or `${ROOT}/$1` — recover the root dir.
+        const currentRoot = replacement.replace(/\/\$1$/, '').replace(/\/+$/, '');
+        if (currentRoot === realRoot) continue; // already correct
+        if (nameOf(currentRoot) === '@nativescript/core') continue; // a real core elsewhere — keep it
+        entry.replacement = replacement.endsWith('/$1') ? `${realRoot}/$1` : realRoot;
+    }
+}
 
 /**
  * Resolve `@nativescript/vite`'s TypeScript config factory (an optional peer).
