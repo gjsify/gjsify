@@ -9,10 +9,13 @@
 // The app state machine (register/instantiate, category grouping, show + wire
 // controls, the MCP control surface) lives in @gjsify/storybook-core's
 // StorybookController. This class is the NS StorybookView<StoryView>: it owns
-// ONLY the @gjsify/adwaita-nativescript chrome (_buildUI): a collapsed
-// AdwNavigationSplitView (the GTK NavigationSplitView at narrow width) — the
-// master story list and the detail (preview + controls) never sit side-by-side
-// on a phone; tapping a story navigates to the detail, a back button returns.
+// ONLY the @gjsify/adwaita-nativescript chrome (_buildUI): an AdwNavigationSplitView
+// that ADAPTS to width via an AdwBreakpoint (the GTK storybook's `Adw.Breakpoint`,
+// `max-width: 720sp`). On a phone it stays collapsed — the master story list and
+// the detail (preview + controls) never sit side-by-side, tapping a story
+// navigates to the detail and a back button returns. On a wide tablet / desktop
+// screen it expands to three side-by-side panes (sidebar | preview | controls)
+// with no back button, exactly like the native GTK storybook un-collapsed.
 
 import type { StoryArgValue } from '@gjsify/stories';
 import {
@@ -23,6 +26,7 @@ import {
     type StorySummary,
 } from '@gjsify/storybook-core';
 import {
+    AdwBreakpoint,
     AdwHeaderBar,
     AdwImageButton,
     AdwNavigationSplitView,
@@ -30,11 +34,20 @@ import {
     AdwPreferencesGroup,
     AdwToolbarView,
     AdwWindowTitle,
+    addBreakpoints,
     attachRowPressFeedback,
     setAdwaitaColorScheme,
 } from '@gjsify/adwaita-nativescript';
 import { goPreviousSymbolic, sidebarShowRightSymbolic } from '@gjsify/adwaita-icons/actions';
-import { Label, ScrollView, StackLayout, type View } from '@nativescript/core';
+import { Label, Screen, ScrollView, StackLayout, type View } from '@nativescript/core';
+
+/**
+ * Width below which the storybook collapses to phone layout (master→detail nav +
+ * controls overlay). At or above it the sidebar, preview and controls sit
+ * side-by-side as three panes — matching the GTK storybook's `Adw.Breakpoint`
+ * (`max-width: 720sp`).
+ */
+const COLLAPSE_CONDITION = 'max-width: 720sp';
 import { createControlRow } from './controls.js';
 import type { StoryView } from './story-view.js';
 import type { NsStoryModule } from './types.js';
@@ -82,18 +95,30 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
     private _controlsGroup!: AdwPreferencesGroup;
     /** Right controls overlay (the GTK OverlaySplitView, sidebar_position=END). */
     private _controlsSplit!: AdwOverlaySplitView;
+    /** Back button (visible only in collapsed/phone layout). */
+    private _backButton!: AdwImageButton;
 
     private _rowByTitle = new Map<string, StackLayout>();
 
+    /** Current layout mode — true = collapsed (phone), false = three-pane (wide). */
+    private _collapsed = true;
+    /** Detaches the responsive breakpoint listeners on teardown. */
+    private _disposeBreakpoint: (() => void) | null = null;
+
     constructor(options: StorybookNativeOptions) {
         this._options = options;
-        // Always collapsed: the NS app is phone-sized, so the sidebar + detail
-        // never sit side-by-side — selecting a story navigates to the detail and a
-        // back button returns to the list (matching the GTK NavigationSplitView
-        // when collapsed at narrow width).
         this.root = new AdwNavigationSplitView();
-        this.root.collapsed = true;
+        // Seed the layout mode from the screen width so a wide tablet/desktop opens
+        // straight into three panes (no phone-layout flash); the AdwBreakpoint then
+        // keeps it exact against the live window width.
+        this._collapsed = !this._isWideWidth(Screen.mainScreen?.widthDIPs ?? 0);
+        this.root.collapsed = this._collapsed;
         this.root.className = 'sb-window';
+    }
+
+    /** Whether `width` (DIPs) is at/above the three-pane breakpoint (720sp). */
+    private _isWideWidth(width: number): boolean {
+        return width >= 720;
     }
 
     /** Build the UI, instantiate stories, and select the first one. Returns the root view. */
@@ -101,7 +126,48 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         this._buildUI();
         this._controller.mount(this._options.stories, this._options.openFirst !== false);
         this._wireColorScheme();
+        this._wireBreakpoint();
         return this.root;
+    }
+
+    /**
+     * Collapse to phone layout below 720sp, expand to three side-by-side panes at
+     * or above it — the GTK storybook's `Adw.Breakpoint`, driven by the root
+     * view's post-layout width. Seeds immediately so the first paint is correct.
+     */
+    private _wireBreakpoint(): void {
+        const breakpoint = new AdwBreakpoint(COLLAPSE_CONDITION, {
+            onApply: () => this._applyLayoutMode(true), // narrow → collapse
+            onUnapply: () => this._applyLayoutMode(false), // wide → three panes
+        });
+        this._disposeBreakpoint = addBreakpoints(this.root, [breakpoint]);
+    }
+
+    /**
+     * Switch between collapsed (phone) and expanded (wide) chrome. Collapsed: the
+     * master/detail nav swaps panes, the controls are a tap-to-reveal overlay, and
+     * the back button shows. Expanded: sidebar + preview + controls sit side by
+     * side and the back button hides (no navigation needed).
+     */
+    private _applyLayoutMode(collapsed: boolean): void {
+        if (collapsed === this._collapsed && this.root.collapsed === collapsed) return;
+        this._collapsed = collapsed;
+        this.root.collapsed = collapsed;
+        this._controlsSplit.collapsed = collapsed;
+        if (collapsed) {
+            // Phone: show the master list, hide the controls overlay. The back
+            // button lives in the detail header, so it only actually shows once the
+            // user navigates into the detail pane (the master view hides that pane).
+            this.root.showSidebarPane();
+            this._controlsSplit.hideSidebarPane();
+            this._backButton.visibility = 'visible';
+        } else {
+            // Wide: sidebar + preview + controls all visible, and no back button
+            // (there is nothing to navigate back from — the sidebar is always up).
+            this.root.showSidebarPane();
+            this._controlsSplit.showSidebarPane();
+            this._backButton.visibility = 'collapse';
+        }
     }
 
     // --- control surface (delegates to the controller; driven by the host
@@ -182,12 +248,13 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
                 // `.navigation-sidebar` activatable rows — NS only auto-applies
                 // :highlighted to Button, so wire it by hand.
                 attachRowPressFeedback(row);
-                // Tapping a story selects it AND navigates to the detail pane
-                // (the collapsed split view hides the sidebar) — the phone
-                // master→detail step of the GTK NavigationSplitView.
+                // Tapping a story selects it. In collapsed (phone) layout it also
+                // navigates to the detail pane (the master→detail step of the GTK
+                // NavigationSplitView); in wide layout the sidebar stays up beside
+                // the preview, so the selection just swaps the preview content.
                 row.addEventListener('tap', () => {
                     onSelect(instance);
-                    this.root.hideSidebarPane();
+                    if (this._collapsed) this.root.hideSidebarPane();
                 });
 
                 this._listColumn.addChild(row);
@@ -272,6 +339,10 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         back.icon = goPreviousSymbolic;
         back.className = `${back.className} sb-back-button`.trim();
         back.addEventListener('tap', () => this.root.showSidebarPane());
+        // Hidden in wide (three-pane) layout — there is nothing to navigate back
+        // from when the sidebar stays up; _applyLayoutMode flips this on resize.
+        back.visibility = this._collapsed ? 'visible' : 'collapse';
+        this._backButton = back;
         header.packStart(back);
 
         this._previewTitle = new AdwWindowTitle();
@@ -287,9 +358,10 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         header.packEnd(controlsToggle);
         detail.addTopBar(header);
 
-        // The overlay split: preview as content, controls as a right overlay.
+        // The overlay split: preview as content, controls as a right overlay when
+        // collapsed (phone), or a permanent right pane when expanded (wide).
         this._controlsSplit = new AdwOverlaySplitView();
-        this._controlsSplit.collapsed = true;
+        this._controlsSplit.collapsed = this._collapsed;
         this._controlsSplit.sidebarPosition = 'end';
         this._controlsSplit.sidebarWidth = 320;
         this._controlsSplit.className = `${this._controlsSplit.className} sb-controls-split`.trim();
@@ -309,14 +381,16 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         controlsScroll.className = 'sb-controls-scroll';
         controlsScroll.content = this._controlsGroup;
         this._controlsSplit.setSidebar(controlsScroll);
-        // Controls start hidden (full-width preview); the toggle reveals the right
-        // overlay — the phone form of the GTK collapsed OverlaySplitView.
-        this._controlsSplit.hideSidebarPane();
+        // Phone: controls start hidden (full-width preview), revealed by the toggle —
+        // the collapsed OverlaySplitView. Wide: controls are a permanent right pane.
+        if (this._collapsed) this._controlsSplit.hideSidebarPane();
+        else this._controlsSplit.showSidebarPane();
 
         detail.setContent(this._controlsSplit);
         this.root.setContent(detail);
 
-        // Start on the story list (the master pane).
+        // Start on the story list (the master pane); in wide layout the sidebar and
+        // detail are both visible regardless.
         this.root.showSidebarPane();
     }
 }

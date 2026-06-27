@@ -47,9 +47,28 @@ export abstract class AdwSplitViewBase extends GridLayout {
         super();
         this.className = rootClass;
         this.addRow(new ItemSpec(1, 'star'));
-        // Two columns: sidebar (auto) + content (*). Overlay subclass spans content.
-        this.addColumn(new ItemSpec(1, 'auto'));
-        this.addColumn(new ItemSpec(1, 'star'));
+        // Two columns; the SIDEBAR column is fixed-width ('auto', sized to the pane)
+        // and the CONTENT column expands ('star'). _syncColumns places them per
+        // sidebarPosition so a trailing (end) sidebar sits flush to the right edge.
+        this._syncColumns();
+    }
+
+    /**
+     * (Re)declare the two columns so the sidebar's column is fixed-width ('auto')
+     * and the content's is expanding ('star'), ordered by {@link sidebarPosition}:
+     * `start` → [sidebar auto, content star]; `end` → [content star, sidebar auto].
+     * Without this an `end` sidebar would land in the expanding column and float
+     * away from the right edge (leaving a gap), with the content squeezed.
+     */
+    protected _syncColumns(): void {
+        this.removeColumns();
+        if (this._sidebarPosition === 'end') {
+            this.addColumn(new ItemSpec(1, 'star')); // col 0: content
+            this.addColumn(new ItemSpec(1, 'auto')); // col 1: sidebar
+        } else {
+            this.addColumn(new ItemSpec(1, 'auto')); // col 0: sidebar
+            this.addColumn(new ItemSpec(1, 'star')); // col 1: content
+        }
     }
 
     /** Subclass-specific layout application for the current collapsed/show state. */
@@ -184,6 +203,8 @@ export abstract class AdwSplitViewBase extends GridLayout {
 
     set sidebarPosition(value: 'start' | 'end') {
         this._sidebarPosition = value === 'end' ? 'end' : 'start';
+        // The fixed/expanding column order depends on the side, so re-declare them.
+        this._syncColumns();
         this._applyLayout();
     }
 

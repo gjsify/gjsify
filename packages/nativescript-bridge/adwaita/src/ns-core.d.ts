@@ -146,6 +146,9 @@ declare module '@nativescript/core' {
     export class GridLayout extends LayoutBase {
         addColumn(itemSpec: ItemSpec): void;
         addRow(itemSpec: ItemSpec): void;
+        /** Remove every column definition (lets a layout re-declare its columns,
+         *  e.g. to flip the fixed/expanding column for a trailing sidebar). */
+        removeColumns(): void;
         static setColumn(view: View, value: number): void;
         static setRow(view: View, value: number): void;
         static setColumnSpan(view: View, value: number): void;

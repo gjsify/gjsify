@@ -129,6 +129,20 @@ declare module '@nativescript/core' {
         content: View;
     }
 
+    /** Metrics of a connected display. */
+    export interface ScreenMetrics {
+        /** Device pixel density (logical→physical scale factor). */
+        readonly scale: number;
+        /** Logical (density-independent) screen width. */
+        readonly widthDIPs: number;
+        /** Logical (density-independent) screen height. */
+        readonly heightDIPs: number;
+    }
+
+    /** Static access to the device's screen(s) — used to seed the responsive
+     *  layout mode before the first layout pass. */
+    export const Screen: { readonly mainScreen: ScreenMetrics };
+
     /** A wheel/list picker — `<ListPicker>`. */
     export class ListPicker extends View {
         items: unknown[];
