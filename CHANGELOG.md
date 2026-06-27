@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.13.0](https://github.com/gjsify/gjsify/compare/v0.12.0...v0.13.0) (2026-06-27)
+
+### Features
+
+* **adwaita-nativescript:** add view stack, switcher bar, menu button ([#623](https://github.com/gjsify/gjsify/issues/623)) ([f5ba511](https://github.com/gjsify/gjsify/commit/f5ba5115d18912edff320735a2e7ba544b07391e))
+* **adwaita-nativescript:** password-entry peek toggle ([#613](https://github.com/gjsify/gjsify/issues/613)) ([f200cce](https://github.com/gjsify/gjsify/commit/f200cce6d8c89c6c61db30f9cc8328ee05acf019))
+* **adwaita-nativescript:** real symbolic icons + native-matching storybook chrome ([#611](https://github.com/gjsify/gjsify/issues/611)) ([ab0dab0](https://github.com/gjsify/gjsify/commit/ab0dab037a06672be104b83c455d50edab08ce2f))
+
+### Bug Fixes
+
+* **adwaita-nativescript:** declare native-platform dependency ([#609](https://github.com/gjsify/gjsify/issues/609)) ([5df0c2a](https://github.com/gjsify/gjsify/commit/5df0c2ad28d1f92196c82416b84af66980889fe2))
+
+### Continuous Integration
+
+* bake glib2/gettext/libatomic into CI image ([#608](https://github.com/gjsify/gjsify/issues/608)) ([d66fbed](https://github.com/gjsify/gjsify/commit/d66fbed79b469d4e49663752da685e0815b53533))
+* build and type-check only the affected closure ([#614](https://github.com/gjsify/gjsify/issues/614)) ([d3ff78b](https://github.com/gjsify/gjsify/commit/d3ff78bf2068d58d7814ed1f817597136978c349))
+* bump main.yml cache to v6 + slim CI image ([#619](https://github.com/gjsify/gjsify/issues/619)) ([9cbe433](https://github.com/gjsify/gjsify/commit/9cbe4331b3e356af75904d92f66cb96b2a89f061)), closes [#617](https://github.com/gjsify/gjsify/issues/617)
+* bump to Node 26 + node24-runtime actions ([#617](https://github.com/gjsify/gjsify/issues/617)) ([7f85a82](https://github.com/gjsify/gjsify/commit/7f85a82a110540fa5313922b5112a70431565ac9)), closes [#614](https://github.com/gjsify/gjsify/issues/614)
+* cache node_modules to skip install extract ([#612](https://github.com/gjsify/gjsify/issues/612)) ([fe4ffb7](https://github.com/gjsify/gjsify/commit/fe4ffb7516ebef5fc1af28eebc4b231f598d899f))
+* consume prebuilt ci-fedora image, drop dnf ([#610](https://github.com/gjsify/gjsify/issues/610)) ([de24330](https://github.com/gjsify/gjsify/commit/de24330b61d9eb06b39afed3ac056134530deed9)), closes [#608](https://github.com/gjsify/gjsify/issues/608)
+* shard the e2e suite across parallel jobs ([#622](https://github.com/gjsify/gjsify/issues/622)) ([9fa85c6](https://github.com/gjsify/gjsify/commit/9fa85c6ad7d00594b4400d8d095e4cc313e182db))
+* split build/test/e2e/examples into parallel jobs ([#621](https://github.com/gjsify/gjsify/issues/621)) ([d7485e2](https://github.com/gjsify/gjsify/commit/d7485e2c7f2fdd37aaaa46564cdd6ed9df88fe2e))
+
 ## [0.12.0](https://github.com/gjsify/gjsify/compare/v0.11.0...v0.12.0) (2026-06-26)
 
 ### Features
