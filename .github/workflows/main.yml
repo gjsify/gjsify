@@ -19,27 +19,17 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Matrix planner — decides which Fedora legs the build/test jobs run.
-  # A GitHub matrix axis cannot read `github.event_name` directly, so we
-  # emit the leg list as a JSON job output and `fromJSON` it into the matrix.
-  # Each entry is a full object {v, gjs} — we do NOT use a static `include:`
-  # for the gjs label, because a static include for a version that ISN'T in
-  # the (PR-reduced) axis would spawn a phantom extra job.
-  #   - pull_request    → Fedora 44 only (GJS 1.88, the newest platform).
-  #   - push / schedule → FULL matrix (43 + 44), so the documented minimum
-  #                       runtime (GJS 1.86 / Fedora 43) is always re-covered.
+  # Matrix planner — emits the Fedora legs the build/test jobs run as a JSON job
+  # output that the matrix `fromJSON`s (a matrix axis can't be built inline here).
+  # Each entry is a full object {v, gjs}. Standardised on Fedora 44 (GJS 1.88 /
+  # SM 140), the supported platform — the Fedora 43 / GJS 1.86 leg was dropped.
   setup:
     runs-on: ubuntu-latest
     outputs:
       fedora-matrix: ${{ steps.plan.outputs.fedora-matrix }}
     steps:
       - id: plan
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo 'fedora-matrix=[{"v":"44","gjs":"GJS 1.88 / SM 140"}]' >> "$GITHUB_OUTPUT"
-          else
-            echo 'fedora-matrix=[{"v":"43","gjs":"GJS 1.86 / SM 140"},{"v":"44","gjs":"GJS 1.88 / SM 140"}]' >> "$GITHUB_OUTPUT"
-          fi
+        run: echo 'fedora-matrix=[{"v":"44","gjs":"GJS 1.88 / SM 140"}]' >> "$GITHUB_OUTPUT"
 
   # Classifier job — diffs HEAD vs the PR's base SHA, emits per-test-tier
   # gates as job outputs. Runs in seconds on plain ubuntu-latest with no
