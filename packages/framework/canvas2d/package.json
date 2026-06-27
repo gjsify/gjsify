@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/canvas2d",
-    "version": "0.13.0",
+    "version": "0.13.1",
     "description": "Canvas 2D rendering context for GJS, backed by Cairo",
     "type": "module",
     "module": "lib/esm/index.js",

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.13.1](https://github.com/gjsify/gjsify/compare/v0.13.0...v0.13.1) (2026-06-27)
+
+### Bug Fixes
+
+* **adwaita-nativescript:** normalize SVG arc flags for Android PathParser ([#627](https://github.com/gjsify/gjsify/issues/627)) ([1dd2d51](https://github.com/gjsify/gjsify/commit/1dd2d5197580b9025b781a2218edc54c6ccb4e7a))
+* **nativescript-vite:** repoint mis-targeted @nativescript/core alias ([#626](https://github.com/gjsify/gjsify/issues/626)) ([a82ee80](https://github.com/gjsify/gjsify/commit/a82ee804f408017cb9e48e18709807dfdf8b91ed))
+
+### Continuous Integration
+
+* drop fedora 43, standardise on fedora 44 ([#625](https://github.com/gjsify/gjsify/issues/625)) ([fca4df7](https://github.com/gjsify/gjsify/commit/fca4df7dde73a347d3f543de9d1c0fb55b34a24f))
+* run package type-check as a parallel job ([#624](https://github.com/gjsify/gjsify/issues/624)) ([f7bcf8d](https://github.com/gjsify/gjsify/commit/f7bcf8d18c5af918e304292c255d94336e0a8e32))
+
+### Maintenance
+
+* **refs:** register refs/gtk submodule ([921a965](https://github.com/gjsify/gjsify/commit/921a96543edc126cd8497a140fa695968af4f01b))
+
 ## [0.13.0](https://github.com/gjsify/gjsify/compare/v0.12.0...v0.13.0) (2026-06-27)
 
 ### Features
