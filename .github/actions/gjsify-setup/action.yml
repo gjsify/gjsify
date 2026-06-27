@@ -130,11 +130,17 @@ runs:
           packages/*/*/tsconfig.tsbuildinfo
           packages/*/*/tsconfig.*.tsbuildinfo
           packages/*/*/dist
+          packages/*/*/dist-templates
           !packages/infra/cli/dist/cli.gjs.mjs
           !packages/infra/tsc/dist/tsc.gjs.mjs
-        key: build-v2-${{ runner.os }}-fedora${{ inputs.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
+        # v3: cache now also covers packages/*/*/dist-templates (create-gjsify's
+        # processed templates — a build output the e2e create-app suite needs).
+        # The v2 fedora-only restore-key gives a warm lib/dist baseline during
+        # the transition so the first v3 run isn't a cold full build.
+        key: build-v3-${{ runner.os }}-fedora${{ inputs.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
         restore-keys: |
-          build-v2-${{ runner.os }}-fedora${{ inputs.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-
+          build-v3-${{ runner.os }}-fedora${{ inputs.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-
+          build-v3-${{ runner.os }}-fedora${{ inputs.fedora-version }}-
           build-v2-${{ runner.os }}-fedora${{ inputs.fedora-version }}-
 
     # @gjsify/resolve-npm is a no-build package; its lib/*.mjs are TRACKED SOURCE.
