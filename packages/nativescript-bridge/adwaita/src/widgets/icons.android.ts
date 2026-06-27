@@ -91,7 +91,16 @@ export function renderSymbolicIcon(svg: string, options?: SymbolicIconOptions): 
     // the non-zero winding rule — concatenating them into one fill destroys both.
     let drew = false;
     for (const { d, opacity } of iconPaths) {
-        const path = parser.createPathFromPathData(d);
+        // `extractIconPaths` already runs `normalizeArcFlags` over `d`; still guard
+        // the native call — a path PathParser cannot tokenise THROWS a Java
+        // exception, which must NOT crash the whole view (onCreateView). Skip the
+        // offending sub-path and render the rest of the icon.
+        let path: AndroidPath | null = null;
+        try {
+            path = parser.createPathFromPathData(d);
+        } catch {
+            path = null;
+        }
         if (!path) continue;
         const matrix = new gfx.Matrix();
         matrix.setScale(scale, scale);
