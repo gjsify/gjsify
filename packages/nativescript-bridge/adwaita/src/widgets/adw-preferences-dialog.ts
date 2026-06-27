@@ -15,7 +15,9 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_dialog.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { Button, GridLayout, ItemSpec, Label, StackLayout, View, type EventData } from '@nativescript/core';
+import { GridLayout, ItemSpec, Label, StackLayout, View, type EventData } from '@nativescript/core';
+import { windowCloseSymbolic } from '@gjsify/adwaita-icons/ui';
+import { AdwImageButton } from './adw-image-button.js';
 
 /** Event name emitted when the dialog is closed. */
 export const CLOSED = 'closed';
@@ -64,10 +66,11 @@ export class AdwPreferencesDialog extends GridLayout {
         header.addChild(titleLabel);
         this._titleLabel = titleLabel;
 
-        const closeButton = new Button();
-        closeButton.text = '✕';
-        closeButton.className = 'adw-preferences-dialog-close';
-        closeButton.set('androidElevation', 0);
+        // Circular flat close button with a REAL window-close symbolic icon —
+        // matching Adw.PreferencesDialog's header close (not a `✕` glyph).
+        const closeButton = new AdwImageButton();
+        closeButton.icon = windowCloseSymbolic;
+        closeButton.className = `${closeButton.className} adw-preferences-dialog-close`.trim();
         closeButton.addEventListener('tap', () => this.close());
         GridLayout.setColumn(closeButton, 1);
         header.addChild(closeButton);

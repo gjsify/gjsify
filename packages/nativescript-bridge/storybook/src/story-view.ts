@@ -15,7 +15,7 @@
 
 import type { StoryArgs, StoryMeta } from '@gjsify/stories';
 import { type StoryChrome, StoryViewBase } from '@gjsify/storybook-core';
-import { AdwClamp, AdwPreferencesGroup } from '@gjsify/adwaita-nativescript';
+import { AdwClamp } from '@gjsify/adwaita-nativescript';
 import { Label, StackLayout, type View } from '@nativescript/core';
 
 /** Notified whenever a story's args change (the controls panel re-syncs through this). */
@@ -75,8 +75,15 @@ export class StoryView extends StoryViewBase<View> {
         const clamp = new AdwClamp();
         clamp.className = `${clamp.className} sb-story-clamp`.trim();
 
-        const group = new AdwPreferencesGroup();
-        group.className = `${group.className} sb-story-group`.trim();
+        // A plain transparent container (NOT an AdwPreferencesGroup): the GTK +
+        // browser chrome render the title/description as BARE text on the window
+        // background with the preview below — only the story's OWN widgets carry a
+        // boxed-list card. Wrapping the chrome in a preferences-group card put the
+        // title/description inside a heavy white box, unlike native. Mirrors the
+        // browser StoryElement (`div.sb-story-group` styled transparent by CSS).
+        const group = new StackLayout();
+        group.orientation = 'vertical';
+        group.className = 'sb-story-group';
 
         // Header (title + description) — a vertical Label stack above the stage.
         const header = new StackLayout();
@@ -101,10 +108,8 @@ export class StoryView extends StoryViewBase<View> {
         stage.className = 'story-stage';
         stage.horizontalAlignment = 'center';
 
-        // The group's boxed list is the wrong wrapper for free-form chrome, so we
-        // stack header + stage directly into the group (its listbox stays empty).
-        group.addRow(header);
-        group.addRow(stage);
+        group.addChild(header);
+        group.addChild(stage);
         clamp.setChild(group);
         page.addChild(clamp);
 

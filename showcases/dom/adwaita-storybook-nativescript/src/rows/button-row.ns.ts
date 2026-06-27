@@ -4,6 +4,7 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { AdwButtonRow, AdwClamp, AdwPreferencesGroup } from '@gjsify/adwaita-nativescript';
+import { documentSaveSymbolic, editDeleteSymbolic, listAddSymbolic } from '@gjsify/adwaita-icons/actions';
 import { buttonRowMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 /** The Adwaita style classes this story can toggle on the row. */
@@ -12,20 +13,22 @@ const STYLE_CLASSES = ['suggested-action', 'destructive-action'];
 /** The base class string AdwButtonRow sets on itself in its constructor. */
 const BASE_CLASS = 'adw-row adw-action-row adw-button-row';
 
-/** GTK symbolic name (e.g. "list-add-symbolic") → a leading glyph (NS has no icon-theme lookup). */
-function iconGlyph(gtkName: string): string {
-    const base = gtkName.replace(/-symbolic$/, '');
+/** Adwaita accent + destructive colours (the start icon is pre-coloured, not CSS). */
+const ADW_ACCENT = '#3584e4';
+const ADW_DESTRUCTIVE = '#e01b24';
+
+/** GTK symbolic name (e.g. "list-add-symbolic") → a real Adwaita symbolic SVG string. */
+function iconSvg(gtkName: string): string {
+    const base = (gtkName ?? '').replace(/-symbolic$/, '');
     switch (base) {
         case 'list-add':
-            return '＋';
+            return listAddSymbolic;
         case 'document-save':
-            return '💾';
+            return documentSaveSymbolic;
         case 'edit-delete':
-            return '🗑';
-        case '':
-            return '';
+            return editDeleteSymbolic;
         default:
-            return '•';
+            return '';
     }
 }
 
@@ -61,7 +64,7 @@ export class ButtonRowNsStory extends StoryView {
     private _syncRow(): void {
         if (!this._row) return;
         this._row.title = this.args.title as string;
-        this._row.startIcon = iconGlyph(this.args.startIconName as string);
+        this._row.startIcon = iconSvg(this.args.startIconName as string);
         this._applyStyle(this.args.style as string);
     }
 
@@ -72,6 +75,9 @@ export class ButtonRowNsStory extends StoryView {
             classes.push(style);
         }
         this._row.className = classes.join(' ');
+        // The start icon is pre-coloured (a bitmap), so recolour it to match the
+        // title: destructive red for `destructive-action`, else the accent.
+        this._row.startIconColor = style === 'destructive-action' ? ADW_DESTRUCTIVE : ADW_ACCENT;
     }
 }
 

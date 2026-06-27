@@ -4,14 +4,16 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { AdwViewSwitcher, AdwStatusPage, type AdwViewPage } from '@gjsify/adwaita-nativescript';
+import { folderSymbolic } from '@gjsify/adwaita-icons/places';
+import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { viewSwitcherMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 // The three pages, mirroring the native demo (Inbox / Starred / Archive).
-// `icon` is a glyph (AdwStatusPage has no icon-theme lookup in the CSS subset).
+// `icon` is a REAL Adwaita symbolic SVG string (rendered large by AdwStatusPage).
 const PAGES: ReadonlyArray<{ title: string; icon: string; description: string }> = [
-    { title: 'Inbox', icon: '✉', description: 'You have three unread conversations.' },
-    { title: 'Starred', icon: '★', description: 'Messages you have marked as important.' },
-    { title: 'Archive', icon: '🗀', description: 'Older conversations kept for reference.' },
+    { title: 'Inbox', icon: mailUnreadSymbolic, description: 'You have three unread conversations.' },
+    { title: 'Starred', icon: starredSymbolic, description: 'Messages you have marked as important.' },
+    { title: 'Archive', icon: folderSymbolic, description: 'Older conversations kept for reference.' },
 ];
 
 export class ViewSwitcherNsStory extends StoryView {
@@ -42,7 +44,7 @@ export class ViewSwitcherNsStory extends StoryView {
 
     private _buildPage(page: { title: string; icon: string; description: string }): AdwStatusPage {
         const status = new AdwStatusPage();
-        status.iconText = page.icon;
+        status.icon = page.icon;
         status.title = page.title;
         status.description = page.description;
         return status;

@@ -17,8 +17,10 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_expanders.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { Button, GridLayout, ItemSpec, StackLayout, View, type EventData } from '@nativescript/core';
+import { GridLayout, ItemSpec, StackLayout, View, type EventData } from '@nativescript/core';
+import { panDownSymbolic, panUpSymbolic } from '@gjsify/adwaita-icons/ui';
 import { AdwActionRow } from './adw-action-row.js';
+import { AdwIcon } from './adw-icon.js';
 
 /** Event name emitted when {@link AdwExpanderRow.expanded} changes. Mirrors GObject `notify::expanded`. */
 export const NOTIFY_EXPANDED = 'notify::expanded';
@@ -30,8 +32,8 @@ export interface NotifyExpandedEventData extends EventData {
 }
 
 export class AdwExpanderRow extends AdwActionRow {
-    /** The disclosure toggle button (suffix). */
-    protected readonly _toggle: Button;
+    /** The disclosure chevron (suffix) — a plain symbolic icon, like Adw.ExpanderRow. */
+    protected readonly _toggle: AdwIcon;
     /** The container of revealed child rows (second grid row). */
     protected readonly _disclosure: StackLayout;
     private _expanded = false;
@@ -50,18 +52,15 @@ export class AdwExpanderRow extends AdwActionRow {
         disclosure.visibility = 'collapse';
         GridLayout.setRow(disclosure, 1);
         GridLayout.setColumn(disclosure, 0);
-        GridLayout.setColumnSpan(disclosure, 2);
+        GridLayout.setColumnSpan(disclosure, 3);
         this.addChild(disclosure);
         this._disclosure = disclosure;
 
-        const toggle = new Button();
-        // Adwaita expanders use a chevron affordance (down = collapsed, up =
-        // expanded), NOT a +/− button. U+25BE / U+25B4 render reliably in
-        // Adwaita Sans.
-        toggle.text = '▾';
-        toggle.className = 'adw-expander-toggle';
-        // Flat chevron, not a raised Material button — kill the elevation/shadow.
-        toggle.set('androidElevation', 0);
+        // Adwaita expanders use a plain chevron affordance (pan-down = collapsed,
+        // pan-up = expanded) — a REAL symbolic icon, not a `▾` glyph or a button.
+        const toggle = new AdwIcon();
+        toggle.icon = panDownSymbolic;
+        toggle.className = `${toggle.className} adw-expander-toggle`.trim();
         this.setSuffix(toggle);
         this._toggle = toggle;
 
@@ -97,7 +96,7 @@ export class AdwExpanderRow extends AdwActionRow {
         if (next === this._expanded) return;
         this._expanded = next;
         this._disclosure.visibility = next ? 'visible' : 'collapse';
-        this._toggle.text = next ? '▴' : '▾'; // U+25B4 up (expanded) / U+25BE down (collapsed)
+        this._toggle.icon = next ? panUpSymbolic : panDownSymbolic;
         const data: NotifyExpandedEventData = {
             eventName: NOTIFY_EXPANDED,
             object: this,

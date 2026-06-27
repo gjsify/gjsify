@@ -2,17 +2,20 @@
 // toggle-group.story.ts and browser toggle-group.web.ts (imported from the GTK
 // showcase's renderer-agnostic *.meta.ts barrel).
 //
-// NS AdwToggleGroup extends SegmentedBar: a mutually-exclusive segment set with
-// `options` (labels) + `selected` (index). FIDELITY: SegmentedBarItem is
-// title-only, so the three toggles are labels (List/Grid/Columns) without the
-// per-toggle icons the GTK/browser twins carry.
+// NS AdwToggleGroup is an Adwaita LINKED toggle group of icon+label segments with
+// `selected` (index), matching the GTK/browser twins (icon + label per toggle).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { AdwToggleGroup } from '@gjsify/adwaita-nativescript';
+import { viewGridSymbolic, viewListSymbolic, viewPagedSymbolic } from '@gjsify/adwaita-icons/actions';
 import { toggleGroupMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-// The three toggles, mirroring the native demo (label-only on NS).
-const TOGGLES = ['List', 'Grid', 'Columns'];
+// The three toggles, mirroring the native demo (icon + label).
+const TOGGLES = [
+    { label: 'List', icon: viewListSymbolic },
+    { label: 'Grid', icon: viewGridSymbolic },
+    { label: 'Columns', icon: viewPagedSymbolic },
+];
 
 export class ToggleGroupNsStory extends StoryView {
     private _group: AdwToggleGroup | null = null;
@@ -27,7 +30,7 @@ export class ToggleGroupNsStory extends StoryView {
 
     initialize(): void {
         this._group = new AdwToggleGroup();
-        this._group.options = TOGGLES;
+        this._group.setToggles(TOGGLES);
         this._syncGroup();
         this.addContent(this._group);
     }

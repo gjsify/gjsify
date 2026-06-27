@@ -10,21 +10,23 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { AdwButtonContent } from '@gjsify/adwaita-nativescript';
+import { listAddSymbolic, mailSendSymbolic } from '@gjsify/adwaita-icons/actions';
+import { folderDownloadSymbolic } from '@gjsify/adwaita-icons/places';
+import { starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { StackLayout } from '@nativescript/core';
 import { buttonContentMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-// GTK symbolic name (e.g. "folder-download-symbolic") → NS glyph. The NS CSS
-// subset has no icon-theme lookup, so AdwButtonContent renders `iconName` as a
-// glyph Label; map each symbolic option to its closest emoji glyph.
-const ICON_GLYPHS: Record<string, string> = {
-    'folder-download-symbolic': '\u{2B07}', // ⬇
-    'list-add-symbolic': '\u{2795}', // ➕
-    'mail-send-symbolic': '\u{2709}', // ✉
-    'starred-symbolic': '\u{2B50}', // ⭐
+// GTK symbolic name → a REAL Adwaita symbolic SVG string (rasterised natively by
+// AdwButtonContent's AdwIcon), matching Adw.ButtonContent — not an emoji glyph.
+const ICON_SVGS: Record<string, string> = {
+    'folder-download-symbolic': folderDownloadSymbolic,
+    'list-add-symbolic': listAddSymbolic,
+    'mail-send-symbolic': mailSendSymbolic,
+    'starred-symbolic': starredSymbolic,
 };
 
-function iconGlyph(symbolic: string): string {
-    return ICON_GLYPHS[symbolic] ?? '';
+function iconSvg(symbolic: string): string {
+    return ICON_SVGS[symbolic] ?? '';
 }
 
 export class ButtonContentNsStory extends StoryView {
@@ -40,6 +42,9 @@ export class ButtonContentNsStory extends StoryView {
 
     initialize(): void {
         this._content = new AdwButtonContent();
+        // The button is suggested-action (blue) → white foreground, so the
+        // symbolic icon renders white to match the label.
+        this._content.iconColor = '#ffffff';
         this._syncContent();
 
         // Mirror the suggested-action pill button the native/browser twins wrap
@@ -60,7 +65,7 @@ export class ButtonContentNsStory extends StoryView {
     private _syncContent(): void {
         if (!this._content) return;
         this._content.label = this.args.label as string;
-        this._content.iconName = iconGlyph(this.args.iconName as string);
+        this._content.icon = iconSvg(this.args.iconName as string);
         // `canShrink` has no NS equivalent (no ellipsize in the CSS subset);
         // the control is presented but does not alter the static layout.
     }

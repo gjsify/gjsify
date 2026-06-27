@@ -4,17 +4,18 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { AdwButton, AdwStatusPage } from '@gjsify/adwaita-nativescript';
+import { systemSearchSymbolic } from '@gjsify/adwaita-icons/actions';
+import { folderSymbolic } from '@gjsify/adwaita-icons/places';
+import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { statusPageMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-// AdwStatusPage (NS) shows `iconText` as a large glyph Label — the CSS subset
-// has no icon-theme lookup, so the symbolic icon names from the shared metadata
-// map to the closest emoji glyph (a documented fidelity compromise, mirroring
-// the widget's own `iconText` contract).
-const ICON_GLYPHS: Record<string, string> = {
-    'folder-symbolic': '📁',
-    'mail-unread-symbolic': '✉️',
-    'system-search-symbolic': '🔍',
-    'starred-symbolic': '⭐',
+// AdwStatusPage (NS) renders a REAL large Adwaita symbolic icon, so the shared
+// metadata's symbolic names map to the actual SVG strings — matching native.
+const ICON_SVGS: Record<string, string> = {
+    'folder-symbolic': folderSymbolic,
+    'mail-unread-symbolic': mailUnreadSymbolic,
+    'system-search-symbolic': systemSearchSymbolic,
+    'starred-symbolic': starredSymbolic,
 };
 
 export class StatusPageNsStory extends StoryView {
@@ -48,7 +49,7 @@ export class StatusPageNsStory extends StoryView {
     private _sync(): void {
         if (!this._page) return;
         const iconName = this.args.iconName as string;
-        this._page.iconText = ICON_GLYPHS[iconName] ?? '📄';
+        this._page.icon = ICON_SVGS[iconName] ?? folderSymbolic;
         this._page.title = this.args.title as string;
         this._page.description = this.args.description as string;
     }

@@ -65,22 +65,34 @@ Page.adw-window {
 /*
  * Hairline separator between rows in a boxed list — Adwaita draws a 1px
  * @borders line BETWEEN rows (not above the first / below the last). NS has no
- * `:not(:first-child)`, so we approximate with a 1px top border on the boxed
- * list's direct row children; the listbox clips the first row's border under
- * its rounded corner, which reads as "between rows".
+ * `:not(:first-child)`, so we put a 1px top border on every row and let the
+ * group's `_refreshRowEdges()` flag the FIRST row with `.adw-row-flush-top`
+ * (NS does NOT clip the first row's border under the card's rounded corner, so
+ * without the flag it reads as a stray line above the first row).
  */
 .boxed-list .adw-row {
     border-top-width: 1;
     border-top-color: rgba(0, 0, 0, 0.08);
 }
 
+.boxed-list .adw-row-flush-top {
+    border-top-width: 0;
+}
+
 .adw-action-row {
-    /* GridLayout `*, auto` — sizing handled by the widget, only chrome here. */
+    /* GridLayout `auto, *, auto` — sizing handled by the widget, only chrome here. */
     color: rgba(0, 0, 0, 0.8);
 }
 
 .adw-row-text {
     margin: 0;
+}
+
+/* Leading symbolic icon (column 0) — Adwaita sets a 12px gap to the title and
+ * centers it vertically against the title/subtitle stack. */
+.adw-row-prefix {
+    margin: 0 12 0 0;
+    vertical-align: center;
 }
 
 .adw-row-title {
@@ -97,6 +109,7 @@ Page.adw-window {
 
 .adw-row-suffix {
     margin: 0;
+    vertical-align: center;
 }
 
 /* ===== Switch ===== */
@@ -165,23 +178,26 @@ Page.adw-window {
     margin: 0;
 }
 
-.adw-spin-button {
-    width: 32;
-    height: 32;
-    border-radius: 9;
+/* The stepper buttons are AdwImageButtons (symbolic value-decrease/increase
+ * icons). Compound selector so it beats the later `.adw-image-button` rule:
+ * keep the circular shape but give the subtle persistent fill Adw.SpinRow's
+ * stepper shows (the bare image-button is transparent at rest). */
+.adw-image-button.adw-spin-button {
+    width: 30;
+    height: 30;
     background-color: rgba(128, 128, 128, 0.12);
-    color: rgba(0, 0, 0, 0.8);
-    font-size: 18;
-    font-weight: 700;
-    padding: 0;
     margin: 0 2 0 2;
+}
+
+.ns-dark .adw-image-button.adw-spin-button {
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 .adw-spin-value {
     font-size: 15;
     color: rgba(0, 0, 0, 0.8);
-    width: 48;
-    margin: 0 4 0 4;
+    margin: 0 6 0 4;
+    vertical-align: center;
 }
 
 /* ===== Slider row (RANGE control — vertical card: title+value header over a slider) ===== */
@@ -443,7 +459,13 @@ Page.adw-window {
     padding: 24 32 24 32;
 }
 
+/* The symbolic icon (AdwIcon) — only spacing; size/colour are baked by AdwIcon. */
 .adw-status-page-icon {
+    margin: 0 0 12 0;
+}
+
+/* The legacy glyph fallback (a Label) — large + dim. */
+.adw-status-page-icon-glyph {
     font-size: 56;
     color: rgba(0, 0, 0, 0.35);
     margin: 0 0 12 0;
@@ -508,34 +530,111 @@ Page.adw-window {
     margin: 0;
 }
 
+/* On a suggested/destructive button the label must take the button's foreground
+ * (the explicit dark label colour above would otherwise win over the inherited
+ * one). The matching ICON colour is pre-baked by the caller via AdwIcon.iconColor. */
+.adw-button.suggested-action .adw-button-content-label {
+    color: #ffffff;
+}
+
+.adw-button.destructive-action .adw-button-content-label {
+    color: #c01c28;
+}
+
 /* ===== Split button (action + dropdown) ===== */
 
 .adw-split-button-action {
     background-color: rgba(0, 0, 0, 0.08);
-    color: rgba(0, 0, 0, 0.8);
     border-radius: 9;
-    font-weight: 700;
-    padding: 5 16 5 16;
+    padding: 5 14 5 14;
     height: 38;
     margin: 0;
 }
 
+.adw-split-button-label {
+    font-size: 15;
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.8);
+    vertical-align: center;
+}
+
 .adw-split-button-dropdown {
     background-color: rgba(0, 0, 0, 0.08);
-    color: rgba(0, 0, 0, 0.8);
     border-radius: 9;
-    font-size: 15;
     width: 36;
     height: 38;
     padding: 0;
     margin: 0 0 0 1;
 }
 
-/* ===== Toggle group (segmented control) ===== */
+/* Flat variant — transparent at rest (header-bar / toolbar split buttons). */
+.adw-split-button.flat .adw-split-button-action,
+.adw-split-button.flat .adw-split-button-dropdown {
+    background-color: transparent;
+}
 
+.adw-split-button.flat .adw-split-button-action:highlighted,
+.adw-split-button.flat .adw-split-button-dropdown:highlighted {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+/* Non-flat press — darken the linked halves (Adwaita's `:active` shade). */
+.adw-split-button-action:highlighted,
+.adw-split-button-dropdown:highlighted {
+    background-color: rgba(0, 0, 0, 0.16);
+}
+
+/* ===== Toggle group (Adwaita LINKED segmented control) ===== */
+/* A tinted rounded container; the selected segment is raised to a white pill
+ * (Adwaita has a soft shadow there — the NS subset has no shadow, so a white
+ * fill stands in). */
 .adw-toggle-group {
-    color: #3584e4;
+    background-color: rgba(0, 0, 0, 0.08);
+    border-radius: 9;
+    padding: 3;
     margin: 0;
+}
+
+.adw-toggle-button {
+    background-color: transparent;
+    border-radius: 7;
+    padding: 5 14 5 14;
+    margin: 0;
+}
+
+.adw-toggle-button.active {
+    background-color: #ffffff;
+}
+
+.adw-toggle-button:highlighted {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+.adw-toggle-label {
+    font-size: 14;
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.8);
+    vertical-align: center;
+}
+
+.adw-toggle-icon {
+    margin: 0 6 0 0;
+    vertical-align: center;
+}
+
+/* Flat variant — no container fill (toolbar/header context). */
+.adw-toggle-group.flat {
+    background-color: transparent;
+    padding: 0;
+}
+
+/* Round variant — fully-pill container + segments. */
+.adw-toggle-group.round {
+    border-radius: 9999;
+}
+
+.adw-toggle-group.round .adw-toggle-button {
+    border-radius: 9999;
 }
 
 /* ===== View switcher (top pill bar) ===== */
@@ -1048,7 +1147,7 @@ Page.ns-dark.adw-window {
     background-color: #222226;
 }
 
-.ns-dark .adw-status-page-icon {
+.ns-dark .adw-status-page-icon-glyph {
     color: rgba(255, 255, 255, 0.35);
 }
 
@@ -1085,7 +1184,23 @@ Page.ns-dark.adw-window {
 /* ===== Dark: toggle group ===== */
 
 .ns-dark .adw-toggle-group {
-    color: #78aeed;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.ns-dark .adw-toggle-group.flat {
+    background-color: transparent;
+}
+
+.ns-dark .adw-toggle-button.active {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.ns-dark .adw-toggle-button:highlighted {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.ns-dark .adw-toggle-label {
+    color: rgba(255, 255, 255, 0.85);
 }
 
 /* ===== Dark: view switcher ===== */

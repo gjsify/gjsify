@@ -5,27 +5,38 @@
 // `description` `Label`, and an optional child widget (e.g. an action button).
 // Mirrors `Adw.StatusPage`: `iconText`, `title`, `description`, `setChild()`.
 //
-// FIDELITY: approximated for the icon. `Adw.StatusPage` shows a large symbolic
-// icon from the icon theme; NS has no icon-theme lookup in this CSS subset, so the
-// icon is a large glyph `Label` (`iconText` — pass an emoji or a font glyph). The
-// centered title/description/child layout is otherwise faithful.
+// The icon is a REAL Adwaita symbolic icon (`icon` — a symbolic SVG string),
+// rendered large + dim by an {@link AdwIcon} (native PathParser rasteriser),
+// matching `Adw.StatusPage`'s themed empty-state icon. The centered
+// title/description/child layout is faithful too.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-status-page`.
 // Reference: refs/libadwaita/src/stylesheet/widgets/_status-page.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, Label, StackLayout, View } from '@nativescript/core';
+import { AdwIcon } from './adw-icon.js';
+
+/** Default status-page icon size (DIPs) — Adw.StatusPage shows a large glyph. */
+const DEFAULT_STATUS_ICON_SIZE = 96;
+/** Default dim icon colour — Adw.StatusPage dims the empty-state icon. */
+const DEFAULT_STATUS_ICON_COLOR = '#9b9b9b';
 
 export class AdwStatusPage extends GridLayout {
     /** The centered vertical stack. */
     protected readonly _stack: StackLayout;
-    /** The large icon glyph label (lazily in the tree — only when set). */
+    /** The large symbolic icon (shown when an `icon` SVG is set). */
+    protected readonly _icon: AdwIcon;
+    private _iconSvg = '';
+    /** The large glyph label (shown when `iconText` is set — the legacy fallback). */
     protected readonly _iconLabel: Label;
+    private _iconGlyph = '';
+    /** The icon node currently in the stack (the AdwIcon or the glyph Label), or null. */
+    private _iconNode: View | null = null;
     /** The bold title label. */
     protected readonly _titleLabel: Label;
     /** The dim description label (lazily in the tree — only when set). */
     protected readonly _descriptionLabel: Label;
-    private _hasIcon = false;
     private _hasDescription = false;
     private _child: View | null = null;
 
@@ -46,8 +57,15 @@ export class AdwStatusPage extends GridLayout {
         this.addChild(stack);
         this._stack = stack;
 
+        const icon = new AdwIcon();
+        icon.className = `${icon.className} adw-status-page-icon`.trim();
+        icon.horizontalAlignment = 'center';
+        icon.iconColor = DEFAULT_STATUS_ICON_COLOR;
+        icon.iconSize = DEFAULT_STATUS_ICON_SIZE;
+        this._icon = icon;
+
         const iconLabel = new Label();
-        iconLabel.className = 'adw-status-page-icon';
+        iconLabel.className = 'adw-status-page-icon-glyph';
         iconLabel.horizontalAlignment = 'center';
         this._iconLabel = iconLabel;
 
@@ -66,31 +84,59 @@ export class AdwStatusPage extends GridLayout {
     }
 
     /**
-     * A large glyph shown above the title (emoji or font glyph). Setting a
-     * non-empty value inserts the icon label at the top of the stack; empty
-     * removes it. (`Adw.StatusPage` uses a themed icon; the NS subset has no
-     * icon-theme lookup, so a glyph label stands in.)
+     * A large Adwaita symbolic SVG string shown above the title (e.g.
+     * `folderSymbolic`). Setting a non-empty value shows the symbolic icon; empty
+     * removes it. Matches `Adw.StatusPage`'s themed icon. Mutually exclusive with
+     * {@link iconText} — whichever was set last wins.
+     */
+    get icon(): string {
+        return this._iconSvg;
+    }
+
+    set icon(value: string) {
+        this._iconSvg = value ?? '';
+        this._icon.icon = this._iconSvg;
+        this._setIconNode(this._iconSvg.length > 0 ? this._icon : null);
+    }
+
+    /**
+     * A large glyph shown above the title (emoji / font glyph — the legacy
+     * fallback for callers that have no symbolic SVG). Mutually exclusive with
+     * {@link icon}; prefer `icon` for real Adwaita symbolics.
      */
     get iconText(): string {
-        return this._hasIcon ? (this._iconLabel.text ?? '') : '';
+        return this._iconGlyph;
     }
 
     set iconText(value: string) {
-        const text = value ?? '';
-        this._iconLabel.text = text;
-        const want = text.length > 0;
-        if (want && !this._hasIcon) {
-            // Icon goes ABOVE the title (index 0).
-            this._stack.removeChild(this._titleLabel);
-            if (this._hasDescription) this._stack.removeChild(this._descriptionLabel);
-            this._stack.addChild(this._iconLabel);
-            this._stack.addChild(this._titleLabel);
-            if (this._hasDescription) this._stack.addChild(this._descriptionLabel);
-            this._hasIcon = true;
-        } else if (!want && this._hasIcon) {
-            this._stack.removeChild(this._iconLabel);
-            this._hasIcon = false;
-        }
+        this._iconGlyph = value ?? '';
+        this._iconLabel.text = this._iconGlyph;
+        this._setIconNode(this._iconGlyph.length > 0 ? this._iconLabel : null);
+    }
+
+    /** Swap the icon node at the TOP of the stack (above the title), or clear it. */
+    private _setIconNode(node: View | null): void {
+        if (this._iconNode === node) return;
+        if (this._iconNode) this._stack.removeChild(this._iconNode);
+        this._iconNode = node;
+        if (!node) return;
+        // Re-stack so the icon sits at index 0 (above title/description/child).
+        this._stack.removeChild(this._titleLabel);
+        if (this._hasDescription) this._stack.removeChild(this._descriptionLabel);
+        if (this._child) this._stack.removeChild(this._child);
+        this._stack.addChild(node);
+        this._stack.addChild(this._titleLabel);
+        if (this._hasDescription) this._stack.addChild(this._descriptionLabel);
+        if (this._child) this._stack.addChild(this._child);
+    }
+
+    /** The icon fill colour (hex). Defaults to a dim grey; light/dark callers may override. */
+    get iconColor(): string {
+        return this._icon.iconColor;
+    }
+
+    set iconColor(value: string) {
+        this._icon.iconColor = value;
     }
 
     /** The page title (bold, centered). */

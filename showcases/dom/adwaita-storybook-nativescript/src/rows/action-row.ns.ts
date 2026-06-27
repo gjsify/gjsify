@@ -3,28 +3,31 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwActionRow, AdwButton, AdwClamp, AdwPreferencesGroup } from '@gjsify/adwaita-nativescript';
-import { Label, StackLayout } from '@nativescript/core';
+import { AdwActionRow, AdwClamp, AdwIcon, AdwPreferencesGroup } from '@gjsify/adwaita-nativescript';
+import { goNextSymbolic } from '@gjsify/adwaita-icons/actions';
+import { networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
+import { folderSymbolic } from '@gjsify/adwaita-icons/places';
+import { starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { actionRowMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-/** GTK symbolic name (e.g. "folder-symbolic") → a leading glyph (NS has no icon-theme lookup). */
-function iconGlyph(gtkName: string): string {
-    const base = gtkName.replace(/-symbolic$/, '');
+/** GTK symbolic name (e.g. "folder-symbolic") → a real Adwaita symbolic SVG string. */
+function iconSvg(gtkName: string): string {
+    const base = (gtkName ?? '').replace(/-symbolic$/, '');
     switch (base) {
         case 'network-wireless':
-            return '📶';
+            return networkWirelessSymbolic;
         case 'folder':
-            return '📁';
+            return folderSymbolic;
         case 'starred':
-            return '⭐';
+            return starredSymbolic;
         default:
-            return '•';
+            return networkWirelessSymbolic;
     }
 }
 
 export class ActionRowNsStory extends StoryView {
     private _row: AdwActionRow | null = null;
-    private _icon: Label | null = null;
+    private _icon: AdwIcon | null = null;
 
     constructor() {
         super(ActionRowNsStory.getMetadata(), 'Default');
@@ -37,23 +40,18 @@ export class ActionRowNsStory extends StoryView {
     initialize(): void {
         this._row = new AdwActionRow();
 
-        // AdwActionRow (NS) exposes only a single suffix slot (no prefix). Pack the
-        // leading glyph + the trailing go-next button into one horizontal suffix
-        // stack — the closest the widget allows to the browser twin's prefix-icon +
-        // suffix-button pair.
-        const suffix = new StackLayout();
-        suffix.orientation = 'horizontal';
+        // Leading PREFIX: a REAL Adwaita symbolic icon (rasterised natively via
+        // PathParser), matching Adw.ActionRow's prefix icon — not an emoji glyph.
+        this._icon = new AdwIcon();
+        this._icon.icon = iconSvg(this.args.iconName as string);
+        this._row.setPrefix(this._icon);
 
-        this._icon = new Label();
-        this._icon.text = iconGlyph(this.args.iconName as string);
-        suffix.addChild(this._icon);
+        // Trailing SUFFIX: the go-next chevron as a symbolic icon (the activatable
+        // arrow), matching the browser/GTK twin.
+        const chevron = new AdwIcon();
+        chevron.icon = goNextSymbolic;
+        this._row.setSuffix(chevron);
 
-        const button = new AdwButton();
-        button.variant = 'flat';
-        button.text = '›';
-        suffix.addChild(button);
-
-        this._row.setSuffix(suffix);
         this._syncRow();
 
         const group = new AdwPreferencesGroup();
@@ -68,7 +66,7 @@ export class ActionRowNsStory extends StoryView {
 
     updateArgs(_args: StoryArgs): void {
         this._syncRow();
-        if (this._icon) this._icon.text = iconGlyph(this.args.iconName as string);
+        if (this._icon) this._icon.icon = iconSvg(this.args.iconName as string);
     }
 
     private _syncRow(): void {

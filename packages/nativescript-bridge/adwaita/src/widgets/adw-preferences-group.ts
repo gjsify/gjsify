@@ -67,11 +67,34 @@ export class AdwPreferencesGroup extends StackLayout {
     /** Append a row (or any view) to the boxed list. */
     addRow(view: View): void {
         this._listbox.addChild(view);
+        this._refreshRowEdges();
     }
 
     /** Remove a previously-added row from the boxed list. */
     removeRow(view: View): void {
         this._listbox.removeChild(view);
+        this._refreshRowEdges();
+    }
+
+    /**
+     * Mark the FIRST row so it draws no top separator. Adwaita draws hairline
+     * separators BETWEEN rows only; the `.boxed-list .adw-row` top-border rule
+     * would otherwise also stroke above the first row (NS does not clip it under
+     * the card's rounded corner), reading as a stray line. NS has no
+     * `:first-child`, so toggle an `adw-row-flush-top` class. Recomputes from the
+     * live children, so it stays correct after a `listbox.removeChildren()` +
+     * re-add (the controls panel's refresh path). */
+    private _refreshRowEdges(): void {
+        const n = this._listbox.getChildrenCount();
+        for (let i = 0; i < n; i++) {
+            const child = this._listbox.getChildAt(i);
+            if (child) this._setFlushTop(child, i === 0);
+        }
+    }
+
+    private _setFlushTop(view: View, flush: boolean): void {
+        const base = (view.className ?? '').replace(/\s*\badw-row-flush-top\b/g, '');
+        view.className = flush ? `${base} adw-row-flush-top`.trim() : base.trim();
     }
 
     /** The boxed-list container (column of rows). */

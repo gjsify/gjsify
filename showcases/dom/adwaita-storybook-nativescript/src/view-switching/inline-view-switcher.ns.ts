@@ -4,14 +4,16 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { AdwInlineViewSwitcher, AdwStatusPage, type AdwViewPage } from '@gjsify/adwaita-nativescript';
+import { documentEditSymbolic, viewGridSymbolic } from '@gjsify/adwaita-icons/actions';
+import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 import { inlineViewSwitcherMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 // The three pages, mirroring the native demo (Overview / Activity / Settings).
-// `icon` is a glyph (AdwStatusPage has no icon-theme lookup in the CSS subset).
+// `icon` is a REAL Adwaita symbolic SVG string (rendered large by AdwStatusPage).
 const PAGES: ReadonlyArray<{ title: string; icon: string; body: string }> = [
-    { title: 'Overview', icon: '▦', body: 'A quick summary of your project.' },
-    { title: 'Activity', icon: '✎', body: 'Recent edits and changes.' },
-    { title: 'Settings', icon: '⚙', body: 'Configure how things behave.' },
+    { title: 'Overview', icon: viewGridSymbolic, body: 'A quick summary of your project.' },
+    { title: 'Activity', icon: documentEditSymbolic, body: 'Recent edits and changes.' },
+    { title: 'Settings', icon: preferencesSystemSymbolic, body: 'Configure how things behave.' },
 ];
 
 export class InlineViewSwitcherNsStory extends StoryView {
@@ -43,7 +45,7 @@ export class InlineViewSwitcherNsStory extends StoryView {
 
     private _buildPage(page: { title: string; icon: string; body: string }): AdwStatusPage {
         const status = new AdwStatusPage();
-        status.iconText = page.icon;
+        status.icon = page.icon;
         status.title = page.title;
         status.description = page.body;
         return status;
