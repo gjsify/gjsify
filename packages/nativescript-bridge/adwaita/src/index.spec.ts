@@ -34,7 +34,7 @@ import { attachRowPressFeedback } from './widgets/row-press.js';
 import type { TouchGestureEventData, View } from '@nativescript/core';
 // `icon-path.js` is pure (no `@nativescript/core` import), so the real symbolic-icon
 // path extraction is unit-testable off-device.
-import { extractIconPaths, extractPathData } from './widgets/icon-path.js';
+import { extractIconPaths, extractPathData, normalizeArcFlags } from './widgets/icon-path.js';
 import { DEFAULT_ICON_COLOR, DEFAULT_ICON_COLOR_DARK } from './widgets/icon-path.js';
 import {
     adwaitaColorScheme,
@@ -996,6 +996,29 @@ export default async () => {
 
         await it('extractPathData concatenates every path d', () => {
             expect(extractPathData(MULTI)).toBe('m 10 13 v -10 z m 13 1 c 1 1 1 1 z');
+        });
+
+        await it('normalizeArcFlags space-separates glued arc flags (the PathParser crash)', () => {
+            // The real crash: `a3.84 3.84 0 00-1.662-.132` packs large-arc=0, sweep=0,
+            // x=-1.662, y=-.132. PathParser throws on the glued `00`.
+            expect(normalizeArcFlags('a3.84 3.84 0 00-1.662-.132')).toBe('a 3.84 3.84 0 0 0 -1.662 -.132');
+            // Flag glued to the trailing coordinate (`01.5`).
+            expect(normalizeArcFlags('A5 5 0 01.5 2')).toBe('A 5 5 0 0 1 .5 2');
+        });
+
+        await it('normalizeArcFlags leaves non-arc / already-spaced paths unchanged', () => {
+            // No arc command at all → byte-for-byte identity (glued curve numbers are
+            // fine for PathParser; only arc FLAGS need splitting).
+            const curve = 'M9.57 1.184c-.567.078-1.251.35-2.015.753z';
+            expect(normalizeArcFlags(curve)).toBe(curve);
+            // Already space-separated arc → preserved (idempotent shape).
+            expect(normalizeArcFlags('a 5 5 0 0 1 .5 2')).toBe('a 5 5 0 0 1 .5 2');
+        });
+
+        await it('normalizeArcFlags handles multiple arc groups + trailing command', () => {
+            expect(normalizeArcFlags('a3 3 0 11-2-2 1 1 0 00.5.5L4 4')).toBe(
+                'a 3 3 0 1 1 -2 -2 1 1 0 0 0 .5 .5L4 4',
+            );
         });
     });
 
