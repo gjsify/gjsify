@@ -72,9 +72,15 @@ export class StoryRegistry<TInstance extends { initialize(): void }> {
     }
 
     private instantiateStoriesForModule(module: StoryModuleLike<TInstance, new () => TInstance>): void {
-        if (!module.instances) {
-            module.instances = [];
-        }
+        // RESET (not accumulate): each createStoryInstances() must produce a FRESH
+        // instance set. Story modules are shared singletons (imported once), so
+        // `module.instances` survives across registries — a second mount (e.g. a
+        // second runStorybook on NS page re-navigation/resume) would otherwise
+        // APPEND to the previous run's instances, and the controller would re-select
+        // a STALE instance whose view is still parented in the discarded tree → the
+        // renderer crashes with "View already has a parent". Overwriting discards the
+        // dead instances and binds the module to this run's views only.
+        module.instances = [];
 
         const decorators = module.decorators ?? [];
 
