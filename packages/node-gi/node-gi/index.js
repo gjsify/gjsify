@@ -99,4 +99,34 @@ export const setProperty = native.setProperty;
  */
 export const getTypeName = native.getTypeName;
 
+/**
+ * Connect a JS callback to a GObject signal. Returns a handler id for
+ * {@link disconnectSignal}. The callback receives the signal arguments
+ * (the emitter instance is not passed in this milestone).
+ * @param {unknown} handle a handle from {@link newObject}
+ * @param {string} signalName
+ * @param {(...args: unknown[]) => unknown} callback
+ * @param {boolean} [after] connect in the "after" phase
+ * @returns {number} handler id
+ */
+export const connectSignal = native.connectSignal;
+
+/**
+ * Emit a signal on a GObject with optional arguments; returns the signal's
+ * return value (or undefined for void signals).
+ * @param {unknown} handle
+ * @param {string} signalName
+ * @param {unknown[]} [args]
+ * @returns {unknown}
+ */
+export const emitSignal = native.emitSignal;
+
+/**
+ * Disconnect a previously connected signal handler.
+ * @param {unknown} handle
+ * @param {number} handlerId from {@link connectSignal}
+ * @returns {void}
+ */
+export const disconnectSignal = native.disconnectSignal;
+
 export default native;

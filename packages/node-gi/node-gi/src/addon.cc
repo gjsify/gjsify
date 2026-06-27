@@ -506,6 +506,168 @@ Napi::Value GetTypeName(const Napi::CallbackInfo& info) {
   return Napi::String::New(env, G_OBJECT_TYPE_NAME(obj));
 }
 
+// ---- signals (milestone 1) ----
+//
+// A GClosure that wraps a JS callback. The callback is held by a strong
+// napi_ref; the closure's finalize notifier drops it. The generic marshal
+// converts the signal's GValue params to JS (skipping the emitter instance at
+// index 0) and the JS return into the signal return GValue.
+//
+// Caveat (documented): if the JS callback closes over the object's handle, that
+// forms a handle -> GObject -> closure -> napi_ref -> callback -> handle cycle
+// that V8's GC cannot break across the C boundary, so such a handler keeps the
+// object alive until explicitly disconnected. The toggle-ref refinement (with
+// the subclassing/registerClass drop) addresses this; for now disconnect
+// long-lived handlers explicitly.
+
+struct JsClosureData {
+  napi_env env;
+  napi_ref callback;
+};
+
+static void JsClosureFinalize(gpointer data, GClosure* /*closure*/) {
+  JsClosureData* jc = static_cast<JsClosureData*>(data);
+  if (jc == nullptr) return;
+  if (jc->callback != nullptr) napi_delete_reference(jc->env, jc->callback);
+  g_free(jc);
+}
+
+static void JsClosureMarshal(GClosure* closure, GValue* return_value, guint n_param_values,
+                             const GValue* param_values, gpointer /*invocation_hint*/,
+                             gpointer /*marshal_data*/) {
+  JsClosureData* jc = static_cast<JsClosureData*>(closure->data);
+  if (jc == nullptr || jc->callback == nullptr) return;
+  Napi::Env env(jc->env);
+  Napi::HandleScope scope(env);
+
+  napi_value cbv = nullptr;
+  if (napi_get_reference_value(jc->env, jc->callback, &cbv) != napi_ok || cbv == nullptr) return;
+
+  // Signal args excluding the emitter instance (param_values[0]).
+  std::vector<napi_value> args;
+  args.reserve(n_param_values > 0 ? n_param_values - 1 : 0);
+  for (guint i = 1; i < n_param_values; i++) {
+    Napi::Value v = GValueToJs(env, &param_values[i]);
+    if (env.IsExceptionPending()) return;
+    args.push_back(v);
+  }
+
+  napi_value result = nullptr;
+  napi_status st = napi_call_function(jc->env, env.Undefined(), cbv, args.size(), args.data(), &result);
+  if (st != napi_ok) return;  // JS threw — leave the pending exception to surface
+
+  if (return_value != nullptr && (G_VALUE_TYPE(return_value) != G_TYPE_INVALID)) {
+    JsToGValue(env, Napi::Value(jc->env, result), return_value);
+  }
+}
+
+// connectSignal(handle, signalName, callback, after?) -> handlerId
+Napi::Value ConnectSignal(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 3 || !info[1].IsString() || !info[2].IsFunction()) {
+    Napi::TypeError::New(env, "connectSignal(handle, signalName: string, callback: function, after?: boolean)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GObject* obj = UnwrapGObject(env, info[0]);
+  if (obj == nullptr) return env.Null();
+  std::string name = info[1].As<Napi::String>().Utf8Value();
+  bool after = info.Length() >= 4 && info[3].ToBoolean().Value();
+
+  if (g_signal_lookup(name.c_str(), G_OBJECT_TYPE(obj)) == 0) {
+    Napi::Error::New(env, std::string("no signal '") + name + "' on " + G_OBJECT_TYPE_NAME(obj))
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  JsClosureData* jc = g_new0(JsClosureData, 1);
+  jc->env = env;
+  napi_create_reference(env, info[2], 1, &jc->callback);
+
+  GClosure* closure = g_closure_new_simple(sizeof(GClosure), jc);
+  g_closure_set_marshal(closure, JsClosureMarshal);
+  g_closure_add_finalize_notifier(closure, jc, JsClosureFinalize);
+
+  // g_signal_connect_closure sinks the floating closure ref + owns it.
+  gulong id = g_signal_connect_closure(obj, name.c_str(), closure, after);
+  return Napi::Number::New(env, static_cast<double>(id));
+}
+
+// emitSignal(handle, signalName, args?) -> returnValue
+Napi::Value EmitSignal(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[1].IsString()) {
+    Napi::TypeError::New(env, "emitSignal(handle, signalName: string, args?: unknown[])")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GObject* obj = UnwrapGObject(env, info[0]);
+  if (obj == nullptr) return env.Null();
+  std::string name = info[1].As<Napi::String>().Utf8Value();
+  Napi::Array args = (info.Length() >= 3 && info[2].IsArray()) ? info[2].As<Napi::Array>()
+                                                              : Napi::Array::New(env, 0);
+
+  GType gtype = G_OBJECT_TYPE(obj);
+  guint sigid = g_signal_lookup(name.c_str(), gtype);
+  if (sigid == 0) {
+    Napi::Error::New(env, std::string("no signal '") + name + "' on " + G_OBJECT_TYPE_NAME(obj))
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GSignalQuery query;
+  g_signal_query(sigid, &query);
+
+  guint n = query.n_params;
+  std::vector<GValue> params(n + 1);  // [0] = instance
+  g_value_init(&params[0], gtype);
+  g_value_set_object(&params[0], obj);
+  guint initialised = 1;
+  bool ok = true;
+  for (guint i = 0; i < n; i++) {
+    GType pt = query.param_types[i] & ~G_SIGNAL_TYPE_STATIC_SCOPE;
+    g_value_init(&params[i + 1], pt);
+    initialised = i + 2;
+    Napi::Value v = i < args.Length() ? args.Get(i) : env.Undefined();
+    if (!JsToGValue(env, v, &params[i + 1])) {
+      ok = false;
+      break;
+    }
+  }
+
+  GType rt = query.return_type & ~G_SIGNAL_TYPE_STATIC_SCOPE;
+  bool hasReturn = rt != G_TYPE_NONE && rt != G_TYPE_INVALID;
+  GValue ret = G_VALUE_INIT;
+  Napi::Value result = env.Undefined();
+  if (ok) {
+    if (hasReturn) g_value_init(&ret, rt);
+    g_signal_emitv(params.data(), sigid, 0, hasReturn ? &ret : nullptr);
+    if (hasReturn && !env.IsExceptionPending()) {
+      result = GValueToJs(env, &ret);
+      g_value_unset(&ret);
+    } else if (hasReturn) {
+      g_value_unset(&ret);
+    }
+  }
+  for (guint j = 0; j < initialised; j++) g_value_unset(&params[j]);
+  return ok ? result : env.Null();
+}
+
+// disconnectSignal(handle, handlerId) -> void
+Napi::Value DisconnectSignal(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[1].IsNumber()) {
+    Napi::TypeError::New(env, "disconnectSignal(handle, handlerId: number)").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  GObject* obj = UnwrapGObject(env, info[0]);
+  if (obj == nullptr) return env.Undefined();
+  gulong id = static_cast<gulong>(info[1].As<Napi::Number>().Int64Value());
+  if (id != 0 && g_signal_handler_is_connected(obj, id)) {
+    g_signal_handler_disconnect(obj, id);
+  }
+  return env.Undefined();
+}
+
 }  // namespace
 
 static Napi::Object Init(Napi::Env env, Napi::Object exports) {
@@ -517,6 +679,9 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("getProperty", Napi::Function::New(env, GetProperty));
   exports.Set("setProperty", Napi::Function::New(env, SetProperty));
   exports.Set("getTypeName", Napi::Function::New(env, GetTypeName));
+  exports.Set("connectSignal", Napi::Function::New(env, ConnectSignal));
+  exports.Set("emitSignal", Napi::Function::New(env, EmitSignal));
+  exports.Set("disconnectSignal", Napi::Function::New(env, DisconnectSignal));
   return exports;
 }
 
