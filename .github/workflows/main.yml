@@ -192,21 +192,12 @@ jobs:
           su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH"
           gjsify upgrade --check --exclude-workspace "@gjsify/integration-*"'
 
-      - name: Check
-        env:
-          FULL: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args == '' || steps.buildwarm.outputs.warm != 'true' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
-          INCLUDE_ARGS: ${{ needs.changes.outputs.include-args }}
-        run: |
-          su testuser -c "PATH=\"\$PWD/node_modules/.bin:\$PATH\" sh -c '
-            if [ \"\$FULL\" = \"true\" ]; then
-              echo \"[ci] full check\"
-              gjsify run check
-            else
-              echo \"[ci] selective check: \$INCLUDE_ARGS\"
-              gjsify foreach check \$INCLUDE_ARGS -ptv --exclude \"@girs/*\" --exclude \"@gjsify/example-*\" --exclude \"@gjsify/website\"
-            fi
-          '"
-
+      # Type-check the examples. UNLIKE the package `check` job (which runs in
+      # parallel off the build cache), this MUST stay in the build job: the
+      # example type-check resolves workspace deps to their SOURCE (e.g.
+      # @gjsify/adwaita-web/src/index.ts → ./styles.generated.js), and those
+      # generated sources only exist after this job's full build. The cache
+      # carries lib/.d.ts, not generated src, so a cache-only job can't do it.
       - name: Check examples
         if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run check:examples'
@@ -224,6 +215,54 @@ jobs:
             examples/*/*/dist
           retention-days: 1
           if-no-files-found: error
+
+  # ── Type-check: packages ────────────────────────────────────────────
+  # Restores the build job's .d.ts and type-checks the workspace packages in
+  # its own job so it overlaps with test/e2e instead of serializing after the
+  # build. tsc only needs the cached .d.ts (the build job just saved them), so
+  # no fresh in-job build is required. Selective when the classifier scoped the
+  # change (the cache always has the unchanged packages' .d.ts here).
+  check:
+    needs: [changes, setup, build]
+    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ${{ fromJSON(needs.setup.outputs.fedora-matrix) }}
+    name: Check Fedora ${{ matrix.fedora.v }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: --ulimit nofile=1048576:1048576
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/gjsify-setup
+        with:
+          fedora-version: ${{ matrix.fedora.v }}
+      - name: Check
+        env:
+          # No warm-probe here: the build cache is always warm in this job
+          # (needs: build just saved it), so selective is safe whenever there
+          # is a closure; full otherwise.
+          FULL: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args == '' }}
+          INCLUDE_ARGS: ${{ needs.changes.outputs.include-args }}
+        run: |
+          su testuser -c "PATH=\"\$PWD/node_modules/.bin:\$PATH\" sh -c '
+            if [ \"\$FULL\" = \"true\" ]; then
+              echo \"[ci] full check\"
+              gjsify run check
+            else
+              echo \"[ci] selective check: \$INCLUDE_ARGS\"
+              gjsify foreach check \$INCLUDE_ARGS -ptv --exclude \"@girs/*\" --exclude \"@gjsify/example-*\" --exclude \"@gjsify/website\"
+            fi
+          '"
 
   # ── Unit tests (sharded) ────────────────────────────────────────────
   # Restores the build job's output and runs the workspace test suite split
