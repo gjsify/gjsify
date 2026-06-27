@@ -94,6 +94,13 @@ export {
     ADWAITA_ICON_GRID,
     DEFAULT_ICON_COLOR,
     DEFAULT_ICON_COLOR_DARK,
+    // Color scheme (light/dark)
+    adwaitaColorScheme,
+    isThemeIconColor,
+    onAdwaitaColorSchemeChanged,
+    setAdwaitaColorScheme,
+    themeIconColor,
+    toggleAdwaitaColorScheme,
     registerAdwaitaElements,
 } from './widgets/index.js';
 export type {
@@ -123,6 +130,8 @@ export type {
     // Icon helpers
     SymbolicIconOptions,
     IconPath,
+    // Color scheme
+    AdwColorScheme,
 } from './widgets/index.js';
 
 // Fonts

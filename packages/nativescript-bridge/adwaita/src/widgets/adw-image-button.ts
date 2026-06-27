@@ -17,6 +17,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, Image, ItemSpec } from '@nativescript/core';
+import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
 import { DEFAULT_ICON_COLOR } from './icon-path.js';
 import { renderSymbolicIcon } from './icons.js';
 import { attachRowPressFeedback } from './row-press.js';
@@ -28,8 +29,11 @@ export class AdwImageButton extends GridLayout {
     /** The centered icon image. */
     protected readonly _image: Image;
     private _iconSvg = '';
-    private _iconColor = DEFAULT_ICON_COLOR;
+    // Default fill follows the active color scheme; an explicit `iconColor` pins it.
+    private _iconColor = themeIconColor();
+    private _explicitColor = false;
     private _iconSize = DEFAULT_ICON_BUTTON_ICON_SIZE;
+    private _unsubScheme: (() => void) | null = null;
 
     constructor() {
         super();
@@ -51,9 +55,29 @@ export class AdwImageButton extends GridLayout {
         this.addChild(image);
         this._image = image;
 
-        // Adwaita circular flat buttons darken on press; NS auto-applies the
-        // `highlighted` state only to `Button`, so wire it by hand (shared helper).
+        // Adwaita flat buttons darken on press; NS auto-applies the `highlighted`
+        // state only to `Button`, so wire it by hand (shared helper).
         attachRowPressFeedback(this);
+
+        // Re-render the icon bitmap in the light/dark fg when the scheme flips,
+        // while on screen (subscribe on load, drop on unload — no leak).
+        this.addEventListener('loaded', () => {
+            this._syncThemeColor();
+            this._unsubScheme ??= onAdwaitaColorSchemeChanged(() => this._syncThemeColor());
+        });
+        this.addEventListener('unloaded', () => {
+            this._unsubScheme?.();
+            this._unsubScheme = null;
+        });
+    }
+
+    /** Adopt the active scheme's default fill (no-op if the caller pinned a colour). */
+    private _syncThemeColor(): void {
+        if (this._explicitColor) return;
+        const next = themeIconColor();
+        if (next === this._iconColor) return;
+        this._iconColor = next;
+        this._render();
     }
 
     /** Re-render the icon bitmap from the current svg / colour / size. */
@@ -75,12 +99,14 @@ export class AdwImageButton extends GridLayout {
         this._render();
     }
 
-    /** The icon fill colour (hex). Re-renders. Light/dark callers set this per theme. */
+    /** The icon fill colour (hex). Setting it PINS the colour (it no longer follows
+     *  the light/dark scheme) — for context colours that must survive both schemes. */
     get iconColor(): string {
         return this._iconColor;
     }
 
     set iconColor(value: string) {
+        this._explicitColor = true;
         this._iconColor = value || DEFAULT_ICON_COLOR;
         this._render();
     }

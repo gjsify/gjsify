@@ -35,6 +35,15 @@ import type { TouchGestureEventData, View } from '@nativescript/core';
 // `icon-path.js` is pure (no `@nativescript/core` import), so the real symbolic-icon
 // path extraction is unit-testable off-device.
 import { extractIconPaths, extractPathData } from './widgets/icon-path.js';
+import { DEFAULT_ICON_COLOR, DEFAULT_ICON_COLOR_DARK } from './widgets/icon-path.js';
+import {
+    adwaitaColorScheme,
+    isThemeIconColor,
+    onAdwaitaColorSchemeChanged,
+    setAdwaitaColorScheme,
+    themeIconColor,
+    toggleAdwaitaColorScheme,
+} from './widgets/color-scheme.js';
 
 // The XML-registration helper only touches the global `registerElement` (it does
 // not extend any `@nativescript/core` class at module-eval), so its own module is
@@ -830,6 +839,50 @@ export default async () => {
 
         await it('extractPathData concatenates every path d', () => {
             expect(extractPathData(MULTI)).toBe('m 10 13 v -10 z m 13 1 c 1 1 1 1 z');
+        });
+    });
+
+    await describe('color scheme (light/dark icon recolour)', async () => {
+        // Each test restores 'light' so order independence holds.
+        await it('defaults to light with the dark fg', () => {
+            setAdwaitaColorScheme('light');
+            expect(adwaitaColorScheme()).toBe('light');
+            expect(themeIconColor()).toBe(DEFAULT_ICON_COLOR);
+        });
+
+        await it('switches to the near-white fg in dark', () => {
+            setAdwaitaColorScheme('dark');
+            expect(adwaitaColorScheme()).toBe('dark');
+            expect(themeIconColor()).toBe(DEFAULT_ICON_COLOR_DARK);
+            setAdwaitaColorScheme('light');
+        });
+
+        await it('toggle flips and returns the new scheme', () => {
+            setAdwaitaColorScheme('light');
+            expect(toggleAdwaitaColorScheme()).toBe('dark');
+            expect(toggleAdwaitaColorScheme()).toBe('light');
+        });
+
+        await it('notifies subscribers only on a real change', () => {
+            setAdwaitaColorScheme('light');
+            let hits = 0;
+            const off = onAdwaitaColorSchemeChanged(() => {
+                hits++;
+            });
+            setAdwaitaColorScheme('light'); // no-op, same scheme
+            expect(hits).toBe(0);
+            setAdwaitaColorScheme('dark');
+            expect(hits).toBe(1);
+            off();
+            setAdwaitaColorScheme('light'); // unsubscribed → no further hit
+            expect(hits).toBe(1);
+        });
+
+        await it('isThemeIconColor recognises the scheme defaults, not context colours', () => {
+            expect(isThemeIconColor(DEFAULT_ICON_COLOR)).toBe(true);
+            expect(isThemeIconColor(DEFAULT_ICON_COLOR_DARK)).toBe(true);
+            expect(isThemeIconColor('#3584e4')).toBe(false); // accent — a pinned context colour
+            expect(isThemeIconColor('#9a9a9a')).toBe(false); // dim chevron — pinned
         });
     });
 };
