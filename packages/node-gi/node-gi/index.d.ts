@@ -23,9 +23,17 @@ export function listInfoNames(namespace: string): string[];
 /** Prepend a directory to the GIRepository typelib search path. */
 export function prependSearchPath(path: string): void;
 
+/**
+ * Invoke a namespace-level GObject-Introspection function (not an instance
+ * method) with IN-only primitive/string arguments. Returns the marshalled
+ * return value. Milestone 1: numbers, booleans and strings.
+ */
+export function callFunction(namespace: string, functionName: string, args?: unknown[]): unknown;
+
 declare const native: {
   requireNamespace: typeof requireNamespace;
   listInfoNames: typeof listInfoNames;
   prependSearchPath: typeof prependSearchPath;
+  callFunction: typeof callFunction;
 };
 export default native;

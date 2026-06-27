@@ -54,4 +54,15 @@ export const listInfoNames = native.listInfoNames;
  */
 export const prependSearchPath = native.prependSearchPath;
 
+/**
+ * Invoke a namespace-level GObject-Introspection function (not an instance
+ * method) with IN-only primitive/string arguments. The first marshalling slice;
+ * instance methods, OUT/INOUT params and compound types follow.
+ * @param {string} namespace e.g. "GLib"
+ * @param {string} functionName e.g. "get_host_name"
+ * @param {unknown[]} [args]
+ * @returns {unknown}
+ */
+export const callFunction = native.callFunction;
+
 export default native;
