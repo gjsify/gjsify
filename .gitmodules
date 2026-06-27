@@ -275,3 +275,6 @@
 [submodule "refs/loro"]
 	path = refs/loro
 	url = git@github.com:loro-dev/loro.git
+[submodule "refs/gtk"]
+	path = refs/gtk
+	url = https://gitlab.gnome.org/GNOME/gtk.git
