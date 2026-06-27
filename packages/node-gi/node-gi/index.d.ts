@@ -57,6 +57,24 @@ export function setProperty(handle: GObjectHandle, name: string, value: unknown)
 /** The runtime GType name of a GObject handle (e.g. "GSimpleAction"). */
 export function getTypeName(handle: GObjectHandle): string;
 
+/**
+ * Connect a JS callback to a GObject signal; returns a handler id. The callback
+ * receives the signal arguments (the emitter instance is not passed in this
+ * milestone).
+ */
+export function connectSignal(
+  handle: GObjectHandle,
+  signalName: string,
+  callback: (...args: unknown[]) => unknown,
+  after?: boolean,
+): number;
+
+/** Emit a signal; returns the signal's return value (undefined for void signals). */
+export function emitSignal(handle: GObjectHandle, signalName: string, args?: unknown[]): unknown;
+
+/** Disconnect a previously connected signal handler. */
+export function disconnectSignal(handle: GObjectHandle, handlerId: number): void;
+
 declare const native: {
   requireNamespace: typeof requireNamespace;
   listInfoNames: typeof listInfoNames;
@@ -66,5 +84,8 @@ declare const native: {
   getProperty: typeof getProperty;
   setProperty: typeof setProperty;
   getTypeName: typeof getTypeName;
+  connectSignal: typeof connectSignal;
+  emitSignal: typeof emitSignal;
+  disconnectSignal: typeof disconnectSignal;
 };
 export default native;
