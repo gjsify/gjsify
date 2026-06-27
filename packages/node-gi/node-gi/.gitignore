@@ -1,0 +1,5 @@
+build/
+prebuilds/
+node_modules/
+*.node
+*.o
