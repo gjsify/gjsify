@@ -43,9 +43,13 @@ export class AdwOverlaySplitView extends AdwSplitViewBase {
         if (!this._collapsed) {
             // Side-by-side. `sidebar-position` decides which column each pane takes
             // (the storybook controls overlay uses `'end'` → controls on the right).
+            // `show-sidebar` still applies when expanded (Adw.OverlaySplitView):
+            // hiding it drops the sidebar column so the content reflows full-width
+            // (e.g. the storybook controls toggle on a wide tablet/desktop screen).
             this._detachScrim();
+            const showSide = this._showSidebar;
             if (this._sidebar) {
-                this._sidebar.visibility = 'visible';
+                this._sidebar.visibility = showSide ? 'visible' : 'collapse';
                 this._sidebar.translateX = 0;
                 this._sidebar.opacity = 1;
                 GridLayout.setColumn(this._sidebar, sidebarEnd ? 1 : 0);
@@ -54,8 +58,11 @@ export class AdwOverlaySplitView extends AdwSplitViewBase {
             }
             if (this._content) {
                 this._content.visibility = 'visible';
-                GridLayout.setColumn(this._content, sidebarEnd ? 0 : 1);
-                GridLayout.setColumnSpan(this._content, 1);
+                // Span both columns when the sidebar is hidden so the content takes
+                // the full width; otherwise take just its own column (the one the
+                // sidebar isn't in).
+                GridLayout.setColumn(this._content, showSide ? (sidebarEnd ? 0 : 1) : 0);
+                GridLayout.setColumnSpan(this._content, showSide ? 1 : 2);
             }
             return;
         }
