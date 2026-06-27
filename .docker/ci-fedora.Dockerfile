@@ -82,10 +82,9 @@ RUN dnf install -y \
     blueprint-compiler \
     && dnf clean all
 
-# Node.js — the main workflow uses actions/setup-node which downloads its
-# own copy, so this is more about having a sane default for interactive
-# debugging in the container. Skip if it bloats the image too much.
-RUN dnf install -y --setopt=install_weak_deps=False nodejs npm && dnf clean all
+# NOTE: no nodejs/npm baked in — the workflow uses actions/setup-node (Node
+# 26.x) which downloads its own copy + corepack, so Fedora's node would only
+# be dead weight in the pull. (Was here purely for interactive debugging.)
 
 # Marker so the workflow can verify it picked up the right image
 # (`/etc/gjsify-ci-fedora-version`). Helps debug "why didn't my dnf install

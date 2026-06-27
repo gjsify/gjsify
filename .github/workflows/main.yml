@@ -235,7 +235,7 @@ jobs:
       # MUST run BEFORE "Create non-root user" so the chown -R below hands the
       # restored tree to testuser (the install + build user).
       - name: Cache node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             node_modules
@@ -365,7 +365,7 @@ jobs:
       # for hours. The pillar/name shape covers every real workspace
       # while skipping the deps tree.
       - name: Cache build output (lib/ + tsbuildinfo)
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           # NEVER cache git-committed, version-locked artifacts. `@gjsify/tsc`'s
           # `lib/` (the ~108 default `lib.*.d.ts`) and the committed `.gjs.mjs`
