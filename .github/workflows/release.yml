@@ -71,7 +71,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24.x'
+          node-version: '26.x'
 
       # Phase D.7d: Node-free install via the committed GJS bundle.
       # Mirrors main.yml — see that workflow for rationale.
