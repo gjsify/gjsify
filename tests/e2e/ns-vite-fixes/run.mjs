@@ -602,3 +602,75 @@ describe('gjsifyNativescript xmlns barrels E2E', () => {
         assert.equal(plugin.transform(UPSTREAM_CODE, BUNDLER_CONTEXT_ID), null, 'no barrels → transform returns null');
     });
 });
+
+// `@nativescript/vite`'s base config aliases @nativescript/core to
+// `<project>/../../packages/core` whenever that path exists, WITHOUT verifying
+// the directory's package name. In a monorepo whose own `packages/core` is a
+// DIFFERENT package (e.g. @learn6502/core), @nativescript/core is aliased to the
+// wrong package and its subpaths fail to resolve. `repointCoreAliasEntries` (the
+// pure core of the composer's `repointMistargetedCoreAlias` fix) repoints those
+// entries at the real installed @nativescript/core.
+describe('@gjsify/nativescript-vite repointCoreAliasEntries (core-alias collision)', () => {
+    let repointCoreAliasEntries;
+
+    before(async () => {
+        ({ repointCoreAliasEntries } = await import(LIB_URL));
+        assert.equal(
+            typeof repointCoreAliasEntries,
+            'function',
+            `repointCoreAliasEntries is not exported from the built lib at ${fileURLToPath(LIB_URL)} — rebuild @gjsify/nativescript-vite`,
+        );
+    });
+
+    const WRONG = '/ws/packages/core'; // a sibling @learn6502/core (the collision)
+    const REAL = '/ws/node_modules/@nativescript/core'; // the real installed core
+
+    // The three @nativescript/core alias entries @nativescript/vite emits (with the
+    // capture-group replacements), plus unrelated `~`/`@` source aliases that must
+    // survive untouched.
+    function makeAliases(root) {
+        return [
+            { find: '~', replacement: '/abs/app/src' },
+            { find: /^@nativescript\/core\/(.+)\/index$/, replacement: `${root}/$1` },
+            { find: /^@nativescript\/core$/, replacement: root },
+            { find: /^@nativescript\/core\/(.*)$/, replacement: `${root}/$1` },
+            { find: '@', replacement: '/abs/app/src' },
+        ];
+    }
+    const nameOf = (dir) => (dir === REAL ? '@nativescript/core' : dir === WRONG ? '@learn6502/core' : undefined);
+
+    it('repoints @nativescript/core aliases that target the wrong package', () => {
+        const aliases = makeAliases(WRONG);
+        repointCoreAliasEntries(aliases, REAL, nameOf);
+        // The three core entries now resolve to the real core; `/$1` is preserved.
+        assert.equal(aliases[1].replacement, `${REAL}/$1`);
+        assert.equal(aliases[2].replacement, REAL);
+        assert.equal(aliases[3].replacement, `${REAL}/$1`);
+        // Unrelated source aliases are untouched.
+        assert.equal(aliases[0].replacement, '/abs/app/src');
+        assert.equal(aliases[4].replacement, '/abs/app/src');
+    });
+
+    it('leaves a correctly-targeted @nativescript/core alias untouched (real core elsewhere)', () => {
+        // Already points at a real @nativescript/core source root (NS's OWN monorepo,
+        // where `packages/core` really is @nativescript/core) — name verifies, so it
+        // is kept even though `realRoot` differs.
+        const aliases = makeAliases(REAL);
+        const snapshot = aliases.map((a) => a.replacement);
+        repointCoreAliasEntries(aliases, '/some/other/core', nameOf);
+        assert.deepEqual(
+            aliases.map((a) => a.replacement),
+            snapshot,
+        );
+    });
+
+    it('is a no-op when the alias already points at realRoot', () => {
+        const aliases = makeAliases(REAL);
+        const snapshot = aliases.map((a) => a.replacement);
+        repointCoreAliasEntries(aliases, REAL, () => '@learn6502/core');
+        assert.deepEqual(
+            aliases.map((a) => a.replacement),
+            snapshot,
+        );
+    });
+});
