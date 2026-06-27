@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24.x
+          node-version: 26.x
 
       # `scripts/audit-runtimes.mjs` is pure Node (zero deps beyond builtins),
       # so no `yarn install` / `npm install` is needed. The script walks
