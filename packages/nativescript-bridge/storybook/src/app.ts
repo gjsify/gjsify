@@ -31,6 +31,7 @@ import {
     AdwToolbarView,
     AdwWindowTitle,
     attachRowPressFeedback,
+    setAdwaitaColorScheme,
 } from '@gjsify/adwaita-nativescript';
 import { goPreviousSymbolic, sidebarShowRightSymbolic } from '@gjsify/adwaita-icons/actions';
 import { Label, ScrollView, StackLayout, type View } from '@nativescript/core';
@@ -40,6 +41,16 @@ import type { NsStoryModule } from './types.js';
 
 export type { StorySummary } from '@gjsify/storybook-core';
 
+/**
+ * The slice of NativeScript's `Application` the storybook reads to follow the OS
+ * color scheme. Pass `Application` from `@nativescript/core` — it satisfies this
+ * shape. Kept structural so the package needs no `@nativescript/core` value import.
+ */
+export interface NsAppearanceSource {
+    /** Current OS appearance (`'light'` / `'dark'`), or null when unknown. */
+    systemAppearance(): 'light' | 'dark' | null | undefined;
+}
+
 /** Options that adapt the storybook to a host project. */
 export interface StorybookNativeOptions {
     /** Story modules to display. */
@@ -48,6 +59,13 @@ export interface StorybookNativeOptions {
     title?: string;
     /** Auto-select the first story on mount (default true). */
     openFirst?: boolean;
+    /**
+     * The NativeScript `Application` (optional). When given, the storybook follows
+     * the OS color scheme: NS already flips the `ns-dark` CSS class on the root view
+     * (so backgrounds/text follow the system theme), and this keeps the symbolic
+     * ICON bitmaps recoloured to match (they are pre-coloured, outside CSS's reach).
+     */
+    application?: NsAppearanceSource;
 }
 
 export class StorybookNativeApp implements StorybookView<StoryView> {
@@ -82,6 +100,7 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
     mount(): View {
         this._buildUI();
         this._controller.mount(this._options.stories, this._options.openFirst !== false);
+        this._wireColorScheme();
         return this.root;
     }
 
@@ -116,6 +135,27 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
     /** The underlying controller (e.g. to build a devtools extension over it). */
     get controller(): StorybookController<StoryView> {
         return this._controller;
+    }
+
+    // --- color scheme (follow the OS, like a real Adwaita app) ---
+
+    /**
+     * Match the OS color scheme at mount. NS applies the `ns-dark` CSS class to the
+     * root BEFORE the first style pass (so backgrounds/text/borders follow the
+     * system theme via `autoSystemAppearanceChanged`); the pre-coloured symbolic
+     * ICON bitmaps are outside CSS's reach, so this sets the global icon scheme to
+     * the matching fg (dark icons on light, near-white on dark). No-op without an
+     * `application` option.
+     *
+     * Seed-only (mount-time): a clean launch is the dependable path because NS
+     * 9.1-alpha does not reliably RE-APPLY the `.ns-dark` overrides at runtime, so a
+     * live OS theme switch is picked up on the next launch rather than risking the
+     * icons getting ahead of a CSS that didn't flip.
+     */
+    private _wireColorScheme(): void {
+        const src = this._options.application;
+        if (!src?.systemAppearance) return;
+        setAdwaitaColorScheme(src.systemAppearance() === 'dark' ? 'dark' : 'light');
     }
 
     // --- StorybookView<StoryView> render seams (driven by the controller) ---
