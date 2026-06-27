@@ -210,24 +210,39 @@ jobs:
           npm install -g corepack
           corepack enable
 
-      # Persistent tarball cache for `gjsify install`. Under `--immutable`
-      # the resolve/metadata phase is skipped, so the ~9 min install is
-      # almost entirely DOWNLOAD + EXTRACT of the ~2 GB of tarballs the
-      # lockfile pins. The native backend reads the content-addressed
-      # tarball store ($XDG_CACHE_HOME/gjsify/tarballs/v1, keyed by SRI
-      # integrity) BEFORE every network fetch, so a warm store skips the
-      # whole download phase. We relocate the store via XDG_CACHE_HOME into
-      # a workspace-relative dir below so actions/cache can save/restore it
-      # AND the `su testuser` install can read it. Keyed by lockfile hash
-      # ONLY — tarballs are OS-independent content bytes, so one entry is
-      # shared across both Fedora matrix legs (no per-Fedora 2 GB dup).
-      - name: Cache gjsify tarball download store
+      # Persistent node_modules cache for `gjsify install`. The native install
+      # backend is idempotent: `isAlreadyExtracted()` skips any package whose
+      # on-disk node_modules copy already matches the lockfile (name+version).
+      # So a warm node_modules turns the ~16 min EXTRACT phase — every tarball
+      # gunzipped through GJS's single-main-loop Gio.ZlibDecompressor on a
+      # fresh checkout — into a near-instant no-op; `--immutable` then only
+      # extracts the genuinely-new subtree. (CI history: the install step was
+      # 16m34s even with a warm tarball cache, because the bottleneck was the
+      # extract, not the download.)
+      #
+      # node_modules content is OS-independent (pure JS/TS; the @gjsify/*
+      # workspace symlinks + the few native prebuilds live in the repo, not
+      # here), so ONE entry is shared across both Fedora legs. The restore-key
+      # fallback makes a lockfile bump incremental: it restores the previous
+      # tree and the install re-extracts only the delta.
+      #
+      # This SUPERSEDES the old tarball-download cache: on a warm hit the
+      # install skips download AND extract. On a rare true-cold miss the delta
+      # tarballs are re-fetched from the network, exactly as before that cache
+      # existed. Dropping it also keeps total cache usage under GitHub's 10 GB
+      # repo budget (node_modules is ~5.8 GB on disk).
+      #
+      # MUST run BEFORE "Create non-root user" so the chown -R below hands the
+      # restored tree to testuser (the install + build user).
+      - name: Cache node_modules
         uses: actions/cache@v4
         with:
-          path: .gjsify-cache/gjsify/tarballs
-          key: gjsify-tarballs-v1-${{ hashFiles('gjsify-lock.json') }}
+          path: |
+            node_modules
+            packages/*/*/node_modules
+          key: node-modules-v1-${{ hashFiles('gjsify-lock.json') }}
           restore-keys: |
-            gjsify-tarballs-v1-
+            node-modules-v1-
 
       - name: Create non-root user for tests
         run: |
@@ -249,10 +264,12 @@ jobs:
       # workspace `.bin/` shims so `gjsify run …` finds `gjsify` on PATH).
       # No yarn anywhere in the bootstrap.
       - name: Install dependencies (gjsify install --immutable)
-        # XDG_CACHE_HOME redirects ~/.cache/gjsify into the workspace-relative
-        # .gjsify-cache so the cache step above can save/restore the tarball
-        # store. Passed explicitly through the `su testuser -c` boundary —
-        # su strips the parent env. gjsifyCacheRoot() honours XDG_CACHE_HOME.
+        # On a warm node_modules cache hit this is a near-instant no-op (every
+        # package already materialised → isAlreadyExtracted skips it). On a
+        # miss it re-extracts the delta, fetching any uncached tarballs from
+        # the network. XDG_CACHE_HOME keeps the (now un-cached) tarball store
+        # workspace-relative + testuser-writable; passed explicitly through the
+        # `su testuser -c` boundary since su strips the parent env.
         run: su testuser -c "XDG_CACHE_HOME='$PWD/.gjsify-cache' gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable"
 
       # The CLI's GJS bundle is committed to enable Node-free bootstrap (Phase D.7b).
