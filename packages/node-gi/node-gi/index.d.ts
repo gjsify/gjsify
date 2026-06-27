@@ -30,10 +30,41 @@ export function prependSearchPath(path: string): void;
  */
 export function callFunction(namespace: string, functionName: string, args?: unknown[]): unknown;
 
+/**
+ * Opaque handle to a live GObject instance, owned by node-gi and released when
+ * the handle is garbage-collected. Pass it back to {@link getProperty} /
+ * {@link setProperty} / {@link getTypeName}.
+ */
+export type GObjectHandle = { readonly __nodeGiGObject: unique symbol };
+
+/**
+ * Construct a GObject of `namespace.typeName` with optional construct/settable
+ * properties. Milestone 1: fundamental-typed properties (numbers, booleans,
+ * strings, enums/flags).
+ */
+export function newObject(
+  namespace: string,
+  typeName: string,
+  props?: Record<string, unknown>,
+): GObjectHandle;
+
+/** Read a GObject property. */
+export function getProperty(handle: GObjectHandle, name: string): unknown;
+
+/** Write a GObject property. */
+export function setProperty(handle: GObjectHandle, name: string, value: unknown): void;
+
+/** The runtime GType name of a GObject handle (e.g. "GSimpleAction"). */
+export function getTypeName(handle: GObjectHandle): string;
+
 declare const native: {
   requireNamespace: typeof requireNamespace;
   listInfoNames: typeof listInfoNames;
   prependSearchPath: typeof prependSearchPath;
   callFunction: typeof callFunction;
+  newObject: typeof newObject;
+  getProperty: typeof getProperty;
+  setProperty: typeof setProperty;
+  getTypeName: typeof getTypeName;
 };
 export default native;

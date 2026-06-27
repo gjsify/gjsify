@@ -65,4 +65,38 @@ export const prependSearchPath = native.prependSearchPath;
  */
 export const callFunction = native.callFunction;
 
+/**
+ * Construct a GObject of `namespace.typeName` with optional construct/settable
+ * properties, returning an opaque handle owned by node-gi (released on GC).
+ * @param {string} namespace e.g. "Gio"
+ * @param {string} typeName e.g. "SimpleAction"
+ * @param {Record<string, unknown>} [props]
+ * @returns {unknown} opaque GObject handle
+ */
+export const newObject = native.newObject;
+
+/**
+ * Read a GObject property.
+ * @param {unknown} handle a handle from {@link newObject}
+ * @param {string} name property name (kebab- or snake-case as GObject expects)
+ * @returns {unknown}
+ */
+export const getProperty = native.getProperty;
+
+/**
+ * Write a GObject property.
+ * @param {unknown} handle a handle from {@link newObject}
+ * @param {string} name property name
+ * @param {unknown} value
+ * @returns {void}
+ */
+export const setProperty = native.setProperty;
+
+/**
+ * The runtime GType name of a GObject handle (e.g. "GSimpleAction").
+ * @param {unknown} handle
+ * @returns {string}
+ */
+export const getTypeName = native.getTypeName;
+
 export default native;
