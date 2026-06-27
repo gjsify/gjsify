@@ -1,0 +1,159 @@
+name: gjsify CI setup
+description: >
+  Shared setup for every gjsify CI job (build / test / e2e / examples): boots the
+  prebuilt Fedora image's prerequisites, checks out, sets up Node + corepack,
+  restores the node_modules + build-output caches, creates the non-root test
+  user, runs the Node-free install, and verifies the committed GJS bundles.
+  Encapsulated as a composite action because GitHub Actions has no other way to
+  share a step sequence across parallel jobs (no YAML anchors). The calling job
+  MUST run `actions/checkout` first — a local composite action can only be
+  resolved once the repo (incl. this file) is on disk.
+
+inputs:
+  fedora-version:
+    description: Fedora major (43/44) — scopes the per-major build-output cache.
+    required: true
+  node-version:
+    description: Node version for actions/setup-node.
+    required: false
+    default: 26.x
+
+runs:
+  using: composite
+  steps:
+    - name: Verify prebuilt CI image
+      # The image bakes /etc/gjsify-ci-fedora-version. Its presence confirms we
+      # booted the prebuilt ghcr.io/gjsify/ci-fedora image (with all dnf packages
+      # incl. git/tar/xz/findutils/libatomic that checkout + setup-node need) and
+      # not a bare fallback. Non-fatal — a genuinely missing package fails a later
+      # step anyway; this just makes the diagnosis instant.
+      shell: bash
+      run: |
+        if [ -f /etc/gjsify-ci-fedora-version ]; then
+          echo "Prebuilt CI image OK (Fedora $(cat /etc/gjsify-ci-fedora-version))"
+        else
+          echo "::warning::/etc/gjsify-ci-fedora-version missing — not the prebuilt ci-fedora image; dnf packages may be absent."
+        fi
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    # GJS / GNOME devel libs + Meson / Vala / Blueprint are baked into the
+    # prebuilt image (.docker/ci-fedora.Dockerfile) — no per-job dnf install.
+
+    - name: Enable corepack (yarn shim for PnP e2e suite)
+      # tests/e2e/{cli-only-pnp,pnp-zip-static-reads}/ hard-require yarn (>= 4 via
+      # corepack's packageManager field). Node >= 25 UNBUNDLED corepack, so install
+      # it via the bundled npm before enabling it.
+      shell: bash
+      run: |
+        npm install -g corepack
+        corepack enable
+
+    # Persistent node_modules cache. The native install backend is idempotent
+    # (isAlreadyExtracted skips any package already matching the lockfile), so a
+    # warm node_modules turns the ~16 min extract phase into a near-instant no-op.
+    # OS-independent → one entry shared across both Fedora legs. MUST run before
+    # "Create non-root user" so the chown -R hands the restored tree to testuser.
+    - name: Cache node_modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          node_modules
+          packages/*/*/node_modules
+        key: node-modules-v1-${{ hashFiles('gjsify-lock.json') }}
+        restore-keys: |
+          node-modules-v1-
+
+    - name: Create non-root user for tests
+      shell: bash
+      run: |
+        useradd -m testuser
+        # Raise testuser's open-file limit via PAM. `su testuser -c` resets the
+        # soft nofile limit back to the login default (~1024), undoing the
+        # container's --ulimit. A limits.conf entry is applied by pam_limits on
+        # every `su testuser`.
+        echo "testuser - nofile 1048576" >> /etc/security/limits.conf
+        # Pre-create the (possibly cache-restored) gjsify cache dir so the chown
+        # below hands it to testuser for the install step.
+        mkdir -p .gjsify-cache
+        chown -R testuser:testuser .
+
+    # Node-free install via the committed GJS bundle. Warm node_modules cache hit
+    # → near-instant no-op; miss → re-extract the delta.
+    - name: Install dependencies (gjsify install --immutable)
+      shell: bash
+      run: su testuser -c "XDG_CACHE_HOME='$PWD/.gjsify-cache' gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable"
+
+    # The committed GJS bundles must execute under stock GJS AND report the
+    # current version — catches a broken or stale committed bundle. Run BEFORE
+    # any Build step (which would rebuild them in place).
+    - name: Verify committed CLI GJS bundle is functional + up-to-date
+      shell: bash
+      run: |
+        set -e
+        EXPECTED=$(node -p "require('./packages/infra/cli/package.json').version")
+        ACTUAL=$(gjs -m packages/infra/cli/dist/cli.gjs.mjs --version 2>&1 | head -1 | tr -d '[:space:]')
+        if [ "$ACTUAL" != "$EXPECTED" ]; then
+          echo "::error::packages/infra/cli/dist/cli.gjs.mjs reports version '$ACTUAL', package.json says '$EXPECTED'."
+          echo "::error::Refresh locally: gjsify workspace @gjsify/cli build && gjsify workspace @gjsify/cli build:gjs-bundle"
+          echo "::error::Then commit packages/infra/cli/dist/cli.gjs.mjs."
+          exit 1
+        fi
+        # Invariant: exactly ONE copy of @gjsify/web-streams in the bundle (a
+        # library build that fails to externalize a workspace dep bakes a 2nd copy,
+        # breaking the install's ReadableStream brand check).
+        WS_COPIES=$(grep -o 'must be a ReadableStream' packages/infra/cli/dist/cli.gjs.mjs | wc -l | tr -d '[:space:]')
+        if [ "$WS_COPIES" != "1" ]; then
+          echo "::error::packages/infra/cli/dist/cli.gjs.mjs embeds $WS_COPIES copies of @gjsify/web-streams (expected 1)."
+          echo "::error::Rebuild all libs from a clean tree (gjsify foreach build:gjsify) then rebuild + commit the CLI bundle."
+          exit 1
+        fi
+        echo "GJS bundle OK — reports v$ACTUAL matching package.json, single web-streams copy."
+
+    - name: Verify committed @gjsify/tsc GJS bundle is functional + up-to-date
+      shell: bash
+      run: |
+        set -e
+        EXPECTED=$(grep "TYPESCRIPT_VERSION = " packages/infra/tsc/src/index.ts | sed "s/.*'\([^']*\)'.*/\1/")
+        ACTUAL=$(gjs -m packages/infra/tsc/dist/tsc.gjs.mjs --version 2>&1 | head -1 | sed 's/^Version //' | tr -d '[:space:]')
+        if [ "$ACTUAL" != "$EXPECTED" ]; then
+          echo "::error::packages/infra/tsc/dist/tsc.gjs.mjs reports 'Version $ACTUAL', TYPESCRIPT_VERSION constant says '$EXPECTED'."
+          echo "::error::Refresh locally: gjsify workspace @gjsify/tsc build, then commit packages/infra/tsc/dist/tsc.gjs.mjs."
+          exit 1
+        fi
+        echo "@gjsify/tsc bundle OK — reports v$ACTUAL matching TYPESCRIPT_VERSION."
+
+    # Restore previously-built lib/ + tsbuildinfo + dist. The build job populates
+    # this; downstream test/e2e/examples jobs restore it (needs: build guarantees
+    # the build job's post-save completed first). NEVER cache git-committed,
+    # version-locked artifacts (the `!` excludes keep them = the checkout).
+    # Per-Fedora-major scope because bundler output can diverge by host libs.
+    - name: Cache build output (lib/ + tsbuildinfo)
+      uses: actions/cache@v4
+      with:
+        path: |
+          packages/*/*/lib
+          !packages/infra/tsc/lib
+          !packages/infra/resolve-npm/lib
+          packages/*/*/tsconfig.tsbuildinfo
+          packages/*/*/tsconfig.*.tsbuildinfo
+          packages/*/*/dist
+          !packages/infra/cli/dist/cli.gjs.mjs
+          !packages/infra/tsc/dist/tsc.gjs.mjs
+        key: build-v2-${{ runner.os }}-fedora${{ inputs.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
+        restore-keys: |
+          build-v2-${{ runner.os }}-fedora${{ inputs.fedora-version }}-${{ hashFiles('gjsify-lock.json', 'package.json', 'packages/*/*/tsconfig*.json', 'packages/*/*/package.json') }}-
+          build-v2-${{ runner.os }}-fedora${{ inputs.fedora-version }}-
+
+    # @gjsify/resolve-npm is a no-build package; its lib/*.mjs are TRACKED SOURCE.
+    # A restore-key fallback can extract an OLD archive whose stale resolve-npm/lib
+    # shadows the checkout — re-checkout just that dir from HEAD (cheap no-op once
+    # the cache rotates past the `!`-exclude above).
+    - name: Re-assert committed resolve-npm source over the build cache
+      shell: bash
+      run: |
+        chown -R testuser:testuser packages/infra/resolve-npm/lib
+        su testuser -c "git -c safe.directory='*' checkout HEAD -- packages/infra/resolve-npm/lib"
