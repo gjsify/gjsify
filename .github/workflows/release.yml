@@ -35,20 +35,24 @@ jobs:
   publish:
     name: Publish to NPM
     runs-on: ubuntu-latest
-    container:
-      image: fedora:43
     permissions:
       # contents: write so softprops/action-gh-release can upload install.mjs
       # + cli.gjs.mjs + .sha256 as assets onto the release record that
       # triggered this workflow. id-token: write keeps OIDC provenance
-      # available for future signed-publish work.
+      # available for future signed-publish work. packages: read lets the job
+      # pull the prebuilt ci-fedora image from ghcr (same as main.yml).
       contents: write
       id-token: write
+      packages: read
+    container:
+      # Build + publish on the SAME prebuilt CI image main.yml builds/tests on —
+      # it bundles every build dependency (gjs, gtk4 / libadwaita / blueprint,
+      # libatomic, …), so this job needs no manual `dnf install`. Standardised on
+      # Fedora 44; the bare fedora:43 image was dropped (its Node 26 binary failed
+      # to load libatomic.so.1, and f44 is the supported platform).
+      image: ghcr.io/gjsify/ci-fedora:44
 
     steps:
-      - name: Install container prerequisites
-        run: dnf install -y git tar xz findutils meson vala gcc pkgconf gjs glib2-devel gobject-introspection-devel gtk4-devel libsoup3-devel libepoxy-devel gdk-pixbuf2-devel libadwaita-devel blueprint-compiler
-
       # `release` event auto-checks-out the tag. `workflow_dispatch` with a
       # `release_tag` input must explicitly target that tag so the rebuilt
       # bundle + install.mjs match what shipped (not main HEAD).
