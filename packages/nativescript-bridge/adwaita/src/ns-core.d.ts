@@ -159,6 +159,8 @@ declare module '@nativescript/core' {
     export class Label extends View {
         text: string;
         textWrap: boolean;
+        /** Horizontal text alignment (`'left' | 'center' | 'right' | 'justify' | 'initial'`). */
+        textAlignment: string;
     }
 
     /** A toggle switch — `<Switch>`. */

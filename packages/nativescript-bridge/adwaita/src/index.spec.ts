@@ -270,6 +270,89 @@ class MockViewSwitcher {
     }
 }
 
+// Mirrors AdwViewStack's named-page model + visible-child selection (first page
+// auto-visible; bounds-guarded; emits on real change). A bound switcher reads it.
+class MockViewStack {
+    private _pages: { name: string; title: string }[] = [];
+    private _visible = 0;
+    private _subs: Array<() => void> = [];
+    notified: Array<{ index: number; name: string }> = [];
+    add(name: string, title?: string): void {
+        this._pages.push({ name, title: title ?? name });
+    }
+    subscribe(fn: () => void): void {
+        this._subs.push(fn);
+    }
+    get pages(): { name: string; title: string }[] {
+        return this._pages;
+    }
+    get visibleChildIndex(): number {
+        return this._visible;
+    }
+    set visibleChildIndex(value: number) {
+        if (!Number.isFinite(value) || value < 0 || value >= this._pages.length) return;
+        if (value === this._visible) return;
+        this._visible = value;
+        this.notified.push({ index: value, name: this._pages[value].name });
+        for (const fn of this._subs) fn();
+    }
+    get visibleChildName(): string {
+        return this._pages[this._visible]?.name ?? '';
+    }
+    set visibleChildName(name: string) {
+        const idx = this._pages.findIndex((p) => p.name === name);
+        if (idx >= 0) this.visibleChildIndex = idx;
+    }
+    pageVisibility(): string[] {
+        return this._pages.map((_, i) => (i === this._visible ? 'visible' : 'collapse'));
+    }
+}
+
+// Mirrors AdwViewSwitcherBar binding: a button per stack page, the active button
+// synced to the stack's visible child, and button taps routed back to the stack.
+class MockViewSwitcherBar {
+    activeButtons: boolean[] = [];
+    private _revealed = true;
+    constructor(private _stack: MockViewStack) {
+        this._stack.subscribe(() => this._sync());
+        this._sync();
+    }
+    tap(index: number): void {
+        this._stack.visibleChildIndex = index;
+    }
+    private _sync(): void {
+        const sel = this._stack.visibleChildIndex;
+        this.activeButtons = this._stack.pages.map((_, i) => i === sel);
+    }
+    get revealed(): boolean {
+        return this._revealed;
+    }
+    set revealed(value: boolean) {
+        this._revealed = !!value;
+    }
+    get visibility(): string {
+        return this._revealed ? 'visible' : 'collapse';
+    }
+}
+
+// Mirrors AdwMenuButton's action()-resolution: a chosen label maps to id/label/
+// index (id falls back to label); a cancel (undefined choice) emits nothing.
+class MockMenuButton {
+    private _items: { id?: string; label: string }[] = [];
+    notified: Array<{ id: string; label: string; index: number }> = [];
+    set menuItems(items: { id?: string; label: string }[]) {
+        this._items = items;
+    }
+    choose(label: string | undefined): void {
+        if (this._items.length === 0) return;
+        const labels = this._items.map((it) => it.label);
+        const index = label === undefined ? -1 : labels.indexOf(label);
+        if (index < 0) return;
+        const item = this._items[index];
+        this.notified.push({ id: item.id ?? item.label, label: item.label, index });
+    }
+}
+
 // Mirrors AdwCarousel's clamped scrollToPage + dot-active + nPages.
 class MockCarousel {
     private _position = 0;
@@ -667,6 +750,70 @@ export default async () => {
             sw.selected = 9; // out of range
             sw.selected = -1; // out of range
             expect(sw.notified).toStrictEqual([1]);
+        });
+    });
+
+    await describe('AdwViewStack + AdwViewSwitcherBar (decoupled stack/switcher, mock)', async () => {
+        await it('shows the first added page by default', () => {
+            const stack = new MockViewStack();
+            stack.add('learn', 'Learn');
+            stack.add('code', 'Code');
+            expect(stack.visibleChildName).toBe('learn');
+            expect(stack.pageVisibility()).toStrictEqual(['visible', 'collapse']);
+        });
+
+        await it('selects by name and index, emitting only on real change', () => {
+            const stack = new MockViewStack();
+            stack.add('learn', 'Learn');
+            stack.add('code', 'Code');
+            stack.add('debug', 'Debug');
+            stack.visibleChildName = 'debug';
+            stack.visibleChildIndex = 2; // no change
+            stack.visibleChildIndex = 9; // out of range
+            expect(stack.visibleChildIndex).toBe(2);
+            expect(stack.notified).toStrictEqual([{ index: 2, name: 'debug' }]);
+        });
+
+        await it('a bound switcher bar reflects and drives the stack two-way', () => {
+            const stack = new MockViewStack();
+            stack.add('learn', 'Learn');
+            stack.add('code', 'Code');
+            const bar = new MockViewSwitcherBar(stack);
+            expect(bar.activeButtons).toStrictEqual([true, false]);
+            // Tapping a bar button moves the stack...
+            bar.tap(1);
+            expect(stack.visibleChildName).toBe('code');
+            expect(bar.activeButtons).toStrictEqual([false, true]);
+            // ...and a programmatic stack change syncs the bar back.
+            stack.visibleChildIndex = 0;
+            expect(bar.activeButtons).toStrictEqual([true, false]);
+        });
+
+        await it('revealed toggles bar visibility', () => {
+            const bar = new MockViewSwitcherBar(new MockViewStack());
+            expect(bar.visibility).toBe('visible');
+            bar.revealed = false;
+            expect(bar.visibility).toBe('collapse');
+        });
+    });
+
+    await describe('AdwMenuButton activation (mock)', async () => {
+        await it('emits id/label/index for a chosen item', () => {
+            const mb = new MockMenuButton();
+            mb.menuItems = [
+                { id: 'about', label: 'About' },
+                { id: 'prefs', label: 'Preferences' },
+            ];
+            mb.choose('Preferences');
+            expect(mb.notified).toStrictEqual([{ id: 'prefs', label: 'Preferences', index: 1 }]);
+        });
+
+        await it('falls back to label as id and ignores cancel', () => {
+            const mb = new MockMenuButton();
+            mb.menuItems = [{ label: 'Quit' }];
+            mb.choose(undefined); // cancel / dismiss
+            mb.choose('Quit');
+            expect(mb.notified).toStrictEqual([{ id: 'Quit', label: 'Quit', index: 0 }]);
         });
     });
 

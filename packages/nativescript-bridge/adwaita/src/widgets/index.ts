@@ -26,6 +26,8 @@ export type { NotifyExpandedEventData } from './adw-expander-row.js';
 export { AdwButton } from './adw-button.js';
 export type { AdwButtonVariant } from './adw-button.js';
 export { AdwImageButton, DEFAULT_ICON_BUTTON_ICON_SIZE } from './adw-image-button.js';
+export { AdwMenuButton, MENU_ITEM_ACTIVATED } from './adw-menu-button.js';
+export type { AdwMenuItem, MenuItemActivatedEventData } from './adw-menu-button.js';
 export { AdwIcon, DEFAULT_ADW_ICON_SIZE } from './adw-icon.js';
 export { AdwBanner, BUTTON_CLICKED } from './adw-banner.js';
 export { AdwAvatar, DEFAULT_AVATAR_SIZE, avatarInitials } from './adw-avatar.js';
@@ -46,9 +48,12 @@ export { AdwToggleGroup, NOTIFY_SELECTED as NOTIFY_TOGGLE_SELECTED } from './adw
 export type { NotifyToggleSelectedEventData } from './adw-toggle-group.js';
 
 // --- View switching ---
+export { AdwViewStack, NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
+export type { AdwViewStackPage, NotifyVisibleChildEventData } from './adw-view-stack.js';
 export { AdwViewSwitcherBase, NOTIFY_SELECTED as NOTIFY_VIEW_SELECTED } from './view-switcher-base.js';
 export type { AdwViewPage, NotifyViewSelectedEventData } from './view-switcher-base.js';
 export { AdwViewSwitcher } from './adw-view-switcher.js';
+export { AdwViewSwitcherBar } from './adw-view-switcher-bar.js';
 export { AdwInlineViewSwitcher } from './adw-inline-view-switcher.js';
 export { AdwTabView } from './adw-tab-view.js';
 export { AdwCarousel, DEFAULT_CAROUSEL_PAGE_WIDTH, NOTIFY_POSITION } from './adw-carousel.js';
@@ -137,6 +142,7 @@ import { AdwSliderRow } from './adw-slider-row.js';
 import { AdwExpanderRow } from './adw-expander-row.js';
 import { AdwButton } from './adw-button.js';
 import { AdwImageButton } from './adw-image-button.js';
+import { AdwMenuButton } from './adw-menu-button.js';
 import { AdwIcon } from './adw-icon.js';
 import { AdwBanner } from './adw-banner.js';
 import { AdwAvatar } from './adw-avatar.js';
@@ -151,7 +157,9 @@ import { AdwButtonRow } from './adw-button-row.js';
 import { AdwButtonContent } from './adw-button-content.js';
 import { AdwSplitButton } from './adw-split-button.js';
 import { AdwToggleGroup } from './adw-toggle-group.js';
+import { AdwViewStack } from './adw-view-stack.js';
 import { AdwViewSwitcher } from './adw-view-switcher.js';
+import { AdwViewSwitcherBar } from './adw-view-switcher-bar.js';
 import { AdwInlineViewSwitcher } from './adw-inline-view-switcher.js';
 import { AdwTabView } from './adw-tab-view.js';
 import { AdwCarousel } from './adw-carousel.js';
@@ -178,6 +186,7 @@ const ELEMENTS = {
     AdwExpanderRow,
     AdwButton,
     AdwImageButton,
+    AdwMenuButton,
     AdwIcon,
     AdwBanner,
     AdwAvatar,
@@ -194,7 +203,9 @@ const ELEMENTS = {
     AdwSplitButton,
     AdwToggleGroup,
     // View switching
+    AdwViewStack,
     AdwViewSwitcher,
+    AdwViewSwitcherBar,
     AdwInlineViewSwitcher,
     AdwTabView,
     AdwCarousel,
