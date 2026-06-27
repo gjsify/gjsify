@@ -6,15 +6,23 @@
 // page visible at a time. This base captures that shared logic so the concrete
 // widgets only differ by CSS class (pill vs flat vs tab look) and chrome.
 //
+// Each switcher button is a REAL tappable NS `StackLayout` holding an optional
+// Adwaita symbolic `AdwIcon` + a `Label` — matching the native view switchers,
+// whose buttons show icon + label (not text alone). Press feedback is wired with
+// {@link attachRowPressFeedback} (NS only auto-applies `:highlighted` to `Button`,
+// and these buttons are layouts). Subclasses can append per-button chrome (e.g. a
+// tab close button) via {@link _buildButtonExtras} / {@link _applyButtonState}.
+//
 // FIDELITY: approximated. NS has no `Adw.ViewStack`; pages are swapped by toggling
 // `visibility` (`collapse`/`visible`) — instant, no cross-fade (the CSS subset has
-// no transition). The switcher buttons are real NS `Button`s in a `WrapLayout`/
-// `StackLayout`, mutually exclusive via the `.active` class.
+// no transition). The selected button is marked with the `.active` class.
 //
 // Reference: refs/libadwaita/src/stylesheet/widgets/_view-switcher.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { Button, GridLayout, ItemSpec, StackLayout, View, type EventData } from '@nativescript/core';
+import { GridLayout, ItemSpec, Label, StackLayout, View, type EventData } from '@nativescript/core';
+import { AdwIcon } from './adw-icon.js';
+import { attachRowPressFeedback } from './row-press.js';
 
 /** Event name emitted when the selected view changes. Mirrors GObject `notify::selected`. */
 export const NOTIFY_SELECTED = 'notify::selected';
@@ -33,6 +41,8 @@ export interface AdwViewPage {
     title: string;
     /** The page content view, shown when this page is selected. */
     content: View;
+    /** Optional Adwaita symbolic SVG shown left of the label in the switcher button. */
+    icon?: string;
 }
 
 /**
@@ -45,7 +55,8 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
     /** The content area where the selected page is shown. */
     protected readonly _contentArea: GridLayout;
     protected readonly _pages: AdwViewPage[] = [];
-    protected readonly _buttons: Button[] = [];
+    /** The tappable button containers (one per page), in bar order. */
+    protected readonly _buttons: StackLayout[] = [];
     protected _selected = 0;
 
     /** CSS class applied to the switcher bar — subclass-specific. */
@@ -92,11 +103,30 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
         for (const page of pages) {
             this._pages.push(page);
 
-            const btn = new Button();
-            btn.text = page.title;
-            btn.className = this.buttonClass;
-            btn.set('androidElevation', 0);
             const index = this._buttons.length;
+            const btn = new StackLayout();
+            btn.orientation = 'horizontal';
+            btn.className = this.buttonClass;
+            btn.horizontalAlignment = 'center';
+
+            if (page.icon) {
+                const icon = new AdwIcon();
+                icon.className = `${icon.className} ${this.buttonClass}-icon`.trim();
+                icon.verticalAlignment = 'middle';
+                icon.icon = page.icon;
+                btn.addChild(icon);
+            }
+
+            const label = new Label();
+            label.text = page.title;
+            label.className = `${this.buttonClass}-label`;
+            label.verticalAlignment = 'middle';
+            btn.addChild(label);
+
+            // Let subclasses append per-button chrome (e.g. a tab close button).
+            this._buildButtonExtras(btn, page, index);
+
+            attachRowPressFeedback(btn);
             btn.addEventListener('tap', () => {
                 this.selected = index;
             });
@@ -120,7 +150,26 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
         this._buttons.forEach((btn, i) => {
             const active = i === this._selected;
             btn.className = active ? `${this.buttonClass} active` : this.buttonClass;
+            this._applyButtonState(btn, i, active);
         });
+    }
+
+    /**
+     * Hook: append extra chrome to a freshly-built button (after icon + label).
+     * Default no-op. Subclasses (e.g. {@link AdwTabView}) override to add a close
+     * button. The button is the tappable `StackLayout` container.
+     */
+    protected _buildButtonExtras(_button: StackLayout, _page: AdwViewPage, _index: number): void {
+        // no-op by default
+    }
+
+    /**
+     * Hook: react to a button's active/inactive state on every selection change.
+     * Default no-op. Subclasses override to e.g. show the close button only on the
+     * active tab.
+     */
+    protected _applyButtonState(_button: StackLayout, _index: number, _active: boolean): void {
+        // no-op by default
     }
 
     /** The registered view pages. */
