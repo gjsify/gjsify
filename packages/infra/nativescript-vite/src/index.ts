@@ -104,13 +104,61 @@ export function defineNativescriptConfig(
         const withTransforms = mergeConfig(fixed, {
             plugins: [...gjsifyNativescriptTransforms(options)] satisfies Plugin[],
         });
-        if (userConfig === undefined) return withTransforms;
+        // Stabilise the build output so repeated `ns prepare`/`ns build` runs do
+        // not accumulate stale, hashed chunk files the Android SBG then sees as a
+        // duplicate native `extends` (see {@link nativescriptSbgBundleSyncFix}).
+        const withSbgFix = mergeConfig(withTransforms, nativescriptSbgBundleSyncFix());
+        if (userConfig === undefined) return withSbgFix;
         const resolved = typeof userConfig === 'function' ? await userConfig(env) : userConfig;
-        return mergeConfig(withTransforms, resolved);
+        return mergeConfig(withSbgFix, resolved);
     };
 }
 
 export default defineNativescriptConfig;
+
+/**
+ * Stabilise the NativeScript build output so the Android Static Binding
+ * Generator never sees a native class extended twice.
+ *
+ * `@nativescript/vite@8` names non-vendor / non-worker chunks `[name]-[hash].mjs`
+ * and leaves `build.emptyOutDir` unset. The NS CLI then copies the staging dir
+ * (`.ns-vite-build`) into `platforms/android/app/src/main/assets/app/`
+ * ADDITIVELY — it never deletes stale files. So every build whose content
+ * changes emits a fresh `activity.android-<hash>.mjs`, and `assets/app` ends up
+ * holding TWO of them: the SBG scans both, sees `NativeScriptActivity`'s
+ * `extends` declaration twice and aborts with "File already exists … change the
+ * name of one of the extended classes". The documented workaround was a manual
+ * `rm -rf .ns-vite-build` + `assets/app/*.mjs` before every build.
+ *
+ * The entry (`bundle.mjs`) and vendor chunk (`vendor.mjs`) are ALREADY stable
+ * upstream; this extends that to every chunk (so a rebuild OVERWRITES rather
+ * than accumulates) and empties the staging dir each build. Merged over the
+ * upstream config but under the user's, so an app can still override it.
+ *
+ * NOTE: a one-time clean of a pre-existing `assets/app/*.mjs` is still needed to
+ * drop chunks that already accumulated; from then on the names stay stable.
+ */
+export function nativescriptSbgBundleSyncFix(): UserConfig {
+    return {
+        build: {
+            // Clear the staging dir each (non-watch) build so stale chunks don't linger.
+            emptyOutDir: true,
+            rolldownOptions: {
+                output: {
+                    // Drop the content hash from chunk names — matching the
+                    // already-stable `bundle.mjs` entry + `vendor.mjs` — so a
+                    // rebuild overwrites the same files instead of piling up
+                    // `activity.android-<hash>.mjs` copies for the SBG to trip on.
+                    chunkFileNames: (chunk: { name?: string }): string => {
+                        if (chunk.name === 'vendor') return 'vendor.mjs';
+                        if (chunk.name && chunk.name.includes('worker')) return '[name].js';
+                        return '[name].mjs';
+                    },
+                },
+            },
+        },
+    };
+}
 
 /**
  * Repoint a mis-targeted `@nativescript/core` resolve.alias.
