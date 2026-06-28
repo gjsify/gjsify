@@ -47,6 +47,16 @@ export const requireNamespace = native.requireNamespace;
 export const listInfoNames = native.listInfoNames;
 
 /**
+ * Classify a top-level namespace member (so the L1 wrapper knows whether it is a
+ * constructible class, a callable function, an enum, a constant, …). Returns
+ * `null` when the name is not found.
+ * @param {string} namespace
+ * @param {string} name
+ * @returns {{ kind: 'function'|'object'|'interface'|'struct'|'union'|'enum'|'flags'|'constant'|'callback'|'other' } | null}
+ */
+export const findInfo = native.findInfo;
+
+/**
  * Prepend a directory to the GIRepository typelib search path (call before
  * requireNamespace for non-system typelibs).
  * @param {string} path
@@ -127,11 +137,30 @@ export const getProperty = native.getProperty;
 export const setProperty = native.setProperty;
 
 /**
+ * Whether the instance's type has a GObject property by this name (kebab- or
+ * snake-case). The L1 wrapper uses it to route `obj.foo` to a property read vs
+ * an `obj.foo()` method call.
+ * @param {unknown} handle
+ * @param {string} name
+ * @returns {boolean}
+ */
+export const hasProperty = native.hasProperty;
+
+/**
  * The runtime GType name of a GObject handle (e.g. "GSimpleAction").
  * @param {unknown} handle
  * @returns {string}
  */
 export const getTypeName = native.getTypeName;
+
+/**
+ * Whether `value` is one of node-gi's GObject-instance handles (tag-checked, no
+ * dereference). Lets the L1 wrapper wrap object-typed return values for chaining
+ * without misclassifying a registerClass type handle.
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+export const isGObjectHandle = native.isGObjectHandle;
 
 /**
  * Connect a JS callback to a GObject signal. Returns a handler id for

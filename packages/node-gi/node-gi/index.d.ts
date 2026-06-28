@@ -20,6 +20,26 @@ export function requireNamespace(namespace: string, version?: string): RequiredN
 /** Enumerate the top-level introspection-info names of an already-required namespace. */
 export function listInfoNames(namespace: string): string[];
 
+/** The introspection kind of a top-level namespace member. */
+export type InfoKind =
+  | 'function'
+  | 'object'
+  | 'interface'
+  | 'struct'
+  | 'union'
+  | 'enum'
+  | 'flags'
+  | 'constant'
+  | 'callback'
+  | 'other';
+
+/**
+ * Classify a top-level namespace member so the L1 wrapper can decide how to
+ * surface it (class vs function vs enum vs constant). Returns `null` when the
+ * name is not found in the namespace.
+ */
+export function findInfo(namespace: string, name: string): { kind: InfoKind } | null;
+
 /** Prepend a directory to the GIRepository typelib search path. */
 export function prependSearchPath(path: string): void;
 
@@ -87,8 +107,22 @@ export function getProperty(handle: GObjectHandle, name: string): unknown;
 /** Write a GObject property. */
 export function setProperty(handle: GObjectHandle, name: string, value: unknown): void;
 
+/**
+ * Whether the instance's type has a GObject property by this name (kebab- or
+ * snake-case). The L1 wrapper uses it to route `obj.foo` to a property read vs
+ * an `obj.foo()` method call.
+ */
+export function hasProperty(handle: GObjectHandle, name: string): boolean;
+
 /** The runtime GType name of a GObject handle (e.g. "GSimpleAction"). */
 export function getTypeName(handle: GObjectHandle): string;
+
+/**
+ * Whether `value` is one of node-gi's GObject-instance handles (tag-checked, no
+ * dereference). Lets the L1 wrapper wrap object-typed return values for chaining
+ * without misclassifying a {@link TypeHandle}.
+ */
+export function isGObjectHandle(value: unknown): boolean;
 
 /**
  * Connect a JS callback to a GObject signal; returns a handler id. The callback
@@ -111,6 +145,7 @@ export function disconnectSignal(handle: GObjectHandle, handlerId: number): void
 declare const native: {
   requireNamespace: typeof requireNamespace;
   listInfoNames: typeof listInfoNames;
+  findInfo: typeof findInfo;
   prependSearchPath: typeof prependSearchPath;
   callFunction: typeof callFunction;
   callMethod: typeof callMethod;
@@ -119,7 +154,9 @@ declare const native: {
   constructType: typeof constructType;
   getProperty: typeof getProperty;
   setProperty: typeof setProperty;
+  hasProperty: typeof hasProperty;
   getTypeName: typeof getTypeName;
+  isGObjectHandle: typeof isGObjectHandle;
   connectSignal: typeof connectSignal;
   emitSignal: typeof emitSignal;
   disconnectSignal: typeof disconnectSignal;
