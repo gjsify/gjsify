@@ -68,6 +68,18 @@ export function callFunction(namespace: string, functionName: string, args?: unk
 export function callMethod(handle: GObjectHandle, methodName: string, args?: unknown[]): unknown;
 
 /**
+ * Invoke a type-level constructor/static function (e.g. `Gio.File.new_for_path`,
+ * `Gtk.Label.new`) — a function found on a type but taking no instance. The Node
+ * twin of `Ns.Class.method(...)`.
+ */
+export function callStaticMethod(
+  namespace: string,
+  typeName: string,
+  methodName: string,
+  args?: unknown[],
+): unknown;
+
+/**
  * Opaque handle to a live GObject instance, owned by node-gi and released when
  * the handle is garbage-collected. Pass it back to {@link getProperty} /
  * {@link setProperty} / {@link getTypeName}.
@@ -160,6 +172,7 @@ declare const native: {
   prependSearchPath: typeof prependSearchPath;
   callFunction: typeof callFunction;
   callMethod: typeof callMethod;
+  callStaticMethod: typeof callStaticMethod;
   newObject: typeof newObject;
   registerClass: typeof registerClass;
   constructType: typeof constructType;

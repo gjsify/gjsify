@@ -26,6 +26,17 @@ const HANDLE = Symbol('nodeGiHandle');
 // into GObject (e.g. a stray `then` would make a wrapper look thenable).
 const RESERVED = new Set(['then', 'toString', 'valueOf', 'constructor', 'inspect']);
 
+// GJS accepts both snake_case and camelCase for methods/properties. Map a JS
+// accessor to the GI method name (snake_case) and to a GObject property name
+// (kebab-case); a name that is already in the target case passes through.
+function camelToSnake(name) {
+  return name.replace(/([A-Z])/g, '_$1').toLowerCase();
+}
+
+function toKebab(name) {
+  return name.replace(/([A-Z])/g, '-$1').replace(/_/g, '-').toLowerCase();
+}
+
 function unwrapArg(value) {
   if (value !== null && typeof value === 'object' && value[HANDLE] !== undefined) {
     return value[HANDLE];
@@ -68,15 +79,15 @@ function wrapInstance(handle) {
         default:
           break;
       }
-      const propName = prop.replace(/_/g, '-');
+      const propName = toKebab(prop);
       if (native.hasProperty(handle, propName)) {
         return wrapReturn(native.getProperty(handle, propName));
       }
-      return (...args) => wrapReturn(native.callMethod(handle, prop, unwrapArgs(args)));
+      return (...args) => wrapReturn(native.callMethod(handle, camelToSnake(prop), unwrapArgs(args)));
     },
     set(t, prop, value) {
       if (typeof prop === 'string') {
-        const propName = prop.replace(/_/g, '-');
+        const propName = toKebab(prop);
         if (native.hasProperty(handle, propName)) {
           native.setProperty(handle, propName, unwrapArg(value));
           return true;
@@ -98,7 +109,17 @@ function makeClass(namespace, typeName) {
   };
   Object.defineProperty(ctor, 'name', { value: typeName, configurable: true });
   ctor.$gtypeName = `${namespace}.${typeName}`;
-  return ctor;
+  // Expose constructor/static methods lazily: Ns.Class.new(...) /
+  // Ns.Class.new_for_path(...) (and the camelCase aliases). `new Ns.Class({...})`
+  // still goes through the target's [[Construct]] (the default Proxy behaviour).
+  return new Proxy(ctor, {
+    get(t, prop) {
+      if (typeof prop !== 'string' || prop in t || RESERVED.has(prop)) return t[prop];
+      const giName = camelToSnake(prop);
+      return (...args) =>
+        wrapReturn(native.callStaticMethod(namespace, typeName, giName, unwrapArgs(args)));
+    },
+  });
 }
 
 // Build a frozen enum/flags object keyed GJS-style: member names UPPER_CASED
@@ -124,7 +145,9 @@ function createNamespace(namespace) {
         value = undefined;
       } else if (info.kind === 'function') {
         value = (...args) => wrapReturn(native.callFunction(namespace, prop, unwrapArgs(args)));
-      } else if (info.kind === 'object') {
+      } else if (info.kind === 'object' || info.kind === 'interface') {
+        // Interfaces are not constructible (`new` throws via newObject) but
+        // carry static/constructor methods, e.g. Gio.File.new_for_path.
         value = makeClass(namespace, prop);
       } else if (info.kind === 'enum' || info.kind === 'flags') {
         value = makeEnum(namespace, prop);
