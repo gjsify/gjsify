@@ -17,6 +17,7 @@ import { globToEntryPoints } from '../utils/entry-points.js';
 import { nodeModulesPathRewritePlugin, getBundleDirFromOutput } from '../plugins/rewrite-node-modules-paths.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
+import { gjsGiNodePlugin } from '../plugins/gjs-gi-node.js';
 
 export interface NodeBuildConfig {
     options: RolldownOptions;
@@ -47,9 +48,21 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     // via *.gjs.spec / direct internal imports) loadable on Node — the GJS-
     // only code paths are still gated at runtime by `on('Gjs', …)` or by
     // `typeof globalThis.imports !== 'undefined'` guards.
-    const exactExternal = [...(EXTERNALS_NODE as string[]), 'node-datachannel', ...userExternal];
+    // `@gjsify/node-gi` is the Axis-5 GI runtime the `gjsGiNodePlugin` rewrites
+    // `gi://` onto. It is a native (node-gyp) addon whose loader resolves its
+    // `.node` binary relative to its own installed location, so it must NOT be
+    // bundled — keep it external so the `import … from '@gjsify/node-gi/gi'` the
+    // virtual shim emits resolves at runtime against the consumer's node_modules.
+    const exactExternal = [
+        ...(EXTERNALS_NODE as string[]),
+        'node-datachannel',
+        '@gjsify/node-gi',
+        '@gjsify/node-gi/gi',
+        ...userExternal,
+    ];
     const external = (id: string): boolean => {
         if (exactExternal.includes(id)) return true;
+        if (id === '@gjsify/node-gi' || id.startsWith('@gjsify/node-gi/')) return true;
         return false;
     };
     const format = input.pluginOptions.format ?? 'esm';
@@ -124,11 +137,15 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     };
 
     const plugins: RolldownPluginOption[] = [
-        // gjsImportsEmptyPlugin runs in `resolveId` order: 'pre', so it
-        // intercepts `@girs/*` and `gi://*` specifiers before `aliasPlugin`
-        // (and before the default resolver tries to read the @girs/* package
-        // entry, which contains a top-level `import 'gi://...'` that Node
-        // cannot resolve). Same composition order as `app/browser.ts`.
+        // gjsGiNodePlugin runs FIRST (resolveId order 'pre' + array order): it
+        // claims `gi://Ns?version=X` and rewrites it to the `@gjsify/node-gi`
+        // runtime, so a real GJS/GI source builds + runs on Node. It returns
+        // null for `@girs/*`, which then falls through to gjsImportsEmptyPlugin
+        // (those ambient/type packages map to an empty module on Node).
+        gjsGiNodePlugin(),
+        // gjsImportsEmptyPlugin then intercepts the remaining `@girs/*` (and any
+        // `gi://` not claimed above) before `aliasPlugin` and the default
+        // resolver. Same composition order as `app/browser.ts`.
         gjsImportsEmptyPlugin(),
         aliasPlugin({ entries: flattenAliases(aliasMap) }),
         deepkitPlugin({ reflection: input.pluginOptions.reflection }),
