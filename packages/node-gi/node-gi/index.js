@@ -130,12 +130,14 @@ export const newObject = native.newObject;
 /**
  * Register a new GObject subclass of `parentNamespace.parentTypeName` named
  * `name`, inheriting the parent's class/instance layout, and return an opaque
- * type handle. Construct instances of it with {@link constructType}. Custom
- * properties/signals and vfunc overrides land in later milestones — the Node
- * twin of (the engine half of) GJS's `GObject.registerClass`.
+ * type handle. Construct instances of it with {@link constructType}. The optional
+ * `options` installs custom properties (backed by a per-instance value store) and
+ * signals in the new type's `class_init`; vfunc overrides land in a later
+ * milestone — the Node twin of (the engine half of) GJS's `GObject.registerClass`.
  * @param {string} name unique GType name, e.g. "MyAction"
  * @param {string} parentNamespace e.g. "Gio"
  * @param {string} parentTypeName e.g. "SimpleAction"
+ * @param {{ properties?: Array<{name:string,type:string,flags?:number,default?:unknown,minimum?:number,maximum?:number}>, signals?: Array<{name:string,paramTypes?:string[],returnType?:string,flags?:number}> }} [options]
  * @returns {unknown} opaque type handle
  */
 export const registerClass = native.registerClass;
