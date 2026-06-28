@@ -56,6 +56,10 @@ function setupSyntheticRepo(parent) {
     mkdirSync(join(root, 'packages', 'infra', 'cli', 'dist'), { recursive: true });
     writeFileSync(join(root, 'packages', 'infra', 'cli', 'src', 'index.ts'), `export const v = 1;\n`);
     writeFileSync(join(root, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs'), `// initial cli bundle\n`);
+    writeFileSync(
+        join(root, 'packages', 'infra', 'cli', 'dist', 'affected.gjs.mjs'),
+        `// initial affected bundle\n`,
+    );
 
     mkdirSync(join(root, 'packages', 'infra', 'tsc', 'src'), { recursive: true });
     mkdirSync(join(root, 'packages', 'infra', 'tsc', 'dist'), { recursive: true });
@@ -76,6 +80,9 @@ function setupSyntheticRepo(parent) {
 echo "$@" >> "${logPath}"
 if [ "$1" = "workspace" ] && [ "$2" = "@gjsify/cli" ] && [ "$3" = "build:gjs-bundle" ]; then
     echo "// rebuilt cli bundle $(date +%s%N)" > "${root}/packages/infra/cli/dist/cli.gjs.mjs"
+fi
+if [ "$1" = "workspace" ] && [ "$2" = "@gjsify/cli" ] && [ "$3" = "build:affected-bundle" ]; then
+    echo "// rebuilt affected bundle $(date +%s%N)" > "${root}/packages/infra/cli/dist/affected.gjs.mjs"
 fi
 if [ "$1" = "workspace" ] && [ "$2" = "@gjsify/tsc" ] && [ "$3" = "build" ]; then
     echo "// rebuilt tsc bundle $(date +%s%N)" > "${root}/packages/infra/tsc/dist/tsc.gjs.mjs"
@@ -145,11 +152,13 @@ describe('git pre-commit hook — CLI/tsc bundle staleness', { timeout: 2 * 60 *
         assert.equal(result.status, 0, `hook failed: ${result.stderr}`);
 
         const invocations = readLog(logPath);
-        // Two gjsify calls — `workspace @gjsify/cli build` then
-        // `workspace @gjsify/cli build:gjs-bundle`.
-        assert.equal(invocations.length, 2, `expected 2 gjsify invocations, got: ${invocations.join(' / ')}`);
+        // Three gjsify calls — `workspace @gjsify/cli build`, then
+        // `build:gjs-bundle` (cli.gjs.mjs), then `build:affected-bundle`
+        // (the dedicated Soup-free classifier bundle).
+        assert.equal(invocations.length, 3, `expected 3 gjsify invocations, got: ${invocations.join(' / ')}`);
         assert.equal(invocations[0], 'workspace @gjsify/cli build');
         assert.equal(invocations[1], 'workspace @gjsify/cli build:gjs-bundle');
+        assert.equal(invocations[2], 'workspace @gjsify/cli build:affected-bundle');
 
         // The rebuilt bundle must be in the just-recorded commit.
         const filesInCommit = execFileSync(
@@ -162,6 +171,10 @@ describe('git pre-commit hook — CLI/tsc bundle staleness', { timeout: 2 * 60 *
         assert.ok(
             filesInCommit.includes('packages/infra/cli/dist/cli.gjs.mjs'),
             `dist/cli.gjs.mjs not in commit; saw: ${filesInCommit.join(', ')}`,
+        );
+        assert.ok(
+            filesInCommit.includes('packages/infra/cli/dist/affected.gjs.mjs'),
+            `dist/affected.gjs.mjs not in commit; saw: ${filesInCommit.join(', ')}`,
         );
         assert.ok(
             filesInCommit.includes('packages/infra/cli/src/index.ts'),
