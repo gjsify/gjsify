@@ -25,7 +25,12 @@ on both GJS and Node via `gjsify build --app {gjs,node}`.
 > access, `action.get_name()` methods, `.connect()/.emit()/.disconnect()`, and
 > enums / flags / constants (`Gio.BusType.SESSION`, `GLib.PRIORITY_DEFAULT`);
 > constructor/static methods (`Gio.File.new_for_path(...)`); and both snake_case
-> and camelCase accessors. A **libuv↔GLib mainloop bridge** (`startMainLoop`,
+> and camelCase accessors. The L1 layer also surfaces a **GJS-shaped
+> `GObject.registerClass(meta, class)` decorator** (with `GObject.ParamSpec` /
+> `ParamFlags` / `SignalFlags`): a JS `class extends GObject.Object { … }` with
+> `Properties` / `Signals` / `vfunc_*` methods becomes a constructor whose
+> instances carry both the user methods and the GObject property/signal surface.
+> A **libuv↔GLib mainloop bridge** (`startMainLoop`,
 > auto-attached by `requireGi`) nests Node's libuv loop inside the GLib loop, so a
 > blocking `GLib.MainLoop.run()` keeps Node's timers/I/O alive — including the
 > **boxed/struct slice** that needs (`GLib.MainLoop.new(...)` → a boxed handle →
@@ -193,6 +198,60 @@ ticker.run();
 The mainloop bridge (`startMainLoop`) is auto-attached the first time `requireGi`
 loads a namespace, so `GLib.MainLoop.run()` / `Gio.Application.run()` block as
 they do under GJS while Node's timers, I/O and signal handlers keep running.
+
+#### `GObject.registerClass` (GJS-shaped decorator)
+
+`requireGi('GObject')` carries the GJS runtime statics — `registerClass`,
+`ParamSpec`, `ParamFlags`, `SignalFlags` — layered over the introspected
+namespace, so you subclass a GObject the same way you would under GJS:
+
+```js
+const GObject = requireGi('GObject', '2.0');
+
+const Counter = GObject.registerClass(
+  {
+    GTypeName: 'Counter',
+    Properties: {
+      // CONSTRUCT so the value is set before vfunc_constructed runs.
+      count: GObject.ParamSpec.int(
+        'count', 'Count', 'A counter',
+        GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT,
+        0, 100, 0,
+      ),
+    },
+    Signals: { 'changed': { param_types: ['int'] } },
+  },
+  class Counter extends GObject.Object {
+    increment() { this.count += 1; this.emit('changed', this.count); }
+    vfunc_constructed() { /* runs during construction; `this` is the instance */ }
+  },
+);
+
+const c = new Counter({ count: 5 });
+c.connect('changed', (n) => console.log('now', n));
+c.increment();          // logs "now 6"
+console.log(c.count);   // 6  (custom property)
+```
+
+`new Counter(props)` constructs the GObject (`constructType`) and wraps it so the
+user class's own prototype methods resolve FIRST, then the GObject property/signal
+surface. `registerClass(class)` (no meta) is also accepted; the GTypeName then
+defaults to the class name. The parent namespace/type is read from the class's
+`extends` (its `$gtypeName`), so it works for both `GObject.Object` and real GI
+classes (`class extends Gio.SimpleAction { … }`).
+
+Caveats (this is the no-toggle-ref object model): the user class's JS constructor
+body is not run — GObject-idiomatic init belongs in `vfunc_constructed`;
+instances are Proxies over a native handle (not real `instanceof` instances);
+**plain (non-GObject-property) JS instance fields do NOT cross the
+vfunc↔instance boundary** — inside a vfunc, `this` is a distinct wrapper over the
+same GObject (the native engine mints a fresh handle per call, so there is no
+shared per-instance JS object yet), so use GObject **properties** for any state
+that must be visible both inside a vfunc and on the instance (those live in C and
+are consistent; the unified instance identity arrives with the toggle-ref work);
+a JS↔GObject reference cycle on a custom instance leaks (the same cycle-leak
+caveat the signal/vfunc layer carries); and multi-level registered subclass
+chains (registering a subclass of a registered subclass) are not yet supported.
 
 ### GJS ambient globals (`@gjsify/node-gi/globals`)
 
