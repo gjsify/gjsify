@@ -14,11 +14,13 @@ on both GJS and Node via `gjsify build --app {gjs,node}`.
 > `require` a namespace, enumerate its infos; call namespace-level functions and
 > **instance methods** (own + implemented-interface methods, up the parent chain)
 > with value marshalling (numbers, booleans, strings, GObjects, enums/flags);
-> construct GObjects and read/write properties (GValue round-trip); and
-> connect / emit / disconnect signals. Ownership rides N-API finalizers (no V8-GC
-> reentrancy). `GObject.registerClass` (JS subclassing + vfunc chain-up) and the
-> libuv↔GLib mainloop bridge land in subsequent drops, then the GJS-compatible
-> runtime + bundler integration on top.
+> construct GObjects and read/write properties (GValue round-trip); connect /
+> emit / disconnect signals; and **register GObject subclasses** (subtype +
+> construct-by-type, inheriting the parent's properties/methods). Ownership rides
+> N-API finalizers (no V8-GC reentrancy). Custom properties/signals on a subclass
+> and `registerClass` vfunc overrides + chain-up (with the toggle-ref GC bridge)
+> and the libuv↔GLib mainloop bridge land in subsequent drops, then the
+> GJS-compatible runtime + bundler integration on top.
 
 ## Provenance
 
@@ -71,6 +73,16 @@ callMethod(action, 'set_enabled', [false]);   // method with an IN argument
 const c = newObject('Gio', 'Cancellable', {});
 connectSignal(c, 'cancelled', () => console.log('cancelled'));
 emitSignal(c, 'cancelled');
+```
+
+Register a GObject subclass and construct it (inherited properties + methods):
+
+```js
+import { registerClass, constructType, callMethod } from '@gjsify/node-gi';
+
+const MyAction = registerClass('MyAction', 'Gio', 'SimpleAction');
+const a = constructType(MyAction, { name: 'greet', enabled: true });
+console.log(callMethod(a, 'get_name')); // 'greet'  (inherited GAction method)
 ```
 
 The GJS-compatible surface (`import GLib from 'gi://GLib?version=2.0'`,

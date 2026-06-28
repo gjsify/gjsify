@@ -56,6 +56,31 @@ export function newObject(
   props?: Record<string, unknown>,
 ): GObjectHandle;
 
+/**
+ * Opaque handle to a registered GType (from {@link registerClass}). Pass it to
+ * {@link constructType}.
+ */
+export type TypeHandle = { readonly __nodeGiGType: unique symbol };
+
+/**
+ * Register a new GObject subclass of `parentNamespace.parentTypeName` named
+ * `name`, inheriting the parent's class/instance layout, and return an opaque
+ * type handle. Custom properties/signals and vfunc overrides land in later
+ * milestones — the Node twin of (the engine half of) GJS's
+ * `GObject.registerClass`.
+ */
+export function registerClass(
+  name: string,
+  parentNamespace: string,
+  parentTypeName: string,
+): TypeHandle;
+
+/**
+ * Construct a GObject of a registered type handle (from {@link registerClass})
+ * with optional construct/settable properties.
+ */
+export function constructType(typeHandle: TypeHandle, props?: Record<string, unknown>): GObjectHandle;
+
 /** Read a GObject property. */
 export function getProperty(handle: GObjectHandle, name: string): unknown;
 
@@ -90,6 +115,8 @@ declare const native: {
   callFunction: typeof callFunction;
   callMethod: typeof callMethod;
   newObject: typeof newObject;
+  registerClass: typeof registerClass;
+  constructType: typeof constructType;
   getProperty: typeof getProperty;
   setProperty: typeof setProperty;
   getTypeName: typeof getTypeName;

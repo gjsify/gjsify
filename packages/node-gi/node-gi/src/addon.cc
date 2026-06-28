@@ -441,6 +441,62 @@ static GObject* UnwrapGObject(Napi::Env env, Napi::Value handle) {
   return obj;
 }
 
+// Shared constructor core: realise the class, marshal `props` into a GValue
+// vector against the type's (inherited) GParamSpecs, g_object_new_with_properties,
+// and hand back an owned External<GObject>. Used by both newObject (resolve by
+// namespace.typeName) and constructType (resolve by a registered GType handle).
+static Napi::Value ConstructGObject(Napi::Env env, GType gtype, Napi::Object props,
+                                    const std::string& displayName) {
+  Napi::Array names = props.GetPropertyNames();
+  guint n = names.Length();
+  std::vector<GValue> values(n);  // zero-initialised == G_VALUE_INIT
+  std::vector<std::string> nameStorage(n);
+  std::vector<const char*> cnames(n);
+
+  gpointer klass = g_type_class_ref(gtype);  // realises the class so pspecs exist
+  guint initialised = 0;
+  bool ok = true;
+  for (guint i = 0; i < n; i++) {
+    nameStorage[i] = names.Get(i).ToString().Utf8Value();
+    GParamSpec* pspec =
+        g_object_class_find_property(reinterpret_cast<GObjectClass*>(klass), nameStorage[i].c_str());
+    if (pspec == nullptr) {
+      Napi::TypeError::New(env, displayName + " has no property '" + nameStorage[i] + "'")
+          .ThrowAsJavaScriptException();
+      ok = false;
+      break;
+    }
+    g_value_init(&values[i], pspec->value_type);
+    initialised = i + 1;
+    if (!JsToGValue(env, props.Get(nameStorage[i]), &values[i])) {
+      ok = false;
+      break;
+    }
+    cnames[i] = nameStorage[i].c_str();
+  }
+
+  GObject* obj = nullptr;
+  if (ok) {
+    obj = g_object_new_with_properties(gtype, n, cnames.data(), values.data());
+  }
+  for (guint j = 0; j < initialised; j++) g_value_unset(&values[j]);
+  g_type_class_unref(klass);
+
+  if (!ok) return env.Null();
+  if (obj == nullptr) {
+    Napi::Error::New(env, "Failed to construct " + displayName).ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  // Take a single strong, non-floating ref; the finalizer releases it. N-API
+  // finalizers run outside GC, so the unref (and any resulting GObject finalize)
+  // is safe here.
+  if (g_object_is_floating(obj)) {
+    g_object_ref_sink(obj);
+  }
+  return Napi::External<GObject>::New(env, obj,
+                                      [](Napi::Env, GObject* ptr) { g_object_unref(ptr); });
+}
+
 // newObject(namespace, typeName, props?: Record<string, unknown>) -> External<GObject>
 Napi::Value NewObject(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
@@ -468,54 +524,103 @@ Napi::Value NewObject(const Napi::CallbackInfo& info) {
     return env.Null();
   }
 
-  Napi::Array names = props.GetPropertyNames();
-  guint n = names.Length();
-  std::vector<GValue> values(n);  // zero-initialised == G_VALUE_INIT
-  std::vector<std::string> nameStorage(n);
-  std::vector<const char*> cnames(n);
+  return ConstructGObject(env, gtype, props, ns + "." + tn);
+}
 
-  gpointer klass = g_type_class_ref(gtype);  // realises the class so pspecs exist
-  guint initialised = 0;
-  bool ok = true;
-  for (guint i = 0; i < n; i++) {
-    nameStorage[i] = names.Get(i).ToString().Utf8Value();
-    GParamSpec* pspec =
-        g_object_class_find_property(reinterpret_cast<GObjectClass*>(klass), nameStorage[i].c_str());
-    if (pspec == nullptr) {
-      Napi::TypeError::New(env, ns + "." + tn + " has no property '" + nameStorage[i] + "'")
-          .ThrowAsJavaScriptException();
-      ok = false;
-      break;
-    }
-    g_value_init(&values[i], pspec->value_type);
-    initialised = i + 1;
-    if (!JsToGValue(env, props.Get(nameStorage[i]), &values[i])) {
-      ok = false;
-      break;
-    }
-    cnames[i] = nameStorage[i].c_str();
+// ---- subclassing (registerClass — minimal: subtype + construct) ----
+//
+// Register a new GObject subclass of `parentNamespace.parentTypeName` named
+// `name`, inheriting the parent's class/instance layout. No custom properties,
+// signals or vfunc overrides yet (those — and the toggle-ref GC bridge a JS
+// vfunc/closure requires — land in subsequent drops); a plain dynamic subtype's
+// instances are ordinary GObjects, so the existing finalizer-unref ownership is
+// correct. Returns an opaque type handle (the GType) for constructType().
+
+// GTypes are process-stable and never freed (static registration), so the
+// handle carries no finalizer.
+static GType UnwrapGType(Napi::Env env, Napi::Value v) {
+  if (!v.IsExternal()) {
+    Napi::TypeError::New(env, "expected a node-gi type handle from registerClass()")
+        .ThrowAsJavaScriptException();
+    return 0;
   }
+  return reinterpret_cast<GType>(v.As<Napi::External<void>>().Data());
+}
 
-  GObject* obj = nullptr;
-  if (ok) {
-    obj = g_object_new_with_properties(gtype, n, cnames.data(), values.data());
-  }
-  for (guint j = 0; j < initialised; j++) g_value_unset(&values[j]);
-  g_type_class_unref(klass);
-
-  if (!ok) return env.Null();
-  if (obj == nullptr) {
-    Napi::Error::New(env, "Failed to construct " + ns + "." + tn).ThrowAsJavaScriptException();
+// registerClass(name, parentNamespace, parentTypeName) -> typeHandle
+Napi::Value RegisterClass(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 3 || !info[0].IsString() || !info[1].IsString() || !info[2].IsString()) {
+    Napi::TypeError::New(
+        env, "registerClass(name: string, parentNamespace: string, parentTypeName: string)")
+        .ThrowAsJavaScriptException();
     return env.Null();
   }
-  // Take a single strong, non-floating ref; the finalizer releases it. N-API
-  // finalizers run outside GC, so the unref (and any resulting GObject finalize)
-  // is safe here.
-  if (g_object_is_floating(obj)) {
-    g_object_ref_sink(obj);
+  std::string name = info[0].As<Napi::String>().Utf8Value();
+  std::string pns = info[1].As<Napi::String>().Utf8Value();
+  std::string ptn = info[2].As<Napi::String>().Utf8Value();
+
+  if (g_type_from_name(name.c_str()) != 0) {
+    Napi::Error::New(env, "a GType named '" + name + "' is already registered")
+        .ThrowAsJavaScriptException();
+    return env.Null();
   }
-  return Napi::External<GObject>::New(env, obj,
-                                      [](Napi::Env, GObject* ptr) { g_object_unref(ptr); });
+
+  // Resolve the parent GType from its introspection info.
+  GIRepository* repo = DupDefaultRepository();
+  GIBaseInfo* base = gi_repository_find_by_name(repo, pns.c_str(), ptn.c_str());
+  bool isObject = base != nullptr && GI_IS_OBJECT_INFO(base);
+  GType parentType =
+      isObject ? gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(base))
+               : G_TYPE_INVALID;
+  if (base != nullptr) gi_base_info_unref(base);
+  g_object_unref(repo);
+  if (!isObject || !G_TYPE_IS_OBJECT(parentType)) {
+    Napi::TypeError::New(env, pns + "." + ptn + " is not a subclassable GObject type")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  GTypeQuery query;
+  g_type_query(parentType, &query);
+  if (query.type == 0) {
+    Napi::Error::New(env, "failed to query parent type " + pns + "." + ptn)
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  GTypeInfo typeInfo = {};
+  typeInfo.class_size = static_cast<guint16>(query.class_size);
+  typeInfo.instance_size = static_cast<guint16>(query.instance_size);
+  // class_init / instance_init left null — a plain subtype inherits the parent's.
+
+  GType newType = g_type_register_static(parentType, name.c_str(), &typeInfo, (GTypeFlags)0);
+  if (newType == 0) {
+    Napi::Error::New(env, "g_type_register_static failed for '" + name + "'")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  return Napi::External<void>::New(env, reinterpret_cast<void*>(newType));
+}
+
+// constructType(typeHandle, props?: Record<string, unknown>) -> External<GObject>
+Napi::Value ConstructType(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1) {
+    Napi::TypeError::New(env, "constructType(typeHandle, props?: object)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GType gtype = UnwrapGType(env, info[0]);
+  if (gtype == 0) return env.Null();
+  if (!G_TYPE_IS_OBJECT(gtype)) {
+    Napi::TypeError::New(env, "type handle is not a constructible GObject type")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  Napi::Object props = (info.Length() >= 2 && info[1].IsObject()) ? info[1].As<Napi::Object>()
+                                                                 : Napi::Object::New(env);
+  return ConstructGObject(env, gtype, props, std::string(g_type_name(gtype)));
 }
 
 // getProperty(handle, name) -> unknown
@@ -815,6 +920,8 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("callFunction", Napi::Function::New(env, CallFunction));
   exports.Set("callMethod", Napi::Function::New(env, CallMethod));
   exports.Set("newObject", Napi::Function::New(env, NewObject));
+  exports.Set("registerClass", Napi::Function::New(env, RegisterClass));
+  exports.Set("constructType", Napi::Function::New(env, ConstructType));
   exports.Set("getProperty", Napi::Function::New(env, GetProperty));
   exports.Set("setProperty", Napi::Function::New(env, SetProperty));
   exports.Set("getTypeName", Napi::Function::New(env, GetTypeName));
