@@ -29,8 +29,11 @@ on both GJS and Node via `gjsify build --app {gjs,node}`.
 > auto-attached by `requireGi`) nests Node's libuv loop inside the GLib loop, so a
 > blocking `GLib.MainLoop.run()` keeps Node's timers/I/O alive — including the
 > **boxed/struct slice** that needs (`GLib.MainLoop.new(...)` → a boxed handle →
-> `.run()`/`.quit()`). The gjsify `--app node` bundler integration already
-> rewrites `gi://` onto the L1 layer. `registerClass` vfunc overrides + chain-up
+> `.run()`/`.quit()`). **JS functions marshal as GI callbacks** via an ffi
+> closure (`GLib.timeout_add`/`idle_add` fire from the loop, the boolean return
+> drives source continuation; the hidden user_data/destroy slots are auto-filled).
+> The gjsify `--app node` bundler integration already rewrites `gi://` onto the L1
+> layer. `registerClass` vfunc overrides + chain-up
 > (with the toggle-ref GC bridge) and general struct field access land in
 > subsequent drops.
 
@@ -151,6 +154,16 @@ console.log(file.getBasename());   // 'gjs'  (camelCase alias)
 const loop = GLib.MainLoop.new(null, false);
 setTimeout(() => loop.quit(), 100); // a libuv timer that fires during run()
 loop.run();                         // blocks like under GJS; returns on quit()
+
+// GI callbacks: a JS function passed where a GI callback is expected. The
+// GLib source fires from the loop; returning false (G_SOURCE_REMOVE) stops it.
+const ticker = GLib.MainLoop.new(null, false);
+let n = 0;
+GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+  if (++n >= 3) { ticker.quit(); return false; }
+  return true;
+});
+ticker.run();
 ```
 
 The mainloop bridge (`startMainLoop`) is auto-attached the first time `requireGi`
