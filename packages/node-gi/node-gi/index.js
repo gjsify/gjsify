@@ -66,6 +66,18 @@ export const prependSearchPath = native.prependSearchPath;
 export const callFunction = native.callFunction;
 
 /**
+ * Invoke an instance method on a GObject handle with IN-only
+ * primitive/string/object/enum args. The method is resolved against the
+ * instance's introspection type (own + implemented-interface methods, then up
+ * the parent chain) — the Node twin of `obj.method(...)`.
+ * @param {unknown} handle a handle from {@link newObject}
+ * @param {string} methodName GI method name, e.g. "get_name"
+ * @param {unknown[]} [args]
+ * @returns {unknown}
+ */
+export const callMethod = native.callMethod;
+
+/**
  * Construct a GObject of `namespace.typeName` with optional construct/settable
  * properties, returning an opaque handle owned by node-gi (released on GC).
  * @param {string} namespace e.g. "Gio"
