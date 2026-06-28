@@ -54,7 +54,7 @@ const defaultBundler: AnalysisBundler = async ({ rolldownInput, format }) => {
         await build.close();
     }
 };
-import { detectFreeGlobals } from './detect-free-globals.js';
+import { detectFreeGlobals, detectGjsAmbientGlobals } from './detect-free-globals.js';
 import {
     resolveGlobalsList,
     writeRegisterInjectFile,
@@ -552,6 +552,97 @@ export async function detectAutoGlobals(
         console.debug(`[gjsify] --globals auto: hit max iterations (${MAX_ITERATIONS}), using last detected set`);
     }
     return applyExcludeGlobals(detected, currentInject, extraRegisterPaths, options.excludeGlobals, cwd);
+}
+
+/**
+ * `--app node` GJS-ambient-globals detection (the reverse of `--globals auto`).
+ *
+ * Runs ONE in-memory node bundle (no injection) and scans each chunk for the
+ * GJS ambient globals (`print`/`printerr`/`log`/`logError`/`ARGV`/`imports`)
+ * that `@gjsify/node-gi/globals` seeds. Returns `true` iff any is referenced in
+ * the bundled, tree-shaken output — the signal the CLI uses to flip
+ * `pluginOptions.nodeGiGlobalsInject` for the final build.
+ *
+ * A SINGLE pass suffices (unlike the GJS register-injection loop): the shim is
+ * EXTERNAL, so injecting it adds no bundled code that could reference more
+ * globals — there is no tree-shaking dependency cycle to converge.
+ *
+ * Critically, detection is on the bundled output AFTER tree-shaking, so a
+ * `print`/`imports` reference behind statically-dead code does not trigger
+ * injection — importing the shim eagerly loads the native node-gi addon, which
+ * crashes on plain Node without node-gi. See `detectGjsAmbientGlobals`.
+ */
+export async function detectNodeGiGlobals(
+    analysisOptions: AnalysisOptions,
+    pluginOptions: Omit<PluginOptions, 'nodeGiGlobalsInject'>,
+    gjsifyPluginFactory: GjsifyPluginFactory,
+    bundler: AnalysisBundler = defaultBundler,
+): Promise<boolean> {
+    const factoryResult = await gjsifyPluginFactory(pluginOptions as PluginOptions);
+
+    let gjsifyInstance: RolldownPluginOption;
+    let orchestratorOptions: InputOptions | undefined;
+    if (isFullConfig(factoryResult)) {
+        orchestratorOptions = factoryResult.options;
+        gjsifyInstance = factoryResult.plugins as unknown as RolldownPluginOption;
+    } else {
+        gjsifyInstance = factoryResult;
+    }
+
+    const callerPlugins = (analysisOptions.plugins ?? []).filter((p) => {
+        const name = p && typeof p === 'object' && 'name' in p ? p.name : undefined;
+        return name !== 'gjsify' && name !== 'gjsify-orchestrator';
+    });
+
+    const gjsifyPluginsArray = Array.isArray(gjsifyInstance) ? gjsifyInstance : [gjsifyInstance];
+
+    // Reuse the FULL orchestrator options as the base so the analysis bundle
+    // goes through the EXACT SAME module resolution as the real `--app node`
+    // build — most importantly `platform: 'node'`, without which Rolldown does
+    // not treat `node:*` as builtins and the @gjsify/rolldown-plugin-pnp
+    // resolver rejects `node:fs` in a non-Node context (`RESOLVE_ERROR`). It
+    // also carries `external` (the node externals incl. `@gjsify/node-gi/*`),
+    // `resolve` (conditionNames/mainFields) and `treeshake`. We strip only the
+    // disk-write `output` (the in-memory `generate({format})` handles output)
+    // and override `input`/`plugins`. Analysis-side overrides win when set.
+    // Mirrors how `detectAutoGlobals` reuses the orchestrator config, with the
+    // platform/external/resolve carried verbatim instead of cherry-picked.
+    const baseOptions: InputOptions = orchestratorOptions ? { ...orchestratorOptions } : {};
+    delete (baseOptions as { output?: unknown }).output;
+
+    let chunkCodes: string[];
+    try {
+        chunkCodes = await bundler({
+            rolldownInput: {
+                ...baseOptions,
+                input: analysisOptions.input,
+                external: analysisOptions.external ?? baseOptions.external,
+                resolve: analysisOptions.resolve ?? baseOptions.resolve,
+                transform: analysisOptions.transform ?? baseOptions.transform,
+                plugins: [...callerPlugins, ...gjsifyPluginsArray],
+                logLevel: 'silent',
+            } as InputOptions,
+            format: analysisOptions.format ?? 'esm',
+        });
+    } catch (e) {
+        // Fail SAFE: a detection-pass failure must NEVER break a build that
+        // would otherwise succeed. Fall back to NOT injecting the shim — worst
+        // case is a missing global (a clear `ReferenceError: print is not
+        // defined` at runtime, recoverable via `--globals` or an explicit
+        // `import '@gjsify/node-gi/globals'`), never a hard build failure.
+        console.warn(
+            '[gjsify] --app node: could not analyse the bundle for GJS ambient globals ' +
+                `(${e instanceof Error ? e.message : String(e)}); skipping @gjsify/node-gi/globals ` +
+                'injection. If this build uses print/imports/ARGV, add `import ' +
+                "'@gjsify/node-gi/globals'` to the entry or pass --globals.",
+        );
+        return false;
+    }
+
+    for (const code of chunkCodes) {
+        if (detectGjsAmbientGlobals(code).size > 0) return true;
+    }
+    return false;
 }
 
 /**

@@ -27,6 +27,7 @@ import { isRegisterSubpath, createGjsExternalsPredicate } from '@gjsify/rolldown
 import {
     detectAutoGlobals,
     detectFreeGlobals,
+    detectGjsAmbientGlobals,
     isRegisterPathResolvable,
     filterResolvableRegisterPaths,
     describeGiBackedInjection,
@@ -500,6 +501,61 @@ export default async () => {
             const note = describeGiBackedInjection(registers, detected);
             expect(note).toBeTruthy();
             expect((note as string).includes('IntersectionObserver')).toBe(true);
+        });
+    });
+
+    await describe('detectGjsAmbientGlobals — --app node reverse detection', async () => {
+        await it('detects bare GJS ambient globals (genuine GJS source)', () => {
+            const got = detectGjsAmbientGlobals(
+                "const Gtk = imports.gi.Gtk; print('x', ARGV.length); printerr('e'); log('l');",
+            );
+            expect(got.has('imports')).toBe(true);
+            expect(got.has('print')).toBe(true);
+            expect(got.has('printerr')).toBe(true);
+            expect(got.has('log')).toBe(true);
+            expect(got.has('ARGV')).toBe(true);
+        });
+
+        await it('detects logError used as a bare free function', () => {
+            const got = detectGjsAmbientGlobals('try { f(); } catch (e) { logError(e, "p"); }');
+            expect(got.has('logError')).toBe(true);
+        });
+
+        await it('returns empty for a bundle with no GJS globals', () => {
+            const got = detectGjsAmbientGlobals('console.log(1 + 1); export const x = 2;');
+            expect(got.size).toBe(0);
+        });
+
+        await it('does not flag locally-declared shadows', () => {
+            const got = detectGjsAmbientGlobals('const imports = {}; function print() {} print(); console.log(imports);');
+            expect(got.has('imports')).toBe(false);
+            expect(got.has('print')).toBe(false);
+        });
+
+        await it('ignores a pure `typeof imports` probe (no real use)', () => {
+            const got = detectGjsAmbientGlobals("const onGjs = typeof imports !== 'undefined'; console.log(onGjs);");
+            expect(got.has('imports')).toBe(false);
+        });
+
+        await it('REGRESSION GUARD: ignores the globalThis.imports isomorphic guard', () => {
+            // The cross-platform "am I on GJS?" probe + guarded host-member
+            // access. Injecting @gjsify/node-gi/globals here would break
+            // plain-Node loadability — host-member forms are not GJS source.
+            const code =
+                "if (typeof globalThis.imports !== 'undefined') { const Gtk = globalThis.imports.gi.Gtk; console.log(Gtk); }";
+            const got = detectGjsAmbientGlobals(code);
+            expect(got.has('imports')).toBe(false);
+        });
+
+        await it('ignores globalThis.print / global.print host-member forms', () => {
+            const got = detectGjsAmbientGlobals('globalThis.print("a"); global.printerr("b");');
+            expect(got.has('print')).toBe(false);
+            expect(got.has('printerr')).toBe(false);
+        });
+
+        await it('promotes a bare global referenced both in typeof and for real', () => {
+            const got = detectGjsAmbientGlobals("if (typeof print !== 'undefined') { print('real'); }");
+            expect(got.has('print')).toBe(true);
         });
     });
 };

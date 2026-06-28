@@ -161,7 +161,42 @@ function extractBindingNames(node: acorn.AnyNode): string[] {
  * provides the second layer of protection for cases where `X` does appear
  * in a real reference position but the package is still absent.
  */
-export function detectFreeGlobals(code: string): Set<string> {
+interface ScanOptions {
+    /** Identifier set to treat as known globals (the only names ever flagged). */
+    knownGlobals: ReadonlySet<string>;
+    /** `<host>.<method>` markers → injected identifier. Omitted = none. */
+    methodMarkers?: Record<string, string>;
+    /** wasm-bindgen `<jsName>` markers → injected identifier. Omitted = none. */
+    wasmMarkers?: Record<string, string>;
+    /**
+     * Do NOT treat `host.X` member expressions (`globalThis.X` / `global.X` /
+     * `self.X` / `window.X`) as a trigger at all — only BARE free identifiers.
+     *
+     * The default (false) keeps Pattern A firing, which is the long-standing GJS
+     * `--globals auto` behaviour (some packages legitimately read
+     * `globalThis.Buffer`). The `--app node` GJS-ambient detector turns it ON:
+     * genuine GJS source uses the BARE forms (`print(...)`, `imports.gi.Gtk`),
+     * while the `globalThis.imports` / `globalThis.print` member form is the
+     * cross-platform ISOMORPHIC-GUARD shape (`if (typeof globalThis.imports !==
+     * 'undefined') { … }`) a package uses to branch on GJS. Injecting
+     * `@gjsify/node-gi/globals` for that would break plain-Node loadability of
+     * such a package (the bare external import is unresolvable without node-gi,
+     * and the shim eagerly loads the native addon) — the exact #641/#644
+     * gated-load regression. So on the node target host-member forms are ignored.
+     */
+    ignoreHostMembers?: boolean;
+}
+
+/**
+ * Core scanner shared by `detectFreeGlobals` (web/Node globals map) and
+ * `detectGjsAmbientGlobals` (the `--app node` GJS-ambient set). Parametrised so
+ * the GJS path stays byte-identical while the node path can use a different
+ * known-globals set + the stricter host-member typeof handling.
+ */
+function scanFreeGlobals(code: string, opts: ScanOptions): Set<string> {
+    const knownGlobals = opts.knownGlobals;
+    const methodMarkers = opts.methodMarkers ?? {};
+    const wasmMarkers = opts.wasmMarkers ?? {};
     const ast = acorn.parse(code, {
         ecmaVersion: 'latest',
         sourceType: 'module',
@@ -255,7 +290,11 @@ export function detectFreeGlobals(code: string): Set<string> {
             // Pattern A: globalThis.X / global.X / window.X / self.X
             // The property is a known global identifier itself.
             if (HOST_OBJECTS.has(objName)) {
-                if (KNOWN_GLOBALS.has(propName)) {
+                // The node GJS-ambient detector ignores host-member forms — they
+                // are the isomorphic-guard shape, not genuine GJS source (see
+                // `ignoreHostMembers`). Bare-identifier detection still applies.
+                if (opts.ignoreHostMembers) return;
+                if (knownGlobals.has(propName)) {
                     freeGlobals.add(propName);
                 }
                 return;
@@ -266,8 +305,8 @@ export function detectFreeGlobals(code: string): Set<string> {
             // identifier that triggers the right register path even though
             // the identifier itself never appears in the bundle.
             const markerKey = `${objName}.${propName}`;
-            const markerTarget = METHOD_MARKERS[markerKey];
-            if (markerTarget && KNOWN_GLOBALS.has(markerTarget)) {
+            const markerTarget = methodMarkers[markerKey];
+            if (markerTarget && knownGlobals.has(markerTarget)) {
                 freeGlobals.add(markerTarget);
             }
         },
@@ -282,8 +321,8 @@ export function detectFreeGlobals(code: string): Set<string> {
             if (!node.id) return;
             const jsName = wbgJsNameFor(node.id.name);
             if (!jsName) return;
-            const target = WASM_BINDGEN_MARKERS[jsName];
-            if (target && KNOWN_GLOBALS.has(target)) {
+            const target = wasmMarkers[jsName];
+            if (target && knownGlobals.has(target)) {
                 freeGlobals.add(target);
             }
         },
@@ -291,7 +330,7 @@ export function detectFreeGlobals(code: string): Set<string> {
             const name = node.name;
 
             // Quick filter: only check known globals
-            if (!KNOWN_GLOBALS.has(name)) return;
+            if (!knownGlobals.has(name)) return;
 
             // Skip if locally declared
             if (declaredNames.has(name)) return;
@@ -384,4 +423,60 @@ export function detectFreeGlobals(code: string): Set<string> {
     });
 
     return freeGlobals;
+}
+
+/**
+ * Parse bundled JS output and return the set of free (unbound) identifiers that
+ * match the known web/Node GJS globals from `GJS_GLOBALS_MAP`. Drives the
+ * `--app gjs --globals auto` injection. See `scanFreeGlobals` for the rules.
+ */
+export function detectFreeGlobals(code: string): Set<string> {
+    return scanFreeGlobals(code, {
+        knownGlobals: KNOWN_GLOBALS,
+        methodMarkers: METHOD_MARKERS,
+        wasmMarkers: WASM_BINDGEN_MARKERS,
+    });
+}
+
+/**
+ * The GJS ambient globals that exist implicitly under gjs but not on Node:
+ * `print`/`printerr`/`log`/`logError`, the `ARGV` array, and the legacy
+ * `imports` object (`imports.gi.Gtk`, `imports.system`, `imports.gettext`).
+ * `@gjsify/node-gi/globals` seeds these on `globalThis` when imported.
+ *
+ * This is the REVERSE of `GJS_GLOBALS_MAP` (which maps Node/Web globals onto
+ * GJS): it's the set the `--app node` target injects the node-gi globals shim
+ * for. Kept here next to the detector so the two never drift.
+ */
+export const GJS_AMBIENT_GLOBALS: ReadonlySet<string> = new Set([
+    'print',
+    'printerr',
+    'log',
+    'logError',
+    'ARGV',
+    'imports',
+]);
+
+/**
+ * Detect references to the GJS ambient globals (`GJS_AMBIENT_GLOBALS`) in a
+ * bundled `--app node` chunk — the signal that the bundle needs
+ * `@gjsify/node-gi/globals` injected.
+ *
+ * Runs on the bundled output AFTER tree-shaking (same property the GJS path
+ * relies on), so a `print`/`imports` reference behind a statically-dead branch
+ * does not trigger injection. Detects only BARE free identifiers — the genuine
+ * GJS-source shape (`print(...)`, `imports.gi.Gtk`). The `globalThis.imports` /
+ * `globalThis.print` host-member form is the cross-platform isomorphic-GUARD
+ * shape (`if (typeof globalThis.imports !== 'undefined') { … }`) and is
+ * deliberately ignored: injecting `@gjsify/node-gi/globals` for it would break
+ * plain-Node loadability of a package that merely gates GJS usage (the bare
+ * external import is unresolvable without node-gi; the shim eagerly loads the
+ * native addon). Pure `typeof imports` probes are deferred too. See
+ * `ignoreHostMembers`.
+ */
+export function detectGjsAmbientGlobals(code: string): Set<string> {
+    return scanFreeGlobals(code, {
+        knownGlobals: GJS_AMBIENT_GLOBALS,
+        ignoreHostMembers: true,
+    });
 }
