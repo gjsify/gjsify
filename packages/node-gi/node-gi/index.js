@@ -106,6 +106,18 @@ export const callFunction = native.callFunction;
 export const callMethod = native.callMethod;
 
 /**
+ * Invoke a type-level constructor/static function (e.g. `Gio.File.new_for_path`,
+ * `Gtk.Label.new`) — a function found on a type but taking no instance. The Node
+ * twin of `Ns.Class.method(...)`.
+ * @param {string} namespace e.g. "Gio"
+ * @param {string} typeName e.g. "File"
+ * @param {string} methodName e.g. "new_for_path"
+ * @param {unknown[]} [args]
+ * @returns {unknown}
+ */
+export const callStaticMethod = native.callStaticMethod;
+
+/**
  * Construct a GObject of `namespace.typeName` with optional construct/settable
  * properties, returning an opaque handle owned by node-gi (released on GC).
  * @param {string} namespace e.g. "Gio"

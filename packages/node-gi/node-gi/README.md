@@ -21,11 +21,12 @@ on both GJS and Node via `gjsify build --app {gjs,node}`.
 > GJS-compatibility layer** (`@gjsify/node-gi/gi`, `requireGi`) surfaces a
 > GJS-shaped namespace: `new Gio.SimpleAction({ name })`, `action.name` property
 > access, `action.get_name()` methods, `.connect()/.emit()/.disconnect()`, and
-> enums / flags / constants (`Gio.BusType.SESSION`, `GLib.PRIORITY_DEFAULT`).
-> Custom properties/signals on a subclass, `registerClass` vfunc overrides +
-> chain-up (with the toggle-ref GC bridge), structs/boxed + interface static
-> methods, the libuv↔GLib mainloop bridge and the gjsify `--app node` bundler
-> integration land in subsequent drops.
+> enums / flags / constants (`Gio.BusType.SESSION`, `GLib.PRIORITY_DEFAULT`);
+> constructor/static methods (`Gio.File.new_for_path(...)`); and both snake_case
+> and camelCase accessors. Custom properties/signals on a subclass,
+> `registerClass` vfunc overrides + chain-up (with the toggle-ref GC bridge),
+> structs/boxed, the libuv↔GLib mainloop bridge and the gjsify `--app node`
+> bundler integration land in subsequent drops.
 
 ## Provenance
 
@@ -115,6 +116,11 @@ c.cancel();                        // fires the signal
 console.log(GLib.PRIORITY_DEFAULT);        // 0
 console.log(Gio.BusType.SESSION);          // 2
 console.log(Gio.ApplicationFlags.HANDLES_OPEN);  // 4
+
+// constructor/static methods + camelCase aliases
+const file = Gio.File.new_for_path('/usr/bin/gjs');
+console.log(file.get_path());      // '/usr/bin/gjs'
+console.log(file.getBasename());   // 'gjs'  (camelCase alias)
 ```
 
 The GJS-compatible surface (`import GLib from 'gi://GLib?version=2.0'`,

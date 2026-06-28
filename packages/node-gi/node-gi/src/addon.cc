@@ -899,6 +899,26 @@ Napi::Value CallMethod(const Napi::CallbackInfo& info) {
     objInfo = parent;
   }
   if (objInfo != nullptr) gi_base_info_unref(objInfo);
+
+  // The concrete GType may implement introspectable interfaces that its nearest
+  // introspectable ANCESTOR's info does not list — e.g. a private GLocalFile
+  // (no info; ancestor = GObject) implementing GFile. Scan the live GType's
+  // interface list directly so interface methods (g_file_get_path) resolve.
+  if (func == nullptr) {
+    unsigned int n_ifaces = 0;
+    GType* ifaces = g_type_interfaces(gtype, &n_ifaces);
+    for (unsigned int i = 0; i < n_ifaces && func == nullptr; i++) {
+      GIBaseInfo* ii = gi_repository_find_by_gtype(repo, ifaces[i]);
+      if (ii != nullptr) {
+        if (GI_IS_INTERFACE_INFO(ii)) {
+          func = gi_interface_info_find_method(reinterpret_cast<GIInterfaceInfo*>(ii),
+                                               method.c_str());
+        }
+        gi_base_info_unref(ii);
+      }
+    }
+    g_free(ifaces);
+  }
   g_object_unref(repo);
 
   if (func == nullptr) {
@@ -915,6 +935,60 @@ Napi::Value CallMethod(const Napi::CallbackInfo& info) {
   Napi::Value result =
       InvokeFunctionInfo(env, func, obj, args, std::string(G_OBJECT_TYPE_NAME(obj)) + "." + method);
   gi_base_info_unref(func);
+  return result;
+}
+
+// callStaticMethod(namespace, typeName, methodName, args?) -> unknown
+// Invoke a type-level constructor/static function (e.g. Gio.File.new_for_path,
+// Gtk.Label.new) — a function found ON a type but taking no instance. The Node
+// twin of `Ns.Class.method(...)`.
+Napi::Value CallStaticMethod(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 3 || !info[0].IsString() || !info[1].IsString() || !info[2].IsString()) {
+    Napi::TypeError::New(
+        env, "callStaticMethod(namespace: string, typeName: string, methodName: string, args?: unknown[])")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string ns = info[0].As<Napi::String>().Utf8Value();
+  std::string tn = info[1].As<Napi::String>().Utf8Value();
+  std::string method = info[2].As<Napi::String>().Utf8Value();
+  Napi::Array args = (info.Length() >= 4 && info[3].IsArray()) ? info[3].As<Napi::Array>()
+                                                              : Napi::Array::New(env, 0);
+
+  GIRepository* repo = DupDefaultRepository();
+  GIBaseInfo* typeInfo = gi_repository_find_by_name(repo, ns.c_str(), tn.c_str());
+  if (typeInfo == nullptr) {
+    g_object_unref(repo);
+    Napi::Error::New(env, "no such type: " + ns + "." + tn).ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GIFunctionInfo* func = nullptr;
+  if (GI_IS_OBJECT_INFO(typeInfo)) {
+    func = gi_object_info_find_method(reinterpret_cast<GIObjectInfo*>(typeInfo), method.c_str());
+  } else if (GI_IS_INTERFACE_INFO(typeInfo)) {
+    func = gi_interface_info_find_method(reinterpret_cast<GIInterfaceInfo*>(typeInfo), method.c_str());
+  } else if (GI_IS_STRUCT_INFO(typeInfo)) {
+    func = gi_struct_info_find_method(reinterpret_cast<GIStructInfo*>(typeInfo), method.c_str());
+  }
+  gi_base_info_unref(typeInfo);
+  if (func == nullptr) {
+    g_object_unref(repo);
+    Napi::Error::New(env, "no static method '" + method + "' on " + ns + "." + tn)
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  if (gi_callable_info_is_method(reinterpret_cast<GICallableInfo*>(func))) {
+    gi_base_info_unref(func);
+    g_object_unref(repo);
+    Napi::TypeError::New(env, ns + "." + tn + "." + method +
+                                  " is an instance method — call it on an instance")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  Napi::Value result = InvokeFunctionInfo(env, func, nullptr, args, ns + "." + tn + "." + method);
+  gi_base_info_unref(func);
+  g_object_unref(repo);
   return result;
 }
 
@@ -1091,6 +1165,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("prependSearchPath", Napi::Function::New(env, PrependSearchPath));
   exports.Set("callFunction", Napi::Function::New(env, CallFunction));
   exports.Set("callMethod", Napi::Function::New(env, CallMethod));
+  exports.Set("callStaticMethod", Napi::Function::New(env, CallStaticMethod));
   exports.Set("newObject", Napi::Function::New(env, NewObject));
   exports.Set("registerClass", Napi::Function::New(env, RegisterClass));
   exports.Set("constructType", Napi::Function::New(env, ConstructType));
