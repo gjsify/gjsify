@@ -32,10 +32,14 @@ on both GJS and Node via `gjsify build --app {gjs,node}`.
 > `.run()`/`.quit()`). **JS functions marshal as GI callbacks** via an ffi
 > closure (`GLib.timeout_add`/`idle_add` fire from the loop, the boolean return
 > drives source continuation; the hidden user_data/destroy slots are auto-filled).
-> The gjsify `--app node` bundler integration already rewrites `gi://` onto the L1
-> layer. `registerClass` vfunc overrides + chain-up
-> (with the toggle-ref GC bridge) and general struct field access land in
-> subsequent drops.
+> register GObject subclasses (subtype + construct-by-type, inheriting the
+> parent's properties/methods, plus **custom properties + signals**, plus
+> **vfunc overrides** — a JS function overriding a parent GObject vfunc, hooked
+> into the new type's class vtable). The gjsify `--app node` bundler integration
+> already rewrites `gi://` onto the L1 layer. vfunc **chain-up** to the parent
+> implementation (with the toggle-ref GC bridge) and general struct field access
+> land in subsequent drops — for now a vfunc override fully replaces the inherited
+> implementation.
 
 ## Provenance
 
@@ -117,6 +121,26 @@ connectSignal(c, 'changed', (n) => console.log('count is now', n));
 setProperty(c, 'count', 5);          // fires notify::count
 emitSignal(c, 'changed', [5]);
 console.log(getProperty(c, 'count')); // 5
+```
+
+Override a parent GObject vfunc with a JS function (the override runs as a method
+on the instance — `this` is the GObject handle). Chain-up to the parent vfunc
+lands in a later drop, so an override fully replaces the inherited implementation:
+
+```js
+import { registerClass, constructType, getProperty } from '@gjsify/node-gi';
+
+const Greeter = registerClass('Greeter', 'Gio', 'SimpleAction', {
+  vfuncs: {
+    // GObject's `constructed` vfunc — runs once, after construct properties are
+    // set. `name` is a CONSTRUCT_ONLY property already available on `this`.
+    constructed() {
+      console.log('constructed:', getProperty(this, 'name'));
+    },
+  },
+});
+
+constructType(Greeter, { name: 'greet' }); // logs "constructed: greet"
 ```
 
 ### L1 — GJS-shaped surface (`@gjsify/node-gi/gi`)

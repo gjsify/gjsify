@@ -131,13 +131,16 @@ export const newObject = native.newObject;
  * Register a new GObject subclass of `parentNamespace.parentTypeName` named
  * `name`, inheriting the parent's class/instance layout, and return an opaque
  * type handle. Construct instances of it with {@link constructType}. The optional
- * `options` installs custom properties (backed by a per-instance value store) and
- * signals in the new type's `class_init`; vfunc overrides land in a later
- * milestone — the Node twin of (the engine half of) GJS's `GObject.registerClass`.
+ * `options` installs custom properties (backed by a per-instance value store),
+ * signals, and vfunc overrides in the new type's `class_init` — the Node twin of
+ * (the engine half of) GJS's `GObject.registerClass`. A `vfuncs` entry maps a
+ * parent vfunc name (e.g. `constructed`) to a JS function that overrides it; the
+ * override runs as a method on the instance (`this` is the GObject handle). vfunc
+ * chain-up to the parent implementation lands in a later milestone.
  * @param {string} name unique GType name, e.g. "MyAction"
  * @param {string} parentNamespace e.g. "Gio"
  * @param {string} parentTypeName e.g. "SimpleAction"
- * @param {{ properties?: Array<{name:string,type:string,flags?:number,default?:unknown,minimum?:number,maximum?:number}>, signals?: Array<{name:string,paramTypes?:string[],returnType?:string,flags?:number}> }} [options]
+ * @param {{ properties?: Array<{name:string,type:string,flags?:number,default?:unknown,minimum?:number,maximum?:number}>, signals?: Array<{name:string,paramTypes?:string[],returnType?:string,flags?:number}>, vfuncs?: Record<string, (...args: unknown[]) => unknown> }} [options]
  * @returns {unknown} opaque type handle
  */
 export const registerClass = native.registerClass;

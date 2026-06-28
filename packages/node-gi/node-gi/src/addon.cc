@@ -1070,11 +1070,105 @@ struct NodeGiSignalDef {
   GSignalFlags flags;
 };
 
+// ---- registerClass vfunc overrides (class-level refs; no toggle-ref) ----
+//
+// A registered subclass can override a parent GObject vfunc with a JS function.
+// Each override is held by a per-CLASS record carrying a STRONG napi_ref to the
+// JS impl plus the ffi closure written into the class vtable. Both live for the
+// class lifetime and are NEVER freed — a GType is process-permanent, so this is
+// the same ownership model as the signal class-handler, NOT a per-instance cycle:
+// no toggle-ref / instance-GC bridge is needed (that lands in a later drop).
+//
+// In class_init the vfunc info is resolved by walking the parent object-info
+// chain (gi_object_info_find_vfunc), the vtable slot is located via the matching
+// class-struct FIELD offset (gi_vfunc_info_get_offset is GI_UNKNOWN/0xFFFF for
+// GObject's own vfuncs, so the GJS field-offset approach is authoritative), and
+// the closure's native address is written into the class struct at that offset.
+struct NodeGiVFunc {
+  napi_env env;
+  std::string name;
+  napi_ref fn;           // strong ref to the JS impl (class lifetime; never freed)
+  GIVFuncInfo* info;     // resolved vfunc info (owned; kept alive for the closure)
+  ffi_cif cif;           // stable storage for the closure's cif
+  ffi_closure* closure;  // ffi closure (class lifetime; never freed)
+};
+
+// The ffi closure entry point invoked when C calls the overridden vfunc. For a
+// method vfunc the ffi args are [instance, declared-arg-0, declared-arg-1, ...];
+// the instance is passed as the JS receiver (`this`, GJS-faithful: vfunc impls
+// are methods on the instance) and the declared args become the JS arguments.
+// The return is marshalled into `result` exactly like NodeGiCallbackTrampoline.
+static void NodeGiVFuncTrampoline(ffi_cif* /*cif*/, void* result, void** args,
+                                  gpointer user_data) {
+  NodeGiVFunc* vf = static_cast<NodeGiVFunc*>(user_data);
+  napi_env env = vf->env;
+  Napi::Env napiEnv(env);
+  Napi::HandleScope scope(napiEnv);
+
+  GICallableInfo* ci = reinterpret_cast<GICallableInfo*>(vf->info);
+  // args[0] is the instance; declared args follow at args[1..].
+  Napi::Value recv = WrapGObject(
+      napiEnv, static_cast<GObject*>(static_cast<GIArgument*>(args[0])->v_pointer),
+      GI_TRANSFER_NOTHING);
+
+  unsigned int n = gi_callable_info_get_n_args(ci);
+  std::vector<napi_value> jsArgs;
+  jsArgs.reserve(n);
+  bool ok = true;
+  for (unsigned int i = 0; i < n; i++) {
+    GIArgInfo* ai = gi_callable_info_get_arg(ci, i);
+    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
+    Napi::Value v =
+        GIArgumentToJs(napiEnv, ti, static_cast<GIArgument*>(args[i + 1]), GI_TRANSFER_NOTHING);
+    gi_base_info_unref(ti);
+    gi_base_info_unref(ai);
+    if (napiEnv.IsExceptionPending()) {
+      ok = false;
+      break;
+    }
+    jsArgs.push_back(v);
+  }
+
+  // Zero the result slot first (it is >= ffi_arg wide; narrow returns leave the
+  // upper bytes indeterminate otherwise).
+  if (result != nullptr) static_cast<GIArgument*>(result)->v_uint64 = 0;
+
+  GITypeInfo* retType = gi_callable_info_get_return_type(ci);
+  if (ok) {
+    napi_value fn = nullptr;
+    if (napi_get_reference_value(env, vf->fn, &fn) == napi_ok && fn != nullptr) {
+      napi_value ret = nullptr;
+      // napi_make_callback drains nextTick/microtasks around the call; the
+      // wrapped instance is the receiver (`this`).
+      napi_status st =
+          napi_make_callback(env, nullptr, recv, fn, jsArgs.size(), jsArgs.data(), &ret);
+      if (st == napi_ok && result != nullptr) {
+        GITypeTag rtag = gi_type_info_get_tag(retType);
+        if (rtag == GI_TYPE_TAG_UTF8 || rtag == GI_TYPE_TAG_FILENAME) {
+          // Hand the caller an owned copy — a JsToGIArgument string would point
+          // into a std::string that dies with this frame.
+          Napi::Value rv(env, ret);
+          static_cast<GIArgument*>(result)->v_string =
+              rv.IsString() ? g_strdup(rv.As<Napi::String>().Utf8Value().c_str()) : nullptr;
+        } else if (rtag != GI_TYPE_TAG_VOID) {
+          std::string held;
+          JsToGIArgument(napiEnv, Napi::Value(env, ret), retType, static_cast<GIArgument*>(result),
+                         &held);
+        }
+      }
+    }
+  }
+  gi_base_info_unref(retType);
+  // A pending JS exception surfaces at the next N-API boundary (e.g. when the
+  // constructType / method call that triggered this vfunc returns).
+}
+
 // Per-registered-type metadata, passed as GTypeInfo.class_data → class_init.
 // Heap-allocated and intentionally never freed (a GType is process-permanent).
 struct NodeGiClassData {
   std::vector<GParamSpec*> properties;  // ownership transfers to the class on install
   std::vector<NodeGiSignalDef> signals;
+  std::vector<NodeGiVFunc*> vfuncs;  // class-lifetime vfunc overrides (never freed)
   void (*parentGet)(GObject*, guint, GValue*, GParamSpec*);
   void (*parentSet)(GObject*, guint, const GValue*, GParamSpec*);
 };
@@ -1163,6 +1257,75 @@ static void NodeGiClassInit(gpointer g_class, gpointer class_data) {
                   nullptr, s.returnType, static_cast<guint>(s.paramTypes.size()),
                   s.paramTypes.empty() ? nullptr : const_cast<GType*>(s.paramTypes.data()));
   }
+
+  if (!cd->vfuncs.empty()) {
+    GType newType = G_TYPE_FROM_CLASS(g_class);
+    GType parentType = g_type_parent(newType);
+    GIRepository* repo = gi_repository_dup_default();
+    for (NodeGiVFunc* vf : cd->vfuncs) {
+      // Resolve the vfunc info by walking the parent object-info chain; the
+      // declarer's class struct holds the vtable slot we write into.
+      GIVFuncInfo* vi = nullptr;
+      GIObjectInfo* declarer = nullptr;
+      for (GType t = parentType; t != 0 && vi == nullptr; t = g_type_parent(t)) {
+        GIBaseInfo* bi = gi_repository_find_by_gtype(repo, t);
+        if (bi != nullptr) {
+          if (GI_IS_OBJECT_INFO(bi)) {
+            vi = gi_object_info_find_vfunc(reinterpret_cast<GIObjectInfo*>(bi), vf->name.c_str());
+            if (vi != nullptr)
+              declarer = reinterpret_cast<GIObjectInfo*>(gi_base_info_ref(bi));
+          }
+          gi_base_info_unref(bi);
+        }
+      }
+      if (vi == nullptr) {
+        g_warning("node-gi: registerClass vfunc '%s' not found on any ancestor of %s",
+                  vf->name.c_str(), g_type_name(newType));
+        continue;
+      }
+
+      // Locate the vtable slot. gi_vfunc_info_get_offset is GI_UNKNOWN (0xFFFF)
+      // for GObject's own vfuncs, so match the vfunc name to a class-struct field
+      // and use that field's offset (the GJS approach); fall back to the recorded
+      // offset only when the field lookup fails.
+      int offset = -1;
+      GIStructInfo* cs = gi_object_info_get_class_struct(declarer);
+      if (cs != nullptr) {
+        unsigned int nf = gi_struct_info_get_n_fields(cs);
+        for (unsigned int fi = 0; fi < nf && offset < 0; fi++) {
+          GIFieldInfo* f = gi_struct_info_get_field(cs, fi);
+          const char* fn = gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(f));
+          if (fn != nullptr && vf->name == fn) offset = gi_field_info_get_offset(f);
+          gi_base_info_unref(reinterpret_cast<GIBaseInfo*>(f));
+        }
+        gi_base_info_unref(reinterpret_cast<GIBaseInfo*>(cs));
+      }
+      if (offset < 0) {
+        size_t off = gi_vfunc_info_get_offset(vi);
+        if (off != 0 && off != 0xFFFF) offset = static_cast<int>(off);
+      }
+      if (offset < 0) {
+        g_warning("node-gi: could not resolve a vtable slot for vfunc '%s' on %s",
+                  vf->name.c_str(), g_type_name(newType));
+        gi_base_info_unref(reinterpret_cast<GIBaseInfo*>(vi));
+        gi_base_info_unref(reinterpret_cast<GIBaseInfo*>(declarer));
+        continue;
+      }
+
+      // Create the ffi closure and write its native address into the class vtable.
+      // The vfunc info + closure + cif are kept alive for the class lifetime.
+      vf->info = vi;  // retained (kept alive); never unref'd — class is permanent
+      vf->closure = gi_callable_info_create_closure(reinterpret_cast<GICallableInfo*>(vi), &vf->cif,
+                                                    NodeGiVFuncTrampoline, vf);
+      gpointer native =
+          gi_callable_info_get_closure_native_address(reinterpret_cast<GICallableInfo*>(vi),
+                                                      vf->closure);
+      if (native == nullptr) native = vf->closure;
+      *reinterpret_cast<gpointer*>(reinterpret_cast<guint8*>(g_class) + offset) = native;
+      gi_base_info_unref(reinterpret_cast<GIBaseInfo*>(declarer));
+    }
+    g_object_unref(repo);
+  }
 }
 
 // registerClass(name, parentNamespace, parentTypeName, options?) -> typeHandle
@@ -1172,7 +1335,7 @@ Napi::Value RegisterClass(const Napi::CallbackInfo& info) {
     Napi::TypeError::New(
         env,
         "registerClass(name: string, parentNamespace: string, parentTypeName: string, options?: "
-        "{ properties?, signals? })")
+        "{ properties?, signals?, vfuncs? })")
         .ThrowAsJavaScriptException();
     return env.Null();
   }
@@ -1261,6 +1424,25 @@ Napi::Value RegisterClass(const Napi::CallbackInfo& info) {
         cd->signals.push_back(sd);
       }
     }
+    // vfuncs: an object { "<vfunc-name>": <jsFunction>, ... }. Each holds a strong
+    // napi_ref for the class lifetime (resolved + hooked up in class_init).
+    if (opts.Has("vfuncs") && opts.Get("vfuncs").IsObject()) {
+      Napi::Object vf = opts.Get("vfuncs").As<Napi::Object>();
+      Napi::Array keys = vf.GetPropertyNames();
+      for (uint32_t i = 0; i < keys.Length(); i++) {
+        std::string vname = keys.Get(i).ToString().Utf8Value();
+        Napi::Value fnv = vf.Get(vname);
+        if (!fnv.IsFunction()) continue;
+        NodeGiVFunc* rec = new NodeGiVFunc();
+        rec->env = env;
+        rec->name = vname;
+        rec->info = nullptr;
+        rec->closure = nullptr;
+        rec->fn = nullptr;
+        napi_create_reference(env, fnv, 1, &rec->fn);
+        cd->vfuncs.push_back(rec);
+      }
+    }
   }
 
   GTypeInfo typeInfo = {};
@@ -1273,6 +1455,10 @@ Napi::Value RegisterClass(const Napi::CallbackInfo& info) {
 
   GType newType = g_type_register_static(parentType, name.c_str(), &typeInfo, (GTypeFlags)0);
   if (newType == 0) {
+    for (NodeGiVFunc* vf : cd->vfuncs) {
+      if (vf->fn != nullptr) napi_delete_reference(env, vf->fn);
+      delete vf;
+    }
     delete cd;
     Napi::Error::New(env, "g_type_register_static failed for '" + name + "'")
         .ThrowAsJavaScriptException();
