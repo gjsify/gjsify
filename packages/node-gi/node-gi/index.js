@@ -218,6 +218,47 @@ export const callBoxedMethod = native.callBoxedMethod;
 export const isBoxedHandle = native.isBoxedHandle;
 
 /**
+ * Build a GVariant from a GVariant type signature + JS value, returning an owned
+ * boxed GLib.Variant handle (the floating ref is sunk; released on GC). The
+ * recursive native packer behind `new GLib.Variant(signature, value)`. Supports
+ * the basics `b y n q i u x t h d s o g`, `v`, `m*` maybe, `a*` arrays (incl.
+ * `as`, `ay`, `a{..}` dicts), `(...)` tuples and `{kv}` dict-entries.
+ * @param {string} signature a GVariant type string, e.g. "a{sv}", "(si)", "s"
+ * @param {unknown} [value]
+ * @returns {unknown} boxed GLib.Variant handle
+ */
+export const variantNew = native.variantNew;
+
+/**
+ * Unpack a GLib.Variant handle to a JS value. `deep` unpacks container children
+ * (one level for nested `v` variants, which stay Variants unless `recursive`);
+ * `recursive` additionally unwraps nested `v` variants to plain JS. Drives the
+ * L1 `.unpack()` (deep=false), `.deepUnpack()` (deep=true) and
+ * `.recursiveUnpack()` (deep=true, recursive=true).
+ * @param {unknown} handle a handle from {@link variantNew} (or a returned Variant)
+ * @param {boolean} [deep]
+ * @param {boolean} [recursive]
+ * @returns {unknown}
+ */
+export const variantUnpack = native.variantUnpack;
+
+/**
+ * The GVariant type string of a GLib.Variant handle (e.g. "a{sv}").
+ * @param {unknown} handle
+ * @returns {string}
+ */
+export const variantGetTypeString = native.variantGetTypeString;
+
+/**
+ * Whether `value` is one of node-gi's GLib.Variant handles (a boxed handle
+ * tagged with the GVariant GType; tag-checked, no dereference). The L1 wrapper
+ * uses it to give returned/unpacked variants the GLib.Variant ergonomics.
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+export const isVariantHandle = native.isVariantHandle;
+
+/**
  * Attach the libuv-backed GSource to the default GLib main context so a blocking
  * GLib main loop (`GLib.MainLoop.run()`, `Gio.Application.run()`) keeps Node's
  * timers, promises and I/O alive — the Node twin of GJS running the GLib loop as
