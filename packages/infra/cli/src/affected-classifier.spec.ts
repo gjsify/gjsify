@@ -138,6 +138,33 @@ export default async (): Promise<void> => {
             expect(r.skipAll).toBe(false);
         });
 
+        await it('packages/node-gi change → skipAll (own node-gi.yml, not a workspace)', async () => {
+            // node-gi is not a gjsify workspace; its own workflow builds + tests
+            // it. Its files are ignored so a node-gi-only PR skips the main run.
+            const r = await runClassify(root, [
+                'packages/node-gi/node-gi/src/addon.cc',
+                'packages/node-gi/node-gi/index.js',
+                'packages/node-gi/node-gi/test/callbacks.test.mjs',
+            ]);
+            expect(r.skipAll).toBe(true);
+            expect(r.global).toBe(false);
+        });
+
+        await it('node-gi.yml workflow change → ignored (its own workflow)', async () => {
+            const r = await runClassify(root, ['.github/workflows/node-gi.yml']);
+            expect(r.skipAll).toBe(true);
+            expect(r.global).toBe(false);
+        });
+
+        await it('node-gi alongside a real src change → node-gi ignored, no full run', async () => {
+            const r = await runClassify(root, [
+                'packages/node-gi/node-gi/src/addon.cc',
+                'packages/node/fs/src/index.ts',
+            ]);
+            expect(r.global).toBe(false);
+            expect(r.skipAll).toBe(false);
+        });
+
         await it('docs inside a global-trigger dir → skipAll (ignore wins over global)', async () => {
             // A README in a GLOBAL_TRIGGERS path (packages/infra/cli/,
             // workspace/, …) must NOT force a full run — IGNORE is applied
