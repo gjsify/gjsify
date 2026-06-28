@@ -1,0 +1,39 @@
+{
+  "name": "@gjsify/example-node-gi-dual",
+  "description": "One source, two runtimes — the same gi:// GObject-Introspection program built and run on both GJS and Node.js via @gjsify/node-gi.",
+  "version": "0.13.0",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "gjsify": {
+    "runtimes": {
+      "gjs": "polyfill",
+      "node": "none",
+      "browser": "none",
+      "nativescript": "none"
+    }
+  },
+  "scripts": {
+    "build": "npm run build:gjs && npm run build:node",
+    "build:gjs": "gjsify build src/app.ts --app gjs --outfile dist/app.gjs.mjs",
+    "build:node": "gjsify build src/app.ts --app node --outfile dist/app.node.mjs",
+    "start:gjs": "gjs -m dist/app.gjs.mjs",
+    "start:node": "node dist/app.node.mjs",
+    "test": "node --test dual.e2e.mjs",
+    "clear": "rm -rf dist"
+  },
+  "dependencies": {
+    "@gjsify/node-gi": "file:../node-gi"
+  },
+  "devDependencies": {
+    "@gjsify/cli": "^0.13.0",
+    "@girs/gjs": "4.0.4",
+    "@girs/glib-2.0": "2.88.0-4.0.4",
+    "@girs/gobject-2.0": "2.88.0-4.0.4",
+    "@girs/gio-2.0": "2.88.0-4.0.4"
+  },
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT"
+}
