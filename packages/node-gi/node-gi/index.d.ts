@@ -131,19 +131,31 @@ export interface SignalSpec {
   flags?: number;
 }
 
-/** Custom properties + signals installed on a {@link registerClass} subtype. */
+/**
+ * Custom vfunc overrides for a {@link registerClass} subtype: a map from a parent
+ * GObject vfunc name (e.g. `"constructed"`) to the JS function that overrides it.
+ * The override is invoked as a method on the instance — `this` is the GObject
+ * handle — with the vfunc's declared arguments as JS arguments, and its return is
+ * marshalled back to C. Chain-up to the parent vfunc lands in a later milestone,
+ * so an override fully replaces the inherited implementation.
+ */
+export type VFuncMap = Record<string, (this: GObjectHandle, ...args: unknown[]) => unknown>;
+
+/** Custom properties, signals + vfunc overrides installed on a {@link registerClass} subtype. */
 export interface RegisterClassOptions {
   properties?: PropertySpec[];
   signals?: SignalSpec[];
+  vfuncs?: VFuncMap;
 }
 
 /**
  * Register a new GObject subclass of `parentNamespace.parentTypeName` named
  * `name`, inheriting the parent's class/instance layout, and return an opaque
  * type handle. `options` installs custom properties (backed by a per-instance
- * value store) and signals in the new type's `class_init`. vfunc overrides land
- * in a later milestone — the Node twin of (the engine half of) GJS's
- * `GObject.registerClass`.
+ * value store), signals, and vfunc overrides (an ffi closure written into the new
+ * type's class vtable) in the new type's `class_init` — the Node twin of (the
+ * engine half of) GJS's `GObject.registerClass`. vfunc chain-up to the parent
+ * implementation lands in a later milestone.
  */
 export function registerClass(
   name: string,
