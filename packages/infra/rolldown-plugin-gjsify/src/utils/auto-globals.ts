@@ -54,7 +54,7 @@ const defaultBundler: AnalysisBundler = async ({ rolldownInput, format }) => {
         await build.close();
     }
 };
-import { detectFreeGlobals } from './detect-free-globals.js';
+import { detectFreeGlobals, detectGjsAmbientGlobals } from './detect-free-globals.js';
 import {
     resolveGlobalsList,
     writeRegisterInjectFile,
@@ -552,6 +552,75 @@ export async function detectAutoGlobals(
         console.debug(`[gjsify] --globals auto: hit max iterations (${MAX_ITERATIONS}), using last detected set`);
     }
     return applyExcludeGlobals(detected, currentInject, extraRegisterPaths, options.excludeGlobals, cwd);
+}
+
+/**
+ * `--app node` GJS-ambient-globals detection (the reverse of `--globals auto`).
+ *
+ * Runs ONE in-memory node bundle (no injection) and scans each chunk for the
+ * GJS ambient globals (`print`/`printerr`/`log`/`logError`/`ARGV`/`imports`)
+ * that `@gjsify/node-gi/globals` seeds. Returns `true` iff any is referenced in
+ * the bundled, tree-shaken output — the signal the CLI uses to flip
+ * `pluginOptions.nodeGiGlobalsInject` for the final build.
+ *
+ * A SINGLE pass suffices (unlike the GJS register-injection loop): the shim is
+ * EXTERNAL, so injecting it adds no bundled code that could reference more
+ * globals — there is no tree-shaking dependency cycle to converge.
+ *
+ * Critically, detection is on the bundled output AFTER tree-shaking, so a
+ * `print`/`imports` reference behind statically-dead code does not trigger
+ * injection — importing the shim eagerly loads the native node-gi addon, which
+ * crashes on plain Node without node-gi. See `detectGjsAmbientGlobals`.
+ */
+export async function detectNodeGiGlobals(
+    analysisOptions: AnalysisOptions,
+    pluginOptions: Omit<PluginOptions, 'nodeGiGlobalsInject'>,
+    gjsifyPluginFactory: GjsifyPluginFactory,
+    bundler: AnalysisBundler = defaultBundler,
+): Promise<boolean> {
+    const factoryResult = await gjsifyPluginFactory(pluginOptions as PluginOptions);
+
+    let gjsifyInstance: RolldownPluginOption;
+    let orchestratorOptions: InputOptions | undefined;
+    if (isFullConfig(factoryResult)) {
+        orchestratorOptions = factoryResult.options;
+        gjsifyInstance = factoryResult.plugins as unknown as RolldownPluginOption;
+    } else {
+        gjsifyInstance = factoryResult;
+    }
+
+    const callerPlugins = (analysisOptions.plugins ?? []).filter((p) => {
+        const name = p && typeof p === 'object' && 'name' in p ? p.name : undefined;
+        return name !== 'gjsify' && name !== 'gjsify-orchestrator';
+    });
+
+    // Reuse the orchestrator's resolve/external/transform/treeshake so the
+    // analysis bundle goes through the same module resolution as the final
+    // build (otherwise native-rolldown and npm-rolldown can diverge).
+    const mergedResolve = analysisOptions.resolve ?? orchestratorOptions?.resolve;
+    const mergedExternal = analysisOptions.external ?? orchestratorOptions?.external;
+    const mergedTransform = analysisOptions.transform ?? orchestratorOptions?.transform;
+    const orchTreeshake = (orchestratorOptions as { treeshake?: unknown } | undefined)?.treeshake;
+
+    const gjsifyPluginsArray = Array.isArray(gjsifyInstance) ? gjsifyInstance : [gjsifyInstance];
+
+    const chunkCodes = await bundler({
+        rolldownInput: {
+            input: analysisOptions.input,
+            external: mergedExternal,
+            resolve: mergedResolve,
+            transform: mergedTransform,
+            plugins: [...callerPlugins, ...gjsifyPluginsArray],
+            logLevel: 'silent',
+            ...(orchTreeshake !== undefined ? { treeshake: orchTreeshake } : {}),
+        } as InputOptions,
+        format: analysisOptions.format ?? 'esm',
+    });
+
+    for (const code of chunkCodes) {
+        if (detectGjsAmbientGlobals(code).size > 0) return true;
+    }
+    return false;
 }
 
 /**

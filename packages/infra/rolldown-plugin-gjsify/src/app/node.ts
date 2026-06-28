@@ -18,6 +18,15 @@ import { nodeModulesPathRewritePlugin, getBundleDirFromOutput } from '../plugins
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import { gjsGiNodePlugin } from '../plugins/gjs-gi-node.js';
+import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
+
+/**
+ * Side-effect specifier the node target injects when GJS ambient globals
+ * (`print`/`imports`/…) are detected in the bundled output. Importing it seeds
+ * those globals on `globalThis` via the node-gi backend. Kept EXTERNAL (see the
+ * external set below) — it loads the native addon and must never be bundled.
+ */
+const NODE_GI_GLOBALS_SPECIFIER = '@gjsify/node-gi/globals';
 
 export interface NodeBuildConfig {
     options: RolldownOptions;
@@ -58,6 +67,10 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         'node-datachannel',
         '@gjsify/node-gi',
         '@gjsify/node-gi/gi',
+        // The GJS-ambient-globals shim (auto-injected below when `print`/
+        // `imports`/… are referenced). Like `@gjsify/node-gi/gi` it loads the
+        // native addon and must resolve at runtime, never be bundled.
+        NODE_GI_GLOBALS_SPECIFIER,
         ...userExternal,
     ];
     const external = (id: string): boolean => {
@@ -69,6 +82,19 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
 
     const exclude = input.pluginOptions.exclude ?? [];
     const entryPoints = await globToEntryPoints(input.input, exclude);
+
+    // When the CLI's pre-build detection (`detectNodeGiGlobals`) found GJS
+    // ambient globals in the bundled output, wrap the entry so it side-effect
+    // imports the node-gi globals shim BEFORE the user code runs. The import is
+    // injected ONLY when detected — a bundle that never touches `print`/`imports`
+    // stays free of `@gjsify/node-gi/globals`, so it loads on plain Node without
+    // node-gi installed (the eager-native-load regression guard, same lesson as
+    // the lazy `gi://` shim in #641). Reuses the SAME virtual-entry wrapper the
+    // GJS `--globals auto` machinery uses.
+    const sideEffectImports: string[] = [];
+    if (input.pluginOptions.nodeGiGlobalsInject) sideEffectImports.push(NODE_GI_GLOBALS_SPECIFIER);
+    const virtualEntries = wrapInputWithSideEffects(entryPoints, sideEffectImports);
+    const finalInput = virtualEntries.input;
 
     const aliasMap = {
         ...getAliasesForNode({ external }),
@@ -89,7 +115,7 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     const banner: string | undefined = undefined;
 
     const options: RolldownOptions = {
-        input: entryPoints,
+        input: finalInput,
         platform: 'node',
         // Pass the EXACT-MATCH external set as a plain string array, NOT the
         // `external` predicate function. `@gjsify/rolldown-native` ships the
@@ -137,6 +163,10 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     };
 
     const plugins: RolldownPluginOption[] = [
+        // Virtual-entry plugin runs FIRST so its resolveId/load match the
+        // synthetic `\0gjsify-entry:` ids that `wrapInputWithSideEffects`
+        // produces (no-op when nothing was injected).
+        ...(virtualEntries.plugin ? [virtualEntries.plugin] : []),
         // gjsGiNodePlugin runs FIRST (resolveId order 'pre' + array order): it
         // claims `gi://Ns?version=X` and rewrites it to the `@gjsify/node-gi`
         // runtime, so a real GJS/GI source builds + runs on Node. It returns

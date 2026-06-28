@@ -5,7 +5,12 @@ import { runBundle, runWatch, bundleToChunks } from '../bundler-pick.js';
 import { gjsifyPlugin, textLoaderPlugin, resolveShebangLine, NODE_SHEBANG } from '@gjsify/rolldown-plugin-gjsify';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { resolveUserPlugins } from '../utils/resolve-plugin-by-name.js';
-import { resolveGlobalsList, writeRegisterInjectFile, detectAutoGlobals } from '@gjsify/rolldown-plugin-gjsify/globals';
+import {
+    resolveGlobalsList,
+    writeRegisterInjectFile,
+    detectAutoGlobals,
+    detectNodeGiGlobals,
+} from '@gjsify/rolldown-plugin-gjsify/globals';
 import { pnpPlugin } from '@gjsify/rolldown-plugin-pnp';
 import { dirname, extname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -476,6 +481,44 @@ export class BuildAction {
             );
 
             pluginOpts.autoGlobalsInject = injectPath;
+        } else if (app === 'node' && autoMode) {
+            // `--app node` reverse direction: detect GJS ambient globals
+            // (`print`/`imports`/…) in the bundled, tree-shaken output and
+            // inject `@gjsify/node-gi/globals` only when present. A single
+            // in-memory analysis pass (the shim is external — no convergence
+            // loop). Gated on `autoMode` so `--globals none` opts out. The
+            // detection must run BEFORE the final build so the entry can be
+            // wrapped; nothing is injected when no globals are referenced (the
+            // eager-native-load regression guard).
+            const gjsifyPluginFactory = async (opts: PluginOptions) => {
+                const cfg = await gjsifyPlugin(
+                    {
+                        input: userBundler.input,
+                        output: { file: outfile, dir: outdir },
+                        userExternal,
+                        userBanner,
+                        userAliases: aliases,
+                        shebang: this.configData.shebang,
+                    },
+                    opts,
+                );
+                return { options: cfg.options, plugins: cfg.plugins };
+            };
+
+            const needsGiGlobals = await detectNodeGiGlobals(
+                {
+                    input: userBundler.input,
+                    plugins: [...pnpPlugins, ...userPlugins],
+                    external: userBundler.external,
+                    transform: userBundler.transform,
+                    format,
+                },
+                pluginOpts,
+                gjsifyPluginFactory,
+                bundleToChunks,
+            );
+
+            if (needsGiGlobals) pluginOpts.nodeGiGlobalsInject = true;
         } else if (extras) {
             pluginOpts.autoGlobalsInject = await this.resolveGlobalsInject(app, extras, verbose);
         }

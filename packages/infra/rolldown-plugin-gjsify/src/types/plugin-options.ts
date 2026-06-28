@@ -46,6 +46,17 @@ export interface PluginOptions {
      */
     autoGlobalsInject?: string;
     /**
+     * `--app node` only. When true, the node factory wraps the entry so it
+     * side-effect imports `@gjsify/node-gi/globals` before the user code runs,
+     * seeding the GJS ambient globals (`print`/`printerr`/`log`/`logError`/
+     * `ARGV`/`imports`) on Node. Set by the CLI after `detectNodeGiGlobals`
+     * finds those globals in the bundled (post-tree-shake) output. Left false
+     * when none are referenced — importing the shim eagerly loads the native
+     * node-gi addon, so it must NEVER be injected into a bundle that doesn't
+     * use the globals. Defaults to `false`.
+     */
+    nodeGiGlobalsInject?: boolean;
+    /**
      * Preserve the entry module's `default` export through the `--app gjs`
      * side-effect entry wrapper. The wrapper normally re-exports the entry with
      * `export * from <entry>`, which carries named bindings but NOT `default`.
