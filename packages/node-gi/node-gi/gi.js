@@ -101,6 +101,17 @@ function makeClass(namespace, typeName) {
   return ctor;
 }
 
+// Build a frozen enum/flags object keyed GJS-style: member names UPPER_CASED
+// with '-' → '_' (e.g. Gio.BusType.SYSTEM, Gio.ApplicationFlags.HANDLES_OPEN).
+function makeEnum(namespace, typeName) {
+  const raw = native.getEnumValues(namespace, typeName);
+  const out = {};
+  for (const key of Object.keys(raw)) {
+    out[key.toUpperCase().replace(/-/g, '_')] = raw[key];
+  }
+  return Object.freeze(out);
+}
+
 function createNamespace(namespace) {
   const cache = new Map();
   return new Proxy(Object.create(null), {
@@ -115,9 +126,12 @@ function createNamespace(namespace) {
         value = (...args) => wrapReturn(native.callFunction(namespace, prop, unwrapArgs(args)));
       } else if (info.kind === 'object') {
         value = makeClass(namespace, prop);
+      } else if (info.kind === 'enum' || info.kind === 'flags') {
+        value = makeEnum(namespace, prop);
+      } else if (info.kind === 'constant') {
+        value = native.getConstantValue(namespace, prop);
       } else {
-        // enum / flags / constant / struct / interface / union / callback:
-        // surfaced in a later drop.
+        // struct / interface / union / callback: surfaced in a later drop.
         value = undefined;
       }
       cache.set(prop, value);
