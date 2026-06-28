@@ -163,8 +163,15 @@ const IGNORE = [
     /^refs\//,
     /^website\//,
     /^docs\//,
-    /^\.github\/workflows\/(deploy-docs|commitlint|release|audit-runtimes|prebuilds)\.yml$/,
+    /^\.github\/workflows\/(deploy-docs|commitlint|release|audit-runtimes|prebuilds|node-gi)\.yml$/,
     /^\.githooks\//,
+    // @gjsify/node-gi (the Node-native GObject-Introspection engine, Axis 5) is
+    // NOT a gjsify workspace member — the GJS-first install/foreach tooling can't
+    // build its node-gyp addon, so the main workflow neither builds nor tests it.
+    // Its own `.github/workflows/node-gi.yml` is the source of truth (built +
+    // tested on Node). Without this carve-out its files map to no workspace and
+    // land in `unmatched`, forcing a conservative full run on every node-gi PR.
+    /^packages\/node-gi\//,
     // Flatpak build/distribution tooling (SDK-extension manifest + metainfo).
     // Like `.githooks/`, it has no package-test consumers; its own
     // `tests/e2e/flatpak-sdk-extension` runs on `tests/e2e/**` / global triggers.
