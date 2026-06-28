@@ -604,6 +604,19 @@ static Napi::Value GValueToJs(Napi::Env env, const GValue* v) {
       const char* s = g_value_get_string(v);
       return s != nullptr ? Napi::Value(Napi::String::New(env, s)) : env.Null();
     }
+    case G_TYPE_OBJECT:
+      // Signal/property object values are transfer-none borrows; WrapGObject refs.
+      return WrapGObject(env, static_cast<GObject*>(g_value_get_object(v)), GI_TRANSFER_NOTHING);
+    case G_TYPE_PARAM: {
+      // GParamSpec (e.g. the `notify` signal argument) — surface the changed
+      // property's name so a `notify` handler can read it.
+      GParamSpec* p = g_value_get_param(v);
+      if (p == nullptr) return env.Null();
+      Napi::Object o = Napi::Object::New(env);
+      o.Set("name", Napi::String::New(env, p->name));
+      o.Set("valueType", Napi::String::New(env, g_type_name(p->value_type)));
+      return o;
+    }
     default:
       Napi::TypeError::New(env, std::string("Unsupported property GType ") +
                                     g_type_name(G_VALUE_TYPE(v)) + " (milestone 1: fundamentals only)")
@@ -747,11 +760,12 @@ Napi::Value NewObject(const Napi::CallbackInfo& info) {
 // ---- subclassing (registerClass — minimal: subtype + construct) ----
 //
 // Register a new GObject subclass of `parentNamespace.parentTypeName` named
-// `name`, inheriting the parent's class/instance layout. No custom properties,
-// signals or vfunc overrides yet (those — and the toggle-ref GC bridge a JS
-// vfunc/closure requires — land in subsequent drops); a plain dynamic subtype's
-// instances are ordinary GObjects, so the existing finalizer-unref ownership is
-// correct. Returns an opaque type handle (the GType) for constructType().
+// `name`, inheriting the parent's class/instance layout. Supports custom
+// properties + signals (installed in class_init — see below); vfunc overrides
+// and the toggle-ref GC bridge a JS vfunc/closure requires land in the next
+// drop. A plain dynamic subtype's instances are ordinary GObjects, so the
+// existing finalizer-unref ownership is correct. Returns an opaque type handle
+// (the GType) for constructType().
 
 // GTypes are process-stable and never freed (static registration), so the
 // handle carries no finalizer.
@@ -764,12 +778,210 @@ static GType UnwrapGType(Napi::Env env, Napi::Value v) {
   return reinterpret_cast<GType>(v.As<Napi::External<void>>().Data());
 }
 
-// registerClass(name, parentNamespace, parentTypeName) -> typeHandle
+// ---- registerClass custom properties + signals (class_init) ----
+//
+// A registered subclass can declare custom GObject properties and signals.
+// In class_init we install the GParamSpecs + override get/set_property (routing
+// custom props to a per-instance value store) and g_signal_newv each signal.
+// Inherited (introspected-parent) properties still flow through the parent's
+// vfuncs — a property is "ours" iff its owner GType carries node-gi class-data.
+// Backing the values with a per-instance store (not C struct fields) keeps a
+// plain dynamic subtype's instances ordinary GObjects (the existing
+// finalizer-unref ownership stays correct). vfunc overrides + the toggle-ref GC
+// bridge a JS method/closure needs land in the next drop.
+
+// Map a JS type-name to a GType (shared by property + signal specs).
+static GType TypeNameToGType(const std::string& t) {
+  if (t == "string" || t == "utf8") return G_TYPE_STRING;
+  if (t == "boolean" || t == "bool") return G_TYPE_BOOLEAN;
+  if (t == "int") return G_TYPE_INT;
+  if (t == "uint") return G_TYPE_UINT;
+  if (t == "int64") return G_TYPE_INT64;
+  if (t == "uint64") return G_TYPE_UINT64;
+  if (t == "double") return G_TYPE_DOUBLE;
+  if (t == "float") return G_TYPE_FLOAT;
+  if (t == "object") return G_TYPE_OBJECT;
+  if (t == "void" || t == "none") return G_TYPE_NONE;
+  return G_TYPE_INVALID;
+}
+
+// Build a floating GParamSpec from a JS spec `{ name, type, flags?, default?,
+// minimum?, maximum? }`. Returns nullptr + sets *err on an unsupported type.
+static GParamSpec* BuildParamSpec(Napi::Env env, Napi::Object spec, std::string* err) {
+  if (!spec.Has("name") || !spec.Get("name").IsString()) {
+    *err = "property requires a string 'name'";
+    return nullptr;
+  }
+  std::string name = spec.Get("name").As<Napi::String>().Utf8Value();
+  std::string type = (spec.Has("type") && spec.Get("type").IsString())
+                         ? spec.Get("type").As<Napi::String>().Utf8Value()
+                         : std::string("string");
+  GParamFlags flags = (spec.Has("flags") && spec.Get("flags").IsNumber())
+                          ? static_cast<GParamFlags>(spec.Get("flags").As<Napi::Number>().Int32Value())
+                          : G_PARAM_READWRITE;
+  Napi::Value def = spec.Get("default");
+  bool hasMin = spec.Has("minimum") && spec.Get("minimum").IsNumber();
+  bool hasMax = spec.Has("maximum") && spec.Get("maximum").IsNumber();
+  double mn = hasMin ? spec.Get("minimum").As<Napi::Number>().DoubleValue() : 0;
+  double mx = hasMax ? spec.Get("maximum").As<Napi::Number>().DoubleValue() : 0;
+  const char* nm = name.c_str();
+
+  if (type == "string" || type == "utf8") {
+    std::string d = def.IsString() ? def.As<Napi::String>().Utf8Value() : std::string();
+    return g_param_spec_string(nm, nm, nm, def.IsString() ? d.c_str() : nullptr, flags);
+  }
+  if (type == "boolean" || type == "bool") {
+    gboolean d = def.IsBoolean() ? def.As<Napi::Boolean>().Value()
+                                 : (def.IsNumber() ? def.ToBoolean().Value() : FALSE);
+    return g_param_spec_boolean(nm, nm, nm, d, flags);
+  }
+  if (type == "int") {
+    return g_param_spec_int(nm, nm, nm, hasMin ? static_cast<gint>(mn) : G_MININT,
+                            hasMax ? static_cast<gint>(mx) : G_MAXINT,
+                            def.IsNumber() ? def.As<Napi::Number>().Int32Value() : 0, flags);
+  }
+  if (type == "uint") {
+    return g_param_spec_uint(nm, nm, nm, hasMin ? static_cast<guint>(mn) : 0,
+                             hasMax ? static_cast<guint>(mx) : G_MAXUINT,
+                             def.IsNumber() ? def.As<Napi::Number>().Uint32Value() : 0, flags);
+  }
+  if (type == "int64") {
+    return g_param_spec_int64(nm, nm, nm, hasMin ? static_cast<gint64>(mn) : G_MININT64,
+                              hasMax ? static_cast<gint64>(mx) : G_MAXINT64,
+                              def.IsNumber() ? def.As<Napi::Number>().Int64Value() : 0, flags);
+  }
+  if (type == "uint64") {
+    return g_param_spec_uint64(nm, nm, nm, hasMin ? static_cast<guint64>(mn) : 0,
+                               hasMax ? static_cast<guint64>(mx) : G_MAXUINT64,
+                               def.IsNumber() ? static_cast<guint64>(def.As<Napi::Number>().Int64Value())
+                                              : 0,
+                               flags);
+  }
+  if (type == "double") {
+    return g_param_spec_double(nm, nm, nm, hasMin ? mn : -G_MAXDOUBLE, hasMax ? mx : G_MAXDOUBLE,
+                               def.IsNumber() ? def.As<Napi::Number>().DoubleValue() : 0, flags);
+  }
+  if (type == "float") {
+    return g_param_spec_float(nm, nm, nm, hasMin ? static_cast<gfloat>(mn) : -G_MAXFLOAT,
+                              hasMax ? static_cast<gfloat>(mx) : G_MAXFLOAT,
+                              def.IsNumber() ? static_cast<gfloat>(def.As<Napi::Number>().DoubleValue())
+                                             : 0,
+                              flags);
+  }
+  *err = "unsupported property type '" + type + "'";
+  return nullptr;
+}
+
+struct NodeGiSignalDef {
+  std::string name;
+  std::vector<GType> paramTypes;
+  GType returnType;
+  GSignalFlags flags;
+};
+
+// Per-registered-type metadata, passed as GTypeInfo.class_data → class_init.
+// Heap-allocated and intentionally never freed (a GType is process-permanent).
+struct NodeGiClassData {
+  std::vector<GParamSpec*> properties;  // ownership transfers to the class on install
+  std::vector<NodeGiSignalDef> signals;
+  void (*parentGet)(GObject*, guint, GValue*, GParamSpec*);
+  void (*parentSet)(GObject*, guint, const GValue*, GParamSpec*);
+};
+
+static GQuark NodeGiClassDataQuark() {
+  static GQuark q = g_quark_from_static_string("node-gi-class-data");
+  return q;
+}
+static GQuark NodeGiInstancePropsQuark() {
+  static GQuark q = g_quark_from_static_string("node-gi-instance-props");
+  return q;
+}
+
+static void FreeStoredGValue(gpointer p) {
+  GValue* v = static_cast<GValue*>(p);
+  g_value_unset(v);
+  g_free(v);
+}
+
+// Nearest ancestor (incl. self) carrying node-gi class-data.
+static NodeGiClassData* FindClassData(GType type) {
+  for (GType t = type; t != 0; t = g_type_parent(t)) {
+    NodeGiClassData* cd = static_cast<NodeGiClassData*>(g_type_get_qdata(t, NodeGiClassDataQuark()));
+    if (cd != nullptr) return cd;
+  }
+  return nullptr;
+}
+
+// A property is custom iff its owner GType carries node-gi class-data; otherwise
+// it is inherited from the introspected parent and chains to the parent vfunc.
+static void NodeGiGetProperty(GObject* obj, guint prop_id, GValue* value, GParamSpec* pspec) {
+  NodeGiClassData* ownerCd =
+      static_cast<NodeGiClassData*>(g_type_get_qdata(pspec->owner_type, NodeGiClassDataQuark()));
+  if (ownerCd != nullptr) {
+    GHashTable* store = static_cast<GHashTable*>(g_object_get_qdata(obj, NodeGiInstancePropsQuark()));
+    GValue* stored = store ? static_cast<GValue*>(g_hash_table_lookup(store, pspec->name)) : nullptr;
+    if (stored != nullptr && G_IS_VALUE(stored)) {
+      g_value_copy(stored, value);
+    } else {
+      g_param_value_set_default(pspec, value);
+    }
+    return;
+  }
+  NodeGiClassData* cd = FindClassData(G_OBJECT_TYPE(obj));
+  if (cd != nullptr && cd->parentGet != nullptr) cd->parentGet(obj, prop_id, value, pspec);
+}
+
+static void NodeGiSetProperty(GObject* obj, guint prop_id, const GValue* value, GParamSpec* pspec) {
+  NodeGiClassData* ownerCd =
+      static_cast<NodeGiClassData*>(g_type_get_qdata(pspec->owner_type, NodeGiClassDataQuark()));
+  if (ownerCd != nullptr) {
+    GHashTable* store = static_cast<GHashTable*>(g_object_get_qdata(obj, NodeGiInstancePropsQuark()));
+    if (store == nullptr) {
+      store = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, FreeStoredGValue);
+      g_object_set_qdata_full(obj, NodeGiInstancePropsQuark(), store,
+                              reinterpret_cast<GDestroyNotify>(g_hash_table_destroy));
+    }
+    GValue* copy = g_new0(GValue, 1);
+    g_value_init(copy, G_VALUE_TYPE(value));
+    g_value_copy(value, copy);
+    g_hash_table_replace(store, g_strdup(pspec->name), copy);
+    g_object_notify_by_pspec(obj, pspec);
+    return;
+  }
+  NodeGiClassData* cd = FindClassData(G_OBJECT_TYPE(obj));
+  if (cd != nullptr && cd->parentSet != nullptr) cd->parentSet(obj, prop_id, value, pspec);
+}
+
+static void NodeGiClassInit(gpointer g_class, gpointer class_data) {
+  NodeGiClassData* cd = static_cast<NodeGiClassData*>(class_data);
+  GObjectClass* oc = G_OBJECT_CLASS(g_class);
+  g_type_set_qdata(G_TYPE_FROM_CLASS(g_class), NodeGiClassDataQuark(), cd);
+
+  if (!cd->properties.empty()) {
+    cd->parentGet = oc->get_property;  // capture before override (chain target)
+    cd->parentSet = oc->set_property;
+    oc->get_property = NodeGiGetProperty;
+    oc->set_property = NodeGiSetProperty;
+    guint id = 1;
+    for (GParamSpec* p : cd->properties) {
+      g_object_class_install_property(oc, id++, p);
+    }
+  }
+  for (const NodeGiSignalDef& s : cd->signals) {
+    g_signal_newv(s.name.c_str(), G_TYPE_FROM_CLASS(g_class), s.flags, nullptr, nullptr, nullptr,
+                  nullptr, s.returnType, static_cast<guint>(s.paramTypes.size()),
+                  s.paramTypes.empty() ? nullptr : const_cast<GType*>(s.paramTypes.data()));
+  }
+}
+
+// registerClass(name, parentNamespace, parentTypeName, options?) -> typeHandle
 Napi::Value RegisterClass(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 3 || !info[0].IsString() || !info[1].IsString() || !info[2].IsString()) {
     Napi::TypeError::New(
-        env, "registerClass(name: string, parentNamespace: string, parentTypeName: string)")
+        env,
+        "registerClass(name: string, parentNamespace: string, parentTypeName: string, options?: "
+        "{ properties?, signals? })")
         .ThrowAsJavaScriptException();
     return env.Null();
   }
@@ -806,13 +1018,71 @@ Napi::Value RegisterClass(const Napi::CallbackInfo& info) {
     return env.Null();
   }
 
+  // Parse the optional { properties, signals } and build the class metadata.
+  NodeGiClassData* cd = new NodeGiClassData();
+  cd->parentGet = nullptr;
+  cd->parentSet = nullptr;
+  if (info.Length() >= 4 && info[3].IsObject()) {
+    Napi::Object opts = info[3].As<Napi::Object>();
+    if (opts.Has("properties") && opts.Get("properties").IsArray()) {
+      Napi::Array props = opts.Get("properties").As<Napi::Array>();
+      for (uint32_t i = 0; i < props.Length(); i++) {
+        Napi::Value pv = props.Get(i);
+        if (!pv.IsObject()) continue;
+        std::string perr;
+        GParamSpec* ps = BuildParamSpec(env, pv.As<Napi::Object>(), &perr);
+        if (ps == nullptr) {
+          for (GParamSpec* done : cd->properties) {
+            g_param_spec_ref_sink(done);
+            g_param_spec_unref(done);
+          }
+          delete cd;
+          Napi::TypeError::New(env, "registerClass property: " + perr).ThrowAsJavaScriptException();
+          return env.Null();
+        }
+        cd->properties.push_back(ps);
+      }
+    }
+    if (opts.Has("signals") && opts.Get("signals").IsArray()) {
+      Napi::Array sigs = opts.Get("signals").As<Napi::Array>();
+      for (uint32_t i = 0; i < sigs.Length(); i++) {
+        Napi::Value sv = sigs.Get(i);
+        if (!sv.IsObject()) continue;
+        Napi::Object so = sv.As<Napi::Object>();
+        if (!so.Has("name") || !so.Get("name").IsString()) continue;
+        NodeGiSignalDef sd;
+        sd.name = so.Get("name").As<Napi::String>().Utf8Value();
+        sd.returnType = G_TYPE_NONE;
+        if (so.Has("returnType") && so.Get("returnType").IsString()) {
+          GType rt = TypeNameToGType(so.Get("returnType").As<Napi::String>().Utf8Value());
+          if (rt != G_TYPE_INVALID) sd.returnType = rt;
+        }
+        sd.flags = (so.Has("flags") && so.Get("flags").IsNumber())
+                       ? static_cast<GSignalFlags>(so.Get("flags").As<Napi::Number>().Int32Value())
+                       : G_SIGNAL_RUN_LAST;
+        if (so.Has("paramTypes") && so.Get("paramTypes").IsArray()) {
+          Napi::Array pts = so.Get("paramTypes").As<Napi::Array>();
+          for (uint32_t j = 0; j < pts.Length(); j++) {
+            GType t = TypeNameToGType(pts.Get(j).ToString().Utf8Value());
+            if (t != G_TYPE_INVALID && t != G_TYPE_NONE) sd.paramTypes.push_back(t);
+          }
+        }
+        cd->signals.push_back(sd);
+      }
+    }
+  }
+
   GTypeInfo typeInfo = {};
   typeInfo.class_size = static_cast<guint16>(query.class_size);
   typeInfo.instance_size = static_cast<guint16>(query.instance_size);
-  // class_init / instance_init left null — a plain subtype inherits the parent's.
+  // class_init installs the custom properties + signals (and records the class
+  // data even when there are none, so the property vfuncs can find it).
+  typeInfo.class_init = NodeGiClassInit;
+  typeInfo.class_data = cd;
 
   GType newType = g_type_register_static(parentType, name.c_str(), &typeInfo, (GTypeFlags)0);
   if (newType == 0) {
+    delete cd;
     Napi::Error::New(env, "g_type_register_static failed for '" + name + "'")
         .ThrowAsJavaScriptException();
     return env.Null();
@@ -1196,7 +1466,11 @@ Napi::Value ConnectSignal(const Napi::CallbackInfo& info) {
   std::string name = info[1].As<Napi::String>().Utf8Value();
   bool after = info.Length() >= 4 && info[3].ToBoolean().Value();
 
-  if (g_signal_lookup(name.c_str(), G_OBJECT_TYPE(obj)) == 0) {
+  // Parse a possibly-detailed signal name ("notify::prop") into its signal id +
+  // detail quark, so GJS-style detailed connects work (common for notify::).
+  guint sigid = 0;
+  GQuark detail = 0;
+  if (!g_signal_parse_name(name.c_str(), G_OBJECT_TYPE(obj), &sigid, &detail, TRUE)) {
     Napi::Error::New(env, std::string("no signal '") + name + "' on " + G_OBJECT_TYPE_NAME(obj))
         .ThrowAsJavaScriptException();
     return env.Null();
@@ -1210,8 +1484,9 @@ Napi::Value ConnectSignal(const Napi::CallbackInfo& info) {
   g_closure_set_marshal(closure, JsClosureMarshal);
   g_closure_add_finalize_notifier(closure, jc, JsClosureFinalize);
 
-  // g_signal_connect_closure sinks the floating closure ref + owns it.
-  gulong id = g_signal_connect_closure(obj, name.c_str(), closure, after);
+  // g_signal_connect_closure_by_id sinks the floating closure ref + owns it,
+  // and honours the detail quark (the by-name variant cannot take a detail).
+  gulong id = g_signal_connect_closure_by_id(obj, sigid, detail, closure, after);
   return Napi::Number::New(env, static_cast<double>(id));
 }
 

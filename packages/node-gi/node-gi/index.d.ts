@@ -103,17 +103,53 @@ export function newObject(
  */
 export type TypeHandle = { readonly __nodeGiGType: unique symbol };
 
+/** A custom GObject property declaration for {@link registerClass}. */
+export interface PropertySpec {
+  /** Property name (canonical, e.g. "my-prop"). */
+  name: string;
+  /** Value type. */
+  type: 'string' | 'boolean' | 'int' | 'uint' | 'int64' | 'uint64' | 'double' | 'float';
+  /** `GParamFlags` bitfield (default `G_PARAM_READWRITE`). */
+  flags?: number;
+  /** Default value (type-appropriate). */
+  default?: string | number | boolean;
+  /** Minimum (numeric types). */
+  minimum?: number;
+  /** Maximum (numeric types). */
+  maximum?: number;
+}
+
+/** A custom GObject signal declaration for {@link registerClass}. */
+export interface SignalSpec {
+  /** Signal name (e.g. "my-signal"). */
+  name: string;
+  /** Parameter types (same vocabulary as {@link PropertySpec.type}, plus "object"). */
+  paramTypes?: string[];
+  /** Return type ("void" by default). */
+  returnType?: string;
+  /** `GSignalFlags` bitfield (default `G_SIGNAL_RUN_LAST`). */
+  flags?: number;
+}
+
+/** Custom properties + signals installed on a {@link registerClass} subtype. */
+export interface RegisterClassOptions {
+  properties?: PropertySpec[];
+  signals?: SignalSpec[];
+}
+
 /**
  * Register a new GObject subclass of `parentNamespace.parentTypeName` named
  * `name`, inheriting the parent's class/instance layout, and return an opaque
- * type handle. Custom properties/signals and vfunc overrides land in later
- * milestones — the Node twin of (the engine half of) GJS's
+ * type handle. `options` installs custom properties (backed by a per-instance
+ * value store) and signals in the new type's `class_init`. vfunc overrides land
+ * in a later milestone — the Node twin of (the engine half of) GJS's
  * `GObject.registerClass`.
  */
 export function registerClass(
   name: string,
   parentNamespace: string,
   parentTypeName: string,
+  options?: RegisterClassOptions,
 ): TypeHandle;
 
 /**

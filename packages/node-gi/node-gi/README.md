@@ -15,8 +15,10 @@ on both GJS and Node via `gjsify build --app {gjs,node}`.
 > **instance methods** (own + implemented-interface methods, up the parent chain)
 > with value marshalling (numbers, booleans, strings, GObjects, enums/flags);
 > construct GObjects and read/write properties (GValue round-trip); connect /
-> emit / disconnect signals; and **register GObject subclasses** (subtype +
-> construct-by-type, inheriting the parent's properties/methods). Ownership rides
+> emit / disconnect signals (incl. detailed names like `notify::prop`); and
+> **register GObject subclasses** (subtype + construct-by-type, inheriting the
+> parent's properties/methods, plus **custom properties + signals** declared on
+> the subclass). Ownership rides
 > N-API finalizers (no V8-GC reentrancy). On top of the engine, an **L1
 > GJS-compatibility layer** (`@gjsify/node-gi/gi`, `requireGi`) surfaces a
 > GJS-shaped namespace: `new Gio.SimpleAction({ name })`, `action.name` property
@@ -28,9 +30,9 @@ on both GJS and Node via `gjsify build --app {gjs,node}`.
 > blocking `GLib.MainLoop.run()` keeps Node's timers/I/O alive — including the
 > **boxed/struct slice** that needs (`GLib.MainLoop.new(...)` → a boxed handle →
 > `.run()`/`.quit()`). The gjsify `--app node` bundler integration already
-> rewrites `gi://` onto the L1 layer. Custom properties/signals on a subclass,
-> `registerClass` vfunc overrides + chain-up (with the toggle-ref GC bridge), and
-> general struct field access land in subsequent drops.
+> rewrites `gi://` onto the L1 layer. `registerClass` vfunc overrides + chain-up
+> (with the toggle-ref GC bridge) and general struct field access land in
+> subsequent drops.
 
 ## Provenance
 
@@ -93,6 +95,25 @@ import { registerClass, constructType, callMethod } from '@gjsify/node-gi';
 const MyAction = registerClass('MyAction', 'Gio', 'SimpleAction');
 const a = constructType(MyAction, { name: 'greet', enabled: true });
 console.log(callMethod(a, 'get_name')); // 'greet'  (inherited GAction method)
+```
+
+Declare custom properties and signals on the subclass:
+
+```js
+import { registerClass, constructType, getProperty, setProperty,
+         connectSignal, emitSignal } from '@gjsify/node-gi';
+
+const Counter = registerClass('Counter', 'GObject', 'Object', {
+  properties: [{ name: 'count', type: 'int', default: 0, minimum: 0, maximum: 100 }],
+  signals: [{ name: 'changed', paramTypes: ['int'] }],
+});
+
+const c = constructType(Counter, { count: 1 });
+connectSignal(c, 'notify::count', (pspec) => console.log('changed:', pspec.name));
+connectSignal(c, 'changed', (n) => console.log('count is now', n));
+setProperty(c, 'count', 5);          // fires notify::count
+emitSignal(c, 'changed', [5]);
+console.log(getProperty(c, 'count')); // 5
 ```
 
 ### L1 — GJS-shaped surface (`@gjsify/node-gi/gi`)
