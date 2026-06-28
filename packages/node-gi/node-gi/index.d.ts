@@ -54,23 +54,32 @@ export function prependSearchPath(path: string): void;
 
 /**
  * Invoke a namespace-level GObject-Introspection function (not an instance
- * method) with IN-only primitive/string arguments. Returns the marshalled
- * return value. Milestone 1: numbers, booleans and strings.
+ * method) with primitive/string/object args. OUT and INOUT parameters are
+ * supported for fundamentals (numbers/booleans), strings (utf8/filename) and
+ * GObjects/enums/flags; only IN/INOUT args are passed in `args`.
+ *
+ * The return follows the GJS convention: the function's own return value (when
+ * non-void) followed by each OUT/INOUT value in argument order — a single value
+ * is returned bare, several as an Array, none as `undefined`. Compound OUT types
+ * (arrays, GList/GHashTable, structs) are a later milestone and throw a clear
+ * "not yet supported" error.
  */
 export function callFunction(namespace: string, functionName: string, args?: unknown[]): unknown;
 
 /**
- * Invoke an instance method on a GObject handle with IN-only
- * primitive/string/object/enum args. The method is resolved against the
+ * Invoke an instance method on a GObject handle with primitive/string/object/enum
+ * args, including OUT/INOUT parameters. The method is resolved against the
  * instance's introspection type (own + implemented-interface methods, then up
- * the parent chain). The Node twin of `obj.method(...)`.
+ * the parent chain). The Node twin of `obj.method(...)`. See {@link callFunction}
+ * for the OUT/INOUT return-tuple convention.
  */
 export function callMethod(handle: GObjectHandle, methodName: string, args?: unknown[]): unknown;
 
 /**
  * Invoke a type-level constructor/static function (e.g. `Gio.File.new_for_path`,
  * `Gtk.Label.new`) — a function found on a type but taking no instance. The Node
- * twin of `Ns.Class.method(...)`.
+ * twin of `Ns.Class.method(...)`. OUT/INOUT params follow {@link callFunction}'s
+ * return-tuple convention.
  */
 export function callStaticMethod(
   namespace: string,

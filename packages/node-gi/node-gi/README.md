@@ -13,7 +13,10 @@ on both GJS and Node via `gjsify build --app {gjs,node}`.
 > the modern `girepository-2.0` API now does: resolve the default repository,
 > `require` a namespace, enumerate its infos; call namespace-level functions and
 > **instance methods** (own + implemented-interface methods, up the parent chain)
-> with value marshalling (numbers, booleans, strings, GObjects, enums/flags);
+> with value marshalling (numbers, booleans, strings, GObjects, enums/flags),
+> including **OUT and INOUT parameters** surfaced per the GJS return-tuple
+> convention (`[returnValue?, ...outArgs]` — one value bare, several as an Array;
+> compound OUT types like arrays/structs are a later milestone);
 > construct GObjects and read/write properties (GValue round-trip); connect /
 > emit / disconnect signals (incl. detailed names like `notify::prop`); and
 > **register GObject subclasses** (subtype + construct-by-type, inheriting the
