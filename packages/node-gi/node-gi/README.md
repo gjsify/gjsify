@@ -9,12 +9,16 @@ It loads `gi://` namespaces (GLib, GObject, Gio, …) via `libgirepository` and
 exposes them with GJS-compatible semantics, so the same source builds and runs
 on both GJS and Node via `gjsify build --app {gjs,node}`.
 
-> **Status: milestone 1 (headless core) — scaffold.** This first drop proves the
-> native toolchain and the modern `girepository-2.0` API end to end: resolve the
-> default repository, `require` a namespace, read its resolved version + info
-> count, and enumerate top-level info names. Value marshalling, GObject classes /
-> signals / the GC ownership model, `GObject.registerClass`, and the
-> libuv↔GLib mainloop bridge land in subsequent drops.
+> **Status: milestone 1 (headless core) — in progress.** The native engine over
+> the modern `girepository-2.0` API now does: resolve the default repository,
+> `require` a namespace, enumerate its infos; call namespace-level functions and
+> **instance methods** (own + implemented-interface methods, up the parent chain)
+> with value marshalling (numbers, booleans, strings, GObjects, enums/flags);
+> construct GObjects and read/write properties (GValue round-trip); and
+> connect / emit / disconnect signals. Ownership rides N-API finalizers (no V8-GC
+> reentrancy). `GObject.registerClass` (JS subclassing + vfunc chain-up) and the
+> libuv↔GLib mainloop bridge land in subsequent drops, then the GJS-compatible
+> runtime + bundler integration on top.
 
 ## Provenance
 
@@ -48,11 +52,25 @@ npm run rebuild
 ## Usage (milestone 1)
 
 ```js
-import { requireNamespace, listInfoNames } from '@gjsify/node-gi';
+import {
+  requireNamespace, listInfoNames, callFunction,
+  newObject, getProperty, setProperty, callMethod,
+  connectSignal, emitSignal,
+} from '@gjsify/node-gi';
 
-const glib = requireNamespace('GLib', '2.0');
-console.log(glib);                // { namespace: 'GLib', version: '2.0', infoCount: <n> }
+requireNamespace('GLib', '2.0');
 console.log(listInfoNames('GLib').includes('MainLoop')); // true
+console.log(callFunction('GLib', 'get_host_name'));      // namespace function
+
+requireNamespace('Gio', '2.0');
+const action = newObject('Gio', 'SimpleAction', { name: 'greet', enabled: true });
+console.log(getProperty(action, 'name'));     // 'greet'  (GValue round-trip)
+console.log(callMethod(action, 'get_name'));  // 'greet'  (interface method)
+callMethod(action, 'set_enabled', [false]);   // method with an IN argument
+
+const c = newObject('Gio', 'Cancellable', {});
+connectSignal(c, 'cancelled', () => console.log('cancelled'));
+emitSignal(c, 'cancelled');
 ```
 
 The GJS-compatible surface (`import GLib from 'gi://GLib?version=2.0'`,

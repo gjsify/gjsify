@@ -31,6 +31,14 @@ export function prependSearchPath(path: string): void;
 export function callFunction(namespace: string, functionName: string, args?: unknown[]): unknown;
 
 /**
+ * Invoke an instance method on a GObject handle with IN-only
+ * primitive/string/object/enum args. The method is resolved against the
+ * instance's introspection type (own + implemented-interface methods, then up
+ * the parent chain). The Node twin of `obj.method(...)`.
+ */
+export function callMethod(handle: GObjectHandle, methodName: string, args?: unknown[]): unknown;
+
+/**
  * Opaque handle to a live GObject instance, owned by node-gi and released when
  * the handle is garbage-collected. Pass it back to {@link getProperty} /
  * {@link setProperty} / {@link getTypeName}.
@@ -80,6 +88,7 @@ declare const native: {
   listInfoNames: typeof listInfoNames;
   prependSearchPath: typeof prependSearchPath;
   callFunction: typeof callFunction;
+  callMethod: typeof callMethod;
   newObject: typeof newObject;
   getProperty: typeof getProperty;
   setProperty: typeof setProperty;

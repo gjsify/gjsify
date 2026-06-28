@@ -156,6 +156,35 @@ static bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArg
       *heldString = v.ToString().Utf8Value();
       out->v_string = const_cast<char*>(heldString->c_str());
       return true;
+    case GI_TYPE_TAG_INTERFACE: {
+      // Object/interface instances arrive as opaque External<GObject> handles;
+      // enums/flags as plain numbers. Other interface kinds (structs/unions/
+      // callbacks) follow with the full-marshalling drop.
+      GIBaseInfo* iface = gi_type_info_get_interface(type);
+      bool handled = false;
+      if (iface != nullptr) {
+        if (GI_IS_OBJECT_INFO(iface) || GI_IS_INTERFACE_INFO(iface)) {
+          if (v.IsNull() || v.IsUndefined()) {
+            out->v_pointer = nullptr;
+            handled = true;
+          } else if (v.IsExternal()) {
+            out->v_pointer = v.As<Napi::External<GObject>>().Data();
+            handled = true;
+          }
+        } else if (GI_IS_ENUM_INFO(iface) || GI_IS_FLAGS_INFO(iface)) {
+          out->v_int = v.ToNumber().Int32Value();
+          handled = true;
+        }
+        gi_base_info_unref(iface);
+      }
+      if (!handled) {
+        Napi::TypeError::New(
+            env, "Unsupported interface IN argument (expected a GObject handle, enum or flags number)")
+            .ThrowAsJavaScriptException();
+        return false;
+      }
+      return true;
+    }
     default:
       Napi::TypeError::New(
           env, "Unsupported IN argument type tag " + std::to_string(static_cast<int>(tag)) +
@@ -163,6 +192,21 @@ static bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArg
           .ThrowAsJavaScriptException();
       return false;
   }
+}
+
+// Wrap a GObject pointer as an opaque External handle owned by node-gi. Mirrors
+// NewObject's ownership: hold one strong ref we control, released by the
+// finalizer. Floating refs are sunk; a transfer-none borrow is ref'd so the
+// finalizer has a ref to drop.
+static Napi::Value WrapGObject(Napi::Env env, GObject* obj, GITransfer transfer) {
+  if (obj == nullptr) return env.Null();
+  if (g_object_is_floating(obj)) {
+    g_object_ref_sink(obj);
+  } else if (transfer == GI_TRANSFER_NOTHING) {
+    g_object_ref(obj);
+  }
+  return Napi::External<GObject>::New(env, obj,
+                                      [](Napi::Env, GObject* ptr) { g_object_unref(ptr); });
 }
 
 // Marshal a return-value GIArgument into a JS value, honouring transfer.
@@ -189,6 +233,22 @@ static Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* a
       if (transfer == GI_TRANSFER_EVERYTHING) g_free(arg->v_string);
       return str;
     }
+    case GI_TYPE_TAG_INTERFACE: {
+      GIBaseInfo* iface = gi_type_info_get_interface(type);
+      Napi::Value result;
+      if (iface != nullptr && (GI_IS_OBJECT_INFO(iface) || GI_IS_INTERFACE_INFO(iface))) {
+        result = WrapGObject(env, static_cast<GObject*>(arg->v_pointer), transfer);
+      } else if (iface != nullptr && (GI_IS_ENUM_INFO(iface) || GI_IS_FLAGS_INFO(iface))) {
+        result = Napi::Number::New(env, arg->v_int);
+      } else {
+        Napi::TypeError::New(
+            env, "Unsupported interface return type (milestone: objects, interfaces, enums, flags)")
+            .ThrowAsJavaScriptException();
+        result = env.Undefined();
+      }
+      if (iface != nullptr) gi_base_info_unref(iface);
+      return result;
+    }
     default:
       Napi::TypeError::New(env, "Unsupported return type tag " +
                                     std::to_string(static_cast<int>(tag)) + " (milestone 1)")
@@ -197,10 +257,60 @@ static Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* a
   }
 }
 
+// Shared invocation core: marshal the JS args into a GIArgument vector (the
+// instance prepended for methods), call gi_function_info_invoke, marshal the
+// return. IN-only primitives/strings/objects/enums today; OUT/INOUT follow.
+static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, GObject* instance,
+                                      Napi::Array args, const std::string& displayName) {
+  GICallableInfo* callable = reinterpret_cast<GICallableInfo*>(func);
+  unsigned int n_args = gi_callable_info_get_n_args(callable);
+  bool isMethod = instance != nullptr;
+  size_t offset = isMethod ? 1 : 0;
+  std::vector<GIArgument> in_args(n_args + offset);
+  std::vector<std::string> held(n_args);
+  if (isMethod) in_args[0].v_pointer = instance;
+
+  bool ok = true;
+  for (unsigned int i = 0; i < n_args; i++) {
+    GIArgInfo* ai = gi_callable_info_get_arg(callable, i);
+    GIDirection dir = gi_arg_info_get_direction(ai);
+    if (dir != GI_DIRECTION_IN) {
+      gi_base_info_unref(ai);
+      Napi::TypeError::New(env, displayName + ": OUT/INOUT parameters are not yet supported")
+          .ThrowAsJavaScriptException();
+      ok = false;
+      break;
+    }
+    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
+    Napi::Value v = i < args.Length() ? args.Get(i) : env.Undefined();
+    ok = JsToGIArgument(env, v, ti, &in_args[offset + i], &held[i]);
+    gi_base_info_unref(ti);
+    gi_base_info_unref(ai);
+    if (!ok) break;
+  }
+  if (!ok) return env.Null();
+
+  GIArgument retval;
+  GError* error = nullptr;
+  gboolean success =
+      gi_function_info_invoke(func, in_args.data(), in_args.size(), nullptr, 0, &retval, &error);
+  if (!success) {
+    std::string message = error != nullptr ? error->message : "invocation failed";
+    if (error != nullptr) g_error_free(error);
+    Napi::Error::New(env, "Calling " + displayName + ": " + message).ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  GITypeInfo* return_type = gi_callable_info_get_return_type(callable);
+  GITransfer return_transfer = gi_callable_info_get_caller_owns(callable);
+  Napi::Value result = GIArgumentToJs(env, return_type, &retval, return_transfer);
+  gi_base_info_unref(return_type);
+  return result;
+}
+
 // callFunction(namespace, functionName, args?: unknown[]) -> unknown
 // Invokes a namespace-level GI function (not an instance method) with IN-only
-// primitive/string args. The first proof of the marshalling + invocation path;
-// instance methods, OUT/INOUT params, and compound types follow.
+// primitive/string/object args. Instance methods go through callMethod.
 Napi::Value CallFunction(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 2 || !info[0].IsString() || !info[1].IsString()) {
@@ -227,59 +337,16 @@ Napi::Value CallFunction(const Napi::CallbackInfo& info) {
     return env.Null();
   }
   GIFunctionInfo* func = reinterpret_cast<GIFunctionInfo*>(base);
-  GICallableInfo* callable = reinterpret_cast<GICallableInfo*>(base);
-
-  if (gi_callable_info_is_method(callable)) {
+  if (gi_callable_info_is_method(reinterpret_cast<GICallableInfo*>(base))) {
     gi_base_info_unref(base);
     g_object_unref(repo);
-    Napi::TypeError::New(env, fn + ": instance methods are not yet supported (milestone 1: namespace functions only)")
+    Napi::TypeError::New(
+        env, ns + "." + fn + " is an instance method — use callMethod(handle, name, args)")
         .ThrowAsJavaScriptException();
     return env.Null();
   }
 
-  unsigned int n_args = gi_callable_info_get_n_args(callable);
-  std::vector<GIArgument> in_args(n_args);
-  std::vector<std::string> held(n_args);
-  bool ok = true;
-  for (unsigned int i = 0; i < n_args; i++) {
-    GIArgInfo* ai = gi_callable_info_get_arg(callable, i);
-    GIDirection dir = gi_arg_info_get_direction(ai);
-    if (dir != GI_DIRECTION_IN) {
-      gi_base_info_unref(ai);
-      Napi::TypeError::New(env, fn + ": OUT/INOUT parameters are not yet supported (milestone 1)")
-          .ThrowAsJavaScriptException();
-      ok = false;
-      break;
-    }
-    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
-    Napi::Value v = i < args.Length() ? args.Get(i) : env.Undefined();
-    ok = JsToGIArgument(env, v, ti, &in_args[i], &held[i]);
-    gi_base_info_unref(ti);
-    gi_base_info_unref(ai);
-    if (!ok) break;
-  }
-  if (!ok) {
-    gi_base_info_unref(base);
-    g_object_unref(repo);
-    return env.Null();
-  }
-
-  GIArgument retval;
-  GError* error = nullptr;
-  gboolean success = gi_function_info_invoke(func, in_args.data(), n_args, nullptr, 0, &retval, &error);
-  if (!success) {
-    std::string message = error != nullptr ? error->message : "invocation failed";
-    if (error != nullptr) g_error_free(error);
-    gi_base_info_unref(base);
-    g_object_unref(repo);
-    Napi::Error::New(env, "Calling " + ns + "." + fn + ": " + message).ThrowAsJavaScriptException();
-    return env.Null();
-  }
-
-  GITypeInfo* return_type = gi_callable_info_get_return_type(callable);
-  GITransfer return_transfer = gi_callable_info_get_caller_owns(callable);
-  Napi::Value result = GIArgumentToJs(env, return_type, &retval, return_transfer);
-  gi_base_info_unref(return_type);
+  Napi::Value result = InvokeFunctionInfo(env, func, nullptr, args, ns + "." + fn);
   gi_base_info_unref(base);
   g_object_unref(repo);
   return result;
@@ -506,6 +573,77 @@ Napi::Value GetTypeName(const Napi::CallbackInfo& info) {
   return Napi::String::New(env, G_OBJECT_TYPE_NAME(obj));
 }
 
+// callMethod(handle, methodName, args?: unknown[]) -> unknown
+// Resolve an instance method by walking the instance's GIObjectInfo (own +
+// implemented-interface methods at each level, then up the parent chain), then
+// invoke it with the instance prepended. The Node twin of `obj.method(...)`.
+Napi::Value CallMethod(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[1].IsString()) {
+    Napi::TypeError::New(env, "callMethod(handle, methodName: string, args?: unknown[])")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GObject* obj = UnwrapGObject(env, info[0]);
+  if (obj == nullptr) return env.Null();
+  std::string method = info[1].As<Napi::String>().Utf8Value();
+  Napi::Array args = (info.Length() >= 3 && info[2].IsArray()) ? info[2].As<Napi::Array>()
+                                                              : Napi::Array::New(env, 0);
+
+  GType gtype = G_OBJECT_TYPE(obj);
+  GIRepository* repo = DupDefaultRepository();
+
+  // The instance's concrete GType may lack introspection info (e.g. a private
+  // GLocalFile); walk up to the nearest ancestor GType that has an object info.
+  GIObjectInfo* objInfo = nullptr;
+  for (GType t = gtype; t != 0; t = g_type_parent(t)) {
+    GIBaseInfo* bi = gi_repository_find_by_gtype(repo, t);
+    if (bi != nullptr) {
+      if (GI_IS_OBJECT_INFO(bi)) {
+        objInfo = reinterpret_cast<GIObjectInfo*>(bi);
+        break;
+      }
+      gi_base_info_unref(bi);
+    }
+  }
+  if (objInfo == nullptr) {
+    g_object_unref(repo);
+    Napi::Error::New(env, std::string("no introspection info for ") + G_OBJECT_TYPE_NAME(obj))
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  // Search own + implemented-interface methods at each level, then the parent.
+  GIFunctionInfo* func = nullptr;
+  while (objInfo != nullptr) {
+    GIBaseInfo* declarer = nullptr;
+    func = gi_object_info_find_method_using_interfaces(objInfo, method.c_str(), &declarer);
+    if (declarer != nullptr) gi_base_info_unref(declarer);
+    if (func != nullptr) break;
+    GIObjectInfo* parent = gi_object_info_get_parent(objInfo);
+    gi_base_info_unref(objInfo);
+    objInfo = parent;
+  }
+  if (objInfo != nullptr) gi_base_info_unref(objInfo);
+  g_object_unref(repo);
+
+  if (func == nullptr) {
+    Napi::Error::New(env, std::string("no method '") + method + "' on " + G_OBJECT_TYPE_NAME(obj))
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  if (!gi_callable_info_is_method(reinterpret_cast<GICallableInfo*>(func))) {
+    gi_base_info_unref(func);
+    Napi::TypeError::New(env, method + " is not an instance method").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  Napi::Value result =
+      InvokeFunctionInfo(env, func, obj, args, std::string(G_OBJECT_TYPE_NAME(obj)) + "." + method);
+  gi_base_info_unref(func);
+  return result;
+}
+
 // ---- signals (milestone 1) ----
 //
 // A GClosure that wraps a JS callback. The callback is held by a strong
@@ -675,6 +813,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("listInfoNames", Napi::Function::New(env, ListInfoNames));
   exports.Set("prependSearchPath", Napi::Function::New(env, PrependSearchPath));
   exports.Set("callFunction", Napi::Function::New(env, CallFunction));
+  exports.Set("callMethod", Napi::Function::New(env, CallMethod));
   exports.Set("newObject", Napi::Function::New(env, NewObject));
   exports.Set("getProperty", Napi::Function::New(env, GetProperty));
   exports.Set("setProperty", Napi::Function::New(env, SetProperty));
