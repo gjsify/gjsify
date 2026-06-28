@@ -64,11 +64,17 @@ test('instance method with multiple OUT → array: GLib.DateTime.get_ymd()', () 
   assert.deepEqual(callBoxedMethod(dt, 'get_ymd'), [2006, 1, 2]);
 });
 
-test('deferred OUT type throws a clear error: GLib.get_filename_charsets()', () => {
-  // gboolean g_get_filename_charsets(const gchar ***): the OUT is a string array
-  // (a later roadmap PR). It must throw a clear "not yet supported", never
-  // silently mis-handle the pointer.
-  assert.throws(() => callFunction('GLib', 'get_filename_charsets'), /not yet supported/);
+test('OUT string array → [bool, string[]]: GLib.get_filename_charsets()', () => {
+  // gboolean g_get_filename_charsets(const gchar ***): the OUT is a zero-terminated
+  // string array. Once a roadmap PR (arrays/lists/hash) — now implemented, so it
+  // surfaces as [is_utf8, charsets] rather than throwing "not yet supported".
+  const res = callFunction('GLib', 'get_filename_charsets');
+  assert.ok(Array.isArray(res));
+  assert.equal(res.length, 2);
+  assert.equal(typeof res[0], 'boolean');
+  assert.ok(Array.isArray(res[1]));
+  assert.ok(res[1].length > 0);
+  assert.ok(res[1].every((c) => typeof c === 'string'));
 });
 
 test('IN-only callables are unchanged: bare scalar returns', () => {
