@@ -40,6 +40,7 @@ import {
     putCachedTarball,
 } from './install-tarball-cache.js';
 import { getCachedPackument, putCachedPackument } from './install-packument-cache.js';
+import { assertNativeBackendNodeVersion } from './node-version.js';
 
 // 16-wide download pool. Matched to the shared Soup.Session's lifted
 // `max-conns-per-host` (see @gjsify/fetch `getSharedSession`) — a higher pool
@@ -96,6 +97,9 @@ export interface InstalledTopLevel {
 }
 
 export async function installPackagesNative(opts: InstallOptions): Promise<InstalledTopLevel[]> {
+    // Fail clearly on an unsupported Node major BEFORE touching the ABI-locked
+    // native deps — otherwise they SIGSEGV mid-extract with no actionable message.
+    assertNativeBackendNodeVersion();
     if (opts.specs.length === 0) {
         throw new Error('installPackagesNative: empty specs list');
     }
