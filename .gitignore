@@ -36,6 +36,10 @@ builddir/
 # bundle being rebuilt.
 !packages/infra/cli/dist/
 !packages/infra/cli/dist/cli.gjs.mjs
+# Dedicated, Soup-free classifier bundle booted by the CI `changes` job on a
+# plain ubuntu+gjs host (see .github/workflows/main.yml). Committed + refreshed
+# by `build:affected-bundle` alongside cli.gjs.mjs.
+!packages/infra/cli/dist/affected.gjs.mjs
 
 # @gjsify/tsc ships its bundled `tsc` as the bin — committed for
 # the same reason the CLI bundle is: downstream consumers (and

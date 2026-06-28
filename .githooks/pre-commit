@@ -99,6 +99,11 @@ if [ -n "$CLI_SRC_CHANGED" ]; then
     $GJSIFY workspace @gjsify/cli build:gjs-bundle
     git add packages/infra/cli/dist/cli.gjs.mjs
     echo "[gjsify pre-commit] staged packages/infra/cli/dist/cli.gjs.mjs"
+    # The dedicated, Soup-free classifier bundle the CI `changes` job boots —
+    # rebuilt from the same src/ so it can't drift from the affected logic.
+    $GJSIFY workspace @gjsify/cli build:affected-bundle
+    git add packages/infra/cli/dist/affected.gjs.mjs
+    echo "[gjsify pre-commit] staged packages/infra/cli/dist/affected.gjs.mjs"
 fi
 
 # --- Rebuild @gjsify/tsc -------------------------------------------------
