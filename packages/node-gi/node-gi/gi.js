@@ -59,8 +59,20 @@ function unwrapProps(props) {
 // (primitives, strings, null) passes through.
 function wrapReturn(value) {
   if (native.isGObjectHandle(value)) return wrapInstance(value);
+  // A GLib.Variant is ALSO a boxed handle (by tag), so it must be checked first
+  // to give it the Variant ergonomics rather than a plain method-routing proxy.
+  if (native.isVariantHandle(value)) return wrapVariant(value);
   if (native.isBoxedHandle(value)) return wrapBoxed(value);
   return value;
+}
+
+// Wrap a user's signal callback so each native signal argument is passed through
+// {@link wrapReturn} — a GObject arg becomes a chainable instance, a GVariant
+// arg (e.g. the value on Gio.SimpleAction::change-state) becomes a GLib.Variant
+// wrapper, primitives/plain objects pass through. (The emitter instance is not
+// passed in this milestone — see connectSignal.)
+function wrapSignalCallback(cb) {
+  return (...args) => cb(...args.map(wrapReturn));
 }
 
 // Wrap a boxed/struct handle so its methods are callable GJS-style
@@ -77,6 +89,122 @@ function wrapBoxed(handle) {
     },
     has(t, prop) {
       return prop === HANDLE || prop in t;
+    },
+  });
+}
+
+// ---- GLib.Variant ergonomics (the GJS GLib.Variant override, L1) ----
+//
+// Mirrors gjs/modules/core/overrides/GLib.js: `new GLib.Variant(sig, value)`
+// recursively packs (native variantNew), and the wrapper exposes `.unpack()`,
+// `.deepUnpack()`/`.deep_unpack`, `.recursiveUnpack()`, `.get_type_string()` and
+// the GJS toString, plus routing of any other GVariant method (n_children,
+// get_child_value, print, …) through the boxed-method engine. The deep-vs-
+// recursive distinction is honoured in the native unpacker (variantUnpack):
+//   unpack()           → variantUnpack(h, false, false): children stay Variants
+//   deepUnpack()       → variantUnpack(h, true,  false): one level; nested `v`
+//                        values (e.g. an a{sv} value) STAY Variants
+//   recursiveUnpack()  → variantUnpack(h, true,  true):  fully plain JS, no
+//                        Variants (discards `v` type info)
+
+// Re-wrap the result of variantUnpack: any GLib.Variant handle that the native
+// unpacker left in place (an `a{sv}` value under deepUnpack, every child under
+// unpack(), …) becomes a GLib.Variant wrapper; arrays/plain dicts are walked.
+function wrapVariantResult(value) {
+  if (value === null || typeof value !== 'object') return value;
+  if (native.isVariantHandle(value)) return wrapVariant(value);
+  if (value instanceof Uint8Array) return value; // `ay` bytes
+  if (Array.isArray(value)) return value.map(wrapVariantResult);
+  const out = {};
+  for (const key of Object.keys(value)) out[key] = wrapVariantResult(value[key]);
+  return out;
+}
+
+// Wrap a boxed GLib.Variant handle with the GJS-shaped Variant surface. Carries
+// [HANDLE] so it round-trips back into the engine as a GVariant IN argument
+// (action.activate(variant), new_stateful state, change_state value, …).
+function wrapVariant(handle) {
+  const target = { [HANDLE]: handle };
+  const api = {
+    unpack: () => wrapVariantResult(native.variantUnpack(handle, false, false)),
+    deepUnpack: () => wrapVariantResult(native.variantUnpack(handle, true, false)),
+    deep_unpack: () => wrapVariantResult(native.variantUnpack(handle, true, false)),
+    recursiveUnpack: () => native.variantUnpack(handle, true, true),
+    get_type_string: () => native.variantGetTypeString(handle),
+    toString: () => `[object variant of type "${native.variantGetTypeString(handle)}"]`,
+  };
+  return new Proxy(target, {
+    get(t, prop) {
+      if (prop === HANDLE) return handle;
+      if (typeof prop !== 'string') return t[prop];
+      if (Object.hasOwn(api, prop)) return api[prop];
+      if (RESERVED.has(prop)) return t[prop];
+      // Any other GVariant method (n_children, get_child_value, print, …).
+      return (...args) =>
+        wrapReturn(native.callBoxedMethod(handle, camelToSnake(prop), unwrapArgs(args)));
+    },
+    has(t, prop) {
+      return prop === HANDLE || (typeof prop === 'string' && Object.hasOwn(api, prop)) || prop in t;
+    },
+  });
+}
+
+// Deep-unwrap a pack value so any nested GLib.Variant wrapper (carried at a `v`
+// position, e.g. an a{sv} value) reaches the native packer as its raw handle —
+// the native `v` case reads a raw boxed handle, not an L1 Proxy. Primitives,
+// byte arrays, plain arrays and dict objects are walked; HANDLE-carrying
+// wrappers collapse to their handle.
+function unwrapVariantValue(value) {
+  if (value === null || typeof value !== 'object') return value;
+  if (value[HANDLE] !== undefined) return value[HANDLE];
+  if (value instanceof Uint8Array) return value; // `ay` bytes
+  if (Array.isArray(value)) return value.map(unwrapVariantValue);
+  const out = {};
+  for (const key of Object.keys(value)) out[key] = unwrapVariantValue(value[key]);
+  return out;
+}
+
+function packVariant(signature, value) {
+  return wrapVariant(native.variantNew(signature, unwrapVariantValue(value)));
+}
+
+// `GLib.Variant` as a class-like object: `new GLib.Variant(sig, value)` and the
+// deprecated `GLib.Variant.new(sig, value)` both pack via the native engine.
+function makeVariantClass() {
+  const ctor = function Variant(signature, value) {
+    return packVariant(signature, value);
+  };
+  Object.defineProperty(ctor, 'name', { value: 'Variant', configurable: true });
+  ctor.$gtypeName = 'GLib.Variant';
+  ctor.new = (signature, value) => packVariant(signature, value);
+  return new Proxy(ctor, {
+    get(t, prop) {
+      if (typeof prop !== 'string' || prop in t || RESERVED.has(prop)) return t[prop];
+      // Other static constructors (e.g. new_from_bytes) route through the engine.
+      const giName = camelToSnake(prop);
+      return (...args) =>
+        wrapReturn(native.callStaticMethod('GLib', 'Variant', giName, unwrapArgs(args)));
+    },
+    construct(_t, args) {
+      return packVariant(args[0], args[1]);
+    },
+  });
+}
+
+const variantClass = makeVariantClass();
+
+// Overlay the GJS Variant ergonomics on the introspected GLib namespace, leaving
+// every other member resolving from introspection. (Additive, like the GObject
+// overlay; the introspected struct-based `GLib.Variant` is replaced by the
+// ergonomic wrapper class so `new GLib.Variant(...)` + `.deepUnpack()` work.)
+function decorateGLibNamespace(baseNs) {
+  return new Proxy(baseNs, {
+    get(t, prop) {
+      if (prop === 'Variant') return variantClass;
+      return t[prop];
+    },
+    has(t, prop) {
+      return prop === 'Variant' || prop in t;
     },
   });
 }
@@ -105,9 +233,9 @@ function wrapInstance(handle, userProto) {
       if (typeof prop !== 'string' || RESERVED.has(prop)) return t[prop];
       switch (prop) {
         case 'connect':
-          return (signal, cb) => native.connectSignal(handle, signal, cb, false);
+          return (signal, cb) => native.connectSignal(handle, signal, wrapSignalCallback(cb), false);
         case 'connect_after':
-          return (signal, cb) => native.connectSignal(handle, signal, cb, true);
+          return (signal, cb) => native.connectSignal(handle, signal, wrapSignalCallback(cb), true);
         case 'emit':
           return (signal, ...args) =>
             wrapReturn(native.emitSignal(handle, signal, unwrapArgs(args)));
@@ -578,6 +706,9 @@ export function requireGi(namespace, version) {
     // The GObject namespace also carries the GJS runtime statics (registerClass +
     // ParamSpec/ParamFlags/SignalFlags) layered over its introspected members.
     if (namespace === 'GObject') ns = decorateGObjectNamespace(ns);
+    // The GLib namespace carries the GJS-shaped GLib.Variant ergonomics
+    // (new GLib.Variant(sig, value) + deepUnpack/unpack/recursiveUnpack).
+    else if (namespace === 'GLib') ns = decorateGLibNamespace(ns);
     namespaceCache.set(key, ns);
   }
   return ns;

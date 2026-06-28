@@ -202,6 +202,43 @@ The mainloop bridge (`startMainLoop`) is auto-attached the first time `requireGi
 loads a namespace, so `GLib.MainLoop.run()` / `Gio.Application.run()` block as
 they do under GJS while Node's timers, I/O and signal handlers keep running.
 
+#### `GLib.Variant` (build + unpack, GJS semantics)
+
+`new GLib.Variant(signature, value)` recursively builds a GVariant from a type
+signature, and the wrapper exposes the GJS unpack flavours — the contract
+GAction / GSettings / DBus payloads expect:
+
+```js
+const GLib = requireGi('GLib', '2.0');
+
+new GLib.Variant('s', 'hi').deepUnpack();      // 'hi'
+new GLib.Variant('as', ['a', 'b']).deepUnpack(); // ['a', 'b']
+new GLib.Variant('(si)', ['x', 1]).deepUnpack(); // ['x', 1]
+
+const v = new GLib.Variant('a{sv}', {
+  name: new GLib.Variant('s', 'Ada'),
+  age: new GLib.Variant('i', 36),
+});
+v.get_type_string();   // 'a{sv}'
+v.deepUnpack();        // { name: Variant, age: Variant }  (one level; values stay Variants)
+v.recursiveUnpack();   // { name: 'Ada', age: 36 }          (fully plain JS)
+v.unpack();            // single level; children stay Variants
+```
+
+Supported type strings: the basics `b y n q i u x t h d s o g`, `v` (variant),
+`m*` (maybe), `a*` arrays (incl. the `as` strv + `ay` bytestring fast-paths and
+`a{..}` dictionaries), `(...)` tuples and `{kv}` dict-entries. Built Variants
+round-trip as GObject arguments/properties/signal values — e.g. a
+`Gio.SimpleAction` state:
+
+```js
+const Gio = requireGi('Gio', '2.0');
+const action = Gio.SimpleAction.new_stateful('counter', null, new GLib.Variant('i', 0));
+action.get_state().deepUnpack();              // 0
+action.change_state(new GLib.Variant('i', 5));
+action.get_state().deepUnpack();              // 5
+```
+
 #### `GObject.registerClass` (GJS-shaped decorator)
 
 `requireGi('GObject')` carries the GJS runtime statics — `registerClass`,

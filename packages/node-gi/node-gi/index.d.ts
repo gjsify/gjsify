@@ -224,6 +224,39 @@ export function callBoxedMethod(handle: BoxedHandle, methodName: string, args?: 
 export function isBoxedHandle(value: unknown): boolean;
 
 /**
+ * Opaque handle to a GLib.Variant (a boxed handle tagged with the GVariant
+ * GType). Reference-counted via GVariant's (de)floating refcount and released on
+ * GC. Pass it to {@link variantUnpack} / {@link variantGetTypeString}.
+ */
+export type VariantHandle = BoxedHandle & { readonly __nodeGiVariant: unique symbol };
+
+/**
+ * Build a GVariant from a GVariant type signature + JS value, returning an owned
+ * GLib.Variant handle (the floating ref is sunk; released on GC). The recursive
+ * native packer behind `new GLib.Variant(signature, value)`. Supports the basics
+ * `b y n q i u x t h d s o g`, `v`, `m*` maybe, `a*` arrays (incl. `as`, `ay`,
+ * `a{..}` dicts), `(...)` tuples and `{kv}` dict-entries.
+ */
+export function variantNew(signature: string, value?: unknown): VariantHandle;
+
+/**
+ * Unpack a GLib.Variant handle to a JS value. `deep` unpacks container children
+ * (a nested `v` stays a Variant unless `recursive`); `recursive` additionally
+ * unwraps nested `v` variants to plain JS. Drives the L1 `.unpack()` (deep=false),
+ * `.deepUnpack()` (deep=true) and `.recursiveUnpack()` (deep=true, recursive=true).
+ */
+export function variantUnpack(handle: VariantHandle, deep?: boolean, recursive?: boolean): unknown;
+
+/** The GVariant type string of a GLib.Variant handle (e.g. `"a{sv}"`). */
+export function variantGetTypeString(handle: VariantHandle): string;
+
+/**
+ * Whether `value` is one of node-gi's GLib.Variant handles (a boxed handle tagged
+ * with the GVariant GType; tag-checked, no dereference).
+ */
+export function isVariantHandle(value: unknown): boolean;
+
+/**
  * Attach the libuv-backed GSource to the default GLib main context so a blocking
  * GLib main loop (`GLib.MainLoop.run()`, `Gio.Application.run()`) keeps Node's
  * timers, promises and I/O alive — the Node twin of GJS running the GLib loop as
@@ -269,6 +302,10 @@ declare const native: {
   isGObjectHandle: typeof isGObjectHandle;
   callBoxedMethod: typeof callBoxedMethod;
   isBoxedHandle: typeof isBoxedHandle;
+  variantNew: typeof variantNew;
+  variantUnpack: typeof variantUnpack;
+  variantGetTypeString: typeof variantGetTypeString;
+  isVariantHandle: typeof isVariantHandle;
   startMainLoop: typeof startMainLoop;
   connectSignal: typeof connectSignal;
   emitSignal: typeof emitSignal;

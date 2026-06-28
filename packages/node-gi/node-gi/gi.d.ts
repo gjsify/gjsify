@@ -92,6 +92,48 @@ export interface GObjectNamespace extends GiNamespace {
 }
 
 /**
+ * A GJS-shaped GLib.Variant instance (reached via `new GLib.Variant(sig, value)`
+ * or returned/unpacked from the engine). Mirrors the GJS GLib.Variant override.
+ */
+export interface Variant {
+  /** Single-level unpack: container children stay {@link Variant}s. */
+  unpack(): unknown;
+  /**
+   * Deep unpack: container children are unpacked to JS, but a nested `v`
+   * (variant) value — e.g. an `a{sv}` value — STAYS a {@link Variant}.
+   */
+  deepUnpack(): unknown;
+  /** Backwards-compatible alias of {@link Variant.deepUnpack}. */
+  deep_unpack(): unknown;
+  /** Fully recursive unpack to plain JS (nested `v` variants are unwrapped). */
+  recursiveUnpack(): unknown;
+  /** The GVariant type string (e.g. `"a{sv}"`). */
+  get_type_string(): string;
+  toString(): string;
+  /** Other GVariant methods (n_children, get_child_value, print, …). */
+  [method: string]: unknown;
+}
+
+/**
+ * `GLib.Variant` as a class-like constructor surfaced on the GLib namespace.
+ * The deprecated `GLib.Variant.new(sig, value)` alias is reached via the static
+ * index signature.
+ */
+export interface VariantConstructor {
+  new (signature: string, value?: unknown): Variant;
+  [staticMethod: string]: unknown;
+}
+
+/**
+ * The extra statics the `GLib` namespace carries on top of its introspected
+ * members (reached via `requireGi('GLib')`) — the GJS-shaped `GLib.Variant`
+ * ergonomics replace the introspected struct-based Variant.
+ */
+export interface GLibNamespace extends GiNamespace {
+  Variant: VariantConstructor;
+}
+
+/**
  * Require a GObject-Introspection namespace and return a GJS-shaped namespace
  * object. The Node twin of `import Ns from 'gi://Ns?version=X'` /
  * `imports.gi.Ns`. Members are resolved lazily from introspection: namespace
@@ -100,7 +142,8 @@ export interface GObjectNamespace extends GiNamespace {
  *
  * The `GObject` namespace additionally carries the GJS runtime statics
  * (`registerClass`, `ParamSpec`, `ParamFlags`, `SignalFlags`) — see
- * {@link GObjectNamespace}.
+ * {@link GObjectNamespace}. The `GLib` namespace carries the GJS-shaped
+ * `GLib.Variant` ergonomics — see {@link GLibNamespace}.
  */
 export function requireGi(namespace: string, version?: string): GiNamespace;
 
