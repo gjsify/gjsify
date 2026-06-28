@@ -594,28 +594,50 @@ export async function detectNodeGiGlobals(
         return name !== 'gjsify' && name !== 'gjsify-orchestrator';
     });
 
-    // Reuse the orchestrator's resolve/external/transform/treeshake so the
-    // analysis bundle goes through the same module resolution as the final
-    // build (otherwise native-rolldown and npm-rolldown can diverge).
-    const mergedResolve = analysisOptions.resolve ?? orchestratorOptions?.resolve;
-    const mergedExternal = analysisOptions.external ?? orchestratorOptions?.external;
-    const mergedTransform = analysisOptions.transform ?? orchestratorOptions?.transform;
-    const orchTreeshake = (orchestratorOptions as { treeshake?: unknown } | undefined)?.treeshake;
-
     const gjsifyPluginsArray = Array.isArray(gjsifyInstance) ? gjsifyInstance : [gjsifyInstance];
 
-    const chunkCodes = await bundler({
-        rolldownInput: {
-            input: analysisOptions.input,
-            external: mergedExternal,
-            resolve: mergedResolve,
-            transform: mergedTransform,
-            plugins: [...callerPlugins, ...gjsifyPluginsArray],
-            logLevel: 'silent',
-            ...(orchTreeshake !== undefined ? { treeshake: orchTreeshake } : {}),
-        } as InputOptions,
-        format: analysisOptions.format ?? 'esm',
-    });
+    // Reuse the FULL orchestrator options as the base so the analysis bundle
+    // goes through the EXACT SAME module resolution as the real `--app node`
+    // build — most importantly `platform: 'node'`, without which Rolldown does
+    // not treat `node:*` as builtins and the @gjsify/rolldown-plugin-pnp
+    // resolver rejects `node:fs` in a non-Node context (`RESOLVE_ERROR`). It
+    // also carries `external` (the node externals incl. `@gjsify/node-gi/*`),
+    // `resolve` (conditionNames/mainFields) and `treeshake`. We strip only the
+    // disk-write `output` (the in-memory `generate({format})` handles output)
+    // and override `input`/`plugins`. Analysis-side overrides win when set.
+    // Mirrors how `detectAutoGlobals` reuses the orchestrator config, with the
+    // platform/external/resolve carried verbatim instead of cherry-picked.
+    const baseOptions: InputOptions = orchestratorOptions ? { ...orchestratorOptions } : {};
+    delete (baseOptions as { output?: unknown }).output;
+
+    let chunkCodes: string[];
+    try {
+        chunkCodes = await bundler({
+            rolldownInput: {
+                ...baseOptions,
+                input: analysisOptions.input,
+                external: analysisOptions.external ?? baseOptions.external,
+                resolve: analysisOptions.resolve ?? baseOptions.resolve,
+                transform: analysisOptions.transform ?? baseOptions.transform,
+                plugins: [...callerPlugins, ...gjsifyPluginsArray],
+                logLevel: 'silent',
+            } as InputOptions,
+            format: analysisOptions.format ?? 'esm',
+        });
+    } catch (e) {
+        // Fail SAFE: a detection-pass failure must NEVER break a build that
+        // would otherwise succeed. Fall back to NOT injecting the shim — worst
+        // case is a missing global (a clear `ReferenceError: print is not
+        // defined` at runtime, recoverable via `--globals` or an explicit
+        // `import '@gjsify/node-gi/globals'`), never a hard build failure.
+        console.warn(
+            '[gjsify] --app node: could not analyse the bundle for GJS ambient globals ' +
+                `(${e instanceof Error ? e.message : String(e)}); skipping @gjsify/node-gi/globals ` +
+                'injection. If this build uses print/imports/ARGV, add `import ' +
+                "'@gjsify/node-gi/globals'` to the entry or pass --globals.",
+        );
+        return false;
+    }
 
     for (const code of chunkCodes) {
         if (detectGjsAmbientGlobals(code).size > 0) return true;
