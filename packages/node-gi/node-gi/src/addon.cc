@@ -105,6 +105,55 @@ Napi::Value ListInfoNames(const Napi::CallbackInfo& info) {
   return names;
 }
 
+// findInfo(namespace, name) -> { kind: string } | null
+// Classify a top-level namespace member so the L1 wrapper knows whether to treat
+// it as a constructible class, a callable function, an enum, a constant, etc.
+// kind ∈ function|object|interface|struct|union|enum|flags|constant|callback|other.
+Napi::Value FindInfo(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[0].IsString() || !info[1].IsString()) {
+    Napi::TypeError::New(env, "findInfo(namespace: string, name: string)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string ns = info[0].As<Napi::String>().Utf8Value();
+  std::string name = info[1].As<Napi::String>().Utf8Value();
+  GIRepository* repo = DupDefaultRepository();
+  GIBaseInfo* base = gi_repository_find_by_name(repo, ns.c_str(), name.c_str());
+  if (base == nullptr) {
+    g_object_unref(repo);
+    return env.Null();
+  }
+  // Order matters: GIFlagsInfo derives from GIEnumInfo, so test flags first.
+  const char* kind;
+  if (GI_IS_FUNCTION_INFO(base)) {
+    kind = "function";
+  } else if (GI_IS_FLAGS_INFO(base)) {
+    kind = "flags";
+  } else if (GI_IS_ENUM_INFO(base)) {
+    kind = "enum";
+  } else if (GI_IS_OBJECT_INFO(base)) {
+    kind = "object";
+  } else if (GI_IS_INTERFACE_INFO(base)) {
+    kind = "interface";
+  } else if (GI_IS_STRUCT_INFO(base)) {
+    kind = "struct";
+  } else if (GI_IS_UNION_INFO(base)) {
+    kind = "union";
+  } else if (GI_IS_CONSTANT_INFO(base)) {
+    kind = "constant";
+  } else if (GI_IS_CALLBACK_INFO(base)) {
+    kind = "callback";
+  } else {
+    kind = "other";
+  }
+  gi_base_info_unref(base);
+  g_object_unref(repo);
+  Napi::Object result = Napi::Object::New(env);
+  result.Set("kind", Napi::String::New(env, kind));
+  return result;
+}
+
 // prependSearchPath(path: string) -> void
 // Lets a caller add a typelib search directory before requiring (the Node twin
 // of GIRepository.prepend_search_path(); needed for non-system typelibs).
@@ -194,10 +243,26 @@ static bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArg
   }
 }
 
-// Wrap a GObject pointer as an opaque External handle owned by node-gi. Mirrors
-// NewObject's ownership: hold one strong ref we control, released by the
-// finalizer. Floating refs are sunk; a transfer-none borrow is ref'd so the
-// finalizer has a ref to drop.
+// A process-unique type tag distinguishing node-gi's GObject-instance Externals
+// from other Externals (notably registerClass's GType handle). isGObjectHandle /
+// UnwrapGObject validate against it WITHOUT dereferencing the pointer — a GType
+// handle holds a small integer, not a valid GObject*, so a blind G_IS_OBJECT on
+// it would segfault.
+static const napi_type_tag kGObjectHandleTag = {0x9f3c1a7b5e2d4068ULL,
+                                                0xa1b2c3d4e5f60718ULL};
+
+// Create the owned, type-tagged External that represents a live GObject. The
+// finalizer drops the single ref we hold; N-API finalizers run outside GC, so
+// the unref (and any resulting GObject finalize) is safe here.
+static Napi::Value MakeGObjectHandle(Napi::Env env, GObject* obj) {
+  Napi::External<GObject> ext = Napi::External<GObject>::New(
+      env, obj, [](Napi::Env, GObject* ptr) { g_object_unref(ptr); });
+  ext.TypeTag(&kGObjectHandleTag);
+  return ext;
+}
+
+// Wrap a borrowed/owned GObject pointer as a node-gi handle. Floating refs are
+// sunk; a transfer-none borrow is ref'd so the finalizer has a ref to drop.
 static Napi::Value WrapGObject(Napi::Env env, GObject* obj, GITransfer transfer) {
   if (obj == nullptr) return env.Null();
   if (g_object_is_floating(obj)) {
@@ -205,8 +270,7 @@ static Napi::Value WrapGObject(Napi::Env env, GObject* obj, GITransfer transfer)
   } else if (transfer == GI_TRANSFER_NOTHING) {
     g_object_ref(obj);
   }
-  return Napi::External<GObject>::New(env, obj,
-                                      [](Napi::Env, GObject* ptr) { g_object_unref(ptr); });
+  return MakeGObjectHandle(env, obj);
 }
 
 // Marshal a return-value GIArgument into a JS value, honouring transfer.
@@ -429,7 +493,10 @@ static bool JsToGValue(Napi::Env env, Napi::Value js, GValue* v) {
 }
 
 static GObject* UnwrapGObject(Napi::Env env, Napi::Value handle) {
-  if (!handle.IsExternal()) {
+  // Tag-check before touching Data() — a GType handle (registerClass) is also an
+  // External but holds a non-dereferenceable integer; G_IS_OBJECT on it crashes.
+  if (!handle.IsExternal() ||
+      !handle.As<Napi::External<GObject>>().CheckTypeTag(&kGObjectHandleTag)) {
     Napi::TypeError::New(env, "expected a node-gi GObject handle").ThrowAsJavaScriptException();
     return nullptr;
   }
@@ -487,14 +554,11 @@ static Napi::Value ConstructGObject(Napi::Env env, GType gtype, Napi::Object pro
     Napi::Error::New(env, "Failed to construct " + displayName).ThrowAsJavaScriptException();
     return env.Null();
   }
-  // Take a single strong, non-floating ref; the finalizer releases it. N-API
-  // finalizers run outside GC, so the unref (and any resulting GObject finalize)
-  // is safe here.
+  // Take a single strong, non-floating ref; the finalizer releases it.
   if (g_object_is_floating(obj)) {
     g_object_ref_sink(obj);
   }
-  return Napi::External<GObject>::New(env, obj,
-                                      [](Napi::Env, GObject* ptr) { g_object_unref(ptr); });
+  return MakeGObjectHandle(env, obj);
 }
 
 // newObject(namespace, typeName, props?: Record<string, unknown>) -> External<GObject>
@@ -676,6 +740,33 @@ Napi::Value GetTypeName(const Napi::CallbackInfo& info) {
   GObject* obj = UnwrapGObject(env, info[0]);
   if (obj == nullptr) return env.Null();
   return Napi::String::New(env, G_OBJECT_TYPE_NAME(obj));
+}
+
+// hasProperty(handle, name) -> boolean
+// Whether the instance's type has a GObject property by this name. The L1
+// wrapper uses it to route `obj.foo` to a property read vs an `obj.foo()` method.
+Napi::Value HasProperty(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[1].IsString()) {
+    Napi::TypeError::New(env, "hasProperty(handle, name: string)").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GObject* obj = UnwrapGObject(env, info[0]);
+  if (obj == nullptr) return env.Null();
+  std::string name = info[1].As<Napi::String>().Utf8Value();
+  GParamSpec* pspec = g_object_class_find_property(G_OBJECT_GET_CLASS(obj), name.c_str());
+  return Napi::Boolean::New(env, pspec != nullptr);
+}
+
+// isGObjectHandle(value) -> boolean
+// Whether `value` is one of node-gi's GObject-instance handles (tag-checked, no
+// dereference). Lets the L1 wrapper detect object-typed return values and wrap
+// them as instances for chaining, without misclassifying a GType handle.
+Napi::Value IsGObjectHandle(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  bool is = info.Length() >= 1 && info[0].IsExternal() &&
+            info[0].As<Napi::External<GObject>>().CheckTypeTag(&kGObjectHandleTag);
+  return Napi::Boolean::New(env, is);
 }
 
 // callMethod(handle, methodName, args?: unknown[]) -> unknown
@@ -916,6 +1007,7 @@ Napi::Value DisconnectSignal(const Napi::CallbackInfo& info) {
 static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("requireNamespace", Napi::Function::New(env, RequireNamespace));
   exports.Set("listInfoNames", Napi::Function::New(env, ListInfoNames));
+  exports.Set("findInfo", Napi::Function::New(env, FindInfo));
   exports.Set("prependSearchPath", Napi::Function::New(env, PrependSearchPath));
   exports.Set("callFunction", Napi::Function::New(env, CallFunction));
   exports.Set("callMethod", Napi::Function::New(env, CallMethod));
@@ -924,7 +1016,9 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("constructType", Napi::Function::New(env, ConstructType));
   exports.Set("getProperty", Napi::Function::New(env, GetProperty));
   exports.Set("setProperty", Napi::Function::New(env, SetProperty));
+  exports.Set("hasProperty", Napi::Function::New(env, HasProperty));
   exports.Set("getTypeName", Napi::Function::New(env, GetTypeName));
+  exports.Set("isGObjectHandle", Napi::Function::New(env, IsGObjectHandle));
   exports.Set("connectSignal", Napi::Function::New(env, ConnectSignal));
   exports.Set("emitSignal", Napi::Function::New(env, EmitSignal));
   exports.Set("disconnectSignal", Napi::Function::New(env, DisconnectSignal));

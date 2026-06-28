@@ -17,10 +17,14 @@ on both GJS and Node via `gjsify build --app {gjs,node}`.
 > construct GObjects and read/write properties (GValue round-trip); connect /
 > emit / disconnect signals; and **register GObject subclasses** (subtype +
 > construct-by-type, inheriting the parent's properties/methods). Ownership rides
-> N-API finalizers (no V8-GC reentrancy). Custom properties/signals on a subclass
-> and `registerClass` vfunc overrides + chain-up (with the toggle-ref GC bridge)
-> and the libuv↔GLib mainloop bridge land in subsequent drops, then the
-> GJS-compatible runtime + bundler integration on top.
+> N-API finalizers (no V8-GC reentrancy). On top of the engine, an **L1
+> GJS-compatibility layer** (`@gjsify/node-gi/gi`, `requireGi`) surfaces a
+> GJS-shaped namespace: `new Gio.SimpleAction({ name })`, `action.name` property
+> access, `action.get_name()` methods, and `.connect()/.emit()/.disconnect()`.
+> Custom properties/signals on a subclass, `registerClass` vfunc overrides +
+> chain-up (with the toggle-ref GC bridge), enums/constants/structs, the libuv↔
+> GLib mainloop bridge and the gjsify `--app node` bundler integration land in
+> subsequent drops.
 
 ## Provenance
 
@@ -83,6 +87,28 @@ import { registerClass, constructType, callMethod } from '@gjsify/node-gi';
 const MyAction = registerClass('MyAction', 'Gio', 'SimpleAction');
 const a = constructType(MyAction, { name: 'greet', enabled: true });
 console.log(callMethod(a, 'get_name')); // 'greet'  (inherited GAction method)
+```
+
+### L1 — GJS-shaped surface (`@gjsify/node-gi/gi`)
+
+The ergonomic layer the gjsify `--app node` build rewrites `gi://` imports onto.
+This is the same code you would write under GJS:
+
+```js
+import { requireGi } from '@gjsify/node-gi/gi';
+
+const GLib = requireGi('GLib', '2.0');
+console.log(GLib.get_host_name());
+
+const Gio = requireGi('Gio', '2.0');
+const action = new Gio.SimpleAction({ name: 'greet', enabled: true });
+console.log(action.name);          // 'greet'   (property accessor)
+console.log(action.get_name());    // 'greet'   (method)
+action.enabled = false;            // property set → set_property
+
+const c = new Gio.Cancellable();
+c.connect('cancelled', () => console.log('cancelled'));
+c.cancel();                        // fires the signal
 ```
 
 The GJS-compatible surface (`import GLib from 'gi://GLib?version=2.0'`,
