@@ -29,6 +29,9 @@ jobs:
   build-test:
     name: Build & test (Node / Fedora 44)
     runs-on: ubuntu-latest
+    # Backstop: the mainloop tests run a blocking GLib loop; a regression in the
+    # libuv↔GLib bridge could hang run(), so cap the job rather than wait 6h.
+    timeout-minutes: 20
     container:
       image: fedora:44
     steps:
