@@ -477,7 +477,9 @@ static Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* a
 
 // Shared invocation core: marshal the JS args into a GIArgument vector (the
 // instance prepended for methods), call gi_function_info_invoke, marshal the
-// return. IN-only primitives/strings/objects/enums today; OUT/INOUT follow.
+// return + any OUT/INOUT values. IN is passed by value; OUT/INOUT route through
+// a per-arg storage slot whose address the invoker hands the C callee. The JS
+// return follows the GJS convention (see InvokeFunctionInfo).
 // ---- callbacks (JS function -> GI callback via an ffi closure) ----
 //
 // A JS function passed where a GI callback is expected (e.g. GLib.timeout_add's
@@ -599,13 +601,78 @@ static NodeGiCallback* CreateCallback(Napi::Env env, Napi::Function fn, GICallab
   return cb;
 }
 
+// Whether `type` is a supported OUT/INOUT marshalling type for this milestone:
+// fundamentals (numbers/bool), strings (utf8/filename), and GObject/interface +
+// enums/flags. Compound OUT types — arrays, GList/GSList/GHashTable, GError, and
+// structs/unions (their own roadmap PR) — are deferred: they get a clear error
+// rather than silent mis-handling. *why receives a short type label on refusal.
+static bool IsSupportedOutType(GITypeInfo* type, std::string* why) {
+  switch (gi_type_info_get_tag(type)) {
+    case GI_TYPE_TAG_BOOLEAN:
+    case GI_TYPE_TAG_INT8:
+    case GI_TYPE_TAG_UINT8:
+    case GI_TYPE_TAG_INT16:
+    case GI_TYPE_TAG_UINT16:
+    case GI_TYPE_TAG_INT32:
+    case GI_TYPE_TAG_UINT32:
+    case GI_TYPE_TAG_INT64:
+    case GI_TYPE_TAG_UINT64:
+    case GI_TYPE_TAG_FLOAT:
+    case GI_TYPE_TAG_DOUBLE:
+    case GI_TYPE_TAG_UTF8:
+    case GI_TYPE_TAG_FILENAME:
+      return true;
+    case GI_TYPE_TAG_INTERFACE: {
+      GIBaseInfo* iface = gi_type_info_get_interface(type);
+      bool ok = iface != nullptr && (GI_IS_OBJECT_INFO(iface) || GI_IS_INTERFACE_INFO(iface) ||
+                                     GI_IS_ENUM_INFO(iface) || GI_IS_FLAGS_INFO(iface));
+      if (!ok && why != nullptr) {
+        *why = (iface != nullptr && (GI_IS_STRUCT_INFO(iface) || GI_IS_UNION_INFO(iface)))
+                   ? "struct/union"
+                   : "interface";
+      }
+      if (iface != nullptr) gi_base_info_unref(iface);
+      return ok;
+    }
+    default:
+      if (why != nullptr)
+        *why = "type tag " + std::to_string(static_cast<int>(gi_type_info_get_tag(type)));
+      return false;
+  }
+}
+
 static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpointer instance,
                                       Napi::Array args, const std::string& displayName) {
   GICallableInfo* callable = reinterpret_cast<GICallableInfo*>(func);
   unsigned int n_args = gi_callable_info_get_n_args(callable);
   bool isMethod = instance != nullptr;
   size_t offset = isMethod ? 1 : 0;
-  std::vector<GIArgument> in_args(n_args + offset);
+
+  // Per-argument dense in/out positions, mirroring gi_callable_info_invoke's own
+  // walk: the instance takes in-position 0; every IN/INOUT arg takes the next
+  // in-position; every OUT/INOUT arg takes the next out-position. The in_args and
+  // out_args arrays the invoker reads are dense (no holes), so we cannot index by
+  // raw arg index once OUT args interleave — these maps bridge that gap. For an
+  // all-IN callable inPos[i] == offset + i, so the IN-only path is unchanged.
+  std::vector<int> inPos(n_args, -1);
+  std::vector<int> outPos(n_args, -1);
+  std::vector<GIDirection> dirs(n_args);
+  size_t nIn = offset;
+  size_t nOut = 0;
+  for (unsigned int i = 0; i < n_args; i++) {
+    GIArgInfo* ai = gi_callable_info_get_arg(callable, i);
+    GIDirection d = gi_arg_info_get_direction(ai);
+    gi_base_info_unref(ai);
+    dirs[i] = d;
+    if (d == GI_DIRECTION_IN || d == GI_DIRECTION_INOUT) inPos[i] = static_cast<int>(nIn++);
+    if (d == GI_DIRECTION_OUT || d == GI_DIRECTION_INOUT) outPos[i] = static_cast<int>(nOut++);
+  }
+
+  std::vector<GIArgument> in_args(nIn);
+  std::vector<GIArgument> out_args(nOut);
+  // Stable per-arg storage the invoker writes OUT/INOUT values into (its address
+  // is handed to the C callee). Sized once to n_args so the addresses never move.
+  std::vector<GIArgument> slots(n_args);
   std::vector<std::string> held(n_args);
   if (isMethod) in_args[0].v_pointer = instance;
 
@@ -636,25 +703,53 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   for (unsigned int i = 0; i < n_args && ok; i++) {
     if (skip[i]) continue;  // a user_data / destroy slot — set via its callback
     GIArgInfo* ai = gi_callable_info_get_arg(callable, i);
-    GIDirection dir = gi_arg_info_get_direction(ai);
+    GIDirection dir = dirs[i];
     GITypeInfo* ti = gi_arg_info_get_type_info(ai);
-    Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
-    jsCursor++;
 
     GIBaseInfo* iface = gi_type_info_get_tag(ti) == GI_TYPE_TAG_INTERFACE
                             ? gi_type_info_get_interface(ti)
                             : nullptr;
     bool isCallback = iface != nullptr && GI_IS_CALLBACK_INFO(iface);
 
-    if (dir != GI_DIRECTION_IN && !isCallback) {
+    // OUT / INOUT (a callback is always IN-direction and handled below).
+    if ((dir == GI_DIRECTION_OUT || dir == GI_DIRECTION_INOUT) && !isCallback) {
+      std::string why;
+      if (gi_arg_info_is_caller_allocates(ai)) {
+        // Caller-allocates is the compound-struct path (the callee fills storage
+        // we provide); the supported OUT types here are all callee-set. Defer it.
+        Napi::TypeError::New(
+            env, displayName + ": caller-allocates OUT parameters are not yet supported")
+            .ThrowAsJavaScriptException();
+        ok = false;
+      } else if (!IsSupportedOutType(ti, &why)) {
+        Napi::TypeError::New(env, displayName + ": OUT " + why +
+                                      " parameters are not yet supported")
+            .ThrowAsJavaScriptException();
+        ok = false;
+      } else if (dir == GI_DIRECTION_INOUT) {
+        // INOUT: marshal the JS input into the slot (like IN); the invoker hands
+        // the slot's address to the callee, which reads it and writes back.
+        Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
+        jsCursor++;
+        if (JsToGIArgument(env, v, ti, &slots[i], &held[i])) {
+          in_args[inPos[i]].v_pointer = &slots[i];
+          out_args[outPos[i]].v_pointer = &slots[i];
+        } else {
+          ok = false;  // JsToGIArgument already threw
+        }
+      } else {
+        // Pure OUT: the callee writes into the slot; no JS arg is consumed.
+        out_args[outPos[i]].v_pointer = &slots[i];
+      }
       if (iface != nullptr) gi_base_info_unref(iface);
       gi_base_info_unref(ti);
       gi_base_info_unref(ai);
-      Napi::TypeError::New(env, displayName + ": OUT/INOUT parameters are not yet supported")
-          .ThrowAsJavaScriptException();
-      ok = false;
-      break;
+      continue;
     }
+
+    // IN (including callbacks): consume the next JS argument.
+    Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
+    jsCursor++;
 
     if (isCallback) {
       int ci = ArgClosureIndex(ai);
@@ -666,13 +761,13 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
                            scopeType);
         created.push_back(cb);
         if (scopeType == GI_SCOPE_TYPE_CALL) callScope.push_back(cb);
-        in_args[offset + i].v_pointer = cb->native;
-        if (ci >= 0 && static_cast<unsigned int>(ci) < n_args)
-          in_args[offset + ci].v_pointer = cb;
-        if (di >= 0 && static_cast<unsigned int>(di) < n_args)
-          in_args[offset + di].v_pointer = reinterpret_cast<gpointer>(NodeGiCallbackDestroyNotify);
+        in_args[inPos[i]].v_pointer = cb->native;
+        if (ci >= 0 && static_cast<unsigned int>(ci) < n_args && inPos[ci] >= 0)
+          in_args[inPos[ci]].v_pointer = cb;
+        if (di >= 0 && static_cast<unsigned int>(di) < n_args && inPos[di] >= 0)
+          in_args[inPos[di]].v_pointer = reinterpret_cast<gpointer>(NodeGiCallbackDestroyNotify);
       } else if (v.IsNull() || v.IsUndefined()) {
-        in_args[offset + i].v_pointer = nullptr;
+        in_args[inPos[i]].v_pointer = nullptr;
       } else {
         gi_base_info_unref(iface);
         gi_base_info_unref(ti);
@@ -683,7 +778,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
         break;
       }
     } else {
-      ok = JsToGIArgument(env, v, ti, &in_args[offset + i], &held[i]);
+      ok = JsToGIArgument(env, v, ti, &in_args[inPos[i]], &held[i]);
     }
 
     if (iface != nullptr) gi_base_info_unref(iface);
@@ -697,8 +792,8 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
 
   GIArgument retval;
   GError* error = nullptr;
-  gboolean success =
-      gi_function_info_invoke(func, in_args.data(), in_args.size(), nullptr, 0, &retval, &error);
+  gboolean success = gi_function_info_invoke(func, in_args.data(), in_args.size(),
+                                             out_args.data(), out_args.size(), &retval, &error);
   // Call-scope closures are only valid for the duration of the invoke; free them
   // now (notified/async closures are owned by the callee / self-freeing).
   for (NodeGiCallback* cb : callScope) NodeGiCallbackFree(cb);
@@ -709,11 +804,33 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
     return env.Null();
   }
 
+  // Assemble the JS return per the GJS convention: the function's own return
+  // value (if non-void) followed by each OUT/INOUT value in argument order.
+  // Exactly one element → return it bare; many → a JS Array; none → undefined.
+  std::vector<Napi::Value> results;
   GITypeInfo* return_type = gi_callable_info_get_return_type(callable);
   GITransfer return_transfer = gi_callable_info_get_caller_owns(callable);
-  Napi::Value result = GIArgumentToJs(env, return_type, &retval, return_transfer);
+  if (gi_type_info_get_tag(return_type) != GI_TYPE_TAG_VOID) {
+    results.push_back(GIArgumentToJs(env, return_type, &retval, return_transfer));
+  }
   gi_base_info_unref(return_type);
-  return result;
+
+  for (unsigned int i = 0; i < n_args && !env.IsExceptionPending(); i++) {
+    if (dirs[i] != GI_DIRECTION_OUT && dirs[i] != GI_DIRECTION_INOUT) continue;
+    GIArgInfo* ai = gi_callable_info_get_arg(callable, i);
+    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
+    GITransfer transfer = gi_arg_info_get_ownership_transfer(ai);
+    results.push_back(GIArgumentToJs(env, ti, &slots[i], transfer));
+    gi_base_info_unref(ti);
+    gi_base_info_unref(ai);
+  }
+
+  if (env.IsExceptionPending()) return env.Null();
+  if (results.empty()) return env.Undefined();
+  if (results.size() == 1) return results[0];
+  Napi::Array arr = Napi::Array::New(env, results.size());
+  for (size_t k = 0; k < results.size(); k++) arr.Set(static_cast<uint32_t>(k), results[k]);
+  return arr;
 }
 
 // callFunction(namespace, functionName, args?: unknown[]) -> unknown
