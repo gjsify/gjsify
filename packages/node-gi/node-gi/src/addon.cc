@@ -18,6 +18,7 @@
 #include <uv.h>
 
 #include <girepository/girepository.h>
+#include <girepository/girffi.h>  // gi_callable_info_create_closure + ffi_cif
 #include <glib-object.h>
 #include <glib.h>
 
@@ -477,6 +478,127 @@ static Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* a
 // Shared invocation core: marshal the JS args into a GIArgument vector (the
 // instance prepended for methods), call gi_function_info_invoke, marshal the
 // return. IN-only primitives/strings/objects/enums today; OUT/INOUT follow.
+// ---- callbacks (JS function -> GI callback via an ffi closure) ----
+//
+// A JS function passed where a GI callback is expected (e.g. GLib.timeout_add's
+// GSourceFunc) is wrapped in an ffi closure created by girepository
+// (gi_callable_info_create_closure). When the C library invokes it, the
+// trampoline marshals the C args to JS, calls the function, and marshals the
+// return back. The function's associated user_data slot carries the wrapper
+// pointer and the destroy-notify slot frees it (scope = notified); call-scope
+// closures are freed by the caller after the invoke; async closures free
+// themselves after the first call. Reference: refs/node-gtk src/callback.cc.
+struct NodeGiCallback {
+  napi_env env;
+  napi_ref jsFn;
+  GICallableInfo* info;  // the callback type (owned)
+  ffi_cif cif;
+  ffi_closure* closure;  // from gi_callable_info_create_closure
+  gpointer native;       // executable trampoline address
+  GIScopeType scope;
+};
+
+static void NodeGiCallbackFree(NodeGiCallback* cb) {
+  if (cb == nullptr) return;
+  if (cb->jsFn != nullptr) napi_delete_reference(cb->env, cb->jsFn);
+  if (cb->closure != nullptr) gi_callable_info_destroy_closure(cb->info, cb->closure);
+  if (cb->info != nullptr) gi_base_info_unref(cb->info);
+  delete cb;
+}
+
+// GDestroyNotify for scope=notified callbacks; user_data is the NodeGiCallback*.
+static void NodeGiCallbackDestroyNotify(gpointer user_data) {
+  NodeGiCallbackFree(static_cast<NodeGiCallback*>(user_data));
+}
+
+// girepository-2.0's closure/destroy index getters are out-param + gboolean;
+// return the index or -1 when the arg has no associated slot.
+static int ArgClosureIndex(GIArgInfo* ai) {
+  unsigned int idx = 0;
+  return gi_arg_info_get_closure_index(ai, &idx) ? static_cast<int>(idx) : -1;
+}
+static int ArgDestroyIndex(GIArgInfo* ai) {
+  unsigned int idx = 0;
+  return gi_arg_info_get_destroy_index(ai, &idx) ? static_cast<int>(idx) : -1;
+}
+
+// The ffi closure entry point: marshal C args -> JS, call the JS fn, marshal the
+// JS return -> C. Runs on the main thread (the GLib loop the bridge pumps).
+static void NodeGiCallbackTrampoline(ffi_cif* /*cif*/, void* result, void** args,
+                                     gpointer user_data) {
+  NodeGiCallback* cb = static_cast<NodeGiCallback*>(user_data);
+  napi_env env = cb->env;
+  Napi::Env napiEnv(env);
+  Napi::HandleScope scope(napiEnv);
+
+  GICallableInfo* ci = cb->info;
+  unsigned int n = gi_callable_info_get_n_args(ci);
+  std::vector<napi_value> jsArgs;
+  jsArgs.reserve(n);
+  bool ok = true;
+  for (unsigned int i = 0; i < n; i++) {
+    GIArgInfo* ai = gi_callable_info_get_arg(ci, i);
+    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
+    // ffi hands each argument's storage as args[i]; reinterpret as a GIArgument
+    // union (a user_data/void arg marshals to undefined, which JS ignores).
+    Napi::Value v = GIArgumentToJs(napiEnv, ti, static_cast<GIArgument*>(args[i]), GI_TRANSFER_NOTHING);
+    gi_base_info_unref(ti);
+    gi_base_info_unref(ai);
+    if (napiEnv.IsExceptionPending()) {
+      ok = false;
+      break;
+    }
+    jsArgs.push_back(v);
+  }
+
+  // Zero the result slot first (it is >= ffi_arg wide; narrow returns leave the
+  // upper bytes indeterminate otherwise).
+  if (result != nullptr) static_cast<GIArgument*>(result)->v_uint64 = 0;
+
+  GITypeInfo* retType = gi_callable_info_get_return_type(ci);
+  if (ok) {
+    napi_value fn = nullptr;
+    if (napi_get_reference_value(env, cb->jsFn, &fn) == napi_ok && fn != nullptr) {
+      napi_value global = nullptr;
+      napi_get_global(env, &global);
+      napi_value ret = nullptr;
+      // napi_make_callback drains nextTick/microtasks around the call.
+      napi_status st = napi_make_callback(env, nullptr, global, fn, jsArgs.size(), jsArgs.data(), &ret);
+      if (st == napi_ok && result != nullptr) {
+        GITypeTag rtag = gi_type_info_get_tag(retType);
+        if (rtag == GI_TYPE_TAG_UTF8 || rtag == GI_TYPE_TAG_FILENAME) {
+          // Hand the caller an owned copy — a JsToGIArgument string would point
+          // into a std::string that dies with this frame.
+          Napi::Value rv(env, ret);
+          static_cast<GIArgument*>(result)->v_string =
+              rv.IsString() ? g_strdup(rv.As<Napi::String>().Utf8Value().c_str()) : nullptr;
+        } else if (rtag != GI_TYPE_TAG_VOID) {
+          std::string held;
+          JsToGIArgument(napiEnv, Napi::Value(env, ret), retType, static_cast<GIArgument*>(result),
+                         &held);
+        }
+      }
+    }
+  }
+  gi_base_info_unref(retType);
+  // A pending JS exception surfaces at the next N-API boundary (e.g. when the
+  // blocking run() that pumped this callback returns).
+}
+
+// Create an ffi closure wrapping a JS function for a GI callback-typed arg.
+static NodeGiCallback* CreateCallback(Napi::Env env, Napi::Function fn, GICallableInfo* callbackInfo,
+                                      GIScopeType scope) {
+  NodeGiCallback* cb = new NodeGiCallback();
+  cb->env = env;
+  cb->info = reinterpret_cast<GICallableInfo*>(gi_base_info_ref(callbackInfo));
+  cb->scope = scope;
+  napi_create_reference(env, fn, 1, &cb->jsFn);
+  cb->closure = gi_callable_info_create_closure(callbackInfo, &cb->cif, NodeGiCallbackTrampoline, cb);
+  cb->native = gi_callable_info_get_closure_native_address(callbackInfo, cb->closure);
+  if (cb->native == nullptr) cb->native = cb->closure;
+  return cb;
+}
+
 static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpointer instance,
                                       Napi::Array args, const std::string& displayName) {
   GICallableInfo* callable = reinterpret_cast<GICallableInfo*>(func);
@@ -487,30 +609,99 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   std::vector<std::string> held(n_args);
   if (isMethod) in_args[0].v_pointer = instance;
 
-  bool ok = true;
+  // Pre-scan: the user_data + destroy-notify slots associated with a callback
+  // arg are filled from the callback, not consumed from the JS argument list.
+  std::vector<bool> skip(n_args, false);
   for (unsigned int i = 0; i < n_args; i++) {
     GIArgInfo* ai = gi_callable_info_get_arg(callable, i);
+    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
+    if (gi_type_info_get_tag(ti) == GI_TYPE_TAG_INTERFACE) {
+      GIBaseInfo* iface = gi_type_info_get_interface(ti);
+      if (iface != nullptr && GI_IS_CALLBACK_INFO(iface)) {
+        int ci = ArgClosureIndex(ai);
+        int di = ArgDestroyIndex(ai);
+        if (ci >= 0 && static_cast<unsigned int>(ci) < n_args) skip[ci] = true;
+        if (di >= 0 && static_cast<unsigned int>(di) < n_args) skip[di] = true;
+      }
+      if (iface != nullptr) gi_base_info_unref(iface);
+    }
+    gi_base_info_unref(ti);
+    gi_base_info_unref(ai);
+  }
+
+  std::vector<NodeGiCallback*> created;    // all callbacks made this call
+  std::vector<NodeGiCallback*> callScope;  // scope=call → freed after the invoke
+  bool ok = true;
+  size_t jsCursor = 0;
+  for (unsigned int i = 0; i < n_args && ok; i++) {
+    if (skip[i]) continue;  // a user_data / destroy slot — set via its callback
+    GIArgInfo* ai = gi_callable_info_get_arg(callable, i);
     GIDirection dir = gi_arg_info_get_direction(ai);
-    if (dir != GI_DIRECTION_IN) {
+    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
+    Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
+    jsCursor++;
+
+    GIBaseInfo* iface = gi_type_info_get_tag(ti) == GI_TYPE_TAG_INTERFACE
+                            ? gi_type_info_get_interface(ti)
+                            : nullptr;
+    bool isCallback = iface != nullptr && GI_IS_CALLBACK_INFO(iface);
+
+    if (dir != GI_DIRECTION_IN && !isCallback) {
+      if (iface != nullptr) gi_base_info_unref(iface);
+      gi_base_info_unref(ti);
       gi_base_info_unref(ai);
       Napi::TypeError::New(env, displayName + ": OUT/INOUT parameters are not yet supported")
           .ThrowAsJavaScriptException();
       ok = false;
       break;
     }
-    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
-    Napi::Value v = i < args.Length() ? args.Get(i) : env.Undefined();
-    ok = JsToGIArgument(env, v, ti, &in_args[offset + i], &held[i]);
+
+    if (isCallback) {
+      int ci = ArgClosureIndex(ai);
+      int di = ArgDestroyIndex(ai);
+      if (v.IsFunction()) {
+        GIScopeType scopeType = gi_arg_info_get_scope(ai);
+        NodeGiCallback* cb =
+            CreateCallback(env, v.As<Napi::Function>(), reinterpret_cast<GICallableInfo*>(iface),
+                           scopeType);
+        created.push_back(cb);
+        if (scopeType == GI_SCOPE_TYPE_CALL) callScope.push_back(cb);
+        in_args[offset + i].v_pointer = cb->native;
+        if (ci >= 0 && static_cast<unsigned int>(ci) < n_args)
+          in_args[offset + ci].v_pointer = cb;
+        if (di >= 0 && static_cast<unsigned int>(di) < n_args)
+          in_args[offset + di].v_pointer = reinterpret_cast<gpointer>(NodeGiCallbackDestroyNotify);
+      } else if (v.IsNull() || v.IsUndefined()) {
+        in_args[offset + i].v_pointer = nullptr;
+      } else {
+        gi_base_info_unref(iface);
+        gi_base_info_unref(ti);
+        gi_base_info_unref(ai);
+        Napi::TypeError::New(env, displayName + ": expected a function for the callback argument")
+            .ThrowAsJavaScriptException();
+        ok = false;
+        break;
+      }
+    } else {
+      ok = JsToGIArgument(env, v, ti, &in_args[offset + i], &held[i]);
+    }
+
+    if (iface != nullptr) gi_base_info_unref(iface);
     gi_base_info_unref(ti);
     gi_base_info_unref(ai);
-    if (!ok) break;
   }
-  if (!ok) return env.Null();
+  if (!ok) {
+    for (NodeGiCallback* cb : created) NodeGiCallbackFree(cb);
+    return env.Null();
+  }
 
   GIArgument retval;
   GError* error = nullptr;
   gboolean success =
       gi_function_info_invoke(func, in_args.data(), in_args.size(), nullptr, 0, &retval, &error);
+  // Call-scope closures are only valid for the duration of the invoke; free them
+  // now (notified/async closures are owned by the callee / self-freeing).
+  for (NodeGiCallback* cb : callScope) NodeGiCallbackFree(cb);
   if (!success) {
     std::string message = error != nullptr ? error->message : "invocation failed";
     if (error != nullptr) g_error_free(error);
