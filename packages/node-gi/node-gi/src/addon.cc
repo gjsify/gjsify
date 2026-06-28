@@ -8,11 +8,13 @@
 // libgirepository-1.0 node-gtk linked no longer ships). GJS's gi/repo.cpp is
 // the reference for the girepository-2.0 API surface.
 //
-// Milestone 1 (headless core, scaffold step): prove the toolchain + the modern
-// GIRepository API end to end — resolve the default repository, require a
-// namespace, read back its resolved version + introspection-info count, and
-// enumerate the top-level info names. Marshalling, GObject/signals, the
-// toggle-ref GC dance, and the mainloop bridge land in subsequent steps.
+// Milestone 1 (headless core): the modern GIRepository API end to end — resolve
+// the default repository, require namespaces, marshal functions/methods/props/
+// signals/callbacks/variants/containers, the libuv↔GLib mainloop bridge, and the
+// toggle-ref instance GC bridge (single canonical wrapper per GObject; toggle ref
+// flips strong↔weak so wrappers are collectable yet identity-stable + rooted
+// while C owns them; idle-deferred teardown; resurrection; thread-marshalled
+// toggles). GTK/Adwaita layering lands on top.
 
 #include <napi.h>
 #include <uv.h>
@@ -22,7 +24,11 @@
 #include <glib-object.h>
 #include <glib.h>
 
+#include <atomic>
+#include <deque>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -425,25 +431,329 @@ static bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArg
 static const napi_type_tag kGObjectHandleTag = {0x9f3c1a7b5e2d4068ULL,
                                                 0xa1b2c3d4e5f60718ULL};
 
-// Create the owned, type-tagged External that represents a live GObject. The
-// finalizer drops the single ref we hold; N-API finalizers run outside GC, so
-// the unref (and any resulting GObject finalize) is safe here.
+// ====================================================================
+// ---- toggle-ref instance GC bridge ---------------------------------
+// ====================================================================
+//
+// Derivation: refs/node-gtk src/gobject.cc (romgrk et al., MIT, the #446/#439
+// ownership fixes) + refs/gjs gi/{object.cpp,toggle.{h,cpp}} (the thread-safe
+// ToggleQueue gold standard), ported to N-API. See scratchpad design doc.
+//
+// One canonical, type-tagged External per live GObject, cached on the GObject as
+// qdata. The binding owns a SINGLE g_object_add_toggle_ref; the toggle-notify
+// flips the cached External's napi_ref between STRONG (C also holds the object →
+// rooted, survives GC) and WEAK (JS is the sole owner → collectable). This gives:
+//   (a) wrapper IDENTITY — same GObject ⇒ same External ⇒ `===` + Map-key stable;
+//   (b) collectability of reference cycles;
+//   (c) resurrection — a GObject handed back from C re-wraps to a fresh wrapper
+//       after its old one was collected, without clobbering a pending teardown.
+//
+// Crash-mode discipline (the three the design calls out):
+//   1. N-API finalizers run OUTSIDE GC, but g_object_remove_toggle_ref can drive
+//      dispose → synchronous signal emission → re-entrant JS, which is unsafe
+//      from a finalizer / non-main thread. So the finalizer ONLY schedules a
+//      g_idle_add teardown; ALL GObject teardown runs from that main-loop idle.
+//   2. Toggle-up on a maybe-collected wrapper probes napi_get_reference_value;
+//      empty ⇒ skip (a later WrapGObject resurrects). No during-GC flag dance is
+//      needed — N-API finalizers are post-GC.
+//   3. Cross-thread toggles + double-free: off-thread toggles are marshalled to
+//      the JS thread via a mutex-guarded queue drained on the GLib main context;
+//      a g_object_weak_ref safety net nulls the cached pointer if C finalizes the
+//      object under us; the idle clears qdata only if it still points at THIS
+//      wrapper (resurrection-safe); a shutdown flag disables toggles at teardown.
+
+static GQuark NodeGiWrapperQuark() {
+  static GQuark q = g_quark_from_static_string("node-gi::wrapper");
+  return q;
+}
+
+struct NodeGiInstance {
+  napi_env env;
+  GObject* gobject;        // nulled by the weak-ref safety net if C finalizes it
+  napi_ref handle_ref;     // ref to the canonical External; strong=rooted, weak=not
+  bool rooted;             // true ⇒ handle_ref currently strong (mirrors node-gtk !dying)
+  bool toggle_added;       // a toggle ref is currently installed
+  bool teardown_queued;    // a finalizer already scheduled the idle teardown (dedupe)
+};
+
+// JS/main thread id (captured in Init). napi_reference_ref/unref are only valid
+// there; off-thread toggles are queued + drained on the main context.
+static std::thread::id g_main_thread_id;
+static bool g_main_thread_id_set = false;
+static bool OnMainThread() {
+  return g_main_thread_id_set && std::this_thread::get_id() == g_main_thread_id;
+}
+
+// Set at env cleanup: ToggleNotify early-returns so no toggle touches a
+// torn-down env (GJS's gjs_object_shutdown_toggle_queue equivalent).
+static std::atomic<bool> g_toggle_shutdown{false};
+
+// Deferred-work queues, drained on the JS thread by a libuv async handle.
+//
+// Why libuv, not g_idle_add: a GLib idle only runs while the GLib default context
+// is iterated, which in pure Node usage (a script that never calls
+// MainLoop.run / Application.run) NEVER happens → idle teardowns pile up and the
+// GObjects leak. A uv_async fires whenever the libuv loop turns, which covers
+// BOTH modes: plain Node (uv runs on its own) and a blocking GLib loop (the
+// uv_source bridge below pumps uv_run(NOWAIT), which dispatches the async). The
+// async is uv_unref'd so it never keeps the process alive on its own.
+//
+// Two queues share one mutex: TOGGLES (off-thread toggle-notifies marshalled to
+// the JS thread — the rare GIO/GStreamer-worker path) and TEARDOWNS (wrappers
+// whose External was finalized; the finalizer must not touch GObject directly).
+struct ToggleItem {
+  NodeGiInstance* inst;
+  bool down;  // true = toggle-down (→ weak), false = toggle-up (→ strong)
+};
+static std::mutex g_queue_mutex;
+static std::deque<ToggleItem> g_toggle_queue;
+static std::deque<NodeGiInstance*> g_teardown_queue;
+static uv_async_t g_drain_async;
+static bool g_drain_async_inited = false;
+static napi_env g_async_env = nullptr;                 // captured for the drain callback
+static napi_async_context g_async_context = nullptr;   // async context for the drain
+
+static void DrainAsyncCb(uv_async_t*);
+static void NodeGiToggleNotify(gpointer, GObject*, gboolean);
+static void OnGObjectFinalized(gpointer, GObject*);
+
+// Lazily init the drain async on the JS thread (the only legal thread for
+// uv_async_init / napi_async_init). Called from MakeGObjectHandle, so it is always
+// initialised before any object exists — hence before any toggle or teardown can
+// be queued.
+static void EnsureDrainAsync(napi_env env) {
+  if (g_drain_async_inited) return;
+  uv_loop_t* loop = nullptr;
+  if (napi_get_uv_event_loop(env, &loop) != napi_ok || loop == nullptr) return;
+  if (uv_async_init(loop, &g_drain_async, DrainAsyncCb) != 0) return;
+  uv_unref(reinterpret_cast<uv_handle_t*>(&g_drain_async));  // don't keep the loop alive
+  g_async_env = env;
+  // An async context so the drain — which re-enters JS via signal emission during
+  // dispose (remove_toggle_ref → dispose → ::destroy) — runs in a valid N-API
+  // callback scope, not a bare libuv callback (which lacks a V8 HandleScope).
+  napi_value name = nullptr;
+  napi_create_string_utf8(env, "node-gi:toggle-drain", NAPI_AUTO_LENGTH, &name);
+  napi_async_init(env, nullptr, name, &g_async_context);
+  g_drain_async_inited = true;
+}
+
+static void WakeDrain() {
+  if (g_drain_async_inited) uv_async_send(&g_drain_async);
+}
+
+// Apply a toggle on the JS thread: flip the canonical napi_ref strong↔weak.
+// Only flips on a real state transition (mirrors node-gtk's dying flag) and
+// probes liveness before touching a possibly-collected handle (crash mode 2).
+static void ApplyToggle(NodeGiInstance* inst, bool down) {
+  if (down) {
+    if (!inst->rooted) return;  // already weak
+    napi_value v = nullptr;
+    if (napi_get_reference_value(inst->env, inst->handle_ref, &v) == napi_ok && v != nullptr) {
+      uint32_t r = 0;
+      napi_reference_unref(inst->env, inst->handle_ref, &r);  // strong → weak
+    }
+    inst->rooted = false;
+  } else {
+    if (inst->rooted) return;  // already strong
+    napi_value v = nullptr;
+    if (napi_get_reference_value(inst->env, inst->handle_ref, &v) == napi_ok && v != nullptr) {
+      uint32_t r = 0;
+      napi_reference_ref(inst->env, inst->handle_ref, &r);  // weak → strong
+      inst->rooted = true;
+    }
+    // empty ⇒ the wrapper was already collected; a later WrapGObject resurrects.
+  }
+}
+
+// Run one wrapper's teardown on the JS thread: drop the toggle ref (may dispose →
+// emit → re-enter JS — legal here, not in a finalizer/off-thread), resurrection-
+// safely, then free the wrapper.
+//
+// ORDER MATTERS (node-gtk's GObjectTeardownIdle): remove_toggle_ref is LAST,
+// because dropping the last ref can take refcount to 0 → dispose → finalize → the
+// GObject is freed; any qdata/weak op after that would touch freed memory. So:
+//   (1) under the queue lock: detach qdata (only if it still points at US —
+//       resurrection-safe) AND cancel any queued off-thread toggles for this inst.
+//       Both under the lock — paired with the off-thread enqueue path, which
+//       re-reads qdata under the SAME lock — so a racing toggle either enqueues
+//       then gets cancelled here, or sees the cleared qdata and never enqueues;
+//       after this no NodeGiToggleNotify can find this inst.
+//   (2) g_object_weak_unref (drop the safety net before the unref below).
+//   (3) g_object_remove_toggle_ref LAST (may dispose → emit → re-enter JS, legal
+//       here on the JS thread; the object may be freed afterwards).
+static void RunTeardown(NodeGiInstance* inst) {
+  GObject* obj = inst->gobject;  // null if the weak-ref net already fired
+  {
+    std::lock_guard<std::mutex> guard(g_queue_mutex);
+    if (obj != nullptr && g_object_get_qdata(obj, NodeGiWrapperQuark()) == inst) {
+      g_object_set_qdata(obj, NodeGiWrapperQuark(), nullptr);
+    }
+    for (auto it = g_toggle_queue.begin(); it != g_toggle_queue.end();) {
+      it = (it->inst == inst) ? g_toggle_queue.erase(it) : it + 1;
+    }
+  }
+  if (obj != nullptr) {
+    g_object_weak_unref(obj, OnGObjectFinalized, inst);
+    if (inst->toggle_added) g_object_remove_toggle_ref(obj, NodeGiToggleNotify, nullptr);
+  }
+  if (inst->handle_ref != nullptr) napi_delete_reference(inst->env, inst->handle_ref);
+  delete inst;
+}
+
+// Drain both queues on the JS/main thread. Snapshot under the lock, process
+// outside it (the work re-enters JS + GObject, which must not run under the
+// queue lock). New items queued during processing re-arm the async via their own
+// Wake/Enqueue. Toggles first, then teardowns (a teardown for an inst whose
+// toggle is in this snapshot is harmless — ApplyToggle's liveness probe skips a
+// finalized handle, and RunTeardown re-checks the live queue under the lock).
+static void DrainAsyncCb(uv_async_t*) {
+  if (g_async_env == nullptr || g_toggle_shutdown.load()) return;
+  Napi::Env env(g_async_env);
+  // A HandleScope is mandatory: ApplyToggle's napi_get_reference_value and the
+  // JS re-entry during teardown both create V8 handles, and a bare libuv callback
+  // has no scope. The CallbackScope additionally establishes the async context so
+  // signal emission during dispose runs as a proper N-API callback.
+  Napi::HandleScope handleScope(env);
+  Napi::CallbackScope callbackScope(env, g_async_context);
+
+  std::deque<ToggleItem> toggles;
+  std::deque<NodeGiInstance*> teardowns;
+  {
+    std::lock_guard<std::mutex> guard(g_queue_mutex);
+    toggles.swap(g_toggle_queue);
+    teardowns.swap(g_teardown_queue);
+  }
+  for (const ToggleItem& item : toggles) {
+    if (!g_toggle_shutdown.load()) ApplyToggle(item.inst, item.down);
+  }
+  for (NodeGiInstance* inst : teardowns) {
+    RunTeardown(inst);
+  }
+}
+
+// The single toggle-notify for every node-gi GObject. Registered with data=NULL
+// (fungible — node-gtk pattern): the live wrapper is found via qdata, so a stale
+// teardown can remove ANY one toggle ref without orphaning a resurrected wrapper.
+static void NodeGiToggleNotify(gpointer /*data*/, GObject* obj, gboolean is_last_ref) {
+  if (g_toggle_shutdown.load()) return;
+  bool down = is_last_ref != FALSE;
+  if (OnMainThread()) {
+    // Fast path: same thread as construct/teardown, so no teardown can race us.
+    NodeGiInstance* inst =
+        static_cast<NodeGiInstance*>(g_object_get_qdata(obj, NodeGiWrapperQuark()));
+    if (inst != nullptr) ApplyToggle(inst, down);
+    return;
+  }
+  // Off-thread (a GIO/GStreamer-worker unref): marshal to the JS thread. Re-read
+  // qdata + enqueue under the lock that RunTeardown also clears qdata under, so
+  // we never queue an inst that teardown has already (or is about to) free.
+  bool queued = false;
+  {
+    std::lock_guard<std::mutex> guard(g_queue_mutex);
+    NodeGiInstance* inst =
+        static_cast<NodeGiInstance*>(g_object_get_qdata(obj, NodeGiWrapperQuark()));
+    if (inst != nullptr) {
+      g_toggle_queue.push_back({inst, down});
+      queued = true;
+    }
+  }
+  if (queued) WakeDrain();  // outside the lock
+}
+
+// Weak-ref safety net: if C finalizes the GObject while we still hold the toggle
+// ref (defensive — a correct toggle ref prevents this), null the cached pointer
+// so teardown never touches freed memory.
+static void OnGObjectFinalized(gpointer data, GObject* /*where_the_object_was*/) {
+  NodeGiInstance* inst = static_cast<NodeGiInstance*>(data);
+  inst->gobject = nullptr;
+}
+
+// The canonical External's finalizer (napi_finalize, runs at a safe point post-GC
+// but where re-entering GObject teardown is still unsafe). Do the MINIMUM: queue
+// the teardown + wake the drain async (crash mode 1).
+static void NodeGiInstanceFinalize(Napi::Env /*env*/, GObject* /*data*/, NodeGiInstance* inst) {
+  if (inst == nullptr || inst->teardown_queued) return;
+  inst->teardown_queued = true;
+  {
+    std::lock_guard<std::mutex> guard(g_queue_mutex);
+    g_teardown_queue.push_back(inst);
+  }
+  WakeDrain();
+}
+
+// Cache-aware factory: the caller owns exactly ONE non-floating "construction"
+// ref on obj. Returns the canonical External, establishing the toggle ref on a
+// cache miss / resurrecting on a collected hit, or adopting + balancing the ref
+// on a live hit.
 static Napi::Value MakeGObjectHandle(Napi::Env env, GObject* obj) {
-  Napi::External<GObject> ext = Napi::External<GObject>::New(
-      env, obj, [](Napi::Env, GObject* ptr) { g_object_unref(ptr); });
+  EnsureDrainAsync(env);  // wire the JS-thread drain before any toggle/teardown can queue
+  NodeGiInstance* existing =
+      static_cast<NodeGiInstance*>(g_object_get_qdata(obj, NodeGiWrapperQuark()));
+  if (existing != nullptr) {
+    napi_value cached = nullptr;
+    if (napi_get_reference_value(env, existing->handle_ref, &cached) == napi_ok &&
+        cached != nullptr) {
+      g_object_unref(obj);  // drop the surplus construction ref; toggle ref owns obj
+      return Napi::Value(env, cached);
+    }
+    // collected hit (wrapper GC'd, idle teardown maybe pending) → resurrect below;
+    // the pending idle's "qdata == inst" guard stops it clobbering the new wrapper.
+  }
+
+  NodeGiInstance* inst = new NodeGiInstance();
+  inst->env = env;
+  inst->gobject = obj;
+  inst->rooted = true;
+  inst->toggle_added = false;
+  inst->teardown_queued = false;
+
+  Napi::External<GObject> ext =
+      Napi::External<GObject>::New(env, obj, NodeGiInstanceFinalize, inst);
   ext.TypeTag(&kGObjectHandleTag);
+  napi_create_reference(env, ext, 1, &inst->handle_ref);  // start STRONG (node-gtk invariant)
+
+  g_object_set_qdata(obj, NodeGiWrapperQuark(), inst);     // overwrite (resurrection-safe)
+  g_object_weak_ref(obj, OnGObjectFinalized, inst);        // safety net
+  g_object_add_toggle_ref(obj, NodeGiToggleNotify, nullptr);
+  inst->toggle_added = true;
+  // Drop the construction ref → only the toggle ref remains. If nothing else
+  // holds obj (refcount 2→1) this fires toggle-down synchronously, flipping the
+  // fresh wrapper to weak; if C holds another ref it stays strong (rooted).
+  g_object_unref(obj);
   return ext;
 }
 
-// Wrap a borrowed/owned GObject pointer as a node-gi handle. Floating refs are
-// sunk; a transfer-none borrow is ref'd so the finalizer has a ref to drop.
+// Wrap a borrowed/owned GObject pointer as the canonical node-gi handle. The
+// cache lookup happens BEFORE any refcount change so a live hit causes no
+// spurious toggle churn; only the miss/resurrect path takes a construction ref.
 static Napi::Value WrapGObject(Napi::Env env, GObject* obj, GITransfer transfer) {
   if (obj == nullptr) return env.Null();
+
+  NodeGiInstance* inst =
+      static_cast<NodeGiInstance*>(g_object_get_qdata(obj, NodeGiWrapperQuark()));
+  if (inst != nullptr) {
+    napi_value cached = nullptr;
+    if (napi_get_reference_value(env, inst->handle_ref, &cached) == napi_ok && cached != nullptr) {
+      // Identity hit: return the canonical External, balancing the transfer (we
+      // already own obj via the toggle ref, so any ref the caller hands us is
+      // surplus and must be dropped).
+      if (g_object_is_floating(obj)) {
+        g_object_ref_sink(obj);
+        g_object_unref(obj);
+      } else if (transfer == GI_TRANSFER_EVERYTHING) {
+        g_object_unref(obj);
+      }
+      return Napi::Value(env, cached);
+    }
+    // collected hit → fall through and (re)build a fresh wrapper (resurrection).
+  }
+
+  // Miss / resurrect: get to "we own exactly one non-floating construction ref".
   if (g_object_is_floating(obj)) {
     g_object_ref_sink(obj);
   } else if (transfer == GI_TRANSFER_NOTHING) {
     g_object_ref(obj);
-  }
+  }  // GI_TRANSFER_EVERYTHING (non-floating): the caller already gave us the ref.
   return MakeGObjectHandle(env, obj);
 }
 
@@ -1668,14 +1978,11 @@ Napi::Value CallFunction(const Napi::CallbackInfo& info) {
 
 // ---- GObject lifecycle + properties (milestone 1) ----
 //
-// Construct GObjects, read/write their properties, and own them with an N-API
-// finalizer. Unlike node-gtk's NAN/V8-weak-callback model (which must defer the
-// unref to a GLib idle because V8 forbids calling into GObject during GC),
-// N-API finalizers run at a safe point OUTSIDE garbage collection, so a plain
-// g_object_unref in the finalizer is correct here. The toggle-ref dance is only
-// needed once JS-subclassed objects / JS-connected signal closures enter the
-// picture (the signals + registerClass drops); a plain owned ref suffices for
-// the headless-core object lifecycle.
+// Construct GObjects and read/write their properties. Ownership now flows through
+// the toggle-ref instance GC bridge above: ConstructGObject hands its single
+// construction ref to the cache-aware MakeGObjectHandle, which installs the
+// canonical toggle ref (so the wrapper is collectable when JS is the sole owner,
+// rooted when C also holds the object, and identity-stable + resurrectable).
 //
 // Instances are handed back as opaque Napi::External<GObject> handles; the
 // ergonomic class/prototype surface is layered in the GJS-compat runtime.
@@ -1883,10 +2190,10 @@ Napi::Value NewObject(const Napi::CallbackInfo& info) {
 //
 // Register a new GObject subclass of `parentNamespace.parentTypeName` named
 // `name`, inheriting the parent's class/instance layout. Supports custom
-// properties + signals (installed in class_init — see below); vfunc overrides
-// and the toggle-ref GC bridge a JS vfunc/closure requires land in the next
-// drop. A plain dynamic subtype's instances are ordinary GObjects, so the
-// existing finalizer-unref ownership is correct. Returns an opaque type handle
+// properties + signals (installed in class_init — see below) and vfunc overrides.
+// A dynamic subtype's instances are ordinary GObjects owned through the canonical
+// toggle-ref bridge (so a JS-subclassed instance kept by C stays rooted, keeping
+// its overridden-vfunc wrapper + JS state alive). Returns an opaque type handle
 // (the GType) for constructType().
 
 // GTypes are process-stable and never freed (static registration), so the
@@ -1908,9 +2215,8 @@ static GType UnwrapGType(Napi::Env env, Napi::Value v) {
 // Inherited (introspected-parent) properties still flow through the parent's
 // vfuncs — a property is "ours" iff its owner GType carries node-gi class-data.
 // Backing the values with a per-instance store (not C struct fields) keeps a
-// plain dynamic subtype's instances ordinary GObjects (the existing
-// finalizer-unref ownership stays correct). vfunc overrides + the toggle-ref GC
-// bridge a JS method/closure needs land in the next drop.
+// plain dynamic subtype's instances ordinary GObjects, owned through the
+// canonical toggle-ref bridge above.
 
 // Map a JS type-name to a GType (shared by property + signal specs).
 static GType TypeNameToGType(const std::string& t) {
@@ -2007,8 +2313,11 @@ struct NodeGiSignalDef {
 // Each override is held by a per-CLASS record carrying a STRONG napi_ref to the
 // JS impl plus the ffi closure written into the class vtable. Both live for the
 // class lifetime and are NEVER freed — a GType is process-permanent, so this is
-// the same ownership model as the signal class-handler, NOT a per-instance cycle:
-// no toggle-ref / instance-GC bridge is needed (that lands in a later drop).
+// the same ownership model as the signal class-handler (the override fn is
+// class-level, not per-instance). The INSTANCE the trampoline passes as `this`
+// goes through WrapGObject, so it resolves to the canonical toggle-ref wrapper —
+// the same handle construct returns (and that vfunc `this` keeps that wrapper +
+// its JS state alive while C owns a JS-subclassed instance).
 //
 // In class_init the vfunc info is resolved by walking the parent object-info
 // chain (gi_object_info_find_vfunc), the vtable slot is located via the matching
@@ -3249,12 +3558,16 @@ Napi::Value IsVariantHandle(const Napi::CallbackInfo& info) {
 // converts the signal's GValue params to JS (skipping the emitter instance at
 // index 0) and the JS return into the signal return GValue.
 //
-// Caveat (documented): if the JS callback closes over the object's handle, that
-// forms a handle -> GObject -> closure -> napi_ref -> callback -> handle cycle
-// that V8's GC cannot break across the C boundary, so such a handler keeps the
-// object alive until explicitly disconnected. The toggle-ref refinement (with
-// the subclassing/registerClass drop) addresses this; for now disconnect
-// long-lived handlers explicitly.
+// Narrowed-leak semantics (with the toggle-ref bridge): a handler that does NOT
+// close over its own object is now collectable once C is the sole owner
+// (toggle-down → weak → GC). A handler that DOES close over its object forms a
+// GObject -> GClosure -> napi_ref -> callback -> wrapper -> handle cycle the GC
+// cannot break across C, so it keeps the object alive until disconnect — which is
+// the GJS-faithful contract (a connected self-referential handler is a reason to
+// stay alive). disconnect drops the closure's napi_ref (JsClosureFinalize),
+// breaking the cycle so the next GC collects the object. The callback ref stays
+// STRONG while connected (a connected handler must fire). Verified by the
+// signal-cycle case in test/gc-identity.test.mjs.
 
 struct JsClosureData {
   napi_env env;
@@ -3547,7 +3860,23 @@ Napi::Value StartMainLoop(const Napi::CallbackInfo& info) {
 
 }  // namespace
 
+// Toggle-queue shutdown: disable toggles before the env tears down so no
+// toggle-notify touches a dead env (GJS's gjs_object_shutdown_toggle_queue), and
+// close the drain async so the libuv loop can exit cleanly. Any still-queued
+// teardowns are intentionally dropped (the process/env is going away).
+static void OnEnvShutdown(void* /*arg*/) {
+  g_toggle_shutdown.store(true);
+  if (g_drain_async_inited) {
+    uv_close(reinterpret_cast<uv_handle_t*>(&g_drain_async), nullptr);
+    g_drain_async_inited = false;
+  }
+}
+
 static Napi::Object Init(Napi::Env env, Napi::Object exports) {
+  // Capture the JS/main thread — toggle refs may only touch the napi_ref here.
+  g_main_thread_id = std::this_thread::get_id();
+  g_main_thread_id_set = true;
+  napi_add_env_cleanup_hook(env, OnEnvShutdown, nullptr);
   exports.Set("requireNamespace", Napi::Function::New(env, RequireNamespace));
   exports.Set("listInfoNames", Napi::Function::New(env, ListInfoNames));
   exports.Set("findInfo", Napi::Function::New(env, FindInfo));

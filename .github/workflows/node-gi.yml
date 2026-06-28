@@ -69,6 +69,15 @@ jobs:
         working-directory: packages/node-gi/node-gi
         run: npm test
 
+      # GC-stress leg: the toggle-ref instance bridge (wrapper identity,
+      # collectability, toggle-up rooting, resurrection, signal-cycle, soak) only
+      # surfaces under deliberate GC pressure, which needs --expose-gc for
+      # global.gc(). Plain `node --test` self-skips those cases; this leg runs
+      # them. Reuses the addon already built by the previous step.
+      - name: GC-stress test (node --test --expose-gc)
+        working-directory: packages/node-gi/node-gi
+        run: npm run test:gc
+
       # Capstone: ONE unchanged gi:// source builds + runs byte-identically on
       # BOTH gjs and node. `npm install` builds @gjsify/node-gi via the
       # `file:../node-gi` dependency (node-gyp), so the example exercises the
