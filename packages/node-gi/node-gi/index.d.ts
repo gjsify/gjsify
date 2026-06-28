@@ -40,6 +40,15 @@ export type InfoKind =
  */
 export function findInfo(namespace: string, name: string): { kind: InfoKind } | null;
 
+/** Read a namespace-level GI constant (e.g. `GLib.PRIORITY_DEFAULT`). */
+export function getConstantValue(namespace: string, name: string): unknown;
+
+/**
+ * Enumerate an enum/flags type's members as `{ rawGiName: number }`. The L1
+ * wrapper re-keys them GJS-style (UPPER_CASE, `-` → `_`).
+ */
+export function getEnumValues(namespace: string, name: string): Record<string, number>;
+
 /** Prepend a directory to the GIRepository typelib search path. */
 export function prependSearchPath(path: string): void;
 
@@ -146,6 +155,8 @@ declare const native: {
   requireNamespace: typeof requireNamespace;
   listInfoNames: typeof listInfoNames;
   findInfo: typeof findInfo;
+  getConstantValue: typeof getConstantValue;
+  getEnumValues: typeof getEnumValues;
   prependSearchPath: typeof prependSearchPath;
   callFunction: typeof callFunction;
   callMethod: typeof callMethod;

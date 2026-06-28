@@ -57,6 +57,24 @@ export const listInfoNames = native.listInfoNames;
 export const findInfo = native.findInfo;
 
 /**
+ * Read a namespace-level GI constant (e.g. `GLib.PRIORITY_DEFAULT`) and marshal
+ * it to a JS value.
+ * @param {string} namespace
+ * @param {string} name
+ * @returns {unknown}
+ */
+export const getConstantValue = native.getConstantValue;
+
+/**
+ * Enumerate an enum/flags type's members as `{ rawGiName: number }` (the L1
+ * wrapper re-keys them GJS-style: UPPER_CASE with `-` → `_`).
+ * @param {string} namespace
+ * @param {string} name
+ * @returns {Record<string, number>}
+ */
+export const getEnumValues = native.getEnumValues;
+
+/**
  * Prepend a directory to the GIRepository typelib search path (call before
  * requireNamespace for non-system typelibs).
  * @param {string} path
