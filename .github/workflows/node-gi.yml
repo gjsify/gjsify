@@ -38,14 +38,28 @@ jobs:
       - name: Install toolchain + GObject-Introspection dev headers
         run: |
           dnf install -y --setopt=install_weak_deps=False \
-            git nodejs npm gcc-c++ make python3 pkgconf-pkg-config \
-            glib2-devel gobject-introspection-devel gobject-introspection
-          node --version
-          npm --version
+            git gcc-c++ make python3 pkgconf-pkg-config tar xz \
+            glib2-devel gobject-introspection-devel gobject-introspection gjs
+          gjs --version
           echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
+
+      # Use the official nodejs.org build, NOT Fedora's `dnf nodejs`: the Fedora
+      # package segfaults rolldown's prebuilt napi binding (the gjsify bundler
+      # engine) inside the minimal container, so `gjsify build` crashes. The
+      # official build runs it fine. setup-node works inside this container (the
+      # main workflow does the same), and node-gyp builds the addon against it.
+      - name: Use official Node.js (Fedora's dnf node crashes the bundler)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Verify runtimes
+        run: |
+          node --version
+          npm --version
 
       - name: Build native addon (node-gyp)
         working-directory: packages/node-gi/node-gi
@@ -54,3 +68,16 @@ jobs:
       - name: Smoke test (node --test)
         working-directory: packages/node-gi/node-gi
         run: npm test
+
+      # Capstone: ONE unchanged gi:// source builds + runs byte-identically on
+      # BOTH gjs and node. `npm install` builds @gjsify/node-gi via the
+      # `file:../node-gi` dependency (node-gyp), so the example exercises the
+      # in-tree runtime + addon. `dual.e2e.mjs` builds `--app gjs` (real
+      # bundler) + runs on gjs, and runs the same source on node (the real
+      # `--app node` bundle once the installed CLI carries the gi:// rewrite,
+      # else the @gjsify/node-gi runtime), asserting both equal the golden.
+      - name: Dual gjs+node example (capstone)
+        working-directory: packages/node-gi/example
+        run: |
+          npm install --no-audit --no-fund --foreground-scripts
+          node --test dual.e2e.mjs
