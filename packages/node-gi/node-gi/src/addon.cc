@@ -15,6 +15,7 @@
 // toggle-ref GC dance, and the mainloop bridge land in subsequent steps.
 
 #include <napi.h>
+#include <uv.h>
 
 #include <girepository/girepository.h>
 #include <glib-object.h>
@@ -259,6 +260,63 @@ Napi::Value PrependSearchPath(const Napi::CallbackInfo& info) {
 
 // Marshal a JS value into a GIArgument for an IN argument of `type`.
 // `heldString` keeps UTF-8 storage alive for the duration of the call.
+// ---- boxed / struct handles (milestone: mainloop) ----
+//
+// Boxed/struct instances (e.g. GMainLoop) are wrapped as type-tagged Externals
+// over a small heap record carrying the pointer + its boxed GType, so the
+// finalizer can g_boxed_free a fully-owned boxed and method resolution can find
+// the struct's GIStructInfo by GType. Distinct tag from the GObject handle so
+// the two never cross-dereference. Full general struct support (field access,
+// copy semantics for non-registered C structs) lands with the broader
+// structs/boxed drop; this is the slice the GLib main loop needs.
+struct BoxedHandle {
+  gpointer ptr;
+  GType gtype;  // boxed GType, or G_TYPE_INVALID when unknown/non-registered
+  bool owns;    // g_boxed_free(gtype, ptr) on finalize when true
+};
+
+static const napi_type_tag kBoxedHandleTag = {0x6d2f8c4b1a9e7350ULL,
+                                              0xb7e1d3a5c9f08264ULL};
+
+static Napi::Value MakeBoxedHandle(Napi::Env env, gpointer ptr, GType gtype, bool owns) {
+  BoxedHandle* bh = new BoxedHandle{ptr, gtype, owns};
+  Napi::External<BoxedHandle> ext =
+      Napi::External<BoxedHandle>::New(env, bh, [](Napi::Env, BoxedHandle* h) {
+        if (h->owns && h->ptr != nullptr && h->gtype != G_TYPE_INVALID &&
+            G_TYPE_IS_BOXED(h->gtype)) {
+          g_boxed_free(h->gtype, h->ptr);
+        }
+        delete h;
+      });
+  ext.TypeTag(&kBoxedHandleTag);
+  return ext;
+}
+
+// Wrap a returned struct/boxed pointer. `structInfo` is the GIStructInfo (or
+// union info) for the static type; the runtime GType (if registered + boxed)
+// drives ownership + later method resolution.
+static Napi::Value WrapBoxed(Napi::Env env, gpointer ptr, GIBaseInfo* structInfo,
+                             GITransfer transfer) {
+  if (ptr == nullptr) return env.Null();
+  GType gt = G_TYPE_INVALID;
+  if (structInfo != nullptr && (GI_IS_STRUCT_INFO(structInfo) || GI_IS_UNION_INFO(structInfo))) {
+    gt = gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(structInfo));
+  }
+  bool boxed = gt != G_TYPE_INVALID && gt != G_TYPE_NONE && G_TYPE_IS_BOXED(gt);
+  bool owns = boxed && transfer == GI_TRANSFER_EVERYTHING;
+  return MakeBoxedHandle(env, ptr, boxed ? gt : G_TYPE_INVALID, owns);
+}
+
+// Read a boxed handle's pointer if `v` is one (tag-checked; no deref of ptr).
+static bool TryGetBoxedPtr(Napi::Value v, gpointer* out) {
+  if (!v.IsExternal()) return false;
+  Napi::External<BoxedHandle> ext = v.As<Napi::External<BoxedHandle>>();
+  if (!ext.CheckTypeTag(&kBoxedHandleTag)) return false;
+  BoxedHandle* h = ext.Data();
+  *out = h != nullptr ? h->ptr : nullptr;
+  return true;
+}
+
 static bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* out,
                            std::string* heldString) {
   GITypeTag tag = gi_type_info_get_tag(type);
@@ -301,12 +359,26 @@ static bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArg
         } else if (GI_IS_ENUM_INFO(iface) || GI_IS_FLAGS_INFO(iface)) {
           out->v_int = v.ToNumber().Int32Value();
           handled = true;
+        } else if (GI_IS_STRUCT_INFO(iface) || GI_IS_UNION_INFO(iface)) {
+          // Boxed/struct IN args arrive as boxed handles; null/undefined maps to
+          // a NULL pointer (e.g. GLib.MainLoop.new(null, false)).
+          if (v.IsNull() || v.IsUndefined()) {
+            out->v_pointer = nullptr;
+            handled = true;
+          } else {
+            gpointer p = nullptr;
+            if (TryGetBoxedPtr(v, &p)) {
+              out->v_pointer = p;
+              handled = true;
+            }
+          }
         }
         gi_base_info_unref(iface);
       }
       if (!handled) {
         Napi::TypeError::New(
-            env, "Unsupported interface IN argument (expected a GObject handle, enum or flags number)")
+            env,
+            "Unsupported interface IN argument (expected a GObject/boxed handle, enum or flags number)")
             .ThrowAsJavaScriptException();
         return false;
       }
@@ -382,9 +454,12 @@ static Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* a
         result = WrapGObject(env, static_cast<GObject*>(arg->v_pointer), transfer);
       } else if (iface != nullptr && (GI_IS_ENUM_INFO(iface) || GI_IS_FLAGS_INFO(iface))) {
         result = Napi::Number::New(env, arg->v_int);
+      } else if (iface != nullptr && (GI_IS_STRUCT_INFO(iface) || GI_IS_UNION_INFO(iface))) {
+        result = WrapBoxed(env, arg->v_pointer, iface, transfer);
       } else {
         Napi::TypeError::New(
-            env, "Unsupported interface return type (milestone: objects, interfaces, enums, flags)")
+            env,
+            "Unsupported interface return type (milestone: objects, interfaces, enums, flags, boxed)")
             .ThrowAsJavaScriptException();
         result = env.Undefined();
       }
@@ -402,7 +477,7 @@ static Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* a
 // Shared invocation core: marshal the JS args into a GIArgument vector (the
 // instance prepended for methods), call gi_function_info_invoke, marshal the
 // return. IN-only primitives/strings/objects/enums today; OUT/INOUT follow.
-static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, GObject* instance,
+static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpointer instance,
                                       Napi::Array args, const std::string& displayName) {
   GICallableInfo* callable = reinterpret_cast<GICallableInfo*>(func);
   unsigned int n_args = gi_callable_info_get_n_args(callable);
@@ -992,6 +1067,67 @@ Napi::Value CallStaticMethod(const Napi::CallbackInfo& info) {
   return result;
 }
 
+// callBoxedMethod(handle, methodName, args?) -> unknown
+// Invoke an instance method on a boxed/struct handle (e.g. mainLoop.run() /
+// mainLoop.quit()). Resolves the method against the boxed GType's GIStructInfo
+// (or union info) and invokes it with the boxed pointer prepended as instance.
+Napi::Value CallBoxedMethod(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[1].IsString()) {
+    Napi::TypeError::New(env, "callBoxedMethod(handle, methodName: string, args?: unknown[])")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  if (!info[0].IsExternal() ||
+      !info[0].As<Napi::External<BoxedHandle>>().CheckTypeTag(&kBoxedHandleTag)) {
+    Napi::TypeError::New(env, "expected a node-gi boxed handle").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  BoxedHandle* bh = info[0].As<Napi::External<BoxedHandle>>().Data();
+  if (bh == nullptr || bh->ptr == nullptr) {
+    Napi::TypeError::New(env, "invalid boxed handle").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string method = info[1].As<Napi::String>().Utf8Value();
+  Napi::Array args = (info.Length() >= 3 && info[2].IsArray()) ? info[2].As<Napi::Array>()
+                                                              : Napi::Array::New(env, 0);
+  if (bh->gtype == G_TYPE_INVALID) {
+    Napi::Error::New(env, "boxed handle has no introspection GType for method resolution")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  GIRepository* repo = DupDefaultRepository();
+  GIBaseInfo* bi = gi_repository_find_by_gtype(repo, bh->gtype);
+  GIFunctionInfo* func = nullptr;
+  if (bi != nullptr && GI_IS_STRUCT_INFO(bi)) {
+    func = gi_struct_info_find_method(reinterpret_cast<GIStructInfo*>(bi), method.c_str());
+  } else if (bi != nullptr && GI_IS_UNION_INFO(bi)) {
+    func = gi_union_info_find_method(reinterpret_cast<GIUnionInfo*>(bi), method.c_str());
+  }
+  if (bi != nullptr) gi_base_info_unref(bi);
+  if (func == nullptr) {
+    g_object_unref(repo);
+    Napi::Error::New(env, std::string("no method '") + method + "' on " + g_type_name(bh->gtype))
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  Napi::Value result = InvokeFunctionInfo(env, func, bh->ptr, args,
+                                          std::string(g_type_name(bh->gtype)) + "." + method);
+  gi_base_info_unref(func);
+  g_object_unref(repo);
+  return result;
+}
+
+// isBoxedHandle(value) -> boolean  (tag-checked; no dereference)
+Napi::Value IsBoxedHandle(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  bool is = info.Length() >= 1 && info[0].IsExternal() &&
+            info[0].As<Napi::External<BoxedHandle>>().CheckTypeTag(&kBoxedHandleTag);
+  return Napi::Boolean::New(env, is);
+}
+
 // ---- signals (milestone 1) ----
 //
 // A GClosure that wraps a JS callback. The callback is held by a strong
@@ -1154,6 +1290,142 @@ Napi::Value DisconnectSignal(const Napi::CallbackInfo& info) {
   return env.Undefined();
 }
 
+// ---- libuv <-> GLib main loop bridge (milestone: mainloop) ----
+//
+// Port of node-gtk's src/loop.cc (romgrk and contributors, MIT) to N-API. Nests
+// Node's libuv loop inside GLib's main loop: a GSource polls libuv's backend fd
+// and runs uv_run(UV_RUN_NOWAIT) on dispatch, so a blocking GLib main loop
+// (GLib.MainLoop.run / GApplication.run) keeps Node timers/promises/IO alive —
+// matching GJS, where the GLib loop IS the process loop. Nesting GLib inside uv
+// is impractical (uv exposes no external prepare/check hook), so we nest the
+// other way, exactly as node-gtk does.
+//
+// Main-thread only (worker_threads would need a per-context source); the GLib
+// default context is iterated on the same thread Node runs on.
+struct UvLoopSource {
+  GSource source;
+  uv_loop_t* loop;
+  gpointer fd_tag;
+  gboolean fd_polled;
+};
+
+static napi_env g_loop_env = nullptr;       // captured at startMainLoop (main thread)
+static gboolean g_loop_started = FALSE;
+static napi_ref g_process_ref = nullptr;        // process
+static napi_ref g_tick_callback_ref = nullptr;  // process._tickCallback
+
+// Drain Node's nextTick queue + run a microtask checkpoint. process._tickCallback
+// invoked through napi_make_callback runs the tick queue, and the surrounding
+// callback scope's close performs the microtask checkpoint — the N-API analogue
+// of node-gtk's CallMicrotaskHandlers (process._tickCallback +
+// Isolate::PerformMicrotaskCheckpoint). Best-effort: skipped if a JS exception is
+// already pending (it will surface when the blocking run() returns).
+//
+// Limitation (node-gtk #442/#121): when the blocking run() is nested inside an
+// outer async callback scope (node:test, an await, a signal handler), V8 defers
+// the checkpoint to that outer scope, so promise continuations queued before the
+// run() do not drain until run() returns. nextTick still drains; timers/I/O the
+// loop dispatches are unaffected. The robust fix lives in L1 (defer the run() to
+// a macrotask when a microtask checkpoint is in progress).
+static void DrainMicrotasks() {
+  if (g_loop_env == nullptr || g_tick_callback_ref == nullptr || g_process_ref == nullptr) return;
+  napi_env env = g_loop_env;
+  bool pending = false;
+  if (napi_is_exception_pending(env, &pending) != napi_ok || pending) return;
+
+  napi_handle_scope scope;
+  if (napi_open_handle_scope(env, &scope) != napi_ok) return;
+  napi_value process_v = nullptr, tick = nullptr, result = nullptr;
+  if (napi_get_reference_value(env, g_process_ref, &process_v) == napi_ok &&
+      napi_get_reference_value(env, g_tick_callback_ref, &tick) == napi_ok &&
+      process_v != nullptr && tick != nullptr) {
+    napi_make_callback(env, nullptr, process_v, tick, 0, nullptr, &result);
+  }
+  napi_close_handle_scope(env, scope);
+}
+
+static gboolean uv_source_prepare(GSource* base, gint* timeout) {
+  UvLoopSource* s = reinterpret_cast<UvLoopSource*>(base);
+  uv_update_time(s->loop);
+  DrainMicrotasks();
+
+  gboolean alive = uv_loop_alive(s->loop);
+  // Toggle whether GLib polls uv's backend fd: an unref'd-but-active uv handle
+  // keeps the backend fd perpetually ready, which would busy-spin GLib at 100%
+  // CPU when the loop is otherwise dead. Mask the fd while dead so GLib actually
+  // blocks until a GLib source wakes us; restore it the moment uv is alive again.
+  if (s->fd_tag != nullptr && alive != s->fd_polled) {
+    g_source_modify_unix_fd(
+        &s->source, s->fd_tag,
+        alive ? static_cast<GIOCondition>(G_IO_IN | G_IO_OUT | G_IO_ERR) : static_cast<GIOCondition>(0));
+    s->fd_polled = alive;
+  }
+
+  if (!alive) {
+    *timeout = -1;  // sleep until a GLib source wakes us
+    return FALSE;
+  }
+  int t = uv_backend_timeout(s->loop);
+  *timeout = t;
+  return t == 0;  // ready immediately when uv has work due now
+}
+
+static gboolean uv_source_dispatch(GSource* base, GSourceFunc /*callback*/, gpointer /*user_data*/) {
+  UvLoopSource* s = reinterpret_cast<UvLoopSource*>(base);
+  uv_run(s->loop, UV_RUN_NOWAIT);
+  DrainMicrotasks();
+  return G_SOURCE_CONTINUE;
+}
+
+static GSourceFuncs uv_source_funcs = {
+    uv_source_prepare, nullptr, uv_source_dispatch, nullptr, nullptr, nullptr,
+};
+
+// startMainLoop() -> void
+// Attach the libuv-backed GSource to the default GLib main context (idempotent).
+// Harmless until a GLib main loop actually runs — it adds no uv handle, so it
+// neither keeps Node alive nor runs uv on its own; it only pumps uv while a GLib
+// loop is iterating. The L1 layer calls this once when a namespace is required.
+Napi::Value StartMainLoop(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (g_loop_started) return env.Undefined();
+
+  uv_loop_t* loop = nullptr;
+  if (napi_get_uv_event_loop(env, &loop) != napi_ok || loop == nullptr) {
+    Napi::Error::New(env, "failed to obtain the libuv event loop").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+
+  // Capture env + process._tickCallback for nextTick/microtask draining.
+  g_loop_env = env;
+  napi_value global = nullptr, process_v = nullptr, tick = nullptr;
+  if (napi_get_global(env, &global) == napi_ok &&
+      napi_get_named_property(env, global, "process", &process_v) == napi_ok &&
+      process_v != nullptr) {
+    napi_create_reference(env, process_v, 1, &g_process_ref);
+    if (napi_get_named_property(env, process_v, "_tickCallback", &tick) == napi_ok) {
+      napi_valuetype vt;
+      if (napi_typeof(env, tick, &vt) == napi_ok && vt == napi_function) {
+        napi_create_reference(env, tick, 1, &g_tick_callback_ref);
+      }
+    }
+  }
+
+  GSource* source = g_source_new(&uv_source_funcs, sizeof(UvLoopSource));
+  UvLoopSource* s = reinterpret_cast<UvLoopSource*>(source);
+  s->loop = loop;
+  s->fd_polled = TRUE;
+  // uv_backend_fd is the epoll/kqueue fd on POSIX. (Windows uses a different
+  // wake mechanism — node-gtk guards it; this milestone targets Linux/Fedora.)
+  s->fd_tag = g_source_add_unix_fd(source, uv_backend_fd(loop),
+                                   static_cast<GIOCondition>(G_IO_IN | G_IO_OUT | G_IO_ERR));
+  g_source_attach(source, nullptr);  // default GLib main context
+  g_source_unref(source);            // the context holds the surviving ref
+
+  g_loop_started = TRUE;
+  return env.Undefined();
+}
+
 }  // namespace
 
 static Napi::Object Init(Napi::Env env, Napi::Object exports) {
@@ -1174,6 +1446,9 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("hasProperty", Napi::Function::New(env, HasProperty));
   exports.Set("getTypeName", Napi::Function::New(env, GetTypeName));
   exports.Set("isGObjectHandle", Napi::Function::New(env, IsGObjectHandle));
+  exports.Set("callBoxedMethod", Napi::Function::New(env, CallBoxedMethod));
+  exports.Set("isBoxedHandle", Napi::Function::New(env, IsBoxedHandle));
+  exports.Set("startMainLoop", Napi::Function::New(env, StartMainLoop));
   exports.Set("connectSignal", Napi::Function::New(env, ConnectSignal));
   exports.Set("emitSignal", Napi::Function::New(env, EmitSignal));
   exports.Set("disconnectSignal", Napi::Function::New(env, DisconnectSignal));

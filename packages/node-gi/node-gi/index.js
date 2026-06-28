@@ -193,6 +193,37 @@ export const getTypeName = native.getTypeName;
 export const isGObjectHandle = native.isGObjectHandle;
 
 /**
+ * Invoke an instance method on a boxed/struct handle (e.g. `mainLoop.run()` /
+ * `mainLoop.quit()`). The method is resolved against the boxed GType's
+ * introspection info and invoked with the boxed pointer as the instance.
+ * @param {unknown} handle a boxed handle (e.g. from `GLib.MainLoop.new(...)`)
+ * @param {string} methodName GI method name, e.g. "run"
+ * @param {unknown[]} [args]
+ * @returns {unknown}
+ */
+export const callBoxedMethod = native.callBoxedMethod;
+
+/**
+ * Whether `value` is one of node-gi's boxed/struct handles (tag-checked, no
+ * dereference). The L1 wrapper uses it to wrap boxed return values (GMainLoop,
+ * …) with a method-routing proxy.
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+export const isBoxedHandle = native.isBoxedHandle;
+
+/**
+ * Attach the libuv-backed GSource to the default GLib main context so a blocking
+ * GLib main loop (`GLib.MainLoop.run()`, `Gio.Application.run()`) keeps Node's
+ * timers, promises and I/O alive — the Node twin of GJS running the GLib loop as
+ * the process loop. Idempotent and harmless until a GLib loop actually runs (it
+ * adds no libuv handle, so it neither keeps Node alive nor pumps libuv on its
+ * own). The L1 layer calls it once when a namespace is first required.
+ * @returns {void}
+ */
+export const startMainLoop = native.startMainLoop;
+
+/**
  * Connect a JS callback to a GObject signal. Returns a handler id for
  * {@link disconnectSignal}. The callback receives the signal arguments
  * (the emitter instance is not passed in this milestone).

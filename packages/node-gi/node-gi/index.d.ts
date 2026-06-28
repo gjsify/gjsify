@@ -146,6 +146,35 @@ export function getTypeName(handle: GObjectHandle): string;
 export function isGObjectHandle(value: unknown): boolean;
 
 /**
+ * Opaque handle to a boxed/struct instance (e.g. a GMainLoop), owned by node-gi
+ * and released when garbage-collected (a fully-owned boxed is `g_boxed_free`d).
+ * Pass it to {@link callBoxedMethod}.
+ */
+export type BoxedHandle = { readonly __nodeGiBoxed: unique symbol };
+
+/**
+ * Invoke an instance method on a boxed/struct handle (e.g. `mainLoop.run()` /
+ * `mainLoop.quit()`). The method is resolved against the boxed GType's
+ * introspection info and invoked with the boxed pointer as the instance.
+ */
+export function callBoxedMethod(handle: BoxedHandle, methodName: string, args?: unknown[]): unknown;
+
+/**
+ * Whether `value` is one of node-gi's boxed/struct handles (tag-checked, no
+ * dereference). The L1 wrapper uses it to wrap boxed return values with a
+ * method-routing proxy.
+ */
+export function isBoxedHandle(value: unknown): boolean;
+
+/**
+ * Attach the libuv-backed GSource to the default GLib main context so a blocking
+ * GLib main loop (`GLib.MainLoop.run()`, `Gio.Application.run()`) keeps Node's
+ * timers, promises and I/O alive — the Node twin of GJS running the GLib loop as
+ * the process loop. Idempotent and harmless until a GLib loop actually runs.
+ */
+export function startMainLoop(): void;
+
+/**
  * Connect a JS callback to a GObject signal; returns a handler id. The callback
  * receives the signal arguments (the emitter instance is not passed in this
  * milestone).
@@ -181,6 +210,9 @@ declare const native: {
   hasProperty: typeof hasProperty;
   getTypeName: typeof getTypeName;
   isGObjectHandle: typeof isGObjectHandle;
+  callBoxedMethod: typeof callBoxedMethod;
+  isBoxedHandle: typeof isBoxedHandle;
+  startMainLoop: typeof startMainLoop;
   connectSignal: typeof connectSignal;
   emitSignal: typeof emitSignal;
   disconnectSignal: typeof disconnectSignal;

@@ -23,10 +23,14 @@ on both GJS and Node via `gjsify build --app {gjs,node}`.
 > access, `action.get_name()` methods, `.connect()/.emit()/.disconnect()`, and
 > enums / flags / constants (`Gio.BusType.SESSION`, `GLib.PRIORITY_DEFAULT`);
 > constructor/static methods (`Gio.File.new_for_path(...)`); and both snake_case
-> and camelCase accessors. Custom properties/signals on a subclass,
-> `registerClass` vfunc overrides + chain-up (with the toggle-ref GC bridge),
-> structs/boxed, the libuv↔GLib mainloop bridge and the gjsify `--app node`
-> bundler integration land in subsequent drops.
+> and camelCase accessors. A **libuv↔GLib mainloop bridge** (`startMainLoop`,
+> auto-attached by `requireGi`) nests Node's libuv loop inside the GLib loop, so a
+> blocking `GLib.MainLoop.run()` keeps Node's timers/I/O alive — including the
+> **boxed/struct slice** that needs (`GLib.MainLoop.new(...)` → a boxed handle →
+> `.run()`/`.quit()`). The gjsify `--app node` bundler integration already
+> rewrites `gi://` onto the L1 layer. Custom properties/signals on a subclass,
+> `registerClass` vfunc overrides + chain-up (with the toggle-ref GC bridge), and
+> general struct field access land in subsequent drops.
 
 ## Provenance
 
@@ -121,9 +125,18 @@ console.log(Gio.ApplicationFlags.HANDLES_OPEN);  // 4
 const file = Gio.File.new_for_path('/usr/bin/gjs');
 console.log(file.get_path());      // '/usr/bin/gjs'
 console.log(file.getBasename());   // 'gjs'  (camelCase alias)
+
+// mainloop: a blocking GLib loop, with Node's libuv kept alive underneath
+const loop = GLib.MainLoop.new(null, false);
+setTimeout(() => loop.quit(), 100); // a libuv timer that fires during run()
+loop.run();                         // blocks like under GJS; returns on quit()
 ```
 
-The GJS-compatible surface (`import GLib from 'gi://GLib?version=2.0'`,
-`const GLib = imports.gi.GLib`, the core overrides, signals, `registerClass`,
-`_promisify`, the mainloop) is layered on top of this engine in the
-`@gjsify/*` runtime packages and the gjsify bundler integration.
+The mainloop bridge (`startMainLoop`) is auto-attached the first time `requireGi`
+loads a namespace, so `GLib.MainLoop.run()` / `Gio.Application.run()` block as
+they do under GJS while Node's timers, I/O and signal handlers keep running.
+
+The remaining GJS-compatible surface (`import GLib from 'gi://GLib?version=2.0'`,
+`const GLib = imports.gi.GLib`, the core overrides, `_promisify`, the legacy
+`imports.*` modules) is layered on top of this engine in the gjsify bundler
+integration and subsequent drops.

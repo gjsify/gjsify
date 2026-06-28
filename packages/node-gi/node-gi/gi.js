@@ -54,10 +54,31 @@ function unwrapProps(props) {
   return out;
 }
 
-// Object-typed return values become chainable instance proxies; everything else
+// Object-typed return values become chainable instance proxies; boxed/struct
+// handles (e.g. GMainLoop) become method-routing proxies; everything else
 // (primitives, strings, null) passes through.
 function wrapReturn(value) {
-  return native.isGObjectHandle(value) ? wrapInstance(value) : value;
+  if (native.isGObjectHandle(value)) return wrapInstance(value);
+  if (native.isBoxedHandle(value)) return wrapBoxed(value);
+  return value;
+}
+
+// Wrap a boxed/struct handle so its methods are callable GJS-style
+// (`mainLoop.run()`, `mainLoop.quit()`, snake_case or camelCase). Boxed types
+// have no GObject properties/signals, so only method routing is provided.
+function wrapBoxed(handle) {
+  const target = { [HANDLE]: handle };
+  return new Proxy(target, {
+    get(t, prop) {
+      if (prop === HANDLE) return handle;
+      if (typeof prop !== 'string' || RESERVED.has(prop)) return t[prop];
+      return (...args) =>
+        wrapReturn(native.callBoxedMethod(handle, camelToSnake(prop), unwrapArgs(args)));
+    },
+    has(t, prop) {
+      return prop === HANDLE || prop in t;
+    },
+  });
 }
 
 function wrapInstance(handle) {
@@ -122,6 +143,27 @@ function makeClass(namespace, typeName) {
   });
 }
 
+// Surface a boxed/struct type (e.g. GLib.MainLoop) as a class-like object whose
+// static/constructor methods route through the engine: `GLib.MainLoop.new(...)`
+// and the camelCase alias, plus `new GLib.MainLoop(...)` mapped to the `new`
+// constructor. Returned boxed instances are wrapped by {@link wrapBoxed}.
+function makeStruct(namespace, typeName) {
+  const base = function () {};
+  Object.defineProperty(base, 'name', { value: typeName, configurable: true });
+  base.$gtypeName = `${namespace}.${typeName}`;
+  return new Proxy(base, {
+    get(t, prop) {
+      if (typeof prop !== 'string' || prop in t || RESERVED.has(prop)) return t[prop];
+      const giName = camelToSnake(prop);
+      return (...args) =>
+        wrapReturn(native.callStaticMethod(namespace, typeName, giName, unwrapArgs(args)));
+    },
+    construct(_t, args) {
+      return wrapReturn(native.callStaticMethod(namespace, typeName, 'new', unwrapArgs(args)));
+    },
+  });
+}
+
 // Build a frozen enum/flags object keyed GJS-style: member names UPPER_CASED
 // with '-' → '_' (e.g. Gio.BusType.SYSTEM, Gio.ApplicationFlags.HANDLES_OPEN).
 function makeEnum(namespace, typeName) {
@@ -153,8 +195,12 @@ function createNamespace(namespace) {
         value = makeEnum(namespace, prop);
       } else if (info.kind === 'constant') {
         value = native.getConstantValue(namespace, prop);
+      } else if (info.kind === 'struct' || info.kind === 'union') {
+        // Boxed/struct types: static/constructor methods + boxed instances
+        // (GLib.MainLoop, …). Field access lands with the broader structs drop.
+        value = makeStruct(namespace, prop);
       } else {
-        // struct / interface / union / callback: surfaced in a later drop.
+        // interface / callback: surfaced in a later drop.
         value = undefined;
       }
       cache.set(prop, value);
@@ -168,6 +214,10 @@ function createNamespace(namespace) {
 
 const namespaceCache = new Map();
 
+// Whether the libuv↔GLib bridge has been attached this process. The native
+// startMainLoop is itself idempotent; this just avoids the extra call.
+let loopAttached = false;
+
 /**
  * Require a GObject-Introspection namespace and return a GJS-shaped namespace
  * object. The Node twin of `import Ns from 'gi://Ns?version=X'` /
@@ -178,6 +228,12 @@ const namespaceCache = new Map();
  */
 export function requireGi(namespace, version) {
   native.requireNamespace(namespace, version);
+  // Attach the libuv-in-GLib bridge once, so any later blocking GLib loop
+  // (GLib.MainLoop.run / Gio.Application.run) keeps Node's event loop alive.
+  if (!loopAttached) {
+    native.startMainLoop();
+    loopAttached = true;
+  }
   const key = version ? `${namespace}@${version}` : namespace;
   let ns = namespaceCache.get(key);
   if (ns === undefined) {
