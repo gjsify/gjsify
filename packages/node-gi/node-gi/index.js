@@ -88,6 +88,28 @@ export const callMethod = native.callMethod;
 export const newObject = native.newObject;
 
 /**
+ * Register a new GObject subclass of `parentNamespace.parentTypeName` named
+ * `name`, inheriting the parent's class/instance layout, and return an opaque
+ * type handle. Construct instances of it with {@link constructType}. Custom
+ * properties/signals and vfunc overrides land in later milestones — the Node
+ * twin of (the engine half of) GJS's `GObject.registerClass`.
+ * @param {string} name unique GType name, e.g. "MyAction"
+ * @param {string} parentNamespace e.g. "Gio"
+ * @param {string} parentTypeName e.g. "SimpleAction"
+ * @returns {unknown} opaque type handle
+ */
+export const registerClass = native.registerClass;
+
+/**
+ * Construct a GObject of a registered type handle (from {@link registerClass})
+ * with optional construct/settable properties, returning an owned handle.
+ * @param {unknown} typeHandle a handle from {@link registerClass}
+ * @param {Record<string, unknown>} [props]
+ * @returns {unknown} opaque GObject handle
+ */
+export const constructType = native.constructType;
+
+/**
  * Read a GObject property.
  * @param {unknown} handle a handle from {@link newObject}
  * @param {string} name property name (kebab- or snake-case as GObject expects)
