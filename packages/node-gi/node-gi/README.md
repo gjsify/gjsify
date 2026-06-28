@@ -170,6 +170,26 @@ The mainloop bridge (`startMainLoop`) is auto-attached the first time `requireGi
 loads a namespace, so `GLib.MainLoop.run()` / `Gio.Application.run()` block as
 they do under GJS while Node's timers, I/O and signal handlers keep running.
 
+### GJS ambient globals (`@gjsify/node-gi/globals`)
+
+GJS source relies on globals that exist implicitly under `gjs` — `print`,
+`printerr`, `log`, `logError`, `ARGV`, and the legacy `imports` object. Importing
+`@gjsify/node-gi/globals` (a side effect) installs Node-backed equivalents that
+route through the same backend:
+
+```js
+import '@gjsify/node-gi/globals';
+
+print('hello', 1, true);                 // → stdout, GJS String()-join
+const GLib = imports.gi.GLib;            // legacy imports.gi (honours .versions)
+imports.gi.versions.Gtk = '4.0';
+console.log(imports.gettext.gettext('x')); // no-translation passthrough
+```
+
+A follow-up `--app node` build step will inject this automatically for any
+bundle that references those globals (so `const Gtk = imports.gi.Gtk` /
+`print(...)` GJS source runs unmodified on Node); today it is an explicit import.
+
 The remaining GJS-compatible surface (`import GLib from 'gi://GLib?version=2.0'`,
 `const GLib = imports.gi.GLib`, the core overrides, `_promisify`, the legacy
 `imports.*` modules) is layered on top of this engine in the gjsify bundler

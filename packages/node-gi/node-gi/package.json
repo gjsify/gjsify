@@ -15,6 +15,10 @@
     "./gi": {
       "types": "./gi.d.ts",
       "default": "./gi.js"
+    },
+    "./globals": {
+      "types": "./globals.d.ts",
+      "default": "./globals.js"
     }
   },
   "files": [
@@ -22,6 +26,8 @@
     "index.d.ts",
     "gi.js",
     "gi.d.ts",
+    "globals.js",
+    "globals.d.ts",
     "src",
     "binding.gyp",
     "prebuilds"
