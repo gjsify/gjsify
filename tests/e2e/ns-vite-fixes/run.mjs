@@ -282,6 +282,45 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
     });
 });
 
+describe('@gjsify/nativescript-vite nativescriptSbgBundleSyncFix', () => {
+    let nativescriptSbgBundleSyncFix;
+
+    before(async () => {
+        ({ nativescriptSbgBundleSyncFix } = await import(LIB_URL));
+        assert.equal(
+            typeof nativescriptSbgBundleSyncFix,
+            'function',
+            `nativescriptSbgBundleSyncFix is not exported from the built lib at ${fileURLToPath(LIB_URL)} — rebuild @gjsify/nativescript-vite`,
+        );
+    });
+
+    it('empties the staging dir each build', () => {
+        const cfg = nativescriptSbgBundleSyncFix();
+        assert.equal(cfg.build.emptyOutDir, true, 'build.emptyOutDir must be forced true so stale chunks do not linger');
+    });
+
+    it('names every chunk stably (no content hash) so the SBG never sees a duplicate extend', () => {
+        const fn = nativescriptSbgBundleSyncFix().build.rolldownOptions.output.chunkFileNames;
+        assert.equal(typeof fn, 'function', 'chunkFileNames must be a function');
+
+        // The regression: a hashed `activity.android-<hash>.mjs` accumulates in
+        // assets/app across builds → the SBG sees NativeScriptActivity extended twice.
+        assert.equal(fn({ name: 'activity.android' }), '[name].mjs', 'the platform Activity chunk uses the stable [name].mjs');
+        assert.equal(fn({ name: 'vendor' }), 'vendor.mjs', 'the vendor chunk stays vendor.mjs');
+        assert.equal(fn({ name: 'app.worker' }), '[name].js', 'worker chunks stay .js, still hash-free');
+        assert.equal(fn({ name: 'whatever' }), '[name].mjs', 'a normal chunk uses the stable [name].mjs');
+
+        // No branch may reintroduce a content hash.
+        for (const name of ['activity.android', 'vendor', 'app.worker', 'index', undefined]) {
+            assert.equal(
+                fn({ name }).includes('[hash]'),
+                false,
+                `chunkFileNames("${name}") must not contain [hash] — hashed names accumulate and break the SBG`,
+            );
+        }
+    });
+});
+
 // ── Isolated-fixture helpers (Bug 1 + Bug 2) ─────────────────────────────────
 //
 // Both Bug 1 (exports-gated detection) and Bug 2 (missing-peer stubs) must run the
