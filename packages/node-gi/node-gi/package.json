@@ -49,7 +49,8 @@
     "test": "node --test",
     "test:node": "node --test",
     "test:gc": "node --test --expose-gc",
-    "test:gtk": "node --test test/gtk-smoke.test.mjs"
+    "test:gtk": "node --test test/gtk-smoke.test.mjs",
+    "test:adw": "node --test test/adw-smoke.test.mjs"
   },
   "dependencies": {
     "node-addon-api": "^8.0.0"
