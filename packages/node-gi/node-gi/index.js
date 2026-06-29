@@ -75,6 +75,27 @@ export const getConstantValue = native.getConstantValue;
 export const getEnumValues = native.getEnumValues;
 
 /**
+ * For an enum type registered as a GError domain (e.g. `Gio.IOErrorEnum`), report
+ * its domain quark name + numeric quark; `null` for a plain enum. The L1 wrapper
+ * attaches this to the enum object so `error.matches(Gio.IOErrorEnum, code)` can
+ * resolve the enum to its error domain.
+ * @param {string} namespace
+ * @param {string} name
+ * @returns {{ name: string, quark: number } | null}
+ */
+export const getErrorDomain = native.getErrorDomain;
+
+/**
+ * Register the L1 GLib.Error factory the engine calls when a GI invoke fails, so
+ * a failed sync call throws a real `GLib.Error` (instanceof, with `.matches()`).
+ * The builder receives `(domainName, domainQuark, code, message)` and returns the
+ * Error to throw. Called once by the L1 layer at load.
+ * @param {(domainName: string, domainQuark: number, code: number, message: string) => Error} builder
+ * @returns {void}
+ */
+export const setErrorBuilder = native.setErrorBuilder;
+
+/**
  * Prepend a directory to the GIRepository typelib search path (call before
  * requireNamespace for non-system typelibs).
  * @param {string} path
@@ -187,6 +208,18 @@ export const hasProperty = native.hasProperty;
  * @returns {string}
  */
 export const getTypeName = native.getTypeName;
+
+/**
+ * Whether a GObject handle's GType is-a `namespace.typeName` (g_type_is_a — also
+ * true when the type implements an interface). Used by the L1 wrapper to pick the
+ * right `Gio._promisify` registration when two classes promisify a method of the
+ * same name.
+ * @param {unknown} handle
+ * @param {string} namespace
+ * @param {string} typeName
+ * @returns {boolean}
+ */
+export const isInstanceOf = native.isInstanceOf;
 
 /**
  * Whether `value` is one of node-gi's GObject-instance handles (tag-checked, no

@@ -49,6 +49,23 @@ export function getConstantValue(namespace: string, name: string): unknown;
  */
 export function getEnumValues(namespace: string, name: string): Record<string, number>;
 
+/**
+ * For an enum type registered as a GError domain (e.g. `Gio.IOErrorEnum`), report
+ * its domain quark name + numeric quark; `null` for a plain enum.
+ */
+export function getErrorDomain(
+  namespace: string,
+  name: string,
+): { name: string; quark: number } | null;
+
+/**
+ * Register the L1 GLib.Error factory the engine calls when a GI invoke fails, so
+ * a failed sync call throws a real `GLib.Error` (instanceof, with `.matches()`).
+ */
+export function setErrorBuilder(
+  builder: (domainName: string, domainQuark: number, code: number, message: string) => Error,
+): void;
+
 /** Prepend a directory to the GIRepository typelib search path. */
 export function prependSearchPath(path: string): void;
 
@@ -196,6 +213,13 @@ export function hasProperty(handle: GObjectHandle, name: string): boolean;
 export function getTypeName(handle: GObjectHandle): string;
 
 /**
+ * Whether a GObject handle's GType is-a `namespace.typeName` (g_type_is_a — also
+ * true when the type implements an interface). Used by the L1 wrapper to pick the
+ * right `Gio._promisify` registration when two classes promisify a same-named method.
+ */
+export function isInstanceOf(handle: GObjectHandle, namespace: string, typeName: string): boolean;
+
+/**
  * Whether `value` is one of node-gi's GObject-instance handles (tag-checked, no
  * dereference). Lets the L1 wrapper wrap object-typed return values for chaining
  * without misclassifying a {@link TypeHandle}.
@@ -288,6 +312,8 @@ declare const native: {
   findInfo: typeof findInfo;
   getConstantValue: typeof getConstantValue;
   getEnumValues: typeof getEnumValues;
+  getErrorDomain: typeof getErrorDomain;
+  setErrorBuilder: typeof setErrorBuilder;
   prependSearchPath: typeof prependSearchPath;
   callFunction: typeof callFunction;
   callMethod: typeof callMethod;
@@ -299,6 +325,7 @@ declare const native: {
   setProperty: typeof setProperty;
   hasProperty: typeof hasProperty;
   getTypeName: typeof getTypeName;
+  isInstanceOf: typeof isInstanceOf;
   isGObjectHandle: typeof isGObjectHandle;
   callBoxedMethod: typeof callBoxedMethod;
   isBoxedHandle: typeof isBoxedHandle;
