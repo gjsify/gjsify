@@ -7,6 +7,23 @@
 // browser cannot resolve at runtime; instead we resolve them to a virtual
 // empty ESM module so the bundle is self-contained.
 //
+// `@girs/<ns>-<ver>` carve-out (`emptyGirs: false`): on the `--app node`
+// target, when the bundle is a genuine GJS source being run through the
+// `@gjsify/node-gi` reverse bridge, an `@girs/adw-1` VALUE import must resolve
+// to its real package body — `@girs/adw-1/adw-1.js` is literally
+// `import Adw from 'gi://Adw?version=1'; export default Adw` — so that the
+// inner `gi://` import is rewritten to `requireGi(...)` by `gjsGiNodePlugin`
+// (which runs FIRST). Mapping `@girs/*` to an empty module here instead would
+// strand the import as `{}`, and a `class extends ({}).Bin` throws
+// `Class extends value undefined`. The `gjsGiNodePlugin` claims `gi://` before
+// this plugin runs, so on the node target this plugin only ever decides the
+// fate of `@girs/*`; `emptyGirs:false` lets them fall through to disk while
+// `gi://*` (never reached on node) is unaffected. The carve-out is GATED — see
+// `app/node.ts`, where it is enabled only when `nodeGiGlobalsInject` is set
+// (the same genuine-GJS-source signal that drives the globals shim) so a
+// cross-platform polyfill package's plain-Node bundle keeps `@girs/*`→empty
+// and loads WITHOUT node-gi installed.
+//
 // Portability note: the `filter: { id: ... }` below is a Rolldown fast-path
 // — Rolldown pre-filters which specifiers reach `handler`. Under Vite (which
 // also runs Rolldown for `build` but does NOT honor the Rolldown-specific
@@ -19,18 +36,34 @@ import type { Plugin } from 'rolldown';
 
 const GJSIMPORTS_VIRTUAL_ID = '\0gjsify-empty-gjs-import';
 
-export function gjsImportsEmptyPlugin(): Plugin {
+export interface GjsImportsEmptyOptions {
+    /**
+     * Whether `@girs/*` specifiers are redirected to the empty module. Default
+     * `true` (browser / cross-platform Node behaviour). Set `false` on the
+     * `--app node` node-gi path so `@girs/<ns>-<ver>` resolves to its real body
+     * and the inner `gi://` is rewritten to `requireGi` by `gjsGiNodePlugin`.
+     * `gi://*` is always handled (in node mode it is already claimed by
+     * `gjsGiNodePlugin` before this plugin runs, so this only affects browser).
+     */
+    emptyGirs?: boolean;
+}
+
+export function gjsImportsEmptyPlugin(options: GjsImportsEmptyOptions = {}): Plugin {
+    const emptyGirs = options.emptyGirs ?? true;
+    // When `@girs/*` is carved out, only `gi://*` reaches the empty redirect.
+    const matcher = emptyGirs ? /^(@girs\/|gi:\/\/)/ : /^gi:\/\//;
     return {
         name: 'gjsify-gjs-imports-empty',
         resolveId: {
             order: 'pre' as const,
-            filter: { id: /^(@girs\/|gi:\/\/)/ },
+            filter: { id: matcher },
             handler(source) {
                 // Internal guard: do not rely solely on the Rolldown `filter`
-                // above (it may not pre-filter under Vite). Only intercept
-                // `@girs/*` and `gi://*` specifiers; let everything else fall
-                // through to the default resolver chain.
-                if (!/^(@girs\/|gi:\/\/)/.test(source)) return null;
+                // above (it may not pre-filter under Vite). Only intercept the
+                // matched specifiers; let everything else (including `@girs/*`
+                // when `emptyGirs` is false) fall through to the default
+                // resolver chain.
+                if (!matcher.test(source)) return null;
                 return { id: GJSIMPORTS_VIRTUAL_ID };
             },
         },
