@@ -2324,6 +2324,11 @@ Napi::Value CallFunction(const Napi::CallbackInfo& info) {
 // Instances are handed back as opaque Napi::External<GObject> handles; the
 // ergonomic class/prototype surface is layered in the GJS-compat runtime.
 
+// Forward declaration: JsToGValue (below) marshals object/boxed-typed property
+// values, which need to unwrap a node-gi GObject handle; UnwrapGObject is defined
+// further down (it shares the validation logic with the property/method paths).
+static GObject* UnwrapGObject(Napi::Env env, Napi::Value handle);
+
 // Marshal a GValue into a JS value (fundamental types).
 static Napi::Value GValueToJs(Napi::Env env, const GValue* v) {
   GType ft = G_TYPE_FUNDAMENTAL(G_VALUE_TYPE(v));
@@ -2414,6 +2419,39 @@ static bool JsToGValue(Napi::Env env, Napi::Value js, GValue* v) {
         return false;
       }
       g_value_set_variant(v, static_cast<GVariant*>(p));
+      return true;
+    }
+    case G_TYPE_OBJECT: {
+      // An object-typed property (e.g. Gtk.ApplicationWindow:application,
+      // Gtk.Widget:child, :transient-for, :model …). Mirrors GValueToJs's
+      // G_TYPE_OBJECT case in the other direction: unwrap the node-gi GObject
+      // handle and hand it to g_value_set_object, which takes its OWN ref (our
+      // wrapper keeps its handle ref → no double-free). null/undefined clears it.
+      if (js.IsNull() || js.IsUndefined()) {
+        g_value_set_object(v, nullptr);
+        return true;
+      }
+      GObject* obj = UnwrapGObject(env, js);
+      if (obj == nullptr) return false;  // UnwrapGObject threw a TypeError
+      g_value_set_object(v, obj);
+      return true;
+    }
+    case G_TYPE_BOXED: {
+      // A boxed-typed property (e.g. a GdkRGBA, Gtk.Border, …). g_value_set_boxed
+      // COPIES the boxed payload, so handing it our handle's pointer is safe — the
+      // handle retains ownership. null/undefined clears it.
+      if (js.IsNull() || js.IsUndefined()) {
+        g_value_set_boxed(v, nullptr);
+        return true;
+      }
+      gpointer p = nullptr;
+      if (!TryGetBoxedPtr(js, &p) || p == nullptr) {
+        Napi::TypeError::New(env, std::string("expected a boxed handle for a ") +
+                                      g_type_name(G_VALUE_TYPE(v)) + " property")
+            .ThrowAsJavaScriptException();
+        return false;
+      }
+      g_value_set_boxed(v, p);
       return true;
     }
     default:

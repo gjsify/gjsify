@@ -48,7 +48,8 @@
     "clean": "node-gyp clean",
     "test": "node --test",
     "test:node": "node --test",
-    "test:gc": "node --test --expose-gc"
+    "test:gc": "node --test --expose-gc",
+    "test:gtk": "node --test test/gtk-smoke.test.mjs"
   },
   "dependencies": {
     "node-addon-api": "^8.0.0"

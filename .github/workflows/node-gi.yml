@@ -90,3 +90,53 @@ jobs:
         run: |
           npm install --no-audit --no-fund --foreground-scripts
           node --test dual.e2e.mjs
+
+  # GTK layering proof (Axis-5 GTK milestone, PR1): an UNCHANGED Gtk.Application
+  # runs on Node via the engine — construct + activate + window + button + quit,
+  # AND the libuv↔GLib bridge co-pumps Node's event loop during g_application_run
+  # (a setTimeout scheduled before run() fires while run() blocks). This needs a
+  # display + the GTK stack, so it is isolated in a dedicated job: the fast
+  # headless `Build & test` leg above stays light and `test/gtk-smoke.test.mjs`
+  # self-skips there (no DISPLAY). Runs the GTK loop, so cap the job rather than
+  # let a hung loop wait 6h.
+  gtk-smoke:
+    name: GTK smoke (Node + Xvfb / Fedora 44)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: fedora:44
+    steps:
+      - name: Install toolchain + GTK4/Adwaita + Xvfb + dbus
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            git gcc-c++ make python3 pkgconf-pkg-config tar xz \
+            glib2-devel gobject-introspection-devel gobject-introspection \
+            gtk4-devel libadwaita-devel \
+            xorg-x11-server-Xvfb dbus-daemon dbus-x11 mesa-dri-drivers
+          echo "gtk4: $(pkg-config --modversion gtk4)"
+          echo "libadwaita: $(pkg-config --modversion libadwaita-1)"
+
+      # Same rationale as the build-test job: the official nodejs.org build, not
+      # Fedora's dnf node (which crashes the bundler's prebuilt napi binding).
+      - name: Use official Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build native addon (node-gyp)
+        working-directory: packages/node-gi/node-gi
+        run: npm install --no-audit --no-fund --foreground-scripts
+
+      # Xvfb gives a virtual X11 display; dbus-run-session gives a private session
+      # bus so GApplication startup is quiet/deterministic; GSK_RENDERER=cairo +
+      # LIBGL_ALWAYS_SOFTWARE=1 + GDK_BACKEND=x11 keep GTK off any GPU/Vulkan path
+      # that a software-only Xvfb cannot provide.
+      - name: GTK smoke test (xvfb + dbus)
+        working-directory: packages/node-gi/node-gi
+        run: |
+          xvfb-run -a dbus-run-session -- \
+            env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 \
+            npm run test:gtk
