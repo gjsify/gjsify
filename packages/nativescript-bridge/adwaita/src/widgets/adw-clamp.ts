@@ -28,7 +28,13 @@ export class AdwClamp extends GridLayout {
 
         this.className = 'adw-clamp';
         this.addColumn(new ItemSpec(1, 'star'));
-        this.addRow(new ItemSpec(1, 'star'));
+        // Width-only clamp: the row is `auto` (size to the child's natural height),
+        // NOT `star` — `Adw.Clamp` is vertically transparent (it never stretches its
+        // child to fill). A `star` row made the clamp expand to fill its parent, so a
+        // clamp inside an `AdwStatusPage` pushed the content to the top instead of
+        // letting the status page centre it. Scrolling is the surrounding
+        // `ScrollView`'s job, so content-height here is always correct.
+        this.addRow(new ItemSpec(1, 'auto'));
     }
 
     /** Set (or replace) the clamped, centered child. Pass `null` to clear it. */
