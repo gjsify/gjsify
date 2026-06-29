@@ -1897,6 +1897,55 @@ static int ArgDestroyIndex(GIArgInfo* ai) {
   return gi_arg_info_get_destroy_index(ai, &idx) ? static_cast<int>(idx) : -1;
 }
 
+// Depth of a synchronous emitSignal() in progress on the (main) thread. While
+// > 0, a signal-handler exception must PROPAGATE to the JS emit() caller (the
+// node-gi contract — see test/signals.test.mjs "a handler exception propagates
+// out of emit"). At depth 0 the closure was dispatched from the GLib main loop (a
+// GTK signal, a notify::, a template handler) where there is NO JS caller to
+// catch it, so it is surfaced + cleared (below) to keep the loop alive instead of
+// wedging libuv on a never-cleared pending exception.
+static int g_syncEmitDepth = 0;
+
+// Surface (log) + clear a pending JS exception left by a C-invoked callback so it
+// cannot wedge the GLib/libuv main loop. A signal handler / idle / timeout that
+// throws is reported to stderr (message + stack) and swallowed — mirroring how
+// GJS reports an uncaught signal-handler exception (gjs_log_exception) instead of
+// crashing the loop. Uses g_printerr, NOT g_warning, so a G_DEBUG=fatal-warnings
+// test environment cannot turn a reported handler bug into an abort. No-op when
+// nothing is pending. Returns true if it cleared an exception.
+static bool SurfacePendingException(napi_env env, const char* context) {
+  bool pending = false;
+  if (napi_is_exception_pending(env, &pending) != napi_ok || !pending) return false;
+  napi_value ex = nullptr;
+  if (napi_get_and_clear_last_exception(env, &ex) != napi_ok || ex == nullptr) return false;
+
+  // Prefer Error.stack (message + trace); fall back to String(ex).
+  std::string text;
+  napi_value field = nullptr;
+  napi_valuetype vt = napi_undefined;
+  if (napi_get_named_property(env, ex, "stack", &field) == napi_ok &&
+      napi_typeof(env, field, &vt) == napi_ok && vt == napi_string) {
+    size_t len = 0;
+    if (napi_get_value_string_utf8(env, field, nullptr, 0, &len) == napi_ok) {
+      text.resize(len);
+      napi_get_value_string_utf8(env, field, text.data(), len + 1, &len);
+    }
+  }
+  if (text.empty()) {
+    napi_value str = nullptr;
+    if (napi_coerce_to_string(env, ex, &str) == napi_ok) {
+      size_t len = 0;
+      if (napi_get_value_string_utf8(env, str, nullptr, 0, &len) == napi_ok) {
+        text.resize(len);
+        napi_get_value_string_utf8(env, str, text.data(), len + 1, &len);
+      }
+    }
+  }
+  g_printerr("\n(node-gi) Unhandled exception in %s:\n%s\n", context,
+             text.empty() ? "<no message>" : text.c_str());
+  return true;
+}
+
 // The ffi closure entry point: marshal C args -> JS, call the JS fn, marshal the
 // JS return -> C. Runs on the main thread (the GLib loop the bridge pumps).
 static void NodeGiCallbackTrampoline(ffi_cif* /*cif*/, void* result, void** args,
@@ -1956,8 +2005,17 @@ static void NodeGiCallbackTrampoline(ffi_cif* /*cif*/, void* result, void** args
     }
   }
   gi_base_info_unref(retType);
-  // A pending JS exception surfaces at the next N-API boundary (e.g. when the
-  // blocking run() that pumped this callback returns).
+  // A CALL-scope callback (e.g. a list `foreach`) runs synchronously inside a
+  // JS-initiated GI invoke, so a pending exception must propagate to that JS
+  // caller — leave it to surface at the invoke's N-API boundary. A NOTIFIED/ASYNC
+  // callback (idle/timeout/GAsyncReadyCallback) is dispatched FROM the GLib loop
+  // with no JS caller to catch it; a left-pending exception would wedge the
+  // libuv↔GLib pump (DrainMicrotasks stops draining while one is pending). Surface
+  // + clear it so the loop keeps running (GJS logs an uncaught callback exception
+  // rather than stalling the loop).
+  if (napiEnv.IsExceptionPending() && cb->scope != GI_SCOPE_TYPE_CALL) {
+    SurfacePendingException(env, "GI callback (idle/timeout/async)");
+  }
 
   // scope=async (e.g. a GAsyncReadyCallback) fires EXACTLY once and carries no
   // destroy-notify, so it is the trampoline's job to free it. It is NOT in
@@ -2539,6 +2597,34 @@ static bool JsToGValue(Napi::Env env, Napi::Value js, GValue* v) {
     GType gt = 0;
     if (!UnwrapGTypeArg(env, js, &gt)) return false;
     g_value_set_gtype(v, gt);
+    return true;
+  }
+  // G_TYPE_STRV (a GStrv / NULL-terminated char** boxed property, e.g.
+  // Gtk.Widget:css-classes). G_TYPE_FUNDAMENTAL(G_TYPE_STRV) == G_TYPE_BOXED, so
+  // the switch below would route it to the boxed-HANDLE case and reject a JS array
+  // ("expected a boxed handle for a GStrv property"). Special-case it FIRST — a JS
+  // string[] → a freshly-allocated GStrv — exactly as GJS does before its generic
+  // g_type_is_a(gtype, G_TYPE_BOXED) handling (refs/gjs/gi/value.cpp:704-725).
+  // Ownership: g_value_take_boxed makes the GValue OWN the GStrv; g_object_new
+  // COPIES it into the property (g_strdupv), and ConstructGObject's g_value_unset
+  // frees the GValue's copy via g_strfreev — no double-free, no leak.
+  if (G_VALUE_HOLDS(v, G_TYPE_STRV)) {
+    if (js.IsNull() || js.IsUndefined()) {
+      g_value_set_boxed(v, nullptr);
+      return true;
+    }
+    if (!js.IsArray()) {
+      Napi::TypeError::New(env, "expected a string[] for a GStrv property")
+          .ThrowAsJavaScriptException();
+      return false;
+    }
+    Napi::Array arr = js.As<Napi::Array>();
+    guint len = arr.Length();
+    gchar** strv = g_new0(gchar*, len + 1);  // +1 for the NULL terminator
+    for (guint i = 0; i < len; i++) {
+      strv[i] = g_strdup(arr.Get(i).ToString().Utf8Value().c_str());
+    }
+    g_value_take_boxed(v, strv);
     return true;
   }
   switch (ft) {
@@ -4811,13 +4897,26 @@ static void JsClosureMarshal(GClosure* closure, GValue* return_value, guint n_pa
   args.reserve(n_param_values > 0 ? n_param_values - 1 : 0);
   for (guint i = 1; i < n_param_values; i++) {
     Napi::Value v = GValueToJs(env, &param_values[i]);
-    if (env.IsExceptionPending()) return;
+    if (env.IsExceptionPending()) {
+      // An arg-marshal failure: propagate to a synchronous emit() caller, or
+      // surface + clear when dispatched from the loop (see g_syncEmitDepth).
+      if (g_syncEmitDepth == 0) SurfacePendingException(jc->env, "signal handler");
+      return;
+    }
     args.push_back(v);
   }
 
   napi_value result = nullptr;
   napi_status st = napi_call_function(jc->env, env.Undefined(), cbv, args.size(), args.data(), &result);
-  if (st != napi_ok) return;  // JS threw — leave the pending exception to surface
+  if (st != napi_ok) {
+    // The handler threw. A synchronous emitSignal() (g_syncEmitDepth > 0) must
+    // propagate it to the JS emit() caller (node-gi contract). A loop-dispatched
+    // signal (a GTK click, a notify::, a GtkBuilder template handler — depth 0)
+    // has no JS caller; surface + clear so the GLib/libuv loop keeps running
+    // instead of wedging on the never-cleared pending exception.
+    if (g_syncEmitDepth == 0) SurfacePendingException(jc->env, "signal handler");
+    return;
+  }
 
   if (return_value != nullptr && (G_VALUE_TYPE(return_value) != G_TYPE_INVALID)) {
     JsToGValue(env, Napi::Value(jc->env, result), return_value);
@@ -4908,7 +5007,12 @@ Napi::Value EmitSignal(const Napi::CallbackInfo& info) {
   Napi::Value result = env.Undefined();
   if (ok) {
     if (hasReturn) g_value_init(&ret, rt);
+    // Mark this as a SYNCHRONOUS emit so a handler exception propagates back to
+    // this JS caller (JsClosureMarshal checks g_syncEmitDepth) rather than being
+    // surfaced + swallowed like a loop-dispatched signal.
+    g_syncEmitDepth++;
     g_signal_emitv(params.data(), sigid, 0, hasReturn ? &ret : nullptr);
+    g_syncEmitDepth--;
     if (hasReturn && !env.IsExceptionPending()) {
       result = GValueToJs(env, &ret);
       g_value_unset(&ret);
