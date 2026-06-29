@@ -265,6 +265,18 @@ function makeVariantClass() {
   Object.defineProperty(ctor, 'name', { value: 'Variant', configurable: true });
   ctor.$gtypeName = 'GLib.Variant';
   ctor.new = (signature, value) => packVariant(signature, value);
+  // `value instanceof GLib.Variant` — a wrapped Variant is a Proxy over a bare
+  // `{[HANDLE]}` target (no class prototype), so the default instanceof always
+  // returned false. Recognise any wrapper whose [HANDLE] is a native GVariant
+  // boxed handle. Real GAction/GSettings/GLib.log_structured code branches on it.
+  Object.defineProperty(ctor, Symbol.hasInstance, {
+    value(instance) {
+      if (instance === null || typeof instance !== 'object') return false;
+      const handle = instance[HANDLE];
+      return handle !== undefined && native.isVariantHandle(handle);
+    },
+    configurable: true,
+  });
   return new Proxy(ctor, {
     get(t, prop) {
       if (typeof prop !== 'string' || prop in t || RESERVED.has(prop)) return t[prop];

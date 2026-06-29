@@ -77,6 +77,29 @@ test('OUT string array → [bool, string[]]: GLib.get_filename_charsets()', () =
   assert.ok(res[1].every((c) => typeof c === 'string'));
 });
 
+test('(skip) return is omitted from the tuple: GLib.uri_split()', () => {
+  // gboolean g_uri_split(uri_ref, flags, scheme, userinfo, host, port, path,
+  //   query, fragment, GError**) — the gboolean return is annotated (skip), so
+  //   the result is the 7 OUT values ALONE, with NO leading boolean. Without the
+  //   skip handling this would be an 8-element [true, scheme, …] tuple.
+  const res = callFunction('GLib', 'uri_split', ['http://user@host:80/p?q=1#frag', 0]);
+  assert.ok(Array.isArray(res));
+  assert.equal(res.length, 7);
+  assert.deepEqual(res, ['http', 'user', 'host', 80, '/p', 'q=1', 'frag']);
+  assert.notEqual(res[0], true); // the skipped gboolean must not lead the tuple
+});
+
+test('transfer-full string IN is g_strdup`d, not a freed std::string buffer', () => {
+  // g_string_new_take(gchar* init) ADOPTS init (transfer full) and g_free's it on
+  // realloc/free. A std::string-buffer pointer would be an invalid free; the fix
+  // hands over a g_strdup'd copy. append() reallocs → frees the adopted buffer
+  // (the crash trigger pre-fix); equal() then confirms the content is intact.
+  const s = callStaticMethod('GLib', 'String', 'new_take', ['héllo']);
+  callBoxedMethod(s, 'append', [' world']);
+  const other = callStaticMethod('GLib', 'String', 'new', ['héllo world']);
+  assert.equal(callBoxedMethod(s, 'equal', [other]), true);
+});
+
 test('IN-only callables are unchanged: bare scalar returns', () => {
   // The OUT/INOUT routing must leave the IN-only path byte-for-byte: a non-void
   // return with no OUT args still comes back bare, not wrapped in an array.

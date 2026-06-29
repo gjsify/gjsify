@@ -49,7 +49,7 @@ test('native: isVariantHandle distinguishes variants', () => {
 
 test('native: invalid signatures throw clear errors', () => {
   assert.throws(() => variantNew('', 'x'), /signature cannot be empty/);
-  assert.throws(() => variantNew('ss', ['a', 'b']), /more than one single complete type/);
+  assert.throws(() => variantNew('ss', 'a'), /more than one single complete type/);
   assert.throws(() => variantNew('Z', 1), /Invalid GVariant signature/);
 });
 
@@ -156,6 +156,54 @@ test('L1: GLib.Variant.new(sig, value) deprecated alias works', () => {
 test('L1: a built Variant routes other GVariant methods (n_children)', () => {
   const v = new GLib.Variant('as', ['a', 'b', 'c']);
   assert.equal(v.n_children(), 3);
+});
+
+// ---- hardening: instanceof / BigInt / tuple arity / scalar strictness -------
+
+test('L1: a wrapped Variant satisfies `instanceof GLib.Variant`', () => {
+  // The wrapper is a Proxy over a bare `{[HANDLE]}` target; instanceof now works
+  // via Symbol.hasInstance keyed on the native variant handle.
+  assert.ok(new GLib.Variant('s', 'x') instanceof GLib.Variant);
+  assert.ok(GLib.Variant.new('i', 1) instanceof GLib.Variant);
+  assert.ok(new GLib.Variant('a{sv}', {}) instanceof GLib.Variant);
+  assert.ok(!({} instanceof GLib.Variant));
+  assert.ok(!(null instanceof GLib.Variant));
+  assert.ok(!('x' instanceof GLib.Variant));
+  // A non-Variant boxed handle (GLib.MainLoop) is NOT a Variant.
+  assert.ok(!(GLib.MainLoop.new(null, false) instanceof GLib.Variant));
+});
+
+test('L1: "x"/"t" accept a BigInt (GJS parity, beyond Int32)', () => {
+  // 2^53 — representable as a JS double, so it round-trips exactly through unpack;
+  // the point is that a BigInt is ACCEPTED (ToNumber would throw on it before).
+  const big = 9007199254740992n;
+  assert.equal(new GLib.Variant('x', big).deepUnpack(), 9007199254740992);
+  assert.equal(new GLib.Variant('t', big).deepUnpack(), 9007199254740992);
+  // Small BigInt + plain Number both still work.
+  assert.equal(new GLib.Variant('x', 42n).deepUnpack(), 42);
+  assert.equal(new GLib.Variant('t', 7n).deepUnpack(), 7);
+  assert.equal(new GLib.Variant('x', -5).deepUnpack(), -5);
+});
+
+test('native: tuple bounds by value length — too few values throws', () => {
+  // A missing position must NOT coerce undefined→garbage; the leftover type makes
+  // it throw, exactly as GJS does.
+  assert.throws(() => variantNew('(ii)', [1]), /Invalid GVariant signature for type TUPLE/);
+  assert.throws(() => new GLib.Variant('(sib)', ['x', 1]), /signature for type TUPLE/);
+  // Exact arity still round-trips; an empty tuple is fine.
+  assert.deepEqual(variantUnpack(variantNew('(ii)', [1, 2]), true), [1, 2]);
+  assert.deepEqual(variantUnpack(variantNew('()', []), true), []);
+});
+
+test('native: scalar pack rejects obvious type mismatches (GJS strictness)', () => {
+  // `new GLib.Variant('s', 42)` must not silently pack "42" (GJS new_string is
+  // type-strict). 'o'/'g' are likewise string-typed.
+  assert.throws(() => variantNew('s', 42), /'s' expects a string/);
+  assert.throws(() => new GLib.Variant('o', 5), /'o' expects an object-path string/);
+  assert.throws(() => new GLib.Variant('g', 1), /'g' expects a signature string/);
+  // Booleans stay lenient (GJS new_boolean = ToBoolean) — coerce, never throw.
+  assert.equal(new GLib.Variant('b', 1).deepUnpack(), true);
+  assert.equal(new GLib.Variant('b', 0).deepUnpack(), false);
 });
 
 // ---- end-to-end: Gio.SimpleAction carrying a built Variant -----------------

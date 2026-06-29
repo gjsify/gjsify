@@ -425,7 +425,8 @@ static bool TryGetBoxedPtr(Napi::Value v, gpointer* out) {
 }
 
 static bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* out,
-                           std::string* heldString) {
+                           std::string* heldString,
+                           GITransfer transfer = GI_TRANSFER_NOTHING) {
   GITypeTag tag = gi_type_info_get_tag(type);
   switch (tag) {
     case GI_TYPE_TAG_BOOLEAN: out->v_boolean = v.ToBoolean().Value(); return true;
@@ -445,8 +446,15 @@ static bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArg
         out->v_string = nullptr;
         return true;
       }
-      *heldString = v.ToString().Utf8Value();
-      out->v_string = const_cast<char*>(heldString->c_str());
+      if (transfer == GI_TRANSFER_EVERYTHING) {
+        // The callee adopts the string and g_free's it. heldString points into a
+        // std::string buffer (NOT g_malloc'd) → an invalid free. Hand over a
+        // g_strdup'd copy the callee can legally free; we keep no reference.
+        out->v_string = g_strdup(v.ToString().Utf8Value().c_str());
+      } else {
+        *heldString = v.ToString().Utf8Value();
+        out->v_string = const_cast<char*>(heldString->c_str());
+      }
       return true;
     case GI_TYPE_TAG_INTERFACE: {
       // Object/interface instances arrive as opaque External<GObject> handles;
@@ -1223,7 +1231,11 @@ static void FreeReadArrayContainer(gpointer container, GIArrayType at, GITransfe
   if (container == nullptr || transfer == GI_TRANSFER_NOTHING) return;
   switch (at) {
     case GI_ARRAY_TYPE_C: g_free(container); break;
-    case GI_ARRAY_TYPE_BYTE_ARRAY: g_byte_array_free(static_cast<GByteArray*>(container), TRUE); break;
+    case GI_ARRAY_TYPE_BYTE_ARRAY:
+      // CONTAINER frees only the GByteArray wrapper (callee keeps the bytes);
+      // EVERYTHING frees the segment too. Mirrors the GArray/GPtrArray cases.
+      g_byte_array_free(static_cast<GByteArray*>(container), transfer == GI_TRANSFER_EVERYTHING);
+      break;
     case GI_ARRAY_TYPE_ARRAY:
       g_array_free(static_cast<GArray*>(container), transfer == GI_TRANSFER_EVERYTHING);
       break;
@@ -1384,8 +1396,15 @@ static Napi::Value GHashToJs(Napi::Env env, GITypeInfo* type, GIArgument* arg,
     if (kt != nullptr) gi_base_info_unref(kt);
     if (vt != nullptr) gi_base_info_unref(vt);
   }
-  if (ht != nullptr && (transfer == GI_TRANSFER_EVERYTHING || transfer == GI_TRANSFER_CONTAINER))
+  if (ht != nullptr && (transfer == GI_TRANSFER_EVERYTHING || transfer == GI_TRANSFER_CONTAINER)) {
+    // CONTAINER transfers the table but NOT its keys/values (callee keeps them).
+    // g_hash_table_unref would run the key/value destroy-notifiers → over-free,
+    // so steal the entries first; the unref then frees only the table itself.
+    // EVERYTHING keeps the destroy-notifiers (we own keys + values). Mirrors the
+    // C-array / GList CONTAINER handling that frees only the container.
+    if (transfer == GI_TRANSFER_CONTAINER) g_hash_table_steal_all(ht);
     g_hash_table_unref(ht);
+  }
   return out;
 }
 
@@ -1701,6 +1720,15 @@ static bool JsToInContainer(Napi::Env env, Napi::Value v, GITypeInfo* type, GITr
   if (ok && *outPtr != nullptr) {
     containers->push_back(InContainer{
         reinterpret_cast<GITypeInfo*>(gi_base_info_ref(type)), *outPtr, transfer, *outCount});
+  } else if (!ok && *outPtr != nullptr) {
+    // An element conversion threw mid-build (JsToGListLike / JsToGHashIn still
+    // published the partial container). It was never recorded for cleanup, so
+    // the nodes (and any g_strdup'd keys/string values) would leak. Free it now
+    // with NOTHING semantics — we still own all of it; the callee never saw it.
+    InContainer partial{reinterpret_cast<GITypeInfo*>(gi_base_info_ref(type)), *outPtr,
+                        GI_TRANSFER_NOTHING, *outCount};
+    FreeInContainer(partial);  // unrefs the type ref taken above
+    *outPtr = nullptr;
   }
   return ok;
 }
@@ -2091,7 +2119,8 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
           // invoker hands the slot's address to the callee, which reads + writes.
           Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
           jsCursor++;
-          if (JsToGIArgument(env, v, ti, &slots[i], &held[i])) {
+          GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
+          if (JsToGIArgument(env, v, ti, &slots[i], &held[i], tr)) {
             in_args[inPos[i]].v_pointer = &slots[i];
             out_args[outPos[i]].v_pointer = &slots[i];
           } else {
@@ -2170,7 +2199,8 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
           }
         }
       } else {
-        ok = JsToGIArgument(env, v, ti, &in_args[inPos[i]], &held[i]);
+        GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
+        ok = JsToGIArgument(env, v, ti, &in_args[inPos[i]], &held[i], tr);
       }
     }
 
@@ -2205,7 +2235,10 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   std::vector<Napi::Value> results;
   GITypeInfo* return_type = gi_callable_info_get_return_type(callable);
   GITransfer return_transfer = gi_callable_info_get_caller_owns(callable);
-  if (gi_type_info_get_tag(return_type) != GI_TYPE_TAG_VOID) {
+  // A (skip)-annotated return is omitted from BOTH the count and the tuple — the
+  // OUT params alone shape the result (mirrors GJS/node-gtk ShouldSkipReturn).
+  if (gi_type_info_get_tag(return_type) != GI_TYPE_TAG_VOID &&
+      !gi_callable_info_skip_return(callable)) {
     results.push_back(ReadOutOrReturn(env, callable, return_type, &retval, return_transfer, &slots));
   }
   gi_base_info_unref(return_type);
@@ -3563,15 +3596,43 @@ static GVariant* VariantPack(Napi::Env env, const std::string& sig, size_t* pos,
     case 'q': return g_variant_new_uint16(static_cast<guint16>(value.ToNumber().Uint32Value()));
     case 'i': return g_variant_new_int32(value.ToNumber().Int32Value());
     case 'u': return g_variant_new_uint32(value.ToNumber().Uint32Value());
-    case 'x': return g_variant_new_int64(value.ToNumber().Int64Value());
-    case 't': return g_variant_new_uint64(static_cast<guint64>(value.ToNumber().Int64Value()));
+    case 'x': {
+      // GJS accepts a BigInt for 64-bit types (its js_value_to_c<int64_t> branches
+      // on isBigInt before ToInt64). ToNumber() throws on a BigInt and rounds a
+      // large double — branch on IsBigInt to round-trip the full int64 range.
+      bool lossless = false;
+      gint64 i = value.IsBigInt() ? value.As<Napi::BigInt>().Int64Value(&lossless)
+                                  : value.ToNumber().Int64Value();
+      return g_variant_new_int64(i);
+    }
+    case 't': {
+      bool lossless = false;
+      guint64 u = value.IsBigInt()
+                      ? value.As<Napi::BigInt>().Uint64Value(&lossless)
+                      : static_cast<guint64>(value.ToNumber().Int64Value());
+      return g_variant_new_uint64(u);
+    }
     case 'h': return g_variant_new_handle(value.ToNumber().Int32Value());
     case 'd': return g_variant_new_double(value.ToNumber().DoubleValue());
     case 's': {
+      // GJS marshals 's' via new_string, whose UTF8 arg is type-strict (isString
+      // or null), so `new GLib.Variant('s', 42)` throws rather than packing "42".
+      if (!value.IsString()) {
+        Napi::TypeError::New(env, "GVariant 's' expects a string")
+            .ThrowAsJavaScriptException();
+        *ok = false;
+        return nullptr;
+      }
       std::string s = value.ToString().Utf8Value();
       return g_variant_new_string(s.c_str());
     }
     case 'o': {
+      if (!value.IsString()) {
+        Napi::TypeError::New(env, "GVariant 'o' expects an object-path string")
+            .ThrowAsJavaScriptException();
+        *ok = false;
+        return nullptr;
+      }
       std::string s = value.ToString().Utf8Value();
       if (!g_variant_is_object_path(s.c_str())) {
         Napi::TypeError::New(env, std::string("Invalid GVariant object path: ") + s)
@@ -3582,6 +3643,12 @@ static GVariant* VariantPack(Napi::Env env, const std::string& sig, size_t* pos,
       return g_variant_new_object_path(s.c_str());
     }
     case 'g': {
+      if (!value.IsString()) {
+        Napi::TypeError::New(env, "GVariant 'g' expects a signature string")
+            .ThrowAsJavaScriptException();
+        *ok = false;
+        return nullptr;
+      }
       std::string s = value.ToString().Utf8Value();
       if (!g_variant_is_signature(s.c_str())) {
         Napi::TypeError::New(env, std::string("Invalid GVariant signature string: ") + s)
@@ -3708,29 +3775,30 @@ static GVariant* VariantPack(Napi::Env env, const std::string& sig, size_t* pos,
         return nullptr;
       }
       Napi::Array a = value.As<Napi::Array>();
+      uint32_t n = a.Length();
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE_TUPLE);
-      uint32_t i = 0;
-      while (true) {
-        if (*pos < sig.size() && sig[*pos] == ')') {
-          (*pos)++;
-          break;
-        }
-        if (*pos >= sig.size()) {
-          g_variant_builder_clear(&builder);
-          Napi::TypeError::New(env, "Invalid GVariant signature for type TUPLE (expected \")\")")
-              .ThrowAsJavaScriptException();
-          *ok = false;
-          return nullptr;
-        }
+      // Drive children off the JS array length (GJS: `for i < value.length`), not
+      // the signature — a missing position must NOT coerce undefined→garbage.
+      for (uint32_t i = 0; i < n; i++) {
+        if (*pos < sig.size() && sig[*pos] == ')') break;  // more values than types: stop
         GVariant* child = VariantPack(env, sig, pos, a.Get(i), ok);
         if (!*ok) {
           g_variant_builder_clear(&builder);
           return nullptr;
         }
         g_variant_builder_add_value(&builder, child);
-        i++;
       }
+      // Every value consumed: the signature must now close the tuple. If types
+      // remain (too few values) this throws, exactly as GJS does.
+      if (*pos >= sig.size() || sig[*pos] != ')') {
+        g_variant_builder_clear(&builder);
+        Napi::TypeError::New(env, "Invalid GVariant signature for type TUPLE (expected \")\")")
+            .ThrowAsJavaScriptException();
+        *ok = false;
+        return nullptr;
+      }
+      (*pos)++;  // consume ')'
       return g_variant_builder_end(&builder);
     }
     case '{': {  // dict-entry: value is [key, val]
