@@ -21,6 +21,12 @@ import * as native from './index.js';
 // be unwrapped again when passed back into the engine as a GI argument.
 const HANDLE = Symbol('nodeGiHandle');
 
+// Symbol carrying the user-class prototype (a registerClass subclass) on a wrapped
+// instance. Stored on the target rather than captured in the proxy closure so a
+// later wrap with a userProto can UPGRADE an already-cached generic wrapper in
+// place (preserving identity + expandos) — see wrapInstance.
+const USER_PROTO = Symbol('nodeGiUserProto');
+
 // JS-builtin / interop names that must NEVER be treated as a GI method or
 // property — otherwise awaiting, printing or inspecting a wrapper would call
 // into GObject (e.g. a stray `then` would make a wrapper look thenable).
@@ -236,8 +242,20 @@ const instanceCache = new WeakMap();
 // routing. `.connect()/.emit()/.disconnect()` work in both modes.
 function wrapInstance(handle, userProto) {
   const cached = instanceCache.get(handle);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) {
+    // UPGRADE a cached generic (userProto-less) wrapper when this wrap supplies a
+    // userProto — so a subclass instance first seen generically (returned from
+    // store.get_item / a signal sender / resurrection) still gets its prototype
+    // methods. Never DOWNGRADE: an existing userProto is kept. The userProto lives
+    // on the target (read via the proxy here), so the upgrade is in place —
+    // identity (===) and any expando fields are preserved.
+    if (userProto !== undefined && cached[USER_PROTO] === undefined) {
+      cached[USER_PROTO] = userProto;
+    }
+    return cached;
+  }
   const target = { [HANDLE]: handle };
+  if (userProto !== undefined) target[USER_PROTO] = userProto;
   const proxy = new Proxy(target, {
     get(t, prop) {
       if (prop === HANDLE) return handle;
@@ -255,8 +273,9 @@ function wrapInstance(handle, userProto) {
         default:
           break;
       }
-      if (userProto !== undefined) {
-        const desc = findProtoDescriptor(userProto, prop);
+      const up = t[USER_PROTO];
+      if (up !== undefined) {
+        const desc = findProtoDescriptor(up, prop);
         if (desc !== undefined) {
           if (typeof desc.value === 'function') return (...args) => desc.value.apply(proxy, args);
           if (typeof desc.get === 'function') return desc.get.call(proxy);
@@ -278,12 +297,18 @@ function wrapInstance(handle, userProto) {
       // assigned an expando. (GObject PROPERTIES remain the right choice for state
       // that must also be visible to C / other language bindings.)
       if (Object.prototype.hasOwnProperty.call(t, prop)) return t[prop];
+      // LAST resort before treating an unknown name as a GI method: an INHERITED
+      // member (Object.prototype.hasOwnProperty / isPrototypeOf / … — RESERVED
+      // already covers toString/valueOf/etc.) must resolve to the real function,
+      // not a GI callMethod thunk that would throw on `inst.hasOwnProperty('x')`.
+      if (prop in t) return t[prop];
       return (...args) => wrapReturn(native.callMethod(handle, camelToSnake(prop), unwrapArgs(args)));
     },
     set(t, prop, value) {
       if (typeof prop === 'string') {
-        if (userProto !== undefined) {
-          const desc = findProtoDescriptor(userProto, prop);
+        const up = t[USER_PROTO];
+        if (up !== undefined) {
+          const desc = findProtoDescriptor(up, prop);
           if (desc !== undefined && typeof desc.set === 'function') {
             desc.set.call(proxy, value);
             return true;
@@ -304,7 +329,8 @@ function wrapInstance(handle, userProto) {
         // A subclass's own prototype member (method/getter) and any GObject
         // property of the instance both count as `in` the wrapper. (Introspected
         // GI methods are resolved dynamically and are intentionally not reported.)
-        if (userProto !== undefined && findProtoDescriptor(userProto, prop) !== undefined) return true;
+        const up = t[USER_PROTO];
+        if (up !== undefined && findProtoDescriptor(up, prop) !== undefined) return true;
         if (native.hasProperty(handle, toKebab(prop))) return true;
       }
       return false;
