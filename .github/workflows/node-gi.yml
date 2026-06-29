@@ -113,10 +113,11 @@ jobs:
       - name: Install toolchain + GTK4/Adwaita + Xvfb + dbus
         run: |
           dnf install -y --setopt=install_weak_deps=False \
-            git gcc-c++ make python3 pkgconf-pkg-config tar xz \
+            git gcc-c++ make python3 pkgconf-pkg-config tar xz gjs \
             glib2-devel gobject-introspection-devel gobject-introspection \
             gtk4-devel libadwaita-devel \
             xorg-x11-server-Xvfb dbus-daemon dbus-x11 mesa-dri-drivers
+          gjs --version
           echo "gtk4: $(pkg-config --modversion gtk4)"
           echo "libadwaita: $(pkg-config --modversion libadwaita-1)"
 
@@ -147,3 +148,21 @@ jobs:
           xvfb-run -a dbus-run-session -- \
             env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
             node --test test/gtk-smoke.test.mjs test/adw-smoke.test.mjs test/gtk-template.test.mjs
+
+      # GTK capstone: ONE unchanged Adwaita gi:// source builds + runs
+      # byte-identically on BOTH gjs and node under one display — the GTK analog of
+      # the headless L3 capstone. `npm install` builds @gjsify/node-gi via the
+      # file:../node-gi dependency (node-gyp), so the example exercises the in-tree
+      # runtime + addon. dual.e2e.mjs builds `--app gjs` (real bundler) + runs on
+      # gjs, and runs the same source on node (the real `--app node` bundle when
+      # the installed CLI carries the gi://→requireGi rewrite, else the
+      # @gjsify/node-gi runtime), asserting both equal the golden. Both runtimes
+      # run under the SAME Xvfb display + software render env; the gjs binary is
+      # installed above for the gjs side.
+      - name: GTK dual gjs+node Adwaita example (capstone)
+        working-directory: packages/node-gi/example-gtk
+        run: |
+          npm install --no-audit --no-fund --foreground-scripts
+          xvfb-run -a dbus-run-session -- \
+            env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
+            node --test dual.e2e.mjs
