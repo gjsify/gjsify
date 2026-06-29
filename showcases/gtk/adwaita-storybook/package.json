@@ -43,6 +43,7 @@
     "@girs/gtk-4.0": "4.23.0-4.0.4",
     "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/cli": "workspace:^",
+    "@gjsify/node-gi": "file:../../../packages/node-gi/node-gi",
     "@gjsify/storybook": "workspace:^",
     "@gjsify/adwaita-storybook": "workspace:^",
     "@types/node": "^25.9.2",

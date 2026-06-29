@@ -1,6 +1,13 @@
 // `gjsify storybook` — discover every *.story.ts in a project, generate a tiny
-// entry that registers them, then build (`--app gjs`) and launch the generic
+// entry that registers them, then build and launch the generic
 // @gjsify/storybook component browser. No per-project storybook app needed.
+//
+// `--runtime gjs` (default) builds `--app gjs` and runs it with `gjs -m`.
+// `--runtime node` builds `--app node` (gi:// → @gjsify/node-gi reverse bridge)
+// and runs it with `node` — the SAME storybook source rendering on Node.js. The
+// node path wires GI_TYPELIB_PATH/LD_LIBRARY_PATH like `gjsify run` (so any
+// native @gjsify bridge a story uses resolves) and requires `@gjsify/node-gi`
+// installed in the project (kept external by the bundler, a native addon).
 //
 // Dispatch is IN-PROCESS (runCli + runGjsBundle), not a re-spawn of the CLI:
 // the showcase-style `spawn(process.execPath, [cliBin, …])` pattern assumes
@@ -15,12 +22,16 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join, relative, resolve } from 'node:path';
 import type { Command } from '../types/index.js';
 
+/** Runtime the storybook bundle is built for and launched on. */
+type StorybookRuntime = 'gjs' | 'node';
+
 interface StorybookCliOptions {
     stories?: string;
     appId?: string;
     title?: string;
     globals?: string;
     out?: string;
+    runtime?: string;
     watch: boolean;
     buildOnly: boolean;
 }
@@ -32,6 +43,8 @@ interface StorybookConfig {
     stories?: string;
     /** `--globals` value passed to `gjsify build` (default `auto`). */
     globals?: string;
+    /** Runtime the storybook is built for and launched on (`gjs` | `node`, default `gjs`). */
+    runtime?: StorybookRuntime;
 }
 
 interface ProjectPackage {
@@ -110,6 +123,14 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
                 description: 'Output bundle path (default: node_modules/.cache/gjsify-storybook)',
                 type: 'string',
             })
+            .option('runtime', {
+                description:
+                    'Runtime to build for and launch on: gjs (default) or node (via @gjsify/node-gi). ' +
+                    'node requires @gjsify/node-gi installed in the project.',
+                type: 'string',
+                choices: ['gjs', 'node'],
+                default: 'gjs',
+            })
             .option('watch', {
                 description: 'Rebuild and relaunch when a story file changes',
                 type: 'boolean',
@@ -125,11 +146,17 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
         const applicationId = args.appId ?? config.applicationId ?? deriveAppId(pkg.name);
         const title = args.title ?? config.title;
         const globals = args.globals ?? config.globals ?? 'auto';
+        const runtime: StorybookRuntime = (args.runtime ?? config.runtime ?? 'gjs') as StorybookRuntime;
+        // The runtime drives BOTH the build target (`gjsify build --app <app>`)
+        // and the launcher: `gjs` builds an `--app gjs` bundle run by `gjs -m`,
+        // `node` builds an `--app node` bundle (gi:// → @gjsify/node-gi) run by
+        // `node`. Same generated entry + `--globals auto` for both.
+        const app = runtime === 'node' ? 'node' : 'gjs';
 
         const cacheDir = join(cwd, 'node_modules', '.cache', 'gjsify-storybook');
         mkdirSync(cacheDir, { recursive: true });
         const entryPath = join(cacheDir, 'entry.ts');
-        const outPath = args.out ? resolve(cwd, args.out) : join(cacheDir, 'storybook.gjs.mjs');
+        const outPath = args.out ? resolve(cwd, args.out) : join(cacheDir, `storybook.${app}.mjs`);
 
         const writeEntry = (): number => {
             const files = findStoryFiles(storiesDir).sort();
@@ -142,27 +169,53 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
             console.error(`No *.story.ts files found under ${relative(cwd, storiesDir) || storiesDir}`);
             process.exit(1);
         }
-        console.log(`Found ${initialCount} story file(s) under ${relative(cwd, storiesDir) || '.'}`);
+        console.log(
+            `Found ${initialCount} story file(s) under ${relative(cwd, storiesDir) || '.'} (runtime: ${runtime})`,
+        );
 
         // In-process build — runtime-agnostic (Node uses npm rolldown, GJS uses
         // the @gjsify/rolldown-native facade), no re-spawn of the CLI binary.
         const { runCli } = await import('../cli-app.js');
         const buildBundle = (): Promise<void> =>
-            runCli(['build', entryPath, '--app', 'gjs', '--globals', globals, '--outfile', outPath]);
+            runCli(['build', entryPath, '--app', app, '--globals', globals, '--outfile', outPath]);
+
+        const launch = async (): Promise<void> => {
+            if (runtime === 'node') {
+                const { runNodeBundle } = await import('../utils/run-node.js');
+                await runNodeBundle(outPath, [], { exitOnSuccess: true });
+            } else {
+                const { runGjsBundle } = await import('../utils/run-gjs.js');
+                await runGjsBundle(outPath, [], { exitOnSuccess: true });
+            }
+        };
 
         if (!args.watch) {
             await buildBundle();
             if (args.buildOnly) return;
-            const { runGjsBundle } = await import('../utils/run-gjs.js');
-            await runGjsBundle(outPath, [], { exitOnSuccess: true });
+            await launch();
             return;
         }
 
         // Watch mode: rebuild + relaunch on any change under the stories dir.
         // The storybook bundle only needs system Gtk/Adw typelibs at runtime
-        // (no @gjsify native bridges), so a plain `gjs -m` child is enough and
-        // stays killable for relaunch.
+        // (no @gjsify native bridges), so a plain `gjs -m` / `node` child is
+        // enough and stays killable for relaunch.
         const { watch } = await import('node:fs');
+        const spawnChild = async (): Promise<ChildProcess> => {
+            if (runtime === 'node') {
+                const { computeNativeEnvForBundle } = await import('../utils/run-gjs.js');
+                const { resolveNodeGi, nodeBinary } = await import('../utils/run-node.js');
+                if (!resolveNodeGi(cwd)) {
+                    throw new Error(
+                        'Cannot run the storybook on Node: `@gjsify/node-gi` is not installed. ' +
+                            'Add @gjsify/node-gi as a dependency to run the storybook on Node.',
+                    );
+                }
+                const { env: nativeEnv } = computeNativeEnvForBundle(outPath, cwd);
+                return spawn(nodeBinary(), [outPath], { stdio: 'inherit', env: { ...process.env, ...nativeEnv } });
+            }
+            return spawn('gjs', ['-m', outPath], { stdio: 'inherit' });
+        };
         let child: ChildProcess | null = null;
         let rebuilding = false;
         let pending = false;
@@ -181,7 +234,7 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
                 }
                 await buildBundle();
                 if (!args.buildOnly) {
-                    child = spawn('gjs', ['-m', outPath], { stdio: 'inherit' });
+                    child = await spawnChild();
                 }
             } catch (err) {
                 console.error(`[storybook] rebuild failed: ${(err as Error).message}`);
