@@ -432,6 +432,45 @@ function assignTemplateChildren(instance, handle, reg) {
   }
 }
 
+// ---- Gio.Application.runAsync (L1, GJS-shaped) ----
+//
+// The Node twin of GJS's `Gio.Application.prototype.runAsync`
+// (refs/gjs/modules/core/overrides/Gio.js → `GLib.MainLoop.prototype.runAsync`
+// in GLib.js). GJS returns a Promise and defers the blocking run() via
+// `setMainLoopHook`, so the program's already-queued microtasks/promises settle
+// before the GLib loop takes over the thread, then resolves with run()'s integer
+// exit status when the app quits/exits.
+//
+// On Node there is no main-loop hook — libuv is always the process loop and the
+// libuv↔GLib bridge (addon.cc UvLoopSource, attached to the DEFAULT GMainContext
+// that g_application_run iterates) co-pumps libuv during a blocking run(). The
+// faithful analogue is therefore to defer the blocking run() to a MACROTASK
+// (setImmediate). This:
+//   • returns the Promise immediately — runAsync does NOT block the caller the
+//     way a bare `app.run()` would,
+//   • lets the caller's already-queued microtasks/promises drain first, and
+//   • runs run() OUTSIDE the caller's async/await scope, so the node-gtk
+//     #442/#121 nested-microtask-checkpoint caveat (see mainloop.test.mjs) does
+//     NOT bite: promise continuations queued before runAsync drain normally WHILE
+//     the app runs, because the bridge's microtask checkpoint is no longer
+//     deferred to an outer await frame.
+//
+// Mirrors GJS exactly in that the `argv` argument is ignored (GJS's runAsync
+// takes no parameters and calls `this.run()` with an empty command-line) — so an
+// `app.runAsync([programInvocationName, ...ARGV])` source behaves identically on
+// gjs and node. Resolves once; run() is invoked once (no double-run / leak).
+function applicationRunAsync(handle) {
+  return new Promise((resolve, reject) => {
+    setImmediate(() => {
+      try {
+        resolve(wrapReturn(native.callMethod(handle, 'run', unwrapArgs([[]]))));
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
+}
+
 // Wrap a live GObject handle as a GJS-shaped instance. When `userProto` is given
 // (a registerClass subclass's prototype) the wrapper resolves the user class's
 // own prototype members FIRST — so `inst.myMethod()` runs the JS method with the
@@ -484,6 +523,15 @@ function wrapInstance(handle, userProto) {
           if (typeof desc.get === 'function') return desc.get.call(proxy);
           return desc.value;
         }
+      }
+      // Gio.Application.runAsync — the GJS override (refs/gjs Gio.js + GLib.js):
+      // a Promise-returning run() that does NOT block the Node microtask/event
+      // loop (see applicationRunAsync). Gated to GApplication instances
+      // (g_type_is_a, so Gtk/Adw.Application and registerClass subclasses qualify);
+      // placed AFTER the userProto lookup so a subclass may still override it, and
+      // before the GI-method fallback since there is no introspected `run_async`.
+      if (prop === 'runAsync' && native.isInstanceOf(handle, 'Gio', 'Application')) {
+        return () => applicationRunAsync(handle);
       }
       const propName = toKebab(prop);
       if (native.hasProperty(handle, propName)) {
