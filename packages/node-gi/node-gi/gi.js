@@ -21,6 +21,12 @@ import * as native from './index.js';
 // be unwrapped again when passed back into the engine as a GI argument.
 const HANDLE = Symbol('nodeGiHandle');
 
+// Symbol carrying the user-class prototype (a registerClass subclass) on a wrapped
+// instance. Stored on the target rather than captured in the proxy closure so a
+// later wrap with a userProto can UPGRADE an already-cached generic wrapper in
+// place (preserving identity + expandos) — see wrapInstance.
+const USER_PROTO = Symbol('nodeGiUserProto');
+
 // JS-builtin / interop names that must NEVER be treated as a GI method or
 // property — otherwise awaiting, printing or inspecting a wrapper would call
 // into GObject (e.g. a stray `then` would make a wrapper look thenable).
@@ -220,13 +226,36 @@ function findProtoDescriptor(proto, prop) {
   return undefined;
 }
 
+// L1 proxy-identity cache (the user-visible half of the toggle-ref bridge). The
+// native engine now returns the CANONICAL External per GObject (same GObject ⇒
+// same handle), so we cache the per-instance Proxy keyed by that handle: the same
+// GObject always yields the same L1 wrapper, so `===` holds at the ergonomic
+// layer and a plain JS field set on a wrapper survives a round-trip + GC (the
+// External is kept alive by the toggle-up root while C owns the object, which in
+// turn keeps this WeakMap entry — and the proxy + its fields — alive).
+const instanceCache = new WeakMap();
+
 // Wrap a live GObject handle as a GJS-shaped instance. When `userProto` is given
 // (a registerClass subclass's prototype) the wrapper resolves the user class's
 // own prototype members FIRST — so `inst.myMethod()` runs the JS method with the
 // wrapper as `this` — then falls back to GObject property get/set and GI method
 // routing. `.connect()/.emit()/.disconnect()` work in both modes.
 function wrapInstance(handle, userProto) {
+  const cached = instanceCache.get(handle);
+  if (cached !== undefined) {
+    // UPGRADE a cached generic (userProto-less) wrapper when this wrap supplies a
+    // userProto — so a subclass instance first seen generically (returned from
+    // store.get_item / a signal sender / resurrection) still gets its prototype
+    // methods. Never DOWNGRADE: an existing userProto is kept. The userProto lives
+    // on the target (read via the proxy here), so the upgrade is in place —
+    // identity (===) and any expando fields are preserved.
+    if (userProto !== undefined && cached[USER_PROTO] === undefined) {
+      cached[USER_PROTO] = userProto;
+    }
+    return cached;
+  }
   const target = { [HANDLE]: handle };
+  if (userProto !== undefined) target[USER_PROTO] = userProto;
   const proxy = new Proxy(target, {
     get(t, prop) {
       if (prop === HANDLE) return handle;
@@ -244,8 +273,9 @@ function wrapInstance(handle, userProto) {
         default:
           break;
       }
-      if (userProto !== undefined) {
-        const desc = findProtoDescriptor(userProto, prop);
+      const up = t[USER_PROTO];
+      if (up !== undefined) {
+        const desc = findProtoDescriptor(up, prop);
         if (desc !== undefined) {
           if (typeof desc.value === 'function') return (...args) => desc.value.apply(proxy, args);
           if (typeof desc.get === 'function') return desc.get.call(proxy);
@@ -256,21 +286,29 @@ function wrapInstance(handle, userProto) {
       if (native.hasProperty(handle, propName)) {
         return wrapReturn(native.getProperty(handle, propName));
       }
-      // Surface a plain JS field previously written on THIS wrapper. NOTE: plain
-      // (non-GObject-property) fields are per-wrapper, NOT shared across the
-      // vfunc<->instance boundary in this milestone — a vfunc's `this` is a
-      // distinct wrapper over the same GObject (the native engine mints a fresh
-      // handle per call; the unified-identity wrapper cache arrives with the
-      // toggle-ref work). Use GObject PROPERTIES for state that must cross that
-      // boundary (those live in C and ARE consistent). See the block comment on
-      // registerClass.
-      if (userProto !== undefined && prop in t) return t[prop];
+      // Surface a plain JS field previously written on THIS wrapper. With the
+      // toggle-ref bridge the wrapper is now CANONICAL (one proxy per GObject,
+      // cached by the canonical native handle), so a plain field IS shared across
+      // the vfunc<->instance boundary and survives a round-trip + GC while C owns
+      // the object — a vfunc's `this` resolves to the same cached proxy as
+      // construct, and `store.get_item(x)` returns the same proxy a setter wrote
+      // to. Own-property only (set via the `set` trap), so an introspected GI
+      // method of the same name is never shadowed unless the user explicitly
+      // assigned an expando. (GObject PROPERTIES remain the right choice for state
+      // that must also be visible to C / other language bindings.)
+      if (Object.prototype.hasOwnProperty.call(t, prop)) return t[prop];
+      // LAST resort before treating an unknown name as a GI method: an INHERITED
+      // member (Object.prototype.hasOwnProperty / isPrototypeOf / … — RESERVED
+      // already covers toString/valueOf/etc.) must resolve to the real function,
+      // not a GI callMethod thunk that would throw on `inst.hasOwnProperty('x')`.
+      if (prop in t) return t[prop];
       return (...args) => wrapReturn(native.callMethod(handle, camelToSnake(prop), unwrapArgs(args)));
     },
     set(t, prop, value) {
       if (typeof prop === 'string') {
-        if (userProto !== undefined) {
-          const desc = findProtoDescriptor(userProto, prop);
+        const up = t[USER_PROTO];
+        if (up !== undefined) {
+          const desc = findProtoDescriptor(up, prop);
           if (desc !== undefined && typeof desc.set === 'function') {
             desc.set.call(proxy, value);
             return true;
@@ -291,12 +329,14 @@ function wrapInstance(handle, userProto) {
         // A subclass's own prototype member (method/getter) and any GObject
         // property of the instance both count as `in` the wrapper. (Introspected
         // GI methods are resolved dynamically and are intentionally not reported.)
-        if (userProto !== undefined && findProtoDescriptor(userProto, prop) !== undefined) return true;
+        const up = t[USER_PROTO];
+        if (up !== undefined && findProtoDescriptor(up, prop) !== undefined) return true;
         if (native.hasProperty(handle, toKebab(prop))) return true;
       }
       return false;
     },
   });
+  instanceCache.set(handle, proxy);
   return proxy;
 }
 

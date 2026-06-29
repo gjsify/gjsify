@@ -47,7 +47,8 @@
     "rebuild": "node-gyp rebuild",
     "clean": "node-gyp clean",
     "test": "node --test",
-    "test:node": "node --test"
+    "test:node": "node --test",
+    "test:gc": "node --test --expose-gc"
   },
   "dependencies": {
     "node-addon-api": "^8.0.0"
