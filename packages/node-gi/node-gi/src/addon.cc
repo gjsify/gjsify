@@ -2541,6 +2541,20 @@ static Napi::Value GValueToJs(Napi::Env env, const GValue* v) {
     GType gt = g_value_get_gtype(v);
     return gt != 0 ? MakeGTypeHandle(env, gt) : env.Null();
   }
+  // An interface-typed property/signal value (e.g. Adw.ComboRow:model →
+  // GListModel, a GObject INTERFACE). G_TYPE_FUNDAMENTAL(an interface) ==
+  // G_TYPE_INTERFACE, which has no switch case below → the default branch would
+  // reject it ("Unsupported property GType GListModel"). The object lives in the
+  // value's pointer slot: the interface inherits GObject's GTypeValueTable via
+  // its GObject prerequisite, so the slot IS an owned-object ref. Read it
+  // directly — g_value_get_object g_return_val_if_fail's G_VALUE_HOLDS_OBJECT,
+  // which is FALSE for an interface type (g_type_is_a(GListModel, G_TYPE_OBJECT)
+  // == false). Mirrors GJS (refs/gjs/gi/value.cpp:1071 + gi/value.h:110) +
+  // JsToGValue's interface branch. Borrow (transfer-none; WrapGObject refs).
+  if (G_TYPE_IS_INTERFACE(G_VALUE_TYPE(v))) {
+    return WrapGObject(env, static_cast<GObject*>(v->data[0].v_pointer),
+                       GI_TRANSFER_NOTHING);
+  }
   switch (ft) {
     case G_TYPE_BOOLEAN: return Napi::Boolean::New(env, g_value_get_boolean(v));
     case G_TYPE_CHAR: return Napi::Number::New(env, g_value_get_schar(v));
@@ -2625,6 +2639,37 @@ static bool JsToGValue(Napi::Env env, Napi::Value js, GValue* v) {
       strv[i] = g_strdup(arr.Get(i).ToString().Utf8Value().c_str());
     }
     g_value_take_boxed(v, strv);
+    return true;
+  }
+  // An interface-typed property (e.g. Adw.ComboRow:model is GListModel, a GObject
+  // INTERFACE; Gtk.MenuButton:menu-model, …). G_TYPE_FUNDAMENTAL(an interface) ==
+  // G_TYPE_INTERFACE, which has no switch case below → the default branch would
+  // reject it ("Unsupported property GType GListModel"). The JS value is a wrapped
+  // GObject that IMPLEMENTS the interface (e.g. a Gtk.StringList / Gio.ListStore
+  // implementing GListModel). GObject's g_value_set_object g_return_if_fail's
+  // G_VALUE_HOLDS_OBJECT, which is FALSE for an interface-typed GValue
+  // (g_type_is_a(GListModel, G_TYPE_OBJECT) == false), so mirror GJS
+  // (refs/gjs/gi/value.cpp:684 + gi/value.h:165): set the value's object slot
+  // directly with g_set_object — the interface inherits GObject's value table via
+  // its GObject prerequisite, so the slot IS an owned-object ref. Same ownership
+  // as the G_TYPE_OBJECT case (#659): g_set_object refs the object (our wrapper
+  // keeps its own ref → no double-free), ConstructGObject's g_value_unset drops
+  // the GValue's ref. null/undefined → clear; a non-implementing / non-GObject
+  // value → clean TypeError.
+  if (G_TYPE_IS_INTERFACE(G_VALUE_TYPE(v))) {
+    GObject* obj = nullptr;
+    if (!(js.IsNull() || js.IsUndefined())) {
+      obj = UnwrapGObject(env, js);
+      if (obj == nullptr) return false;  // UnwrapGObject threw a TypeError
+      if (!g_type_is_a(G_OBJECT_TYPE(obj), G_VALUE_TYPE(v))) {
+        Napi::TypeError::New(env, std::string("expected an object implementing ") +
+                                      g_type_name(G_VALUE_TYPE(v)) + ", got " +
+                                      g_type_name(G_OBJECT_TYPE(obj)))
+            .ThrowAsJavaScriptException();
+        return false;
+      }
+    }
+    g_set_object(&v->data[0].v_pointer, obj);
     return true;
   }
   switch (ft) {
