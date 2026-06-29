@@ -19,6 +19,14 @@
     "./globals": {
       "types": "./globals.d.ts",
       "default": "./globals.js"
+    },
+    "./system": {
+      "types": "./system.d.ts",
+      "default": "./system.js"
+    },
+    "./gettext": {
+      "types": "./gettext.d.ts",
+      "default": "./gettext.js"
     }
   },
   "files": [
@@ -28,6 +36,10 @@
     "gi.d.ts",
     "globals.js",
     "globals.d.ts",
+    "system.js",
+    "system.d.ts",
+    "gettext.js",
+    "gettext.d.ts",
     "src",
     "binding.gyp",
     "prebuilds"

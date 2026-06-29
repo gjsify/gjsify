@@ -9,7 +9,7 @@ import { aliasPlugin } from '../plugins/alias.js';
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
-import { EXTERNALS_NODE } from '@gjsify/resolve-npm';
+import { EXTERNALS_NODE, ALIASES_GJS_FOR_NODE } from '@gjsify/resolve-npm';
 
 import type { PluginOptions } from '../types/plugin-options.js';
 import { getAliasesForNode } from '../utils/alias.js';
@@ -17,7 +17,7 @@ import { globToEntryPoints } from '../utils/entry-points.js';
 import { nodeModulesPathRewritePlugin, getBundleDirFromOutput } from '../plugins/rewrite-node-modules-paths.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
-import { gjsGiNodePlugin } from '../plugins/gjs-gi-node.js';
+import { gjsGiNodePlugin, gjsBuiltinModulesNodePlugin } from '../plugins/gjs-gi-node.js';
 import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
 
 /**
@@ -27,6 +27,15 @@ import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
  * external set below) — it loads the native addon and must never be bundled.
  */
 const NODE_GI_GLOBALS_SPECIFIER = '@gjsify/node-gi/globals';
+
+/**
+ * The node-gi standalone GJS built-in modules. The bare `system` / `gettext`
+ * specifiers a GJS source imports are aliased to these (via `ALIASES_GJS_FOR_NODE`,
+ * applied node-target-only) and, like `@gjsify/node-gi/gi`, kept EXTERNAL — they
+ * load the native node-gi backend and must resolve at runtime against the
+ * consumer's node_modules, never be bundled.
+ */
+const NODE_GI_BARE_MODULE_SPECIFIERS = ['@gjsify/node-gi/system', '@gjsify/node-gi/gettext'];
 
 export interface NodeBuildConfig {
     options: RolldownOptions;
@@ -71,6 +80,10 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         // `imports`/… are referenced). Like `@gjsify/node-gi/gi` it loads the
         // native addon and must resolve at runtime, never be bundled.
         NODE_GI_GLOBALS_SPECIFIER,
+        // The node-gi standalone GJS built-in modules (`system`/`gettext`),
+        // reached when the alias layer rewrites the bare specifiers. Kept
+        // external for the same reason as the gi/globals shims above.
+        ...NODE_GI_BARE_MODULE_SPECIFIERS,
         ...userExternal,
     ];
     const external = (id: string): boolean => {
@@ -173,6 +186,11 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         // null for `@girs/*`, which then falls through to gjsImportsEmptyPlugin
         // (those ambient/type packages map to an empty module on Node).
         gjsGiNodePlugin(),
+        // Bare GJS built-in modules (`system`/`gettext`): claimed BEFORE the
+        // aliasPlugin so they resolve to the EXTERNAL `@gjsify/node-gi/<mod>`
+        // shims without a disk resolution (works without node-gi installed,
+        // like gi://). Node-target-only — never active on gjs/browser/ns.
+        gjsBuiltinModulesNodePlugin(ALIASES_GJS_FOR_NODE),
         // gjsImportsEmptyPlugin then intercepts the remaining `@girs/*` (and any
         // `gi://` not claimed above) before `aliasPlugin` and the default
         // resolver. Same composition order as `app/browser.ts`.
