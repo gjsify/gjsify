@@ -161,10 +161,29 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
             opts.signal,
             progress,
             preferred,
+            opts.workspaceNames,
         );
         if (opts.lockfile) {
             writeLockfile(lockfilePath, opts.specs, nodes);
             log('install: wrote %s (%d entries)', LOCKFILE_NAME, nodes.length);
+        }
+    }
+
+    // A package whose name is one of the monorepo's own workspaces is provided
+    // by a workspace symlink (wired by `workspaceInstall`), NOT by a registry
+    // tarball — even when the lockfile or a transitive edge pins a same-named
+    // published version. Drop those nodes from the fetch/extract set so
+    // `extractOne` never `rm`s + overwrites the workspace source symlink (its
+    // data-loss guard would otherwise abort the whole install). This keeps
+    // `--immutable` robust against a committed lockfile that still carries such
+    // registry entries (it is built from the lockfile verbatim and never runs
+    // `resolveDeps`); a fresh resolve additionally skips them at the source.
+    if (opts.workspaceNames && opts.workspaceNames.size > 0) {
+        const before = nodes.length;
+        nodes = nodes.filter((n) => !opts.workspaceNames!.has(n.name));
+        const dropped = before - nodes.length;
+        if (dropped > 0) {
+            log('install: %d workspace-provided package(s) symlinked, not fetched', dropped);
         }
     }
 
@@ -242,6 +261,13 @@ async function resolveDeps(
      * (first install, or an explicit `--refresh-lockfile`).
      */
     preferredVersions?: Map<string, Set<string>>,
+    /**
+     * Names of the monorepo's own workspace packages. An edge whose name is in
+     * this set is satisfied by the workspace symlink, so it is skipped here —
+     * the published version (and its subtree) never enters the resolved tree or
+     * the lockfile.
+     */
+    workspaceNames?: Set<string>,
 ): Promise<ResolvedNode[]> {
     progress?.beginPhase('resolve', specs.length);
     const applyOverride = (name: string, range: string): string => {
@@ -317,6 +343,11 @@ async function resolveDeps(
         // cache instead of blocking on a fresh round-trip.
         for (let wi = 0; wi < wave.length; wi++) {
             const edge = wave[wi];
+
+            // A workspace member is satisfied by its workspace symlink, never by
+            // a registry tarball — skip the edge so the published version (and
+            // its subtree) never enters the resolved tree or the lockfile.
+            if (workspaceNames?.has(edge.name)) continue;
 
             // Walk the ancestor chain to see whether a satisfying placement is
             // already visible from the requester's `node_modules` lookup. npm's
