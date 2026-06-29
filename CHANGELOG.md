@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.14.0](https://github.com/gjsify/gjsify/compare/v0.13.2...v0.14.0) (2026-06-29)
+
+### Features
+
+* **node-gi:** marshal interface-typed properties ([#676](https://github.com/gjsify/gjsify/issues/676)) ([0ad70da](https://github.com/gjsify/gjsify/commit/0ad70da57cda1d918b9ec3c98c50d8bc0ad5fd2c)), closes [#659](https://github.com/gjsify/gjsify/issues/659)
+* **node-gi:** pass signal emitter to JS handlers ([#677](https://github.com/gjsify/gjsify/issues/677)) ([25cc42a](https://github.com/gjsify/gjsify/commit/25cc42a6dc23778c411ae76c419212699f22ac03)), closes [#675](https://github.com/gjsify/gjsify/issues/675)
+* **storybook:** add --runtime node to run on Node ([#678](https://github.com/gjsify/gjsify/issues/678)) ([56a5ef8](https://github.com/gjsify/gjsify/commit/56a5ef85a7e5eb49ad1dc1a7f1d24769a2277794))
+
+### Bug Fixes
+
+* **adwaita-nativescript:** GJS-parity (sizes, insets, status page, …) ([#672](https://github.com/gjsify/gjsify/issues/672)) ([7bbf2d4](https://github.com/gjsify/gjsify/commit/7bbf2d4fa0c2bab489d193d27df9a784fa4858b4))
+
 ## [0.13.2](https://github.com/gjsify/gjsify/compare/v0.13.1...v0.13.2) (2026-06-29)
 
 ### Features
