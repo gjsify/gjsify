@@ -43,6 +43,12 @@ static Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* a
 // GIRepository (lazily created). Callers must g_object_unref() it.
 GIRepository* DupDefaultRepository() { return gi_repository_dup_default(); }
 
+// The L1-registered GLib.Error factory (see ThrowGError) + the env it was
+// registered in. A napi_ref is env-specific, so the throw path only derefs it
+// when the calling env matches (a worker env never touches another env's ref).
+static napi_ref g_error_builder_ref = nullptr;
+static napi_env g_error_builder_env = nullptr;
+
 // requireNamespace(namespace: string, version?: string)
 //   -> { namespace: string, version: string, infoCount: number }
 //
@@ -238,6 +244,59 @@ Napi::Value GetEnumValues(const Napi::CallbackInfo& info) {
   gi_base_info_unref(base);
   g_object_unref(repo);
   return result;
+}
+
+// getErrorDomain(namespace, name) -> { name: string, quark: number } | null
+// For an enum type registered as a GError domain (e.g. Gio.IOErrorEnum), report
+// its domain quark name + numeric quark. L1 attaches these to the enum object so
+// `error.matches(Gio.IOErrorEnum, code)` can resolve the enum to its domain.
+// Returns null for a plain (non-error-domain) enum or a non-enum name.
+Napi::Value GetErrorDomain(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[0].IsString() || !info[1].IsString()) {
+    Napi::TypeError::New(env, "getErrorDomain(namespace: string, name: string)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string ns = info[0].As<Napi::String>().Utf8Value();
+  std::string name = info[1].As<Napi::String>().Utf8Value();
+  GIRepository* repo = DupDefaultRepository();
+  GIBaseInfo* base = gi_repository_find_by_name(repo, ns.c_str(), name.c_str());
+  if (base == nullptr || !GI_IS_ENUM_INFO(base)) {
+    if (base != nullptr) gi_base_info_unref(base);
+    g_object_unref(repo);
+    return env.Null();
+  }
+  const char* domain = gi_enum_info_get_error_domain(reinterpret_cast<GIEnumInfo*>(base));
+  Napi::Value result = env.Null();
+  if (domain != nullptr) {
+    Napi::Object obj = Napi::Object::New(env);
+    obj.Set("name", Napi::String::New(env, domain));
+    obj.Set("quark", Napi::Number::New(env, static_cast<double>(g_quark_from_string(domain))));
+    result = obj;
+  }
+  gi_base_info_unref(base);
+  g_object_unref(repo);
+  return result;
+}
+
+// setErrorBuilder(builder: (domainName, domainQuark, code, message) => Error) -> void
+// Register the L1 GLib.Error factory the engine calls when a GI invoke fails, so a
+// failed sync call throws a real GLib.Error. Stored per-env (a napi_ref is env-
+// specific; the throw path is gated on the same env).
+Napi::Value SetErrorBuilder(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsFunction()) {
+    Napi::TypeError::New(env, "setErrorBuilder(builder: function)").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  if (g_error_builder_ref != nullptr && g_error_builder_env == static_cast<napi_env>(env)) {
+    napi_delete_reference(env, g_error_builder_ref);
+    g_error_builder_ref = nullptr;
+  }
+  napi_create_reference(env, info[0], 1, &g_error_builder_ref);
+  g_error_builder_env = env;
+  return env.Undefined();
 }
 
 // prependSearchPath(path: string) -> void
@@ -1802,6 +1861,59 @@ static bool IsSupportedOutType(GITypeInfo* type, std::string* why) {
   }
 }
 
+// ---- GError -> GLib.Error ----
+//
+// A failed GI invoke yields a GError (domain quark + code + message). GJS surfaces
+// it as a real `GLib.Error` (an Error subclass carrying `.domain`/`.code`/
+// `.message` + a `.matches(domain, code)` method). The GLib.Error CLASS itself is
+// owned by L1 (gi.js) so its `matches()` can resolve an error-enum object to its
+// domain; the engine just reports the GError's fields to an L1-registered builder
+// function and throws what it returns. Registered per-env via setErrorBuilder;
+// gated on the calling env so a worker env never derefs another env's ref
+// (g_error_builder_* are declared near the top of the file so SetErrorBuilder —
+// defined earlier — also sees them).
+//
+// Read a GError's domain (quark name + numeric quark), code and message, FREE it,
+// and throw the JS error the L1 builder produces (instanceof GLib.Error). Falls
+// back to a plain JS Error when no builder is registered for this env. `context`
+// is the "Ns.method" display name, used only in the fallback message (a real
+// GLib.Error carries the bare GError message, matching GJS).
+static void ThrowGError(Napi::Env env, GError* error, const std::string& context) {
+  // Read everything out of the GError BEFORE g_error_free.
+  GQuark domainQuark = error != nullptr ? error->domain : 0;
+  const char* domainName = domainQuark != 0 ? g_quark_to_string(domainQuark) : nullptr;
+  std::string domain = domainName != nullptr ? domainName : "";
+  int code = error != nullptr ? error->code : 0;
+  std::string message =
+      (error != nullptr && error->message != nullptr) ? error->message : "invocation failed";
+  if (error != nullptr) g_error_free(error);
+
+  // Prefer the L1 GLib.Error builder (instanceof GLib.Error + working matches()).
+  if (g_error_builder_ref != nullptr && g_error_builder_env == static_cast<napi_env>(env)) {
+    napi_value builder = nullptr;
+    if (napi_get_reference_value(env, g_error_builder_ref, &builder) == napi_ok &&
+        builder != nullptr) {
+      napi_value undef = nullptr;
+      napi_get_undefined(env, &undef);
+      napi_value bargs[4] = {nullptr, nullptr, nullptr, nullptr};
+      napi_create_string_utf8(env, domain.c_str(), NAPI_AUTO_LENGTH, &bargs[0]);
+      napi_create_uint32(env, static_cast<uint32_t>(domainQuark), &bargs[1]);
+      napi_create_int32(env, code, &bargs[2]);
+      napi_create_string_utf8(env, message.c_str(), NAPI_AUTO_LENGTH, &bargs[3]);
+      napi_value errObj = nullptr;
+      napi_status st = napi_call_function(env, undef, builder, 4, bargs, &errObj);
+      if (st == napi_ok && errObj != nullptr) {
+        napi_throw(env, errObj);
+        return;
+      }
+      // The builder itself threw — let that exception surface rather than masking it.
+      bool pending = false;
+      if (napi_is_exception_pending(env, &pending) == napi_ok && pending) return;
+    }
+  }
+  Napi::Error::New(env, "Calling " + context + ": " + message).ThrowAsJavaScriptException();
+}
+
 static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpointer instance,
                                       Napi::Array args, const std::string& displayName) {
   GICallableInfo* callable = reinterpret_cast<GICallableInfo*>(func);
@@ -2045,9 +2157,9 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   for (NodeGiCallback* cb : callScope) NodeGiCallbackFree(cb);
   if (!success) {
     for (const InContainer& c : inContainers) FreeInContainer(c);
-    std::string message = error != nullptr ? error->message : "invocation failed";
-    if (error != nullptr) g_error_free(error);
-    Napi::Error::New(env, "Calling " + displayName + ": " + message).ThrowAsJavaScriptException();
+    // ThrowGError reads the GError's domain/code/message, frees it, and throws a
+    // real GLib.Error (instanceof, with .matches()) via the L1 builder.
+    ThrowGError(env, error, displayName);
     return env.Null();
   }
 
@@ -4118,6 +4230,8 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("findInfo", Napi::Function::New(env, FindInfo));
   exports.Set("getConstantValue", Napi::Function::New(env, GetConstantValue));
   exports.Set("getEnumValues", Napi::Function::New(env, GetEnumValues));
+  exports.Set("getErrorDomain", Napi::Function::New(env, GetErrorDomain));
+  exports.Set("setErrorBuilder", Napi::Function::New(env, SetErrorBuilder));
   exports.Set("prependSearchPath", Napi::Function::New(env, PrependSearchPath));
   exports.Set("callFunction", Napi::Function::New(env, CallFunction));
   exports.Set("callMethod", Napi::Function::New(env, CallMethod));

@@ -60,6 +60,80 @@ function unwrapProps(props) {
   return out;
 }
 
+// Symbol carrying an enum object's GError-domain descriptor ({ name, quark }) so
+// GLib.Error.prototype.matches can resolve an error-enum (e.g. Gio.IOErrorEnum)
+// to the domain it represents. Attached by makeEnum when the enum is registered
+// as a GError domain; read by errorDomainOf.
+const ERROR_DOMAIN = Symbol('nodeGiErrorDomain');
+
+// ---- GLib.Error (the GError surface, L1) ----
+//
+// A real Error subclass mirroring GJS's GLib.Error: `.domain`, `.code`,
+// `.message` plus `.matches(domain, code)` (the g_error_matches semantics — true
+// when the error's domain AND code both match). The engine throws an instance of
+// this on a failed sync GI invoke (via the builder registered below), and
+// `requireGi('GLib').Error` is this constructor, so a caught error is
+// `instanceof GLib.Error` exactly as under GJS.
+//
+// Divergence from GJS (documented): GJS's `.domain` is the numeric GQuark; here
+// `.domain` is the quark NAME string (more useful in a Node context, and the task
+// permits either). The numeric quark is kept on `.domainQuark`. `matches()`
+// accepts the domain as an error-enum object (Gio.IOErrorEnum), a name string, or
+// a numeric quark, so all the idiomatic call shapes work.
+
+// Resolve a `matches` domain argument to a { name?, quark? } descriptor.
+function errorDomainOf(domain) {
+  if (domain === null || domain === undefined) return null;
+  if (typeof domain === 'object' && domain[ERROR_DOMAIN] !== undefined) return domain[ERROR_DOMAIN];
+  if (typeof domain === 'string') return { name: domain };
+  if (typeof domain === 'number') return { quark: domain };
+  return null;
+}
+
+class GLibError extends Error {
+  // GJS-shaped public constructor: `new GLib.Error(domain, code, message)` where
+  // `domain` may be an error-enum object, a quark name string, or a numeric quark.
+  constructor(domain, code, message) {
+    super(typeof message === 'string' ? message : '');
+    this.name = 'GLib.Error';
+    const d = errorDomainOf(domain);
+    this.domain = d !== null && d.name !== undefined ? d.name : typeof domain === 'string' ? domain : undefined;
+    this.domainQuark = d !== null && d.quark !== undefined ? d.quark : typeof domain === 'number' ? domain : undefined;
+    this.code = code;
+  }
+
+  // g_error_matches: true when the error's domain + code both match. Accepts the
+  // domain as an error-enum object / name string / numeric quark (errorDomainOf).
+  matches(domain, code) {
+    const d = errorDomainOf(domain);
+    if (d === null) return false;
+    const domainMatch =
+      (d.name !== undefined && d.name === this.domain) ||
+      (d.quark !== undefined && d.quark === this.domainQuark);
+    return domainMatch && code === this.code;
+  }
+
+  toString() {
+    return `GLib.Error ${this.domain}: ${this.message}`;
+  }
+}
+
+// The engine calls this on a failed GI invoke with the GError's authoritative
+// fields (quark name + numeric quark + code + message) to build the thrown error.
+function buildGError(domainName, domainQuark, code, message) {
+  const error = new GLibError(domainName, code, message);
+  error.domain = domainName;
+  error.domainQuark = domainQuark;
+  return error;
+}
+native.setErrorBuilder(buildGError);
+
+// Promisified async methods, keyed by GI method name (snake_case) → the bound-on-
+// `this` promisified wrapper. introspected-class instances resolve methods
+// dynamically (no prototype chain), so the instance proxy consults this registry
+// before falling back to a plain method call. See _promisify / wrapInstance.
+const promisifiedMethods = new Map();
+
 // Object-typed return values become chainable instance proxies; boxed/struct
 // handles (e.g. GMainLoop) become method-routing proxies; everything else
 // (primitives, strings, null) passes through.
@@ -207,10 +281,29 @@ function decorateGLibNamespace(baseNs) {
   return new Proxy(baseNs, {
     get(t, prop) {
       if (prop === 'Variant') return variantClass;
+      // GLib.Error is the L1 GError subclass (the engine throws instances of it,
+      // and `new GLib.Error(domain, code, message)` constructs one), shadowing the
+      // introspected boxed type so `instanceof GLib.Error` + `.matches()` work.
+      if (prop === 'Error') return GLibError;
       return t[prop];
     },
     has(t, prop) {
-      return prop === 'Variant' || prop in t;
+      return prop === 'Variant' || prop === 'Error' || prop in t;
+    },
+  });
+}
+
+// Overlay the GJS Gio runtime statics on the introspected Gio namespace —
+// additively. `_promisify` is the genuinely-new helper (refs/gjs Gio.js); every
+// other member keeps resolving from introspection.
+function decorateGioNamespace(baseNs) {
+  return new Proxy(baseNs, {
+    get(t, prop) {
+      if (prop === '_promisify') return promisify;
+      return t[prop];
+    },
+    has(t, prop) {
+      return prop === '_promisify' || prop in t;
     },
   });
 }
@@ -302,6 +395,11 @@ function wrapInstance(handle, userProto) {
       // already covers toString/valueOf/etc.) must resolve to the real function,
       // not a GI callMethod thunk that would throw on `inst.hasOwnProperty('x')`.
       if (prop in t) return t[prop];
+      // A Gio._promisify'd async method (registerClass subclasses pick it up via
+      // their userProto above; introspected instances have no prototype chain, so
+      // they resolve it here from the global registry). Bound to this instance.
+      const promisified = promisifiedMethods.get(camelToSnake(prop));
+      if (promisified !== undefined) return (...args) => promisified.apply(proxy, args);
       return (...args) => wrapReturn(native.callMethod(handle, camelToSnake(prop), unwrapArgs(args)));
     },
     set(t, prop, value) {
@@ -389,7 +487,105 @@ function makeEnum(namespace, typeName) {
   for (const key of Object.keys(raw)) {
     out[key.toUpperCase().replace(/-/g, '_')] = raw[key];
   }
+  // If this enum is registered as a GError domain (Gio.IOErrorEnum, …), attach
+  // its domain descriptor (non-enumerable) so GLib.Error.matches(enum, code) can
+  // resolve the enum to its domain. A plain enum gets nothing (getErrorDomain → null).
+  const domain = native.getErrorDomain(namespace, typeName);
+  if (domain !== null) {
+    Object.defineProperty(out, ERROR_DOMAIN, { value: domain, enumerable: false });
+  }
   return Object.freeze(out);
+}
+
+// ---- Gio._promisify (L1, GJS-shaped) ----
+//
+// The Node twin of GJS's Gio._promisify (refs/gjs/modules/core/overrides/Gio.js).
+// Wraps an async method so calling it WITHOUT a trailing GAsyncReadyCallback
+// returns a Promise: it invokes the underlying async method passing a callback
+// that runs `finishName` and resolves with its return (the OUT-param tuple), or
+// rejects with the GLib.Error the finish call throws. Called WITH a trailing
+// callback it behaves as the plain async method (no Promise).
+//
+// Builds on: OUT/INOUT params (finish returns its results via out-params), the
+// libuv↔GLib mainloop bridge (the async completion fires on the loop) and GI
+// callbacks (the GAsyncReadyCallback). The async op holds a ref on the source
+// object and the GAsyncReadyCallback wrapper holds a strong ref to the JS callback
+// (which captures the instance proxy), so the wrapper + its GObject stay alive
+// until completion — instance identity, toggle-ref #656.
+
+// _async / _begin → _finish; otherwise <name>_finish (GJS's convention).
+function deriveFinishName(asyncName) {
+  if (asyncName.endsWith('_begin') || asyncName.endsWith('_async')) {
+    return `${asyncName.slice(0, -5)}finish`;
+  }
+  return `${asyncName}_finish`;
+}
+
+// Build the promisified wrapper for `asyncName`. Uses `this` (the instance proxy)
+// so it works both bound from the registry and as a prototype method.
+function makePromisified(asyncName, finishName) {
+  const giAsync = camelToSnake(asyncName);
+  return function promisified(...args) {
+    const handle = this[HANDLE];
+    // A trailing callback → plain async method (the caller drives the callback).
+    // Wrap it so its (source, result) args are marshalled to wrapped instances —
+    // matching the Promise path and GJS, so `source.finish(result)` works.
+    if (args.length > 0 && typeof args[args.length - 1] === 'function') {
+      const userCb = args[args.length - 1];
+      const forwarded = [...args.slice(0, -1), wrapSignalCallback(userCb)];
+      return wrapReturn(native.callMethod(handle, giAsync, unwrapArgs(forwarded)));
+    }
+    const self = this;
+    return new Promise((resolve, reject) => {
+      // wrapSignalCallback marshals each native callback arg (source, result)
+      // through wrapReturn → wrapped instances, so both `source[finishName](result)`
+      // and the captured-instance fallback round-trip cleanly.
+      const onReady = wrapSignalCallback((source, result) => {
+        try {
+          const finisher =
+            source !== null && source !== undefined && typeof source[finishName] === 'function'
+              ? source[finishName].bind(source)
+              : self[finishName].bind(self);
+          resolve(finisher(result));
+        } catch (error) {
+          reject(error);
+        }
+      });
+      native.callMethod(handle, giAsync, unwrapArgs([...args, onReady]));
+    });
+  };
+}
+
+/**
+ * Gio._promisify(prototype, asyncName, finishName?) — replace an async method so a
+ * call without a trailing callback returns a Promise. `finishName` defaults per
+ * GJS's convention (`_async`/`_begin` → `_finish`, else `<name>_finish`). Works on
+ * any introspected class prototype (e.g. Gio.File.prototype) or a registerClass
+ * subclass prototype.
+ * @param {object} proto e.g. Gio.File.prototype
+ * @param {string} asyncName e.g. "load_contents_async"
+ * @param {string} [finishName] e.g. "load_contents_finish"
+ * @returns {void}
+ */
+function promisify(proto, asyncName, finishName = undefined) {
+  if (proto === null || typeof proto !== 'object') {
+    throw new TypeError('Gio._promisify: prototype must be an object');
+  }
+  if (typeof asyncName !== 'string') {
+    throw new TypeError('Gio._promisify: asyncName must be a string');
+  }
+  const finish = finishName === undefined ? deriveFinishName(asyncName) : finishName;
+  const wrapper = makePromisified(asyncName, finish);
+  // Install on the prototype (so proto[asyncName] IS the promisified method, and a
+  // registerClass subclass — which resolves its userProto — picks it up) AND in
+  // the global registry (introspected instances resolve methods dynamically, with
+  // no live prototype chain to walk).
+  try {
+    proto[asyncName] = wrapper;
+  } catch {
+    // A frozen/sealed prototype — the registry still makes it work.
+  }
+  promisifiedMethods.set(camelToSnake(asyncName), wrapper);
 }
 
 // ---- GObject.registerClass decorator (L1, GJS-shaped) ----
@@ -747,8 +943,11 @@ export function requireGi(namespace, version) {
     // ParamSpec/ParamFlags/SignalFlags) layered over its introspected members.
     if (namespace === 'GObject') ns = decorateGObjectNamespace(ns);
     // The GLib namespace carries the GJS-shaped GLib.Variant ergonomics
-    // (new GLib.Variant(sig, value) + deepUnpack/unpack/recursiveUnpack).
+    // (new GLib.Variant(sig, value) + deepUnpack/unpack/recursiveUnpack) and the
+    // GLib.Error class.
     else if (namespace === 'GLib') ns = decorateGLibNamespace(ns);
+    // The Gio namespace carries Gio._promisify (async → Promise).
+    else if (namespace === 'Gio') ns = decorateGioNamespace(ns);
     namespaceCache.set(key, ns);
   }
   return ns;

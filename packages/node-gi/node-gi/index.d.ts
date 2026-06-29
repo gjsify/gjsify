@@ -49,6 +49,23 @@ export function getConstantValue(namespace: string, name: string): unknown;
  */
 export function getEnumValues(namespace: string, name: string): Record<string, number>;
 
+/**
+ * For an enum type registered as a GError domain (e.g. `Gio.IOErrorEnum`), report
+ * its domain quark name + numeric quark; `null` for a plain enum.
+ */
+export function getErrorDomain(
+  namespace: string,
+  name: string,
+): { name: string; quark: number } | null;
+
+/**
+ * Register the L1 GLib.Error factory the engine calls when a GI invoke fails, so
+ * a failed sync call throws a real `GLib.Error` (instanceof, with `.matches()`).
+ */
+export function setErrorBuilder(
+  builder: (domainName: string, domainQuark: number, code: number, message: string) => Error,
+): void;
+
 /** Prepend a directory to the GIRepository typelib search path. */
 export function prependSearchPath(path: string): void;
 
