@@ -54,9 +54,22 @@ function unwrapArgs(args) {
   return args.map(unwrapArg);
 }
 
+// Normalize a construct-property dict: each KEY to the GObject canonical (kebab)
+// property name and each VALUE unwrapped to its native handle. GJS accepts a
+// construct-prop key in camelCase, snake_case OR already-dashed form and maps it to
+// the GObject property; the native newObject/constructType layer below looks each
+// key up against the GParamSpec by its canonical dashed name, so `{maximumSize:400}`
+// would otherwise miss `maximum-size`. Reuse `toKebab` — the SAME normalization the
+// property getter/setter accessor path already applies (lines below: `x.maximumSize`
+// reads/writes `maximum-size`) — keeping a single source of truth, so construction
+// and accessor agree. Idempotent: an already-dashed (`maximum-size`) or snake_case
+// (`maximum_size`) key passes through unchanged (GObject canonicalizes `_`↔`-`).
+// This is the ONLY caller-facing construct path — newObject for an introspected
+// `new Ns.Class({...})`, and constructType for a registerClass'd subclass plus its
+// `super({...})` chain-up — so all three accept camelCase identically to GJS.
 function unwrapProps(props) {
   const out = {};
-  for (const key of Object.keys(props)) out[key] = unwrapArg(props[key]);
+  for (const key of Object.keys(props)) out[toKebab(key)] = unwrapArg(props[key]);
   return out;
 }
 
