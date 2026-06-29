@@ -52,12 +52,19 @@ GIRepository* DupDefaultRepository() { return gi_repository_dup_default(); }
 // Init, freed by the instance-data finalizer at env teardown.
 struct NodeGiEnvData {
   napi_ref errorBuilder = nullptr;
+  // L1-registered resolver for Gtk.Template `<signal handler="…">` callbacks: given
+  // (instanceHandle, handlerName) it returns the instance's bound JS method (or
+  // undefined). Stored per-env for the same reason as errorBuilder (a napi_ref is
+  // env-specific). See the Gtk.Widget composite-template scope further down.
+  napi_ref templateCallbackResolver = nullptr;
 };
 
 static void NodeGiEnvDataFinalize(napi_env env, void* data, void* /*hint*/) {
   NodeGiEnvData* d = static_cast<NodeGiEnvData*>(data);
   if (d == nullptr) return;
   if (d->errorBuilder != nullptr) napi_delete_reference(env, d->errorBuilder);
+  if (d->templateCallbackResolver != nullptr)
+    napi_delete_reference(env, d->templateCallbackResolver);
   delete d;
 }
 
@@ -2391,8 +2398,17 @@ static GObject* UnwrapGObject(Napi::Env env, Napi::Value handle);
 // Forward declaration: ConstructGObject calls gtk_widget_init_template on a
 // freshly-built widget whose registered type carries a Gtk.Widget template. The
 // helper (and the NodeGiClassData/GtkTemplateApi it reads) is defined with the
-// registerClass machinery further down; a no-op for any non-templated type.
-static void MaybeInitTemplate(GObject* obj);
+// registerClass machinery further down; a no-op for any non-templated type. The
+// env is threaded through so the per-construction JS env can be stamped on the
+// template-callback scope before init_template builds (and connects) the tree.
+struct NodeGiClassData;
+static void MaybeInitTemplate(Napi::Env env, GObject* obj);
+
+// Forward declarations for the Gtk.Widget composite-template callback scope. The
+// implementation lives further down (alongside the JsClosure signal machinery it
+// reuses), but NodeGiClassInit installs the scope and MaybeInitTemplate refreshes
+// its env, both above that point.
+static void NodeGiInstallTemplateScopeOnClass(NodeGiClassData* cd, gpointer g_class);
 
 // Marshal a GValue into a JS value (fundamental types).
 static Napi::Value GValueToJs(Napi::Env env, const GValue* v) {
@@ -2619,7 +2635,7 @@ static Napi::Value ConstructGObject(Napi::Env env, GType gtype, Napi::Object pro
   // declared children + binds them so get_template_child resolves). A no-op unless
   // the constructed type carries node-gi template data (defined below; forward-
   // declared above), so plain introspected construction (newObject) is untouched.
-  MaybeInitTemplate(obj);
+  MaybeInitTemplate(env, obj);
   return MakeGObjectHandle(env, obj);
 }
 
@@ -2899,6 +2915,14 @@ struct GtkTemplateApi {
   void (*set_css_name)(gpointer widget_class, const char* name);
   void (*init_template)(gpointer widget);
   GObject* (*get_template_child)(gpointer widget, GType widget_type, const char* name);
+  // Template-callback dispatch (`<signal handler="…">`): a custom GtkBuilderScope
+  // is set on the class so GtkBuilder resolves any handler name to the instance's
+  // JS method (mirrors GJS's TemplateBuilderScope). set_template_scope installs it;
+  // builder_get_current_object yields the widget being built (the handler `this`);
+  // builder_scope_get_type is the interface GType our scope subtype implements.
+  void (*set_template_scope)(gpointer widget_class, gpointer scope);
+  GObject* (*builder_get_current_object)(gpointer builder);
+  GType (*builder_scope_get_type)(void);
   bool ok;
 };
 
@@ -2927,6 +2951,12 @@ static const GtkTemplateApi* GetGtkTemplateApi() {
       reinterpret_cast<decltype(api.init_template)>(dlsym(lib, "gtk_widget_init_template"));
   api.get_template_child = reinterpret_cast<decltype(api.get_template_child)>(
       dlsym(lib, "gtk_widget_get_template_child"));
+  api.set_template_scope = reinterpret_cast<decltype(api.set_template_scope)>(
+      dlsym(lib, "gtk_widget_class_set_template_scope"));
+  api.builder_get_current_object = reinterpret_cast<decltype(api.builder_get_current_object)>(
+      dlsym(lib, "gtk_builder_get_current_object"));
+  api.builder_scope_get_type = reinterpret_cast<decltype(api.builder_scope_get_type)>(
+      dlsym(lib, "gtk_builder_scope_get_type"));
   api.ok = api.set_template != nullptr && api.set_template_from_resource != nullptr &&
            api.bind_template_child_full != nullptr && api.set_css_name != nullptr &&
            api.init_template != nullptr && api.get_template_child != nullptr;
@@ -2948,6 +2978,10 @@ struct NodeGiClassData {
   std::string cssName;                        // gtk_widget_class_set_css_name (optional)
   std::vector<std::string> children;          // public Children ids
   std::vector<std::string> internalChildren;  // InternalChildren ids
+  // The generic template-callback scope set on the class (set_template_scope). Owned
+  // for the class lifetime (process-permanent, like cd itself); its JS env qdata is
+  // refreshed per construction so create_closure resolves handlers in the live env.
+  GObject* templateScope = nullptr;
 
   // The cold `delete cd` failure paths (a bad GParamSpec, or g_type_register_static
   // returning 0) must not leak the owned inline-template GBytes. A destructor frees
@@ -2967,6 +3001,16 @@ static GQuark NodeGiClassDataQuark() {
 }
 static GQuark NodeGiInstancePropsQuark() {
   static GQuark q = g_quark_from_static_string("node-gi-instance-props");
+  return q;
+}
+// The live JS env stamped on a template-callback scope (refreshed each construct).
+static GQuark NodeGiScopeEnvQuark() {
+  static GQuark q = g_quark_from_static_string("node-gi-scope-env");
+  return q;
+}
+// GError domain for template-callback resolution failures surfaced to GtkBuilder.
+static GQuark NodeGiBuilderErrorQuark() {
+  static GQuark q = g_quark_from_static_string("node-gi-builder-error");
   return q;
 }
 
@@ -3006,7 +3050,7 @@ static NodeGiVFunc* FindVFuncRecord(GType type, const std::string& name) {
 // registered type carries node-gi template data, so it is safe on every GObject
 // construction. Uses the instance's actual type's class data (single-level
 // registered templated type — the construct() case).
-static void MaybeInitTemplate(GObject* obj) {
+static void MaybeInitTemplate(Napi::Env env, GObject* obj) {
   NodeGiClassData* cd = FindClassData(G_OBJECT_TYPE(obj));
   if (cd == nullptr || !cd->hasTemplate) return;
   const GtkTemplateApi* gtk = GetGtkTemplateApi();
@@ -3014,7 +3058,19 @@ static void MaybeInitTemplate(GObject* obj) {
   // Only a Gtk.Widget can be init_template'd (class_init also skips a non-widget
   // template). g_type_from_name is 0 if GTK never loaded → guard is false → skip.
   GType widgetType = g_type_from_name("GtkWidget");
-  if (widgetType != 0 && g_type_is_a(G_OBJECT_TYPE(obj), widgetType)) gtk->init_template(obj);
+  if (widgetType == 0 || !g_type_is_a(G_OBJECT_TYPE(obj), widgetType)) return;
+  // Stamp the live JS env on the template-callback scope BEFORE init_template runs:
+  // GtkBuilder resolves every `<signal handler="…">` synchronously inside
+  // init_template by calling the scope's create_closure, which needs this env to
+  // call back into the L1 resolver. Refreshed each construct so the scope always
+  // dispatches in the env that built this instance (GTK template construction is
+  // main-thread/single-env; a stale capture would only matter for a cross-env
+  // build, which GTK does not do).
+  if (cd->templateScope != nullptr) {
+    g_object_set_qdata(cd->templateScope, NodeGiScopeEnvQuark(),
+                       reinterpret_cast<void*>(static_cast<napi_env>(env)));
+  }
+  gtk->init_template(obj);
 }
 
 // A property is custom iff its owner GType carries node-gi class-data; otherwise
@@ -3175,6 +3231,12 @@ static void NodeGiClassInit(gpointer g_class, gpointer class_data) {
         gtk->bind_template_child_full(g_class, c.c_str(), FALSE, 0);
       for (const std::string& c : cd->internalChildren)
         gtk->bind_template_child_full(g_class, c.c_str(), TRUE, 0);
+      // Install a generic template-callback scope so any `<signal handler="…">` in
+      // the template resolves to the instance's JS method (mirrors GJS's
+      // set_template_scope path). Must follow set_template; used during
+      // init_template. Independent of the child binding above — Children /
+      // InternalChildren behaviour is unchanged.
+      NodeGiInstallTemplateScopeOnClass(cd, g_class);
     } else if (!isWidget) {
       g_warning(
           "node-gi: a Template was set on %s, which is not a Gtk.Widget subclass — "
@@ -4671,6 +4733,204 @@ Napi::Value DisconnectSignal(const Napi::CallbackInfo& info) {
   return env.Undefined();
 }
 
+// ---- Gtk.Widget composite-template callback dispatch -----------------------
+//
+// Mirrors GJS's TemplateBuilderScope (refs/gjs/modules/core/overrides/Gtk.js): a
+// custom GtkBuilderScope is set on a templated widget class via
+// gtk_widget_class_set_template_scope, so when GtkBuilder (run by init_template)
+// hits a `<signal name="clicked" handler="on_click"/>` it asks the scope to
+// create a closure for the handler NAME. We resolve that name to the instance's
+// JS method and connect a closure that dispatches to it.
+//
+// Why a scope (generic resolver) and not gtk_widget_class_bind_template_callback
+// (per-name C symbol): a GtkBuilderScope's create_closure returns a *GClosure*,
+// which is signature-agnostic — GObject marshals the signal's GValue params into
+// it at emit time, so one mechanism handles ANY signal shape without a per-signal
+// libffi cif. A bound C-symbol callback would instead be invoked with the live
+// signal ABI, which we cannot know at bind time. The returned closure reuses the
+// existing JsClosure machinery (JsClosureMarshal/JsClosureFinalize), so the marshal
+// + GValue→JS arg conversion + lifetime are identical to a normal `.connect()`.
+//
+// Handler name → JS method + `this`: create_closure calls the L1 resolver
+// (gi.js resolveTemplateCallback) with the canonical wrapper of the widget being
+// built (gtk_builder_get_current_object) and the handler name; L1 returns the
+// user-prototype method already bound to that instance proxy (so `this` is the
+// template widget — the same cached, toggle-ref-canonical L1 proxy the user holds)
+// and wrapping each native signal arg into a chainable wrapper. The returned JS
+// function is wrapped in a JsClosure here. arg marshalling: JsClosureMarshal skips
+// the emitter (param 0, node-gi's signal convention) and passes the rest.
+
+// The GtkBuilderScopeInterface vtable layout (stable public ABI — replicated so the
+// addon needs no GTK headers; it only links girepository-2.0 and dlsym's GTK).
+typedef GType (*NodeGiScopeTypeFromNameFn)(void*, void*, const char*);
+typedef GType (*NodeGiScopeTypeFromFuncFn)(void*, void*, const char*);
+typedef GClosure* (*NodeGiScopeCreateClosureFn)(void*, void*, const char*, guint, GObject*,
+                                                GError**);
+struct NodeGiBuilderScopeIface {
+  GTypeInterface g_iface;
+  NodeGiScopeTypeFromNameFn get_type_from_name;
+  NodeGiScopeTypeFromFuncFn get_type_from_function;
+  NodeGiScopeCreateClosureFn create_closure;
+};
+
+// create_closure: resolve `function_name` to the widget instance's JS method and
+// return a JsClosure dispatching to it. Returns NULL + sets *error on any failure
+// (handler not found, swapped flag, no env/resolver) so GtkBuilder aborts the build
+// with a clear message instead of silently dropping the handler.
+static GClosure* NodeGiScopeCreateClosure(void* selfScope, void* builder,
+                                          const char* function_name, guint flags,
+                                          GObject* object, GError** error) {
+  const char* name = function_name != nullptr ? function_name : "?";
+  // SWAPPED is unsupported (matches GJS's "_createClosure" guard).
+  if (flags & 1u /* GTK_BUILDER_CLOSURE_SWAPPED */) {
+    g_set_error(error, NodeGiBuilderErrorQuark(), 0,
+                "node-gi: template signal flag 'swapped' is not supported (handler '%s')", name);
+    return nullptr;
+  }
+  napi_env rawEnv = static_cast<napi_env>(
+      g_object_get_qdata(G_OBJECT(selfScope), NodeGiScopeEnvQuark()));
+  if (rawEnv == nullptr) {
+    g_set_error(error, NodeGiBuilderErrorQuark(), 0,
+                "node-gi: template scope has no live JS env to resolve handler '%s'", name);
+    return nullptr;
+  }
+  const GtkTemplateApi* gtk = GetGtkTemplateApi();
+  GObject* thisObj = object;
+  if (thisObj == nullptr && gtk->builder_get_current_object != nullptr)
+    thisObj = gtk->builder_get_current_object(builder);
+  if (thisObj == nullptr) {
+    g_set_error(error, NodeGiBuilderErrorQuark(), 0,
+                "node-gi: no current object to bind template handler '%s'", name);
+    return nullptr;
+  }
+
+  Napi::Env env(rawEnv);
+  Napi::HandleScope hscope(env);
+
+  NodeGiEnvData* d = EnvData(rawEnv);
+  napi_value resolver = nullptr;
+  if (d == nullptr || d->templateCallbackResolver == nullptr ||
+      napi_get_reference_value(rawEnv, d->templateCallbackResolver, &resolver) != napi_ok ||
+      resolver == nullptr) {
+    g_set_error(error, NodeGiBuilderErrorQuark(), 0,
+                "node-gi: no template-callback resolver registered (handler '%s')", name);
+    return nullptr;
+  }
+
+  Napi::Value handleVal = WrapGObject(env, thisObj, GI_TRANSFER_NOTHING);
+  napi_value args[2] = {handleVal, nullptr};
+  napi_create_string_utf8(rawEnv, name, NAPI_AUTO_LENGTH, &args[1]);
+  napi_value undef = nullptr;
+  napi_get_undefined(rawEnv, &undef);
+  napi_value resolved = nullptr;
+  napi_status st = napi_call_function(rawEnv, undef, resolver, 2, args, &resolved);
+  if (st != napi_ok) {
+    // The resolver threw — never leave a pending JS exception across the return to
+    // GTK (C). Clear it and fold its message into the GError so the build fails
+    // cleanly.
+    napi_value ex = nullptr;
+    std::string detail;
+    if (napi_get_and_clear_last_exception(rawEnv, &ex) == napi_ok && ex != nullptr) {
+      napi_value msg = nullptr;
+      if (napi_get_named_property(rawEnv, ex, "message", &msg) == napi_ok) {
+        size_t len = 0;
+        if (napi_get_value_string_utf8(rawEnv, msg, nullptr, 0, &len) == napi_ok) {
+          detail.resize(len);
+          napi_get_value_string_utf8(rawEnv, msg, detail.data(), len + 1, &len);
+        }
+      }
+    }
+    g_set_error(error, NodeGiBuilderErrorQuark(), 0,
+                "node-gi: template handler '%s' resolver threw%s%s", name,
+                detail.empty() ? "" : ": ", detail.c_str());
+    return nullptr;
+  }
+  napi_valuetype rt = napi_undefined;
+  napi_typeof(rawEnv, resolved, &rt);
+  if (rt != napi_function) {
+    g_set_error(error, NodeGiBuilderErrorQuark(), 0,
+                "node-gi: no template handler '%s' defined on the instance", name);
+    return nullptr;
+  }
+
+  // Wrap the resolved (instance-bound, arg-wrapping) JS function in a JsClosure —
+  // the same closure type a `.connect()` produces. The closure owns a strong ref to
+  // the function; g_object_watch_closure ties its lifetime to the widget (the
+  // handler `this`) and invalidates it when the widget is finalized, exactly like
+  // GtkBuilderCScope's own create_closure.
+  JsClosureData* jc = g_new0(JsClosureData, 1);
+  jc->env = rawEnv;
+  napi_create_reference(rawEnv, resolved, 1, &jc->callback);
+  GClosure* closure = g_closure_new_simple(sizeof(GClosure), jc);
+  g_closure_set_marshal(closure, JsClosureMarshal);
+  g_closure_add_finalize_notifier(closure, jc, JsClosureFinalize);
+  g_object_watch_closure(thisObj, closure);
+  return closure;
+}
+
+static void NodeGiBuilderScopeIfaceInit(gpointer g_iface, gpointer /*data*/) {
+  // The per-type interface vtable is pre-filled with the GtkBuilderScope interface
+  // defaults (get_type_from_name = g_type_from_name, etc.) before this runs, so we
+  // only override create_closure — type resolution keeps GTK's default behaviour
+  // (sufficient for templates whose object types are already registered).
+  NodeGiBuilderScopeIface* iface = static_cast<NodeGiBuilderScopeIface*>(g_iface);
+  iface->create_closure = NodeGiScopeCreateClosure;
+}
+
+// The GObject subtype implementing GtkBuilderScope (registered once). Returns 0 if
+// the GTK scope API is unavailable (old/missing GTK) → callers skip the scope.
+static GType NodeGiBuilderScopeGetType() {
+  static GType type = 0;
+  if (type != 0) return type;
+  const GtkTemplateApi* gtk = GetGtkTemplateApi();
+  if (gtk->builder_scope_get_type == nullptr || gtk->set_template_scope == nullptr) return 0;
+  GType ifaceType = gtk->builder_scope_get_type();
+  if (ifaceType == 0) return 0;
+
+  GTypeInfo info = {};
+  info.class_size = sizeof(GObjectClass);
+  info.instance_size = sizeof(GObject);
+  type = g_type_register_static(G_TYPE_OBJECT, "NodeGiBuilderScope", &info,
+                                static_cast<GTypeFlags>(0));
+  if (type == 0) return 0;
+  GInterfaceInfo ifaceInfo = {NodeGiBuilderScopeIfaceInit, nullptr, nullptr};
+  g_type_add_interface_static(type, ifaceType, &ifaceInfo);
+  return type;
+}
+
+// Create the class's template-callback scope and install it (class_init). Holds the
+// scope for the class lifetime (process-permanent, like NodeGiClassData) so its env
+// qdata can be refreshed per construction. A no-op when the GTK scope API is absent.
+static void NodeGiInstallTemplateScopeOnClass(NodeGiClassData* cd, gpointer g_class) {
+  const GtkTemplateApi* gtk = GetGtkTemplateApi();
+  if (gtk->set_template_scope == nullptr) return;  // older GTK: callbacks unsupported
+  GType scopeType = NodeGiBuilderScopeGetType();
+  if (scopeType == 0) return;
+  GObject* scope = static_cast<GObject*>(g_object_new(scopeType, nullptr));
+  if (scope == nullptr) return;
+  gtk->set_template_scope(g_class, scope);  // the class takes its own ref
+  cd->templateScope = scope;                // our class-lifetime ref (env-refresh target)
+}
+
+// setTemplateCallbackResolver(fn) -> void. L1 registers the resolver that maps a
+// (instanceHandle, handlerName) to the instance's bound JS method (see gi.js).
+Napi::Value SetTemplateCallbackResolver(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsFunction()) {
+    Napi::TypeError::New(env, "setTemplateCallbackResolver(resolver: function)")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  NodeGiEnvData* d = EnvData(env);
+  if (d == nullptr) return env.Undefined();
+  if (d->templateCallbackResolver != nullptr) {
+    napi_delete_reference(env, d->templateCallbackResolver);
+    d->templateCallbackResolver = nullptr;
+  }
+  napi_create_reference(env, info[0], 1, &d->templateCallbackResolver);
+  return env.Undefined();
+}
+
 // ---- libuv <-> GLib main loop bridge (milestone: mainloop) ----
 //
 // Port of node-gtk's src/loop.cc (romgrk and contributors, MIT) to N-API. Nests
@@ -4886,6 +5146,8 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("connectSignal", Napi::Function::New(env, ConnectSignal));
   exports.Set("emitSignal", Napi::Function::New(env, EmitSignal));
   exports.Set("disconnectSignal", Napi::Function::New(env, DisconnectSignal));
+  exports.Set("setTemplateCallbackResolver",
+              Napi::Function::New(env, SetTemplateCallbackResolver));
   return exports;
 }
 

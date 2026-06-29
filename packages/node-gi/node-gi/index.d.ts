@@ -346,6 +346,17 @@ export function emitSignal(handle: GObjectHandle, signalName: string, args?: unk
 /** Disconnect a previously connected signal handler. */
 export function disconnectSignal(handle: GObjectHandle, handlerId: number): void;
 
+/**
+ * Register the L1 resolver mapping a Gtk.Template `<signal handler="…">` handler
+ * name to the instance's bound JS method (engine template-callback scope).
+ */
+export function setTemplateCallbackResolver(
+  resolver: (
+    handle: GObjectHandle,
+    handlerName: string,
+  ) => ((...args: unknown[]) => unknown) | undefined,
+): void;
+
 declare const native: {
   requireNamespace: typeof requireNamespace;
   listInfoNames: typeof listInfoNames;
@@ -378,5 +389,6 @@ declare const native: {
   connectSignal: typeof connectSignal;
   emitSignal: typeof emitSignal;
   disconnectSignal: typeof disconnectSignal;
+  setTemplateCallbackResolver: typeof setTemplateCallbackResolver;
 };
 export default native;

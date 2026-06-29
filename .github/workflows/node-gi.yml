@@ -140,14 +140,15 @@ jobs:
       # LIBGL_ALWAYS_SOFTWARE=1 + GDK_BACKEND=x11 keep GTK off any GPU/Vulkan path
       # that a software-only Xvfb cannot provide; GTK_A11Y=none avoids the a11y bus.
       # Runs ALL the GTK smoke tests (Gtk.Application PR1 + Adw.Application PR2 +
-      # Gtk.Template PR4) in one node --test invocation so each reports even if one
-      # fails.
+      # Gtk.Template PR4 + Template signal callbacks & menu breadth) in one
+      # node --test invocation so each reports even if one fails.
       - name: GTK/Adw smoke test (xvfb + dbus)
         working-directory: packages/node-gi/node-gi
         run: |
           xvfb-run -a dbus-run-session -- \
             env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
-            node --test test/gtk-smoke.test.mjs test/adw-smoke.test.mjs test/gtk-template.test.mjs
+            node --test test/gtk-smoke.test.mjs test/adw-smoke.test.mjs \
+              test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs
 
       # GTK capstone: ONE unchanged Adwaita gi:// source builds + runs
       # byte-identically on BOTH gjs and node under one display — the GTK analog of

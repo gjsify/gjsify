@@ -163,6 +163,36 @@ function wrapSignalCallback(cb) {
   return (...args) => cb(...args.map(wrapReturn));
 }
 
+// Resolve a Gtk.Template `<signal handler="…">` handler NAME to a dispatcher that
+// calls the instance's bound JS method, for the native template-callback scope
+// (engine: NodeGiScopeCreateClosure via set_template_scope). Mirrors GJS's
+// `_createClosure` (refs/gjs/modules/core/overrides/Gtk.js).
+//
+// LAZY by necessity: the engine resolves template signals during the C-side
+// constructType (init_template → create_closure), which runs BEFORE this layer
+// attaches the user-class prototype to the instance proxy. So the dispatcher
+// defers the method lookup to FIRE time, by which point the instance proxy is the
+// full, userProto-carrying, toggle-ref-canonical L1 wrapper. `this` inside the
+// handler is therefore the widget — the SAME cached proxy the user constructed
+// (wrapInstance is cached by the canonical handle). Native signal args are wrapped
+// (wrapReturn) into chainable instances, exactly like wrapSignalCallback. (The
+// engine drops the emitter at param 0, node-gi's signal convention.) A handler name
+// with no matching user-prototype method throws a clear error when the signal fires.
+function resolveTemplateCallback(handle, handlerName) {
+  return (...args) => {
+    const proxy = wrapInstance(handle);
+    const userProto = proxy[USER_PROTO];
+    const desc = userProto !== undefined ? findProtoDescriptor(userProto, handlerName) : undefined;
+    if (desc === undefined || typeof desc.value !== 'function') {
+      throw new Error(
+        `Gtk.Template: signal handler '${handlerName}' is not defined on ${proxy.constructor?.name ?? 'the instance'}`,
+      );
+    }
+    return desc.value.apply(proxy, args.map(wrapReturn));
+  };
+}
+native.setTemplateCallbackResolver(resolveTemplateCallback);
+
 // Wrap a boxed/struct handle so its methods are callable GJS-style
 // (`mainLoop.run()`, `mainLoop.quit()`, snake_case or camelCase). Boxed types
 // have no GObject properties/signals, so only method routing is provided.
