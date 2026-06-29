@@ -128,10 +128,18 @@ function buildGError(domainName, domainQuark, code, message) {
 }
 native.setErrorBuilder(buildGError);
 
-// Promisified async methods, keyed by GI method name (snake_case) → the bound-on-
-// `this` promisified wrapper. introspected-class instances resolve methods
-// dynamically (no prototype chain), so the instance proxy consults this registry
-// before falling back to a plain method call. See _promisify / wrapInstance.
+// Symbol stamping a makeClass prototype with its { namespace, typeName }, so
+// Gio._promisify can record WHICH introspected class a registration belongs to
+// (introspected instances have no live prototype chain to resolve by). Read in
+// _promisify; matched against the instance's GType via native.isInstanceOf.
+const CLASS_INFO = Symbol('nodeGiClassInfo');
+
+// Promisified async methods, keyed by GI method name (snake_case) → an array of
+// registrations `{ namespace?, typeName?, wrapper }`. Introspected-class instances
+// resolve methods dynamically (no prototype chain), so the instance proxy consults
+// this registry. Usually one registration per name (fast path); when two classes
+// promisify the SAME method name, the instance proxy picks the registration whose
+// class the instance is-a (native.isInstanceOf). See _promisify / wrapInstance.
 const promisifiedMethods = new Map();
 
 // Object-typed return values become chainable instance proxies; boxed/struct
@@ -397,8 +405,8 @@ function wrapInstance(handle, userProto) {
       if (prop in t) return t[prop];
       // A Gio._promisify'd async method (registerClass subclasses pick it up via
       // their userProto above; introspected instances have no prototype chain, so
-      // they resolve it here from the global registry). Bound to this instance.
-      const promisified = promisifiedMethods.get(camelToSnake(prop));
+      // they resolve it here from the registry, per-class). Bound to this instance.
+      const promisified = resolvePromisified(handle, camelToSnake(prop));
       if (promisified !== undefined) return (...args) => promisified.apply(proxy, args);
       return (...args) => wrapReturn(native.callMethod(handle, camelToSnake(prop), unwrapArgs(args)));
     },
@@ -445,6 +453,13 @@ function makeClass(namespace, typeName) {
   };
   Object.defineProperty(ctor, 'name', { value: typeName, configurable: true });
   ctor.$gtypeName = `${namespace}.${typeName}`;
+  // Stamp the prototype with its class identity so Gio._promisify(Cls.prototype, …)
+  // can record which class a registration belongs to (non-enumerable).
+  Object.defineProperty(ctor.prototype, CLASS_INFO, {
+    value: { namespace, typeName },
+    enumerable: false,
+    configurable: true,
+  });
   // Expose constructor/static methods lazily: Ns.Class.new(...) /
   // Ns.Class.new_for_path(...) (and the camelCase aliases). `new Ns.Class({...})`
   // still goes through the target's [[Construct]] (the default Proxy behaviour).
@@ -537,16 +552,24 @@ function makePromisified(asyncName, finishName) {
     }
     const self = this;
     return new Promise((resolve, reject) => {
-      // wrapSignalCallback marshals each native callback arg (source, result)
-      // through wrapReturn → wrapped instances, so both `source[finishName](result)`
-      // and the captured-instance fallback round-trip cleanly.
-      const onReady = wrapSignalCallback((source, result) => {
+      // wrapSignalCallback marshals each native callback arg (source, res) through
+      // wrapReturn → wrapped instances, so both `source[finishName](res)` and the
+      // captured-instance fallback round-trip cleanly.
+      const onReady = wrapSignalCallback((source, res) => {
         try {
           const finisher =
             source !== null && source !== undefined && typeof source[finishName] === 'function'
               ? source[finishName].bind(source)
               : self[finishName].bind(self);
-          resolve(finisher(result));
+          const value = finisher(res);
+          // GJS's _promisify drops a leading `true` ok-flag so the dominant
+          // finish shape (load_contents_finish, query_info_finish,
+          // communicate_utf8_finish, … → [true, …]) resolves to just the
+          // payload — keeping one source byte-identical on gjs + node.
+          if (Array.isArray(value) && value.length > 1 && value[0] === true) {
+            value.shift();
+          }
+          resolve(value);
         } catch (error) {
           reject(error);
         }
@@ -585,7 +608,44 @@ function promisify(proto, asyncName, finishName = undefined) {
   } catch {
     // A frozen/sealed prototype — the registry still makes it work.
   }
-  promisifiedMethods.set(camelToSnake(asyncName), wrapper);
+  // Record the registration keyed by the GI method name, tagged with the class it
+  // was registered on (CLASS_INFO from makeClass) so two classes promisifying the
+  // same method name with different finish methods stay disambiguated per-class.
+  const info = proto[CLASS_INFO];
+  const registration = {
+    namespace: info ? info.namespace : undefined,
+    typeName: info ? info.typeName : undefined,
+    wrapper,
+  };
+  const key = camelToSnake(asyncName);
+  const existing = promisifiedMethods.get(key);
+  if (existing === undefined) {
+    promisifiedMethods.set(key, [registration]);
+  } else {
+    // Replace a same-class registration in place; otherwise append (a second class).
+    const i = existing.findIndex(
+      (r) => r.namespace === registration.namespace && r.typeName === registration.typeName,
+    );
+    if (i >= 0) existing[i] = registration;
+    else existing.push(registration);
+  }
+}
+
+// Resolve the promisified wrapper for `methodName` on an instance handle. The
+// common case is a single registration (fast path); when several classes
+// promisified the same method name, pick the one whose class the instance is-a.
+function resolvePromisified(handle, methodName) {
+  const registrations = promisifiedMethods.get(methodName);
+  if (registrations === undefined) return undefined;
+  if (registrations.length === 1) return registrations[0].wrapper;
+  for (const r of registrations) {
+    if (r.namespace !== undefined && native.isInstanceOf(handle, r.namespace, r.typeName)) {
+      return r.wrapper;
+    }
+  }
+  // No class matched (or a registerClass registration with no CLASS_INFO) — fall
+  // back to the last registration so a single-class misconfig still resolves.
+  return registrations[registrations.length - 1].wrapper;
 }
 
 // ---- GObject.registerClass decorator (L1, GJS-shaped) ----

@@ -213,6 +213,13 @@ export function hasProperty(handle: GObjectHandle, name: string): boolean;
 export function getTypeName(handle: GObjectHandle): string;
 
 /**
+ * Whether a GObject handle's GType is-a `namespace.typeName` (g_type_is_a — also
+ * true when the type implements an interface). Used by the L1 wrapper to pick the
+ * right `Gio._promisify` registration when two classes promisify a same-named method.
+ */
+export function isInstanceOf(handle: GObjectHandle, namespace: string, typeName: string): boolean;
+
+/**
  * Whether `value` is one of node-gi's GObject-instance handles (tag-checked, no
  * dereference). Lets the L1 wrapper wrap object-typed return values for chaining
  * without misclassifying a {@link TypeHandle}.
@@ -305,6 +312,8 @@ declare const native: {
   findInfo: typeof findInfo;
   getConstantValue: typeof getConstantValue;
   getEnumValues: typeof getEnumValues;
+  getErrorDomain: typeof getErrorDomain;
+  setErrorBuilder: typeof setErrorBuilder;
   prependSearchPath: typeof prependSearchPath;
   callFunction: typeof callFunction;
   callMethod: typeof callMethod;
@@ -316,6 +325,7 @@ declare const native: {
   setProperty: typeof setProperty;
   hasProperty: typeof hasProperty;
   getTypeName: typeof getTypeName;
+  isInstanceOf: typeof isInstanceOf;
   isGObjectHandle: typeof isGObjectHandle;
   callBoxedMethod: typeof callBoxedMethod;
   isBoxedHandle: typeof isBoxedHandle;

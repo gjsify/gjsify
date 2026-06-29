@@ -83,7 +83,7 @@ test('a failing sync GI call throws a real GLib.Error (not a plain Error)', () =
   assert.equal(caught.matches(caught.domainQuark, Gio.IOErrorEnum.NOT_FOUND), true);
 });
 
-test('Gio._promisify: load_contents_async resolves with the OUT-param tuple', async () => {
+test('Gio._promisify: load_contents_async resolves with the GJS-shaped result', async () => {
   const Gio = requireGi('Gio', '2.0');
   const GLib = requireGi('GLib', '2.0');
 
@@ -103,10 +103,11 @@ test('Gio._promisify: load_contents_async resolves with the OUT-param tuple', as
 
     await settleViaLoop(GLib, promise);
 
-    // load_contents_finish → [ok, contents, etag]: ok + the file bytes.
-    const [ok, bytes] = await promise;
-    assert.equal(ok, true);
-    assert.equal(Buffer.from(bytes).toString('utf8'), content);
+    // load_contents_finish returns [true, contents, etag]; like GJS, _promisify
+    // drops the leading `true`, so the resolved value is [contents, etag] and the
+    // first element is the file bytes (identical to GJS `const [contents] = …`).
+    const [contents] = await promise;
+    assert.equal(Buffer.from(contents).toString('utf8'), content);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -170,6 +171,34 @@ test('Gio._promisify: a trailing callback keeps the plain (non-Promise) behavior
     loop.run();
     assert.ok(bytes !== null, 'the supplied callback ran');
     assert.equal(Buffer.from(bytes).toString('utf8'), content);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Gio._promisify: same method name on two classes resolves per-class', async () => {
+  const Gio = requireGi('Gio', '2.0');
+  const GLib = requireGi('GLib', '2.0');
+
+  // Register load_contents_async on Gio.File FIRST (its real finish), then on an
+  // UNRELATED class with a BOGUS finish. The File registration is no longer last,
+  // so a correct read proves the instance resolved its OWN class's registration
+  // (native.isInstanceOf), not a naive fallback-to-last (which would pick the
+  // bogus finish and throw).
+  Gio._promisify(Gio.File.prototype, 'load_contents_async', 'load_contents_finish');
+  Gio._promisify(Gio.Cancellable.prototype, 'load_contents_async', 'nonexistent_finish');
+
+  const dir = mkdtempSync(join(tmpdir(), 'node-gi-async-multi-'));
+  const path = join(dir, 'data.txt');
+  const content = 'per-class routing\n';
+  writeFileSync(path, content);
+
+  try {
+    const file = Gio.File.new_for_path(path);
+    const promise = file.load_contents_async(null);
+    await settleViaLoop(GLib, promise);
+    const [contents] = await promise;
+    assert.equal(Buffer.from(contents).toString('utf8'), content);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -43,11 +43,28 @@ static Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* a
 // GIRepository (lazily created). Callers must g_object_unref() it.
 GIRepository* DupDefaultRepository() { return gi_repository_dup_default(); }
 
-// The L1-registered GLib.Error factory (see ThrowGError) + the env it was
-// registered in. A napi_ref is env-specific, so the throw path only derefs it
-// when the calling env matches (a worker env never touches another env's ref).
-static napi_ref g_error_builder_ref = nullptr;
-static napi_env g_error_builder_env = nullptr;
+// Per-env state, stored in N-API instance data so each env (incl. a
+// worker_threads worker) holds + derefs its OWN GLib.Error builder ref. A napi_ref
+// is env-specific: keying it per-env (not a file-static slot shared across every
+// env) removes both the cross-env clobber (last loader wins, prior envs lose the
+// builder) AND the cross-env deref (env A reading env B's ref = UB). Created in
+// Init, freed by the instance-data finalizer at env teardown.
+struct NodeGiEnvData {
+  napi_ref errorBuilder = nullptr;
+};
+
+static void NodeGiEnvDataFinalize(napi_env env, void* data, void* /*hint*/) {
+  NodeGiEnvData* d = static_cast<NodeGiEnvData*>(data);
+  if (d == nullptr) return;
+  if (d->errorBuilder != nullptr) napi_delete_reference(env, d->errorBuilder);
+  delete d;
+}
+
+// This env's instance data (created in Init); null only if Init's set failed.
+static NodeGiEnvData* EnvData(napi_env env) {
+  void* raw = nullptr;
+  return napi_get_instance_data(env, &raw) == napi_ok ? static_cast<NodeGiEnvData*>(raw) : nullptr;
+}
 
 // requireNamespace(namespace: string, version?: string)
 //   -> { namespace: string, version: string, infoCount: number }
@@ -290,12 +307,13 @@ Napi::Value SetErrorBuilder(const Napi::CallbackInfo& info) {
     Napi::TypeError::New(env, "setErrorBuilder(builder: function)").ThrowAsJavaScriptException();
     return env.Undefined();
   }
-  if (g_error_builder_ref != nullptr && g_error_builder_env == static_cast<napi_env>(env)) {
-    napi_delete_reference(env, g_error_builder_ref);
-    g_error_builder_ref = nullptr;
+  NodeGiEnvData* d = EnvData(env);
+  if (d == nullptr) return env.Undefined();  // instance data unavailable (Init failed)
+  if (d->errorBuilder != nullptr) {
+    napi_delete_reference(env, d->errorBuilder);
+    d->errorBuilder = nullptr;
   }
-  napi_create_reference(env, info[0], 1, &g_error_builder_ref);
-  g_error_builder_env = env;
+  napi_create_reference(env, info[0], 1, &d->errorBuilder);
   return env.Undefined();
 }
 
@@ -1725,6 +1743,16 @@ static void NodeGiCallbackDestroyNotify(gpointer user_data) {
   NodeGiCallbackFree(static_cast<NodeGiCallback*>(user_data));
 }
 
+// One-shot GSourceFunc that frees a scope=async callback AFTER its single
+// invocation. A GAsyncReadyCallback fires exactly once and has no destroy-notify,
+// so the trampoline schedules this on the main loop once the call returns —
+// freeing it inline would destroy the ffi closure's own executable trampoline
+// while it is still on the call stack (UB). See NodeGiCallbackTrampoline tail.
+static gboolean NodeGiCallbackFreeIdle(gpointer user_data) {
+  NodeGiCallbackFree(static_cast<NodeGiCallback*>(user_data));
+  return G_SOURCE_REMOVE;
+}
+
 // girepository-2.0's closure/destroy index getters are out-param + gboolean;
 // return the index or -1 when the arg has no associated slot.
 static int ArgClosureIndex(GIArgInfo* ai) {
@@ -1797,6 +1825,15 @@ static void NodeGiCallbackTrampoline(ffi_cif* /*cif*/, void* result, void** args
   gi_base_info_unref(retType);
   // A pending JS exception surfaces at the next N-API boundary (e.g. when the
   // blocking run() that pumped this callback returns).
+
+  // scope=async (e.g. a GAsyncReadyCallback) fires EXACTLY once and carries no
+  // destroy-notify, so it is the trampoline's job to free it. It is NOT in
+  // callScope (so it survived the invoke), and freeing it inline would destroy
+  // this ffi closure's own executable trampoline mid-call — so defer the free to
+  // the next main-loop iteration, when the closure is no longer on the stack.
+  if (cb->scope == GI_SCOPE_TYPE_ASYNC) {
+    g_idle_add_full(G_PRIORITY_DEFAULT, NodeGiCallbackFreeIdle, cb, nullptr);
+  }
 }
 
 // Create an ffi closure wrapping a JS function for a GI callback-typed arg.
@@ -1868,10 +1905,8 @@ static bool IsSupportedOutType(GITypeInfo* type, std::string* why) {
 // `.message` + a `.matches(domain, code)` method). The GLib.Error CLASS itself is
 // owned by L1 (gi.js) so its `matches()` can resolve an error-enum object to its
 // domain; the engine just reports the GError's fields to an L1-registered builder
-// function and throws what it returns. Registered per-env via setErrorBuilder;
-// gated on the calling env so a worker env never derefs another env's ref
-// (g_error_builder_* are declared near the top of the file so SetErrorBuilder —
-// defined earlier — also sees them).
+// function (stored in this env's instance data — see NodeGiEnvData) and throws
+// what it returns.
 //
 // Read a GError's domain (quark name + numeric quark), code and message, FREE it,
 // and throw the JS error the L1 builder produces (instanceof GLib.Error). Falls
@@ -1888,10 +1923,11 @@ static void ThrowGError(Napi::Env env, GError* error, const std::string& context
       (error != nullptr && error->message != nullptr) ? error->message : "invocation failed";
   if (error != nullptr) g_error_free(error);
 
-  // Prefer the L1 GLib.Error builder (instanceof GLib.Error + working matches()).
-  if (g_error_builder_ref != nullptr && g_error_builder_env == static_cast<napi_env>(env)) {
+  // Prefer this env's L1 GLib.Error builder (instanceof GLib.Error + matches()).
+  NodeGiEnvData* d = EnvData(env);
+  if (d != nullptr && d->errorBuilder != nullptr) {
     napi_value builder = nullptr;
-    if (napi_get_reference_value(env, g_error_builder_ref, &builder) == napi_ok &&
+    if (napi_get_reference_value(env, d->errorBuilder, &builder) == napi_ok &&
         builder != nullptr) {
       napi_value undef = nullptr;
       napi_get_undefined(env, &undef);
@@ -3048,6 +3084,33 @@ Napi::Value GetTypeName(const Napi::CallbackInfo& info) {
   GObject* obj = UnwrapGObject(env, info[0]);
   if (obj == nullptr) return env.Null();
   return Napi::String::New(env, G_OBJECT_TYPE_NAME(obj));
+}
+
+// isInstanceOf(handle, namespace, typeName) -> boolean
+// Whether the instance's GType is-a `namespace.typeName` (g_type_is_a, which also
+// returns true when the type IMPLEMENTS an interface). The L1 wrapper uses it to
+// pick the right Gio._promisify registration when two classes promisify a method
+// of the same name (resolve by the instance's class). False for an unknown type.
+Napi::Value IsInstanceOf(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 3 || !info[1].IsString() || !info[2].IsString()) {
+    Napi::TypeError::New(env, "isInstanceOf(handle, namespace: string, typeName: string)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GObject* obj = UnwrapGObject(env, info[0]);
+  if (obj == nullptr) return env.Null();  // already threw
+  std::string ns = info[1].As<Napi::String>().Utf8Value();
+  std::string tn = info[2].As<Napi::String>().Utf8Value();
+  GIRepository* repo = DupDefaultRepository();
+  GIBaseInfo* base = gi_repository_find_by_name(repo, ns.c_str(), tn.c_str());
+  GType target = (base != nullptr && GI_IS_REGISTERED_TYPE_INFO(base))
+                     ? gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(base))
+                     : 0;
+  bool result = target != 0 && g_type_is_a(G_OBJECT_TYPE(obj), target);
+  if (base != nullptr) gi_base_info_unref(base);
+  g_object_unref(repo);
+  return Napi::Boolean::New(env, result);
 }
 
 // hasProperty(handle, name) -> boolean
@@ -4225,6 +4288,12 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   // overwrite would mis-identify the main thread under worker_threads. The cleanup
   // hook carries `env` so OnEnvShutdown only fires the global teardown for the owner.
   napi_add_env_cleanup_hook(env, OnEnvShutdown, env);
+  // Per-env state (the GLib.Error builder ref) lives in N-API instance data; the
+  // finalizer frees it at env teardown. Created once per env (Init runs per env).
+  NodeGiEnvData* envData = new NodeGiEnvData();
+  if (napi_set_instance_data(env, envData, NodeGiEnvDataFinalize, nullptr) != napi_ok) {
+    delete envData;
+  }
   exports.Set("requireNamespace", Napi::Function::New(env, RequireNamespace));
   exports.Set("listInfoNames", Napi::Function::New(env, ListInfoNames));
   exports.Set("findInfo", Napi::Function::New(env, FindInfo));
@@ -4243,6 +4312,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("setProperty", Napi::Function::New(env, SetProperty));
   exports.Set("hasProperty", Napi::Function::New(env, HasProperty));
   exports.Set("getTypeName", Napi::Function::New(env, GetTypeName));
+  exports.Set("isInstanceOf", Napi::Function::New(env, IsInstanceOf));
   exports.Set("isGObjectHandle", Napi::Function::New(env, IsGObjectHandle));
   // Test-only (cross-thread GC stress) — see StressRefUnrefOffThread.
   exports.Set("__stressRefUnrefOffThread", Napi::Function::New(env, StressRefUnrefOffThread));
