@@ -362,4 +362,12 @@ export const emitSignal = native.emitSignal;
  */
 export const disconnectSignal = native.disconnectSignal;
 
+/**
+ * Register the L1 resolver that maps a Gtk.Template `<signal handler="…">` handler
+ * name to the instance's bound JS method, for the engine's template-callback scope.
+ * @param {(handle: unknown, handlerName: string) => ((...args: unknown[]) => unknown) | undefined} resolver
+ * @returns {void}
+ */
+export const setTemplateCallbackResolver = native.setTemplateCallbackResolver;
+
 export default native;
