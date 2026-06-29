@@ -13,7 +13,8 @@
 //   - chains construct props through `super(args)`,
 //   - keeps ONE canonical wrapper identity (=== across the ctor `this`, the
 //     constructed instance, and a vfunc `this`).
-// A 2-level JS hierarchy where BOTH levels are registered is still rejected (G2).
+// A 2-level JS hierarchy where BOTH levels are registered now registers + constructs
+// (G2); see test/multilevel-subclass.test.mjs for ancestor member composition.
 //
 // GTypes are process-global + permanent, so every test registers a uniquely-named
 // type. Reference: refs/gjs/modules/core/overrides/GObject.js (registerClass
@@ -160,7 +161,7 @@ test('toggle-ref identity: ctor `this`, vfunc `this`, and the instance are all =
   assert.equal(obj.marker, 'M');
 });
 
-test('a 2-level registered hierarchy is still rejected (G2 guard)', () => {
+test('a 2-level registered hierarchy registers + constructs (G2)', () => {
   class InPlaceMultiBase extends GObject.Object {
     static {
       GObject.registerClass({ GTypeName: 'NodeGiInPlaceMultiBase' }, InPlaceMultiBase);
@@ -169,16 +170,19 @@ test('a 2-level registered hierarchy is still rejected (G2 guard)', () => {
   // The base registered fine (single-level over an introspected parent).
   assert.equal(GObject.type_name(InPlaceMultiBase.$gtype), 'NodeGiInPlaceMultiBase');
 
-  // Registering a subclass of a REGISTERED class is G2 — the static block runs at
-  // class-definition time and must throw the clear multi-level guard error.
-  assert.throws(() => {
-    class InPlaceMultiChild extends InPlaceMultiBase {
-      static {
-        GObject.registerClass({ GTypeName: 'NodeGiInPlaceMultiChild' }, InPlaceMultiChild);
-      }
+  // Registering a subclass of a REGISTERED class is now supported (G2): the static
+  // block runs at class-definition time and registers the child's GType, subclassing
+  // from the registered base's runtime GType handle.
+  class InPlaceMultiChild extends InPlaceMultiBase {
+    static {
+      GObject.registerClass({ GTypeName: 'NodeGiInPlaceMultiChild' }, InPlaceMultiChild);
     }
-    return InPlaceMultiChild;
-  }, /multi-level registerClass subclassing is not yet supported/);
+  }
+  assert.equal(GObject.type_name(InPlaceMultiChild.$gtype), 'NodeGiInPlaceMultiChild');
+
+  // `new Child()` builds the CHILD's GType (the leaf), not the base's.
+  const obj = new InPlaceMultiChild();
+  assert.equal(native.getTypeName(unwrap(obj)), 'NodeGiInPlaceMultiChild');
 });
 
 test('#667: a raw (unregistered) subclass does not inherit the parent GType', () => {

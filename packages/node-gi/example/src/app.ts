@@ -52,9 +52,10 @@ print(`file-basename: ${file.get_basename()}`);
 
 // 6. A `GObject.registerClass` subclass: custom property + signal + a user
 //    method + `vfunc_constructed`. State lives in GObject PROPERTIES (which
-//    cross the node-gi vfunc/instance boundary); the JS constructor body is NOT
-//    run under node-gi, so init happens in `vfunc_constructed` (which fires
-//    during construction on both runtimes) or via CONSTRUCT properties.
+//    cross the node-gi vfunc/instance boundary). The JS constructor body now DOES
+//    run under node-gi (G3), exactly as under GJS; this example still uses
+//    `vfunc_constructed` (which fires during construction on both runtimes) and a
+//    CONSTRUCT property so the init is byte-identical across the two runtimes.
 let constructedCount = 0;
 const Counter = GObject.registerClass(
     {

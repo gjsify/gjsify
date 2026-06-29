@@ -167,6 +167,22 @@ export const newObject = native.newObject;
 export const registerClass = native.registerClass;
 
 /**
+ * Register a new GObject subclass of an ALREADY-REGISTERED parent type, given the
+ * parent's GType handle (from a previous {@link registerClass} / its `$gtype`)
+ * rather than a `namespace.typeName`. This is the multi-level registered-of-
+ * registered path: a registered (dynamic) parent has no introspection entry, so it
+ * cannot be resolved by name. Inherited custom properties, signals and vfunc slots
+ * of registered ancestors compose for free through normal GObject inheritance. The
+ * L1 `GObject.registerClass` picks this variant (over {@link registerClass}) when
+ * the nearest base is itself a registered class.
+ * @param {string} name unique GType name, e.g. "AdwStorybookClamp"
+ * @param {unknown} parentGType a GType handle from {@link registerClass} (the parent's `$gtype`)
+ * @param {{ properties?, signals?, vfuncs?, template?, cssName?, children?, internalChildren? }} [options]
+ * @returns {unknown} opaque type handle
+ */
+export const registerClassFromGType = native.registerClassFromGType;
+
+/**
  * Construct a GObject of a registered type handle (from {@link registerClass})
  * with optional construct/settable properties, returning an owned handle. For a
  * templated type the engine runs `gtk_widget_init_template` before returning.
