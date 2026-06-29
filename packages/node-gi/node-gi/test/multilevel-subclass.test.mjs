@@ -90,8 +90,10 @@ test('2-level registered chain: an ancestor and the leaf both compose props + si
   assert.equal(b.bMethod(), 'B:42');
 
   // An A-signal connects + emits on a B instance (signals walk the ancestry).
+  // GJS parity: the handler receives the emitter first, then the signal params.
   let aReceived = null;
-  const aId = b.connect('a-signal', (n) => {
+  const aId = b.connect('a-signal', (emitter, n) => {
+    assert.equal(emitter, b, 'the emitter is the B instance the signal fired on');
     aReceived = n;
   });
   b.emit('a-signal', 5);

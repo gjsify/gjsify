@@ -170,8 +170,11 @@ function wrapReturn(value) {
 // Wrap a user's signal callback so each native signal argument is passed through
 // {@link wrapReturn} — a GObject arg becomes a chainable instance, a GVariant
 // arg (e.g. the value on Gio.SimpleAction::change-state) becomes a GLib.Variant
-// wrapper, primitives/plain objects pass through. (The emitter instance is not
-// passed in this milestone — see connectSignal.)
+// wrapper, primitives/plain objects pass through. GJS parity: the engine prepends
+// the EMITTER (the object the signal fired on) as the first arg, so a positional
+// handler `(obj, …params) => …` binds correctly; the emitter is itself a GObject
+// arg, so wrapReturn turns it into the cached, toggle-ref-canonical instance. For
+// `notify::x` the args are (object, pspec).
 function wrapSignalCallback(cb) {
   return (...args) => cb(...args.map(wrapReturn));
 }
@@ -188,9 +191,11 @@ function wrapSignalCallback(cb) {
 // full, userProto-carrying, toggle-ref-canonical L1 wrapper. `this` inside the
 // handler is therefore the widget — the SAME cached proxy the user constructed
 // (wrapInstance is cached by the canonical handle). Native signal args are wrapped
-// (wrapReturn) into chainable instances, exactly like wrapSignalCallback. (The
-// engine drops the emitter at param 0, node-gi's signal convention.) A handler name
-// with no matching user-prototype method throws a clear error when the signal fires.
+// (wrapReturn) into chainable instances, exactly like wrapSignalCallback. GJS
+// parity: the engine prepends the emitter at param 0, so a template handler
+// `on_click(button)` receives the emitter first, then the signal's own params. A
+// handler name with no matching user-prototype method throws a clear error when
+// the signal fires.
 function resolveTemplateCallback(handle, handlerName) {
   return (...args) => {
     const proxy = wrapInstance(handle);

@@ -64,9 +64,11 @@ test('static{} registerClass(meta, X) makes X itself the registered GType', () =
   obj.label = 'changed';
   assert.equal(obj.greet(), 'hi changed');
 
-  // The declared signal connects + emits on the registered type.
+  // The declared signal connects + emits on the registered type. GJS parity: the
+  // handler receives the emitter first, then the signal's own params.
   let received = null;
-  const id = obj.connect('pinged', (n) => {
+  const id = obj.connect('pinged', (emitter, n) => {
+    assert.equal(emitter, obj, 'the emitter is the connected-to instance');
     received = n;
   });
   obj.emit('pinged', 7);
