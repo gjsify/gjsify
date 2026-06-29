@@ -369,6 +369,19 @@ function findProtoDescriptor(proto, prop) {
   return undefined;
 }
 
+// Whether `proto` is the SAME as, or a more-derived descendant of, `maybeAncestor`
+// (i.e. `maybeAncestor` lies on `proto`'s prototype chain). Used to decide whether a
+// later wrapInstance userProto should UPGRADE a cached one: on a multi-level chain a
+// vfunc firing during construction wraps the instance with the OVERRIDING ancestor's
+// prototype before the leaf ctor wraps it with the leaf's, so the leaf (descendant)
+// proto must be allowed to supersede the ancestor's — but never the reverse.
+function isProtoSameOrDescendantOf(proto, maybeAncestor) {
+  for (let p = proto; p !== null; p = Object.getPrototypeOf(p)) {
+    if (p === maybeAncestor) return true;
+  }
+  return false;
+}
+
 // L1 proxy-identity cache (the user-visible half of the toggle-ref bridge). The
 // native engine now returns the CANONICAL External per GObject (same GObject ⇒
 // same handle), so we cache the per-instance Proxy keyed by that handle: the same
@@ -427,14 +440,20 @@ function assignTemplateChildren(instance, handle, reg) {
 function wrapInstance(handle, userProto) {
   const cached = instanceCache.get(handle);
   if (cached !== undefined) {
-    // UPGRADE a cached generic (userProto-less) wrapper when this wrap supplies a
-    // userProto — so a subclass instance first seen generically (returned from
-    // store.get_item / a signal sender / resurrection) still gets its prototype
-    // methods. Never DOWNGRADE: an existing userProto is kept. The userProto lives
-    // on the target (read via the proxy here), so the upgrade is in place —
-    // identity (===) and any expando fields are preserved.
-    if (userProto !== undefined && cached[USER_PROTO] === undefined) {
-      cached[USER_PROTO] = userProto;
+    // UPGRADE a cached wrapper's user prototype when this wrap supplies a MORE
+    // DERIVED one: an undefined cache (a subclass instance first seen generically —
+    // returned from store.get_item / a signal sender / resurrection), OR a cached
+    // ANCESTOR prototype (a multi-level chain where a vfunc fired during constructType
+    // wrapped the instance with the OVERRIDING ancestor's prototype, before the leaf
+    // ctor's wrapInstance(handle, leaf.prototype) runs — the leaf proto must win so
+    // the leaf's OWN methods resolve). Never DOWNGRADE: a more-derived cached proto is
+    // kept. The userProto lives on the target (read via the proxy here), so the
+    // upgrade is in place — identity (===) and any expando fields are preserved.
+    if (userProto !== undefined && userProto !== cached[USER_PROTO]) {
+      const current = cached[USER_PROTO];
+      if (current === undefined || isProtoSameOrDescendantOf(userProto, current)) {
+        cached[USER_PROTO] = userProto;
+      }
     }
     return cached;
   }
@@ -1030,18 +1049,30 @@ function signalSpecToNative(spec, key) {
   return out;
 }
 
-// Collect every `vfunc_<name>` method on the class's prototype chain into the
-// native vfuncs map (key = name without the `vfunc_` prefix). The native engine
-// invokes each override with `this` = the raw instance handle; re-wrap it so the
-// user's vfunc sees a usable class instance (own methods + property routing).
+// Collect this class's OWN newly-declared `vfunc_<name>` methods into the native
+// vfuncs map (key = name without the `vfunc_` prefix). The native engine invokes
+// each override with `this` = the raw instance handle; re-wrap it so the user's
+// vfunc sees a usable class instance (own methods + property routing).
 // `super.vfunc_<name>(...)` inside the override resolves to a chain-up thunk on the
 // introspected base class's prototype (vfuncChainProto → native.callParentVfunc):
 // applying the user fn with a custom `this` keeps `super` bound to its lexical home
 // object (klass.prototype), so chain-up works through the .apply boundary.
+//
+// Multi-level boundary (G2): the walk STOPS at the first REGISTERED ancestor's
+// prototype. A registered ancestor already installed its own vfunc_* trampolines
+// into ITS GType's vtable, which this class inherits via the g_type_register_static
+// class-struct memcpy. Re-collecting them would install a DUPLICATE trampoline on
+// the leaf's GType whose captured parent IS the ancestor's own trampoline, so the
+// ancestor's `super.vfunc_*()` (running as the leaf's override) would re-enter
+// itself forever (stack overflow). Prototypes of UNREGISTERED mixin classes between
+// the leaf and the nearest registered ancestor ARE still collected — they have no
+// GType of their own, so their vfuncs only reach the vtable through the leaf.
 function collectVfuncs(klass) {
   const vfuncs = {};
   const seen = new Set();
   for (let p = klass.prototype; p !== null && p !== Object.prototype; p = Object.getPrototypeOf(p)) {
+    const owner = Object.getOwnPropertyDescriptor(p, 'constructor')?.value;
+    if (owner !== undefined && owner !== klass && registeredClasses.has(owner)) break;
     for (const key of Object.getOwnPropertyNames(p)) {
       if (!key.startsWith('vfunc_') || seen.has(key)) continue;
       const desc = Object.getOwnPropertyDescriptor(p, key);

@@ -3135,20 +3135,32 @@ static NodeGiClassData* FindClassData(GType type) {
   return nullptr;
 }
 
-// Find the vfunc override record named `name` nearest the instance type — the one
-// whose trampoline owns the vtable slot the override is running in. Walks the same
-// ancestry as FindClassData but stops at the first class-data carrying a matching
-// override, returning its captured parent pointer + signature for chain-up.
-static NodeGiVFunc* FindVFuncRecord(GType type, const std::string& name) {
+// Find the DEEPEST vfunc override record named `name` walking up from the instance
+// type — the registered level CLOSEST to the introspected base (the last matching
+// record before the ancestry runs out of node-gi class-data). This is the correct
+// chain-up target for `super.vfunc_<name>()` on a multi-level registered chain:
+// `super` between two REGISTERED levels resolves via the JS PROTOTYPE chain (the
+// ancestor's `vfunc_<name>` is a real JS method, called directly), so every
+// registered level's JS impl has already run by the time the chain bottoms out at
+// the introspected base's prototype and hits the chain-up thunk → callParentVfunc.
+// At that single point we must invoke the C-side default below the deepest
+// registered level — exactly the deepest record's captured `parentPtr` (its parent
+// is introspected, so the captured slot is the C vtable entry, never another JS
+// trampoline). Returning the NEAREST record instead would point parentPtr back at
+// an intermediate level's trampoline and re-run that level (a double-run, or an
+// infinite loop when it chains up again). Single-level chains have exactly one
+// record, so deepest == nearest and behaviour is unchanged.
+static NodeGiVFunc* FindDeepestVFuncRecord(GType type, const std::string& name) {
+  NodeGiVFunc* deepest = nullptr;
   for (GType t = type; t != 0; t = g_type_parent(t)) {
     NodeGiClassData* cd = static_cast<NodeGiClassData*>(g_type_get_qdata(t, NodeGiClassDataQuark()));
     if (cd != nullptr) {
       for (NodeGiVFunc* vf : cd->vfuncs) {
-        if (vf->name == name) return vf;
+        if (vf->name == name) deepest = vf;  // keep the last (deepest) match
       }
     }
   }
-  return nullptr;
+  return deepest;
 }
 
 // Instantiate the Gtk.Widget template on a freshly-constructed instance (see the
@@ -3377,10 +3389,17 @@ static void NodeGiClassInit(gpointer g_class, gpointer class_data) {
 // also forecloses the IN-indexing mismatch (the JS caller passes IN values
 // positionally, while declared indices interleave OUT params). The dominant
 // chain-up cases (constructed/dispose/activate; IN object/primitive args) are
-// covered. FindVFuncRecord walks from the instance type up to the nearest matching
-// override, so on a multi-level registered chain (G2) parentPtr resolves to the
-// next implementation up — the parent's JS trampoline when an ancestor also
-// overrode the vfunc, or the C default otherwise.
+// covered.
+//
+// MULTI-LEVEL chain-up (registered chains, G2): chains to the DEEPEST registered
+// override's captured parent (the C-side default below the whole registered chain),
+// NOT the nearest. On a multi-level chain the level-to-level `super.vfunc_<name>()`
+// hops are resolved by the JS PROTOTYPE chain (each registered ancestor's
+// `vfunc_<name>` is a real JS method, invoked directly), so every level's JS impl
+// has already run by the time the chain bottoms out at the introspected base's
+// prototype and reaches this thunk — at which point the only thing left to call is
+// the C default. Using the nearest record would re-enter an intermediate level's
+// trampoline (a double-run / infinite loop). See FindDeepestVFuncRecord.
 Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 2 || !info[1].IsString()) {
@@ -3394,7 +3413,7 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
   Napi::Array args = (info.Length() >= 3 && info[2].IsArray()) ? info[2].As<Napi::Array>()
                                                               : Napi::Array::New(env, 0);
 
-  NodeGiVFunc* vf = FindVFuncRecord(G_OBJECT_TYPE(obj), vname);
+  NodeGiVFunc* vf = FindDeepestVFuncRecord(G_OBJECT_TYPE(obj), vname);
   if (vf == nullptr || vf->parentPtr == nullptr || vf->info == nullptr) {
     Napi::Error::New(env, "no parent vfunc '" + vname + "' to chain up to on " +
                               g_type_name(G_OBJECT_TYPE(obj)) +

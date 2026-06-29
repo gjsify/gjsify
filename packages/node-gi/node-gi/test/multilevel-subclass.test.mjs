@@ -130,6 +130,139 @@ test('2-level chain: an ancestor vfunc override fires when the leaf is construct
   assert.equal(constructedCount, 1);
 });
 
+test('2-level chain: each level overrides vfunc_constructed + super, runs once in order', () => {
+  // The canonical multi-level idiom (the storybook's StoryWidget shape): BOTH levels
+  // override the same vfunc and chain up with super.vfunc_*(). Each level's override
+  // must run EXACTLY ONCE, leaf-first, nesting through the ancestor to the C default
+  // — NO infinite loop (the regression this guards) and NO double-run.
+  const order = [];
+  class MlSuperA extends GObject.Object {
+    static {
+      GObject.registerClass({ GTypeName: 'NodeGiMlSuperA' }, MlSuperA);
+    }
+    vfunc_constructed() {
+      order.push('A-before');
+      super.vfunc_constructed(); // chains to the C base (GObject's constructed)
+      order.push('A-after');
+    }
+  }
+  class MlSuperB extends MlSuperA {
+    static {
+      GObject.registerClass({ GTypeName: 'NodeGiMlSuperB' }, MlSuperB);
+    }
+    vfunc_constructed() {
+      order.push('B-before');
+      super.vfunc_constructed(); // chains to A's vfunc_constructed
+      order.push('B-after');
+    }
+  }
+
+  const b = new MlSuperB();
+  assert.equal(native.getTypeName(unwrap(b)), 'NodeGiMlSuperB');
+  // Leaf runs first, supers into the ancestor, the ancestor supers into the C base,
+  // then each unwinds — each override body executed exactly once.
+  assert.deepEqual(order, ['B-before', 'A-before', 'A-after', 'B-after']);
+});
+
+test('3-level chain: vfunc_constructed chains up through every level once, in order', () => {
+  const order = [];
+  class MlSc3Base extends GObject.Object {
+    static {
+      GObject.registerClass({ GTypeName: 'NodeGiMlSc3Base' }, MlSc3Base);
+    }
+    vfunc_constructed() {
+      order.push('Base<');
+      super.vfunc_constructed();
+      order.push('Base>');
+    }
+  }
+  class MlSc3Mid extends MlSc3Base {
+    static {
+      GObject.registerClass({ GTypeName: 'NodeGiMlSc3Mid' }, MlSc3Mid);
+    }
+    vfunc_constructed() {
+      order.push('Mid<');
+      super.vfunc_constructed();
+      order.push('Mid>');
+    }
+  }
+  class MlSc3Leaf extends MlSc3Mid {
+    static {
+      GObject.registerClass({ GTypeName: 'NodeGiMlSc3Leaf' }, MlSc3Leaf);
+    }
+    vfunc_constructed() {
+      order.push('Leaf<');
+      super.vfunc_constructed();
+      order.push('Leaf>');
+    }
+  }
+
+  const leaf = new MlSc3Leaf();
+  assert.equal(native.getTypeName(unwrap(leaf)), 'NodeGiMlSc3Leaf');
+  assert.deepEqual(order, ['Leaf<', 'Mid<', 'Base<', 'Base>', 'Mid>', 'Leaf>']);
+});
+
+test('2-level chain: vfunc_dispose chains up in order (run_dispose), no loop', () => {
+  const order = [];
+  class MlDispA extends GObject.Object {
+    static {
+      GObject.registerClass({ GTypeName: 'NodeGiMlDispA' }, MlDispA);
+    }
+    vfunc_dispose() {
+      order.push('A-dispose');
+      super.vfunc_dispose(); // chains to the C base dispose
+    }
+  }
+  class MlDispB extends MlDispA {
+    static {
+      GObject.registerClass({ GTypeName: 'NodeGiMlDispB' }, MlDispB);
+    }
+    vfunc_dispose() {
+      order.push('B-dispose');
+      super.vfunc_dispose(); // chains to A's dispose
+    }
+  }
+
+  const b = new MlDispB();
+  b.run_dispose(); // synchronously fires the dispose vtable chain
+  // Leaf dispose first, then the ancestor's, then the C base — each once, no loop.
+  assert.deepEqual(order, ['B-dispose', 'A-dispose']);
+});
+
+test('a leaf that does NOT override a vfunc still resolves its OWN methods', () => {
+  // When only an ANCESTOR overrides a vfunc, the leaf has no record of its own and
+  // inherits the ancestor's trampoline, which fires during constructType BEFORE the
+  // leaf ctor attaches the leaf prototype. The wrapper's user prototype must still be
+  // UPGRADED to the leaf's, so the leaf's own methods resolve (a regression the
+  // multi-level vfunc work could otherwise introduce).
+  class MlProtoBase extends GObject.Object {
+    static {
+      GObject.registerClass({ GTypeName: 'NodeGiMlProtoBase' }, MlProtoBase);
+    }
+    vfunc_constructed() {
+      super.vfunc_constructed();
+      this._builtByBase = true;
+    }
+    baseOnly() {
+      return 'base';
+    }
+  }
+  class MlProtoLeaf extends MlProtoBase {
+    static {
+      GObject.registerClass({ GTypeName: 'NodeGiMlProtoLeaf' }, MlProtoLeaf);
+    }
+    leafOnly() {
+      return `leaf+${this.baseOnly()}`;
+    }
+  }
+
+  const leaf = new MlProtoLeaf();
+  assert.equal(native.getTypeName(unwrap(leaf)), 'NodeGiMlProtoLeaf');
+  assert.equal(leaf._builtByBase, true, 'the ancestor vfunc_constructed ran');
+  assert.equal(leaf.baseOnly(), 'base', "the ancestor's own method resolves");
+  assert.equal(leaf.leafOnly(), 'leaf+base', "the LEAF's own method resolves (proto upgraded)");
+});
+
 test('3-level registered chain (storybook shape) constructs + composes every ancestor', () => {
   // Base extends an INTROSPECTED GObject (the storybook uses Adw.Bin; GObject.Object
   // keeps this on the headless gate). Mid extends the registered Base, Leaf extends
