@@ -415,6 +415,18 @@ static Napi::Value WrapBoxed(Napi::Env env, gpointer ptr, GIBaseInfo* structInfo
   return MakeBoxedHandle(env, ptr, boxed ? gt : G_TYPE_INVALID, owns);
 }
 
+// Read a boxed handle (ptr + boxed GType) if `v` is one (tag-checked; no deref of
+// ptr). Returns nullptr when `v` is not a node-gi boxed handle. The returned handle
+// is owned by the External — never free it. Callers that need the GType (boxed
+// type-safety checks before g_value_set_boxed / a struct IN arg) use this; the
+// pointer-only TryGetBoxedPtr below is the thin wrapper for everyone else.
+static BoxedHandle* TryGetBoxedHandle(Napi::Value v) {
+  if (!v.IsExternal()) return nullptr;
+  Napi::External<BoxedHandle> ext = v.As<Napi::External<BoxedHandle>>();
+  if (!ext.CheckTypeTag(&kBoxedHandleTag)) return nullptr;
+  return ext.Data();
+}
+
 // Read a boxed handle's pointer if `v` is one (tag-checked; no deref of ptr).
 static bool TryGetBoxedPtr(Napi::Value v, gpointer* out) {
   if (!v.IsExternal()) return false;
@@ -425,9 +437,14 @@ static bool TryGetBoxedPtr(Napi::Value v, gpointer* out) {
   return true;
 }
 
+// `ownedStrings` (optional): when a transfer-full string IN/INOUT arg is g_strdup'd
+// here, the freshly-allocated pointer is appended so the caller can g_free it if the
+// invoke never adopts it (an arg-marshal error before the call, or a failed invoke).
+// nullptr (the default) → no tracking, for the vfunc-return / signal-arg callers.
 static bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* out,
                            std::string* heldString,
-                           GITransfer transfer = GI_TRANSFER_NOTHING) {
+                           GITransfer transfer = GI_TRANSFER_NOTHING,
+                           std::vector<gpointer>* ownedStrings = nullptr) {
   GITypeTag tag = gi_type_info_get_tag(type);
   switch (tag) {
     case GI_TYPE_TAG_BOOLEAN: out->v_boolean = v.ToBoolean().Value(); return true;
@@ -450,8 +467,10 @@ static bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArg
       if (transfer == GI_TRANSFER_EVERYTHING) {
         // The callee adopts the string and g_free's it. heldString points into a
         // std::string buffer (NOT g_malloc'd) → an invalid free. Hand over a
-        // g_strdup'd copy the callee can legally free; we keep no reference.
+        // g_strdup'd copy the callee can legally free; we keep no reference. Track
+        // it so a NON-adopting caller (error before / failed invoke) can free it.
         out->v_string = g_strdup(v.ToString().Utf8Value().c_str());
+        if (ownedStrings != nullptr) ownedStrings->push_back(out->v_string);
       } else {
         *heldString = v.ToString().Utf8Value();
         out->v_string = const_cast<char*>(heldString->c_str());
@@ -482,9 +501,24 @@ static bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArg
             out->v_pointer = nullptr;
             handled = true;
           } else {
-            gpointer p = nullptr;
-            if (TryGetBoxedPtr(v, &p)) {
-              out->v_pointer = p;
+            BoxedHandle* h = TryGetBoxedHandle(v);
+            if (h != nullptr) {
+              // Type-safety: handing a wrong boxed handle's raw pointer to the
+              // callee is undefined behaviour. Reject a mismatch with a clean
+              // TypeError. Only checkable when BOTH the handle and the expected
+              // struct carry a known registered GType (non-registered C structs are
+              // G_TYPE_INVALID → no GType to compare, fall through as before).
+              GType expected = gi_registered_type_info_get_g_type(
+                  reinterpret_cast<GIRegisteredTypeInfo*>(iface));
+              if (h->gtype != G_TYPE_INVALID && expected != G_TYPE_INVALID &&
+                  expected != G_TYPE_NONE && !g_type_is_a(h->gtype, expected)) {
+                gi_base_info_unref(iface);
+                Napi::TypeError::New(env, std::string("expected a ") + g_type_name(expected) +
+                                              " boxed handle, got " + g_type_name(h->gtype))
+                    .ThrowAsJavaScriptException();
+                return false;
+              }
+              out->v_pointer = h->ptr;
               handled = true;
             }
           }
@@ -2066,6 +2100,11 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   }
 
   std::vector<InContainer> inContainers;   // IN containers to free after the invoke
+  // g_strdup'd transfer-full scalar string IN/INOUT args. The callee adopts + frees
+  // them only on a SUCCESSFUL invoke; if a later arg fails to marshal (the early
+  // !ok return) or the invoke itself fails, the callee never took them → we g_free
+  // them on those branches so they don't leak (#658).
+  std::vector<gpointer> ownedInStrings;
   std::vector<NodeGiCallback*> created;    // all callbacks made this call
   std::vector<NodeGiCallback*> callScope;  // scope=call → freed after the invoke
   bool ok = true;
@@ -2121,7 +2160,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
           Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
           jsCursor++;
           GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
-          if (JsToGIArgument(env, v, ti, &slots[i], &held[i], tr)) {
+          if (JsToGIArgument(env, v, ti, &slots[i], &held[i], tr, &ownedInStrings)) {
             in_args[inPos[i]].v_pointer = &slots[i];
             out_args[outPos[i]].v_pointer = &slots[i];
           } else {
@@ -2158,6 +2197,21 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
         if (di >= 0 && static_cast<unsigned int>(di) < n_args && inPos[di] >= 0)
           in_args[inPos[di]].v_pointer = reinterpret_cast<gpointer>(NodeGiCallbackDestroyNotify);
       } else if (v.IsNull() || v.IsUndefined()) {
+        // Null is only valid for a nullable callback (e.g. an optional progress
+        // callback). For a NON-nullable callback (g_timeout_add / g_idle_add)
+        // passing null would make us hand GLib a NULL GSourceFunc → a GLib-CRITICAL
+        // (`assertion 'function != NULL'`) + a dead source. Reject it with a clean
+        // JS TypeError up front, matching GJS.
+        if (!gi_arg_info_may_be_null(ai)) {
+          gi_base_info_unref(iface);
+          gi_base_info_unref(ti);
+          gi_base_info_unref(ai);
+          Napi::TypeError::New(
+              env, displayName + ": the callback argument is not nullable (expected a function)")
+              .ThrowAsJavaScriptException();
+          ok = false;
+          break;
+        }
         in_args[inPos[i]].v_pointer = nullptr;
       } else {
         gi_base_info_unref(iface);
@@ -2201,7 +2255,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
         }
       } else {
         GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
-        ok = JsToGIArgument(env, v, ti, &in_args[inPos[i]], &held[i], tr);
+        ok = JsToGIArgument(env, v, ti, &in_args[inPos[i]], &held[i], tr, &ownedInStrings);
       }
     }
 
@@ -2212,6 +2266,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   if (!ok) {
     for (NodeGiCallback* cb : created) NodeGiCallbackFree(cb);
     for (const InContainer& c : inContainers) FreeInContainer(c);
+    for (gpointer s : ownedInStrings) g_free(s);  // never reached the callee (#658)
     return env.Null();
   }
 
@@ -2224,6 +2279,9 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   for (NodeGiCallback* cb : callScope) NodeGiCallbackFree(cb);
   if (!success) {
     for (const InContainer& c : inContainers) FreeInContainer(c);
+    // A failed invoke did not adopt the transfer-full IN/INOUT strings we g_strdup'd
+    // for it → free them here so the error path doesn't leak (#658).
+    for (gpointer s : ownedInStrings) g_free(s);
     // ThrowGError reads the GError's domain/code/message, frees it, and throws a
     // real GLib.Error (instanceof, with .matches()) via the L1 builder.
     ThrowGError(env, error, displayName);
@@ -2440,6 +2498,15 @@ static bool JsToGValue(Napi::Env env, Napi::Value js, GValue* v) {
       }
       GObject* obj = UnwrapGObject(env, js);
       if (obj == nullptr) return false;  // UnwrapGObject threw a TypeError
+      // Type-safety: g_value_set_object only g_warning's on a type mismatch (then
+      // sets NULL) — but that warning ABORTS under G_DEBUG=fatal-criticals. Pre-check
+      // with g_type_is_a and throw a clean, catchable JS TypeError instead (#659).
+      if (!g_type_is_a(G_OBJECT_TYPE(obj), G_VALUE_TYPE(v))) {
+        Napi::TypeError::New(env, std::string("expected a ") + g_type_name(G_VALUE_TYPE(v)) +
+                                      ", got " + g_type_name(G_OBJECT_TYPE(obj)))
+            .ThrowAsJavaScriptException();
+        return false;
+      }
       g_value_set_object(v, obj);
       return true;
     }
@@ -2451,14 +2518,24 @@ static bool JsToGValue(Napi::Env env, Napi::Value js, GValue* v) {
         g_value_set_boxed(v, nullptr);
         return true;
       }
-      gpointer p = nullptr;
-      if (!TryGetBoxedPtr(js, &p) || p == nullptr) {
+      BoxedHandle* h = TryGetBoxedHandle(js);
+      if (h == nullptr || h->ptr == nullptr) {
         Napi::TypeError::New(env, std::string("expected a boxed handle for a ") +
                                       g_type_name(G_VALUE_TYPE(v)) + " property")
             .ThrowAsJavaScriptException();
         return false;
       }
-      g_value_set_boxed(v, p);
+      // Type-safety: g_value_set_boxed blind-copies per the GValue's boxed GType, so
+      // a wrong boxed handle is undefined behaviour (no GLib guard at all). Reject a
+      // mismatch with a clean TypeError. Only checkable when the handle carries a
+      // known boxed GType (non-registered C structs are G_TYPE_INVALID) (#659).
+      if (h->gtype != G_TYPE_INVALID && !g_type_is_a(h->gtype, G_VALUE_TYPE(v))) {
+        Napi::TypeError::New(env, std::string("expected a ") + g_type_name(G_VALUE_TYPE(v)) +
+                                      " boxed handle, got " + g_type_name(h->gtype))
+            .ThrowAsJavaScriptException();
+        return false;
+      }
+      g_value_set_boxed(v, h->ptr);
       return true;
     }
     default:
@@ -2871,6 +2948,17 @@ struct NodeGiClassData {
   std::string cssName;                        // gtk_widget_class_set_css_name (optional)
   std::vector<std::string> children;          // public Children ids
   std::vector<std::string> internalChildren;  // InternalChildren ids
+
+  // The cold `delete cd` failure paths (a bad GParamSpec, or g_type_register_static
+  // returning 0) must not leak the owned inline-template GBytes. A destructor frees
+  // it by construction → every `delete cd` path is covered. On the SUCCESS path cd
+  // is stored as the type's qdata for the class lifetime and is NEVER deleted, so
+  // this destructor does not run there and templateBytes stays alive for the
+  // template install. (properties/vfuncs are released explicitly at the delete
+  // sites — kept out of here to avoid double-freeing them.)
+  ~NodeGiClassData() {
+    if (templateBytes != nullptr) g_bytes_unref(templateBytes);
+  }
 };
 
 static GQuark NodeGiClassDataQuark() {

@@ -6,7 +6,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { newObject, getProperty, setProperty, getTypeName, requireNamespace } from '../index.js';
+import {
+  newObject,
+  getProperty,
+  setProperty,
+  getTypeName,
+  requireNamespace,
+  variantNew,
+} from '../index.js';
 
 test('construct a bare GObject.Object', () => {
   requireNamespace('GObject', '2.0');
@@ -44,4 +51,46 @@ test('error: unknown property on get', () => {
 
 test('error: non-handle argument', () => {
   assert.throws(() => getProperty({}, 'name'), /expected a node-gi GObject handle/);
+});
+
+// ---- #659: GValue type-safety — a wrong object/boxed type throws a clean JS
+// TypeError instead of relying on a GLib warning/critical (which would ABORT under
+// G_DEBUG=fatal-criticals/fatal-warnings, and is undefined behaviour for boxed).
+
+test('type-safety: wrong object type for an object property throws (not a GLib abort)', () => {
+  requireNamespace('Gio', '2.0');
+  // Gio.BufferedInputStream:base-stream wants a GInputStream; a GSimpleAction isn't
+  // one. g_value_set_object would g_warning + NULL it (a fatal abort under
+  // fatal-warnings); the engine now g_type_is_a-checks + throws a catchable error.
+  const notAStream = newObject('Gio', 'SimpleAction', { name: 'x', enabled: true });
+  assert.throws(
+    () => newObject('Gio', 'BufferedInputStream', { 'base-stream': notAStream }),
+    /expected a GInputStream, got GSimpleAction/,
+  );
+});
+
+test('type-safety: a correct object type for an object property still works', () => {
+  const stream = newObject('Gio', 'MemoryInputStream', {});
+  const buffered = newObject('Gio', 'BufferedInputStream', { 'base-stream': stream });
+  assert.equal(getTypeName(buffered), 'GBufferedInputStream');
+});
+
+test('type-safety: wrong boxed type for a boxed property throws (no UB)', () => {
+  requireNamespace('GLib', '2.0');
+  // Gio.SimpleAction:parameter-type wants a GVariantType (boxed); a GVariant handle
+  // is a different boxed/fundamental type. g_value_set_boxed has NO type guard at
+  // all (blind copy → UB); the engine checks the boxed handle's GType first.
+  const variant = variantNew('i', 5);
+  assert.throws(
+    () => newObject('Gio', 'SimpleAction', { name: 'p', 'parameter-type': variant }),
+    /expected a GVariantType boxed handle, got GVariant/,
+  );
+});
+
+test('type-safety: a non-boxed value for a boxed property throws', () => {
+  const notBoxed = newObject('Gio', 'SimpleAction', { name: 'x', enabled: true });
+  assert.throws(
+    () => newObject('Gio', 'SimpleAction', { name: 'q', 'parameter-type': notBoxed }),
+    /expected a boxed handle for a GVariantType property/,
+  );
 });

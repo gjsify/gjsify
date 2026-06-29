@@ -40,13 +40,17 @@ test('GLib.idle_add one-shot callback runs', () => {
   assert.equal(ran, true);
 });
 
-test('a null callback argument is accepted (NULL function pointer)', () => {
+test('null for a non-nullable callback throws (no GLib-CRITICAL)', () => {
   const GLib = requireGi('GLib', '2.0');
-  // timeout_add with a null callback installs a source with a NULL func; remove
-  // it immediately. This exercises the null-callback marshalling path.
-  const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100000, null);
-  assert.equal(typeof id, 'number');
-  GLib.source_remove(id);
+  // g_timeout_add's callback is NOT nullable. Passing null used to hand GLib a NULL
+  // GSourceFunc → a `timeout_add_full: assertion 'function != NULL'` GLib-CRITICAL
+  // plus a dead source whose 0 id then tripped `g_source_remove: assertion 'tag > 0'`.
+  // The engine now checks gi_arg_info_may_be_null up front and throws a clean,
+  // catchable TypeError, so no GLib-CRITICAL is ever emitted (matches GJS).
+  assert.throws(
+    () => GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100000, null),
+    /not nullable/,
+  );
 });
 
 test('non-function, non-null callback argument throws', () => {
