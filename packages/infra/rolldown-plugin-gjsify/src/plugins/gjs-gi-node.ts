@@ -10,12 +10,19 @@
 // itself) is resolved on FIRST ACCESS, not at import: a `gi://` import gated to
 // GJS-only code paths stays harmless on Node when @gjsify/node-gi is absent.
 //
-// `@girs/*` is deliberately NOT handled here — those are ambient/type packages
-// whose value entry re-exports `gi://`; on the node target they continue to map
-// to an empty module via `gjsImportsEmptyPlugin` (this plugin runs first and
-// returns null for them, falling through). The `@gjsify/node-gi/gi` import the
-// virtual module emits is kept EXTERNAL (a native addon cannot be bundled), so
-// it resolves at runtime against the consumer's node_modules.
+// `@girs/*` is deliberately NOT claimed here (this plugin returns null for
+// them, falling through). Those are ambient/type packages whose VALUE entry
+// re-exports `gi://` (`@girs/adw-1/adw-1.js` is `import Adw from
+// 'gi://Adw?version=1'; export default Adw`). On a default Node build
+// `gjsImportsEmptyPlugin` maps them to an empty module. On a node-gi build
+// (`nodeGiGlobalsInject`, see `app/node.ts`) that empty redirect is OFF: the
+// `@girs/<ns>-<ver>` import resolves to its real body and ITS inner `gi://` is
+// then rewritten by THIS plugin — so `@girs/adw-1` routes to
+// `requireGi('Adw','1')` with the proper-cased namespace taken straight from
+// the @girs package's own `gi://` specifier (no lowercased-pkg→namespace map
+// needed). The `@gjsify/node-gi/gi` import the virtual module emits is kept
+// EXTERNAL (a native addon cannot be bundled), so it resolves at runtime
+// against the consumer's node_modules.
 //
 // Portability note (same as `gjs-imports-empty.ts`): the `filter` is a Rolldown
 // fast-path; the internal guard in the handler is the load-bearing check so the

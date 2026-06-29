@@ -57,15 +57,18 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     // runtime against the real node_modules tree.
     //
     // GJS-specific specifiers (`gi://*`, `@girs/*`) are NOT externalised —
-    // they are intercepted by `gjsImportsEmptyPlugin` (added to the plugins
-    // array below) and redirected to a virtual empty ESM module. Marking them
-    // external would leave bare `import 'gi://Gio?version=2.0'` strings in the
-    // output that Node's default ESM loader rejects with
-    // `ERR_UNSUPPORTED_ESM_URL_SCHEME`. The empty-module redirect makes node
-    // bundles of cross-platform packages (which transitively import @girs/*
-    // via *.gjs.spec / direct internal imports) loadable on Node — the GJS-
-    // only code paths are still gated at runtime by `on('Gjs', …)` or by
-    // `typeof globalThis.imports !== 'undefined'` guards.
+    // `gi://*` is rewritten to `requireGi` by `gjsGiNodePlugin`, and `@girs/*`
+    // is handled by `gjsGiNodePlugin` + `gjsImportsEmptyPlugin` (both in the
+    // plugins array below). Marking them external would leave bare
+    // `import 'gi://Gio?version=2.0'` strings in the output that Node's default
+    // ESM loader rejects with `ERR_UNSUPPORTED_ESM_URL_SCHEME`. For a
+    // cross-platform package the `@girs/*` empty-module redirect makes node
+    // bundles (which transitively import @girs/* via *.gjs.spec / direct
+    // internal imports) loadable on Node — the GJS-only code paths are still
+    // gated at runtime by `on('Gjs', …)` or `typeof globalThis.imports` guards.
+    // For a GENUINE GJS source built via the node-gi reverse bridge (detected
+    // by `nodeGiGlobalsInject`) the `@girs/*` empty redirect is OFF so the
+    // namespace resolves through to `requireGi` — see the plugins array.
     // `@gjsify/node-gi` is the Axis-5 GI runtime the `gjsGiNodePlugin` rewrites
     // `gi://` onto. It is a native (node-gyp) addon whose loader resolves its
     // `.node` binary relative to its own installed location, so it must NOT be
@@ -183,18 +186,31 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         // gjsGiNodePlugin runs FIRST (resolveId order 'pre' + array order): it
         // claims `gi://Ns?version=X` and rewrites it to the `@gjsify/node-gi`
         // runtime, so a real GJS/GI source builds + runs on Node. It returns
-        // null for `@girs/*`, which then falls through to gjsImportsEmptyPlugin
-        // (those ambient/type packages map to an empty module on Node).
+        // null for `@girs/*`.
         gjsGiNodePlugin(),
         // Bare GJS built-in modules (`system`/`gettext`): claimed BEFORE the
         // aliasPlugin so they resolve to the EXTERNAL `@gjsify/node-gi/<mod>`
         // shims without a disk resolution (works without node-gi installed,
         // like gi://). Node-target-only — never active on gjs/browser/ns.
         gjsBuiltinModulesNodePlugin(ALIASES_GJS_FOR_NODE),
-        // gjsImportsEmptyPlugin then intercepts the remaining `@girs/*` (and any
-        // `gi://` not claimed above) before `aliasPlugin` and the default
-        // resolver. Same composition order as `app/browser.ts`.
-        gjsImportsEmptyPlugin(),
+        // gjsImportsEmptyPlugin then decides the fate of `@girs/*` before
+        // `aliasPlugin` and the default resolver. Same composition order as
+        // `app/browser.ts`. `emptyGirs` is GATED on `nodeGiGlobalsInject`:
+        //   • false-flag (default Node build) → `@girs/*` → empty module. A
+        //     cross-platform polyfill package whose GJS-only code paths import
+        //     `@girs/*` transitively (e.g. via `@gjsify/unit`) stays loadable on
+        //     plain Node WITHOUT node-gi installed — exactly the existing
+        //     behaviour, never regressed.
+        //   • node-gi build (`nodeGiGlobalsInject` true — the genuine-GJS-source
+        //     signal) → `@girs/<ns>-<ver>` falls through to its real package
+        //     body (`import Adw from 'gi://Adw?version=1'; export default Adw`),
+        //     whose inner `gi://` is rewritten to `requireGi` by gjsGiNodePlugin
+        //     above. This routes `@girs/adw-1` → `requireGi('Adw','1')` WITHOUT
+        //     a lowercased-pkg→namespace map (the proper-cased namespace comes
+        //     from the @girs package's own `gi://` specifier). `gi://*` is
+        //     already claimed by gjsGiNodePlugin, so this plugin's `gi://`
+        //     branch is dead on the node target either way.
+        gjsImportsEmptyPlugin({ emptyGirs: !input.pluginOptions.nodeGiGlobalsInject }),
         aliasPlugin({ entries: flattenAliases(aliasMap) }),
         deepkitPlugin({ reflection: input.pluginOptions.reflection }),
         cssAsStringPlugin(),
