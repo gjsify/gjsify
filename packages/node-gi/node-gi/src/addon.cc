@@ -16,6 +16,7 @@
 // while C owns them; idle-deferred teardown; resurrection; thread-marshalled
 // toggles). GTK/Adwaita layering lands on top.
 
+#include <dlfcn.h>  // dlopen/dlsym the GtkWidgetClass template API (no GTK link)
 #include <napi.h>
 #include <uv.h>
 
@@ -2329,6 +2330,12 @@ Napi::Value CallFunction(const Napi::CallbackInfo& info) {
 // further down (it shares the validation logic with the property/method paths).
 static GObject* UnwrapGObject(Napi::Env env, Napi::Value handle);
 
+// Forward declaration: ConstructGObject calls gtk_widget_init_template on a
+// freshly-built widget whose registered type carries a Gtk.Widget template. The
+// helper (and the NodeGiClassData/GtkTemplateApi it reads) is defined with the
+// registerClass machinery further down; a no-op for any non-templated type.
+static void MaybeInitTemplate(GObject* obj);
+
 // Marshal a GValue into a JS value (fundamental types).
 static Napi::Value GValueToJs(Napi::Env env, const GValue* v) {
   GType ft = G_TYPE_FUNDAMENTAL(G_VALUE_TYPE(v));
@@ -2528,6 +2535,14 @@ static Napi::Value ConstructGObject(Napi::Env env, GType gtype, Napi::Object pro
   if (g_object_is_floating(obj)) {
     g_object_ref_sink(obj);
   }
+  // Gtk.Widget composite template: instantiate the template tree on this
+  // instance. The canonical GTK call is from instance_init; calling it here —
+  // right after construction, before the wrapper reaches JS — is equivalent for a
+  // templated leaf type (the widget is fully constructed; init_template builds the
+  // declared children + binds them so get_template_child resolves). A no-op unless
+  // the constructed type carries node-gi template data (defined below; forward-
+  // declared above), so plain introspected construction (newObject) is untouched.
+  MaybeInitTemplate(obj);
   return MakeGObjectHandle(env, obj);
 }
 
@@ -2778,6 +2793,59 @@ static void NodeGiVFuncTrampoline(ffi_cif* /*cif*/, void* result, void** args,
   // constructType / method call that triggered this vfunc returns).
 }
 
+// ---- Gtk.Widget composite-template API (resolved via dlsym, no GTK link) ----
+//
+// The engine links only girepository-2.0; GTK is dlopen'd at runtime by the
+// typelib. The composite-template entry points are GtkWidgetClass / GtkWidget
+// calls that take the klass pointer class_init already holds (set_template,
+// bind_template_child_full) or a constructed instance (init_template,
+// get_template_child) — they are not naturally reachable through the introspected
+// method-invoke paths, so they are resolved by symbol from the already-loaded
+// libgtk-4. All argument types are plain GLib/GObject types (GBytes, GType,
+// GObject, gpointer for the opaque GtkWidgetClass/GtkWidget), so no GTK headers
+// are needed. Self-contained to the template feature; nothing else dlopens GTK.
+struct GtkTemplateApi {
+  void (*set_template)(gpointer widget_class, GBytes* template_bytes);
+  void (*set_template_from_resource)(gpointer widget_class, const char* resource_name);
+  void (*bind_template_child_full)(gpointer widget_class, const char* name, gboolean internal,
+                                   gssize struct_offset);
+  void (*set_css_name)(gpointer widget_class, const char* name);
+  void (*init_template)(gpointer widget);
+  GObject* (*get_template_child)(gpointer widget, GType widget_type, const char* name);
+  bool ok;
+};
+
+// Resolve the GTK template API once (C++11 function-local static init is
+// thread-safe; node-gi calls these only on the main thread). dlopen with
+// RTLD_NOLOAD first — requireGi('Gtk','4.0') already dlopened libgtk-4 via the
+// typelib, so this just bumps the refcount; fall back to a plain dlopen so a
+// caller that never required Gtk through the typelib still resolves the symbols.
+static const GtkTemplateApi* GetGtkTemplateApi() {
+  static GtkTemplateApi api = {};
+  static bool initialised = false;
+  if (initialised) return &api;
+  initialised = true;
+  void* lib = dlopen("libgtk-4.so.1", RTLD_LAZY | RTLD_NOLOAD);
+  if (lib == nullptr) lib = dlopen("libgtk-4.so.1", RTLD_LAZY);
+  if (lib == nullptr) return &api;  // api.ok stays false → callers warn + no-op
+  api.set_template = reinterpret_cast<decltype(api.set_template)>(
+      dlsym(lib, "gtk_widget_class_set_template"));
+  api.set_template_from_resource = reinterpret_cast<decltype(api.set_template_from_resource)>(
+      dlsym(lib, "gtk_widget_class_set_template_from_resource"));
+  api.bind_template_child_full = reinterpret_cast<decltype(api.bind_template_child_full)>(
+      dlsym(lib, "gtk_widget_class_bind_template_child_full"));
+  api.set_css_name =
+      reinterpret_cast<decltype(api.set_css_name)>(dlsym(lib, "gtk_widget_class_set_css_name"));
+  api.init_template =
+      reinterpret_cast<decltype(api.init_template)>(dlsym(lib, "gtk_widget_init_template"));
+  api.get_template_child = reinterpret_cast<decltype(api.get_template_child)>(
+      dlsym(lib, "gtk_widget_get_template_child"));
+  api.ok = api.set_template != nullptr && api.set_template_from_resource != nullptr &&
+           api.bind_template_child_full != nullptr && api.set_css_name != nullptr &&
+           api.init_template != nullptr && api.get_template_child != nullptr;
+  return &api;
+}
+
 // Per-registered-type metadata, passed as GTypeInfo.class_data → class_init.
 // Heap-allocated and intentionally never freed (a GType is process-permanent).
 struct NodeGiClassData {
@@ -2786,6 +2854,13 @@ struct NodeGiClassData {
   std::vector<NodeGiVFunc*> vfuncs;  // class-lifetime vfunc overrides (never freed)
   void (*parentGet)(GObject*, guint, GValue*, GParamSpec*);
   void (*parentSet)(GObject*, guint, const GValue*, GParamSpec*);
+  // Gtk.Widget composite template (when registerClass meta carried a Template).
+  bool hasTemplate = false;
+  GBytes* templateBytes = nullptr;            // owned inline UI-XML (g_bytes_new copy)
+  std::string templateResource;               // resource path (e.g. "/eu/app/win.ui")
+  std::string cssName;                        // gtk_widget_class_set_css_name (optional)
+  std::vector<std::string> children;          // public Children ids
+  std::vector<std::string> internalChildren;  // InternalChildren ids
 };
 
 static GQuark NodeGiClassDataQuark() {
@@ -2810,6 +2885,22 @@ static NodeGiClassData* FindClassData(GType type) {
     if (cd != nullptr) return cd;
   }
   return nullptr;
+}
+
+// Instantiate the Gtk.Widget template on a freshly-constructed instance (see the
+// forward declaration above ConstructGObject). A no-op unless the instance's
+// registered type carries node-gi template data, so it is safe on every GObject
+// construction. Uses the instance's actual type's class data (single-level
+// registered templated type — the construct() case).
+static void MaybeInitTemplate(GObject* obj) {
+  NodeGiClassData* cd = FindClassData(G_OBJECT_TYPE(obj));
+  if (cd == nullptr || !cd->hasTemplate) return;
+  const GtkTemplateApi* gtk = GetGtkTemplateApi();
+  if (!gtk->ok) return;
+  // Only a Gtk.Widget can be init_template'd (class_init also skips a non-widget
+  // template). g_type_from_name is 0 if GTK never loaded → guard is false → skip.
+  GType widgetType = g_type_from_name("GtkWidget");
+  if (widgetType != 0 && g_type_is_a(G_OBJECT_TYPE(obj), widgetType)) gtk->init_template(obj);
 }
 
 // A property is custom iff its owner GType carries node-gi class-data; otherwise
@@ -2941,6 +3032,40 @@ static void NodeGiClassInit(gpointer g_class, gpointer class_data) {
     }
     g_object_unref(repo);
   }
+
+  // ---- Gtk.Widget composite template ----
+  // Install the template + bind the declared children on the new GtkWidgetClass.
+  // g_class is the new type's class struct, which derives from GtkWidgetClass for
+  // any Gtk.Widget subtype — exactly the pointer gtk_widget_class_set_template*
+  // expects. Done in class_init, the idiomatic GTK lifecycle point (C widgets
+  // call set_template in their class_init too). get_template_child / init_template
+  // run later, per instance.
+  if (cd->hasTemplate) {
+    const GtkTemplateApi* gtk = GetGtkTemplateApi();
+    GType widgetType = g_type_from_name("GtkWidget");
+    bool isWidget = widgetType != 0 && g_type_is_a(G_TYPE_FROM_CLASS(g_class), widgetType);
+    if (gtk->ok && isWidget) {
+      if (!cd->cssName.empty()) gtk->set_css_name(g_class, cd->cssName.c_str());
+      if (cd->templateBytes != nullptr) {
+        gtk->set_template(g_class, cd->templateBytes);
+      } else if (!cd->templateResource.empty()) {
+        gtk->set_template_from_resource(g_class, cd->templateResource.c_str());
+      }
+      for (const std::string& c : cd->children)
+        gtk->bind_template_child_full(g_class, c.c_str(), FALSE, 0);
+      for (const std::string& c : cd->internalChildren)
+        gtk->bind_template_child_full(g_class, c.c_str(), TRUE, 0);
+    } else if (!isWidget) {
+      g_warning(
+          "node-gi: a Template was set on %s, which is not a Gtk.Widget subclass — "
+          "composite templates require a Gtk.Widget ancestor; ignoring the template",
+          g_type_name(G_TYPE_FROM_CLASS(g_class)));
+    } else {
+      g_warning(
+          "node-gi: a Gtk.Widget Template was requested but the libgtk-4 template "
+          "API could not be resolved (is GTK 4 installed?)");
+    }
+  }
 }
 
 // registerClass(name, parentNamespace, parentTypeName, options?) -> typeHandle
@@ -3058,6 +3183,51 @@ Napi::Value RegisterClass(const Napi::CallbackInfo& info) {
         cd->vfuncs.push_back(rec);
       }
     }
+    // template: a Gtk.Widget composite template. Accepts a Uint8Array/Buffer of
+    // inline UI-XML, a "resource:///…" path string (→ set_template_from_resource),
+    // or a plain inline UI-XML string. Installed on the class in class_init.
+    if (opts.Has("template")) {
+      Napi::Value tv = opts.Get("template");
+      if (tv.IsString()) {
+        std::string s = tv.As<Napi::String>().Utf8Value();
+        const std::string kResource = "resource://";
+        if (s.rfind(kResource, 0) == 0) {
+          // "resource:///path" → the resource PATH "/path" (strip the scheme +
+          // authority "resource://"), matching gtk_widget_class_set_template_from_resource.
+          cd->templateResource = s.substr(kResource.size());
+          cd->hasTemplate = true;
+        } else {
+          // Inline UI-XML string → owned GBytes copy.
+          cd->templateBytes = g_bytes_new(s.data(), s.size());
+          cd->hasTemplate = true;
+        }
+      } else if (tv.IsBuffer()) {
+        Napi::Buffer<uint8_t> b = tv.As<Napi::Buffer<uint8_t>>();
+        cd->templateBytes = g_bytes_new(b.Data(), b.Length());
+        cd->hasTemplate = true;
+      } else if (tv.IsTypedArray()) {
+        Napi::TypedArray ta = tv.As<Napi::TypedArray>();
+        const uint8_t* data = static_cast<const uint8_t*>(ta.ArrayBuffer().Data()) + ta.ByteOffset();
+        cd->templateBytes = g_bytes_new(data, ta.ByteLength());
+        cd->hasTemplate = true;
+      }
+    }
+    if (opts.Has("cssName") && opts.Get("cssName").IsString()) {
+      cd->cssName = opts.Get("cssName").As<Napi::String>().Utf8Value();
+    }
+    if (opts.Has("children") && opts.Get("children").IsArray()) {
+      Napi::Array arr = opts.Get("children").As<Napi::Array>();
+      for (uint32_t i = 0; i < arr.Length(); i++) {
+        if (arr.Get(i).IsString()) cd->children.push_back(arr.Get(i).As<Napi::String>().Utf8Value());
+      }
+    }
+    if (opts.Has("internalChildren") && opts.Get("internalChildren").IsArray()) {
+      Napi::Array arr = opts.Get("internalChildren").As<Napi::Array>();
+      for (uint32_t i = 0; i < arr.Length(); i++) {
+        if (arr.Get(i).IsString())
+          cd->internalChildren.push_back(arr.Get(i).As<Napi::String>().Utf8Value());
+      }
+    }
   }
 
   GTypeInfo typeInfo = {};
@@ -3100,6 +3270,35 @@ Napi::Value ConstructType(const Napi::CallbackInfo& info) {
   Napi::Object props = (info.Length() >= 2 && info[1].IsObject()) ? info[1].As<Napi::Object>()
                                                                  : Napi::Object::New(env);
   return ConstructGObject(env, gtype, props, std::string(g_type_name(gtype)));
+}
+
+// getTemplateChild(handle, name) -> wrapped child GObject | null
+//
+// Resolve a composite-template child bound on the instance's type (declared via
+// registerClass Children/InternalChildren) by name. Returns the child wrapped
+// through the canonical toggle-ref bridge (GI_TRANSFER_NOTHING — the child is
+// owned by the parent widget via the template, a borrowed pointer). The L1 layer
+// assigns the result onto the instance (public `this.name`, internal `this._name`).
+Napi::Value GetTemplateChild(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[1].IsString()) {
+    Napi::TypeError::New(env, "getTemplateChild(handle, name: string)").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GObject* obj = UnwrapGObject(env, info[0]);
+  if (obj == nullptr) return env.Null();
+  std::string name = info[1].As<Napi::String>().Utf8Value();
+  const GtkTemplateApi* gtk = GetGtkTemplateApi();
+  if (!gtk->ok) {
+    Napi::Error::New(env, "node-gi: the libgtk-4 template API is unavailable")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  // Look the child up against the instance's actual type (the registered
+  // templated type for the single-level case the decorator constructs).
+  GObject* child = gtk->get_template_child(obj, G_OBJECT_TYPE(obj), name.c_str());
+  if (child == nullptr) return env.Null();
+  return WrapGObject(env, child, GI_TRANSFER_NOTHING);
 }
 
 // getProperty(handle, name) -> unknown
@@ -4414,6 +4613,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("newObject", Napi::Function::New(env, NewObject));
   exports.Set("registerClass", Napi::Function::New(env, RegisterClass));
   exports.Set("constructType", Napi::Function::New(env, ConstructType));
+  exports.Set("getTemplateChild", Napi::Function::New(env, GetTemplateChild));
   exports.Set("getProperty", Napi::Function::New(env, GetProperty));
   exports.Set("setProperty", Napi::Function::New(env, SetProperty));
   exports.Set("hasProperty", Napi::Function::New(env, HasProperty));

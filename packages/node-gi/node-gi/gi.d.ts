@@ -54,6 +54,18 @@ export interface RegisterClassMeta {
   GTypeName?: string;
   Properties?: Record<string, ParamSpecDescriptor>;
   Signals?: Record<string, SignalDeclaration>;
+  /**
+   * A Gtk.Widget composite template: inline UI-XML (`Uint8Array`/Buffer or string)
+   * or a `"resource:///…"` path string. Installed on the subclass in `class_init`;
+   * `gtk_widget_init_template` runs at construction. (Gtk.Widget subclasses only.)
+   */
+  Template?: Uint8Array | string;
+  /** Template child ids exposed publicly on the instance as `this.<name>`. */
+  Children?: string[];
+  /** Template child ids exposed privately on the instance as `this._<name>`. */
+  InternalChildren?: string[];
+  /** `gtk_widget_class_set_css_name` for the subclass (Gtk.Widget subclasses only). */
+  CssName?: string;
   [key: string]: unknown;
 }
 

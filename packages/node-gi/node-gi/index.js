@@ -168,12 +168,26 @@ export const registerClass = native.registerClass;
 
 /**
  * Construct a GObject of a registered type handle (from {@link registerClass})
- * with optional construct/settable properties, returning an owned handle.
+ * with optional construct/settable properties, returning an owned handle. For a
+ * templated type the engine runs `gtk_widget_init_template` before returning.
  * @param {unknown} typeHandle a handle from {@link registerClass}
  * @param {Record<string, unknown>} [props]
  * @returns {unknown} opaque GObject handle
  */
 export const constructType = native.constructType;
+
+/**
+ * Resolve a Gtk.Widget composite-template child (bound via the registerClass
+ * Children/InternalChildren options) by id on a templated instance —
+ * `gtk_widget_get_template_child(widget, G_OBJECT_TYPE(widget), name)`. Returns the
+ * child as a wrapped GObject handle (borrowed; owned by the parent via the
+ * template) or `null`. The L1 layer assigns it onto the instance (`this.<name>` /
+ * `this._<name>`).
+ * @param {unknown} handle a templated GObject handle from {@link constructType}
+ * @param {string} name the template child id
+ * @returns {unknown} opaque child GObject handle, or null
+ */
+export const getTemplateChild = native.getTemplateChild;
 
 /**
  * Read a GObject property.
