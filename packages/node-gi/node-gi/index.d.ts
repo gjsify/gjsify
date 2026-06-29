@@ -162,8 +162,8 @@ export interface SignalSpec {
  * GObject vfunc name (e.g. `"constructed"`) to the JS function that overrides it.
  * The override is invoked as a method on the instance — `this` is the GObject
  * handle — with the vfunc's declared arguments as JS arguments, and its return is
- * marshalled back to C. Chain-up to the parent vfunc lands in a later milestone,
- * so an override fully replaces the inherited implementation.
+ * marshalled back to C. An override can chain up to the parent implementation via
+ * {@link callParentVfunc} (the engine half of `super.vfunc_<name>(...)`).
  */
 export type VFuncMap = Record<string, (this: GObjectHandle, ...args: unknown[]) => unknown>;
 
@@ -194,8 +194,8 @@ export interface RegisterClassOptions {
  * type handle. `options` installs custom properties (backed by a per-instance
  * value store), signals, and vfunc overrides (an ffi closure written into the new
  * type's class vtable) in the new type's `class_init` — the Node twin of (the
- * engine half of) GJS's `GObject.registerClass`. vfunc chain-up to the parent
- * implementation lands in a later milestone.
+ * engine half of) GJS's `GObject.registerClass`. Each vfunc override captures the
+ * parent vtable pointer it displaces, so it can chain up via {@link callParentVfunc}.
  */
 export function registerClass(
   name: string,
@@ -203,6 +203,23 @@ export function registerClass(
   parentTypeName: string,
   options?: RegisterClassOptions,
 ): TypeHandle;
+
+/**
+ * Chain up to the parent implementation of an overridden vfunc — the engine half
+ * of `super.vfunc_<name>(...)`. Invokes the function that was in the instance
+ * type's vtable slot BEFORE the {@link registerClass} override was installed (the
+ * C default, or a JS override further up the chain), passing `handle` as the
+ * instance and `args` as the vfunc's declared IN arguments; returns the marshalled
+ * vfunc return (or `undefined` for a void vfunc). Throws if no overridden vfunc by
+ * that name owns a slot on the instance's type, or if the vfunc declares any
+ * OUT/INOUT argument (chain-up of those is not yet supported — a catchable throw,
+ * never a crash).
+ */
+export function callParentVfunc(
+  handle: GObjectHandle,
+  vfuncName: string,
+  args?: unknown[],
+): unknown;
 
 /**
  * Construct a GObject of a registered type handle (from {@link registerClass})

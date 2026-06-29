@@ -2714,13 +2714,23 @@ struct NodeGiSignalDef {
 // class-struct FIELD offset (gi_vfunc_info_get_offset is GI_UNKNOWN/0xFFFF for
 // GObject's own vfuncs, so the GJS field-offset approach is authoritative), and
 // the closure's native address is written into the class struct at that offset.
+//
+// CHAIN-UP: immediately BEFORE the trampoline address is written, the value
+// currently in the vtable slot is captured in `parentPtr` — at class_init time
+// the new type's class struct is a memcpy of the parent's, so the slot holds the
+// parent's implementation (the C default, or a JS override further up the chain).
+// That captured pointer is the `super.vfunc_<name>(...)` target: callParentVfunc
+// ffi_call's it through `cif` (which already describes the exact instance+args→ret
+// signature). Mirrors GJS's gi/object.cpp, where the introspected base's vfunc
+// thunk calls the actual C parent vtable entry.
 struct NodeGiVFunc {
   napi_env env;
   std::string name;
   napi_ref fn;           // strong ref to the JS impl (class lifetime; never freed)
   GIVFuncInfo* info;     // resolved vfunc info (owned; kept alive for the closure)
-  ffi_cif cif;           // stable storage for the closure's cif
+  ffi_cif cif;           // stable storage for the closure's cif (also used to call up)
   ffi_closure* closure;  // ffi closure (class lifetime; never freed)
+  gpointer parentPtr;    // parent vtable fn captured pre-override (chain-up target)
 };
 
 // The ffi closure entry point invoked when C calls the overridden vfunc. For a
@@ -2887,6 +2897,22 @@ static NodeGiClassData* FindClassData(GType type) {
   return nullptr;
 }
 
+// Find the vfunc override record named `name` nearest the instance type — the one
+// whose trampoline owns the vtable slot the override is running in. Walks the same
+// ancestry as FindClassData but stops at the first class-data carrying a matching
+// override, returning its captured parent pointer + signature for chain-up.
+static NodeGiVFunc* FindVFuncRecord(GType type, const std::string& name) {
+  for (GType t = type; t != 0; t = g_type_parent(t)) {
+    NodeGiClassData* cd = static_cast<NodeGiClassData*>(g_type_get_qdata(t, NodeGiClassDataQuark()));
+    if (cd != nullptr) {
+      for (NodeGiVFunc* vf : cd->vfuncs) {
+        if (vf->name == name) return vf;
+      }
+    }
+  }
+  return nullptr;
+}
+
 // Instantiate the Gtk.Widget template on a freshly-constructed instance (see the
 // forward declaration above ConstructGObject). A no-op unless the instance's
 // registered type carries node-gi template data, so it is safe on every GObject
@@ -3027,7 +3053,13 @@ static void NodeGiClassInit(gpointer g_class, gpointer class_data) {
           gi_callable_info_get_closure_native_address(reinterpret_cast<GICallableInfo*>(vi),
                                                       vf->closure);
       if (native == nullptr) native = vf->closure;
-      *reinterpret_cast<gpointer*>(reinterpret_cast<guint8*>(g_class) + offset) = native;
+      // Capture the parent implementation BEFORE overwriting the slot: at this
+      // point g_class is a memcpy of the parent class struct, so the slot holds
+      // the parent's vfunc pointer (the C default, or a JS override further up).
+      // That is the super.vfunc_<name>() chain-up target (see callParentVfunc).
+      gpointer* slotAddr = reinterpret_cast<gpointer*>(reinterpret_cast<guint8*>(g_class) + offset);
+      vf->parentPtr = *slotAddr;
+      *slotAddr = native;
       gi_base_info_unref(reinterpret_cast<GIBaseInfo*>(declarer));
     }
     g_object_unref(repo);
@@ -3066,6 +3098,135 @@ static void NodeGiClassInit(gpointer g_class, gpointer class_data) {
           "API could not be resolved (is GTK 4 installed?)");
     }
   }
+}
+
+// callParentVfunc(handle, vfuncName, args?) -> unknown
+//
+// Chain up to the parent implementation of an overridden vfunc — the engine half
+// of `super.vfunc_<name>(...)`. Resolves the NodeGiVFunc record for `vfuncName`
+// nearest the instance's type (the record whose trampoline currently owns the
+// vtable slot) and ffi_call's its captured parentPtr — the function that was in
+// the slot BEFORE the override was installed (the C default, or a JS override
+// further up the chain). The same `cif` the override's closure was built from
+// describes the call signature (instance + declared args → return), so it is
+// reused to call out. `this` (args[0]) goes back in as the instance, keeping the
+// canonical toggle-ref wrapper identity. Marshals IN args (JsToGIArgument) +
+// the return (gi_type_info_extract_ffi_return_value → GIArgumentToJs); throws a
+// GLib.Error for a can-throw vfunc whose parent set the GError.
+//
+// SCOPE: single-level-over-C is the target. A vfunc with ANY declared OUT/INOUT
+// arg is REJECTED with a clear error BEFORE the ffi_call (a non-optional OUT slot
+// is a location the C parent writes THROUGH — passing null would SIGSEGV the
+// process; "not yet supported" must mean a catchable throw, not a crash). This
+// also forecloses the IN-indexing mismatch (the JS caller passes IN values
+// positionally, while declared indices interleave OUT params). The dominant
+// chain-up cases (constructed/dispose/activate; IN object/primitive args) are
+// covered. Multi-level JS-override chains are gated out at the L1 registerClass
+// layer (multi-level registered subclassing is unsupported), so they do not reach
+// here; were they enabled, parentPtr would correctly resolve to the next JS
+// trampoline up the chain.
+Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[1].IsString()) {
+    Napi::TypeError::New(env, "callParentVfunc(handle, vfuncName: string, args?: unknown[])")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GObject* obj = UnwrapGObject(env, info[0]);
+  if (obj == nullptr) return env.Null();  // UnwrapGObject threw or it was null
+  std::string vname = info[1].As<Napi::String>().Utf8Value();
+  Napi::Array args = (info.Length() >= 3 && info[2].IsArray()) ? info[2].As<Napi::Array>()
+                                                              : Napi::Array::New(env, 0);
+
+  NodeGiVFunc* vf = FindVFuncRecord(G_OBJECT_TYPE(obj), vname);
+  if (vf == nullptr || vf->parentPtr == nullptr || vf->info == nullptr) {
+    Napi::Error::New(env, "no parent vfunc '" + vname + "' to chain up to on " +
+                              g_type_name(G_OBJECT_TYPE(obj)) +
+                              " (is it overridden by a registerClass subclass?)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  GICallableInfo* ci = reinterpret_cast<GICallableInfo*>(vf->info);
+  unsigned int nDeclared = gi_callable_info_get_n_args(ci);
+  bool canThrow = gi_callable_info_can_throw_gerror(ci);
+
+  // Guard: chain-up of a vfunc with OUT/INOUT args is not yet supported. A
+  // non-optional OUT param is a pointer the C parent WRITES THROUGH, so we cannot
+  // hand it a null slot (→ NULL-deref crash) and we do not yet marshal OUT values
+  // back to JS. Reject with a catchable error BEFORE any ffi_call. (Also avoids the
+  // declared-vs-positional IN index mismatch once an OUT precedes an IN.)
+  for (unsigned int i = 0; i < nDeclared; i++) {
+    GIArgInfo* ai = gi_callable_info_get_arg(ci, i);
+    GIDirection dir = gi_arg_info_get_direction(ai);
+    gi_base_info_unref(ai);
+    if (dir != GI_DIRECTION_IN) {
+      Napi::Error::New(env, "chain-up of vfunc '" + vname +
+                                "' with OUT/INOUT args is not yet supported")
+          .ThrowAsJavaScriptException();
+      return env.Null();
+    }
+  }
+
+  // ffi argument value array: [instance, declared-arg-0 .., (GError** if can-throw)].
+  // Each entry points at the value's storage; for the GIArgument union, &arg is the
+  // address of every member (they overlap at offset 0), so &giArgs[i] works for any
+  // primitive/pointer-typed argument.
+  std::vector<GIArgument> giArgs(1 + nDeclared);
+  std::vector<std::string> holds(nDeclared);
+  std::vector<void*> avalue;
+  avalue.reserve(1 + nDeclared + (canThrow ? 1 : 0));
+  giArgs[0].v_pointer = obj;
+  avalue.push_back(&giArgs[0]);
+
+  // All declared args are IN here (the guard above rejected OUT/INOUT). They map
+  // 1:1 to the positional JS args.
+  bool ok = true;
+  for (unsigned int i = 0; i < nDeclared && ok; i++) {
+    GIArgInfo* ai = gi_callable_info_get_arg(ci, i);
+    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
+    Napi::Value v = i < args.Length() ? args.Get(i) : env.Undefined();
+    if (!JsToGIArgument(env, v, ti, &giArgs[1 + i], &holds[i])) ok = false;  // already threw
+    avalue.push_back(&giArgs[1 + i]);
+    gi_base_info_unref(ti);
+    gi_base_info_unref(ai);
+  }
+  if (!ok) return env.Null();
+
+  // can-throw vfuncs take a trailing GError** the parent writes the error into.
+  // libffi reads each argument's VALUE from the location avalue[i] points at, so
+  // for the GError** slot avalue must point at a variable holding &error (a
+  // GError**) — i.e. one extra level of indirection (&errorPtr), NOT &error
+  // (which would pass NULL as the GError** and silently swallow the parent error).
+  GError* error = nullptr;
+  GError** errorPtr = &error;
+  if (canThrow) avalue.push_back(&errorPtr);
+
+  GITypeInfo* retType = gi_callable_info_get_return_type(ci);
+  GIFFIReturnValue ffiRet;
+  ffiRet.v_uint64 = 0;
+  ffi_call(&vf->cif, reinterpret_cast<void (*)(void)>(vf->parentPtr), &ffiRet, avalue.data());
+
+  if (canThrow && error != nullptr) {
+    gi_base_info_unref(retType);
+    ThrowGError(env, error, "super." + vname);
+    return env.Null();
+  }
+
+  Napi::Value result = env.Undefined();
+  if (gi_type_info_get_tag(retType) != GI_TYPE_TAG_VOID) {
+    // Extract the (possibly narrowed) ffi return into a normalised GIArgument,
+    // then marshal it to JS — the portable, endianness-safe path. Honour the
+    // vfunc's declared return transfer so a transfer-full parent return (a fresh
+    // GObject / utf8 / boxed) is owned by GIArgumentToJs rather than leaked.
+    GITransfer retTransfer = gi_callable_info_get_caller_owns(ci);
+    GIArgument retArg;
+    retArg.v_uint64 = 0;
+    gi_type_info_extract_ffi_return_value(retType, &ffiRet, &retArg);
+    result = GIArgumentToJs(env, retType, &retArg, retTransfer);
+  }
+  gi_base_info_unref(retType);
+  return result;
 }
 
 // registerClass(name, parentNamespace, parentTypeName, options?) -> typeHandle
@@ -3179,6 +3340,7 @@ Napi::Value RegisterClass(const Napi::CallbackInfo& info) {
         rec->info = nullptr;
         rec->closure = nullptr;
         rec->fn = nullptr;
+        rec->parentPtr = nullptr;
         napi_create_reference(env, fnv, 1, &rec->fn);
         cd->vfuncs.push_back(rec);
       }
@@ -4613,6 +4775,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("newObject", Napi::Function::New(env, NewObject));
   exports.Set("registerClass", Napi::Function::New(env, RegisterClass));
   exports.Set("constructType", Napi::Function::New(env, ConstructType));
+  exports.Set("callParentVfunc", Napi::Function::New(env, CallParentVfunc));
   exports.Set("getTemplateChild", Napi::Function::New(env, GetTemplateChild));
   exports.Set("getProperty", Napi::Function::New(env, GetProperty));
   exports.Set("setProperty", Napi::Function::New(env, SetProperty));

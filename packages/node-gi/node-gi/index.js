@@ -156,8 +156,8 @@ export const newObject = native.newObject;
  * signals, and vfunc overrides in the new type's `class_init` — the Node twin of
  * (the engine half of) GJS's `GObject.registerClass`. A `vfuncs` entry maps a
  * parent vfunc name (e.g. `constructed`) to a JS function that overrides it; the
- * override runs as a method on the instance (`this` is the GObject handle). vfunc
- * chain-up to the parent implementation lands in a later milestone.
+ * override runs as a method on the instance (`this` is the GObject handle) and can
+ * chain up to the parent implementation via {@link callParentVfunc}.
  * @param {string} name unique GType name, e.g. "MyAction"
  * @param {string} parentNamespace e.g. "Gio"
  * @param {string} parentTypeName e.g. "SimpleAction"
@@ -175,6 +175,22 @@ export const registerClass = native.registerClass;
  * @returns {unknown} opaque GObject handle
  */
 export const constructType = native.constructType;
+
+/**
+ * Chain up to the parent implementation of an overridden vfunc — the engine half
+ * of `super.vfunc_<name>(...)`. Invokes the function that was in the instance
+ * type's vtable slot BEFORE the registerClass override was installed (the C
+ * default, or a JS override further up the chain), with `handle` as the instance
+ * and `args` as the vfunc's declared arguments; returns the marshalled vfunc
+ * return (or undefined for a void vfunc). The L1 layer wires it to
+ * `super.vfunc_<name>` via the introspected base class's prototype chain. Throws
+ * if no overridden vfunc by that name owns a slot on the instance's type.
+ * @param {unknown} handle a GObject handle (the instance / `this` in the override)
+ * @param {string} vfuncName the vfunc name without the `vfunc_` prefix, e.g. "constructed"
+ * @param {unknown[]} [args] the vfunc's declared IN arguments
+ * @returns {unknown}
+ */
+export const callParentVfunc = native.callParentVfunc;
 
 /**
  * Resolve a Gtk.Widget composite-template child (bound via the registerClass
