@@ -16,6 +16,13 @@
 //   * MULTI-ENV safety (worker_threads) — node-gi loaded on several OS threads at
 //     once: concurrent owner-claim (compare_exchange) + per-env env-cleanup, no
 //     cross-env napi UAF (residual minor: multi-env).
+//   * CROSS-ENV CACHE-HIT (DEFECT 1) — a worker env that obtains a process-shared
+//     GObject singleton (Gio.Vfs.get_default()) the OWNER env already wrapped must
+//     NOT deref the owner-isolate napi_ref from WrapGObject's cache-hit fast path.
+//   * REENTRANT DRAIN (DEFECT 2) — a registerClass vfunc_dispose that re-enters the
+//     engine (wraps GObjects) DURING the idle teardown drain, with other teardowns
+//     pending in the SAME drain: validates the recursive-lock-across-drain design
+//     (a non-recursive lock would self-deadlock; a swap-snapshot would double-free).
 //
 // The off-thread vehicle is a TEST-ONLY native helper (__stressRefUnrefOffThread)
 // — there is no headless pure-JS way to make another OS thread ref/unref a wrapped
@@ -36,7 +43,13 @@ import { writeFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { newObject, callMethod, isGObjectHandle, requireNamespace } from '../index.js';
+import {
+  newObject,
+  callMethod,
+  callStaticMethod,
+  isGObjectHandle,
+  requireNamespace,
+} from '../index.js';
 import { requireGi } from '../gi.js';
 
 const require = createRequire(import.meta.url);
@@ -268,4 +281,117 @@ test('soak: randomized off-thread churn + main churn + GC stays crash-free', gcO
   await settle();
   const mb = process.memoryUsage().rss / (1024 * 1024);
   assert.ok(mb < 1024, `RSS bounded after randomized soak, was ${mb.toFixed(0)} MiB`);
+});
+
+// ---- 8: DEFECT 1 — cross-env cache-hit on a process-shared singleton ----
+// The OWNER env wraps a process-global singleton S (Gio.Vfs.get_default()), setting
+// qdata(S)=ownerInst. A worker env independently obtains the SAME S via the SAME
+// static getter and wraps it. Pre-fix, WrapGObject's cache-hit fast path derefed
+// ownerInst->handle_ref (a napi_ref rooted in the OWNER isolate) from the WORKER
+// isolate → cross-env UAF / V8 abort. Post-fix the worker sees inst->env != its env
+// and takes the plain strong-ref path. Asserts every worker completes (no crash) and
+// can USE the singleton it fetched.
+test('cross-env: a worker wrapping a singleton the owner cached does not UAF (DEFECT 1)', async () => {
+  // Owner wraps S first and HOLDS it, so qdata(S)=ownerInst stays set for the workers.
+  const ownerVfs = callStaticMethod('Gio', 'Vfs', 'get_default', []);
+  assert.equal(isGObjectHandle(ownerVfs), true);
+  assert.strictEqual(
+    callStaticMethod('Gio', 'Vfs', 'get_default', []),
+    ownerVfs,
+    'owner-env identity holds for the singleton',
+  );
+  const workerCode = `
+    const { parentPort, workerData } = require('node:worker_threads');
+    (async () => {
+      const { callStaticMethod, callMethod, isGObjectHandle, requireNamespace } =
+        await import(workerData.index);
+      requireNamespace('Gio', '2.0');
+      let used = 0;
+      for (let i = 0; i < 1500; i++) {
+        // Fetch the SAME process-global singleton the OWNER already wrapped+cached.
+        const vfs = callStaticMethod('Gio', 'Vfs', 'get_default', []);
+        if (!isGObjectHandle(vfs)) throw new Error('not a GObject handle');
+        // Use it (a real method call on a cross-env-shared singleton).
+        const schemes = callMethod(vfs, 'get_supported_uri_schemes', []);
+        if (Array.isArray(schemes)) used++;
+      }
+      parentPort.postMessage({ used });
+    })().catch((e) => { parentPort.postMessage({ error: String(e && e.message || e) }); });
+  `;
+  const spawnWorker = () =>
+    new Promise((resolve, reject) => {
+      const w = new Worker(workerCode, { eval: true, workerData: { index: indexUrl } });
+      w.on('message', resolve);
+      w.on('error', reject);
+      w.on('exit', (code) => {
+        if (code !== 0) reject(new Error('worker exit ' + code));
+      });
+    });
+  const results = await Promise.all([spawnWorker(), spawnWorker(), spawnWorker(), spawnWorker()]);
+  for (const r of results) {
+    assert.equal(r.error, undefined, `worker ran without a cross-env crash: ${r.error}`);
+    assert.equal(r.used, 1500, 'the worker used the cross-env-shared singleton every time');
+  }
+  // The owner's wrapper is still valid + identical after the workers churned the singleton.
+  assert.strictEqual(callStaticMethod('Gio', 'Vfs', 'get_default', []), ownerVfs);
+});
+
+// ---- 9: DEFECT 2 — reentrant wrap during the teardown drain ----
+// A registerClass vfunc_dispose runs DURING the idle teardown drain (its instance
+// reached refcount 0 when RunTeardown dropped the toggle ref). Inside it we re-enter
+// the engine — create + round-trip GObjects AND resurrect a sibling. With many such
+// instances dropped together, their teardowns batch into ONE drain, so each dispose
+// re-enters while OTHER teardowns are still pending. This validates the DEFECT-2 fix:
+//   * recursive lock — the reentrant WrapGObject re-acquires g_queue_mutex on the
+//     drain thread; a non-recursive lock-across-drain would SELF-DEADLOCK (this test
+//     would hang → the runner times out);
+//   * pop-the-LIVE-queue — a reentrant SettleCollectedInstance can still see + cancel
+//     a pending sibling teardown (a swap-snapshot would double-free it).
+test('reentrant-drain: vfunc_dispose re-entering the engine mid-drain is safe (DEFECT 2)', gcOpts, async () => {
+  const GObject = requireGi('GObject', '2.0');
+  const Gio = requireGi('Gio', '2.0');
+  let disposed = 0;
+  let reentrantOk = 0;
+  let resurrectOk = 0;
+  // A shared group whose action is dropped+re-created each dispose, so a dispose can
+  // resurrect a just-collected sibling action (exercising SettleCollectedInstance
+  // reentrancy from inside the drain).
+  // A shared group holding a 'shared' action whose wrapper goes weak between disposes,
+  // so a dispose's re-fetch re-enters WrapGObject for a GObject mid-lifecycle.
+  const group = new Gio.SimpleActionGroup();
+  class Disposer extends GObject.Object {
+    vfunc_dispose() {
+      disposed++;
+      // (a) plain reentrant create + round-trip identity, under the held drain lock.
+      const g = new Gio.SimpleActionGroup();
+      const a = new Gio.SimpleAction({ name: 'r', enabled: true });
+      g.add_action(a);
+      if (g.lookup_action('r') === a) reentrantOk++;
+      // (b) re-fetch + churn a sibling from the shared group: re-enters WrapGObject
+      // (resurrection path) from inside the drain. Must not crash.
+      const prev = group.lookup_action('shared');
+      if (prev !== undefined) resurrectOk++;
+      group.remove_action('shared');
+      group.add_action(new Gio.SimpleAction({ name: 'shared', enabled: true }));
+    }
+  }
+  const Klass = GObject.registerClass({ GTypeName: 'NodeGiReentrantDrainDisposer' }, Disposer);
+  group.add_action(new Gio.SimpleAction({ name: 'shared', enabled: true }));
+  for (let round = 0; round < 30; round++) {
+    // Batch: create many, drop them all, then GC so their teardowns drain together.
+    (() => {
+      for (let i = 0; i < 25; i++) new Klass();
+    })();
+    await settle(2);
+  }
+  assert.ok(disposed >= 30 * 25 * 0.8, `most disposers ran their vfunc_dispose, got ${disposed}`);
+  assert.equal(reentrantOk, disposed, 'reentrant create+round-trip identity held in every dispose');
+  assert.equal(resurrectOk, disposed, 'reentrant sibling resurrection was safe in every dispose');
+  // The engine is still fully functional after all the reentrant drains.
+  const g = new Gio.SimpleActionGroup();
+  const a = new Gio.SimpleAction({ name: 'after', enabled: true });
+  g.add_action(a);
+  assert.strictEqual(g.lookup_action('after'), a, 'identity + toggle accounting intact after reentrant drains');
+  const mb = process.memoryUsage().rss / (1024 * 1024);
+  assert.ok(mb < 1024, `RSS bounded after reentrant-drain stress, was ${mb.toFixed(0)} MiB`);
 });

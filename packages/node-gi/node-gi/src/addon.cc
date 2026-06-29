@@ -514,7 +514,12 @@ struct ToggleItem {
   NodeGiInstance* inst;
   bool down;  // true = toggle-down (→ weak), false = toggle-up (→ strong)
 };
-static std::mutex g_queue_mutex;
+// RECURSIVE: the drain (DrainAsyncCb) holds the lock across the WHOLE drain and
+// RunTeardown re-enters JS (dispose → signal/vfunc) which reentrantly re-acquires
+// the lock on the SAME thread (RunTeardown's own lock + a reentrant WrapGObject →
+// SettleCollectedInstance / NodeGiToggleNotify). A plain mutex would self-deadlock;
+// GJS's ToggleQueue lock is recursive for exactly this reason.
+static std::recursive_mutex g_queue_mutex;
 static std::deque<ToggleItem> g_toggle_queue;
 static std::deque<NodeGiInstance*> g_teardown_queue;
 static uv_async_t g_drain_async;
@@ -533,7 +538,7 @@ static void OnGObjectFinalized(gpointer, GObject*);
 // g_async_* are read off-thread (WakeDrain), so they are written under g_queue_mutex.
 static void EnsureDrainAsync(napi_env env) {
   {
-    std::lock_guard<std::mutex> guard(g_queue_mutex);
+    std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
     if (g_drain_async_inited) return;
   }
   uv_loop_t* loop = nullptr;
@@ -548,7 +553,7 @@ static void EnsureDrainAsync(napi_env env) {
   napi_async_context ctx = nullptr;
   napi_async_init(env, nullptr, name, &ctx);
   {
-    std::lock_guard<std::mutex> guard(g_queue_mutex);
+    std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
     g_async_env = env;
     g_async_context = ctx;
     // This env owns the machinery; its thread is the JS/main thread for toggles.
@@ -563,7 +568,7 @@ static void EnsureDrainAsync(napi_env env) {
 // locked flag-flip-before-close — so an off-thread toggle can never uv_async_send a
 // handle that is being / has been closed (the shutdown TOCTOU that aborted libuv).
 static void WakeDrain() {
-  std::lock_guard<std::mutex> guard(g_queue_mutex);
+  std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
   if (g_drain_async_inited && !g_toggle_shutdown.load()) {
     uv_async_send(&g_drain_async);
   }
@@ -612,7 +617,7 @@ static void ApplyToggle(NodeGiInstance* inst, bool down) {
 static void RunTeardown(NodeGiInstance* inst) {
   GObject* obj = inst->gobject;  // null if the weak-ref net already fired
   {
-    std::lock_guard<std::mutex> guard(g_queue_mutex);
+    std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
     if (obj != nullptr && g_object_get_qdata(obj, NodeGiWrapperQuark()) == inst) {
       g_object_set_qdata(obj, NodeGiWrapperQuark(), nullptr);
     }
@@ -628,12 +633,20 @@ static void RunTeardown(NodeGiInstance* inst) {
   delete inst;
 }
 
-// Drain both queues on the JS/main thread. Snapshot under the lock, process
-// outside it (the work re-enters JS + GObject, which must not run under the
-// queue lock). New items queued during processing re-arm the async via their own
-// Wake/Enqueue. Toggles first, then teardowns (a teardown for an inst whose
-// toggle is in this snapshot is harmless — ApplyToggle's liveness probe skips a
-// finalized handle, and RunTeardown re-checks the live queue under the lock).
+// Drain both queues on the JS/main thread. Mirrors GJS idle_handle_toggle →
+// handle_all_toggles under Locked: hold the (recursive) lock across the WHOLE drain
+// and pop the LIVE queues ONE item at a time — do NOT swap into a stack snapshot.
+//
+// Why: RunTeardown's g_object_remove_toggle_ref can drive dispose → a live JS
+// signal/vfunc → reentrant JS that wraps a GObject → SettleCollectedInstance(old),
+// whose cancel loop scans g_teardown_queue to drop `old`'s pending teardown. With a
+// swap-then-process snapshot, an in-flight `old` is NOT in the live queue, so the
+// scan can't cancel it; SettleCollectedInstance then deletes it and the outer loop
+// later derefs freed memory + double-removes the resurrected wrapper's toggle ref.
+// Popping the LIVE queue (and removing the current item BEFORE running it) keeps the
+// remaining pending items visible + cancellable by a reentrant SettleCollectedInstance.
+// The recursive lock lets RunTeardown's own lock + the reentrant wrap re-lock on this
+// thread; off-thread actors block until the drain completes.
 static void DrainAsyncCb(uv_async_t*) {
   if (g_async_env == nullptr || g_toggle_shutdown.load()) return;
   Napi::Env env(g_async_env);
@@ -644,18 +657,20 @@ static void DrainAsyncCb(uv_async_t*) {
   Napi::HandleScope handleScope(env);
   Napi::CallbackScope callbackScope(env, g_async_context);
 
-  std::deque<ToggleItem> toggles;
-  std::deque<NodeGiInstance*> teardowns;
-  {
-    std::lock_guard<std::mutex> guard(g_queue_mutex);
-    toggles.swap(g_toggle_queue);
-    teardowns.swap(g_teardown_queue);
-  }
-  for (const ToggleItem& item : toggles) {
-    if (!g_toggle_shutdown.load()) ApplyToggle(item.inst, item.down);
-  }
-  for (NodeGiInstance* inst : teardowns) {
-    RunTeardown(inst);
+  std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
+  // Toggles take priority (drain to empty before each teardown); a toggle enqueued
+  // during a teardown's dispose is processed next. Terminates when both are empty.
+  while (!g_toggle_queue.empty() || !g_teardown_queue.empty()) {
+    if (g_toggle_shutdown.load()) return;
+    if (!g_toggle_queue.empty()) {
+      ToggleItem item = g_toggle_queue.front();
+      g_toggle_queue.pop_front();
+      ApplyToggle(item.inst, item.down);
+      continue;
+    }
+    NodeGiInstance* inst = g_teardown_queue.front();
+    g_teardown_queue.pop_front();  // remove BEFORE running, so a reentrant resurrect
+    RunTeardown(inst);             // of THIS inst takes the miss path, not collected-hit
   }
 }
 
@@ -703,7 +718,7 @@ static void NodeGiToggleNotify(gpointer /*data*/, GObject* obj, gboolean is_last
   bool main_thread = OnMainThread();
   bool enqueued = false;
   {
-    std::lock_guard<std::mutex> guard(g_queue_mutex);
+    std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
     if (g_toggle_shutdown.load()) return;  // re-check under the lock
     NodeGiInstance* inst =
         static_cast<NodeGiInstance*>(g_object_get_qdata(obj, NodeGiWrapperQuark()));
@@ -732,7 +747,7 @@ static void NodeGiInstanceFinalize(Napi::Env /*env*/, GObject* /*data*/, NodeGiI
   if (inst == nullptr || inst->teardown_queued) return;
   inst->teardown_queued = true;
   {
-    std::lock_guard<std::mutex> guard(g_queue_mutex);
+    std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
     // After shutdown nothing will drain, so don't grow the queue (the env is going
     // away; the inst leaks with it — same as a dropped pending teardown).
     if (g_toggle_shutdown.load()) return;
@@ -750,7 +765,7 @@ static void NodeGiInstanceFinalize(Napi::Env /*env*/, GObject* /*data*/, NodeGiI
 // the drain thread), so the pending idle teardown cannot be running concurrently.
 static void SettleCollectedInstance(GObject* obj, NodeGiInstance* old) {
   {
-    std::lock_guard<std::mutex> guard(g_queue_mutex);
+    std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
     // Cancel old's pending teardown + any queued toggles that reference it, so the
     // drain never touches a freed inst (paired with the off-thread enqueue, which
     // re-reads qdata under this SAME lock — and we clear qdata below).
@@ -848,7 +863,16 @@ static Napi::Value WrapGObject(Napi::Env env, GObject* obj, GITransfer transfer)
 
   NodeGiInstance* inst =
       static_cast<NodeGiInstance*>(g_object_get_qdata(obj, NodeGiWrapperQuark()));
-  if (inst != nullptr) {
+  // Multi-env (worker_threads) safety: the qdata cache is process-global, but
+  // inst->handle_ref is a napi_ref rooted in inst->env's isolate. ONLY that env may
+  // dereference it — napi_get_reference_value with a FOREIGN env is a cross-env UAF /
+  // V8 abort (e.g. a worker that obtains a process-shared singleton like
+  // Gio.Vfs.get_default() that the owner env already wrapped). A non-owner env skips
+  // the cache and takes the plain strong-ref path via MakeGObjectHandle (which gates
+  // the same way). inst->env is immutable, so this guard is race-free regardless of
+  // g_owner_env store ordering — MakeGObjectHandle's gate alone was NOT enough,
+  // because this cache-hit fast path runs BEFORE MakeGObjectHandle.
+  if (inst != nullptr && inst->env == static_cast<napi_env>(env)) {
     napi_value cached = nullptr;
     if (napi_get_reference_value(env, inst->handle_ref, &cached) == napi_ok && cached != nullptr) {
       // Identity hit: return the canonical External, balancing the transfer (we
@@ -862,10 +886,10 @@ static Napi::Value WrapGObject(Napi::Env env, GObject* obj, GITransfer transfer)
       }
       return Napi::Value(env, cached);
     }
-    // collected hit → fall through and (re)build a fresh wrapper (resurrection).
+    // collected hit (our env) → fall through and (re)build a fresh wrapper (resurrection).
   }
 
-  // Miss / resurrect: get to "we own exactly one non-floating construction ref".
+  // Miss / resurrect / cross-env share: own exactly one non-floating construction ref.
   if (g_object_is_floating(obj)) {
     g_object_ref_sink(obj);
   } else if (transfer == GI_TRANSFER_NOTHING) {
@@ -4038,7 +4062,7 @@ static void OnEnvShutdown(void* arg) {
   if (g_owner_env.load() != static_cast<napi_env>(arg)) return;
   bool close_async = false;
   {
-    std::lock_guard<std::mutex> guard(g_queue_mutex);
+    std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
     g_toggle_shutdown.store(true);
     if (g_drain_async_inited) {
       g_drain_async_inited = false;  // disable further sends FIRST (under the lock)
