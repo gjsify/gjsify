@@ -16,6 +16,7 @@ import {
   callMethod,
   connectSignal,
   emitSignal,
+  isGObjectHandle,
   requireNamespace,
 } from '../index.js';
 
@@ -53,14 +54,17 @@ test('custom signals: void-with-arg and a value-returning signal', () => {
   });
   const o = constructType(Type, {});
 
+  // GJS parity: the raw closure marshal prepends the emitter (the GObject the
+  // signal fired on) as the first arg, then the signal's own params.
   let received = null;
-  connectSignal(o, 'pinged', (s) => {
+  connectSignal(o, 'pinged', (emitter, s) => {
+    assert.equal(isGObjectHandle(emitter), true, 'the emitter is a GObject handle');
     received = s;
   });
   emitSignal(o, 'pinged', ['ping-arg']);
   assert.equal(received, 'ping-arg');
 
-  connectSignal(o, 'sum', (a, b) => a + b);
+  connectSignal(o, 'sum', (_emitter, a, b) => a + b);
   assert.equal(emitSignal(o, 'sum', [3, 4]), 7);
 });
 
@@ -96,8 +100,12 @@ test('property change emits notify', () => {
   });
   const o = constructType(Type, {});
   let notified = false;
-  connectSignal(o, 'notify::value', () => {
+  // GJS parity: a notify:: handler is `(object, pspec) => …` — the emitter first,
+  // then the GParamSpec of the changed property.
+  connectSignal(o, 'notify::value', (emitter, pspec) => {
     notified = true;
+    assert.equal(isGObjectHandle(emitter), true, 'notify emitter is the GObject');
+    assert.equal(pspec.name, 'value', 'notify carries the changed property pspec');
   });
   setProperty(o, 'value', 42);
   assert.equal(getProperty(o, 'value'), 42);

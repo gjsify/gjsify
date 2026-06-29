@@ -11,8 +11,25 @@ import {
   connectSignal,
   emitSignal,
   disconnectSignal,
+  isGObjectHandle,
   requireNamespace,
 } from '../index.js';
+
+test('the handler receives the emitter as its first arg (GJS parity)', () => {
+  requireNamespace('Gio', '2.0');
+  const c = newObject('Gio', 'Cancellable', {});
+  let argCount = -1;
+  let emitterIsGObject = false;
+  connectSignal(c, 'cancelled', (...args) => {
+    argCount = args.length;
+    emitterIsGObject = isGObjectHandle(args[0]);
+  });
+  emitSignal(c, 'cancelled');
+  // 'cancelled' has no params → the handler gets exactly one arg, the emitter
+  // (a GObject handle), matching GJS which passes the emitter first.
+  assert.equal(argCount, 1, 'no-param signal still passes the emitter');
+  assert.equal(emitterIsGObject, true, 'the first arg is the emitter GObject');
+});
 
 test('connect + emit invokes the JS callback', () => {
   requireNamespace('Gio', '2.0');

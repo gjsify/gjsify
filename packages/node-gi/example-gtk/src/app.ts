@@ -24,11 +24,12 @@
 //   - a Gtk.CssProvider applied display-wide + a CSS class added to a widget;
 //   - a Gio.SimpleAction added to the app and activated programmatically.
 //
-// Every value printed below is DETERMINISTIC — no hostname, no varying paths, no
-// dependence on signal-callback arguments (Node's node-gi omits the emitter as
-// the first callback arg, so handlers only ever print closure-captured
-// constants). Running either build prints the same fixed sequence of lines — the
-// golden output asserted by `dual.e2e.mjs`.
+// Every value printed below is DETERMINISTIC — no hostname, no varying paths. The
+// signal handlers print only closure-captured constants (never the callback args)
+// so the golden output is identical regardless of arg shape. node-gi now passes
+// the emitter as the first callback arg, matching GJS (`activate` handlers ignore
+// it). Running either build prints the same fixed sequence of lines — the golden
+// output asserted by `dual.e2e.mjs`.
 //
 // DUAL-SAFETY FINDING (composite-template child naming). A template child id MUST
 // NOT collide with a real GObject property of the widget class. A child id

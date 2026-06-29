@@ -219,8 +219,10 @@ test('e2e: SimpleAction state round-trips through built Variants + the change-st
 
   // The change-state signal carries the requested value Variant (marshalled
   // through GValue → wrapped) — observe it, then let the default handler apply.
+  // GJS parity: `change-state` handlers are `(action, value) => …`.
   let observed = null;
-  action.connect('change-state', (value) => {
+  action.connect('change-state', (emitter, value) => {
+    assert.equal(emitter, action, 'the emitter is the action that emitted change-state');
     observed = value.deepUnpack();
     action.set_state(value); // commit (SimpleAction has no default change-state handler)
   });

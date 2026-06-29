@@ -27,6 +27,7 @@
 
 #include <atomic>
 #include <deque>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -1943,8 +1944,37 @@ static bool SurfacePendingException(napi_env env, const char* context) {
   }
   g_printerr("\n(node-gi) Unhandled exception in %s:\n%s\n", context,
              text.empty() ? "<no message>" : text.c_str());
+
+  // Building `text` above can itself run user JS — a throwing `stack` getter
+  // (napi_get_named_property) or a throwing `toString` (napi_coerce_to_string) —
+  // which leaves a NEW pending exception. If we returned now the caller would be
+  // env-dirty and could wedge the loop exactly like the original throw. Re-check
+  // and clear so the env is guaranteed clean on return.
+  bool stillPending = false;
+  if (napi_is_exception_pending(env, &stillPending) == napi_ok && stillPending) {
+    napi_value ignored = nullptr;
+    napi_get_and_clear_last_exception(env, &ignored);
+  }
   return true;
 }
+
+// RAII: pin g_syncEmitDepth to 0 for the duration of a LOOP-DISPATCHED callback,
+// restoring the prior value on scope exit. g_syncEmitDepth marks "a synchronous
+// emitSignal() is on the stack" — but a synchronous handler may re-enter the GLib
+// loop (a nested loop.run() / g_main_context_iteration, or a blocking GIO call that
+// pumps the context). Any closure the NESTED loop dispatches (a notify:: from
+// g_object_set inside a timeout, a GTK signal) is genuinely loop-dispatched and has
+// no JS emit() caller to catch its throw, yet the global counter would still read
+// > 0 and JsClosureMarshal would leave the exception PENDING → DrainMicrotasks
+// early-returns → the libuv↔GLib pump wedges. Resetting to 0 across the loop-
+// dispatch boundary makes those closures evaluate at depth 0 (surface + clear),
+// while the OUTER synchronous emit() — resumed once the nested loop returns and the
+// prior depth is restored — still propagates its own handler's throw.
+struct SyncEmitDepthReset {
+  int saved;
+  SyncEmitDepthReset() : saved(g_syncEmitDepth) { g_syncEmitDepth = 0; }
+  ~SyncEmitDepthReset() { g_syncEmitDepth = saved; }
+};
 
 // The ffi closure entry point: marshal C args -> JS, call the JS fn, marshal the
 // JS return -> C. Runs on the main thread (the GLib loop the bridge pumps).
@@ -1954,6 +1984,14 @@ static void NodeGiCallbackTrampoline(ffi_cif* /*cif*/, void* result, void** args
   napi_env env = cb->env;
   Napi::Env napiEnv(env);
   Napi::HandleScope scope(napiEnv);
+  // An idle/timeout/async (NOTIFIED/ASYNC scope) callback is dispatched FROM the
+  // GLib loop. Pin the synchronous-emit depth to 0 so a signal this callback emits
+  // (e.g. a notify:: from g_object_set) is treated as loop-dispatched even when a
+  // synchronous emitSignal() is suspended higher on the stack across a nested loop.
+  // A CALL-scope callback runs synchronously inside a JS-initiated GI invoke, so it
+  // keeps the ambient depth (its exception must reach that JS caller).
+  std::unique_ptr<SyncEmitDepthReset> depthReset;
+  if (cb->scope != GI_SCOPE_TYPE_CALL) depthReset = std::make_unique<SyncEmitDepthReset>();
 
   GICallableInfo* ci = cb->info;
   unsigned int n = gi_callable_info_get_n_args(ci);
@@ -4900,8 +4938,9 @@ Napi::Value IsVariantHandle(const Napi::CallbackInfo& info) {
 //
 // A GClosure that wraps a JS callback. The callback is held by a strong
 // napi_ref; the closure's finalize notifier drops it. The generic marshal
-// converts the signal's GValue params to JS (skipping the emitter instance at
-// index 0) and the JS return into the signal return GValue.
+// converts the signal's GValue params to JS — the EMITTER instance (param 0)
+// first, then the signal's own params (1..n), matching GJS — and the JS return
+// into the signal return GValue.
 //
 // Narrowed-leak semantics (with the toggle-ref bridge): a handler that does NOT
 // close over its own object is now collectable once C is the sole owner
@@ -4937,10 +4976,15 @@ static void JsClosureMarshal(GClosure* closure, GValue* return_value, guint n_pa
   napi_value cbv = nullptr;
   if (napi_get_reference_value(jc->env, jc->callback, &cbv) != napi_ok || cbv == nullptr) return;
 
-  // Signal args excluding the emitter instance (param_values[0]).
+  // GJS parity: the JS handler receives the EMITTER (the object the signal was
+  // emitted on, param_values[0]) as its first argument, then the signal's own
+  // parameters (param_values[1..n]). GJS passes the emitter first (refs/gjs
+  // gi/value.cpp / object signal invocation), so a positional handler such as
+  // `(listbox, row) => …` / `_onRowSelected(_listbox, row)` binds correctly. For
+  // a `notify::x` emission the args are therefore (object, pspec), as in GJS.
   std::vector<napi_value> args;
-  args.reserve(n_param_values > 0 ? n_param_values - 1 : 0);
-  for (guint i = 1; i < n_param_values; i++) {
+  args.reserve(n_param_values);
+  for (guint i = 0; i < n_param_values; i++) {
     Napi::Value v = GValueToJs(env, &param_values[i]);
     if (env.IsExceptionPending()) {
       // An arg-marshal failure: propagate to a synchronous emit() caller, or
@@ -4955,10 +4999,19 @@ static void JsClosureMarshal(GClosure* closure, GValue* return_value, guint n_pa
   napi_status st = napi_call_function(jc->env, env.Undefined(), cbv, args.size(), args.data(), &result);
   if (st != napi_ok) {
     // The handler threw. A synchronous emitSignal() (g_syncEmitDepth > 0) must
-    // propagate it to the JS emit() caller (node-gi contract). A loop-dispatched
-    // signal (a GTK click, a notify::, a GtkBuilder template handler — depth 0)
-    // has no JS caller; surface + clear so the GLib/libuv loop keeps running
-    // instead of wedging on the never-cleared pending exception.
+    // propagate it to the JS emit() caller (node-gi contract). At depth 0 there
+    // is no JS caller to catch it, so it is surfaced + cleared (GJS-style) to keep
+    // the GLib/libuv loop alive instead of wedging on the never-cleared pending
+    // exception.
+    //
+    // BY DESIGN (GJS-aligned): depth 0 is NOT only the GLib loop's own dispatch (a
+    // GTK click, a GtkBuilder template handler) — it ALSO covers synchronous-but-
+    // not-emitSignal triggers: a notify:: from g_object_set / a property set, or an
+    // inline C emit such as action.activate(). Those reach this marshal with no
+    // emitSignal() frame on the stack (depth 0), so a handler throw is logged +
+    // swallowed here rather than rethrown to the JS code that triggered the emit —
+    // exactly as GJS reports an uncaught signal-handler exception (gjs_log_exception)
+    // instead of surfacing it to the trigger site.
     if (g_syncEmitDepth == 0) SurfacePendingException(jc->env, "signal handler");
     return;
   }

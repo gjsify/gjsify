@@ -49,6 +49,36 @@ test('signals via .connect()/.emit()/.disconnect()', () => {
   assert.equal(count, 1);
 });
 
+test('a signal handler receives the emitter as its first arg (GJS parity)', () => {
+  const Gio = requireGi('Gio', '2.0');
+  const c = new Gio.Cancellable();
+  let sawEmitter = null;
+  let argCount = -1;
+  c.connect('cancelled', (...args) => {
+    argCount = args.length;
+    sawEmitter = args[0];
+  });
+  c.emit('cancelled');
+  // The 'cancelled' signal has no params, so the handler gets exactly one arg:
+  // the emitter — and it is the SAME cached, toggle-ref-canonical proxy as `c`.
+  assert.equal(argCount, 1, 'no-param signal still passes the emitter');
+  assert.equal(sawEmitter, c, 'the emitter is the connected-to instance (identity)');
+});
+
+test('notify:: handler receives (object, pspec) — GJS parity', () => {
+  const Gio = requireGi('Gio', '2.0');
+  const action = new Gio.SimpleAction({ name: 'notify-arity', enabled: true });
+  let sawObject = null;
+  let sawPspecName = null;
+  action.connect('notify::enabled', (object, pspec) => {
+    sawObject = object;
+    sawPspecName = pspec ? pspec.name : null;
+  });
+  action.enabled = false;
+  assert.equal(sawObject, action, 'notify emitter is the changed object');
+  assert.equal(sawPspecName, 'enabled', 'notify carries the changed property pspec');
+});
+
 test('a cancel() method drives the cancelled signal', () => {
   const Gio = requireGi('Gio', '2.0');
   const c = new Gio.Cancellable();

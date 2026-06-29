@@ -98,9 +98,10 @@ test('the full target scenario: meta + method + prop + signal + vfunc', () => {
   assert.equal(obj.message, 'changed');
   assert.equal(obj.greet(), 'hello changed');
 
-  // The custom signal connects + emits.
+  // The custom signal connects + emits. GJS parity: emitter first, then params.
   let received = null;
-  const id = obj.connect('pinged', (n) => {
+  const id = obj.connect('pinged', (emitter, n) => {
+    assert.equal(emitter, obj, 'the emitter is the connected-to instance');
     received = n;
   });
   obj.emit('pinged', 42);
@@ -189,7 +190,8 @@ test('a value-returning custom signal returns the handler result', () => {
     class Summer extends GObject.Object {},
   );
   const s = new Summer();
-  s.connect('sum', (a, b) => a + b);
+  // GJS parity: the emitter is the first arg, so the two int params are (a, b).
+  s.connect('sum', (_emitter, a, b) => a + b);
   assert.equal(s.emit('sum', 3, 4), 7);
 });
 
