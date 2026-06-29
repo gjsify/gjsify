@@ -91,12 +91,15 @@ jobs:
           npm install --no-audit --no-fund --foreground-scripts
           node --test dual.e2e.mjs
 
-  # GTK/Adw layering proof (Axis-5 GTK milestone): UNCHANGED Gtk.Application (PR1)
-  # AND Adw.Application (PR2) apps run on Node via the engine — construct +
-  # activate + window + Adwaita chrome (HeaderBar/ToolbarView/StatusPage) + CSS
-  # provider + quit, AND the libuv↔GLib bridge co-pumps Node's event loop during
-  # g_application_run (a setTimeout scheduled before run() fires while run()
-  # blocks). This needs a display + the GTK/Adw stack, so it is isolated in a
+  # GTK/Adw layering proof (Axis-5 GTK milestone): UNCHANGED Gtk.Application (PR1),
+  # Adw.Application (PR2) AND a Gtk.Template composite-template widget (PR4) run on
+  # Node via the engine — construct + activate + window + Adwaita chrome
+  # (HeaderBar/ToolbarView/StatusPage) + CSS provider + quit; the libuv↔GLib bridge
+  # co-pumps Node's event loop during g_application_run (a setTimeout scheduled
+  # before run() fires while run() blocks); and a registerClass({Template,Children,
+  # InternalChildren,CssName}) subclass installs its template in class_init, runs
+  # gtk_widget_init_template at construction, and exposes its bound children on the
+  # instance. This needs a display + the GTK/Adw stack, so it is isolated in a
   # dedicated job: the fast headless `Build & test` leg above stays light and the
   # smoke tests self-skip there (no DISPLAY). Runs the GTK loop, so cap the job
   # rather than let a hung loop wait 6h.
@@ -135,11 +138,12 @@ jobs:
       # bus so GApplication startup is quiet/deterministic; GSK_RENDERER=cairo +
       # LIBGL_ALWAYS_SOFTWARE=1 + GDK_BACKEND=x11 keep GTK off any GPU/Vulkan path
       # that a software-only Xvfb cannot provide; GTK_A11Y=none avoids the a11y bus.
-      # Runs BOTH smoke tests (Gtk.Application PR1 + Adw.Application PR2) in one
-      # node --test invocation so both report even if one fails.
+      # Runs ALL the GTK smoke tests (Gtk.Application PR1 + Adw.Application PR2 +
+      # Gtk.Template PR4) in one node --test invocation so each reports even if one
+      # fails.
       - name: GTK/Adw smoke test (xvfb + dbus)
         working-directory: packages/node-gi/node-gi
         run: |
           xvfb-run -a dbus-run-session -- \
             env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
-            node --test test/gtk-smoke.test.mjs test/adw-smoke.test.mjs
+            node --test test/gtk-smoke.test.mjs test/adw-smoke.test.mjs test/gtk-template.test.mjs

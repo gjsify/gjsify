@@ -889,15 +889,43 @@ function registerClass(metaOrClass, maybeClass) {
     throw new TypeError('GObject.registerClass: a GTypeName is required for an anonymous class');
   }
 
-  const typeHandle = native.registerClass(gtypeName, parent.parentNamespace, parent.parentType, {
-    properties,
-    signals,
-    vfuncs,
-  });
+  // Gtk.Widget composite template (GJS-shaped meta: Template / Children /
+  // InternalChildren / CssName). Template is a Uint8Array/Buffer of inline UI-XML,
+  // a "resource:///…" path string, or an inline UI-XML string — passed through to
+  // the engine, which installs it in class_init (set_template[_from_resource] +
+  // bind_template_child_full) and runs gtk_widget_init_template at construction.
+  const options = { properties, signals, vfuncs };
+  if (meta.Template !== undefined && meta.Template !== null) options.template = meta.Template;
+  if (typeof meta.CssName === 'string' && meta.CssName.length > 0) options.cssName = meta.CssName;
+  const children = Array.isArray(meta.Children) ? meta.Children.filter((c) => typeof c === 'string') : [];
+  const internalChildren = Array.isArray(meta.InternalChildren)
+    ? meta.InternalChildren.filter((c) => typeof c === 'string')
+    : [];
+  if (children.length > 0) options.children = children;
+  if (internalChildren.length > 0) options.internalChildren = internalChildren;
+
+  const typeHandle = native.registerClass(
+    gtypeName,
+    parent.parentNamespace,
+    parent.parentType,
+    options,
+  );
 
   const Subclass = function (props) {
     const handle = native.constructType(typeHandle, props ? unwrapProps(props) : {});
-    return wrapInstance(handle, klass.prototype);
+    const instance = wrapInstance(handle, klass.prototype);
+    // Surface the bound template children on the instance (GJS convention: public
+    // `this.<name>`, internal `this._<name>`, '-' → '_'). The engine already ran
+    // init_template during construction, so get_template_child resolves each.
+    for (const childName of children) {
+      instance[childName.replace(/-/g, '_')] = wrapReturn(native.getTemplateChild(handle, childName));
+    }
+    for (const childName of internalChildren) {
+      instance[`_${childName.replace(/-/g, '_')}`] = wrapReturn(
+        native.getTemplateChild(handle, childName),
+      );
+    }
+    return instance;
   };
   Object.defineProperty(Subclass, 'name', { value: gtypeName, configurable: true });
   Subclass.prototype = klass.prototype;

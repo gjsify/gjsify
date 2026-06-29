@@ -172,6 +172,20 @@ export interface RegisterClassOptions {
   properties?: PropertySpec[];
   signals?: SignalSpec[];
   vfuncs?: VFuncMap;
+  /**
+   * A Gtk.Widget composite template. Either inline UI-XML (a `Uint8Array`/Buffer
+   * or a string) installed via `gtk_widget_class_set_template`, or a
+   * `"resource:///…"` path string installed via
+   * `gtk_widget_class_set_template_from_resource`. Installed in the subtype's
+   * `class_init`; `gtk_widget_init_template` runs at construction.
+   */
+  template?: Uint8Array | string;
+  /** `gtk_widget_class_set_css_name` for the subtype (optional). */
+  cssName?: string;
+  /** Template child ids to bind + expose publicly (via `gtk_widget_get_template_child`). */
+  children?: string[];
+  /** Template child ids to bind as internal children + expose privately. */
+  internalChildren?: string[];
 }
 
 /**
@@ -192,9 +206,18 @@ export function registerClass(
 
 /**
  * Construct a GObject of a registered type handle (from {@link registerClass})
- * with optional construct/settable properties.
+ * with optional construct/settable properties. For a templated type the engine
+ * runs `gtk_widget_init_template` on the new instance before returning it.
  */
 export function constructType(typeHandle: TypeHandle, props?: Record<string, unknown>): GObjectHandle;
+
+/**
+ * Resolve a composite-template child (bound via {@link RegisterClassOptions.children}
+ * / {@link RegisterClassOptions.internalChildren}) by id on a templated instance —
+ * `gtk_widget_get_template_child(widget, G_OBJECT_TYPE(widget), name)`. Returns the
+ * child as a wrapped GObject handle (borrowed; toggle-ref bridged) or `null`.
+ */
+export function getTemplateChild(handle: GObjectHandle, name: string): GObjectHandle | null;
 
 /** Read a GObject property. */
 export function getProperty(handle: GObjectHandle, name: string): unknown;
@@ -321,6 +344,7 @@ declare const native: {
   newObject: typeof newObject;
   registerClass: typeof registerClass;
   constructType: typeof constructType;
+  getTemplateChild: typeof getTemplateChild;
   getProperty: typeof getProperty;
   setProperty: typeof setProperty;
   hasProperty: typeof hasProperty;
