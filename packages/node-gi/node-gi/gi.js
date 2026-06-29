@@ -378,6 +378,46 @@ function findProtoDescriptor(proto, prop) {
 // turn keeps this WeakMap entry — and the proxy + its fields — alive).
 const instanceCache = new WeakMap();
 
+// ---- G3 mutate-in-place registry ----
+//
+// registerClass registers the GType for the GIVEN class and returns that SAME
+// class (GJS-faithful — refs/gjs/modules/core/overrides/GObject.js mutates `klass`
+// and returns it), so both `const X = registerClass(…,C)` and
+// `static { registerClass(…,C) }` (return discarded) leave the same symbol bound
+// to the registered GType. The construction that produces the registered GType is
+// moved to the introspected base ctor (makeClass), keyed on `new.target`: when
+// `new Sub(args)` runs and `Sub` is registered here, the base ctor builds the
+// registered GType via constructType + wraps it, and RETURNS that wrapper. Because
+// a base constructor that returns an object substitutes `this` in every derived
+// ctor (ES `super` semantics), this single routing point makes the whole super()
+// chain construct the right GType, return the canonical toggle-ref wrapper carrying
+// the leaf's prototype, and run every user ctor body against it — exactly how GJS
+// instantiates `new.target`'s `$gtype` rather than the literal base. Keyed by the
+// JS class → { typeHandle, children?, internalChildren? } (children move here from
+// the old throwaway Subclass so init_template'd children are surfaced on the
+// instance). SCOPE: single-level only (a class extending an INTROSPECTED base);
+// multi-level registered-of-registered is rejected at registration (findParentGType
+// guard) until G2.
+const registeredClasses = new Map();
+
+// Surface a templated type's bound children on a freshly-constructed instance
+// (GJS convention: public `this.<name>`, internal `this._<name>`, '-' → '_'). The
+// engine already ran init_template during constructType, so getTemplateChild
+// resolves each. Assigned through the proxy (set trap → stored as an instance
+// expando), exactly as the old Subclass did.
+function assignTemplateChildren(instance, handle, reg) {
+  if (reg.children !== undefined) {
+    for (const childName of reg.children) {
+      instance[childName.replace(/-/g, '_')] = wrapReturn(native.getTemplateChild(handle, childName));
+    }
+  }
+  if (reg.internalChildren !== undefined) {
+    for (const childName of reg.internalChildren) {
+      instance[`_${childName.replace(/-/g, '_')}`] = wrapReturn(native.getTemplateChild(handle, childName));
+    }
+  }
+}
+
 // Wrap a live GObject handle as a GJS-shaped instance. When `userProto` is given
 // (a registerClass subclass's prototype) the wrapper resolves the user class's
 // own prototype members FIRST — so `inst.myMethod()` runs the JS method with the
@@ -540,6 +580,24 @@ function defineLazyGType(ctor, namespace, typeName) {
 
 function makeClass(namespace, typeName) {
   const ctor = function ctor(props) {
+    // G3 construction routing. `new.target` is the leaf class the `new` was applied
+    // to and is preserved through every super() hop, so when a registerClass'd
+    // subclass is being constructed (directly or up a super() chain) we build the
+    // REGISTERED GType and return its canonical toggle-ref wrapper (carrying the
+    // leaf's prototype as USER_PROTO) — which then substitutes `this` in every
+    // derived ctor body. An unregistered new.target (the introspected class itself,
+    // or `new.target === undefined` from a call without `new`) falls through to the
+    // unchanged introspected construction.
+    const nt = new.target;
+    if (nt !== undefined) {
+      const reg = registeredClasses.get(nt);
+      if (reg !== undefined) {
+        const handle = native.constructType(reg.typeHandle, props ? unwrapProps(props) : {});
+        const instance = wrapInstance(handle, nt.prototype);
+        assignTemplateChildren(instance, handle, reg);
+        return instance;
+      }
+    }
     const handle = native.newObject(namespace, typeName, props ? unwrapProps(props) : {});
     return wrapInstance(handle);
   };
@@ -559,14 +617,22 @@ function makeClass(namespace, typeName) {
   // Expose constructor/static methods lazily: Ns.Class.new(...) /
   // Ns.Class.new_for_path(...) (and the camelCase aliases). `new Ns.Class({...})`
   // still goes through the target's [[Construct]] (the default Proxy behaviour).
-  return new Proxy(ctor, {
-    get(t, prop) {
+  const proxy = new Proxy(ctor, {
+    get(t, prop, receiver) {
+      // #667: a raw (UNregistered) subclass that `extends` this introspected class
+      // must NOT inherit-read the parent's GType. A registered subclass has its OWN
+      // `$gtype` (set in place by registerClass, so it shadows + never reaches this
+      // trap); a raw subclass is not a GType, so an inherited read (receiver is the
+      // subclass, not this proxy) resolves to undefined. A direct read on the
+      // introspected class itself (receiver === proxy) resolves the real lazy GType.
+      if (prop === '$gtype' && receiver !== proxy) return undefined;
       if (typeof prop !== 'string' || prop in t || RESERVED.has(prop)) return t[prop];
       const giName = camelToSnake(prop);
       return (...args) =>
         wrapReturn(native.callStaticMethod(namespace, typeName, giName, unwrapArgs(args)));
     },
   });
+  return proxy;
 }
 
 // Surface a boxed/struct type (e.g. GLib.MainLoop) as a class-like object whose
@@ -578,8 +644,11 @@ function makeStruct(namespace, typeName) {
   Object.defineProperty(base, 'name', { value: typeName, configurable: true });
   base.$gtypeName = `${namespace}.${typeName}`;
   defineLazyGType(base, namespace, typeName);
-  return new Proxy(base, {
-    get(t, prop) {
+  const proxy = new Proxy(base, {
+    get(t, prop, receiver) {
+      // #667: guard inherited `$gtype` reads (see makeClass) — a raw subclass of a
+      // boxed/struct type does not inherit the parent's GType.
+      if (prop === '$gtype' && receiver !== proxy) return undefined;
       if (typeof prop !== 'string' || prop in t || RESERVED.has(prop)) return t[prop];
       const giName = camelToSnake(prop);
       return (...args) =>
@@ -589,6 +658,7 @@ function makeStruct(namespace, typeName) {
       return wrapReturn(native.callStaticMethod(namespace, typeName, 'new', unwrapArgs(args)));
     },
   });
+  return proxy;
 }
 
 // Build a frozen enum/flags object keyed GJS-style: member names UPPER_CASED
@@ -749,30 +819,36 @@ function resolvePromisified(handle, methodName) {
 //
 // The Node twin of GJS's `GObject.registerClass(meta, class)`. It accepts both
 // `registerClass(class)` and `registerClass({ GTypeName?, Properties?, Signals?,
-// ... }, class)`, registers a GObject subtype via the native engine, and returns
-// a constructor whose `new`-ed instances are usable as GObjects (property get/
-// set, `.connect/.emit/.disconnect`) AND expose the user class's own prototype
-// methods (resolved before the GObject routing — see wrapInstance).
+// ... }, class)`, registers a GObject subtype via the native engine, registers the
+// GIVEN class IN PLACE, and returns that SAME class (GJS-faithful — see the G3
+// registry above). So both `const X = registerClass(…,C)` and the GJS
+// `static { registerClass(…,C) }` idiom (return discarded) leave the same symbol
+// bound to the registered GType. `new`-ed instances are usable as GObjects
+// (property get/set, `.connect/.emit/.disconnect`) AND expose the user class's own
+// prototype methods (resolved before the GObject routing — see wrapInstance).
 //
-// Caveats (documented, same spirit as the signals/vfunc class-level model):
-//  - The user class's JS constructor body is NOT run; GObject-idiomatic init
-//    belongs in `vfunc_constructed` (which fires during construction). `super()`
-//    chaining maps conceptually to the engine's constructType, not a JS call.
+// G3 contract (the user JS constructor body now RUNS):
+//  - The construction routing lives in the introspected base ctor (makeClass),
+//    keyed on `new.target`. `new X(args)` runs X's ctor body against the canonical
+//    toggle-ref wrapper, with working `super(args)` semantics (the base ctor
+//    returns the wrapper → it substitutes `this` up the whole chain). This REVERSES
+//    the previous "ctor body is not run" caveat. `vfunc_constructed` still fires
+//    once during construction; a class that inits in BOTH a ctor body and
+//    `vfunc_constructed` will run both (normal GJS behaviour) — do not duplicate.
+//  - Toggle-ref identity (#656): the `this` in the ctor body, the post-construct
+//    wrapper, a vfunc's `this` and a signal-handler's `this` are all the SAME
+//    canonical wrapper (===), and a plain JS field set on it survives a round-trip
+//    + GC while C owns the object. (A GObject PROPERTY is still the right choice for
+//    state that must also be visible to C / other bindings.)
 //  - Instances are Proxies over a native handle, not real `instanceof` instances.
-//  - Plain (non-GObject-property) JS instance fields do NOT cross the
-//    vfunc<->instance boundary in this milestone: inside a vfunc, `this` is a
-//    DISTINCT wrapper over the same GObject (the native engine mints a fresh
-//    handle per call, so there is no shared per-instance JS object yet). Use
-//    GObject PROPERTIES for any state that must be visible both inside a vfunc
-//    and on the instance — those live in C and ARE consistent. The unified
-//    instance identity (a per-GObject wrapper cache) arrives with the toggle-ref
-//    work, tracked separately.
-//  - No toggle-ref: a JS↔GObject reference cycle on a custom instance leaks (the
-//    same cycle-leak caveat the signal/vfunc layer carries).
+//  - Ordering caveat: a `vfunc_constructed` that fires DURING constructType sees a
+//    wrapper whose USER_PROTO is attached by the vfunc trampoline (collectVfuncs),
+//    so its own user-proto methods resolve; the post-construct `wrapInstance(handle,
+//    nt.prototype)` then upgrades the same cached wrapper in place (identity kept).
 //  - Multi-level registered subclassing (registering a subclass of a
-//    registerClass'd type) is not yet supported — the native engine resolves the
-//    parent by namespace+type, which a registered (non-introspected) parent has
-//    no entry for.
+//    registerClass'd type) is not yet supported (G2) — the native engine resolves
+//    the parent by namespace+type, which a registered (non-introspected) parent has
+//    no entry for; findParentGType throws a clear error.
 
 // GObject.ParamFlags — the GParamFlags bits the native property builder consumes.
 const ParamFlags = Object.freeze({
@@ -959,13 +1035,16 @@ function collectVfuncs(klass) {
 /**
  * GObject.registerClass — register a GObject subclass declared as a JS class.
  * Supports `registerClass(class)` and `registerClass(meta, class)` where meta is
- * `{ GTypeName?, Properties?, Signals?, ... }` (GJS allows both). Returns a
- * constructor; `new Subclass(props)` constructs the GObject and wraps it so the
- * user class's own prototype methods + the GObject property/signal surface are
- * both usable. See the block comment above for the (documented) caveats.
+ * `{ GTypeName?, Properties?, Signals?, ... }` (GJS allows both). Registers the
+ * GType for the GIVEN class IN PLACE and returns that SAME class (GJS-faithful), so
+ * `static { registerClass(…, X) }` (return discarded) leaves `X` itself bound to
+ * the registered GType. `new X(props)` constructs the registered GType (routed via
+ * the introspected base ctor on `new.target`), runs the user ctor body against the
+ * canonical wrapper, and exposes the user class's own prototype methods + the
+ * GObject property/signal surface. See the block comment above for the G3 contract.
  * @param {Function|Record<string, unknown>} metaOrClass
  * @param {Function} [maybeClass]
- * @returns {Function}
+ * @returns {Function} the same `klass` (now registered)
  */
 function registerClass(metaOrClass, maybeClass) {
   let meta;
@@ -1034,31 +1113,35 @@ function registerClass(metaOrClass, maybeClass) {
     options,
   );
 
-  const Subclass = function (props) {
-    const handle = native.constructType(typeHandle, props ? unwrapProps(props) : {});
-    const instance = wrapInstance(handle, klass.prototype);
-    // Surface the bound template children on the instance (GJS convention: public
-    // `this.<name>`, internal `this._<name>`, '-' → '_'). The engine already ran
-    // init_template during construction, so get_template_child resolves each.
-    for (const childName of children) {
-      instance[childName.replace(/-/g, '_')] = wrapReturn(native.getTemplateChild(handle, childName));
-    }
-    for (const childName of internalChildren) {
-      instance[`_${childName.replace(/-/g, '_')}`] = wrapReturn(
-        native.getTemplateChild(handle, childName),
-      );
-    }
-    return instance;
-  };
-  Object.defineProperty(Subclass, 'name', { value: gtypeName, configurable: true });
-  Subclass.prototype = klass.prototype;
-  Subclass.$gtypeName = gtypeName;
-  // The native registerClass returns the registered GType as a node-gi GType
-  // handle (G4) — surface it as `$gtype` (GObject.type_ensure(MyClass.$gtype),
-  // ParamSpec.object(..., MyClass) all read it). It is the SAME handle constructType
-  // already consumes, so registration and `$gtype` share one carrier.
-  Subclass.$gtype = typeHandle;
-  return Subclass;
+  // G3: register the GType for the GIVEN class IN PLACE (no throwaway Subclass) and
+  // return that same class. `$gtypeName`/`$gtype` are defined as OWN properties:
+  // `klass` inherits a getter-only `$gtype` accessor from the introspected base ctor
+  // (via the makeClass Proxy), so a plain `klass.$gtype = …` assignment would throw
+  // in strict mode — defineProperty installs an own data property that shadows it.
+  Object.defineProperty(klass, '$gtypeName', {
+    value: gtypeName,
+    configurable: true,
+    writable: true,
+  });
+  // native.registerClass returns the registered GType as a tag-distinct node-gi
+  // GType handle (G4) — surface it as `$gtype` (GObject.type_ensure(X.$gtype),
+  // ParamSpec.object(..., X) all read it). It is the SAME handle constructType
+  // consumes, so registration and `$gtype` share one carrier.
+  Object.defineProperty(klass, '$gtype', {
+    value: typeHandle,
+    configurable: true,
+    enumerable: false,
+    writable: false,
+  });
+  // Record the registration so the introspected base ctor (makeClass) routes
+  // `new X(args)` (where new.target === klass) to constructType(typeHandle, …) +
+  // the canonical wrapper. Template children move here from the old Subclass.
+  registeredClasses.set(klass, {
+    typeHandle,
+    children: children.length > 0 ? children : undefined,
+    internalChildren: internalChildren.length > 0 ? internalChildren : undefined,
+  });
+  return klass;
 }
 
 // Merge convenience flag names UNDER an introspected enum: the introspected
