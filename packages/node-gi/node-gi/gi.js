@@ -395,9 +395,10 @@ const instanceCache = new WeakMap();
 // instantiates `new.target`'s `$gtype` rather than the literal base. Keyed by the
 // JS class → { typeHandle, children?, internalChildren? } (children move here from
 // the old throwaway Subclass so init_template'd children are surfaced on the
-// instance). SCOPE: single-level only (a class extending an INTROSPECTED base);
-// multi-level registered-of-registered is rejected at registration (findParentGType
-// guard) until G2.
+// instance). Multi-level registered-of-registered chains (G2) are supported: the
+// registry is also consulted by findParentGType to resolve a REGISTERED parent's
+// GType handle (subclassing via native.registerClassFromGType), and the new.target
+// routing keys on the leaf so construction is correct at any depth.
 const registeredClasses = new Map();
 
 // Surface a templated type's bound children on a freshly-constructed instance
@@ -580,16 +581,17 @@ function defineLazyGType(ctor, namespace, typeName) {
 
 function makeClass(namespace, typeName) {
   const ctor = function ctor(props) {
-    // G3 construction routing. `new.target` is the leaf class the `new` was applied
-    // to and is preserved through every super() hop, so when a registerClass'd
-    // subclass is being constructed (directly or up a super() chain) we build the
-    // REGISTERED GType and return its canonical toggle-ref wrapper (carrying the
-    // leaf's prototype as USER_PROTO) — which then substitutes `this` in every
-    // derived ctor body. An unregistered new.target (the introspected class itself,
-    // or `new.target === undefined` from a call without `new`) falls through to the
+    // G3/G2 construction routing. `new.target` is the leaf class the `new` was
+    // applied to and is preserved through every super() hop, so when a registerClass'd
+    // subclass is being constructed (directly or up a super() chain — at ANY depth,
+    // since the leaf's registered GType already IS the full multi-level type) we build
+    // the REGISTERED GType and return its canonical toggle-ref wrapper (carrying the
+    // leaf's prototype as USER_PROTO) — which then substitutes `this` in every derived
+    // ctor body. `new.target === undefined` (a call without `new`) or `=== proxy` (a
+    // direct `new Ns.Class(...)` on the introspected class itself) falls through to the
     // unchanged introspected construction.
     const nt = new.target;
-    if (nt !== undefined) {
+    if (nt !== undefined && nt !== proxy) {
       const reg = registeredClasses.get(nt);
       if (reg !== undefined) {
         const handle = native.constructType(reg.typeHandle, props ? unwrapProps(props) : {});
@@ -597,6 +599,15 @@ function makeClass(namespace, typeName) {
         assignTemplateChildren(instance, handle, reg);
         return instance;
       }
+      // `nt` is a subclass of this introspected GObject class but was NEVER passed to
+      // GObject.registerClass(): silently building the introspected BASE type would
+      // produce the wrong GType (missing the subclass's props/signals/vfuncs). Throw
+      // the GJS-shaped error instead of constructing a misleading instance — the L1
+      // analogue of GJS's "are you using GObject.registerClass()?" construct guard
+      // (refs/gjs/gi/object.cpp).
+      throw new Error(
+        `Object ${nt.name || '(anonymous)'} is not registered with GObject.registerClass()`,
+      );
     }
     const handle = native.newObject(namespace, typeName, props ? unwrapProps(props) : {});
     return wrapInstance(handle);
@@ -845,10 +856,14 @@ function resolvePromisified(handle, methodName) {
 //    wrapper whose USER_PROTO is attached by the vfunc trampoline (collectVfuncs),
 //    so its own user-proto methods resolve; the post-construct `wrapInstance(handle,
 //    nt.prototype)` then upgrades the same cached wrapper in place (identity kept).
-//  - Multi-level registered subclassing (registering a subclass of a
-//    registerClass'd type) is not yet supported (G2) — the native engine resolves
-//    the parent by namespace+type, which a registered (non-introspected) parent has
-//    no entry for; findParentGType throws a clear error.
+//  - Multi-level registered subclassing (registering a subclass of a registerClass'd
+//    type, at any depth) IS supported (G2): findParentGType resolves a registered
+//    parent to its runtime GType handle and registerClass subclasses from it via
+//    native.registerClassFromGType. Inherited custom properties, signals and vfuncs
+//    of registered ANCESTORS compose for free through normal GObject inheritance
+//    (g_object_class_find_property / g_signal_lookup / the owner-type-keyed property
+//    store all walk the ancestry). A registered parent must be registered BEFORE the
+//    child's static{} runs — ES module evaluation order guarantees this.
 
 // GObject.ParamFlags — the GParamFlags bits the native property builder consumes.
 const ParamFlags = Object.freeze({
@@ -938,25 +953,34 @@ const ParamSpec = Object.freeze({
   boxed: paramSpecGTyped('boxed'),
 });
 
-// Walk up the JS class's prototype chain to the nearest node-gi base wrapper
-// (carrying `$gtypeName` as "Ns.Type") and split it into the parent namespace +
-// type the native engine subclasses. A dotless `$gtypeName` belongs to a
-// registerClass'd type (no namespace) — multi-level registered subclassing is
-// not yet supported (the native engine resolves the parent by namespace+type, so
-// a registered parent can't be looked up); throw a CLEAR error rather than the
-// generic "must extend a node-gi GObject class".
+// Walk up the JS class's prototype chain to the nearest node-gi base and describe
+// the parent the native engine subclasses from. Two shapes (nearest ancestor wins):
+//   - a REGISTERED ancestor (registerClass'd, present in registeredClasses) →
+//     `{ parentGTypeHandle }` (its runtime GType handle, from #667). The registered
+//     type has no introspection entry, so it must be subclassed from its GType
+//     directly (native.registerClassFromGType) — this is what unlocks multi-level
+//     registered-of-registered subclassing (G2).
+//   - an INTROSPECTED ancestor (a makeClass wrapper carrying a dotted `$gtypeName`
+//     like "Adw.Bin") → `{ parentNamespace, parentType }` (resolved by name).
+// A registered class carries BOTH a dotless `$gtypeName` AND a registeredClasses
+// entry, so the registry check MUST come first.
 function findParentGType(klass) {
   for (let c = Object.getPrototypeOf(klass); typeof c === 'function'; c = Object.getPrototypeOf(c)) {
+    const reg = registeredClasses.get(c);
+    if (reg !== undefined) {
+      return { parentGTypeHandle: reg.typeHandle };
+    }
     const gt = c.$gtypeName;
     if (typeof gt === 'string') {
       const dot = gt.indexOf('.');
       if (dot > 0) {
         return { parentNamespace: gt.slice(0, dot), parentType: gt.slice(dot + 1) };
       }
+      // A dotless `$gtypeName` with no registeredClasses entry should never occur
+      // (only registered types are dotless, and they are in the registry); be
+      // explicit rather than mis-resolving the namespace split.
       throw new TypeError(
-        "GObject.registerClass: multi-level registerClass subclassing is not yet supported (parent '" +
-          gt +
-          "' is a registered type, not an introspected one)",
+        "GObject.registerClass: parent '" + gt + "' has no resolvable GType",
       );
     }
   }
@@ -1106,12 +1130,14 @@ function registerClass(metaOrClass, maybeClass) {
   if (children.length > 0) options.children = children;
   if (internalChildren.length > 0) options.internalChildren = internalChildren;
 
-  const typeHandle = native.registerClass(
-    gtypeName,
-    parent.parentNamespace,
-    parent.parentType,
-    options,
-  );
+  // Branch on the parent shape (findParentGType): a REGISTERED parent is subclassed
+  // from its runtime GType handle (it has no introspection entry); an INTROSPECTED
+  // parent is resolved by namespace+type. Construction (the leaf's registered GType
+  // via the makeClass new.target routing) is already multi-level-correct either way.
+  const typeHandle =
+    parent.parentGTypeHandle !== undefined
+      ? native.registerClassFromGType(gtypeName, parent.parentGTypeHandle, options)
+      : native.registerClass(gtypeName, parent.parentNamespace, parent.parentType, options);
 
   // G3: register the GType for the GIVEN class IN PLACE (no throwaway Subclass) and
   // return that same class. `$gtypeName`/`$gtype` are defined as OWN properties:

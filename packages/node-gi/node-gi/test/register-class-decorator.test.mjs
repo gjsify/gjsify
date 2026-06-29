@@ -15,6 +15,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { requireGi, unwrap } from '../gi.js';
+import native from '../index.js';
 
 const GObject = requireGi('GObject', '2.0');
 
@@ -311,12 +312,16 @@ test('a GObject property set inside a vfunc is visible on the instance', () => {
   assert.equal(s.state, 'ready');
 });
 
-test('error: multi-level registered subclassing is rejected clearly', () => {
+test('multi-level registered subclassing is supported (G2)', () => {
   const Base = GObject.registerClass(
     class NodeGiDecoratorMultiBase extends GObject.Object {},
   );
-  assert.throws(
-    () => GObject.registerClass(class NodeGiDecoratorMultiChild extends Base {}),
-    /multi-level registerClass subclassing is not yet supported/,
-  );
+  // Registering a subclass of a REGISTERED class now succeeds (decorator form): it
+  // subclasses from the base's runtime GType handle.
+  const Child = GObject.registerClass(class NodeGiDecoratorMultiChild extends Base {});
+  assert.notEqual(Child.$gtype, undefined);
+  assert.equal(GObject.type_name(Child.$gtype), 'NodeGiDecoratorMultiChild');
+  // `new Child()` constructs the leaf GType.
+  const obj = new Child();
+  assert.equal(native.getTypeName(unwrap(obj)), 'NodeGiDecoratorMultiChild');
 });

@@ -3377,10 +3377,10 @@ static void NodeGiClassInit(gpointer g_class, gpointer class_data) {
 // also forecloses the IN-indexing mismatch (the JS caller passes IN values
 // positionally, while declared indices interleave OUT params). The dominant
 // chain-up cases (constructed/dispose/activate; IN object/primitive args) are
-// covered. Multi-level JS-override chains are gated out at the L1 registerClass
-// layer (multi-level registered subclassing is unsupported), so they do not reach
-// here; were they enabled, parentPtr would correctly resolve to the next JS
-// trampoline up the chain.
+// covered. FindVFuncRecord walks from the instance type up to the nearest matching
+// override, so on a multi-level registered chain (G2) parentPtr resolves to the
+// next implementation up — the parent's JS trampoline when an ancestor also
+// overrode the vfunc, or the C default otherwise.
 Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 2 || !info[1].IsString()) {
@@ -3485,38 +3485,27 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
   return result;
 }
 
-// registerClass(name, parentNamespace, parentTypeName, options?) -> typeHandle
-Napi::Value RegisterClass(const Napi::CallbackInfo& info) {
-  Napi::Env env = info.Env();
-  if (info.Length() < 3 || !info[0].IsString() || !info[1].IsString() || !info[2].IsString()) {
-    Napi::TypeError::New(
-        env,
-        "registerClass(name: string, parentNamespace: string, parentTypeName: string, options?: "
-        "{ properties?, signals?, vfuncs? })")
-        .ThrowAsJavaScriptException();
-    return env.Null();
-  }
-  std::string name = info[0].As<Napi::String>().Utf8Value();
-  std::string pns = info[1].As<Napi::String>().Utf8Value();
-  std::string ptn = info[2].As<Napi::String>().Utf8Value();
-
+// Shared registration core: subclass `name` from an ALREADY-RESOLVED parent GObject
+// GType, reading the optional { properties, signals, vfuncs, template, children, ... }
+// from `optsValue` (a non-object → no options). Returns the tagged GType handle for
+// the new type, or throws + returns env.Null(). Both entry points use it:
+//   - RegisterClass        — parent resolved from introspection (namespace+typename),
+//   - RegisterClassFromGType — parent given directly as a #667 GType handle (the
+//     multi-level registered-of-registered path; the parent has no GIR entry).
+// Everything past parent resolution is identical: g_type_register_static makes the
+// child class struct a memcpy of the parent's, so a registered ancestor's installed
+// properties/signals/vfunc slots compose for free via normal GObject inheritance.
+static Napi::Value RegisterClassImpl(Napi::Env env, const std::string& name, GType parentType,
+                                     Napi::Value optsValue) {
   if (g_type_from_name(name.c_str()) != 0) {
     Napi::Error::New(env, "a GType named '" + name + "' is already registered")
         .ThrowAsJavaScriptException();
     return env.Null();
   }
-
-  // Resolve the parent GType from its introspection info.
-  GIRepository* repo = DupDefaultRepository();
-  GIBaseInfo* base = gi_repository_find_by_name(repo, pns.c_str(), ptn.c_str());
-  bool isObject = base != nullptr && GI_IS_OBJECT_INFO(base);
-  GType parentType =
-      isObject ? gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(base))
-               : G_TYPE_INVALID;
-  if (base != nullptr) gi_base_info_unref(base);
-  g_object_unref(repo);
-  if (!isObject || !G_TYPE_IS_OBJECT(parentType)) {
-    Napi::TypeError::New(env, pns + "." + ptn + " is not a subclassable GObject type")
+  if (!G_TYPE_IS_OBJECT(parentType)) {
+    const char* pn = g_type_name(parentType);
+    Napi::TypeError::New(env, std::string(pn != nullptr ? pn : "the parent type") +
+                                  " is not a subclassable GObject type")
         .ThrowAsJavaScriptException();
     return env.Null();
   }
@@ -3524,7 +3513,8 @@ Napi::Value RegisterClass(const Napi::CallbackInfo& info) {
   GTypeQuery query;
   g_type_query(parentType, &query);
   if (query.type == 0) {
-    Napi::Error::New(env, "failed to query parent type " + pns + "." + ptn)
+    const char* pn = g_type_name(parentType);
+    Napi::Error::New(env, std::string("failed to query parent type ") + (pn != nullptr ? pn : "?"))
         .ThrowAsJavaScriptException();
     return env.Null();
   }
@@ -3533,8 +3523,8 @@ Napi::Value RegisterClass(const Napi::CallbackInfo& info) {
   NodeGiClassData* cd = new NodeGiClassData();
   cd->parentGet = nullptr;
   cd->parentSet = nullptr;
-  if (info.Length() >= 4 && info[3].IsObject()) {
-    Napi::Object opts = info[3].As<Napi::Object>();
+  if (optsValue.IsObject()) {
+    Napi::Object opts = optsValue.As<Napi::Object>();
     if (opts.Has("properties") && opts.Get("properties").IsArray()) {
       Napi::Array props = opts.Get("properties").As<Napi::Array>();
       for (uint32_t i = 0; i < props.Length(); i++) {
@@ -3671,6 +3661,66 @@ Napi::Value RegisterClass(const Napi::CallbackInfo& info) {
   // `$gtype` (G4): the same External feeds constructType (UnwrapGType) AND the
   // GType marshalling (GObject.type_ensure, g_param_spec_object's value gtype, …).
   return MakeGTypeHandle(env, newType);
+}
+
+// registerClass(name, parentNamespace, parentTypeName, options?) -> typeHandle
+//
+// Subclass an INTROSPECTED parent, resolved by namespace + typename. Used when the
+// parent class extends a `gi://`-introspected GObject (e.g. `class X extends Adw.Bin`).
+Napi::Value RegisterClass(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 3 || !info[0].IsString() || !info[1].IsString() || !info[2].IsString()) {
+    Napi::TypeError::New(
+        env,
+        "registerClass(name: string, parentNamespace: string, parentTypeName: string, options?: "
+        "{ properties?, signals?, vfuncs? })")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string name = info[0].As<Napi::String>().Utf8Value();
+  std::string pns = info[1].As<Napi::String>().Utf8Value();
+  std::string ptn = info[2].As<Napi::String>().Utf8Value();
+
+  // Resolve the parent GType from its introspection info.
+  GIRepository* repo = DupDefaultRepository();
+  GIBaseInfo* base = gi_repository_find_by_name(repo, pns.c_str(), ptn.c_str());
+  bool isObject = base != nullptr && GI_IS_OBJECT_INFO(base);
+  GType parentType =
+      isObject ? gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(base))
+               : G_TYPE_INVALID;
+  if (base != nullptr) gi_base_info_unref(base);
+  g_object_unref(repo);
+  if (!isObject || !G_TYPE_IS_OBJECT(parentType)) {
+    Napi::TypeError::New(env, pns + "." + ptn + " is not a subclassable GObject type")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  return RegisterClassImpl(env, name, parentType, info.Length() >= 4 ? info[3] : env.Undefined());
+}
+
+// registerClassFromGType(name, parentGType, options?) -> typeHandle
+//
+// Multi-level registered subclassing (G2): subclass directly from a parent GType
+// HANDLE (the #667 kGTypeHandleTag External a previous registerClass returned),
+// instead of resolving the parent through introspection. The parent is itself a
+// registered (dynamic) type with no GIR entry, so the namespace+typename path
+// (RegisterClass) cannot find it; the L1 layer (findParentGType) passes the parent's
+// `$gtype` handle here. The shared core (RegisterClassImpl) then subclasses from the
+// resolved GType identically, so a registered ancestor's properties/signals/vfunc
+// slots compose for free via GObject inheritance.
+Napi::Value RegisterClassFromGType(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[0].IsString()) {
+    Napi::TypeError::New(
+        env, "registerClassFromGType(name: string, parentGType: handle, options?: object)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string name = info[0].As<Napi::String>().Utf8Value();
+  GType parentType = UnwrapGType(env, info[1]);  // throws (returns 0) on a non-GType arg
+  if (parentType == 0) return env.Null();
+  return RegisterClassImpl(env, name, parentType, info.Length() >= 3 ? info[2] : env.Undefined());
 }
 
 // constructType(typeHandle, props?: Record<string, unknown>) -> External<GObject>
@@ -5256,6 +5306,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("callStaticMethod", Napi::Function::New(env, CallStaticMethod));
   exports.Set("newObject", Napi::Function::New(env, NewObject));
   exports.Set("registerClass", Napi::Function::New(env, RegisterClass));
+  exports.Set("registerClassFromGType", Napi::Function::New(env, RegisterClassFromGType));
   exports.Set("constructType", Napi::Function::New(env, ConstructType));
   exports.Set("callParentVfunc", Napi::Function::New(env, CallParentVfunc));
   exports.Set("getTemplateChild", Napi::Function::New(env, GetTemplateChild));
