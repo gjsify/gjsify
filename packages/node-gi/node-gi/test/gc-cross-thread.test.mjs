@@ -21,8 +21,11 @@
 //     NOT deref the owner-isolate napi_ref from WrapGObject's cache-hit fast path.
 //   * REENTRANT DRAIN (DEFECT 2) — a registerClass vfunc_dispose that re-enters the
 //     engine (wraps GObjects) DURING the idle teardown drain, with other teardowns
-//     pending in the SAME drain: validates the recursive-lock-across-drain design
-//     (a non-recursive lock would self-deadlock; a swap-snapshot would double-free).
+//     pending in the SAME drain: a swap-snapshot would double-free a resurrected
+//     sibling; popping the live queue one-at-a-time keeps it cancellable.
+//   * DRAIN LOCK LIVENESS — the queue lock is NOT held across a teardown's dispose
+//     vfunc: an off-thread churn keeps progressing while a dispose blocks the main
+//     thread (a held-across-dispose lock would freeze it → priority inversion / ABBA).
 //
 // The off-thread vehicle is a TEST-ONLY native helper (__stressRefUnrefOffThread)
 // — there is no headless pure-JS way to make another OS thread ref/unref a wrapped
@@ -362,7 +365,7 @@ test('reentrant-drain: vfunc_dispose re-entering the engine mid-drain is safe (D
   class Disposer extends GObject.Object {
     vfunc_dispose() {
       disposed++;
-      // (a) plain reentrant create + round-trip identity, under the held drain lock.
+      // (a) plain reentrant create + round-trip identity from inside a teardown dispose.
       const g = new Gio.SimpleActionGroup();
       const a = new Gio.SimpleAction({ name: 'r', enabled: true });
       g.add_action(a);
@@ -394,4 +397,57 @@ test('reentrant-drain: vfunc_dispose re-entering the engine mid-drain is safe (D
   assert.strictEqual(g.lookup_action('after'), a, 'identity + toggle accounting intact after reentrant drains');
   const mb = process.memoryUsage().rss / (1024 * 1024);
   assert.ok(mb < 1024, `RSS bounded after reentrant-drain stress, was ${mb.toFixed(0)} MiB`);
+});
+
+// ---- 10: LIVENESS — the drain lock is NOT held across a dispose vfunc ----
+// A teardown's dispose must not stall off-thread toggles. We start an off-thread
+// ref/unref churn (each iteration acquires g_queue_mutex from another thread), then
+// trigger a registerClass teardown whose vfunc_dispose BLOCKS the main thread inside
+// the dispose and watches the off-thread progress counter. If the drain held the lock
+// across dispose (the round-2 over-broad scope), the off-thread NodeGiToggleNotify
+// would block on the lock and progress would freeze for the whole dispose. With the
+// lock released before RunTeardown, the off-thread churn keeps advancing → proves the
+// no-lock-across-dispose invariant (kills the priority-inversion + ABBA-deadlock risk).
+test('liveness: off-thread toggles progress while a dispose vfunc runs', gcOpts, async () => {
+  const GObject = requireGi('GObject', '2.0');
+  // Long off-thread churn on a HELD object (kept reachable → never collected/freed).
+  const churned = newObject('Gio', 'SimpleAction', { name: 'churn', enabled: true });
+  native.__stressRefUnrefOffThread(churned, 50_000_000);
+  // Wait until the churn thread is actually advancing before we test.
+  {
+    const p0 = native.__stressRefUnrefProgress();
+    let tries = 0;
+    while (native.__stressRefUnrefProgress() <= p0 && tries++ < 2000) {
+      await new Promise((r) => setImmediate(r));
+    }
+    assert.ok(native.__stressRefUnrefProgress() > p0, 'off-thread churn started');
+  }
+
+  let advancedDuringDispose = false;
+  class Blocker extends GObject.Object {
+    vfunc_dispose() {
+      const p0 = native.__stressRefUnrefProgress();
+      const start = Date.now();
+      // Stay INSIDE the dispose (block the main thread) up to 1s, exiting as soon as
+      // the off-thread churn advances. Lock-released → advances within ms; lock-held
+      // (regression) → never advances → spins the full second → stays false.
+      while (Date.now() - start < 1000) {
+        if (native.__stressRefUnrefProgress() > p0 + 5) {
+          advancedDuringDispose = true;
+          break;
+        }
+      }
+    }
+  }
+  const Klass = GObject.registerClass({ GTypeName: 'NodeGiDisposeLiveness' }, Blocker);
+  (() => {
+    new Klass();
+  })();
+  await settle(3); // GC → teardown drain → Blocker.vfunc_dispose runs the liveness probe
+  native.__stressRefUnrefStop(); // halt the long churn now that we're done
+  assert.equal(
+    advancedDuringDispose,
+    true,
+    'off-thread churn progressed during the dispose → the drain lock is not held across dispose',
+  );
 });

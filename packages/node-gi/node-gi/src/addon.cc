@@ -514,11 +514,14 @@ struct ToggleItem {
   NodeGiInstance* inst;
   bool down;  // true = toggle-down (→ weak), false = toggle-up (→ strong)
 };
-// RECURSIVE: the drain (DrainAsyncCb) holds the lock across the WHOLE drain and
-// RunTeardown re-enters JS (dispose → signal/vfunc) which reentrantly re-acquires
-// the lock on the SAME thread (RunTeardown's own lock + a reentrant WrapGObject →
-// SettleCollectedInstance / NodeGiToggleNotify). A plain mutex would self-deadlock;
-// GJS's ToggleQueue lock is recursive for exactly this reason.
+// RECURSIVE (defensive, mirrors GJS's recursive ToggleQueue lock). The lock is held
+// only across SHORT critical sections — never across RunTeardown's dispose → JS (the
+// drain pops one item under the lock, RELEASES it, then processes; see DrainAsyncCb).
+// So a reentrant SettleCollectedInstance / NodeGiToggleNotify fired from a dispose
+// re-acquires the lock as a FRESH (non-nested) acquire today. Keeping it recursive
+// guarantees that even if a future change widens a critical section a same-thread
+// re-acquire can never self-deadlock; it does not weaken the no-lock-across-dispose
+// invariant the liveness test enforces.
 static std::recursive_mutex g_queue_mutex;
 static std::deque<ToggleItem> g_toggle_queue;
 static std::deque<NodeGiInstance*> g_teardown_queue;
@@ -633,20 +636,24 @@ static void RunTeardown(NodeGiInstance* inst) {
   delete inst;
 }
 
-// Drain both queues on the JS/main thread. Mirrors GJS idle_handle_toggle →
-// handle_all_toggles under Locked: hold the (recursive) lock across the WHOLE drain
-// and pop the LIVE queues ONE item at a time — do NOT swap into a stack snapshot.
+// Drain both queues on the JS/main thread. Pop ONE item from the LIVE queue UNDER
+// the lock, RELEASE the lock, then process it WITHOUT the lock; loop until empty.
 //
-// Why: RunTeardown's g_object_remove_toggle_ref can drive dispose → a live JS
-// signal/vfunc → reentrant JS that wraps a GObject → SettleCollectedInstance(old),
-// whose cancel loop scans g_teardown_queue to drop `old`'s pending teardown. With a
-// swap-then-process snapshot, an in-flight `old` is NOT in the live queue, so the
-// scan can't cancel it; SettleCollectedInstance then deletes it and the outer loop
-// later derefs freed memory + double-removes the resurrected wrapper's toggle ref.
-// Popping the LIVE queue (and removing the current item BEFORE running it) keeps the
-// remaining pending items visible + cancellable by a reentrant SettleCollectedInstance.
-// The recursive lock lets RunTeardown's own lock + the reentrant wrap re-lock on this
-// thread; off-thread actors block until the drain completes.
+// The lock must NOT be held across RunTeardown: it calls g_object_remove_toggle_ref
+// → dispose → arbitrary JS (signal/vfunc). Holding a lock across reentrant user code
+// (a) STALLS an off-thread NodeGiToggleNotify (which blocks acquiring g_queue_mutex)
+// for the whole dispose — a priority inversion, not a "brief" block; and (b) risks an
+// ABBA deadlock if a dispose vfunc synchronously waits on a worker thread that is
+// itself blocked on g_queue_mutex. GJS likewise holds its ToggleQueue lock only
+// across the rooting flip (== ApplyToggle), NEVER across remove_toggle_ref + dispose.
+//
+// The DEFECT-2 fix is preserved: the current item is removed from the LIVE queue
+// UNDER the lock BEFORE release, so it is never double-processed; and a reentrant
+// SettleCollectedInstance (same drain thread, fired from a dispose) re-acquires the
+// lock and still sees + cancels the OTHER pending teardowns left in the live queue
+// (a swap-then-process snapshot would hide them → double-free). Toggles drain first
+// (FIFO); a toggle enqueued during a teardown's dispose is picked up on the next
+// iteration. Terminates when both queues are empty.
 static void DrainAsyncCb(uv_async_t*) {
   if (g_async_env == nullptr || g_toggle_shutdown.load()) return;
   Napi::Env env(g_async_env);
@@ -657,20 +664,28 @@ static void DrainAsyncCb(uv_async_t*) {
   Napi::HandleScope handleScope(env);
   Napi::CallbackScope callbackScope(env, g_async_context);
 
-  std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
-  // Toggles take priority (drain to empty before each teardown); a toggle enqueued
-  // during a teardown's dispose is processed next. Terminates when both are empty.
-  while (!g_toggle_queue.empty() || !g_teardown_queue.empty()) {
+  while (true) {
     if (g_toggle_shutdown.load()) return;
-    if (!g_toggle_queue.empty()) {
-      ToggleItem item = g_toggle_queue.front();
-      g_toggle_queue.pop_front();
-      ApplyToggle(item.inst, item.down);
-      continue;
+    ToggleItem toggle{nullptr, false};
+    NodeGiInstance* teardown = nullptr;
+    {
+      std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
+      if (g_toggle_shutdown.load()) return;
+      if (!g_toggle_queue.empty()) {            // toggles first (FIFO)
+        toggle = g_toggle_queue.front();
+        g_toggle_queue.pop_front();
+      } else if (!g_teardown_queue.empty()) {
+        teardown = g_teardown_queue.front();
+        g_teardown_queue.pop_front();           // removed from the LIVE queue under the lock
+      } else {
+        return;                                  // both queues drained
+      }
+    }  // lock RELEASED before any processing — never held across dispose/JS
+    if (toggle.inst != nullptr) {
+      ApplyToggle(toggle.inst, toggle.down);     // napi-only, main-thread state, no reentry
+    } else {
+      RunTeardown(teardown);                      // dispose → JS, NO lock held
     }
-    NodeGiInstance* inst = g_teardown_queue.front();
-    g_teardown_queue.pop_front();  // remove BEFORE running, so a reentrant resurrect
-    RunTeardown(inst);             // of THIS inst takes the miss path, not collected-hit
   }
 }
 
@@ -2964,6 +2979,14 @@ Napi::Value IsGObjectHandle(const Napi::CallbackInfo& info) {
 // use-after-free. Poll __stressRefUnrefRunning() for completion. Not part of the
 // public API surface — prefixed __ and only used by test/gc-cross-thread.test.mjs.
 static std::atomic<int> g_stress_running{0};
+// Monotonic count of completed off-thread ref/unref iterations — lets a test prove
+// the off-thread churn makes progress WHILE a main-thread dispose vfunc is running
+// (i.e. the drain lock is NOT held across dispose). If the lock were held across the
+// dispose, the off-thread NodeGiToggleNotify would block on g_queue_mutex and this
+// counter would freeze for the dispose's whole duration.
+static std::atomic<long> g_stress_progress{0};
+// Cooperative stop flag so a test can halt a long-running churn after asserting.
+static std::atomic<bool> g_stress_stop{false};
 struct StressArgs {
   GObject* obj;
   long iterations;
@@ -2971,8 +2994,10 @@ struct StressArgs {
 static gpointer StressThreadFunc(gpointer data) {
   StressArgs* a = static_cast<StressArgs*>(data);
   for (long i = 0; i < a->iterations; i++) {
+    if (g_stress_stop.load()) break;
     g_object_ref(a->obj);    // 1 -> 2 : toggle UP (off-thread)
     g_object_unref(a->obj);  // 2 -> 1 : toggle DOWN (off-thread)
+    g_stress_progress.fetch_add(1);
     if ((i & 0x3f) == 0) g_thread_yield();  // give the main thread the lock + loop
   }
   g_stress_running.fetch_sub(1);
@@ -2984,6 +3009,7 @@ Napi::Value StressRefUnrefOffThread(const Napi::CallbackInfo& info) {
   GObject* obj = UnwrapGObject(env, info[0]);
   if (obj == nullptr) return env.Undefined();
   long iters = info.Length() >= 2 ? static_cast<long>(info[1].As<Napi::Number>().Int64Value()) : 10000;
+  g_stress_stop.store(false);  // a fresh churn is not pre-stopped
   StressArgs* a = new StressArgs{obj, iters};
   g_stress_running.fetch_add(1);
   GThread* t = g_thread_new("node-gi-stress", StressThreadFunc, a);
@@ -2992,6 +3018,13 @@ Napi::Value StressRefUnrefOffThread(const Napi::CallbackInfo& info) {
 }
 Napi::Value StressRefUnrefRunning(const Napi::CallbackInfo& info) {
   return Napi::Boolean::New(info.Env(), g_stress_running.load() > 0);
+}
+Napi::Value StressRefUnrefProgress(const Napi::CallbackInfo& info) {
+  return Napi::Number::New(info.Env(), static_cast<double>(g_stress_progress.load()));
+}
+Napi::Value StressRefUnrefStop(const Napi::CallbackInfo& info) {
+  g_stress_stop.store(true);
+  return info.Env().Undefined();
 }
 // ========================== END TEST-ONLY ============================
 
@@ -4100,6 +4133,8 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   // Test-only (cross-thread GC stress) — see StressRefUnrefOffThread.
   exports.Set("__stressRefUnrefOffThread", Napi::Function::New(env, StressRefUnrefOffThread));
   exports.Set("__stressRefUnrefRunning", Napi::Function::New(env, StressRefUnrefRunning));
+  exports.Set("__stressRefUnrefProgress", Napi::Function::New(env, StressRefUnrefProgress));
+  exports.Set("__stressRefUnrefStop", Napi::Function::New(env, StressRefUnrefStop));
   exports.Set("callBoxedMethod", Napi::Function::New(env, CallBoxedMethod));
   exports.Set("isBoxedHandle", Napi::Function::New(env, IsBoxedHandle));
   exports.Set("variantNew", Napi::Function::New(env, VariantNew));
