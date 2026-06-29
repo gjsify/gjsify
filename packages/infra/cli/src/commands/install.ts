@@ -681,6 +681,11 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
             overrides,
             signal,
             progress,
+            // Workspace-named packages are symlinked above — the native backend
+            // must never fetch a same-named published version over those
+            // symlinks (e.g. a `types-dev/<lib>` workspace that also exists on
+            // npm and is pinned transitively in the lockfile).
+            workspaceNames: new Set(byName.keys()),
         });
     } else if (args.verbose) {
         console.log('gjsify install: no external deps to fetch');
@@ -707,6 +712,7 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
             lockfile: !args.immutable,
             frozen: args.immutable,
             signal,
+            workspaceNames: new Set(byName.keys()),
         });
     }
 

@@ -91,6 +91,19 @@ export interface InstallOptions {
      * to override.
      */
     progress?: ProgressReporter;
+    /**
+     * Native backend only: the names of the monorepo's own workspace packages.
+     * A package whose name is in this set is materialised as a symlink to its
+     * workspace source by `workspaceInstall`, never fetched from the registry —
+     * even when the lockfile or a transitive edge references a same-named
+     * published version (e.g. a `types-dev/<lib>` workspace that ALSO exists on
+     * npm). The native backend drops such names from `resolveDeps` AND from the
+     * fetch/extract set, so `extractOne` never tries to `rm` + overwrite a
+     * workspace source symlink (its data-loss guard would otherwise abort the
+     * whole install). The `npm` backend ignores this — npm resolves workspaces
+     * itself.
+     */
+    workspaceNames?: Set<string>;
 }
 
 const DEFAULT_BACKEND = process.env.GJSIFY_INSTALL_BACKEND ?? 'native';

@@ -132,7 +132,10 @@ const SOURCE_MARKER = 'export const SOURCE = "WORKSPACE_SOURCE_PRESERVED";\n';
 
 // Publishes `@fixture/lib@9.9.9` whose tarball ships ONLY `dist/` (per its
 // `files` field) — i.e. the published artifact lacks `src/`, exactly the
-// shape that makes the over-extract destructive.
+// shape that makes the over-extract destructive. Also publishes an external
+// `@fixture/app@1.0.0` that DEPENDS on `@fixture/lib@^9.0.0` — used to drive
+// the transitive case where the same-named workspace must NOT be fetched even
+// though a registry consumer pulls it into the resolved tree.
 function makeRegistry() {
     const libTar = gzipSync(
         buildTar({
@@ -140,6 +143,19 @@ function makeRegistry() {
             'dist/index.js': 'module.exports = "PUBLISHED_TARBALL";\n',
         }),
     );
+    const appTar = gzipSync(
+        buildTar({
+            'package.json': JSON.stringify({
+                name: '@fixture/app',
+                version: '1.0.0',
+                main: 'index.js',
+                dependencies: { '@fixture/lib': '^9.0.0' },
+            }),
+            'index.js': 'module.exports = require("@fixture/lib");\n',
+        }),
+    );
+    const libSri = sriSha512(libTar);
+    const appSri = sriSha512(appTar);
     const index = {
         '@fixture/lib': {
             name: '@fixture/lib',
@@ -149,8 +165,21 @@ function makeRegistry() {
                     name: '@fixture/lib',
                     version: '9.9.9',
                     dependencies: {},
-                    dist: { tarball: '__BASE__/-/lib/9.9.9.tgz', integrity: sriSha512(libTar) },
+                    dist: { tarball: '__BASE__/-/lib/9.9.9.tgz', integrity: libSri },
                     _tgz: libTar,
+                },
+            },
+        },
+        '@fixture/app': {
+            name: '@fixture/app',
+            'dist-tags': { latest: '1.0.0' },
+            versions: {
+                '1.0.0': {
+                    name: '@fixture/app',
+                    version: '1.0.0',
+                    dependencies: { '@fixture/lib': '^9.0.0' },
+                    dist: { tarball: '__BASE__/-/app/1.0.0.tgz', integrity: appSri },
+                    _tgz: appTar,
                 },
             },
         },
@@ -161,6 +190,11 @@ function makeRegistry() {
             if (/^\/-\/lib\/9\.9\.9\.tgz$/.test(url)) {
                 res.writeHead(200, { 'content-type': 'application/octet-stream' });
                 res.end(libTar);
+                return;
+            }
+            if (/^\/-\/app\/1\.0\.0\.tgz$/.test(url)) {
+                res.writeHead(200, { 'content-type': 'application/octet-stream' });
+                res.end(appTar);
                 return;
             }
             const pkgName = decodeURIComponent(url.replace(/^\//, ''));
@@ -180,6 +214,9 @@ function makeRegistry() {
             res.writeHead(500).end(String(e));
         }
     });
+    // Expose the integrity values so the --immutable test can hand-craft a
+    // lockfile that pins the same-named workspace as a registry entry.
+    server.__fixtures = { libSri, appSri };
     return server;
 }
 
@@ -341,6 +378,103 @@ describe('gjsify install — never fetch/extract over workspace sources', { time
         assert.equal(r.status, 0, `install failed: ${r.stderr}\n${r.stdout}`);
 
         assertSourcePreserved(root);
+        assertWorkspaceSymlink(join(root, 'node_modules', '@fixture', 'lib'), root, 'root node_modules/@fixture/lib');
+    });
+
+    // The two cases above are DIRECT workspace deps — caught by the
+    // workspace-symlink routing before the fetch queue is built. The two below
+    // are the TRANSITIVE / lockfile shapes (ts-for-gir #432): the same-named
+    // workspace is pulled into the resolved tree by an EXTERNAL consumer or by
+    // a pre-existing lockfile entry, bypassing that routing. The native backend
+    // must still never fetch/extract it over the workspace symlink.
+
+    it('does not fetch a same-named workspace pulled in by an external dep', async () => {
+        // Consumer depends on the EXTERNAL `@fixture/app`, which depends on
+        // `@fixture/lib@^9.0.0`. `@fixture/lib` is ALSO a local workspace, so the
+        // resolver must skip the registry version (the workspace symlink wins)
+        // instead of fetching it and extracting over the source.
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-e2e-wssafe-transitive-'));
+        roots.push(root);
+        scaffold(root, registryUrl, 'workspace:^');
+        // Add the external consumer dep alongside the workspace lib.
+        const consumerPkgPath = join(root, 'packages', 'consumer', 'package.json');
+        const consumerPkg = JSON.parse(readFileSync(consumerPkgPath, 'utf-8'));
+        consumerPkg.dependencies['@fixture/app'] = '^1.0.0';
+        writeFileSync(consumerPkgPath, JSON.stringify(consumerPkg, null, 2) + '\n');
+
+        const r = await runCli(cliEntry, ['install', '--verbose'], { cwd: root, env: envForCli });
+        assert.equal(r.status, 0, `install failed: ${r.stderr}\n${r.stdout}`);
+
+        assertSourcePreserved(root);
+        assert.match(r.stderr, /fetch: @fixture\/app/, `@fixture/app (a real external dep) must be fetched:\n${r.stderr}`);
+        assert.doesNotMatch(
+            r.stderr,
+            /fetch: @fixture\/lib/,
+            `@fixture/lib must NOT be fetched even when an external dep pulls it in:\n${r.stderr}`,
+        );
+        assertWorkspaceSymlink(join(root, 'node_modules', '@fixture', 'lib'), root, 'root node_modules/@fixture/lib');
+        // The resolve must not have written the workspace name into the lockfile.
+        const lock = JSON.parse(readFileSync(join(root, 'gjsify-lock.json'), 'utf-8'));
+        assert.ok(
+            !Object.keys(lock.packages).some((p) => p.endsWith('node_modules/@fixture/lib')),
+            `the workspace @fixture/lib must not appear as a registry entry in the lockfile: ${Object.keys(lock.packages).join(', ')}`,
+        );
+    });
+
+    it('--immutable skips a stale lockfile registry entry for a workspace name', async () => {
+        // Simulate a lockfile written by an older gjsify (before the resolve
+        // skip): it pins the same-named workspace `@fixture/lib` as a REGISTRY
+        // entry. Under --immutable the backend builds nodes straight from the
+        // lockfile (no resolve), so this is the exact ts-for-gir #432 CI shape:
+        // node_modules/@fixture/lib is a workspace symlink, and the lock tells
+        // the backend to extract the published tarball over it.
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-e2e-wssafe-immutable-'));
+        roots.push(root);
+        scaffold(root, registryUrl, 'workspace:^', { preseedRootSymlink: true });
+        // Consumer also has a real external dep so the lockfile is non-empty and
+        // its `requested` set matches the live install (no drift error).
+        const consumerPkgPath = join(root, 'packages', 'consumer', 'package.json');
+        const consumerPkg = JSON.parse(readFileSync(consumerPkgPath, 'utf-8'));
+        consumerPkg.dependencies['@fixture/app'] = '^1.0.0';
+        writeFileSync(consumerPkgPath, JSON.stringify(consumerPkg, null, 2) + '\n');
+
+        const { libSri, appSri } = server.__fixtures;
+        const staleLock = {
+            lockfileVersion: 2,
+            requested: ['@fixture/app@^1.0.0'],
+            packages: {
+                'node_modules/@fixture/app': {
+                    version: '1.0.0',
+                    resolved: `${registryUrl}-/app/1.0.0.tgz`,
+                    integrity: appSri,
+                    dependencies: { '@fixture/lib': '^9.0.0' },
+                },
+                // The stale, destructive entry: a registry pin for a name that
+                // is actually a local workspace.
+                'node_modules/@fixture/lib': {
+                    version: '9.9.9',
+                    resolved: `${registryUrl}-/lib/9.9.9.tgz`,
+                    integrity: libSri,
+                    dependencies: {},
+                },
+            },
+        };
+        writeFileSync(join(root, 'gjsify-lock.json'), JSON.stringify(staleLock, null, 2) + '\n');
+
+        const r = await runCli(cliEntry, ['install', '--immutable', '--verbose'], { cwd: root, env: envForCli });
+        assert.equal(r.status, 0, `--immutable install failed: ${r.stderr}\n${r.stdout}`);
+        assert.doesNotMatch(
+            r.stderr,
+            /refusing to extract/,
+            `the data-loss guard must not fire — the workspace name must be filtered out:\n${r.stderr}`,
+        );
+
+        assertSourcePreserved(root);
+        assert.doesNotMatch(
+            r.stderr,
+            /fetch: @fixture\/lib/,
+            `@fixture/lib must NOT be fetched under --immutable despite the lockfile entry:\n${r.stderr}`,
+        );
         assertWorkspaceSymlink(join(root, 'node_modules', '@fixture', 'lib'), root, 'root node_modules/@fixture/lib');
     });
 });
