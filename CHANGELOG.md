@@ -1,5 +1,64 @@
 # Changelog
 
+## [0.13.2](https://github.com/gjsify/gjsify/compare/v0.13.1...v0.13.2) (2026-06-29)
+
+### Features
+
+* **node-gi:** accept camelCase construct keys ([#671](https://github.com/gjsify/gjsify/issues/671)) ([7161935](https://github.com/gjsify/gjsify/commit/7161935e28e18dd243fdeb4a902583db324b28f5))
+* **node-gi:** add Gio.Application.runAsync ([#670](https://github.com/gjsify/gjsify/issues/670)) ([db50158](https://github.com/gjsify/gjsify/commit/db50158a64b03f0320f054fc60f40fc0d4cd5294)), closes [442/#121](https://github.com/442/gjsify/issues/121)
+* **node-gi:** add GObject.registerClass decorator ([#650](https://github.com/gjsify/gjsify/issues/650)) ([657a031](https://github.com/gjsify/gjsify/commit/657a031601d9588845100e771b07b0421d2720f5))
+* **node-gi:** add Gtk.Template signal-callback dispatch ([#666](https://github.com/gjsify/gjsify/issues/666)) ([5dafd30](https://github.com/gjsify/gjsify/commit/5dafd3027dd65a427bf04c283af211fbe6258585))
+* **node-gi:** add L1 requireGi wrapper ([#637](https://github.com/gjsify/gjsify/issues/637)) ([a6aa8a8](https://github.com/gjsify/gjsify/commit/a6aa8a810a89b7c30c4213b53bea54fde11cf95f))
+* **node-gi:** add ParamSpec.object/.boxed + real $gtype ([#667](https://github.com/gjsify/gjsify/issues/667)) ([97f312a](https://github.com/gjsify/gjsify/commit/97f312aa91122a27709056e3ae62bfcac93a1aea))
+* **node-gi:** bare system/gettext ESM modules ([#665](https://github.com/gjsify/gjsify/issues/665)) ([4cd8d45](https://github.com/gjsify/gjsify/commit/4cd8d45fc3dc5b8b9dbf2f03379f434269ca4cc3)), closes [#641](https://github.com/gjsify/gjsify/issues/641) [#649](https://github.com/gjsify/gjsify/issues/649)
+* **node-gi:** construct GObjects + properties ([#632](https://github.com/gjsify/gjsify/issues/632)) ([76469ce](https://github.com/gjsify/gjsify/commit/76469ce409e9d796ec061994af7555ea1ac03922))
+* **node-gi:** dual gjs+node Adwaita GTK capstone ([#662](https://github.com/gjsify/gjsify/issues/662)) ([b1da64e](https://github.com/gjsify/gjsify/commit/b1da64ef09f9b3c5c3229e9d7b876e472f9bf6dd))
+* **node-gi:** dual gjs+node capstone example ([#651](https://github.com/gjsify/gjsify/issues/651)) ([d653dbe](https://github.com/gjsify/gjsify/commit/d653dbe893a132dc36a0c426deea5b09a4eb3955))
+* **node-gi:** inject globals shim on --app node ([#649](https://github.com/gjsify/gjsify/issues/649)) ([2b97030](https://github.com/gjsify/gjsify/commit/2b97030f2a07b28a2a35f7ad5f365fbc6b30230d)), closes [#1](https://github.com/gjsify/gjsify/issues/1)
+* **node-gi:** instance methods + marshalling ([#635](https://github.com/gjsify/gjsify/issues/635)) ([ca190c3](https://github.com/gjsify/gjsify/commit/ca190c39fe5362eebddbe5112c0d9ee7b5834b15))
+* **node-gi:** mainloop bridge + boxed GMainLoop ([#642](https://github.com/gjsify/gjsify/issues/642)) ([a7f3208](https://github.com/gjsify/gjsify/commit/a7f3208e6971e401a3b87b0d693d3f3324665e3c)), closes [442/#121](https://github.com/442/gjsify/issues/121)
+* **node-gi:** marshal arrays/lists/hashes + GStrv ([#653](https://github.com/gjsify/gjsify/issues/653)) ([60296ef](https://github.com/gjsify/gjsify/commit/60296ef3c1e45b1dbc324859194655a4f9c3eb22)), closes [#652](https://github.com/gjsify/gjsify/issues/652)
+* **node-gi:** marshal GStrv construct properties ([#675](https://github.com/gjsify/gjsify/issues/675)) ([2ba84e3](https://github.com/gjsify/gjsify/commit/2ba84e33620b905f5e9abb790788646d70a084a2))
+* **node-gi:** marshal GVariant build + unpack ([#654](https://github.com/gjsify/gjsify/issues/654)) ([5656cad](https://github.com/gjsify/gjsify/commit/5656cad44591acdd725e2c0f8f0a990e1fc045ba))
+* **node-gi:** marshal JS functions as GI callbacks ([#644](https://github.com/gjsify/gjsify/issues/644)) ([f8dd452](https://github.com/gjsify/gjsify/commit/f8dd452a32cccc0386074ce6c2c887a12a75ec36))
+* **node-gi:** marshal OUT and INOUT parameters ([#652](https://github.com/gjsify/gjsify/issues/652)) ([76351f2](https://github.com/gjsify/gjsify/commit/76351f227df14650b16d0cb4dad32c33d537e00f))
+* **node-gi:** multi-level registered subclassing ([#669](https://github.com/gjsify/gjsify/issues/669)) ([2c2bcd1](https://github.com/gjsify/gjsify/commit/2c2bcd16cbf36fc052c194cbf78f93a1379d610b)), closes [#667](https://github.com/gjsify/gjsify/issues/667) [#668-review](https://github.com/gjsify/gjsify/issues/668-review)
+* **node-gi:** override GObject vfuncs in registerClass ([#647](https://github.com/gjsify/gjsify/issues/647)) ([d2d2deb](https://github.com/gjsify/gjsify/commit/d2d2debe5a8e4eaa79e3bd0f3c468833995b602d))
+* **node-gi:** register GObject subclasses ([#636](https://github.com/gjsify/gjsify/issues/636)) ([1e9bed4](https://github.com/gjsify/gjsify/commit/1e9bed4cab522fb9e66377c7520b28c8f8c0d88f))
+* **node-gi:** registerClass mutate-in-place + ctor body ([#668](https://github.com/gjsify/gjsify/issues/668)) ([c64a87c](https://github.com/gjsify/gjsify/commit/c64a87ccbbfaaa3335574726ec507e5ad1d14fe3)), closes [#656](https://github.com/gjsify/gjsify/issues/656) [#667](https://github.com/gjsify/gjsify/issues/667) [#667](https://github.com/gjsify/gjsify/issues/667)
+* **node-gi:** run a Gtk.Application on Node ([#659](https://github.com/gjsify/gjsify/issues/659)) ([47f4342](https://github.com/gjsify/gjsify/commit/47f4342a8fd1bc09fbe97f10270c661c77db61a2)), closes [#442](https://github.com/gjsify/gjsify/issues/442)
+* **node-gi:** run an Adwaita app + CSS on Node ([#660](https://github.com/gjsify/gjsify/issues/660)) ([1c98a76](https://github.com/gjsify/gjsify/commit/1c98a7663eb4ca76cc1bc0f7387cc387a641b4d9))
+* **node-gi:** run Gtk.Template composite widgets on Node ([#661](https://github.com/gjsify/gjsify/issues/661)) ([8dcd5ae](https://github.com/gjsify/gjsify/commit/8dcd5ae24415b504b1b7ce9ef20a78a1e43ad443)), closes [#659](https://github.com/gjsify/gjsify/issues/659) [#660](https://github.com/gjsify/gjsify/issues/660)
+* **node-gi:** scaffold N-API GI engine + CI ([#629](https://github.com/gjsify/gjsify/issues/629)) ([85116c5](https://github.com/gjsify/gjsify/commit/85116c5f25c0284819edea631c0c1bf3a35feb0f))
+* **node-gi:** seed GJS ambient globals on Node ([#645](https://github.com/gjsify/gjsify/issues/645)) ([7337db6](https://github.com/gjsify/gjsify/commit/7337db6260197409c3483b06211a06c52865919a))
+* **node-gi:** signals (connect/emit/disconnect) ([#633](https://github.com/gjsify/gjsify/issues/633)) ([4106f88](https://github.com/gjsify/gjsify/commit/4106f885cc8b3d531d3c2300e289a5bc2cc04d18))
+* **node-gi:** static methods + camelCase in L1 ([#640](https://github.com/gjsify/gjsify/issues/640)) ([94531e9](https://github.com/gjsify/gjsify/commit/94531e968e0a74e2203c11e407722ddd9185216e))
+* **node-gi:** subclass custom props + signals ([#643](https://github.com/gjsify/gjsify/issues/643)) ([38084f8](https://github.com/gjsify/gjsify/commit/38084f8c5abe52e8f10023bd7c0a46b2d15b89a7))
+* **node-gi:** support super.vfunc_* chain-up ([#663](https://github.com/gjsify/gjsify/issues/663)) ([e3fcae5](https://github.com/gjsify/gjsify/commit/e3fcae516ee47095d8b3a2209197ff0d4c7f9c62))
+* **node-gi:** surface enums, flags + constants in L1 ([#638](https://github.com/gjsify/gjsify/issues/638)) ([b156c10](https://github.com/gjsify/gjsify/commit/b156c103b8dfa65ee8433209dbc53abdf38141d1))
+* **node-gi:** surface GErrors as GLib.Error + Gio._promisify ([#657](https://github.com/gjsify/gjsify/issues/657)) ([3270c24](https://github.com/gjsify/gjsify/commit/3270c2476d0ad5a525bfc4708f7eec4707d9e0a6)), closes [#652](https://github.com/gjsify/gjsify/issues/652) [#656](https://github.com/gjsify/gjsify/issues/656)
+* **node-gi:** toggle-ref instance GC bridge ([#656](https://github.com/gjsify/gjsify/issues/656)) ([d11941d](https://github.com/gjsify/gjsify/commit/d11941d7cc0bee502e6bf9aaa35b05953d386d9e)), closes [#647](https://github.com/gjsify/gjsify/issues/647)
+* **node-gi:** value marshalling + function calls ([#631](https://github.com/gjsify/gjsify/issues/631)) ([529c447](https://github.com/gjsify/gjsify/commit/529c4477136713b9130614f9903aa2e3be45c5c5))
+* route @girs/* through node-gi on --app node ([#673](https://github.com/gjsify/gjsify/issues/673)) ([f967d92](https://github.com/gjsify/gjsify/commit/f967d92ed0d3b36cd3ce1860715b714d8522d08a))
+* route gi:// imports to node-gi on --app node ([#641](https://github.com/gjsify/gjsify/issues/641)) ([deb2322](https://github.com/gjsify/gjsify/commit/deb232257b8194bc932fc29a94d82b31e30853ae))
+
+### Bug Fixes
+
+* **cli:** preflight Node version for the native install backend ([#634](https://github.com/gjsify/gjsify/issues/634)) ([c5d47da](https://github.com/gjsify/gjsify/commit/c5d47da4e1604758b27d37ece056c9fe1216ba30))
+* **cli:** skip workspace names in fetch queue ([#674](https://github.com/gjsify/gjsify/issues/674)) ([2b6d4c9](https://github.com/gjsify/gjsify/commit/2b6d4c99f00a1a11847c15e1c2348e64fbe00124))
+* dedicated Soup-free CI classifier bundle ([#648](https://github.com/gjsify/gjsify/issues/648)) ([0f08700](https://github.com/gjsify/gjsify/commit/0f08700d73e62fa607572a43f6eca88b429b21bb))
+* **nativescript-vite:** stable SBG chunk names ([#639](https://github.com/gjsify/gjsify/issues/639)) ([d1159f2](https://github.com/gjsify/gjsify/commit/d1159f24e28445384570f8cf92a0a9415f734675))
+* **node-gi:** harden GI/GVariant marshalling ([#658](https://github.com/gjsify/gjsify/issues/658)) ([6e5fffb](https://github.com/gjsify/gjsify/commit/6e5fffb79b5a1baa8282d83f84f9a80707e3fb31)), closes [653/#654](https://github.com/653/gjsify/issues/654)
+* **node-gi:** stabilize flaky GC test + plug leaks ([#664](https://github.com/gjsify/gjsify/issues/664)) ([867d72b](https://github.com/gjsify/gjsify/commit/867d72b8cf6e4ba4e19943243a38662a201f650b)), closes [658/#663](https://github.com/658/gjsify/issues/663)
+
+### Documentation
+
+* add Axis-5 GI/GObject-for-Node goal + roadmap ([#628](https://github.com/gjsify/gjsify/issues/628)) ([1479cbe](https://github.com/gjsify/gjsify/commit/1479cbe635e041287a9cc5f74f746b312a8abc14))
+
+### Continuous Integration
+
+* ignore node-gi in the affected classifier ([#646](https://github.com/gjsify/gjsify/issues/646)) ([4cab011](https://github.com/gjsify/gjsify/commit/4cab0117a305b1dc16b419d0aaba6a16b26c3d75))
+
 ## [0.13.1](https://github.com/gjsify/gjsify/compare/v0.13.0...v0.13.1) (2026-06-27)
 
 ### Bug Fixes
