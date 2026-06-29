@@ -12,6 +12,12 @@
 // Reference: GJS's global definitions (gjs/modules/{print,system,gettext}). The
 // legacy `imports.*` namespace mirrors gjs/modules/esm/gi.js's require shape.
 import { requireGi } from './gi.js';
+// `imports.system` / `imports.gettext` reuse the standalone module
+// implementations — ONE source of truth, also reachable directly as
+// `@gjsify/node-gi/system` + `@gjsify/node-gi/gettext` (and the bare `system` /
+// `gettext` specifiers on the `--app node` build).
+import system from './system.js';
+import gettext from './gettext.js';
 
 // GJS stringifies each argument with String() and joins with a space (no
 // util.inspect object formatting) — match that for fidelity.
@@ -80,57 +86,9 @@ function makeImports() {
     },
   );
 
-  // Minimal `imports.system` — the most-used members (exit, gc, the program
-  // identity). Backed by Node's process where there is an equivalent.
-  const system = {
-    exit(code) {
-      if (typeof process !== 'undefined') process.exit(code ?? 0);
-    },
-    gc() {
-      if (typeof globalThis.gc === 'function') globalThis.gc();
-    },
-    get programInvocationName() {
-      return (typeof process !== 'undefined' && process.argv[1]) || '';
-    },
-    get programPath() {
-      return (typeof process !== 'undefined' && process.argv[1]) || null;
-    },
-    version: 0,
-    addressOf() {
-      return '0x0';
-    },
-    refcount() {
-      return 0;
-    },
-    breakpoint() {},
-    dumpHeap() {},
-    dumpMemoryInfo() {},
-  };
-
-  // Minimal `imports.gettext` — a no-translation passthrough (the strings are
-  // returned untranslated, which is the correct fallback when no catalog is
-  // bound). Mirrors the surface GJS apps call at module load.
-  const identity = (s) => s;
-  const gettext = {
-    gettext: identity,
-    dgettext: (_domain, s) => s,
-    dcgettext: (_domain, s) => s,
-    ngettext: (s, p, n) => (n === 1 ? s : p),
-    dngettext: (_domain, s, p, n) => (n === 1 ? s : p),
-    pgettext: (_ctx, s) => s,
-    dpgettext: (_domain, _ctx, s) => s,
-    domain: (_domain) => ({
-      gettext: identity,
-      ngettext: (s, p, n) => (n === 1 ? s : p),
-      pgettext: (_ctx, s) => s,
-    }),
-    setlocale: () => null,
-    bindtextdomain: () => null,
-    textdomain: () => null,
-    bindtextdomainCodeset: () => null,
-    LocaleCategory: { ALL: 6, COLLATE: 3, CTYPE: 0, MESSAGES: 5, MONETARY: 4, NUMERIC: 1, TIME: 2 },
-  };
-
+  // `imports.system` + `imports.gettext` are the standalone module objects
+  // (`./system.js` / `./gettext.js`) — the single source of truth for those
+  // surfaces, shared with the bare `system` / `gettext` specifiers on Node.
   return { gi, system, gettext, versions: Object.create(null) };
 }
 

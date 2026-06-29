@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 // @gjsify/node-gi/globals — types for the GJS ambient-globals shim.
 
+import type { SystemModule } from './system.js';
+import type { GettextModule } from './gettext.js';
+
 /** The legacy GJS `imports` object (a minimal Node-backed subset). */
 export interface GjsImports {
   /** `imports.gi.<Ns>` resolves a namespace; `imports.gi.versions.<Ns>` pins a version. */
@@ -8,39 +11,10 @@ export interface GjsImports {
     versions: Record<string, string | undefined>;
     [namespace: string]: unknown;
   };
-  /** `imports.system` — process identity + lifecycle (Node-backed subset). */
-  system: {
-    exit(code?: number): void;
-    gc(): void;
-    readonly programInvocationName: string;
-    readonly programPath: string | null;
-    version: number;
-    addressOf(): string;
-    refcount(): number;
-    breakpoint(): void;
-    dumpHeap(): void;
-    dumpMemoryInfo(): void;
-  };
-  /** `imports.gettext` — a no-translation passthrough. */
-  gettext: {
-    gettext(s: string): string;
-    dgettext(domain: string, s: string): string;
-    dcgettext(domain: string, s: string): string;
-    ngettext(s: string, p: string, n: number): string;
-    dngettext(domain: string, s: string, p: string, n: number): string;
-    pgettext(ctx: string, s: string): string;
-    dpgettext(domain: string, ctx: string, s: string): string;
-    domain(domain: string): {
-      gettext(s: string): string;
-      ngettext(s: string, p: string, n: number): string;
-      pgettext(ctx: string, s: string): string;
-    };
-    setlocale(): null;
-    bindtextdomain(): null;
-    textdomain(): null;
-    bindtextdomainCodeset(): null;
-    LocaleCategory: Record<string, number>;
-  };
+  /** `imports.system` — the `@gjsify/node-gi/system` module (process identity + lifecycle). */
+  system: SystemModule;
+  /** `imports.gettext` — the `@gjsify/node-gi/gettext` module (no-translation passthrough). */
+  gettext: GettextModule;
   versions: Record<string, unknown>;
 }
 

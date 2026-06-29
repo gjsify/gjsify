@@ -91,3 +91,52 @@ export function gjsGiNodePlugin(): Plugin {
         },
     };
 }
+
+/**
+ * For `--app node`: rewrite the bare GJS built-in module specifiers (`system`,
+ * `gettext`) to their `@gjsify/node-gi` reverse-bridge shims, kept EXTERNAL.
+ *
+ * GJS exposes `system`/`gettext` as built-in ESM modules
+ * (`import System from 'system'`); Node has no equivalent. This resolves the
+ * bare specifier to `@gjsify/node-gi/system` / `@gjsify/node-gi/gettext` and
+ * marks it external so it is NOT bundled — resolved at runtime against the
+ * consumer's node_modules, exactly like `@gjsify/node-gi/gi` (the `gi://`
+ * rewrite) and `@gjsify/node-gi/globals`.
+ *
+ * Returning `{ external: true }` from `resolveId` is the form honoured by BOTH
+ * bundler engines (npm rolldown on Node AND `@gjsify/rolldown-native` on GJS,
+ * whose JSON options boundary drops a function `external` but keeps resolveId
+ * results — the same reason `app/gjs.ts` uses `externalsPlugin`). It also avoids
+ * a disk `this.resolve()` of the target, so the build does NOT require
+ * `@gjsify/node-gi` installed (a `system`/`gettext` import gated to GJS-only code
+ * paths stays harmless on plain Node — the gi:// gated-load lesson). The generic
+ * `aliasPlugin` cannot serve this role: it resolves the target on disk and falls
+ * through (leaving a bare, unresolvable `system`) when node-gi is absent.
+ *
+ * Gating: this plugin is registered ONLY by the `--app node` orchestrator, so
+ * the gjs/browser/nativescript targets never hijack a bare `system`/`gettext`
+ * — identical scoping to the `gi://` rewrite. `entries` is `ALIASES_GJS_FOR_NODE`
+ * (the declarative source of truth). The handler guard is the load-bearing check
+ * (correct even when the filter does not pre-filter, e.g. under Vite).
+ */
+export function gjsBuiltinModulesNodePlugin(entries: Record<string, string>): Plugin {
+    const keys = Object.keys(entries);
+    // A filter for the exact bare names — a Rolldown fast-path only. The handler
+    // re-checks membership so it stays correct under engines that ignore filters.
+    const filter =
+        keys.length > 0
+            ? { id: new RegExp(`^(?:${keys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})$`) }
+            : undefined;
+    return {
+        name: 'gjsify-builtin-modules-node',
+        resolveId: {
+            order: 'pre' as const,
+            ...(filter ? { filter } : {}),
+            handler(source) {
+                const target = entries[source];
+                if (!target) return null;
+                return { id: target, external: true };
+            },
+        },
+    };
+}
