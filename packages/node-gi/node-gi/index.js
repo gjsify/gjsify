@@ -240,6 +240,18 @@ export const hasProperty = native.hasProperty;
 export const getTypeName = native.getTypeName;
 
 /**
+ * The runtime GType of an introspected registered type, as an opaque node-gi
+ * GType handle (a tag-distinct External carrying the GType — NOT a number/pointer).
+ * The L1 layer surfaces it as a lazy `Ns.Type.$gtype` getter and feeds it to
+ * GType-typed GI arguments (`GObject.type_ensure`, `g_param_spec_object`'s value
+ * type, …). Returns `null` for an unknown/unregistered name.
+ * @param {string} namespace e.g. "Adw"
+ * @param {string} name e.g. "Clamp"
+ * @returns {unknown} opaque GType handle, or null
+ */
+export const getGType = native.getGType;
+
+/**
  * Whether a GObject handle's GType is-a `namespace.typeName` (g_type_is_a — also
  * true when the type implements an interface). Used by the L1 wrapper to pick the
  * right `Gio._promisify` registration when two classes promisify a method of the

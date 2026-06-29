@@ -444,6 +444,54 @@ static bool TryGetBoxedPtr(Napi::Value v, gpointer* out) {
   return true;
 }
 
+// ---- GType value handle ----
+//
+// A GType is represented in JS as a dedicated, type-tagged External holding the
+// `GType` (a `gsize`) directly in its Data() pointer slot — NOT a plain number
+// (a number is indistinguishable from an enum value at a GI_TYPE_TAG_GTYPE arg)
+// and NOT a GObject/boxed handle (a GType is a small integer, dereferencing it as
+// a pointer would crash). The tag lets the marshaller recognise it structurally
+// without touching the value. GJS's richer GType *object* (refs/gjs gi/gtype.cpp)
+// carries a name slot too; node-gi's tagged External is the minimal equivalent —
+// the L1 layer can layer `.name` ergonomics on top if needed. GTypes are
+// process-stable (static registration, never freed), so the handle has no
+// finalizer. This is also the handle registerClass returns (so a registered
+// class's `$gtype` and the constructType type-handle are one and the same).
+static const napi_type_tag kGTypeHandleTag = {0x3a7f1c9e5b2d4860ULL,
+                                              0xc4e8a1b3d5f72096ULL};
+
+static Napi::Value MakeGTypeHandle(Napi::Env env, GType gtype) {
+  Napi::External<void> ext = Napi::External<void>::New(env, reinterpret_cast<void*>(gtype));
+  ext.TypeTag(&kGTypeHandleTag);
+  return ext;
+}
+
+// Read a GType from a kGTypeHandleTag External (the GType representation above),
+// without dereferencing. Returns 0 (G_TYPE_INVALID) when `v` is not a GType handle.
+static GType ReadGTypeHandle(Napi::Value v) {
+  if (!v.IsExternal()) return 0;
+  Napi::External<void> ext = v.As<Napi::External<void>>();
+  if (!ext.CheckTypeTag(&kGTypeHandleTag)) return 0;
+  return reinterpret_cast<GType>(ext.Data());
+}
+
+// Marshal a JS GType argument (a GType handle, or null → 0) into a GType, throwing
+// a clean TypeError otherwise. Shared by the GI_TYPE_TAG_GTYPE / G_TYPE_GTYPE
+// marshalling paths.
+static bool UnwrapGTypeArg(Napi::Env env, Napi::Value v, GType* out) {
+  if (v.IsNull() || v.IsUndefined()) {
+    *out = 0;
+    return true;
+  }
+  if (v.IsExternal() && v.As<Napi::External<void>>().CheckTypeTag(&kGTypeHandleTag)) {
+    *out = reinterpret_cast<GType>(v.As<Napi::External<void>>().Data());
+    return true;
+  }
+  Napi::TypeError::New(env, "expected a GType handle (e.g. Class.$gtype)")
+      .ThrowAsJavaScriptException();
+  return false;
+}
+
 // `ownedStrings` (optional): when a transfer-full string IN/INOUT arg is g_strdup'd
 // here, the freshly-allocated pointer is appended so the caller can g_free it if the
 // invoke never adopts it (an arg-marshal error before the call, or a failed invoke).
@@ -539,6 +587,14 @@ static bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArg
             .ThrowAsJavaScriptException();
         return false;
       }
+      return true;
+    }
+    case GI_TYPE_TAG_GTYPE: {
+      // A GType argument (e.g. GObject.type_ensure, g_type_name): read the GType
+      // from a node-gi GType handle and write it into the GType slot (gsize-wide).
+      GType gt = 0;
+      if (!UnwrapGTypeArg(env, v, &gt)) return false;
+      out->v_size = static_cast<gsize>(gt);
       return true;
     }
     default:
@@ -1082,6 +1138,13 @@ static Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* a
       }
       if (iface != nullptr) gi_base_info_unref(iface);
       return result;
+    }
+    case GI_TYPE_TAG_GTYPE: {
+      // A GType return value (e.g. g_type_from_name): wrap the GType slot
+      // (gsize-wide) as a node-gi GType handle so it round-trips back into the
+      // engine. A 0 GType (not found) becomes null.
+      GType gt = static_cast<GType>(arg->v_size);
+      return gt != 0 ? MakeGTypeHandle(env, gt) : env.Null();
     }
     default:
       Napi::TypeError::New(env, "Unsupported return type tag " +
@@ -2413,6 +2476,13 @@ static void NodeGiInstallTemplateScopeOnClass(NodeGiClassData* cd, gpointer g_cl
 // Marshal a GValue into a JS value (fundamental types).
 static Napi::Value GValueToJs(Napi::Env env, const GValue* v) {
   GType ft = G_TYPE_FUNDAMENTAL(G_VALUE_TYPE(v));
+  // G_TYPE_GTYPE is a runtime-resolved type (g_gtype_get_type()), so it cannot be
+  // a switch case label — handle it up front. A GType-valued GValue marshals to a
+  // node-gi GType handle (0 → null).
+  if (G_VALUE_HOLDS_GTYPE(v)) {
+    GType gt = g_value_get_gtype(v);
+    return gt != 0 ? MakeGTypeHandle(env, gt) : env.Null();
+  }
   switch (ft) {
     case G_TYPE_BOOLEAN: return Napi::Boolean::New(env, g_value_get_boolean(v));
     case G_TYPE_CHAR: return Napi::Number::New(env, g_value_get_schar(v));
@@ -2463,6 +2533,14 @@ static Napi::Value GValueToJs(Napi::Env env, const GValue* v) {
 // Marshal a JS value into an already-g_value_init'd GValue.
 static bool JsToGValue(Napi::Env env, Napi::Value js, GValue* v) {
   GType ft = G_TYPE_FUNDAMENTAL(G_VALUE_TYPE(v));
+  // G_TYPE_GTYPE is a runtime-resolved type (not constexpr) → handle before the
+  // switch. A GType handle (or null → 0) into a GType-valued GValue.
+  if (G_VALUE_HOLDS_GTYPE(v)) {
+    GType gt = 0;
+    if (!UnwrapGTypeArg(env, js, &gt)) return false;
+    g_value_set_gtype(v, gt);
+    return true;
+  }
   switch (ft) {
     case G_TYPE_BOOLEAN: g_value_set_boolean(v, js.ToBoolean().Value()); return true;
     case G_TYPE_CHAR: g_value_set_schar(v, static_cast<gint8>(js.ToNumber().Int32Value())); return true;
@@ -2680,14 +2758,17 @@ Napi::Value NewObject(const Napi::CallbackInfo& info) {
 // (the GType) for constructType().
 
 // GTypes are process-stable and never freed (static registration), so the
-// handle carries no finalizer.
+// handle carries no finalizer. registerClass returns a kGTypeHandleTag External,
+// so validate the tag (a GObject/boxed handle is also an External, but holds a
+// non-GType pointer — reinterpreting it as a GType would be type-confusion).
 static GType UnwrapGType(Napi::Env env, Napi::Value v) {
-  if (!v.IsExternal()) {
+  GType gt = ReadGTypeHandle(v);
+  if (gt == 0) {
     Napi::TypeError::New(env, "expected a node-gi type handle from registerClass()")
         .ThrowAsJavaScriptException();
     return 0;
   }
-  return reinterpret_cast<GType>(v.As<Napi::External<void>>().Data());
+  return gt;
 }
 
 // ---- registerClass custom properties + signals (class_init) ----
@@ -2778,6 +2859,31 @@ static GParamSpec* BuildParamSpec(Napi::Env env, Napi::Object spec, std::string*
                               def.IsNumber() ? static_cast<gfloat>(def.As<Napi::Number>().DoubleValue())
                                              : 0,
                               flags);
+  }
+  if (type == "object" || type == "boxed") {
+    // An object- or boxed-typed property (GObject.ParamSpec.object / .boxed). The
+    // value GType comes from the spec's `gtype` field — a node-gi GType handle
+    // (the L1 resolves a class ctor's `$gtype` to it). g_param_spec_object/boxed
+    // own no default beyond NULL, so `default`/`minimum`/`maximum` are ignored.
+    GType valueGType = spec.Has("gtype") ? ReadGTypeHandle(spec.Get("gtype")) : 0;
+    if (valueGType == 0) {
+      *err = "a '" + type + "' property requires a gtype (a class or GType handle)";
+      return nullptr;
+    }
+    if (type == "object") {
+      if (!g_type_is_a(valueGType, G_TYPE_OBJECT)) {
+        *err = std::string("an 'object' property gtype must be a GObject type, got ") +
+               g_type_name(valueGType);
+        return nullptr;
+      }
+      return g_param_spec_object(nm, nm, nm, valueGType, flags);
+    }
+    if (!G_TYPE_IS_BOXED(valueGType)) {
+      *err = std::string("a 'boxed' property gtype must be a boxed type, got ") +
+             g_type_name(valueGType);
+      return nullptr;
+    }
+    return g_param_spec_boxed(nm, nm, nm, valueGType, flags);
   }
   *err = "unsupported property type '" + type + "'";
   return nullptr;
@@ -3561,7 +3667,10 @@ Napi::Value RegisterClass(const Napi::CallbackInfo& info) {
         .ThrowAsJavaScriptException();
     return env.Null();
   }
-  return Napi::External<void>::New(env, reinterpret_cast<void*>(newType));
+  // Tag the returned type handle as a GType handle so it doubles as the class's
+  // `$gtype` (G4): the same External feeds constructType (UnwrapGType) AND the
+  // GType marshalling (GObject.type_ensure, g_param_spec_object's value gtype, …).
+  return MakeGTypeHandle(env, newType);
 }
 
 // constructType(typeHandle, props?: Record<string, unknown>) -> External<GObject>
@@ -3666,6 +3775,31 @@ Napi::Value GetTypeName(const Napi::CallbackInfo& info) {
   GObject* obj = UnwrapGObject(env, info[0]);
   if (obj == nullptr) return env.Null();
   return Napi::String::New(env, G_OBJECT_TYPE_NAME(obj));
+}
+
+// getGType(namespace, name) -> GType handle | null
+// The runtime GType of an introspected registered type (object/interface/struct/
+// union/enum/flags), as a node-gi GType handle. The L1 layer surfaces it as a
+// lazy `Ns.Type.$gtype` getter (so `Adw.Clamp.$gtype` / `GObject.type_ensure(...)`
+// work). Returns null for an unknown or unregistered name.
+Napi::Value GetGType(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[0].IsString() || !info[1].IsString()) {
+    Napi::TypeError::New(env, "getGType(namespace: string, name: string)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string ns = info[0].As<Napi::String>().Utf8Value();
+  std::string nm = info[1].As<Napi::String>().Utf8Value();
+  GIRepository* repo = DupDefaultRepository();
+  GIBaseInfo* base = gi_repository_find_by_name(repo, ns.c_str(), nm.c_str());
+  GType gt = (base != nullptr && GI_IS_REGISTERED_TYPE_INFO(base))
+                 ? gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(base))
+                 : G_TYPE_INVALID;
+  if (base != nullptr) gi_base_info_unref(base);
+  g_object_unref(repo);
+  if (gt == G_TYPE_INVALID || gt == G_TYPE_NONE) return env.Null();
+  return MakeGTypeHandle(env, gt);
 }
 
 // isInstanceOf(handle, namespace, typeName) -> boolean
@@ -5129,6 +5263,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("setProperty", Napi::Function::New(env, SetProperty));
   exports.Set("hasProperty", Napi::Function::New(env, HasProperty));
   exports.Set("getTypeName", Napi::Function::New(env, GetTypeName));
+  exports.Set("getGType", Napi::Function::New(env, GetGType));
   exports.Set("isInstanceOf", Napi::Function::New(env, IsInstanceOf));
   exports.Set("isGObjectHandle", Napi::Function::New(env, IsGObjectHandle));
   // Test-only (cross-thread GC stress) — see StressRefUnrefOffThread.

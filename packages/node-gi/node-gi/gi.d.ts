@@ -17,7 +17,7 @@ export type GiNamespace = Record<string, unknown>;
  */
 export interface ParamSpecDescriptor {
   $paramSpec: true;
-  type: 'string' | 'boolean' | 'int' | 'uint' | 'int64' | 'uint64' | 'double' | 'float';
+  type: 'string' | 'boolean' | 'int' | 'uint' | 'int64' | 'uint64' | 'double' | 'float' | 'object' | 'boxed';
   name: string;
   nick?: string;
   blurb?: string;
@@ -25,6 +25,8 @@ export interface ParamSpecDescriptor {
   default?: string | number | boolean;
   minimum?: number;
   maximum?: number;
+  /** For `object`/`boxed`: the value GType handle (resolved from a class ctor's `$gtype`). */
+  gtype?: unknown;
 }
 
 /** The `GObject.ParamSpec.*` factories surfaced on the GObject namespace. */
@@ -37,6 +39,10 @@ export interface ParamSpecFactories {
   uint64(name: string, nick: string, blurb: string, flags: number, minimum: number, maximum: number, defaultValue?: number): ParamSpecDescriptor;
   double(name: string, nick: string, blurb: string, flags: number, minimum: number, maximum: number, defaultValue?: number): ParamSpecDescriptor;
   float(name: string, nick: string, blurb: string, flags: number, minimum: number, maximum: number, defaultValue?: number): ParamSpecDescriptor;
+  /** A GObject-typed property; `gtype` is a class ctor (its `$gtype` is read) or a GType handle. */
+  object(name: string, nick: string, blurb: string, flags: number, gtype: unknown): ParamSpecDescriptor;
+  /** A boxed-typed property; `gtype` is a boxed class ctor (its `$gtype` is read) or a GType handle. */
+  boxed(name: string, nick: string, blurb: string, flags: number, gtype: unknown): ParamSpecDescriptor;
 }
 
 /** A `meta.Signals` entry for {@link GObjectNamespace.registerClass}. */
