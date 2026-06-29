@@ -253,6 +253,15 @@ export function hasProperty(handle: GObjectHandle, name: string): boolean;
 export function getTypeName(handle: GObjectHandle): string;
 
 /**
+ * The runtime GType of an introspected registered type, as an opaque node-gi
+ * GType handle ({@link TypeHandle} — a tag-distinct External carrying the GType,
+ * NOT a number/pointer). The L1 layer surfaces it as a lazy `Ns.Type.$gtype`
+ * getter and feeds it to GType-typed GI arguments (`GObject.type_ensure`,
+ * `g_param_spec_object`'s value type, …). Returns `null` for an unknown name.
+ */
+export function getGType(namespace: string, name: string): TypeHandle | null;
+
+/**
  * Whether a GObject handle's GType is-a `namespace.typeName` (g_type_is_a — also
  * true when the type implements an interface). Used by the L1 wrapper to pick the
  * right `Gio._promisify` registration when two classes promisify a same-named method.
@@ -377,6 +386,7 @@ declare const native: {
   setProperty: typeof setProperty;
   hasProperty: typeof hasProperty;
   getTypeName: typeof getTypeName;
+  getGType: typeof getGType;
   isInstanceOf: typeof isInstanceOf;
   isGObjectHandle: typeof isGObjectHandle;
   callBoxedMethod: typeof callBoxedMethod;

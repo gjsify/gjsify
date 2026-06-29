@@ -514,6 +514,30 @@ const vfuncChainProto = new Proxy(Object.create(Object.prototype), {
   },
 });
 
+// Surface a lazy `$gtype` getter on an introspected class/struct ctor: the real
+// GObject GType (a node-gi GType handle), resolved on first read via the engine
+// and then cached as a value. GJS exposes `SomeClass.$gtype`; the storybook reads
+// `Adw.Clamp.$gtype` + passes `StoryWidget.$gtype` to GObject.type_ensure. Lazy
+// (defineProperty getter) so it costs nothing until accessed. `null` (unknown type)
+// is also cached. The makeClass/makeStruct Proxy forwards `'$gtype' in t` → the
+// target getter (it returns `t[prop]` when `prop in t`).
+function defineLazyGType(ctor, namespace, typeName) {
+  Object.defineProperty(ctor, '$gtype', {
+    configurable: true,
+    enumerable: false,
+    get() {
+      const gt = native.getGType(namespace, typeName);
+      Object.defineProperty(ctor, '$gtype', {
+        value: gt,
+        configurable: true,
+        enumerable: false,
+        writable: false,
+      });
+      return gt;
+    },
+  });
+}
+
 function makeClass(namespace, typeName) {
   const ctor = function ctor(props) {
     const handle = native.newObject(namespace, typeName, props ? unwrapProps(props) : {});
@@ -521,6 +545,7 @@ function makeClass(namespace, typeName) {
   };
   Object.defineProperty(ctor, 'name', { value: typeName, configurable: true });
   ctor.$gtypeName = `${namespace}.${typeName}`;
+  defineLazyGType(ctor, namespace, typeName);
   // Put the vfunc chain-up Proxy beneath this base class's prototype so a
   // registerClass subclass's `super.vfunc_<name>(...)` resolves (see above).
   Object.setPrototypeOf(ctor.prototype, vfuncChainProto);
@@ -552,6 +577,7 @@ function makeStruct(namespace, typeName) {
   const base = function () {};
   Object.defineProperty(base, 'name', { value: typeName, configurable: true });
   base.$gtypeName = `${namespace}.${typeName}`;
+  defineLazyGType(base, namespace, typeName);
   return new Proxy(base, {
     get(t, prop) {
       if (typeof prop !== 'string' || prop in t || RESERVED.has(prop)) return t[prop];
@@ -794,6 +820,35 @@ function paramSpecRanged(type) {
   });
 }
 
+// Resolve a GObject.ParamSpec.object/.boxed `gtype` argument to a native GType
+// handle the engine's BuildParamSpec can consume. The arg is GJS-shaped: a class
+// ctor (introspected `Adw.Bin` / `GObject.Object`, or a registered class) whose
+// real `$gtype` is the GType handle (G4), or an already-resolved GType handle.
+function resolveGTypeArg(gtype) {
+  if (gtype === null || gtype === undefined) return gtype;
+  if (typeof gtype === 'function' || typeof gtype === 'object') {
+    const gt = gtype.$gtype;
+    if (gt !== undefined) return gt;
+  }
+  return gtype; // assume it is already a GType handle
+}
+
+// object/boxed ParamSpec factories: `(name, nick, blurb, flags, gtype)` — matching
+// GJS's GObject.ParamSpec.object/.boxed argument order. `gtype` is a class ctor
+// (its `$gtype` is read) or a GType handle. Produces a real g_param_spec_object /
+// g_param_spec_boxed via the engine's BuildParamSpec.
+function paramSpecGTyped(type) {
+  return (name, nick, blurb, flags, gtype) => ({
+    $paramSpec: true,
+    type,
+    name,
+    nick,
+    blurb,
+    flags,
+    gtype: resolveGTypeArg(gtype),
+  });
+}
+
 const ParamSpec = Object.freeze({
   string: paramSpecPlain('string'),
   boolean: paramSpecPlain('boolean'),
@@ -803,6 +858,8 @@ const ParamSpec = Object.freeze({
   uint64: paramSpecRanged('uint64'),
   double: paramSpecRanged('double'),
   float: paramSpecRanged('float'),
+  object: paramSpecGTyped('object'),
+  boxed: paramSpecGTyped('boxed'),
 });
 
 // Walk up the JS class's prototype chain to the nearest node-gi base wrapper
@@ -844,6 +901,9 @@ function paramSpecToNative(desc, key) {
   if (desc.default !== undefined) spec.default = desc.default;
   if (typeof desc.minimum === 'number') spec.minimum = desc.minimum;
   if (typeof desc.maximum === 'number') spec.maximum = desc.maximum;
+  // object/boxed ParamSpecs carry a value GType handle (passed straight to the
+  // engine's BuildParamSpec → g_param_spec_object / g_param_spec_boxed).
+  if (desc.gtype !== undefined) spec.gtype = desc.gtype;
   return spec;
 }
 
@@ -993,6 +1053,11 @@ function registerClass(metaOrClass, maybeClass) {
   Object.defineProperty(Subclass, 'name', { value: gtypeName, configurable: true });
   Subclass.prototype = klass.prototype;
   Subclass.$gtypeName = gtypeName;
+  // The native registerClass returns the registered GType as a node-gi GType
+  // handle (G4) — surface it as `$gtype` (GObject.type_ensure(MyClass.$gtype),
+  // ParamSpec.object(..., MyClass) all read it). It is the SAME handle constructType
+  // already consumes, so registration and `$gtype` share one carrier.
+  Subclass.$gtype = typeHandle;
   return Subclass;
 }
 
