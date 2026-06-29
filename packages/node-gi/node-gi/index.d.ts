@@ -211,8 +211,9 @@ export function registerClass(
  * C default, or a JS override further up the chain), passing `handle` as the
  * instance and `args` as the vfunc's declared IN arguments; returns the marshalled
  * vfunc return (or `undefined` for a void vfunc). Throws if no overridden vfunc by
- * that name owns a slot on the instance's type. Declared OUT/INOUT and container
- * args are not yet marshalled for chain-up.
+ * that name owns a slot on the instance's type, or if the vfunc declares any
+ * OUT/INOUT argument (chain-up of those is not yet supported — a catchable throw,
+ * never a crash).
  */
 export function callParentVfunc(
   handle: GObjectHandle,

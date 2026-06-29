@@ -3114,8 +3114,12 @@ static void NodeGiClassInit(gpointer g_class, gpointer class_data) {
 // the return (gi_type_info_extract_ffi_return_value → GIArgumentToJs); throws a
 // GLib.Error for a can-throw vfunc whose parent set the GError.
 //
-// SCOPE: single-level-over-C is the target. Declared OUT/INOUT and container args
-// are not yet marshalled for chain-up (passed as a null slot) — the dominant
+// SCOPE: single-level-over-C is the target. A vfunc with ANY declared OUT/INOUT
+// arg is REJECTED with a clear error BEFORE the ffi_call (a non-optional OUT slot
+// is a location the C parent writes THROUGH — passing null would SIGSEGV the
+// process; "not yet supported" must mean a catchable throw, not a crash). This
+// also forecloses the IN-indexing mismatch (the JS caller passes IN values
+// positionally, while declared indices interleave OUT params). The dominant
 // chain-up cases (constructed/dispose/activate; IN object/primitive args) are
 // covered. Multi-level JS-override chains are gated out at the L1 registerClass
 // layer (multi-level registered subclassing is unsupported), so they do not reach
@@ -3147,6 +3151,23 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
   unsigned int nDeclared = gi_callable_info_get_n_args(ci);
   bool canThrow = gi_callable_info_can_throw_gerror(ci);
 
+  // Guard: chain-up of a vfunc with OUT/INOUT args is not yet supported. A
+  // non-optional OUT param is a pointer the C parent WRITES THROUGH, so we cannot
+  // hand it a null slot (→ NULL-deref crash) and we do not yet marshal OUT values
+  // back to JS. Reject with a catchable error BEFORE any ffi_call. (Also avoids the
+  // declared-vs-positional IN index mismatch once an OUT precedes an IN.)
+  for (unsigned int i = 0; i < nDeclared; i++) {
+    GIArgInfo* ai = gi_callable_info_get_arg(ci, i);
+    GIDirection dir = gi_arg_info_get_direction(ai);
+    gi_base_info_unref(ai);
+    if (dir != GI_DIRECTION_IN) {
+      Napi::Error::New(env, "chain-up of vfunc '" + vname +
+                                "' with OUT/INOUT args is not yet supported")
+          .ThrowAsJavaScriptException();
+      return env.Null();
+    }
+  }
+
   // ffi argument value array: [instance, declared-arg-0 .., (GError** if can-throw)].
   // Each entry points at the value's storage; for the GIArgument union, &arg is the
   // address of every member (they overlap at offset 0), so &giArgs[i] works for any
@@ -3158,27 +3179,28 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
   giArgs[0].v_pointer = obj;
   avalue.push_back(&giArgs[0]);
 
+  // All declared args are IN here (the guard above rejected OUT/INOUT). They map
+  // 1:1 to the positional JS args.
   bool ok = true;
   for (unsigned int i = 0; i < nDeclared && ok; i++) {
     GIArgInfo* ai = gi_callable_info_get_arg(ci, i);
     GITypeInfo* ti = gi_arg_info_get_type_info(ai);
-    GIDirection dir = gi_arg_info_get_direction(ai);
-    if (dir == GI_DIRECTION_IN) {
-      Napi::Value v = i < args.Length() ? args.Get(i) : env.Undefined();
-      if (!JsToGIArgument(env, v, ti, &giArgs[1 + i], &holds[i])) ok = false;  // already threw
-    } else {
-      // OUT/INOUT chain-up marshalling is not yet supported — pass a null slot so
-      // the parent does not read uninitialised memory.
-      giArgs[1 + i].v_pointer = nullptr;
-    }
+    Napi::Value v = i < args.Length() ? args.Get(i) : env.Undefined();
+    if (!JsToGIArgument(env, v, ti, &giArgs[1 + i], &holds[i])) ok = false;  // already threw
     avalue.push_back(&giArgs[1 + i]);
     gi_base_info_unref(ti);
     gi_base_info_unref(ai);
   }
   if (!ok) return env.Null();
 
+  // can-throw vfuncs take a trailing GError** the parent writes the error into.
+  // libffi reads each argument's VALUE from the location avalue[i] points at, so
+  // for the GError** slot avalue must point at a variable holding &error (a
+  // GError**) — i.e. one extra level of indirection (&errorPtr), NOT &error
+  // (which would pass NULL as the GError** and silently swallow the parent error).
   GError* error = nullptr;
-  if (canThrow) avalue.push_back(&error);
+  GError** errorPtr = &error;
+  if (canThrow) avalue.push_back(&errorPtr);
 
   GITypeInfo* retType = gi_callable_info_get_return_type(ci);
   GIFFIReturnValue ffiRet;
@@ -3194,11 +3216,14 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
   Napi::Value result = env.Undefined();
   if (gi_type_info_get_tag(retType) != GI_TYPE_TAG_VOID) {
     // Extract the (possibly narrowed) ffi return into a normalised GIArgument,
-    // then marshal it to JS — the portable, endianness-safe path.
+    // then marshal it to JS — the portable, endianness-safe path. Honour the
+    // vfunc's declared return transfer so a transfer-full parent return (a fresh
+    // GObject / utf8 / boxed) is owned by GIArgumentToJs rather than leaked.
+    GITransfer retTransfer = gi_callable_info_get_caller_owns(ci);
     GIArgument retArg;
     retArg.v_uint64 = 0;
     gi_type_info_extract_ffi_return_value(retType, &ffiRet, &retArg);
-    result = GIArgumentToJs(env, retType, &retArg, GI_TRANSFER_NOTHING);
+    result = GIArgumentToJs(env, retType, &retArg, retTransfer);
   }
   gi_base_info_unref(retType);
   return result;
