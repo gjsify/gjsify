@@ -458,6 +458,32 @@ function wrapInstance(handle, userProto) {
   return proxy;
 }
 
+// Shared object installed at the BASE of every introspected class's prototype
+// chain so `super.vfunc_<name>(...)` inside a registerClass override resolves to a
+// chain-up thunk. A registered subclass extends an introspected base (e.g.
+// `class X extends GObject.Object`), so `super.vfunc_x` looks up `vfunc_x` on the
+// base class's prototype; with this Proxy beneath it, any `vfunc_*` access yields
+// a thunk that invokes the captured parent (C) vfunc via native.callParentVfunc,
+// with `this` (the canonical wrapper instance) as the GObject. Mirrors GJS, where
+// the introspected parent's `vfunc_x` is a thunk into the actual C vtable entry.
+// Non-`vfunc_` lookups fall through to Object.prototype (so the base prototype
+// keeps its normal object behaviour).
+const vfuncChainProto = new Proxy(Object.create(Object.prototype), {
+  get(target, prop, receiver) {
+    if (typeof prop === 'string' && prop.startsWith('vfunc_')) {
+      const vfuncName = prop.slice('vfunc_'.length);
+      return function chainUpToParentVfunc(...args) {
+        const handle = this !== null && this !== undefined ? this[HANDLE] : undefined;
+        if (handle === undefined) {
+          throw new TypeError(`super.${prop}(): chain-up requires a node-gi instance as \`this\``);
+        }
+        return wrapReturn(native.callParentVfunc(handle, vfuncName, unwrapArgs(args)));
+      };
+    }
+    return Reflect.get(target, prop, receiver);
+  },
+});
+
 function makeClass(namespace, typeName) {
   const ctor = function ctor(props) {
     const handle = native.newObject(namespace, typeName, props ? unwrapProps(props) : {});
@@ -465,6 +491,9 @@ function makeClass(namespace, typeName) {
   };
   Object.defineProperty(ctor, 'name', { value: typeName, configurable: true });
   ctor.$gtypeName = `${namespace}.${typeName}`;
+  // Put the vfunc chain-up Proxy beneath this base class's prototype so a
+  // registerClass subclass's `super.vfunc_<name>(...)` resolves (see above).
+  Object.setPrototypeOf(ctor.prototype, vfuncChainProto);
   // Stamp the prototype with its class identity so Gio._promisify(Cls.prototype, …)
   // can record which class a registration belongs to (non-enumerable).
   Object.defineProperty(ctor.prototype, CLASS_INFO, {
@@ -815,6 +844,10 @@ function signalSpecToNative(spec, key) {
 // native vfuncs map (key = name without the `vfunc_` prefix). The native engine
 // invokes each override with `this` = the raw instance handle; re-wrap it so the
 // user's vfunc sees a usable class instance (own methods + property routing).
+// `super.vfunc_<name>(...)` inside the override resolves to a chain-up thunk on the
+// introspected base class's prototype (vfuncChainProto → native.callParentVfunc):
+// applying the user fn with a custom `this` keeps `super` bound to its lexical home
+// object (klass.prototype), so chain-up works through the .apply boundary.
 function collectVfuncs(klass) {
   const vfuncs = {};
   const seen = new Set();
