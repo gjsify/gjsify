@@ -170,6 +170,21 @@ async function loadNpmBundler(): Promise<Bundler> {
 // `exports` maps in the target package.json are honored (e.g.
 // `@pixelrpg/gjs` exposes `./index.css` via its exports field — that
 // must resolve through `package.json#exports`, not a direct file probe).
+// A `url()`/asset reference (a `@font-face { src: url('x.woff2') }`, a
+// `background: url('img.png')`, a `data:`/`http:` URL) is NOT a bundle-able
+// CSS module — it is served by the consumer at runtime. lightningcss keeps
+// `url()` verbatim by default, but a bare-specifier asset reference routed
+// through the resolver (a future lightningcss version, or the native Rust
+// `Bundler`) would otherwise hit `req.resolve()` and throw `Cannot find
+// module`, aborting the ENTIRE CSS build over a font/image the bundler was
+// never meant to resolve. This predicate lets the resolver leave such
+// references as-authored so the fonts still load at runtime.
+const ASSET_REF_RE = /\.(woff2?|ttf|otf|eot|svg|png|jpe?g|gif|webp|avif|ico)(\?|#|$)/i;
+
+function isAssetReference(specifier: string): boolean {
+    return /^(data|https?|file):/i.test(specifier) || ASSET_REF_RE.test(specifier);
+}
+
 const cssBundleResolver = {
     resolve(specifier: string, from: string): string {
         if (isAbsolute(specifier)) return specifier;
@@ -180,7 +195,17 @@ const cssBundleResolver = {
         // `createRequire` takes a file URL or path; passing the importer
         // lets it scope its node_modules walk to the right starting point.
         const req = createRequire(pathToFileURL(from).href);
-        return req.resolve(specifier);
+        try {
+            return req.resolve(specifier);
+        } catch (err) {
+            // Not an installed module. If it's a `url()`/asset reference,
+            // leave it verbatim so lightningcss keeps the `@font-face` /
+            // `url()` rule intact (the consumer serves the asset) instead of
+            // crashing the build. A genuine unresolvable CSS `@import`
+            // re-throws so the missing dependency still surfaces clearly.
+            if (isAssetReference(specifier)) return specifier;
+            throw err;
+        }
     },
 };
 
