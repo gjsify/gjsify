@@ -1,0 +1,22 @@
+// _root.scss — opt-in page surface for chrome-less layouts.
+// Reference: refs/libadwaita/src/stylesheet/widgets/_window.scss (surface tokens)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: original opt-in helper for @gjsify/adwaita-web.
+//
+// The components theme via the `--window-*` CSS custom properties, but only
+// `adw-window` actually PAINTS the window surface (background + text colour).
+// A page laid out WITHOUT an `<adw-window>` (e.g. a plain browser view that
+// hosts rows/cards directly) therefore renders on the browser default (white)
+// and its native form controls / scrollbars don't follow the light/dark scheme.
+//
+// Applying `.adw-root` to `<body>` (or `<html>` / the `:root` element) binds the
+// Adwaita window surface + `color-scheme: light dark` to the document, so a
+// window-less layout is themed exactly like the components inside it. This is
+// OPT-IN and additive — it does not change any component's own styling.
+.adw-root {
+  background-color: var(--window-bg-color);
+  color: var(--window-fg-color);
+  color-scheme: light dark;
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+}

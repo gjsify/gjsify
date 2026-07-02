@@ -1,12 +1,13 @@
-# Build artifacts from gjsify build --library (outputs .js alongside .ts in src/)
-src/**/*.js
-
-# Compiled SCSS output
+# Compiled SCSS output (dist/adwaita-web.css + .map). `lib/` (the emitted
+# declarations, lib/types) is gitignored at the repo root — it ships only via
+# the npm tarball's `files`, never committed.
 dist/
 
 # Generated SCSS partial (icons resolved from @gjsify/adwaita-icons at build time)
 scss/_icons.generated.scss
 
-# Generated TS module: the compiled stylesheet inlined for JS self-injection
-# (written by scripts/build-scss.mjs, imported by src/index.ts).
+# Generated TS build intermediate: the compiled stylesheet inlined as a JS
+# string so the entry can self-apply it on import. build:scss regenerates it
+# from the compiled CSS and src/index.ts imports it. It stays in src/ as a
+# gitignored intermediate — never committed, never shipped as source.
 src/styles.generated.ts
