@@ -10,6 +10,10 @@
             "types": "./lib/types/index.d.ts",
             "default": "./src/index.ts"
         },
+        "./source-view": {
+            "types": "./lib/types/source-view/index.d.ts",
+            "default": "./src/source-view/index.ts"
+        },
         "./style.css": {
             "types": "./style.css.d.ts",
             "default": "./dist/adwaita-web.css"
@@ -32,8 +36,13 @@
         "build:types": "gjsify tsc"
     },
     "dependencies": {
+        "@codemirror/commands": "^6.0.0",
+        "@codemirror/language": "^6.0.0",
+        "@codemirror/state": "^6.0.0",
+        "@codemirror/view": "^6.0.0",
         "@gjsify/adwaita-fonts": "workspace:^",
-        "@gjsify/adwaita-icons": "workspace:^"
+        "@gjsify/adwaita-icons": "workspace:^",
+        "@lezer/highlight": "^1.0.0"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
