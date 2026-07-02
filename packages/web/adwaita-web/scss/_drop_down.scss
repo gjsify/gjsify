@@ -1,0 +1,185 @@
+// _drop_down.scss — adw-drop-down: a standalone dropdown selector (the web
+// counterpart of Gtk.DropDown). A normal Adwaita button showing the current
+// selection + a `pan-down` chevron, dropping an elevated Adwaita popover list of
+// options. The popover reproduces libadwaita's popover.menu > contents surface
+// (soft triple shadow), the items its modelbutton rows, matching <adw-menu-button>.
+// Reference: refs/libadwaita/src/stylesheet/widgets/_popovers.scss (popover > contents)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_menus.scss (modelbutton rows)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_drop-down.scss (dropdown button)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Implemented for @gjsify/adwaita-web Web Components.
+
+.adw-drop-down {
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  vertical-align: middle;
+
+  // The selection button — a normal Adwaita button (label + dim chevron).
+  .adw-drop-down-button {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    min-width: 100px;
+    min-height: 34px;
+    margin: 0;
+    padding: 0 8px 0 12px;
+    border: none;
+    border-radius: var(--button-radius);
+    background-color: var(--button-bg-color);
+    color: var(--window-fg-color);
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: 1px;
+    }
+
+    &:disabled {
+      cursor: default;
+      pointer-events: none;
+    }
+  }
+
+  .adw-drop-down-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: start;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // The chevron — a smaller, dimmed down-glyph after the label.
+  .adw-drop-down-arrow {
+    width: 12px;
+    height: 12px;
+    mask-size: 12px;
+    -webkit-mask-size: 12px;
+    flex: none;
+    opacity: var(--dim-opacity);
+  }
+
+  &.disabled {
+    opacity: 0.55;
+  }
+
+  // --- Popover list ---
+  // The elevated surface below the button. Reproduces popover.menu > contents.
+  .adw-drop-down-popover {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    min-width: 100%;
+    max-width: 320px;
+    padding: var(--spacing-xs);
+    border-radius: var(--card-radius);
+    background-color: var(--popover-bg-color, var(--window-bg-color, #fff));
+    color: var(--popover-fg-color, var(--window-fg-color));
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.05),
+      0 1px 5px 1px rgba(0, 0, 0, 0.09),
+      0 2px 14px 3px rgba(0, 0, 0, 0.05);
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  // Search entry atop the popover (enable-search). It reuses the .adw-entry skin
+  // but needs its own bottom margin to separate it from the list.
+  .adw-drop-down-search {
+    margin-bottom: var(--spacing-xs);
+  }
+
+  // Scrollable column of option rows.
+  .adw-drop-down-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  // An option row — a flat rounded row with the label and a trailing check on
+  // the selected one; fills on hover/focus like a modelbutton.
+  .adw-drop-down-item {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-s);
+    width: 100%;
+    min-height: 32px;
+    margin: 0;
+    padding: var(--spacing-xs) var(--spacing-s);
+    border: none;
+    border-radius: calc(var(--button-radius) - 2px);
+    background-color: transparent;
+    color: inherit;
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    text-align: start;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: -2px;
+    }
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .adw-drop-down-item-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // The selected-row check — a CSS checkmark, shown only on `.selected`.
+  .adw-drop-down-item-check {
+    position: relative;
+    width: 16px;
+    height: 16px;
+    flex: none;
+  }
+
+  .adw-drop-down-item.selected .adw-drop-down-item-check::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 2px;
+    width: 4px;
+    height: 8px;
+    border: solid var(--accent-color);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+}

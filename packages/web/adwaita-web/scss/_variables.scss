@@ -42,6 +42,10 @@
   --popover-fg-color: rgba(0, 0, 6, 0.8);
   --popover-shade-color: rgba(0, 0, 6, 0.07);
 
+  // Dialog scrim — the dimming wash behind a presented dialog (Adw dims with
+  // --shade-color at double alpha; this is the equivalent neutral wash).
+  --dialog-scrim-color: rgba(0, 0, 6, 0.32);
+
   // Buttons
   --button-bg-color: rgba(0, 0, 6, 0.08);
   --button-hover-color: rgba(0, 0, 6, 0.13);
