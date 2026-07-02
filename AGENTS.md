@@ -698,6 +698,8 @@ Run before the merge that adds the package (or immediately after, before the nex
 
 Same procedure for new native-bridge packages (`@gjsify/<name>-native`) since they ship as their own npm packages alongside the parent. PR template / merge checklist should include: *"if this PR adds a new `@gjsify/*` package, the manual first-publish + Trusted Publisher step is done before merging or queued as the next maintainer action."*
 
+Release versioning follows [ADR 0008](docs/adr/0008-release-versioning-policy.md): all `@gjsify/*` packages publish as one release train at a single version, and compatibility between them is guaranteed only within the same release.
+
 ## Example convention (GTK + browser)
 
 Dual-target with Adwaita UI:

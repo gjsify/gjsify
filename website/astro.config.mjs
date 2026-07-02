@@ -52,6 +52,7 @@ export default defineConfig({
                         { slug: 'getting-started' },
                         { slug: 'cli-reference' },
                         { slug: 'how-it-works' },
+                        { slug: 'versioning' },
                         { slug: 'coverage' },
                     ],
                 },
