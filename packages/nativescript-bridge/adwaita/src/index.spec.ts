@@ -49,7 +49,12 @@ import {
     themeIconColor,
     toggleAdwaitaColorScheme,
 } from './widgets/color-scheme.js';
-import { AdwBreakpoint, addBreakpoints, evaluateBreakpointCondition, parseBreakpointCondition } from './widgets/breakpoint.js';
+import {
+    AdwBreakpoint,
+    addBreakpoints,
+    evaluateBreakpointCondition,
+    parseBreakpointCondition,
+} from './widgets/breakpoint.js';
 import type { BreakpointConditionLeaf } from './widgets/breakpoint.js';
 // The AdwToast value object + the AdwToastQueue one-at-a-time/auto-dismiss state
 // machine and the alert-dialog response model (AdwAlertResponses) are HEADLESS and
@@ -61,6 +66,12 @@ import type { BreakpointConditionLeaf } from './widgets/breakpoint.js';
 // this off-device spec; the built `lib/esm` re-export is verified separately.
 import { AdwAlertResponses, AdwToast, AdwToastQueue, DEFAULT_TOAST_TIMEOUT } from '@gjsify/adwaita-core';
 import type { ToastScheduler, ToastTimerHandle } from '@gjsify/adwaita-core';
+// The row interaction state machines (expander/combo/spin/toggle-group) are HEADLESS
+// and moved to `@gjsify/adwaita-core` (ADR 0004). Their clamp/step/selection/toggle
+// matrices are specced THERE (`rows.spec.ts`); here we import the moved classes to
+// smoke-test the surface the NS row widgets (the `@nativescript/core`-backed render
+// halves that can't load off-device) now compose + re-export.
+import { ComboState, ExpanderState, SpinState, ToggleGroupState } from '@gjsify/adwaita-core';
 
 // The XML-registration helper only touches the global `registerElement` (it does
 // not extend any `@nativescript/core` class at module-eval), so its own module is
@@ -136,63 +147,13 @@ class MockEntryRow {
     }
 }
 
-interface ComboOption {
-    label: string;
-    value: string;
-}
-
-// Mirrors AdwComboRow's selectedIndex/selectedValue <-> ListPicker.selectedIndex.
-class MockComboRow {
-    private _options: ComboOption[] = [];
-    private _index = 0;
-    set options(v: ComboOption[]) {
-        this._options = v;
-    }
-    get selectedIndex(): number {
-        return this._index;
-    }
-    set selectedIndex(v: number) {
-        this._index = Number.isFinite(v) ? v : 0;
-    }
-    get selectedValue(): string {
-        return this._options[this._index]?.value ?? '';
-    }
-    set selectedValue(value: string) {
-        const idx = this._options.findIndex((o) => o.value === value);
-        if (idx >= 0) this._index = idx;
-    }
-}
-
-// Mirrors AdwSpinRow's clamped value/min/max/step + bump.
-class MockSpinRow {
-    private _value = 0;
-    private _min = 0;
-    private _max = 100;
-    private _step = 1;
-    private _clamp(n: number): number {
-        return Math.min(this._max, Math.max(this._min, n));
-    }
-    get value(): number {
-        return this._value;
-    }
-    set value(v: number) {
-        this._value = this._clamp(Number.isFinite(v) ? v : 0);
-    }
-    set min(v: number) {
-        this._min = v;
-        this.value = this._value;
-    }
-    set max(v: number) {
-        this._max = v;
-        this.value = this._value;
-    }
-    set step(v: number) {
-        this._step = v > 0 ? v : 1;
-    }
-    bump(dir: 1 | -1): void {
-        this.value = this._value + dir * this._step;
-    }
-}
+// AdwComboRow's selectedIndex↔selectedValue mapping (ComboState), AdwSpinRow's
+// clamped value/min/max/step + stepping (SpinState), AdwExpanderRow's disclosure
+// toggle (ExpanderState) and AdwToggleGroup's segment selection (ToggleGroupState)
+// are HEADLESS and moved to `@gjsify/adwaita-core` (ADR 0004) — specced there in
+// `rows.spec.ts`. Their former mock stand-ins are gone; the smoke tests below drive
+// the real state machines (imported above) to pin the moved surface, exactly like
+// the toast/dialog re-export smoke tests.
 
 // Mirrors AdwSliderRow's clamp-then-snap-to-step (the RANGE slider). Kept in
 // lockstep with src/widgets/adw-slider-row.ts `_snap`.
@@ -231,19 +192,6 @@ function mockAvatarInitials(text: string): string {
     if (words.length === 0) return '';
     if (words.length === 1) return words[0]!.charAt(0).toUpperCase();
     return (words[0]!.charAt(0) + words[words.length - 1]!.charAt(0)).toUpperCase();
-}
-
-// Mirrors AdwExpanderRow.expanded toggle (visibility-driven).
-class MockExpanderRow {
-    private _expanded = false;
-    visibility = 'collapse';
-    get expanded(): boolean {
-        return this._expanded;
-    }
-    set expanded(v: boolean) {
-        this._expanded = !!v;
-        this.visibility = this._expanded ? 'visible' : 'collapse';
-    }
 }
 
 // --- Mocks for the new Tier-2 widgets (mirror their accessor logic, kept in
@@ -432,24 +380,6 @@ class MockSplitView {
     }
 }
 
-// Mirrors AdwToggleGroup's selected + selectedValue over an options list.
-class MockToggleGroup {
-    private _options: string[] = [];
-    private _selected = 0;
-    set options(v: string[]) {
-        this._options = v;
-    }
-    get selected(): number {
-        return this._selected;
-    }
-    set selected(v: number) {
-        this._selected = Number.isFinite(v) ? v : 0;
-    }
-    get selectedValue(): string {
-        return this._options[this._selected] ?? '';
-    }
-}
-
 // A deterministic scheduler stand-in for the AdwToastQueue re-export smoke test —
 // the injected timing seam a renderer supplies (NS wraps `setTimeout`).
 class FakeToastScheduler implements ToastScheduler {
@@ -589,64 +519,57 @@ export default async () => {
         });
     });
 
-    await describe('AdwComboRow selection (mock)', async () => {
+    await describe('AdwComboRow selection (core ComboState re-export)', async () => {
+        // The full options/index↔value/empty/out-of-range matrix is specced in
+        // @gjsify/adwaita-core; this pins the moved surface the NS `AdwComboRow`
+        // (the inline-value + chevron + native-chooser render) composes.
         await it('resolves selectedValue from selectedIndex', () => {
-            const row = new MockComboRow();
-            row.options = [
+            const state = new ComboState();
+            state.setOptions([
                 { label: 'One', value: 'a' },
                 { label: 'Two', value: 'b' },
-            ];
-            row.selectedIndex = 1;
-            expect(row.selectedValue).toBe('b');
+            ]);
+            state.setSelectedIndex(1);
+            expect(state.selectedValue).toBe('b');
         });
 
-        await it('selectedValue setter moves selectedIndex', () => {
-            const row = new MockComboRow();
-            row.options = [
+        await it('setSelectedValue moves selectedIndex; out-of-range → empty value', () => {
+            const state = new ComboState();
+            state.setOptions([{ label: 'One', value: 'a' }]);
+            state.setSelectedIndex(5);
+            expect(state.selectedValue).toBe('');
+            state.setOptions([
                 { label: 'One', value: 'a' },
                 { label: 'Two', value: 'b' },
-            ];
-            row.selectedValue = 'b';
-            expect(row.selectedIndex).toBe(1);
-        });
-
-        await it('returns empty string for out-of-range index', () => {
-            const row = new MockComboRow();
-            row.options = [{ label: 'One', value: 'a' }];
-            row.selectedIndex = 5;
-            expect(row.selectedValue).toBe('');
+            ]);
+            expect(state.setSelectedValue('b')).toBe(true);
+            expect(state.selectedIndex).toBe(1);
         });
     });
 
-    await describe('AdwSpinRow numeric stepper (mock)', async () => {
-        await it('clamps the value to [min, max]', () => {
-            const row = new MockSpinRow();
-            row.min = 0;
-            row.max = 10;
-            row.value = 99;
-            expect(row.value).toBe(10);
-            row.value = -5;
-            expect(row.value).toBe(0);
-        });
-
-        await it('bumps by step and clamps', () => {
-            const row = new MockSpinRow();
-            row.min = 0;
-            row.max = 4;
-            row.step = 2;
-            row.bump(1);
-            expect(row.value).toBe(2);
-            row.bump(1);
-            expect(row.value).toBe(4);
-            row.bump(1);
-            expect(row.value).toBe(4); // clamped at max
+    await describe('AdwSpinRow numeric stepper (core SpinState re-export)', async () => {
+        // The full clamp/step-edge matrix is specced in @gjsify/adwaita-core; this
+        // pins the moved surface the NS `AdwSpinRow` (the ± stepper render) composes.
+        await it('clamps the value and steps to the bounds', () => {
+            const state = new SpinState();
+            state.setMin(0);
+            state.setMax(4);
+            state.setValue(99);
+            expect(state.value).toBe(4); // clamped
+            state.setStep(2);
+            state.setValue(0);
+            state.increment();
+            expect(state.value).toBe(2);
+            state.increment();
+            state.increment();
+            expect(state.value).toBe(4); // clamped at max
         });
 
         await it('re-clamps the current value when min rises above it', () => {
-            const row = new MockSpinRow();
-            row.value = 3;
-            row.min = 5;
-            expect(row.value).toBe(5);
+            const state = new SpinState();
+            state.setValue(3);
+            state.setMin(5);
+            expect(state.value).toBe(5);
         });
     });
 
@@ -682,15 +605,18 @@ export default async () => {
         });
     });
 
-    await describe('AdwExpanderRow disclosure (mock)', async () => {
-        await it('toggles visibility with expanded', () => {
-            const row = new MockExpanderRow();
-            expect(row.expanded).toBe(false);
-            expect(row.visibility).toBe('collapse');
-            row.expanded = true;
-            expect(row.visibility).toBe('visible');
-            row.expanded = false;
-            expect(row.visibility).toBe('collapse');
+    await describe('AdwExpanderRow disclosure (core ExpanderState re-export)', async () => {
+        // The toggle/idempotence matrix is specced in @gjsify/adwaita-core; this
+        // pins the moved surface the NS `AdwExpanderRow` (the disclosure render)
+        // composes to drive `visibility` + the chevron.
+        await it('toggles expanded idempotently', () => {
+            const state = new ExpanderState();
+            expect(state.expanded).toBe(false);
+            expect(state.toggle()).toBe(true);
+            expect(state.expanded).toBe(true);
+            expect(state.setExpanded(true)).toBe(false); // idempotent
+            expect(state.collapse()).toBe(true);
+            expect(state.expanded).toBe(false);
         });
     });
 
@@ -851,19 +777,22 @@ export default async () => {
         });
     });
 
-    await describe('AdwToggleGroup selection (mock)', async () => {
-        await it('resolves selectedValue from the options list', () => {
-            const tg = new MockToggleGroup();
-            tg.options = ['Day', 'Week', 'Month'];
-            tg.selected = 2;
-            expect(tg.selectedValue).toBe('Month');
+    await describe('AdwToggleGroup selection (core ToggleGroupState re-export)', async () => {
+        // The selection/bounds/notify matrix is specced in @gjsify/adwaita-core;
+        // this pins the moved surface the NS `AdwToggleGroup` (the segment render)
+        // composes to raise the active pill.
+        await it('resolves selectedValue from the label list', () => {
+            const state = new ToggleGroupState();
+            state.setLabels(['Day', 'Week', 'Month']);
+            state.setSelected(2);
+            expect(state.selectedValue).toBe('Month');
         });
 
-        await it('returns empty string when out of range', () => {
-            const tg = new MockToggleGroup();
-            tg.options = ['Day'];
-            tg.selected = 5;
-            expect(tg.selectedValue).toBe('');
+        await it('guards an out-of-range selection', () => {
+            const state = new ToggleGroupState();
+            state.setLabels(['Day']);
+            expect(state.setSelected(5)).toBe(false); // stays at 0
+            expect(state.selectedValue).toBe('Day');
         });
     });
 
@@ -1004,9 +933,7 @@ export default async () => {
         });
 
         await it('normalizeArcFlags handles multiple arc groups + trailing command', () => {
-            expect(normalizeArcFlags('a3 3 0 11-2-2 1 1 0 00.5.5L4 4')).toBe(
-                'a 3 3 0 1 1 -2 -2 1 1 0 0 0 .5 .5L4 4',
-            );
+            expect(normalizeArcFlags('a3 3 0 11-2-2 1 1 0 00.5.5L4 4')).toBe('a 3 3 0 1 1 -2 -2 1 1 0 0 0 .5 .5L4 4');
         });
     });
 
@@ -1063,7 +990,10 @@ export default async () => {
                     listeners.set(name, arr);
                 },
                 removeEventListener(name: string, cb: () => void) {
-                    listeners.set(name, (listeners.get(name) ?? []).filter((c) => c !== cb));
+                    listeners.set(
+                        name,
+                        (listeners.get(name) ?? []).filter((c) => c !== cb),
+                    );
                 },
             } as unknown as View;
             const fire = (name: string) => (listeners.get(name) ?? []).forEach((c) => c());

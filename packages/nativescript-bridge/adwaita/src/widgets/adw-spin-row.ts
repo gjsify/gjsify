@@ -6,14 +6,29 @@
 // `Adw.SpinRow`'s adjustment; pressing a button clamps to `[min, max]` and emits a
 // `notify::value` event (GObject signal naming).
 //
+// The numeric adjustment STATE MACHINE (`value`/`min`/`max`/`step` with clamping on
+// every mutation, `increment`/`decrement` stepping, and the programmatic-vs-
+// interactive notify split) is HEADLESS and lives in `@gjsify/adwaita-core` (ADR
+// 0004) as {@link SpinState}; this class composes it and keeps only the NS render
+// half: the value `Label` + the ± stepper `AdwImageButton`s + the `notify::value`
+// GObject-style signal — all driven by the state object (a programmatic set
+// refreshes the label silently, a stepper press re-emits `notify::value`).
+//
 // Visual spec ported from `@gjsify/adwaita-web`'s `_spin_row.scss`.
 // Reference: refs/libadwaita/src/stylesheet/widgets/_spin-button.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { Label, StackLayout, type EventData } from '@nativescript/core';
+import { Label, StackLayout } from '@nativescript/core';
+import type { EventData } from '@nativescript/core';
 import { valueDecreaseSymbolic, valueIncreaseSymbolic } from '@gjsify/adwaita-icons/actions';
+import { SpinState } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
 import { AdwImageButton } from './adw-image-button.js';
+
+// Re-export the headless state machine so consumers can reach it from
+// `@gjsify/adwaita-nativescript` unchanged.
+export { SpinState } from '@gjsify/adwaita-core';
+export type { SpinStateChange, SpinStateListener } from '@gjsify/adwaita-core';
 
 /** Event name emitted when {@link AdwSpinRow.value} changes. Mirrors GObject `notify::value`. */
 export const NOTIFY_VALUE = 'notify::value';
@@ -31,11 +46,8 @@ export class AdwSpinRow extends AdwActionRow {
     protected readonly _plusButton: AdwImageButton;
     /** The value display before the stepper buttons. */
     protected readonly _valueLabel: Label;
-
-    private _value = 0;
-    private _min = 0;
-    private _max = 100;
-    private _step = 1;
+    /** The headless value/min/max/step clamp-and-step state machine (ADR 0004). */
+    private readonly _state = new SpinState();
 
     constructor() {
         super();
@@ -48,7 +60,7 @@ export class AdwSpinRow extends AdwActionRow {
 
         const valueLabel = new Label();
         valueLabel.className = 'adw-spin-value';
-        valueLabel.text = String(this._value);
+        valueLabel.text = String(this._state.value);
 
         // REAL Adwaita symbolic icons in circular flat buttons (value-decrease /
         // value-increase), matching Adw.SpinRow's stepper — not `−`/`+` glyphs.
@@ -70,68 +82,57 @@ export class AdwSpinRow extends AdwActionRow {
         this._plusButton = plus;
         this._valueLabel = valueLabel;
 
-        minus.addEventListener('tap', () => this._bump(-this._step));
-        plus.addEventListener('tap', () => this._bump(this._step));
-    }
+        // The core state drives the label on every change and the notify::value
+        // on an interactive stepper press.
+        this._state.subscribe((change) => {
+            this._valueLabel.text = String(change.value);
+            if (change.interactive) {
+                const data: NotifyValueEventData = {
+                    eventName: NOTIFY_VALUE,
+                    object: this,
+                    value: change.value,
+                };
+                this.notify(data);
+            }
+        });
 
-    /** Apply a delta, clamp to `[min, max]`, update the label and emit `notify::value`. */
-    private _bump(delta: number): void {
-        const next = this._clamp(this._value + delta);
-        if (next !== this._value) {
-            this._value = next;
-            this._valueLabel.text = String(next);
-            const data: NotifyValueEventData = {
-                eventName: NOTIFY_VALUE,
-                object: this,
-                value: next,
-            };
-            this.notify(data);
-        }
-    }
-
-    private _clamp(n: number): number {
-        return Math.min(this._max, Math.max(this._min, n));
+        minus.addEventListener('tap', () => this._state.decrement());
+        plus.addEventListener('tap', () => this._state.increment());
     }
 
     /** The current numeric value (always within `[min, max]`). */
     get value(): number {
-        return this._value;
+        return this._state.value;
     }
 
     set value(v: number) {
-        const next = this._clamp(Number.isFinite(v) ? v : 0);
-        if (next !== this._value) {
-            this._value = next;
-            this._valueLabel.text = String(next);
-        }
+        this._state.setValue(v);
     }
 
     /** Lower bound. Re-clamps the current value if it now falls below. */
     get min(): number {
-        return this._min;
+        return this._state.min;
     }
 
     set min(v: number) {
-        this._min = Number.isFinite(v) ? v : 0;
-        this.value = this._value;
+        this._state.setMin(v);
     }
 
     /** Upper bound. Re-clamps the current value if it now falls above. */
     get max(): number {
-        return this._max;
+        return this._state.max;
     }
 
     set max(v: number) {
-        this._max = Number.isFinite(v) ? v : 0;
-        this.value = this._value;
+        this._state.setMax(v);
     }
 
     /** Increment/decrement step applied per button press. */
     get step(): number {
-        return this._step;
+        return this._state.step;
     }
 
     set step(v: number) {
-        this._step = Number.isFinite(v) && v > 0 ? v : 1;
+        this._state.setStep(v);
     }
 }
