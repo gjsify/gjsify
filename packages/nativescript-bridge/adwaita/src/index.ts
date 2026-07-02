@@ -83,9 +83,11 @@ export {
     // Feedback / dialogs
     AdwToast,
     AdwToastOverlay,
+    AdwToastQueue,
     DEFAULT_TOAST_TIMEOUT,
     TOAST_BUTTON_CLICKED,
     AdwAlertDialog,
+    AdwAlertResponses,
     NOTIFY_RESPONSE,
     AdwAboutDialog,
     ABOUT_CLOSED,
@@ -140,7 +142,15 @@ export type {
     NotifyOpenEventData,
     // Feedback / dialogs
     AdwToastOptions,
+    AdwToastQueueHandlers,
+    AdwToastQueueOptions,
+    ToastScheduler,
+    ToastTimerHandle,
     NotifyResponseEventData,
+    AdwAlertResponse,
+    AdwResponseAppearance,
+    AdwResponseOptions,
+    OrderedConfirmResponses,
     // Icon helpers
     SymbolicIconOptions,
     IconPath,

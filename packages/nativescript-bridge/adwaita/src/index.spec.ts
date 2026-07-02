@@ -51,6 +51,16 @@ import {
 } from './widgets/color-scheme.js';
 import { AdwBreakpoint, addBreakpoints, evaluateBreakpointCondition, parseBreakpointCondition } from './widgets/breakpoint.js';
 import type { BreakpointConditionLeaf } from './widgets/breakpoint.js';
+// The AdwToast value object + the AdwToastQueue one-at-a-time/auto-dismiss state
+// machine and the alert-dialog response model (AdwAlertResponses) are HEADLESS and
+// moved to `@gjsify/adwaita-core` (ADR 0004). Their behavior matrices are specced
+// THERE (`toast.spec.ts` / `dialog.spec.ts`); here we import the moved classes to
+// smoke-test the surface. Unlike breakpoint/color-scheme — whose NS shims are
+// import-safe — the NS `AdwToastOverlay` (a `GridLayout`) and `AdwAlertDialog` (an
+// `Observable`) pull `@nativescript/core` at module-eval, so they can't load in
+// this off-device spec; the built `lib/esm` re-export is verified separately.
+import { AdwAlertResponses, AdwToast, AdwToastQueue, DEFAULT_TOAST_TIMEOUT } from '@gjsify/adwaita-core';
+import type { ToastScheduler, ToastTimerHandle } from '@gjsify/adwaita-core';
 
 // The XML-registration helper only touches the global `registerElement` (it does
 // not extend any `@nativescript/core` class at module-eval), so its own module is
@@ -440,50 +450,21 @@ class MockToggleGroup {
     }
 }
 
-// Mirrors AdwAlertDialog._orderResponses (default→ok, last→cancel, middle→neutral)
-// and the resolve mapping confirm(true|false|undefined) → response id.
-class MockAlertDialog {
-    private _responses: Array<{ id: string; label: string }> = [];
-    private _default: string | null = null;
-    private _close = 'close';
-    addResponse(id: string, label: string): void {
-        this._responses.push({ id, label });
+// A deterministic scheduler stand-in for the AdwToastQueue re-export smoke test —
+// the injected timing seam a renderer supplies (NS wraps `setTimeout`).
+class FakeToastScheduler implements ToastScheduler {
+    private _next: (() => void) | null = null;
+    schedule(callback: () => void, _ms: number): ToastTimerHandle {
+        this._next = callback;
+        return 1;
     }
-    set defaultResponse(id: string | null) {
-        this._default = id;
+    cancel(_handle: ToastTimerHandle): void {
+        this._next = null;
     }
-    set closeResponse(id: string) {
-        this._close = id || 'close';
-    }
-    order(): { ok?: string; cancel?: string; neutral?: string } {
-        const ok = this._responses.find((r) => r.id === this._default) ?? this._responses[0];
-        const remaining = this._responses.filter((r) => r !== ok);
-        const cancel = remaining[remaining.length - 1];
-        const neutral = remaining.length >= 2 ? remaining[0] : undefined;
-        return { ok: ok?.id, cancel: cancel?.id, neutral: neutral?.id };
-    }
-    resolve(result: boolean | undefined): string {
-        const o = this.order();
-        if (result === true && o.ok) return o.ok;
-        if (result === false && o.cancel) return o.cancel;
-        if (result === undefined && o.neutral) return o.neutral;
-        return this._close;
-    }
-    usesActionSheet(): boolean {
-        return this._responses.length > 3;
-    }
-}
-
-// Mirrors the AdwToast value object (timeout/buttonLabel defaulting).
-const DEFAULT_TOAST_TIMEOUT = 5000;
-class MockToast {
-    title: string;
-    timeout: number;
-    buttonLabel: string;
-    constructor(title = '', options: { timeout?: number; buttonLabel?: string } = {}) {
-        this.title = title;
-        this.timeout = options.timeout ?? DEFAULT_TOAST_TIMEOUT;
-        this.buttonLabel = options.buttonLabel ?? '';
+    fire(): void {
+        const fn = this._next;
+        this._next = null;
+        fn?.();
     }
 }
 
@@ -886,47 +867,57 @@ export default async () => {
         });
     });
 
-    await describe('AdwAlertDialog response ordering (mock)', async () => {
-        await it('maps confirm(true|false|undefined) to ok/cancel/neutral ids', () => {
-            const d = new MockAlertDialog();
+    await describe('alert-dialog response model (core AdwAlertResponses re-export)', async () => {
+        // The registry/appearance/enabled/ordering/resolution matrix is specced in
+        // @gjsify/adwaita-core; this pins the moved surface the NS `AdwAlertDialog`
+        // (the confirm()/action() binding) composes.
+        await it('orders default→ok, last→cancel, middle→neutral', () => {
+            const d = new AdwAlertResponses();
             d.addResponse('save', 'Save');
             d.addResponse('discard', 'Discard');
             d.addResponse('cancel', 'Cancel');
             d.defaultResponse = 'save';
-            expect(d.resolve(true)).toBe('save'); // OK = default
-            expect(d.resolve(false)).toBe('cancel'); // cancel = last
-            expect(d.resolve(undefined)).toBe('discard'); // neutral = middle
+            const o = d.orderResponses();
+            expect(d.resolveById(o.ok?.id)).toBe('save'); // OK = default
+            expect(d.resolveById(o.cancel?.id)).toBe('cancel'); // cancel = last
+            expect(d.resolveById(o.neutral?.id)).toBe('discard'); // neutral = middle
         });
 
-        await it('falls back to closeResponse when a slot is absent', () => {
-            const d = new MockAlertDialog();
-            d.addResponse('ok', 'OK');
-            d.closeResponse = 'dismissed';
-            expect(d.resolve(undefined)).toBe('dismissed'); // no neutral
-        });
-
-        await it('switches to an action sheet for more than three responses', () => {
-            const d = new MockAlertDialog();
-            d.addResponse('a', 'A');
-            d.addResponse('b', 'B');
-            d.addResponse('c', 'C');
-            d.addResponse('d', 'D');
-            expect(d.usesActionSheet()).toBe(true);
+        await it('switches to an action sheet past three responses', () => {
+            const d = new AdwAlertResponses();
+            d.addResponses('a', 'A', 'b', 'B', 'c', 'C');
+            expect(d.usesActionSheet).toBe(false);
+            d.addResponse('d', 'D', { appearance: 'destructive' });
+            expect(d.usesActionSheet).toBe(true);
+            expect(d.getResponseAppearance('d')).toBe('destructive');
         });
     });
 
-    await describe('AdwToast value object (mock)', async () => {
-        await it('defaults the timeout and has no button by default', () => {
-            const t = new MockToast('Saved');
-            expect(t.title).toBe('Saved');
-            expect(t.timeout).toBe(5000);
-            expect(t.buttonLabel).toBe('');
+    await describe('toast value object + queue (core re-export)', async () => {
+        // The AdwToast value object + AdwToastQueue one-at-a-time/auto-dismiss
+        // matrix is specced in @gjsify/adwaita-core; this pins the moved surface
+        // the NS `AdwToastOverlay` (the GridLayout render + setTimeout scheduler)
+        // drives.
+        await it('AdwToast defaults the timeout and tracks the action button', () => {
+            expect(new AdwToast('Saved').timeout).toBe(DEFAULT_TOAST_TIMEOUT);
+            const t = new AdwToast('Deleted', { timeout: 2000, buttonLabel: 'Undo' });
+            expect(t.timeout).toBe(2000);
+            expect(t.hasButton).toBe(true);
         });
 
-        await it('honours explicit timeout and action label', () => {
-            const t = new MockToast('Deleted', { timeout: 2000, buttonLabel: 'Undo' });
-            expect(t.timeout).toBe(2000);
-            expect(t.buttonLabel).toBe('Undo');
+        await it('AdwToastQueue shows one at a time and auto-dismisses via the injected scheduler', () => {
+            const scheduler = new FakeToastScheduler();
+            const shown: string[] = [];
+            const queue = new AdwToastQueue({
+                scheduler,
+                onShow: (t) => shown.push(t.title),
+                onHide: () => {},
+            });
+            queue.add(new AdwToast('first', { timeout: 3000 }));
+            queue.add(new AdwToast('second', { timeout: 3000 }));
+            expect(shown).toStrictEqual(['first']); // only one at a time
+            scheduler.fire(); // the first auto-dismisses
+            expect(shown).toStrictEqual(['first', 'second']); // queue advanced
         });
     });
 
