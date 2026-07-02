@@ -72,10 +72,33 @@ export { AdwBottomSheet, NOTIFY_OPEN } from './adw-bottom-sheet.js';
 export type { NotifyOpenEventData } from './adw-bottom-sheet.js';
 
 // --- Feedback / dialogs ---
-export { AdwToast, AdwToastOverlay, DEFAULT_TOAST_TIMEOUT, TOAST_BUTTON_CLICKED } from './adw-toast-overlay.js';
-export type { AdwToastOptions } from './adw-toast-overlay.js';
-export { AdwAlertDialog, NOTIFY_RESPONSE } from './adw-alert-dialog.js';
-export type { NotifyResponseEventData } from './adw-alert-dialog.js';
+// AdwToastOverlay is the NS View render; the AdwToast value object + the
+// AdwToastQueue one-at-a-time/auto-dismiss state machine are headless
+// (`@gjsify/adwaita-core`, ADR 0004), re-exported here for consumers.
+export {
+    AdwToast,
+    AdwToastOverlay,
+    AdwToastQueue,
+    DEFAULT_TOAST_TIMEOUT,
+    TOAST_BUTTON_CLICKED,
+} from './adw-toast-overlay.js';
+export type {
+    AdwToastOptions,
+    AdwToastQueueHandlers,
+    AdwToastQueueOptions,
+    ToastScheduler,
+    ToastTimerHandle,
+} from './adw-toast-overlay.js';
+// AdwAlertDialog is the NS binding onto native confirm()/action(); the response
+// registry + ordering + resolution are headless (AdwAlertResponses), re-exported.
+export { AdwAlertDialog, AdwAlertResponses, NOTIFY_RESPONSE } from './adw-alert-dialog.js';
+export type {
+    AdwAlertResponse,
+    AdwResponseAppearance,
+    AdwResponseOptions,
+    NotifyResponseEventData,
+    OrderedConfirmResponses,
+} from './adw-alert-dialog.js';
 export { AdwAboutDialog, CLOSED as ABOUT_CLOSED } from './adw-about-dialog.js';
 export { AdwPreferencesDialog, CLOSED as PREFERENCES_CLOSED } from './adw-preferences-dialog.js';
 

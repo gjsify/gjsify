@@ -1,56 +1,52 @@
 // AdwToast + AdwToastOverlay — Libadwaita-style transient snackbars for NativeScript.
 //
-// `AdwToastOverlay` renders a REAL NativeScript `GridLayout` overlaying a content
-// layer with a bottom-anchored toast strip. `showToast()` shows a transient
-// message at the bottom that auto-dismisses after a timeout. Mirrors
-// `Adw.ToastOverlay` + `Adw.Toast`: `addToast(toast)` / `showToast(title, opts)`,
-// optional action button (`buttonLabel` + `buttonClicked`).
+// The QUEUE — `Adw.ToastOverlay`'s one-at-a-time policy + ordering + the
+// auto-dismiss lifecycle state machine — plus the `AdwToast` value object are
+// HEADLESS and live in `@gjsify/adwaita-core` (ADR 0004); this module re-exports
+// them unchanged (no consumer-visible move) and keeps only the NativeScript
+// binding: a REAL `GridLayout` overlaying a content layer with a bottom-anchored
+// toast strip, the `setTimeout`-backed scheduler that drives the core queue's
+// auto-dismiss, and the CSS.
+//
+// `AdwToastOverlay` drives an {@link AdwToastQueue}: `addToast(toast)` /
+// `showToast(title, opts)` enqueue; the queue shows one at a time and calls back
+// to mount/tear-down the strip (`onShow`/`onHide`), with the injected scheduler
+// firing the auto-dismiss. Optional action button (`buttonLabel` +
+// `toastButtonClicked` event) dismisses the current toast and advances the queue.
 //
 // FIDELITY: compromised on the animation/scrim only. NS has no z-index /
 // box-shadow / slide-transition in this CSS subset, so the toast is bottom-aligned
 // within the grid and toggled by `visibility` (instant appear/disappear, NO
 // slide-up animation). The strip LOOK (rounded dark pill + label + optional
-// action) and the timed auto-dismiss + action-button behaviour are faithful. Uses
-// the NS `setTimeout` global for the dismiss timer.
+// action) and the queued, timed auto-dismiss + action-button behaviour are faithful.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-toast-overlay`.
 // Reference: refs/libadwaita/src/stylesheet/widgets/_toast.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { Button, GridLayout, ItemSpec, Label, View, type EventData } from '@nativescript/core';
+import { AdwToast, AdwToastQueue } from '@gjsify/adwaita-core';
+import type { AdwToastOptions, ToastScheduler } from '@gjsify/adwaita-core';
 
-/** Default toast lifetime, in milliseconds (Adwaita's default ≈ 5 s). */
-export const DEFAULT_TOAST_TIMEOUT = 5000;
+// Re-export the headless surface so existing consumers keep importing it from
+// `@gjsify/adwaita-nativescript` unchanged.
+export { AdwToast, AdwToastQueue, DEFAULT_TOAST_TIMEOUT } from '@gjsify/adwaita-core';
+export type {
+    AdwToastOptions,
+    AdwToastQueueHandlers,
+    AdwToastQueueOptions,
+    ToastScheduler,
+    ToastTimerHandle,
+} from '@gjsify/adwaita-core';
 
 /** Event name emitted when a toast's action button is tapped. */
 export const TOAST_BUTTON_CLICKED = 'toastButtonClicked';
 
-/** Options for {@link AdwToastOverlay.showToast}. */
-export interface AdwToastOptions {
-    /** Auto-dismiss timeout in ms (0 = no auto-dismiss). Default {@link DEFAULT_TOAST_TIMEOUT}. */
-    timeout?: number;
-    /** Optional action button label. */
-    buttonLabel?: string;
-}
-
-/**
- * A single transient toast descriptor. Mirrors `Adw.Toast` — a value object
- * (title + optional action) handed to {@link AdwToastOverlay.addToast}.
- */
-export class AdwToast {
-    /** The toast message. */
-    title: string;
-    /** Auto-dismiss timeout in ms (0 = sticky). */
-    timeout: number;
-    /** Optional action button label (empty = no button). */
-    buttonLabel: string;
-
-    constructor(title = '', options: AdwToastOptions = {}) {
-        this.title = title;
-        this.timeout = options.timeout ?? DEFAULT_TOAST_TIMEOUT;
-        this.buttonLabel = options.buttonLabel ?? '';
-    }
-}
+/** The NativeScript timing seam for the core queue's auto-dismiss (its `setTimeout`/`clearTimeout`). */
+const nativeScriptScheduler: ToastScheduler = {
+    schedule: (callback, ms) => setTimeout(callback, ms),
+    cancel: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+};
 
 export class AdwToastOverlay extends GridLayout {
     /** The always-visible content layer. */
@@ -60,7 +56,8 @@ export class AdwToastOverlay extends GridLayout {
     protected readonly _toastLabel: Label;
     protected readonly _toastButton: Button;
     private _hasButton = false;
-    private _dismissTimer: ReturnType<typeof setTimeout> | null = null;
+    /** The headless one-at-a-time + auto-dismiss state machine (ADR 0004). */
+    private readonly _queue: AdwToastQueue;
 
     constructor() {
         super();
@@ -94,12 +91,22 @@ export class AdwToastOverlay extends GridLayout {
         button.addEventListener('tap', () => {
             const data: EventData = { eventName: TOAST_BUTTON_CLICKED, object: this };
             this.notify(data);
-            this._dismiss();
+            this._queue.dismiss();
         });
         this._toastButton = button;
 
         this.addChild(strip);
         this._toastStrip = strip;
+
+        // The renderer feeds timing + render into the headless queue: `onShow`
+        // mounts the strip, `onHide` collapses it, the scheduler drives auto-dismiss.
+        this._queue = new AdwToastQueue({
+            scheduler: nativeScriptScheduler,
+            onShow: (toast) => this._renderStrip(toast),
+            onHide: () => {
+                this._toastStrip.visibility = 'collapse';
+            },
+        });
     }
 
     /** Set (or replace) the always-visible content layer (under the toast). */
@@ -115,23 +122,27 @@ export class AdwToastOverlay extends GridLayout {
         }
     }
 
-    /** Show a {@link AdwToast} descriptor. */
+    /** Enqueue a {@link AdwToast} descriptor (shows now, or after the current one). */
     addToast(toast: AdwToast): void {
-        this.showToast(toast.title, { timeout: toast.timeout, buttonLabel: toast.buttonLabel });
+        this._queue.add(toast);
     }
 
-    /** Show a transient toast with the given message and options. */
+    /** Enqueue a transient toast with the given message and options. */
     showToast(title: string, options: AdwToastOptions = {}): void {
-        if (this._dismissTimer) {
-            clearTimeout(this._dismissTimer);
-            this._dismissTimer = null;
-        }
-        this._toastLabel.text = title ?? '';
+        this._queue.add(new AdwToast(title ?? '', options));
+    }
 
-        const buttonLabel = options.buttonLabel ?? '';
-        const wantButton = buttonLabel.length > 0;
-        if (wantButton) {
-            this._toastButton.text = buttonLabel;
+    /** Dismiss the current toast immediately (advances to the next queued one). */
+    dismiss(): void {
+        this._queue.dismiss();
+    }
+
+    /** Mount `toast` as the visible strip — the NS render half of the queue's `onShow`. */
+    private _renderStrip(toast: AdwToast): void {
+        this._toastLabel.text = toast.title;
+
+        if (toast.hasButton) {
+            this._toastButton.text = toast.buttonLabel;
             if (!this._hasButton) {
                 this._toastStrip.addChild(this._toastButton);
                 this._hasButton = true;
@@ -142,28 +153,10 @@ export class AdwToastOverlay extends GridLayout {
         }
 
         this._toastStrip.visibility = 'visible';
-
-        const timeout = options.timeout ?? DEFAULT_TOAST_TIMEOUT;
-        if (timeout > 0) {
-            this._dismissTimer = setTimeout(() => this._dismiss(), timeout);
-        }
-    }
-
-    /** Dismiss the current toast immediately. */
-    dismiss(): void {
-        this._dismiss();
-    }
-
-    private _dismiss(): void {
-        if (this._dismissTimer) {
-            clearTimeout(this._dismissTimer);
-            this._dismissTimer = null;
-        }
-        this._toastStrip.visibility = 'collapse';
     }
 
     /** Whether a toast is currently shown. */
     get visible(): boolean {
-        return this._toastStrip.visibility === 'visible';
+        return this._queue.showing;
     }
 }

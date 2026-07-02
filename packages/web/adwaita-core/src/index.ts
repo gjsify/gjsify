@@ -10,8 +10,9 @@
 //
 // Seed modules (implementation step 1): breakpoint condition grammar/parser/
 // evaluator + the transition-only `AdwBreakpoint` apply/unapply state machine,
-// and the light/dark color-scheme observable. Toast queue, dialog response
-// model and row state machines follow in later PRs.
+// and the light/dark color-scheme observable. Step 2 (this module set): the
+// toast queue (one-at-a-time + auto-dismiss lifecycle) and the alert-dialog
+// response model. Row state machines follow in a later PR.
 
 // --- Responsive breakpoints (Adw.Breakpoint / Adw.BreakpointCondition) ---
 export {
@@ -41,3 +42,22 @@ export {
     toggleAdwaitaColorScheme,
 } from './color-scheme.js';
 export type { AdwColorScheme } from './color-scheme.js';
+
+// --- Toast queue (Adw.ToastOverlay / Adw.Toast) ---
+export { AdwToast, AdwToastQueue, DEFAULT_TOAST_TIMEOUT } from './toast.js';
+export type {
+    AdwToastOptions,
+    AdwToastQueueHandlers,
+    AdwToastQueueOptions,
+    ToastScheduler,
+    ToastTimerHandle,
+} from './toast.js';
+
+// --- Alert-dialog response model (Adw.AlertDialog) ---
+export { AdwAlertResponses } from './dialog.js';
+export type {
+    AdwAlertResponse,
+    AdwResponseAppearance,
+    AdwResponseOptions,
+    OrderedConfirmResponses,
+} from './dialog.js';
