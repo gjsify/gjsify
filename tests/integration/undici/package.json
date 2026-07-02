@@ -17,7 +17,7 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.4",
+        "@girs/gjs": "^4.1.0",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
@@ -25,7 +25,7 @@
         "@types/node": "^25.9.2",
         "@types/ws": "^8.18.1",
         "typescript": "^6.0.3",
-        "undici": "^8.4.1",
+        "undici": "^8.6.0",
         "ws": "^8.18.0"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",

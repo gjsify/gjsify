@@ -5,9 +5,9 @@
 //
 // @noble/hashes: Copyright (c) 2022 Paul Miller (https://paulmillr.com), MIT.
 
-import { sha256, sha224, sha384, sha512, sha512_256 } from '@noble/hashes/sha2';
-import { sha1, md5 } from '@noble/hashes/legacy';
-import { type CHash } from '@noble/hashes/utils';
+import { sha256, sha224, sha384, sha512, sha512_256 } from '@noble/hashes/sha2.js';
+import { sha1, md5 } from '@noble/hashes/legacy.js';
+import { type CHash } from '@noble/hashes/utils.js';
 
 /** The digest algorithms the NativeScript backend supports, in Node naming. */
 export const SUPPORTED_HASHES = ['md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512', 'sha512-256'] as const;

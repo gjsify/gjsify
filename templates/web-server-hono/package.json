@@ -18,7 +18,7 @@
         "typescript": "^6.0.3"
     },
     "dependencies": {
-        "@hono/node-server": "^2.0.4",
-        "hono": "^4.12.25"
+        "@hono/node-server": "^2.0.8",
+        "hono": "^4.12.27"
     }
 }

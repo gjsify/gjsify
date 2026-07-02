@@ -57,15 +57,15 @@
         "native"
     ],
     "dependencies": {
-        "@girs/gjs": "4.0.4",
-        "@girs/glib-2.0": "2.88.0-4.0.4",
-        "@girs/gobject-2.0": "2.88.0-4.0.4",
-        "@girs/gio-2.0": "2.88.0-4.0.4"
+        "@girs/gjs": "^4.1.0",
+        "@girs/glib-2.0": "^4.1.0",
+        "@girs/gobject-2.0": "^4.1.0",
+        "@girs/gio-2.0": "^4.1.0"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@ts-for-gir/cli": "^4.0.4",
+        "@ts-for-gir/cli": "^4.1.0",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
     },

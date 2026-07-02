@@ -17,13 +17,13 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.4",
+        "@girs/gjs": "^4.1.0",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
-        "acorn": "^8.16.0",
+        "acorn": "^8.17.0",
         "acorn-walk": "^8.3.5",
         "typescript": "^6.0.3"
     },

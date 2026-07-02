@@ -18,10 +18,10 @@
     "build:assets": "mkdir -p dist && cp -f src/browser/index.html dist/index.html"
   },
   "devDependencies": {
-    "@girs/adw-1": "1.10.0-4.0.4",
-    "@girs/gjs": "4.0.4",
-    "@girs/glib-2.0": "2.88.0-4.0.4",
-    "@girs/gtk-4.0": "4.23.0-4.0.4",
+    "@girs/adw-1": "^4.1.0",
+    "@girs/gjs": "^4.1.0",
+    "@girs/glib-2.0": "^4.1.0",
+    "@girs/gtk-4.0": "^4.1.0",
     "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/cli": "workspace:^",
     "@gjsify/devtools": "workspace:^",

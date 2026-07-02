@@ -17,14 +17,14 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.4",
+        "@girs/gjs": "^4.1.0",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@rollup/pluginutils": "^5.3.0",
         "@types/node": "^25.9.2",
-        "acorn": "^8.16.0",
+        "acorn": "^8.17.0",
         "typescript": "^6.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",

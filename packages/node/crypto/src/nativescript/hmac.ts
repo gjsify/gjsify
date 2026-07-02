@@ -7,7 +7,7 @@
 // @noble/hashes: Copyright (c) 2022 Paul Miller (https://paulmillr.com), MIT.
 
 import { Buffer } from 'node:buffer';
-import { hmac } from '@noble/hashes/hmac';
+import { hmac } from '@noble/hashes/hmac.js';
 import { getNobleHash } from './algos.js';
 
 // Minimal interface matching what @noble/hashes HMAC hashers expose.
