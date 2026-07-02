@@ -681,15 +681,23 @@ static bool OnMainThread() {
 // torn-down env (GJS's gjs_object_shutdown_toggle_queue equivalent).
 static std::atomic<bool> g_toggle_shutdown{false};
 
-// Deferred-work queues, drained on the JS thread by a libuv async handle.
+// Deferred-work queues, drained on the JS thread by a Node-API threadsafe function.
 //
-// Why libuv, not g_idle_add: a GLib idle only runs while the GLib default context
-// is iterated, which in pure Node usage (a script that never calls
-// MainLoop.run / Application.run) NEVER happens → idle teardowns pile up and the
-// GObjects leak. A uv_async fires whenever the libuv loop turns, which covers
-// BOTH modes: plain Node (uv runs on its own) and a blocking GLib loop (the
-// uv_source bridge below pumps uv_run(NOWAIT), which dispatches the async). The
-// async is uv_unref'd so it never keeps the process alive on its own.
+// Why a threadsafe function, not g_idle_add: a GLib idle only runs while the GLib
+// default context is iterated, which in pure Node/Bun/Deno usage (a script that
+// never runs a GLib loop) NEVER happens → idle teardowns pile up and the GObjects
+// leak. napi_call_threadsafe_function schedules a drain on the JS event loop,
+// which turns in ALL modes: plain Node/Bun/Deno (the runtime loop runs on its
+// own) and, on Node, a blocking GLib loop (the uv_source bridge below pumps
+// uv_run(NOWAIT), and Node implements the TSFN over a uv_async, so that pump
+// dispatches the drain too). The TSFN is napi_unref'd so it never keeps the
+// process alive on its own.
+//
+// Why NOT node-gtk's raw uv_async_t: uv_async_init / uv_async_send / uv_unref /
+// uv_close are libuv-internal — Deno exports no libuv symbols (the addon dies with
+// "undefined symbol: uv_unref") and Bun panics on uv_async_init (oven-sh/bun#18546).
+// The threadsafe function is core Node-API, implemented by all three runtimes, so
+// the GC bridge — the FIRST thing every GObject creation arms — is portable.
 //
 // Two queues share one mutex: TOGGLES (off-thread toggle-notifies marshalled to
 // the JS thread — the rare GIO/GStreamer-worker path) and TEARDOWNS (wrappers
@@ -700,7 +708,7 @@ struct ToggleItem {
 };
 // RECURSIVE (defensive, mirrors GJS's recursive ToggleQueue lock). The lock is held
 // only across SHORT critical sections — never across RunTeardown's dispose → JS (the
-// drain pops one item under the lock, RELEASES it, then processes; see DrainAsyncCb).
+// drain pops one item under the lock, RELEASES it, then processes; see DrainTsfnCb).
 // So a reentrant SettleCollectedInstance / NodeGiToggleNotify fired from a dispose
 // re-acquires the lock as a FRESH (non-nested) acquire today. Keeping it recursive
 // guarantees that even if a future change widens a critical section a same-thread
@@ -709,40 +717,47 @@ struct ToggleItem {
 static std::recursive_mutex g_queue_mutex;
 static std::deque<ToggleItem> g_toggle_queue;
 static std::deque<NodeGiInstance*> g_teardown_queue;
-static uv_async_t g_drain_async;
+static napi_threadsafe_function g_drain_tsfn = nullptr;
 static bool g_drain_async_inited = false;
-static napi_env g_async_env = nullptr;                 // captured for the drain callback
-static napi_async_context g_async_context = nullptr;   // async context for the drain
+static napi_env g_async_env = nullptr;  // captured for the drain callback's shutdown checks
 
-static void DrainAsyncCb(uv_async_t*);
+static void DrainTsfnCb(napi_env env, napi_value js_callback, void* context, void* data);
 static void NodeGiToggleNotify(gpointer, GObject*, gboolean);
 static void OnGObjectFinalized(gpointer, GObject*);
 
-// Lazily init the drain async on the JS thread (the only legal thread for
-// uv_async_init / napi_async_init). Called only by the OWNER env's MakeGObjectHandle
-// (the multi-env gate runs first), so it runs serially on one thread — hence before
-// any object exists, and before any toggle or teardown can be queued. The flag +
-// g_async_* are read off-thread (WakeDrain), so they are written under g_queue_mutex.
+// Lazily init the drain threadsafe function on the JS thread (the only legal
+// thread for napi_create_threadsafe_function). Called only by the OWNER env's
+// MakeGObjectHandle (the multi-env gate runs first), so it runs serially on one
+// thread — hence before any object exists, and before any toggle or teardown can
+// be queued. The flag + g_drain_tsfn are read off-thread (WakeDrain), so they are
+// written under g_queue_mutex.
 static void EnsureDrainAsync(napi_env env) {
   {
     std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
     if (g_drain_async_inited) return;
   }
-  uv_loop_t* loop = nullptr;
-  if (napi_get_uv_event_loop(env, &loop) != napi_ok || loop == nullptr) return;
-  if (uv_async_init(loop, &g_drain_async, DrainAsyncCb) != 0) return;
-  uv_unref(reinterpret_cast<uv_handle_t*>(&g_drain_async));  // don't keep the loop alive
-  // An async context so the drain — which re-enters JS via signal emission during
-  // dispose (remove_toggle_ref → dispose → ::destroy) — runs in a valid N-API
-  // callback scope, not a bare libuv callback (which lacks a V8 HandleScope).
+  // A threadsafe function delivers the wake onto the JS thread. max_queue_size 1
+  // coalesces bursts (a second wake while one is pending returns napi_queue_full,
+  // which WakeDrain ignores — the pending drain empties the whole item queue
+  // anyway); initial_thread_count 1 keeps it alive for the env lifetime so any
+  // thread may call it without acquiring. js_func is null — DrainTsfnCb IS the
+  // callback, and the TSFN infra invokes it inside a handle + callback scope, so
+  // the JS re-entry during dispose (signal emission via napi_make_callback) runs
+  // as a proper N-API callback with no manually-managed napi_async_context.
   napi_value name = nullptr;
   napi_create_string_utf8(env, "node-gi:toggle-drain", NAPI_AUTO_LENGTH, &name);
-  napi_async_context ctx = nullptr;
-  napi_async_init(env, nullptr, name, &ctx);
+  napi_threadsafe_function tsfn = nullptr;
+  napi_status st = napi_create_threadsafe_function(
+      env, nullptr, nullptr, name, /*max_queue_size*/ 1, /*initial_thread_count*/ 1,
+      nullptr, nullptr, nullptr, DrainTsfnCb, &tsfn);
+  if (st != napi_ok || tsfn == nullptr) return;
+  // Don't keep the event loop alive just because the drain machinery exists
+  // (the uv_unref equivalent). Best-effort — harmless if a runtime no-ops it.
+  napi_unref_threadsafe_function(env, tsfn);
   {
     std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
     g_async_env = env;
-    g_async_context = ctx;
+    g_drain_tsfn = tsfn;
     // This env owns the machinery; its thread is the JS/main thread for toggles.
     g_main_thread_id = std::this_thread::get_id();
     g_main_thread_id_set = true;
@@ -750,14 +765,16 @@ static void EnsureDrainAsync(napi_env env) {
   }
 }
 
-// Wake the JS-thread drain. Holds g_queue_mutex and re-checks both the init flag and
-// the shutdown flag immediately before uv_async_send, paired with OnEnvShutdown's
-// locked flag-flip-before-close — so an off-thread toggle can never uv_async_send a
-// handle that is being / has been closed (the shutdown TOCTOU that aborted libuv).
+// Wake the JS-thread drain. Holds g_queue_mutex and re-checks both the init flag
+// and the shutdown flag immediately before the call, paired with OnEnvShutdown's
+// locked flag-flip-before-release — so an off-thread toggle can never call a TSFN
+// that is being / has been released (the shutdown TOCTOU that aborted libuv).
 static void WakeDrain() {
   std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
-  if (g_drain_async_inited && !g_toggle_shutdown.load()) {
-    uv_async_send(&g_drain_async);
+  if (g_drain_async_inited && g_drain_tsfn != nullptr && !g_toggle_shutdown.load()) {
+    // nonblocking + max_queue_size 1 ⇒ coalesces; napi_queue_full is the
+    // "a drain is already pending" no-op (it will pick up this item too).
+    napi_call_threadsafe_function(g_drain_tsfn, nullptr, napi_tsfn_nonblocking);
   }
 }
 
@@ -838,15 +855,16 @@ static void RunTeardown(NodeGiInstance* inst) {
 // (a swap-then-process snapshot would hide them → double-free). Toggles drain first
 // (FIFO); a toggle enqueued during a teardown's dispose is picked up on the next
 // iteration. Terminates when both queues are empty.
-static void DrainAsyncCb(uv_async_t*) {
+static void DrainTsfnCb(napi_env raw_env, napi_value /*js_callback*/, void* /*context*/,
+                        void* /*data*/) {
   if (g_async_env == nullptr || g_toggle_shutdown.load()) return;
-  Napi::Env env(g_async_env);
-  // A HandleScope is mandatory: ApplyToggle's napi_get_reference_value and the
-  // JS re-entry during teardown both create V8 handles, and a bare libuv callback
-  // has no scope. The CallbackScope additionally establishes the async context so
-  // signal emission during dispose runs as a proper N-API callback.
+  Napi::Env env(raw_env);
+  // The TSFN infra already invokes us on the JS thread inside a callback scope
+  // (its async context), so signal emission during dispose runs as a proper
+  // N-API callback with no manually-managed CallbackScope. A HandleScope is still
+  // opened defensively: ApplyToggle's napi_get_reference_value and the JS re-entry
+  // during teardown both create V8 handles.
   Napi::HandleScope handleScope(env);
-  Napi::CallbackScope callbackScope(env, g_async_context);
 
   while (true) {
     if (g_toggle_shutdown.load()) return;
@@ -5427,6 +5445,23 @@ static GSourceFuncs uv_source_funcs = {
     uv_source_prepare, nullptr, uv_source_dispatch, nullptr, nullptr, nullptr,
 };
 
+// iterateMainContext(mayBlock?) -> boolean
+//
+// Iterate the default GLib main context once, dispatching any ready sources (GIO
+// async callbacks, GLib timeouts/idles, DBus). Pure GLib — touches NO libuv — so
+// it is the PORTABLE main-loop primitive on Bun/Deno, where the uv-nesting bridge
+// (startMainLoop) can't run: Deno exports no libuv symbols and Bun panics on
+// uv_backend_fd. The L1 layer drives it from a JS timer (pumpMainContext), so GLib
+// co-pumps while the runtime's own event loop stays in control — GJS's non-blocking
+// main loop reached the other way around. Returns true if a source was dispatched.
+Napi::Value IterateMainContext(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  bool may_block = info.Length() > 0 && info[0].ToBoolean().Value();
+  gboolean dispatched =
+      g_main_context_iteration(g_main_context_default(), may_block ? TRUE : FALSE);
+  return Napi::Boolean::New(env, dispatched == TRUE);
+}
+
 // startMainLoop() -> void
 // Attach the libuv-backed GSource to the default GLib main context (idempotent).
 // Harmless until a GLib main loop actually runs — it adds no uv handle, so it
@@ -5480,25 +5515,29 @@ Napi::Value StartMainLoop(const Napi::CallbackInfo& info) {
 // teardowns are intentionally dropped (the process/env is going away).
 //
 // Sequencing (the fix for the shutdown TOCTOU / data race): under g_queue_mutex,
-// set shutdown=true and clear g_drain_async_inited (disabling all further sends)
-// BEFORE uv_close runs outside the lock. WakeDrain checks both flags under the same
-// lock, so once the flag is cleared no thread can uv_async_send the handle, and
-// uv_close only runs after that point — no send can race the close.
+// set shutdown=true and clear g_drain_async_inited + g_drain_tsfn (disabling all
+// further calls) BEFORE the release runs outside the lock. WakeDrain checks both
+// flags AND the tsfn pointer under the same lock, so once they are cleared no
+// thread can call the TSFN, and the release only runs after that point — no call
+// can race the release.
 static void OnEnvShutdown(void* arg) {
   // Only the env that OWNS the toggle machinery may tear it down — a worker env
-  // exiting must not disable the owner's drain async or set the global flag.
+  // exiting must not disable the owner's drain TSFN or set the global flag.
   if (g_owner_env.load() != static_cast<napi_env>(arg)) return;
-  bool close_async = false;
+  napi_threadsafe_function tsfn = nullptr;
   {
     std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
     g_toggle_shutdown.store(true);
     if (g_drain_async_inited) {
-      g_drain_async_inited = false;  // disable further sends FIRST (under the lock)
-      close_async = true;
+      g_drain_async_inited = false;  // disable further calls FIRST (under the lock)
+      tsfn = g_drain_tsfn;
+      g_drain_tsfn = nullptr;
     }
   }
-  if (close_async) {
-    uv_close(reinterpret_cast<uv_handle_t*>(&g_drain_async), nullptr);
+  if (tsfn != nullptr) {
+    // abort ⇒ pending + future calls are dropped and the callback won't run again;
+    // releasing the initial-thread-count ref destroys the TSFN (its own uv_close).
+    napi_release_threadsafe_function(tsfn, napi_tsfn_abort);
   }
 }
 
@@ -5550,6 +5589,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("variantGetTypeString", Napi::Function::New(env, VariantGetTypeString));
   exports.Set("isVariantHandle", Napi::Function::New(env, IsVariantHandle));
   exports.Set("startMainLoop", Napi::Function::New(env, StartMainLoop));
+  exports.Set("iterateMainContext", Napi::Function::New(env, IterateMainContext));
   exports.Set("connectSignal", Napi::Function::New(env, ConnectSignal));
   exports.Set("emitSignal", Napi::Function::New(env, EmitSignal));
   exports.Set("disconnectSignal", Napi::Function::New(env, DisconnectSignal));
