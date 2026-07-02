@@ -13,15 +13,35 @@
 import GLib from '@girs/glib-2.0';
 import { z } from 'zod';
 
-// `@gjsify/devtools-cdp` is an OPTIONAL PEER (Tier 3, experimental). It is kept
-// OUT of the static import graph so `@gjsify/devtools-mcp` can stay Tier 2 —
-// only the CDP profile pulls the experimental package, and only when it is
-// actually used (ADR 0003 dependency-direction rule). The type-only import
-// below is erased at build time and creates no runtime edge; the value surface
-// is loaded lazily in `loadDevtoolsCdp()`.
-import type { CdpJsType } from '@gjsify/devtools-cdp';
-
 import type { DevtoolsToolProfile, McpToolContext } from '../profile.js';
+
+// `@gjsify/devtools-cdp` is an OPTIONAL PEER (Tier 3, experimental) loaded lazily
+// in `loadDevtoolsCdp()`. It is kept OUT of the static import graph entirely — not
+// even at the TYPE level — so `@gjsify/devtools-mcp` compiles WITHOUT the peer being
+// present or pre-built (build-order-independent) and stays Tier 2 (ADR 0003). The
+// narrow surface we use is mirrored locally below; the real package's shapes are the
+// source of truth — keep these compatible.
+type CdpJsType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'unknown';
+interface CdpToolParam {
+    name: string;
+    jsType: CdpJsType;
+    enum?: string[];
+    description?: string;
+    optional?: boolean;
+}
+interface CdpToolDescriptor {
+    name: string;
+    method: string;
+    description?: string;
+    parameters: CdpToolParam[];
+}
+interface DevtoolsCdpModule {
+    PROTOCOL_SPEC: unknown;
+    generateCdpTools(
+        spec: unknown,
+        options: { include: (domain: string, command: string) => boolean },
+    ): CdpToolDescriptor[];
+}
 
 const strv = (value: string): GLib.Variant => GLib.Variant.new_string(value);
 const instanceArg = {
@@ -51,9 +71,13 @@ const CURATED = new Set<string>([
  * (and buildable) without it — the generic / storybook / browser profiles never
  * touch this path, so they do not require the experimental package.
  */
-async function loadDevtoolsCdp(): Promise<typeof import('@gjsify/devtools-cdp')> {
+async function loadDevtoolsCdp(): Promise<DevtoolsCdpModule> {
     try {
-        return await import('@gjsify/devtools-cdp');
+        // The specifier is widened to `string` so tsc does not statically resolve
+        // the optional peer's (possibly-unbuilt or absent) declarations; the module
+        // is loaded at runtime and typed via the local DevtoolsCdpModule mirror.
+        const cdpModuleId: string = '@gjsify/devtools-cdp';
+        return (await import(cdpModuleId)) as DevtoolsCdpModule;
     } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         throw new Error(
