@@ -4,7 +4,12 @@
 // Reference: refs/node-gtk (romgrk, MIT). Hand-authored loader shim — a native
 // package's JS entry is a loader, not a tsc artifact, and the repo ignores
 // `lib/`, so it lives at the package root. The native binary is built by
-// node-gyp into build/{Release,Debug}.
+// node-gyp into build/{Release,Debug}; a published package instead ships a
+// prebuild under prebuilds/<platform>-<arch>/.
+//
+// The addon is Node-API (ABI-stable), so it loads unchanged on Node, Bun and
+// Deno — the three runtimes that implement Node-API. Runtime-specific behaviour
+// (the libuv main-loop bridge is Node-only) is gated in gi.js off RUNTIME below.
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -13,18 +18,46 @@ import { existsSync } from 'node:fs';
 const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url)); // package root
 
-function loadNative() {
-  const candidates = [
+/**
+ * Which JS runtime we are on. The Node-API addon loads on all three, but the
+ * libuv-backed main-loop bridge (startMainLoop) is Node-only — Deno exports no
+ * libuv symbols and Bun panics on uv_backend_fd — so Bun/Deno use the portable
+ * GLib-iteration pump instead (see gi.js). Detection order matters: Bun and Deno
+ * both expose a `process` shim, so probe their own globals first.
+ * @type {'bun' | 'deno' | 'node'}
+ */
+export const RUNTIME =
+  typeof globalThis.Bun !== 'undefined'
+    ? 'bun'
+    : typeof globalThis.Deno !== 'undefined'
+      ? 'deno'
+      : 'node';
+
+/** Whether we are on Node.js (the only runtime with the libuv main-loop bridge). */
+export const isNodeRuntime = RUNTIME === 'node';
+
+function nativeCandidates() {
+  // Prefer a shipped prebuild so a consumer needs no C toolchain and no node-gyp
+  // — the only install path Deno supports (it runs no postinstall build script).
+  // Fall back to a locally built addon (Release, then Debug).
+  return [
+    join(here, 'prebuilds', `${process.platform}-${process.arch}`, 'node_gi.node'),
     join(here, 'build', 'Release', 'node_gi.node'),
     join(here, 'build', 'Debug', 'node_gi.node'),
   ];
-  for (const candidate of candidates) {
+}
+
+function loadNative() {
+  for (const candidate of nativeCandidates()) {
     if (existsSync(candidate)) return require(candidate);
   }
   throw new Error(
-    '@gjsify/node-gi: native addon not built. Run `node-gyp rebuild` in ' +
+    `@gjsify/node-gi: native addon not found for ${RUNTIME} on ${process.platform}-${process.arch}. ` +
+      `Expected a prebuild at prebuilds/${process.platform}-${process.arch}/node_gi.node or a local build. ` +
+      'Run `node-gyp rebuild` in ' +
       here +
-      ' (requires a C++ toolchain and the girepository-2.0 / glib-2.0 development headers).',
+      ' (requires a C++ toolchain and the girepository-2.0 / glib-2.0 development headers), ' +
+      'or install a package build that ships a prebuild for your platform.',
   );
 }
 
@@ -359,6 +392,17 @@ export const isVariantHandle = native.isVariantHandle;
  * @returns {void}
  */
 export const startMainLoop = native.startMainLoop;
+
+/**
+ * Iterate the default GLib main context once, dispatching any ready sources (GIO
+ * async callbacks, GLib timeouts/idles, DBus). Pure GLib — no libuv — so it is the
+ * portable main-loop primitive on Bun/Deno, where {@link startMainLoop} can't run.
+ * The L1 layer drives it from a JS timer to co-pump GLib while the runtime's own
+ * event loop stays in control. Returns true if a source was dispatched.
+ * @param {boolean} [mayBlock] block until a source is ready (default false)
+ * @returns {boolean}
+ */
+export const iterateMainContext = native.iterateMainContext;
 
 /**
  * Connect a JS callback to a GObject signal. Returns a handler id for
