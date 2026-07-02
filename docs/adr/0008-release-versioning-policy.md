@@ -24,8 +24,10 @@ safe. Until then gjsify keeps exact `@girs/*` pins.
 1. **Framework-style versioning, stated as policy:** `@gjsify/*` packages are
    released as a coherent train. Compatibility between `@gjsify/*` packages is
    guaranteed ONLY within the same release version. Consumers upgrade all
-   `@gjsify/*` deps together (`gjsify upgrade --align` / `-p '@gjsify/*'` is the
-   supported tool for exactly this).
+   `@gjsify/*` deps together (`gjsify upgrade --latest --filter @gjsify` bulk-bumps
+   every `@gjsify/*` dep; `gjsify upgrade --align` repairs drift — these are the
+   supported tools for exactly this. Note: `--filter <name>` matches the DEP name;
+   `-p`/`--workspace` filters WORKSPACES, not deps).
 2. **Intra-workspace ranges reflect the train:** workspace deps stay `workspace:^`
    (published as caret of the train version); the policy line — not tighter ranges —
    is what communicates the contract. We deliberately do NOT adopt per-package
