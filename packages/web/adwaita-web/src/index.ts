@@ -24,6 +24,13 @@ if (typeof document !== 'undefined' && !document.getElementById('adwaita-web-sty
 export { AdwAvatar } from './elements/adw-avatar.js';
 export { AdwBanner } from './elements/adw-banner.js';
 export { AdwCard } from './elements/adw-card.js';
+export { AdwDataGrid } from './elements/adw-data-grid.js';
+export type {
+    AdwDataGridAlign,
+    AdwDataGridColumn,
+    AdwDataGridRow,
+    AdwDataGridRowVariant,
+} from './elements/adw-data-grid.js';
 export { AdwClamp } from './elements/adw-clamp.js';
 export { AdwSpinner } from './elements/adw-spinner.js';
 export { AdwStatusPage } from './elements/adw-status-page.js';

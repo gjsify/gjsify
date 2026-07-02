@@ -1,0 +1,144 @@
+// _data_grid.scss — adw-data-grid: a slim, aligned numeric grid for genuinely
+// tabular data (an accounting BWA / P&L statement, invoice line-items). The web
+// mirror of the native Gtk.Grid the Buchhaltung app fills for its financial
+// statements — labels left, amounts right-aligned with tabular figures so
+// columns of numbers line up, plus the section / subtotal / total emphasis a
+// statement needs. NOT a Gtk.ColumnView (no sorting, no zebra striping); boxed
+// lists stay the default for record lists. Uses CSS subgrid so each row is a
+// real element (hover, hairline rules, activation) while columns stay aligned.
+// Reference: refs/libadwaita/src/stylesheet/_colors.scss (separator / card / dim tokens)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss (boxed-list density)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Implemented for @gjsify/adwaita-web Web Components.
+
+.adw-data-grid {
+  display: block;
+  box-sizing: border-box;
+  color: var(--card-fg-color);
+  font-size: var(--font-size-base);
+
+  // Optional title above the grid.
+  .adw-data-grid-caption {
+    font-size: var(--font-size-heading);
+    font-weight: 700;
+    color: var(--window-fg-color);
+    margin: 0 0 var(--spacing-s);
+    padding: 0 var(--spacing-xs);
+  }
+
+  // Horizontal scroll is CONTAINED here — a wide statement (many month columns)
+  // scrolls sideways within the grid instead of overflowing the page.
+  .adw-data-grid-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  // The grid owns the column tracks; each row is a subgrid spanning them, so
+  // figures in the same column line up across every row. `min-width: max-content`
+  // keeps columns from crushing — they overflow into the scroller instead.
+  .adw-data-grid-table {
+    display: grid;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: max-content;
+    // grid-template-columns is set inline from the column descriptors.
+  }
+
+  .adw-data-grid-row {
+    display: grid;
+    grid-template-columns: subgrid;
+    grid-column: 1 / -1;
+    align-items: center;
+  }
+
+  // Airy Adwaita cell density (matching the boxed-list row rhythm), single-line.
+  .adw-data-grid-cell {
+    box-sizing: border-box;
+    min-width: 0;
+    padding: var(--spacing-s) var(--spacing-m);
+    white-space: nowrap;
+    text-align: left;
+
+    &.align-end {
+      text-align: right;
+    }
+
+    &.align-center {
+      text-align: center;
+    }
+
+    // Tabular figures are the WHOLE POINT vs a boxed list — numbers line up.
+    &.numeric {
+      font-variant-numeric: tabular-nums;
+    }
+
+    &.mono {
+      font-family: 'Adwaita Mono', 'Cantarell', ui-monospace, 'SF Mono', 'Menlo', monospace;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  // Header row — dim, small, uppercase caps with a hairline underline (Adwaita
+  // list-column headings), never sortable.
+  .adw-data-grid-row.header {
+    .adw-data-grid-cell {
+      font-size: var(--font-size-small);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      opacity: var(--dim-opacity);
+      border-bottom: 1px solid var(--separator-color);
+    }
+  }
+
+  // A section header spans all columns as a bold group title (a BWA's sections).
+  .adw-data-grid-row.variant-section {
+    .section-cell {
+      font-weight: 700;
+      color: var(--window-fg-color);
+      padding-top: var(--spacing-m);
+    }
+  }
+
+  // A subtotal is bold with a hairline rule above it (Gesamtleistung, Rohertrag…).
+  .adw-data-grid-row.variant-subtotal {
+    border-top: 1px solid var(--separator-color);
+
+    .adw-data-grid-cell {
+      font-weight: 700;
+    }
+  }
+
+  // The final total is bold with a STRONGER rule above (the accounting result —
+  // Betriebsergebnis), plus a thin rule below to evoke the ruled grand-total line.
+  .adw-data-grid-row.variant-total {
+    border-top: 2px solid var(--separator-color);
+    border-bottom: 1px solid var(--separator-color);
+
+    .adw-data-grid-cell {
+      font-weight: 800;
+      color: var(--window-fg-color);
+    }
+  }
+
+  // Optional interactive rows (master-detail). Hairline separators only where
+  // Adwaita would — NOT zebra striping — so no default row borders; the hover /
+  // focus affordance carries the interaction.
+  .adw-data-grid-row.interactive {
+    cursor: pointer;
+    border-radius: var(--button-radius);
+
+    &:hover {
+      background-color: var(--button-bg-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: -2px;
+    }
+  }
+}
