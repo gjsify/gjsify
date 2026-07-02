@@ -7,6 +7,7 @@ Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.
 ## Governance — non-negotiable
 
 |doc: update AGENTS.md immediately on any architectural decision (package boundaries, API patterns, build, deps, cross-cutting) — never leave drift between sessions
+|adr: decisions that span multiple pillars/repos, change a published contract (versioning, tiering, artifact strategy), or scope a whole track get an ADR under `docs/adr/` (numbered, MADR-style) BEFORE implementation; follow-up work tracked in STATUS.md `## Open TODOs`; AGENTS.md still gets its update when the change lands
 |status: STATUS.md is a CURRENT SNAPSHOT (package status tables, metrics, integration coverage, open TODOs) — edit it IN PLACE only when those facts change; it is NOT an append-only log (no dated `Current state (…)` blocks, no `### Completed` done-log). Per-change narrative → the commit message + CHANGELOG.md. See "STATUS.md & CHANGELOG.md Maintenance"
 |polyfills: browser-compat patches belong in packages, not examples — add to `@gjsify/dom-elements` or the right pkg
 |root-cause: fix bugs in the core package in the SAME PR that exposed them — no "known limitation" notes, no skip-guards, no TODO-for-later (workarounds ossify); examples/tests/CI exist to surface impl gaps

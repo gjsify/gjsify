@@ -1,0 +1,34 @@
+# Architecture Decision Records (ADR)
+
+Cross-cutting architecture decisions for the gjsify ecosystem — decisions that span
+multiple packages/pillars, change a workspace invariant, or bind the ecosystem's
+consumers (easy6502, pixel-rpg/map-editor, ts-for-gir).
+
+Per-package decisions do NOT need an ADR — they follow the normal AGENTS.md/STATUS.md
+governance. An ADR is warranted when a decision (a) affects more than one pillar or
+repo, (b) changes a published contract (versioning, tiering, artifact strategy), or
+(c) deliberately scopes/limits a whole track (e.g. node-gi).
+
+## Format
+
+MADR-style, one file per decision: `NNNN-<slug>.md` with `Status` / `Context` /
+`Decision` / `Consequences` / `Implementation` sections. Statuses: `Proposed`,
+`Accepted`, `Superseded by NNNN`, `Rejected`. An accepted ADR's follow-up work is
+tracked in STATUS.md `## Open TODOs` (per governance); the ADR records the *why*,
+the TODO records the *what's left*.
+
+## Index
+
+| ADR | Title | Status |
+|---|---|---|
+| [0001](0001-install-clean-separation.md) | `gjsify install` is non-destructive — install/clean separation | Accepted |
+| [0002](0002-bootstrap-bundle-minimization.md) | Minimize committed bootstrap bundles | Accepted |
+| [0003](0003-package-tiering.md) | Explicit package tiering (stability contract) | Accepted |
+| [0004](0004-headless-adwaita-core.md) | Headless Adwaita core — share widget behavior across renderers | Accepted |
+| [0005](0005-node-gi-scope.md) | node-gi (Axis 5) stays experimental and dependency-isolated | Accepted |
+| [0006](0006-per-package-build-artifacts.md) | Per-package build cache; publish-time-only lib builds (spike) | Accepted |
+| [0007](0007-web-pillar-common-ui.md) | Web targets implement the shared controller/view layer (experiment) | Accepted |
+| [0008](0008-release-versioning-policy.md) | Release-train versioning policy for `@gjsify/*` | Accepted |
+
+Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
+(condensed findings + prioritized backlog).
