@@ -167,6 +167,12 @@ async function scanSourceTree(pkgDir) {
         imports_legacy: false,
         gjs_imports_guard: false,
         has_browser_entry: false,
+        // Standard cross-runtime test harness (`src/test.{mts,ts}`) — the signal
+        // that a package's behavior is exercised by `@gjsify/unit` across
+        // runtimes. Distinguishes headless behavior CONTRACTS from design-ASSET
+        // packages on the design-identity axis (see `suggestRuntimes`).
+        has_test_entry:
+            existsSync(join(srcDir, 'test.mts')) || existsSync(join(srcDir, 'test.ts')),
         has_browser_polyfill: existsSync(join(srcDir, 'browser.ts')) || existsSync(join(srcDir, 'browser.mts')),
         browser_src_is_partial: false,
         has_globals_mjs: existsSync(join(pkgDir, 'globals.mjs')),        globals_mjs_browser_safe: false,
@@ -383,9 +389,24 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
     // conservative `none` suggested here and the opt-in `polyfill`.)
     if (axis === 'framework-gjs') return { gjs: 'polyfill', node: 'none', browser: 'none' };
 
-    // Design-identity (adwaita-*): GJS already has Libadwaita native, browser
-    // gets our polyfill, Node n/a (no UI in headless Node).
+    // Design-identity (adwaita-*). Two shapes share the axis:
+    //   - Asset / component packages (`adwaita-{web,fonts,icons,storybook}`):
+    //     GJS already has Libadwaita native, browser gets our polyfill, Node
+    //     n/a (no UI in headless Node). No cross-runtime test harness.
+    //   - Headless behavior CONTRACT (`adwaita-core`, ADR 0004): pure TS with
+    //     the standard `src/test.mts` cross-runtime harness — the design-axis
+    //     twin of the pure-TS framework contracts (`stories`/`storybook-core`).
+    //     It runs unmodified everywhere and is a runtime DEPENDENCY of the
+    //     renderers (`adwaita-nativescript` re-exports its surface), so `none`
+    //     slots would be dishonest — and actively harmful on NS, where `none`
+    //     aliases the package to `@gjsify/empty` inside consumer bundles.
+    //     Suggest the conservative GJS-first triplet and let `diffDeclared`'s
+    //     pure-TS-contract tolerance accept the all-`polyfill` opt-in, exactly
+    //     like the framework contracts.
     if (axis === 'design-identity') {
+        if (!gjsBound && !signals.dynamic_gi && signals.has_test_entry) {
+            return { gjs: 'polyfill', node: 'none', browser: 'none' };
+        }
         return { gjs: 'none', node: 'none', browser: 'polyfill' };
     }
 
@@ -920,25 +941,30 @@ function diffDeclared(rows) {
             continue;
         }
         const slots = ['gjs', 'node', 'browser', 'nativescript'];
-        // A pure-TS framework contract (framework axis, no `.imports?.gi` guard
-        // and none of the hard GJS-binding signals) is platform-agnostic: it runs
-        // unmodified on Node, the browser and NS' V8 (resolving to its real
+        // A pure-TS contract (no `.imports?.gi` guard and none of the hard
+        // GJS-binding signals) is platform-agnostic: it runs unmodified on
+        // Node, the browser and NS' V8 (resolving to its real
         // `lib/esm/index.js`), so it can legitimately opt the node / browser /
         // nativescript slots INTO `"polyfill"` even though the conservative
-        // heuristic suggests `none` for the framework axis. Both `none` (opt-out,
-        // GJS-only) and `polyfill` (opt-in, cross-runtime) are honest for these
-        // slots — do not flag either as drift. The GJS slot stays `polyfill`
-        // (enforced as usual); GJS-bound framework packages get no tolerance.
-        // Examples: `@gjsify/stories` + `@gjsify/storybook-core` (all-polyfill,
-        // shared by the GTK/browser/NS renderers).
-        const isPureTsFrameworkContract =
-            r.axis === 'framework-gjs' &&
+        // heuristic suggests `none`. Both `none` (opt-out, GJS-only) and
+        // `polyfill` (opt-in, cross-runtime) are honest for these slots — do
+        // not flag either as drift. The GJS slot stays enforced as usual;
+        // GJS-bound packages get no tolerance. Two axes carry this shape:
+        //   - framework-gjs: `@gjsify/stories` + `@gjsify/storybook-core`
+        //     (all-polyfill, shared by the GTK/browser/NS renderers).
+        //   - design-identity: `@gjsify/adwaita-core` (ADR 0004 — headless
+        //     widget behavior consumed by the web/NS renderers), recognised by
+        //     the standard cross-runtime test harness (`src/test.mts`), which
+        //     the design-ASSET packages (fonts/icons/web components) never ship.
+        const isPureTsContract =
+            (r.axis === 'framework-gjs' ||
+                (r.axis === 'design-identity' && r.signals.has_test_entry)) &&
             !r.signals.gjs_imports_guard &&
             !r.signals.girs_value &&
             !r.signals.gi_url &&
             !r.signals.imports_legacy &&
             !r.signals.dynamic_gi;
-        const portableFrameworkSlot = (s) => s === 'node' || s === 'browser' || s === 'nativescript';
+        const portableContractSlot = (s) => s === 'node' || s === 'browser' || s === 'nativescript';
         const mismatches = slots.filter((s) => {
             // `nativescript` is a Foundation-time addition (Welle 4-T). Existing
             // packages declared their triplet before NS was an axis; treat the
@@ -946,12 +972,12 @@ function diffDeclared(rows) {
             // If the package doesn't declare `nativescript`, skip drift check
             // on that slot (the suggestion is just a hint, not a hard target).
             if (s === 'nativescript' && r.declared[s] === undefined) return false;
-            // Pure-TS framework contract: `none` (opt-out) and `polyfill` (opt-in)
-            // are both valid choices for the portable node/browser/nativescript
+            // Pure-TS contract: `none` (opt-out) and `polyfill` (opt-in) are
+            // both valid choices for the portable node/browser/nativescript
             // slots (see above) — neither drifts.
             if (
-                isPureTsFrameworkContract &&
-                portableFrameworkSlot(s) &&
+                isPureTsContract &&
+                portableContractSlot(s) &&
                 (r.declared[s] === 'polyfill' || r.declared[s] === 'none')
             ) {
                 return false;
