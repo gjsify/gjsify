@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Run the cross-runtime conformance subset on Bun or Deno.
 //
-//   node scripts/cross-runtime-test.mjs <bun|deno>
+//   node scripts/cross-runtime.mjs <bun|deno>
+//
+// NB: the filename deliberately avoids Node's default test glob (`*-test.mjs`,
+// `*.test.mjs`, …) so `node --test` does not pick this orchestrator up as a test.
 //
 // The addon is Node-API, so it loads and runs on Bun and Deno too — this proves
 // the shared surface actually behaves there. It runs a CURATED subset, one process
@@ -59,7 +62,7 @@ const CONFORMANCE = [
 
 const runtime = process.argv[2];
 if (runtime !== 'bun' && runtime !== 'deno') {
-  console.error('usage: node scripts/cross-runtime-test.mjs <bun|deno>');
+  console.error('usage: node scripts/cross-runtime.mjs <bun|deno>');
   process.exit(2);
 }
 
