@@ -91,6 +91,69 @@ jobs:
           npm install --no-audit --no-fund --foreground-scripts
           node --test dual.e2e.mjs
 
+  # Cross-runtime proof: the SAME Node-API addon runs the GObject/GLib/Gio surface
+  # on Bun and Deno, not just Node. node-gyp builds it once; scripts/stage-prebuild
+  # then stages it as prebuilds/<platform>-<arch>/ so the conformance runs load via
+  # the PREBUILD path (the only install path Deno supports — it runs no postinstall
+  # build). The runner spawns one bun/deno process per file (they share a process
+  # across files by default, unlike Node's per-file pool). Headless — no display —
+  # so the GTK/co-pump/--expose-gc legs are excluded (they stay Node's job above).
+  cross-runtime:
+    name: Bun + Deno conformance (Fedora 44)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: fedora:44
+    steps:
+      - name: Install toolchain + GObject-Introspection dev headers
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
+            glib2-devel gobject-introspection-devel gobject-introspection
+          echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
+
+      # Official Node builds the addon (node-gyp) and orchestrates the runner, which
+      # spawns bun/deno per file. Same rationale as the build-test job.
+      - name: Use official Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build native addon (node-gyp)
+        working-directory: packages/node-gi/node-gi
+        run: npm install --no-audit --no-fund --foreground-scripts
+
+      - name: Stage prebuild (conformance loads via the prebuild path)
+        working-directory: packages/node-gi/node-gi
+        run: node scripts/stage-prebuild.mjs
+
+      - name: Verify runtimes
+        run: |
+          node --version
+          bun --version
+          deno --version
+
+      - name: Conformance on Bun
+        working-directory: packages/node-gi/node-gi
+        run: npm run test:bun
+
+      - name: Conformance on Deno
+        working-directory: packages/node-gi/node-gi
+        run: npm run test:deno
+
   # GTK/Adw layering proof (Axis-5 GTK milestone): UNCHANGED Gtk.Application (PR1),
   # Adw.Application (PR2) AND a Gtk.Template composite-template widget (PR4) run on
   # Node via the engine — construct + activate + window + Adwaita chrome

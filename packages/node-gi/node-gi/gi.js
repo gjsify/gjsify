@@ -16,6 +16,10 @@
 // flags, constants, structs/boxed, interface static methods and camelCase
 // aliases land in subsequent drops.
 import * as native from './index.js';
+// setImmediate is a Node global but NOT a Deno global (Deno requires the explicit
+// node:timers import; Bun/Node re-export it there too), so import it for the
+// macrotask-deferred runAsync to work on all three runtimes.
+import { setImmediate } from 'node:timers';
 
 // Symbol carrying the raw native GObject handle on a wrapped instance, so it can
 // be unwrapped again when passed back into the engine as a GI argument.
@@ -477,6 +481,15 @@ function assignTemplateChildren(instance, handle, reg) {
 // takes no parameters and calls `this.run()` with an empty command-line) — so an
 // `app.runAsync([programInvocationName, ...ARGV])` source behaves identically on
 // gjs and node. Resolves once; run() is invoked once (no double-run / leak).
+//
+// Same shape on all three runtimes: the deferred blocking run() drives the app's
+// GLib loop (activate → the app's own GLib sources → quit → run returns the exit
+// status). The Node-only EXTRA is the uv↔GLib bridge co-pumping Node's own event
+// loop DURING the blocking run, so a Node timer/promise scheduled before runAsync
+// fires while the app runs. Bun/Deno have no such bridge, so their own event loop
+// is paused for the app's lifetime (exactly as GJS, where the GLib loop IS the
+// process loop) — for concurrent runtime-loop + GLib work there, drive GLib with
+// startMainContextPump instead of a blocking run.
 function applicationRunAsync(handle) {
   return new Promise((resolve, reject) => {
     setImmediate(() => {
@@ -487,6 +500,59 @@ function applicationRunAsync(handle) {
       }
     });
   });
+}
+
+// ---- portable GLib main-context pump (Bun/Deno) ----
+//
+// On Node the uv-in-GLib bridge co-pumps libuv during a blocking GLib loop, so a
+// GLib loop keeps Node's timers/promises/IO alive. Bun/Deno have no usable libuv,
+// so we co-pump the OTHER way: a repeating runtime timer iterates the default GLib
+// main context non-blockingly, letting GIO async callbacks / GLib timeouts / DBus
+// fire while the runtime's own event loop stays in control — GJS's non-blocking
+// main loop, reached from the runtime side. Reference-counted so nested pumps /
+// concurrent runAsync calls share one timer.
+let pumpTimer = null;
+let pumpRefCount = 0;
+
+/**
+ * Start co-pumping the default GLib main context from a runtime timer (Bun/Deno).
+ * No-op on Node, where the libuv↔GLib bridge already co-pumps. Reference-counted;
+ * returns a disposer that decrements the count (clearing the timer at zero).
+ * @returns {() => void}
+ */
+export function startMainContextPump() {
+  if (native.isNodeRuntime) return () => {};
+  pumpRefCount++;
+  if (pumpTimer === null) {
+    // ~4 ms cadence: low latency without busy-spinning. Each tick drains every
+    // currently-ready source (iterateMainContext(false) returns false when none
+    // remain, bounding the inner loop), then yields to the runtime loop.
+    pumpTimer = setInterval(() => {
+      let guard = 0;
+      while (native.iterateMainContext(false) && guard++ < 100000) {
+        /* drain ready sources */
+      }
+    }, 4);
+    // Don't let the pump alone keep the process alive where the runtime allows it
+    // (Node/Bun expose Timeout.unref; Deno's numeric handle has none).
+    if (typeof pumpTimer.unref === 'function') pumpTimer.unref();
+  }
+  let disposed = false;
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    stopMainContextPump();
+  };
+}
+
+/** Decrement the main-context pump reference count; clears the timer at zero. */
+export function stopMainContextPump() {
+  if (native.isNodeRuntime || pumpRefCount === 0) return;
+  pumpRefCount--;
+  if (pumpRefCount === 0 && pumpTimer !== null) {
+    clearInterval(pumpTimer);
+    pumpTimer = null;
+  }
 }
 
 // Wrap a live GObject handle as a GJS-shaped instance. When `userProto` is given
@@ -1364,9 +1430,13 @@ let loopAttached = false;
 export function requireGi(namespace, version) {
   native.requireNamespace(namespace, version);
   // Attach the libuv-in-GLib bridge once, so any later blocking GLib loop
-  // (GLib.MainLoop.run / Gio.Application.run) keeps Node's event loop alive.
+  // (GLib.MainLoop.run / Gio.Application.run) keeps Node's event loop alive. This
+  // is Node-only: the bridge nests libuv's backend fd inside GLib, and Bun/Deno
+  // have no usable libuv (Deno exports no libuv symbols; Bun panics on
+  // uv_backend_fd). There, GLib async is co-pumped from the runtime loop via the
+  // portable GLib-iteration pump instead (see pumpMainContext / runAsync).
   if (!loopAttached) {
-    native.startMainLoop();
+    if (native.isNodeRuntime) native.startMainLoop();
     loopAttached = true;
   }
   const key = version ? `${namespace}@${version}` : namespace;
