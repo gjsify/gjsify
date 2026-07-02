@@ -53,6 +53,11 @@ export { AdwCarousel, AdwCarouselIndicatorDots, AdwCarouselIndicatorLines } from
 export { AdwTabPage, AdwTabView } from './elements/adw-tab-view.js';
 export { AdwViewSwitcher, AdwViewSwitcherPage } from './elements/adw-view-switcher.js';
 export { AdwInlineViewSwitcher, AdwViewStackPage } from './elements/adw-inline-view-switcher.js';
+export { AdwViewStack } from './elements/adw-view-stack.js';
+export type { AdwViewStackPageInfo } from './elements/adw-view-stack.js';
+export { AdwViewSwitcherBar } from './elements/adw-view-switcher-bar.js';
+export { AdwMenuButton } from './elements/adw-menu-button.js';
+export type { AdwMenuItem } from './elements/adw-menu-button.js';
 export { AdwNavigationPage, AdwNavigationView } from './elements/adw-navigation-view.js';
 export { AdwBottomSheet, AdwBottomSheetContent, AdwBottomSheetSheet } from './elements/adw-bottom-sheet.js';
 export { AdwSidebar, AdwSidebarItem, AdwSidebarSection } from './elements/adw-sidebar.js';

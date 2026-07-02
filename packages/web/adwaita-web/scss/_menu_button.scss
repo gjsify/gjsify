@@ -1,0 +1,151 @@
+// _menu_button.scss — adw-menu-button styling: a flat (or circular) icon button
+// that drops an Adwaita-styled popover menu (the web counterpart of
+// Adw.MenuButton / Gtk.MenuButton). The button mirrors libadwaita's flat/circular
+// `menubutton > button`; the popover reproduces `popover.menu > contents` with
+// its soft triple-shadow surface and `modelbutton`-style item rows.
+// Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (menubutton flat/circular)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_popovers.scss (popover > contents)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_menus.scss (popover.menu modelbutton)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+.adw-menu-button {
+    position: relative;
+    box-sizing: border-box;
+    display: inline-flex;
+    vertical-align: middle;
+
+    // The icon button — square with the button radius by default.
+    .adw-menu-button-button {
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 34px;
+        min-height: 34px;
+        margin: 0;
+        padding: 0 8px;
+        border: none;
+        border-radius: var(--button-radius);
+        background-color: var(--button-bg-color);
+        color: var(--window-fg-color);
+        cursor: pointer;
+        transition: background-color 0.1s ease;
+
+        .adw-menu-button-icon {
+            width: 16px;
+            height: 16px;
+            flex: none;
+        }
+
+        &:hover {
+            background-color: var(--button-hover-color);
+        }
+
+        &:active {
+            background-color: var(--button-active-color);
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--accent-color);
+            outline-offset: 1px;
+        }
+    }
+
+    // Flat — no resting fill (the header app-menu idiom).
+    &.flat .adw-menu-button-button {
+        background-color: transparent;
+    }
+
+    // The open state keeps a subtle fill so the button reads as "checked".
+    &.active .adw-menu-button-button {
+        background-color: var(--button-active-color);
+    }
+
+    // Circular — a round 34×34 button (window-control / FAB idiom).
+    &.circular .adw-menu-button-button {
+        padding: 0;
+        border-radius: 9999px;
+    }
+
+    &.disabled {
+        opacity: 0.45;
+
+        .adw-menu-button-button {
+            cursor: default;
+            pointer-events: none;
+        }
+    }
+
+    // --- Popover menu ---
+    // The elevated menu surface below the button, right-aligned like a header-end
+    // app menu. Reproduces libadwaita's popover.menu > contents.
+    .adw-menu-button-popover {
+        position: absolute;
+        top: calc(100% + 6px);
+        right: 0;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        min-width: 200px;
+        padding: var(--spacing-xs);
+        border-radius: var(--card-radius);
+        background-color: var(--popover-bg-color, var(--window-bg-color, #fff));
+        color: var(--popover-fg-color, var(--window-fg-color));
+        box-shadow:
+            0 0 0 1px rgba(0, 0, 0, 0.05),
+            0 1px 5px 1px rgba(0, 0, 0, 0.09),
+            0 2px 14px 3px rgba(0, 0, 0, 0.05);
+
+        &[hidden] {
+            display: none;
+        }
+    }
+
+    // Optional section heading atop the menu (libadwaita label.title).
+    .adw-menu-button-title {
+        padding: 4px var(--spacing-s) 6px;
+        font-weight: 700;
+        opacity: var(--dim-opacity);
+    }
+
+    // A menu item row — a flat rounded row that fills on hover/active.
+    .adw-menu-button-item {
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        width: 100%;
+        min-height: 32px;
+        margin: 0;
+        padding: var(--spacing-xs) var(--spacing-s);
+        border: none;
+        border-radius: calc(var(--button-radius) - 2px);
+        background-color: transparent;
+        color: inherit;
+        font-family: var(--font-family);
+        font-size: var(--font-size-base);
+        text-align: start;
+        cursor: pointer;
+        transition: background-color 0.1s ease;
+
+        .adw-menu-button-item-icon {
+            width: 16px;
+            height: 16px;
+            flex: none;
+        }
+
+        &:hover {
+            background-color: var(--button-hover-color);
+        }
+
+        &:active {
+            background-color: var(--button-active-color);
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--accent-color);
+            outline-offset: -2px;
+        }
+    }
+}

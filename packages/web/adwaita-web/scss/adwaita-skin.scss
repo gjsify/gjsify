@@ -16,6 +16,7 @@
 @use 'button';
 @use 'button_content';
 @use 'split_button';
+@use 'menu_button';
 @use 'toggle_group';
 @use 'entry';
 @use 'preferences';
@@ -43,6 +44,8 @@
 @use 'tab_view';
 @use 'view_switcher';
 @use 'inline_view_switcher';
+@use 'view_stack';
+@use 'view_switcher_bar';
 @use 'navigation_view';
 @use 'bottom_sheet';
 @use 'sidebar';
