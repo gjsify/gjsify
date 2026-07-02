@@ -22,6 +22,7 @@ import {
 } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import { prefixLines } from '../utils/prefixed-output.js';
+import { BuildCacheRunner, buildCacheEnabledByEnv } from '../utils/build-cache.js';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 // Every child spawned by spawnPrefixed registers here so fail-fast can
@@ -187,6 +188,7 @@ interface ForeachOptions {
     verbose?: boolean;
     jobs?: number;
     exec?: boolean;
+    cached?: boolean;
 }
 
 export const foreachCommand: Command<unknown, ForeachOptions> = {
@@ -261,6 +263,11 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
                     'Treat <script> [args..] as an arbitrary command (yarn `workspaces foreach exec`-equivalent) instead of a package.json script lookup. Workspace filtering by script presence is skipped. Use `-- <cmd> <args...>` to pass flags to the command without yargs intercepting them.',
                 type: 'boolean',
                 default: false,
+            })
+            .option('cached', {
+                description:
+                    'Content-hash build cache (ADR 0006): skip a workspace whose inputs (src/**, package.json, tsconfig*.json, transitive workspace deps, toolchain versions) are unchanged and restore its stored outputs instead; on miss run the script and store the output dirs it modified. Script mode only. Default from GJSIFY_BUILD_CACHE=1.',
+                type: 'boolean',
             })
             .option('shard', {
                 description:
@@ -374,7 +381,9 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
             if (total > 1) {
                 const byName = [...selected].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
                 selected = byName.filter((_, i) => i % total === index - 1);
-                console.log(`gjsify foreach: shard ${index}/${total} → ${selected.length} of ${byName.length} workspace(s)`);
+                console.log(
+                    `gjsify foreach: shard ${index}/${total} → ${selected.length} of ${byName.length} workspace(s)`,
+                );
             }
         }
 
@@ -397,10 +406,35 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
         // exit on undefined, but TS doesn't narrow through them.
         const finalCmd = cmd!;
 
+        // Content-hash build cache (ADR 0006 phase 1). Explicit --cached /
+        // --no-cached wins; GJSIFY_BUILD_CACHE=1 is the env default so a
+        // whole root-script chain (`gjsify run build`) can opt in without
+        // editing every nested invocation. Keys are computed against ALL
+        // discovered workspaces (a dep outside the --include filter still
+        // participates in its dependents' keys).
+        const cached = args.cached ?? buildCacheEnabledByEnv();
+        if (args.cached === true && exec) {
+            // Only the EXPLICIT flag errors — the GJSIFY_BUILD_CACHE env
+            // default covers whole script chains (CI sets it once for the
+            // build job) where an --exec invocation is simply not cacheable.
+            console.error('gjsify foreach: --cached only applies to script mode, not --exec.');
+            process.exit(1);
+        }
+        const cache =
+            cached && !exec
+                ? new BuildCacheRunner({
+                      root: cwd,
+                      workspaces: allWorkspaces,
+                      script: finalCmd,
+                      args: cmdArgs,
+                      targets: selected.map((w) => w.name),
+                  })
+                : undefined;
+
         try {
             if (args.parallel && !args.topological && !args['topological-dev']) {
                 const jobs = args.jobs && args.jobs > 0 ? args.jobs : cpus().length;
-                await runParallel(selected, finalCmd, cmdArgs, jobs, verbose, exec);
+                await runParallel(selected, finalCmd, cmdArgs, jobs, verbose, exec, cache);
             } else if (args.parallel) {
                 // Topological + parallel: each workspace starts as soon as its
                 // deps (in the selected set) have finished. Yarn calls this
@@ -414,9 +448,10 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
                     verbose,
                     args['topological-dev'] === true,
                     exec,
+                    cache,
                 );
             } else {
-                await runSequential(selected, finalCmd, cmdArgs, verbose, exec);
+                await runSequential(selected, finalCmd, cmdArgs, verbose, exec, cache);
             }
         } catch (err) {
             // Plain --parallel rejects on the FIRST failure (Promise.all) while
@@ -439,9 +474,10 @@ async function runSequential(
     args: readonly string[],
     verbose: boolean,
     exec: boolean,
+    cache?: BuildCacheRunner,
 ): Promise<void> {
     for (const ws of workspaces) {
-        await runOne(ws, script, args, /* prefixOutput */ false, verbose, exec);
+        await runOne(ws, script, args, /* prefixOutput */ false, verbose, exec, cache);
     }
 }
 
@@ -452,6 +488,7 @@ async function runParallel(
     concurrency: number,
     verbose: boolean,
     exec: boolean,
+    cache?: BuildCacheRunner,
 ): Promise<void> {
     let cursor = 0;
     const workers: Promise<void>[] = [];
@@ -460,7 +497,7 @@ async function runParallel(
             (async () => {
                 while (cursor < workspaces.length) {
                     const i = cursor++;
-                    await runOne(workspaces[i]!, script, args, /* prefixOutput */ true, verbose, exec);
+                    await runOne(workspaces[i]!, script, args, /* prefixOutput */ true, verbose, exec, cache);
                 }
             })(),
         );
@@ -476,6 +513,7 @@ async function runTopologicalParallel(
     verbose: boolean,
     includeDev: boolean,
     exec: boolean,
+    cache?: BuildCacheRunner,
 ): Promise<void> {
     const selectedNames = new Set(workspaces.map((w) => w.name));
     const remaining = new Map<string, Set<string>>();
@@ -508,15 +546,14 @@ async function runTopologicalParallel(
     const inflightStarts = new Map<string, number>();
     const STALL_WARN_MS = 5 * 60_000;
     const stallAbortMinutes = Number(process.env['GJSIFY_FOREACH_STALL_MINUTES'] ?? '20');
-    const STALL_ABORT_MS = (Number.isFinite(stallAbortMinutes) && stallAbortMinutes > 0 ? stallAbortMinutes : 20) * 60_000;
+    const STALL_ABORT_MS =
+        (Number.isFinite(stallAbortMinutes) && stallAbortMinutes > 0 ? stallAbortMinutes : 20) * 60_000;
 
     return new Promise<void>((resolve, reject) => {
         let error: Error | null = null;
         let lastActivity = Date.now();
         const describeInflight = (): string =>
-            [...inflightStarts.entries()]
-                .map(([n, t]) => `${n} (${Math.round((Date.now() - t) / 1000)}s)`)
-                .join(', ');
+            [...inflightStarts.entries()].map(([n, t]) => `${n} (${Math.round((Date.now() - t) / 1000)}s)`).join(', ');
         const failFast = (e: Error): void => {
             // First error wins. KILL the in-flight siblings instead of
             // waiting for them (yarn waits — but a sibling's nested build
@@ -563,7 +600,7 @@ async function runTopologicalParallel(
                 if (liveProgress) {
                     console.error(`[gjsify foreach] start ${next} (${done.size}/${total} done, ${inflight} in flight)`);
                 }
-                runOne(byName.get(next)!, script, args, /* prefixOutput */ true, verbose, exec)
+                runOne(byName.get(next)!, script, args, /* prefixOutput */ true, verbose, exec, cache)
                     .then(() => {
                         done.add(next);
                     })
@@ -612,6 +649,7 @@ async function runOne(
     prefixOutput: boolean,
     verbose: boolean,
     exec: boolean,
+    cache?: BuildCacheRunner,
 ): Promise<void> {
     if (exec) {
         // Arbitrary-command mode: spawn `<script> <args...>` directly
@@ -624,6 +662,12 @@ async function runOne(
         await spawnPrefixed(script, args, ws.location, prefixOutput ? `[${ws.name}] ` : null);
         return;
     }
+    // Content-hash build cache: on a key hit the stored outputs are
+    // restored and the script is skipped entirely; on a miss the output
+    // dirs are snapshotted so only the dirs the script MODIFIED are stored
+    // after it succeeds (never a committed, no-build lib/).
+    if (cache && cache.tryRestore(ws)) return;
+    const before = cache?.snapshotOutputs(ws);
     // Use the same package manager that invoked us — yarn under yarn,
     // npm under npm, gjsify under gjsify. Default to `npm` for portability
     // when nothing is detectable; the script-runner (D.5) will replace
@@ -635,6 +679,7 @@ async function runOne(
         console.error(`[${ws.name}] $ ${runner} ${argv.join(' ')}`);
     }
     await spawnPrefixed(runner, argv, ws.location, prefixOutput ? `[${ws.name}] ` : null);
+    if (cache && before) cache.storeAfterSuccess(ws, before);
 }
 
 function detectPackageManager(): 'yarn' | 'npm' | 'gjsify' {
@@ -693,4 +738,3 @@ function spawnPrefixed(cmd: string, args: readonly string[], cwd: string, prefix
         });
     });
 }
-
