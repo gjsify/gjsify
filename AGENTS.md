@@ -315,6 +315,7 @@ gjsify publish [path] [--tag <t>] [--access public] [--otp <code>] [--trusted] [
 gjsify whoami [--registry <url>] [--json]   # prints the npm username for the current ~/.npmrc token; clear failure on dead/missing token
 gjsify login  [--registry <url>] [--scope @s] [--username <u>] [--otp <code>] [--json]   # Node-free `npm login` (legacy credentials flow): prompts user+password(hidden), PUTs the couchdb user doc (Basic auth, 409→_rev retry for existing users), writes //host/:_authToken to ~/.npmrc. No web-OAuth flow.
 gjsify logout [--registry <url>] [--scope @s] [--json]   # revoke the token (best-effort DELETE /-/user/token) + strip it from ~/.npmrc
+gjsify onboard [--repository owner/repo] [--otp <code>] [--registry <url>] [--dry-run] [--json] [--yes]   # ensure EVERY publishable @gjsify/* is BOTH published + Trusted-Publisher-configured, minimally: whoami-gated login, then publish+trust only the missing ones, ONE shared OTP across the whole sweep (cache-first — typed once, not once-per-package). Idempotent. Automates the manual first-publish+trust bootstrap below.
 # Per-package (in the package dir)
 gjsify run build:gjsify | gjsify run build:types
 gjsify run build:test:{gjs,node} | gjsify run test:{gjs,node}
@@ -673,6 +674,8 @@ Shared utils: `@gjsify/utils` (`packages/gjs/utils/`). Check before duplicating;
 ### New `@gjsify/*` package: first-publish + Trusted Publisher bootstrap
 
 npm Trusted Publishing (OIDC) requires the package to **already exist** on npmjs.com — you cannot configure a Trusted Publisher for a name that has no published versions. This makes the **first publish a manual maintainer action**, not a CI release. Skipping this step breaks the entire serialized `npm:publish` loop in `release.yml`: every package alphabetically after the new name fails to publish because the OIDC exchange returns `404 — OIDC token exchange error - package not found` and the workflow exits 1 (historical incident on v0.4.20: `@gjsify/tls-native` was added in #242, no manual bootstrap → 60+ packages stuck at 0.4.19).
+
+**Fast path — `gjsify onboard` automates this whole sequence.** One command ensures EVERY publishable `@gjsify/*` workspace is both published AND Trusted-Publisher-configured, doing the minimum work: it runs the `whoami` liveness check first (only logging in when the token is dead/missing), enumerates the publishable workspaces (non-private, excluding `@girs/*`), determines each package's published+trust state concurrently, then — for the gaps only — builds + `publish --access public`es the unpublished ones and POSTs the Trusted-Publisher config for anything untrusted, all under **one shared OTP** (cache-first via `utils/npm-otp.ts` — you type a 2FA code once for the whole sweep, not once per package). It is idempotent (re-run when everything is done → no-op, exit 0), `--dry-run` previews, `--json` emits a machine summary, and `--yes` fails clearly rather than prompting on a non-TTY. The manual `gjsify publish` / `gjsify trust` steps below remain the per-package fallback (and the reference for what `onboard` does under the hood).
 
 Run before the merge that adds the package (or immediately after, before the next release-it patch):
 

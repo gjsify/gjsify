@@ -43,6 +43,7 @@ import {
     loginCommand as login,
     logoutCommand as logout,
     trustCommand as trust,
+    onboardCommand as onboard,
     selfUpdateCommand as selfUpdate,
     generateInstallerCommand as generateInstaller,
     uninstallCommand as uninstall,
@@ -143,6 +144,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .command(login.command, login.description, login.builder, login.handler)
         .command(logout.command, logout.description, logout.builder, logout.handler)
         .command(trust.command, trust.description, trust.builder, trust.handler)
+        .command(onboard.command, onboard.description, onboard.builder, onboard.handler)
         .command(selfUpdate.command, selfUpdate.description, selfUpdate.builder, selfUpdate.handler)
         .command(
             generateInstaller.command,
