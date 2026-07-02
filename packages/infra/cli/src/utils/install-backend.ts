@@ -104,6 +104,16 @@ export interface InstallOptions {
      * itself.
      */
     workspaceNames?: Set<string>;
+    /**
+     * Native backend only: requester labels for top-level specs, keyed by the
+     * exact `"<name>@<range>"` spec string. `workspaceInstall` records which
+     * workspace(s) declared each aggregated external spec so the resolver's
+     * version-conflict warning can name BOTH sides of a conflict ("^1 requested
+     * by @scope/a, ^2 requested by @scope/b"). Optional — flows without
+     * per-requester attribution (single-project installs, dlx) omit it and the
+     * warning falls back to the bare ranges.
+     */
+    specOrigins?: Map<string, string[]>;
 }
 
 const DEFAULT_BACKEND = process.env.GJSIFY_INSTALL_BACKEND ?? 'native';

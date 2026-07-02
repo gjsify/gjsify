@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
-// Shared filesystem primitives for `gjsify install`'s on-disk caches.
+// Shared filesystem primitives for `gjsify install`'s on-disk caches and its
+// lockfile writer.
 //
 // Both the content-addressable tarball cache (install-tarball-cache.ts) and the
 // packument metadata cache (install-packument-cache.ts) need the same three
 // things: an `XDG_CACHE_HOME`-honouring cache root, an atomic write (so a
 // concurrent install never observes a half-written entry), and a read that
 // treats a missing / zero-byte / unreadable file as a MISS. Centralising them
-// here keeps the two caches byte-for-byte consistent.
+// here keeps the two caches byte-for-byte consistent. The lockfile writer
+// (`gjsify-lock.json`) shares the same tmp+rename pattern via the strict
+// variant so an interrupted install can never leave a torn lockfile behind.
 //
 // Out of scope: the dlx cache (`dlx-cache.ts`) has a different layout
 // (`gjsify/dlx`, sha256 + symlink-swap) and its own TTL/prepare-dir concerns —
@@ -37,13 +40,25 @@ export function gjsifyCacheRoot(kind: string, layoutVersion: string): string {
  */
 export function atomicWrite(path: string, bytes: Uint8Array | string): void {
     try {
-        mkdirSync(join(path, '..'), { recursive: true });
-        const tmp = `${path}.tmp.${process.pid}`;
-        writeFileSync(tmp, bytes);
-        renameSync(tmp, path);
+        atomicWriteStrict(path, bytes);
     } catch {
         /* best-effort — a cache-write failure must not break the install */
     }
+}
+
+/**
+ * Strict sibling of {@link atomicWrite}: identical tmp+`rename` pattern, but
+ * failures PROPAGATE to the caller. Use for files whose corruption/loss must
+ * abort the operation (the `gjsify-lock.json` writer) rather than degrade
+ * silently like a cache entry. `rename` over the destination is atomic on
+ * POSIX, so a concurrent reader (or a crash mid-write) sees either the old
+ * complete file or the new complete file — never a torn one.
+ */
+export function atomicWriteStrict(path: string, bytes: Uint8Array | string): void {
+    mkdirSync(join(path, '..'), { recursive: true });
+    const tmp = `${path}.tmp.${process.pid}`;
+    writeFileSync(tmp, bytes);
+    renameSync(tmp, path);
 }
 
 /**

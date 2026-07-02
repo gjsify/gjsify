@@ -32,6 +32,8 @@ import {
 import { extractTarball } from '@gjsify/tar';
 
 import type { InstallOptions } from './install-backend.ts';
+import { atomicWriteStrict } from './install-cache-fs.js';
+import { acquireInstallLock } from './install-lock.js';
 import {
     cacheRootForLogging,
     getCachedTarball,
@@ -107,8 +109,29 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
     fs.mkdirSync(opts.prefix, { recursive: true });
     const npmrc = await loadNpmrc(opts);
     const log = makeLogger(opts.verbose ?? false);
-    const progress = opts.progress;
 
+    // Serialize every mutation of THIS prefix across processes (ADR 0001):
+    // concurrent installs into the same node_modules used to interleave
+    // `rmSync` + extract on shared destination dirs and tear the lockfile.
+    // Re-entrant within the process (workspace installs already hold the
+    // root-prefix lock — this just bumps a refcount). Installs into other
+    // prefixes proceed concurrently; the shared XDG caches stay lock-free
+    // because their tmp+rename writes are atomic (install-cache-fs.ts).
+    const lock = await acquireInstallLock(opts.prefix, { signal: opts.signal });
+    try {
+        return await installPackagesNativeLocked(opts, npmrc, log);
+    } finally {
+        lock.release();
+    }
+}
+
+/** Body of {@link installPackagesNative}, run while holding the prefix lock. */
+async function installPackagesNativeLocked(
+    opts: InstallOptions,
+    npmrc: NpmrcConfig,
+    log: Logger,
+): Promise<InstalledTopLevel[]> {
+    const progress = opts.progress;
     const lockfilePath = path.join(opts.prefix, LOCKFILE_NAME);
     const existingLock = readLockfile(lockfilePath);
 
@@ -162,6 +185,7 @@ export async function installPackagesNative(opts: InstallOptions): Promise<Insta
             progress,
             preferred,
             opts.workspaceNames,
+            opts.specOrigins,
         );
         if (opts.lockfile) {
             writeLockfile(lockfilePath, opts.specs, nodes);
@@ -268,6 +292,12 @@ async function resolveDeps(
      * the lockfile.
      */
     workspaceNames?: Set<string>,
+    /**
+     * Requester labels for top-level specs (`"<name>@<range>"` → workspace
+     * names) — see `InstallOptions.specOrigins`. Used only to attribute the
+     * version-conflict warning.
+     */
+    specOrigins?: Map<string, string[]>,
 ): Promise<ResolvedNode[]> {
     progress?.beginPhase('resolve', specs.length);
     const applyOverride = (name: string, range: string): string => {
@@ -301,12 +331,36 @@ async function resolveDeps(
         /** Whether failure to resolve should throw (false for optionalDeps). */
         required: boolean;
     }
-    const queue: Edge[] = specs.map(parseSpec).map((s) => ({
-        from: null,
-        name: s.name,
-        range: applyOverride(s.name, s.range),
-        required: true,
-    }));
+    // Top-level range bookkeeping for the version-conflict warning:
+    // `name → (applied range → requester labels)`. Only TOP-LEVEL specs
+    // participate: conflicting transitive edges are resolved correctly by
+    // nesting (Phase D.7b), but conflicting top-level specs — the shape
+    // `workspaceInstall` produces when two workspaces declare incompatible
+    // ranges of the same external dep — all compete for the single root
+    // slot, and today the resolver silently keeps one version for everyone
+    // (per-workspace dedup is Phase D.8). Until that lands, the conflict is
+    // surfaced loudly after the resolve (see emitTopLevelConflictWarnings).
+    const topLevelRanges = new Map<string, Map<string, Set<string>>>();
+    const queue: Edge[] = specs.map(parseSpec).map((s) => {
+        const range = applyOverride(s.name, s.range);
+        let ranges = topLevelRanges.get(s.name);
+        if (!ranges) {
+            ranges = new Map<string, Set<string>>();
+            topLevelRanges.set(s.name, ranges);
+        }
+        let requesters = ranges.get(range);
+        if (!requesters) {
+            requesters = new Set<string>();
+            ranges.set(range, requesters);
+        }
+        for (const origin of specOrigins?.get(`${s.name}@${s.range}`) ?? []) requesters.add(origin);
+        return {
+            from: null,
+            name: s.name,
+            range,
+            required: true,
+        };
+    });
 
     // Wave-based BFS. Each iteration drains the current queue level, prefetches
     // every not-yet-cached packument in that level IN PARALLEL (bounded), then
@@ -439,7 +493,52 @@ async function resolveDeps(
     }
 
     progress?.endPhase('resolve');
+    emitTopLevelConflictWarnings(topLevelRanges, root);
     return Array.from(byPath.values());
+}
+
+/**
+ * Loud, single-line-per-package warning for top-level version-range
+ * conflicts (ADR 0001, step 3). Fires when two or more top-level specs
+ * requested DIFFERENT ranges of the same package and the version that ended
+ * up hoisted to the root does not satisfy all of them — i.e. some requester
+ * silently got a version outside its declared range. Compatible ranges
+ * (`^1.2` + `^1.4` both satisfied by `1.9.0`) stay silent; ranges that are
+ * not semver (dist-tags like `latest`) cannot be compared and are skipped.
+ *
+ * This makes the current single-root-slot behavior honest instead of silent;
+ * the real fix — a per-workspace dedup pass that gives each conflicting
+ * requester its own nested copy — is Phase D.8 (see STATUS.md).
+ */
+function emitTopLevelConflictWarnings(
+    topLevelRanges: Map<string, Map<string, Set<string>>>,
+    root: Map<string, ResolvedNode>,
+): void {
+    for (const [name, ranges] of topLevelRanges) {
+        if (ranges.size < 2) continue;
+        const placed = root.get(name);
+        if (!placed) continue; // workspace-provided or never placed — nothing installed to warn about
+        const describe = (range: string, requesters: Set<string>): string =>
+            requesters.size > 0 ? `${range} (requested by ${[...requesters].join(', ')})` : range;
+        const satisfied: string[] = [];
+        const unsatisfied: string[] = [];
+        for (const [range, requesters] of ranges) {
+            let ok: boolean;
+            try {
+                ok = satisfies(placed.version, new Range(range));
+            } catch {
+                continue; // dist-tag / non-semver range — not comparable
+            }
+            (ok ? satisfied : unsatisfied).push(describe(range, requesters));
+        }
+        if (unsatisfied.length === 0) continue;
+        console.warn(
+            `[gjsify] warning: version conflict for ${name}: installed ${placed.version} at ${placed.installPath} — ` +
+                `does NOT satisfy ${unsatisfied.join(', ')}` +
+                (satisfied.length > 0 ? `; satisfies ${satisfied.join(', ')}` : '') +
+                `. One hoisted copy serves all requesters until the per-workspace dedup pass lands (Phase D.8).`,
+        );
+    }
 }
 
 /**
@@ -626,7 +725,10 @@ function writeLockfile(lockfilePath: string, specs: string[], nodes: ResolvedNod
         requested: [...specs],
         packages,
     };
-    fs.writeFileSync(lockfilePath, JSON.stringify(lockfile, null, 2) + '\n');
+    // Atomic tmp+rename so a crash mid-write (or a reader racing the writer)
+    // can never observe a torn gjsify-lock.json — `--immutable` would
+    // otherwise hard-fail on the corrupt file with a misleading error.
+    atomicWriteStrict(lockfilePath, JSON.stringify(lockfile, null, 2) + '\n');
 }
 
 /**

@@ -307,11 +307,20 @@ describe('gjsify install — never fetch/extract over workspace sources', { time
         await new Promise((r) => server.listen(0, '127.0.0.1', r));
         registryUrl = `http://127.0.0.1:${server.address().port}/`;
         cliEntry = new URL('../../../packages/infra/cli/lib/index.js', import.meta.url).pathname;
+        // Fixture-local caches: the `fetch: @fixture/app` assertions below
+        // require the tarball to actually come off the network — a shared
+        // user-level XDG cache from a previous local run turns the fetch into
+        // a `cache-hit:` (the fixture tarballs are byte-deterministic, so
+        // their SRI keys collide across runs) and fails the suite spuriously.
+        const xdgCache = mkdtempSync(join(tmpdir(), 'gjsify-e2e-wssafe-xdg-'));
+        roots.push(xdgCache);
         envForCli = {
             ...process.env,
             GJSIFY_INSTALL_BACKEND: 'native',
             npm_config_registry: registryUrl,
             GJSIFY_INSTALL_CONCURRENCY: '1',
+            XDG_CACHE_HOME: xdgCache,
+            GJSIFY_NPM_CACHE: '0',
         };
     });
 
