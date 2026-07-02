@@ -53,5 +53,8 @@
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/gjs/utils#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/gjs/utils#readme",
+    "gjsify": {
+        "tier": 1
+    }
 }

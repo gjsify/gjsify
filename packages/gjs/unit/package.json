@@ -61,5 +61,8 @@
         "@gjsify/utils": "workspace:^",
         "@gjsify/web-globals": "workspace:^",
         "@gjsify/web-streams": "workspace:^"
+    },
+    "gjsify": {
+        "tier": 1
     }
 }

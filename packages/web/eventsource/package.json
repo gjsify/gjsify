@@ -60,7 +60,8 @@
             "node": "polyfill",
             "browser": "native",
             "nativescript": "native"
-        }
+        },
+        "tier": 1
     },
     "license": "MIT",
     "repository": {

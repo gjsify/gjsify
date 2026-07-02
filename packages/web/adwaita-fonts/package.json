@@ -25,7 +25,8 @@
             "node": "none",
             "browser": "polyfill",
             "nativescript": "none"
-        }
+        },
+        "tier": 2
     },
     "repository": {
         "type": "git",

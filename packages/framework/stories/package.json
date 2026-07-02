@@ -47,7 +47,8 @@
             "node": "polyfill",
             "browser": "polyfill",
             "nativescript": "polyfill"
-        }
+        },
+        "tier": 2
     },
     "license": "MIT",
     "repository": {

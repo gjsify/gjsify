@@ -25,7 +25,8 @@
             "node": "none",
             "browser": "none",
             "nativescript": "none"
-        }
+        },
+        "tier": 1
     },
     "scripts": {
         "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs || exit 0",

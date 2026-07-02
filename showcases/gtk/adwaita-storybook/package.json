@@ -32,7 +32,8 @@
       "title": "Adwaita Storybook",
       "stories": "src",
       "globals": "auto"
-    }
+    },
+    "tier": 2
   },
   "devDependencies": {
     "@girs/adw-1": "1.10.0-4.0.4",

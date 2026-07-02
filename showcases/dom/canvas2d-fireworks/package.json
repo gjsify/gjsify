@@ -47,5 +47,8 @@
   "bugs": {
     "url": "https://github.com/gjsify/gjsify/issues"
   },
-  "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/canvas2d-fireworks#readme"
+  "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/canvas2d-fireworks#readme",
+  "gjsify": {
+    "tier": 2
+  }
 }

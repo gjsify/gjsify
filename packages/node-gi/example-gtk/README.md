@@ -4,6 +4,12 @@ The GTK analog of the headless [`../example`](../example) capstone: a single,
 **unchanged** GJS / Libadwaita application ([`src/app.ts`](src/app.ts)) that
 builds and runs **identically** on both GJS and Node.js.
 
+> **Status: experimental (Tier 3 —
+> [ADR 0005](../../../docs/adr/0005-node-gi-scope.md)).** node-gi's scope today
+> is CI/benchmarks/dev tooling — not production apps. See the
+> [`@gjsify/node-gi` README](../node-gi/README.md) for the dependency-isolation
+> rule and the graduation gate.
+
 ```
 gjsify build src/app.ts --app gjs   → gjs  -m dist/app.gjs.mjs   (native gi://)
 gjsify build src/app.ts --app node  → node    dist/app.node.mjs  (@gjsify/node-gi)

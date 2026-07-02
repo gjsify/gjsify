@@ -22,7 +22,8 @@
             "node": "none",
             "browser": "none",
             "nativescript": "none"
-        }
+        },
+        "tier": 1
     },
     "scripts": {
         "clear": "rm -rf lib tmp build test.gjs.mjs tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",

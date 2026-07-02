@@ -51,6 +51,16 @@ The project comprises **41 Node.js modules** (+1 meta, +5 native bridges), **18 
 
 ---
 
+## Package Tiers
+
+Every published package declares its stability contract in `package.json#gjsify.tier` — **the source of truth**, verified by `scripts/audit-runtimes.mjs --check` in CI (tier presence + dependency direction: `dependencies`/`optionalDependencies` must point to the same or a lower tier — devDeps/optional peers are the sanctioned seams — and no Tier-1/2 package may hard-depend on `@gjsify/node-gi`). See [ADR 0003](docs/adr/0003-package-tiering.md) + [ADR 0005](docs/adr/0005-node-gi-scope.md).
+
+- **Tier 1 — core (99):** stability promise — full dual-runtime CI, root-cause governance, no known-broken releases. All `packages/node/*` (48, native bridges included), all `packages/web/*` except the `adwaita-*` packages (21), `packages/dom/*` (2), `packages/gjs/*` (3), the framework bridges `bridge-types`/`canvas2d`/`event-bridge`/`iframe`/`video`/`webgl` (6), and all `packages/infra/*` except `nativescript-vite` (19).
+- **Tier 2 — product (23):** best effort — tested, released on the train, but breaking changes may ship with a minor + changelog note. Design identity (`adwaita-web`, `adwaita-fonts`, `adwaita-icons`, `adwaita-nativescript`), storybook (`stories`, `storybook-core`, `storybook`, `adwaita-storybook`, `storybook-nativescript`), devtools DBus core (`devtools`, `devtools-protocol`, `devtools-nativescript`), the NativeScript bridges (`native-platform`, `native-fs-bridge`), `nativescript-vite`, and the 8 published showcases (`@gjsify/example-*`).
+- **Tier 3 — experimental (4):** no promise; new axes start here. `@gjsify/node-gi` (ADR 0005), `devtools-browser`, `devtools-cdp`, and `devtools-mcp` — the MCP bridge hard-depends on `devtools-cdp`'s eagerly exported CDP profile, so it inherits that tier (ADR 0003 rule 1); splitting or lazy-loading the CDP profile restores its Tier-2 default.
+
+---
+
 ## Node.js Packages (`packages/node/`)
 
 ### Fully Implemented (35)
@@ -920,11 +930,11 @@ Decisions in [docs/adr/](docs/adr/README.md), prioritized backlog + rationale in
 
 - **ADR 0001 (P1)** — install non-destructive invariant: ~~`tests/e2e/install-non-destructive` dirty-fixture guard~~ ✓ (4 modes: install / --immutable / add-package / workspace, all assert `git status --porcelain`) + ~~AGENTS.md invariant line~~ ✓ → cross-process file lock for tarball store/global prefix (fixes the 5+-concurrent-install hang) → resolver conflict warning → Phase D.8 dedup pass.
 - **ADR 0006 phase 1 (P1)** — CLI-owned content-hash per-package build cache (`node_modules/.cache/gjsify/build/`, key = src+manifest+dep-keys+toolchain version), wired into `main.yml`; phase 2 = source-direct workspace-consumption spike (decision recorded in the ADR).
-- **ADR 0003 (P1)** — `package.json#gjsify.tier` on every published package + `scripts/audit-runtimes.mjs` tier/dependency-direction check (Tier 1 must not dep on Tier 2/3; names `@gjsify/node-gi` explicitly per ADR 0005) + Tier column in the STATUS.md tables.
+- **ADR 0003 (P1)** — ~~`package.json#gjsify.tier` on every published package + `scripts/audit-runtimes.mjs` tier/dependency-direction check (Tier 1 must not dep on Tier 2/3; names `@gjsify/node-gi` explicitly per ADR 0005)~~ ✓; STATUS.md surfaces membership as the `## Package Tiers` section instead of a per-row Tier column (deliberate deviation — one compact list, no ~15-table churn). Website package index still pending.
 - **ADR 0002 (P1, after 0006)** — minimal committed `bootstrap.gjs.mjs` (install+run only), full CLI/tsc consumed from the registry via the lockfile; `tests/e2e/bootstrap-install` fresh-clone gate BEFORE removing `dist/cli.gjs.mjs`/`dist/tsc.gjs.mjs`/committed `lib/lib*.d.ts`; pre-commit hook shrinks to the bootstrap.
 - **ADR 0008 (P2)** — ~~versioning-policy text (README + website + create-app template)~~; `@girs/*` exact-pin → caret relaxation gated on ts-for-gir #432 verification.
 - **ADR 0004 (P2)** — `@gjsify/adwaita-core` seed: move `parseBreakpointCondition`/`AdwBreakpoint` + the color-scheme observable out of `adwaita-nativescript` (re-export, no consumer break); then toast queue + dialog response model; row state machines opportunistically.
-- **ADR 0005 (P2)** — codify node-gi experimental scope: README/website wording + the audit-check hook from ADR 0003; graduation gate = teardown-crash + vfunc OUT/INOUT fixed + GTK/Cairo layer + second real consumer.
+- **ADR 0005 (P2)** — ~~codify node-gi experimental scope: README wording + the audit-check hook from ADR 0003~~ ✓ (no website node-gi page exists yet — the wording lands with the page); graduation gate = teardown-crash + vfunc OUT/INOUT fixed + GTK/Cairo layer + second real consumer.
 - **ADR 0007 (P3, easy6502)** — bounded spike: `app-web` implements `DebuggerView` over `@gjsify/adwaita-web` driven by the existing `common-ui` controller; outcome recorded as an ADR status update (adopt per-view migration OR reject with the concrete mismatch).
 
 ### GI/GObject runtime for Node (Axis 5 active track) — IN PROGRESS

@@ -67,6 +67,7 @@
             "browser": "none",
             "nativescript": "native"
         },
+        "tier": 2,
         "nativescriptPlatforms": [
             "android",
             "ios"

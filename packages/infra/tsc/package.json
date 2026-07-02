@@ -17,7 +17,8 @@
             "gjs": "polyfill",
             "node": "none",
             "browser": "none"
-        }
+        },
+        "tier": 1
     },
     "files": [
         "src",

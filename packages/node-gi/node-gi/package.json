@@ -50,7 +50,8 @@
       "node": "polyfill",
       "browser": "none",
       "nativescript": "none"
-    }
+    },
+    "tier": 3
   },
   "scripts": {
     "install": "node-gyp rebuild",
