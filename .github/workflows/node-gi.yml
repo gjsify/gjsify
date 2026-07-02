@@ -38,7 +38,7 @@ jobs:
       - name: Install toolchain + GObject-Introspection dev headers
         run: |
           dnf install -y --setopt=install_weak_deps=False \
-            git gcc-c++ make python3 pkgconf-pkg-config tar xz \
+            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
             glib2-devel gobject-introspection-devel gobject-introspection gjs
           gjs --version
           echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
@@ -53,13 +53,27 @@ jobs:
         with:
           node-version: '22'
 
+      # Bun + Deno for the quad-runtime example capstone below (gjs + node are
+      # already present). The quad harness auto-skips a runtime not on PATH, so
+      # these just widen the capstone from 2 to all 4 runtimes in this one job.
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Verify runtimes
         run: |
           node --version
-          npm --version
+          bun --version
+          deno --version
 
       - name: Build native addon (node-gyp)
         working-directory: packages/node-gi/node-gi
@@ -78,18 +92,18 @@ jobs:
         working-directory: packages/node-gi/node-gi
         run: npm run test:gc
 
-      # Capstone: ONE unchanged gi:// source builds + runs byte-identically on
-      # BOTH gjs and node. `npm install` builds @gjsify/node-gi via the
-      # `file:../node-gi` dependency (node-gyp), so the example exercises the
-      # in-tree runtime + addon. `dual.e2e.mjs` builds `--app gjs` (real
-      # bundler) + runs on gjs, and runs the same source on node (the real
-      # `--app node` bundle once the installed CLI carries the gi:// rewrite,
-      # else the @gjsify/node-gi runtime), asserting both equal the golden.
-      - name: Dual gjs+node example (capstone)
+      # Quad-runtime capstone: several unchanged gi:// sources build + run
+      # BYTE-IDENTICALLY on gjs, node, bun AND deno. `npm install` builds
+      # @gjsify/node-gi via the `file:../node-gi` dependency (node-gyp), so the
+      # example exercises the in-tree runtime + addon. `quad.e2e.mjs` builds each
+      # source `--app gjs` (real bundler) + runs on gjs (the reference), then
+      # runs the `--app node` bundle (or its runtime twin) on node/bun/deno,
+      # asserting every runtime's output equals gjs and the fixed golden.
+      - name: Quad gjs/node/bun/deno example (capstone)
         working-directory: packages/node-gi/example
         run: |
           npm install --no-audit --no-fund --foreground-scripts
-          node --test dual.e2e.mjs
+          node --test quad.e2e.mjs
 
   # Cross-runtime proof: the SAME Node-API addon runs the GObject/GLib/Gio surface
   # on Bun and Deno, not just Node. node-gyp builds it once; scripts/stage-prebuild

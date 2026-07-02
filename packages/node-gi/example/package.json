@@ -1,6 +1,6 @@
 {
-  "name": "@gjsify/example-node-gi-dual",
-  "description": "One source, two runtimes — the same gi:// GObject-Introspection program built and run on both GJS and Node.js via @gjsify/node-gi.",
+  "name": "@gjsify/example-node-gi-quad",
+  "description": "One source, four runtimes — the same gi:// GObject-Introspection program built and run byte-identically on GJS, Node.js, Bun and Deno via @gjsify/node-gi.",
   "version": "0.16.0",
   "type": "module",
   "private": true,
@@ -21,7 +21,9 @@
     "build:node": "gjsify build src/app.ts --app node --outfile dist/app.node.mjs",
     "start:gjs": "gjs -m dist/app.gjs.mjs",
     "start:node": "node dist/app.node.mjs",
-    "test": "node --test dual.e2e.mjs",
+    "start:bun": "bun dist/app.node.mjs",
+    "start:deno": "deno run -A --node-modules-dir=manual dist/app.node.mjs",
+    "test": "node --test quad.e2e.mjs",
     "clear": "rm -rf dist"
   },
   "dependencies": {

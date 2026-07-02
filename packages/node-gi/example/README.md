@@ -1,8 +1,8 @@
-# @gjsify/node-gi — one source, two runtimes
+# @gjsify/node-gi — one source, four runtimes
 
-The capstone proof for [`@gjsify/node-gi`](../node-gi): a single, **unchanged**
-GJS / GObject-Introspection program ([`src/app.ts`](src/app.ts)) that builds and
-runs **identically** on both GJS and Node.js.
+The capstone proof for [`@gjsify/node-gi`](../node-gi): several **unchanged**
+GJS / GObject-Introspection programs that build and run **byte-identically** on
+**GJS, Node.js, Bun and Deno**.
 
 > **Status: experimental (Tier 3 —
 > [ADR 0005](../../../docs/adr/0005-node-gi-scope.md)).** node-gi's scope today
@@ -11,17 +11,41 @@ runs **identically** on both GJS and Node.js.
 > rule and the graduation gate.
 
 ```
-gjsify build src/app.ts --app gjs   → gjs  -m dist/app.gjs.mjs   (native gi://)
-gjsify build src/app.ts --app node  → node    dist/app.node.mjs  (@gjsify/node-gi)
+gjsify build src/<s>.ts --app gjs   → gjs                         -m dist/<s>.gjs.mjs   (native gi://)
+gjsify build src/<s>.ts --app node  → node | bun | deno              dist/<s>.node.mjs  (@gjsify/node-gi)
 ```
 
 The `gjsify` bundler keeps the `gi://` imports native for the GJS target and
-rewrites them onto the node-gi L1 runtime (`requireGi`) for the Node target. The
-GJS ambient `print` global is injected for the Node build by `--globals auto`
-(the `@gjsify/node-gi/globals` shim) — no `/register` import in the source.
+rewrites them onto the node-gi L1 runtime (`requireGi`) for the Node target — and
+because that addon is a Node-API binary, the **same `--app node` bundle** runs on
+Node, Bun and Deno (Node-API is their common ABI). The GJS ambient `print` global
+is injected for the Node build by `--globals auto` (the `@gjsify/node-gi/globals`
+shim) — no `/register` import in the source.
 
-Both builds print the same fixed sequence of lines (the GOLDEN output asserted by
-[`dual.e2e.mjs`](dual.e2e.mjs)):
+**GJS is the reference:** node/bun/deno output must equal the gjs output exactly,
+and each scenario's fixed golden. The harness ([`harness.mjs`](harness.mjs)) skips
+a runtime not on `PATH`, so it proves gjs+node where only those exist and all four
+where bun+deno are installed.
+
+## Scenarios
+
+Each source is a self-contained, deterministic `gi://` program (see
+[`quad.e2e.mjs`](quad.e2e.mjs)):
+
+| Scenario | Source | Exercises |
+|---|---|---|
+| capstone | [`src/app.ts`](src/app.ts) | namespace function, enums/flags/constants, GObject construct + methods + property, a counted signal, a static+instance method, a `GObject.registerClass` subclass (custom property + signal + `describe()` + `vfunc_constructed`), a bounded `GLib.MainLoop` + `timeout_add` ticker |
+| variants | [`src/variants.ts`](src/variants.ts) | `GLib.markup_escape_text`, `GLib.compute_checksum_for_string`, enums, and `GLib.Variant` build + `deepUnpack` for tuples / dicts / scalars |
+| signals | [`src/signals.ts`](src/signals.ts) | property round-trip, `notify::` counting across two handlers with `disconnect()`, and a `registerClass` custom signal emitted in a loop |
+
+Every value is **deterministic** — no hostname, no machine paths — and never
+depends on a signal callback's arguments (the Node runtime omits the emitter as
+the first callback arg, so scenarios only ever *count* emissions). That is what
+lets all four runtimes produce byte-identical output. Sources are written in
+**JS-valid TypeScript** (types come from ambient `.d.ts` — no `as`/annotation
+syntax in executable positions) so the runtime twin below runs them directly.
+
+The capstone golden:
 
 ```
 node-gi dual example
@@ -38,51 +62,44 @@ ticks: 3
 done
 ```
 
-## What the shared source exercises
-
-| GI feature | API in `src/app.ts` |
-|---|---|
-| Namespace function | `GLib.path_get_basename('/usr/bin/gjs')` |
-| Enums / flags / constants | `Gio.BusType.SESSION`, `GLib.PRIORITY_DEFAULT` |
-| GObject construction + methods + property | `new Gio.SimpleAction({ name, enabled })`, `get_name()`, `get_enabled()`, `set_enabled(false)`, `action.enabled` |
-| Signal (counted, no callback args) | `action.connect('notify::enabled', …)` → counter |
-| Constructor/static method + instance method | `Gio.File.new_for_path('/usr/share').get_basename()` |
-| `GObject.registerClass` subclass | custom `count`/`label` properties, a `bumped` signal, a `describe()` method, and `vfunc_constructed` |
-| Bounded GLib main loop + GI callback | `GLib.MainLoop` + `GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, …)` ticking to 3 |
-
-Every value is **deterministic** — no hostname, no machine paths — and never
-depends on a signal callback's arguments (the Node runtime omits the emitter as
-the first callback arg, so the example only ever *counts* emissions). That is what
-lets the two runtimes produce byte-identical output.
-
 ## Run it
 
 ```bash
 npm install      # builds @gjsify/node-gi's native addon via the file: dependency
-npm run build    # builds both the gjs and node bundles
+npm test         # node --test quad.e2e.mjs — builds each scenario and asserts
+                 # gjs === node === bun === deno === GOLDEN on every runtime on PATH
+
+# manual single-scenario runs (capstone):
+npm run build
 npm run start:gjs
 npm run start:node
-npm test         # node --test dual.e2e.mjs — asserts gjs === node === GOLDEN
+npm run start:bun
+npm run start:deno   # uses --node-modules-dir=manual (see note below)
 ```
+
+> **Deno note.** Run the node bundle with `deno run -A --node-modules-dir=manual`
+> — `--node-modules-dir=auto` would try to re-resolve the example's heavy
+> build-time dep tree (`@gjsify/cli` + every platform binary) and hang. `manual`
+> uses the already-installed `node_modules` (where the only runtime dep,
+> `@gjsify/node-gi`, is linked).
 
 > The dependency here is `"@gjsify/node-gi": "file:../node-gi"` so the example
 > validates the in-tree runtime. The real consumer form is the published package:
 > `"@gjsify/node-gi": "^0.13.0"`.
 
-> **CLI note.** `npm run build:node` (the `gjsify build --app node` rewrite of
-> `gi://` → `requireGi` + the `@gjsify/node-gi/globals` injection) needs a
-> `gjsify` CLI that carries the node-gi bundler integration. That ships on the
-> gjsify `main` branch; it is newer than the `@gjsify/cli` currently on npm's
-> `latest` tag. With an older CLI the node bundle is produced but stubs `gi://`,
-> so `npm run start:node` would not run. `dual.e2e.mjs` handles this
-> automatically: it runs the real `--app node` bundle when the CLI supports the
-> rewrite, and otherwise runs the same source through the `@gjsify/node-gi`
-> runtime — either way asserting byte-identical output. `npm run build:gjs` /
-> `start:gjs` work with any CLI (`gi://` stays native under GJS).
+> **CLI note.** The real `gjsify build --app node` rewrite of `gi://` → `requireGi`
+> (+ the `@gjsify/node-gi/globals` injection) needs a `gjsify` CLI that carries the
+> node-gi bundler integration. That ships on the gjsify `main` branch; it is newer
+> than the `@gjsify/cli` currently on npm's `latest` tag. With an older CLI the
+> node bundle stubs `gi://`, so the harness falls back to the **runtime twin** — the
+> exact module shape the bundler emits (`import '@gjsify/node-gi/globals'` +
+> `requireGi('Ns','ver')` per `gi://` import) — and runs THAT on node/bun/deno.
+> Either way the output must match gjs. `--app gjs` works with any CLI.
 
 ## Requirements
 
-- Node.js ≥ 20 and the `gjs` binary on `PATH`.
+- Node.js ≥ 20 and the `gjs` binary on `PATH`. Bun and/or Deno are optional —
+  the harness runs whichever of the four are present.
 - A C++ toolchain + the GLib ≥ 2.80 / `girepository-2.0` development headers
   (so `npm install` can build the node-gi native addon) — see the
   [`@gjsify/node-gi` README](../node-gi/README.md#requirements).
