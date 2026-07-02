@@ -3,11 +3,11 @@
     "version": "0.14.0",
     "description": "Adwaita/Libadwaita web components for browser targets",
     "type": "module",
-    "main": "src/index.ts",
-    "types": "src/index.ts",
+    "main": "./src/index.ts",
+    "types": "./lib/types/index.d.ts",
     "exports": {
         ".": {
-            "types": "./src/index.ts",
+            "types": "./lib/types/index.d.ts",
             "default": "./src/index.ts"
         },
         "./style.css": {
@@ -25,11 +25,10 @@
         "style.css.d.ts"
     ],
     "scripts": {
-        "clear": "rm -rf lib dist tsconfig.tsbuildinfo scss/_icons.generated.scss || exit 0",
+        "clear": "rm -rf lib dist tsconfig.tsbuildinfo scss/_icons.generated.scss src/styles.generated.ts || exit 0",
         "check": "gjsify run build:scss && gjsify tsc --noEmit",
-        "build": "gjsify run build:scss && gjsify run build:gjsify && gjsify run build:types",
+        "build": "gjsify run build:scss && gjsify run build:types",
         "build:scss": "node scripts/build-scss.mjs",
-        "build:gjsify": "gjsify build --library 'src/**/*.ts' --exclude 'src/**/*.spec.ts'",
         "build:types": "gjsify tsc"
     },
     "dependencies": {

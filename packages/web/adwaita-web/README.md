@@ -35,6 +35,33 @@ import '@gjsify/adwaita-web';
 </adw-window>
 ```
 
+The package entry is TypeScript (`src/index.ts`), consumed via a
+TypeScript-compiling build — `gjsify build --app browser` / the `gjsifyBrowser()`
+Vite preset (or any Vite/bundler setup). Type declarations are shipped
+pre-built at `lib/types/index.d.ts`, so `gjsify tsc` consumers resolve the
+package's types without compiling its source.
+
+## Theming a page without `<adw-window>`
+
+The components read their colours from the `--window-*` CSS custom properties,
+but only `<adw-window>` paints the window surface. A page that lays out rows or
+cards directly on `<body>` (no window chrome) therefore renders on the browser
+default and its native controls ignore the dark scheme. Opt into the Adwaita
+surface + light/dark `color-scheme` by adding the `adw-root` class to `<body>`
+(or the `:root`/`<html>` element):
+
+```html
+<body class="adw-root">
+  <adw-preferences-group title="Settings">
+    <adw-switch-row title="Dark mode"></adw-switch-row>
+  </adw-preferences-group>
+</body>
+```
+
+`adw-root` is opt-in and additive — it binds `--window-bg-color` /
+`--window-fg-color` + `color-scheme: light dark` to the page and changes nothing
+about the individual components.
+
 ## License
 
 MIT
