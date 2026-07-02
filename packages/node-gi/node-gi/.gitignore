@@ -3,3 +3,5 @@ prebuilds/
 node_modules/
 *.node
 *.o
+deno.lock
+probe-*.mjs
