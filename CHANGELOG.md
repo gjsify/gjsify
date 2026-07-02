@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.16.0](https://github.com/gjsify/gjsify/compare/v0.15.1...v0.16.0) (2026-07-02)
+
+### Features
+
+* **adwaita-core:** headless row state machines ([#695](https://github.com/gjsify/gjsify/issues/695)) ([bcfb1c3](https://github.com/gjsify/gjsify/commit/bcfb1c3d8107e95cfadb618ad209744de650ccea))
+* **adwaita-web:** adw-data-grid aligned table ([#698](https://github.com/gjsify/gjsify/issues/698)) ([f75a9c1](https://github.com/gjsify/gjsify/commit/f75a9c17c249bcec897f18445cacb3dc91899a85))
+* **adwaita-web:** adw-dialog + adw-drop-down ([#696](https://github.com/gjsify/gjsify/issues/696)) ([9819ec9](https://github.com/gjsify/gjsify/commit/9819ec9a239bc383c7f49d4fe10816f8593a1abc))
+* **cli:** onboard command — publish + trust sweep ([#694](https://github.com/gjsify/gjsify/issues/694)) ([da52f81](https://github.com/gjsify/gjsify/commit/da52f816bf4b0f991f20d1d807f68f5f5d678d71))
+
+### Bug Fixes
+
+* **cli:** guard library outdir and workspace exit ([#697](https://github.com/gjsify/gjsify/issues/697)) ([be548dc](https://github.com/gjsify/gjsify/commit/be548dcb2bb4ef75a4f9cfd462c8e736af509bb4))
+
 ## [0.15.1](https://github.com/gjsify/gjsify/compare/v0.15.0...v0.15.1) (2026-07-02)
 
 ### Bug Fixes

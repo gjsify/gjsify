@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/iframe",
-    "version": "0.15.1",
+    "version": "0.16.0",
     "description": "HTMLIFrameElement for GJS, backed by WebKit.WebView",
     "type": "module",
     "module": "lib/esm/index.js",
