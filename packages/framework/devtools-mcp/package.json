@@ -39,13 +39,21 @@
         "@girs/gjs": "4.0.4",
         "@girs/glib-2.0": "2.88.0-4.0.4",
         "@girs/soup-3.0": "3.6.6-4.0.4",
-        "@gjsify/devtools-cdp": "workspace:^",
         "@gjsify/devtools-protocol": "workspace:^",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "zod": "^4.4.3"
     },
+    "peerDependencies": {
+        "@gjsify/devtools-cdp": "workspace:^"
+    },
+    "peerDependenciesMeta": {
+        "@gjsify/devtools-cdp": {
+            "optional": true
+        }
+    },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@gjsify/devtools-cdp": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
@@ -57,7 +65,7 @@
             "browser": "none",
             "nativescript": "none"
         },
-        "tier": 3
+        "tier": 2
     },
     "license": "MIT",
     "repository": {

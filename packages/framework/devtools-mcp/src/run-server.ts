@@ -28,7 +28,14 @@ export async function runDevtoolsMcp(profile: DevtoolsToolProfile): Promise<void
     };
 
     registerGenericTools(ctx, profile.genericTools ?? 'all');
-    profile.registerTools?.(ctx);
+    // A profile's `registerTools` may be async (e.g. the CDP profile lazily
+    // loads its optional `@gjsify/devtools-cdp` peer). Fire it WITHOUT awaiting —
+    // awaiting here would push `loop.run()` into a promise continuation and break
+    // the nested GJS main loop (see below). Attach a `.catch()` so a missing
+    // optional peer surfaces as a clean stderr line, not an unhandled rejection.
+    Promise.resolve(profile.registerTools?.(ctx)).catch((error: unknown) =>
+        console.error('[gjsify-devtools-mcp] tool registration failed:', error),
+    );
 
     const loop = GLib.MainLoop.new(null, false);
     const transport = new GjsStdioTransport(() => loop.quit());

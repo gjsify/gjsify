@@ -42,6 +42,11 @@ export interface DevtoolsToolProfile {
     readonly busNameBase: string;
     /** Which generic tools to register. Default: `'all'`. */
     readonly genericTools?: GenericToolName[] | 'all';
-    /** Register app-specific tools on top of the generic ones. */
-    readonly registerTools?: (ctx: McpToolContext) => void;
+    /**
+     * Register app-specific tools on top of the generic ones. May be async —
+     * a profile that lazily loads an optional peer (e.g. the CDP profile) returns
+     * a promise; `runDevtoolsMcp` fires it and `.catch()`es it rather than
+     * awaiting (awaiting before `loop.run()` breaks the nested GJS main loop).
+     */
+    readonly registerTools?: (ctx: McpToolContext) => void | Promise<void>;
 }
