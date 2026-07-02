@@ -1,7 +1,7 @@
 {
-    "name": "@gjsify/adwaita-nativescript",
+    "name": "@gjsify/adwaita-core",
     "version": "0.14.0",
-    "description": "Native Adwaita widgets for the NativeScript runtime — real NativeScript components (StackLayout/GridLayout/Switch/Label) styled like Libadwaita, not a webview",
+    "description": "Headless Adwaita widget behavior (breakpoint condition grammar + apply/unapply state machine, color-scheme observable) shared by the web and NativeScript Adwaita renderers — pure TS, no platform imports",
     "type": "module",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -9,23 +9,13 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
-        },
-        "./widgets": {
-            "types": "./lib/types/widgets/index.d.ts",
-            "default": "./lib/esm/widgets/index.js"
-        },
-        "./theme/adwaita.css": "./src/theme/adwaita.css",
-        "./fonts": {
-            "types": "./lib/types/fonts.d.ts",
-            "default": "./lib/esm/fonts.js"
         }
     },
     "files": [
-        "lib",
-        "src/theme/adwaita.css"
+        "lib"
     ],
     "scripts": {
-        "clear": "rm -rf lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",
+        "clear": "rm -rf lib tmp tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs || exit 0",
         "check": "gjsify tsc --noEmit",
         "build": "gjsify run build:gjsify && gjsify run build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
@@ -39,27 +29,14 @@
     },
     "keywords": [
         "gjs",
+        "node",
+        "browser",
         "nativescript",
         "adwaita",
         "gnome",
-        "android",
-        "ios",
-        "design-system"
+        "design-system",
+        "headless"
     ],
-    "dependencies": {
-        "@gjsify/adwaita-core": "workspace:^",
-        "@gjsify/adwaita-fonts": "workspace:^",
-        "@gjsify/adwaita-icons": "workspace:^",
-        "@gjsify/native-platform": "workspace:^"
-    },
-    "peerDependencies": {
-        "@nativescript/core": "*"
-    },
-    "peerDependenciesMeta": {
-        "@nativescript/core": {
-            "optional": true
-        }
-    },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
@@ -68,25 +45,21 @@
     },
     "gjsify": {
         "runtimes": {
-            "gjs": "none",
-            "node": "none",
-            "browser": "none",
-            "nativescript": "native"
+            "gjs": "polyfill",
+            "node": "polyfill",
+            "browser": "polyfill",
+            "nativescript": "polyfill"
         },
-        "tier": 2,
-        "nativescriptPlatforms": [
-            "android",
-            "ios"
-        ]
+        "tier": 2
     },
     "license": "MIT",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/gjsify/gjsify.git",
-        "directory": "packages/nativescript-bridge/adwaita"
+        "directory": "packages/web/adwaita-core"
     },
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-core#readme"
 }
