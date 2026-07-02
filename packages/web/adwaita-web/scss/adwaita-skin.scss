@@ -17,6 +17,7 @@
 @use 'button_content';
 @use 'split_button';
 @use 'menu_button';
+@use 'drop_down';
 @use 'toggle_group';
 @use 'entry';
 @use 'preferences';
@@ -52,6 +53,7 @@
 @use 'about_dialog';
 @use 'alert_dialog';
 @use 'preferences_dialog';
+@use 'dialog';
 
 // Ensure the `hidden` attribute always wins: components that toggle visibility
 // via `element.hidden = true` set the HTML attribute, but a custom `display`

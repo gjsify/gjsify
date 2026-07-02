@@ -33,7 +33,8 @@
         "check": "gjsify run build:scss && gjsify tsc --noEmit",
         "build": "gjsify run build:scss && gjsify run build:types",
         "build:scss": "node scripts/build-scss.mjs",
-        "build:types": "gjsify tsc"
+        "build:types": "gjsify tsc",
+        "build:test:browser": "gjsify run build:scss && gjsify build src/test.browser.mts --app browser --outfile dist/test.browser.mjs"
     },
     "dependencies": {
         "@codemirror/commands": "^6.0.0",
@@ -46,6 +47,7 @@
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
         "sass": "^1.100.0",
         "typescript": "^6.0.3"
     },

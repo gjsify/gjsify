@@ -1,0 +1,220 @@
+// _dialog.scss — adw-dialog: a generic adaptive dialog. A full-cover scrim with
+// a floating window-coloured "sheet" centred on wide viewports, re-anchored as a
+// bottom sheet (full-width, rounded top corners) on narrow ones. Mirrors the
+// AdwDialog floating-sheet + bottom-sheet presentations.
+// Reference: refs/libadwaita/src/stylesheet/widgets/_dialogs.scss (floating sheet)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_bottom-sheet.scss (bottom radius)
+// Copyright (c) 2023-2024 GNOME Foundation Inc. (libadwaita). LGPLv2.1+.
+// Modifications: Implemented for @gjsify/adwaita-web Web Components.
+
+// Bottom-sheet layout — shared by the explicit mode and the auto/narrow query.
+@mixin adw-dialog-bottom-sheet {
+  .adw-dialog-scrim {
+    align-items: flex-end;
+    justify-content: stretch;
+    padding: 0;
+  }
+
+  .adw-dialog-box {
+    width: 100%;
+    max-width: none;
+    // Rounded only along the top edge — it hugs the bottom viewport edge.
+    border-top-left-radius: var(--window-radius);
+    border-top-right-radius: var(--window-radius);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    animation: adw-dialog-slide-up 0.25s cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+// Host: contributes nothing to layout while closed; the `open` class reveals it.
+adw-dialog {
+  display: none;
+
+  &.open {
+    display: block;
+  }
+
+  // The full-cover scrim — a flex container centring the box; a dimming wash
+  // behind it. Clicking the scrim (outside the box) attempts to dismiss.
+  .adw-dialog-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-l);
+    background-color: var(--dialog-scrim-color, rgba(0, 0, 6, 0.32));
+    animation: adw-dialog-fade-in 0.2s cubic-bezier(0, 0, 0.2, 1);
+  }
+
+  // The dialog box ("sheet"): a rounded window-coloured surface with a soft
+  // layered shadow + hairline outline. Sized by the content-width/height props.
+  .adw-dialog-box {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    width: min(var(--adw-dialog-content-width, 360px), calc(100vw - 2 * var(--spacing-l)));
+    max-height: min(var(--adw-dialog-content-height, 100vh), calc(100vh - 2 * var(--spacing-l)));
+    overflow: hidden;
+
+    background-color: var(--window-bg-color);
+    color: var(--window-fg-color);
+    border-radius: var(--window-radius);
+    outline: 1px solid var(--separator-color);
+    outline-offset: -1px;
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.05),
+      0 0 5px 2px rgba(0, 0, 6, 0.1),
+      0 0 14px 2px rgba(0, 0, 6, 0.03);
+
+    font-family: var(--font-family);
+    animation: adw-dialog-pop-in 0.2s cubic-bezier(0, 0, 0.2, 1);
+
+    &:focus {
+      outline: 1px solid var(--separator-color);
+    }
+  }
+
+  // Flat header bar — transparent over the window background, title strictly
+  // centred against the trailing close button (the AdwHeaderBar idiom).
+  .adw-dialog-header {
+    display: flex;
+    align-items: center;
+    min-height: 47px;
+    padding: 0 6px;
+    flex-shrink: 0;
+  }
+
+  .adw-dialog-header-side {
+    display: flex;
+    align-items: center;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .adw-dialog-header-side--end {
+    justify-content: flex-end;
+  }
+
+  .adw-dialog-title {
+    flex: 0 0 auto;
+    font-weight: bold;
+    font-size: var(--font-size-base);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 6px;
+  }
+
+  // Round flat close button drawing a CSS "×" glyph (no window-close symbolic
+  // ships in @gjsify/adwaita-icons — same approach as <adw-preferences-dialog>).
+  .adw-dialog-close {
+    appearance: none;
+    border: none;
+    margin: 0;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    background-color: transparent;
+    color: var(--window-fg-color);
+    cursor: pointer;
+    position: relative;
+    flex: none;
+    transition: background-color 0.1s ease;
+
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 12px;
+      height: 1.5px;
+      background-color: currentColor;
+      border-radius: 1px;
+    }
+
+    &::before {
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+
+    &::after {
+      transform: translate(-50%, -50%) rotate(-45deg);
+    }
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: 1px;
+    }
+
+    &.locked {
+      opacity: var(--dim-opacity);
+      cursor: default;
+    }
+  }
+
+  // Content area — the author's markup; scrolls when it exceeds the box height.
+  .adw-dialog-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--spacing-m) var(--spacing-l) var(--spacing-l);
+  }
+
+  // A header-less dialog pads the content on all sides.
+  .adw-dialog-header[hidden] + .adw-dialog-content {
+    padding-top: var(--spacing-l);
+  }
+
+  // --- Explicit bottom-sheet presentation ---
+  &[data-presentation='bottom-sheet'] {
+    @include adw-dialog-bottom-sheet;
+  }
+}
+
+// --- Adaptive (auto) presentation: bottom sheet on narrow viewports ---
+@media (max-width: 550px) {
+  adw-dialog[data-presentation='auto'] {
+    @include adw-dialog-bottom-sheet;
+  }
+}
+
+@keyframes adw-dialog-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes adw-dialog-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes adw-dialog-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
