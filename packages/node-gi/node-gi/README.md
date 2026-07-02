@@ -81,12 +81,52 @@ vendored as-is — gjsify ships its own dual (GJS + Node) example/test infra.
    Debian/Ubuntu: `libglib2.0-dev libgirepository-2.0-dev g++`)
 - At runtime, the target libraries' typelibs must be installed (same as `gi://`
   under GJS).
+- **Node.js ≥ 20, Bun ≥ 1.3, or Deno ≥ 2** — the addon is Node-API, so one binary
+  runs on all three (see [Runtimes](#runtimes-node--bun--deno)).
+
+## Runtimes (Node / Bun / Deno)
+
+The engine is a **Node-API** addon, so the same binary loads and runs on **Node,
+Bun and Deno** — Node-API is their common native ABI (no separate bindings, no Rust
+rewrite). `index.js` detects the runtime and prefers a shipped
+`prebuilds/<platform>-<arch>/node_gi.node` over a local `build/` (Deno runs no
+postinstall build, so a prebuild is its only install path — stage one with
+`npm run build:prebuild`).
+
+Two libuv-coupled subsystems are portable across all three:
+
+- **GC bridge** — the toggle-ref teardown drain uses a `napi_threadsafe_function`
+  (core Node-API), not node-gtk's raw `uv_async_t` (Deno exports no libuv symbols;
+  Bun panics on `uv_async_init`).
+- **Main loop** — Node keeps the uv-nesting bridge that co-pumps Node's own event
+  loop during a blocking GLib loop; Bun/Deno co-pump the other way, iterating the
+  default GLib context from a runtime timer (`startMainContextPump` from
+  `@gjsify/node-gi/gi`), so GIO async callbacks / GLib timeouts / DBus fire while
+  the runtime's own loop stays live.
+
+| Capability | Node | Bun | Deno |
+|---|:--:|:--:|:--:|
+| introspection, marshalling, enums, variants | ✅ | ✅ | ✅ |
+| GObject create / properties / signals | ✅ | ✅ | ✅ |
+| `registerClass` / subclass / vfunc chain-up | ✅ | ✅ | ✅ |
+| toggle-ref GC + cross-thread teardown | ✅ | ✅ | ✅ |
+| GLib async via `startMainContextPump` (timeouts, GIO async, DBus) | via loop | ✅ | ✅ |
+| blocking `GLib.MainLoop.run()` / `Gio.Application.runAsync()` | ✅ | ✅ | ✅ |
+| Node timers/promises alive **during** a blocking GLib loop | ✅ | — | — |
+
+Bun reaches full parity with Node on the core surface; Deno passes a curated
+conformance subset — a few marshalling/async edge cases and the Node-only co-pump
+are the known gaps. The authoritative full suite runs on Node.
 
 ## Build & test
 
 ```bash
 npm install          # builds the native addon via node-gyp (install script)
-npm test             # node --test (smoke tests)
+npm test             # node --test (full suite, Node — authoritative)
+npm run test:gc      # node --test --expose-gc (toggle-ref GC-stress leg)
+npm run test:bun     # conformance subset on Bun   (needs `bun`)
+npm run test:deno    # conformance subset on Deno  (needs `deno`)
+npm run build:prebuild   # node-gyp rebuild + stage prebuilds/<platform>-<arch>/
 # or rebuild explicitly:
 npm run rebuild
 ```
