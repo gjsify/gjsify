@@ -78,6 +78,38 @@ describe('CLI css-bundling E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.match(out, /\.input\.focused/, 'nested `&.focused` should flatten to `.input.focused` for GTK4');
     });
 
+    it('keeps @font-face { src: url() } rules intact and never crashes on assets', () => {
+        // Regression: importing a CSS with `@font-face { src: url('x.woff2') }`
+        // through the css-as-string plugin must NOT crash the build (lightningcss
+        // must not try to resolve/inline the font `url()` as a bundle dependency)
+        // and the emitted string must keep the `@font-face` rule so the font
+        // loads at runtime (the consumer serves the asset). Mirrors the
+        // @gjsify/adwaita-fonts fontsource pattern the Learn6502 web build hit.
+        writeFileSync(
+            join(projectDir, 'src', 'fonts.css'),
+            `@font-face {\n` +
+                `  font-family: 'Adwaita Sans';\n` +
+                `  font-style: normal;\n` +
+                `  src: url('./assets/adwaita-sans-400.woff2') format('woff2');\n` +
+                `}\n` +
+                `.title { font-family: 'Adwaita Sans'; }\n`,
+        );
+        // The referenced woff2 deliberately does NOT exist on disk — a missing
+        // font asset must not fail the CSS pipeline.
+        writeFileSync(join(projectDir, 'src', 'fonts.ts'), `import css from './fonts.css';\nconsole.log(css.length);\n`);
+
+        execFileSync('npx', ['gjsify', 'build', '--app', 'gjs', 'src/fonts.ts', '--outfile', 'dist/fonts.js'], {
+            cwd: projectDir,
+            stdio: 'pipe',
+            timeout: 60 * 1000,
+        });
+        const out = readFileSync(join(projectDir, 'dist', 'fonts.js'), 'utf-8');
+
+        assert.match(out, /@font-face/, '@font-face rule must survive the css-as-string pipeline');
+        assert.match(out, /adwaita-sans-400\.woff2/, 'the font url() reference must be kept verbatim');
+        assert.match(out, /Adwaita Sans/, 'the font-family declaration must survive');
+    });
+
     it('resolves @import of npm-package specifiers via node_modules + exports', () => {
         // Plant a fake scoped package under node_modules whose package.json
         // exposes a CSS file via the `exports` field. The bundled CSS must

@@ -242,8 +242,18 @@ export async function packWorkspace(wsDir: string, opts: PackWorkspaceOptions = 
  * Walk the workspace and return the list of files to include in the tarball,
  * relative to `wsDir`. Mirrors npm pack's selection rules:
  *
- *   - If pkg.files exists: use it as an allowlist (with .npmignore as a
- *     blacklist within those globs)
+ *   - If pkg.files exists: the array is an ALLOWLIST that overrides
+ *     .gitignore / .npmignore entirely. Every file under an allowlisted
+ *     path/dir ships from disk; only the hardcoded implicit-exclusion set
+ *     (node_modules, .git, lockfiles, … — applied by `walkAll` /
+ *     `expandFilesPatterns`) and npm's always-ignore names are dropped.
+ *     This matches `npm pack`: a `files` entry re-includes a path even when
+ *     .gitignore/.npmignore would drop it (verified against `npm pack
+ *     --dry-run`). Trimming `files`-allowlisted content by .gitignore
+ *     silently dropped build-generated-but-allowlisted files like
+ *     adwaita-web's `src/styles.generated.ts` (gitignored, allowlisted via
+ *     `files: ["src"]`) — shipping a broken tarball whose `src/index.ts`
+ *     imported a file the tarball didn't contain.
  *   - Otherwise: walk everything, apply .npmignore + .gitignore, drop the
  *     implicit-exclusion set (node_modules, .git, …)
  *
@@ -256,18 +266,19 @@ function collectFiles(wsDir: string, pkg: Record<string, unknown>): string[] {
         ? (pkg.files as unknown[]).filter((f): f is string => typeof f === 'string')
         : null;
 
-    let candidates: string[];
-    if (filesField) {
-        candidates = expandFilesPatterns(wsDir, filesField);
-    } else {
-        candidates = walkAll(wsDir);
-    }
-
-    const ignore = loadIgnore(wsDir);
-
     const out = new Set<string>();
-    for (const f of candidates) {
-        if (!ignore(f)) out.add(f);
+    if (filesField) {
+        // A `files` allowlist overrides .gitignore/.npmignore — ship every
+        // allowlisted path from disk. `expandFilesPatterns` already excludes
+        // the NEVER_INCLUDED_BASENAMES set (node_modules, .git, lockfiles, …)
+        // via `walkAll`, so junk is still kept out.
+        for (const f of expandFilesPatterns(wsDir, filesField)) out.add(f);
+    } else {
+        // No `files` field — walk everything and apply .npmignore/.gitignore.
+        const ignore = loadIgnore(wsDir);
+        for (const f of walkAll(wsDir)) {
+            if (!ignore(f)) out.add(f);
+        }
     }
     for (const f of always) {
         if (existsSync(join(wsDir, f))) out.add(f);
