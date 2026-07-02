@@ -13,6 +13,7 @@ import installBackendParseSpecSuite from './install-backend-parse-spec.spec.js';
 import installTarballCacheSuite from './utils/install-tarball-cache.spec.js';
 import installPackumentCacheSuite from './utils/install-packument-cache.spec.js';
 import installCacheFsSuite from './utils/install-cache-fs.spec.js';
+import installLockSuite from './utils/install-lock.spec.js';
 import nodeVersionSuite from './utils/node-version.spec.js';
 import authNpmrcSuite from './utils/auth-npmrc.spec.js';
 import promptKeySuite from './utils/prompt.spec.js';
@@ -47,6 +48,7 @@ run({
     authNpmrcSuite,
     promptKeySuite,
     installCacheFsSuite,
+    installLockSuite,
     nodeVersionSuite,
     inlineStaticReadsSuite,
     resolveNpmPackageSuite,

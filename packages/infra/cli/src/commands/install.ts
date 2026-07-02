@@ -15,9 +15,18 @@
 // Workspace install (`gjsify install` in a monorepo root with a
 // `"workspaces"` field) hoists every workspace's externals into the root
 // `node_modules/` and symlinks `workspace:*` / `workspace:^` / `workspace:~`
-// refs to their target source. Open follow-ups (see STATUS.md "Open TODOs"):
-// per-workspace dedup of conflicting transitive version ranges (first-match
-// wins today).
+// refs to their target source. Conflicting version ranges of the same
+// external dep from different workspaces still share ONE hoisted root copy
+// (a real per-workspace dedup pass is Phase D.8, see STATUS.md), but since
+// ADR 0001 step 3 the resolver surfaces every such conflict loudly —
+// `[gjsify] warning: version conflict for <pkg> …` names both ranges, the
+// workspaces that requested them, and the version that actually won.
+//
+// Concurrency (ADR 0001 step 2): every mutation of an install prefix —
+// project node_modules/, gjsify-lock.json, the user-global prefix — runs
+// under a per-prefix cross-process lock (utils/install-lock.ts). Installs
+// into different prefixes stay parallel; the shared XDG tarball/packument
+// caches need no lock because their writes are atomic tmp+rename.
 
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -27,6 +36,8 @@ import type { Command } from '../types/index.js';
 import { buildInstallCommand, detectPackageManager, runMinimalChecks } from '../utils/check-system-deps.js';
 import { detectNativePackages } from '../utils/detect-native-packages.js';
 import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
+import { atomicWriteStrict } from '../utils/install-cache-fs.js';
+import { acquireInstallLock } from '../utils/install-lock.js';
 import {
     binDirOnPath,
     defaultGlobalLayout,
@@ -320,41 +331,50 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
     const progress = makeProgressReporter({
         enabled: !args.verbose && !args.quiet && args.progress !== false,
     });
-    const result = await installPackages({
-        prefix: cwd,
-        specs,
-        verbose: args.verbose,
-        // --immutable consumes the lockfile verbatim and must NOT rewrite
-        // it (the whole point is byte-stability under CI).
-        lockfile: !args.immutable,
-        frozen: args.immutable,
-        refreshLockfile: args['refresh-lockfile'],
-        signal,
-        progress,
-    });
+    // Hold the per-prefix lock across the install AND the manifest/lockfile
+    // sync that follows, so a concurrent `gjsify install <pkg>` in the same
+    // project can't interleave its package.json / gjsify-lock.json writes
+    // with ours. `installPackages` re-acquires the same lock re-entrantly.
+    const lock = await acquireInstallLock(cwd, { signal });
+    try {
+        const result = await installPackages({
+            prefix: cwd,
+            specs,
+            verbose: args.verbose,
+            // --immutable consumes the lockfile verbatim and must NOT rewrite
+            // it (the whole point is byte-stability under CI).
+            lockfile: !args.immutable,
+            frozen: args.immutable,
+            refreshLockfile: args['refresh-lockfile'],
+            signal,
+            progress,
+        });
 
-    // Update package.json only when the user passed explicit packages
-    // (the `gjsify install <pkg>...` add-a-dep flow). The no-args refresh
-    // flow doesn't mutate manifest entries.
-    if (args.packages && args.packages.length > 0 && pkg) {
-        const kind = depKindFromArgs(args);
-        for (const spec of args.packages) {
-            const { name, range } = parseSpec(spec);
-            const installed = result.installed.find((r) => r.name === name);
-            const finalRange = range ?? (installed ? defaultRangeFromVersion(installed.version) : 'latest');
-            addDependencyEntry(pkg, name, finalRange, kind);
-        }
-        writePackageJson(pkgPath, pkg);
+        // Update package.json only when the user passed explicit packages
+        // (the `gjsify install <pkg>...` add-a-dep flow). The no-args refresh
+        // flow doesn't mutate manifest entries.
+        if (args.packages && args.packages.length > 0 && pkg) {
+            const kind = depKindFromArgs(args);
+            for (const spec of args.packages) {
+                const { name, range } = parseSpec(spec);
+                const installed = result.installed.find((r) => r.name === name);
+                const finalRange = range ?? (installed ? defaultRangeFromVersion(installed.version) : 'latest');
+                addDependencyEntry(pkg, name, finalRange, kind);
+            }
+            writePackageJson(pkgPath, pkg);
 
-        // Re-sync the lockfile's `requested` field with what
-        // `projectSpecsFromPackageJson()` will return on the next
-        // invocation. Without this, a `gjsify install foo` (bare name,
-        // lockfile records `"foo"`) followed by `gjsify install
-        // --immutable` (reads package.json → spec `"foo@^1.2.3"`) would
-        // surface a spurious drift error.
-        if (!args.immutable) {
-            syncLockfileRequested(cwd, projectSpecsFromPackageJson(pkg));
+            // Re-sync the lockfile's `requested` field with what
+            // `projectSpecsFromPackageJson()` will return on the next
+            // invocation. Without this, a `gjsify install foo` (bare name,
+            // lockfile records `"foo"`) followed by `gjsify install
+            // --immutable` (reads package.json → spec `"foo@^1.2.3"`) would
+            // surface a spurious drift error.
+            if (!args.immutable) {
+                syncLockfileRequested(cwd, projectSpecsFromPackageJson(pkg));
+            }
         }
+    } finally {
+        lock.release();
     }
 }
 
@@ -369,7 +389,9 @@ function syncLockfileRequested(cwd: string, specs: string[]): void {
             return; // Already in sync; preserve byte-stability.
         }
         lock.requested = specs;
-        writeFileSync(lockPath, JSON.stringify(lock, null, 2) + '\n');
+        // Atomic tmp+rename — same rationale as the backend's lockfile
+        // writer: a torn gjsify-lock.json breaks the next `--immutable`.
+        atomicWriteStrict(lockPath, JSON.stringify(lock, null, 2) + '\n');
     } catch {
         // Best-effort sync; if the lockfile is malformed, the next
         // non-immutable install will rewrite it from scratch.
@@ -382,23 +404,45 @@ function syncLockfileRequested(cwd: string, specs: string[]): void {
  *   2. Aggregate the union of their external (non-`workspace:`) deps.
  *   3. Run the native install backend ONCE at the root prefix so all
  *      externals land in a single `node_modules/` (poor-man's hoisting —
- *      we don't deduplicate version-range conflicts yet, the BFS resolver
- *      picks first-match).
+ *      workspaces with conflicting ranges of the same dep share one hoisted
+ *      copy; the resolver emits a loud `[gjsify] warning: version conflict`
+ *      naming both sides and the version that won).
  *   4. For every `workspace:` reference, symlink the target workspace's
  *      directory into the requesting workspace's `node_modules/<dep>`
  *      so `import '@gjsify/utils'` resolves to the local source.
  *
  * Hoisting strategy is intentionally minimal — per-workspace dedup +
- * nested `node_modules/` for version conflicts are tracked as a follow-up
- * in STATUS.md "Open TODOs".
+ * nested `node_modules/` for cross-workspace version conflicts are the
+ * Phase D.8 follow-up tracked in STATUS.md.
  */
 async function workspaceInstall(cwd: string, args: InstallOptions, signal?: AbortSignal): Promise<void> {
+    // Hold the root-prefix lock for the WHOLE workspace flow: bin shims,
+    // workspace symlinks and the external install all mutate the root
+    // node_modules/, and a second concurrent workspace install interleaving
+    // its rm+symlink/extract steps with ours corrupts both. The inner
+    // `installPackages` calls re-acquire the same lock re-entrantly (root
+    // prefix) or take the child-workspace lock (scoped overrides) — always
+    // in root→child order, so there is no lock-ordering cycle.
+    const lock = await acquireInstallLock(cwd, { signal });
+    try {
+        await workspaceInstallLocked(cwd, args, signal);
+    } finally {
+        lock.release();
+    }
+}
+
+/** Body of {@link workspaceInstall}, run while holding the root-prefix lock. */
+async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?: AbortSignal): Promise<void> {
     const workspaces = discoverWorkspaces(cwd, { includeRoot: true });
     if (workspaces.length === 0) {
         throw new Error(`gjsify install: ${cwd} has a "workspaces" field but no workspaces were discovered`);
     }
     const byName = new Map(workspaces.map((w) => [w.name, w] as const));
     const externalSpecs = new Set<string>();
+    // Which workspace(s) declared each external spec — `"<name>@<range>"` →
+    // workspace names. Feeds the resolver's version-conflict warning so it
+    // can attribute both sides of a cross-workspace range conflict.
+    const specOrigins = new Map<string, Set<string>>();
     interface SymlinkPlan {
         fromWorkspaceName: string;
         depName: string;
@@ -450,7 +494,14 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
                     );
                 }
                 if (/^(link|file|portal|git\+|https?):/.test(spec)) continue;
-                externalSpecs.add(`${depName}@${spec}`);
+                const specKey = `${depName}@${spec}`;
+                externalSpecs.add(specKey);
+                let origins = specOrigins.get(specKey);
+                if (!origins) {
+                    origins = new Set<string>();
+                    specOrigins.set(specKey, origins);
+                }
+                origins.add(ws.name);
             }
         }
     }
@@ -686,6 +737,7 @@ async function workspaceInstall(cwd: string, args: InstallOptions, signal?: Abor
             // symlinks (e.g. a `types-dev/<lib>` workspace that also exists on
             // npm and is pinned transitively in the lockfile).
             workspaceNames: new Set(byName.keys()),
+            specOrigins: new Map([...specOrigins].map(([k, v]) => [k, [...v]] as const)),
         });
     } else if (args.verbose) {
         console.log('gjsify install: no external deps to fetch');
@@ -1048,32 +1100,45 @@ async function installGlobalAndLink(specs: string[], opts: { verbose: boolean })
     console.log(`gjsify install --global  → ${layout.prefix}`);
     console.log(`                  bins → ${layout.binDir}`);
 
-    const result = await installPackages({
-        prefix: layout.prefix,
-        specs,
-        verbose: opts.verbose,
-    });
+    // The global prefix is SHARED user-wide state — two concurrent
+    // `gjsify install -g` runs (e.g. parallel agent sessions bootstrapping
+    // tooling) used to interleave rm+extract on the same package dirs and
+    // race the launcher writes in ~/.local/bin. Hold the prefix lock across
+    // the install, the engine-package top-up AND the bin linking (ADR 0001).
+    const lock = await acquireInstallLock(layout.prefix, {});
+    try {
+        const result = await installPackages({
+            prefix: layout.prefix,
+            specs,
+            verbose: opts.verbose,
+        });
 
-    const packageNames = specs.map(specToPackageName);
+        const packageNames = specs.map(specToPackageName);
 
-    // A global GJS install of `@gjsify/cli` must also lay down the GJS-native
-    // bundler engine (`@gjsify/rolldown-native`) + the sibling format/CSS
-    // bridges. They are declared OPTIONAL peers of `@gjsify/cli` (so plain
-    // `npm install @gjsify/cli` on Node doesn't force a linux prebuild), and
-    // the native backend doesn't resolve peerDependencies at all — so without
-    // this they'd never be installed, and `gjsify build` would hard-fail under
-    // GJS ("no usable bundler engine"). Installed best-effort at the cli's
-    // resolved version so they move in lockstep with the bundle; a platform
-    // with no published prebuild degrades to a warning. Must run BEFORE
-    // linkGlobalBins so the launcher's detectNativePackages() bakes the
-    // engine's prebuild dirs into the wrapper's GI_TYPELIB_PATH/LD_LIBRARY_PATH.
-    if (packageNames.includes('@gjsify/cli')) {
-        const cliVersion = result.installed.find((r) => r.name === '@gjsify/cli')?.version ?? 'latest';
-        await installGjsEnginePackages(layout.prefix, cliVersion, { verbose: opts.verbose });
+        // A global GJS install of `@gjsify/cli` must also lay down the GJS-native
+        // bundler engine (`@gjsify/rolldown-native`) + the sibling format/CSS
+        // bridges. They are declared OPTIONAL peers of `@gjsify/cli` (so plain
+        // `npm install @gjsify/cli` on Node doesn't force a linux prebuild), and
+        // the native backend doesn't resolve peerDependencies at all — so without
+        // this they'd never be installed, and `gjsify build` would hard-fail under
+        // GJS ("no usable bundler engine"). Installed best-effort at the cli's
+        // resolved version so they move in lockstep with the bundle; a platform
+        // with no published prebuild degrades to a warning. Must run BEFORE
+        // linkGlobalBins so the launcher's detectNativePackages() bakes the
+        // engine's prebuild dirs into the wrapper's GI_TYPELIB_PATH/LD_LIBRARY_PATH.
+        if (packageNames.includes('@gjsify/cli')) {
+            const cliVersion = result.installed.find((r) => r.name === '@gjsify/cli')?.version ?? 'latest';
+            await installGjsEnginePackages(layout.prefix, cliVersion, { verbose: opts.verbose });
+        }
+
+        const created = linkGlobalBins(packageNames, layout);
+        reportLinkedBins(created, layout.binDir);
+    } finally {
+        lock.release();
     }
+}
 
-    const created = linkGlobalBins(packageNames, layout);
-
+function reportLinkedBins(created: ReturnType<typeof linkGlobalBins>, binDir: string): void {
     if (created.length === 0) {
         console.warn('\nNo bins declared (neither `gjsify.bin` nor `bin` in package.json) — nothing was symlinked.');
     } else {
@@ -1083,10 +1148,10 @@ async function installGlobalAndLink(specs: string[], opts: { verbose: boolean })
         }
     }
 
-    if (created.length > 0 && !binDirOnPath(layout.binDir)) {
+    if (created.length > 0 && !binDirOnPath(binDir)) {
         console.warn(
-            `\nNote: ${layout.binDir} is not on your PATH.\n` +
-                `Add it to your shell rc file:\n  export PATH="${layout.binDir}:$PATH"`,
+            `\nNote: ${binDir} is not on your PATH.\n` +
+                `Add it to your shell rc file:\n  export PATH="${binDir}:$PATH"`,
         );
     }
 }
