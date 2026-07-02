@@ -36,6 +36,8 @@ import resolvePluginByNameSuite from './utils/resolve-plugin-by-name.spec.js';
 import runtimeSuite from './runtime.spec.js';
 import gjsEntryWrapperSuite from './gjs-entry-wrapper.spec.js';
 import configSuite from './config.spec.js';
+import libraryOutputSuite from './utils/library-output.spec.js';
+import suggestSuite from './utils/suggest.spec.js';
 
 run({
     bundlerPickSuite,
@@ -66,4 +68,6 @@ run({
     runtimeSuite,
     gjsEntryWrapperSuite,
     configSuite,
+    libraryOutputSuite,
+    suggestSuite,
 });
