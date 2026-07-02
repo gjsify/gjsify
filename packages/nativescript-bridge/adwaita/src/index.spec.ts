@@ -36,6 +36,11 @@ import type { TouchGestureEventData, View } from '@nativescript/core';
 // path extraction is unit-testable off-device.
 import { extractIconPaths, extractPathData, normalizeArcFlags } from './widgets/icon-path.js';
 import { DEFAULT_ICON_COLOR, DEFAULT_ICON_COLOR_DARK } from './widgets/icon-path.js';
+// The color-scheme observable + the breakpoint parser/evaluator/state machine
+// are HEADLESS and moved to `@gjsify/adwaita-core` (ADR 0004). Their behavior
+// matrix is specced THERE; here we import through the NS re-export shims to pin
+// the no-consumer-break guarantee, plus test the NS-specific `addBreakpoints`
+// view binding against a tiny mock view.
 import {
     adwaitaColorScheme,
     isThemeIconColor,
@@ -44,16 +49,8 @@ import {
     themeIconColor,
     toggleAdwaitaColorScheme,
 } from './widgets/color-scheme.js';
-// `breakpoint.js` imports only TYPES from `@nativescript/core`, so the real
-// condition parser / evaluator / AdwBreakpoint state machine is unit-testable
-// off-device (addBreakpoints is exercised against a tiny mock view).
-import {
-    AdwBreakpoint,
-    addBreakpoints,
-    evaluateBreakpointCondition,
-    parseBreakpointCondition,
-} from './widgets/breakpoint.js';
-import type { BreakpointConditionGroup, BreakpointConditionLeaf } from './widgets/breakpoint.js';
+import { AdwBreakpoint, addBreakpoints, evaluateBreakpointCondition, parseBreakpointCondition } from './widgets/breakpoint.js';
+import type { BreakpointConditionLeaf } from './widgets/breakpoint.js';
 
 // The XML-registration helper only touches the global `registerElement` (it does
 // not extend any `@nativescript/core` class at module-eval), so its own module is
@@ -1022,128 +1019,45 @@ export default async () => {
         });
     });
 
-    await describe('color scheme (light/dark icon recolour)', async () => {
-        // Each test restores 'light' so order independence holds.
-        await it('defaults to light with the dark fg', () => {
+    await describe('color scheme (re-exported from @gjsify/adwaita-core)', async () => {
+        // The observable's full behavior matrix is specced in @gjsify/adwaita-core;
+        // this smoke test pins the re-export chain (`widgets/color-scheme.js` +
+        // the `icon-path.js` colour constants) that keeps NS consumers unbroken.
+        await it('flips scheme + themeIconColor through the re-export', () => {
             setAdwaitaColorScheme('light');
             expect(adwaitaColorScheme()).toBe('light');
             expect(themeIconColor()).toBe(DEFAULT_ICON_COLOR);
-        });
-
-        await it('switches to the near-white fg in dark', () => {
-            setAdwaitaColorScheme('dark');
-            expect(adwaitaColorScheme()).toBe('dark');
+            expect(toggleAdwaitaColorScheme()).toBe('dark');
             expect(themeIconColor()).toBe(DEFAULT_ICON_COLOR_DARK);
             setAdwaitaColorScheme('light');
         });
 
-        await it('toggle flips and returns the new scheme', () => {
-            setAdwaitaColorScheme('light');
-            expect(toggleAdwaitaColorScheme()).toBe('dark');
-            expect(toggleAdwaitaColorScheme()).toBe('light');
-        });
-
-        await it('notifies subscribers only on a real change', () => {
+        await it('subscribes + recognises scheme defaults through the re-export', () => {
             setAdwaitaColorScheme('light');
             let hits = 0;
             const off = onAdwaitaColorSchemeChanged(() => {
                 hits++;
             });
-            setAdwaitaColorScheme('light'); // no-op, same scheme
-            expect(hits).toBe(0);
             setAdwaitaColorScheme('dark');
             expect(hits).toBe(1);
             off();
             setAdwaitaColorScheme('light'); // unsubscribed → no further hit
             expect(hits).toBe(1);
-        });
-
-        await it('isThemeIconColor recognises the scheme defaults, not context colours', () => {
-            expect(isThemeIconColor(DEFAULT_ICON_COLOR)).toBe(true);
             expect(isThemeIconColor(DEFAULT_ICON_COLOR_DARK)).toBe(true);
             expect(isThemeIconColor('#3584e4')).toBe(false); // accent — a pinned context colour
-            expect(isThemeIconColor('#9a9a9a')).toBe(false); // dim chevron — pinned
         });
     });
 
-    await describe('responsive breakpoints (Adw.Breakpoint)', async () => {
-        await it('parses a single max-width leaf (sp unit read as DIPs)', () => {
+    await describe('responsive breakpoints (core re-export + NS view binding)', async () => {
+        // Parser/evaluator/state-machine matrix is specced in @gjsify/adwaita-core;
+        // this smoke test pins the `widgets/breakpoint.js` re-export chain.
+        await it('parses + evaluates through the re-export', () => {
             const node = parseBreakpointCondition('max-width: 720sp') as BreakpointConditionLeaf;
             expect(node).not.toBe(null);
             expect(node.dimension).toBe('width');
-            expect(node.bound).toBe('max');
             expect(node.value).toBe(720);
-        });
-
-        await it('parses min-height and bare px/no-unit values', () => {
-            expect((parseBreakpointCondition('min-height: 480px') as BreakpointConditionLeaf).value).toBe(480);
-            const leaf = parseBreakpointCondition('min-width:600') as BreakpointConditionLeaf;
-            expect(leaf.bound).toBe('min');
-            expect(leaf.value).toBe(600);
-        });
-
-        await it('returns null for an unparseable condition', () => {
-            expect(parseBreakpointCondition('garbage')).toBe(null);
-            expect(parseBreakpointCondition('')).toBe(null);
-            expect(parseBreakpointCondition('max-depth: 5px')).toBe(null);
-        });
-
-        await it('parses an and-group with the operator as the root', () => {
-            const node = parseBreakpointCondition('max-width: 720sp and max-height: 480sp') as BreakpointConditionGroup;
-            expect(node.op).toBe('and');
-            expect((node.left as BreakpointConditionLeaf).dimension).toBe('width');
-            expect((node.right as BreakpointConditionLeaf).dimension).toBe('height');
-        });
-
-        await it('parses parenthesised groups', () => {
-            const node = parseBreakpointCondition('(min-width: 360px)') as BreakpointConditionLeaf;
-            expect(node.dimension).toBe('width');
-            expect(node.bound).toBe('min');
-        });
-
-        await it('evaluates max-width: true when narrow, false when wide', () => {
-            const node = parseBreakpointCondition('max-width: 720sp')!;
             expect(evaluateBreakpointCondition(node, { width: 411, height: 900 })).toBe(true); // phone
             expect(evaluateBreakpointCondition(node, { width: 928, height: 1280 })).toBe(false); // tablet
-            expect(evaluateBreakpointCondition(node, { width: 720, height: 900 })).toBe(true); // boundary inclusive
-        });
-
-        await it('evaluates and/or combinations', () => {
-            const and = parseBreakpointCondition('max-width: 720sp and max-height: 480sp')!;
-            expect(evaluateBreakpointCondition(and, { width: 600, height: 400 })).toBe(true);
-            expect(evaluateBreakpointCondition(and, { width: 600, height: 900 })).toBe(false);
-            const or = parseBreakpointCondition('max-width: 360sp or min-width: 1200sp')!;
-            expect(evaluateBreakpointCondition(or, { width: 300, height: 900 })).toBe(true);
-            expect(evaluateBreakpointCondition(or, { width: 1300, height: 900 })).toBe(true);
-            expect(evaluateBreakpointCondition(or, { width: 700, height: 900 })).toBe(false);
-        });
-
-        await it('AdwBreakpoint fires apply/unapply only on transitions', () => {
-            let applies = 0;
-            let unapplies = 0;
-            const bp = new AdwBreakpoint('max-width: 720sp', {
-                onApply: () => applies++,
-                onUnapply: () => unapplies++,
-            });
-            expect(bp.applied).toBe(false);
-            bp.evaluate({ width: 411, height: 900 }); // narrow → apply
-            expect(bp.applied).toBe(true);
-            expect(applies).toBe(1);
-            bp.evaluate({ width: 400, height: 900 }); // still narrow → no re-fire
-            expect(applies).toBe(1);
-            bp.evaluate({ width: 928, height: 1280 }); // wide → unapply
-            expect(bp.applied).toBe(false);
-            expect(unapplies).toBe(1);
-            bp.evaluate({ width: 1000, height: 1280 }); // still wide → no re-fire
-            expect(unapplies).toBe(1);
-        });
-
-        await it('AdwBreakpoint with an invalid condition never applies', () => {
-            let applies = 0;
-            const bp = new AdwBreakpoint('not a condition', { onApply: () => applies++ });
-            expect(bp.condition).toBe(null);
-            expect(bp.evaluate({ width: 100, height: 100 })).toBe(false);
-            expect(applies).toBe(0);
         });
 
         await it('addBreakpoints wires layoutChanged + seeds, and disposes', () => {

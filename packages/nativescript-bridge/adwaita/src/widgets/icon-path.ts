@@ -17,11 +17,10 @@
 /** The native grid (viewBox) Adwaita symbolic icons are authored on: 16×16. */
 export const ADWAITA_ICON_GRID = 16;
 
-/** Default symbolic-icon fill for light theme — Adwaita's ~`rgba(0,0,0,0.8)` fg. */
-export const DEFAULT_ICON_COLOR = '#33333A';
-
-/** Default symbolic-icon fill for dark theme — near-white fg. */
-export const DEFAULT_ICON_COLOR_DARK = '#FFFFFF';
+// The default light/dark fills moved to the headless `@gjsify/adwaita-core`
+// (ADR 0004 — they belong to the color-scheme observable); re-exported here so
+// existing `icon-path` / `icons` consumers keep working unchanged.
+export { DEFAULT_ICON_COLOR, DEFAULT_ICON_COLOR_DARK } from '@gjsify/adwaita-core';
 
 /** Options for rendering a symbolic icon to a native image. */
 export interface SymbolicIconOptions {
