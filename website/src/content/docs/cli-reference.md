@@ -1144,6 +1144,8 @@ gjsify fix --no-write    # report only, don't modify
 
 Drop-in replacement for `yarn upgrade-interactive` / `npx npm-check-updates`. Checks the npm registry for newer versions of declared dependencies and updates `package.json` accordingly. Interactive prompt by default; `--latest` / `--minor` / `--patch` switch to non-interactive bulk-update mode.
 
+`@gjsify/*` packages ship as a single release train — upgrade them together (`gjsify upgrade --latest --filter @gjsify`); see [Versioning & Compatibility](/gjsify/versioning/).
+
 ```bash
 gjsify upgrade                          # interactive: pick which to upgrade
 gjsify upgrade --latest                 # non-interactive: bump every dep to latest (allows major)

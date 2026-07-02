@@ -159,6 +159,23 @@ const text = await response.text();
 console.log(text);
 ```
 
+## Versioning & compatibility
+
+All `@gjsify/*` packages ship as one coherent **release train**: every release
+publishes the whole set at a single version, tested against each other at
+exactly that version. Compatibility between `@gjsify/*` packages is guaranteed
+**only within the same release version** — mixing versions (e.g.
+`@gjsify/fetch@0.14.x` with `@gjsify/http@0.13.x`) is unsupported. Upgrade them
+together:
+
+```bash
+gjsify upgrade --latest --filter @gjsify   # bump every @gjsify/* dep to the latest train
+gjsify upgrade --align                     # monorepos: re-align deps drifted across workspaces
+gjsify upgrade --check                     # CI gate: fail on drifted ranges
+```
+
+Full rationale: [ADR 0008 — Release-train versioning policy](docs/adr/0008-release-versioning-policy.md).
+
 ## Package Status
 
 ### Node.js Modules
