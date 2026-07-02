@@ -1,7 +1,28 @@
 # ADR 0007 — Web targets implement the shared controller/view layer (experiment)
 
-- **Status:** Accepted (2026-07-01) — bounded experiment with an explicit decision point
+- **Status:** Accepted (2026-07-01) — **spike SUCCESS, superseded 2026-07-02 by a full app-web rewrite** (see Spike finding below)
 - **Scope:** ecosystem-level; validation lives in `easy6502` (`app-web`, `common-ui`), gjsify side: `@gjsify/adwaita-web`
+
+## Spike finding (2026-07-02) — SUCCESS on all three criteria → ADOPT
+
+The bounded spike (`AdwDebuggerView` over `@gjsify/adwaita-web` driven by the shared
+`debuggerController`, `JumpLink/Learn6502#158`) passed every criterion:
+(a) `@learn6502/common-ui` was **completely untouched** — the `DebuggerView` + all five
+widget interfaces mapped onto Custom Elements with zero signature changes, not even an
+additive one; (b) the web view class was **smaller** than its NativeScript twin
+(212 vs 231 lines), same widget breakdown and shape; (c) the service→controller→view
+event flow worked through the shared `GameConsoleEventBridge` with **no re-implemented
+controller**. The controller/view layer is genuinely platform-neutral.
+
+**Decision (maintainer, 2026-07-02):** go beyond per-view migration — REMOVE the classic
+skilldrick easy6502 web tutorial and rebuild `app-web` entirely on `@gjsify/adwaita-web`
++ `@learn6502/common-ui` so the web app matches the native Adwaita app (`app-gnome`).
+Locked choices: CodeMirror-6-backed Adwaita source editor; hard cutover; the missing
+adwaita-web components (`AdwViewStack`, `AdwViewSwitcherBar`, menu button, `adw-source-view`)
+built upstream in gjsify; tutorial prose fed from the `@learn6502/learn` package's
+prerendered HTML target. Tracked as its own project (STATUS.md / session memory), not this
+ADR. The spike also surfaced adwaita-web packaging gaps (raw-TS `main`/`types`, src-leaked
+build artifacts) fixed separately.
 
 ## Context
 
