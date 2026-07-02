@@ -10,16 +10,13 @@
 //
 // Seed modules (implementation step 1): breakpoint condition grammar/parser/
 // evaluator + the transition-only `AdwBreakpoint` apply/unapply state machine,
-// and the light/dark color-scheme observable. Step 2 (this module set): the
-// toast queue (one-at-a-time + auto-dismiss lifecycle) and the alert-dialog
-// response model. Row state machines follow in a later PR.
+// and the light/dark color-scheme observable. Step 2: the toast queue
+// (one-at-a-time + auto-dismiss lifecycle) and the alert-dialog response model.
+// Step 3 (this module set): the row interaction state machines — expander
+// disclosure, combo selection, spin clamp/step, toggle-group selection.
 
 // --- Responsive breakpoints (Adw.Breakpoint / Adw.BreakpointCondition) ---
-export {
-    AdwBreakpoint,
-    evaluateBreakpointCondition,
-    parseBreakpointCondition,
-} from './breakpoint.js';
+export { AdwBreakpoint, evaluateBreakpointCondition, parseBreakpointCondition } from './breakpoint.js';
 export type {
     AdwBreakpointHandlers,
     BreakpointBound,
@@ -55,9 +52,17 @@ export type {
 
 // --- Alert-dialog response model (Adw.AlertDialog) ---
 export { AdwAlertResponses } from './dialog.js';
+export type { AdwAlertResponse, AdwResponseAppearance, AdwResponseOptions, OrderedConfirmResponses } from './dialog.js';
+
+// --- Row interaction state machines (Adw.ExpanderRow/ComboRow/SpinRow/ToggleGroup) ---
+export { ComboState, ExpanderState, SpinState, ToggleGroupState } from './rows.js';
 export type {
-    AdwAlertResponse,
-    AdwResponseAppearance,
-    AdwResponseOptions,
-    OrderedConfirmResponses,
-} from './dialog.js';
+    AdwComboOption,
+    ComboStateChange,
+    ComboStateListener,
+    ExpanderStateListener,
+    SpinStateChange,
+    SpinStateListener,
+    ToggleGroupStateChange,
+    ToggleGroupStateListener,
+} from './rows.js';

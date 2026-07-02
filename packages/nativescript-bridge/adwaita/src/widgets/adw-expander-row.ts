@@ -7,6 +7,12 @@
 // `addRow(child)` appends to the disclosure, `expanded` get/set drives the reveal
 // and emits `notify::expanded`.
 //
+// The disclosure STATE MACHINE (the expanded/collapsed toggle + notify-on-change)
+// is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as {@link ExpanderState};
+// this class composes it and keeps only the NS render half: the `GridLayout`
+// disclosure box + chevron `AdwIcon` + the `notify::expanded` GObject-style signal,
+// all driven by the state object.
+//
 // NOTE on animation: the NativeScript CSS subset used by this package has no
 // `transform` / height-transition support, so the reveal is an instant
 // `visibility` toggle rather than the animated slide `Adw.ExpanderRow` performs.
@@ -19,8 +25,14 @@
 
 import { GridLayout, ItemSpec, StackLayout, View, type EventData } from '@nativescript/core';
 import { panDownSymbolic, panUpSymbolic } from '@gjsify/adwaita-icons/ui';
+import { ExpanderState } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
 import { AdwIcon } from './adw-icon.js';
+
+// Re-export the headless state machine so consumers can reach it from
+// `@gjsify/adwaita-nativescript` unchanged.
+export { ExpanderState } from '@gjsify/adwaita-core';
+export type { ExpanderStateListener } from '@gjsify/adwaita-core';
 
 /** Event name emitted when {@link AdwExpanderRow.expanded} changes. Mirrors GObject `notify::expanded`. */
 export const NOTIFY_EXPANDED = 'notify::expanded';
@@ -36,7 +48,8 @@ export class AdwExpanderRow extends AdwActionRow {
     protected readonly _toggle: AdwIcon;
     /** The container of revealed child rows (second grid row). */
     protected readonly _disclosure: StackLayout;
-    private _expanded = false;
+    /** The headless expanded/collapsed disclosure state machine (ADR 0004). */
+    private readonly _state = new ExpanderState();
 
     constructor() {
         super();
@@ -64,8 +77,20 @@ export class AdwExpanderRow extends AdwActionRow {
         this.setSuffix(toggle);
         this._toggle = toggle;
 
+        // The core state drives the reveal + chevron + notify; the chevron tap
+        // flips it.
+        this._state.subscribe((expanded) => {
+            this._disclosure.visibility = expanded ? 'visible' : 'collapse';
+            this._toggle.icon = expanded ? panUpSymbolic : panDownSymbolic;
+            const data: NotifyExpandedEventData = {
+                eventName: NOTIFY_EXPANDED,
+                object: this,
+                expanded,
+            };
+            this.notify(data);
+        });
         toggle.addEventListener('tap', () => {
-            this.expanded = !this._expanded;
+            this._state.toggle();
         });
     }
 
@@ -88,20 +113,10 @@ export class AdwExpanderRow extends AdwActionRow {
 
     /** Whether the disclosure is revealed. */
     get expanded(): boolean {
-        return this._expanded;
+        return this._state.expanded;
     }
 
     set expanded(value: boolean) {
-        const next = !!value;
-        if (next === this._expanded) return;
-        this._expanded = next;
-        this._disclosure.visibility = next ? 'visible' : 'collapse';
-        this._toggle.icon = next ? panUpSymbolic : panDownSymbolic;
-        const data: NotifyExpandedEventData = {
-            eventName: NOTIFY_EXPANDED,
-            object: this,
-            expanded: next,
-        };
-        this.notify(data);
+        this._state.setExpanded(value);
     }
 }

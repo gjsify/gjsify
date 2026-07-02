@@ -15,14 +15,21 @@ export type { NotifyActiveEventData } from './adw-switch-row.js';
 export { AdwEntryRow, NOTIFY_TEXT } from './adw-entry-row.js';
 export type { NotifyTextEventData } from './adw-entry-row.js';
 export { AdwPasswordEntryRow } from './adw-password-entry-row.js';
-export { AdwComboRow, NOTIFY_SELECTED } from './adw-combo-row.js';
-export type { AdwComboOption, NotifySelectedEventData } from './adw-combo-row.js';
-export { AdwSpinRow, NOTIFY_VALUE } from './adw-spin-row.js';
-export type { NotifyValueEventData } from './adw-spin-row.js';
+// AdwComboRow keeps the NS render (inline value + chevron + native chooser); the
+// selection state machine (ComboState + AdwComboOption) is headless
+// (`@gjsify/adwaita-core`, ADR 0004), re-exported here for consumers.
+export { AdwComboRow, ComboState, NOTIFY_SELECTED } from './adw-combo-row.js';
+export type { AdwComboOption, ComboStateChange, ComboStateListener, NotifySelectedEventData } from './adw-combo-row.js';
+// AdwSpinRow keeps the NS stepper render; the clamp/step state machine (SpinState)
+// is headless (`@gjsify/adwaita-core`, ADR 0004), re-exported here for consumers.
+export { AdwSpinRow, NOTIFY_VALUE, SpinState } from './adw-spin-row.js';
+export type { NotifyValueEventData, SpinStateChange, SpinStateListener } from './adw-spin-row.js';
 export { AdwSliderRow, NOTIFY_SLIDER_VALUE } from './adw-slider-row.js';
 export type { NotifySliderValueEventData } from './adw-slider-row.js';
-export { AdwExpanderRow, NOTIFY_EXPANDED } from './adw-expander-row.js';
-export type { NotifyExpandedEventData } from './adw-expander-row.js';
+// AdwExpanderRow keeps the NS disclosure render; the expanded state machine
+// (ExpanderState) is headless (`@gjsify/adwaita-core`, ADR 0004), re-exported here.
+export { AdwExpanderRow, ExpanderState, NOTIFY_EXPANDED } from './adw-expander-row.js';
+export type { ExpanderStateListener, NotifyExpandedEventData } from './adw-expander-row.js';
 export { AdwButton } from './adw-button.js';
 export type { AdwButtonVariant } from './adw-button.js';
 export { AdwImageButton, DEFAULT_ICON_BUTTON_ICON_SIZE } from './adw-image-button.js';
@@ -44,8 +51,15 @@ export { AdwButtonRow, ACTIVATED } from './adw-button-row.js';
 export { AdwButtonContent } from './adw-button-content.js';
 export { AdwSplitButton, CLICKED, MENU_TAPPED } from './adw-split-button.js';
 export type { MenuTappedEventData } from './adw-split-button.js';
-export { AdwToggleGroup, NOTIFY_SELECTED as NOTIFY_TOGGLE_SELECTED } from './adw-toggle-group.js';
-export type { NotifyToggleSelectedEventData } from './adw-toggle-group.js';
+// AdwToggleGroup keeps the NS segment render (+ per-toggle icons); the selection
+// state machine (ToggleGroupState) is headless (`@gjsify/adwaita-core`, ADR 0004),
+// re-exported here for consumers.
+export { AdwToggleGroup, NOTIFY_SELECTED as NOTIFY_TOGGLE_SELECTED, ToggleGroupState } from './adw-toggle-group.js';
+export type {
+    NotifyToggleSelectedEventData,
+    ToggleGroupStateChange,
+    ToggleGroupStateListener,
+} from './adw-toggle-group.js';
 
 // --- View switching ---
 export { AdwViewStack, NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
@@ -137,12 +151,7 @@ export type { AdwColorScheme } from './color-scheme.js';
 // Libadwaita-style `Adw.Breakpoint`: flip a layout (collapse a split view, hide
 // chrome) as the bound view crosses a width/height threshold — the adaptive
 // primitive that gives a wide (tablet / desktop) screen its multi-pane layout.
-export {
-    AdwBreakpoint,
-    addBreakpoints,
-    evaluateBreakpointCondition,
-    parseBreakpointCondition,
-} from './breakpoint.js';
+export { AdwBreakpoint, addBreakpoints, evaluateBreakpointCondition, parseBreakpointCondition } from './breakpoint.js';
 export type {
     AdwBreakpointHandlers,
     BreakpointBound,

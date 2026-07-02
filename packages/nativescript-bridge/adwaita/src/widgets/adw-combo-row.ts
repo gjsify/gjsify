@@ -7,6 +7,15 @@
 // GObject `notify::selected` signal naming used by `Adw.ComboRow` and
 // `@gjsify/adwaita-web`'s `<adw-combo-row>`.
 //
+// The selection STATE MACHINE (the options list, the two-way selectedIndex↔
+// selectedValue mapping, the empty/out-of-range guards, and the programmatic-vs-
+// interactive notify split) is HEADLESS and lives in `@gjsify/adwaita-core` (ADR
+// 0004) as {@link ComboState}; this class composes it and keeps only the NS render
+// half: the inline value `Label` + chevron `AdwIcon`, the native `action()`
+// chooser, and the `notify::selected` GObject-style signal — all driven by the
+// state object (a programmatic set refreshes the label silently, the chooser pick
+// re-emits `notify::selected`).
+//
 // Visual spec ported from `@gjsify/adwaita-web`'s `_combo_row.scss` (dim value +
 // `go-down` chevron).
 // Reference: refs/libadwaita/src/stylesheet/widgets/_combo-row.scss
@@ -14,17 +23,16 @@
 
 import { panDownSymbolic } from '@gjsify/adwaita-icons/ui';
 import { action, Label, StackLayout, type EventData } from '@nativescript/core';
+import { ComboState } from '@gjsify/adwaita-core';
+import type { AdwComboOption } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
 import { AdwIcon } from './adw-icon.js';
 import { attachRowPressFeedback } from './row-press.js';
 
-/** One selectable option in an {@link AdwComboRow}. */
-export interface AdwComboOption {
-    /** Display label shown in the row + chooser. */
-    label: string;
-    /** Underlying value returned by {@link AdwComboRow.selectedValue}. */
-    value: string;
-}
+// Re-export the headless state machine + the option type so consumers can reach
+// them from `@gjsify/adwaita-nativescript` unchanged.
+export { ComboState } from '@gjsify/adwaita-core';
+export type { AdwComboOption, ComboStateChange, ComboStateListener } from '@gjsify/adwaita-core';
 
 /** Event name emitted when {@link AdwComboRow.selectedIndex} changes. Mirrors GObject `notify::selected`. */
 export const NOTIFY_SELECTED = 'notify::selected';
@@ -42,8 +50,8 @@ export class AdwComboRow extends AdwActionRow {
     protected readonly _valueLabel: Label;
     /** The down-chevron — a real Adwaita `pan-down-symbolic` icon. */
     protected readonly _chevron: AdwIcon;
-    private _options: AdwComboOption[] = [];
-    private _selectedIndex = 0;
+    /** The headless options list + selectedIndex↔selectedValue state machine (ADR 0004). */
+    private readonly _state = new ComboState();
 
     constructor() {
         super();
@@ -71,6 +79,21 @@ export class AdwComboRow extends AdwActionRow {
         this._valueLabel = valueLabel;
         this._chevron = chevron;
 
+        // The core state drives the inline label on every change and the
+        // notify::selected on an interactive pick.
+        this._state.subscribe((change) => {
+            this._valueLabel.text = change.label;
+            if (change.interactive) {
+                const data: NotifySelectedEventData = {
+                    eventName: NOTIFY_SELECTED,
+                    object: this,
+                    selected: change.selected,
+                    value: change.value,
+                };
+                this.notify(data);
+            }
+        });
+
         // Tapping anywhere on the row opens the native chooser...
         this.addEventListener('tap', () => {
             void this._openChooser();
@@ -81,70 +104,42 @@ export class AdwComboRow extends AdwActionRow {
 
     /** Open the native action chooser and apply the picked option. */
     private async _openChooser(): Promise<void> {
-        if (this._options.length === 0) return;
-        const labels = this._options.map((o) => o.label);
+        if (this._state.count === 0) return;
+        const labels = this._state.options.map((o) => o.label);
         const chosen = await action({
             title: this.title || undefined,
             cancelButtonText: 'Cancel',
             actions: labels,
         });
-        const idx = labels.indexOf(chosen);
-        if (idx >= 0 && idx !== this._selectedIndex) {
-            this.selectedIndex = idx;
-            this._emitSelected();
-        }
-    }
-
-    /** Refresh the inline value label from the current selection. */
-    private _syncValueLabel(): void {
-        this._valueLabel.text = this._options[this._selectedIndex]?.label ?? '';
-    }
-
-    private _emitSelected(): void {
-        const data: NotifySelectedEventData = {
-            eventName: NOTIFY_SELECTED,
-            object: this,
-            selected: this._selectedIndex,
-            value: this.selectedValue,
-        };
-        this.notify(data);
+        // A user pick — the core `select` guards the no-op/negative case and
+        // notifies `interactive`, so the subscriber re-emits `notify::selected`.
+        this._state.select(labels.indexOf(chosen));
     }
 
     /** The selectable options. Updates the inline value label. */
     get options(): AdwComboOption[] {
-        return this._options;
+        return this._state.options;
     }
 
     set options(value: AdwComboOption[]) {
-        this._options = Array.isArray(value) ? value : [];
-        if (this._selectedIndex >= this._options.length) {
-            this._selectedIndex = 0;
-        }
-        this._syncValueLabel();
+        this._state.setOptions(value);
     }
 
     /** The selected option index. Updates the inline value label. */
     get selectedIndex(): number {
-        return this._selectedIndex;
+        return this._state.selectedIndex;
     }
 
     set selectedIndex(value: number) {
-        const next = Number.isFinite(value) ? value : 0;
-        if (next !== this._selectedIndex) {
-            this._selectedIndex = next;
-            this._syncValueLabel();
-        }
+        this._state.setSelectedIndex(value);
     }
 
     /** The selected option's `value`, or `''` when out of range. */
     get selectedValue(): string {
-        return this._options[this._selectedIndex]?.value ?? '';
+        return this._state.selectedValue;
     }
 
     set selectedValue(value: string) {
-        const idx = this._options.findIndex((o) => o.value === value);
-        if (idx >= 0) {
-            this.selectedIndex = idx;
-        }
+        this._state.setSelectedValue(value);
     }
 }
