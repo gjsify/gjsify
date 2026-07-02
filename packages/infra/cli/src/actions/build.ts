@@ -16,6 +16,7 @@ import { dirname, extname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize-bundler-options.js';
+import { inputSourceDirs, isOutdirInsideSource, libraryOutputLeakError } from '../utils/library-output.js';
 
 const DEFAULT_GJS_SHEBANG = '#!/usr/bin/env -S gjs -m';
 
@@ -94,6 +95,19 @@ export class BuildAction {
         const lib = library ?? {};
         const userBundler = normalizeBundlerOptions(this.configData);
 
+        // Refuse to emit the compiled tree into the input source directory.
+        // The outdir is derived below from `dirname(module ?? main)`; when a
+        // package points `main`/`module` at a source entry (`src/index.ts`)
+        // that derivation is `src/`, so preserve-modules would write `.js`
+        // duplicates + a `_virtual/` dir + a nested `src/<pkg>/src` tree next
+        // to the sources. An explicit `--outdir` is the escape hatch and is
+        // trusted; only the DERIVED default is guarded.
+        const cwd = process.cwd();
+        const sourceDirs = inputSourceDirs(userBundler.input, cwd);
+        const assertDerivedOutdirSafe = (outdir: string | undefined) => {
+            if (outdir && isOutdirInsideSource(outdir, sourceDirs, cwd)) throw libraryOutputLeakError(outdir);
+        };
+
         const moduleOutdir = lib.module ? dirname(lib.module) : undefined;
         const mainOutdir = lib.main ? dirname(lib.main) : undefined;
 
@@ -108,6 +122,10 @@ export class BuildAction {
         const results: RolldownOutput[] = [];
 
         if (multipleBuilds) {
+            // Both outdirs are derived from module/main — always guard them
+            // (`--outdir` is not consulted on the multi-output path).
+            assertDerivedOutdirSafe(moduleOutdir);
+            assertDerivedOutdirSafe(mainOutdir);
             const moduleFormat: 'esm' | 'cjs' =
                 moduleOutdir.includes('/cjs') || moduleOutExt === '.cjs' ? 'cjs' : 'esm';
             results.push(
@@ -143,9 +161,13 @@ export class BuildAction {
                 }),
             );
         } else {
+            const explicitOutdir = userBundler.output?.dir;
             const outfilePath = userBundler.output?.file ?? lib.module ?? lib.main;
             const outExt = outfilePath ? extname(outfilePath) : '.js';
-            const outdir = userBundler.output?.dir ?? (outfilePath ? dirname(outfilePath) : undefined);
+            const outdir = explicitOutdir ?? (outfilePath ? dirname(outfilePath) : undefined);
+            // Only the DERIVED default is a footgun; a user-supplied --outdir
+            // is trusted (the documented escape hatch).
+            if (explicitOutdir === undefined) assertDerivedOutdirSafe(outdir);
             const format: 'esm' | 'cjs' =
                 (userBundler.output?.format as 'esm' | 'cjs' | undefined) ??
                 (outdir?.includes('/cjs') || outExt === '.cjs' ? 'cjs' : 'esm');

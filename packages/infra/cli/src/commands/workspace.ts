@@ -21,6 +21,7 @@ import { buildDependencyGraph, discoverWorkspaces, topologicalSort, type Workspa
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import { BuildCacheRunner, buildCacheEnabledByEnv } from '../utils/build-cache.js';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { suggestClosest } from '../utils/suggest.js';
 
 interface WorkspaceCmdOptions {
     name: string;
@@ -95,10 +96,26 @@ export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
         const allWorkspaces = discoverWorkspaces(root);
         const target = allWorkspaces.find((w) => w.name === args.name);
         if (!target) {
-            console.error(
-                `gjsify workspace: no workspace named "${args.name}" — discovered ${allWorkspaces.length} workspace(s)`,
+            // IMPORTANT: `return process.exit(N)`, not a bare `process.exit(N)`.
+            // Under GJS `process.exit` cannot terminate synchronously (a parked
+            // GLib.MainLoop owns the thread) — it SCHEDULES the exit on a
+            // GLib.idle source and returns a forever-pending Promise. A bare
+            // call therefore falls through to the next statements, dereferences
+            // `target.manifest` on `undefined`, and the resulting throw races
+            // the already-scheduled exit into a SECOND `system.exit` →
+            // `m_should_exit assertion failed` → core dump. `return`-ing halts
+            // the handler so exactly one exit is scheduled. (No-op under Node,
+            // where `process.exit` never returns.)
+            const suggestion = suggestClosest(
+                args.name,
+                allWorkspaces.map((w) => w.name),
             );
-            process.exit(1);
+            const hint = suggestion ? ` — did you mean "${suggestion}"?` : '';
+            console.error(
+                `gjsify workspace: no workspace named "${args.name}"${hint} ` +
+                    `(discovered ${allWorkspaces.length} workspace(s) under ${root})`,
+            );
+            return process.exit(1);
         }
         const runner = detectPackageManager();
         const verbose = args.verbose === true;
@@ -107,8 +124,14 @@ export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
 
         const targetScripts = (target.manifest.scripts as Record<string, string> | undefined) ?? {};
         if (typeof targetScripts[args.script] !== 'string') {
-            console.error(`gjsify workspace: workspace "${args.name}" has no script "${args.script}"`);
-            process.exit(1);
+            const scriptHint = suggestClosest(args.script, Object.keys(targetScripts));
+            console.error(
+                `gjsify workspace: workspace "${args.name}" has no script "${args.script}"` +
+                    (scriptHint ? ` — did you mean "${scriptHint}"?` : ''),
+            );
+            // `return process.exit` — see the not-found branch above for why a
+            // bare `process.exit` is unsafe under GJS.
+            return process.exit(1);
         }
 
         // Build the run-list: either just the target, or its transitive
@@ -158,7 +181,9 @@ export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
                 const e = err instanceof Error ? err : new Error(String(err));
                 console.error(`[${ws.name}] ${e.message}`);
                 if (!continueOnError) {
-                    process.exit(1);
+                    // `return` — a bare `process.exit` would not halt under GJS
+                    // and the loop would keep running the remaining deps.
+                    return process.exit(1);
                 }
                 failures.push({ workspace: ws.name, error: e });
             }
@@ -168,13 +193,14 @@ export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
             console.error(
                 `gjsify workspace: ${failures.length} workspace(s) failed: ${failures.map((f) => f.workspace).join(', ')}`,
             );
-            process.exit(1);
+            return process.exit(1);
         }
 
         // ensureMainLoop() (called inside spawn) keeps GJS alive after the
         // child exits — without an explicit process.exit() the success path
-        // would park the loop forever.
-        process.exit(0);
+        // would park the loop forever. `return` for symmetry with the error
+        // paths above (see the not-found branch for the GJS rationale).
+        return process.exit(0);
     },
 };
 
