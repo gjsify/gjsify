@@ -13,7 +13,13 @@
 import GLib from '@girs/glib-2.0';
 import { z } from 'zod';
 
-import { PROTOCOL_SPEC, type CdpJsType, generateCdpTools } from '@gjsify/devtools-cdp';
+// `@gjsify/devtools-cdp` is an OPTIONAL PEER (Tier 3, experimental). It is kept
+// OUT of the static import graph so `@gjsify/devtools-mcp` can stay Tier 2 —
+// only the CDP profile pulls the experimental package, and only when it is
+// actually used (ADR 0003 dependency-direction rule). The type-only import
+// below is erased at build time and creates no runtime edge; the value surface
+// is loaded lazily in `loadDevtoolsCdp()`.
+import type { CdpJsType } from '@gjsify/devtools-cdp';
 
 import type { DevtoolsToolProfile, McpToolContext } from '../profile.js';
 
@@ -38,6 +44,25 @@ const CURATED = new Set<string>([
     'Debugger.setBreakpoint',
     'Debugger.setPauseOnExceptions',
 ]);
+
+/**
+ * Lazily load the OPTIONAL Tier-3 peer `@gjsify/devtools-cdp`. Throwing a clear,
+ * actionable error when the peer is absent keeps `@gjsify/devtools-mcp` usable
+ * (and buildable) without it — the generic / storybook / browser profiles never
+ * touch this path, so they do not require the experimental package.
+ */
+async function loadDevtoolsCdp(): Promise<typeof import('@gjsify/devtools-cdp')> {
+    try {
+        return await import('@gjsify/devtools-cdp');
+    } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        throw new Error(
+            'The CDP devtools profile requires the optional peer dependency ' +
+                '`@gjsify/devtools-cdp` (Tier 3, experimental). Add it to your app to use ' +
+                `\`gjsify debug --profile cdp\` / \`cdpProfile\` / \`registerCdpTools\`. (import failed: ${detail})`,
+        );
+    }
+}
 
 /** Build a zod type for a generated parameter. */
 function zodForParam(jsType: CdpJsType, enumValues: string[] | undefined): z.ZodTypeAny {
@@ -75,7 +100,13 @@ async function cdpSend(
     return json;
 }
 
-export function registerCdpTools(ctx: McpToolContext): void {
+/**
+ * Register the transport-level CDP tools. These marshal through the app's
+ * `org.gjsify.Devtools` DBus surface and need NO code from the optional peer, so
+ * they register synchronously and stay available even when `@gjsify/devtools-cdp`
+ * is not installed.
+ */
+function registerCoreCdpTools(ctx: McpToolContext): void {
     const { server, client, ok, dbusError } = ctx;
 
     // --- escape hatch ---
@@ -161,6 +192,17 @@ export function registerCdpTools(ctx: McpToolContext): void {
             }
         },
     );
+}
+
+/**
+ * Register the curated, typed CDP tools generated from the embedded protocol
+ * spec. This is the ONLY path that needs the optional `@gjsify/devtools-cdp`
+ * peer, so it is loaded lazily here — awaiting `loadDevtoolsCdp()` throws a
+ * clear error when the peer is absent.
+ */
+async function registerCuratedCdpTools(ctx: McpToolContext): Promise<void> {
+    const { server, ok, dbusError } = ctx;
+    const { PROTOCOL_SPEC, generateCdpTools } = await loadDevtoolsCdp();
 
     // --- curated typed tools (generated from the embedded protocol spec) ---
     const curated = generateCdpTools(PROTOCOL_SPEC, { include: (d, c) => CURATED.has(`${d}.${c}`) });
@@ -191,6 +233,18 @@ export function registerCdpTools(ctx: McpToolContext): void {
             },
         );
     }
+}
+
+/**
+ * Register all CDP tools: the sync transport tools first (so they exist even if
+ * the optional peer is missing), then the curated typed tools which lazily load
+ * `@gjsify/devtools-cdp`. Async because the curated set needs the peer; callers
+ * that fire-and-forget it (e.g. `runDevtoolsMcp`) must `.catch()` the rejection
+ * so a missing peer surfaces cleanly instead of as an unhandled rejection.
+ */
+export async function registerCdpTools(ctx: McpToolContext): Promise<void> {
+    registerCoreCdpTools(ctx);
+    await registerCuratedCdpTools(ctx);
 }
 
 /** Tool profile for a @gjsify/devtools-cdp-enabled app. */

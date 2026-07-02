@@ -62,7 +62,7 @@ export default async () => {
         await describe('registerCdpTools', async () => {
             await it('registers the four core tools', async () => {
                 const { ctx, tools } = makeContext();
-                registerCdpTools(ctx);
+                await registerCdpTools(ctx);
                 const names = tools.map((t) => t.name);
                 for (const core of ['cdp_send', 'cdp_discover_targets', 'cdp_connect', 'cdp_drain_events']) {
                     expect(names.includes(core)).toBeTruthy();
@@ -71,7 +71,7 @@ export default async () => {
 
             await it('registers curated typed tools from the generated descriptors', async () => {
                 const { ctx, tools } = makeContext();
-                registerCdpTools(ctx);
+                await registerCdpTools(ctx);
                 const names = tools.map((t) => t.name);
                 expect(names.includes('cdp_runtime_evaluate')).toBeTruthy();
                 expect(names.includes('cdp_dom_get_document')).toBeTruthy();
@@ -82,7 +82,7 @@ export default async () => {
 
             await it('cdp_send marshals method + params through CdpSend', async () => {
                 const { ctx, tools, calls } = makeContext();
-                registerCdpTools(ctx);
+                await registerCdpTools(ctx);
                 const send = tools.find((t) => t.name === 'cdp_send')!;
                 await send.handler({ method: 'Page.reload', params: { ignoreCache: true } });
                 const call = calls.find((c) => c.method === 'CdpSend')!;
@@ -92,7 +92,7 @@ export default async () => {
 
             await it('a curated tool marshals its typed args through CdpSend', async () => {
                 const { ctx, tools, calls } = makeContext();
-                registerCdpTools(ctx);
+                await registerCdpTools(ctx);
                 const evaluate = tools.find((t) => t.name === 'cdp_runtime_evaluate')!;
                 await evaluate.handler({ expression: '1 + 1', returnByValue: true, instance: undefined });
                 const call = calls.find((c) => c.method === 'CdpSend')!;
@@ -106,7 +106,7 @@ export default async () => {
 
             await it('cdp_connect calls CdpConnect', async () => {
                 const { ctx, tools, calls } = makeContext();
-                registerCdpTools(ctx);
+                await registerCdpTools(ctx);
                 const connect = tools.find((t) => t.name === 'cdp_connect')!;
                 await connect.handler({});
                 expect(calls.some((c) => c.method === 'CdpConnect')).toBeTruthy();
