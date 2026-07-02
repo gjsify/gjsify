@@ -19,11 +19,11 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_REGISTRY, buildHeaders, registryFor, whoami } from '@gjsify/npm-registry';
+import { DEFAULT_REGISTRY, buildHeaders, registryFor, whoami, type NpmrcConfig } from '@gjsify/npm-registry';
 import { discoverWorkspaces, filterWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { hasAnyCredential, loadNpmrc } from '../utils/load-npmrc.js';
-import { promptLine } from '../utils/prompt.js';
+import { OtpProvider, withOtpRetry } from '../utils/npm-otp.js';
 import {
     classifyTrustList,
     githubTrustBody,
@@ -186,65 +186,13 @@ export const trustCommand: Command<unknown, TrustOptions> = {
         if (dryRun) console.log('(dry-run — nothing will be written)');
         console.log();
 
-        // A one-shot OTP supplied via --otp, used on the FIRST challenge then
-        // cleared (a TOTP code is single-use within its ~30s window). After the
-        // first successful OTP the registry opens a ~5-min skip window, so we
-        // do NOT cache + re-send the code — that would re-challenge once it
-        // expires. Instead each request tries WITHOUT an OTP first (the window
-        // covers it) and only prompts when actually challenged. Mirrors npm's
-        // `otplease`.
-        let pendingOtp = args.otp;
-
-        const request = async (
-            method: string,
-            url: string,
-            body?: unknown,
-        ): Promise<{ status: number; json: unknown; text: string }> => {
-            const doFetch = async (code?: string): Promise<Response> => {
-                const headers = buildHeaders(url, { npmrc });
-                headers['accept'] = 'application/json';
-                if (body !== undefined) headers['content-type'] = 'application/json';
-                if (code) headers['npm-otp'] = code;
-                return fetch(url, {
-                    method,
-                    headers,
-                    body: body === undefined ? undefined : JSON.stringify(body),
-                });
-            };
-            // 1) Try without an OTP — succeeds outright (read) or via an active
-            //    2FA-skip window.
-            let res = await doFetch();
-            // 2) On a challenge, use the --otp (once) or prompt, and retry.
-            if (await isOtpChallenge(res)) {
-                let code = pendingOtp;
-                pendingOtp = undefined; // one-shot — never reuse a stale code
-                if (!code) {
-                    code = await promptLine('This operation requires a one-time password.\nEnter OTP: ');
-                }
-                if (!code) {
-                    console.error('gjsify trust: no OTP entered.');
-                    process.exit(1);
-                }
-                res = await doFetch(code);
-                // 3) Still challenged → the code was stale/expired. Prompt fresh once.
-                if (await isOtpChallenge(res)) {
-                    const fresh = await promptLine('OTP rejected (expired?) — enter a fresh code: ');
-                    if (!fresh) {
-                        console.error('gjsify trust: no OTP entered.');
-                        process.exit(1);
-                    }
-                    res = await doFetch(fresh);
-                }
-            }
-            const text = await res.text().catch(() => '');
-            let json: unknown = undefined;
-            try {
-                json = text ? JSON.parse(text) : undefined;
-            } catch {
-                /* non-JSON body — leave json undefined */
-            }
-            return { status: res.status, json, text };
-        };
+        // Cache-first OTP across the whole sweep (shared helper). Each request
+        // tries WITHOUT an OTP first (npm's ~5-min 2FA-skip window covers the
+        // packages after the first success) and only sends a code when actually
+        // challenged: the cached `--otp` / last-typed code first, then a fresh
+        // prompt when npm rejects it. See utils/npm-otp.ts.
+        const otpProvider = new OtpProvider(args.otp);
+        const request = createTrustRequester({ npmrc, otpProvider });
 
         let ok = 0;
         let skipped = 0;
@@ -330,16 +278,44 @@ export const trustCommand: Command<unknown, TrustOptions> = {
     },
 };
 
-/** True when a response is an npm OTP / 2FA challenge. */
-async function isOtpChallenge(res: Response): Promise<boolean> {
-    if (res.status !== 401) return false;
-    const wwwAuth = (res.headers.get('www-authenticate') ?? '').toLowerCase();
-    if (wwwAuth.includes('otp')) return true;
-    const text = await res
-        .clone()
-        .text()
-        .catch(() => '');
-    return /one-time pass/i.test(text) || /\bEOTP\b/.test(text);
+/** Parsed result of a trust-registry request. */
+export interface TrustRequestResult {
+    status: number;
+    json: unknown;
+    text: string;
+}
+
+/** A `(method, url, body?) => TrustRequestResult` function bound to a registry auth + OTP context. */
+export type TrustRequester = (method: string, url: string, body?: unknown) => Promise<TrustRequestResult>;
+
+/**
+ * Build a trust-registry requester bound to an npmrc + a shared
+ * {@link OtpProvider}. Each request runs through `withOtpRetry` so a 2FA
+ * challenge reuses the cached code before prompting — the same instance passed
+ * to `createTrustRequester` and to the publish flow shares ONE OTP across a
+ * whole `gjsify onboard` sweep.
+ */
+export function createTrustRequester(ctx: { npmrc: NpmrcConfig; otpProvider: OtpProvider }): TrustRequester {
+    return async (method, url, body) => {
+        const doFetch = (code?: string): Promise<Response> => {
+            const headers = buildHeaders(url, { npmrc: ctx.npmrc });
+            headers['accept'] = 'application/json';
+            if (body !== undefined) headers['content-type'] = 'application/json';
+            if (code) headers['npm-otp'] = code;
+            const init: RequestInit = { method, headers };
+            if (body !== undefined) init.body = JSON.stringify(body);
+            return fetch(url, init);
+        };
+        const res = await withOtpRetry(doFetch, ctx.otpProvider);
+        const text = await res.text().catch(() => '');
+        let json: unknown = undefined;
+        try {
+            json = text ? JSON.parse(text) : undefined;
+        } catch {
+            /* non-JSON body — leave json undefined */
+        }
+        return { status: res.status, json, text };
+    };
 }
 
 function firstLine(s: string): string {

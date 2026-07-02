@@ -265,7 +265,7 @@ async function runOne(
     if (cache && before) cache.storeAfterSuccess(ws, before);
 }
 
-function detectPackageManager(): 'yarn' | 'npm' | 'gjsify' {
+export function detectPackageManager(): 'yarn' | 'npm' | 'gjsify' {
     // Under GJS there is no Node, so neither `npm` nor `yarn` can run scripts —
     // the only option is `gjsify` itself, resolved via the GJS shim on PATH
     // (see `ensureGjsifyShimOnPath`). This is what makes node-free multi-package

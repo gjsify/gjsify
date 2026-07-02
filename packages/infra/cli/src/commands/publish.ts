@@ -41,8 +41,10 @@ import { DEFAULT_REGISTRY, registryFor } from '@gjsify/npm-registry';
 import { buildPublishHeaders, escapePackageName } from '../utils/publish-headers.js';
 import { packWorkspace, type PackWorkspaceOptions } from './pack.js';
 import { getNpmTrustedToken, hasGithubOidcEnv, OidcExchangeError, OidcUnavailableError } from '../utils/npm-oidc.js';
-import { diagnose404, is404DiagnosticCandidate } from '../utils/publish-diagnose.js';
+import { diagnose404, is404DiagnosticCandidate, type Diagnose404Result } from '../utils/publish-diagnose.js';
 import { loadNpmrc } from '../utils/load-npmrc.js';
+import { OtpProvider, withOtpRetry, isOtpChallenge } from '../utils/npm-otp.js';
+import { promptLine } from '../utils/prompt.js';
 
 interface PublishOptions {
     path?: string;
@@ -181,41 +183,14 @@ export const publishCommand: Command<unknown, PublishOptions> = {
             }
         }
 
-        // 1. Pack the workspace (rewrites workspace:^, computes integrity).
-        // Lifecycle scripts: `prepublishOnly` (publish-specific) runs before
-        // `prepack`. Matches `npm publish` semantics — packages that gate
-        // release-time validation on `prepublishOnly` (typecheck, smoke
-        // tests, version-tagging) get exactly that, and packages whose
-        // `prepack` generates build artifacts (process-templates,
-        // codegen, …) get those artifacts into the tarball.
-        const packOpts: PackWorkspaceOptions = {
-            dryRun: true,
-            lifecycleScripts: ['prepublishOnly', 'prepack'],
-            // `gjsify publish --json` emits the publish summary on stdout.
-            // Lifecycle scripts must not pollute that stream with their
-            // own log lines; redirect their stdout → parent's stderr.
-            lifecycleStdio: args.json ? 'inherit-stderr' : 'inherit',
-        };
-        const packed = await packWorkspace(wsDir, packOpts);
-        // We need the raw bytes — re-run with destination=null and capture.
-        // packWorkspace returns metadata only; for the bytes we re-pack into
-        // memory by reading + rebuilding. Cheap because the second pack runs
-        // off the same source files. (A future optimization: have
-        // packWorkspace optionally return the bytes itself.)
-        const tarBytes = await packWorkspaceToBytes(wsDir);
-
-        // 2. Read the workspace's (rewritten) package.json to assemble the
-        // publish payload.
-        const pkgPath = join(wsDir, 'package.json');
-        const pkgSource = readFileSync(pkgPath, 'utf-8');
-        const pkg = JSON.parse(pkgSource) as Record<string, unknown>;
-        // We need the rewritten manifest (workspace:^ → resolved) for the
-        // payload — packWorkspace already wrote it into the tarball. Mirror
-        // the same rewrite here so the registry's "package metadata" matches
-        // the tarball's package.json byte-for-byte.
-        const rewrittenPkg = await loadRewrittenManifest(wsDir, pkg);
-
+        // --dry-run: pack only, no PUT. Lifecycle scripts still run so the
+        // reported size/hash matches what a real publish would upload.
         if (dryRun) {
+            const packed = await packWorkspace(wsDir, {
+                dryRun: true,
+                lifecycleScripts: ['prepublishOnly', 'prepack'],
+                lifecycleStdio: args.json ? 'inherit-stderr' : 'inherit',
+            });
             const message = {
                 ok: true,
                 action: 'dry-run',
@@ -234,277 +209,361 @@ export const publishCommand: Command<unknown, PublishOptions> = {
             return;
         }
 
-        // 3. Resolve registry URL + auth
-        const npmrc = await loadNpmrc(wsDir);
-        const registry = process.env.npm_config_registry ?? registryFor(packed.name, npmrc) ?? DEFAULT_REGISTRY;
-        const registryClean = registry.endsWith('/') ? registry.slice(0, -1) : registry;
-        // npm-package-arg's escapedName convention (npa.js:188):
-        // `name.replace('/', '%2f')` — scoped `@scope/name` → `@scope%2fname`
-        // (literal @, lowercase %2f, segments NOT otherwise re-encoded);
-        // unscoped names pass through. Match it exactly — the npm registry is
-        // picky about the publish PUT URL shape.
-        const escapedName = escapePackageName(packed.name);
-        const url = `${registryClean}/${escapedName}`;
-        // npm publish convention: the dist.tarball URL + _attachments key both
-        // use the UNSCOPED basename — `cli-0.4.5.tgz`, not
-        // `gjsify-cli-0.4.5.tgz`. This is what libnpmpublish does (see
-        // `attachments[\`${unscopedName}-${version}.tgz\`]` in
-        // libnpmpublish/lib/publish.js). The full scoped filename is what
-        // `npm pack` writes to disk, but the registry stores tarballs at
-        // the unscoped path.
-        const unscopedName = packed.name.includes('/') ? packed.name.slice(packed.name.indexOf('/') + 1) : packed.name;
-        const wireFilename = `${unscopedName}-${packed.version}.tgz`;
-        const tarballUrl = `${registryClean}/${packed.name}/-/${wireFilename}`;
-
-        // 4. Build payload + PUT
-        const payload = buildPublishPayload({
-            pkg: rewrittenPkg,
+        // Real publish. Prompt for a 2FA code only on a TTY; otherwise a
+        // challenge surfaces as a clear "re-run with --otp" error rather than a
+        // silent hang reading a non-existent terminal. `--otp` seeds the code so
+        // it rides the first PUT (matching npm's `--otp` behaviour).
+        const interactiveOtp = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+        const otpProvider = new OtpProvider(otp, interactiveOtp ? promptLine : async () => '');
+        const outcome = await publishWorkspace({
+            wsDir,
             tag,
             access,
-            tarballBytes: tarBytes,
-            tarballUrl,
-            packed: { ...packed, wireFilename },
             provenance,
+            tolerate,
+            tolerateUntrustedNew,
+            trustedFlag,
+            verbose,
+            json: args.json === true,
+            otpProvider,
+            seedOtpFirst: otp !== undefined,
         });
+        reportPublishOutcome(outcome, args.json === true);
+    },
+};
 
-        // Build the publish-PUT headers to match what `npm publish` sends via
-        // npm-registry-fetch's `getHeaders` — critically `npm-command: publish`
-        // (the routing header npm's create-package frontdoor keys on; without it
-        // a first-publish of a brand-new scoped package returns a bare 404
-        // `Not Found`), plus `npm-auth-type` (legacy when --otp, else web), a
-        // real `user-agent`, and `npm-otp` when an OTP is supplied. See
-        // `utils/publish-headers.ts` for the field-by-field refs/npm-cli
-        // evidence.
-        const headers = buildPublishHeaders(url, { npmrc, otp });
+/** Input to {@link publishWorkspace} — the token-auth-aware, OTP-shareable publish flow. */
+export interface PublishWorkspaceInput {
+    /** Workspace directory to pack + publish. */
+    wsDir: string;
+    tag: string;
+    access?: string;
+    provenance: boolean;
+    /** Treat "already published" as success. */
+    tolerate: boolean;
+    /** Skip an un-bootstrapped new package on the OIDC path. */
+    tolerateUntrustedNew: boolean;
+    /** `--trusted` (force OIDC) / `undefined` | `'auto'` (auto-detect). */
+    trustedFlag: boolean | 'auto' | undefined;
+    /** Registry override. Default: `$npm_config_registry` → scope-aware npmrc → npmjs. */
+    registry?: string;
+    verbose: boolean;
+    /** Redirect lifecycle-script stdout → stderr so `--json` stdout stays clean. */
+    json: boolean;
+    /** Shared OTP provider — inject ONE across many packages to reuse a single code. */
+    otpProvider: OtpProvider;
+    /** Send the cached code on the first PUT (publish `--otp`). */
+    seedOtpFirst: boolean;
+}
 
-        // Trusted Publishing path. `--trusted` forces OIDC (errors if env
-        // vars are missing); the default `undefined` triggers auto-detect:
-        // OIDC is used iff GitHub OIDC env vars are present AND no
-        // `NODE_AUTH_TOKEN` is set. With `NODE_AUTH_TOKEN` set the user has
-        // explicitly opted into token auth, so we don't shadow their choice.
-        const wantTrusted =
-            trustedFlag === true || (trustedFlag === undefined && hasGithubOidcEnv() && !process.env.NODE_AUTH_TOKEN);
-        let authMode: 'token' | 'oidc' = 'token';
-        if (wantTrusted) {
-            try {
-                const { token: oidcToken, audience } = await getNpmTrustedToken({
-                    packageName: packed.name,
-                    registry,
-                    log: verbose ? (m) => console.error(m) : undefined,
-                });
-                headers['authorization'] = `Bearer ${oidcToken}`;
-                authMode = 'oidc';
-                if (verbose) {
-                    console.error(`gjsify publish: OIDC token obtained (audience=${audience})`);
-                }
-            } catch (err) {
-                // Detect the "never-before-published @scope/pkg" shape:
-                // npm's OIDC exchange returns 404 with body
-                //   {"message":"OIDC token exchange error - package not found"}
-                // for any package that has no Trusted Publisher entry (which
-                // includes every package that doesn't exist on npm yet —
-                // see AGENTS.md "New @gjsify/* package: first-publish +
-                // Trusted Publisher bootstrap"). Skip such a package when
-                // --tolerate-untrusted-new is set so one un-bootstrapped
-                // package doesn't break the entire serialized publish loop.
-                const isUntrustedNewPackage =
-                    err instanceof OidcExchangeError && err.status === 404 && /package not found/i.test(err.body);
-                if (isUntrustedNewPackage && tolerateUntrustedNew) {
-                    const headerMsg = `${packed.name}@${packed.version} (skipped — no Trusted Publisher on npm, see AGENTS.md "New @gjsify/* package: first-publish + Trusted Publisher bootstrap")`;
-                    if (args.json) {
-                        process.stdout.write(
-                            `${JSON.stringify(
-                                {
-                                    ok: true,
-                                    action: 'skipped-untrusted-new',
-                                    name: packed.name,
-                                    version: packed.version,
-                                    reason: 'no-trusted-publisher',
-                                },
-                                null,
-                                2,
-                            )}\n`,
-                        );
-                    } else {
-                        process.stdout.write(`~ ${headerMsg}\n`);
-                    }
-                    return;
-                }
-                if (trustedFlag === true) {
-                    // Explicit --trusted: bail with a clear error.
-                    handleOidcFailure(err, packed.name, args.json === true);
-                    process.exit(1);
-                }
-                // Auto-detect: fall back to the npmrc token auth that
-                // buildPublishHeaders already resolved into `headers` — BUT only
-                // if one actually exists. In OIDC-only CI there is no npmrc
-                // token, so a "fallback" would PUT with no credentials, get a
-                // 404, and risk being mistaken for a tolerable outcome — exactly
-                // the v0.7.3 incident where a transient OIDC 503 on
-                // `@gjsify/process` left it unpublished while the release stayed
-                // green. Refuse loudly so a transient OIDC failure can never
-                // silently drop a package from a release.
-                if (!headers['authorization']) {
-                    const msg = err instanceof Error ? err.message : String(err);
-                    console.error(
-                        `gjsify publish: OIDC token exchange failed for ${packed.name} (${msg}) and no fallback npm token is configured — refusing to publish without credentials.`,
-                    );
-                    if (args.json) {
-                        process.stdout.write(
-                            `${JSON.stringify(
-                                { ok: false, name: packed.name, version: packed.version, error: 'oidc-failed-no-token' },
-                                null,
-                                2,
-                            )}\n`,
-                        );
-                    }
-                    process.exit(1);
-                }
-                if (verbose) {
-                    const msg = err instanceof Error ? err.message : String(err);
-                    console.error(`gjsify publish: OIDC auto-detect failed (${msg}) — falling back to token auth`);
-                }
-            }
-        }
+/** Discriminated result of {@link publishWorkspace}; the caller owns presentation. */
+export type PublishOutcome =
+    | {
+          ok: true;
+          action: 'published';
+          name: string;
+          version: string;
+          filename: string;
+          size: number;
+          integrity: string;
+          tag: string;
+          registry: string;
+      }
+    | { ok: true; action: 'republish-tolerated'; name: string; version: string; status: number }
+    | { ok: true; action: 'skipped-untrusted-new'; name: string; version: string }
+    | { ok: false; action: 'otp-required'; name: string; version: string; status: number }
+    | { ok: false; action: 'oidc-failed'; name: string; version: string; error: unknown }
+    | { ok: false; action: 'oidc-no-token'; name: string; version: string; error: unknown }
+    | { ok: false; action: 'diagnostic'; name: string; version: string; status: number; diag: Diagnose404Result }
+    | { ok: false; action: 'error'; name: string; version: string; status: number; statusText: string; text: string };
 
-        if (verbose) {
-            console.error(`gjsify publish: PUT ${url} (${packed.name}@${packed.version})`);
-            console.error(`  auth-mode:     ${authMode}`);
-            console.error(`  authorization: ${headers['authorization'] ? '(set)' : '(none)'}`);
-            console.error(`  otp:           ${headers['npm-otp'] ? '(set)' : '(none)'}`);
-            console.error(`  payload size:  ${JSON.stringify(payload).length} bytes`);
-        }
+/**
+ * Pack + PUT a single workspace to its npm registry, returning a structured
+ * outcome instead of writing/exiting. Extracted from the `publish` command so
+ * `gjsify onboard` can drive the SAME publish flow while sharing one
+ * {@link OtpProvider} across every package in a sweep.
+ *
+ * The OTP dance runs through `withOtpRetry(provider)`: the cached code is tried
+ * before prompting, so a shared provider needs only one interactive entry for N
+ * packages.
+ */
+export async function publishWorkspace(input: PublishWorkspaceInput): Promise<PublishOutcome> {
+    const { wsDir, tag, access, provenance, tolerate, tolerateUntrustedNew, trustedFlag, verbose, json, otpProvider } =
+        input;
 
-        const bodyStr = JSON.stringify(payload);
+    // 1. Pack the workspace (rewrites workspace:^, computes integrity).
+    // Lifecycle scripts: `prepublishOnly` runs before `prepack` (npm semantics).
+    const packOpts: PackWorkspaceOptions = {
+        dryRun: true,
+        lifecycleScripts: ['prepublishOnly', 'prepack'],
+        lifecycleStdio: json ? 'inherit-stderr' : 'inherit',
+    };
+    const packed = await packWorkspace(wsDir, packOpts);
+    const tarBytes = await packWorkspaceToBytes(wsDir);
 
-        // Helper that PUTs with a given header set and returns the response.
-        async function doPut(reqHeaders: Record<string, string>): Promise<Response> {
-            return fetch(url, {
-                method: 'PUT',
-                headers: reqHeaders,
-                body: bodyStr,
+    // 2. Read the workspace's (rewritten) package.json for the payload.
+    const pkgPath = join(wsDir, 'package.json');
+    const pkgSource = readFileSync(pkgPath, 'utf-8');
+    const pkg = JSON.parse(pkgSource) as Record<string, unknown>;
+    const rewrittenPkg = await loadRewrittenManifest(wsDir, pkg);
+
+    // 3. Resolve registry URL + auth.
+    const npmrc = await loadNpmrc(wsDir);
+    const registry =
+        input.registry ?? process.env.npm_config_registry ?? registryFor(packed.name, npmrc) ?? DEFAULT_REGISTRY;
+    const registryClean = registry.endsWith('/') ? registry.slice(0, -1) : registry;
+    // npm-package-arg's escapedName convention (npa.js:188): `@scope/name` →
+    // `@scope%2fname` (literal @, lowercase %2f). Match it exactly.
+    const escapedName = escapePackageName(packed.name);
+    const url = `${registryClean}/${escapedName}`;
+    // npm publish convention: the tarball URL + _attachments key use the
+    // UNSCOPED basename (`cli-0.4.5.tgz`, not `gjsify-cli-0.4.5.tgz`).
+    const unscopedName = packed.name.includes('/') ? packed.name.slice(packed.name.indexOf('/') + 1) : packed.name;
+    const wireFilename = `${unscopedName}-${packed.version}.tgz`;
+    const tarballUrl = `${registryClean}/${packed.name}/-/${wireFilename}`;
+
+    // 4. Build payload.
+    const payload = buildPublishPayload({
+        pkg: rewrittenPkg,
+        tag,
+        access,
+        tarballBytes: tarBytes,
+        tarballUrl,
+        packed: { ...packed, wireFilename },
+        provenance,
+    });
+
+    // Base headers (npm-command: publish routing header etc.). The OTP is added
+    // per-PUT by `doPut` so `withOtpRetry` can retry with different codes.
+    const headers = buildPublishHeaders(url, { npmrc });
+
+    // Trusted Publishing (OIDC) path — `--trusted` forces it, `undefined`
+    // auto-detects from the GitHub OIDC env. Unused by `gjsify onboard` (local
+    // token auth), preserved verbatim for `gjsify publish` in CI.
+    const wantTrusted =
+        trustedFlag === true || (trustedFlag === undefined && hasGithubOidcEnv() && !process.env.NODE_AUTH_TOKEN);
+    let authMode: 'token' | 'oidc' = 'token';
+    if (wantTrusted) {
+        try {
+            const { token: oidcToken, audience } = await getNpmTrustedToken({
+                packageName: packed.name,
+                registry,
+                log: verbose ? (m) => console.error(m) : undefined,
             });
-        }
-
-        let res = await doPut(headers);
-
-        // EOTP handling — mirrors npm's otplease.js (refs/npm-cli/lib/utils/auth.js).
-        // npm signals "OTP required" via:
-        //   - HTTP 401 + `www-authenticate` header containing "otp"
-        //     (refs/npm-cli/node_modules/npm-registry-fetch/lib/check-response.js
-        //     line ~83: `auth.indexOf('otp') !== -1` → HttpErrorAuthOTP)
-        //   - HTTP 401 + body containing "one-time pass" (heuristic for
-        //     malformed responses missing the www-authenticate header —
-        //     same check-response.js lines ~92-98)
-        // We check both shapes, exactly matching npm's logic.
-        // If the caller already supplied --otp we skip this (they set the
-        // header; if the registry still 401s that is a wrong-code error).
-        if (!otp && res.status === 401) {
-            const wwwAuth = res.headers.get('www-authenticate') ?? '';
-            const body401 = await res.text().catch(() => '');
-            const needsOtp = wwwAuth.toLowerCase().split(/,\s*/).includes('otp') || /one-time pass/i.test(body401);
-            if (needsOtp) {
-                // Interactive path: if stdin is a TTY, prompt and retry once.
-                if (process.stdin.isTTY && process.stdout.isTTY) {
-                    process.stdout.write('This operation requires a one-time password.\nEnter OTP: ');
-                    const enteredOtp = await readLineFromStdin();
-                    if (enteredOtp) {
-                        const retryHeaders = { ...headers, 'npm-otp': enteredOtp };
-                        res = await doPut(retryHeaders);
-                    } else {
-                        console.error(`gjsify publish: no OTP entered — re-run with \`--otp <code>\``);
-                        process.exit(1);
-                    }
-                } else {
-                    // Non-interactive: give the maintainer a clear, actionable message.
-                    console.error(`gjsify publish: npm requires a 2FA one-time code — re-run with \`--otp <code>\``);
-                    process.exit(1);
-                }
+            headers['authorization'] = `Bearer ${oidcToken}`;
+            authMode = 'oidc';
+            if (verbose) console.error(`gjsify publish: OIDC token obtained (audience=${audience})`);
+        } catch (err) {
+            const isUntrustedNewPackage =
+                err instanceof OidcExchangeError && err.status === 404 && /package not found/i.test(err.body);
+            if (isUntrustedNewPackage && tolerateUntrustedNew) {
+                return { ok: true, action: 'skipped-untrusted-new', name: packed.name, version: packed.version };
+            }
+            if (trustedFlag === true) {
+                return { ok: false, action: 'oidc-failed', name: packed.name, version: packed.version, error: err };
+            }
+            // Auto-detect fallback to token auth — but only if a token exists;
+            // refuse to PUT with no credentials (the v0.7.3 silent-drop incident).
+            if (!headers['authorization']) {
+                return { ok: false, action: 'oidc-no-token', name: packed.name, version: packed.version, error: err };
+            }
+            if (verbose) {
+                const msg = err instanceof Error ? err.message : String(err);
+                console.error(`gjsify publish: OIDC auto-detect failed (${msg}) — falling back to token auth`);
             }
         }
+    }
 
-        if (res.ok) {
+    if (verbose) {
+        console.error(`gjsify publish: PUT ${url} (${packed.name}@${packed.version})`);
+        console.error(`  auth-mode:     ${authMode}`);
+        console.error(`  authorization: ${headers['authorization'] ? '(set)' : '(none)'}`);
+        console.error(`  payload size:  ${JSON.stringify(payload).length} bytes`);
+    }
+
+    const bodyStr = JSON.stringify(payload);
+    // Each attempt clones the base headers and adds `npm-otp` (+ legacy
+    // auth-type, matching buildPublishHeaders) when a code is supplied.
+    const doPut = (code?: string): Promise<Response> => {
+        const reqHeaders = { ...headers };
+        if (code) {
+            reqHeaders['npm-otp'] = code;
+            reqHeaders['npm-auth-type'] = 'legacy';
+        }
+        return fetch(url, { method: 'PUT', headers: reqHeaders, body: bodyStr });
+    };
+
+    const res = await withOtpRetry(doPut, otpProvider, { seedFirstAttempt: input.seedOtpFirst });
+
+    // A surviving OTP challenge means the provider gave up (no code entered /
+    // non-interactive). Surface it so the caller can point at --otp.
+    if (await isOtpChallenge(res)) {
+        return { ok: false, action: 'otp-required', name: packed.name, version: packed.version, status: res.status };
+    }
+
+    if (res.ok) {
+        return {
+            ok: true,
+            action: 'published',
+            name: packed.name,
+            version: packed.version,
+            filename: packed.filename,
+            size: packed.size,
+            integrity: packed.integrity,
+            tag,
+            registry: registryClean,
+        };
+    }
+
+    const text = await res.text().catch(() => '<no body>');
+    // "version already published" — 409 Conflict, or 403 + "previously published".
+    const isRepublishConflict = res.status === 409 || (res.status === 403 && /previously published/i.test(text));
+    if (isRepublishConflict && tolerate) {
+        return {
+            ok: true,
+            action: 'republish-tolerated',
+            name: packed.name,
+            version: packed.version,
+            status: res.status,
+        };
+    }
+    // 404 diagnostic (token-auth): disambiguate dead-token vs missing-package.
+    if (res.status === 404 && authMode === 'token' && is404DiagnosticCandidate(text)) {
+        const diag = await diagnose404({
+            packageName: packed.name,
+            version: packed.version,
+            registry: registryClean,
+            npmrc,
+        });
+        if (diag.reason !== 'unknown') {
+            return { ok: false, action: 'diagnostic', name: packed.name, version: packed.version, status: 404, diag };
+        }
+    }
+    return {
+        ok: false,
+        action: 'error',
+        name: packed.name,
+        version: packed.version,
+        status: res.status,
+        statusText: res.statusText,
+        text,
+    };
+}
+
+/**
+ * Present a {@link PublishOutcome} on stdout/stderr and exit non-zero on
+ * failure — the single-command `gjsify publish` behaviour, reproduced exactly.
+ */
+function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean): void {
+    switch (outcome.action) {
+        case 'published': {
             const out = {
                 ok: true,
-                name: packed.name,
-                version: packed.version,
-                filename: packed.filename,
-                size: packed.size,
-                integrity: packed.integrity,
-                tag,
-                registry: registryClean,
+                name: outcome.name,
+                version: outcome.version,
+                filename: outcome.filename,
+                size: outcome.size,
+                integrity: outcome.integrity,
+                tag: outcome.tag,
+                registry: outcome.registry,
             };
-            if (args.json) process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
-            else process.stdout.write(`+ ${packed.name}@${packed.version}\n`);
+            if (asJson) process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
+            else process.stdout.write(`+ ${outcome.name}@${outcome.version}\n`);
             return;
         }
-
-        const text = await res.text().catch(() => '<no body>');
-        // npm signals "version already published" via two distinct shapes:
-        //   - HTTP 409 Conflict (classic libnpmpublish behaviour)
-        //   - HTTP 403 Forbidden with body
-        //     `{"error":"You cannot publish over the previously published
-        //     versions: <ver>."}` (observed on the OIDC publish path
-        //     starting around npm registry's 2026-05 changes — same
-        //     idempotency outcome, different status code)
-        // Both are intentionally tolerated under --tolerate-republish so
-        // that re-running a release workflow after a partial failure does
-        // not error on the already-published packages.
-        const isRepublishConflict = res.status === 409 || (res.status === 403 && /previously published/i.test(text));
-        if (isRepublishConflict && tolerate) {
+        case 'republish-tolerated': {
             const out = {
                 ok: true,
                 action: 'republish-tolerated',
-                name: packed.name,
-                version: packed.version,
-                status: res.status,
+                name: outcome.name,
+                version: outcome.version,
+                status: outcome.status,
             };
-            if (args.json) process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
-            else process.stdout.write(`= ${packed.name}@${packed.version} (already published, tolerated)\n`);
+            if (asJson) process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
+            else process.stdout.write(`= ${outcome.name}@${outcome.version} (already published, tolerated)\n`);
             return;
         }
-        // 404 diagnostic — token-auth (with or without --otp). npm returns 404
-        // for a dead `_authToken`, a genuinely-missing package, AND transiently
-        // while a brand-new scoped package is being provisioned; `/-/whoami`
-        // disambiguates a dead token from a live one. OIDC has its own clear
-        // error surfaces (handled in the OIDC catch block above), so the
-        // diagnostic only kicks in for the token-auth PUT signature.
-        if (res.status === 404 && authMode === 'token') {
-            if (is404DiagnosticCandidate(text)) {
-                const diag = await diagnose404({
-                    packageName: packed.name,
-                    version: packed.version,
-                    registry: registryClean,
-                    npmrc,
-                });
-                if (diag.reason !== 'unknown') {
-                    if (args.json) {
-                        process.stdout.write(
-                            `${JSON.stringify(
-                                {
-                                    ok: false,
-                                    name: packed.name,
-                                    version: packed.version,
-                                    status: 404,
-                                    diagnostic: diag.reason,
-                                    username: diag.username,
-                                },
-                                null,
-                                2,
-                            )}\n`,
-                        );
-                    } else {
-                        process.stderr.write(`${diag.message}\n`);
-                    }
-                    process.exit(1);
-                }
+        case 'skipped-untrusted-new': {
+            if (asJson) {
+                process.stdout.write(
+                    `${JSON.stringify(
+                        {
+                            ok: true,
+                            action: 'skipped-untrusted-new',
+                            name: outcome.name,
+                            version: outcome.version,
+                            reason: 'no-trusted-publisher',
+                        },
+                        null,
+                        2,
+                    )}\n`,
+                );
+            } else {
+                process.stdout.write(
+                    `~ ${outcome.name}@${outcome.version} (skipped — no Trusted Publisher on npm, see AGENTS.md "New @gjsify/* package: first-publish + Trusted Publisher bootstrap")\n`,
+                );
             }
+            return;
         }
-        console.error(`gjsify publish: ${packed.name}@${packed.version} — ${res.status} ${res.statusText}`);
-        console.error(text);
-        process.exit(1);
-    },
-};
+        case 'otp-required': {
+            console.error(`gjsify publish: npm requires a 2FA one-time code — re-run with \`--otp <code>\``);
+            process.exit(1);
+            return;
+        }
+        case 'oidc-failed': {
+            handleOidcFailure(outcome.error, outcome.name, asJson);
+            process.exit(1);
+            return;
+        }
+        case 'oidc-no-token': {
+            const msg = outcome.error instanceof Error ? outcome.error.message : String(outcome.error);
+            console.error(
+                `gjsify publish: OIDC token exchange failed for ${outcome.name} (${msg}) and no fallback npm token is configured — refusing to publish without credentials.`,
+            );
+            if (asJson) {
+                process.stdout.write(
+                    `${JSON.stringify(
+                        { ok: false, name: outcome.name, version: outcome.version, error: 'oidc-failed-no-token' },
+                        null,
+                        2,
+                    )}\n`,
+                );
+            }
+            process.exit(1);
+            return;
+        }
+        case 'diagnostic': {
+            if (asJson) {
+                process.stdout.write(
+                    `${JSON.stringify(
+                        {
+                            ok: false,
+                            name: outcome.name,
+                            version: outcome.version,
+                            status: 404,
+                            diagnostic: outcome.diag.reason,
+                            username: outcome.diag.username,
+                        },
+                        null,
+                        2,
+                    )}\n`,
+                );
+            } else {
+                process.stderr.write(`${outcome.diag.message}\n`);
+            }
+            process.exit(1);
+            return;
+        }
+        case 'error': {
+            console.error(
+                `gjsify publish: ${outcome.name}@${outcome.version} — ${outcome.status} ${outcome.statusText}`,
+            );
+            console.error(outcome.text);
+            process.exit(1);
+            return;
+        }
+    }
+}
 
 async function packWorkspaceToBytes(wsDir: string): Promise<Uint8Array> {
     // Cheap re-run that writes to a tempdir, then read back. Avoids
@@ -613,46 +672,6 @@ function base64Encode(bytes: Uint8Array): string {
     return btoa(str);
 }
 
-/**
- * Read a single line from stdin (blocking via async iterator). Used for the
- * interactive OTP prompt path (mirrors npm's `read.otp()`). Resolves with the
- * trimmed line or an empty string if stdin closed without input.
- */
-async function readLineFromStdin(): Promise<string> {
-    return new Promise((resolve) => {
-        let buf = '';
-        const onData = (chunk: Buffer | string) => {
-            buf += typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
-            const nl = buf.indexOf('\n');
-            if (nl >= 0) {
-                cleanup();
-                resolve(buf.slice(0, nl).trim());
-            }
-        };
-        const onEnd = () => {
-            cleanup();
-            resolve(buf.trim());
-        };
-        const onError = () => {
-            cleanup();
-            resolve('');
-        };
-        const cleanup = () => {
-            process.stdin.removeListener('data', onData);
-            process.stdin.removeListener('end', onEnd);
-            process.stdin.removeListener('error', onError);
-            if (typeof (process.stdin as NodeJS.ReadStream & { unref?: () => void }).unref === 'function') {
-                (process.stdin as NodeJS.ReadStream & { unref?: () => void }).unref?.();
-            }
-        };
-        process.stdin.setEncoding('utf-8');
-        if (process.stdin.isPaused()) process.stdin.resume();
-        process.stdin.once('data', onData);
-        process.stdin.once('end', onEnd);
-        process.stdin.once('error', onError);
-    });
-}
-
 function handleOidcFailure(err: unknown, packageName: string, asJson: boolean): void {
     if (err instanceof OidcUnavailableError) {
         const msg = `gjsify publish: OIDC not available — ${err.message}`;
@@ -681,7 +700,17 @@ function handleOidcFailure(err: unknown, packageName: string, asJson: boolean): 
             if (err.body) process.stderr.write(`    ↳ npm said: ${err.body.slice(0, 300)}\n`);
             if (err.claims) {
                 const c = err.claims;
-                const shown = ['aud', 'iss', 'repository', 'repository_owner', 'workflow_ref', 'job_workflow_ref', 'ref', 'environment', 'sub']
+                const shown = [
+                    'aud',
+                    'iss',
+                    'repository',
+                    'repository_owner',
+                    'workflow_ref',
+                    'job_workflow_ref',
+                    'ref',
+                    'environment',
+                    'sub',
+                ]
                     .filter((k) => c[k] !== undefined)
                     .map((k) => `${k}=${JSON.stringify(c[k])}`)
                     .join(', ');

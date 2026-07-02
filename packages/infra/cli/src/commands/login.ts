@@ -33,6 +33,33 @@ interface LoginOptions {
     json?: boolean;
 }
 
+/** Options for the reusable {@link runLogin} flow. */
+export interface RunLoginOptions {
+    registry?: string;
+    scope?: string;
+    username?: string;
+    otp?: string;
+    /** Directory whose `.npmrc` seeds scope/registry resolution. Default: cwd. */
+    cwd?: string;
+}
+
+/** Successful login result. */
+export interface LoginResult {
+    username: string;
+    /** Registry URL (with trailing slash). */
+    registry: string;
+    /** Path of the `.npmrc` the token was written to. */
+    npmrcPath: string;
+}
+
+/** Thrown by {@link runLogin} on any recoverable login failure (bad creds, no token, …). */
+export class LoginError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'LoginError';
+    }
+}
+
 interface CouchUserDoc {
     _id: string;
     _rev?: string;
@@ -55,125 +82,144 @@ export const loginCommand: Command<unknown, LoginOptions> = {
                 type: 'string',
             })
             .option('scope', {
-                description: "Associate the login with a scope (e.g. @gjsify) — resolves that scope's registry from .npmrc.",
+                description:
+                    "Associate the login with a scope (e.g. @gjsify) — resolves that scope's registry from .npmrc.",
                 type: 'string',
             })
             .option('username', { description: 'Username (prompted if omitted).', type: 'string' })
             .option('otp', { description: 'npm 2FA one-time code (prompted on demand if omitted).', type: 'string' })
             .option('json', { description: 'Emit `{username, registry}` JSON on success.', type: 'boolean' }),
     handler: async (args) => {
-        const npmrc = await loadNpmrc(process.cwd());
-        const registry =
-            args.registry ??
-            process.env.npm_config_registry ??
-            (args.scope ? registryFor(args.scope.startsWith('@') ? `${args.scope}/_` : `@${args.scope}/_`, npmrc) : undefined) ??
-            DEFAULT_REGISTRY;
-        const registryClean = registry.endsWith('/') ? registry : `${registry}/`;
-
-        // Read username (visible) + password (masked) in a single raw-mode TTY
-        // session — robust against cooked line-discipline state + the shared
-        // stdin resume/pause race that intermittently broke the old two-prompt
-        // sequence (Enter showing `^M`, or an empty username).
-        const { username, password } = await promptCredentials(args.username);
-        if (!username) {
-            console.error('gjsify login: a username is required.');
-            process.exit(1);
-        }
-        if (!password) {
-            console.error('gjsify login: a password is required.');
-            process.exit(1);
-        }
-
-        // npm legacy auth = HTTP Basic of `<username>:<password>` (the same
-        // credentials being logged in with). The password also lives in the
-        // PUT body, which is how the registry mints the token.
-        const basic = `Basic ${btoa(`${username}:${password}`)}`;
-        const couchUrl = `${registryClean}-/user/org.couchdb.user:${encodeURIComponent(username)}`;
-
-        const body: CouchUserDoc = {
-            _id: `org.couchdb.user:${username}`,
-            name: username,
-            password,
-            type: 'user',
-            roles: [],
-            date: undefined, // the registry stamps this; Date is unavailable in some runtimes
-        };
-
-        function authHeaders(otp?: string): Record<string, string> {
-            const h: Record<string, string> = {
-                authorization: basic,
-                'content-type': 'application/json',
-                accept: '*/*',
-            };
-            if (otp) h['npm-otp'] = otp;
-            return h;
-        }
-
-        async function putUser(path: string, otp?: string): Promise<Response> {
-            return fetch(`${couchUrl}${path}`, { method: 'PUT', headers: authHeaders(otp), body: JSON.stringify(body) });
-        }
-
-        let otp = args.otp;
-        let res = await putUser('', otp);
-
-        // 2FA: 401 + www-authenticate "otp" (or a one-time-pass body) → prompt + retry.
-        if (res.status === 401 && !otp) {
-            const wwwAuth = (res.headers.get('www-authenticate') ?? '').toLowerCase();
-            const text = await res.clone().text().catch(() => '');
-            if (wwwAuth.includes('otp') || /one-time pass/i.test(text)) {
-                otp = await promptLine(`This operation requires a one-time password.\nEnter OTP: `);
-                if (!otp) {
-                    console.error('gjsify login: no OTP entered.');
-                    process.exit(1);
-                }
-                res = await putUser('', otp);
+        try {
+            const { username, registry, npmrcPath } = await runLogin({
+                registry: args.registry,
+                scope: args.scope,
+                username: args.username,
+                otp: args.otp,
+            });
+            if (args.json) {
+                process.stdout.write(`${JSON.stringify({ username, registry })}\n`);
+            } else {
+                process.stdout.write(`Logged in as ${username} on ${registry}\n(token written to ${npmrcPath})\n`);
             }
-        }
-
-        // 409 Conflict: the user already exists (the normal login case). Fetch
-        // the current doc for its `_rev`, merge, and PUT to `…/-rev/<rev>`.
-        if (res.status === 409) {
-            const getRes = await fetch(`${couchUrl}?write=true`, { headers: authHeaders(otp) });
-            if (getRes.ok) {
-                const existing = (await getRes.json().catch(() => ({}))) as Record<string, unknown>;
-                for (const k of Object.keys(existing)) {
-                    if (!body[k] || k === 'roles') body[k] = existing[k];
-                }
-                if (body._rev) res = await putUser(`/-rev/${body._rev}`, otp);
+        } catch (err) {
+            if (err instanceof LoginError) {
+                console.error(err.message);
+                process.exit(1);
             }
-        }
-
-        if (res.status === 400) {
-            console.error(`gjsify login: there is no user with the username "${username}" on ${registryClean}.`);
-            process.exit(1);
-        }
-
-        if (!res.ok) {
-            const text = await res.text().catch(() => '<no body>');
-            console.error(`gjsify login: ${res.status} ${res.statusText} from ${registryClean}\n${text.slice(0, 400)}`);
-            process.exit(1);
-        }
-
-        const data = (await res.json().catch(() => ({}))) as { token?: string };
-        if (!data.token) {
-            console.error(
-                `gjsify login: the registry accepted the login but returned no token (unexpected response shape). ` +
-                    `Your registry may require the web-OAuth flow — use \`npm login\`.`,
-            );
-            process.exit(1);
-        }
-
-        const npmrcPath = writeAuthToken(registryClean, data.token);
-
-        // Confirm the freshly-written token authenticates.
-        const verifyNpmrc = await loadNpmrc(process.cwd());
-        const who = await whoami(registryClean, verifyNpmrc);
-        const confirmedName = who.username ?? username;
-
-        if (args.json) {
-            process.stdout.write(`${JSON.stringify({ username: confirmedName, registry: registryClean })}\n`);
-        } else {
-            process.stdout.write(`Logged in as ${confirmedName} on ${registryClean}\n(token written to ${npmrcPath})\n`);
+            throw err;
         }
     },
 };
+
+/**
+ * The `gjsify login` core, extracted so `gjsify onboard` can authenticate the
+ * user when the whoami gate fails. Prompts for username + password (unless
+ * provided), PUTs the CouchDB user doc, writes the token to the userconfig
+ * `.npmrc`, and verifies it with `whoami`. Throws {@link LoginError} on any
+ * recoverable failure (the command handler / onboard present it).
+ */
+export async function runLogin(opts: RunLoginOptions): Promise<LoginResult> {
+    const npmrc = await loadNpmrc(opts.cwd ?? process.cwd());
+    const registry =
+        opts.registry ??
+        process.env.npm_config_registry ??
+        (opts.scope
+            ? registryFor(opts.scope.startsWith('@') ? `${opts.scope}/_` : `@${opts.scope}/_`, npmrc)
+            : undefined) ??
+        DEFAULT_REGISTRY;
+    const registryClean = registry.endsWith('/') ? registry : `${registry}/`;
+
+    // Read username (visible) + password (masked) in a single raw-mode TTY
+    // session — robust against cooked line-discipline state + the shared stdin
+    // resume/pause race.
+    const { username, password } = await promptCredentials(opts.username);
+    if (!username) throw new LoginError('gjsify login: a username is required.');
+    if (!password) throw new LoginError('gjsify login: a password is required.');
+
+    // npm legacy auth = HTTP Basic of `<username>:<password>`. The password also
+    // lives in the PUT body, which is how the registry mints the token.
+    const basic = `Basic ${btoa(`${username}:${password}`)}`;
+    const couchUrl = `${registryClean}-/user/org.couchdb.user:${encodeURIComponent(username)}`;
+
+    const body: CouchUserDoc = {
+        _id: `org.couchdb.user:${username}`,
+        name: username,
+        password,
+        type: 'user',
+        roles: [],
+        date: undefined, // the registry stamps this; Date is unavailable in some runtimes
+    };
+
+    function authHeaders(otp?: string): Record<string, string> {
+        const h: Record<string, string> = {
+            authorization: basic,
+            'content-type': 'application/json',
+            accept: '*/*',
+        };
+        if (otp) h['npm-otp'] = otp;
+        return h;
+    }
+
+    async function putUser(path: string, otp?: string): Promise<Response> {
+        return fetch(`${couchUrl}${path}`, { method: 'PUT', headers: authHeaders(otp), body: JSON.stringify(body) });
+    }
+
+    let otp = opts.otp;
+    let res = await putUser('', otp);
+
+    // 2FA: 401 + www-authenticate "otp" (or a one-time-pass body) → prompt + retry.
+    if (res.status === 401 && !otp) {
+        const wwwAuth = (res.headers.get('www-authenticate') ?? '').toLowerCase();
+        const text = await res
+            .clone()
+            .text()
+            .catch(() => '');
+        if (wwwAuth.includes('otp') || /one-time pass/i.test(text)) {
+            otp = await promptLine(`This operation requires a one-time password.\nEnter OTP: `);
+            if (!otp) throw new LoginError('gjsify login: no OTP entered.');
+            res = await putUser('', otp);
+        }
+    }
+
+    // 409 Conflict: the user already exists (the normal login case). Fetch the
+    // current doc for its `_rev`, merge, and PUT to `…/-rev/<rev>`.
+    if (res.status === 409) {
+        const getRes = await fetch(`${couchUrl}?write=true`, { headers: authHeaders(otp) });
+        if (getRes.ok) {
+            const existing = (await getRes.json().catch(() => ({}))) as Record<string, unknown>;
+            for (const k of Object.keys(existing)) {
+                if (!body[k] || k === 'roles') body[k] = existing[k];
+            }
+            if (body._rev) res = await putUser(`/-rev/${body._rev}`, otp);
+        }
+    }
+
+    if (res.status === 400) {
+        throw new LoginError(`gjsify login: there is no user with the username "${username}" on ${registryClean}.`);
+    }
+
+    if (!res.ok) {
+        const text = await res.text().catch(() => '<no body>');
+        throw new LoginError(
+            `gjsify login: ${res.status} ${res.statusText} from ${registryClean}\n${text.slice(0, 400)}`,
+        );
+    }
+
+    const data = (await res.json().catch(() => ({}))) as { token?: string };
+    if (!data.token) {
+        throw new LoginError(
+            `gjsify login: the registry accepted the login but returned no token (unexpected response shape). ` +
+                `Your registry may require the web-OAuth flow — use \`npm login\`.`,
+        );
+    }
+
+    const npmrcPath = writeAuthToken(registryClean, data.token);
+
+    // Confirm the freshly-written token authenticates.
+    const verifyNpmrc = await loadNpmrc(opts.cwd ?? process.cwd());
+    const who = await whoami(registryClean, verifyNpmrc);
+    const confirmedName = who.username ?? username;
+
+    return { username: confirmedName, registry: registryClean, npmrcPath };
+}

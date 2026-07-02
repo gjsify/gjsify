@@ -20,6 +20,7 @@ export * from './whoami.js';
 export * from './login.js';
 export * from './logout.js';
 export * from './trust.js';
+export * from './onboard.js';
 export * from './self-update.js';
 export * from './generate-installer.js';
 export * from './uninstall.js';

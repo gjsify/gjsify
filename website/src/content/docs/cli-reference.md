@@ -1064,6 +1064,38 @@ Combine with [`gjsify foreach`](#gjsify-foreach) to publish every workspace in o
 gjsify foreach --no-private --exec -- gjsify publish --tag latest --access public
 ```
 
+## `gjsify onboard`
+
+Ensure **every** publishable `@gjsify/*` workspace is both **published** on npm and has a **Trusted Publisher** configured for this repo's `release.yml` — doing the minimum work. It folds the whole manual first-publish + Trusted-Publisher bootstrap into a single idempotent sweep:
+
+1. **Auth gate** — runs the `whoami` liveness check first. If the token is live, it proceeds without asking for credentials; only when the token is dead/missing does it run the [`gjsify login`](#gjsify-login) flow (or fail clearly under `--yes` on a non-TTY).
+2. **Enumerate** the publishable workspaces (non-private, excluding `@girs/*`).
+3. **Determine each package's state concurrently** (bounded) by reading npm's Trusted-Publisher config: unpublished / published-but-untrusted / published-and-trusted. Reads never prompt for 2FA.
+4. **Act on the gaps, minimally** — build + `publish --access public` each unpublished package, then configure its Trusted Publisher; configure a published-but-untrusted one; skip an already-done one.
+5. **One shared OTP** — a single 2FA code is reused across every publish + trust operation (cache-first: the cached code is tried before prompting). A whole sweep of N packages typically needs you to type an OTP **once**, never once-per-package.
+
+Re-running when everything is already published + trusted does nothing and exits 0.
+
+```bash
+gjsify onboard                       # publish + trust every missing package (prompts for OTP once)
+gjsify onboard --dry-run             # report the plan; change nothing
+gjsify onboard --otp 123456          # seed the shared 2FA code (no prompt if it stays valid)
+gjsify onboard --json                # machine-readable summary object as the final stdout line
+gjsify onboard --yes                 # non-interactive: fail clearly if a login/OTP is needed
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--repository <owner/repo>` | inferred from `origin` | GitHub repo the Trusted Publisher is scoped to. |
+| `--workflow <file>` | `release.yml` | Workflow filename allowed to publish via OIDC (basename only). |
+| `--environment <env>` | — | Optional GitHub Actions environment the workflow must run in. |
+| `--registry <url>` | scope-aware `.npmrc` | Registry override. |
+| `--otp <code>` | — | Seeds the shared 2FA code; prompted once on demand if omitted and a challenge occurs. |
+| `--concurrency <n>` | `8` | How many packages to probe (read state) in parallel. |
+| `--dry-run` | `false` | Report the plan without publishing or configuring anything. |
+| `--json` | `false` | Emit a machine-readable summary object as the final stdout line. |
+| `--yes` | `false` | Non-interactive: never prompt. Fail clearly if a login or an OTP is required and not supplied via flags. |
+
 | Option | Default | Description |
 |---|---|---|
 | `<packages..>` (positional) | — | One or more package names. |
