@@ -46,7 +46,8 @@
             "node": "none",
             "browser": "none",
             "nativescript": "native"
-        }
+        },
+        "tier": 2
     },
     "license": "MIT",
     "repository": {

@@ -82,5 +82,8 @@
         "@types/node": "^25.9.2",
         "rolldown": "^1.1.0",
         "typescript": "^6.0.3"
+    },
+    "gjsify": {
+        "tier": 1
     }
 }

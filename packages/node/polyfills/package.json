@@ -58,7 +58,8 @@
             "node": "native",
             "browser": "polyfill",
             "nativescript": "polyfill"
-        }
+        },
+        "tier": 1
     },
     "exports": {
         "./globals": "./globals.mjs",

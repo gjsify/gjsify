@@ -54,5 +54,8 @@
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/excalibur-jelly-jumper#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/excalibur-jelly-jumper#readme",
+    "gjsify": {
+        "tier": 2
+    }
 }

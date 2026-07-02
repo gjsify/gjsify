@@ -53,5 +53,8 @@
   "bugs": {
     "url": "https://github.com/gjsify/gjsify/issues"
   },
-  "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/three-geometry-teapot#readme"
+  "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/three-geometry-teapot#readme",
+  "gjsify": {
+    "tier": 2
+  }
 }

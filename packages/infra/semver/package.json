@@ -48,5 +48,8 @@
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/semver#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/semver#readme",
+    "gjsify": {
+        "tier": 1
+    }
 }

@@ -49,5 +49,8 @@
   "bugs": {
     "url": "https://github.com/gjsify/gjsify/issues"
   },
-  "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/webrtc-loopback#readme"
+  "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/webrtc-loopback#readme",
+  "gjsify": {
+    "tier": 2
+  }
 }

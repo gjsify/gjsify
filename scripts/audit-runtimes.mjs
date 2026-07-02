@@ -76,6 +76,17 @@
 // existing `gjsify.runtimes` values are NEVER overwritten — the human stays
 // in charge of every non-default decision. `--check` is read-only; it never
 // edits package.json — it only reports drift.
+//
+// Tier audit (ADR 0003 + ADR 0005) — always part of `--check` (both quick
+// and strict): every PUBLISHED workspace package (packages/** + showcases/**
+// + any other workspace root, `private: true` exempt) must declare
+// `gjsify.tier` ∈ {1,2,3}; walking `dependencies` + `optionalDependencies`
+// (NOT devDependencies / peerDependencies — optional peers are the
+// sanctioned looseness), every `@gjsify/*` workspace edge A→B must satisfy
+// tier(B) <= tier(A) (a stability-promised package must not inherit an
+// experiment's breakage); and per ADR 0005 no Tier-1/2 package may take a
+// hard dependency on `@gjsify/node-gi` (devDependency is the sanctioned
+// seam).
 
 import { readdir, readFile, writeFile, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -596,6 +607,7 @@ function deriveNativescriptSlot(axis, suggested, signals, pkgSubpath) {
 // the pattern used today on Node (`export { default as X } from 'node:X'`).
 
 import { BROWSER_NATIVE_IDENTS } from '../packages/infra/resolve-npm/lib/globals-map.mjs';
+import { EXTERNALS_NODE } from '../packages/infra/resolve-npm/lib/index.mjs';
 
 /**
  * Curated set of bare specifiers that are safe to re-export from a
@@ -720,6 +732,88 @@ async function runProbes(rows) {
         }
     }
     return probeFailures;
+}
+
+// ─── Tier audit (ADR 0003 + ADR 0005) ───────────────────────────────────────
+//
+// Independent from the runtimes-triplet checks above: the tier contract
+// covers EVERY published workspace package (showcases included, not just
+// `packages/**`), and its rules are declaration-driven (`gjsify.tier`), not
+// signal-driven. Three checks, all hard failures under `--check`:
+//
+//   1. tier-missing   : a published package lacks `gjsify.tier` ∈ {1,2,3}.
+//   2. tier-direction : a dep edge A→B (deps/optionalDeps, both @gjsify
+//                       workspace packages) where tier(B) > tier(A) — a
+//                       stability-promised package must not inherit a less
+//                       stable package's breakage (ADR 0003 rule 1).
+//                       devDependencies and (optional) peerDependencies are
+//                       exempt by design — they encode exactly this looseness.
+//   3. node-gi-isolation: ADR 0005 names `@gjsify/node-gi` explicitly — no
+//                       Tier-1/2 package may take a hard dependency on it.
+//                       (Subsumed by 2 while node-gi is Tier 3, but asserted
+//                       by name so the invariant survives a tier edit.)
+
+const VALID_TIERS = new Set([1, 2, 3]);
+/** Workspace roots that may contain published packages (root package.json
+ * `workspaces` globs). templates/examples/tests are all-private today, but
+ * walking them is cheap and catches a future accidentally-published one. */
+const TIER_AUDIT_ROOTS = ['packages', 'showcases', 'templates', 'examples', 'tests', 'website'];
+
+/** Collect every PUBLISHED workspace package with its tier + @gjsify/* edges. */
+async function collectPublishedPackages() {
+    const dirs = [];
+    for (const root of TIER_AUDIT_ROOTS) {
+        const abs = resolve(ROOT, root);
+        if (existsSync(abs)) await findPackages(abs, dirs);
+    }
+    const published = new Map();
+    for (const dir of dirs) {
+        const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'));
+        if (pkg.private || !pkg.name) continue;
+        const edges = [];
+        for (const field of ['dependencies', 'optionalDependencies']) {
+            for (const dep of Object.keys(pkg[field] ?? {})) {
+                if (dep.startsWith('@gjsify/')) edges.push({ dep, field });
+            }
+        }
+        published.set(pkg.name, { path: relative(ROOT, dir), tier: pkg.gjsify?.tier, edges });
+    }
+    return published;
+}
+
+/** Run the three tier checks; returns human-readable failure lines (empty = ok). */
+function auditTiers(published) {
+    const failures = [];
+    for (const [name, info] of published) {
+        if (!VALID_TIERS.has(info.tier)) {
+            failures.push(
+                `${name} (${info.path}): missing or invalid \`gjsify.tier\` — every published package must declare a tier ∈ {1,2,3} (ADR 0003).`,
+            );
+        }
+    }
+    for (const [name, info] of published) {
+        if (!VALID_TIERS.has(info.tier)) continue; // already reported above
+        for (const { dep, field } of info.edges) {
+            const target = published.get(dep);
+            // Not a published workspace package (private example or external
+            // @gjsify/* pkg) — out of tier-contract scope. A published package
+            // depending on a private one is a publish-tooling failure, not a
+            // tier failure.
+            if (!target || !VALID_TIERS.has(target.tier)) continue;
+            if (dep === '@gjsify/node-gi' && info.tier < 3) {
+                failures.push(
+                    `${name} (Tier ${info.tier}) → @gjsify/node-gi via ${field}: forbidden by ADR 0005 — node-gi is experimental (Tier 3) and dependency-isolated; the sanctioned seams are a devDependency (\`--runtime node\` dev flows) and the conditional \`--app node\` build injection.`,
+                );
+                continue;
+            }
+            if (target.tier > info.tier) {
+                failures.push(
+                    `dependency-direction violation: ${name} (Tier ${info.tier}) → ${dep} (Tier ${target.tier}) via ${field} — a package must not hard-depend on a higher (less stable) tier (ADR 0003 rule 1; optional peers / devDeps are the sanctioned seams).`,
+                );
+            }
+        }
+    }
+    return failures;
 }
 
 // ─── Aggregation ────────────────────────────────────────────────────────────
@@ -939,13 +1033,24 @@ if (CHECK) {
     // this script lands. Strict mode will become the default once R1 has
     // closed the remaining `globals.mjs` gaps (T-Plan Sektion 1d step 3).
     const probeFailures = STRICT ? await runProbes(rows) : [];
-    const ok = drifted.length === 0 && missing.length === 0 && probeFailures.length === 0;
+    // Tier audit (ADR 0003 + ADR 0005) is part of EVERY `--check` run —
+    // declaration-driven, so there is no strict/quick split to respect.
+    const published = await collectPublishedPackages();
+    const tierFailures = auditTiers(published);
+    const ok =
+        drifted.length === 0 &&
+        missing.length === 0 &&
+        probeFailures.length === 0 &&
+        tierFailures.length === 0;
     if (ok) {
         const suffix = STRICT
             ? ` (functional probes passed on every declared slot)`
             : '';
         console.log(
             `audit-runtimes --check${STRICT ? ' --strict' : ''}: OK. ${declarable} declarable package(s) match the signal-based suggestion (${rows.length - declarable} infra/unknown skipped).${suffix}`,
+        );
+        console.log(
+            `tier audit: OK. ${published.size} published package(s) declare a tier; dependency-direction + ADR-0005 node-gi isolation hold on every deps/optionalDeps edge.`,
         );
         process.exit(0);
     }
@@ -984,8 +1089,15 @@ if (CHECK) {
         }
         console.error('');
     }
+    if (tierFailures.length > 0) {
+        console.error(`TIER-CONTRACT FAILURES (ADR 0003 / ADR 0005) on ${tierFailures.length} edge(s)/package(s):`);
+        for (const line of tierFailures) {
+            console.error(`  - ${line}`);
+        }
+        console.error('');
+    }
     console.error(
-        'Either update the package\'s source-code signals (the GJS-binding shape changed) or update its package.json#gjsify.runtimes to match the new reality. See AGENTS.md `## Strategic direction — cross-runtime portability` for the slot model.',
+        'Either update the package\'s source-code signals (the GJS-binding shape changed) or update its package.json#gjsify.runtimes to match the new reality. See AGENTS.md `## Strategic direction — cross-runtime portability` for the slot model. For tier-contract failures see docs/adr/0003-package-tiering.md + docs/adr/0005-node-gi-scope.md.',
     );
     process.exit(1);
 }

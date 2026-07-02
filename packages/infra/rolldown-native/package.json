@@ -20,7 +20,8 @@
         "src/vala"
     ],
     "gjsify": {
-        "prebuilds": "prebuilds"
+        "prebuilds": "prebuilds",
+        "tier": 1
     },
     "scripts": {
         "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo || exit 0",
