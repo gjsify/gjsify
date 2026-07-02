@@ -16,6 +16,10 @@
 // flags, constants, structs/boxed, interface static methods and camelCase
 // aliases land in subsequent drops.
 import * as native from './index.js';
+// setImmediate is a Node global but NOT a Deno global (Deno requires the explicit
+// node:timers import; Bun/Node re-export it there too), so import it for the
+// macrotask-deferred runAsync to work on all three runtimes.
+import { setImmediate } from 'node:timers';
 
 // Symbol carrying the raw native GObject handle on a wrapped instance, so it can
 // be unwrapped again when passed back into the engine as a GI argument.
@@ -478,12 +482,15 @@ function assignTemplateChildren(instance, handle, reg) {
 // `app.runAsync([programInvocationName, ...ARGV])` source behaves identically on
 // gjs and node. Resolves once; run() is invoked once (no double-run / leak).
 //
-// On Bun/Deno there is no libuv↔GLib bridge, so a blocking run() would freeze the
-// runtime's own event loop. Instead we co-pump GLib from a runtime timer (see
-// applicationRunAsyncPortable) — the GLib loop advances while Bun/Deno stay in
-// control of their own timers/promises/IO.
+// Same shape on all three runtimes: the deferred blocking run() drives the app's
+// GLib loop (activate → the app's own GLib sources → quit → run returns the exit
+// status). The Node-only EXTRA is the uv↔GLib bridge co-pumping Node's own event
+// loop DURING the blocking run, so a Node timer/promise scheduled before runAsync
+// fires while the app runs. Bun/Deno have no such bridge, so their own event loop
+// is paused for the app's lifetime (exactly as GJS, where the GLib loop IS the
+// process loop) — for concurrent runtime-loop + GLib work there, drive GLib with
+// startMainContextPump instead of a blocking run.
 function applicationRunAsync(handle) {
-  if (!native.isNodeRuntime) return applicationRunAsyncPortable(handle);
   return new Promise((resolve, reject) => {
     setImmediate(() => {
       try {
@@ -546,36 +553,6 @@ export function stopMainContextPump() {
     clearInterval(pumpTimer);
     pumpTimer = null;
   }
-}
-
-// Bun/Deno Gio.Application.runAsync: no blocking run(). Register + activate the
-// application (the non-blocking half of g_application_run), then co-pump the
-// default GLib context from a runtime timer until the app shuts down. Resolves
-// with 0 on the application's `shutdown` signal (g_application_run emits it as the
-// loop unwinds — here driven by our pump). This keeps Bun/Deno's own event loop
-// live throughout, unlike a blocking run().
-function applicationRunAsyncPortable(handle) {
-  return new Promise((resolve, reject) => {
-    let stopPump = null;
-    let settled = false;
-    const finish = (fn, value) => {
-      if (settled) return;
-      settled = true;
-      if (stopPump) stopPump();
-      fn(value);
-    };
-    try {
-      // hold() so the app doesn't auto-quit before activate() runs; register()
-      // emits startup; the shutdown handler resolves once the app quits.
-      native.callMethod(handle, 'hold', unwrapArgs([]));
-      native.connectSignal(handle, 'shutdown', () => finish(resolve, 0), false);
-      native.callMethod(handle, 'register', unwrapArgs([null]));
-      stopPump = startMainContextPump();
-      native.callMethod(handle, 'activate', unwrapArgs([]));
-    } catch (error) {
-      finish(reject, error);
-    }
-  });
 }
 
 // Wrap a live GObject handle as a GJS-shaped instance. When `userProto` is given
