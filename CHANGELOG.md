@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.15.0](https://github.com/gjsify/gjsify/compare/v0.14.0...v0.15.0) (2026-07-02)
+
+### Features
+
+* add @gjsify/adwaita-core headless seed ([#683](https://github.com/gjsify/gjsify/issues/683)) ([a867009](https://github.com/gjsify/gjsify/commit/a8670098e931a6362329e201131db4a7bae969a4))
+* **adwaita-core:** headless toast queue + dialog model ([#691](https://github.com/gjsify/gjsify/issues/691)) ([5eb7b23](https://github.com/gjsify/gjsify/commit/5eb7b23f0696709fd7296937d26e82ca01c77b7c))
+* **adwaita-web:** codemirror adw-source-view ([#692](https://github.com/gjsify/gjsify/issues/692)) ([28a62f2](https://github.com/gjsify/gjsify/commit/28a62f21bf145ffd0be1f9a1ed87c9e661282350))
+* **adwaita-web:** view-stack, switcher-bar, menu-button ([#690](https://github.com/gjsify/gjsify/issues/690)) ([8e261b5](https://github.com/gjsify/gjsify/commit/8e261b583c2ac10aa797adb3e2d8c94e7652e89b))
+* **cli:** content-hash per-package build cache ([#685](https://github.com/gjsify/gjsify/issues/685)) ([f651aaf](https://github.com/gjsify/gjsify/commit/f651aaf9d5a6fcd4a758488988f6e51ecac47072))
+* declare package tiers + audit enforcement ([#682](https://github.com/gjsify/gjsify/issues/682)) ([d5a98dd](https://github.com/gjsify/gjsify/commit/d5a98dd1696d966dede39195b9ef701c49e9794c))
+
+### Bug Fixes
+
+* **adwaita-storybook:** stop build leak into src ([#688](https://github.com/gjsify/gjsify/issues/688)) ([49cd8be](https://github.com/gjsify/gjsify/commit/49cd8bea47ae4813e09f90fca8d14252b1118ae8)), closes [#687](https://github.com/gjsify/gjsify/issues/687)
+* **adwaita-web:** stop build leaking into src, types to lib ([#687](https://github.com/gjsify/gjsify/issues/687)) ([1d90b75](https://github.com/gjsify/gjsify/commit/1d90b7568e763b9ef05c76c2900570c7dbf12b04))
+* **cli:** install lock + version-conflict warning ([#684](https://github.com/gjsify/gjsify/issues/684)) ([c04eba9](https://github.com/gjsify/gjsify/commit/c04eba9f1395565c2876cd5ae4798ada90c45ff6))
+
+### Documentation
+
+* add ADRs 0001-0008 + architecture backlog ([#679](https://github.com/gjsify/gjsify/issues/679)) ([f2d3988](https://github.com/gjsify/gjsify/commit/f2d3988c194a9db2c4039bf3815bb1331a7c557f))
+* record ADR 0007 outcome + fix 0008 recipe ([#686](https://github.com/gjsify/gjsify/issues/686)) ([a75e471](https://github.com/gjsify/gjsify/commit/a75e471140e56e7601fce0da0187ea63916136ef))
+* state the release-train versioning policy ([#681](https://github.com/gjsify/gjsify/issues/681)) ([67024bf](https://github.com/gjsify/gjsify/commit/67024bfa48fe6507ed941ba21c58b9563783248e)), closes [#432](https://github.com/gjsify/gjsify/issues/432)
+
+### Code Refactoring
+
+* **devtools-mcp:** lazy-load cdp profile ([#689](https://github.com/gjsify/gjsify/issues/689)) ([36649c4](https://github.com/gjsify/gjsify/commit/36649c4c7282b2f90f5df17b02986d6fa5380b21))
+
+### Tests
+
+* **e2e:** guard install non-destructiveness ([#680](https://github.com/gjsify/gjsify/issues/680)) ([6f2cd33](https://github.com/gjsify/gjsify/commit/6f2cd33f14446589ee3410edab8836e940a65170))
+
 ## [0.14.0](https://github.com/gjsify/gjsify/compare/v0.13.2...v0.14.0) (2026-06-29)
 
 ### Features

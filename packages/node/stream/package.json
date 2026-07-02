@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/stream",
-    "version": "0.14.0",
+    "version": "0.15.0",
     "description": "Node.js stream module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",
