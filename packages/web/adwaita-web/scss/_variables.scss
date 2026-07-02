@@ -37,6 +37,11 @@
   --accent-fg-color: #ffffff;
   --accent-color: #1c71d8;
 
+  // Popover (menus, dropdowns) — an elevated surface above the window.
+  --popover-bg-color: #ffffff;
+  --popover-fg-color: rgba(0, 0, 6, 0.8);
+  --popover-shade-color: rgba(0, 0, 6, 0.07);
+
   // Buttons
   --button-bg-color: rgba(0, 0, 6, 0.08);
   --button-hover-color: rgba(0, 0, 6, 0.13);

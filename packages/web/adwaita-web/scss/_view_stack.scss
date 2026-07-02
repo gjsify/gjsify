@@ -1,0 +1,29 @@
+// _view_stack.scss — adw-view-stack styling: a standalone named-page content
+// container that shows exactly one page at a time (the web counterpart of
+// Adw.ViewStack, decoupled from any switcher). It carries no chrome of its own —
+// a paired adw-view-switcher-bar (or a header-bar switcher) drives selection.
+// Reference: refs/libadwaita/src/adw-view-stack.c (AdwViewStack)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-view-stack {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    // vexpand-equivalent — fill the space a switcher shell allots to content.
+    flex: 1 1 auto;
+    min-height: 0;
+
+    // Exactly one child is shown; the rest are laid out of flow. `hidden` is set
+    // in JS too, but the class keeps the visible page a flex child that grows.
+    .adw-view-stack-child {
+        display: none;
+
+        &.active-view {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+    }
+}
