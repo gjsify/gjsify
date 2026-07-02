@@ -451,6 +451,7 @@ gjsify foreach --exec -- npm publish --tag latest  # arbitrary command
 | `--no-private` | — | Skip private workspaces. |
 | `-j`, `--jobs <n>` | cpu count | Max concurrent workspaces in `--parallel` mode. |
 | `--exec` | `false` | Treat `<script> [args..]` as an arbitrary command (use `-- <cmd>` to forward flags). |
+| `--cached` | `GJSIFY_BUILD_CACHE=1` | Content-hash build cache: skip workspaces whose inputs are unchanged and restore their stored outputs instead (script mode only). See [Build cache](#build-cache---cached). |
 | `-v`, `--verbose` | `false` | Echo every spawned command. |
 
 ## `gjsify workspace`
@@ -467,6 +468,28 @@ gjsify workspace @gjsify/fetch test:gjs
 | `<name>` | Workspace name (matches `package.json#name`). |
 | `<script>` | Script name to run. |
 | `[args..]` | Extra arguments forwarded to the script. |
+
+| Option | Default | Description |
+|---|---|---|
+| `-d`, `--with-dependencies` | `false` | First run the same script in every transitive workspace dependency (topological order); deps without the script are skipped. |
+| `--include-dev` | `false` | With `-d`, also walk `devDependencies`. |
+| `--continue-on-error` | `false` | With `-d`, keep running remaining deps after one fails. |
+| `--cached` | `GJSIFY_BUILD_CACHE=1` | Content-hash build cache — see [Build cache](#build-cache---cached). |
+| `-v`, `--verbose` | `false` | Echo every spawned command. |
+
+### Build cache (`--cached`)
+
+With `--cached` (or `GJSIFY_BUILD_CACHE=1`; explicit `--no-cached` wins), `gjsify foreach <script>` and `gjsify workspace <name> <script>` skip workspaces whose build inputs are unchanged and restore the previously stored outputs instead of re-running the script.
+
+```bash
+gjsify foreach build -tp --cached          # rebuild only what changed
+GJSIFY_BUILD_CACHE=1 gjsify run build      # opt in a whole root script chain
+```
+
+- **Key** — sha256 over the script name + forwarded args, a toolchain salt (the workspace-resolved `@gjsify/cli`, `@gjsify/tsc`, `rolldown` and `typescript` versions), the package's own input hash (`src/**`, `package.json`, root `tsconfig*.json` — real file contents, sorted) and the input hashes of its full transitive workspace-dependency closure. Editing a dependency re-runs every dependent.
+- **Storage** — `node_modules/.cache/gjsify/build/<pkg>/<key>/`, at most 2 keys per package (oldest evicted).
+- **Outputs** — only the conventional output dirs (`lib/`, `dist/`, `dist-templates/`) that the script *actually modified* are stored; a cache hit replaces exactly those dirs and nothing else. A package that does not define the script — or a committed, no-build `lib/` the script never touches — is never written to.
+- Script mode only (`--exec` is rejected); any cache error falls back to running the script uncached.
 
 ## `gjsify check`
 

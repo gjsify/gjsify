@@ -17,13 +17,9 @@
 
 import { spawn } from 'node:child_process';
 import type { Command } from '../types/index.js';
-import {
-    buildDependencyGraph,
-    discoverWorkspaces,
-    topologicalSort,
-    type Workspace,
-} from '@gjsify/workspace';
+import { buildDependencyGraph, discoverWorkspaces, topologicalSort, type Workspace } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
+import { BuildCacheRunner, buildCacheEnabledByEnv } from '../utils/build-cache.js';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 interface WorkspaceCmdOptions {
@@ -34,6 +30,7 @@ interface WorkspaceCmdOptions {
     'continue-on-error'?: boolean;
     'include-dev'?: boolean;
     verbose?: boolean;
+    cached?: boolean;
 }
 
 export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
@@ -61,7 +58,7 @@ export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
                 // `gjsify foreach` already spells it — kept as an alias so
                 // muscle memory transfers.
                 description:
-                    'Pre-build the target workspace\'s transitive workspace dependencies in topological order before running the script in the target. Deps that don\'t declare the script are skipped (--if-present behaviour). Replaces manual `gjsify workspace A build && gjsify workspace B build && …` chains.',
+                    "Pre-build the target workspace's transitive workspace dependencies in topological order before running the script in the target. Deps that don't declare the script are skipped (--if-present behaviour). Replaces manual `gjsify workspace A build && gjsify workspace B build && …` chains.",
                 type: 'boolean',
                 alias: ['d', 't', 'topological'],
                 default: false,
@@ -73,7 +70,8 @@ export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
                 default: false,
             })
             .option('continue-on-error', {
-                description: 'When --with-dependencies is set, keep running remaining deps after one fails (default: stop on first failure).',
+                description:
+                    'When --with-dependencies is set, keep running remaining deps after one fails (default: stop on first failure).',
                 type: 'boolean',
                 default: false,
             })
@@ -82,6 +80,11 @@ export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
                 type: 'boolean',
                 alias: 'v',
                 default: false,
+            })
+            .option('cached', {
+                description:
+                    'Content-hash build cache (ADR 0006): skip the script for a workspace whose inputs (src/**, package.json, tsconfig*.json, transitive workspace deps, toolchain versions) are unchanged and restore its stored outputs instead; on miss run it and store the output dirs it modified. Also applies to the deps run via --with-dependencies. Default from GJSIFY_BUILD_CACHE=1.',
+                type: 'boolean',
             }),
     handler: async (args) => {
         // Walk up to the monorepo root — `gjsify workspace` is often
@@ -122,6 +125,21 @@ export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
             runList = [target];
         }
 
+        // Content-hash build cache (ADR 0006 phase 1). Explicit --cached /
+        // --no-cached wins; GJSIFY_BUILD_CACHE=1 is the env default so root
+        // script chains opt in without editing every nested invocation. Keys
+        // are computed against ALL discovered workspaces.
+        const cached = args.cached ?? buildCacheEnabledByEnv();
+        const cache = cached
+            ? new BuildCacheRunner({
+                  root,
+                  workspaces: allWorkspaces,
+                  script: args.script,
+                  args: args.args ?? [],
+                  targets: runList.map((w) => w.name),
+              })
+            : undefined;
+
         const failures: { workspace: string; error: Error }[] = [];
         for (const ws of runList) {
             const scripts = (ws.manifest.scripts as Record<string, string> | undefined) ?? {};
@@ -129,12 +147,13 @@ export const workspaceCommand: Command<unknown, WorkspaceCmdOptions> = {
                 // Skip deps that don't declare the script — mirrors
                 // `gjsify foreach`'s --if-present behaviour. The target
                 // itself was validated above; this branch only filters
-                // intermediate deps.
+                // intermediate deps. A skipped package is also never touched
+                // by the build cache (the no-build-package safety rule).
                 if (verbose) console.error(`[${ws.name}] (no "${args.script}" script — skipping)`);
                 continue;
             }
             try {
-                await runOne(ws, args.script, args.args ?? [], runner, verbose);
+                await runOne(ws, args.script, args.args ?? [], runner, verbose, cache);
             } catch (err) {
                 const e = err instanceof Error ? err : new Error(String(err));
                 console.error(`[${ws.name}] ${e.message}`);
@@ -209,7 +228,14 @@ async function runOne(
     extraArgs: readonly string[],
     runner: 'yarn' | 'npm' | 'gjsify',
     verbose: boolean,
+    cache?: BuildCacheRunner,
 ): Promise<void> {
+    // Build-cache fast path: on a key hit restore the stored outputs and
+    // skip the script; on a miss snapshot the output dirs so only what the
+    // script MODIFIED is stored after success (never a committed no-build
+    // lib/ — see utils/build-cache.ts).
+    if (cache && cache.tryRestore(ws)) return;
+    const before = cache?.snapshotOutputs(ws);
     const argv =
         runner === 'gjsify'
             ? ['run', script, ...extraArgs]
@@ -236,6 +262,7 @@ async function runOne(
         });
         child.on('error', reject);
     });
+    if (cache && before) cache.storeAfterSuccess(ws, before);
 }
 
 function detectPackageManager(): 'yarn' | 'npm' | 'gjsify' {

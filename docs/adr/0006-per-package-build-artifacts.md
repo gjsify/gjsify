@@ -1,6 +1,6 @@
 # ADR 0006 — Per-package build cache; publish-time-only lib builds (spike)
 
-- **Status:** Accepted (2026-07-01) — phase 2 is a spike with an explicit decision point
+- **Status:** Accepted (2026-07-01) — phase 1 CLI feature implemented (2026-07-02: `--cached` on `gjsify workspace`/`foreach` + `GJSIFY_BUILD_CACHE=1`). **CI wiring DEFERRED**: enabling the cache on the `main.yml` build steps blew the `Build examples` step past its 45-min timeout on a cold cache (`--jobs 1` serial + per-package transitive-closure hashing recomputed from scratch per package = pathological at monorepo scale). The ADR permits leaving `main.yml` unchanged; CI re-enablement is gated on memoizing input hashes across a single `foreach` run (see Consequences / follow-up). phase 2 is a spike with an explicit decision point
 - **Scope:** CI `main.yml` build step, `gjsify build`/`workspace`/`foreach`, package `lib/` outputs
 
 ## Context

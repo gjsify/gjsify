@@ -57,8 +57,12 @@ runs:
     - name: Cache node_modules
       uses: actions/cache@v6
       with:
+        # The per-package build cache under node_modules/.cache/gjsify/build
+        # is persisted by the build job's own restore/save pair (main.yml,
+        # ADR 0006) — exclude it here so the two caches don't double-store.
         path: |
           node_modules
+          !node_modules/.cache/gjsify/build
           packages/*/*/node_modules
         key: node-modules-v1-${{ hashFiles('gjsify-lock.json') }}
         restore-keys: |
