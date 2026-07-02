@@ -14,10 +14,11 @@ consumer who bumps packages individually becomes a bug-report generator for
 combinations we never test.
 
 Related but distinct: `@girs/*` pinning. The historical need for exact pins (rc
-prerelease sorting above stable under semver ranges) is being fixed at the source by
+prerelease sorting above stable under semver ranges) was fixed at the source by
 ts-for-gir's version-scheme change (#432 — release-only versions, `libraryVersion`
-as a field); once consumers are on the new scheme, caret ranges on `@girs/*` become
-safe. Until then gjsify keeps exact `@girs/*` pins.
+as a field). That scheme is now published (`@girs/*` at `4.1.0`, plain semver),
+so caret ranges on `@girs/*` are safe and gjsify has relaxed its exact pins to
+`^4.1.0` (see Decision 4 — DONE).
 
 ## Decision
 
@@ -36,10 +37,15 @@ safe. Until then gjsify keeps exact `@girs/*` pins.
 3. **Documented where consumers look:** the workspace README, the website
    ("Versioning & compatibility" page), and the `create-app` template README get the
    two-sentence policy + the `gjsify upgrade --align` recipe.
-4. **`@girs/*`:** keep exact pins until the ts-for-gir release-only version scheme
+4. **`@girs/*`:** ~~keep exact pins until the ts-for-gir release-only version scheme
    (#432) has shipped and been verified against dedupe/caret behavior; then relax to
    caret in one dedicated PR (lockfile diff reviewed against the known churn
-   failure mode).
+   failure mode).~~ **DONE** — the release-only scheme is published (`@girs/*` at
+   `4.1.0`, `libraryVersion` field carrying the GNOME lib version). Every `@girs/*`
+   pin was relaxed to `^4.1.0` caret; the lockfile dedupes to one version per package
+   (the historical duplicate-`@girs/gobject-2.0` TS2345 failure mode is gone). The two
+   custom types not yet republished under the new scheme (`@girs/gwebgl-0.1`,
+   `@girs/gjsifywebrtc-0.1`, still `0.1.0-4.0.0-rc.5`) stay pinned until they migrate.
 5. **Optional peers** (e.g. `@nativescript/core`, `vite`) keep their own honest
    ranges — they are external and not on the train.
 
@@ -60,6 +66,7 @@ safe. Until then gjsify keeps exact `@girs/*` pins.
 
 ## Implementation
 
-1. Policy text: README + website page + create-app template (one docs PR).
-2. `@girs/*` caret relaxation PR gated on ts-for-gir #432 verification.
-3. Reference this ADR from the AGENTS.md release/publish section.
+1. ~~Policy text: README + website page + create-app template (one docs PR).~~ ✓
+2. ~~`@girs/*` caret relaxation PR gated on ts-for-gir #432 verification.~~ ✓ (scheme
+   published at `4.1.0`; exact pins → `^4.1.0`; lockfile dedupe verified).
+3. ~~Reference this ADR from the AGENTS.md release/publish section.~~ ✓

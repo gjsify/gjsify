@@ -12,8 +12,8 @@
     "test": "gjsify run build && rm -f /tmp/gio-cat-example.txt && echo ok > /tmp/gio-cat-example.txt && gjs -m dist/index.js /tmp/gio-cat-example.txt"
   },
   "devDependencies": {
-    "@girs/gio-2.0": "2.88.0-4.0.4",
-    "@girs/gjs": "4.0.4",
+    "@girs/gio-2.0": "^4.1.0",
+    "@girs/gjs": "^4.1.0",
     "@gjsify/cli": "workspace:^",
     "typescript": "^6.0.3"
   },

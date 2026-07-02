@@ -43,8 +43,8 @@
         "gettext-parser": "^9.0.2"
     },
     "peerDependencies": {
-        "rolldown": "^1.1.0",
-        "vite": "^8.0.16"
+        "rolldown": "^1.1.4",
+        "vite": "^8.1.3"
     },
     "peerDependenciesMeta": {
         "rolldown": {
@@ -58,7 +58,7 @@
         "@types/gettext-parser": "^9.0.0",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3",
-        "vite": "^8.0.16"
+        "vite": "^8.1.3"
     },
     "gjsify": {
         "tier": 1

@@ -20,8 +20,8 @@
         "@gjsify/websocket": "workspace:^"
     },
     "devDependencies": {
-        "@girs/gjs": "4.0.4",
-        "@girs/glib-2.0": "2.88.0-4.0.4",
+        "@girs/gjs": "^4.1.0",
+        "@girs/glib-2.0": "^4.1.0",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",

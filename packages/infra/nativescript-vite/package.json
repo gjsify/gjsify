@@ -46,7 +46,7 @@
         "@nativescript/core": "*",
         "@nativescript/vite": "*",
         "nativescript": "*",
-        "vite": "^8.0.16"
+        "vite": "^8.1.3"
     },
     "peerDependenciesMeta": {
         "@nativescript/canvas": {
@@ -71,7 +71,7 @@
     "devDependencies": {
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3",
-        "vite": "^8.0.16"
+        "vite": "^8.1.3"
     },
     "gjsify": {
         "tier": 2

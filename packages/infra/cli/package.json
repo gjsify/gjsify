@@ -138,7 +138,7 @@
         "cosmiconfig": "^9.0.2",
         "get-tsconfig": "^4.14.0",
         "pkg-types": "^2.3.1",
-        "rolldown": "^1.1.0",
+        "rolldown": "^1.1.4",
         "yargs": "^18.0.0"
     },
     "devDependencies": {
