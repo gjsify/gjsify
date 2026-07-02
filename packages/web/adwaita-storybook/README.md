@@ -52,6 +52,8 @@ mountStorybook(document.body, {
 
 `mountStorybook` builds the full chrome — a sidebar of stories grouped by category, a preview pane, and a controls panel that renders the story's `controls` as live-bound adwaita-web rows.
 
+The package entry is TypeScript (`src/index.ts`), consumed via a TypeScript-compiling build — `gjsify build --app browser` / the `gjsifyBrowser()` Vite preset (or any Vite/bundler setup), same as `@gjsify/adwaita-web`. Type declarations are shipped pre-built at `lib/types/index.d.ts`, so `gjsify tsc` consumers resolve the package's types without compiling its source.
+
 ## Driving it programmatically
 
 `mountStorybook` exposes a small control surface on `window.__storybook` (`listStories`, `openStory`, `getCurrentStory`, `setArg`, `getArgs`), so a host browser's MCP `eval_js` (see [`@gjsify/devtools-browser`](../../framework/devtools-browser)) can drive and screenshot stories without an in-page devtools channel.
