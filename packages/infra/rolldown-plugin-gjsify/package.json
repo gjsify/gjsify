@@ -64,7 +64,8 @@
         "acorn": "^8.17.0",
         "acorn-walk": "^8.3.5",
         "fast-glob": "^3.3.3",
-        "lightningcss": "^1.32.0"
+        "lightningcss": "^1.32.0",
+        "sass": "^1.101.0"
     },
     "peerDependencies": {
         "@gjsify/lightningcss-native": "workspace:^",
