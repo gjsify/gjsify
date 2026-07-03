@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.16.2](https://github.com/gjsify/gjsify/compare/v0.16.1...v0.16.2) (2026-07-03)
+
+### Features
+
+* unified CSS + HTML entry for --app browser ([#704](https://github.com/gjsify/gjsify/issues/704)) ([c785a72](https://github.com/gjsify/gjsify/commit/c785a72e4c926a69dab148371aee2b378eae245e))
+
+### Bug Fixes
+
+* restore docs deploy build ([#703](https://github.com/gjsify/gjsify/issues/703)) ([b942b51](https://github.com/gjsify/gjsify/commit/b942b51697303ba6c53fcccc30d0cbb06f83641d))
+
 ## [0.16.1](https://github.com/gjsify/gjsify/compare/v0.16.0...v0.16.1) (2026-07-03)
 
 ### Features
