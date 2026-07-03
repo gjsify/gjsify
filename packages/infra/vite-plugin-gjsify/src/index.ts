@@ -39,6 +39,7 @@ import {
     platformResolvePlugin,
     detectNativescriptPlatform,
     nativescriptPlatformDefines,
+    cssAsStringPlugin,
 } from '@gjsify/rolldown-plugin-gjsify';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
@@ -64,6 +65,23 @@ export interface GjsifyBrowserOptions {
      * is always excluded.
      */
     optimizeDepsExclude?: string[];
+    /**
+     * Resolve `.css` imports to their CSS **string** (default export) instead of
+     * routing them through Vite's native CSS pipeline (auto-injected `<link>` /
+     * HMR). OFF by default — a browser-native app wants Vite's pipeline.
+     *
+     * Turn this ON to UNIFY styling with the native (`--app gjs`) target, where
+     * CSS is authored in real `.css` files and consumed as a string
+     * (`import css from './x.css'` → `Gtk.CssProvider.load_from_string(css)`).
+     * With it on, `gjsify build --app browser` (which always applies
+     * css-as-string) and this Vite dev preset agree: `import css from './x.css'`
+     * yields the identical CSS string on BOTH, so a cross-platform app can share
+     * one authoring pattern (real `.css` file + import-as-string + a per-target
+     * apply step: `Gtk.CssProvider` on GJS, a `<style>` element on the browser).
+     * The app owns injection, mirroring how `@gjsify/adwaita-web` self-injects
+     * its skin. Trades away Vite CSS HMR / `<link>` extraction for that parity.
+     */
+    cssAsString?: boolean;
 }
 
 /**
@@ -133,6 +151,11 @@ export function gjsifyBrowser(options: GjsifyBrowserOptions = {}): Plugin[] {
         gjsImportsEmptyPlugin() as unknown as Plugin,
         blueprintPlugin(),
         deepkitPlugin({ reflection: options.reflection }) as unknown as Plugin,
+        // Opt-in: mirror `--app browser`'s css-as-string so `import css from
+        // './x.css'` yields the CSS string in dev too (unify with the native
+        // `--app gjs` target). `enforce: 'pre'` so this `load` fires before
+        // Vite's built-in CSS transform claims the `.css` id.
+        ...(options.cssAsString ? [{ ...(cssAsStringPlugin() as unknown as Plugin), enforce: 'pre' as const }] : []),
         configPlugin,
     ];
 }
