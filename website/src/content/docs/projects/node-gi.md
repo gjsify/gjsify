@@ -1,0 +1,69 @@
+---
+title: node-gi
+description: Run unchanged GJS / GObject-Introspection code on Node.js, Bun and Deno — the reverse bridge. One source builds and runs on GJS and every Node-API runtime.
+---
+
+[`@gjsify/node-gi`](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi) is the **reverse** of the rest of gjsify: instead of bringing Node/Web APIs to GJS, it brings **GObject-Introspection to Node.js, Bun and Deno**. The same unchanged `gi://` source builds and runs natively under GJS *and* on every Node-API runtime — no code changes.
+
+:::caution[Experimental — Tier 3]
+node-gi is **experimental** ([ADR 0005](https://github.com/gjsify/gjsify/blob/main/docs/adr/0005-node-gi-scope.md)). Its scope today is **CI, benchmarks and dev tooling — not production apps**. The API surface and behaviour may change between releases, and Tier 1/2 packages may not depend on it. Use it to run GJS code on Node/Bun/Deno for testing and tooling, not to ship a Node application.
+:::
+
+## One source, every runtime
+
+```
+gjsify build app.ts --app gjs    → gjs                  -m dist/app.gjs.mjs   (native gi://)
+gjsify build app.ts --app node   → node | bun | deno       dist/app.node.mjs  (@gjsify/node-gi)
+```
+
+The `gjsify` bundler keeps `gi://` imports native for the GJS target and rewrites them onto the node-gi runtime (`requireGi`) for the Node target. Because node-gi is a **Node-API** addon, the *same* `--app node` bundle runs on Node, Bun and Deno — Node-API is their common native ABI, so there is no separate `--app deno`/`--app bun` target and no separate binding to maintain.
+
+```ts
+// The same file for gjs, node, bun and deno.
+import GLib from 'gi://GLib?version=2.0';
+import Gio from 'gi://Gio?version=2.0';
+
+const action = new Gio.SimpleAction({ name: 'greet', enabled: true });
+action.connect('notify::enabled', () => print('changed'));
+action.set_enabled(false);
+
+const file = Gio.File.new_for_path('/usr/share');
+print(file.get_basename()); // "share"
+```
+
+## Runtimes
+
+The engine is one Node-API binary that loads on all four supported runtimes. `index.js` detects the runtime and prefers a shipped `prebuilds/<platform>-<arch>/` binary (Deno runs no postinstall build, so a prebuild is its only install path).
+
+| Capability | GJS | Node | Bun | Deno |
+|---|:--:|:--:|:--:|:--:|
+| introspection, marshalling, enums, variants | ✅ | ✅ | ✅ | ✅ |
+| GObject create / properties / signals | ✅ | ✅ | ✅ | ✅ |
+| `registerClass` / subclass / vfunc chain-up | ✅ | ✅ | ✅ | ✅ |
+| toggle-ref GC + cross-thread teardown | ✅ | ✅ | ✅ | ✅ |
+| GLib async (timeouts, GIO async, DBus) | ✅ | ✅ | ✅ | ✅ |
+| blocking `GLib.MainLoop.run()` / `runAsync()` | ✅ | ✅ | ✅ | ✅ |
+| GTK / Adwaita GUI apps | ✅ | ✅ | — | — |
+
+GJS is the reference implementation (native `gi://`). On Node the libuv↔GLib bridge keeps Node's own event loop alive during a blocking GLib loop; on Bun and Deno a portable GLib-iteration pump (`startMainContextPump`) co-pumps GLib from the runtime timer instead. Bun reaches full parity with Node on the core surface; Deno passes a curated conformance subset (a few marshalling / async edge cases are still being worked out).
+
+## How it works
+
+Two libuv-coupled subsystems are made portable so one binary spans all four runtimes:
+
+- **GC bridge** — the toggle-ref teardown drain uses a Node-API `napi_threadsafe_function` rather than a raw `uv_async_t` (Deno exports no libuv symbols; Bun does not yet implement `uv_async_init`).
+- **Main loop** — Node keeps the uv-nesting bridge that co-pumps its event loop during a blocking GLib loop; Bun/Deno iterate the default GLib context from a runtime timer, so GIO async callbacks / GLib timeouts / DBus fire while the runtime's own loop stays live.
+
+The native engine is vendored from [node-gtk](https://github.com/romgrk/node-gtk) (MIT, credits retained), ported to Node-API and retargeted to the modern GLib-integrated `girepository-2.0` API. GJS's own `gi/repo.cpp` is the reference for matching GJS semantics.
+
+## Cross-runtime testing
+
+The [example](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/example) is the capstone proof: several deterministic `gi://` sources each build `--app gjs` (native) and `--app node`, then run under GJS, Node, Bun and Deno with the harness asserting **byte-identical** output on every runtime (GJS as the reference). It runs in CI on Fedora across all four.
+
+## Getting started
+
+```bash
+npm install @gjsify/node-gi
+```
+
+Requires a C++ toolchain plus the GLib ≥ 2.80 / `girepository-2.0` development headers to build the native addon, and the target library typelibs installed at runtime (the same requirement as `gi://` under GJS). See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi#readme) for the full API and the Deno `--node-modules-dir=manual` note.

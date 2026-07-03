@@ -87,7 +87,10 @@ export default defineConfig({
                 },
                 {
                     label: 'Projects',
-                    items: [{ slug: 'projects/ts-for-gir' }],
+                    items: [
+                        { slug: 'projects/ts-for-gir' },
+                        { slug: 'projects/node-gi', badge: { text: 'Experimental', variant: 'caution' } },
+                    ],
                 },
                 {
                     label: 'Showcases',
