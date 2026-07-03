@@ -1070,8 +1070,85 @@ async function extractOne(
     }
     fs.rmSync(dest, { recursive: true, force: true });
     fs.mkdirSync(dest, { recursive: true });
-    await extractTarball(bytes, dest);
+    await extractWithStallGuard(bytes, dest, node, signal);
     return false;
+}
+
+/**
+ * Cap over `extractTarball`, which takes no AbortSignal and no timeout of its
+ * own. A single tarball extract completes in well under a second even for
+ * large packages; anything past `EXTRACT_STALL_MS` means the decompress/write
+ * wedged — the classic dropped Gio stream close-event under GJS, a
+ * never-settling await that nothing downstream can break. Unlike a network
+ * fetch (30s per-request budget in @gjsify/npm-registry), extraction has no
+ * self-healing path, so one stuck package used to hang the whole install at
+ * 0% CPU indefinitely. We race the extract against (a) a stall timer and (b)
+ * the overall-install abort signal, so a wedge surfaces as an actionable
+ * error and the install fails fast instead of hanging.
+ *
+ * Rejecting the race does not tear down the underlying (leaked) extract
+ * promise — the process exit that follows reclaims its resources. Override /
+ * disable the cap via `GJSIFY_EXTRACT_STALL_MS` (0 disables the timer; the
+ * signal race still applies).
+ */
+const EXTRACT_STALL_MS = ((): number => {
+    const raw = process.env.GJSIFY_EXTRACT_STALL_MS;
+    if (raw === undefined) return 120_000;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : 120_000;
+})();
+
+async function extractWithStallGuard(
+    bytes: Uint8Array,
+    dest: string,
+    node: ResolvedNode,
+    signal?: AbortSignal,
+): Promise<void> {
+    // Fast path: nothing to guard against (timer disabled + no signal).
+    if (EXTRACT_STALL_MS === 0 && !signal) {
+        await extractTarball(bytes, dest);
+        return;
+    }
+    let stallTimer: ReturnType<typeof setTimeout> | undefined;
+    let onAbort: (() => void) | undefined;
+    try {
+        await new Promise<void>((resolve, reject) => {
+            // Test seam (matches GJSIFY_INSTALL_FORCE_EXTRACT precedent): simulate
+            // an extract that never settles, so a suite can prove the stall timer
+            // + abort-signal race actually break the wedge. Never call
+            // extractTarball — leave the inner promise pending forever.
+            if (process.env.GJSIFY_TEST_HANG_EXTRACT !== '1') {
+                // extractTarball keeps running if we lose the race; its settlement
+                // (resolve or reject) is a no-op on the already-settled promise.
+                extractTarball(bytes, dest).then(() => resolve(), reject);
+            }
+            if (EXTRACT_STALL_MS > 0) {
+                stallTimer = setTimeout(() => {
+                    reject(
+                        new Error(
+                            `gjsify install: extract of ${node.name}@${node.version} stalled for ` +
+                                `${Math.round(EXTRACT_STALL_MS / 1000)}s (${node.installPath}) — the tarball ` +
+                                `decompress/write never completed. This is usually a dropped Gio stream event ` +
+                                `under GJS; re-run the install. Override the cap with GJSIFY_EXTRACT_STALL_MS=<ms> ` +
+                                `(0 disables it).`,
+                        ),
+                    );
+                }, EXTRACT_STALL_MS);
+                (stallTimer as { unref?: () => void }).unref?.();
+            }
+            if (signal) {
+                if (signal.aborted) {
+                    reject(abortError(signal));
+                    return;
+                }
+                onAbort = () => reject(abortError(signal));
+                signal.addEventListener('abort', onAbort, { once: true });
+            }
+        });
+    } finally {
+        if (stallTimer) clearTimeout(stallTimer);
+        if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+    }
 }
 
 /**

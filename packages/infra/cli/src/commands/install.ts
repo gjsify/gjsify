@@ -29,7 +29,8 @@
 // caches need no lock because their writes are atomic tmp+rename.
 
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
@@ -179,6 +180,14 @@ export const installCommand: Command<unknown, InstallOptions> = {
             return;
         }
 
+        // Surface a CLI/workspace version skew BEFORE the heavy install, so
+        // it's visible even if a later phase is slow. A gjsify CLI that is out
+        // of step with the @gjsify/cli the workspace pins is the root cause of
+        // both the mysterious install stall (a mismatched CLI resolves a
+        // differently-shaped lock → full fresh resolve → a wedge-prone extract)
+        // and silent-wrong-builds (the stale CLI builds with stale semantics).
+        warnOnCliVersionSkew(process.cwd());
+
         // Backend selection (in precedence order):
         //   1. --backend flag (explicit user choice)
         //   2. GJSIFY_INSTALL_BACKEND env (back-compat shape from pre-flag era)
@@ -191,17 +200,51 @@ export const installCommand: Command<unknown, InstallOptions> = {
             return;
         }
 
-        // Overall wall-clock budget for the install (default 5 min). On
-        // timeout we abort every in-flight registry fetch via this controller
-        // so the process exits cleanly with an actionable message instead of
-        // a silent hang. Per-request timeouts inside @gjsify/npm-registry
+        // Overall wall-clock budget for the install (default 30 min — big
+        // workspaces on slow networks legitimately take a while). On timeout
+        // we abort every in-flight registry fetch via this controller so a
+        // signal-aware await rejects and the process exits cleanly with an
+        // actionable message. Per-request timeouts inside @gjsify/npm-registry
         // (default 30s, retried) still apply within this budget.
+        //
+        // The abort only rescues awaits that OBSERVE the signal. Some awaits on
+        // the fresh-resolve path do not — most notably tarball extraction (a
+        // Gio-backed decompress whose stream close-event can be dropped under
+        // GJS) and the workspace symlink fs-pool — so an aborted controller
+        // alone cannot guarantee the process ever stops. `hardExitTimerId`
+        // below is the backstop: a grace period after the abort, if the install
+        // STILL hasn't returned, force a non-zero exit. This converts any
+        // residual never-settling await into a clean failure instead of a
+        // silent 0%-CPU hang (the observed "it never completed; I killed it"
+        // pathology). `extractOne` additionally caps each extract with its own
+        // stall timeout so the common case fails fast, long before this.
         const overallTimeoutMs = args.timeout > 0 ? args.timeout : 0;
         const overallController = overallTimeoutMs > 0 ? new AbortController() : null;
         const overallTimerId =
             overallController !== null
                 ? setTimeout(() => overallController.abort(new Error('install-overall-timeout')), overallTimeoutMs)
                 : null;
+        // Grace after the abort before we pull the plug. Long enough for a
+        // signal-aware reject to propagate through the catch (the clean path),
+        // short enough that a genuinely-wedged await doesn't hang for minutes.
+        const HARD_EXIT_GRACE_MS = 10_000;
+        const hardExitTimerId =
+            overallTimeoutMs > 0
+                ? setTimeout(() => {
+                      const secs = Math.round(overallTimeoutMs / 100) / 10;
+                      console.error(
+                          `gjsify install: still stuck ${Math.round(HARD_EXIT_GRACE_MS / 1000)}s after the ${secs}s ` +
+                              `budget elapsed and the in-flight aborts — forcing exit. A dependency's extract or ` +
+                              `link step wedged (typically a dropped Gio stream event under GJS). Re-run; if it ` +
+                              `persists, raise --timeout or file an issue.`,
+                      );
+                      forceExit(1);
+                  }, overallTimeoutMs + HARD_EXIT_GRACE_MS)
+                : null;
+        // Don't let the backstop timer keep an otherwise-finished process alive
+        // (Node keeps the loop up while a timer is armed). `unref` lets the
+        // process end the instant the install returns; `finally` clears it too.
+        (hardExitTimerId as { unref?: () => void } | null)?.unref?.();
         try {
             await projectInstallNative(args, overallController?.signal);
             await runPostInstallChecks();
@@ -209,7 +252,7 @@ export const installCommand: Command<unknown, InstallOptions> = {
             if (overallController !== null && overallController.signal.aborted && isAbortedFromOverallTimeout(err)) {
                 const secs = Math.round(overallTimeoutMs / 100) / 10;
                 console.error(
-                    `gjsify install: timed out after ${secs}s — likely a registry slowdown.\n` +
+                    `gjsify install: timed out after ${secs}s — likely a registry slowdown or a wedged extract.\n` +
                         `Re-run, or override with --timeout <ms> (set --timeout 0 to disable the overall budget).`,
                 );
                 process.exit(1);
@@ -217,6 +260,7 @@ export const installCommand: Command<unknown, InstallOptions> = {
             throw err;
         } finally {
             if (overallTimerId !== null) clearTimeout(overallTimerId);
+            if (hardExitTimerId !== null) clearTimeout(hardExitTimerId);
         }
     },
 };
@@ -239,6 +283,97 @@ function isAbortedFromOverallTimeout(err: unknown): boolean {
     // the overall budget but typically the symptom the overall timer reports.
     if (name === 'RegistryTimeoutError') return true;
     return false;
+}
+
+/**
+ * Force a non-zero process exit that is honored on BOTH runtimes.
+ *
+ * Node exits at natural shutdown once `process.exitCode` is set, but GJS has
+ * no atexit hook, so `imports.system.exit` is called directly there —
+ * SpiderMonkey raises its uncatchable exit exception from any context,
+ * including the `setTimeout` continuation the backstop timer runs in. Mirrors
+ * the entry wrapper (`index.ts`) and `setOxcExitCode` (`oxc-resolve.ts`).
+ */
+function forceExit(code: number): void {
+    process.exitCode = code;
+    const gjs = (globalThis as { imports?: { system?: { exit?: (c: number) => void } } }).imports;
+    if (gjs?.system?.exit) {
+        gjs.system.exit(code);
+        return;
+    }
+    process.exit(code);
+}
+
+const CLI_PACKAGE_NAME = '@gjsify/cli';
+
+/** Read a `version` from a package.json IFF its `name` is `@gjsify/cli`. */
+function readCliVersionFrom(pkgJsonPath: string): string | null {
+    try {
+        if (!existsSync(pkgJsonPath)) return null;
+        const pkg = JSON.parse(readFileSync(pkgJsonPath, 'utf-8')) as { name?: string; version?: string };
+        if (pkg.name === CLI_PACKAGE_NAME && typeof pkg.version === 'string') return pkg.version;
+    } catch {
+        /* unreadable / malformed — treat as unknown */
+    }
+    return null;
+}
+
+/**
+ * Version of the @gjsify/cli that is ACTUALLY running (this bundle / lib entry).
+ * Walks up from `import.meta.url` to the nearest `@gjsify/cli` package.json —
+ * same discovery as `self-update`'s `readCurrentVersion`.
+ */
+function readRunningCliVersion(): string | null {
+    try {
+        let dir = dirname(resolve(fileURLToPath(import.meta.url)));
+        for (let i = 0; i < 8 && dir !== dirname(dir); i++) {
+            const v = readCliVersionFrom(join(dir, 'package.json'));
+            if (v) return v;
+            dir = dirname(dir);
+        }
+    } catch {
+        /* not a recognizable layout (e.g. tests) */
+    }
+    return null;
+}
+
+/**
+ * Version of the @gjsify/cli the workspace at `cwd` pins/ships. Prefers the
+ * resolved install (`node_modules/@gjsify/cli`, a hoisted symlink in the
+ * gjsify monorepo or a real install in a consumer), falling back to the
+ * in-repo source so the check also fires on a fresh, not-yet-installed
+ * checkout of the gjsify monorepo itself.
+ */
+function readWorkspaceCliVersion(cwd: string): string | null {
+    return (
+        readCliVersionFrom(join(cwd, 'node_modules', CLI_PACKAGE_NAME, 'package.json')) ??
+        readCliVersionFrom(join(cwd, 'packages', 'infra', 'cli', 'package.json'))
+    );
+}
+
+/**
+ * Warn (never block) when the running gjsify CLI is a different version than
+ * the @gjsify/cli the workspace pins. Running a mismatched CLI is the root of
+ * two hard-to-diagnose failures documented on real sessions: install stalls (a
+ * mismatched CLI discards the lock → full fresh resolve → a wedge-prone
+ * extract) and silent-wrong-builds (stale CLI, stale bundle semantics). A
+ * single actionable line pointing at `gjsify self-update` beats both silently.
+ * Suppress with GJSIFY_NO_VERSION_SKEW_WARNING=1.
+ */
+function warnOnCliVersionSkew(cwd: string): void {
+    if (process.env.GJSIFY_NO_VERSION_SKEW_WARNING === '1') return;
+    const running = readRunningCliVersion();
+    const pinned = readWorkspaceCliVersion(cwd);
+    if (!running || !pinned || running === pinned) return;
+    console.warn(
+        `gjsify install: version skew — you are running @gjsify/cli v${running}, but this workspace pins ` +
+            `v${pinned}.\n` +
+            `  A mismatched CLI can stall the install (lock discarded → full re-resolve) or silently produce a ` +
+            `wrong build.\n` +
+            `  Align them: run \`gjsify self-update\` (global CLI) or use the workspace-local \`node_modules/.bin/` +
+            `gjsify\`.\n` +
+            `  Suppress this with GJSIFY_NO_VERSION_SKEW_WARNING=1.`,
+    );
 }
 
 function isWorkspaceRoot(cwd: string): boolean {
