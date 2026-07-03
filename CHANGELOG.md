@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.3](https://github.com/gjsify/gjsify/compare/v0.16.2...v0.16.3) (2026-07-03)
+
+### Bug Fixes
+
+* **cli:** stop double-run of in-process gjsify run scripts ([#705](https://github.com/gjsify/gjsify/issues/705)) ([5317340](https://github.com/gjsify/gjsify/commit/53173406902a66a0521c917910dceff1ad5b5de8))
+
 ## [0.16.2](https://github.com/gjsify/gjsify/compare/v0.16.1...v0.16.2) (2026-07-03)
 
 ### Features
