@@ -203,6 +203,15 @@ async function runScript(script: string, extraArgs: readonly string[]): Promise<
         // (e.g. a failing check that sets the code instead of exiting) —
         // a bare exit(0) here masked such failures as success.
         process.exit(process.exitCode != null ? Number(process.exitCode) : 0);
+        // `process.exit()` under GJS is NOT synchronous — with the GLib main
+        // loop armed (`ensureMainLoop`, e.g. by a bundle the in-process dispatch
+        // just ran) it defers the actual teardown, so execution CONTINUES past
+        // the call. Without this `return` the function falls through to the
+        // shell-spawn fallback below and runs the SAME command a SECOND time
+        // (the double-execution bug). Mirrors the file-mode path's `return`
+        // after `runGjsBundle`. Keep both — the return is the real guard, the
+        // exit sets the status code for when the loop finally unwinds.
+        return;
     }
 
     const fullCmd = extraArgs.length > 0 ? `${literal} ${extraArgs.map(shellEscape).join(' ')}` : literal;
