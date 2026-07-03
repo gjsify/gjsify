@@ -331,7 +331,10 @@ function nativescriptXmlnsBarrelsPlugin(): Plugin {
                 .map((barrel, i) => `import * as __gjsifyXmlnsBarrel${i} from ${JSON.stringify(barrel.spec)};`)
                 .join('\n');
             const registrations = barrels
-                .map((barrel, i) => `    global.registerModule(${JSON.stringify(barrel.name)}, () => __gjsifyXmlnsBarrel${i});`)
+                .map(
+                    (barrel, i) =>
+                        `    global.registerModule(${JSON.stringify(barrel.name)}, () => __gjsifyXmlnsBarrel${i});`,
+                )
                 .join('\n');
             const footer = [
                 '',

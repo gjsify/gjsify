@@ -228,11 +228,19 @@ export function cssAsStringPlugin(options: CssAsStringOptions = {}): Plugin {
     return {
         name: 'gjsify-css-as-string',
         load: {
-            filter: { id: /\.css$/ },
+            // Also match `.scss`/`.sass` — a Sass entry is compiled to flat CSS
+            // first (Sass already resolves its own `@use`/`@import`/partials and
+            // flattens nesting, so no further lightningcss lowering is needed).
+            filter: { id: /\.(css|s[ac]ss)$/ },
             async handler(id: string) {
-                const code = bundle
-                    ? new TextDecoder('utf-8').decode(await loadAndBundleCss(id, targets))
-                    : await readFile(id, 'utf8');
+                let code: string;
+                if (/\.s[ac]ss$/.test(id)) {
+                    code = await compileSass(id);
+                } else {
+                    code = bundle
+                        ? new TextDecoder('utf-8').decode(await loadAndBundleCss(id, targets))
+                        : await readFile(id, 'utf8');
+                }
                 return {
                     code: `export default ${JSON.stringify(code)};`,
                     moduleType: 'js' as const,
@@ -240,6 +248,33 @@ export function cssAsStringPlugin(options: CssAsStringOptions = {}): Plugin {
             },
         },
     };
+}
+
+// Local mirror of the `sass` surface we touch — narrow to keep the plugin's
+// typecheck independent of whether `sass`'s types are installed on a given
+// consumer (it is lazy-loaded, only when a `.scss`/`.sass` file is imported).
+interface SassSurface {
+    compile(path: string, options?: { style?: 'expanded' | 'compressed' }): { css: string };
+}
+
+let _sassPromise: Promise<SassSurface> | null = null;
+
+async function compileSass(filename: string): Promise<string> {
+    if (!_sassPromise) {
+        // Lazy + indirect specifier so `sass` is only resolved when a Sass file
+        // is actually imported (mirrors the lazy lightningcss backend). The
+        // `dart-sass` JS API is pure JS, so it loads under GJS + Node alike.
+        _sassPromise = import(/* @vite-ignore */ 'sass') as unknown as Promise<SassSurface>;
+    }
+    try {
+        const sass = await _sassPromise;
+        return sass.compile(filename, { style: 'expanded' }).css;
+    } catch (err) {
+        throw new Error(
+            `gjsify css-as-string: failed to compile Sass file ${filename}. ` +
+                `Is the \`sass\` package installed? (${(err as Error).message})`,
+        );
+    }
 }
 
 async function loadAndBundleCss(filename: string, targets: Targets | undefined): Promise<Uint8Array> {

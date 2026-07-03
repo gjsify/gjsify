@@ -12,11 +12,12 @@ import {
     detectNodeGiGlobals,
 } from '@gjsify/rolldown-plugin-gjsify/globals';
 import { pnpPlugin } from '@gjsify/rolldown-plugin-pnp';
-import { dirname, extname, join } from 'node:path';
+import { dirname, extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize-bundler-options.js';
 import { inputSourceDirs, isOutdirInsideSource, libraryOutputLeakError } from '../utils/library-output.js';
+import { detectHtmlEntry, parseHtmlEntry, emitBrowserHtml, htmlOutPathFor } from '../utils/html-entry.js';
 
 const DEFAULT_GJS_SHEBANG = '#!/usr/bin/env -S gjs -m';
 
@@ -275,6 +276,32 @@ export class BuildAction {
     }
 
     /**
+     * Post-bundle step for a `--app browser` HTML entry: write the processed
+     * `index.html` beside the JS bundle, with the entry `<script>`'s `src`
+     * rewritten to point at the built bundle. Mirrors `applyShebang` — kept in
+     * the CLI (not a Rolldown plugin) because the native rolldown engine
+     * exposes no `emitFile`.
+     */
+    private async applyBrowserHtml(
+        htmlEntry: { htmlSource: string; scriptTag: string; scriptSrc: string },
+        outfile: string,
+        verbose: boolean | undefined,
+    ): Promise<void> {
+        const jsOutPath = resolve(outfile);
+        const outHtmlPath = htmlOutPathFor(jsOutPath);
+        const html = emitBrowserHtml({
+            htmlSource: htmlEntry.htmlSource,
+            scriptTag: htmlEntry.scriptTag,
+            scriptSrc: htmlEntry.scriptSrc,
+            jsOutPath,
+            outHtmlPath,
+        });
+        await mkdir(dirname(outHtmlPath), { recursive: true });
+        await writeFile(outHtmlPath, html);
+        if (verbose) console.debug(`[gjsify] --app browser: wrote ${outHtmlPath}`);
+    }
+
+    /**
      * GJS plugin loader — bundle the resolved plugin module to a single
      * self-contained ESM file, then import that. Works around GJS's native
      * ESM loader not following `package.json#exports` subpath maps for bare
@@ -380,6 +407,24 @@ export class BuildAction {
 
         const userBundler = normalizeBundlerOptions(this.configData);
 
+        // --- `--app browser` HTML entry (Vite-style) ---
+        // When the entry is an `index.html`, bundle the module its
+        // `<script type="module" src>` references (rewrite `input` to that
+        // module so auto-globals detection + the bundle both see the real
+        // entry, NOT the html) and remember the page so a post-bundle step can
+        // emit a processed `index.html` next to the JS. Guarded on browser +
+        // an html input; every other build path is untouched.
+        let htmlEntry: { htmlSource: string; scriptTag: string; scriptSrc: string } | null = null;
+        if (app === 'browser') {
+            const htmlPath = detectHtmlEntry(userBundler.input);
+            if (htmlPath) {
+                const htmlSource = await readFile(htmlPath, 'utf-8');
+                const { moduleEntry, scriptTag, scriptSrc } = parseHtmlEntry(htmlPath, htmlSource);
+                userBundler.input = moduleEntry;
+                htmlEntry = { htmlSource, scriptTag, scriptSrc };
+            }
+        }
+
         const formatRaw =
             (userBundler.output?.format as 'esm' | 'cjs' | 'iife' | undefined) ??
             (userBundler.output?.file?.endsWith('.cjs') ? 'cjs' : 'esm');
@@ -400,6 +445,15 @@ export class BuildAction {
                 );
             }
             outfile = candidate;
+        }
+
+        // An html entry emits its `index.html` next to the JS bundle, so it
+        // needs a concrete outfile to anchor that sibling path.
+        if (htmlEntry && !outfile) {
+            throw new Error(
+                'gjsify build: an .html entry needs an explicit --outfile ' +
+                    '(e.g. --outfile dist-app/app.js); the emitted index.html is written beside it.',
+            );
         }
 
         const { consoleShim, globals } = this.configData;
@@ -579,6 +633,14 @@ export class BuildAction {
 
         if ((app === 'gjs' || app === 'node') && this.configData.shebang) {
             await this.applyShebang(app, outfile, verbose);
+        }
+
+        // Browser HTML entry: emit the processed `index.html` beside the bundle
+        // (engine-portable post-step — the native rolldown engine has no
+        // `emitFile`, so this can't live in a plugin). `outfile` is guaranteed
+        // present here (guarded above when `htmlEntry` is set).
+        if (app === 'browser' && htmlEntry && outfile) {
+            await this.applyBrowserHtml(htmlEntry, outfile, verbose);
         }
 
         return [writeResult];
