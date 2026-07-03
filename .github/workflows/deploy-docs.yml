@@ -12,6 +12,8 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  # Pull the private ci-fedora image from ghcr (same as main.yml / release.yml).
+  packages: read
 
 concurrency:
   group: pages
@@ -22,11 +24,15 @@ jobs:
     name: Build Documentation
     runs-on: ubuntu-latest
     container:
-      image: fedora:43
+      # Prebuilt CI image (`.docker/ci-fedora.Dockerfile`) baking gjs + the
+      # full GNOME devel stack AND `libatomic` — the same image main.yml /
+      # release.yml standardised on. `libatomic.so.1` is required by the
+      # Node >= 26 binary that actions/setup-node downloads; the bare
+      # `fedora:43` container lacked it, so the docs build died at
+      # `node: error while loading shared libraries: libatomic.so.1`.
+      # Using the image also skips the 3-5 min `dnf install` at job start.
+      image: ghcr.io/gjsify/ci-fedora:44
     steps:
-      - name: Install container prerequisites
-        run: dnf install -y git tar xz findutils gjs glib2-devel gobject-introspection-devel gtk4-devel libsoup3-devel libepoxy-devel gdk-pixbuf2-devel libadwaita-devel blueprint-compiler meson vala gcc pkgconf
-
       - name: Checkout repository
         uses: actions/checkout@v6
 
