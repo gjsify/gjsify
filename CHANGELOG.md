@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.16.1](https://github.com/gjsify/gjsify/compare/v0.16.0...v0.16.1) (2026-07-03)
+
+### Features
+
+* **node-gi:** run the GI engine on Bun and Deno ([#699](https://github.com/gjsify/gjsify/issues/699)) ([ca9aee8](https://github.com/gjsify/gjsify/commit/ca9aee88cf2b7395382fe92c3783d4735a554734)), closes [oven-sh/bun#18546](https://github.com/oven-sh/bun/issues/18546)
+
+### Bug Fixes
+
+* **cli:** pack files over .gitignore + tolerate [@font-face](https://github.com/font-face) url() ([#702](https://github.com/gjsify/gjsify/issues/702)) ([eec1a7d](https://github.com/gjsify/gjsify/commit/eec1a7dbe30256ee1ac60ff11b74c027070951b6)), closes [#470](https://github.com/gjsify/gjsify/issues/470)
+
+### Build System
+
+* **deps:** relax [@girs](https://github.com/girs) to caret + refresh deps ([#700](https://github.com/gjsify/gjsify/issues/700)) ([f4cbd97](https://github.com/gjsify/gjsify/commit/f4cbd979b5be40eb0a56f9bfc73e9fdeb17b266a))
+
+### Tests
+
+* **node-gi:** quad-runtime example on gjs/node/bun/deno ([#701](https://github.com/gjsify/gjsify/issues/701)) ([8ef1321](https://github.com/gjsify/gjsify/commit/8ef13211f79994429d2a0c8d2d8251cdc0c8c05f))
+
 ## [0.16.0](https://github.com/gjsify/gjsify/compare/v0.15.1...v0.16.0) (2026-07-02)
 
 ### Features
