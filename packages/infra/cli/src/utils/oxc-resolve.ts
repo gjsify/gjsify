@@ -50,12 +50,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 import type * as NodeFs from 'node:fs';
 import { join, resolve } from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import type { SpawnOptions } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { findWorkspaceRoot } from './workspace-root.js';
 import { resolveNpmPackage } from './resolve-npm-package.js';
+import { nodeBinary } from './run-node.js';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 export type OxcTool = 'oxlint' | 'oxfmt';
@@ -280,9 +281,12 @@ export async function shouldUseNativeOxfmt(): Promise<boolean> {
  * the full oxfmt CLI in-process (Node-free); otherwise the npm Node ESM
  * launcher is spawned. `GJSIFY_OXFMT=native|npm` overrides the pick.
  *
- * oxlint: always spawned via its Node ESM launcher with the current Node
- * executable (`process.execPath`) so the JS plugin host is available —
- * required for the `jsPlugins`-wired `gjsify/register-class-order` rule.
+ * oxlint: always spawned via its Node ESM launcher on a real Node host
+ * (`nodeBinary()`: `process.execPath` under Node, PATH `node` under the GJS
+ * bundle where `process.execPath` is the bundle itself) so the JS plugin host
+ * is available — required for the `jsPlugins`-wired `gjsify/register-class-order`
+ * rule. Under GJS a `node` on PATH is required (oxlint has no native bridge
+ * yet); its absence surfaces as a clear OxcNotFoundError, never a hang.
  *
  * Inherits stdio so the tool's own output (diagnostics, reformatted files,
  * summary lines) reaches the user.
@@ -308,16 +312,55 @@ export async function runOxc(tool: OxcTool, args: string[], opts: RunOxcOptions 
 }
 
 /**
- * Spawn an oxc tool via its Node ESM launcher (`node_modules/<tool>/bin/…`)
- * with the current Node executable.
+ * Spawn an oxc tool via its Node ESM launcher (`node_modules/<tool>/bin/…`) on
+ * a real Node host. CRITICAL: use `nodeBinary()`, not `process.execPath`
+ * directly — under the committed GJS bundle `process.execPath` is the CLI
+ * bundle path (`gjs`/the `.mjs`), so spawning it re-executes the CLI with the
+ * launcher as its first positional (yargs prints top-level help) and the parent
+ * hangs waiting on a child that never does the intended work. `nodeBinary()`
+ * resolves to PATH `node` under GJS, so the launcher runs on Node as required.
  */
 function spawnOxcLauncher(tool: OxcTool, args: string[], opts: RunOxcOptions = {}): Promise<number> {
     const cwd = opts.cwd ?? process.cwd();
     const launcher = findOxcLauncher(tool, cwd);
-    const node = process.execPath || 'node';
+    const node = nodeBinary();
 
     if (opts.verbose) {
         console.log(`[gjsify oxc] ${node} ${launcher} ${args.join(' ')}`);
+    }
+
+    // Under the GJS bundle the ASYNC spawn's exit/close event is never delivered
+    // back to JS: the child runs, streams its output, and exits (reaped, no
+    // zombie), but the `Gio.Subprocess` `wait_async` callback that emits
+    // `exit`/`close` does not fire, so the parent's await hangs at 0% CPU
+    // forever (the process sits in `SNl`). `spawnSync` uses the synchronous
+    // `communicate()` path instead — no async callback to lose — so it
+    // completes reliably. It blocks, which is exactly right for a CLI leaf
+    // command that just runs the tool to completion. On Node the async spawn is
+    // fine (and keeps the event loop free), so it is kept there.
+    if (isGjs()) {
+        // Capture stdout/stderr (`'inherit'` is not forwarded through the GJS
+        // spawnSync path — the tool's diagnostics would be silently lost), then
+        // re-emit them so oxlint/oxfmt's own output still reaches the user.
+        // maxBuffer generous: a full-workspace lint with many findings can emit
+        // well past the 1 MB Node default; overflow would truncate diagnostics.
+        const r = spawnSync(node, [launcher, ...args], {
+            stdio: ['inherit', 'pipe', 'pipe'],
+            cwd,
+            maxBuffer: 64 * 1024 * 1024,
+        });
+        if (r.error) {
+            const code = (r.error as NodeJS.ErrnoException).code;
+            if (code === 'ENOENT') return Promise.reject(new OxcNotFoundError(tool, cwd));
+            return Promise.reject(r.error);
+        }
+        if (r.stdout && r.stdout.length) process.stdout.write(r.stdout);
+        if (r.stderr && r.stderr.length) process.stderr.write(r.stderr);
+        if (r.signal) {
+            console.error(`[gjsify oxc] ${tool} terminated by signal ${r.signal}`);
+            return Promise.resolve(1);
+        }
+        return Promise.resolve(r.status ?? 0);
     }
 
     return new Promise((res, rej) => {
