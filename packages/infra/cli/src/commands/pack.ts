@@ -189,6 +189,16 @@ export async function packWorkspace(wsDir: string, opts: PackWorkspaceOptions = 
     // rewritten contents. We use the post-script `pkgAfterScripts` here so
     // that any `files` array modified by a prepack script is honored.
     const filesToPack = collectFiles(wsDir, pkgAfterScripts);
+
+    // Guard against the #655 class of bug: a `types`/`typings` declaration that
+    // physically exists in the workspace but is excluded from the tarball by the
+    // `files` allowlist. A mass-added `files: ["lib"]` (Phase D.7d, #179) silently
+    // stripped `@gjsify/vite-plugin-blueprint`'s `types/blueprint.d.ts` and
+    // `@gjsify/adwaita-fonts`' `index.d.ts` — the runtime entry still shipped, so
+    // the break was invisible until a TypeScript consumer hit TS2307 / implicit
+    // any. Enforce it at the exact point of packing so it can never recur.
+    assertTypeDeclarationsShipped(wsDir, pkgAfterScripts, filesToPack);
+
     const entries: TarWriteEntry[] = [{ name: 'package/', directory: true, mode: 0o755 }];
     const fileMetas: { path: string; size: number; mode: number }[] = [];
     let unpackedSize = 0;
@@ -284,6 +294,75 @@ function collectFiles(wsDir: string, pkg: Record<string, unknown>): string[] {
         if (existsSync(join(wsDir, f))) out.add(f);
     }
     return [...out].sort();
+}
+
+/**
+ * Collect every `types`/`typings` path a consumer's TypeScript would resolve for
+ * this package: the top-level `types`/`typings` fields plus every value under a
+ * `"types"` / `"typings"` CONDITION key anywhere in the `exports` tree. Values
+ * are returned normalized (leading `./` stripped). Wildcard subpath patterns
+ * (`./types/*`) are skipped — they can't be checked against concrete files.
+ *
+ * A subpath KEY named `./types` (as in `@gjsify/vite-plugin-blueprint`) is a
+ * subpath, not a condition — it's walked, and the `types` condition INSIDE it is
+ * what gets collected. Per Node's `exports` semantics a bare `types` key (no `.`
+ * prefix) is a condition, so treating it as one here is correct.
+ */
+export function collectTypeDeclarationRefs(pkg: Record<string, unknown>): string[] {
+    const out = new Set<string>();
+    const add = (v: unknown): void => {
+        if (typeof v !== 'string') return;
+        const normalized = v.replace(/^\.\//, '');
+        if (normalized.includes('*')) return;
+        out.add(normalized);
+    };
+    for (const field of ['types', 'typings']) add(pkg[field]);
+    const walk = (node: unknown): void => {
+        if (!node || typeof node !== 'object') return;
+        if (Array.isArray(node)) {
+            for (const e of node) walk(e);
+            return;
+        }
+        for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+            if (k === 'types' || k === 'typings') add(v);
+            else walk(v);
+        }
+    };
+    walk(pkg.exports);
+    return [...out];
+}
+
+/**
+ * Fail the pack if any `types`/`typings` declaration that physically exists in
+ * the workspace is excluded from the tarball. There is NO legitimate reason to
+ * reference a type file you don't ship — a consumer installing the package gets
+ * silently broken type resolution while the runtime entry keeps working.
+ *
+ * Deliberately only fires for a file that is PRESENT on disk yet absent from the
+ * packed set — the exact, unambiguous #655 mismatch. A `types` path that isn't
+ * built yet (absent on disk) is left to `tsc`/the build to catch, so an unbuilt
+ * dev tree doesn't produce a false positive.
+ */
+function assertTypeDeclarationsShipped(
+    wsDir: string,
+    pkg: Record<string, unknown>,
+    packed: readonly string[],
+): void {
+    const packedSet = new Set(packed);
+    const missing = collectTypeDeclarationRefs(pkg).filter((ref) => {
+        const full = join(wsDir, ref);
+        const onDisk = existsSync(full) && statSync(full).isFile();
+        return onDisk && !packedSet.has(ref);
+    });
+    if (missing.length === 0) return;
+    const name = typeof pkg.name === 'string' ? pkg.name : '(unnamed)';
+    const filesField = Array.isArray(pkg.files) ? JSON.stringify(pkg.files) : '(none)';
+    throw new Error(
+        `gjsify pack: ${name} references TypeScript declaration file(s) via "exports"/"types" ` +
+            `that exist on disk but are excluded from the tarball by the "files" allowlist (${filesField}):\n` +
+            missing.map((m) => `  - ${m}`).join('\n') +
+            `\nAdd the missing path(s) to package.json "files" so type resolution isn't silently broken for consumers.`,
+    );
 }
 
 const NEVER_INCLUDED_BASENAMES = new Set([
