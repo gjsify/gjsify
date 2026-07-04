@@ -16,7 +16,8 @@
         }
     },
     "files": [
-        "lib"
+        "lib",
+        "types"
     ],
     "scripts": {
         "clear": "rm -rf lib tsconfig.tsbuildinfo || exit 0",
