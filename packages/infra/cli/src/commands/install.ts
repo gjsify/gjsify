@@ -39,6 +39,7 @@ import { detectNativePackages } from '../utils/detect-native-packages.js';
 import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
 import { atomicWriteStrict } from '../utils/install-cache-fs.js';
 import { acquireInstallLock } from '../utils/install-lock.js';
+import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import {
     binDirOnPath,
     defaultGlobalLayout,
@@ -425,14 +426,25 @@ async function projectInstallNative(args: InstallOptions, signal?: AbortSignal):
         );
     }
 
-    // Workspace install (no args, root pkg.json has `workspaces`).
-    // Project-local `gjsify install <pkg>` inside a workspace child still
-    // goes through the single-package code path below (this branch only
-    // fires for the root no-args case, which is the `yarn install`
-    // equivalent).
-    if ((!args.packages || args.packages.length === 0) && isWorkspaceRoot(cwd)) {
-        await workspaceInstall(cwd, args, signal);
-        return;
+    // Workspace install (no args). Runs from the root, OR from any workspace
+    // child — npm/yarn/pnpm resolve the monorepo root when you `install`
+    // inside a member, so `findWorkspaceRoot` walks up from cwd (sanity-checked
+    // that cwd is actually one of that root's workspaces) and installs the whole
+    // workspace there. Without this, a child install treats the child as the
+    // root and tries to resolve its `workspace:`/sibling deps from the registry.
+    // Project-local `gjsify install <pkg>` inside a child still adds the dep to
+    // that child via the single-package path below (this branch is no-args only).
+    if (!args.packages || args.packages.length === 0) {
+        const wsRoot = isWorkspaceRoot(cwd) ? cwd : findWorkspaceRoot(cwd);
+        if (wsRoot) {
+            if (wsRoot !== cwd) {
+                console.log(
+                    `gjsify install: resolved workspace root ${wsRoot} (from ${cwd}); installing the workspace.`,
+                );
+            }
+            await workspaceInstall(wsRoot, args, signal);
+            return;
+        }
     }
 
     let specs: string[];

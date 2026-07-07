@@ -318,6 +318,34 @@ describe('gjsify install — workspace-aware (Phase D.3)', { timeout: 60_000 }, 
         );
     });
 
+    it('resolves the workspace root when run (no-args) from a child', async () => {
+        // npm/yarn/pnpm behaviour: `install` inside a workspace member installs
+        // the whole workspace from the root. Run from packages/core (a child) —
+        // it must walk up to the root, not treat the child as its own project
+        // (which would try to resolve the `workspace:` sibling from the registry).
+        const child = join(root, 'packages', 'core');
+        const r = await runCli(cliEntry, ['install', '--verbose'], { cwd: child, env: envForCli });
+        assert.equal(r.status, 0, `child install failed: ${r.stderr}\n${r.stdout}`);
+        // Announces the redirect to the resolved root.
+        assert.match(
+            r.stdout + r.stderr,
+            /resolved workspace root .* installing the workspace/i,
+            `expected a workspace-root redirect log, got: ${r.stdout}\n${r.stderr}`,
+        );
+        // Produces a ROOT-level install: external dep hoisted to root, lockfile at root.
+        assert.ok(existsSync(join(root, 'gjsify-lock.json')), 'root gjsify-lock.json missing after child install');
+        assert.ok(
+            existsSync(join(root, 'node_modules', 'lib-ext', 'package.json')),
+            'external dep must land at the ROOT node_modules after a child install',
+        );
+        // The child's workspace sibling resolves via the wired symlink (not a registry fetch).
+        const coreUtils = join(child, 'node_modules', '@scope', 'utils');
+        assert.ok(
+            existsSync(coreUtils) && lstatSync(coreUtils).isSymbolicLink(),
+            'child install must wire the workspace symlink to the sibling',
+        );
+    });
+
     it('refuses workspace: refs pointing at unknown workspaces', async () => {
         const orphanRoot = mkdtempSync(join(tmpdir(), 'gjsify-e2e-ws-orphan-'));
         try {
