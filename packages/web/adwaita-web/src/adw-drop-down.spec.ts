@@ -102,21 +102,26 @@ export const AdwDropDownTest = async () => {
     });
 
     await describe('adw-drop-down notify-on-change', async () => {
-        await it('fires notify::selected + change on a real change only', async () => {
+        await it('a programmatic set fires notify::selected but NOT change (DOM <select> semantics)', async () => {
             const dd = makeDropDown();
             dd.options = ['a', 'b', 'c'];
             let notifyCount = 0;
-            let lastChange: unknown = null;
+            let changeCount = 0;
             dd.addEventListener('notify::selected', () => notifyCount++);
-            dd.addEventListener('change', (e) => {
-                lastChange = (e as CustomEvent).detail;
-            });
+            dd.addEventListener('change', () => changeCount++);
+            // Programmatic `.selected`: notify::selected fires (GObject property-notify), but the
+            // user-facing DOM `change` must NOT — native `select.value = x` fires no `change` either.
             dd.selected = 2;
             expect(notifyCount).toBe(1);
-            expect(lastChange).toStrictEqual({ index: 2, value: 'c', label: 'c' });
-            // Re-selecting the same index must NOT fire again.
-            dd.selected = 2;
-            expect(notifyCount).toBe(1);
+            expect(changeCount).toBe(0);
+            // Programmatic `.selectedValue` is likewise silent on `change`.
+            dd.selectedValue = 'a';
+            expect(notifyCount).toBe(2);
+            expect(changeCount).toBe(0);
+            // Re-selecting the same value fires neither event again.
+            dd.selectedValue = 'a';
+            expect(notifyCount).toBe(2);
+            expect(changeCount).toBe(0);
             dd.remove();
         });
 
