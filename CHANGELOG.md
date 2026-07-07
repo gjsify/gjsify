@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.16.4](https://github.com/gjsify/gjsify/compare/v0.16.3...v0.16.4) (2026-07-07)
+
+### Bug Fixes
+
+* **adwaita-web:** adw-drop-down emits `change` on user action only ([2242388](https://github.com/gjsify/gjsify/commit/2242388ce311d11054ae2a44a3176f359729965d))
+* **cli:** resolve the workspace root when `gjsify install` runs in a child ([be026ed](https://github.com/gjsify/gjsify/commit/be026ede6632d12804c2c6a4b405f18ccad20bee))
+* **cli:** stop gjsify CLI hangs under GJS ([78ae677](https://github.com/gjsify/gjsify/commit/78ae67790eb48071daec14b6b05002097a60cced))
+* ship exports-referenced types in npm tarball ([#708](https://github.com/gjsify/gjsify/issues/708)) ([80c2648](https://github.com/gjsify/gjsify/commit/80c264829363665a028b2ba2268459389374287d)), closes [#179](https://github.com/gjsify/gjsify/issues/179)
+
+### Documentation
+
+* **website:** add node-gi project page (experimental) ([#706](https://github.com/gjsify/gjsify/issues/706)) ([378c61c](https://github.com/gjsify/gjsify/commit/378c61c3f37dcf8204a79261a667d8106bacabe3))
+
 ## [0.16.3](https://github.com/gjsify/gjsify/compare/v0.16.2...v0.16.3) (2026-07-03)
 
 ### Bug Fixes
