@@ -190,7 +190,7 @@ export class AdwDropDown extends HTMLElement {
             this._renderAll();
         } else if (name === 'selected') {
             const index = Number.parseInt(value ?? '', 10);
-            if (!Number.isNaN(index)) this._selectIndex(index);
+            if (!Number.isNaN(index)) this._selectIndex(index, { fromAttr: true });
         } else if (name === 'enable-search') {
             this._renderPopover();
         } else if (name === 'disabled') {
@@ -212,26 +212,33 @@ export class AdwDropDown extends HTMLElement {
         }
     }
 
-    private _selectIndex(index: number, fromAttr = false): void {
+    private _selectIndex(index: number, opts: { fromAttr?: boolean; fromUser?: boolean } = {}): void {
         if (!Number.isFinite(index) || index < 0 || index >= this._options.length) return;
         const changed = index !== this._selected;
         this._selected = index;
         this._updateLabel();
         this._updateSelectedStates();
         // Keep the attribute in sync without re-entering the guarded callback.
-        if (!fromAttr && this.getAttribute('selected') !== String(index)) {
+        if (!opts.fromAttr && this.getAttribute('selected') !== String(index)) {
             this.setAttribute('selected', String(index));
         }
-        // Notify only on an actual change (GObject notify semantics).
         if (changed) {
             const option = this._options[index];
+            // `notify::selected` mirrors GObject property-notify: it fires on EVERY change,
+            // programmatic included.
             this.dispatchEvent(new CustomEvent('notify::selected', { bubbles: true, detail: { selected: index } }));
-            this.dispatchEvent(
-                new CustomEvent('change', {
-                    bubbles: true,
-                    detail: { index, value: option?.value ?? '', label: option?.label ?? '' },
-                }),
-            );
+            // `change` mirrors the DOM <select> contract: it fires ONLY on a user-initiated change.
+            // A programmatic `.selected`/`.selectedValue`/`selected`-attribute assignment stays silent
+            // (just as native `select.value = x` fires no `change`), so consumers can set the value
+            // without guarding against a spurious user-style event.
+            if (opts.fromUser) {
+                this.dispatchEvent(
+                    new CustomEvent('change', {
+                        bubbles: true,
+                        detail: { index, value: option?.value ?? '', label: option?.label ?? '' },
+                    }),
+                );
+            }
         }
     }
 
@@ -302,7 +309,7 @@ export class AdwDropDown extends HTMLElement {
         const match = this._options.findIndex((o) => o.label.toLowerCase().startsWith(this._typeAheadBuffer));
         if (match < 0) return;
         if (this._active) this._itemButtons[match]?.focus();
-        else this._selectIndex(match);
+        else this._selectIndex(match, { fromUser: true });
     }
 
     /** Filter the visible items by a search query (case-insensitive substring). */
@@ -378,7 +385,7 @@ export class AdwDropDown extends HTMLElement {
 
             item.append(label, check);
             item.addEventListener('click', () => {
-                this._selectIndex(index);
+                this._selectIndex(index, { fromUser: true });
                 this._setActive(false);
                 this._buttonEl.focus();
             });
