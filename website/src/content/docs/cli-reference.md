@@ -405,8 +405,16 @@ npx @gjsify/cli run dist/index.js
 
 | Argument | Description |
 |---|---|
-| `<file>` | The GJS bundle to run |
-| `[args..]` | Extra arguments passed through to `gjs` |
+| `<target>` | A GJS bundle file to run, **or** a script name from the current `package.json` |
+| `[args..]` | Extra arguments passed through to the script / `gjs` |
+| `-w, --workspace <name>` | Run `<target>` as a script in the named workspace (by package name or path), like `npm run <script> -w <name>` |
+
+If `<target>` resolves to a file on disk (or has a path-like prefix), it is launched via `gjs`. Otherwise it is looked up in the current `package.json`'s `scripts` (yarn-run-style).
+
+```bash
+gjsify run start              # run the `start` script from ./package.json
+gjsify run build -w cli       # run the `build` script in the `cli` workspace
+```
 
 <details>
 <summary>Running without gjsify run</summary>

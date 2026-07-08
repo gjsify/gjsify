@@ -15,17 +15,19 @@
 // to disambiguate can pass `./<file>` explicitly.
 
 import { statSync } from 'node:fs';
-import { delimiter, join, resolve } from 'node:path';
+import { basename, delimiter, join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import type { Command } from '../types/index.js';
 import { runGjsBundle } from '../utils/run-gjs.js';
 import { readPackageJson } from '../utils/pkg-json-edit.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
+import { discoverWorkspaces } from '@gjsify/workspace';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 interface RunOptions {
     target: string;
     args: string[];
+    workspace?: string;
 }
 
 export const runCommand: Command<unknown, RunOptions> = {
@@ -45,6 +47,16 @@ export const runCommand: Command<unknown, RunOptions> = {
                 type: 'string',
                 array: true,
                 default: [],
+            })
+            .option('workspace', {
+                // npm/yarn-style `-w <name>`: run <target> as a SCRIPT in the
+                // named workspace instead of the current directory. The name
+                // matches the package.json `name`, the workspace-relative path
+                // (e.g. `cli`), or the directory basename — so both
+                // `-w eco-retrofit-cli` and `-w cli` resolve, matching npm.
+                alias: 'w',
+                type: 'string',
+                description: 'Run <target> as a script in the named workspace (by name or path), like `npm run <script> -w <name>`.',
             })
             .parserConfiguration({
                 // Preserve `--` as args['--'] so callers can write
@@ -74,6 +86,13 @@ export const runCommand: Command<unknown, RunOptions> = {
             (v): v is string => typeof v === 'string',
         );
         const extraArgs = [...positionalArgs, ...doubleDashArgs];
+
+        // `-w <name>` (npm/yarn parity): run <target> as a script in the named
+        // workspace's directory rather than the current one. Never file mode.
+        if (typeof args.workspace === 'string' && args.workspace.length > 0) {
+            await runScriptInWorkspace(args.workspace, target, extraArgs);
+            return;
+        }
 
         // Script lookup wins over file detection. Without this, a bare
         // `gjsify run build` would resolve to a file when a `./build`
@@ -112,6 +131,35 @@ function looksLikeFile(target: string): boolean {
 }
 
 /**
+ * Resolve a workspace by npm/yarn `--workspace` semantics — matching the
+ * package.json `name`, the workspace-relative path (`packages/infra/cli` or
+ * `cli`), or the directory basename — then run `script` in that workspace's
+ * directory. Mirrors `npm run <script> --workspace <name>`.
+ */
+async function runScriptInWorkspace(name: string, script: string, extraArgs: readonly string[]): Promise<void> {
+    const root = findWorkspaceRoot(process.cwd()) ?? process.cwd();
+    let workspaces;
+    try {
+        workspaces = discoverWorkspaces(root);
+    } catch (err) {
+        console.error(`gjsify run: could not read workspaces at ${root}: ${(err as Error).message}`);
+        return process.exit(1);
+    }
+    const ws = workspaces.find(
+        (w) => w.name === name || w.relativeLocation === name || basename(w.location) === name,
+    );
+    if (!ws) {
+        const available = workspaces.map((w) => w.relativeLocation).join(', ') || '<none>';
+        console.error(
+            `gjsify run: no workspace "${name}" under ${root} (available: ${available})`,
+        );
+        // `return process.exit` — a bare exit falls through under GJS (see runScript).
+        return process.exit(1);
+    }
+    await runScript(script, extraArgs, ws.location);
+}
+
+/**
  * Run a script declared in the current workspace's `package.json#scripts`.
  * Mirrors `yarn run <script>` semantics:
  *   - PATH prepended with `<workspace>/node_modules/.bin` AND the
@@ -121,20 +169,29 @@ function looksLikeFile(target: string): boolean {
  *   - executed through `shell: true` so `&&` / `|` / env-var refs work
  *     exactly as in package.json scripts (matches npm/yarn)
  */
-async function runScript(script: string, extraArgs: readonly string[]): Promise<void> {
-    const cwd = process.cwd();
+async function runScript(script: string, extraArgs: readonly string[], cwd: string = process.cwd()): Promise<void> {
     const pkgPath = join(cwd, 'package.json');
     const pkg = readPackageJson(pkgPath);
     if (!pkg) {
         console.error(`gjsify run: no package.json in ${cwd}`);
-        process.exit(1);
+        // `return process.exit` — under GJS `process.exit` cannot terminate
+        // synchronously (a parked GLib.MainLoop owns the thread): it SCHEDULES
+        // the exit and returns, so a bare call falls through. Here that reached
+        // `tokenizeSimpleCommand(literal)` with `literal === undefined` →
+        // `cannot access property "length"` → the throw raced the scheduled
+        // exit into a second `system.exit` → `m_should_exit assertion failed`
+        // → core dump. The `return` halts the handler so exactly one exit is
+        // scheduled (same discipline as commands/workspace.ts). No-op on Node.
+        return process.exit(1);
     }
     const scripts = (pkg.scripts as Record<string, string> | undefined) ?? {};
     const literal = scripts[script];
     if (typeof literal !== 'string') {
         const available = Object.keys(scripts).join(', ') || '<none>';
         console.error(`gjsify run: no script "${script}" in ${pkgPath} (available: ${available})`);
-        process.exit(1);
+        // See the `no package.json` branch above — a bare `process.exit` under
+        // GJS falls through to `tokenizeSimpleCommand(undefined)` and core-dumps.
+        return process.exit(1);
     }
 
     const monorepoRoot = findWorkspaceRoot(cwd);

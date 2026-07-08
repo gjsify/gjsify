@@ -256,4 +256,48 @@ describe('gjsify run (Phase D.5)', { timeout: 60_000 }, () => {
             );
         },
     );
+
+    // `-w <name>` / `--workspace <name>` (npm/yarn parity): run the target as a
+    // script in the named workspace's directory. Resolves by package name AND
+    // by workspace-relative path (so both `-w @test/app` and `-w packages/app`
+    // work, matching npm).
+    it('runs a script in a named workspace via -w (npm/yarn parity)', async () => {
+        const byName = await runCli(cliEntry, ['run', 'hello', '-w', '@test/app'], { cwd: root });
+        assert.equal(byName.status, 0, `by-name failed: ${byName.stderr}`);
+        assert.match(byName.stdout, /hello-from-script/);
+
+        const byPath = await runCli(cliEntry, ['run', 'hello', '--workspace', 'packages/app'], { cwd: root });
+        assert.equal(byPath.status, 0, `by-path failed: ${byPath.stderr}`);
+        assert.match(byPath.stdout, /hello-from-script/);
+    });
+
+    it('errors clearly for an unknown -w workspace', async () => {
+        const r = await runCli(cliEntry, ['run', 'hello', '-w', 'does-not-exist'], { cwd: root });
+        assert.notEqual(r.status, 0);
+        assert.match(r.stdout + r.stderr, /no workspace "does-not-exist"/);
+    });
+
+    // Regression (core-dump on a missing script under GJS): `runScript`'s error
+    // branches called a BARE `process.exit(1)`, which does NOT halt
+    // synchronously under GJS — execution fell through to
+    // `tokenizeSimpleCommand(undefined)` → `cannot access property "length"` →
+    // the throw raced the already-scheduled exit into a second `system.exit` →
+    // `m_should_exit assertion failed` → SIGABRT core dump. Assert a clean
+    // exit-1 with the helpful message instead. GJS-only (the fall-through is
+    // gated on the `isGjs()` in-process path); skipped without `gjs`.
+    it(
+        'exits cleanly (no core dump) when the script is missing (GJS)',
+        { skip: hasGjs() ? false : 'gjs not on PATH' },
+        async () => {
+            const bundle = new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url).pathname;
+            const r = await runGjs(bundle, ['run', 'no-such-script-xyz'], { cwd: wsDir });
+            assert.equal(
+                r.status,
+                1,
+                `expected a clean exit 1; got status=${r.status} (a crash yields null/134):\n${r.stderr}`,
+            );
+            assert.doesNotMatch(r.stderr, /m_should_exit|core dumped|access property "length"/);
+            assert.match(r.stdout + r.stderr, /no script "no-such-script-xyz"/);
+        },
+    );
 });
