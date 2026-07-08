@@ -56,7 +56,8 @@ export const runCommand: Command<unknown, RunOptions> = {
                 // `-w eco-retrofit-cli` and `-w cli` resolve, matching npm.
                 alias: 'w',
                 type: 'string',
-                description: 'Run <target> as a script in the named workspace (by name or path), like `npm run <script> -w <name>`.',
+                description:
+                    'Run <target> as a script in the named workspace (by name or path), like `npm run <script> -w <name>`.',
             })
             .parserConfiguration({
                 // Preserve `--` as args['--'] so callers can write
@@ -145,14 +146,10 @@ async function runScriptInWorkspace(name: string, script: string, extraArgs: rea
         console.error(`gjsify run: could not read workspaces at ${root}: ${(err as Error).message}`);
         return process.exit(1);
     }
-    const ws = workspaces.find(
-        (w) => w.name === name || w.relativeLocation === name || basename(w.location) === name,
-    );
+    const ws = workspaces.find((w) => w.name === name || w.relativeLocation === name || basename(w.location) === name);
     if (!ws) {
         const available = workspaces.map((w) => w.relativeLocation).join(', ') || '<none>';
-        console.error(
-            `gjsify run: no workspace "${name}" under ${root} (available: ${available})`,
-        );
+        console.error(`gjsify run: no workspace "${name}" under ${root} (available: ${available})`);
         // `return process.exit` — a bare exit falls through under GJS (see runScript).
         return process.exit(1);
     }
