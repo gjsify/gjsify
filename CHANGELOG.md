@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.5](https://github.com/gjsify/gjsify/compare/v0.16.4...v0.16.5) (2026-07-08)
+
+### Bug Fixes
+
+* CJS require('stream')/events interop ([2cb2ded](https://github.com/gjsify/gjsify/commit/2cb2dedfa5ec9630c248d82ce2a4c2b17b7998e7))
+* **cli:** stop run crash on missing script; add -w ([f46e105](https://github.com/gjsify/gjsify/commit/f46e105a9c717f01d283dcc5be82defec0ac6329))
+
 ## [0.16.4](https://github.com/gjsify/gjsify/compare/v0.16.3...v0.16.4) (2026-07-07)
 
 ### Bug Fixes
