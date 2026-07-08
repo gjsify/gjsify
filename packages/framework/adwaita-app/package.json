@@ -25,7 +25,9 @@
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
         "test:gjs": "gjsify run test.gjs.mjs",
-        "test:node": "node test.node.mjs"
+        "test:node": "node test.node.mjs",
+        "storybook": "gjsify storybook",
+        "storybook:build": "gjsify storybook --build-only --out dist/storybook.gjs.mjs"
     },
     "keywords": [
         "gjs",
@@ -48,6 +50,7 @@
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@gjsify/storybook": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
@@ -59,7 +62,13 @@
             "browser": "none",
             "nativescript": "none"
         },
-        "tier": 2
+        "tier": 2,
+        "storybook": {
+            "applicationId": "org.gjsify.AdwaitaAppStorybook",
+            "title": "Adwaita App",
+            "stories": "stories",
+            "globals": "auto"
+        }
     },
     "license": "MIT",
     "repository": {

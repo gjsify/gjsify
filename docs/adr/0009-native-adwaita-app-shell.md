@@ -1,6 +1,6 @@
 # ADR 0009 — Native Adwaita app shell: extract the GTK application shell
 
-- **Status:** Proposed (2026-07-08)
+- **Status:** Accepted (2026-07-08)
 - **Scope:** new `@gjsify/adwaita-app`; consumers `@gjsify/storybook` (opportunistic
   re-base), plus the two studio apps that motivated it (buchhaltung, eco-retrofit)
 

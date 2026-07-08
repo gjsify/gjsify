@@ -12,6 +12,8 @@ export type { NavShell, NavShellOptions } from './nav-shell.js';
 export { LoadToken, loadIntoStack } from './view-loader.js';
 export type { LoadIntoStackOptions } from './view-loader.js';
 
+export { LoadingStack } from './loading-stack.js';
+
 export { confirmDialog, errorDialog } from './dialogs.js';
 export type { ConfirmOptions } from './dialogs.js';
 

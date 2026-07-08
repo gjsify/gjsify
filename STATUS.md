@@ -40,7 +40,7 @@ The project comprises **41 Node.js modules** (+1 meta, +5 native bridges), **18 
 | DOM | 2 | 2 (dom-elements, canvas2d-core) | — | — |
 | Framework bridges | 6 | 6 (bridge-types, canvas2d, event-bridge, iframe, video, webgl) | — | — |
 | Framework storybook | 3 | 3 (stories, storybook, storybook-core) | — | — |
-| Framework app shell | 1 | 1 (adwaita-app) | — | — |
+| Framework app shell | 1 | 1 (adwaita-app — app base + nav shell + async mounter + `LoadingStack` widget + storybook) | — | — |
 | GJS Infrastructure | 3 | 3 (runtime, unit, utils) | — | — |
 | Build/Infra Tools | 16 | 16 | — | — |
 | Showcases | 8 | 8 | — | — |
