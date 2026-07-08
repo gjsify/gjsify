@@ -10,6 +10,11 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { Readable, Writable, Duplex, Transform, PassThrough } from 'node:stream';
 import { inherits } from 'node:util';
+// CJS fixture doing `class extends require('stream')` + `util.inherits(X, require('stream'))`
+// (and the same for `events`). Bundled into this suite, its module init crashes under
+// `--app gjs` if the `@gjsify/{stream,events}` `"module.exports"` string-export interop
+// regresses — so importing it at all is the guard.
+import cjsInterop from './cjs-interop.fixture.cjs';
 
 export default async () => {
     // -------------------------------------------------------------------------
@@ -363,6 +368,29 @@ export default async () => {
             expect(uc instanceof Transform).toBe(true);
             expect(uc instanceof Readable).toBe(true);
             expect(uc instanceof Writable).toBe(true);
+        });
+    });
+
+    // -------------------------------------------------------------------------
+    // CJS `require('stream')` / `require('events')` interop — the bundler
+    // `__toCommonJS` + `"module.exports"` string-export path (regression guard).
+    // -------------------------------------------------------------------------
+    await describe('CJS require() interop: class extends require("stream")/("events")', async () => {
+        await it('require("stream") yields the callable Stream constructor', async () => {
+            expect(typeof cjsInterop.Stream).toBe('function');
+            const s = new cjsInterop.ClassExtendsStream();
+            expect(s instanceof cjsInterop.ClassExtendsStream).toBe(true);
+        });
+
+        await it('require("events") yields the callable EventEmitter constructor', async () => {
+            expect(typeof cjsInterop.EventEmitter).toBe('function');
+            const e = new cjsInterop.ClassExtendsEmitter();
+            expect(e instanceof cjsInterop.ClassExtendsEmitter).toBe(true);
+        });
+
+        await it('util.inherits(X, require("stream")) produces a working subclass', async () => {
+            const i = new cjsInterop.InheritsStream();
+            expect(i instanceof cjsInterop.InheritsStream).toBe(true);
         });
     });
 };

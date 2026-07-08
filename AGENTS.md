@@ -453,16 +453,15 @@ npm pkgs cause GJS problems (legacy CJS, missing-globals-at-load, circular deps,
 
 ## CJS-ESM Interop (GJS)
 
-Problem: esbuild GJS (`esm`+`neutral`) wraps ESM with `__toCommonJS` → namespace object, not constructor. Breaks `util.inherits(Child, require('stream'))`.
+Problem: bundling `esm`+`neutral` wraps ESM with the `__toCommonJS` helper → namespace object, not constructor. A CJS `require('stream')` in a bundled npm dep (pngjs, mute-stream, `@hono/node-server`'s `send`, readable-stream, …) then does `class X extends require('stream')` / `util.inherits(X, require('stream'))` and aborts at load with `Stream is not a constructor` / `The "superCtor.prototype" property must not be undefined`.
 
-|**Fix 1 `__toCommonJS` patch (auto)**: `esbuild-plugin-gjsify/src/app/gjs.ts` `onEnd` unwraps ESM with only default export. No action needed.
-|**Fix 2 `cjs-compat.cjs` (manual)**: for pkgs with BOTH named+default exports where `require()` must return constructor. Symptoms: `super constructor to "inherits" must have prototype` / `X is not a function` / `X.call is not a function`. **Needed:** `stream`, `events`. **Not needed:** `buffer`, `util`, `http`, `path` (plain objects).
-```js
-// packages/node/<name>/cjs-compat.cjs
-const mod = require('./lib/esm/index.js');
-module.exports = mod.default || mod;
+|**Fix (current, active) — `"module.exports"` string-export**: for a pkg whose CJS `module.exports` must be a single callable (the Node-builtin dual shape — `stream`, `events`), add an ES2022 arbitrary-string export aliasing the callable default to the name `"module.exports"`:
+```ts
+// packages/node/<name>/src/index.ts — after `export default _default;`
+export { _default as 'module.exports' };
 ```
-Add `"require":"./cjs-compat.cjs"` to package.json `exports` BEFORE `"default"`.
+Rolldown's `__toCommonJS` helper special-cases a `"module.exports"` OWN-property on the module namespace (`__hasOwnProp.call(mod,"module.exports") ? mod["module.exports"] : <namespace>`) and returns it verbatim — so a bundled `require('<name>')` yields the callable constructor (matching Node's `module.exports = Stream`), while normal ESM named/default imports are untouched. Engine-agnostic (works under both `@gjsify/rolldown-native` and npm `rolldown`). **Applied to:** `stream`, `events`. Regression fixture: `packages/node/stream/src/cjs-interop.fixture.cjs` (a bundled CJS `class extends require('stream')`/`require('events')`, guarded by `inheritance.spec.ts`).
+|**Why the older fixes don't cover this under `--app gjs`:** the esbuild-era "Fix 1" (`__toCommonJS` `onEnd` output-unwrap) was NOT ported to the Rolldown engine. "Fix 2" (`cjs-compat.cjs` + `"require":"./cjs-compat.cjs"` before `"default"` in `exports`) still ships, but the `require` export condition is never selected: `app/gjs.ts` `setupForGjs` esm `conditionNames` = `['browser','import']` (omits `'require'` — comment there explains why), and Rolldown does not auto-map a `require`-call kind onto the `require` condition. So `cjs-compat.cjs` is dead weight for `--app gjs`; the `"module.exports"` export is what actually works. (`--app node`'s esm conditionNames DO include `require`, so its `require('stream')` picks `cjs-compat.cjs` there.)
 
 ## Native Extensions (Vala)
 

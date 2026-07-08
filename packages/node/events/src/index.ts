@@ -30,3 +30,12 @@ export const listenerCount = EventEmitter.listenerCount;
 export const addAbortListener = EventEmitter.addAbortListener;
 
 export default EventEmitter;
+
+// CJS-interop for bundled `require('events')`. Rolldown/esbuild's `__toCommonJS`
+// helper returns a `"module.exports"` own-property verbatim instead of the ESM
+// namespace, so exposing the callable EventEmitter under that string-export name
+// makes `require('events')` yield the constructor (Node's `module.exports =
+// EventEmitter`) — `class X extends require('events')` /
+// `util.inherits(X, require('events'))` work under `--app gjs`. See the matching
+// note in `@gjsify/stream`. ESM named/default imports are unaffected.
+export { EventEmitter as 'module.exports' };

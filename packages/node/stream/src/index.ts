@@ -98,3 +98,15 @@ const _default = Object.assign(Stream, {
 });
 
 export default _default;
+
+// CJS-interop for bundled `require('stream')`. The Rolldown/esbuild `__toCommonJS`
+// helper special-cases a `"module.exports"` own-property on the module namespace —
+// returning it verbatim instead of building the ESM namespace object. Exposing the
+// callable default under that string-export name makes a bundled CJS
+// `require('stream')` yield the Stream *constructor* (matching Node's
+// `module.exports = Stream`), so `class X extends require('stream')` /
+// `util.inherits(X, require('stream'))` work under `--app gjs`. Normal ESM named /
+// default imports are unaffected. This is the engine-agnostic replacement for the
+// esbuild-era `__toCommonJS` unwrap: the `require`-condition `cjs-compat.cjs` shim
+// can't be selected because `--app gjs`'s esm `conditionNames` omit `require`.
+export { _default as 'module.exports' };
