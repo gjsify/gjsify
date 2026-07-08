@@ -139,6 +139,10 @@ export default async (): Promise<void> => {
             let capturedConfig: Record<string, unknown> | undefined;
             const mockYargs = {
                 positional: () => mockYargs,
+                // `-w`/`--workspace` added an `.option()` link to the builder chain
+                // (run.ts) — the stub must expose it or the chain throws before
+                // reaching `.parserConfiguration()`.
+                option: () => mockYargs,
                 parserConfiguration: (cfg: Record<string, unknown>) => {
                     capturedConfig = cfg;
                     return mockYargs;
