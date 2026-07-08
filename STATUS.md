@@ -26,7 +26,7 @@
 ## Summary
 
 gjsify implements Node.js, Web Standard, and DOM APIs for GJS (GNOME JavaScript / SpiderMonkey 140).
-The project comprises **41 Node.js modules** (+1 meta, +5 native bridges), **18 Web API packages** (+1 meta, +1 native bridge, +3 Adwaita assets), **2 DOM packages**, **6 framework bridge packages**, **3 GJS infrastructure packages**, and **16 build/infra tools**.
+The project comprises **41 Node.js modules** (+1 meta, +5 native bridges), **18 Web API packages** (+1 meta, +1 native bridge, +3 Adwaita assets), **2 DOM packages**, **6 framework bridge packages** (+1 app-shell package), **3 GJS infrastructure packages**, and **16 build/infra tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
@@ -40,6 +40,7 @@ The project comprises **41 Node.js modules** (+1 meta, +5 native bridges), **18 
 | DOM | 2 | 2 (dom-elements, canvas2d-core) | — | — |
 | Framework bridges | 6 | 6 (bridge-types, canvas2d, event-bridge, iframe, video, webgl) | — | — |
 | Framework storybook | 3 | 3 (stories, storybook, storybook-core) | — | — |
+| Framework app shell | 1 | 1 (adwaita-app) | — | — |
 | GJS Infrastructure | 3 | 3 (runtime, unit, utils) | — | — |
 | Build/Infra Tools | 16 | 16 | — | — |
 | Showcases | 8 | 8 | — | — |
@@ -56,7 +57,7 @@ The project comprises **41 Node.js modules** (+1 meta, +5 native bridges), **18 
 Every published package declares its stability contract in `package.json#gjsify.tier` — **the source of truth**, verified by `scripts/audit-runtimes.mjs --check` in CI (tier presence + dependency direction: `dependencies`/`optionalDependencies` must point to the same or a lower tier — devDeps/optional peers are the sanctioned seams — and no Tier-1/2 package may hard-depend on `@gjsify/node-gi`). See [ADR 0003](docs/adr/0003-package-tiering.md) + [ADR 0005](docs/adr/0005-node-gi-scope.md).
 
 - **Tier 1 — core (99):** stability promise — full dual-runtime CI, root-cause governance, no known-broken releases. All `packages/node/*` (48, native bridges included), all `packages/web/*` except the `adwaita-*` packages (21), `packages/dom/*` (2), `packages/gjs/*` (3), the framework bridges `bridge-types`/`canvas2d`/`event-bridge`/`iframe`/`video`/`webgl` (6), and all `packages/infra/*` except `nativescript-vite` (19).
-- **Tier 2 — product (25):** best effort — tested, released on the train, but breaking changes may ship with a minor + changelog note. Design identity (`adwaita-web`, `adwaita-fonts`, `adwaita-icons`, `adwaita-core`, `adwaita-nativescript`), storybook (`stories`, `storybook-core`, `storybook`, `adwaita-storybook`, `storybook-nativescript`), devtools (`devtools`, `devtools-protocol`, `devtools-nativescript`, `devtools-mcp` — the MCP bridge; its Tier-3 CDP profile is a lazy-loaded optional peer, so its walked deps stay Tier ≤ 2), the NativeScript bridges (`native-platform`, `native-fs-bridge`), `nativescript-vite`, and the 8 published showcases (`@gjsify/example-*`).
+- **Tier 2 — product (26):** best effort — tested, released on the train, but breaking changes may ship with a minor + changelog note. Design identity (`adwaita-web`, `adwaita-fonts`, `adwaita-icons`, `adwaita-core`, `adwaita-nativescript`), storybook (`stories`, `storybook-core`, `storybook`, `adwaita-storybook`, `storybook-nativescript`), the native app shell (`adwaita-app`), devtools (`devtools`, `devtools-protocol`, `devtools-nativescript`, `devtools-mcp` — the MCP bridge; its Tier-3 CDP profile is a lazy-loaded optional peer, so its walked deps stay Tier ≤ 2), the NativeScript bridges (`native-platform`, `native-fs-bridge`), `nativescript-vite`, and the 8 published showcases (`@gjsify/example-*`).
 - **Tier 3 — experimental (3):** no promise; new axes start here. `@gjsify/node-gi` (ADR 0005), `devtools-browser`, and `devtools-cdp`.
 
 ---
@@ -940,6 +941,27 @@ gjsify trust @gjsify/adwaita-core             # configure Trusted Publisher
 ```
 
 Then strike this entry (precedent: the resolved `@gjsify/oxfmt-native` / `@gjsify/nativescript-vite` / `@gjsify/vite-plugin-gjsify` blockers below).
+
+### ⚠ BLOCKER before next release — first-publish + Trusted Publisher for `@gjsify/adwaita-app`
+
+`@gjsify/adwaita-app` (new in the ADR 0009 native-app-shell PR) does not exist on npm yet — same first-publish/Trusted-Publisher bootstrap requirement as `@gjsify/adwaita-core` above (unbootstrapped → the serialized `release.yml` `npm:publish` loop fails for every package alphabetically after it). Maintainer action:
+
+```bash
+gjsify workspace @gjsify/adwaita-app build
+cd packages/framework/adwaita-app
+gjsify publish --access public --otp <code>   # manual first publish (npm OTP)
+gjsify trust @gjsify/adwaita-app              # configure Trusted Publisher
+```
+
+Then strike this entry.
+
+### Follow-up — adopt `@gjsify/adwaita-app` in the shell consumers (ADR 0009)
+
+The package ships the native Adwaita app shell (runAsync lifecycle + devtools/CSS bootstrap, `createNavShell`, `loadIntoStack`/`LoadToken`, dialog/toast/file helpers, `readAppDevHooks`). Adoption is opportunistic, not a rewrite — wire each consumer onto it on its next shell touch, after the package is released:
+
+- `@gjsify/storybook` — re-base `StorybookApplication` onto `AdwaitaApp` / `runAdwaitaApp`.
+- buchhaltung (`app/src/frontends/desktop`) — replace its hand-rolled `application.ts` + nav split view + `views/util.ts` `loadIntoStack`/`LoadToken` + `toast.ts` + dialogs with the package (both currently consume the published `@gjsify/*`, so this follows the release train).
+- eco-retrofit (`cli/src/app`) — same; this also fixes its latent `Adw.Application.run(null)` → `runAsync()` hang class.
 
 ### Architecture backlog — ADRs 0001–0008 (accepted 2026-07-01)
 

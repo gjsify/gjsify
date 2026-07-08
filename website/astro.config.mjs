@@ -66,6 +66,7 @@ export default defineConfig({
                         { slug: 'guides/flatpak-app' },
                         { slug: 'guides/flatpak-cli-tool' },
                         { slug: 'guides/devtools' },
+                        { slug: 'guides/native-adwaita-app' },
                     ],
                 },
                 {
