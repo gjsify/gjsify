@@ -87,6 +87,22 @@ async function newestLockfileMtime(cwd: string): Promise<number> {
     return newest;
 }
 
+/**
+ * Fresh when the cached GJS bundle is newer than BOTH the source file AND the
+ * project's lockfile (the dep-change signal). Missing bundle/source → not fresh
+ * (rebuild). Shared by the plugin + config GJS-bundle caches.
+ */
+async function isBundleFresh(outfile: string, sourcePath: string, cwd: string): Promise<boolean> {
+    try {
+        const outStat = await stat(outfile);
+        const srcStat = await stat(sourcePath);
+        const depMtime = await newestLockfileMtime(cwd);
+        return outStat.mtimeMs >= Math.max(srcStat.mtimeMs, depMtime);
+    } catch {
+        return false;
+    }
+}
+
 export class BuildAction {
     constructor(readonly configData: ConfigData = {}) {}
 
@@ -326,76 +342,87 @@ export class BuildAction {
     }
 
     /**
-     * Bundle a single plugin entry for `--app gjs` to a cached temp file and
-     * return its path. Reuses the full `--app gjs` pipeline (exports-map-aware
-     * resolution, `node:`→`@gjsify` aliases, `--globals auto`, single-file
-     * output) via a nested `BuildAction`. The nested config carries no
-     * `bundler.plugins`, so it never recurses back into plugin resolution.
-     *
-     * Cached under `node_modules/.cache/gjsify/plugins/`, keyed by the resolved
-     * source path. Invalidated when the plugin entry OR the project lockfile is
-     * newer than the cached bundle — a dep bump rewrites the lockfile but not
-     * the plugin's own entry mtime. The one window neither mtime catches (a
-     * transitive dep edited in place) is covered by the `GJSIFY_NO_PLUGIN_CACHE=1`
-     * escape hatch. Failures are rethrown with context naming the plugin.
+     * Bundle a single plugin entry for GJS via {@link bundleFileForGjsCached} and
+     * return its path. Rethrows with context naming the plugin. (GJS's native ESM
+     * loader can't resolve a plugin's `package.json#exports` subpaths for a bare
+     * specifier; Rolldown resolves them at bundle time.)
      */
     private async bundlePluginForGjs(
         resolvedPath: string,
         pluginName: string,
         verbose: boolean | undefined,
     ): Promise<string> {
-        const cwd = process.cwd();
-        const cacheDir = join(cwd, 'node_modules', '.cache', 'gjsify', 'plugins');
-        const safeName = pluginName.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const outfile = join(cacheDir, `${safeName}-${shortHash(resolvedPath)}.mjs`);
-
-        const cacheDisabled = isTruthyEnv(process.env.GJSIFY_NO_PLUGIN_CACHE);
-        if (!cacheDisabled && (await this.isPluginBundleFresh(outfile, resolvedPath, cwd))) {
-            if (verbose) console.debug(`[gjsify] plugin "${pluginName}": reusing cached GJS bundle ${outfile}`);
-            return outfile;
-        }
-
-        if (verbose) console.debug(`[gjsify] plugin "${pluginName}": bundling for GJS → ${outfile}`);
-
         try {
-            await mkdir(cacheDir, { recursive: true });
-            // `--globals auto` stays on so the plugin's own runtime globals
-            // (the MDX/unified toolchain touches `document`, etc.) are injected
-            // — but that injection wraps the entry with `export * from <entry>`,
-            // which drops the `default` export the plugin factory lives on.
-            // `preserveDefaultExport` makes the wrapper re-export `default` too,
-            // so the bundled plugin imports correctly as a library.
-            // shebang is intentionally left unset — the artifact is imported,
-            // not executed, so it must NOT carry a `#!` line.
-            const pluginBuild = new BuildAction({
+            return await BuildAction.bundleFileForGjsCached(resolvedPath, {
+                cacheSubdir: 'plugins',
+                label: pluginName,
                 verbose,
-                bundler: { input: resolvedPath, output: { file: outfile } },
+                noCacheEnv: 'GJSIFY_NO_PLUGIN_CACHE',
             });
-            await pluginBuild.buildApp('gjs', { preserveDefaultExport: true });
         } catch (err) {
             throw new Error(
                 `gjsify config: failed to bundle plugin "${pluginName}" for GJS ` +
-                    `(needed because GJS can't import packages that use exports-map subpaths directly; ` +
-                    `cache dir ${cacheDir}). (${(err as Error).message})`,
+                    `(needed because GJS can't import packages that use exports-map subpaths directly). ` +
+                    `(${(err as Error).message})`,
             );
         }
-        return outfile;
     }
 
     /**
-     * Fresh when the cached bundle is newer than BOTH the plugin entry AND the
-     * project's lockfile (the dep-change signal). Missing bundle/source → not
-     * fresh (rebuild).
+     * Bundle a single ESM entry file to a self-contained `--app gjs` module and
+     * return its path — the shared "bundle one file for GJS" helper behind both
+     * the plugin loader (exports-map subpaths GJS can't resolve for a bare
+     * specifier) and the config loader (`node:`/npm imports GJS can't resolve for
+     * an external ESM file). Reuses the full `--app gjs` pipeline (exports-map-aware
+     * resolution, `node:`→`@gjsify` aliases, `gi://` externalized, `--globals auto`,
+     * single-file output).
+     *
+     * The nested `BuildAction` is constructed with EXPLICIT bundler options, so
+     * `buildApp` uses that configData directly and never re-enters `Config.load`
+     * — no recursion, even when the input is the very `gjsify.config.js` being
+     * loaded. `preserveDefaultExport` re-exports `default` through the side-effect
+     * entry wrapper so the file imports as a library; shebang stays unset (the
+     * artifact is imported, not executed).
+     *
+     * Cached under `node_modules/.cache/gjsify/<cacheSubdir>/`, keyed by the source
+     * path. Invalidated when the source OR the project lockfile is newer than the
+     * cached bundle (a dep bump rewrites the lockfile but not the source mtime).
+     * `<noCacheEnv>=1` forces a rebuild (covers the residual window: a transitive
+     * dep edited in place, touching neither the source nor a lockfile).
      */
-    private async isPluginBundleFresh(outfile: string, resolvedPath: string, cwd: string): Promise<boolean> {
-        try {
-            const outStat = await stat(outfile);
-            const srcStat = await stat(resolvedPath);
-            const depMtime = await newestLockfileMtime(cwd);
-            return outStat.mtimeMs >= Math.max(srcStat.mtimeMs, depMtime);
-        } catch {
-            return false;
+    static async bundleFileForGjsCached(
+        inputPath: string,
+        opts: {
+            cacheSubdir: string;
+            label: string;
+            verbose?: boolean;
+            noCacheEnv?: string;
+            /** Extra compile-time `define`s (e.g. rewrite the entry's `import.meta.url`). */
+            define?: Record<string, string>;
+        },
+    ): Promise<string> {
+        const cwd = process.cwd();
+        const cacheDir = join(cwd, 'node_modules', '.cache', 'gjsify', opts.cacheSubdir);
+        const safeName = opts.label.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const outfile = join(cacheDir, `${safeName}-${shortHash(inputPath)}.mjs`);
+
+        const cacheDisabled = opts.noCacheEnv ? isTruthyEnv(process.env[opts.noCacheEnv]) : false;
+        if (!cacheDisabled && (await isBundleFresh(outfile, inputPath, cwd))) {
+            if (opts.verbose) console.debug(`[gjsify] reusing cached GJS bundle ${outfile}`);
+            return outfile;
         }
+
+        if (opts.verbose) console.debug(`[gjsify] bundling ${inputPath} for GJS → ${outfile}`);
+        await mkdir(cacheDir, { recursive: true });
+        await new BuildAction({
+            verbose: opts.verbose,
+            bundler: {
+                input: inputPath,
+                output: { file: outfile },
+                ...(opts.define ? { transform: { define: opts.define } } : {}),
+            },
+        }).buildApp('gjs', { preserveDefaultExport: true });
+        return outfile;
     }
 
     /** Application mode */
