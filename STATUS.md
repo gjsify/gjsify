@@ -950,6 +950,12 @@ The package ships the native Adwaita app shell (runAsync lifecycle + devtools/CS
 - buchhaltung (`app/src/frontends/desktop`) — replace its hand-rolled `application.ts` + nav split view + `views/util.ts` `loadIntoStack`/`LoadToken` + `toast.ts` + dialogs with the package (both currently consume the published `@gjsify/*`, so this follows the release train).
 - eco-retrofit (`cli/src/app`) — same; this also fixes its latent `Adw.Application.run(null)` → `runAsync()` hang class.
 
+### Follow-up — css-as-string bare-`@import` resolution (GJS CLI) + stale maker bundle
+
+`@gjsify/devtools` exports `org.gjsify.Devtools` correctly in every app config — verified rigorously (real child object + interface present + `GetStatus` call) under `HANDLES_COMMAND_LINE` + an app-owned sibling object exported first, guarded by `tests/e2e/devtools-export`. The PixelRPG maker's "devtools absent" symptom was a STALE app bundle: `apps/maker-gjs/src/application.ts` calls `installDevtools(this)`, but the committed `apps/maker-gjs/org.pixelrpg.maker` predated that line (its `onStartup` goes `initControlInterface()` → `cleanupOrphanedPublishers()` with no devtools call; @gjsify/devtools code survives tree-shaking there only via the storybook's own `installDevtools`). `installDevtools` now logs a `[gjsify-devtools] exported …` confirmation so "did devtools come up?" is answerable from the app's stderr (its absence is the diagnostic).
+
+Deferred blocker (why the stale bundle got committed): the maker fails to rebuild under the **global GJS CLI** — `gjsify-css-as-string` throws on `apps/maker-gjs/src/application.css`'s bare `@import "@pixelrpg/gjs/index.css"` because lightningcss `bundleAsync` has no resolver for a bare node_modules package specifier in `@import`. It builds under the **Node CLI** (`npx gjsify`, the maker's documented build path), so this is a GJS-CLI-vs-Node-CLI css-resolution gap. Fix at the core: give the css-as-string plugin's lightningcss config a resolver for bare `@import` specifiers (mirroring the JS resolver) so `--app gjs` builds match the Node CLI; then rebuild + recommit the maker bundle (map-editor repo) so the devtools call actually ships.
+
 ### Architecture backlog — ADRs 0001–0008 (accepted 2026-07-01)
 
 Decisions in [docs/adr/](docs/adr/README.md), prioritized backlog + rationale in [docs/reports/2026-07-01-architecture-review.md](docs/reports/2026-07-01-architecture-review.md). Remaining work (strike per-item as it lands; delete this entry when all ADRs are implemented or superseded):

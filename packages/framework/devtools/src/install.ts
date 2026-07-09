@@ -3,6 +3,7 @@
 
 import GLib from '@girs/glib-2.0';
 import type Gtk from '@girs/gtk-4.0';
+import { DEVTOOLS_INTERFACE } from '@gjsify/devtools-protocol';
 import { DevtoolsService } from './devtools-service.js';
 import type { InstallDevtoolsOptions } from './extension.js';
 
@@ -48,7 +49,19 @@ export function installDevtools(app: Gtk.Application, options: InstallDevtoolsOp
     const connection = app.get_dbus_connection();
     const basePath = app.get_dbus_object_path();
     if (connection && basePath) {
-        service.export(connection, `${basePath}/devtools`);
+        const objectPath = `${basePath}/devtools`;
+        service.export(connection, objectPath);
+        // Confirm the export so "did devtools actually come up?" is answerable
+        // from the app's own stderr. installDevtools only reaches here when
+        // devtools is ENABLED (gate passed / opts.enabled), so this line only
+        // appears when the operator explicitly turned devtools on — exactly when
+        // they want the confirmation. Its ABSENCE is the diagnostic: no line ⇒
+        // installDevtools was never called (e.g. a stale app bundle) or the gate
+        // was off — as opposed to the previous silence, where a present-but-not-
+        // exported object was indistinguishable from a not-installed one.
+        console.log(
+            `[gjsify-devtools] exported ${DEVTOOLS_INTERFACE} at ${objectPath} (dest ${app.get_application_id() ?? '?'})`,
+        );
     } else {
         console.error(
             '[gjsify-devtools] no session-bus connection yet — call installDevtools() from the GtkApplication "startup" handler',
