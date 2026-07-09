@@ -12,12 +12,15 @@
 //
 // — the canonical pattern for `Gtk.CssProvider` under GJS.
 //
-// `@import` resolution + nesting/modern-syntax lowering are handled via
-// lightningcss `bundleAsync`. The defaults work for the common case
-// (resolve `@import`s, no targeting); the `--app gjs` orchestrator passes
-// `targets: { firefox: 60 << 16 }` so nesting + modern selectors get
-// flattened to GTK4-CSS-engine-compatible output. Targeting is opt-in —
-// a missing `targets` keeps the source pristine.
+// `@import` resolution + nesting/modern-syntax lowering. On the npm backend
+// both happen in one lightningcss `bundleAsync` call. On the native backend
+// `@import`s are resolved + inlined in JS first (`flattenCssImports`, so bare
+// node_modules specifiers work — the native `bundle()` FileProvider can't walk
+// node_modules), then the flattened CSS goes through the native `transform()`
+// for lowering. Both use the same `cssBundleResolver`. The `--app gjs`
+// orchestrator passes `targets: { firefox: 60 << 16 }` so nesting + modern
+// selectors get flattened to GTK4-CSS-engine-compatible output. Targeting is
+// opt-in — a missing `targets` keeps the source pristine.
 //
 // Backend selection (Phase D-2 decision matrix in
 // `docs/poc/lightningcss-decision.md`):
@@ -93,12 +96,12 @@ async function pickBundler(): Promise<Bundler> {
 // whether the prebuild package is installed.
 interface NativeLightningcssSurface {
     hasNativeLightningcss(): boolean;
-    bundle(input: {
-        filename: string;
+    transform(input: {
+        filename?: string;
+        code: Uint8Array | string;
         targets?: string;
         minify?: boolean;
         sourceMap?: boolean;
-        errorRecovery?: boolean;
     }): { code: Uint8Array; map?: Uint8Array };
 }
 
@@ -123,18 +126,38 @@ async function tryLoadNativeBundler(): Promise<Bundler | null> {
         const mod = (await import(/* @vite-ignore */ pathToFileURL(resolved).href)) as NativeLightningcssSurface;
         if (!mod.hasNativeLightningcss()) return null;
         return async (filename, targets) => {
-            // The native shim accepts a browserslist string; the npm
-            // `lightningcss` Targets struct is bitfield-encoded
-            // (`firefox: 60 << 16` etc). Convert by extracting major
-            // version per browser key and re-emitting as the equivalent
-            // browserslist query.
+            // The native `@gjsify/lightningcss-native` `bundle()` resolves
+            // `@import` chains through lightningcss's filesystem-backed
+            // FileProvider, which walks relative + absolute paths but NOT
+            // bare node_modules specifiers (`@import "@scope/pkg/x.css"`) —
+            // a JS resolver callback can't cross the GI/Rust boundary. So we
+            // do `@import` resolution in JS first, using the SAME
+            // `cssBundleResolver` the npm `bundleAsync` path uses (npm-package
+            // + `exports`-map aware), and hand the fully-flattened CSS to the
+            // native `transform()` for the GTK4 nesting/modern-syntax lowering
+            // (`targets`). The native shim accepts a browserslist string; the
+            // npm `lightningcss` Targets struct is bitfield-encoded
+            // (`firefox: 60 << 16` etc), so convert per browser key.
+            let flattened: string;
+            try {
+                flattened = await flattenCssImports(filename);
+            } catch (err) {
+                // The native rolldown engine flattens a thrown plugin error to
+                // a generic "plugin `gjsify-css-as-string` threw an error"
+                // diagnostic — the JS message is lost across the GI boundary.
+                // Surface the actionable reason (which file, which @import) on
+                // stderr before re-throwing so a bad/missing @import is not an
+                // opaque build failure.
+                console.error(`[gjsify-css-as-string] ${(err as Error).message}`);
+                throw err;
+            }
             const query = targetsToBrowserslist(targets);
-            return mod.bundle({
+            return mod.transform({
                 filename,
+                code: flattened,
                 targets: query,
                 minify: false,
                 sourceMap: false,
-                errorRecovery: true,
             });
         };
     } catch {
@@ -202,12 +225,92 @@ const cssBundleResolver = {
             // leave it verbatim so lightningcss keeps the `@font-face` /
             // `url()` rule intact (the consumer serves the asset) instead of
             // crashing the build. A genuine unresolvable CSS `@import`
-            // re-throws so the missing dependency still surfaces clearly.
+            // re-throws with actionable context so the missing dependency
+            // surfaces clearly on both backends (npm and native).
             if (isAssetReference(specifier)) return specifier;
-            throw err;
+            throw new Error(
+                `cannot resolve @import "${specifier}" from ${from} (${(err as Error).message}). ` +
+                    'If it is a workspace/npm package, ensure it is installed and exposes the CSS ' +
+                    'file via its package.json "exports".',
+            );
         }
     },
 };
+
+// Matches a CSS `@import` at-rule and captures the specifier + any trailing
+// condition tokens (media query / `layer()` / `supports()`) before the `;`.
+// Covers `@import "x";`, `@import 'x';`, and `@import url("x")` / `url(x)`.
+const IMPORT_RE = /@import\s+(?:url\(\s*)?["']?([^"')\s;]+)["']?\s*\)?\s*([^;]*);/g;
+
+/** `String.prototype.replace` with an async replacer (sequential, order-preserving). */
+async function replaceAllAsync(
+    source: string,
+    re: RegExp,
+    fn: (match: string, ...groups: string[]) => Promise<string>,
+): Promise<string> {
+    const matches = [...source.matchAll(re)];
+    if (matches.length === 0) return source;
+    let out = '';
+    let last = 0;
+    for (const m of matches) {
+        const index = m.index ?? 0;
+        out += source.slice(last, index);
+        out += await fn(m[0], ...m.slice(1));
+        last = index + m[0].length;
+    }
+    out += source.slice(last);
+    return out;
+}
+
+/**
+ * Recursively resolve + inline every bundleable `@import` in `entry`, using the
+ * same {@link cssBundleResolver} the npm `bundleAsync` path uses. Returns a
+ * single flattened CSS string with no bundleable `@import` statements left — the
+ * native `transform()` then applies GTK4 nesting/target lowering.
+ *
+ * This is the GJS-native counterpart of the npm `lightningcss` `bundleAsync`
+ * `@import` resolution: the native `bundle()` can only follow relative/absolute
+ * paths (lightningcss's filesystem FileProvider), so this closes the bare
+ * node_modules specifier gap (`@import "@scope/pkg/x.css"`) — the shared-CSS
+ * package pattern every consumer monorepo uses — without a Rust-side resolver
+ * hook. Asset-reference `@import`s (a bare `.woff2`/`.png`, a `data:`/`http:`
+ * URL) are kept verbatim (the resolver leaves them alone), matching the npm
+ * path. A cycle inlines each file at most once.
+ */
+async function flattenCssImports(entry: string): Promise<string> {
+    const seen = new Set<string>();
+    const inline = async (file: string, isRoot: boolean): Promise<string> => {
+        const abs = isAbsolute(file) ? file : resolvePath(file);
+        if (seen.has(abs)) return ''; // @import cycle — inline once
+        seen.add(abs);
+        let source = await readFile(abs, 'utf8');
+        // `@charset` is only valid as the very first token of a stylesheet;
+        // an inlined sub-file's `@charset` mid-stream would be invalid CSS.
+        if (!isRoot) source = source.replace(/@charset[^;]*;/gi, '');
+        return replaceAllAsync(source, IMPORT_RE, async (match, spec, condition) => {
+            const resolved = cssBundleResolver.resolve(spec, abs);
+            // Asset-reference `@import` (rare): resolver returns it verbatim —
+            // keep the at-rule intact.
+            if (resolved === spec) return match;
+            const cond = condition?.trim();
+            if (cond) {
+                // Conditional `@import`s (`@import "x" screen`) wrap the inlined
+                // content per lightningcss semantics. `layer()`/`supports()`
+                // conditions have richer nesting rules we don't model — fail
+                // loudly rather than emit subtly-wrong CSS.
+                if (/\b(layer|supports)\s*\(/i.test(cond)) {
+                    throw new Error(
+                        `@import "${spec}" in ${abs} uses a layer()/supports() condition, which the ` +
+                            'GJS-native CSS backend does not support. Inline the import manually or drop the condition.',
+                    );
+                }
+                return `@media ${cond} {\n${await inline(resolved, false)}\n}`;
+            }
+            return inline(resolved, false);
+        });
+    };
+    return inline(entry, true);
+}
 
 function targetsToBrowserslist(targets: Targets | undefined): string | undefined {
     if (!targets) return undefined;
