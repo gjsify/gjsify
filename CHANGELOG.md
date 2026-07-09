@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.16.6](https://github.com/gjsify/gjsify/compare/v0.16.5...v0.16.6) (2026-07-09)
+
+### Features
+
+* **adwaita-app:** add LoadingStack widget + storybook ([#712](https://github.com/gjsify/gjsify/issues/712)) ([3c2bfe0](https://github.com/gjsify/gjsify/commit/3c2bfe0f6c656cc6b6248ba3d0da0e70470bf793))
+* **adwaita-app:** native Adwaita app shell ([#711](https://github.com/gjsify/gjsify/issues/711)) ([faa40b0](https://github.com/gjsify/gjsify/commit/faa40b04731ca2e2ba4fa1da0dde95d7feccd10f))
+* **cli:** load node:-importing configs under the GJS CLI ([#714](https://github.com/gjsify/gjsify/issues/714)) ([f7193bb](https://github.com/gjsify/gjsify/commit/f7193bbb9c0a0d7284b078ec4ec8a9b9f92f67aa))
+
+### Bug Fixes
+
+* drop browser->src export in stories, storybook-core ([#713](https://github.com/gjsify/gjsify/issues/713)) ([bd48cb7](https://github.com/gjsify/gjsify/commit/bd48cb7fd8753a48a171e1f2a2a57bd1f94f31ba))
+
+### Documentation
+
+* **devtools:** anchor usage in AGENTS.md ([#710](https://github.com/gjsify/gjsify/issues/710)) ([1e761b7](https://github.com/gjsify/gjsify/commit/1e761b72f17ce6ba04c94da4f547766317b6b8d5))
+* drop resolved adwaita-app publish blocker ([aff5d07](https://github.com/gjsify/gjsify/commit/aff5d07ba31570f6500506d15ce83b682679dbe4))
+
+### Tests
+
+* **cli:** stub .option in run builder yargs mock ([f5ba25b](https://github.com/gjsify/gjsify/commit/f5ba25b55c3de8c9e9a36165bfce7c15055f054e))
+
 ## [0.16.5](https://github.com/gjsify/gjsify/compare/v0.16.4...v0.16.5) (2026-07-08)
 
 ### Bug Fixes
