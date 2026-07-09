@@ -1,7 +1,7 @@
 {
   "name": "@gjsify/example-node-gi-quad",
   "description": "One source, four runtimes — the same gi:// GObject-Introspection program built and run byte-identically on GJS, Node.js, Bun and Deno via @gjsify/node-gi.",
-  "version": "0.16.6",
+  "version": "0.16.7",
   "type": "module",
   "private": true,
   "engines": {

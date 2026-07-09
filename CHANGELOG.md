@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.16.7](https://github.com/gjsify/gjsify/compare/v0.16.6...v0.16.7) (2026-07-09)
+
+### Features
+
+* **devtools:** confirm export with a log + regression e2e ([#715](https://github.com/gjsify/gjsify/issues/715)) ([b73130c](https://github.com/gjsify/gjsify/commit/b73130c900d1f7104e152199d108df455c229941))
+
+### Bug Fixes
+
+* **rolldown-plugin-gjsify:** resolve bare [@import](https://github.com/import) under gjs ([#716](https://github.com/gjsify/gjsify/issues/716)) ([7c1a171](https://github.com/gjsify/gjsify/commit/7c1a171c933a5d1397b76ac9ef25ed18943a8252))
+* **website:** resolve stories/storybook-core from src ([f3eb2ae](https://github.com/gjsify/gjsify/commit/f3eb2aefd3d131dece3f13c309dc96113f8e0cae)), closes [#713](https://github.com/gjsify/gjsify/issues/713)
+
 ## [0.16.6](https://github.com/gjsify/gjsify/compare/v0.16.5...v0.16.6) (2026-07-09)
 
 ### Features

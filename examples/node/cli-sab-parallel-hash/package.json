@@ -28,5 +28,5 @@
     "@gjsify/sab-native": "workspace:^"
   },
   "private": true,
-  "version": "0.16.6"
+  "version": "0.16.7"
 }
