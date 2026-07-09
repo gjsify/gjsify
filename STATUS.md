@@ -929,10 +929,6 @@ Root-cause fix surfaced by this suite: **`@gjsify/buffer` constructed `TextEncod
 
 Tracked follow-up work that has been deliberately deferred. Every "out of scope" or "follow-up" note from a PR or implementation plan must end up here so future sessions can pick it up.
 
-### Follow-up — load `node:`-importing `gjsify.config.js` under the GJS CLI
-
-The GJS-bundled CLI cannot `import()` a config that imports `node:` builtins — GJS throws `Unsupported URI scheme for importing: node` for an externally-loaded module, so such a config can only be evaluated by the Node CLI. The `a.shift`-crash fix (`config.ts`, `gjsConfigLoader` — cosmiconfig's default JS loader fell back to a crashing sync-require) turns this into an actionable error, and plain-value configs load fine under GJS. To make `node:`-importing configs actually WORK Node-free, load them the way plugins are (`BuildAction.loadPluginViaGjsBundle`): bundle the config to a self-contained ESM (resolving `node:`→`@gjsify`) then import it. Deferred because config-load happens *before* the build pipeline exists (ordering/entanglement) — needs care to avoid a circular `config`↔`build` import. e2e for the current behavior: `tests/e2e/gjs-cli-config-load`.
-
 ### ⚠ BLOCKER before next release — first-publish + Trusted Publisher for `@gjsify/adwaita-core`
 
 `@gjsify/adwaita-core` (new in the ADR 0004 seed PR) does not exist on npm yet. npm Trusted Publishing requires the package record to exist BEFORE CI can OIDC-publish it — without the manual bootstrap the serialized `npm:publish` loop in `release.yml` fails for **every package alphabetically after `@gjsify/adwaita-core`** (the `@gjsify/tls-native` v0.4.20 incident: 60+ packages stuck). Maintainer action, per the AGENTS.md "New `@gjsify/*` package" checklist:

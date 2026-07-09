@@ -1,46 +1,95 @@
 import { APP_NAME } from './constants.js';
 import { cosmiconfig, type Loader, type Options as LoadOptions } from 'cosmiconfig';
+import { basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
+
+/**
+ * Does the failed `import()` of a config look like a MODULE-RESOLUTION failure
+ * (the config imports something GJS's ESM loader can't resolve for an external
+ * file — `node:` builtins, npm deps) rather than a syntax/eval error in the
+ * config body? Only the former is worth retrying by bundling the config.
+ */
+function isModuleResolutionFailure(err: unknown): boolean {
+    const msg = err instanceof Error ? err.message : String(err);
+    return /Unsupported URI scheme|\bnode:|Cannot find (module|package)|Module not found|ERR_MODULE_NOT_FOUND|Failed to resolve/i.test(
+        msg,
+    );
+}
+
+/**
+ * Load a `gjsify.config.js` that imports `node:`/npm modules under the
+ * GJS-bundled CLI by BUNDLING it first (`--app gjs`: `node:`→`@gjsify`, `gi://`
+ * externalized, `--globals auto`, one self-contained ESM), then importing that.
+ * The Node-free way to run an otherwise-unimportable config under GJS — cached +
+ * de-recursed (the nested build uses explicit options, never re-enters config
+ * loading; see `BuildAction.bundleFileForGjsCached`).
+ */
+async function loadConfigViaGjsBundle(filepath: string, verbose: boolean): Promise<unknown> {
+    let outfile: string;
+    try {
+        // Dynamic import keeps the build machinery out of config.ts's eager
+        // module graph — pulled only when a config actually needs bundling.
+        const { BuildAction } = await import('./actions/build.js');
+        outfile = await BuildAction.bundleFileForGjsCached(filepath, {
+            cacheSubdir: 'config',
+            label: basename(filepath),
+            verbose,
+            noCacheEnv: 'GJSIFY_NO_CONFIG_CACHE',
+            // The bundle lives in the cache dir, but the config commonly resolves
+            // sibling files (e.g. `readFileSync(resolve(dirname(fileURLToPath(
+            // import.meta.url)), 'package.json'))`) relative to ITS OWN location.
+            // Bake the original config's URL so those reads hit the real dir.
+            define: { 'import.meta.url': JSON.stringify(pathToFileURL(filepath).href) },
+        });
+    } catch (bundleErr) {
+        throw new Error(
+            `gjsify: failed to bundle the config ${filepath} for the GJS CLI. ` +
+                `Fixes: run the build under Node (\`npx gjsify …\`), keep the config to plain values / ` +
+                `\`process.env\`, or move settings into \`package.json#gjsify\`. (${(bundleErr as Error).message})`,
+        );
+    }
+    try {
+        const mod = (await import(pathToFileURL(outfile).href)) as { default?: unknown };
+        return mod.default ?? mod;
+    } catch (importErr) {
+        throw new Error(
+            `gjsify: bundled the config ${filepath} for GJS but could not import the result ` +
+                `(${outfile}). (${(importErr as Error).message})`,
+        );
+    }
+}
 
 /**
  * Config-file loader for the GJS-bundled CLI (`cli.gjs.mjs`).
  *
  * cosmiconfig's default `.js`/`.mjs`/`.cjs` loader does `await import(href)` and,
- * on failure, falls back to a synchronous CJS `require`. Under GJS that fallback
- * crashes deep in the bundled require-shim with an opaque `a.shift is not a
- * function`. The real cause: a `gjsify.config.js` that imports `node:` builtins
- * (e.g. `node:fs` to read `package.json`) can't be resolved by GJS's ESM loader
- * for an externally-imported module, so the `import()` throws and the broken
- * sync fallback is taken. The Node CLI never hits this — its `import()` resolves
- * `node:` natively.
+ * on failure, falls back to a synchronous CJS `require` — which under GJS crashes
+ * deep in the bundled require-shim with an opaque `a.shift is not a function`.
+ * The real cause: a `gjsify.config.js` that imports `node:` builtins (e.g.
+ * `node:fs` to read `package.json`) can't be resolved by GJS's ESM loader for an
+ * externally-imported module (`Unsupported URI scheme for importing: node`).
  *
- * This loader keeps the ESM-import path but replaces the crashing require
- * fallback with an actionable error. Plain-value configs (no `node:`/npm imports)
- * `import()` fine under GJS and load as before.
+ * Fast path: plain-value configs `import()` fine under GJS — no bundling. When
+ * the import fails on module resolution, bundle the config for GJS and import
+ * THAT (so `node:`/npm imports resolve) — so node:-importing configs work
+ * Node-free, not just fail cleanly. Genuine syntax/eval errors are rethrown
+ * as-is. The Node CLI never takes this path (its `import()` resolves `node:`).
  */
 const gjsConfigLoader: Loader = async (filepath) => {
     try {
         const mod = (await import(pathToFileURL(filepath).href)) as { default?: unknown };
         return mod.default ?? mod;
     } catch (err) {
-        throw new Error(
-            `gjsify: cannot load config file ${filepath} under the GJS-bundled CLI.\n` +
-                `A config that imports Node/npm modules (e.g. \`node:fs\`) can only be evaluated ` +
-                `by the Node CLI — GJS's module loader cannot resolve those in an externally-loaded config.\n` +
-                `Fix it one of these ways:\n` +
-                `  • run the build under Node: \`npx gjsify …\` (or \`node node_modules/@gjsify/cli/lib/index.js …\`)\n` +
-                `  • keep the config to plain values / \`process.env\` (no \`node:\`/npm imports) — these load fine under GJS\n` +
-                `  • move the settings into \`package.json#gjsify\`\n` +
-                `Original error: ${(err as Error).message}`,
-        );
+        if (!isModuleResolutionFailure(err)) throw err;
+        return loadConfigViaGjsBundle(filepath, Boolean(process.env.GJSIFY_DEBUG));
     }
 };
 
 /**
- * On GJS, override cosmiconfig's default JS loaders (which crash on the require
- * fallback) with {@link gjsConfigLoader}. Empty on Node, so cosmiconfig keeps
- * its defaults there — zero behavior change off GJS.
+ * On GJS, override cosmiconfig's default JS loaders (whose require fallback
+ * crashes) with {@link gjsConfigLoader}. Empty on Node, so cosmiconfig keeps its
+ * defaults there — zero behavior change off GJS.
  */
 const gjsConfigLoaders: Record<string, Loader> = isGjs()
     ? { '.js': gjsConfigLoader, '.mjs': gjsConfigLoader, '.cjs': gjsConfigLoader }
