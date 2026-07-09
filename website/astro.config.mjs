@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
@@ -11,6 +12,20 @@ export default defineConfig({
         '/framework/bridges': '/patterns/bridges',
     },
     vite: {
+        resolve: {
+            alias: {
+                // @gjsify/stories + @gjsify/storybook-core ship exports pointing at lib/esm
+                // (the published tarball carries lib), but this workspace website never builds
+                // workspace lib — it resolves packages from src (as it does @gjsify/adwaita-web).
+                // Map these two to their src so the docs build resolves them without a lib build.
+                // (They previously carried a `browser` → ./src condition, removed in the export fix
+                // that unbroke published --app gjs consumers; that resolution now lives here.)
+                '@gjsify/stories': fileURLToPath(new URL('../packages/framework/stories/src/index.ts', import.meta.url)),
+                '@gjsify/storybook-core': fileURLToPath(
+                    new URL('../packages/framework/storybook-core/src/index.ts', import.meta.url),
+                ),
+            },
+        },
         optimizeDeps: {
             include: [
                 'three',
