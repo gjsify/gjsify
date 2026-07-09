@@ -8,7 +8,6 @@
     "exports": {
         ".": {
             "types": "./lib/types/index.d.ts",
-            "browser": "./src/index.ts",
             "default": "./lib/esm/index.js"
         }
     },
