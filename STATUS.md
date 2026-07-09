@@ -942,19 +942,6 @@ gjsify trust @gjsify/adwaita-core             # configure Trusted Publisher
 
 Then strike this entry (precedent: the resolved `@gjsify/oxfmt-native` / `@gjsify/nativescript-vite` / `@gjsify/vite-plugin-gjsify` blockers below).
 
-### ⚠ BLOCKER before next release — first-publish + Trusted Publisher for `@gjsify/adwaita-app`
-
-`@gjsify/adwaita-app` (new in the ADR 0009 native-app-shell PR) does not exist on npm yet — same first-publish/Trusted-Publisher bootstrap requirement as `@gjsify/adwaita-core` above (unbootstrapped → the serialized `release.yml` `npm:publish` loop fails for every package alphabetically after it). Maintainer action:
-
-```bash
-gjsify workspace @gjsify/adwaita-app build
-cd packages/framework/adwaita-app
-gjsify publish --access public --otp <code>   # manual first publish (npm OTP)
-gjsify trust @gjsify/adwaita-app              # configure Trusted Publisher
-```
-
-Then strike this entry.
-
 ### Follow-up — adopt `@gjsify/adwaita-app` in the shell consumers (ADR 0009)
 
 The package ships the native Adwaita app shell (runAsync lifecycle + devtools/CSS bootstrap, `createNavShell`, `loadIntoStack`/`LoadToken`, dialog/toast/file helpers, `readAppDevHooks`). Adoption is opportunistic, not a rewrite — wire each consumer onto it on its next shell touch, after the package is released:
