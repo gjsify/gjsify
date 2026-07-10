@@ -24,7 +24,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve, dirname } from 'node:path';
+import { join, resolve } from 'node:path';
 
 // Path to the worktree-local compiled CLI lib.
 // `gjsify run test:node` runs from `packages/infra/cli`.
@@ -143,6 +143,10 @@ export default async (): Promise<void> => {
                 // (run.ts) — the stub must expose it or the chain throws before
                 // reaching `.parserConfiguration()`.
                 option: () => mockYargs,
+                // The pass-through builder also calls `.version(false).help(false)`
+                // to stop gjsify intercepting the target's --version/--help.
+                version: () => mockYargs,
+                help: () => mockYargs,
                 parserConfiguration: (cfg: Record<string, unknown>) => {
                     capturedConfig = cfg;
                     return mockYargs;
@@ -189,7 +193,7 @@ export default async (): Promise<void> => {
 
             // With populate-- true, args['--'] must hold the post-separator values.
             expect(Array.isArray(handlerArgs?.['--'])).toBe(true);
-            expect((handlerArgs?.['--'] as string[]).includes('from-double-dash')).toBe(true);
+            expect(((handlerArgs?.['--'] as string[]) ?? []).includes('from-double-dash')).toBe(true);
         });
 
         await it('forwards unknown --flags WITHOUT a -- separator (unknown-options-as-args)', async () => {
@@ -229,6 +233,79 @@ export default async (): Promise<void> => {
             expect(forwarded.includes('--port')).toBe(true);
             expect(forwarded.includes('8080')).toBe(true);
             expect(forwarded.includes('--year')).toBe(true);
+        });
+
+        // ------------------------------------------------------------------ //
+        // Bug 3: --help / --version must forward to the target, not be caught
+        // by gjsify. The builder disables gjsify's own version/help for this
+        // pass-through command (same as `tsc`), so they become unknown flags
+        // and route into `[args..]` like any other forwarded flag.
+        // ------------------------------------------------------------------ //
+
+        await it('run builder disables gjsify --version/--help (so they forward to the target)', async () => {
+            const runMod = (await import(`${CLI_LIB}/commands/run.js`)) as {
+                runCommand: { builder: (y: unknown) => unknown };
+            };
+            let versionArg: unknown = 'unset';
+            let helpArg: unknown = 'unset';
+            const mockYargs = {
+                positional: () => mockYargs,
+                option: () => mockYargs,
+                parserConfiguration: () => mockYargs,
+                version: (v: unknown) => {
+                    versionArg = v;
+                    return mockYargs;
+                },
+                help: (h: unknown) => {
+                    helpArg = h;
+                    return mockYargs;
+                },
+            };
+            runMod.runCommand.builder(mockYargs as unknown as Parameters<typeof runMod.runCommand.builder>[0]);
+            // Both must be explicitly disabled (false) — else yargs intercepts
+            // `gjsify run <target> --help` / `--version` instead of forwarding.
+            expect(versionArg).toBe(false);
+            expect(helpArg).toBe(false);
+        });
+
+        await it('with version/help disabled, --help and --version forward into args', async () => {
+            const yargsLib = (await import('yargs')) as { default: (args: string[]) => unknown };
+            const yargs = yargsLib.default as unknown as (args: string[]) => {
+                command(
+                    cmd: string,
+                    desc: string,
+                    builder: (y: {
+                        positional(name: string, opts: unknown): unknown;
+                        version(v: boolean): unknown;
+                        help(h: boolean): unknown;
+                        parserConfiguration(cfg: unknown): unknown;
+                    }) => unknown,
+                    handler: (args: Record<string, unknown>) => void,
+                ): { parseAsync(): Promise<void> };
+            };
+            let handlerArgs: Record<string, unknown> | null = null;
+            await yargs(['run', 'start', 'check-apis', '--help', '--version'])
+                .command(
+                    'run <target> [args..]',
+                    'run cmd',
+                    (y) =>
+                        y
+                            .positional('target', { type: 'string', demandOption: true })
+                            .positional('args', { type: 'string', array: true, default: [] })
+                            .version(false)
+                            .help(false)
+                            .parserConfiguration({ 'populate--': true, 'unknown-options-as-args': true }),
+                    (args) => {
+                        handlerArgs = JSON.parse(JSON.stringify(args)) as Record<string, unknown>;
+                    },
+                )
+                .parseAsync();
+            const forwarded = (handlerArgs?.args as string[]) ?? [];
+            // --help/--version reach the child instead of triggering gjsify's own.
+            expect(forwarded.includes('--help')).toBe(true);
+            expect(forwarded.includes('--version')).toBe(true);
+            // …and the target is still parsed correctly.
+            expect(handlerArgs?.target).toBe('start');
         });
 
         // ------------------------------------------------------------------ //

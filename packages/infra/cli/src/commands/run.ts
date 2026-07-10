@@ -59,6 +59,18 @@ export const runCommand: Command<unknown, RunOptions> = {
                 description:
                     'Run <target> as a script in the named workspace (by name or path), like `npm run <script> -w <name>`.',
             })
+            // Pass-through runner: the TARGET owns its whole flag namespace, so
+            // disable gjsify's own `--version` / `--help` for THIS command. Without
+            // this, `gjsify run <target> --help` / `--version` are KNOWN options →
+            // yargs prints the gjsify CLI's help/version instead of forwarding them
+            // to the target (e.g. `gjsify run start --version` printed gjsify's
+            // version, not the run script's). Disabled → they become "unknown" and
+            // `unknown-options-as-args` (below) routes them into `[args..]` → child.
+            // Same pattern as the `tsc` pass-through command. (`gjsify run --help`
+            // with no target now errors "target required" rather than showing this
+            // command's help — the accepted pass-through trade-off, as with `tsc`.)
+            .version(false)
+            .help(false)
             .parserConfiguration({
                 // Preserve `--` as args['--'] so callers can write
                 //   gjsify run ./server.mjs -- --port 8080
@@ -71,8 +83,9 @@ export const runCommand: Command<unknown, RunOptions> = {
                 // Without this, the top-level `.strict()` (cli-app.ts) rejects
                 // --port/--year as "unknown arguments" before they reach the
                 // target. Treating unknown options as positional args routes
-                // them into the `[args..]` positional (then to the child).
-                // Known options (--help / --version) are still handled by gjsify.
+                // them into the `[args..]` positional (then to the child). With
+                // `.version(false).help(false)` above, `--help` / `--version`
+                // are unknown too, so they forward to the target like any flag.
                 'unknown-options-as-args': true,
             }),
     handler: async (args) => {
