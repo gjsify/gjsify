@@ -2,7 +2,7 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.16.8, ESM-only, GNOME libs. Bootstraps via the committed `packages/infra/cli/dist/cli.gjs.mjs` GJS bundle — `gjsify install --immutable` is the supported install path (no yarn / no Node-only npm CLI required at runtime, see Phase D.7d). Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (22 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra. **NativeScript Bridge** `packages/nativescript-bridge/` (5 pkgs — `@gjsify/native-fs-bridge`, `@gjsify/native-platform`, `@gjsify/adwaita-nativescript`, `@gjsify/devtools-nativescript`, `@gjsify/storybook-nativescript`) = native mobile API wrappers + design-identity widgets + an in-app devtools agent + a native storybook renderer for the NativeScript runtime axis (Welle 5+).
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.16.9, ESM-only, GNOME libs. Bootstraps via the committed `packages/infra/cli/dist/cli.gjs.mjs` GJS bundle — `gjsify install --immutable` is the supported install path (no yarn / no Node-only npm CLI required at runtime, see Phase D.7d). Four equal pillars: **Node.js** `packages/node/` (42 + 1 meta) | **Web** `packages/web/` (22 + 1 meta) | **DOM** `packages/dom/` (2) | **Framework** `packages/framework/` (6 bridge pkgs). `packages/infra/` + `packages/gjs/` = supporting infra. **NativeScript Bridge** `packages/nativescript-bridge/` (5 pkgs — `@gjsify/native-fs-bridge`, `@gjsify/native-platform`, `@gjsify/adwaita-nativescript`, `@gjsify/devtools-nativescript`, `@gjsify/storybook-nativescript`) = native mobile API wrappers + design-identity widgets + an in-app devtools agent + a native storybook renderer for the NativeScript runtime axis (Welle 5+).
 
 ## Governance — non-negotiable
 
@@ -674,7 +674,7 @@ Scripts: `gjsify foreach test:integration[:node|:gjs]`. NOT part of `gjsify fore
 
 ## Package convention
 
-`packages/node/<name>/` → `@gjsify/<name>`, v0.16.8, `"type":"module"` | exports `./lib/esm/index.js` + `./lib/esm/register.js` (if globals) | `sideEffects:["./lib/esm/register.js"]` pinned to register-only | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`; devDep `@gjsify/unit`; workspace deps `workspace:^`
+`packages/node/<name>/` → `@gjsify/<name>`, v0.16.9, `"type":"module"` | exports `./lib/esm/index.js` + `./lib/esm/register.js` (if globals) | `sideEffects:["./lib/esm/register.js"]` pinned to register-only | scripts: `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps: `@girs/*`; devDep `@gjsify/unit`; workspace deps `workspace:^`
 
 Layout: `src/index.ts` (pure named exports) | `src/register.ts` (side-effect globals) | `src/*.spec.ts` | `src/test.mts` (entry, imports `@gjsify/node-globals/register` + feature-specific `<pkg>/register`). Full rules: Tree-shakeable Globals section.
 

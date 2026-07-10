@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.9](https://github.com/gjsify/gjsify/compare/v0.16.8...v0.16.9) (2026-07-10)
+
+### Bug Fixes
+
+* **cli:** forward --help/--version to the run target ([27aedd6](https://github.com/gjsify/gjsify/commit/27aedd69060e86b0dc62154ed7b46efde2e3e36c))
+
 ## [0.16.8](https://github.com/gjsify/gjsify/compare/v0.16.7...v0.16.8) (2026-07-10)
 
 ### Bug Fixes
