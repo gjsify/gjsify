@@ -5,7 +5,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
 let cnt = 0;
@@ -300,6 +300,18 @@ export default async () => {
             const db = new DatabaseSync(dbPath);
             expect(db.location()).toBe(dbPath);
             db.close();
+        });
+
+        await it('stores the on-disk file at the exact path, not <path>.db', async () => {
+            // Regression: libgda's SQLite provider names the file `<DB_NAME>.db`, so passing the
+            // `.db` basename verbatim stored the DB at `<path>.db.db` — existsSync(path) was false
+            // on GJS even though the DB existed. The path handed to DatabaseSync must be the real file.
+            const dbPath = nextDb();
+            const db = new DatabaseSync(dbPath);
+            db.exec('CREATE TABLE t (id INTEGER)');
+            db.close();
+            expect(existsSync(dbPath)).toBe(true);
+            expect(existsSync(`${dbPath}.db`)).toBe(false);
         });
     });
 

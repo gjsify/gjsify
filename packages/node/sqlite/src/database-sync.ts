@@ -256,7 +256,12 @@ export class DatabaseSync {
                 const lastSlash = this.#path.lastIndexOf('/');
                 const dir = lastSlash >= 0 ? this.#path.substring(0, lastSlash) : '.';
                 const name = lastSlash >= 0 ? this.#path.substring(lastSlash + 1) : this.#path;
-                const cncString = `DB_DIR=${dir};DB_NAME=${name}`;
+                // libgda's SQLite provider always stores the database as `<DB_DIR>/<DB_NAME>.db`, so
+                // strip a trailing `.db` from DB_NAME: node:sqlite uses the given path verbatim, and
+                // passing `foo.db` as DB_NAME would land the file at `foo.db.db` — making the real
+                // file disagree with the requested path (existsSync(path) false, location() wrong).
+                const dbName = name.endsWith('.db') ? name.slice(0, -3) : name;
+                const cncString = `DB_DIR=${dir};DB_NAME=${dbName}`;
                 const connOpts = this.#options.readOnly ? Gda.ConnectionOptions.READ_ONLY : Gda.ConnectionOptions.NONE;
 
                 this.#connection = Gda.Connection.new_from_string('SQLite', cncString, null, connOpts);
