@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.8](https://github.com/gjsify/gjsify/compare/v0.16.7...v0.16.8) (2026-07-10)
+
+### Bug Fixes
+
+* **sqlite:** store file DBs at the exact path, not <path>.db ([#717](https://github.com/gjsify/gjsify/issues/717)) ([4ecd26c](https://github.com/gjsify/gjsify/commit/4ecd26c4fc43647b2169672fae93b2c42139f32b))
+
 ## [0.16.7](https://github.com/gjsify/gjsify/compare/v0.16.6...v0.16.7) (2026-07-09)
 
 ### Features
