@@ -17,7 +17,7 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { prefixLines } from '../utils/prefixed-output.js';
-import { existsSync, readFileSync } from 'node:fs';
+import { readPackageJson } from '../utils/pkg-json.js';
 import { join } from 'node:path';
 import { cpus } from 'node:os';
 import type { Command } from '../types/index.js';
@@ -30,22 +30,6 @@ interface CheckOptions {
     parallel?: boolean;
     jobs?: number;
     verbose?: boolean;
-}
-
-interface PackageJson {
-    name?: string;
-    scripts?: Record<string, string>;
-    private?: boolean;
-}
-
-function readPackageJson(dir: string): PackageJson | null {
-    const path = join(dir, 'package.json');
-    if (!existsSync(path)) return null;
-    try {
-        return JSON.parse(readFileSync(path, 'utf-8')) as PackageJson;
-    } catch {
-        return null;
-    }
 }
 
 /**
@@ -129,7 +113,7 @@ export const checkCommand: Command<unknown, CheckOptions> = {
         // through gjsify so the command surface stays uniform with format/
         // lint/fix.
         if (workspaceRoot && cwd !== workspaceRoot) {
-            const pkg = readPackageJson(cwd);
+            const pkg = readPackageJson(join(cwd, 'package.json'));
             if (pkg?.scripts?.check) {
                 if (args.verbose) {
                     console.log(`[check] cwd=${cwd}  → npm run check`);

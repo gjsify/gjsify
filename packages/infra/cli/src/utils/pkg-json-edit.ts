@@ -23,6 +23,8 @@ export interface PackageJson {
     devDependencies?: Record<string, string>;
     peerDependencies?: Record<string, string>;
     optionalDependencies?: Record<string, string>;
+    scripts?: Record<string, string>;
+    private?: boolean;
     [key: string]: unknown;
 }
 
