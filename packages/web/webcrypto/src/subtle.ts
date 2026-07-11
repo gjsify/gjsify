@@ -448,6 +448,16 @@ export class SubtleCrypto {
     async encrypt(algorithm: AlgorithmIdentifier, key: CryptoKey, data: BufferSource): Promise<ArrayBuffer> {
         await cryptoReady;
         checkUsage(key, 'encrypt');
+        return this._encryptImpl(algorithm, key, data);
+    }
+
+    /**
+     * AES/RSA-OAEP encryption WITHOUT the 'encrypt' key-usage check. Shared by
+     * {@link encrypt} (checks 'encrypt') and {@link wrapKey} (checks 'wrapKey'):
+     * the wrap operation IS the encrypt operation, gated on a different usage
+     * per the WebCrypto spec.
+     */
+    private async _encryptImpl(algorithm: AlgorithmIdentifier, key: CryptoKey, data: BufferSource): Promise<ArrayBuffer> {
         const alg = normalizeAlgorithm(algorithm);
         const name = alg.name.toUpperCase();
         const plaintext = toUint8Array(data);
@@ -513,6 +523,15 @@ export class SubtleCrypto {
     async decrypt(algorithm: AlgorithmIdentifier, key: CryptoKey, data: BufferSource): Promise<ArrayBuffer> {
         await cryptoReady;
         checkUsage(key, 'decrypt');
+        return this._decryptImpl(algorithm, key, data);
+    }
+
+    /**
+     * AES/RSA-OAEP decryption WITHOUT the 'decrypt' key-usage check. Shared by
+     * {@link decrypt} (checks 'decrypt') and {@link unwrapKey} (checks
+     * 'unwrapKey').
+     */
+    private async _decryptImpl(algorithm: AlgorithmIdentifier, key: CryptoKey, data: BufferSource): Promise<ArrayBuffer> {
         const alg = normalizeAlgorithm(algorithm);
         const name = alg.name.toUpperCase();
         const ciphertext = toUint8Array(data);
@@ -775,26 +794,46 @@ export class SubtleCrypto {
         return this.importKey('raw', bits, derivedKeyAlgorithm, extractable, keyUsages);
     }
 
-    // ==================== wrapKey / unwrapKey (stubs) ====================
+    // ==================== wrapKey / unwrapKey ====================
 
     async wrapKey(
-        _format: 'raw' | 'jwk' | 'pkcs8' | 'spki',
-        _key: CryptoKey,
-        _wrappingKey: CryptoKey,
-        _wrapAlgorithm: AlgorithmIdentifier,
+        format: 'raw' | 'jwk' | 'pkcs8' | 'spki',
+        key: CryptoKey,
+        wrappingKey: CryptoKey,
+        wrapAlgorithm: AlgorithmIdentifier,
     ): Promise<ArrayBuffer> {
-        throw new DOMException('wrapKey not yet implemented', 'NotSupportedError');
+        await cryptoReady;
+        checkUsage(wrappingKey, 'wrapKey');
+        // Export the key material in `format` (exportKey enforces key.extractable),
+        // then encrypt it under the wrapping key. jwk exports are serialized to
+        // UTF-8 JSON first. The wrap operation is the encrypt operation gated on
+        // 'wrapKey' rather than 'encrypt' usage (WebCrypto §wrapKey).
+        const exported = await this.exportKey(format, key);
+        const bytes: BufferSource =
+            format === 'jwk'
+                ? new TextEncoder().encode(JSON.stringify(exported))
+                : (exported as ArrayBuffer);
+        return this._encryptImpl(wrapAlgorithm, wrappingKey, bytes);
     }
 
     async unwrapKey(
-        _format: 'raw' | 'jwk' | 'pkcs8' | 'spki',
-        _wrappedKey: BufferSource,
-        _unwrappingKey: CryptoKey,
-        _unwrapAlgorithm: AlgorithmIdentifier,
-        _unwrappedKeyAlgorithm: AlgorithmIdentifier,
-        _extractable: boolean,
-        _keyUsages: KeyUsage[],
+        format: 'raw' | 'jwk' | 'pkcs8' | 'spki',
+        wrappedKey: BufferSource,
+        unwrappingKey: CryptoKey,
+        unwrapAlgorithm: AlgorithmIdentifier,
+        unwrappedKeyAlgorithm: AlgorithmIdentifier,
+        extractable: boolean,
+        keyUsages: KeyUsage[],
     ): Promise<CryptoKey> {
-        throw new DOMException('unwrapKey not yet implemented', 'NotSupportedError');
+        await cryptoReady;
+        checkUsage(unwrappingKey, 'unwrapKey');
+        // Decrypt the wrapped bytes under the unwrapping key, then import the
+        // recovered key material. Mirror of wrapKey (WebCrypto §unwrapKey).
+        const decrypted = await this._decryptImpl(unwrapAlgorithm, unwrappingKey, wrappedKey);
+        const keyData: BufferSource | JsonWebKey =
+            format === 'jwk'
+                ? (JSON.parse(new TextDecoder().decode(new Uint8Array(decrypted))) as JsonWebKey)
+                : decrypted;
+        return this.importKey(format, keyData, unwrappedKeyAlgorithm, extractable, keyUsages);
     }
 }

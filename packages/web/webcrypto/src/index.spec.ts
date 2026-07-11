@@ -1732,4 +1732,81 @@ export default async () => {
             expect(typeof crypto.randomUUID).toBe('function');
         });
     });
+
+    // ==================== wrapKey / unwrapKey ====================
+
+    await describe('SubtleCrypto.wrapKey / unwrapKey', async () => {
+        await it('should round-trip a raw AES key (AES-GCM wrap)', async () => {
+            const wrappingKey = (await subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+                'wrapKey',
+                'unwrapKey',
+            ] as KeyUsage[])) as CryptoKey;
+            const rawKey = crypto.getRandomValues(new Uint8Array(16));
+            const keyToWrap = await subtle.importKey('raw', rawKey, { name: 'AES-GCM' }, true, [
+                'encrypt',
+                'decrypt',
+            ] as KeyUsage[]);
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+
+            const wrapped = await subtle.wrapKey('raw', keyToWrap, wrappingKey, { name: 'AES-GCM', iv });
+            expect(wrapped.byteLength).toBeGreaterThan(0);
+
+            const unwrapped = await subtle.unwrapKey(
+                'raw',
+                wrapped,
+                wrappingKey,
+                { name: 'AES-GCM', iv },
+                { name: 'AES-GCM' },
+                true,
+                ['encrypt', 'decrypt'] as KeyUsage[],
+            );
+            const exported = new Uint8Array((await subtle.exportKey('raw', unwrapped)) as ArrayBuffer);
+            expect(Array.from(exported).join(',')).toBe(Array.from(rawKey).join(','));
+        });
+
+        await it('should round-trip a jwk AES key (AES-GCM wrap)', async () => {
+            const wrappingKey = (await subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+                'wrapKey',
+                'unwrapKey',
+            ] as KeyUsage[])) as CryptoKey;
+            const keyToWrap = (await subtle.generateKey({ name: 'AES-GCM', length: 128 }, true, [
+                'encrypt',
+                'decrypt',
+            ] as KeyUsage[])) as CryptoKey;
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+
+            const originalJwk = (await subtle.exportKey('jwk', keyToWrap)) as JsonWebKey;
+            const wrapped = await subtle.wrapKey('jwk', keyToWrap, wrappingKey, { name: 'AES-GCM', iv });
+            const unwrapped = await subtle.unwrapKey(
+                'jwk',
+                wrapped,
+                wrappingKey,
+                { name: 'AES-GCM', iv },
+                { name: 'AES-GCM' },
+                true,
+                ['encrypt', 'decrypt'] as KeyUsage[],
+            );
+            const roundtripJwk = (await subtle.exportKey('jwk', unwrapped)) as JsonWebKey;
+            expect(roundtripJwk.k).toBe(originalJwk.k);
+        });
+
+        await it('should reject wrapping with a key lacking wrapKey usage', async () => {
+            const wrongKey = (await subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+                'encrypt',
+                'decrypt',
+            ] as KeyUsage[])) as CryptoKey;
+            const keyToWrap = (await subtle.generateKey({ name: 'AES-GCM', length: 128 }, true, [
+                'encrypt',
+                'decrypt',
+            ] as KeyUsage[])) as CryptoKey;
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            let threw = false;
+            try {
+                await subtle.wrapKey('raw', keyToWrap, wrongKey, { name: 'AES-GCM', iv });
+            } catch {
+                threw = true;
+            }
+            expect(threw).toBe(true);
+        });
+    });
 };
