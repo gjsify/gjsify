@@ -57,7 +57,7 @@ import { pathToFileURL } from 'node:url';
 import { findWorkspaceRoot } from './workspace-root.js';
 import { resolveNpmPackage } from './resolve-npm-package.js';
 import { nodeBinary } from './run-node.js';
-import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { isGjs, gjsExit } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 export type OxcTool = 'oxlint' | 'oxfmt';
 
@@ -434,8 +434,7 @@ export function printOxcNotFound(err: OxcNotFoundError): void {
 export function setOxcExitCode(code: number): void {
     process.exitCode = code;
     if (code === 0) return;
-    const gjs = (globalThis as { imports?: { system?: { exit?: (c: number) => void } } }).imports;
-    if (gjs?.system?.exit) gjs.system.exit(code);
+    gjsExit(code);
 }
 
 /**

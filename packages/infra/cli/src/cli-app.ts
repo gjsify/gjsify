@@ -59,7 +59,7 @@ import {
     browseCommand as browse,
 } from './commands/index.js';
 import { APP_NAME } from './constants.js';
-import { isNode } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { isNode, gjsSystemVersion } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { ensureGjsifyShimOnPath } from './utils/gjsify-shim.js';
 
 // Detect which runtime is executing the CLI (GJS or Node.js).
@@ -68,9 +68,9 @@ import { ensureGjsifyShimOnPath } from './utils/gjsify-shim.js';
 // `process.versions.node` check would be a false Node positive under GJS.
 function runtimeLabel(): string {
     try {
-        const sys = (globalThis as { imports?: { system?: { version?: number } } }).imports?.system;
-        if (sys?.version !== undefined) {
-            const v = Number(sys.version);
+        const sysVersion = gjsSystemVersion();
+        if (sysVersion !== undefined) {
+            const v = Number(sysVersion);
             return `GJS ${Math.floor(v / 10000)}.${Math.floor((v % 10000) / 100)}.${v % 100} (SpiderMonkey)`;
         }
     } catch {
