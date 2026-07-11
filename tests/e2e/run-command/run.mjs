@@ -257,6 +257,32 @@ describe('gjsify run (Phase D.5)', { timeout: 60_000 }, () => {
         },
     );
 
+    // Regression: a `test:gjs`-shaped script — `gjsify run <bundle>` — must
+    // propagate the bundle's non-zero exit through the in-process fast path.
+    // runGjsBundle's failure branch used a deferred `process.exit(1)` that the
+    // following `exitOnSuccess` `process.exit(0)` overrode (and it never set
+    // `process.exitCode`), so `gjsify run <script>` returned 0 on failure —
+    // silently masking a failing `test:gjs` in the `test` chain (and, via
+    // `gjsify foreach test`, in CI). GJS-only (in-process dispatch is gated on
+    // `isGjs()`); skipped when `gjs` isn't installed.
+    it(
+        'propagates a non-zero gjs bundle exit through an in-process run script (GJS)',
+        { skip: hasGjs() ? false : 'gjs not on PATH' },
+        async () => {
+            const bundle = new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url).pathname;
+            writeFileSync(join(wsDir, 'fail-bundle.js'), 'imports.system.exit(3);\n');
+            const pkgPath = join(wsDir, 'package.json');
+            const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+            // Single `gjsify <subcommand>` → in-process fast path; a `.js`
+            // target → file mode → runGjsBundle.
+            pkg.scripts.gjsfail = 'gjsify run fail-bundle.js';
+            writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+
+            const r = await runGjs(bundle, ['run', 'gjsfail'], { cwd: wsDir });
+            assert.notEqual(r.status, 0, `expected non-zero exit, got 0:\n${r.stdout}\n${r.stderr}`);
+        },
+    );
+
     // `-w <name>` / `--workspace <name>` (npm/yarn parity): run the target as a
     // script in the named workspace's directory. Resolves by package name AND
     // by workspace-relative path (so both `-w @test/app` and `-w packages/app`
