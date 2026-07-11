@@ -11,8 +11,9 @@
 //     transitive walk is what makes `gjsify showcase` / `gjsify dlx` work
 //     for packages whose Vala typelibs live in *indirect* deps.
 
-import { readdirSync, existsSync, readFileSync } from 'node:fs';
+import { readdirSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { readPackageJson } from './pkg-json.js';
 
 export interface NativePackage {
     /** npm package name, e.g. "@gjsify/webgl" */
@@ -30,15 +31,6 @@ function nodeArchToLinuxArch(arch: string): string {
         ia32: 'i686',
     };
     return map[arch] ?? arch;
-}
-
-/** Read a package.json file and return its parsed content, or null on error. */
-function readPackageJson(pkgJsonPath: string): Record<string, unknown> | null {
-    try {
-        return JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
-    } catch {
-        return null;
-    }
 }
 
 /**

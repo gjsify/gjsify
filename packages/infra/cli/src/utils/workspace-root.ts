@@ -12,21 +12,10 @@
 // Without this guard, a grand-parent monorepo unrelated to `start`
 // could be picked up.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { discoverWorkspaces } from '@gjsify/workspace';
-
-interface MinimalPkg {
-    workspaces?: unknown;
-}
-
-function readPackageJson(path: string): MinimalPkg | null {
-    try {
-        return JSON.parse(readFileSync(path, 'utf-8')) as MinimalPkg;
-    } catch {
-        return null;
-    }
-}
+import { readPackageJson } from './pkg-json.js';
 
 export function findWorkspaceRoot(start: string): string | null {
     let dir = start;
