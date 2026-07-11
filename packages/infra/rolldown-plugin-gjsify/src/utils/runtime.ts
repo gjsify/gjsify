@@ -38,3 +38,35 @@ export function isNode(): boolean {
     const proc = (globalThis as { process?: { versions?: { node?: unknown } } }).process;
     return typeof proc?.versions?.node === 'string';
 }
+
+/**
+ * The raw GJS runtime version from `imports.system.version` (e.g. `18800` for
+ * GJS 1.88.0), or `undefined` when not running under GJS.
+ *
+ * A distinct probe from {@link isGjs}: use it where the caller needs the numeric
+ * version (to format a banner) OR an early GJS short-circuit that must not rely
+ * on `@gjsify/process`'s faked `process.versions.node`.
+ */
+export function gjsSystemVersion(): number | undefined {
+    return (globalThis as { imports?: { system?: { version?: number } } }).imports?.system?.version;
+}
+
+/**
+ * Force a hard exit under GJS via `imports.system.exit(code)`.
+ *
+ * GJS has no atexit hook and would exit 0 at natural shutdown, so a non-zero
+ * `process.exitCode` alone does not stick — the CLI must call `system.exit`
+ * explicitly there. Node never exposes `imports`, so this is a no-op returning
+ * `false`, letting callers fall back to `process.exit`/`process.exitCode`.
+ *
+ * @returns `true` when the GJS exit was invoked (running under GJS); `false` on
+ *          Node (the caller owns the Node exit path).
+ */
+export function gjsExit(code: number): boolean {
+    const sys = (globalThis as { imports?: { system?: { exit?: (c: number) => void } } }).imports?.system;
+    if (sys?.exit) {
+        sys.exit(code);
+        return true;
+    }
+    return false;
+}

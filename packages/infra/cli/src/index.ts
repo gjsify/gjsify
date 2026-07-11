@@ -6,6 +6,7 @@
 // This file is just the executable wrapper around `runCli`.
 import { hideBin } from 'yargs/helpers';
 import { runCli } from './cli-app.js';
+import { gjsExit } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 try {
     await runCli(hideBin(process.argv));
@@ -22,6 +23,5 @@ try {
     // atexit hook and would exit 0 at natural shutdown, so force a non-zero exit
     // via `imports.system.exit` there (no-op on Node, where `imports` is unset).
     process.exitCode = 1;
-    const gjs = (globalThis as { imports?: { system?: { exit?: (c: number) => void } } }).imports;
-    gjs?.system?.exit?.(1);
+    gjsExit(1);
 }

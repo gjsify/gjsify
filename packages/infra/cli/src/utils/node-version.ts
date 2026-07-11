@@ -8,7 +8,7 @@
 // container segfaults `gjsify install --backend native` during download/extract).
 // This preflight turns that into a clear, actionable error.
 
-import { isNode } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { isNode, gjsSystemVersion } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 /**
  * Minimum Node.js major the native install backend supports — its prebuilt native
@@ -44,7 +44,7 @@ function onRealNode(): boolean {
     // GJS exposes `imports.system.version`; @gjsify/process fakes
     // `process.versions.node = '20.0.0'` for compat, so check GJS FIRST — a plain
     // `process.versions.node` read would be a false Node positive under GJS.
-    const sysVersion = (globalThis as { imports?: { system?: { version?: number } } }).imports?.system?.version;
+    const sysVersion = gjsSystemVersion();
     if (sysVersion !== undefined) return false;
     return isNode();
 }

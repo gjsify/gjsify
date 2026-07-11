@@ -32,6 +32,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, syml
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
+import { gjsExit } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { buildInstallCommand, detectPackageManager, runMinimalChecks } from '../utils/check-system-deps.js';
@@ -297,11 +298,7 @@ function isAbortedFromOverallTimeout(err: unknown): boolean {
  */
 function forceExit(code: number): void {
     process.exitCode = code;
-    const gjs = (globalThis as { imports?: { system?: { exit?: (c: number) => void } } }).imports;
-    if (gjs?.system?.exit) {
-        gjs.system.exit(code);
-        return;
-    }
+    if (gjsExit(code)) return;
     process.exit(code);
 }
 
