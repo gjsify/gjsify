@@ -84,6 +84,17 @@ function envPositiveInt(name: string, fallback: number): number {
     return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+/**
+ * Whether to accept ANY peer certificate for a request. Node parity: an explicit
+ * `rejectUnauthorized` wins (true keeps verification even under the env override); otherwise the
+ * process-global `NODE_TLS_REJECT_UNAUTHORIZED=0` disables verification (as Node's fetch does).
+ */
+function shouldAcceptAnyCert(rejectUnauthorized: boolean | undefined): boolean {
+    if (rejectUnauthorized === false) return true;
+    if (rejectUnauthorized === true) return false;
+    return GLib.getenv('NODE_TLS_REJECT_UNAUTHORIZED') === '0';
+}
+
 function getSharedSession(): Soup.Session {
     if (sharedSession === null) {
         const maxPerHost = envPositiveInt('GJSIFY_FETCH_MAX_CONNS_PER_HOST', DEFAULT_MAX_CONNS_PER_HOST);
@@ -126,6 +137,12 @@ interface RequestLike {
     highWaterMark?: number;
     insecureHTTPParser?: boolean;
     size?: number;
+    /**
+     * Accept any peer TLS certificate for THIS request (per-connection opt-out, mirroring undici's
+     * `connect.rejectUnauthorized`). `undefined` ⇒ verify, honoring the Node-global
+     * `NODE_TLS_REJECT_UNAUTHORIZED`.
+     */
+    rejectUnauthorized?: boolean;
 }
 
 /**
@@ -252,6 +269,8 @@ export class Request extends Body {
     agent: string | ((url: URL) => string) = '';
     highWaterMark = 16384;
     insecureHTTPParser = false;
+    /** Per-request TLS opt-out (undefined ⇒ verify, honoring NODE_TLS_REJECT_UNAUTHORIZED). */
+    rejectUnauthorized?: boolean;
 
     constructor(input: RequestInfo | URL | Request, init?: RequestInit) {
         const inputRL = input as unknown as RequestLike;
@@ -377,6 +396,7 @@ export class Request extends Body {
         this.agent = initRL.agent || inputRL.agent;
         this.highWaterMark = initRL.highWaterMark || inputRL.highWaterMark || 16384;
         this.insecureHTTPParser = initRL.insecureHTTPParser || inputRL.insecureHTTPParser || false;
+        this.rejectUnauthorized = initRL.rejectUnauthorized ?? inputRL.rejectUnauthorized;
 
         // §5.4, Request constructor steps, step 16.
         // Default is empty string per https://fetch.spec.whatwg.org/#concept-request-referrer-policy
@@ -387,7 +407,7 @@ export class Request extends Body {
      * Send the request using Soup.
      */
     async _send(options: { headers: Headers }) {
-        const { session, message } = this[INTERNALS];
+        const { session, message, signal, parsedURL } = this[INTERNALS];
 
         if (!session || !message) {
             throw new Error('Cannot send request: no Soup session (non-HTTP URL?)');
@@ -409,7 +429,33 @@ export class Request extends Body {
             message.set_request_body_from_bytes(contentType, new GLib.Bytes(rawBuf));
         }
 
+        // Per-connection TLS policy: when this request opts out of verification
+        // (`rejectUnauthorized: false`, or the Node-global NODE_TLS_REJECT_UNAUTHORIZED=0), accept the
+        // peer cert for THIS message only — never the shared session, which would silently disable
+        // verification for every other fetch. Mirrors the `accept-certificate` idiom in
+        // @gjsify/{tls,http2}. `accept-certificate` lives on Soup.Message (not the session) in
+        // libsoup 3 and isn't in the typed SignalSignatures map, so widen to the string overload.
+        if (parsedURL.protocol === 'https:' && shouldAcceptAnyCert(this.rejectUnauthorized)) {
+            const signalName: string = 'accept-certificate';
+            message.connect(
+                signalName,
+                (_msg: Soup.Message, _cert: Gio.TlsCertificate, _errors: Gio.TlsCertificateFlags): boolean => true,
+            );
+        }
+
         const cancellable = new Gio.Cancellable();
+
+        // Close the connect/TTFB abort gap: wire abort → cancel BEFORE send_async. index.ts only wires
+        // it AFTER _send resolves (i.e. after response headers arrive), so an abort fired during
+        // connect + request-send + time-to-first-byte was previously dropped — the hung-server timeout
+        // case. A cancelled send_async rejects; index.ts maps that to an AbortError when signal.aborted.
+        if (signal) {
+            if (signal.aborted) {
+                cancellable.cancel();
+            } else {
+                signal.addEventListener('abort', () => cancellable.cancel(), { once: true });
+            }
+        }
 
         this[INTERNALS].inputStream = await soupSendAsync(session, message, GLib.PRIORITY_DEFAULT, cancellable);
         this[INTERNALS].readable = inputStreamToReadable(this[INTERNALS].inputStream);

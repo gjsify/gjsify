@@ -146,6 +146,11 @@ export default async function fetch(url: RequestInfo | URL | Request, init: Requ
         readable = sendRes.readable;
         cancellable = sendRes.cancellable;
     } catch (error: unknown) {
+        // A send aborted during connect/handshake/TTFB surfaces as a cancelled send_async — report it
+        // as an AbortError (Node parity), not a generic system FetchError.
+        if (signal && signal.aborted) {
+            throw new AbortError('The operation was aborted.');
+        }
         const err = error instanceof Error ? error : new Error(String(error));
         throw new FetchError(
             `request to ${request.url} failed, reason: ${err.message}`,
