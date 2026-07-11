@@ -1,300 +1,190 @@
 # gjsify
 
-**The full JavaScript ecosystem, native on GNOME.**
+**The JavaScript ecosystem you already know — running natively on GNOME.**
 
-**[Documentation](https://gjsify.github.io/gjsify/)**
+**[Documentation](https://gjsify.github.io/gjsify/)** · [Package status & metrics](STATUS.md) · [Architecture & contributor guide](AGENTS.md)
 
-Use Node.js APIs, Web APIs, and DOM interfaces in GNOME desktop applications. gjsify provides native implementations backed by GNOME libraries (GLib, Gio, Soup, Cairo, GTK) — so you can use the npm packages and patterns you already know to build native Linux apps.
+---
 
-## Features
+## What is gjsify?
 
-- **43 Node.js modules** — fs, net, http, http2 (h2c + ALPN + native dispatcher), crypto, streams, child_process, sqlite, ws, sab-native (cross-process SharedBuffer), terminal-native, and more
-- **19 Web API packages** — fetch, XMLHttpRequest, WebSocket, WebCrypto, WebRTC, WebAudio, Streams (BYOB), EventSource, AbortController, DOMParser, Gamepad
-- **8 DOM / bridge packages** — Canvas2D (Cairo), Canvas2D-core (headless), WebGL (OpenGL ES), DOM elements, event bridge, iframes (WebKit), video (gtk4paintablesink), bridge-types
-- **3 Adwaita packages for browser targets** — Web Components, Adwaita Sans fonts, symbolic icons
-- **8 integration test suites** — webtorrent, socket.io, streamx, Autobahn (RFC 6455 fuzzing), mcp-typescript-sdk, mcp-inspector-cli, axios, worker-stress
-- **Flatpak toolchain** — `gjsify flatpak init` scaffolds manifest + MetaInfo + .desktop + flathub.json from one config block; `gjsify flatpak check` runs Flathub linters locally
-- **Node-free CLI bootstrap** — `curl … install.mjs | gjs -m -` installs `@gjsify/cli` without npm/Node; `gjsify self-update` / `gjsify uninstall -g` round out the lifecycle
-- **ESM-only**, TypeScript-first, Rolldown-based build system
-- Native GNOME library bindings: `Gio` for I/O, `Soup 3.0` for HTTP, `GLib` for crypto/process, `Cairo` for 2D, `GTK 4` for UI, `GStreamer` for media + WebRTC, `libgda` for SQLite, `Manette` for gamepads, `WebKit` for iframes, `nghttp2` for native HTTP/2
-- Every unit test runs on both Node.js and GJS
+GNOME desktop apps can be written in JavaScript through **GJS** (GNOME's
+JavaScript runtime, powered by SpiderMonkey). But GJS is not Node.js and it is
+not a browser: there is no `node:fs`, no `fetch`, no `<canvas>`, no npm ecosystem
+waiting for you. Whole categories of libraries — an HTTP client, a game engine,
+a crypto library, a WebRTC stack — simply assume APIs that GJS doesn't have.
 
-## Quick Start
+**gjsify fills that gap.** It reimplements the Node.js, Web, and DOM APIs *on top
+of GNOME's own libraries*, so the code and packages you already know just work
+when you build a native GNOME application:
 
-### Install the CLI
+| You write… | gjsify runs it on… |
+|---|---|
+| `node:fs`, `node:net`, `node:crypto` | `Gio`, `GLib` |
+| `fetch`, `WebSocket`, `XMLHttpRequest` | `Soup 3` |
+| `<canvas>` 2D / WebGL | `Cairo` / `Gtk.GLArea` (OpenGL ES) |
+| `WebRTC`, `WebAudio`, `<video>` | `GStreamer` |
+| `node:sqlite` | `libgda` |
 
-**Node-free bootstrap** (recommended, requires only `gjs` ≥ 1.86 and `curl`):
+No wrapper server, no bundled Chromium, no shelling out to Node — the
+implementations *are* native GNOME code. The result is a real GTK 4 / Adwaita
+Linux app that also speaks the language of the wider JavaScript world.
+
+## The goal
+
+gjsify's north star is **"write once with the APIs you already know, run where it
+makes sense — natively."**
+
+- **Native on GNOME first.** GJS is the primary, non-negotiable target. A gjsify
+  app is a first-class GTK/Adwaita citizen you can ship as a Flatpak.
+- **The ecosystem, unmodified.** The measure of success is *unmodified npm
+  packages running on GJS*. Real proof today: the [Excalibur.js](https://excalibur.js.org/)
+  game engine, WebTorrent, socket.io, three.js, axios, and the Anthropic MCP SDK
+  all run on GJS through gjsify's polyfills — validated by their own upstream test
+  suites.
+- **One source, many runtimes.** Most polyfills are pure TypeScript and therefore
+  portable. Each package declares its reach across **GJS · Node · Browser ·
+  NativeScript**, and the build routes each import to the right implementation.
+  Share what's shareable; be native where it counts.
+- **Node-free by design.** The whole toolchain — install, build, run, test,
+  publish, Flatpak — runs *on GJS itself*. You can develop and ship a GNOME
+  JavaScript app on a machine that has no Node.js at all.
+
+## See it in action
+
+Standard Node.js code — the bundler resolves `node:*` imports to their `@gjsify/*`
+implementations when you target GJS:
+
+```typescript
+import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+
+const content = readFileSync('/etc/hostname', 'utf8');
+const hash = createHash('sha256').update(content).digest('hex');
+writeFileSync('/tmp/hostname-hash.txt', hash);
+```
+
+Web APIs work too — this really goes out over `libsoup`:
+
+```typescript
+const zen = await (await fetch('https://api.github.com/zen')).text();
+console.log(zen);
+```
+
+And the bridges let a browser-shaped library drive real GTK widgets. A `<canvas>`
+becomes a `Gtk.DrawingArea` (2D) or `Gtk.GLArea` (WebGL); an `<iframe>` becomes a
+`WebKit.WebView` — so an engine written for the browser renders inside your
+Adwaita window, unchanged.
+
+## Quick start
+
+**Install the CLI** (Node-free bootstrap — needs only `gjs` ≥ 1.86 and `curl`):
 
 ```bash
 curl -fsSL https://github.com/gjsify/gjsify/releases/latest/download/install.mjs \
   -o /tmp/g.mjs && gjs -m /tmp/g.mjs && rm /tmp/g.mjs
 ```
 
-This lays down `@gjsify/cli` under `~/.local/share/gjsify/global/` and a launcher
-at `~/.local/bin/gjsify` — no `npm` / `node` required on the machine. Run
-`gjsify self-update` to refresh in place, or `gjsify uninstall -g @gjsify/cli`
-to remove.
+This installs `@gjsify/cli` under `~/.local/share/gjsify/` with a launcher at
+`~/.local/bin/gjsify` — no `npm` / `node` required. (`gjsify self-update` refreshes
+it; `gjsify uninstall -g @gjsify/cli` removes it. Already manage CLIs through
+Node? `npm install -g @gjsify/cli` works too.)
 
-**Optional Node-managed install** (escape hatch — only needed if you already
-manage CLIs through Node and want to install `@gjsify/cli` from npm):
-
-```bash
-gjsify install -g @gjsify/cli   # once the CLI is bootstrapped
-# or, from a Node-only machine:
-npm install -g @gjsify/cli
-```
-
-### Create a new project
+**Create and run a project:**
 
 ```bash
 gjsify create my-app
 cd my-app
-gjsify install --immutable
-gjsify build
+gjsify install --immutable   # resolves npm deps via the Node-free CLI bundle
+gjsify build                 # Rolldown-based, GJS target by default
 gjsify run start
 ```
 
-`gjsify create` scaffolds a GTK 4 application with TypeScript, ready to build
-and run. `gjsify install` resolves and installs npm dependencies via the
-committed Node-free `dist/cli.gjs.mjs` bundle — no `npm` / `yarn` invocation
-required. Pass `--immutable` for reproducible CI installs (gjsify-lock.json must
-match `package.json`).
+`gjsify create` scaffolds a ready-to-run GTK 4 + TypeScript application.
 
 ### Prerequisites
 
-The runtime requirement is **GJS ≥ 1.86** (SpiderMonkey 140 / ES2024, ships
-with Fedora 43+ and Ubuntu 25.10+). Plus GNOME development libraries for the
-features you plan to use:
-
-Fedora:
+The runtime requirement is **GJS ≥ 1.86** (SpiderMonkey 140 / ES2024 — Fedora 43+,
+Ubuntu 25.10+), plus the GNOME development libraries for the features you use:
 
 ```bash
+# Fedora
 sudo dnf install gjs glib2-devel gobject-introspection-devel gtk4-devel \
   libsoup3-devel webkitgtk6.0-devel libadwaita-devel gdk-pixbuf2-devel \
   libepoxy-devel libgda libgda-sqlite meson vala gcc pkgconf
-```
 
-Ubuntu:
-
-```bash
+# Ubuntu
 sudo apt install gjs libglib2.0-dev libgirepository1.0-dev libgtk-4-dev \
   libsoup-3.0-dev libwebkitgtk-6.0-dev libadwaita-1-dev libgdk-pixbuf-2.0-dev \
   libepoxy-dev libgda-6.0-dev meson valac gcc pkg-config
 ```
 
-Node.js 24+ is **optional** — needed only if you run the legacy `test:node`
-cross-validation suites (every unit test is mirrored on Node + GJS) or if you
-prefer to manage `@gjsify/cli` via `npm install -g`.
+Node.js 24+ is **optional** — needed only to run the cross-validation test track
+(every unit test is mirrored on Node + GJS) or to manage the CLI via npm.
 
-### Using the CLI directly
+## What's inside
 
-```bash
-# Build a TypeScript file for GJS (default target)
-gjsify build src/index.ts --outfile dist/app.js
+gjsify is a monorepo of ~130 `@gjsify/*` packages, organised as four pillars plus
+the toolchain:
 
-# Run it (sets LD_LIBRARY_PATH + GI_TYPELIB_PATH for native @gjsify/* prebuilds)
-gjsify run dist/app.js
+- **Node.js** — `fs`, `net`, `http`/`http2`, `crypto`, `streams`, `child_process`,
+  `sqlite`, `worker_threads`, `tls`, `ws`, and more, with optional native Vala
+  bridges (cross-process `SharedBuffer`, terminal control, HTTP/2).
+- **Web** — `fetch`, `WebSocket`, `WebCrypto`, `WebRTC`, `WebAudio`, Streams,
+  `EventSource`, `XMLHttpRequest`, `AbortController`, and friends.
+- **DOM & bridges** — a headless `CanvasRenderingContext2D` (Cairo), WebGL,
+  DOM elements, a GTK→DOM event bridge, `<iframe>`/`<video>` bridges.
+- **Framework** — composition helpers, a Storybook, and in-app devtools you can
+  drive over D-Bus to screenshot and inspect a running GJS app.
+- **Toolchain** (`@gjsify/cli`) — Node-free `install` / `build` / `run` / `test` /
+  `publish` / `flatpak`, a self-hosted TypeScript checker (`gjsify tsc`), and a
+  Rolldown-based bundler with GJS / Node / Browser / NativeScript targets.
 
-# Try a published GJS app without installing it
-gjsify dlx <pkg>
-```
+> The **always-current package matrix, implementation status, test counts, and
+> metrics live in [STATUS.md](STATUS.md)** — kept in lockstep with the code so
+> this README doesn't drift. For how it all fits together and how to contribute,
+> see **[AGENTS.md](AGENTS.md)** and the [Architecture Decision Records](docs/adr/).
 
-### Ship your own GJS app with a one-line installer
+### Ship it
 
-`gjsify generate-installer` scaffolds an `install.mjs` for your package,
-parameterised to your npm name and bin name:
-
-```bash
-cd my-gjs-app
-gjsify generate-installer
-git add install.mjs && git commit -m "chore: add gjsify-based installer"
-```
-
-Users of your app then install with:
-
-```bash
-curl -fsSL https://github.com/<you>/<repo>/raw/main/install.mjs \
-  -o /tmp/i.mjs && gjs -m /tmp/i.mjs && rm /tmp/i.mjs
-```
-
-No npm / Node required on the user's machine.
-
-### Ship as a Flatpak
-
-`gjsify flatpak init` scaffolds the full Flathub asset set — manifest +
-MetaInfo XML + `.desktop` + `flathub.json` — from one `package.json`
-config block. `--kind app` (default) for GTK/Adwaita desktop apps;
-`--kind cli` for headless tools.
-
-```bash
-gjsify flatpak init               # generate everything
-gjsify flatpak check              # run appstreamcli + flatpak-builder-lint locally
-gjsify flatpak build              # wrap flatpak-builder
-```
-
-See the [Flatpak app guide](https://gjsify.github.io/gjsify/guides/flatpak-app/)
-and [Flatpak CLI guide](https://gjsify.github.io/gjsify/guides/flatpak-cli-tool/) for end-to-end submission.
-
-## Usage
-
-Write standard Node.js code — the bundler resolves `node:*` imports to `@gjsify/*` implementations when targeting GJS:
-
-```typescript
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { createHash } from 'node:crypto';
-
-const content = readFileSync('/etc/hostname', 'utf8');
-const hash = createHash('sha256').update(content).digest('hex');
-
-writeFileSync(join('/tmp', 'hostname-hash.txt'), hash);
-console.log(`Hostname hash: ${hash}`);
-```
-
-Web APIs work too:
-
-```typescript
-const response = await fetch('https://api.github.com/zen');
-const text = await response.text();
-console.log(text);
-```
+- **A one-line installer for your own app:** `gjsify generate-installer` scaffolds
+  an `install.mjs` so your users install with a single `curl … | gjs -m -` — no
+  npm / Node on their machine.
+- **A Flatpak:** `gjsify flatpak init` generates the full Flathub asset set
+  (manifest + MetaInfo + `.desktop` + `flathub.json`) from one `package.json`
+  block; `gjsify flatpak check` runs the Flathub linters locally. See the
+  [Flatpak app](https://gjsify.github.io/gjsify/guides/flatpak-app/) and
+  [Flatpak CLI](https://gjsify.github.io/gjsify/guides/flatpak-cli-tool/) guides.
 
 ## Versioning & compatibility
 
 All `@gjsify/*` packages ship as one coherent **release train**: every release
-publishes the whole set at a single version, tested against each other at
-exactly that version. Compatibility between `@gjsify/*` packages is guaranteed
-**only within the same release version** — mixing versions (e.g.
-`@gjsify/fetch@0.14.x` with `@gjsify/http@0.13.x`) is unsupported. Upgrade them
-together:
+publishes the whole set at a single version, tested against each other at exactly
+that version. Compatibility is guaranteed **only within the same release** — don't
+mix versions. Upgrade them together:
 
 ```bash
 gjsify upgrade --latest --filter @gjsify   # bump every @gjsify/* dep to the latest train
-gjsify upgrade --align                     # monorepos: re-align deps drifted across workspaces
 gjsify upgrade --check                     # CI gate: fail on drifted ranges
 ```
 
-Full rationale: [ADR 0008 — Release-train versioning policy](docs/adr/0008-release-versioning-policy.md).
-
-## Package Status
-
-### Node.js Modules
-
-| Status | Packages |
-|--------|----------|
-| **Full** (36) | assert, async_hooks, buffer, child_process, console, constants, crypto, dgram, diagnostics_channel, dns, events, fs, globals, http, http2, https, module, net, os, path, perf_hooks, process, querystring, readline, stream, string_decoder, sys, timers, tls, tty, url, util, zlib + native: terminal-native, sab-native |
-| **Partial** (5) | sqlite (libgda-backed subset), ws (no perMessageDeflate/ping-pong events), worker_threads (subprocess-based + cross-process SAB via sab-native), vm (eval-based, no realm isolation), v8 (stub) |
-| **Stub** (3) | cluster, domain, inspector |
-
-Plus `@gjsify/node-polyfills` meta package for scaffolding.
-
-### Web APIs
-
-abort-controller, compression-streams, dom-events, dom-exception, domparser, eventsource, fetch, formdata, gamepad, web-globals, web-streams, webaudio, webcrypto, webrtc (+ `webrtc-native` Vala prebuild), websocket, webstorage, xmlhttprequest. Plus `@gjsify/web-polyfills` meta.
-
-Adwaita for browser targets: `adwaita-web`, `adwaita-fonts`, `adwaita-icons`.
-
-### DOM / Bridges
-
-| Package | Backed by | Provides |
-|---------|-----------|----------|
-| canvas2d-core | Cairo, PangoCairo | Headless CanvasRenderingContext2D, CanvasGradient, CanvasPattern, Path2D, ImageData |
-| canvas2d | canvas2d-core, Gtk 4 | Re-exports canvas2d-core + FontFace + Canvas2DBridge → Gtk.DrawingArea |
-| dom-elements | GdkPixbuf, canvas2d-core | Node, Element, HTMLCanvasElement (auto-registers `'2d'`), HTMLImageElement, Document |
-| event-bridge | GTK 4, Gdk 4 | GTK → DOM event mapping (Mouse, Pointer, Keyboard, Wheel, Focus) |
-| iframe | WebKit 6.0 | HTMLIFrameElement, IFrameBridge → WebKit.WebView |
-| video | Gst 1.0, Gtk 4 | HTMLVideoElement, VideoBridge → Gtk.Picture (gtk4paintablesink) |
-| webgl | gwebgl (Vala) | WebGL 1.0/2.0, WebGLBridge → Gtk.GLArea |
-| bridge-types | — | Shared BridgeEnvironment / BridgeWindow interfaces |
-
-### GNOME Library Mappings
-
-| Node.js / Web / DOM | GNOME |
-|---|-------|
-| fs | Gio.File, Gio.FileIOStream |
-| net | Gio.SocketClient, Gio.SocketService |
-| http/https | Soup.Server, Soup.Session |
-| crypto | GLib.Checksum, GLib.Hmac |
-| child_process | Gio.Subprocess |
-| dns | Gio.Resolver |
-| tls | Gio.TlsClientConnection |
-| url | GLib.Uri |
-| process | GLib (env, pid, cwd) |
-| sqlite | Gda (SQLite provider) |
-| fetch / XMLHttpRequest / WebSocket / EventSource | Soup 3.0 |
-| WebRTC | GStreamer (`webrtcbin`) + `@gjsify/webrtc-native` Vala bridges |
-| WebAudio | GStreamer (`decodebin`, `appsrc`, `volume`, `autoaudiosink`) |
-| Video | Gtk.Picture + gtk4paintablesink (GStreamer) |
-| Canvas 2D | Cairo + PangoCairo |
-| WebGL | Gtk.GLArea + libepoxy via `gwebgl` Vala |
-| Iframe | WebKit.WebView |
-| Gamepad | libmanette |
-
-## Project Structure
-
-```
-packages/
-  node/       # 42 Node.js API packages (@gjsify/<name>) + node-polyfills meta
-  web/        # 19 Web API packages (fetch, XHR, WebSocket, WebRTC, WebAudio, …) + web-polyfills meta
-  dom/        # 8 DOM / bridge packages (canvas2d-core, canvas2d, webgl, dom-elements, event-bridge, iframe, video, bridge-types)
-  gjs/        # GJS utilities, types, test framework (@gjsify/unit)
-  infra/      # Build tools, Rolldown / Vite plugins, CLI, create-app
-examples/
-  dom/        # DOM-pillar examples (WebGL tutorials, WebRTC, WebTorrent, three.js, canvas2d, video, iframe, gamepad)
-  node/       # Node-pillar examples (Express, Hono, Koa, socket.io, SSE chat, WS chat, Deepkit, CLI tools)
-showcases/
-  dom/        # Polished DOM showcases consumed by `gjsify showcase`
-  node/       # Polished Node showcases
-tests/
-  e2e/        # End-to-end build/test runner
-  integration/ # Curated upstream test suites (webtorrent, socket.io, streamx, Autobahn)
-refs/         # 59 read-only reference submodules (Node.js, Deno, Bun, WebKit, GStreamer, …)
-```
+Rationale: [ADR 0008 — Release-train versioning policy](docs/adr/0008-release-versioning-policy.md).
 
 ## Development
 
 ```bash
-# Install dependencies (workspace-wide, reproducible from gjsify-lock.json)
-gjsify install --immutable
-
-# Full build (every workspace package, in topological order)
-gjsify foreach -A -t build
-
-# Type check (all packages, parallel)
-gjsify check
-
-# Run all unit tests (every package's src/test.mts on GJS + Node, aggregated)
-gjsify foreach -A test
-
-# Run opt-in integration suites (webtorrent, socket.io, streamx, Autobahn)
-gjsify workspace @gjsify/integration-webtorrent test
-gjsify workspace @gjsify/integration-socket.io test
-gjsify workspace @gjsify/integration-streamx test
-gjsify workspace @gjsify/integration-autobahn test
-
-# Per-package testing
-cd packages/node/fs
-gjsify test                # Build + run src/test.mts on GJS and Node, aggregate
-gjsify test --runtime gjs  # Only the GJS run
-gjsify test --runtime node # Only the Node run (test-correctness validation)
+gjsify install --immutable      # reproducible workspace install from gjsify-lock.json
+gjsify foreach -A -t build      # build every package in topological order
+gjsify check                    # type-check all packages (self-hosted gjsify tsc)
+gjsify foreach -A test          # run every package's tests on GJS + Node
 ```
 
-`gjsify test` replaces the per-package `build:test:{gjs,node}` + `test:{gjs,node}`
-script boilerplate: it locates `src/test.mts`, builds it in-process for each
-requested runtime, runs each output, and aggregates exit codes. Add `--rebuild`
-to force a rebuild or `--no-build` to run an already-built bundle.
-
-### Testing Philosophy
-
-Every test runs on both Node.js and GJS. Node.js validates test correctness; GJS validates the implementation. Tests use `@gjsify/unit` (describe/it/expect). Node.js is therefore required for development of the polyfills themselves, but **not** for downstream consumers — they only need GJS.
-
-## Target Environment
-
-- GJS 1.86+ (SpiderMonkey 140 / ES2024) — runtime
-- Node.js 24.x — optional, only for the cross-validation `test:node` track
-- Rolldown target: `firefox140`
-- ESM-only, TypeScript 6.x
+**Testing philosophy:** every test runs on both Node.js and GJS — Node validates
+that the *test* is correct, GJS validates that the *implementation* is. Node is
+therefore needed to develop the polyfills, but never to consume them. The full
+contributor guide (conventions, package layout, the tree-shakeable-globals rules,
+the `refs/` reference submodules) is in [AGENTS.md](AGENTS.md).
 
 ## License
 
-See individual package licenses. Most packages are MIT.
+See individual package licenses; most packages are MIT.
