@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.17.0](https://github.com/gjsify/gjsify/compare/v0.16.9...v0.17.0) (2026-07-11)
+
+### Features
+
+* **fetch:** per-request TLS + abort connect-phase ([51a8a47](https://github.com/gjsify/gjsify/commit/51a8a478257282bd4d2a2d048cc533fe9ef2deba))
+
+### Documentation
+
+* **fetch:** note per-connection TLS + abort parity in STATUS ([d9574a8](https://github.com/gjsify/gjsify/commit/d9574a88ff7683108d1969bddd3e908e045f2368))
+
 ## [0.16.9](https://github.com/gjsify/gjsify/compare/v0.16.8...v0.16.9) (2026-07-10)
 
 ### Bug Fixes
