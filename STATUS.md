@@ -26,29 +26,29 @@
 ## Summary
 
 gjsify implements Node.js, Web Standard, and DOM APIs for GJS (GNOME JavaScript / SpiderMonkey 140).
-The project comprises **41 Node.js modules** (+1 meta, +5 native bridges), **18 Web API packages** (+1 meta, +1 native bridge, +3 Adwaita assets), **2 DOM packages**, **6 framework bridge packages** (+1 app-shell package), **3 GJS infrastructure packages**, and **16 build/infra tools**.
+The project comprises **41 Node.js modules** (+2 meta, +5 native bridges), **19 Web API packages** (+1 meta, +1 native bridge, +5 Adwaita packages), **2 DOM packages**, **6 framework bridge packages** (+1 app-shell package), **3 GJS infrastructure packages**, and **21 build/infra tools**.
 
 | Category | Total | Full | Partial | Stub |
 |----------|-------|------|---------|------|
 | Node.js APIs | 41 | 33 (80%) | 5 (12%) | 3 (7%) |
 | Node.js native bridges | 5 | 5 (terminal, sab, tls, http-soup, http2) | — | — |
-| Node.js meta | 1 | 1 | — | — |
-| Web APIs | 18 | 16 (89%) | 2 (11%) | — |
+| Node.js meta | 2 | 2 (node-polyfills, browser-node-polyfills) | — | — |
+| Web APIs | 19 | 17 (89%) | 2 (11%) | — |
 | Web native bridge | 1 | 1 (webrtc-native) | — | — |
 | Web meta | 1 | 1 | — | — |
-| Browser UI / Adwaita assets | 4 | 4 (adwaita-web, adwaita-fonts, adwaita-icons, adwaita-core) | — | — |
+| Browser UI / Adwaita | 5 | 5 (adwaita-web, adwaita-fonts, adwaita-icons, adwaita-core, adwaita-storybook) | — | — |
 | DOM | 2 | 2 (dom-elements, canvas2d-core) | — | — |
 | Framework bridges | 6 | 6 (bridge-types, canvas2d, event-bridge, iframe, video, webgl) | — | — |
 | Framework storybook | 3 | 3 (stories, storybook, storybook-core) | — | — |
 | Framework app shell | 1 | 1 (adwaita-app — app base + nav shell + async mounter + `LoadingStack` widget + storybook) | — | — |
 | GJS Infrastructure | 3 | 3 (runtime, unit, utils) | — | — |
-| Build/Infra Tools | 16 | 16 | — | — |
+| Build/Infra Tools | 21 | 21 | — | — |
 | Showcases | 8 | 8 | — | — |
-| Integration test suites | 22 | 22 | — | — |
+| Integration test suites | 35 | 35 | — | — |
 
 **Web platform coverage** (vs. the relevant W3C/WHATWG standards, not just our own package list): ≈54 % of all surveyed standards implemented full or partial, with ~20 % out of scope by design for desktop GTK apps (Service Worker, FS Access, Web Bluetooth, …). See `website/src/data/web-standards.ts` for the canonical category list.
 
-**Test coverage:** 10,650+ test cases in 113+ spec files (each test runs on both Node.js and GJS). (86 new `@gjsify/child_process` parity tests in v0.7.2's audit.) CI via GitHub Actions (Node.js 24.x + GJS on Fedora 43/44 — minimum supported runtime: GJS 1.86 / SpiderMonkey 140). Integration suites (`gjsify foreach test:integration`) are opt-in and exercise curated upstream tests from acorn, autobahn, axios, cosmiconfig, deepkit-type-compiler, dotenv, execa, fast-glob, gettext-parser, lightningcss, mcp-inspector-cli, mcp-typescript-sdk, minify-xml, oxfmt-native, pkg-types, rolldown-native, rollup-pluginutils, socket.io, streamx, ts-for-gir, undici, webtorrent, worker-stress, and yargs.
+**Test coverage:** 10,650+ test cases in 113+ spec files (each test runs on both Node.js and GJS). (86 new `@gjsify/child_process` parity tests in v0.7.2's audit.) CI via GitHub Actions (Node.js 24.x + GJS on Fedora 43/44 — minimum supported runtime: GJS 1.86 / SpiderMonkey 140). Integration suites (`gjsify foreach test:integration`) are opt-in and exercise curated upstream tests from acorn, autobahn, axios, chalk, chokidar, claude-agent-sdk, cosmiconfig, debug, deepkit-type-compiler, deltachat, devtools-cdp, dotenv, execa, fast-glob, gettext-parser, lightningcss, loro-crdt, mcp-inspector-cli, mcp-typescript-sdk, minify-xml, nativescript, oxfmt-native, pkg-types, rolldown-native, rollup-pluginutils, socket.io, streamx, tls-session, ts-for-gir, typescript-tsc, undici, webtorrent, worker-stress, yargs, and yjs.
 
 ---
 
@@ -407,24 +407,24 @@ Not yet implemented (but potentially relevant for GJS projects):
 
 | Metric | Value |
 |--------|-------|
-| Total Node.js packages | 41 + 1 meta + 5 native bridges |
+| Total Node.js packages | 41 + 2 meta + 5 native bridges (= 48) |
 | Fully implemented | 33 (80%) |
 | Partially implemented | 5 (12%) — sqlite, ws, worker_threads, vm, v8 |
 | Stubs | 3 (7%) — cluster, domain, inspector |
 | Native Node bridges | 5 (terminal-native, sab-native, tls-native, http-soup-bridge, http2-native) |
-| Web API packages | 18 + 1 meta + 1 native bridge (16 full, 2 partial) |
+| Web API packages | 19 + 1 meta + 1 native bridge (17 full, 2 partial) |
 | Web native bridge | 1 (webrtc-native) |
 | DOM packages | 2 (dom-elements, canvas2d-core) |
 | Framework / bridge packages | 6 (bridge-types, canvas2d, event-bridge, iframe, video, webgl) |
 | Framework storybook packages | 3 (stories, storybook, storybook-core) |
-| Browser UI packages | 3 (adwaita-web, adwaita-fonts, adwaita-icons) |
+| Browser UI packages | 5 (adwaita-web, adwaita-fonts, adwaita-icons, adwaita-core, adwaita-storybook) |
 | NativeScript bridge packages | 5 (native-fs-bridge, native-platform, adwaita-nativescript, devtools-nativescript, storybook-nativescript) |
 | GJS infrastructure packages | 3 (runtime, unit, utils) |
-| Build / infra tools | 18 (infra/, incl. the `@gjsify/oxfmt-native` GI bridge) |
-| E2E suites | 30+ (create-app, cli-only, cli-only-pnp, standalone-plugin, vite-plugin-gjsify, native-install, cli-config, inline-static-reads, library-multi-build, terminal-native, gsettings, gresource, define-from-pkg, text-loader, css-bundling, dlx-native-prebuilds, dlx-version-pin, plugins-by-name, shebang-string, shebang-node, build-watch, test-runner, unit-fail-attribution, app-browser, publish, self-update, global-install-engine, flatpak, flatpak-sync, flatpak-diff, flatpak-release, oxc, oxc-plugin, upgrade — flatpak: 17 tests (incl. G.2 2-space); test-runner: 5; unit-fail-attribution: 2 (@gjsify/unit fail-count isolation — a leaked late assertion becomes a distinct stray, never poisons a bystander it()); build-watch: 2; flatpak-sync: 4; flatpak-diff: 4; flatpak-release: 4; oxc: 8 (oxlint+oxfmt format/lint/fix); oxc-plugin: register-class-order rule report + autofix; upgrade: 7 covering --latest/--patch/--minor/--filter/workspace skip/empty-deps against an in-process mock npm registry; vite-plugin-gjsify: 4 — programmatic `vite build` with `gjsifyBrowser()`, asserts no `gi://` / `@girs/` leak + `node:assert`→`@gjsify/assert` alias resolved; global-install-engine: 3 — a global GJS install of @gjsify/cli lays down the @gjsify/rolldown-native bundler engine (+ lightningcss/oxfmt bridges) & the launcher's GI_TYPELIB_PATH/LD_LIBRARY_PATH preamble includes its prebuild dir; self-update repairs a version-matched-but-engine-missing prefix) |
+| Build / infra tools | 21 (infra/, incl. the `@gjsify/oxfmt-native` GI bridge) |
+| E2E suites | 80+ (create-app, cli-only, cli-only-pnp, standalone-plugin, vite-plugin-gjsify, native-install, cli-config, inline-static-reads, library-multi-build, terminal-native, gsettings, gresource, define-from-pkg, text-loader, css-bundling, dlx-native-prebuilds, dlx-version-pin, plugins-by-name, shebang-string, shebang-node, build-watch, test-runner, unit-fail-attribution, app-browser, publish, self-update, global-install-engine, flatpak, flatpak-sync, flatpak-diff, flatpak-release, oxc, oxc-plugin, upgrade — flatpak: 17 tests (incl. G.2 2-space); test-runner: 5; unit-fail-attribution: 2 (@gjsify/unit fail-count isolation — a leaked late assertion becomes a distinct stray, never poisons a bystander it()); build-watch: 2; flatpak-sync: 4; flatpak-diff: 4; flatpak-release: 4; oxc: 8 (oxlint+oxfmt format/lint/fix); oxc-plugin: register-class-order rule report + autofix; upgrade: 7 covering --latest/--patch/--minor/--filter/workspace skip/empty-deps against an in-process mock npm registry; vite-plugin-gjsify: 4 — programmatic `vite build` with `gjsifyBrowser()`, asserts no `gi://` / `@girs/` leak + `node:assert`→`@gjsify/assert` alias resolved; global-install-engine: 3 — a global GJS install of @gjsify/cli lays down the @gjsify/rolldown-native bundler engine (+ lightningcss/oxfmt bridges) & the launcher's GI_TYPELIB_PATH/LD_LIBRARY_PATH preamble includes its prebuild dir; self-update repairs a version-matched-but-engine-missing prefix) |
 | Total test cases | 10,790+ (unit, +18 sab-native SharedBuffer/atomics/cross-process fd-roundtrip + SCM_RIGHTS, +4 worker_threads × sab-native cross-process SharedBuffer (eval workers + atomic counters), +32 worker_threads transferList/MessagePort/SAB, +23 http2 Phase 2 pushStream/respondWithFD/respondWithFile, +80 http2 Phases 0–4 native dispatcher / SessionBridge / GOAWAY / RST_STREAM / GC pinning, +11 `gjsify barrels` generator, +11 login-prompt key-handler (`applyKey`: CR/LF submit, masking, backspace, Ctrl-C)) + 2,034+ (integration: 185 webtorrent + 112 socket.io + 156 streamx + 131 autobahn + 281 mcp-typescript-sdk (was 108; +173 from in-memory-transport / stdio-buffer / uri-template / tool-name-validation / stdio-subprocess / server-initiated-requests / cancellation-progress ports) + 14 mcp-inspector-cli + 68 axios/120 GJS + 1035 worker-stress GJS / 1169 Node — including the new 4-worker × SHA-256 cross-process SharedBuffer barrier + 8-worker × 10k fetch_add stress suite via @gjsify/sab-native) |
 | Spec files | 110+ |
-| Integration test suites | 24 (acorn, autobahn, axios, cosmiconfig, deepkit-type-compiler, dotenv, execa, fast-glob, gettext-parser, lightningcss, mcp-inspector-cli, mcp-typescript-sdk, minify-xml, oxfmt-native, pkg-types, rolldown-native, rollup-pluginutils, socket.io, streamx, ts-for-gir, undici, webtorrent, worker-stress, yargs) |
+| Integration test suites | 35 (acorn, autobahn, axios, chalk, chokidar, claude-agent-sdk, cosmiconfig, debug, deepkit-type-compiler, deltachat, devtools-cdp, dotenv, execa, fast-glob, gettext-parser, lightningcss, loro-crdt, mcp-inspector-cli, mcp-typescript-sdk, minify-xml, nativescript, oxfmt-native, pkg-types, rolldown-native, rollup-pluginutils, socket.io, streamx, tls-session, ts-for-gir, typescript-tsc, undici, webtorrent, worker-stress, yargs, yjs) |
 | Showcases | 8 (Canvas2D Fireworks, Three.js Teapot, Three.js Pixel Post-Processing, Excalibur Jelly Jumper, Express Webserver, WebRTC Loopback, WebRTC Video, Minimalist Browser) |
 | Real-world examples | 53+ across `examples/dom/` (WebGL tutorials, WebRTC loopback/DTMF/trickle-ice/video/states, WebTorrent download/player/seed/stream, three.js variants, video-player, gamepad-snes, iframe, canvas2d-confetti/text) and `examples/node/` (Express, Koa, Hono REST, SSE chat, WS chat, socket.io pingpong / chat-server, static file server, CLI tools for fs/path/events/os/url/buffer, deepkit di/events/types/validation/workflow, file search, DNS lookup, JSON store, SQLite JSON store, Gio cat, worker pool, **4-worker SAB-native parallel SHA-256**, yargs, GTK HTTP dashboard, **axios HTTP client**) |
 | GNOME-integrated packages | 20+ (Gio, GLib, Soup, Gda, Gst, GstApp, GstWebRTC, GstSDP, Manette, WebKit, Gtk, Cairo, PangoCairo, GdkPixbuf, libepoxy) |
