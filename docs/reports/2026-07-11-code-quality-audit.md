@@ -25,23 +25,42 @@ latent cross-platform boundary leak.
 
 ## Landed in this pass (branch `refactor/audit-consistency-cleanup`)
 
-1. **`docs:` reconcile package/suite counts with the tree.** The AGENTS.md
-   header (line 5) and STATUS.md Summary/Metrics tables had drifted from the
-   tree and contradicted each other and the (correct) Package Tiers section —
-   the node count alone appeared as 43, 47, and 48 in three places. Corrected:
-   node = 41 impl + 2 meta + 5 native = **48**; web = 19 API + 1 meta + 1 native
-   + 5 Adwaita = **26**; build/infra = **21** (was 16 and 18); integration
-   suites = **35** (was 22 and 24); E2E = **80+** (was 30+). Also fixed the
-   "Canonical exemplars" block, a mirror-me template that wrongly claimed all
-   three exemplars declare `node:polyfill` (abort-controller/dom-exception are
-   `node:native`, and all now carry a `nativescript` slot).
-2. **`refactor(cli):` unify the permissive `package.json` readers.**
-   `readPackageJson` had six implementations with three different error
-   contracts. The three behaviourally-identical permissive copies
-   (workspace-root, detect-native-packages, check) are now one
-   `utils/pkg-json.ts#readPackageJson`; the three intentional throw-variants on
-   the install path (pkg-json-edit, install-global, flatpak) are left alone and
-   the split is documented. `gjsify tsc` green.
+Eight commits, each validated (`gjsify tsc`, package specs on Node + GJS, or the
+`run-command` e2e) and committed inside the gjsify submodule:
+
+1. **`docs:` reconcile package/suite counts** — header + Summary + Metrics were
+   stale and self-contradicting (node appeared as 43 / 47 / 48). Fixed to the
+   tree: node **48**, web **26**, build/infra **21** (was 16 and 18),
+   integration **35** (was 22 and 24), E2E **80+**; and the mis-declared
+   canonical-exemplars runtime triplet (abort-controller/dom-exception are
+   `node:native`, all carry a `nativescript` slot).
+2. **`refactor(cli):` unify the permissive `package.json` readers** (A1 partial)
+   — 3 identical copies → one `utils/pkg-json.ts`; the 3 install-path
+   throw-variants left intact + documented.
+3. **`docs:` this audit report.**
+4. **`refactor(cli):` centralize the GJS system probes** (A3) — `gjsExit` /
+   `gjsSystemVersion` in `runtime.ts`; 5 inline `imports.system` casts removed.
+5. **`feat(webcrypto):` wrapKey / unwrapKey** (D1) — the root-cause-rule gap,
+   from `exportKey`→`encrypt` / `decrypt`→`importKey` via extracted usage-check-
+   free `_encryptImpl`/`_decryptImpl`. 490/490 GJS specs green (+ Node native).
+6. **`fix(cli):` propagate a non-zero gjs exit through run's script dispatch** —
+   a bug FOUND during execution, NOT in the 6-agent audit: `gjsify run <script>`
+   whose body is `gjsify run <bundle>` returned 0 on failure, so a failing
+   `test:gjs` was swallowed and could pass `gjsify foreach test` (CI) green.
+   `runGjsBundle` now sets `process.exitCode` synchronously and returns before
+   the `exitOnSuccess` `process.exit(0)` can override it. Reproduced + fixed +
+   e2e-guarded (#8).
+7. **`test(web):` wire the orphaned GJS suites** — ALSO found during execution:
+   fetch / formdata / webcrypto shipped a `test:gjs` (490 / 103 / 49 specs)
+   their `test` script never ran — unlike 87 other packages — so `foreach test`
+   skipped their GJS leg. Wired in (each verified green first). Pairs with #6.
+8. **`test(e2e):` guard run-script gjs exit propagation** — regression for #6.
+
+Findings **#6 and #7 are the highest-impact of the session** — a live
+CI-masking bug and a real GJS test-coverage gap — and neither was in the
+original audit; they surfaced only from running the GJS validation path.
+
+(Backlog rows A3 and D1 below are now landed; A1 partially.)
 
 ## Why the rest is a backlog, not landed here
 
@@ -104,9 +123,11 @@ notes the validation it needs.
 
 ## Suggested order
 
-1. **A5** (spawnToCompletion) + **B1** (adwaita-web toast queue) + **D1**
-   (wrapKey/unwrapKey) — the three P1s: one latent hang, one fidelity bug, one
-   root-cause-rule gap.
+1. ~~**D1** (wrapKey/unwrapKey)~~ ✓ landed. Remaining P1s: **B1** (adwaita-web
+   toast one-at-a-time queue — a real fidelity bug; browser-validate) and **A5**
+   (spawnToCompletion — a *suspected* latent hang: note `runGjsBundle`'s own
+   async-`spawn`+await-`close` ran 490+ GJS specs here without hanging, so
+   confirm the gotcha actually bites foreach/flatpak before unifying 6 wrappers).
 2. **A2/A3/A4/A7** — the infra dedup cluster (mechanical, spec-guarded).
 3. **C1/B2** — the shared-`core` extractions (need the 3-target / GTK+NS builds).
 4. **A8/E2** — the God-function splits and the utils boundary; ADR-scale, own PRs.
