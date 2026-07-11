@@ -92,6 +92,7 @@ export async function runGjsBundle(
 
     const child = spawn('gjs', gjsArgs, { env, stdio: 'inherit' });
 
+    let failed = false;
     await new Promise<void>((resolvePromise, reject) => {
         child.on('close', (code) => {
             if (code !== 0) {
@@ -103,9 +104,21 @@ export async function runGjsBundle(
         child.on('error', reject);
     }).catch((err) => {
         console.error(err.message);
-        process.exit(1);
+        failed = true;
     });
+    if (failed) {
+        // Set `process.exitCode` synchronously BEFORE exiting: under GJS
+        // `process.exit()` is deferred (the GLib main loop is armed), so when
+        // this runs via run.ts's in-process script dispatch, execution returns
+        // to the caller, which propagates by reading `process.exitCode`. Without
+        // this, `gjsify run <script>` whose body is `gjsify run <bundle>`
+        // swallowed a non-zero gjs exit and returned 0 — masking a failing
+        // `test:gjs` in the `test` script chain (and, via `gjsify foreach test`,
+        // in CI). The `return` guards against a fall-through second `exit`.
+        process.exitCode = 1;
+        return process.exit(1);
+    }
     // See RunGjsBundleOptions.exitOnSuccess — terminal callers opt in,
     // mid-flow callers (test.ts's runtime loop) keep the process alive.
-    if (options.exitOnSuccess) process.exit(0);
+    if (options.exitOnSuccess) return process.exit(0);
 }
