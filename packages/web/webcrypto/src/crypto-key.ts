@@ -160,6 +160,7 @@ export interface CipherLike {
     final(): Uint8Array;
     setAAD?(aad: Uint8Array): void;
     getAuthTag?(): Uint8Array;
+    setAutoPadding?(autoPadding: boolean): void;
 }
 
 export interface DecipherLike {
@@ -167,6 +168,7 @@ export interface DecipherLike {
     final(): Uint8Array;
     setAuthTag?(tag: Uint8Array): void;
     setAAD?(aad: Uint8Array): void;
+    setAutoPadding?(autoPadding: boolean): void;
 }
 
 export interface SignerLike {
