@@ -36,6 +36,7 @@ import {
     type VerifierLike,
     type EcdhLike,
 } from './crypto-key.js';
+import { aesKeyWrap, aesKeyUnwrap } from './aes-kw.js';
 import {
     normalizeAlgorithm,
     toNodeHashName,
@@ -158,6 +159,15 @@ export class SubtleCrypto {
                     new Uint8Array(keyData),
                 );
             }
+            case 'AES-KW': {
+                const length = (algorithm as AesKeyGenParams).length;
+                if (![128, 192, 256].includes(length)) {
+                    throw new DOMException(`Invalid AES key length: ${length}`, 'OperationError');
+                }
+                validateUsages(keyUsages, ['wrapKey', 'unwrapKey']);
+                const keyData = _randomBytes(length / 8);
+                return new CryptoKey('secret', extractable, { name: 'AES-KW', length }, keyUsages, new Uint8Array(keyData));
+            }
             case 'HMAC': {
                 const hmacParams = algorithm as HmacKeyGenParams;
                 const hashAlg = normalizeAlgorithm(hmacParams.hash);
@@ -255,6 +265,29 @@ export class SubtleCrypto {
                     );
                 }
                 throw new DOMException(`Unsupported format: ${format}`, 'NotSupportedError');
+            }
+            case 'AES-KW': {
+                let bytes: Uint8Array;
+                if (format === 'raw') {
+                    bytes = toUint8Array(keyData as BufferSource);
+                } else if (format === 'jwk') {
+                    const jwk = keyData as JsonWebKey;
+                    if (jwk.kty !== 'oct') throw new DOMException('JWK kty must be "oct"', 'DataError');
+                    bytes = base64urlDecode(jwk.k!);
+                } else {
+                    throw new DOMException(`Unsupported format: ${format}`, 'NotSupportedError');
+                }
+                if (![16, 24, 32].includes(bytes.length)) {
+                    throw new DOMException(`Invalid AES key length: ${bytes.length * 8}`, 'DataError');
+                }
+                validateUsages(keyUsages, ['wrapKey', 'unwrapKey']);
+                return new CryptoKey(
+                    'secret',
+                    extractable,
+                    { name: 'AES-KW', length: bytes.length * 8 },
+                    keyUsages,
+                    new Uint8Array(bytes),
+                );
             }
             case 'HMAC': {
                 const hmacParams = algorithm as HmacImportParams;
@@ -513,6 +546,10 @@ export class SubtleCrypto {
                 const ct = _rsaOaepEncrypt(nodeHash, handle.pem, plaintext, label);
                 return (ct.buffer as ArrayBuffer).slice(ct.byteOffset, ct.byteOffset + ct.byteLength);
             }
+            case 'AES-KW': {
+                const kek = key._handle as Uint8Array;
+                return aesKeyWrap(plaintext, (b) => this._aesEcbBlock(kek, b, true)).buffer as ArrayBuffer;
+            }
             default:
                 throw new DOMException(`Unsupported algorithm: ${alg.name}`, 'NotSupportedError');
         }
@@ -589,9 +626,28 @@ export class SubtleCrypto {
                 const pt = _rsaOaepDecrypt(nodeHash, handle.pem, ciphertext, label);
                 return (pt.buffer as ArrayBuffer).slice(pt.byteOffset, pt.byteOffset + pt.byteLength);
             }
+            case 'AES-KW': {
+                const kek = key._handle as Uint8Array;
+                return aesKeyUnwrap(ciphertext, (b) => this._aesEcbBlock(kek, b, false)).buffer as ArrayBuffer;
+            }
             default:
                 throw new DOMException(`Unsupported algorithm: ${alg.name}`, 'NotSupportedError');
         }
+    }
+
+    /** One AES-ECB block (16→16 bytes, no padding) — the RFC 3394 primitive backing AES-KW wrap/unwrap. */
+    private _aesEcbBlock(kek: Uint8Array, block: Uint8Array, encrypt: boolean): Uint8Array {
+        const alg = `aes-${kek.length * 8}-ecb`;
+        const empty = new Uint8Array(0);
+        const cipher = encrypt ? _createCipheriv(alg, kek, empty) : _createDecipheriv(alg, kek, empty);
+        cipher.setAutoPadding?.(false);
+        const p1 = cipher.update(block);
+        const p2 = cipher.final();
+        if (p2.length === 0) return p1;
+        const out = new Uint8Array(p1.length + p2.length);
+        out.set(p1, 0);
+        out.set(p2, p1.length);
+        return out;
     }
 
     // ==================== sign ====================

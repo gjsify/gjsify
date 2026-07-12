@@ -1809,4 +1809,79 @@ export default async () => {
             expect(threw).toBe(true);
         });
     });
+
+    // ==================== AES-KW (RFC 3394) ====================
+
+    await describe('SubtleCrypto AES-KW', async () => {
+        const fromHex = (s: string) => Uint8Array.from((s.match(/../g) || []).map((h) => parseInt(h, 16)));
+        const toHexUpper = (u: Uint8Array) =>
+            Array.from(u)
+                .map((b) => b.toString(16).padStart(2, '0'))
+                .join('')
+                .toUpperCase();
+
+        await it('matches the RFC 3394 §4.1 128-bit key-wrap test vector', async () => {
+            const kek = await subtle.importKey('raw', fromHex('000102030405060708090A0B0C0D0E0F'), { name: 'AES-KW' }, false, [
+                'wrapKey',
+                'unwrapKey',
+            ] as KeyUsage[]);
+            const keyToWrap = await subtle.importKey(
+                'raw',
+                fromHex('00112233445566778899AABBCCDDEEFF'),
+                { name: 'AES-GCM' },
+                true,
+                ['encrypt', 'decrypt'] as KeyUsage[],
+            );
+            const wrapped = new Uint8Array(await subtle.wrapKey('raw', keyToWrap, kek, { name: 'AES-KW' }));
+            expect(toHexUpper(wrapped)).toBe('1FA68B0A8112B447AEF34BD8FB5A7B829D3E862371D2CFE5');
+        });
+
+        await it('round-trips a generated AES-KW key (256-bit KEK)', async () => {
+            const kek = (await subtle.generateKey({ name: 'AES-KW', length: 256 }, false, [
+                'wrapKey',
+                'unwrapKey',
+            ] as KeyUsage[])) as CryptoKey;
+            const rawKey = crypto.getRandomValues(new Uint8Array(16));
+            const keyToWrap = await subtle.importKey('raw', rawKey, { name: 'AES-GCM' }, true, [
+                'encrypt',
+                'decrypt',
+            ] as KeyUsage[]);
+            const wrapped = await subtle.wrapKey('raw', keyToWrap, kek, { name: 'AES-KW' });
+            expect(wrapped.byteLength).toBe(24); // 16 + 8
+            const unwrapped = await subtle.unwrapKey(
+                'raw',
+                wrapped,
+                kek,
+                { name: 'AES-KW' },
+                { name: 'AES-GCM' },
+                true,
+                ['encrypt', 'decrypt'] as KeyUsage[],
+            );
+            const back = new Uint8Array((await subtle.exportKey('raw', unwrapped)) as ArrayBuffer);
+            expect(Array.from(back).join(',')).toBe(Array.from(rawKey).join(','));
+        });
+
+        await it('rejects a tampered wrapped key (integrity check)', async () => {
+            const kek = (await subtle.generateKey({ name: 'AES-KW', length: 128 }, false, [
+                'wrapKey',
+                'unwrapKey',
+            ] as KeyUsage[])) as CryptoKey;
+            const keyToWrap = await subtle.importKey('raw', crypto.getRandomValues(new Uint8Array(16)), { name: 'AES-GCM' }, true, [
+                'encrypt',
+                'decrypt',
+            ] as KeyUsage[]);
+            const wrapped = new Uint8Array(await subtle.wrapKey('raw', keyToWrap, kek, { name: 'AES-KW' }));
+            wrapped[0] ^= 0xff;
+            let threw = false;
+            try {
+                await subtle.unwrapKey('raw', wrapped, kek, { name: 'AES-KW' }, { name: 'AES-GCM' }, true, [
+                    'encrypt',
+                    'decrypt',
+                ] as KeyUsage[]);
+            } catch {
+                threw = true;
+            }
+            expect(threw).toBe(true);
+        });
+    });
 };
