@@ -36,3 +36,10 @@ jobs:
       # Playwright suite. Meta/asset packages with no standard test are exempt.
       - name: Check declared vs detected runtime triplets (strict)
         run: node scripts/audit-runtimes.mjs --check --strict
+
+      # Every package that ships a `test:gjs` / `test:node` leg must RUN it from
+      # its `test` script — else `gjsify foreach test` silently skips that
+      # runtime (the fetch/formdata/webcrypto GJS + abort-controller/adwaita-app/
+      # storybook-core node incidents).
+      - name: Check test scripts run their declared runtime legs
+        run: node scripts/audit-test-scripts.mjs
