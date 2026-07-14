@@ -1,0 +1,571 @@
+// SPDX-License-Identifier: MIT
+// Toggle-ref instance GC bridge (canonical GObject wrappers) + the TEST-ONLY cross-thread GC stress hooks.
+
+#include "common.h"
+
+namespace nodegi {
+
+// ====================================================================
+// ---- toggle-ref instance GC bridge ---------------------------------
+// ====================================================================
+//
+// Derivation: refs/node-gtk src/gobject.cc (romgrk et al., MIT, the #446/#439
+// ownership fixes) + refs/gjs gi/{object.cpp,toggle.{h,cpp}} (the thread-safe
+// ToggleQueue gold standard), ported to N-API. See scratchpad design doc.
+//
+// One canonical, type-tagged External per live GObject, cached on the GObject as
+// qdata. The binding owns a SINGLE g_object_add_toggle_ref; the toggle-notify
+// flips the cached External's napi_ref between STRONG (C also holds the object →
+// rooted, survives GC) and WEAK (JS is the sole owner → collectable). This gives:
+//   (a) wrapper IDENTITY — same GObject ⇒ same External ⇒ `===` + Map-key stable;
+//   (b) collectability of reference cycles;
+//   (c) resurrection — a GObject handed back from C re-wraps to a fresh wrapper
+//       after its old one was collected, without clobbering a pending teardown.
+//
+// Crash-mode discipline (the three the design calls out):
+//   1. N-API finalizers run OUTSIDE GC, but g_object_remove_toggle_ref can drive
+//      dispose → synchronous signal emission → re-entrant JS, which is unsafe
+//      from a finalizer / non-main thread. So the finalizer ONLY schedules a
+//      g_idle_add teardown; ALL GObject teardown runs from that main-loop idle.
+//   2. Toggle-up on a maybe-collected wrapper probes napi_get_reference_value;
+//      empty ⇒ skip (a later WrapGObject resurrects). No during-GC flag dance is
+//      needed — N-API finalizers are post-GC.
+//   3. Cross-thread toggles + double-free: off-thread toggles are marshalled to
+//      the JS thread via a mutex-guarded queue drained on the GLib main context;
+//      a g_object_weak_ref safety net nulls the cached pointer if C finalizes the
+//      object under us; the idle clears qdata only if it still points at THIS
+//      wrapper (resurrection-safe); a shutdown flag disables toggles at teardown.
+
+static GQuark NodeGiWrapperQuark() {
+  static GQuark q = g_quark_from_static_string("node-gi::wrapper");
+  return q;
+}
+
+struct NodeGiInstance {
+  napi_env env;
+  GObject* gobject;        // nulled by the weak-ref safety net if C finalizes it
+  napi_ref handle_ref;     // ref to the canonical External; strong=rooted, weak=not
+  bool rooted;             // true ⇒ handle_ref currently strong (mirrors node-gtk !dying)
+  bool toggle_added;       // a toggle ref is currently installed
+  bool teardown_queued;    // a finalizer already scheduled the idle teardown (dedupe)
+};
+
+// The single N-API env that OWNS the toggle machinery (qdata cache + global drain
+// queues + drain async). Claimed by the FIRST env that wraps a GObject. A second
+// env (a worker_threads Worker on another thread) must NOT touch this env's
+// napi_refs (cross-env = UAF) nor its qdata cache / queues, so its wraps take the
+// plain strong-ref path (no identity / GC-bridge, but safe). Atomic: read lock-free
+// in MakeGObjectHandle, claimed once via compare_exchange there.
+std::atomic<napi_env> g_owner_env{nullptr};
+
+// JS/main thread id of the owner env (captured at first wrap in EnsureDrainAsync).
+// napi_reference_ref/unref are only valid there; off-thread toggles are queued +
+// drained on the main context.
+static std::thread::id g_main_thread_id;
+static bool g_main_thread_id_set = false;
+static bool OnMainThread() {
+  return g_main_thread_id_set && std::this_thread::get_id() == g_main_thread_id;
+}
+
+// Set at env cleanup: ToggleNotify early-returns so no toggle touches a
+// torn-down env (GJS's gjs_object_shutdown_toggle_queue equivalent).
+std::atomic<bool> g_toggle_shutdown{false};
+
+// Deferred-work queues, drained on the JS thread by a Node-API threadsafe function.
+//
+// Why a threadsafe function, not g_idle_add: a GLib idle only runs while the GLib
+// default context is iterated, which in pure Node/Bun/Deno usage (a script that
+// never runs a GLib loop) NEVER happens → idle teardowns pile up and the GObjects
+// leak. napi_call_threadsafe_function schedules a drain on the JS event loop,
+// which turns in ALL modes: plain Node/Bun/Deno (the runtime loop runs on its
+// own) and, on Node, a blocking GLib loop (the uv_source bridge below pumps
+// uv_run(NOWAIT), and Node implements the TSFN over a uv_async, so that pump
+// dispatches the drain too). The TSFN is napi_unref'd so it never keeps the
+// process alive on its own.
+//
+// Why NOT node-gtk's raw uv_async_t: uv_async_init / uv_async_send / uv_unref /
+// uv_close are libuv-internal — Deno exports no libuv symbols (the addon dies with
+// "undefined symbol: uv_unref") and Bun panics on uv_async_init (oven-sh/bun#18546).
+// The threadsafe function is core Node-API, implemented by all three runtimes, so
+// the GC bridge — the FIRST thing every GObject creation arms — is portable.
+//
+// Two queues share one mutex: TOGGLES (off-thread toggle-notifies marshalled to
+// the JS thread — the rare GIO/GStreamer-worker path) and TEARDOWNS (wrappers
+// whose External was finalized; the finalizer must not touch GObject directly).
+struct ToggleItem {
+  NodeGiInstance* inst;
+  bool down;  // true = toggle-down (→ weak), false = toggle-up (→ strong)
+};
+// RECURSIVE (defensive, mirrors GJS's recursive ToggleQueue lock). The lock is held
+// only across SHORT critical sections — never across RunTeardown's dispose → JS (the
+// drain pops one item under the lock, RELEASES it, then processes; see DrainTsfnCb).
+// So a reentrant SettleCollectedInstance / NodeGiToggleNotify fired from a dispose
+// re-acquires the lock as a FRESH (non-nested) acquire today. Keeping it recursive
+// guarantees that even if a future change widens a critical section a same-thread
+// re-acquire can never self-deadlock; it does not weaken the no-lock-across-dispose
+// invariant the liveness test enforces.
+std::recursive_mutex g_queue_mutex;
+static std::deque<ToggleItem> g_toggle_queue;
+static std::deque<NodeGiInstance*> g_teardown_queue;
+napi_threadsafe_function g_drain_tsfn = nullptr;
+bool g_drain_async_inited = false;
+static napi_env g_async_env = nullptr;  // captured for the drain callback's shutdown checks
+
+static void DrainTsfnCb(napi_env env, napi_value js_callback, void* context, void* data);
+static void NodeGiToggleNotify(gpointer, GObject*, gboolean);
+static void OnGObjectFinalized(gpointer, GObject*);
+
+// Lazily init the drain threadsafe function on the JS thread (the only legal
+// thread for napi_create_threadsafe_function). Called only by the OWNER env's
+// MakeGObjectHandle (the multi-env gate runs first), so it runs serially on one
+// thread — hence before any object exists, and before any toggle or teardown can
+// be queued. The flag + g_drain_tsfn are read off-thread (WakeDrain), so they are
+// written under g_queue_mutex.
+static void EnsureDrainAsync(napi_env env) {
+  {
+    std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
+    if (g_drain_async_inited) return;
+  }
+  // A threadsafe function delivers the wake onto the JS thread. max_queue_size 1
+  // coalesces bursts (a second wake while one is pending returns napi_queue_full,
+  // which WakeDrain ignores — the pending drain empties the whole item queue
+  // anyway); initial_thread_count 1 keeps it alive for the env lifetime so any
+  // thread may call it without acquiring. js_func is null — DrainTsfnCb IS the
+  // callback, and the TSFN infra invokes it inside a handle + callback scope, so
+  // the JS re-entry during dispose (signal emission via napi_make_callback) runs
+  // as a proper N-API callback with no manually-managed napi_async_context.
+  napi_value name = nullptr;
+  napi_create_string_utf8(env, "node-gi:toggle-drain", NAPI_AUTO_LENGTH, &name);
+  napi_threadsafe_function tsfn = nullptr;
+  napi_status st = napi_create_threadsafe_function(
+      env, nullptr, nullptr, name, /*max_queue_size*/ 1, /*initial_thread_count*/ 1,
+      nullptr, nullptr, nullptr, DrainTsfnCb, &tsfn);
+  if (st != napi_ok || tsfn == nullptr) return;
+  // Don't keep the event loop alive just because the drain machinery exists
+  // (the uv_unref equivalent). Best-effort — harmless if a runtime no-ops it.
+  napi_unref_threadsafe_function(env, tsfn);
+  {
+    std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
+    g_async_env = env;
+    g_drain_tsfn = tsfn;
+    // This env owns the machinery; its thread is the JS/main thread for toggles.
+    g_main_thread_id = std::this_thread::get_id();
+    g_main_thread_id_set = true;
+    g_drain_async_inited = true;
+  }
+}
+
+// Wake the JS-thread drain. Holds g_queue_mutex and re-checks both the init flag
+// and the shutdown flag immediately before the call, paired with OnEnvShutdown's
+// locked flag-flip-before-release — so an off-thread toggle can never call a TSFN
+// that is being / has been released (the shutdown TOCTOU that aborted libuv).
+static void WakeDrain() {
+  std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
+  if (g_drain_async_inited && g_drain_tsfn != nullptr && !g_toggle_shutdown.load()) {
+    // nonblocking + max_queue_size 1 ⇒ coalesces; napi_queue_full is the
+    // "a drain is already pending" no-op (it will pick up this item too).
+    napi_call_threadsafe_function(g_drain_tsfn, nullptr, napi_tsfn_nonblocking);
+  }
+}
+
+// Apply a toggle on the JS thread: flip the canonical napi_ref strong↔weak.
+// Only flips on a real state transition (mirrors node-gtk's dying flag) and
+// probes liveness before touching a possibly-collected handle (crash mode 2).
+static void ApplyToggle(NodeGiInstance* inst, bool down) {
+  if (down) {
+    if (!inst->rooted) return;  // already weak
+    napi_value v = nullptr;
+    if (napi_get_reference_value(inst->env, inst->handle_ref, &v) == napi_ok && v != nullptr) {
+      uint32_t r = 0;
+      napi_reference_unref(inst->env, inst->handle_ref, &r);  // strong → weak
+    }
+    inst->rooted = false;
+  } else {
+    if (inst->rooted) return;  // already strong
+    napi_value v = nullptr;
+    if (napi_get_reference_value(inst->env, inst->handle_ref, &v) == napi_ok && v != nullptr) {
+      uint32_t r = 0;
+      napi_reference_ref(inst->env, inst->handle_ref, &r);  // weak → strong
+      inst->rooted = true;
+    }
+    // empty ⇒ the wrapper was already collected; a later WrapGObject resurrects.
+  }
+}
+
+// Run one wrapper's teardown on the JS thread: drop the toggle ref (may dispose →
+// emit → re-enter JS — legal here, not in a finalizer/off-thread), resurrection-
+// safely, then free the wrapper.
+//
+// ORDER MATTERS (node-gtk's GObjectTeardownIdle): remove_toggle_ref is LAST,
+// because dropping the last ref can take refcount to 0 → dispose → finalize → the
+// GObject is freed; any qdata/weak op after that would touch freed memory. So:
+//   (1) under the queue lock: detach qdata (only if it still points at US —
+//       resurrection-safe) AND cancel any queued off-thread toggles for this inst.
+//       Both under the lock — paired with the off-thread enqueue path, which
+//       re-reads qdata under the SAME lock — so a racing toggle either enqueues
+//       then gets cancelled here, or sees the cleared qdata and never enqueues;
+//       after this no NodeGiToggleNotify can find this inst.
+//   (2) g_object_weak_unref (drop the safety net before the unref below).
+//   (3) g_object_remove_toggle_ref LAST (may dispose → emit → re-enter JS, legal
+//       here on the JS thread; the object may be freed afterwards).
+static void RunTeardown(NodeGiInstance* inst) {
+  GObject* obj = inst->gobject;  // null if the weak-ref net already fired
+  {
+    std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
+    if (obj != nullptr && g_object_get_qdata(obj, NodeGiWrapperQuark()) == inst) {
+      g_object_set_qdata(obj, NodeGiWrapperQuark(), nullptr);
+    }
+    for (auto it = g_toggle_queue.begin(); it != g_toggle_queue.end();) {
+      it = (it->inst == inst) ? g_toggle_queue.erase(it) : it + 1;
+    }
+  }
+  if (obj != nullptr) {
+    g_object_weak_unref(obj, OnGObjectFinalized, inst);
+    if (inst->toggle_added) g_object_remove_toggle_ref(obj, NodeGiToggleNotify, nullptr);
+  }
+  if (inst->handle_ref != nullptr) napi_delete_reference(inst->env, inst->handle_ref);
+  delete inst;
+}
+
+// Drain both queues on the JS/main thread. Pop ONE item from the LIVE queue UNDER
+// the lock, RELEASE the lock, then process it WITHOUT the lock; loop until empty.
+//
+// The lock must NOT be held across RunTeardown: it calls g_object_remove_toggle_ref
+// → dispose → arbitrary JS (signal/vfunc). Holding a lock across reentrant user code
+// (a) STALLS an off-thread NodeGiToggleNotify (which blocks acquiring g_queue_mutex)
+// for the whole dispose — a priority inversion, not a "brief" block; and (b) risks an
+// ABBA deadlock if a dispose vfunc synchronously waits on a worker thread that is
+// itself blocked on g_queue_mutex. GJS likewise holds its ToggleQueue lock only
+// across the rooting flip (== ApplyToggle), NEVER across remove_toggle_ref + dispose.
+//
+// The DEFECT-2 fix is preserved: the current item is removed from the LIVE queue
+// UNDER the lock BEFORE release, so it is never double-processed; and a reentrant
+// SettleCollectedInstance (same drain thread, fired from a dispose) re-acquires the
+// lock and still sees + cancels the OTHER pending teardowns left in the live queue
+// (a swap-then-process snapshot would hide them → double-free). Toggles drain first
+// (FIFO); a toggle enqueued during a teardown's dispose is picked up on the next
+// iteration. Terminates when both queues are empty.
+static void DrainTsfnCb(napi_env raw_env, napi_value /*js_callback*/, void* /*context*/,
+                        void* /*data*/) {
+  if (g_async_env == nullptr || g_toggle_shutdown.load()) return;
+  Napi::Env env(raw_env);
+  // The TSFN infra already invokes us on the JS thread inside a callback scope
+  // (its async context), so signal emission during dispose runs as a proper
+  // N-API callback with no manually-managed CallbackScope. A HandleScope is still
+  // opened defensively: ApplyToggle's napi_get_reference_value and the JS re-entry
+  // during teardown both create V8 handles.
+  Napi::HandleScope handleScope(env);
+
+  while (true) {
+    if (g_toggle_shutdown.load()) return;
+    ToggleItem toggle{nullptr, false};
+    NodeGiInstance* teardown = nullptr;
+    {
+      std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
+      if (g_toggle_shutdown.load()) return;
+      if (!g_toggle_queue.empty()) {            // toggles first (FIFO)
+        toggle = g_toggle_queue.front();
+        g_toggle_queue.pop_front();
+      } else if (!g_teardown_queue.empty()) {
+        teardown = g_teardown_queue.front();
+        g_teardown_queue.pop_front();           // removed from the LIVE queue under the lock
+      } else {
+        return;                                  // both queues drained
+      }
+    }  // lock RELEASED before any processing — never held across dispose/JS
+    if (toggle.inst != nullptr) {
+      ApplyToggle(toggle.inst, toggle.down);     // napi-only, main-thread state, no reentry
+    } else {
+      RunTeardown(teardown);                      // dispose → JS, NO lock held
+    }
+  }
+}
+
+// Queue helpers — caller MUST hold g_queue_mutex. Mirror GJS ToggleQueue::is_queued
+// + ToggleQueue::enqueue (refs/gjs gi/toggle.cpp): a main-thread toggle may apply
+// directly ONLY when nothing is queued for the inst; otherwise it is enqueued, and
+// an OPPOSITE-direction queued toggle CANCELS with the new one (both removed). That
+// cancellation is what fixes the cross-thread wrong-flip / lost-toggle bug — a
+// stale queued flip can never be applied after its inverse already happened.
+static bool IsQueuedLocked(NodeGiInstance* inst) {
+  for (const ToggleItem& item : g_toggle_queue)
+    if (item.inst == inst) return true;
+  return false;
+}
+
+// Returns true iff a toggle was actually left on the queue (→ caller wakes drain).
+static bool EnqueueToggleLocked(NodeGiInstance* inst, bool down) {
+  for (auto it = g_toggle_queue.begin(); it != g_toggle_queue.end(); ++it) {
+    if (it->inst != inst) continue;
+    if (it->down != down) {
+      g_toggle_queue.erase(it);  // opposite direction queued → the two cancel
+      return false;
+    }
+    return false;  // same direction already queued → dedupe (ApplyToggle is idempotent)
+  }
+  g_toggle_queue.push_back({inst, down});
+  return true;
+}
+
+// The single toggle-notify for every node-gi GObject. Registered with data=NULL
+// (fungible — node-gtk pattern): the live wrapper is found via qdata, so a stale
+// teardown can remove ANY one toggle ref without orphaning a resurrected wrapper.
+//
+// ALL toggles route through the queue logic (GJS wrapped_gobj_toggle_notify): we
+// apply directly ONLY on the main thread when NOTHING is queued for this inst;
+// otherwise we enqueue (where opposite-direction toggles cancel). The qdata lookup
+// + decision + direct-apply/enqueue are all done UNDER g_queue_mutex (GJS holds its
+// ToggleQueue lock across the whole notify, including the direct apply) so an
+// off-thread toggle cannot interleave between the is-queued check and the apply, and
+// RunTeardown — which clears qdata under the SAME lock — can never be acted on after
+// it has freed an inst.
+static void NodeGiToggleNotify(gpointer /*data*/, GObject* obj, gboolean is_last_ref) {
+  if (g_toggle_shutdown.load()) return;
+  bool down = is_last_ref != FALSE;
+  bool main_thread = OnMainThread();
+  bool enqueued = false;
+  {
+    std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
+    if (g_toggle_shutdown.load()) return;  // re-check under the lock
+    NodeGiInstance* inst =
+        static_cast<NodeGiInstance*>(g_object_get_qdata(obj, NodeGiWrapperQuark()));
+    if (inst == nullptr) return;
+    if (main_thread && !IsQueuedLocked(inst)) {
+      ApplyToggle(inst, down);  // direct apply, under the lock (as GJS does)
+    } else {
+      enqueued = EnqueueToggleLocked(inst, down);
+    }
+  }
+  if (enqueued) WakeDrain();  // outside the lock
+}
+
+// Weak-ref safety net: if C finalizes the GObject while we still hold the toggle
+// ref (defensive — a correct toggle ref prevents this), null the cached pointer
+// so teardown never touches freed memory.
+static void OnGObjectFinalized(gpointer data, GObject* /*where_the_object_was*/) {
+  NodeGiInstance* inst = static_cast<NodeGiInstance*>(data);
+  inst->gobject = nullptr;
+}
+
+// The canonical External's finalizer (napi_finalize, runs at a safe point post-GC
+// but where re-entering GObject teardown is still unsafe). Do the MINIMUM: queue
+// the teardown + wake the drain async (crash mode 1).
+static void NodeGiInstanceFinalize(Napi::Env /*env*/, GObject* /*data*/, NodeGiInstance* inst) {
+  if (inst == nullptr || inst->teardown_queued) return;
+  inst->teardown_queued = true;
+  {
+    std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
+    // After shutdown nothing will drain, so don't grow the queue (the env is going
+    // away; the inst leaks with it — same as a dropped pending teardown).
+    if (g_toggle_shutdown.load()) return;
+    g_teardown_queue.push_back(inst);
+  }
+  WakeDrain();
+}
+
+// Synchronously dispose a COLLECTED wrapper's binding state so a fresh wrapper can
+// be built for the same GObject without ever installing a SECOND toggle ref on it.
+// GLib suppresses toggle-notify while >=2 toggle refs exist, so a refcount change in
+// the two-toggle-ref window would be LOST → the wrapper pinned/leaked (GJS keeps ONE
+// toggle ref per GObject). The caller holds a construction ref on obj, so dropping
+// the old toggle ref here cannot drive refcount to 0 / dispose. Main-thread only (==
+// the drain thread), so the pending idle teardown cannot be running concurrently.
+static void SettleCollectedInstance(GObject* obj, NodeGiInstance* old) {
+  {
+    std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
+    // Cancel old's pending teardown + any queued toggles that reference it, so the
+    // drain never touches a freed inst (paired with the off-thread enqueue, which
+    // re-reads qdata under this SAME lock — and we clear qdata below).
+    for (auto it = g_teardown_queue.begin(); it != g_teardown_queue.end();)
+      it = (*it == old) ? g_teardown_queue.erase(it) : it + 1;
+    for (auto it = g_toggle_queue.begin(); it != g_toggle_queue.end();)
+      it = (it->inst == old) ? g_toggle_queue.erase(it) : it + 1;
+    // Detach qdata only if it still points at old (resurrection-safe).
+    if (g_object_get_qdata(obj, NodeGiWrapperQuark()) == old)
+      g_object_set_qdata(obj, NodeGiWrapperQuark(), nullptr);
+  }
+  if (old->gobject != nullptr) {
+    g_object_weak_unref(obj, OnGObjectFinalized, old);
+    // Remove old's toggle ref BEFORE the fresh one is added below — never two at
+    // once. We hold a construction ref, so this cannot dispose obj.
+    if (old->toggle_added) g_object_remove_toggle_ref(obj, NodeGiToggleNotify, nullptr);
+  }
+  if (old->handle_ref != nullptr) napi_delete_reference(old->env, old->handle_ref);
+  delete old;
+}
+
+// Cache-aware factory: the caller owns exactly ONE non-floating "construction"
+// ref on obj. Returns the canonical External, establishing the toggle ref on a
+// cache miss / resurrecting on a collected hit, or adopting + balancing the ref
+// on a live hit.
+Napi::Value MakeGObjectHandle(Napi::Env env, GObject* obj) {
+  // Multi-env (worker_threads) safety: claim / honour the toggle-machinery owner.
+  // The FIRST env to wrap a GObject wins (compare_exchange under a concurrent race);
+  // every later env that is NOT the owner takes the plain strong-ref path.
+  napi_env owner = g_owner_env.load();
+  if (owner == nullptr) {
+    napi_env expected = nullptr;
+    owner = g_owner_env.compare_exchange_strong(expected, static_cast<napi_env>(env))
+                ? static_cast<napi_env>(env)
+                : expected;
+  }
+  if (owner != static_cast<napi_env>(env)) {
+    // A non-owner env must not touch the owner's napi_refs / qdata cache / queues
+    // (cross-env napi = UAF). Give it a plain strong-ref handle: it adopts the
+    // single construction ref and drops it in its OWN finalizer (correct
+    // refcounting; any toggle the ref churn triggers is handled by the OWNER on the
+    // owner thread). Trade-off: no wrapper identity / GC-bridge for worker envs — a
+    // documented limitation, but no cross-env UAF.
+    Napi::External<GObject> plain = Napi::External<GObject>::New(
+        env, obj, [](Napi::Env, GObject* p) { g_object_unref(p); });
+    plain.TypeTag(&kGObjectHandleTag);
+    return plain;
+  }
+
+  EnsureDrainAsync(env);  // wire the JS-thread drain before any toggle/teardown can queue
+  NodeGiInstance* existing =
+      static_cast<NodeGiInstance*>(g_object_get_qdata(obj, NodeGiWrapperQuark()));
+  if (existing != nullptr) {
+    napi_value cached = nullptr;
+    if (napi_get_reference_value(env, existing->handle_ref, &cached) == napi_ok &&
+        cached != nullptr) {
+      g_object_unref(obj);  // drop the surplus construction ref; toggle ref owns obj
+      return Napi::Value(env, cached);
+    }
+    // Collected hit (wrapper GC'd, idle teardown still PENDING — the drain runs on
+    // THIS thread, so it cannot have run concurrently). Settle the dead wrapper
+    // synchronously first (drops its toggle ref while we hold the construction ref),
+    // then build a fresh wrapper below — never two toggle refs on obj at once.
+    SettleCollectedInstance(obj, existing);
+  }
+
+  NodeGiInstance* inst = new NodeGiInstance();
+  inst->env = env;
+  inst->gobject = obj;
+  inst->rooted = true;
+  inst->toggle_added = false;
+  inst->teardown_queued = false;
+
+  Napi::External<GObject> ext =
+      Napi::External<GObject>::New(env, obj, NodeGiInstanceFinalize, inst);
+  ext.TypeTag(&kGObjectHandleTag);
+  napi_create_reference(env, ext, 1, &inst->handle_ref);  // start STRONG (node-gtk invariant)
+
+  g_object_set_qdata(obj, NodeGiWrapperQuark(), inst);     // overwrite (resurrection-safe)
+  g_object_weak_ref(obj, OnGObjectFinalized, inst);        // safety net
+  g_object_add_toggle_ref(obj, NodeGiToggleNotify, nullptr);
+  inst->toggle_added = true;
+  // Drop the construction ref → only the toggle ref remains. If nothing else
+  // holds obj (refcount 2→1) this fires toggle-down synchronously, flipping the
+  // fresh wrapper to weak; if C holds another ref it stays strong (rooted).
+  g_object_unref(obj);
+  return ext;
+}
+
+// Wrap a borrowed/owned GObject pointer as the canonical node-gi handle. The
+// cache lookup happens BEFORE any refcount change so a live hit causes no
+// spurious toggle churn; only the miss/resurrect path takes a construction ref.
+Napi::Value WrapGObject(Napi::Env env, GObject* obj, GITransfer transfer) {
+  if (obj == nullptr) return env.Null();
+
+  NodeGiInstance* inst =
+      static_cast<NodeGiInstance*>(g_object_get_qdata(obj, NodeGiWrapperQuark()));
+  // Multi-env (worker_threads) safety: the qdata cache is process-global, but
+  // inst->handle_ref is a napi_ref rooted in inst->env's isolate. ONLY that env may
+  // dereference it — napi_get_reference_value with a FOREIGN env is a cross-env UAF /
+  // V8 abort (e.g. a worker that obtains a process-shared singleton like
+  // Gio.Vfs.get_default() that the owner env already wrapped). A non-owner env skips
+  // the cache and takes the plain strong-ref path via MakeGObjectHandle (which gates
+  // the same way). inst->env is immutable, so this guard is race-free regardless of
+  // g_owner_env store ordering — MakeGObjectHandle's gate alone was NOT enough,
+  // because this cache-hit fast path runs BEFORE MakeGObjectHandle.
+  if (inst != nullptr && inst->env == static_cast<napi_env>(env)) {
+    napi_value cached = nullptr;
+    if (napi_get_reference_value(env, inst->handle_ref, &cached) == napi_ok && cached != nullptr) {
+      // Identity hit: return the canonical External, balancing the transfer (we
+      // already own obj via the toggle ref, so any ref the caller hands us is
+      // surplus and must be dropped).
+      if (g_object_is_floating(obj)) {
+        g_object_ref_sink(obj);
+        g_object_unref(obj);
+      } else if (transfer == GI_TRANSFER_EVERYTHING) {
+        g_object_unref(obj);
+      }
+      return Napi::Value(env, cached);
+    }
+    // collected hit (our env) → fall through and (re)build a fresh wrapper (resurrection).
+  }
+
+  // Miss / resurrect / cross-env share: own exactly one non-floating construction ref.
+  if (g_object_is_floating(obj)) {
+    g_object_ref_sink(obj);
+  } else if (transfer == GI_TRANSFER_NOTHING) {
+    g_object_ref(obj);
+  }  // GI_TRANSFER_EVERYTHING (non-floating): the caller already gave us the ref.
+  return MakeGObjectHandle(env, obj);
+}
+
+// ============================ TEST-ONLY ===============================
+// __stressRefUnrefOffThread(handle, iterations) — the GLib-thread vehicle the
+// cross-thread GC stress test needs (there is no headless JS way to make another
+// OS thread ref/unref a wrapped GObject — GIO local-file async keeps its refcount
+// ops on the main thread). A background GThread does g_object_ref/g_object_unref on
+// the wrapped GObject `iterations` times, crossing the toggle 1<->2 boundary from a
+// NON-main thread → driving NodeGiToggleNotify's OFF-THREAD branch + the
+// opposite-direction enqueue cancel + WakeDrain + the JS-thread drain. The CALLER
+// MUST keep the handle reachable (and take NO extra ref) for the churn's lifetime:
+// the toggle ref + the JS-reachable wrapper keep the GObject alive at refcount 1
+// between churn pairs, so the worker's 1<->2 crossings are real toggles, never a
+// use-after-free. Poll __stressRefUnrefRunning() for completion. Not part of the
+// public API surface — prefixed __ and only used by test/gc-cross-thread.test.mjs.
+static std::atomic<int> g_stress_running{0};
+// Monotonic count of completed off-thread ref/unref iterations — lets a test prove
+// the off-thread churn makes progress WHILE a main-thread dispose vfunc is running
+// (i.e. the drain lock is NOT held across dispose). If the lock were held across the
+// dispose, the off-thread NodeGiToggleNotify would block on g_queue_mutex and this
+// counter would freeze for the dispose's whole duration.
+static std::atomic<long> g_stress_progress{0};
+// Cooperative stop flag so a test can halt a long-running churn after asserting.
+static std::atomic<bool> g_stress_stop{false};
+struct StressArgs {
+  GObject* obj;
+  long iterations;
+};
+static gpointer StressThreadFunc(gpointer data) {
+  StressArgs* a = static_cast<StressArgs*>(data);
+  for (long i = 0; i < a->iterations; i++) {
+    if (g_stress_stop.load()) break;
+    g_object_ref(a->obj);    // 1 -> 2 : toggle UP (off-thread)
+    g_object_unref(a->obj);  // 2 -> 1 : toggle DOWN (off-thread)
+    g_stress_progress.fetch_add(1);
+    if ((i & 0x3f) == 0) g_thread_yield();  // give the main thread the lock + loop
+  }
+  g_stress_running.fetch_sub(1);
+  delete a;
+  return nullptr;
+}
+Napi::Value StressRefUnrefOffThread(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  GObject* obj = UnwrapGObject(env, info[0]);
+  if (obj == nullptr) return env.Undefined();
+  long iters = info.Length() >= 2 ? static_cast<long>(info[1].As<Napi::Number>().Int64Value()) : 10000;
+  g_stress_stop.store(false);  // a fresh churn is not pre-stopped
+  StressArgs* a = new StressArgs{obj, iters};
+  g_stress_running.fetch_add(1);
+  GThread* t = g_thread_new("node-gi-stress", StressThreadFunc, a);
+  g_thread_unref(t);  // detached — completion is signalled via g_stress_running
+  return env.Undefined();
+}
+Napi::Value StressRefUnrefRunning(const Napi::CallbackInfo& info) {
+  return Napi::Boolean::New(info.Env(), g_stress_running.load() > 0);
+}
+Napi::Value StressRefUnrefProgress(const Napi::CallbackInfo& info) {
+  return Napi::Number::New(info.Env(), static_cast<double>(g_stress_progress.load()));
+}
+Napi::Value StressRefUnrefStop(const Napi::CallbackInfo& info) {
+  g_stress_stop.store(true);
+  return info.Env().Undefined();
+}
+// ========================== END TEST-ONLY ============================
+
+}  // namespace nodegi
