@@ -112,6 +112,17 @@ const DEFAULT_TIMEOUT_CONFIG: TimeoutConfig = {
 
 let timeoutConfig: TimeoutConfig = { ...DEFAULT_TIMEOUT_CONFIG };
 
+/**
+ * Opt-in per-test skip map (test name → reason), populated by `run()` from its
+ * `skip` option. An `it()` whose `expectation` is a key here is reported as
+ * skipped (with the reason) instead of run — the honest way for a caller to run
+ * a suite on a runtime that cannot pass a known subset (e.g. a `@gjsify/node-gi`
+ * consumer skipping tests that hit an unimplemented GI-marshalling surface),
+ * WITHOUT editing or weakening the shared spec files. Empty by default, so it is
+ * a no-op for every normal run.
+ */
+let skipReasons: Map<string, string> = new Map();
+
 class TimeoutError extends Error {
     constructor(label: string, timeoutMs: number) {
         super(`Timeout: "${label}" exceeded ${timeoutMs}ms`);
@@ -767,6 +778,16 @@ export const it = async function (
     callback: () => void | Promise<void>,
     options?: { timeout?: number } | number,
 ) {
+    // Opt-in skip: a caller-supplied `run({...}, { skip })` entry for this test
+    // name reports it as skipped (with the reason) instead of running it. No-op
+    // unless the caller populated `skip` (see `skipReasons`).
+    const skipReason = skipReasons.get(expectation);
+    if (skipReason !== undefined) {
+        ++countTestsIgnored;
+        print(`  ${BLUE}-${RESET} ${GRAY}${expectation} (skipped: ${skipReason})${RESET}`);
+        return;
+    }
+
     const timeoutMs = typeof options === 'number' ? options : (options?.timeout ?? timeoutConfig.testTimeout);
 
     const t0 = now();
@@ -995,10 +1016,13 @@ const printRuntime = async () => {
 
 export const run = async (
     namespaces: Namespaces,
-    options?: { timeout?: number; testTimeout?: number; suiteTimeout?: number } | number,
+    options?:
+        | { timeout?: number; testTimeout?: number; suiteTimeout?: number; skip?: Record<string, string> }
+        | number,
 ) => {
     applyEnvOverrides();
     runStartTime = now();
+    skipReasons = new Map();
 
     if (options) {
         if (typeof options === 'number') {
@@ -1007,6 +1031,7 @@ export const run = async (
             if (options.timeout !== undefined) timeoutConfig.runTimeout = options.timeout;
             if (options.testTimeout !== undefined) timeoutConfig.testTimeout = options.testTimeout;
             if (options.suiteTimeout !== undefined) timeoutConfig.suiteTimeout = options.suiteTimeout;
+            if (options.skip) skipReasons = new Map(Object.entries(options.skip));
         }
     }
 
