@@ -46,10 +46,27 @@ Napi::Value GValueToJs(Napi::Env env, const GValue* v) {
     case G_TYPE_UCHAR: return Napi::Number::New(env, g_value_get_uchar(v));
     case G_TYPE_INT: return Napi::Number::New(env, g_value_get_int(v));
     case G_TYPE_UINT: return Napi::Number::New(env, g_value_get_uint(v));
-    case G_TYPE_LONG: return Napi::Number::New(env, static_cast<double>(g_value_get_long(v)));
-    case G_TYPE_ULONG: return Napi::Number::New(env, static_cast<double>(g_value_get_ulong(v)));
-    case G_TYPE_INT64: return Napi::Number::New(env, static_cast<double>(g_value_get_int64(v)));
-    case G_TYPE_UINT64: return Napi::Number::New(env, static_cast<double>(g_value_get_uint64(v)));
+    // 64-bit OUT: GJS returns a Number, warning when it can't be stored exactly.
+    case G_TYPE_LONG: {
+      glong x = g_value_get_long(v);
+      WarnIfUnsafeInt64(x);
+      return Napi::Number::New(env, static_cast<double>(x));
+    }
+    case G_TYPE_ULONG: {
+      gulong x = g_value_get_ulong(v);
+      WarnIfUnsafeUint64(x);
+      return Napi::Number::New(env, static_cast<double>(x));
+    }
+    case G_TYPE_INT64: {
+      gint64 x = g_value_get_int64(v);
+      WarnIfUnsafeInt64(x);
+      return Napi::Number::New(env, static_cast<double>(x));
+    }
+    case G_TYPE_UINT64: {
+      guint64 x = g_value_get_uint64(v);
+      WarnIfUnsafeUint64(x);
+      return Napi::Number::New(env, static_cast<double>(x));
+    }
     case G_TYPE_FLOAT: return Napi::Number::New(env, g_value_get_float(v));
     case G_TYPE_DOUBLE: return Napi::Number::New(env, g_value_get_double(v));
     case G_TYPE_ENUM: return Napi::Number::New(env, g_value_get_enum(v));
@@ -163,10 +180,13 @@ bool JsToGValue(Napi::Env env, Napi::Value js, GValue* v) {
     case G_TYPE_UCHAR: g_value_set_uchar(v, static_cast<guchar>(js.ToNumber().Uint32Value())); return true;
     case G_TYPE_INT: g_value_set_int(v, js.ToNumber().Int32Value()); return true;
     case G_TYPE_UINT: g_value_set_uint(v, js.ToNumber().Uint32Value()); return true;
-    case G_TYPE_LONG: g_value_set_long(v, static_cast<glong>(js.ToNumber().Int64Value())); return true;
-    case G_TYPE_ULONG: g_value_set_ulong(v, static_cast<gulong>(js.ToNumber().Int64Value())); return true;
-    case G_TYPE_INT64: g_value_set_int64(v, js.ToNumber().Int64Value()); return true;
-    case G_TYPE_UINT64: g_value_set_uint64(v, static_cast<guint64>(js.ToNumber().Int64Value())); return true;
+    // 64-bit (glong/gulong are 64-bit on LP64): accept a BigInt losslessly, else a
+    // truncated Number — never let a BigInt reach ToNumber(). Shared with the GI
+    // scalar marshaller via JsValueTo{Int,Uint}64 (common.h).
+    case G_TYPE_LONG: g_value_set_long(v, static_cast<glong>(JsValueToInt64(js))); return true;
+    case G_TYPE_ULONG: g_value_set_ulong(v, static_cast<gulong>(JsValueToUint64(js))); return true;
+    case G_TYPE_INT64: g_value_set_int64(v, JsValueToInt64(js)); return true;
+    case G_TYPE_UINT64: g_value_set_uint64(v, JsValueToUint64(js)); return true;
     case G_TYPE_FLOAT: g_value_set_float(v, static_cast<float>(js.ToNumber().DoubleValue())); return true;
     case G_TYPE_DOUBLE: g_value_set_double(v, js.ToNumber().DoubleValue()); return true;
     case G_TYPE_ENUM: g_value_set_enum(v, js.ToNumber().Int32Value()); return true;

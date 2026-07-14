@@ -47,6 +47,7 @@ const CONFORMANCE = [
   'globals',
   'gobject',
   'gtype',
+  'int64',
   'methods',
   'multilevel-subclass',
   'out-params',

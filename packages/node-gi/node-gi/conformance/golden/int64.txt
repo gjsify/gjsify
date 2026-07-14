@@ -1,0 +1,11 @@
+scalar to_unix: 1234567890 number
+scalar to_unix (BigInt in): 1234567890 number
+x small: 42
+x min: -9223372036854776000
+x max: 9223372036854776000
+x safe: 9007199254740991
+x typeof: number
+t small: 7
+t max: 18446744073709552000
+t safe: 9007199254740991
+t typeof: number
