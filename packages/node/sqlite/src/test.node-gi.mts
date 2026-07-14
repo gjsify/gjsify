@@ -22,10 +22,10 @@
 // `open`/`execute` are blocking), so — unlike an async-Gio consumer — it needs
 // NO GLib main-loop pumping and the WHOLE suite runs under node-gi. It reuses
 // the package's existing spec suites VERBATIM — same assertions as `test:gjs`.
-// Result of the 52 tests: 51 pass (connection lifecycle, prepare, param
-// binding, SQL/parser validation, error handling, option validation AND
-// scalar result-row reading via `Gda.DataModel.get_value_at()`, whose GValue
-// returns node-gi unboxes to JS primitives since gjsify PR #735).
+// Result: ALL 52 tests pass (connection lifecycle, prepare, param binding,
+// SQL/parser validation, error handling, option validation, scalar result-row
+// reading via `Gda.DataModel.get_value_at()` whose GValue returns node-gi
+// unboxes since gjsify PR #735, AND the BLOB round-trip — see below).
 import { run } from '@gjsify/unit';
 
 import testSuiteDatabaseSync from './database-sync.spec.js';
@@ -36,24 +36,17 @@ import testSuiteDataTypes from './data-types.spec.js';
 // the auto-injected `@gjsify/node-gi/globals` shim.
 print('sqlite suite on @gjsify/node-gi (Gda SQLite on Node)');
 
-// ── node-gi gap: BLOB (byte-array) ↔ GValue marshalling ───────────────────────
-// The ONE remaining failure. This test round-trips a `Uint8Array` BLOB: it binds
-// one as a statement parameter (`Gda.Holder.set_value(u8)`) and reads a BLOB
-// column back (`Gda.DataModel.get_value_at()`). node-gi doesn't marshal a JS
-// byte array to/from a `GValue` holding a GLib byte array the way GJS auto-does:
-// a bound `Uint8Array` doesn't round-trip (the inserted BLOB row isn't found on
-// read), and a BLOB `get_value_at()` return comes back as a RAW boxed node-gi
-// handle rather than a `Uint8Array` (confirmed by a direct Gda probe). This is
-// DISTINCT from the scalar GValue-return unboxing gjsify PR #735 already fixed
-// (int/real/text now round-trip — that turned 13 of the original 14 failures
-// green). It's a native-engine follow-up (byte-array GValue boxing/unboxing in
-// src/marshal.cc), not a @gjsify/sqlite bug and not fixable at the JS/L1 layer,
-// so this one test is skipped WITH a reason (never silently). All other reads —
-// INTEGER/REAL/TEXT/NULL, get()/all()/run(), BigInt toggles, array rows — pass.
-const NODE_GI_BLOB_GVALUE =
-    'node-gi does not marshal a Uint8Array BLOB to/from a GValue byte array: a bound Uint8Array param does not round-trip and a BLOB get_value_at() return is a raw boxed handle, not a Uint8Array (byte-array GValue boxing/unboxing gap in marshal.cc; distinct from the scalar GValue-return fix in PR #735)';
-const skip: Record<string, string> = {
-    'supports INTEGER, REAL, TEXT, BLOB, and NULL': NODE_GI_BLOB_GVALUE,
-};
-
-run({ testSuiteDatabaseSync, testSuiteStatementSync, testSuiteDataTypes }, { skip });
+// ── BLOB (byte-array) round-trip — now GREEN ─────────────────────────────────
+// The 'supports INTEGER, REAL, TEXT, BLOB, and NULL' test round-trips a
+// `Uint8Array` BLOB (inserted inline as an `X'…'` literal, read back through
+// `Gda.DataModel.get_value_at()`). It failed under node-gi because the read
+// returns a boxed `GdaBinary` handle (exactly as GJS does — verified), and the
+// reader's `if (typeof value.toArray === 'function')` duck-type check falsely
+// matched: node-gi's boxed-handle Proxy used to fabricate a method for ANY name,
+// so `typeof handle.toArray === 'function'` was true (it is `'undefined'` on
+// GJS), and calling the non-existent `toArray()` threw → `get()` swallowed it →
+// the row read as `undefined`. Fixed in @gjsify/node-gi's boxed Proxy (gi.js):
+// a name that is neither a method nor a field now yields `undefined`, matching
+// GJS. The distinct byte-array GValue marshalling (GByteArray ↔ Uint8Array) was
+// also brought to GJS parity in the same change. No @gjsify/sqlite change needed.
+run({ testSuiteDatabaseSync, testSuiteStatementSync, testSuiteDataTypes });

@@ -11,7 +11,7 @@
 //  * plain C utf8 array return (transfer full)      (g_uri_list_extract_uris)
 //  * GHashTable<utf8,utf8> return → object          (GLib.Uri.parse_params)
 //  * GList<utf8> return → string[]                  (g_content_types_get_registered)
-//  * deferred INOUT container throws clearly        (g_base64_decode_inplace)
+//  * INOUT byte-array container is handled           (g_base64_decode_inplace)
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -100,11 +100,18 @@ test('GList<utf8> return → string[]: Gio.content_types_get_registered()', () =
   assert.ok(types.every((t) => typeof t === 'string'));
 });
 
-test('deferred INOUT container throws a clear error: GLib.base64_decode_inplace()', () => {
-  // The text arg is an INOUT byte array — the rare read-modify-write container
-  // case is deferred. It must throw "not yet supported", never mis-handle it.
-  assert.throws(
-    () => callFunction('GLib', 'base64_decode_inplace', [Uint8Array.from([65, 65]), 2]),
-    /not yet supported/,
+test('INOUT byte-array container is handled, not deferred: GLib.base64_decode_inplace()', () => {
+  // The `text` arg is an INOUT byte array (decoded in place). INOUT containers now
+  // marshal (round-tripped byte-for-byte vs gjs in the gimarshalling port +
+  // marshalling-close.test.mjs), so this no longer throws the old "not yet supported"
+  // deferral. base64_decode_inplace ITSELF is a known-quirky in-place case: its
+  // return-array aliases the freed in-place `text` buffer, so the decoded bytes are
+  // implementation-defined AND NON-DETERMINISTIC on GJS too (verified: gjs returns a
+  // different garbage byte each run) — hence only the absence of the deferral throw is
+  // asserted here, never specific bytes. Well-defined INOUT arrays/lists/hashes are
+  // covered exhaustively (with exact values) by the tier-B gimarshalling port.
+  requireNamespace('GLib', '2.0');
+  assert.doesNotThrow(
+    () => callFunction('GLib', 'base64_decode_inplace', [Uint8Array.from([97, 71, 107, 61])]),
   );
 });

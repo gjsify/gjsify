@@ -52,6 +52,16 @@ static GType TypeNameToGType(const std::string& t) {
   if (t == "float") return G_TYPE_FLOAT;
   if (t == "object") return G_TYPE_OBJECT;
   if (t == "void" || t == "none") return G_TYPE_NONE;
+  // The GByteArray boxed type (a byte-array signal param / property). Named
+  // explicitly (not just via g_type_from_name) so referencing G_TYPE_BYTE_ARRAY
+  // also REGISTERS it — g_type_from_name returns 0 for a type never yet touched.
+  if (t == "GByteArray" || t == "bytearray") return G_TYPE_BYTE_ARRAY;
+  // General fallback: any already-registered GType by its canonical name (e.g.
+  // "GBytes", "GdkRGBA", an enum/boxed/object type). Keeps the fast-path names
+  // above (they're the common shorthands) while letting a fully-qualified GType
+  // name resolve — matching gjs, which accepts a GType for a signal param type.
+  GType named = g_type_from_name(t.c_str());
+  if (named != G_TYPE_INVALID) return named;
   return G_TYPE_INVALID;
 }
 
@@ -684,13 +694,48 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
       } else if (dir == GI_DIRECTION_INOUT &&
                  (tg == GI_TYPE_TAG_ARRAY || tg == GI_TYPE_TAG_GLIST ||
                   tg == GI_TYPE_TAG_GSLIST || tg == GI_TYPE_TAG_GHASH)) {
-        // INOUT containers (read-modify-write a caller-built container) are the rare,
-        // ownership-tricky case — defer cleanly (as the function path does). Pure-OUT
-        // containers fall through to the slot-wiring branch below.
-        Napi::TypeError::New(env, "super." + vname +
-                                      ": INOUT container parameters are not yet supported")
-            .ThrowAsJavaScriptException();
-        ok = false;
+        // INOUT container: same read-modify-write model as the function path. The ffi
+        // param is a single `container**` the parent reads (in) then reassigns (out);
+        // we stash the in-container in slots[i] and point giArgs[1+i] at &slots[i].
+        // OWNERSHIP: JsToInContainer records the ORIGINAL in-container in inContainers,
+        // so FreeInContainer (after the reads) releases it per the IN transfer; the
+        // out-container the parent wrote into slots[i] is read + freed per the OUT
+        // transfer by ReadOutOrReturn below.
+        Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
+        jsCursor++;
+        if (!IsSupportedContainerType(ti, &why)) {
+          Napi::TypeError::New(env, "super." + vname + ": INOUT " + why +
+                                        " parameters are not yet supported")
+              .ThrowAsJavaScriptException();
+          ok = false;
+        } else {
+          GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
+          gpointer cptr = nullptr;
+          long ccount = 0;
+          if ((v.IsNull() || v.IsUndefined()) && gi_arg_info_may_be_null(ai)) {
+            ok = true;  // nullable INOUT container → NULL in-container (count 0)
+          } else {
+            ok = JsToInContainer(env, v, ti, tr, &cptr, &ccount, &inContainers);
+          }
+          if (ok) {
+            slots[i].v_pointer = cptr;
+            giArgs[1 + i].v_pointer = &slots[i];
+            if (tg == GI_TYPE_TAG_ARRAY) {
+              unsigned int L = 0;
+              if (gi_type_info_get_array_length_index(ti, &L) && L < nDeclared) {
+                GIArgInfo* la = gi_callable_info_get_arg(ci, L);
+                GITypeInfo* lt = gi_arg_info_get_type_info(la);
+                // An INOUT length's slot is what the parent reads+writes (giArgs[1+L]
+                // already points at &slots[L] via the skip-branch); a plain IN length
+                // takes the value directly in its ffi slot.
+                if (dirs[L] == GI_DIRECTION_INOUT) WriteLengthValue(lt, &slots[L], ccount);
+                else if (dirs[L] == GI_DIRECTION_IN) WriteLengthValue(lt, &giArgs[1 + L], ccount);
+                gi_base_info_unref(lt);
+                gi_base_info_unref(la);
+              }
+            }
+          }
+        }
       } else if (dir == GI_DIRECTION_INOUT) {
         // INOUT scalar: marshal the JS input into the slot (like IN); the parent
         // reads + writes it through &slots[i].

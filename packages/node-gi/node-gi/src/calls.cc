@@ -480,6 +480,11 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
       // closure/destroy slots (always IN) are filled by the callback handler.
       if (isLenArg[i] && (dirs[i] == GI_DIRECTION_OUT || dirs[i] == GI_DIRECTION_INOUT))
         out_args[outPos[i]].v_pointer = &slots[i];
+      // An INOUT length arg is a single `gint*` the callee reads (the in-count) AND
+      // writes (the out-count): the in_arg is a POINTER to the same stable slot. The
+      // in-count is written into slots[i] when the INOUT array is marshalled below.
+      if (isLenArg[i] && dirs[i] == GI_DIRECTION_INOUT)
+        in_args[inPos[i]].v_pointer = &slots[i];
       continue;
     }
     GIArgInfo* ai = gi_callable_info_get_arg(callable, i);
@@ -553,13 +558,61 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
         GITypeTag tg = gi_type_info_get_tag(ti);
         if (tg == GI_TYPE_TAG_ARRAY || tg == GI_TYPE_TAG_GLIST || tg == GI_TYPE_TAG_GSLIST ||
             tg == GI_TYPE_TAG_GHASH) {
-          // INOUT containers (read-modify-write a caller-built container) are the
-          // rare, ownership-tricky case — defer cleanly. Pure-OUT containers fall
-          // through to the slot-wiring branch below.
-          Napi::TypeError::New(
-              env, displayName + ": INOUT container parameters are not yet supported")
-              .ThrowAsJavaScriptException();
-          ok = false;
+          // INOUT container (read-modify-write a caller-built container). The ABI is
+          // a single `container**` the callee reads (the in-container) and reassigns
+          // (the out-container). We stash the in-container pointer in the stable slot
+          // and point BOTH in_args + out_args at &slots[i]; the callee overwrites
+          // slots[i].v_pointer with the out-container, which the read-back loop below
+          // marshals via ReadOutOrReturn (OUT transfer). OWNERSHIP: JsToInContainer
+          // records the ORIGINAL in-container in `inContainers`, so FreeInContainer
+          // (after the reads) releases it per the IN transfer — NONE → we free the
+          // in-container we built; EVERYTHING/CONTAINER → the callee adopted it, we
+          // don't. The out-container is freed (or borrowed) by ReadOutOrReturn per the
+          // SAME (OUT) transfer. Verified vs gjs 1.88 (GIMarshallingTests.array_inout,
+          // garray/glist/gslist/gptrarray/ghashtable_utf8_none_inout, bytearray_full_inout).
+          Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
+          jsCursor++;
+          if (!IsSupportedContainerType(ti, &why)) {
+            Napi::TypeError::New(env, displayName + ": INOUT " + why +
+                                          " parameters are not yet supported")
+                .ThrowAsJavaScriptException();
+            ok = false;
+          } else {
+            GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
+            gpointer cptr = nullptr;
+            long ccount = 0;
+            // A nullable INOUT container passed null/undefined → a NULL in-container
+            // (count 0), matching gjs (e.g. length_array_utf8_optional_inout(null)
+            // → []). A non-nullable arg falls through to JsToInContainer, which
+            // throws for a non-array, exactly as before.
+            if ((v.IsNull() || v.IsUndefined()) && gi_arg_info_may_be_null(ai)) {
+              ok = true;
+            } else {
+              ok = JsToInContainer(env, v, ti, tr, &cptr, &ccount, &inContainers);
+            }
+            if (ok) {
+              slots[i].v_pointer = cptr;
+              in_args[inPos[i]].v_pointer = &slots[i];
+              out_args[outPos[i]].v_pointer = &slots[i];
+              // The length arg carries the in-count. An INOUT length gets it in ITS
+              // slot (the callee reads+writes that slot); a plain IN length gets the
+              // value directly in its in_arg.
+              if (tg == GI_TYPE_TAG_ARRAY) {
+                unsigned int L = 0;
+                if (gi_type_info_get_array_length_index(ti, &L) && L < n_args) {
+                  GIArgInfo* la = gi_callable_info_get_arg(callable, L);
+                  GITypeInfo* lt = gi_arg_info_get_type_info(la);
+                  if (dirs[L] == GI_DIRECTION_INOUT) {
+                    WriteLengthValue(lt, &slots[L], ccount);
+                  } else if (dirs[L] == GI_DIRECTION_IN && inPos[L] >= 0) {
+                    WriteLengthValue(lt, &in_args[inPos[L]], ccount);
+                  }
+                  gi_base_info_unref(lt);
+                  gi_base_info_unref(la);
+                }
+              }
+            }
+          }
         } else {
           // INOUT scalar: marshal the JS input into the slot (like IN); the
           // invoker hands the slot's address to the callee, which reads + writes.
