@@ -1,0 +1,12 @@
+name read: demo
+name typeof: string
+enabled initial: false
+enabled via method: false
+after set_enabled(true): true
+after property write: false false
+id camel read: org.gjsify.NodeGiConformance
+id snake read: org.gjsify.NodeGiConformance
+timeout initial: 0 0
+after camel write: 5
+after snake write: 7
+after setter method: 9

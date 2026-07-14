@@ -1,0 +1,9 @@
+shell_parse_argv isArray: true
+shell_parse_argv length: 2
+ok: true
+argv: ["prog","--flag","arg1"]
+to_unsigned: [true,42]
+to_signed: [true,-7]
+get_ymd: [2006,1,2]
+filename_charsets shape: true 2
+filename_charsets types: boolean true

@@ -64,6 +64,7 @@
     "test:node": "NODE_GI_NATIVE=build node --test",
     "test:gc": "NODE_GI_NATIVE=build node --test --expose-gc",
     "test:bun": "node scripts/cross-runtime.mjs bun",
+    "test:conformance": "node scripts/conformance.mjs",
     "test:deno": "node scripts/cross-runtime.mjs deno",
     "test:gtk": "NODE_GI_NATIVE=build node --test test/gtk-smoke.test.mjs",
     "test:adw": "NODE_GI_NATIVE=build node --test test/adw-smoke.test.mjs",

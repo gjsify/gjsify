@@ -5,3 +5,4 @@ node_modules/
 *.o
 deno.lock
 probe-*.mjs
+conformance/dist/

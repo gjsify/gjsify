@@ -1,0 +1,7 @@
+threw: true
+instanceof GLib.Error: true
+matches(IOErrorEnum, NOT_FOUND): true
+matches(IOErrorEnum, EXISTS): false
+matches(FileError, NOENT): false
+code === NOT_FOUND: true
+NOT_FOUND value: 1
