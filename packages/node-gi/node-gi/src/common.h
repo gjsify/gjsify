@@ -90,6 +90,55 @@ Napi::Value MakeGTypeHandle(Napi::Env env, GType gtype);
 GType ReadGTypeHandle(Napi::Value v);
 bool UnwrapGTypeArg(Napi::Env env, Napi::Value v, GType* out);
 
+// ---- GJS-exact 64-bit integer marshalling helpers (shared) -------------------
+//
+// Single source of truth for BigInt/Number ⇄ 64-bit C int, used by the GI scalar
+// + array-element marshaller (marshal.cc), the GValue property marshaller
+// (object.cc), and the GVariant packer/unpacker (variant.cc).
+//
+// IN (JsValueTo{Int,Uint}64): a BigInt is read LOSSLESSLY — GJS uses
+// JS::ToBigInt64 / JS::ToBigUint64 (refs/gjs/gi/js-value-inl.h:126-146): a BigInt
+// is exact by construction, a wrapping conversion, NOT an error, so `lossless` is
+// intentionally ignored. A plain Number is truncated via node-addon-api's
+// Int64Value (GJS truncates a Number via JS::ToInt64 — also not an error). The
+// BigInt branch is load-bearing: `ToNumber()` on a BigInt sets a pending N-API
+// error under NAPI_DISABLE_CPP_EXCEPTIONS, and the follow-up `Napi::Error::New`
+// would fatally abort the process (exit 134) instead of marshalling — a crash the
+// repo invariant forbids.
+inline int64_t JsValueToInt64(Napi::Value v) {
+  if (v.IsBigInt()) {
+    bool lossless = false;
+    return v.As<Napi::BigInt>().Int64Value(&lossless);
+  }
+  return v.ToNumber().Int64Value();
+}
+inline uint64_t JsValueToUint64(Napi::Value v) {
+  if (v.IsBigInt()) {
+    bool lossless = false;
+    return v.As<Napi::BigInt>().Uint64Value(&lossless);
+  }
+  return static_cast<uint64_t>(v.ToNumber().Int64Value());
+}
+
+// OUT (WarnIfUnsafe{Int,Uint}64): GJS ALWAYS returns a JS Number for a 64-bit int
+// (never a BigInt) and emits this g_warning when the value falls outside the range
+// a double represents exactly (|v| > 2^53 - 1 == Number.MAX_SAFE_INTEGER), because
+// the returned double may be rounded. Mirrors refs/gjs/gi/arg-inl.h:222-228 +
+// js-value-inl.h:223-236, where max_safe_big_number == (1 << DBL_MANT_DIG) - 1 and
+// DBL_MANT_DIG (std::numeric_limits<double>::digits) == 53. The message text is
+// byte-for-byte GJS's so a warning-capturing consumer sees the identical string.
+constexpr int64_t kMaxSafeJsInteger = (int64_t{1} << 53) - 1;  // 9007199254740991
+inline void WarnIfUnsafeInt64(int64_t v) {
+  if (v > kMaxSafeJsInteger || v < -kMaxSafeJsInteger)
+    g_warning("Value %s cannot be safely stored in a JS Number and may be rounded",
+              std::to_string(v).c_str());
+}
+inline void WarnIfUnsafeUint64(uint64_t v) {
+  if (v > static_cast<uint64_t>(kMaxSafeJsInteger))
+    g_warning("Value %s cannot be safely stored in a JS Number and may be rounded",
+              std::to_string(v).c_str());
+}
+
 // `ownedStrings` (optional): when a transfer-full string IN/INOUT arg is g_strdup'd
 // here, the freshly-allocated pointer is appended so the caller can g_free it if the
 // invoke never adopts it (an arg-marshal error before the call, or a failed invoke).

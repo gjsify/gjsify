@@ -158,8 +158,10 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
     case GI_TYPE_TAG_UINT16: out->v_uint16 = static_cast<uint16_t>(v.ToNumber().Uint32Value()); return true;
     case GI_TYPE_TAG_INT32: out->v_int32 = v.ToNumber().Int32Value(); return true;
     case GI_TYPE_TAG_UINT32: out->v_uint32 = v.ToNumber().Uint32Value(); return true;
-    case GI_TYPE_TAG_INT64: out->v_int64 = v.ToNumber().Int64Value(); return true;
-    case GI_TYPE_TAG_UINT64: out->v_uint64 = static_cast<uint64_t>(v.ToNumber().Int64Value()); return true;
+    // 64-bit: accept a BigInt losslessly (else a Number, truncated) — never let a
+    // BigInt reach ToNumber() (fatal abort). See JsValueTo{Int,Uint}64 in common.h.
+    case GI_TYPE_TAG_INT64: out->v_int64 = JsValueToInt64(v); return true;
+    case GI_TYPE_TAG_UINT64: out->v_uint64 = JsValueToUint64(v); return true;
     case GI_TYPE_TAG_FLOAT: out->v_float = static_cast<float>(v.ToNumber().DoubleValue()); return true;
     case GI_TYPE_TAG_DOUBLE: out->v_double = v.ToNumber().DoubleValue(); return true;
     case GI_TYPE_TAG_UTF8:
@@ -276,8 +278,14 @@ Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* arg,
     case GI_TYPE_TAG_UINT16: return Napi::Number::New(env, arg->v_uint16);
     case GI_TYPE_TAG_INT32: return Napi::Number::New(env, arg->v_int32);
     case GI_TYPE_TAG_UINT32: return Napi::Number::New(env, arg->v_uint32);
-    case GI_TYPE_TAG_INT64: return Napi::Number::New(env, static_cast<double>(arg->v_int64));
-    case GI_TYPE_TAG_UINT64: return Napi::Number::New(env, static_cast<double>(arg->v_uint64));
+    // 64-bit: GJS always returns a Number, warning when the value is not exactly
+    // representable (|v| > 2^53-1). See WarnIfUnsafe{Int,Uint}64 in common.h.
+    case GI_TYPE_TAG_INT64:
+      WarnIfUnsafeInt64(arg->v_int64);
+      return Napi::Number::New(env, static_cast<double>(arg->v_int64));
+    case GI_TYPE_TAG_UINT64:
+      WarnIfUnsafeUint64(arg->v_uint64);
+      return Napi::Number::New(env, static_cast<double>(arg->v_uint64));
     case GI_TYPE_TAG_FLOAT: return Napi::Number::New(env, arg->v_float);
     case GI_TYPE_TAG_DOUBLE: return Napi::Number::New(env, arg->v_double);
     case GI_TYPE_TAG_UTF8:
@@ -719,8 +727,8 @@ static bool ElementToGIArgument(Napi::Env env, GITypeInfo* elem, Napi::Value v, 
     case GI_TYPE_TAG_UINT16: a->v_uint16 = static_cast<guint16>(v.ToNumber().Uint32Value()); return true;
     case GI_TYPE_TAG_INT32: a->v_int32 = v.ToNumber().Int32Value(); return true;
     case GI_TYPE_TAG_UINT32: a->v_uint32 = v.ToNumber().Uint32Value(); return true;
-    case GI_TYPE_TAG_INT64: a->v_int64 = v.ToNumber().Int64Value(); return true;
-    case GI_TYPE_TAG_UINT64: a->v_uint64 = static_cast<guint64>(v.ToNumber().Int64Value()); return true;
+    case GI_TYPE_TAG_INT64: a->v_int64 = JsValueToInt64(v); return true;
+    case GI_TYPE_TAG_UINT64: a->v_uint64 = JsValueToUint64(v); return true;
     case GI_TYPE_TAG_FLOAT: a->v_float = static_cast<gfloat>(v.ToNumber().DoubleValue()); return true;
     case GI_TYPE_TAG_DOUBLE: a->v_double = v.ToNumber().DoubleValue(); return true;
     case GI_TYPE_TAG_UTF8:

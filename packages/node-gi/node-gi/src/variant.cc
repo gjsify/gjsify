@@ -159,22 +159,11 @@ static GVariant* VariantPack(Napi::Env env, const std::string& sig, size_t* pos,
     case 'q': return g_variant_new_uint16(static_cast<guint16>(value.ToNumber().Uint32Value()));
     case 'i': return g_variant_new_int32(value.ToNumber().Int32Value());
     case 'u': return g_variant_new_uint32(value.ToNumber().Uint32Value());
-    case 'x': {
-      // GJS accepts a BigInt for 64-bit types (its js_value_to_c<int64_t> branches
-      // on isBigInt before ToInt64). ToNumber() throws on a BigInt and rounds a
-      // large double — branch on IsBigInt to round-trip the full int64 range.
-      bool lossless = false;
-      gint64 i = value.IsBigInt() ? value.As<Napi::BigInt>().Int64Value(&lossless)
-                                  : value.ToNumber().Int64Value();
-      return g_variant_new_int64(i);
-    }
-    case 't': {
-      bool lossless = false;
-      guint64 u = value.IsBigInt()
-                      ? value.As<Napi::BigInt>().Uint64Value(&lossless)
-                      : static_cast<guint64>(value.ToNumber().Int64Value());
-      return g_variant_new_uint64(u);
-    }
+    // GJS accepts a BigInt for 64-bit types (js_value_to_c<int64_t> branches on
+    // isBigInt before ToInt64); a BigInt must never reach ToNumber() (fatal abort).
+    // Shared with the GI/GValue marshallers via JsValueTo{Int,Uint}64 (common.h).
+    case 'x': return g_variant_new_int64(JsValueToInt64(value));
+    case 't': return g_variant_new_uint64(JsValueToUint64(value));
     case 'h': return g_variant_new_handle(value.ToNumber().Int32Value());
     case 'd': return g_variant_new_double(value.ToNumber().DoubleValue());
     case 's': {
@@ -432,10 +421,18 @@ static Napi::Value VariantToJs(Napi::Env env, GVariant* v, bool deep, bool recur
     case G_VARIANT_CLASS_UINT16: return Napi::Number::New(env, g_variant_get_uint16(v));
     case G_VARIANT_CLASS_INT32: return Napi::Number::New(env, g_variant_get_int32(v));
     case G_VARIANT_CLASS_UINT32: return Napi::Number::New(env, g_variant_get_uint32(v));
-    case G_VARIANT_CLASS_INT64:
-      return Napi::Number::New(env, static_cast<double>(g_variant_get_int64(v)));
-    case G_VARIANT_CLASS_UINT64:
-      return Napi::Number::New(env, static_cast<double>(g_variant_get_uint64(v)));
+    // GJS unpacks a 64-bit variant to a Number, warning when it can't be stored
+    // exactly (|v| > 2^53-1) — same as every other 64-bit OUT path.
+    case G_VARIANT_CLASS_INT64: {
+      gint64 x = g_variant_get_int64(v);
+      WarnIfUnsafeInt64(x);
+      return Napi::Number::New(env, static_cast<double>(x));
+    }
+    case G_VARIANT_CLASS_UINT64: {
+      guint64 x = g_variant_get_uint64(v);
+      WarnIfUnsafeUint64(x);
+      return Napi::Number::New(env, static_cast<double>(x));
+    }
     case G_VARIANT_CLASS_HANDLE: return Napi::Number::New(env, g_variant_get_handle(v));
     case G_VARIANT_CLASS_DOUBLE: return Napi::Number::New(env, g_variant_get_double(v));
     case G_VARIANT_CLASS_STRING:

@@ -38,11 +38,14 @@
 //   • gi:// imports → requireGi (the same rewrite the tier-A conformance twins
 //     use); Gio/GObject/System imports are only needed by stubbed sections and
 //     return with them.
-//   • warn64/skip64: upstream's warn64 wraps 64-bit calls in GJS's log-capture
-//     machinery (GLib.test_expect_message('Gjs', …) + g_test_assert) around the
-//     GJS "cannot be safely stored" warning; node-gi emits no such warning and
-//     the unmatched assert would abort the process, so 64-bit paths pend with
-//     the phase-2.1 reason instead. All 32-bit paths run verbatim.
+//   • warn64/skip64: upstream's warn64 wraps 64-bit OUT/RETURN calls in GJS's
+//     log-capture machinery (GLib.test_expect_message('Gjs', …) + g_test_assert)
+//     around the "cannot be safely stored" warning; node-gi now emits that exact
+//     g_warning (to stderr, non-fatal) but has no such capture harness, so warn64
+//     just runs the call and checks the value. skip64 (64-bit IN/INOUT via a plain,
+//     inaccurate JS Number) stays skipped for the SAME reason GJS skips it
+//     (installed-tests skip64 → pending(gjs#271)); the accurate 64-bit IN path is
+//     the now-live BigInt block. All 32-bit paths run verbatim.
 //   • dev_t skipInOut: upstream passes `skipInOut: true`; the shim's skip
 //     contract requires a reason, so the gjs#673 URL the upstream comment cites
 //     is passed instead.
@@ -222,24 +225,31 @@ if (GLib.SIZEOF_SSIZE_T === 8) {
     Object.assign(Limits.ssize, Limits.int32);
 }
 
-// Functions for dealing with tests that require or return unsafe 64-bit ints,
-// until we get BigInts.
+// Functions for dealing with tests that require or return unsafe 64-bit ints.
 //
-// ADAPTATION (see header): under node-gi the 64-bit paths pend with the
-// phase-2.1 reason instead of arming GJS's log-capture machinery.
-const SKIP_64BIT =
-    'phase 2.1 BigInt-64-bit — unsafe 64-bit int marshalling (GJS warns via its Gjs log ' +
-    'domain, https://gitlab.gnome.org/GNOME/gjs/issues/271; node-gi has neither yet)';
-
+// warn64: OUT/RETURN of a 64-bit int. node-gi now returns a JS Number and emits
+// the GJS-exact "cannot be safely stored" g_warning (to stderr, non-fatal), so the
+// call RUNS and the value is checked — it round-trips through the same double
+// rounding as the expected JS Number. Unlike upstream we do not assert the warning
+// via GLib.test_expect_message (node-gi's L1 has no such capture harness); a
+// warning on stderr is harmless and node:test does not fail on it.
 function warn64(is64bit, func, ...args) {
-    if (is64bit)
-        pending(SKIP_64BIT);
     return func(...args);
 }
 
+// skip64: IN/INOUT of a 64-bit int passed as a PLAIN JS Number. A Number cannot
+// represent 2^63-1 / 2^64-1 exactly, so it can never be verified against the C
+// side — GJS skips these identically (installed-tests skip64 → pending(gjs#271)).
+// The accurate 64-bit IN path is the BigInt block below (now live). NOT a node-gi
+// gap: the same inherent Number-precision limitation GJS documents.
+const SKIP_64BIT_NUMBER =
+    'https://gitlab.gnome.org/GNOME/gjs/issues/271 — a 64-bit int IN/INOUT via a ' +
+    'plain (inaccurate) JS Number cannot be verified against C; the accurate path is the ' +
+    'now-live BigInt block. GJS skips these identically (installed-tests skip64).';
+
 function skip64(is64bit) {
     if (is64bit)
-        pending(SKIP_64BIT);
+        pending(SKIP_64BIT_NUMBER);
 }
 
 describe('Boolean', function () {
@@ -318,23 +328,21 @@ describe('Integer', function () {
     });
 });
 
-// FIDELITY-BUG (must not even run): a BigInt argument fatally aborts the addon
-// — Napi::Error::New(napi_get_last_error_info) inside JsToGIArgument, a
-// process-level abort, not a catchable throw — where GJS marshals BigInt
-// 64-bit values exactly. Bodies are kept verbatim for the phase-2.1 un-skip.
-const SKIP_BIGINT =
-    'phase 2.1 BigInt-64-bit — FIDELITY-BUG: BigInt args fatally abort the addon ' +
-    '(napi abort in JsToGIArgument) instead of marshalling like GJS; body must not run';
-
+// node-gi now marshals a BigInt 64-bit argument LOSSLESSLY (GJS-exact:
+// JS::ToBigInt64 / ToBigUint64), so these run live. Before the fix a BigInt arg
+// fatally aborted the addon: the marshaller called ToNumber() on the BigInt, which
+// sets a pending N-API error under NAPI_DISABLE_CPP_EXCEPTIONS, and the follow-up
+// Napi::Error::New(napi_get_last_error_info) in JsToGIArgument became a process
+// abort. The marshaller now branches on IsBigInt before any ToNumber().
 describe('BigInt', function () {
     Object.entries(BigIntLimits).forEach(([type, {min, max, umax, utype = `u${type}`}]) => {
         describe(`${type}-typed`, function () {
-            itSkip(SKIP_BIGINT, 'marshals signed value as an in parameter', function () {
+            it('marshals signed value as an in parameter', function () {
                 expect(() => GIMarshallingTests[`${type}_in_max`](max)).not.toThrow();
                 expect(() => GIMarshallingTests[`${type}_in_min`](min)).not.toThrow();
             });
 
-            itSkip(SKIP_BIGINT, 'marshals unsigned value as an in parameter', function () {
+            it('marshals unsigned value as an in parameter', function () {
                 expect(() => GIMarshallingTests[`${utype}_in`](umax)).not.toThrow();
             });
         });
