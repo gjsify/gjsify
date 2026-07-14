@@ -168,6 +168,13 @@ function wrapReturn(value) {
   // to give it the Variant ergonomics rather than a plain method-routing proxy.
   if (native.isVariantHandle(value)) return wrapVariant(value);
   if (native.isBoxedHandle(value)) return wrapBoxed(value);
+  // A multi-value OUT tuple (return value + OUT params) — or a container OUT — is a
+  // plain JS Array whose ELEMENTS may themselves be GObject/boxed/variant handles
+  // (e.g. GLib.Regex.match → [matched, GLib.MatchInfo]; an array-of-objects OUT).
+  // Recurse so a handle sitting inside the tuple is wrapped into a usable proxy,
+  // not left as a raw External. A Node Buffer (byte array) is NOT Array.isArray, so
+  // it passes through untouched; primitives/strings map to themselves.
+  if (Array.isArray(value)) return value.map(wrapReturn);
   return value;
 }
 

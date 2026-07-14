@@ -1,0 +1,11 @@
+getenv B: two
+getenv missing: null
+setenv has D: true
+setenv len: 4
+joined: usr/local/bin
+b64 array: aGkh
+b64 typed: AQIDBA==
+b64 decoded: [104,105,33]
+parse ok: true
+parse argv: ["prog","--flag","value"]
+uris: ["http://a.example","http://b.example"]

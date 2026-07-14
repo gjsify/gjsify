@@ -410,9 +410,15 @@ bool IsSupportedContainerType(GITypeInfo* type, std::string* why) {
       GITypeInfo* kt = gi_type_info_get_param_type(type, 0);
       GITypeInfo* vt = gi_type_info_get_param_type(type, 1);
       GITypeTag ktag = kt != nullptr ? gi_type_info_get_tag(kt) : GI_TYPE_TAG_VOID;
-      bool kok = ktag == GI_TYPE_TAG_UTF8 || ktag == GI_TYPE_TAG_FILENAME;
+      // Supported hash key tags — a subset of GJS's is_supported_ghash_key_type
+      // (refs/gjs/gi/arg.cpp): strings + the pointer-fitting integers. 64-bit keys
+      // (which don't fit a pointer) + unichar keys are out of scope.
+      bool kok = ktag == GI_TYPE_TAG_UTF8 || ktag == GI_TYPE_TAG_FILENAME ||
+                 ktag == GI_TYPE_TAG_INT8 || ktag == GI_TYPE_TAG_UINT8 ||
+                 ktag == GI_TYPE_TAG_INT16 || ktag == GI_TYPE_TAG_UINT16 ||
+                 ktag == GI_TYPE_TAG_INT32 || ktag == GI_TYPE_TAG_UINT32;
       bool vok = vt != nullptr && IsSupportedElementType(vt, nullptr);
-      if (!kok && why != nullptr) *why = "non-string GHashTable key";
+      if (!kok && why != nullptr) *why = "unsupported GHashTable key";
       else if (!vok && why != nullptr) *why = "unsupported GHashTable value";
       if (kt != nullptr) gi_base_info_unref(kt);
       if (vt != nullptr) gi_base_info_unref(vt);
@@ -425,7 +431,7 @@ bool IsSupportedContainerType(GITypeInfo* type, std::string* why) {
 }
 
 // In-memory size of one C-array element. 0 for an unsupported element type.
-static size_t CElementSize(GITypeInfo* elem) {
+size_t CElementSize(GITypeInfo* elem) {
   switch (gi_type_info_get_tag(elem)) {
     case GI_TYPE_TAG_BOOLEAN: return sizeof(gboolean);
     case GI_TYPE_TAG_INT8:
@@ -540,24 +546,49 @@ static Napi::Value GIArrayToJs(Napi::Env env, GITypeInfo* type, GIArgument* arg,
   void* data = container;
   size_t elemSize = CElementSize(elem);
   bool isByte = etag == GI_TYPE_TAG_UINT8 || etag == GI_TYPE_TAG_INT8;
+  // A NULL container maps to `null` for every array kind EXCEPT a length-annotated
+  // C array (an explicit length was passed → an empty array, matching GJS's
+  // gjs_array_from_basic_c_array_internal "null pointer takes precedence over
+  // length" for the length path vs the fixed/zero-terminated/GArray/GPtrArray/
+  // GByteArray readers, which each return null on a NULL container).
+  bool hasExplicitLength = length >= 0;
 
   // Resolve data + length for the boxed array kinds (their own struct carries it).
+  // A NULL boxed container → JS null (GJS gjs_value_from_basic_{garray,gptrarray,
+  // byte_array}_gi_argument each null-guard before reading).
   if (at == GI_ARRAY_TYPE_BYTE_ARRAY) {
     GByteArray* ba = static_cast<GByteArray*>(container);
-    data = ba != nullptr ? ba->data : nullptr;
-    length = ba != nullptr ? static_cast<long>(ba->len) : 0;
+    if (ba == nullptr) {
+      if (elem != nullptr) gi_base_info_unref(elem);
+      return env.Null();
+    }
+    data = ba->data;
+    length = static_cast<long>(ba->len);
     isByte = true;
     elemSize = 1;
   } else if (at == GI_ARRAY_TYPE_ARRAY) {
     GArray* ga = static_cast<GArray*>(container);
-    data = ga != nullptr ? ga->data : nullptr;
-    length = ga != nullptr ? static_cast<long>(ga->len) : 0;
-    if (ga != nullptr) elemSize = g_array_get_element_size(ga);
+    if (ga == nullptr) {
+      if (elem != nullptr) gi_base_info_unref(elem);
+      return env.Null();
+    }
+    data = ga->data;
+    length = static_cast<long>(ga->len);
+    elemSize = g_array_get_element_size(ga);
   } else if (at == GI_ARRAY_TYPE_PTR_ARRAY) {
     GPtrArray* pa = static_cast<GPtrArray*>(container);
-    data = pa != nullptr ? pa->pdata : nullptr;
-    length = pa != nullptr ? static_cast<long>(pa->len) : 0;
+    if (pa == nullptr) {
+      if (elem != nullptr) gi_base_info_unref(elem);
+      return env.Null();
+    }
+    data = pa->pdata;
+    length = static_cast<long>(pa->len);
     elemSize = sizeof(gpointer);
+  } else if (data == nullptr) {
+    // NULL C-array pointer: a fixed/zero-terminated array (no length param) → null;
+    // a length-annotated array (explicit length given) → an empty array below.
+    if (elem != nullptr) gi_base_info_unref(elem);
+    return hasExplicitLength ? static_cast<Napi::Value>(Napi::Array::New(env, 0)) : env.Null();
   } else if (length < 0) {  // C array, length not given by a length arg
     if (gi_type_info_is_zero_terminated(type)) {
       length = 0;
@@ -655,6 +686,9 @@ static Napi::Value GListToJs(Napi::Env env, GITypeInfo* type, GIArgument* arg,
 static Napi::Value GHashToJs(Napi::Env env, GITypeInfo* type, GIArgument* arg,
                              GITransfer transfer) {
   GHashTable* ht = static_cast<GHashTable*>(arg->v_pointer);
+  // A NULL GHashTable maps to `null` (GJS gjs_value_from_basic_ghash null-guards
+  // the table before reading) — NOT an empty object; e.g. an uninitialized OUT.
+  if (ht == nullptr) return env.Null();
   Napi::Object out = Napi::Object::New(env);
   if (ht != nullptr) {
     GITypeInfo* kt = gi_type_info_get_param_type(type, 0);
@@ -757,9 +791,9 @@ static bool ElementToGIArgument(Napi::Env env, GITypeInfo* elem, Napi::Value v, 
   }
 }
 
-// Build a C array / GStrv / GByteArray from a JS value. *outCount = element
-// count (for the IN length autofill + later free). GArray/GPtrArray IN are
-// deferred. Throws + returns false on refusal (BEFORE the invoke).
+// Build a C array / GStrv / GByteArray / GArray / GPtrArray from a JS value.
+// *outCount = element count (for the IN length autofill + later free). Throws +
+// returns false on refusal (BEFORE the invoke).
 static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer* outPtr,
                        long* outCount) {
   GIArrayType at = gi_type_info_get_array_type(type);
@@ -808,15 +842,13 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer*
     return true;
   }
 
-  if (at != GI_ARRAY_TYPE_C) {
-    gi_base_info_unref(elem);
-    Napi::TypeError::New(env, "GArray/GPtrArray IN parameters are not yet supported")
-        .ThrowAsJavaScriptException();
-    return false;
-  }
+  // C / GArray / GPtrArray share the element-marshalling loop below; only their
+  // final container wrapping differs. The byte-specific fast paths (TypedArray /
+  // string → bytes) are C-array-only ergonomics (a GArray/GPtrArray of bytes is
+  // not something GJS accepts a TypedArray for), so gate them on the C kind.
 
   // Byte C array from a TypedArray / Buffer.
-  if (isByte && rawBytes != nullptr) {
+  if (at == GI_ARRAY_TYPE_C && isByte && rawBytes != nullptr) {
     void* buf = g_malloc0(elemSize * (rawLen + (zt ? 1 : 0)));
     memcpy(buf, rawBytes, rawLen);
     *outPtr = buf;
@@ -832,7 +864,7 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer*
   // a zero-terminated array still gets its trailing NUL slot from g_malloc0.
   // Verified against gjs 1.88: GIMarshallingTests.utf8_as_uint8array_in('const ♥ utf8')
   // is accepted (no throw). A real Uint8Array/Array still works via the paths around this.
-  if (isByte && v.IsString()) {
+  if (at == GI_ARRAY_TYPE_C && isByte && v.IsString()) {
     std::string s = v.As<Napi::String>().Utf8Value();
     size_t n = s.size();
     void* buf = g_malloc0(elemSize * (n + (zt ? 1 : 0)));
@@ -851,6 +883,10 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer*
   }
   Napi::Array arr = v.As<Napi::Array>();
   long count = static_cast<long>(arr.Length());
+  // Build the flat element buffer first (the storage a C array uses directly).
+  // GArray / GPtrArray then wrap this buffer — mirroring gjs, which marshals the
+  // JS array into a C buffer and hands it to g_array_append_vals / the GPtrArray
+  // pdata memcpy (refs/gjs/gi/arg.cpp gjs_value_to_basic_array_gi_argument).
   void* buf = g_malloc0(elemSize * (count + (zt ? 1 : 0)));
   bool ok = true;
   for (long i = 0; i < count && ok; i++) {
@@ -868,7 +904,28 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer*
     gi_base_info_unref(elem);
     return false;
   }
-  *outPtr = buf;
+
+  if (at == GI_ARRAY_TYPE_ARRAY) {
+    // GArray: a zero-terminated, sized GArray over `elemSize` elements
+    // (garray_new_for_basic_type in gjs uses zero_terminated=true). append_vals
+    // COPIES the buffer, so free our scratch buffer afterwards. String elements
+    // (g_strdup'd pointers) now live in the GArray data; freed per-transfer in
+    // FreeInContainer.
+    GArray* ga = g_array_sized_new(TRUE, FALSE, static_cast<guint>(elemSize),
+                                   static_cast<guint>(count));
+    if (count > 0) g_array_append_vals(ga, buf, static_cast<guint>(count));
+    g_free(buf);
+    *outPtr = ga;
+  } else if (at == GI_ARRAY_TYPE_PTR_ARRAY) {
+    // GPtrArray: element pointers copied into pdata (gjs memcpy's the same way).
+    GPtrArray* pa = g_ptr_array_sized_new(static_cast<guint>(count));
+    g_ptr_array_set_size(pa, static_cast<int>(count));
+    if (count > 0) memcpy(pa->pdata, buf, sizeof(gpointer) * static_cast<size_t>(count));
+    g_free(buf);
+    *outPtr = pa;
+  } else {
+    *outPtr = buf;  // GI_ARRAY_TYPE_C
+  }
   *outCount = count;
   gi_base_info_unref(elem);
   return true;
@@ -901,8 +958,17 @@ static bool JsToGListLike(Napi::Env env, Napi::Value v, GITypeInfo* type, bool i
   return ok;
 }
 
-// Build a GHashTable (string keys) from a JS object. Value type ∈ {string,
-// object}. Keys + (string) values are g_strdup'd and owned by the table.
+// Build a GHashTable from a JS object. Keys ∈ {string, pointer-fitting int};
+// values ∈ {string, object, int, and the heap-boxed int64/uint64/float/double}.
+// Mirrors GJS (refs/gjs/gi/arg.cpp gjs_object_to_g_hash + value_to_ghashtable_key):
+//   * string keys → g_strdup + g_str_hash/equal; integer keys → GINT_TO_POINTER
+//     via gi_type_info_hash_pointer_from_argument + g_direct_hash/equal.
+//   * int/int32/string/object values fit a pointer (hash_pointer_from_argument);
+//     int64/uint64/float/double do NOT, so they are heap-allocated (g_new) and a
+//     pointer to the heap value is stored (the hash owns + g_free's it).
+// Key/value GDestroyNotify funcs are attached so a transfer-none teardown
+// (g_hash_table_unref in FreeInContainer) releases everything; a transfer-full
+// hash is adopted by the callee, which frees it (and thus runs the notifies).
 static bool JsToGHashIn(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer* outPtr) {
   *outPtr = nullptr;
   if (!v.IsObject() || v.IsArray()) {
@@ -910,31 +976,73 @@ static bool JsToGHashIn(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer
         .ThrowAsJavaScriptException();
     return false;
   }
+  GITypeInfo* kt = gi_type_info_get_param_type(type, 0);
   GITypeInfo* vt = gi_type_info_get_param_type(type, 1);
+  GITypeTag ktag = gi_type_info_get_tag(kt);
   GITypeTag vtag = gi_type_info_get_tag(vt);
+  bool keyIsString = ktag == GI_TYPE_TAG_UTF8 || ktag == GI_TYPE_TAG_FILENAME;
   bool valueIsString = vtag == GI_TYPE_TAG_UTF8 || vtag == GI_TYPE_TAG_FILENAME;
-  // String values get g_free'd by the table; borrowed object pointers do not.
-  GHashTable* ht =
-      g_hash_table_new_full(g_str_hash, g_str_equal, g_free, valueIsString ? g_free : nullptr);
+  bool valueHeap = vtag == GI_TYPE_TAG_INT64 || vtag == GI_TYPE_TAG_UINT64 ||
+                   vtag == GI_TYPE_TAG_FLOAT || vtag == GI_TYPE_TAG_DOUBLE;
+  GDestroyNotify keyFree = keyIsString ? g_free : nullptr;
+  GDestroyNotify valFree = (valueIsString || valueHeap) ? g_free : nullptr;
+  GHashTable* ht = g_hash_table_new_full(keyIsString ? g_str_hash : g_direct_hash,
+                                         keyIsString ? g_str_equal : g_direct_equal,
+                                         keyFree, valFree);
   Napi::Object obj = v.As<Napi::Object>();
   Napi::Array keys = obj.GetPropertyNames();
   bool ok = true;
   for (uint32_t i = 0; i < keys.Length() && ok; i++) {
     Napi::Value key = keys.Get(i);
-    std::string ks = key.ToString().Utf8Value();
+    std::string ks = key.ToString().Utf8Value();  // JS property keys are strings
+
+    // Key pointer: g_strdup for strings, else the integer key parsed from the
+    // (string) property name and GINT_TO_POINTER-encoded per its tag.
+    gpointer kp = nullptr;
+    if (keyIsString) {
+      kp = g_strdup(ks.c_str());
+    } else {
+      GIArgument ka;
+      Napi::Value keyNum = Napi::Number::New(env, static_cast<double>(g_ascii_strtoll(ks.c_str(), nullptr, 10)));
+      ok = ElementToGIArgument(env, kt, keyNum, &ka);
+      if (!ok) break;
+      kp = gi_type_info_hash_pointer_from_argument(kt, &ka);
+    }
+
+    // Value pointer: heap-box the wide/float values (they don't fit a pointer),
+    // else pointer-encode via hash_pointer_from_argument (strings g_strdup'd by
+    // ElementToGIArgument, ints GINT_TO_POINTER, objects the borrowed handle).
     Napi::Value val = obj.Get(key);
     gpointer vp = nullptr;
-    if (valueIsString) {
-      vp = (val.IsNull() || val.IsUndefined()) ? nullptr : g_strdup(val.ToString().Utf8Value().c_str());
-    } else {
-      GIArgument a;
-      ok = ElementToGIArgument(env, vt, val, &a);
-      if (!ok) break;
-      vp = a.v_pointer;
+    GIArgument va;
+    ok = ElementToGIArgument(env, vt, val, &va);
+    if (!ok) {
+      g_free(kp);
+      break;
     }
-    g_hash_table_insert(ht, g_strdup(ks.c_str()), vp);
+    if (vtag == GI_TYPE_TAG_INT64) {
+      gint64* p = g_new(gint64, 1);
+      *p = va.v_int64;
+      vp = p;
+    } else if (vtag == GI_TYPE_TAG_UINT64) {
+      guint64* p = g_new(guint64, 1);
+      *p = va.v_uint64;
+      vp = p;
+    } else if (vtag == GI_TYPE_TAG_FLOAT) {
+      gfloat* p = g_new(gfloat, 1);
+      *p = va.v_float;
+      vp = p;
+    } else if (vtag == GI_TYPE_TAG_DOUBLE) {
+      gdouble* p = g_new(gdouble, 1);
+      *p = va.v_double;
+      vp = p;
+    } else {
+      vp = gi_type_info_hash_pointer_from_argument(vt, &va);
+    }
+    g_hash_table_insert(ht, kp, vp);
   }
   *outPtr = ht;
+  gi_base_info_unref(kt);
   gi_base_info_unref(vt);
   return ok;
 }
@@ -951,10 +1059,26 @@ void FreeInContainer(const InContainer& c) {
     GIArrayType at = gi_type_info_get_array_type(c.type);
     GITypeInfo* elem = gi_type_info_get_param_type(c.type, 0);
     GITypeTag etag = elem != nullptr ? gi_type_info_get_tag(elem) : GI_TYPE_TAG_VOID;
+    bool freeStrings = etag == GI_TYPE_TAG_UTF8 || etag == GI_TYPE_TAG_FILENAME;
     if (at == GI_ARRAY_TYPE_BYTE_ARRAY) {
       g_byte_array_unref(static_cast<GByteArray*>(c.ptr));
+    } else if (at == GI_ARRAY_TYPE_ARRAY) {
+      // GArray: free the g_strdup'd string elements first (g_array_free's
+      // free_segment=TRUE releases the data block but not what its pointers
+      // point at), then the GArray + its data segment.
+      GArray* ga = static_cast<GArray*>(c.ptr);
+      if (freeStrings)
+        for (guint i = 0; i < ga->len; i++) g_free(g_array_index(ga, char*, i));
+      g_array_free(ga, TRUE);
+    } else if (at == GI_ARRAY_TYPE_PTR_ARRAY) {
+      // GPtrArray: same — free owned string elements, then the array. Object
+      // elements are borrowed handle pointers (never freed here).
+      GPtrArray* pa = static_cast<GPtrArray*>(c.ptr);
+      if (freeStrings)
+        for (guint i = 0; i < pa->len; i++) g_free(g_ptr_array_index(pa, i));
+      g_ptr_array_free(pa, TRUE);
     } else {  // C array
-      if (etag == GI_TYPE_TAG_UTF8 || etag == GI_TYPE_TAG_FILENAME) {
+      if (freeStrings) {
         char** s = static_cast<char**>(c.ptr);
         if (gi_type_info_is_zero_terminated(c.type)) {
           g_strfreev(s);
