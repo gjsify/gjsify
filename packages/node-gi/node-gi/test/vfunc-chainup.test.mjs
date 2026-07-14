@@ -247,40 +247,93 @@ test('chain-up surfaces a can-throw parent vfunc as a real GLib.Error (L1 super)
   assert.equal(thrown.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CLOSED), true);
 });
 
-// ---- OUT/INOUT vfunc chain-up is REJECTED (not a crash) ----
+// ---- OUT-arg vfunc chain-up: the parent fills an OUT param, it flows back ----
 //
-// GApplication.local_command_line has an INOUT `arguments` + an OUT `exit_status`.
-// Marshalling those for chain-up is unsupported; a non-optional OUT slot is a
-// pointer the C parent writes THROUGH, so passing null would SIGSEGV the process.
-// The guard must turn that into a clear, CATCHABLE throw.
+// `Gio.TlsPassword.get_value(out length) -> guint8[]` has a REAL C default that
+// returns the stored value bytes and writes their count into the OUT `length`
+// slot (which is the return array's length-index). Chaining up must: pass the
+// parent a valid pointer for the OUT length slot, run the C default, read the
+// length back, and marshal the returned byte array — surfacing it as a bare
+// Uint8Array (the single-value tuple). Verified byte-identical to gjs 1.88:
+//   subclass Gio.TlsPassword { vfunc_get_value() { return super.vfunc_get_value(); } }
+//   set_value([104,105]); super.vfunc_get_value() === Uint8Array [104, 105]
 
-test('chain-up of a vfunc with OUT/INOUT args throws, does not crash (native)', () => {
+test('chain-up reads an OUT parameter the C parent fills (native)', () => {
   requireNamespace('Gio', '2.0');
-  const Type = registerClass('NodeGiChainOutGuard', 'Gio', 'Application', {
+  const Type = registerClass('NodeGiChainOutValue', 'Gio', 'TlsPassword', {
+    vfuncs: {
+      get_value() {
+        return new Uint8Array();
+      },
+    },
+  });
+  const pw = constructType(Type, { flags: 0, description: 'secret' });
+  callMethod(pw, 'set_value', [new Uint8Array([104, 105])]); // "hi"
+  // The parent get_value writes the byte count into the OUT length slot and returns
+  // the value array; chain-up reads both back → a bare Uint8Array [104, 105].
+  const out = callParentVfunc(pw, 'get_value', []);
+  assert.ok(out instanceof Uint8Array, 'the OUT-carried byte array flows back as a Uint8Array');
+  assert.deepEqual(Array.from(out), [104, 105]);
+});
+
+test('super.vfunc_get_value() returns the OUT-carried byte array (L1)', () => {
+  const GObject = requireGi('GObject', '2.0');
+  const Gio = requireGi('Gio', '2.0');
+  let fromSuper;
+  const Klass = GObject.registerClass(
+    { GTypeName: 'NodeGiL1ChainOutValue' },
+    class extends Gio.TlsPassword {
+      vfunc_get_value() {
+        fromSuper = super.vfunc_get_value();
+        return fromSuper;
+      }
+    },
+  );
+  const pw = new Klass({ flags: 0, description: 'secret' });
+  pw.set_value(new Uint8Array([1, 2, 3]));
+  const result = pw.vfunc_get_value();
+  assert.ok(fromSuper instanceof Uint8Array);
+  assert.deepEqual(Array.from(fromSuper), [1, 2, 3]);
+  assert.deepEqual(Array.from(result), [1, 2, 3]);
+});
+
+// ---- INOUT container chain-up stays DEFERRED (a clean throw, not a crash) ----
+//
+// GApplication.local_command_line has an INOUT `arguments` (a strv) + an OUT
+// `exit_status`. The OUT scalar is now handled, but INOUT CONTAINERS remain the
+// rare, ownership-tricky case the function-invoke path also defers. The guard
+// must turn that into a clear, CATCHABLE throw BEFORE the ffi_call (never a crash).
+
+test('chain-up of a vfunc with an INOUT container throws, does not crash (native)', () => {
+  requireNamespace('Gio', '2.0');
+  const Type = registerClass('NodeGiChainInoutGuard', 'Gio', 'Application', {
     vfuncs: {
       local_command_line() {
         return false;
       },
     },
   });
-  const app = constructType(Type, { 'application-id': 'eu.gjsify.ChainOutGuard' });
+  const app = constructType(Type, { 'application-id': 'eu.gjsify.ChainInoutGuard' });
   assert.throws(
-    () => callParentVfunc(app, 'local_command_line', []),
-    /OUT\/INOUT args is not yet supported/,
+    () => callParentVfunc(app, 'local_command_line', [['myapp']]),
+    /INOUT container parameters are not yet supported/,
   );
 });
 
-test('chain-up of a vfunc with OUT/INOUT args throws via L1 super', () => {
+test('chain-up of a vfunc with an INOUT container throws via L1 super', () => {
   const GObject = requireGi('GObject', '2.0');
   const Gio = requireGi('Gio', '2.0');
   const Klass = GObject.registerClass(
-    { GTypeName: 'NodeGiL1ChainOutGuard' },
+    { GTypeName: 'NodeGiL1ChainInoutGuard' },
     class extends Gio.Application {
-      vfunc_local_command_line() {
-        return super.vfunc_local_command_line();
+      vfunc_local_command_line(argv) {
+        return super.vfunc_local_command_line(argv);
       }
     },
   );
-  const app = new Klass({ 'application-id': 'eu.gjsify.L1ChainOutGuard' });
-  assert.throws(() => app.vfunc_local_command_line(), /OUT\/INOUT args is not yet supported/);
+  const app = new Klass({ 'application-id': 'eu.gjsify.L1ChainInoutGuard' });
+  assert.throws(
+    () => app.vfunc_local_command_line(['myapp']),
+    /INOUT container parameters are not yet supported/,
+  );
 });
