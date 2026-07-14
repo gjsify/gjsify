@@ -37,14 +37,21 @@ export const RUNTIME =
 export const isNodeRuntime = RUNTIME === 'node';
 
 function nativeCandidates() {
-  // Prefer a shipped prebuild so a consumer needs no C toolchain and no node-gyp
-  // — the only install path Deno supports (it runs no postinstall build script).
-  // Fall back to a locally built addon (Release, then Debug).
-  return [
-    join(here, 'prebuilds', `${process.platform}-${process.arch}`, 'node_gi.node'),
-    join(here, 'build', 'Release', 'node_gi.node'),
-    join(here, 'build', 'Debug', 'node_gi.node'),
-  ];
+  const prebuild = join(here, 'prebuilds', `${process.platform}-${process.arch}`, 'node_gi.node');
+  const release = join(here, 'build', 'Release', 'node_gi.node');
+  const debug = join(here, 'build', 'Debug', 'node_gi.node');
+  // NODE_GI_NATIVE pins which binary loads. The package's own test scripts set
+  // `build` so local verification always exercises the JUST-BUILT addon — a stale
+  // staged prebuild would otherwise shadow build/Release and silently validate
+  // the wrong binary (the consumer-facing default below prefers the prebuild).
+  const prefer = process.env.NODE_GI_NATIVE;
+  if (prefer === 'build') return [release, debug, prebuild];
+  if (prefer === 'prebuild') return [prebuild];
+  if (prefer) return [prefer]; // an explicit path to a node_gi.node
+  // Default: prefer a shipped prebuild so a consumer needs no C toolchain and no
+  // node-gyp — the only install path Deno supports (it runs no postinstall build
+  // script). Fall back to a locally built addon (Release, then Debug).
+  return [prebuild, release, debug];
 }
 
 function loadNative() {
