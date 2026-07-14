@@ -131,6 +131,15 @@ npm run build:prebuild   # node-gyp rebuild + stage prebuilds/<platform>-<arch>/
 npm run rebuild
 ```
 
+The load order prefers a staged `prebuilds/<platform>-<arch>/node_gi.node` over
+`build/Release` (the consumer/Deno install path). Local verification always runs
+the **just-built** addon instead: the Node test scripts pin `NODE_GI_NATIVE=build`
+and the bun/deno runner defaults to it — without that, a stale staged prebuild
+silently shadows your build. CI's cross-runtime job sets `NODE_GI_NATIVE=prebuild`
+to keep validating the prebuild load path with a freshly staged binary.
+`NODE_GI_NATIVE` accepts `build`, `prebuild`, or an explicit path to a
+`node_gi.node`.
+
 ## Usage (milestone 1)
 
 ```js

@@ -160,13 +160,20 @@ jobs:
           bun --version
           deno --version
 
+      # NODE_GI_NATIVE=prebuild keeps this job validating the prebuild LOAD PATH
+      # (Deno's install path) explicitly — the runner otherwise defaults to the
+      # just-built addon so stale local prebuilds can't shadow verification.
       - name: Conformance on Bun
         working-directory: packages/node-gi/node-gi
         run: npm run test:bun
+        env:
+          NODE_GI_NATIVE: prebuild
 
       - name: Conformance on Deno
         working-directory: packages/node-gi/node-gi
         run: npm run test:deno
+        env:
+          NODE_GI_NATIVE: prebuild
 
   # GTK/Adw layering proof (Axis-5 GTK milestone): UNCHANGED Gtk.Application (PR1),
   # Adw.Application (PR2) AND a Gtk.Template composite-template widget (PR4) run on

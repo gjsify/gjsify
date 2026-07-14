@@ -70,11 +70,21 @@ const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const argsFor = (file) =>
   runtime === 'bun' ? ['test', file] : ['test', '-A', '--node-modules-dir=auto', file];
 
+// Which native binary the children load (see index.js nativeCandidates). Default
+// to the JUST-BUILT addon so a stale staged prebuild can't shadow local
+// verification; CI's cross-runtime job overrides with NODE_GI_NATIVE=prebuild to
+// keep validating the prebuild load path (Deno's install path) explicitly.
+const nativePref = process.env.NODE_GI_NATIVE ?? 'build';
+
 console.log(`node-gi: running ${CONFORMANCE.length} conformance files on ${runtime} (one process per file)\n`);
 let failed = 0;
 for (const base of CONFORMANCE) {
   const file = join('test', `${base}.test.mjs`);
-  const res = spawnSync(runtime, argsFor(file), { cwd: pkgRoot, encoding: 'utf8' });
+  const res = spawnSync(runtime, argsFor(file), {
+    cwd: pkgRoot,
+    encoding: 'utf8',
+    env: { ...process.env, NODE_GI_NATIVE: nativePref },
+  });
   if (res.status === 0) {
     console.log(`  ✓ ${base}`);
   } else {
