@@ -12,12 +12,13 @@
 // Reference: GJS's global definitions (gjs/modules/{print,system,gettext}). The
 // legacy `imports.*` namespace mirrors gjs/modules/esm/gi.js's require shape.
 import { requireGi } from './gi.js';
-// `imports.system` / `imports.gettext` reuse the standalone module
-// implementations — ONE source of truth, also reachable directly as
-// `@gjsify/node-gi/system` + `@gjsify/node-gi/gettext` (and the bare `system` /
-// `gettext` specifiers on the `--app node` build).
+// `imports.system` / `imports.gettext` / `imports.cairo` reuse the standalone
+// module implementations — ONE source of truth, also reachable directly as
+// `@gjsify/node-gi/{system,gettext,cairo}` (and the bare `system` / `gettext` /
+// `cairo` specifiers on the `--app node` build).
 import system from './system.js';
 import gettext from './gettext.js';
+import cairo from './cairo.js';
 
 // GJS stringifies each argument with String() and joins with a space (no
 // util.inspect object formatting) — match that for fidelity.
@@ -86,10 +87,11 @@ function makeImports() {
     },
   );
 
-  // `imports.system` + `imports.gettext` are the standalone module objects
-  // (`./system.js` / `./gettext.js`) — the single source of truth for those
-  // surfaces, shared with the bare `system` / `gettext` specifiers on Node.
-  return { gi, system, gettext, versions: Object.create(null) };
+  // `imports.system` + `imports.gettext` + `imports.cairo` are the standalone
+  // module objects (`./system.js` / `./gettext.js` / `./cairo.js`) — the single
+  // source of truth for those surfaces, shared with the bare `system` / `gettext` /
+  // `cairo` specifiers on Node.
+  return { gi, system, gettext, cairo, versions: Object.create(null) };
 }
 
 // Side effect on import: seed the globals.

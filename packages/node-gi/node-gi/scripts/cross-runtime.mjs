@@ -39,6 +39,7 @@ const CONFORMANCE = [
   'boxed-out',
   'async-error',
   'bytes',
+  'cairo',
   'call-function',
   'callbacks',
   'closure-exception',

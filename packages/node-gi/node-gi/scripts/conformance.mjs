@@ -163,10 +163,15 @@ for (const rt of runtimes) {
 // into this package so no node_modules layout is needed.
 function writeRuntimeTwin(name, file) {
   const src = readFileSync(file, 'utf8');
-  const rewritten = src.replace(
-    /import\s+(\w+)\s+from\s+['"]gi:\/\/(\w+)\?version=([\d.]+)['"];?/g,
-    (_m, ident, ns, ver) => `const ${ident} = requireGi('${ns}', '${ver}');`,
-  );
+  const rewritten = src
+    .replace(
+      /import\s+(\w+)\s+from\s+['"]gi:\/\/(\w+)\?version=([\d.]+)['"];?/g,
+      (_m, ident, ns, ver) => `const ${ident} = requireGi('${ns}', '${ver}');`,
+    )
+    // The GJS built-in `cairo` module: on gjs it is a native import; the node twin
+    // resolves it to this package's L1 cairo.js (the bare `cairo` specifier the
+    // gjsify --app node build aliases to @gjsify/node-gi/cairo).
+    .replace(/import\s+(\w+)\s+from\s+['"]cairo['"];?/g, (_m, ident) => `import ${ident} from '../../cairo.js';`);
   const body = "import '../../globals.js';\n" + "import { requireGi } from '../../gi.js';\n" + rewritten;
   mkdirSync(distDir, { recursive: true });
   const out = join(distDir, `${name}.node.mjs`);
