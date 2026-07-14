@@ -170,9 +170,21 @@ Napi::Value GValueToJs(Napi::Env env, const GValue* v) {
       // The wrapped boxed handle carries its GType, so L1 wrapBoxed routes
       // `.dup_string()` etc. through CallBoxedMethod (gi_repository_find_by_gtype →
       // GLib.VariantType struct methods). (GVariant is fundamental, handled by its
-      // own G_TYPE_VARIANT case above; GStrv/GByteArray-as-array reads — a GJS
-      // niceness, refs/gjs/gi/value.cpp:1020/1029 — stay a follow-up: they land here
-      // as a boxed handle rather than a string/byte array, but no longer throw.)
+      // own G_TYPE_VARIANT case above.)
+      //
+      // G_TYPE_BYTE_ARRAY (a GByteArray) is special-cased to a Node Buffer (Uint8Array)
+      // — NOT a boxed handle — matching gjs (refs/gjs/gi/value.cpp:1091
+      // gjs_byte_array_from_byte_array). Verified vs gjs 1.88 (a GByteArray signal
+      // param → a Uint8Array in the handler). GBytes (G_TYPE_BYTES) is deliberately
+      // NOT special-cased here: gjs leaves it as a GLib.Bytes boxed handle
+      // (value.cpp has no GBytes case → the generic boxed branch), which is what the
+      // MakeBoxedHandle below already produces (verified: a GBytes signal param →
+      // `instanceof GLib.Bytes`). A GStrv-as-array read stays a follow-up.
+      if (G_VALUE_HOLDS(v, G_TYPE_BYTE_ARRAY)) {
+        GByteArray* ba = static_cast<GByteArray*>(g_value_get_boxed(v));
+        if (ba == nullptr) return env.Null();
+        return Napi::Buffer<uint8_t>::Copy(env, ba->data, ba->len);
+      }
       gpointer boxed = g_value_get_boxed(v);
       if (boxed == nullptr) return env.Null();
       GType bt = G_VALUE_TYPE(v);
@@ -208,6 +220,43 @@ bool JsToGValue(Napi::Env env, Napi::Value js, GValue* v) {
     if (!UnwrapGTypeArg(env, js, &gt)) return false;
     g_value_set_gtype(v, gt);
     return true;
+  }
+  // G_TYPE_BYTE_ARRAY (a GByteArray boxed value, e.g. a byte-array signal param or
+  // property). G_TYPE_FUNDAMENTAL == G_TYPE_BOXED, so the switch below would route a
+  // Uint8Array to the boxed-HANDLE case and reject it. Special-case it FIRST — a JS
+  // Uint8Array/Buffer → a freshly-allocated GByteArray, matching gjs
+  // (refs/gjs/gi/value.cpp:783 gjs_byte_array_get_byte_array, gated on
+  // JS_IsUint8Array). A non-Uint8Array value falls through to the generic boxed
+  // handling below (so a real GByteArray boxed handle still works), exactly as gjs
+  // does. g_value_take_boxed makes the GValue OWN the GByteArray; g_value_unset frees
+  // it. null/undefined → NULL. Verified vs gjs 1.88 (Uint8Array → GByteArray signal
+  // param round-trips to a Uint8Array in the handler).
+  if (G_VALUE_HOLDS(v, G_TYPE_BYTE_ARRAY)) {
+    if (js.IsNull() || js.IsUndefined()) {
+      g_value_set_boxed(v, nullptr);
+      return true;
+    }
+    const uint8_t* bytes = nullptr;
+    size_t len = 0;
+    bool isU8 = false;
+    if (js.IsBuffer()) {
+      Napi::Buffer<uint8_t> b = js.As<Napi::Buffer<uint8_t>>();
+      bytes = b.Data();
+      len = b.Length();
+      isU8 = true;
+    } else if (js.IsTypedArray() && js.As<Napi::TypedArray>().TypedArrayType() == napi_uint8_array) {
+      Napi::TypedArray ta = js.As<Napi::TypedArray>();
+      bytes = static_cast<const uint8_t*>(ta.ArrayBuffer().Data()) + ta.ByteOffset();
+      len = ta.ByteLength();
+      isU8 = true;
+    }
+    if (isU8) {
+      GByteArray* ba = g_byte_array_new();
+      if (len > 0) g_byte_array_append(ba, bytes, static_cast<guint>(len));
+      g_value_take_boxed(v, ba);
+      return true;
+    }
+    // else: fall through to the generic G_TYPE_BOXED handling (a boxed handle).
   }
   // G_TYPE_STRV (a GStrv / NULL-terminated char** boxed property, e.g.
   // Gtk.Widget:css-classes). G_TYPE_FUNDAMENTAL(G_TYPE_STRV) == G_TYPE_BOXED, so

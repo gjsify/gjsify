@@ -255,9 +255,15 @@ function wrapBoxed(handle) {
         return () => wrapReturn(native.callBoxedMethod(handle, 'get_data', []));
       }
       const snake = camelToSnake(prop);
-      if (native.boxedMemberKind(handle, snake) === 2) {
-        return wrapReturn(native.getBoxedField(handle, snake));
-      }
+      // boxedMemberKind: 0 = not a member (type info resolved) → `undefined`, so
+      // `typeof boxed.noSuchName === 'undefined'` matches gjs (a fabricated
+      // dispatcher would read `'function'` and break JS duck-typing such as
+      // `if (typeof value.toArray === 'function')`); 1 = method; 2 = field; 3 =
+      // undecidable (unregistered struct, no static info) → keep the dispatcher
+      // fallback so a genuine method still resolves + throws a clear error at call.
+      const kind = native.boxedMemberKind(handle, snake);
+      if (kind === 2) return wrapReturn(native.getBoxedField(handle, snake));
+      if (kind === 0) return undefined;
       return methodDispatch(prop);
     },
     set(t, prop, value) {

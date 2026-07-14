@@ -195,12 +195,17 @@ function testContainerMarshalling(root, value, inoutValue, defaultValue, options
 }
 
 // ---- phase-2.2/2.3/2.4 skip reasons (scoped OUT of this container/compound-OUT
-// PR; each cites the roadmap item that will land it). INOUT containers (2.5),
-// struct FIELD access (2.6) and GLib.Variant/GParamSpec element marshalling (2.7)
-// are the deferred pieces the sections below route their sub-specs through. ----
-const SKIP_INOUT_CONTAINER =
-    'phase 2.5 INOUT containers — read-modify-write of a caller-built container ' +
-    '(GArray/GList/GHashTable/array inout) is a later PR; pure IN + compound OUT are live';
+// PR; each cites the roadmap item that will land it). INOUT containers (2.5) are
+// now LIVE (read-modify-write of a caller-built container round-trips like gjs;
+// only the gjs-quirky transfer-full (#192) / transfer-container (#44) / 64-bit
+// (#271) variants stay skipped, exactly as gjs skips them). struct FIELD access
+// (2.6) and GLib.Variant/GParamSpec element marshalling (2.7) remain the deferred
+// pieces the sections below route their sub-specs through. ----
+// gjs pends this exact test with gjs#106 (a transfer-full caller-allocated GArray
+// out the callee reallocates is unsupported upstream), so node-gi matches by skip.
+const SKIP_GARRAY_CALLER_ALLOC =
+    'https://gitlab.gnome.org/GNOME/gjs/issues/106 — transfer-full caller-allocated ' +
+    'GArray out (the callee reallocates a caller-provided GArray); gjs pends it too';
 // Struct FIELD get/set on a RETURNED struct/union is now LIVE (phase 2.6). The
 // remaining struct skips are the adjacent capabilities field access does NOT cover:
 const SKIP_STRUCT_CONSTRUCT =
@@ -519,9 +524,27 @@ describe('UTF-8 string', function () {
     });
 });
 
-// INOUT array (a caller-owned array the callee reallocates) is the phase-2.5
-// read-modify-write container case — deferred.
-describeSkip(SKIP_INOUT_CONTAINER, 'In-out array in the style of gtk_init()');
+// INOUT array in the style of gtk_init(): a caller-owned strv the callee
+// reads + reallocates (transfer full, modified in place). Now LIVE (INOUT
+// containers). Verified byte-for-byte against gjs 1.88.
+describe('In-out array in the style of gtk_init()', function () {
+    it('marshals null', function () {
+        const [, newArray] = GIMarshallingTests.init_function(null);
+        expect(newArray).toEqual([]);
+    });
+
+    it('marshals an inout empty array', function () {
+        const [ret, newArray] = GIMarshallingTests.init_function([]);
+        expect(ret).toBeTrue();
+        expect(newArray).toEqual([]);
+    });
+
+    it('marshals an inout array', function () {
+        const [ret, newArray] = GIMarshallingTests.init_function(['--foo', '--bar']);
+        expect(ret).toBeTrue();
+        expect(newArray).toEqual(['--foo']);
+    });
+});
 
 describe('Fixed-size C array', function () {
     describe('of ints', function () {
@@ -530,7 +553,7 @@ describe('Fixed-size C array', function () {
         testOutParameter('array_fixed', [-1, 0, 1, 2]);
         testUninitializedOutParameter('array_fixed', null);
         testOutParameter('array_fixed_caller_allocated', [-1, 0, 1, 2]);
-        testInoutParameter('array_fixed', [-1, 0, 1, 2], [2, 1, 0, -1], {skip: SKIP_INOUT_CONTAINER});
+        testInoutParameter('array_fixed', [-1, 0, 1, 2], [2, 1, 0, -1]);
     });
 
     describe('of shorts', function () {
@@ -572,9 +595,7 @@ describe('Fixed-size C array', function () {
 });
 
 describe('C array with length', function () {
-    testSimpleMarshalling('array', [-1, 0, 1, 2], [-2, -1, 0, 1, 2], [], {
-        inout: {skip: SKIP_INOUT_CONTAINER},
-    });
+    testSimpleMarshalling('array', [-1, 0, 1, 2], [-2, -1, 0, 1, 2], []);
 
     it('can be returned along with other arguments', function () {
         let [array, sum] = GIMarshallingTests.array_return_etc(9, 5);
@@ -673,7 +694,7 @@ describe('C array with length', function () {
         expect(() => GIMarshallingTests.array_in_guint8_len([-1, 0, 1, 2])).not.toThrow();
     });
 
-    itSkip(SKIP_INOUT_CONTAINER, 'can be an in-out argument', function () {
+    it('can be an in-out argument', function () {
         const array = GIMarshallingTests.array_inout([-1, 0, 1, 2]);
         expect(array).toEqual([-2, -1, 0, 1, 2]);
     });
@@ -684,7 +705,7 @@ describe('C array with length', function () {
         expect(array).toEqual([9, 0, 1, 5]);
     });
 
-    itSkip(SKIP_INOUT_CONTAINER, 'can be an in-out argument along with other arguments', function () {
+    it('can be an in-out argument along with other arguments', function () {
         let [array, sum] = GIMarshallingTests.array_inout_etc(9, [-1, 0, 1, 2], 5);
         expect(sum).toEqual(14);
         expect(array).toEqual([9, -1, 0, 1, 5]);
@@ -703,7 +724,7 @@ describe('C array with length', function () {
         });
     }
 
-    itSkip(SKIP_INOUT_CONTAINER, 'supports optional inout array with length', function () {
+    it('supports optional inout array with length', function () {
         expect(GIMarshallingTests.length_array_utf8_optional_inout(['🅰', 'β', 'c', 'd']))
             .toEqual(['a', 'b', '¢', '🔠']);
     });
@@ -712,7 +733,7 @@ describe('C array with length', function () {
 describe('Zero-terminated C array', function () {
     describe('of strings', function () {
         testSimpleMarshalling('array_zero_terminated', ['0', '1', '2'],
-            ['-1', '0', '1', '2'], null, {inout: {skip: SKIP_INOUT_CONTAINER}});
+            ['-1', '0', '1', '2'], null);
     });
 
     it('marshals null as a zero-terminated array return value', function () {
@@ -761,7 +782,11 @@ describe('Exhaustive test of UTF-8 sequences', function () {
             });
 
             it(`${arrayKind} inout transfer ${transfer}`, function () {
-                pending(SKIP_INOUT_CONTAINER);
+                const func = testFunction('inout');
+                if (transfer === 'container')
+                    pending('https://gitlab.gnome.org/GNOME/gjs/-/issues/44');
+
+                expect(func(['🅰', 'β', 'c', 'd'])).toEqual(['a', 'b', '¢', '🔠']);
             });
         }));
 });
@@ -782,15 +807,12 @@ describe('GArray', function () {
     });
 
     describe('of strings', function () {
-        testContainerMarshalling('garray_utf8', ['0', '1', '2'], ['-2', '-1', '0', '1'], null, {
-            none: {inout: {skip: SKIP_INOUT_CONTAINER}},
-            full: {inout: {skip: SKIP_INOUT_CONTAINER}},
-            container: {inout: {skip: SKIP_INOUT_CONTAINER}},
-        });
+        testContainerMarshalling('garray_utf8', ['0', '1', '2'], ['-2', '-1', '0', '1'], null);
 
-        // caller-allocated GArray out (gjs#106/#344) — the callee reallocates a
-        // caller-provided GArray; that INOUT-shaped case is out of scope here.
-        itSkip(SKIP_INOUT_CONTAINER, 'marshals as a transfer-full caller-allocated out parameter', function () {
+        // caller-allocated GArray out: gjs ITSELF pends this with gjs#106 (the
+        // callee reallocates a caller-provided GArray — unsupported upstream), so
+        // node-gi keeps it skipped for the SAME reason (not an INOUT-container gap).
+        itSkip(SKIP_GARRAY_CALLER_ALLOC, 'marshals as a transfer-full caller-allocated out parameter', function () {
             expect(GIMarshallingTests.garray_utf8_full_out_caller_allocated())
                 .toEqual(['0', '1', '2']);
         });
@@ -815,11 +837,7 @@ describe('GArray', function () {
 
 describe('GPtrArray', function () {
     describe('of strings', function () {
-        testContainerMarshalling('gptrarray_utf8', ['0', '1', '2'], ['-2', '-1', '0', '1'], null, {
-            none: {inout: {skip: SKIP_INOUT_CONTAINER}},
-            full: {inout: {skip: SKIP_INOUT_CONTAINER}},
-            container: {inout: {skip: SKIP_INOUT_CONTAINER}},
-        });
+        testContainerMarshalling('gptrarray_utf8', ['0', '1', '2'], ['-2', '-1', '0', '1'], null);
     });
 
     describe('of structs', function () {
@@ -836,8 +854,7 @@ describe('GByteArray', function () {
 
     testReturnValue('bytearray_full', refByteArray);
     testOutParameter('bytearray_full', refByteArray);
-    testInoutParameter('bytearray_full', refByteArray, Uint8Array.from([104, 101, 108, 0, 0xFF]),
-        {skip: SKIP_INOUT_CONTAINER});
+    testInoutParameter('bytearray_full', refByteArray, Uint8Array.from([104, 101, 108, 0, 0xFF]));
 
     it('can be passed in with transfer none', function () {
         expect(() => GIMarshallingTests.bytearray_none_in(refByteArray)).not.toThrow();
@@ -887,8 +904,7 @@ describe('GBytes', function () {
 });
 
 describe('GStrv', function () {
-    testSimpleMarshalling('gstrv', ['0', '1', '2'], ['-1', '0', '1', '2'], null,
-        {inout: {skip: SKIP_INOUT_CONTAINER}});
+    testSimpleMarshalling('gstrv', ['0', '1', '2'], ['-1', '0', '1', '2'], null);
 });
 
 // Arrays whose ELEMENTS are themselves GStrv (nested container elements) are a
@@ -914,11 +930,7 @@ describeSkip('phase 2.2 arrays — length-annotated arrays of GStrv (nested cont
 
         describe('of strings', function () {
             testContainerMarshalling(`${list}_utf8`, ['0', '1', '2'],
-                ['-2', '-1', '0', '1'], [], {
-                    none: {inout: {skip: SKIP_INOUT_CONTAINER}},
-                    full: {inout: {skip: SKIP_INOUT_CONTAINER}},
-                    container: {inout: {skip: SKIP_INOUT_CONTAINER}},
-                });
+                ['-2', '-1', '0', '1'], []);
         });
     });
 });
@@ -954,11 +966,7 @@ describe('GHashTable', function () {
             0: '0',
             1: '1',
         };
-        testContainerMarshalling('ghashtable_utf8', stringDict, stringDictOut, null, {
-            none: {inout: {skip: SKIP_INOUT_CONTAINER}},
-            full: {inout: {skip: SKIP_INOUT_CONTAINER}},
-            container: {inout: {skip: SKIP_INOUT_CONTAINER}},
-        });
+        testContainerMarshalling('ghashtable_utf8', stringDict, stringDictOut, null);
     });
 
     describe('with double values', function () {
@@ -1256,7 +1264,7 @@ describe('GObject', function () {
             expect(o.method_array_out()).toEqual([-1, 0, 1, 2]);
         });
 
-        itSkip(SKIP_INOUT_CONTAINER, 'marshals an int array as an inout parameter', function () {
+        it('marshals an int array as an inout parameter', function () {
             expect(o.method_array_inout([-1, 0, 1, 2])).toEqual([-2, -1, 0, 1, 2]);
         });
 

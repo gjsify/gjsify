@@ -297,14 +297,17 @@ test('super.vfunc_get_value() returns the OUT-carried byte array (L1)', () => {
   assert.deepEqual(Array.from(result), [1, 2, 3]);
 });
 
-// ---- INOUT container chain-up stays DEFERRED (a clean throw, not a crash) ----
+// ---- INOUT container chain-up (read-modify-write a caller-built container) ----
 //
 // GApplication.local_command_line has an INOUT `arguments` (a strv) + an OUT
-// `exit_status`. The OUT scalar is now handled, but INOUT CONTAINERS remain the
-// rare, ownership-tricky case the function-invoke path also defers. The guard
-// must turn that into a clear, CATCHABLE throw BEFORE the ffi_call (never a crash).
+// `exit_status` + a boolean return. Chaining up to the parent marshals the JS
+// array IN as the strv, passes it INOUT, and reads the (possibly modified) strv +
+// the OUT exit_status back. Verified against gjs 1.88: for a no-op command line,
+// super.vfunc_local_command_line(['myapp']) → [true, ['myapp'], 0] (return, the
+// round-tripped INOUT argv, the OUT exit_status). Was DEFERRED with a clean throw
+// before INOUT containers landed; now it round-trips like gjs.
 
-test('chain-up of a vfunc with an INOUT container throws, does not crash (native)', () => {
+test('chain-up of a vfunc with an INOUT container round-trips (native)', () => {
   requireNamespace('Gio', '2.0');
   const Type = registerClass('NodeGiChainInoutGuard', 'Gio', 'Application', {
     vfuncs: {
@@ -314,26 +317,23 @@ test('chain-up of a vfunc with an INOUT container throws, does not crash (native
     },
   });
   const app = constructType(Type, { 'application-id': 'eu.gjsify.ChainInoutGuard' });
-  assert.throws(
-    () => callParentVfunc(app, 'local_command_line', [['myapp']]),
-    /INOUT container parameters are not yet supported/,
-  );
+  assert.deepEqual(callParentVfunc(app, 'local_command_line', [['myapp']]), [true, ['myapp'], 0]);
 });
 
-test('chain-up of a vfunc with an INOUT container throws via L1 super', () => {
+test('chain-up of a vfunc with an INOUT container round-trips via L1 super', () => {
   const GObject = requireGi('GObject', '2.0');
   const Gio = requireGi('Gio', '2.0');
+  let received;
   const Klass = GObject.registerClass(
     { GTypeName: 'NodeGiL1ChainInoutGuard' },
     class extends Gio.Application {
       vfunc_local_command_line(argv) {
+        received = argv;
         return super.vfunc_local_command_line(argv);
       }
     },
   );
   const app = new Klass({ 'application-id': 'eu.gjsify.L1ChainInoutGuard' });
-  assert.throws(
-    () => app.vfunc_local_command_line(['myapp']),
-    /INOUT container parameters are not yet supported/,
-  );
+  assert.deepEqual(app.vfunc_local_command_line(['myapp']), [true, ['myapp'], 0]);
+  assert.deepEqual(received, ['myapp']);
 });

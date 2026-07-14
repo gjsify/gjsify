@@ -925,22 +925,33 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer*
   *outCount = 0;
 
   // Raw bytes from a TypedArray / Buffer (Uint8Array round-trips, etc.).
+  // `hasRawBytes` (NOT `rawBytes != nullptr`) marks a TypedArray/Buffer SOURCE: an
+  // EMPTY Uint8Array/Buffer has a NULL backing-store pointer (V8 hands out nullptr
+  // for a zero-length ArrayBuffer), yet it is still a valid 0-length byte source.
+  // gjs marshals `new Uint8Array([])` to an empty C container (count 0); it must
+  // NOT fall through to the `!v.IsArray()` throw below (a TypedArray isn't a JS
+  // Array). Verified vs gjs 1.88: GLib.base64_encode(new Uint8Array([])) === ''.
   const uint8_t* rawBytes = nullptr;
   size_t rawLen = 0;
+  bool hasRawBytes = false;
   if (v.IsBuffer()) {
     Napi::Buffer<uint8_t> b = v.As<Napi::Buffer<uint8_t>>();
     rawBytes = b.Data();
     rawLen = b.Length();
+    hasRawBytes = true;
   } else if (v.IsTypedArray()) {
     Napi::TypedArray ta = v.As<Napi::TypedArray>();
     rawBytes = static_cast<const uint8_t*>(ta.ArrayBuffer().Data()) + ta.ByteOffset();
     rawLen = ta.ByteLength();
+    hasRawBytes = true;
   }
 
   if (at == GI_ARRAY_TYPE_BYTE_ARRAY) {
     GByteArray* ba = g_byte_array_new();
-    if (rawBytes != nullptr) {
-      g_byte_array_append(ba, rawBytes, static_cast<guint>(rawLen));
+    if (hasRawBytes) {
+      // append is a no-op for len 0; guard so a NULL data ptr (empty typed array)
+      // is never handed to g_byte_array_append's memcpy.
+      if (rawLen > 0) g_byte_array_append(ba, rawBytes, static_cast<guint>(rawLen));
       *outCount = static_cast<long>(rawLen);
     } else if (v.IsArray()) {
       Napi::Array arr = v.As<Napi::Array>();
@@ -966,10 +977,14 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer*
   // string → bytes) are C-array-only ergonomics (a GArray/GPtrArray of bytes is
   // not something GJS accepts a TypedArray for), so gate them on the C kind.
 
-  // Byte C array from a TypedArray / Buffer.
-  if (at == GI_ARRAY_TYPE_C && isByte && rawBytes != nullptr) {
+  // Byte C array from a TypedArray / Buffer. `hasRawBytes` (not `rawBytes !=
+  // nullptr`) so an empty typed array (NULL data, len 0) still lands here: it
+  // allocates a 0-length buffer (g_malloc0(0) → NULL, i.e. an empty C array,
+  // count 0 — the same shape an empty JS array `[]` already produced) instead of
+  // falling through to the `!v.IsArray()` throw. memcpy is guarded on rawLen>0.
+  if (at == GI_ARRAY_TYPE_C && isByte && hasRawBytes) {
     void* buf = g_malloc0(elemSize * (rawLen + (zt ? 1 : 0)));
-    memcpy(buf, rawBytes, rawLen);
+    if (rawLen > 0) memcpy(buf, rawBytes, rawLen);
     *outPtr = buf;
     *outCount = static_cast<long>(rawLen);
     gi_base_info_unref(elem);
@@ -1376,9 +1391,16 @@ static BoxedHandle* UnwrapBoxedArg(const Napi::CallbackInfo& info) {
   return bh;
 }
 
-// boxedMemberKind(handle, name) → 0 (neither) | 1 (method) | 2 (field). Methods
-// take priority (gjs find_unique_js_field_name renames a colliding field to
-// `_name`), so L1 wrapBoxed checks this to route method-dispatch vs field access.
+// boxedMemberKind(handle, name) → 0 (neither) | 1 (method) | 2 (field) | 3 (type
+// info unavailable — membership undecidable). Methods take priority (gjs
+// find_unique_js_field_name renames a colliding field to `_name`), so L1 wrapBoxed
+// checks this to route method-dispatch vs field access. The 3 case only arises for
+// a boxed handle whose GType is unregistered AND carries no static info (neither
+// gtype nor stored info resolves a struct/union): L1 keeps its method-dispatch
+// fallback there. When info IS resolvable, 0 is AUTHORITATIVE ("not a member"), so
+// L1 returns `undefined` for it — matching gjs, where `typeof boxed.noSuchName` is
+// `'undefined'` (a fabricated dispatcher would make it `'function'`, breaking JS
+// duck-typing like `typeof x.toArray === 'function'`).
 Napi::Value BoxedMemberKind(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 2 || !info[1].IsString()) {
@@ -1390,8 +1412,9 @@ Napi::Value BoxedMemberKind(const Napi::CallbackInfo& info) {
   if (bh == nullptr) return env.Null();
   std::string name = info[1].As<Napi::String>().Utf8Value();
   GIBaseInfo* ti = DupBoxedTypeInfo(bh);
-  int kind = 0;
+  int kind = 3;  // no resolvable type info → membership undecidable (L1 keeps its fallback)
   if (ti != nullptr) {
+    kind = 0;  // info resolvable → 0 is authoritative ("not a member")
     if (BoxedHasMethod(ti, name.c_str())) {
       kind = 1;
     } else {
