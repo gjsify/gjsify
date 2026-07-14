@@ -39,9 +39,11 @@ jobs:
         run: |
           dnf install -y --setopt=install_weak_deps=False \
             git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
-            glib2-devel gobject-introspection-devel gobject-introspection gjs cairo-devel
+            glib2-devel gobject-introspection-devel gobject-introspection gjs cairo-devel \
+            dbus-daemon
           gjs --version
           echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
+          echo "dbus-run-session: $(command -v dbus-run-session)"
 
       # Use the official nodejs.org build, NOT Fedora's `dnf nodejs`: the Fedora
       # package segfaults rolldown's prebuilt napi binding (the gjsify bundler
@@ -82,6 +84,17 @@ jobs:
       - name: Smoke test (node --test)
         working-directory: packages/node-gi/node-gi
         run: npm test
+
+      # DBus leg: the Gio.DBus client surface (makeProxyWrapper + name owning +
+      # a live signal round-trip) needs a session bus — no display required, so it
+      # runs here under a throwaway private bus (dbus-run-session, from the
+      # dbus-daemon package added above). The test also spawns `gjs -m` against its
+      # OWN private bus and asserts the normalized round-trip is byte-identical
+      # (gjs is the gold standard). The default `npm test` above self-skips these
+      # cases when no bus is reachable, so this is the leg that exercises them.
+      - name: DBus test (dbus-run-session)
+        working-directory: packages/node-gi/node-gi
+        run: npm run test:dbus
 
       # GC-stress leg: the toggle-ref instance bridge (wrapper identity,
       # collectability, toggle-up rooting, resurrection, signal-cycle, soak) only

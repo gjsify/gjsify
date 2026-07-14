@@ -19,6 +19,10 @@ import { requireGi } from './gi.js';
 import system from './system.js';
 import gettext from './gettext.js';
 import cairo from './cairo.js';
+// Legacy `imports.signals` (the pure-JS Signals mixin) + `imports.mainloop` (the
+// GLib.MainLoop convenience layer) — the GJS script modules many older sources use.
+import * as signalsModule from './overrides/_signals.js';
+import { createMainloop } from './overrides/mainloop.js';
 
 // GJS stringifies each argument with String() and joins with a space (no
 // util.inspect object formatting) — match that for fidelity.
@@ -91,7 +95,32 @@ function makeImports() {
   // module objects (`./system.js` / `./gettext.js` / `./cairo.js`) — the single
   // source of truth for those surfaces, shared with the bare `system` / `gettext` /
   // `cairo` specifiers on Node.
-  return { gi, system, gettext, cairo, versions: Object.create(null) };
+  //
+  // `imports.signals` is the pure-JS Signals mixin (`addSignalMethods` + the
+  // `_connect`/`_disconnect`/`_emit`/… primitives), the SAME module the DBus proxy
+  // surface uses. `imports.mainloop` (a lazy getter — it needs GLib, and a source
+  // that never touches the main loop should not pull GLib in) is the thin
+  // GLib.MainLoop convenience layer.
+  const { addSignalMethods, _connect, _connectAfter, _disconnect, _emit, _signalHandlerIsConnected, _disconnectAll } =
+    signalsModule;
+  const imports = {
+    gi,
+    system,
+    gettext,
+    cairo,
+    signals: { addSignalMethods, _connect, _connectAfter, _disconnect, _emit, _signalHandlerIsConnected, _disconnectAll },
+    versions: Object.create(null),
+  };
+  let mainloop;
+  Object.defineProperty(imports, 'mainloop', {
+    get() {
+      if (mainloop === undefined) mainloop = createMainloop(requireGi('GLib', '2.0'));
+      return mainloop;
+    },
+    enumerable: true,
+    configurable: true,
+  });
+  return imports;
 }
 
 // Side effect on import: seed the globals.

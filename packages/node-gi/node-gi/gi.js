@@ -20,6 +20,9 @@ import * as native from './index.js';
 // node:timers import; Bun/Node re-export it there too), so import it for the
 // macrotask-deferred runAsync to work on all three runtimes.
 import { setImmediate } from 'node:timers';
+// The GJS Gio DBus surface (Gio.DBus.session/system, own_name/watch_name,
+// Gio.DBusProxy.makeProxyWrapper, Gio.DBusExportedObject) — ported to the L1 model.
+import { createGioDBus } from './overrides/gio-dbus.js';
 
 // Symbol carrying the raw native GObject handle on a wrapped instance, so it can
 // be unwrapped again when passed back into the engine as a GI argument.
@@ -460,16 +463,37 @@ function decorateGLibNamespace(baseNs) {
 }
 
 // Overlay the GJS Gio runtime statics on the introspected Gio namespace —
-// additively. `_promisify` is the genuinely-new helper (refs/gjs Gio.js); every
-// other member keeps resolving from introspection.
+// additively. `_promisify` is the genuinely-new helper (refs/gjs Gio.js); the
+// DBus surface (Gio.DBus, Gio.DBusProxy.makeProxyWrapper, Gio.DBusExportedObject)
+// is built by createGioDBus (overrides/gio-dbus.js) over the introspected Gio +
+// the ergonomic GLib. Every other member keeps resolving from introspection.
 function decorateGioNamespace(baseNs) {
+  // Lazily construct the DBus surface: it needs the ergonomic GLib (`new
+  // GLib.Variant`), and building it only on first `Gio.DBus*` access keeps a plain
+  // `import Gio` (no DBus) from pulling GLib in.
+  let dbus;
+  const getDBus = () => {
+    if (dbus === undefined) {
+      dbus = createGioDBus({ Gio: baseNs, GLib: requireGi('GLib', '2.0'), unwrap: unwrapArg, native });
+    }
+    return dbus;
+  };
   return new Proxy(baseNs, {
     get(t, prop) {
       if (prop === '_promisify') return promisify;
+      if (prop === 'DBus') return getDBus().DBus;
+      if (prop === 'DBusProxy') return getDBus().DBusProxy;
+      if (prop === 'DBusExportedObject') return getDBus().DBusExportedObject;
       return t[prop];
     },
     has(t, prop) {
-      return prop === '_promisify' || prop in t;
+      return (
+        prop === '_promisify' ||
+        prop === 'DBus' ||
+        prop === 'DBusProxy' ||
+        prop === 'DBusExportedObject' ||
+        prop in t
+      );
     },
   });
 }

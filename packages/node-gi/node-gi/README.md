@@ -437,6 +437,50 @@ a JS↔GObject reference cycle on a custom instance leaks (the same cycle-leak
 caveat the signal/vfunc layer carries); and multi-level registered subclass
 chains (registering a subclass of a registered subclass) are not yet supported.
 
+#### `Gio.DBus` (client proxy + name owning)
+
+`requireGi('Gio')` carries the GJS DBus surface. The **client** half is complete:
+`Gio.DBusProxy.makeProxyWrapper(interfaceXml)` parses the interface XML and returns
+a proxy constructor whose instances expose each method as `NameSync` (sync),
+`NameRemote` (raw async callback) and `NameAsync` (Promise), each property as a
+getter/setter, and each signal via `connectSignal` / `disconnectSignal` (the same
+pure-JS `_signals` mixin GJS uses). `Gio.DBus.session` / `Gio.DBus.system` are the
+bus getters; `Gio.DBus.own_name` / `unown_name` / `watch_name` / `unwatch_name`
+own and watch bus names.
+
+```js
+const Gio = requireGi('Gio', '2.0');
+
+const Proxy = Gio.DBusProxy.makeProxyWrapper(`<node>
+  <interface name="org.freedesktop.DBus">
+    <method name="GetId"><arg type="s" direction="out"/></method>
+    <signal name="NameOwnerChanged"><arg type="s"/><arg type="s"/><arg type="s"/></signal>
+  </interface>
+</node>`);
+
+const proxy = new Proxy(Gio.DBus.session, 'org.freedesktop.DBus', '/org/freedesktop/DBus');
+const [busId] = proxy.GetIdSync();                 // synchronous method
+proxy.GetIdRemote((result, error) => { /* … */ }); // async, raw callback
+const [id2] = await proxy.GetIdAsync();            // async, Promise (drains after run())
+proxy.connectSignal('NameOwnerChanged', (p, sender, [name, oldOwner, newOwner]) => { /* … */ });
+
+const id = Gio.DBus.own_name(Gio.BusType.SESSION, 'org.example.App',
+  Gio.BusNameOwnerFlags.NONE, null, (conn, name) => { /* acquired */ }, null);
+```
+
+A blocking `GLib.MainLoop.run()` drives the async replies / signals / name
+callbacks (they fire from the loop, as under GJS). Two DBus divergences to know:
+(1) a `NameAsync` **Promise** `.then` does not drain *while* a node-gi loop blocks
+(node-gtk #442/#121) — the reply still fires and settles the Promise, so it
+resolves once `run()` returns; drive an async method inside the loop through the
+raw `NameRemote` callback. (2) **Object export** (`Gio.DBusExportedObject.wrapJSObject`
+— exporting a JS object AS a DBus service) is **not yet supported**: GJS builds it
+on `GjsPrivate.DBusImplementation` (a GJS-internal C type, absent on a plain Node/GI
+host), the introspectable `register_object_with_closures` needs GClosure
+IN-arguments the engine cannot yet marshal, and `register_object` takes a
+non-introspectable vtable — so `wrapJSObject` throws a clear, actionable error
+rather than crashing.
+
 ### GJS ambient globals (`@gjsify/node-gi/globals`)
 
 GJS source relies on globals that exist implicitly under `gjs` — `print`,
@@ -451,6 +495,13 @@ print('hello', 1, true);                 // → stdout, GJS String()-join
 const GLib = imports.gi.GLib;            // legacy imports.gi (honours .versions)
 imports.gi.versions.Gtk = '4.0';
 console.log(imports.gettext.gettext('x')); // no-translation passthrough
+
+// Legacy script modules many older GJS sources use:
+const emitter = {};
+imports.signals.addSignalMethods(emitter);      // the pure-JS Signals mixin
+emitter.connect('ready', () => imports.mainloop.quit());
+imports.mainloop.timeout_add(50, () => { emitter.emit('ready'); return false; });
+imports.mainloop.run();                          // thin GLib.MainLoop wrapper
 ```
 
 A follow-up `--app node` build step will inject this automatically for any
