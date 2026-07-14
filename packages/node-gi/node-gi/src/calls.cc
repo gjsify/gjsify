@@ -626,10 +626,18 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   std::vector<Napi::Value> results;
   GITypeInfo* return_type = gi_callable_info_get_return_type(callable);
   GITransfer return_transfer = gi_callable_info_get_caller_owns(callable);
-  // A (skip)-annotated return is omitted from BOTH the count and the tuple — the
-  // OUT params alone shape the result (mirrors GJS/node-gtk ShouldSkipReturn).
-  if (gi_type_info_get_tag(return_type) != GI_TYPE_TAG_VOID &&
-      !gi_callable_info_skip_return(callable)) {
+  // A non-void return ALWAYS leads the tuple — the `(skip)` annotation is IGNORED
+  // for the JS return, exactly as GJS does. GJS's arg-cache derives `m_has_return`
+  // purely from the return type (non-void, or a pointer) and unconditionally counts
+  // it (refs/gjs/gi/arg-cache.cpp: initialize() `m_has_return = tag != VOID || …`,
+  // build_return() `*inc_counter_out = true`); nothing in gjs's marshalling consults
+  // `gi_callable_info_skip_return`. Verified against gjs 1.88:
+  //   GLib.uri_split('http://user@host:80/p?q=1#frag', 0)
+  //     → [true, 'http', 'user', 'host', 80, '/p', 'q=1', 'frag']   (8, leading bool)
+  // even though g_uri_split's gboolean return carries `skip="1"` (and throws). node-gi
+  // previously honoured the annotation and dropped it (7) — a divergence from the gold
+  // standard. (node-gtk's ShouldSkipReturn does honour it; we match GJS, not node-gtk.)
+  if (gi_type_info_get_tag(return_type) != GI_TYPE_TAG_VOID) {
     results.push_back(ReadOutOrReturn(env, callable, return_type, &retval, return_transfer, &slots));
   }
   gi_base_info_unref(return_type);

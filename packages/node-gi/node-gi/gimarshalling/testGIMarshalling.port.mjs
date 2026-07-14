@@ -418,10 +418,23 @@ testUnixIntegerTypedefMarshalling('pid_t', 12345);
 testUnixIntegerTypedefMarshalling('socklen_t', 123);
 testUnixIntegerTypedefMarshalling('uid_t', 65534);
 
-// GObject.TYPE_NONE/TYPE_STRING come from GJS's GObject override, which the L1
-// GObject overlay does not carry yet — and gtype_in with a wrong value
-// g_asserts fatally inside the C library, so this section must not run.
-describeSkip('phase 2.6 GType — GType marshalling + GJS GObject-override constants (GObject.TYPE_*, JS-type→GType coercion)',
+// The GObject.TYPE_* fundamental constants now EXIST in the L1 GObject overlay
+// (resolved via the introspected GObject.type_from_name, like GJS's override —
+// see gi.js GTYPE_CONSTANT_NAMES) and are validated byte-for-byte against gjs by
+// the tier-A conformance program conformance/programs/gtype-constants.conf.mjs.
+// The gimarshalling GType section still cannot run, for TWO independent reasons
+// (verified against the built typelib):
+//   1. GType OUT/INOUT params are not marshalled yet — gtype_out / gtype_string_out
+//      / gtype_inout throw "OUT type tag 12 (GI_TYPE_TAG_GTYPE) parameters are not
+//      yet supported", so testSimpleMarshalling's out/inout expansions fail.
+//   2. The two "implicitly converted" specs need GJS's GObject dummy-type aliases
+//      (GObject.VoidType / Int / … carrying `$gtype`) + JS-type→GType coercion
+//      (String → G_TYPE_STRING). node-gi has neither, and gtype_in(GObject.VoidType)
+//      passes an undefined/wrong GType → the C library g_asserts FATALLY (SIGABRT,
+//      gimarshallingtests.c:1571 `gtype == G_TYPE_NONE`), which would abort the whole
+//      run. Both are out of scope for the TYPE_* constants fix — keep skipped until
+//      GType OUT marshalling + the JS-type→GType aliases land.
+describeSkip('phase 2.6 GType — needs GType OUT-param marshalling (tag 12) + GJS GObject dummy-type aliases/JS-type→GType coercion; TYPE_* constants now exist (see gtype-constants.conf.mjs). gtype_in(GObject.VoidType) g_asserts fatally in the C lib',
     'GType');
 
 describe('UTF-8 string', function () {
@@ -431,10 +444,14 @@ describe('UTF-8 string', function () {
         },
     });
 
-    itSkip('phase 2.2 arrays — a UTF-8 string arg typed as uint8 array (utf8_as_uint8array_in) is rejected: "expected an array for the array argument"',
-        'marshals value as a byte array', function () {
-            expect(() => GIMarshallingTests.utf8_as_uint8array_in('const ♥ utf8')).not.toThrow();
-        });
+    // node-gi now accepts a JS STRING for a uint8/int8-element array arg,
+    // encoding it to UTF-8 bytes exactly as GJS does (refs/gjs/gi/arg.cpp
+    // "Allow strings as int8/uint8/int16/uint16 arrays" → gjs_string_to_intarray).
+    // The rest of the array phase (2.2) stays skipped; only this string→uint8array
+    // path is live. Verified: gjs -m accepts the same call without throwing.
+    it('marshals value as a byte array', function () {
+        expect(() => GIMarshallingTests.utf8_as_uint8array_in('const ♥ utf8')).not.toThrow();
+    });
 
     it('makes a default out value for a broken C function', function () {
         expect(GIMarshallingTests.utf8_dangling_out()).toBeNull();

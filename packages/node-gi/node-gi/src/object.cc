@@ -83,6 +83,26 @@ Napi::Value GValueToJs(Napi::Env env, const GValue* v) {
       if (var == nullptr) return env.Null();
       return WrapVariant(env, var, GI_TRANSFER_NOTHING);
     }
+    case G_TYPE_BOXED: {
+      // A boxed-typed property/signal value (e.g. Gio.SimpleAction:parameter-type →
+      // GVariantType, a boxed `G_TYPE_VARIANT_TYPE`). g_value_get_boxed BORROWS the
+      // payload; copy so our handle owns its own and can g_boxed_free it on GC.
+      // An UNSET boxed property (NULL pointer) → null, matching GJS — NOT a throw.
+      // Verified against gjs 1.88:
+      //   new Gio.SimpleAction({name:'x'}).parameterType                    → null
+      //   Gio.SimpleAction.new('y', GLib.VariantType.new('s')).parameterType
+      //     .dup_string()                                                    → 's'
+      // The wrapped boxed handle carries its GType, so L1 wrapBoxed routes
+      // `.dup_string()` etc. through CallBoxedMethod (gi_repository_find_by_gtype →
+      // GLib.VariantType struct methods). (GVariant is fundamental, handled by its
+      // own G_TYPE_VARIANT case above; GStrv/GByteArray-as-array reads — a GJS
+      // niceness, refs/gjs/gi/value.cpp:1020/1029 — stay a follow-up: they land here
+      // as a boxed handle rather than a string/byte array, but no longer throw.)
+      gpointer boxed = g_value_get_boxed(v);
+      if (boxed == nullptr) return env.Null();
+      GType bt = G_VALUE_TYPE(v);
+      return MakeBoxedHandle(env, g_boxed_copy(bt, boxed), bt, true);
+    }
     case G_TYPE_OBJECT:
       // Signal/property object values are transfer-none borrows; WrapGObject refs.
       return WrapGObject(env, static_cast<GObject*>(g_value_get_object(v)), GI_TRANSFER_NOTHING);

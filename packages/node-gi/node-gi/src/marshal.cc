@@ -825,6 +825,24 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer*
     return true;
   }
 
+  // A JS string as an int8/uint8 C array → its UTF-8 bytes, exactly as GJS does
+  // (refs/gjs/gi/arg.cpp: "Allow strings as int8/uint8/int16/uint16 arrays" →
+  // gjs_string_to_intarray → gjs_string_to_utf8_n for the int8/uint8 element tags).
+  // The length is the UTF-8 BYTE count (not the JS string length, not NUL-inclusive);
+  // a zero-terminated array still gets its trailing NUL slot from g_malloc0.
+  // Verified against gjs 1.88: GIMarshallingTests.utf8_as_uint8array_in('const ♥ utf8')
+  // is accepted (no throw). A real Uint8Array/Array still works via the paths around this.
+  if (isByte && v.IsString()) {
+    std::string s = v.As<Napi::String>().Utf8Value();
+    size_t n = s.size();
+    void* buf = g_malloc0(elemSize * (n + (zt ? 1 : 0)));
+    memcpy(buf, s.data(), n);
+    *outPtr = buf;
+    *outCount = static_cast<long>(n);
+    gi_base_info_unref(elem);
+    return true;
+  }
+
   if (!v.IsArray()) {
     gi_base_info_unref(elem);
     Napi::TypeError::New(env, "expected an array for the array argument")

@@ -1,0 +1,8 @@
+unset parameterType is null: true
+unset parameterType typeof: object
+single set typeof: object
+single dup_string: s
+tuple dup_string: (si)
+array dup_string: ai
+array is_array: true
+single is_array: false
