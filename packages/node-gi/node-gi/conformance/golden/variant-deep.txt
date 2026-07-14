@@ -1,0 +1,13 @@
+dict type: a{sv}
+deep keys: ["age","name"]
+deep values are Variants: true true
+deep name: Ada s
+deep age: 36 i
+recursive: {"age":36,"name":"Ada"}
+unpack values are Variants: true
+tuple type: (si(bb))
+tuple deep: ["x",1,[true,false]]
+tuple recursive: ["x",1,[true,false]]
+as deep: ["a","b","c"]
+ai deep: [1,2,3]
+ay is Uint8Array: true [1,2,250,255]
