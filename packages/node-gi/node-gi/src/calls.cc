@@ -148,6 +148,29 @@ static void NodeGiCallbackTrampoline(ffi_cif* /*cif*/, void* result, void** args
                                      gpointer user_data) {
   NodeGiCallback* cb = static_cast<NodeGiCallback*>(user_data);
   napi_env env = cb->env;
+  // ENV-TEARDOWN GATE: an idle/timeout/async callback (or a destroy-notify-driven
+  // one) can fire while the env may no longer enter JS (env cleanup, worker
+  // terminate). Re-entering N-API then aborts via node-addon-api's noexcept throw
+  // path — degrade to a no-op with a zeroed return slot instead (see toggle.cc).
+  if (!NodeGiJsAvailable(env)) {
+    if (result != nullptr) static_cast<GIArgument*>(result)->v_uint64 = 0;
+    if (NodeGiToggleDebugEnabled())
+      NodeGiToggleDebugLog("GI callback skipped: JS unavailable on env %p (teardown/terminate)",
+                           static_cast<void*>(env));
+    // The probe is also false when a JS exception is PENDING on a live env. Keep
+    // the pre-existing scope semantics: a loop-dispatched (non-CALL) callback
+    // surfaces + clears so the pump stays alive; a CALL-scope callback leaves it
+    // pending for the JS invoke caller. At real teardown Surface... is a no-op.
+    if (cb->scope != GI_SCOPE_TYPE_CALL) {
+      SurfacePendingException(env, "GI callback (idle/timeout/async)");
+    }
+    // scope=async frees exactly once via the trampoline (see below) — keep that
+    // contract even when the JS dispatch is skipped, so the closure is not leaked.
+    if (cb->scope == GI_SCOPE_TYPE_ASYNC) {
+      g_idle_add_full(G_PRIORITY_DEFAULT, NodeGiCallbackFreeIdle, cb, nullptr);
+    }
+    return;
+  }
   Napi::Env napiEnv(env);
   Napi::HandleScope scope(napiEnv);
   // An idle/timeout/async (NOTIFIED/ASYNC scope) callback is dispatched FROM the

@@ -64,6 +64,7 @@ const addonPath = ['../build/Release/node_gi.node', '../build/Debug/node_gi.node
   .find((p) => existsSync(p));
 const native = require(addonPath);
 const indexUrl = new URL('../index.js', import.meta.url).href;
+const giUrl = new URL('../gi.js', import.meta.url).href;
 
 requireNamespace('Gio', '2.0');
 requireNamespace('GObject', '2.0');
@@ -197,6 +198,62 @@ for (let i = 0; i < 8; i++) {
       const r = spawnSync(process.execPath, [file], { timeout: 15000 });
       assert.equal(r.signal, null, `iter ${i}: exited without a fatal signal (got ${r.signal})`);
       assert.equal(r.status, 0, `iter ${i}: clean exit status (got ${r.status})`);
+    }
+  } finally {
+    rmSync(file, { force: true });
+  }
+});
+
+// ---- 4b: ENV-CLEANUP drain — teardowns pending at loop exit never abort ----
+// The (formerly ~1%) CI abort "FATAL ERROR: Error::ThrowAsJavaScriptException
+// napi_throw", made deterministic. Choreography: wrappers of a registered class
+// with a JS vfunc_dispose are GC'd in the process's FINAL event-loop turn, so
+// their idle teardowns are queued and the (deliberately unref'd) drain-TSFN wake
+// is still PENDING when the loop exits. node::FreeEnvironment then sets
+// can_call_into_js=false and Environment::RunCleanup() runs CleanupHandles()
+// (uv_run) BEFORE draining the env-cleanup hooks — i.e. the pending wake
+// dispatches the drain BEFORE OnEnvShutdown can flip g_toggle_shutdown. Pre-fix,
+// RunTeardown dropped the last toggle ref → dispose → vfunc_dispose re-entered
+// N-API on the no-longer-JS-capable env → node-addon-api's noexcept throw path →
+// napi_fatal_error abort. The fix gates the drain + every C→JS trampoline on a
+// JS-availability probe (napi_strict_equals, NAPI_PREAMBLE-gated upstream).
+// NODE_GI_TOGGLE_TEARDOWN_DELAY_MS (test-only latency seam) holds queued
+// teardowns back so the pending-at-exit state is reached even if GC/loop phasing
+// shifts across Node versions — both seam-on and seam-off legs must be clean.
+test('shutdown: teardown drain during env cleanup never aborts (vfunc_dispose at exit)', () => {
+  const script = `
+import { requireGi } from ${JSON.stringify(giUrl)};
+const GObject = requireGi('GObject', '2.0');
+const Gio = requireGi('Gio', '2.0');
+class Disposer extends GObject.Object {
+  vfunc_dispose() {
+    // Re-enter the engine from dispose — the exact JS re-entry of the crash stack
+    // (WrapGObject/MakeGObjectHandle + method invokes on a fresh GObject).
+    const g = new Gio.SimpleActionGroup();
+    g.add_action(new Gio.SimpleAction({ name: 'x', enabled: true }));
+  }
+}
+const Klass = GObject.registerClass({ GTypeName: 'NodeGiExitDrainDisposer' }, Disposer);
+(() => { for (let i = 0; i < 8; i++) new Klass(); })();
+// Collect in the LAST turn: the wrappers' napi finalizers queue idle teardowns +
+// send the unref'd TSFN wake, then the loop exits with the wake still pending →
+// RunCleanup's CleanupHandles() dispatches it against the dying env.
+globalThis.gc();
+`;
+  const file = join(tmpdir(), `node-gi-exit-drain-${process.pid}-${Date.now()}.mjs`);
+  writeFileSync(file, script);
+  try {
+    for (let i = 0; i < 8; i++) {
+      const seamOn = i % 2 === 0;
+      // The seam-off leg clears the var explicitly — an outer seam-enabled stress
+      // run must not leak it into this leg ('' parses to 0 = seam disabled).
+      const r = spawnSync(process.execPath, ['--expose-gc', file], {
+        timeout: 15000,
+        env: { ...process.env, NODE_GI_TOGGLE_TEARDOWN_DELAY_MS: seamOn ? '50' : '' },
+      });
+      const tag = `iter ${i} (seam ${seamOn ? 'on' : 'off'})`;
+      assert.equal(r.signal, null, `${tag}: exited without a fatal signal (got ${r.signal})`);
+      assert.equal(r.status, 0, `${tag}: clean exit status (got ${r.status}): ${r.stderr}`);
     }
   } finally {
     rmSync(file, { force: true });
@@ -408,6 +465,18 @@ test('reentrant-drain: vfunc_dispose re-entering the engine mid-drain is safe (D
     })();
     await settle(2);
   }
+  // Teardown dispatch timing is deliberately unguaranteed (idle-deferred, and the
+  // NODE_GI_TOGGLE_TEARDOWN_DELAY_MS seam defers it further) — wait boundedly for
+  // the queued disposals to land before asserting; the assertions are unchanged.
+  {
+    const deadline = Date.now() + 5000;
+    let last = -1;
+    while (disposed < 30 * 25 && Date.now() < deadline) {
+      if (disposed === last) gc();
+      last = disposed;
+      await settle(1);
+    }
+  }
   assert.ok(disposed >= 30 * 25 * 0.8, `most disposers ran their vfunc_dispose, got ${disposed}`);
   assert.equal(reentrantOk, disposed, 'reentrant create+round-trip identity held in every dispose');
   assert.equal(resurrectOk, disposed, 'reentrant sibling resurrection was safe in every dispose');
@@ -444,9 +513,11 @@ test('liveness: off-thread toggles progress while a dispose vfunc runs', gcOpts,
     assert.ok(native.__stressRefUnrefProgress() > p0, 'off-thread churn started');
   }
 
+  let disposeRan = false;
   let advancedDuringDispose = false;
   class Blocker extends GObject.Object {
     vfunc_dispose() {
+      disposeRan = true;
       const p0 = native.__stressRefUnrefProgress();
       const start = Date.now();
       // Stay INSIDE the dispose (block the main thread) up to 1s, exiting as soon as
@@ -465,7 +536,18 @@ test('liveness: off-thread toggles progress while a dispose vfunc runs', gcOpts,
     new Klass();
   })();
   await settle(3); // GC → teardown drain → Blocker.vfunc_dispose runs the liveness probe
+  // Teardown dispatch timing is unguaranteed (idle-deferred; the
+  // NODE_GI_TOGGLE_TEARDOWN_DELAY_MS seam defers it further) — wait boundedly for
+  // the dispose to actually run before stopping the churn + asserting.
+  {
+    const deadline = Date.now() + 5000;
+    while (!disposeRan && Date.now() < deadline) {
+      gc();
+      await settle(1);
+    }
+  }
   native.__stressRefUnrefStop(); // halt the long churn now that we're done
+  assert.equal(disposeRan, true, 'the Blocker teardown disposed within the wait budget');
   assert.equal(
     advancedDuringDispose,
     true,
