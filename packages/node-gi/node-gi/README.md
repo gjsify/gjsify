@@ -131,6 +131,39 @@ npm run build:prebuild   # node-gyp rebuild + stage prebuilds/<platform>-<arch>/
 npm run rebuild
 ```
 
+## Conformance (golden-diff)
+
+The exactness oracle for GJS parity: small self-contained `gi://` programs
+under `conformance/programs/*.conf.mjs` run UNCHANGED on all four runtimes —
+gjs natively (`gjs -m`, ambient `print`), node/bun/deno via a lightweight
+generated runtime twin (the `globals.js` shim + `requireGi`, no bundler) — and
+every runtime's **stdout must be byte-identical to the committed golden**
+(`conformance/golden/<name>.txt`). **gjs is the reference**: the goldens ARE
+the gjs output, and a gjs↔golden drift fails loudly (either GJS changed or the
+golden is stale — never paper over it).
+
+```bash
+npm run test:conformance                          # full matrix (gjs × node × bun × deno)
+node scripts/conformance.mjs --runtimes=gjs,node  # runtime subset (gjs/node never auto-skip)
+node scripts/conformance.mjs --filter=variant     # program subset
+node scripts/conformance.mjs --update-golden      # regenerate goldens from gjs
+```
+
+Adding a program: drop `conformance/programs/<name>.conf.mjs` — default
+imports of the exact shape `import Gio from 'gi://Gio?version=2.0';` only
+(regex-rewritable to `requireGi`), output via the GJS-ambient `print()`,
+strictly deterministic (no versions, paths, hostnames, timing; the runner sets
+`LC_ALL=C`), ends cleanly — then `--update-golden`, eyeball the golden for
+determinism, and commit both. Every feature PR extends this suite.
+
+The ledger contract (`conformance/ledger.json`) is strict: every known-failing
+program×runtime combo is a **committed entry**
+`{ "program", "runtime", "reason", "issue"? }` — a failing combo *not* in the
+ledger fails the run, and a passing combo still *in* the ledger fails as a
+stale entry (remove it). Exit 0 means zero unexpected results; there are no
+silent exclusions (bun/deno merely report `skipped` when not installed — gjs
+and node never skip).
+
 ## Usage (milestone 1)
 
 ```js

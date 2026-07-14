@@ -64,6 +64,7 @@
     "test:node": "node --test",
     "test:gc": "node --test --expose-gc",
     "test:bun": "node scripts/cross-runtime.mjs bun",
+    "test:conformance": "node scripts/conformance.mjs",
     "test:deno": "node scripts/cross-runtime.mjs deno",
     "test:gtk": "node --test test/gtk-smoke.test.mjs",
     "test:adw": "node --test test/adw-smoke.test.mjs",

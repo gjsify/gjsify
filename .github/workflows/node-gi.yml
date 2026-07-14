@@ -92,6 +92,16 @@ jobs:
         working-directory: packages/node-gi/node-gi
         run: npm run test:gc
 
+      # Golden-diff conformance harness: the same gi:// programs
+      # (conformance/programs/*.conf.mjs) run on gjs, node, bun AND deno —
+      # stdout must be byte-identical to the committed goldens (gjs = the
+      # reference; failures are only excusable via the strict exclusion ledger,
+      # and a stale ledger entry fails too). All four runtimes are installed in
+      # this job; no bundler involved (runtime twins via globals.js + requireGi).
+      - name: Conformance (golden-diff, gjs/node/bun/deno)
+        working-directory: packages/node-gi/node-gi
+        run: npm run test:conformance
+
       # Quad-runtime capstone: several unchanged gi:// sources build + run
       # BYTE-IDENTICALLY on gjs, node, bun AND deno. `npm install` builds
       # @gjsify/node-gi via the `file:../node-gi` dependency (node-gyp), so the
