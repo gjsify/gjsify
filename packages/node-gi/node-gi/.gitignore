@@ -6,3 +6,4 @@ node_modules/
 deno.lock
 probe-*.mjs
 conformance/dist/
+.gi-tests/

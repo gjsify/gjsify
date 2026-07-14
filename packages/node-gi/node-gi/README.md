@@ -174,6 +174,40 @@ stale entry (remove it). Exit 0 means zero unexpected results; there are no
 silent exclusions (bun/deno merely report `skipped` when not installed — gjs
 and node never skip).
 
+### Tier B — GJS installed-tests port
+
+The breadth oracle: GJS's own installed-tests
+(`refs/gjs/installed-tests/js/testGIMarshalling.js`) encode GJS's marshalling
+behavior against the purpose-built `GIMarshallingTests-1.0` typelib.
+`gimarshalling/testGIMarshalling.port.mjs` is a near-verbatim port of that
+file to `node:test` via a minimal jasmine shim
+(`gimarshalling/jasmine-shim.mjs`), mapping the WHOLE upstream surface:
+already-green sections run live, everything else is a `describeSkip` stub
+naming the upstream section. Assertions are never weakened.
+
+```bash
+npm run test:gimarshalling   # builds the pinned typelibs if missing, then runs the port
+```
+
+`scripts/build-gi-test-typelibs.mjs` builds the test typelibs reproducibly
+from GNOME's gobject-introspection-tests project at the **pinned revision**
+GJS itself tests against (`PINNED_REV`, copied from
+`refs/gjs/subprojects/gobject-introspection-tests.wrap`) into the gitignored
+`.gi-tests/` (meson + ninja required; cairo disabled; Regress builds too).
+The launcher (`scripts/gimarshalling.mjs`) sets `GI_TYPELIB_PATH` /
+`LD_LIBRARY_PATH` before spawning `node --test` — dlopen cannot pick up late
+env changes — and pins `NODE_GI_NATIVE=build`. The port files are named
+`*.port.mjs` so the default `npm test` glob never picks them up.
+
+**Skip contract (strict, mirrors the tier-A ledger):** every skipped
+spec/suite carries a reason — a phase-2.x roadmap item from the taxonomy at
+the top of the port file (e.g. `phase 2.1 BigInt-64-bit`), an upstream issue
+URL, or a `FIDELITY-BUG: …` note — and the reason is reported in the
+`node:test` output (`# SKIP <reason>`). A bare skip throws (`pending()`,
+`itSkip`, `describeSkip` all require the reason; `xit` must chain
+`.pend(reason)`). Later marshalling PRs un-skip their sections — this port is
+phase 2's acceptance gate.
+
 ## Usage (milestone 1)
 
 ```js
