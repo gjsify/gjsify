@@ -509,14 +509,18 @@ static void NodeGiClassInit(gpointer g_class, gpointer class_data) {
 // the return (gi_type_info_extract_ffi_return_value → GIArgumentToJs); throws a
 // GLib.Error for a can-throw vfunc whose parent set the GError.
 //
-// SCOPE: single-level-over-C is the target. A vfunc with ANY declared OUT/INOUT
-// arg is REJECTED with a clear error BEFORE the ffi_call (a non-optional OUT slot
-// is a location the C parent writes THROUGH — passing null would SIGSEGV the
-// process; "not yet supported" must mean a catchable throw, not a crash). This
-// also forecloses the IN-indexing mismatch (the JS caller passes IN values
-// positionally, while declared indices interleave OUT params). The dominant
-// chain-up cases (constructed/dispose/activate; IN object/primitive args) are
-// covered.
+// OUT / INOUT args: routed through per-arg storage slots exactly like the
+// function-invoke path (calls.cc InvokeFunctionInfo). The parent's ffi signature
+// takes a POINTER for each OUT/INOUT param, so giArgs[1+i] carries &slots[i] (the
+// stable storage the C parent writes THROUGH) — INOUT slots are pre-marshalled from
+// the JS input, OUT slots start zeroed; a caller-allocates OUT (fixed C array /
+// boxed struct) gets a g_malloc0 blob instead. The JS caller passes only IN + INOUT
+// args positionally (OUT params are engine-managed), and the result follows the GJS
+// return-tuple convention `[returnValue?, ...outArgs]` — one value bare, several as
+// an Array, matching exactly what a JS override of that vfunc receives as its call
+// args. Read-back reuses ReadOutOrReturn (array-length slots, containers, boxed).
+// INOUT containers stay deferred (the same rare, ownership-tricky case the function
+// path defers) with a clear, catchable throw BEFORE the ffi_call.
 //
 // MULTI-LEVEL chain-up (registered chains, G2): chains to the DEEPEST registered
 // override's captured parent (the C-side default below the whole registered chain),
@@ -553,47 +557,204 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
   unsigned int nDeclared = gi_callable_info_get_n_args(ci);
   bool canThrow = gi_callable_info_can_throw_gerror(ci);
 
-  // Guard: chain-up of a vfunc with OUT/INOUT args is not yet supported. A
-  // non-optional OUT param is a pointer the C parent WRITES THROUGH, so we cannot
-  // hand it a null slot (→ NULL-deref crash) and we do not yet marshal OUT values
-  // back to JS. Reject with a catchable error BEFORE any ffi_call. (Also avoids the
-  // declared-vs-positional IN index mismatch once an OUT precedes an IN.)
+  // Per-arg direction (used both to marshal IN/INOUT input and to read OUT/INOUT
+  // back after the call).
+  std::vector<GIDirection> dirs(nDeclared);
   for (unsigned int i = 0; i < nDeclared; i++) {
     GIArgInfo* ai = gi_callable_info_get_arg(ci, i);
-    GIDirection dir = gi_arg_info_get_direction(ai);
+    dirs[i] = gi_arg_info_get_direction(ai);
     gi_base_info_unref(ai);
-    if (dir != GI_DIRECTION_IN) {
-      Napi::Error::New(env, "chain-up of vfunc '" + vname +
-                                "' with OUT/INOUT args is not yet supported")
-          .ThrowAsJavaScriptException();
-      return env.Null();
+  }
+
+  // Array-length args (of an arg array OR of the return array) are engine-managed:
+  // never JS-consumed, never surfaced on their own. An OUT/INOUT length slot is
+  // wired so the callee writes the count we then size the array with; an IN length
+  // is autofilled from the array's element count. Mirrors InvokeFunctionInfo.
+  std::vector<bool> skip(nDeclared, false);
+  std::vector<bool> isLenArg(nDeclared, false);
+  for (unsigned int i = 0; i < nDeclared; i++) {
+    GIArgInfo* ai = gi_callable_info_get_arg(ci, i);
+    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
+    if (gi_type_info_get_tag(ti) == GI_TYPE_TAG_ARRAY) {
+      unsigned int L = 0;
+      if (gi_type_info_get_array_length_index(ti, &L) && L < nDeclared) {
+        skip[L] = true;
+        isLenArg[L] = true;
+      }
     }
+    gi_base_info_unref(ti);
+    gi_base_info_unref(ai);
+  }
+  {
+    GITypeInfo* rt = gi_callable_info_get_return_type(ci);
+    if (gi_type_info_get_tag(rt) == GI_TYPE_TAG_ARRAY) {
+      unsigned int L = 0;
+      if (gi_type_info_get_array_length_index(rt, &L) && L < nDeclared) {
+        skip[L] = true;
+        isLenArg[L] = true;
+      }
+    }
+    gi_base_info_unref(rt);
   }
 
   // ffi argument value array: [instance, declared-arg-0 .., (GError** if can-throw)].
   // Each entry points at the value's storage; for the GIArgument union, &arg is the
   // address of every member (they overlap at offset 0), so &giArgs[i] works for any
-  // primitive/pointer-typed argument.
+  // primitive/pointer-typed argument. An OUT/INOUT arg's ffi param is a POINTER, so
+  // its giArgs entry holds &slots[i] — the stable per-arg storage (arg-indexed, as
+  // ReadOutOrReturn expects) the C parent writes THROUGH.
   std::vector<GIArgument> giArgs(1 + nDeclared);
+  std::vector<GIArgument> slots(nDeclared);  // OUT/INOUT storage (zero-initialised)
   std::vector<std::string> holds(nDeclared);
+  std::vector<gpointer> callerAllocBlob(nDeclared, nullptr);
+  std::vector<GType> callerAllocGType(nDeclared, 0);
+  std::vector<InContainer> inContainers;   // IN containers to free after the reads
+  std::vector<gpointer> ownedInStrings;     // transfer-full IN/INOUT strings (#658 model)
   std::vector<void*> avalue;
   avalue.reserve(1 + nDeclared + (canThrow ? 1 : 0));
   giArgs[0].v_pointer = obj;
   avalue.push_back(&giArgs[0]);
 
-  // All declared args are IN here (the guard above rejected OUT/INOUT). They map
-  // 1:1 to the positional JS args.
+  // The JS caller passes IN + INOUT args positionally; OUT params are engine-managed
+  // (jsCursor bridges the declared-vs-positional gap once an OUT precedes an IN). For
+  // an all-IN vfunc jsCursor == i, so the IN-only path is byte-identical to before.
   bool ok = true;
+  size_t jsCursor = 0;
   for (unsigned int i = 0; i < nDeclared && ok; i++) {
+    if (skip[i]) {
+      // An OUT/INOUT array-length arg: wire its slot so the callee writes the count.
+      if (isLenArg[i] && (dirs[i] == GI_DIRECTION_OUT || dirs[i] == GI_DIRECTION_INOUT))
+        giArgs[1 + i].v_pointer = &slots[i];
+      avalue.push_back(&giArgs[1 + i]);
+      continue;
+    }
     GIArgInfo* ai = gi_callable_info_get_arg(ci, i);
+    GIDirection dir = dirs[i];
     GITypeInfo* ti = gi_arg_info_get_type_info(ai);
-    Napi::Value v = i < args.Length() ? args.Get(i) : env.Undefined();
-    if (!JsToGIArgument(env, v, ti, &giArgs[1 + i], &holds[i])) ok = false;  // already threw
+    GITypeTag tg = gi_type_info_get_tag(ti);
+
+    if (dir == GI_DIRECTION_OUT || dir == GI_DIRECTION_INOUT) {
+      std::string why;
+      if (gi_arg_info_is_caller_allocates(ai)) {
+        // Caller-allocates: the callee fills storage WE provide (a single pointer,
+        // not a **) — the ffi param is that blob pointer directly. Supported: a
+        // fixed-size C array (fundamental elements) and a boxed struct/union.
+        // Mirrors InvokeFunctionInfo / refs/gjs arg-cache CALLER_ALLOCATES.
+        size_t size = 0;
+        GType boxedGType = 0;
+        if (tg == GI_TYPE_TAG_ARRAY && gi_type_info_get_array_type(ti) == GI_ARRAY_TYPE_C) {
+          size_t fixed = 0;
+          if (gi_type_info_get_array_fixed_size(ti, &fixed) && fixed > 0) {
+            GITypeInfo* el = gi_type_info_get_param_type(ti, 0);
+            if (el != nullptr && gi_type_info_get_tag(el) != GI_TYPE_TAG_INTERFACE)
+              size = CElementSize(el) * fixed;
+            if (el != nullptr) gi_base_info_unref(el);
+          }
+        } else if (tg == GI_TYPE_TAG_INTERFACE) {
+          GIBaseInfo* si = gi_type_info_get_interface(ti);
+          if (si != nullptr && GI_IS_STRUCT_INFO(si)) {
+            size = gi_struct_info_get_size(reinterpret_cast<GIStructInfo*>(si));
+          } else if (si != nullptr && GI_IS_UNION_INFO(si)) {
+            size = gi_union_info_get_size(reinterpret_cast<GIUnionInfo*>(si));
+          }
+          if (si != nullptr) {
+            GType gt = gi_registered_type_info_get_g_type(
+                reinterpret_cast<GIRegisteredTypeInfo*>(si));
+            if (gt != G_TYPE_INVALID && G_TYPE_IS_BOXED(gt)) boxedGType = gt;
+            gi_base_info_unref(si);
+          }
+          if (boxedGType == 0) size = 0;  // non-boxed struct OUT needs field access
+        }
+        if (size == 0) {
+          Napi::TypeError::New(
+              env, "super." + vname + ": caller-allocates OUT parameter type is not yet supported")
+              .ThrowAsJavaScriptException();
+          ok = false;
+        } else {
+          gpointer blob = g_malloc0(size);
+          callerAllocBlob[i] = blob;
+          callerAllocGType[i] = boxedGType;
+          giArgs[1 + i].v_pointer = blob;
+        }
+      } else if (!IsSupportedOutType(ti, &why)) {
+        Napi::TypeError::New(env, "super." + vname + ": OUT " + why +
+                                      " parameters are not yet supported")
+            .ThrowAsJavaScriptException();
+        ok = false;
+      } else if (dir == GI_DIRECTION_INOUT &&
+                 (tg == GI_TYPE_TAG_ARRAY || tg == GI_TYPE_TAG_GLIST ||
+                  tg == GI_TYPE_TAG_GSLIST || tg == GI_TYPE_TAG_GHASH)) {
+        // INOUT containers (read-modify-write a caller-built container) are the rare,
+        // ownership-tricky case — defer cleanly (as the function path does). Pure-OUT
+        // containers fall through to the slot-wiring branch below.
+        Napi::TypeError::New(env, "super." + vname +
+                                      ": INOUT container parameters are not yet supported")
+            .ThrowAsJavaScriptException();
+        ok = false;
+      } else if (dir == GI_DIRECTION_INOUT) {
+        // INOUT scalar: marshal the JS input into the slot (like IN); the parent
+        // reads + writes it through &slots[i].
+        Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
+        jsCursor++;
+        GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
+        if (JsToGIArgument(env, v, ti, &slots[i], &holds[i], tr, &ownedInStrings))
+          giArgs[1 + i].v_pointer = &slots[i];
+        else
+          ok = false;  // JsToGIArgument already threw
+      } else {
+        // Pure OUT: the callee writes into the slot; no JS arg is consumed.
+        giArgs[1 + i].v_pointer = &slots[i];
+      }
+    } else if (tg == GI_TYPE_TAG_ARRAY || tg == GI_TYPE_TAG_GLIST ||
+               tg == GI_TYPE_TAG_GSLIST || tg == GI_TYPE_TAG_GHASH) {
+      // IN container: build the C container, autofill an IN length arg.
+      std::string why;
+      Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
+      jsCursor++;
+      if (!IsSupportedContainerType(ti, &why)) {
+        Napi::TypeError::New(env, "super." + vname + ": IN " + why +
+                                      " parameters are not yet supported")
+            .ThrowAsJavaScriptException();
+        ok = false;
+      } else {
+        GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
+        gpointer cptr = nullptr;
+        long ccount = 0;
+        ok = JsToInContainer(env, v, ti, tr, &cptr, &ccount, &inContainers);
+        if (ok) {
+          giArgs[1 + i].v_pointer = cptr;
+          if (tg == GI_TYPE_TAG_ARRAY) {
+            unsigned int L = 0;
+            if (gi_type_info_get_array_length_index(ti, &L) && L < nDeclared &&
+                dirs[L] == GI_DIRECTION_IN) {
+              GIArgInfo* la = gi_callable_info_get_arg(ci, L);
+              GITypeInfo* lt = gi_arg_info_get_type_info(la);
+              WriteLengthValue(lt, &giArgs[1 + L], ccount);
+              gi_base_info_unref(lt);
+              gi_base_info_unref(la);
+            }
+          }
+        }
+      }
+    } else {
+      // IN scalar/object/string: marshal by value into giArgs[1+i].
+      Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
+      jsCursor++;
+      GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
+      ok = JsToGIArgument(env, v, ti, &giArgs[1 + i], &holds[i], tr, &ownedInStrings);
+    }
+
     avalue.push_back(&giArgs[1 + i]);
     gi_base_info_unref(ti);
     gi_base_info_unref(ai);
   }
-  if (!ok) return env.Null();
+  if (!ok) {
+    for (const InContainer& c : inContainers) FreeInContainer(c);
+    for (gpointer s : ownedInStrings) g_free(s);  // never reached the callee (#658)
+    for (gpointer b : callerAllocBlob)
+      if (b != nullptr) g_free(b);
+    return env.Null();
+  }
 
   // can-throw vfuncs take a trailing GError** the parent writes the error into.
   // libffi reads each argument's VALUE from the location avalue[i] points at, so
@@ -611,24 +772,77 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
 
   if (canThrow && error != nullptr) {
     gi_base_info_unref(retType);
+    for (const InContainer& c : inContainers) FreeInContainer(c);
+    for (gpointer s : ownedInStrings) g_free(s);  // callee did not adopt them on error
+    for (gpointer b : callerAllocBlob)
+      if (b != nullptr) g_free(b);
     ThrowGError(env, error, "super." + vname);
     return env.Null();
   }
 
-  Napi::Value result = env.Undefined();
+  // Assemble the JS return per the GJS convention: the (non-void) return value leads,
+  // followed by each OUT/INOUT value in argument order. Exactly one element → return
+  // it bare; many → a JS Array; none → undefined. Matches what a JS override of this
+  // vfunc receives as its call args and hands back.
+  std::vector<Napi::Value> results;
+  GITransfer retTransfer = gi_callable_info_get_caller_owns(ci);
   if (gi_type_info_get_tag(retType) != GI_TYPE_TAG_VOID) {
-    // Extract the (possibly narrowed) ffi return into a normalised GIArgument,
-    // then marshal it to JS — the portable, endianness-safe path. Honour the
-    // vfunc's declared return transfer so a transfer-full parent return (a fresh
-    // GObject / utf8 / boxed) is owned by GIArgumentToJs rather than leaked.
-    GITransfer retTransfer = gi_callable_info_get_caller_owns(ci);
+    // Extract the (possibly narrowed) ffi return into a normalised GIArgument, then
+    // marshal it to JS — the portable, endianness-safe path. ReadOutOrReturn honours
+    // an array-length slot / container element type, and the declared transfer so a
+    // transfer-full parent return is owned by JS rather than leaked.
     GIArgument retArg;
     retArg.v_uint64 = 0;
     gi_type_info_extract_ffi_return_value(retType, &ffiRet, &retArg);
-    result = GIArgumentToJs(env, retType, &retArg, retTransfer);
+    results.push_back(ReadOutOrReturn(env, ci, retType, &retArg, retTransfer, &slots));
   }
   gi_base_info_unref(retType);
-  return result;
+
+  for (unsigned int i = 0; i < nDeclared && !env.IsExceptionPending(); i++) {
+    if (dirs[i] != GI_DIRECTION_OUT && dirs[i] != GI_DIRECTION_INOUT) continue;
+    if (skip[i]) continue;  // an array-length arg — surfaced via its array, not alone
+    GIArgInfo* ai = gi_callable_info_get_arg(ci, i);
+    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
+    GITransfer transfer = gi_arg_info_get_ownership_transfer(ai);
+    if (callerAllocBlob[i] != nullptr) {
+      // Caller-allocated OUT: the callee filled the blob IN PLACE (the blob is the
+      // data, not a pointer to it). Wrap it, then release the blob — mirroring
+      // InvokeFunctionInfo / gjs CallerAllocatesOut.
+      gpointer blob = callerAllocBlob[i];
+      if (gi_type_info_get_tag(ti) == GI_TYPE_TAG_ARRAY) {
+        GIArgument a;
+        memset(&a, 0, sizeof(a));
+        a.v_pointer = blob;
+        results.push_back(ReadOutOrReturn(env, ci, ti, &a, GI_TRANSFER_NOTHING, &slots));
+        g_free(blob);
+      } else {
+        GType gt = callerAllocGType[i];
+        gpointer owned = g_boxed_copy(gt, blob);
+        results.push_back(MakeBoxedHandle(env, owned, gt, true));
+        g_boxed_free(gt, blob);
+      }
+      callerAllocBlob[i] = nullptr;
+      gi_base_info_unref(ti);
+      gi_base_info_unref(ai);
+      continue;
+    }
+    results.push_back(ReadOutOrReturn(env, ci, ti, &slots[i], transfer, &slots));
+    gi_base_info_unref(ti);
+    gi_base_info_unref(ai);
+  }
+
+  // A transfer-none IN container may back a transfer-none OUT/return, so free the IN
+  // containers only AFTER the reads above (transfer-full ones were adopted). The
+  // transfer-full IN/INOUT strings were adopted by the parent on this success path, so
+  // they are intentionally NOT freed here (the callee owns them now).
+  for (const InContainer& c : inContainers) FreeInContainer(c);
+
+  if (env.IsExceptionPending()) return env.Null();
+  if (results.empty()) return env.Undefined();
+  if (results.size() == 1) return results[0];
+  Napi::Array arr = Napi::Array::New(env, results.size());
+  for (size_t k = 0; k < results.size(); k++) arr.Set(static_cast<uint32_t>(k), results[k]);
+  return arr;
 }
 
 // Shared registration core: subclass `name` from an ALREADY-RESOLVED parent GObject

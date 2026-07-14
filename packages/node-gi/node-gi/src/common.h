@@ -171,6 +171,10 @@ struct InContainer {
 };
 
 bool IsSupportedContainerType(GITypeInfo* type, std::string* why);
+// Whether `type` is a supported OUT/INOUT marshalling type (fundamentals, strings,
+// object/interface/enum/flags, struct/boxed/union, and containers). Shared by the
+// function-invoke path (calls.cc) and the vfunc chain-up path (class.cc).
+bool IsSupportedOutType(GITypeInfo* type, std::string* why);
 size_t CElementSize(GITypeInfo* elem);
 void WriteLengthValue(GITypeInfo* lenType, GIArgument* slot, long n);
 Napi::Value ReadOutOrReturn(Napi::Env env, GICallableInfo* callable, GITypeInfo* ti,

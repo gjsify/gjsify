@@ -273,8 +273,10 @@ static NodeGiCallback* CreateCallback(Napi::Env env, Napi::Function fn, GICallab
 // enums/flags, struct/boxed/union (wrapped as boxed handles on return), and the
 // containers (arrays, GList/GSList/GHashTable). GError (its own roadmap PR) is
 // deferred: a clear error rather than silent mis-handling. *why receives a short
-// type label on refusal.
-static bool IsSupportedOutType(GITypeInfo* type, std::string* why) {
+// type label on refusal. Declared in common.h — shared with the vfunc chain-up
+// path (class.cc CallParentVfunc), which routes each OUT/INOUT vfunc arg the same
+// way this function-invoke path does.
+bool IsSupportedOutType(GITypeInfo* type, std::string* why) {
   switch (gi_type_info_get_tag(type)) {
     case GI_TYPE_TAG_BOOLEAN:
     case GI_TYPE_TAG_INT8:
