@@ -102,6 +102,27 @@ jobs:
         working-directory: packages/node-gi/node-gi
         run: npm run test:conformance
 
+      # Tier-B typelib oracle: the GJS installed-tests port (gimarshalling/)
+      # runs against the purpose-built GIMarshallingTests-1.0 typelib compiled
+      # from the pinned gobject-introspection-tests revision (the same pin
+      # refs/gjs tests against). meson + ninja are installed in a dedicated
+      # step (the shared dnf line at the top of the job stays stable), and the
+      # built .gi-tests/ tree is cached keyed by that pin — a hit makes the
+      # typelib build a stamped no-op. The rev in the key MUST match PINNED_REV
+      # in scripts/build-gi-test-typelibs.mjs.
+      - name: Install meson + ninja (typelib oracle build deps)
+        run: dnf install -y --setopt=install_weak_deps=False meson ninja-build
+
+      - name: Cache GI test typelibs (pinned rev)
+        uses: actions/cache@v4
+        with:
+          path: packages/node-gi/node-gi/.gi-tests
+          key: gi-test-typelibs-67432ee4ebf74349cb3c848f73945b21a767e276-fedora44-v1
+
+      - name: Typelib oracle (GIMarshallingTests port)
+        working-directory: packages/node-gi/node-gi
+        run: npm run test:gimarshalling
+
       # Quad-runtime capstone: several unchanged gi:// sources build + run
       # BYTE-IDENTICALLY on gjs, node, bun AND deno. `npm install` builds
       # @gjsify/node-gi via the `file:../node-gi` dependency (node-gyp), so the
