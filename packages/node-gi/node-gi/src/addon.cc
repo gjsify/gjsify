@@ -93,6 +93,12 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("__stressRefUnrefStop", Napi::Function::New(env, StressRefUnrefStop));
   exports.Set("callBoxedMethod", Napi::Function::New(env, CallBoxedMethod));
   exports.Set("isBoxedHandle", Napi::Function::New(env, IsBoxedHandle));
+  exports.Set("boxedMemberKind", Napi::Function::New(env, BoxedMemberKind));
+  exports.Set("getBoxedField", Napi::Function::New(env, GetBoxedField));
+  exports.Set("setBoxedField", Napi::Function::New(env, SetBoxedField));
+  exports.Set("boxedTypeName", Napi::Function::New(env, BoxedTypeName));
+  exports.Set("isParamSpecHandle", Napi::Function::New(env, IsParamSpecHandle));
+  exports.Set("paramSpecProp", Napi::Function::New(env, ParamSpecProp));
   exports.Set("variantNew", Napi::Function::New(env, VariantNew));
   exports.Set("variantUnpack", Napi::Function::New(env, VariantUnpack));
   exports.Set("variantGetTypeString", Napi::Function::New(env, VariantGetTypeString));

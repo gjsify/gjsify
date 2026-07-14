@@ -349,6 +349,62 @@ export const callBoxedMethod = native.callBoxedMethod;
 export const isBoxedHandle = native.isBoxedHandle;
 
 /**
+ * Classify a name on a boxed/struct/union handle: 0 (neither) | 1 (method) |
+ * 2 (field). Methods take priority (gjs renames a colliding field to `_name`), so
+ * the L1 wrapBoxed uses this to route method-dispatch vs field get/set.
+ * @param {unknown} handle a node-gi boxed handle
+ * @param {string} name GI member name (snake_case)
+ * @returns {number}
+ */
+export const boxedMemberKind = native.boxedMemberKind;
+
+/**
+ * Read a named field of a boxed/struct/union handle (`simpleStruct.long_`).
+ * Throws if `name` is not a field, or the field is unreadable/unsupported.
+ * @param {unknown} handle a node-gi boxed handle
+ * @param {string} name GI field name (snake_case)
+ * @returns {unknown}
+ */
+export const getBoxedField = native.getBoxedField;
+
+/**
+ * Write a simple-typed field of a boxed/struct/union handle (`union.long_ = 5`).
+ * Throws if `name` is not a field, or the field is unwritable/unsupported.
+ * @param {unknown} handle a node-gi boxed handle
+ * @param {string} name GI field name (snake_case)
+ * @param {unknown} value
+ * @returns {void}
+ */
+export const setBoxedField = native.setBoxedField;
+
+/**
+ * The boxed handle's GType name (e.g. "GBytes"), or null when it carries no
+ * registered GType. Lets the L1 layer attach type-specific conveniences (the
+ * GLib.Bytes `toArray` shim) without a per-type wrapper.
+ * @param {unknown} value
+ * @returns {string | null}
+ */
+export const boxedTypeName = native.boxedTypeName;
+
+/**
+ * Whether `value` is a node-gi GParamSpec handle (tag-checked, no dereference).
+ * The L1 wrapper uses it to give a notify handler's pspec / a GParamSpec-typed
+ * value the GObject.ParamSpec ergonomics.
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+export const isParamSpecHandle = native.isParamSpecHandle;
+
+/**
+ * Read a GParamSpec accessor by name: name | nick | blurb | flags | valueType |
+ * ownerType | defaultValue. Backs the L1 GObject.ParamSpec getters + methods.
+ * @param {unknown} handle a node-gi GParamSpec handle
+ * @param {string} which the accessor name
+ * @returns {unknown}
+ */
+export const paramSpecProp = native.paramSpecProp;
+
+/**
  * Build a GVariant from a GVariant type signature + JS value, returning an owned
  * boxed GLib.Variant handle (the floating ref is sunk; released on GC). The
  * recursive native packer behind `new GLib.Variant(signature, value)`. Supports

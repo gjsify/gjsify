@@ -1,0 +1,9 @@
+name: enabled
+get_name(): enabled
+nick: enabled
+value_type: gboolean
+owner_type: GSimpleAction
+readable: true
+writable: true
+instanceof ParamSpec: true
+handler fired: true

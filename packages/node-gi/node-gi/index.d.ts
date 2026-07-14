@@ -297,6 +297,51 @@ export function callBoxedMethod(handle: BoxedHandle, methodName: string, args?: 
 export function isBoxedHandle(value: unknown): boolean;
 
 /**
+ * Classify a name on a boxed/struct/union handle: `0` neither, `1` method,
+ * `2` field. Methods take priority (gjs renames a colliding field to `_name`), so
+ * L1 wrapBoxed uses this to route method-dispatch vs field get/set.
+ */
+export function boxedMemberKind(handle: BoxedHandle, name: string): 0 | 1 | 2;
+
+/**
+ * Read a named field of a boxed/struct/union handle (`simpleStruct.long_`). Throws
+ * if `name` is not a field, or the field is unreadable / unsupported.
+ */
+export function getBoxedField(handle: BoxedHandle, name: string): unknown;
+
+/**
+ * Write a simple-typed field of a boxed/struct/union handle (`union.long_ = 5`).
+ * Throws if `name` is not a field, or the field is unwritable / unsupported.
+ */
+export function setBoxedField(handle: BoxedHandle, name: string, value: unknown): void;
+
+/**
+ * The boxed handle's GType name (e.g. `"GBytes"`), or `null` when it carries no
+ * registered GType. Lets L1 attach type-specific conveniences (GLib.Bytes.toArray).
+ */
+export function boxedTypeName(value: unknown): string | null;
+
+/**
+ * Opaque handle to a GObject.ParamSpec (a GObject fundamental, ref-counted via
+ * `g_param_spec_ref` / `unref`, released on GC). A `notify` handler's second arg
+ * and a GParamSpec-typed value surface as one; the L1 wrapper adds the
+ * name/nick/blurb/flags/value_type/owner_type/default_value ergonomics.
+ */
+export type ParamSpecHandle = { readonly __nodeGiParamSpec: unique symbol };
+
+/**
+ * Whether `value` is a node-gi GParamSpec handle (tag-checked, no dereference).
+ */
+export function isParamSpecHandle(value: unknown): boolean;
+
+/**
+ * Read a GParamSpec accessor by name: `name` | `nick` | `blurb` | `flags` |
+ * `valueType` | `ownerType` | `defaultValue`. Backs the L1 GObject.ParamSpec
+ * getters + get_name()/get_nick()/get_blurb()/get_default_value().
+ */
+export function paramSpecProp(handle: ParamSpecHandle, which: string): unknown;
+
+/**
  * Opaque handle to a GLib.Variant (a boxed handle tagged with the GVariant
  * GType). Reference-counted via GVariant's (de)floating refcount and released on
  * GC. Pass it to {@link variantUnpack} / {@link variantGetTypeString}.
@@ -391,6 +436,12 @@ declare const native: {
   isGObjectHandle: typeof isGObjectHandle;
   callBoxedMethod: typeof callBoxedMethod;
   isBoxedHandle: typeof isBoxedHandle;
+  boxedMemberKind: typeof boxedMemberKind;
+  getBoxedField: typeof getBoxedField;
+  setBoxedField: typeof setBoxedField;
+  boxedTypeName: typeof boxedTypeName;
+  isParamSpecHandle: typeof isParamSpecHandle;
+  paramSpecProp: typeof paramSpecProp;
   variantNew: typeof variantNew;
   variantUnpack: typeof variantUnpack;
   variantGetTypeString: typeof variantGetTypeString;

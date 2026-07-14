@@ -5,6 +5,81 @@
 
 namespace nodegi {
 
+// ---- GParamSpec wrapping (phase 2.7a) --------------------------------------
+//
+// A GParamSpec is a GObject FUNDAMENTAL (its own G_TYPE_PARAM hierarchy), NOT a
+// GObject and NOT a boxed type — it is reference-counted via g_param_spec_ref /
+// g_param_spec_unref. So it gets its own type-tagged External (distinct from the
+// GObject + boxed handles so the three never cross-dereference), carrying a held
+// ref dropped on GC. The L1 layer (gi.js wrapParamSpec) turns this handle into a
+// GObject.ParamSpec-shaped object exposing name/get_name/nick/blurb/flags/
+// value_type/owner_type/default_value — mirroring gjs's gi/param.cpp + the
+// GObject.js ParamSpec.prototype. This is what a `notify` handler's second arg
+// (the changed property's pspec) and a GParamSpec-typed GValue now surface as.
+static const napi_type_tag kParamSpecHandleTag = {0x7c1e9a4b2f6d8035ULL,
+                                                  0xd2b8f0a3e5c74196ULL};
+
+Napi::Value MakeParamSpecHandle(Napi::Env env, GParamSpec* pspec, GITransfer transfer) {
+  if (pspec == nullptr) return env.Null();
+  // transfer-everything hands us an owned ref (adopt it); a borrow → add our own.
+  if (transfer != GI_TRANSFER_EVERYTHING) g_param_spec_ref(pspec);
+  Napi::External<GParamSpec> ext = Napi::External<GParamSpec>::New(
+      env, pspec, [](Napi::Env, GParamSpec* p) { g_param_spec_unref(p); });
+  ext.TypeTag(&kParamSpecHandleTag);
+  return ext;
+}
+
+// Read a GParamSpec from a kParamSpecHandleTag External (no dereference on a
+// non-paramspec). Returns nullptr when `v` is not a node-gi paramspec handle.
+static GParamSpec* TryGetParamSpec(Napi::Value v) {
+  if (!v.IsExternal()) return nullptr;
+  Napi::External<GParamSpec> ext = v.As<Napi::External<GParamSpec>>();
+  if (!ext.CheckTypeTag(&kParamSpecHandleTag)) return nullptr;
+  return ext.Data();
+}
+
+// isParamSpecHandle(value) → boolean (tag-checked; no dereference).
+Napi::Value IsParamSpecHandle(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  bool is = info.Length() >= 1 && TryGetParamSpec(info[0]) != nullptr;
+  return Napi::Boolean::New(env, is);
+}
+
+// paramSpecProp(handle, which) → the requested accessor value. `which` ∈
+// name | nick | blurb | flags | valueType | ownerType | defaultValue. A single
+// dispatcher keeps the native surface small; the L1 wrapper maps it to the
+// GObject.ParamSpec getters + get_name()/get_nick()/get_blurb() methods.
+Napi::Value ParamSpecProp(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  GParamSpec* p = info.Length() >= 1 ? TryGetParamSpec(info[0]) : nullptr;
+  if (p == nullptr || info.Length() < 2 || !info[1].IsString()) {
+    Napi::TypeError::New(env, "paramSpecProp(handle, which: string)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string which = info[1].As<Napi::String>().Utf8Value();
+  if (which == "name") return Napi::String::New(env, g_param_spec_get_name(p));
+  if (which == "nick") {
+    const char* s = g_param_spec_get_nick(p);
+    return s != nullptr ? Napi::Value(Napi::String::New(env, s)) : env.Null();
+  }
+  if (which == "blurb") {
+    const char* s = g_param_spec_get_blurb(p);
+    return s != nullptr ? Napi::Value(Napi::String::New(env, s)) : env.Null();
+  }
+  if (which == "flags") return Napi::Number::New(env, static_cast<double>(p->flags));
+  if (which == "valueType") return MakeGTypeHandle(env, p->value_type);
+  if (which == "ownerType") return MakeGTypeHandle(env, p->owner_type);
+  if (which == "defaultValue") {
+    const GValue* dv = g_param_spec_get_default_value(p);
+    if (dv == nullptr || !G_IS_VALUE(dv)) return env.Null();
+    return GValueToJs(env, dv);
+  }
+  Napi::TypeError::New(env, std::string("unknown paramspec property '") + which + "'")
+      .ThrowAsJavaScriptException();
+  return env.Null();
+}
+
 // ---- GObject lifecycle + properties (milestone 1) ----
 //
 // Construct GObjects and read/write their properties. Ownership now flows through
@@ -107,14 +182,13 @@ Napi::Value GValueToJs(Napi::Env env, const GValue* v) {
       // Signal/property object values are transfer-none borrows; WrapGObject refs.
       return WrapGObject(env, static_cast<GObject*>(g_value_get_object(v)), GI_TRANSFER_NOTHING);
     case G_TYPE_PARAM: {
-      // GParamSpec (e.g. the `notify` signal argument) — surface the changed
-      // property's name so a `notify` handler can read it.
+      // GParamSpec (e.g. the `notify` signal's second argument, or a
+      // GParamSpec-typed property/value). Surface a real, tagged GObject.ParamSpec
+      // handle (borrow → own a ref) so a handler can read
+      // .name/.get_name()/.value_type/.nick/.blurb/.flags/.owner_type — matching
+      // gjs. g_value_get_param BORROWS (transfer none).
       GParamSpec* p = g_value_get_param(v);
-      if (p == nullptr) return env.Null();
-      Napi::Object o = Napi::Object::New(env);
-      o.Set("name", Napi::String::New(env, p->name));
-      o.Set("valueType", Napi::String::New(env, g_type_name(p->value_type)));
-      return o;
+      return MakeParamSpecHandle(env, p, GI_TRANSFER_NOTHING);
     }
     default:
       Napi::TypeError::New(env, std::string("Unsupported property GType ") +
