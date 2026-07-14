@@ -161,7 +161,14 @@ function equals(a, b) {
   }
   if (ArrayBuffer.isView(a) || ArrayBuffer.isView(b)) {
     if (!ArrayBuffer.isView(a) || !ArrayBuffer.isView(b)) return false;
-    if (Object.getPrototypeOf(a) !== Object.getPrototypeOf(b) || a.length !== b.length) return false;
+    // Compare by TypedArray FAMILY (via the toStringTag) + length + elements, NOT
+    // prototype identity: node-gi surfaces a byte array as a Node `Buffer` (a
+    // Uint8Array subclass) where GJS returns a plain `Uint8Array` — byte-identical
+    // content, different prototype. `Object.prototype.toString` reports both as
+    // `[object Uint8Array]` while still distinguishing Int8Array/Float32Array/…,
+    // so this accepts the Buffer↔Uint8Array pair without weakening element checks.
+    const tag = (x) => Object.prototype.toString.call(x);
+    if (tag(a) !== tag(b) || a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
       if (!Object.is(a[i], b[i])) return false;
     }

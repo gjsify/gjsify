@@ -161,6 +161,7 @@ struct InContainer {
 };
 
 bool IsSupportedContainerType(GITypeInfo* type, std::string* why);
+size_t CElementSize(GITypeInfo* elem);
 void WriteLengthValue(GITypeInfo* lenType, GIArgument* slot, long n);
 Napi::Value ReadOutOrReturn(Napi::Env env, GICallableInfo* callable, GITypeInfo* ti,
                             GIArgument* arg, GITransfer transfer,

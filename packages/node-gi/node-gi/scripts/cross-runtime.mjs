@@ -36,6 +36,7 @@ import { fileURLToPath } from 'node:url';
 // Files verified green on BOTH bun and deno (per-file). Keep alphabetical.
 const CONFORMANCE = [
   'arrays',
+  'boxed-out',
   'async-error',
   'call-function',
   'callbacks',

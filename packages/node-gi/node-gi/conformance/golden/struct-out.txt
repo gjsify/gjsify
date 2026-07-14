@@ -1,0 +1,9 @@
+tz id: UTC
+year: 2006
+month: 1
+day: 2
+hour: 15
+ymd: [2006,1,2]
+plus hour: 16
+diff us: 3600000000
+format: 2006-01-02 15:04:05

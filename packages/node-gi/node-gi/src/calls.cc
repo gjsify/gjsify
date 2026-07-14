@@ -246,10 +246,11 @@ static NodeGiCallback* CreateCallback(Napi::Env env, Napi::Function fn, GICallab
 }
 
 // Whether `type` is a supported OUT/INOUT marshalling type for this milestone:
-// fundamentals (numbers/bool), strings (utf8/filename), and GObject/interface +
-// enums/flags. Compound OUT types — arrays, GList/GSList/GHashTable, GError, and
-// structs/unions (their own roadmap PR) — are deferred: they get a clear error
-// rather than silent mis-handling. *why receives a short type label on refusal.
+// fundamentals (numbers/bool), strings (utf8/filename), GObject/interface +
+// enums/flags, struct/boxed/union (wrapped as boxed handles on return), and the
+// containers (arrays, GList/GSList/GHashTable). GError (its own roadmap PR) is
+// deferred: a clear error rather than silent mis-handling. *why receives a short
+// type label on refusal.
 static bool IsSupportedOutType(GITypeInfo* type, std::string* why) {
   switch (gi_type_info_get_tag(type)) {
     case GI_TYPE_TAG_BOOLEAN:
@@ -267,14 +268,14 @@ static bool IsSupportedOutType(GITypeInfo* type, std::string* why) {
     case GI_TYPE_TAG_FILENAME:
       return true;
     case GI_TYPE_TAG_INTERFACE: {
+      // struct/union OUT are read back via WrapBoxed (a boxed handle); enum/flags
+      // as numbers; object/interface as GObject wrappers. Field ACCESS on the
+      // returned struct is a later PR, but the OUT marshalling itself is here.
       GIBaseInfo* iface = gi_type_info_get_interface(type);
       bool ok = iface != nullptr && (GI_IS_OBJECT_INFO(iface) || GI_IS_INTERFACE_INFO(iface) ||
-                                     GI_IS_ENUM_INFO(iface) || GI_IS_FLAGS_INFO(iface));
-      if (!ok && why != nullptr) {
-        *why = (iface != nullptr && (GI_IS_STRUCT_INFO(iface) || GI_IS_UNION_INFO(iface)))
-                   ? "struct/union"
-                   : "interface";
-      }
+                                     GI_IS_ENUM_INFO(iface) || GI_IS_FLAGS_INFO(iface) ||
+                                     GI_IS_STRUCT_INFO(iface) || GI_IS_UNION_INFO(iface));
+      if (!ok && why != nullptr) *why = "interface";
       if (iface != nullptr) gi_base_info_unref(iface);
       return ok;
     }
@@ -431,6 +432,11 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
     gi_base_info_unref(rt);
   }
 
+  // Caller-allocates OUT storage (fixed C array or boxed struct): blob != nullptr
+  // marks the arg; boxedGType != 0 selects the boxed copy/free path on read-back.
+  std::vector<gpointer> callerAllocBlob(n_args, nullptr);
+  std::vector<GType> callerAllocGType(n_args, 0);
+
   std::vector<InContainer> inContainers;   // IN containers to free after the invoke
   // g_strdup'd transfer-full scalar string IN/INOUT args. The callee adopts + frees
   // them only on a SUCCESSFUL invoke; if a later arg fails to marshal (the early
@@ -464,12 +470,55 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
     if ((dir == GI_DIRECTION_OUT || dir == GI_DIRECTION_INOUT) && !isCallback) {
       std::string why;
       if (gi_arg_info_is_caller_allocates(ai)) {
-        // Caller-allocates is the compound-struct path (the callee fills storage
-        // we provide); the supported OUT types here are all callee-set. Defer it.
-        Napi::TypeError::New(
-            env, displayName + ": caller-allocates OUT parameters are not yet supported")
-            .ThrowAsJavaScriptException();
-        ok = false;
+        // Caller-allocates: the callee fills storage WE provide (a single
+        // pointer, not a **). gi_callable_info_invoke passes out_args[k].v_pointer
+        // straight through as the arg, so the blob pointer goes there directly.
+        // Supported: a fixed-size C array (size = fixed_size × element_size) and a
+        // boxed struct/union (size = gi_struct/union_info_get_size). Reference:
+        // refs/gjs/gi/arg-cache.cpp build_arg CALLER_ALLOCATES branch.
+        GITypeTag tg = gi_type_info_get_tag(ti);
+        size_t size = 0;
+        GType boxedGType = 0;
+        if (tg == GI_TYPE_TAG_ARRAY && gi_type_info_get_array_type(ti) == GI_ARRAY_TYPE_C) {
+          size_t fixed = 0;
+          if (gi_type_info_get_array_fixed_size(ti, &fixed) && fixed > 0) {
+            GITypeInfo* el = gi_type_info_get_param_type(ti, 0);
+            // Only fundamental (non-interface) element types: CElementSize is the
+            // true storage size for them. A struct-by-value element array would
+            // need gi_struct_info_get_size per element + field-access read-back
+            // (a later PR), so leave size=0 to defer it cleanly.
+            if (el != nullptr && gi_type_info_get_tag(el) != GI_TYPE_TAG_INTERFACE)
+              size = CElementSize(el) * fixed;
+            if (el != nullptr) gi_base_info_unref(el);
+          }
+        } else if (tg == GI_TYPE_TAG_INTERFACE) {
+          GIBaseInfo* si = gi_type_info_get_interface(ti);
+          if (si != nullptr && GI_IS_STRUCT_INFO(si)) {
+            size = gi_struct_info_get_size(reinterpret_cast<GIStructInfo*>(si));
+          } else if (si != nullptr && GI_IS_UNION_INFO(si)) {
+            size = gi_union_info_get_size(reinterpret_cast<GIUnionInfo*>(si));
+          }
+          if (si != nullptr) {
+            GType gt = gi_registered_type_info_get_g_type(
+                reinterpret_cast<GIRegisteredTypeInfo*>(si));
+            if (gt != G_TYPE_INVALID && G_TYPE_IS_BOXED(gt)) boxedGType = gt;
+            gi_base_info_unref(si);
+          }
+          // A non-boxed struct OUT can be caller-allocated + filled, but wrapping
+          // it needs field access (a later PR) to be useful — defer those.
+          if (boxedGType == 0) size = 0;
+        }
+        if (size == 0) {
+          Napi::TypeError::New(
+              env, displayName + ": caller-allocates OUT parameter type is not yet supported")
+              .ThrowAsJavaScriptException();
+          ok = false;
+        } else {
+          gpointer blob = g_malloc0(size);
+          callerAllocBlob[i] = blob;
+          callerAllocGType[i] = boxedGType;
+          out_args[outPos[i]].v_pointer = blob;
+        }
       } else if (!IsSupportedOutType(ti, &why)) {
         Napi::TypeError::New(env, displayName + ": OUT " + why +
                                       " parameters are not yet supported")
@@ -599,6 +648,10 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
     for (NodeGiCallback* cb : created) NodeGiCallbackFree(cb);
     for (const InContainer& c : inContainers) FreeInContainer(c);
     for (gpointer s : ownedInStrings) g_free(s);  // never reached the callee (#658)
+    // Caller-allocated blobs never reached the callee (or it was never called) —
+    // they are zeroed g_malloc0 storage, so a plain g_free is correct here.
+    for (gpointer b : callerAllocBlob)
+      if (b != nullptr) g_free(b);
     return env.Null();
   }
 
@@ -614,6 +667,11 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
     // A failed invoke did not adopt the transfer-full IN/INOUT strings we g_strdup'd
     // for it → free them here so the error path doesn't leak (#658).
     for (gpointer s : ownedInStrings) g_free(s);
+    // Free the caller-allocated OUT storage (the callee may have partially filled
+    // it; g_free releases the block — a boxed free-func on a half-initialised blob
+    // is riskier than the small leak of any internal pointer it set).
+    for (gpointer b : callerAllocBlob)
+      if (b != nullptr) g_free(b);
     // ThrowGError reads the GError's domain/code/message, frees it, and throws a
     // real GLib.Error (instanceof, with .matches()) via the L1 builder.
     ThrowGError(env, error, displayName);
@@ -648,6 +706,33 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
     GIArgInfo* ai = gi_callable_info_get_arg(callable, i);
     GITypeInfo* ti = gi_arg_info_get_type_info(ai);
     GITransfer transfer = gi_arg_info_get_ownership_transfer(ai);
+    if (callerAllocBlob[i] != nullptr) {
+      // Caller-allocated OUT: the callee filled the blob IN PLACE (the blob is the
+      // data, not a pointer to it). Wrap it, then release the blob — mirroring
+      // gjs's CallerAllocatesOut (read the value out, then free the storage).
+      gpointer blob = callerAllocBlob[i];
+      if (gi_type_info_get_tag(ti) == GI_TYPE_TAG_ARRAY) {
+        // A fixed-size C array: read length from the fixed size (len=-1), transfer
+        // NOTHING (we own + free the blob ourselves right below).
+        GIArgument a;
+        memset(&a, 0, sizeof(a));
+        a.v_pointer = blob;
+        results.push_back(ReadOutOrReturn(env, callable, ti, &a, GI_TRANSFER_NOTHING, &slots));
+        g_free(blob);
+      } else {
+        // A boxed struct/union: hand the JS side an independent boxed COPY it owns
+        // (finalizer g_boxed_free's it), then free the caller-allocated blob (also
+        // via g_boxed_free — matches gjs BoxedCallerAllocatesOut::release).
+        GType gt = callerAllocGType[i];
+        gpointer owned = g_boxed_copy(gt, blob);
+        results.push_back(MakeBoxedHandle(env, owned, gt, true));
+        g_boxed_free(gt, blob);
+      }
+      callerAllocBlob[i] = nullptr;
+      gi_base_info_unref(ti);
+      gi_base_info_unref(ai);
+      continue;
+    }
     results.push_back(ReadOutOrReturn(env, callable, ti, &slots[i], transfer, &slots));
     gi_base_info_unref(ti);
     gi_base_info_unref(ai);
