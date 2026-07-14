@@ -57,7 +57,7 @@
       "browser": "none",
       "nativescript": "none"
     },
-    "tier": 3
+    "tier": 2
   },
   "scripts": {
     "install": "node-gyp rebuild",

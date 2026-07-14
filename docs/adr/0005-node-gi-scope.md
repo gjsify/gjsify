@@ -1,6 +1,6 @@
 # ADR 0005 — node-gi (Axis 5) stays experimental and dependency-isolated
 
-- **Status:** Accepted (2026-07-01)
+- **Status:** Accepted (2026-07-01); **graduated Tier 3 → 2 (2026-07-14)** — see Graduation below
 - **Scope:** `packages/node-gi/*`, `--app node` reverse-bridge integration
 
 ## Context
@@ -56,3 +56,38 @@ today is narrower: CI/benchmarking where GJS isn't available, dev tooling
    `@gjsify/node-gi` explicitly).
 3. Keep `node-gi.yml` as the isolated CI owner (already the case via the classifier
    carve-out).
+
+## Graduation (2026-07-14)
+
+The Tier 3 → 2 gate (Decision 4) is met — all four items landed:
+
+1. **Toggle-ref / multi-env teardown crash fixed** (#730) — the process-exit crash
+   was a single-thread live-env race (`CleanupHandles()` dispatched the pending
+   drain before the env-cleanup hook could flip the shutdown flag); fixed with a
+   side-effect-free JS-availability probe + the three C→JS re-entry trampolines
+   degrading to a no-op when JS is unavailable. Independently adversarially
+   reviewed (0 aborts in 320 stress runs; pre-fix mechanism reproduced 20/20).
+2. **vfunc OUT/INOUT chain-up** (#732) — `super.vfunc_x(...)` with OUT/INOUT args
+   now marshals per-arg slots (mirroring the function-invoke path) instead of a
+   "not yet supported" throw.
+3. **GTK/Cairo layer** (#733) — the cairo foreign-struct seam + Context/Surface
+   binding; byte-identical pixel parity with GJS, and a `Gtk.DrawingArea` draw-func
+   receives a real `cairo.Context` across the GI boundary.
+4. **Second real consumer** (#734) — `@gjsify/sqlite`'s own test suite runs on
+   node-gi via `--app node` (real `Gda.Connection`/`SqlParser`/`DataModel`), a
+   `devDependency`-only seam, in the isolated `consumer-sqlite` CI job.
+
+**`@gjsify/node-gi` is now Tier 2** (`package.json#gjsify.tier: 2`): best-effort,
+released on the train, breaking changes ship with a minor + changelog note.
+
+**Decision 2 (dependency isolation) is RETAINED unchanged.** Graduation reflects
+node-gi's own API maturity, not a new consumption pattern: the reverse bridge would
+still double the runtime test matrix if Tier-1/2 packages hard-depended on it, so
+`dependencies`/`optionalDependencies` on `@gjsify/node-gi` stay forbidden (the
+`audit-runtimes.mjs` rule that names it explicitly is unchanged). The sanctioned
+seams remain a `devDependency` and the conditional `--app node` build injection.
+
+Follow-ups (tracked in STATUS.md, none gate-blocking): the narrowed
+`worker.terminate()`-mid-native-call residual, Gio.DBus overrides, GObject/GLib
+override parity, GValue BLOB byte-array marshalling, INOUT containers, and the
+website node-gi page.
