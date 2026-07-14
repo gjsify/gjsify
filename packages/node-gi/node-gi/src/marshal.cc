@@ -3,7 +3,38 @@
 
 #include "common.h"
 
+#include <unordered_map>
+#include <utility>
+
 namespace nodegi {
+
+// ---- foreign-struct registry (cairo seam) -----------------------------------
+//
+// Port of GJS's gi/foreign.cpp table (keyed by (namespace, type_name)). A module
+// (cairo.cc) registers converters for its foreign structs; the INTERFACE
+// marshalling branches below route a foreign-typed arg/return to them instead of
+// the generic boxed path. Populated at addon init (before any GI call marshals a
+// foreign type), then read-only — no lock needed.
+using ForeignKey = std::pair<std::string, std::string>;
+struct ForeignKeyHash {
+  size_t operator()(const ForeignKey& k) const {
+    return std::hash<std::string>()(k.first) ^ (std::hash<std::string>()(k.second) << 1);
+  }
+};
+static std::unordered_map<ForeignKey, const ForeignStructOps*, ForeignKeyHash> g_foreign_structs;
+
+void RegisterForeignStruct(const char* ns, const char* type_name, const ForeignStructOps* ops) {
+  g_foreign_structs[{ns != nullptr ? ns : "", type_name != nullptr ? type_name : ""}] = ops;
+}
+const ForeignStructOps* LookupForeignStruct(const char* ns, const char* type_name) {
+  auto it = g_foreign_structs.find({ns != nullptr ? ns : "", type_name != nullptr ? type_name : ""});
+  return it == g_foreign_structs.end() ? nullptr : it->second;
+}
+const ForeignStructOps* ForeignOpsForInfo(GIBaseInfo* iface) {
+  if (iface == nullptr || !GI_IS_STRUCT_INFO(iface)) return nullptr;
+  if (!gi_struct_info_is_foreign(reinterpret_cast<GIStructInfo*>(iface))) return nullptr;
+  return LookupForeignStruct(gi_base_info_get_namespace(iface), gi_base_info_get_name(iface));
+}
 
 // ---- value marshalling (milestone 1: primitives + strings) ----
 //
@@ -237,9 +268,18 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
           out->v_int = v.ToNumber().Int32Value();
           handled = true;
         } else if (GI_IS_STRUCT_INFO(iface) || GI_IS_UNION_INFO(iface)) {
-          // Boxed/struct IN args arrive as boxed handles; null/undefined maps to
-          // a NULL pointer (e.g. GLib.MainLoop.new(null, false)).
-          if (v.IsNull() || v.IsUndefined()) {
+          // A foreign struct (cairo Context/Surface/Pattern) marshals through its
+          // module's converter, not the boxed path.
+          const ForeignStructOps* fops = ForeignOpsForInfo(iface);
+          if (fops != nullptr) {
+            if (!fops->to(env, v, transfer, out)) {
+              gi_base_info_unref(iface);
+              return false;  // to() already threw
+            }
+            handled = true;
+          } else if (v.IsNull() || v.IsUndefined()) {
+            // Boxed/struct IN args arrive as boxed handles; null/undefined maps to
+            // a NULL pointer (e.g. GLib.MainLoop.new(null, false)).
             out->v_pointer = nullptr;
             handled = true;
           } else {
@@ -349,7 +389,11 @@ Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* arg,
       } else if (iface != nullptr && (GI_IS_ENUM_INFO(iface) || GI_IS_FLAGS_INFO(iface))) {
         result = Napi::Number::New(env, arg->v_int);
       } else if (iface != nullptr && (GI_IS_STRUCT_INFO(iface) || GI_IS_UNION_INFO(iface))) {
-        result = WrapBoxed(env, arg->v_pointer, iface, transfer);
+        // A foreign struct (cairo) returned/handed to a callback (e.g. a draw-func's
+        // cairo_t) wraps via its module's converter, not the boxed path.
+        const ForeignStructOps* fops = ForeignOpsForInfo(iface);
+        result = fops != nullptr ? fops->from(env, arg->v_pointer, transfer)
+                                 : WrapBoxed(env, arg->v_pointer, iface, transfer);
       } else {
         Napi::TypeError::New(
             env,

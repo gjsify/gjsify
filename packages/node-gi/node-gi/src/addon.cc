@@ -110,6 +110,8 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("disconnectSignal", Napi::Function::New(env, DisconnectSignal));
   exports.Set("setTemplateCallbackResolver",
               Napi::Function::New(env, SetTemplateCallbackResolver));
+  // The native cairo binding + foreign-struct registration (the `__cairo` export).
+  InitCairo(env, exports);
   return exports;
 }
 

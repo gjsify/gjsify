@@ -444,27 +444,28 @@ export const ALIASES_GENERAL_FOR_NODE = {
 /**
  * Record of GJS built-in module specifiers and their replacement for the
  * `--app node` target. These are the bare ESM module names a GJS source imports
- * (`import System from 'system'`, `import Gettext from 'gettext'`) — GJS exposes
- * them as built-in modules; Node has no equivalent, so on the node target they
- * route to the `@gjsify/node-gi` reverse-bridge shims, which are kept EXTERNAL
- * (resolved at runtime against the consumer's node_modules — see
- * `app/node.ts`'s external set), never bundled. This is the analogue of the
+ * (`import System from 'system'`, `import Gettext from 'gettext'`, `import cairo
+ * from 'cairo'`) — GJS exposes them as built-in modules; Node has no equivalent,
+ * so on the node target they route to the `@gjsify/node-gi` reverse-bridge shims,
+ * which are kept EXTERNAL (resolved at runtime against the consumer's node_modules
+ * — see `app/node.ts`'s external set), never bundled. This is the analogue of the
  * `gi://` rewrite + `@gjsify/node-gi/globals` injection, and like them it is
  * NODE-TARGET-ONLY: the gjs/browser/nativescript alias maps do not include this
- * record, so a bare `system` / `gettext` import keeps resolving natively (GJS
- * built-in / npm package) on every other target. The risk of hijacking a real
- * npm package literally named `system`/`gettext` is identical to (and bounded
- * the same way as) the `gi://` design: it only applies when building a GJS/GI
- * source for Node.
+ * record, so a bare `system` / `gettext` / `cairo` import keeps resolving natively
+ * (GJS built-in / npm package) on every other target. The risk of hijacking a real
+ * npm package literally named `system`/`gettext`/`cairo` is identical to (and
+ * bounded the same way as) the `gi://` design: it only applies when building a
+ * GJS/GI source for Node.
  *
- * `cairo` is intentionally NOT mapped — it needs a real Cairo binding (out of
- * scope here), so it falls through to the normal resolver (a `cairo` npm package
- * resolves as usual, an unresolvable bare `cairo` surfaces as a build error
- * rather than silently no-op'ing).
+ * `cairo` maps to `@gjsify/node-gi/cairo`, the native cairo binding (a FOREIGN
+ * struct in GObject-Introspection — an npm cairo package cannot stand in, since a
+ * GI function taking/returning a cairo_t must marshal through the SAME cairo module
+ * the engine's foreign-struct seam knows about).
  */
 const ALIASES_GJS_FOR_NODE = {
     'system': '@gjsify/node-gi/system',
     'gettext': '@gjsify/node-gi/gettext',
+    'cairo': '@gjsify/node-gi/cairo',
 }
 
 export { ALIASES_GJS_FOR_NODE };

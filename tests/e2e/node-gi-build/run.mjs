@@ -105,6 +105,45 @@ describe('--app node gi:// → node-gi bundle E2E', { timeout: 10 * 60 * 1000 },
         );
     });
 
+    it('rewrites bare cairo to the externalised @gjsify/node-gi/cairo', () => {
+        // cairo is a GJS built-in module (the FOREIGN-struct binding). On --app node
+        // the bare `cairo` specifier routes to @gjsify/node-gi/cairo (kept EXTERNAL,
+        // like the gi:// runtime + `system`/`gettext`), so an npm `cairo` package
+        // never shadows the GI-compatible binding.
+        writeFileSync(
+            join(projectDir, 'src', 'draw.ts'),
+            [
+                "import cairo from 'cairo';",
+                'const surface = new cairo.ImageSurface(cairo.Format.ARGB32, 2, 2);',
+                'const cr = new cairo.Context(surface);',
+                'cr.setSourceRGB(1, 0, 0);',
+                'cr.paint();',
+                'console.log(surface.getWidth(), surface.getHeight());',
+                '',
+            ].join('\n'),
+        );
+
+        execFileSync('npx', ['gjsify', 'build', 'src/draw.ts', '--app', 'node', '--outfile', 'dist/draw.mjs'], {
+            cwd: projectDir,
+            stdio: 'pipe',
+            timeout: 90 * 1000,
+        });
+
+        const content = readFileSync(join(projectDir, 'dist', 'draw.mjs'), 'utf-8');
+        // The bare `cairo` import must resolve to the externalised node-gi binding,
+        // not be bundled (no ImageSurface impl inlined) and not left as bare `cairo`.
+        assert.ok(
+            content.includes('@gjsify/node-gi/cairo'),
+            'dist/draw.mjs must import @gjsify/node-gi/cairo (the externalised cairo binding)',
+        );
+        // `node --check` parses without resolving the external import.
+        execFileSync('node', ['--check', join(projectDir, 'dist', 'draw.mjs')], {
+            cwd: projectDir,
+            stdio: 'pipe',
+            timeout: 30 * 1000,
+        });
+    });
+
     it('a gated gi:// import loads on Node without @gjsify/node-gi', () => {
         // Regression guard: a gi:// import used only inside a GJS-gated branch
         // must NOT make @gjsify/node-gi a hard load-time dependency. The temp

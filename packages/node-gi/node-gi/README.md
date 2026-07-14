@@ -461,3 +461,44 @@ The remaining GJS-compatible surface (`import GLib from 'gi://GLib?version=2.0'`
 `const GLib = imports.gi.GLib`, the core overrides, `_promisify`, the legacy
 `imports.*` modules) is layered on top of this engine in the gjsify bundler
 integration and subsequent drops.
+
+### cairo (`@gjsify/node-gi/cairo`)
+
+cairo is a **foreign struct** in GObject-Introspection: GI does not know the
+layout of `cairo_t` / `cairo_surface_t` / `cairo_pattern_t`, so it delegates their
+marshalling to a module. GJS ships a native cairo binding + a foreign-struct
+registration so that a GI function taking/returning a cairo pointer (e.g. a
+`Gtk.DrawingArea` draw-func's `cairo_t`) round-trips to/from the JS cairo objects.
+node-gi ports that seam: the same drawing code runs on GJS (native cairo) and Node
+(this binding). An npm `cairo` package cannot stand in — a foreign cairo argument
+must marshal through the SAME module the engine's foreign-struct seam knows about.
+
+```js
+import cairo from '@gjsify/node-gi/cairo'; // bare `cairo` on the --app node build
+import { requireGi } from '@gjsify/node-gi/gi';
+
+// Headless drawing — read the pixels back with getData().
+const surface = new cairo.ImageSurface(cairo.Format.ARGB32, 64, 48);
+const cr = new cairo.Context(surface);
+cr.setSourceRGB(0.8, 0.1, 0.1);
+cr.rectangle(8, 8, 20, 16);
+cr.fill();
+cr.$dispose();
+surface.flush();
+const pixels = surface.getData(); // Uint8Array (stride * height), ARGB32
+
+// The foreign seam: a GI function taking a cairo_t marshals the Context through.
+const PangoCairo = requireGi('PangoCairo', '1.0');
+const layout = PangoCairo.create_layout(new cairo.Context(surface));
+
+// A Gtk.DrawingArea draw-func receives a cairo_t → a live cairo.Context:
+//   area.set_draw_func((_area, ctx, w, h) => { ctx.setSourceRGB(1, 0, 0); … });
+```
+
+Ported this slice: `cairo.Context` (drawing + transform ops, state getters,
+`$dispose`), `cairo.Surface` + `cairo.ImageSurface` (`getData`/`getWidth`/
+`getHeight`/`getStride`/`getFormat`/`flush`/`writeToPNG`/`createFromPNG`),
+`cairo.SolidPattern`, and the enums (`Format`, `Operator`, `Content`, …). The
+native binding paints **byte-for-byte identically to GJS** (verified pixel-for-pixel
+against `gjs -m`). Deferred: gradients, path/region objects, and the PDF/SVG/PS
+surfaces.

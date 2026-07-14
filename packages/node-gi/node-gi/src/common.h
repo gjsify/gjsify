@@ -59,6 +59,12 @@ struct NodeGiEnvData {
   // undefined). Stored per-env for the same reason as errorBuilder (a napi_ref is
   // env-specific). See the Gtk.Widget composite-template scope further down.
   napi_ref templateCallbackResolver = nullptr;
+  // The cairo L1 module's JS wrapper factories ({context, surface, pattern}), set
+  // by the native cairo `setup()` when `import 'cairo'` first loads. The
+  // foreign-struct from_func calls them to wrap a returned/callback cairo pointer
+  // into the JS Context/Surface(/ImageSurface)/Pattern class instance. Per-env for
+  // the same reason as errorBuilder (a napi_ref is env-specific). See cairo.cc.
+  napi_ref cairoWrappers = nullptr;
 };
 
 void NodeGiEnvDataFinalize(napi_env env, void* data, void* hint);
@@ -99,6 +105,34 @@ bool TryGetBoxedPtr(Napi::Value v, gpointer* out);
 Napi::Value MakeGTypeHandle(Napi::Env env, GType gtype);
 GType ReadGTypeHandle(Napi::Value v);
 bool UnwrapGTypeArg(Napi::Env env, Napi::Value v, GType* out);
+
+// ---- foreign-struct seam (cairo) --------------------------------------------
+//
+// A "foreign" struct (gi_struct_info_is_foreign) is one whose layout GI does not
+// know — it delegates marshalling to a module. cairo's Context/Surface/Pattern are
+// the canonical case: a GI function taking/returning a cairo_t*/cairo_surface_t*/
+// cairo_pattern_t* (e.g. a Gtk.DrawingArea draw-func's cairo_t) round-trips through
+// the cairo module's converters, NOT the generic boxed path. Mirrors GJS's
+// gi/foreign.cpp seam (gjs_struct_foreign_register / lookup / to/from_gi_argument).
+//
+// A registered module (cairo.cc) supplies `to` (JS wrapper -> GIArgument.v_pointer)
+// and `from` (GIArgument.v_pointer -> a fresh JS wrapper). Ownership follows the
+// node-gi adopt-or-ref model (no separate release call, matching WrapBoxed).
+struct ForeignStructOps {
+  bool (*to)(Napi::Env, Napi::Value, GITransfer, GIArgument*);
+  Napi::Value (*from)(Napi::Env, gpointer, GITransfer);
+};
+void RegisterForeignStruct(const char* ns, const char* type_name, const ForeignStructOps* ops);
+const ForeignStructOps* LookupForeignStruct(const char* ns, const char* type_name);
+// The foreign ops for a struct/union GIBaseInfo, or null when it is not a
+// registered foreign type — used by the INTERFACE marshalling branches to route a
+// cairo-typed arg/return/callback-arg to the module instead of the boxed path.
+const ForeignStructOps* ForeignOpsForInfo(GIBaseInfo* iface);
+
+// cairo.cc — the native cairo binding + foreign-struct registration. Called once
+// from addon.cc's Init; sets the `__cairo` export + registers Context/Surface/
+// Pattern foreign converters.
+void InitCairo(Napi::Env env, Napi::Object exports);
 
 // ---- GJS-exact 64-bit integer marshalling helpers (shared) -------------------
 //

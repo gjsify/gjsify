@@ -1,0 +1,19 @@
+Format.ARGB32: 0
+Content.COLOR_ALPHA: 12288
+Operator.OVER: 2
+PatternType.SOLID: 0
+LineCap.ROUND: 1
+surface: 64x48 stride 256 format 0
+surface type: 0
+fill extents: [8,8,28,24]
+path extents: [8,8,28,24]
+has current point: true
+current point: [30,42]
+lineWidth: 2
+operator: 2
+lineCap: 0 lineJoin: 0 fillRule: 0
+inside save lineWidth: 7 lineCap: 2
+after restore lineWidth: 2 lineCap: 0
+pattern type: 0
+setSource ok
+done

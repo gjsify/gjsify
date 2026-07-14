@@ -15,6 +15,7 @@ void NodeGiEnvDataFinalize(napi_env env, void* data, void* /*hint*/) {
   if (d->errorBuilder != nullptr) napi_delete_reference(env, d->errorBuilder);
   if (d->templateCallbackResolver != nullptr)
     napi_delete_reference(env, d->templateCallbackResolver);
+  if (d->cairoWrappers != nullptr) napi_delete_reference(env, d->cairoWrappers);
   delete d;
 }
 

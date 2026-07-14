@@ -27,6 +27,10 @@
     "./gettext": {
       "types": "./gettext.d.ts",
       "default": "./gettext.js"
+    },
+    "./cairo": {
+      "types": "./cairo.d.ts",
+      "default": "./cairo.js"
     }
   },
   "files": [
@@ -40,6 +44,8 @@
     "system.d.ts",
     "gettext.js",
     "gettext.d.ts",
+    "cairo.js",
+    "cairo.d.ts",
     "src",
     "binding.gyp",
     "prebuilds"
@@ -67,7 +73,9 @@
     "test:conformance": "node scripts/conformance.mjs",
     "test:gimarshalling": "node scripts/gimarshalling.mjs",
     "test:deno": "node scripts/cross-runtime.mjs deno",
+    "test:cairo": "NODE_GI_NATIVE=build node --test test/cairo.test.mjs",
     "test:gtk": "NODE_GI_NATIVE=build node --test test/gtk-smoke.test.mjs",
+    "test:gtk-cairo": "NODE_GI_NATIVE=build node --test test/cairo-drawfunc.test.mjs",
     "test:adw": "NODE_GI_NATIVE=build node --test test/adw-smoke.test.mjs",
     "test:gtk-template": "NODE_GI_NATIVE=build node --test test/gtk-template.test.mjs",
     "test:gtk-template-callbacks": "NODE_GI_NATIVE=build node --test test/gtk-template-callbacks.test.mjs"

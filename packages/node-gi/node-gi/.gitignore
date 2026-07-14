@@ -1,6 +1,7 @@
 build/
 prebuilds/
 node_modules/
+package-lock.json
 *.node
 *.o
 deno.lock
