@@ -9,18 +9,18 @@ It loads `gi://` namespaces (GLib, GObject, Gio, …) via `libgirepository` and
 exposes them with GJS-compatible semantics, so the same source builds and runs
 on both GJS and Node via `gjsify build --app {gjs,node}`.
 
-> **Status: experimental (Tier 3 —
-> [ADR 0005](../../../docs/adr/0005-node-gi-scope.md)).** node-gi's proven
-> scope today is CI/benchmarking where GJS isn't available, dev tooling
-> (`gjsify storybook --runtime node`), and the dual-build proof — **not
-> production apps**. Dependency isolation is an invariant: no Tier-1/2
-> `@gjsify/*` package may take a hard dependency (`dependencies` /
-> `optionalDependencies`) on `@gjsify/node-gi`; the sanctioned seams are a
-> devDependency (`--runtime node` dev flows) and the conditional `--app node`
-> build injection — enforced by `scripts/audit-runtimes.mjs` in CI.
-> Graduation to Tier 2 requires the toggle-ref/multi-env teardown and vfunc
-> OUT/INOUT chain-up fixes, the GTK/Cairo layer, and a second real consumer
-> using the dual-build in anger.
+> **Status: product (Tier 2 —
+> [ADR 0005](../../../docs/adr/0005-node-gi-scope.md)).** node-gi graduated
+> from Tier 3 on 2026-07-14 once the four gate items landed: the
+> toggle-ref/multi-env teardown crash fixed, vfunc OUT/INOUT chain-up, the
+> GTK/Cairo layer, and a second real consumer (`@gjsify/sqlite`'s suite runs on
+> node-gi). Best-effort now: tested, released on the train, breaking changes ship
+> with a minor + changelog note. **Dependency isolation is still an invariant:**
+> no Tier-1/2 `@gjsify/*` package may take a hard dependency (`dependencies` /
+> `optionalDependencies`) on `@gjsify/node-gi` — the reverse bridge would double
+> the runtime test matrix. The sanctioned seams stay a devDependency
+> (`--runtime node` dev flows, the `@gjsify/sqlite` consumer) and the conditional
+> `--app node` build injection — enforced by `scripts/audit-runtimes.mjs` in CI.
 
 > **Status: milestone 1 (headless core) — in progress.** The native engine over
 > the modern `girepository-2.0` API now does: resolve the default repository,
