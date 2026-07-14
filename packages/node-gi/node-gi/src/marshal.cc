@@ -382,7 +382,36 @@ Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* arg,
           iface != nullptr && (GI_IS_OBJECT_INFO(iface) || GI_IS_STRUCT_INFO(iface))
               ? gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(iface))
               : G_TYPE_INVALID;
-      if (ifaceGType != G_TYPE_INVALID && g_type_is_a(ifaceGType, G_TYPE_PARAM)) {
+      if (ifaceGType != G_TYPE_INVALID && g_type_is_a(ifaceGType, G_TYPE_VALUE)) {
+        // A GValue return/OUT (GType G_TYPE_VALUE, or derived): GJS AUTO-UNBOXES it
+        // to the contained JS value (int/uint/int64/string/boolean/double/enum/
+        // object/boxed/GVariant/GParamSpec/GType/null), NOT a boxed handle. Verified
+        // against gjs 1.88: GIMarshallingTests.gvalue_return() → 42 (a number), not a
+        // GObject.Value box; gvalue_copy(<string GValue>) → "hi"; an object-holding
+        // GValue → the wrapped GObject (same identity); a NULL/unset string/object
+        // GValue → null. Unbox via GValueToJs — the SAME converter property/signal
+        // GValues use (BigInt/lossy 64-bit warning + all contained-type logic). The
+        // pointer slot holds the GValue* (a GValue return/OUT is always a pointer).
+        // Reference: refs/gjs/gi/arg.cpp gjs_value_from_gi_argument (INTERFACE branch
+        // tests `g_type_is_a(gtype, G_TYPE_VALUE)` BEFORE Struct) → value.cpp
+        // gjs_value_from_g_value. NB an EXPLICIT GObject.Value instance a user
+        // constructs stays a box — this only fires on a function's GValue return/OUT.
+        GValue* gvalue = static_cast<GValue*>(arg->v_pointer);
+        if (gvalue == nullptr) {
+          result = env.Null();
+        } else {
+          result = GValueToJs(env, gvalue);
+          // Transfer/free: GValueToJs COPIES/REFS every contained value into JS
+          // (strings are copied into V8, objects/boxeds ref'd/copied), so freeing the
+          // GValue container after the read is always safe. A transfer-EVERYTHING
+          // GValue* return (caller owns) is g_boxed_free'd — g_value_unset + free the
+          // GValue slice — exactly as GJS does (refs/gjs/gi/arg.cpp
+          // gjs_gi_argument_release G_TYPE_VALUE: pointer → g_boxed_free(gtype, …)).
+          // Transfer-NONE (the common case: gvalue_return/out, Gda.get_value_at) is a
+          // borrow → no free.
+          if (transfer == GI_TRANSFER_EVERYTHING) g_boxed_free(G_TYPE_VALUE, gvalue);
+        }
+      } else if (ifaceGType != G_TYPE_INVALID && g_type_is_a(ifaceGType, G_TYPE_PARAM)) {
         result = MakeParamSpecHandle(env, static_cast<GParamSpec*>(arg->v_pointer), transfer);
       } else if (iface != nullptr && (GI_IS_OBJECT_INFO(iface) || GI_IS_INTERFACE_INFO(iface))) {
         result = WrapGObject(env, static_cast<GObject*>(arg->v_pointer), transfer);
