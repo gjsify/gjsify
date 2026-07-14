@@ -3,7 +3,17 @@
     {
       "target_name": "node_gi",
       "sources": [
-        "src/addon.cc"
+        "src/addon.cc",
+        "src/calls.cc",
+        "src/class.cc",
+        "src/loop.cc",
+        "src/marshal.cc",
+        "src/object.cc",
+        "src/repo.cc",
+        "src/signals.cc",
+        "src/template.cc",
+        "src/toggle.cc",
+        "src/variant.cc"
       ],
       "include_dirs": [
         "<!@(node -p \"require('node-addon-api').include\")"
