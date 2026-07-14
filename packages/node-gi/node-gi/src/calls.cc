@@ -744,6 +744,17 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
         a.v_pointer = blob;
         results.push_back(ReadOutOrReturn(env, callable, ti, &a, GI_TRANSFER_NOTHING, &slots));
         g_free(blob);
+      } else if (g_type_is_a(callerAllocGType[i], G_TYPE_VALUE)) {
+        // A caller-allocated GValue OUT (e.g. GIMarshallingTests.gvalue_out_caller_allocates):
+        // GJS UNBOXES the filled GValue to its contained JS value (verified: → 42, a
+        // number, not a GObject.Value box), then frees the caller-allocated storage.
+        // The blob IS the GValue (g_value_init'd + set IN PLACE by the callee). Unbox
+        // via GValueToJs (same as the return/OUT-pointer path in marshal.cc), then
+        // g_value_unset (frees any contained data, e.g. a dup'd string) + g_free the
+        // blob WE g_malloc0'd — the direct GValue release GJS uses.
+        results.push_back(GValueToJs(env, static_cast<GValue*>(blob)));
+        g_value_unset(static_cast<GValue*>(blob));
+        g_free(blob);
       } else {
         // A boxed struct/union: hand the JS side an independent boxed COPY it owns
         // (finalizer g_boxed_free's it), then free the caller-allocated blob (also

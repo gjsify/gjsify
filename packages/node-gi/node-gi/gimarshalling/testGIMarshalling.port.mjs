@@ -221,6 +221,15 @@ const SKIP_GVARIANT_ARRAY =
     'phase 2.7 — arrays of GLib.Variant (boxed/variant elements) are not yet marshalled, a later PR';
 const SKIP_GVALUE_ARRAY =
     'phase 2.5 GValue — arrays of GValue elements are not yet marshalled, a later PR';
+// GValue RETURN/OUT auto-unbox is now LIVE (this PR): a GI function returning a
+// GValue is unboxed to its contained JS value, exactly as GJS does. The remaining
+// GValue skips are the adjacent capabilities the unbox direction does NOT cover:
+const SKIP_GVALUE_IN =
+    'phase 2.5 GValue IN — autoboxing a JS value INTO a GValue arg (JS 42 → a GValue ' +
+    'holding an int, with GJS type inference) is a separate direction; GValue return/OUT unbox is live';
+const SKIP_GVALUE_BOXED =
+    'GObject.Value construction — `new GObject.Value()` + .init()/.set_*() to BUILD an explicit ' +
+    'boxed GValue (to pass IN or modify) needs struct construction, a later PR; GValue return/OUT unbox is live';
 
 // Integer limits, defined without reference to GLib (because the GLib.MAXINT8
 // etc. constants are also subject to marshalling)
@@ -991,8 +1000,59 @@ describe('GHashTable', function () {
         expect(() => GIMarshallingTests.ghashtable_int_none_in(symbolDict)).not.toThrow();
     });
 });
-describeSkip('phase 2.5 GValue — GValue in/out/return, flat GValue arrays, boxed round-trips',
-    'GValue');
+// GValue RETURN/OUT auto-unboxing is now LIVE — a GI function returning (or OUT-ing)
+// a GValue is unboxed to its contained JS value (int/string/boolean/double/enum/
+// object/null), matching GJS (marshal.cc GIArgumentToJs → GValueToJs). The upstream
+// GValue block's return/OUT specs are un-skipped here; the IN direction (autoboxing a
+// JS value into a GValue arg) and explicit GObject.Value construction stay deferred.
+describe('GValue', function () {
+    // return + OUT + uninitialized-OUT are live; IN + INOUT stay deferred.
+    testSimpleMarshalling('gvalue', 42, '42', null, {
+        in: {skip: SKIP_GVALUE_IN},
+        inout: {skip: 'https://gitlab.gnome.org/GNOME/gobject-introspection/issues/192'},
+    });
+
+    it('can handle noncanonical float NaN', function () {
+        expect(GIMarshallingTests.gvalue_noncanonical_nan_float()).toBeNaN();
+    });
+
+    it('can handle noncanonical double NaN', function () {
+        expect(GIMarshallingTests.gvalue_noncanonical_nan_double()).toBeNaN();
+    });
+
+    itSkip(SKIP_GVALUE_IN, 'marshals as an int64 in parameter', function () {
+        expect(() => GIMarshallingTests.gvalue_int64_in(BigIntLimits.int64.max))
+            .not.toThrow();
+    });
+
+    itSkip(SKIP_GVALUE_IN, 'type objects can be converted from primitive-like types', function () {});
+    itSkip(SKIP_GVALUE_IN, 'can be passed into a function and modified', function () {});
+    itSkip(SKIP_GVALUE_BOXED, 'can be passed into a function as a boxed type and modified', function () {});
+    itSkip(SKIP_GVALUE_BOXED, 'enum can be passed into a function as a boxed type and packed', function () {});
+    itSkip(SKIP_GVALUE_BOXED, 'flags can be passed into a function as a boxed type and packed', function () {});
+
+    it('marshals as an int64 out parameter', function () {
+        expect(warn64(true, GIMarshallingTests.gvalue_int64_out)).toEqual(
+            Limits.int64.max);
+    });
+
+    it('marshals as a caller-allocated out parameter', function () {
+        expect(GIMarshallingTests.gvalue_out_caller_allocates()).toEqual(42);
+    });
+
+    itSkip(SKIP_GVALUE_ARRAY, 'array can be passed into a function and packed', function () {});
+    itSkip(SKIP_GVALUE_ARRAY, 'array of boxed type GValues can be passed into a function', function () {});
+    itSkip(SKIP_GVALUE_ARRAY, 'array of uninitialized boxed GValues', function () {});
+    itSkip(SKIP_GVALUE_ARRAY, 'array can be passed as an out argument and unpacked', function () {});
+    itSkip(SKIP_GVALUE_ARRAY, 'array can be passed as an out argument and unpacked when zero-terminated',
+        function () {});
+    itSkip(SKIP_GVALUE_IN, 'can have its type inferred from primitive values', function () {});
+    itSkip(SKIP_GVALUE_BOXED, 'can deal with a GValue packed in a GValue', function () {});
+    itSkip(SKIP_GVALUE_BOXED, 'separates float from double correctly', function () {});
+});
+// The IN-with-type inference breadth + flat-GValue-array round-trips stay a later PR.
+describeSkip('phase 2.5 GValue IN — gvalue_in_with_type type inference + flat-array round-trips',
+    'GValue (deferred IN breadth)');
 describeSkip('phase 2.7 callbacks — GClosure in/return + callbacks with out-params + owned boxed',
     'Callback');
 describeSkip('phase 2.4 structs — raw gpointer return round-trip',
