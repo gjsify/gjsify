@@ -4,11 +4,10 @@
 // surfaced as a bare value (one), an Array (several), with array-length OUT
 // params consumed (shell_parse_argv's argc never appears in the tuple).
 //
-// Deliberately NOT probed (known node-gi divergence, simplified out of the
-// seed): GLib.uri_split — GJS 1.88 KEEPS the `(skip)`-annotated gboolean return
-// in the tuple (8 elements, leading `true`); node-gi honours the annotation and
-// omits it (7). Grows its own program + ledger entry (or a node-gi fix to
-// mirror GJS exactly) once resolved.
+// Includes GLib.uri_split — GJS 1.88 KEEPS the `(skip)`-annotated gboolean return
+// as the LEADING tuple element (8 elements, `[true, …]`): the `(skip)` annotation
+// is IGNORED for the JS return. node-gi now matches (calls.cc return-tuple
+// assembly); earlier it honoured the annotation and omitted the boolean (7).
 import GLib from 'gi://GLib?version=2.0';
 
 // gboolean return + OUT strv (argc length param consumed) → [ok, argv].
@@ -33,3 +32,8 @@ print('get_ymd:', JSON.stringify(dt.get_ymd()));
 const charsets = GLib.get_filename_charsets();
 print('filename_charsets shape:', Array.isArray(charsets), charsets.length);
 print('filename_charsets types:', typeof charsets[0], Array.isArray(charsets[1]));
+
+// (skip)-annotated gboolean return + 7 OUT scheme/userinfo/host/port/path/query/
+// fragment. The boolean still LEADS the tuple (8 elements) — GJS ignores the skip
+// annotation for the JS return. The input is fixed, so the full tuple is printed.
+print('uri_split:', JSON.stringify(GLib.uri_split('http://user@host:80/p?q=1#frag', 0)));

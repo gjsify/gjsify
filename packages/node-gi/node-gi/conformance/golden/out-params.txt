@@ -7,3 +7,4 @@ to_signed: [true,-7]
 get_ymd: [2006,1,2]
 filename_charsets shape: true 2
 filename_charsets types: boolean true
+uri_split: [true,"http","user","host",80,"/p","q=1","frag"]

@@ -1,0 +1,25 @@
+TYPE_NONE: void typeof=object defined=true
+TYPE_INTERFACE: GInterface typeof=object defined=true
+TYPE_CHAR: gchar typeof=object defined=true
+TYPE_UCHAR: guchar typeof=object defined=true
+TYPE_BOOLEAN: gboolean typeof=object defined=true
+TYPE_INT: gint typeof=object defined=true
+TYPE_UINT: guint typeof=object defined=true
+TYPE_LONG: glong typeof=object defined=true
+TYPE_ULONG: gulong typeof=object defined=true
+TYPE_INT64: gint64 typeof=object defined=true
+TYPE_UINT64: guint64 typeof=object defined=true
+TYPE_ENUM: GEnum typeof=object defined=true
+TYPE_FLAGS: GFlags typeof=object defined=true
+TYPE_FLOAT: gfloat typeof=object defined=true
+TYPE_DOUBLE: gdouble typeof=object defined=true
+TYPE_STRING: gchararray typeof=object defined=true
+TYPE_POINTER: gpointer typeof=object defined=true
+TYPE_BOXED: GBoxed typeof=object defined=true
+TYPE_PARAM: GParam typeof=object defined=true
+TYPE_OBJECT: GObject typeof=object defined=true
+TYPE_VARIANT: GVariant typeof=object defined=true
+TYPE_GTYPE: GType typeof=object defined=true
+none is a number: false
+type_name(type_from_name("gint")): gint
+type_name(TYPE_STRING): gchararray

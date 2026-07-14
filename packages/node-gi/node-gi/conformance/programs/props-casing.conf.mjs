@@ -5,10 +5,9 @@
 // camelCase/snake_case for PROPERTY accessors and construct keys; METHODS stay
 // snake_case (GJS does not alias methods — the gold standard rules here).
 //
-// Deliberately NOT probed (known node-gi milestone-1 gap, simplified out of the
-// seed): reading a GVariantType-typed property (Gio.SimpleAction.parameterType)
-// throws "Unsupported property GType GVariantType" on node — grows its own
-// program + ledger entry once boxed property GTypes land.
+// GVariantType-typed property reads (Gio.SimpleAction.parameterType) are covered
+// by the sibling program variant-type-prop.conf.mjs — node-gi now surfaces them as
+// null (unset) / a GLib.VariantType (set) instead of throwing.
 import Gio from 'gi://Gio?version=2.0';
 
 const action = new Gio.SimpleAction({ name: 'demo', enabled: false });

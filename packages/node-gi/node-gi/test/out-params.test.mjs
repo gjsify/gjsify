@@ -77,16 +77,24 @@ test('OUT string array → [bool, string[]]: GLib.get_filename_charsets()', () =
   assert.ok(res[1].every((c) => typeof c === 'string'));
 });
 
-test('(skip) return is omitted from the tuple: GLib.uri_split()', () => {
+test('(skip)-annotated return still LEADS the tuple (GJS ignores skip): GLib.uri_split()', () => {
   // gboolean g_uri_split(uri_ref, flags, scheme, userinfo, host, port, path,
-  //   query, fragment, GError**) — the gboolean return is annotated (skip), so
-  //   the result is the 7 OUT values ALONE, with NO leading boolean. Without the
-  //   skip handling this would be an 8-element [true, scheme, …] tuple.
+  //   query, fragment, GError**). g_uri_split's gboolean return carries `skip="1"`
+  //   in the GIR (and the function throws), yet GJS 1.88 KEEPS it as the leading
+  //   tuple element — the `(skip)` annotation is IGNORED for the JS return. GJS's
+  //   arg-cache derives `m_has_return` purely from the return type and always counts
+  //   it (refs/gjs/gi/arg-cache.cpp); nothing there consults skip_return. Verified
+  //   against the gold standard (gjs -m):
+  //     GLib.uri_split('http://user@host:80/p?q=1#frag', 0)
+  //       → [true, 'http', 'user', 'host', 80, '/p', 'q=1', 'frag']   (8 elements)
+  //   node-gi previously honoured the annotation and dropped the boolean (7); this
+  //   corrected assertion tracks the gold standard (see the calls.cc return-tuple
+  //   comment). node-gtk's ShouldSkipReturn honours skip — we match GJS, not node-gtk.
   const res = callFunction('GLib', 'uri_split', ['http://user@host:80/p?q=1#frag', 0]);
   assert.ok(Array.isArray(res));
-  assert.equal(res.length, 7);
-  assert.deepEqual(res, ['http', 'user', 'host', 80, '/p', 'q=1', 'frag']);
-  assert.notEqual(res[0], true); // the skipped gboolean must not lead the tuple
+  assert.equal(res.length, 8);
+  assert.deepEqual(res, [true, 'http', 'user', 'host', 80, '/p', 'q=1', 'frag']);
+  assert.equal(res[0], true); // the (skip)-annotated gboolean still leads the tuple
 });
 
 test('transfer-full string IN is g_strdup`d, not a freed std::string buffer', () => {

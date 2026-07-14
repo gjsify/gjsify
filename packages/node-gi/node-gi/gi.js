@@ -1354,6 +1354,52 @@ function mergeFlags(introspected, convenience) {
 // introspection. Merged enums are cached so identity is stable.
 const OVERLAY_NAMES = new Set(['registerClass', 'ParamSpec', 'ParamFlags', 'SignalFlags']);
 
+// The fundamental GObject.TYPE_* constants. GJS defines these in its GObject
+// override by looking each name up in libgobject AT RUNTIME (not hardcoding the
+// fundamental ints): refs/gjs/modules/core/overrides/GObject.js `_init` —
+// `GObject.TYPE_STRING = GObject.type_from_name('gchararray')`, and the
+// `_makeDummyClass(obj, name, upperName, gtypeName, …)` helper for the numeric/
+// char/gtype family. We resolve them the SAME way through the introspected
+// `GObject.type_from_name`, so each constant is the real, process-correct GType —
+// an OPAQUE GType handle exactly like GJS (`typeof GObject.TYPE_INT === 'object'`,
+// NOT the number 24; `GObject.type_from_name('gint') === GObject.TYPE_INT`), never
+// a hardcoded fundamental value. Map: constant name → the registered GType name.
+// (TYPE_JSOBJECT is intentionally omitted — 'JSObject' is a GJS-internal boxed type
+// that libgobject does not register on a plain node-gi host, so it has no correct
+// value here.)
+const GTYPE_CONSTANT_NAMES = {
+  TYPE_NONE: 'void',
+  TYPE_INTERFACE: 'GInterface',
+  TYPE_CHAR: 'gchar',
+  TYPE_UCHAR: 'guchar',
+  TYPE_BOOLEAN: 'gboolean',
+  TYPE_INT: 'gint',
+  TYPE_UINT: 'guint',
+  TYPE_LONG: 'glong',
+  TYPE_ULONG: 'gulong',
+  TYPE_INT64: 'gint64',
+  TYPE_UINT64: 'guint64',
+  TYPE_ENUM: 'GEnum',
+  TYPE_FLAGS: 'GFlags',
+  TYPE_FLOAT: 'gfloat',
+  TYPE_DOUBLE: 'gdouble',
+  TYPE_STRING: 'gchararray',
+  TYPE_POINTER: 'gpointer',
+  TYPE_BOXED: 'GBoxed',
+  TYPE_PARAM: 'GParam',
+  TYPE_OBJECT: 'GObject',
+  TYPE_VARIANT: 'GVariant',
+  TYPE_GTYPE: 'GType',
+  TYPE_UNICHAR: 'gint',
+};
+
+function isGObjectOverlayName(prop) {
+  return (
+    typeof prop === 'string' &&
+    (OVERLAY_NAMES.has(prop) || Object.prototype.hasOwnProperty.call(GTYPE_CONSTANT_NAMES, prop))
+  );
+}
+
 function decorateGObjectNamespace(baseNs) {
   const cache = new Map();
   const resolve = (prop) => {
@@ -1363,15 +1409,20 @@ function decorateGObjectNamespace(baseNs) {
     else if (prop === 'ParamSpec') value = ParamSpec;
     else if (prop === 'ParamFlags') value = mergeFlags(baseNs.ParamFlags, ParamFlags);
     else if (prop === 'SignalFlags') value = mergeFlags(baseNs.SignalFlags, SignalFlags);
+    else if (Object.prototype.hasOwnProperty.call(GTYPE_CONSTANT_NAMES, prop)) {
+      // Resolve the real GType from libgobject via the introspected type_from_name
+      // (0 / unregistered → null, matching object.cc's GType marshalling).
+      value = baseNs.type_from_name(GTYPE_CONSTANT_NAMES[prop]);
+    }
     cache.set(prop, value);
     return value;
   };
   return new Proxy(baseNs, {
     get(t, prop) {
-      return typeof prop === 'string' && OVERLAY_NAMES.has(prop) ? resolve(prop) : t[prop];
+      return isGObjectOverlayName(prop) ? resolve(prop) : t[prop];
     },
     has(t, prop) {
-      return (typeof prop === 'string' && OVERLAY_NAMES.has(prop)) || prop in t;
+      return isGObjectOverlayName(prop) || prop in t;
     },
   });
 }
