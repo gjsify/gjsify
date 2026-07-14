@@ -89,6 +89,7 @@ prependSearchPath(libDir);
 
 const GIMarshallingTests = requireGi('GIMarshallingTests', '1.0');
 const GLib = requireGi('GLib', '2.0');
+const GObject = requireGi('GObject', '2.0');
 
 // Some helpers to cut down on repetitive marshalling tests.
 // - options.omit: the test doesn't exist, don't create a test case
@@ -200,9 +201,18 @@ function testContainerMarshalling(root, value, inoutValue, defaultValue, options
 const SKIP_INOUT_CONTAINER =
     'phase 2.5 INOUT containers — read-modify-write of a caller-built container ' +
     '(GArray/GList/GHashTable/array inout) is a later PR; pure IN + compound OUT are live';
-const SKIP_STRUCT_FIELDS =
-    'phase 2.6 struct field access — the value marshals (a boxed handle is returned/passed), ' +
-    'but reading GIMarshallingTests struct fields (.long_/.int8) to VERIFY it needs field access, a later PR';
+// Struct FIELD get/set on a RETURNED struct/union is now LIVE (phase 2.6). The
+// remaining struct skips are the adjacent capabilities field access does NOT cover:
+const SKIP_STRUCT_CONSTRUCT =
+    'struct construction — `new Ns.Struct({…})` / `new Ns.Struct()` + field writes to BUILD a struct ' +
+    'instance or array; struct allocation is a later PR (field GET/SET on a RETURNED struct is live)';
+const SKIP_STRUCT_ARRAY_BYVAL =
+    'array of structs BY VALUE (GArray / sequential C array) — reading a by-value struct element needs ' +
+    'container-element wrapping + copy (a container-marshalling gap); struct-POINTER arrays (zero-terminated ' +
+    'C array, GPtrArray) + single-struct field access are live';
+const SKIP_STRUCT_ARRAY_OUT =
+    'array-of-struct OUT / caller-allocated struct-array OUT element marshalling is not yet supported ' +
+    '(a container-OUT gap); field access on a RETURNED struct is live';
 const SKIP_ENUM_FLAGS_ARRAY =
     'phase 2.2 arrays — enum/flags array elements are not yet marshalled (element-type gap), a later PR';
 const SKIP_UNICHAR_ARRAY =
@@ -519,10 +529,10 @@ describe('Fixed-size C array', function () {
         testInParameter('array_fixed_short', [-1, 0, 1, 2]);
     });
 
-    // array_fixed_out_struct returns a fixed array of structs BY VALUE — reading it
-    // needs per-element struct field access (2.6). The struct OUT marshalling itself
-    // is exercised by the boxed_struct_out_uninitialized case below.
-    itSkip(SKIP_STRUCT_FIELDS, 'marshals a struct array as an out parameter', function () {
+    // array_fixed_out_struct returns a fixed array of structs BY VALUE — the array
+    // element marshalling (OUT struct/union/enum elements) is a container-OUT gap,
+    // distinct from the now-live single-struct field access.
+    itSkip(SKIP_STRUCT_ARRAY_OUT, 'marshals a struct array as an out parameter', function () {
         expect(GIMarshallingTests.array_fixed_out_struct()).toEqual([
             jasmine.objectContaining({long_: 7, int8: 6}),
             jasmine.objectContaining({long_: 6, int8: 7}),
@@ -533,7 +543,7 @@ describe('Fixed-size C array', function () {
         expect(GIMarshallingTests.array_fixed_out_struct_uninitialized()).toEqual([false, null]);
     });
 
-    itSkip(SKIP_STRUCT_FIELDS, 'marshals a fixed-size struct array as caller allocated out param', function () {
+    itSkip(SKIP_STRUCT_ARRAY_OUT, 'marshals a fixed-size struct array as caller allocated out param', function () {
         expect(GIMarshallingTests.array_fixed_caller_allocated_struct_out()).toEqual([
             jasmine.objectContaining({long_: -2, int8: -1}),
             jasmine.objectContaining({long_: 1, int8: 2}),
@@ -612,9 +622,9 @@ describe('C array with length', function () {
     });
 
     // Boxed/simple struct array IN builds the input with `new StructType(); struct.long_ = n`
-    // — struct field WRITE access (2.6). Deferred with the struct-fields reason.
-    describeSkip(SKIP_STRUCT_FIELDS, 'of boxed structs');
-    describeSkip(SKIP_STRUCT_FIELDS, 'of simple structs');
+    // — the field WRITE is live, but constructing the struct (`new StructType()`) is not.
+    describeSkip(SKIP_STRUCT_CONSTRUCT, 'of boxed structs');
+    describeSkip(SKIP_STRUCT_CONSTRUCT, 'of simple structs');
 
     itSkip(SKIP_GVALUE_ARRAY, 'marshals two arrays with the same length parameter', function () {
         // multi_array_key_value_in(length, const gchar** keys, const GValue* values)
@@ -624,8 +634,9 @@ describe('C array with length', function () {
         expect(() => GIMarshallingTests.multi_array_key_value_in(keys, values)).not.toThrow();
     });
 
-    itSkip(SKIP_STRUCT_FIELDS, 'copies correctly on transfer full', function () {
-        // array_struct_take_in takes a boxed-struct array built via field writes (2.6).
+    itSkip(SKIP_STRUCT_CONSTRUCT, 'copies correctly on transfer full', function () {
+        // array_struct_take_in takes a boxed-struct array built via `new BoxedStruct()`
+        // + field writes; the field writes are live, struct construction is not.
         expect(() => {}).not.toThrow();
     });
 
@@ -699,13 +710,13 @@ describe('Zero-terminated C array', function () {
         expect(GIMarshallingTests.array_zero_terminated_return_null()).toEqual(null);
     });
 
-    // The struct return specs (.map(e => e.long_)) need struct field access (2.6).
-    itSkip(SKIP_STRUCT_FIELDS, 'marshals an array of structs as a return value', function () {
+    // A zero-terminated array of struct POINTERS: field access on each element (2.6).
+    it('marshals an array of structs as a return value', function () {
         let structArray = GIMarshallingTests.array_zero_terminated_return_struct();
         expect(structArray.map(e => e.long_)).toEqual([42, 43, 44]);
     });
 
-    itSkip(SKIP_STRUCT_FIELDS, 'marshals an array of sequential structs as a return value', function () {
+    itSkip(SKIP_STRUCT_ARRAY_BYVAL, 'marshals an array of sequential structs as a return value', function () {
         let structArray = GIMarshallingTests.array_zero_terminated_return_sequential_struct();
         expect(structArray.map(e => e.long_)).toEqual([42, 43, 44]);
     });
@@ -776,8 +787,8 @@ describe('GArray', function () {
         });
     });
 
-    // .map(e => e.long_) — struct field access (2.6).
-    itSkip(SKIP_STRUCT_FIELDS, 'marshals boxed structs as a transfer-full return value', function () {
+    // A GArray of structs BY VALUE — the element wrapping is a container gap.
+    itSkip(SKIP_STRUCT_ARRAY_BYVAL, 'marshals boxed structs as a transfer-full return value', function () {
         expect(GIMarshallingTests.garray_boxed_struct_full_return().map(e => e.long_))
             .toEqual([42, 43, 44]);
     });
@@ -803,8 +814,8 @@ describe('GPtrArray', function () {
     });
 
     describe('of structs', function () {
-        // .map(e => e.long_) — struct field access (2.6).
-        itSkip(SKIP_STRUCT_FIELDS, 'can be returned with transfer full', function () {
+        // A GPtrArray of struct POINTERS: field access on each element (2.6).
+        it('can be returned with transfer full', function () {
             expect(GIMarshallingTests.gptrarray_boxed_struct_full_return().map(e => e.long_))
                 .toEqual([42, 43, 44]);
         });
@@ -825,10 +836,46 @@ describe('GByteArray', function () {
     });
 });
 
-// GBytes marshalling (GLib.Bytes.new + .toArray() + implicit Uint8Array→GBytes) is
-// its own phase (2.7) alongside GParamSpec — deferred.
-describeSkip('phase 2.7 — GBytes marshalling (GLib.Bytes.new / .toArray() / Uint8Array→GBytes), a later PR',
-    'GBytes');
+// GBytes marshalling (phase 2.7b): `GLib.Bytes.new(array | string)` builds a GBytes,
+// `.toArray()` reads it back as a Uint8Array, and a GBytes handle round-trips IN.
+// The IMPLICIT Uint8Array→GBytes conversion at an IN arg stays skipped (a GBytes
+// built from a JS typed array + freed after the call needs IN-arg boxed cleanup).
+const SKIP_BYTES_IMPLICIT_IN =
+    'implicit Uint8Array→GBytes at an IN arg — building a temporary GBytes from a JS typed array and ' +
+    'freeing it after the call needs IN-arg boxed cleanup (a later PR); explicit GLib.Bytes.new + .toArray are live';
+describe('GBytes', function () {
+    const refByteArray = Uint8Array.from([0, 49, 0xFF, 51]);
+
+    it('marshals as a transfer-full return value', function () {
+        expect(GIMarshallingTests.gbytes_full_return().toArray()).toEqual(refByteArray);
+    });
+
+    it('can be created from an array and passed in', function () {
+        let bytes = GLib.Bytes.new([0, 49, 0xFF, 51]);
+        expect(() => GIMarshallingTests.gbytes_none_in(bytes)).not.toThrow();
+    });
+
+    it('can be created by returning from a function and passed in', function () {
+        var bytes = GIMarshallingTests.gbytes_full_return();
+        expect(() => GIMarshallingTests.gbytes_none_in(bytes)).not.toThrow();
+        expect(bytes.toArray()).toEqual(refByteArray);
+    });
+
+    itSkip(SKIP_BYTES_IMPLICIT_IN, 'can be implicitly converted from a Uint8Array', function () {
+        expect(() => GIMarshallingTests.gbytes_none_in(refByteArray)).not.toThrow();
+    });
+
+    it('can be created from a string and is encoded in UTF-8', function () {
+        let bytes = GLib.Bytes.new('const ♥ utf8');
+        expect(() => GIMarshallingTests.utf8_as_uint8array_in(bytes.toArray())).not.toThrow();
+    });
+
+    it('cannot be passed to a function expecting a byte array', function () {
+        let bytes = GLib.Bytes.new([97, 98, 99, 100]);
+        expect(() => GIMarshallingTests.array_uint8_in(bytes.toArray())).not.toThrow();
+        expect(() => GIMarshallingTests.array_uint8_in(bytes)).toThrow();
+    });
+});
 
 describe('GStrv', function () {
     testSimpleMarshalling('gstrv', ['0', '1', '2'], ['-1', '0', '1', '2'], null,
@@ -995,15 +1042,121 @@ describe('Bare flags type', function () {
     });
 });
 
-// Struct/boxed/union OUT marshalling now LANDS (a boxed handle is returned — see
-// boxed_struct_out_uninitialized in the Fixed-size C array section, and the tier-A
-// struct-out conformance program), but these sections verify via struct FIELD reads
-// (objectContaining({long_, int8}), simpleStruct.long_) which is phase 2.6.
-describeSkip(SKIP_STRUCT_FIELDS, 'Simple struct');
-describeSkip(SKIP_STRUCT_FIELDS, 'Pointer struct');
-describeSkip(SKIP_STRUCT_FIELDS, 'Boxed struct');
-describeSkip(SKIP_STRUCT_FIELDS, 'Union');
-describeSkip(SKIP_STRUCT_FIELDS, 'Structured union');
+// Struct/boxed/union FIELD access is now live (phase 2.6): a returned struct/union
+// handle reads its fields (`.long_`/`.int8`/`.string_`/`.g_strv`) and a union field
+// is settable. The sub-specs that BUILD a struct (`new Ns.Struct({…})`) stay skipped
+// (struct construction is a later PR).
+describe('Simple struct', function () {
+    it('marshals as a return value', function () {
+        expect(GIMarshallingTests.simple_struct_returnv()).toEqual(jasmine.objectContaining({
+            long_: 6,
+            int8: 7,
+        }));
+    });
+
+    itSkip(SKIP_STRUCT_CONSTRUCT, 'marshals as the this-argument of a method', function () {
+        const struct = new GIMarshallingTests.SimpleStruct({long_: 6, int8: 7});
+        expect(() => struct.inv()).not.toThrow();
+        expect(() => struct.method()).not.toThrow();
+    });
+});
+
+describe('Pointer struct', function () {
+    it('marshals as a return value', function () {
+        expect(GIMarshallingTests.pointer_struct_returnv()).toEqual(jasmine.objectContaining({
+            long_: 42,
+        }));
+    });
+
+    itSkip(SKIP_STRUCT_CONSTRUCT, 'marshals as the this-argument of a method', function () {
+        const struct = new GIMarshallingTests.PointerStruct({long_: 42});
+        expect(() => struct.inv()).not.toThrow();
+    });
+});
+
+describe('Boxed struct', function () {
+    it('marshals as a return value', function () {
+        expect(GIMarshallingTests.boxed_struct_returnv()).toEqual(jasmine.objectContaining({
+            long_: 42,
+            string_: 'hello',
+            g_strv: ['0', '1', '2'],
+        }));
+    });
+
+    itSkip(SKIP_STRUCT_CONSTRUCT, 'marshals as the this-argument of a method', function () {
+        const struct = new GIMarshallingTests.BoxedStruct({long_: 42});
+        expect(() => struct.inv()).not.toThrow();
+    });
+
+    it('marshals as an out parameter', function () {
+        expect(GIMarshallingTests.boxed_struct_out()).toEqual(jasmine.objectContaining({
+            long_: 42,
+        }));
+    });
+
+    testUninitializedOutParameter('boxed_struct', null);
+
+    itSkip(SKIP_STRUCT_CONSTRUCT, 'marshals as an inout parameter', function () {
+        const struct = new GIMarshallingTests.BoxedStruct({long_: 42});
+        expect(GIMarshallingTests.boxed_struct_inout(struct)).toEqual(jasmine.objectContaining({
+            long_: 0,
+        }));
+    });
+});
+
+describe('Union', function () {
+    let union;
+    beforeEach(function () {
+        union = GIMarshallingTests.union_returnv();
+    });
+
+    itSkip(SKIP_STRUCT_CONSTRUCT, 'can be constructed empty', function () {
+        const constructedUnion = new GIMarshallingTests.Union();
+        expect(constructedUnion.long_).toBe(0);
+    });
+
+    itSkip(SKIP_STRUCT_CONSTRUCT, 'can be constructed with properties', function () {
+        const constructedUnion = new GIMarshallingTests.Union({long_: 55});
+        expect(constructedUnion.long_).toBe(55);
+    });
+
+    itSkip(SKIP_STRUCT_CONSTRUCT, 'cannot be constructed with unknown properties', function () {
+        expect(() => new GIMarshallingTests.Union({invalidProperty: 55})).toThrow();
+    });
+
+    it('marshals as a return value', function () {
+        expect(union.long_).toBe(42);
+    });
+
+    it('marshals as a settable property', function () {
+        union.long_ = 5555;
+        expect(union.long_).toBe(5555);
+    });
+
+    it('marshals as the this-argument of a method', function () {
+        expect(() => union.inv()).not.toThrow();
+        expect(() => union.method()).not.toThrow();
+    });
+
+    itSkip(SKIP_STRUCT_CONSTRUCT, 'marshals as the this-argument of a method when constructed', function () {
+        expect(() => new GIMarshallingTests.Union({long_: 42}).inv()).not.toThrow();
+        expect(() => new GIMarshallingTests.Union({long_: 42}).method()).not.toThrow();
+    });
+
+    itSkip(SKIP_STRUCT_CONSTRUCT, 'marshals unregistered union', function () {
+        const u = new GIMarshallingTests.UnregisteredUnion();
+        expect(u.long_).toBe(0);
+    });
+
+    itSkip(SKIP_STRUCT_CONSTRUCT, 'marshals unregistered initialized union', function () {
+        expect(new GIMarshallingTests.UnregisteredUnion({long_: 123}).long_).toBe(123);
+    });
+});
+
+// Structured union builds nested members via `new Ns.StructuredUnion*()` + writes a
+// nested struct field (`member.parent = …`); the field access is live but the struct
+// allocation is not.
+describeSkip(SKIP_STRUCT_CONSTRUCT, 'Structured union');
 
 describe('GObject', function () {
     it('has a static method that can be called', function () {
@@ -1100,8 +1253,33 @@ describeSkip('phase 2.10 gerror — GError** as exception / out-param / return v
     'GError');
 describeSkip('phase 2.11 misc-breadth — filename GSList return (filename_list)',
     'Filename');
-describeSkip('phase 2.9 gobject-breadth — GObject.ParamSpec in/out/return',
-    'GObject.ParamSpec');
+// GParamSpec wrapping (phase 2.7a): a returned/out GParamSpec is a real
+// GObject.ParamSpec with .name/.nick/.blurb/.default_value/.flags/.value_type. The
+// IN direction stays skipped — `GObject.ParamSpec.boolean(…)` is a registerClass
+// DESCRIPTOR here, not a live GParamSpec to marshal in (a later PR).
+describe('GObject.ParamSpec', function () {
+    const SKIP_PSPEC_IN =
+        'GParamSpec as an IN arg — GObject.ParamSpec.boolean(…) is a registerClass property descriptor here, ' +
+        'not a live GParamSpec instance to marshal in (needs a real-pspec factory, a later PR)';
+    const pspec = GObject.ParamSpec.boolean('mybool', 'My Bool', 'My boolean property',
+        GObject.ParamFlags.READWRITE, true);
+    testInParameter('param_spec', pspec, {
+        funcName: 'param_spec_in_bool',
+        skip: SKIP_PSPEC_IN,
+    });
+
+    const expectedProps = {
+        name: 'test-param',
+        nick: 'test',
+        blurb: 'This is a test',
+        default_value: '42',
+        flags: GObject.ParamFlags.READABLE,
+        value_type: GObject.TYPE_STRING,
+    };
+    testReturnValue('param_spec', jasmine.objectContaining(expectedProps));
+    testOutParameter('param_spec', jasmine.objectContaining(expectedProps));
+    testUninitializedOutParameter('param_spec', null);
+});
 describeSkip('phase 2.9 gobject-breadth — property get/set across all GI types',
     'GObject properties');
 describeSkip('phase 2.9 gobject-breadth — camelCase/underscore/dashed property accessors',

@@ -77,12 +77,22 @@ struct BoxedHandle {
   gpointer ptr;
   GType gtype;  // boxed GType, or G_TYPE_INVALID when unknown/non-registered
   bool owns;    // g_boxed_free(gtype, ptr) on finalize when true
+  // The struct/union GIBaseInfo backing this handle (a held ref, unref'd on
+  // finalize), or nullptr. Carried so field + method resolution works for an
+  // UNREGISTERED struct whose runtime GType is G_TYPE_NONE (e.g. GIMarshalling
+  // SimpleStruct) — find_by_gtype can't recover the info there, so the static
+  // info from the wrap site is stored. A registered type may leave this nullptr
+  // and be re-resolved via find_by_gtype(gtype).
+  GIBaseInfo* info;
 };
 
 extern const napi_type_tag kBoxedHandleTag;
 extern const napi_type_tag kGObjectHandleTag;
 
-Napi::Value MakeBoxedHandle(Napi::Env env, gpointer ptr, GType gtype, bool owns);
+// `info` (optional): the struct/union GIBaseInfo backing the handle. When passed,
+// MakeBoxedHandle takes its OWN ref (the caller keeps its own), unref'd on finalize.
+Napi::Value MakeBoxedHandle(Napi::Env env, gpointer ptr, GType gtype, bool owns,
+                            GIBaseInfo* info = nullptr);
 Napi::Value WrapVariant(Napi::Env env, GVariant* var, GITransfer transfer);
 BoxedHandle* TryGetBoxedHandle(Napi::Value v);
 bool TryGetBoxedPtr(Napi::Value v, gpointer* out);
@@ -327,6 +337,18 @@ Napi::Value CallMethod(const Napi::CallbackInfo& info);
 Napi::Value CallStaticMethod(const Napi::CallbackInfo& info);
 Napi::Value CallBoxedMethod(const Napi::CallbackInfo& info);
 Napi::Value IsBoxedHandle(const Napi::CallbackInfo& info);
+// Struct/boxed/union FIELD access (marshal.cc). boxedMemberKind(handle, name) →
+// 0 (neither) | 1 (method) | 2 (field); getBoxedField(handle, name) → the field
+// value; setBoxedField(handle, name, value) writes it.
+Napi::Value BoxedMemberKind(const Napi::CallbackInfo& info);
+Napi::Value GetBoxedField(const Napi::CallbackInfo& info);
+Napi::Value SetBoxedField(const Napi::CallbackInfo& info);
+Napi::Value BoxedTypeName(const Napi::CallbackInfo& info);
+// GParamSpec wrapping (object.cc): a tagged GObject-fundamental handle plus its
+// name/nick/blurb/flags/value_type/owner_type/default_value accessors.
+Napi::Value MakeParamSpecHandle(Napi::Env env, GParamSpec* pspec, GITransfer transfer);
+Napi::Value IsParamSpecHandle(const Napi::CallbackInfo& info);
+Napi::Value ParamSpecProp(const Napi::CallbackInfo& info);
 
 // object.cc
 Napi::Value NewObject(const Napi::CallbackInfo& info);

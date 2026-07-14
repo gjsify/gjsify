@@ -19,8 +19,10 @@ namespace nodegi {
 extern const napi_type_tag kBoxedHandleTag = {0x6d2f8c4b1a9e7350ULL,
                                               0xb7e1d3a5c9f08264ULL};
 
-Napi::Value MakeBoxedHandle(Napi::Env env, gpointer ptr, GType gtype, bool owns) {
-  BoxedHandle* bh = new BoxedHandle{ptr, gtype, owns};
+Napi::Value MakeBoxedHandle(Napi::Env env, gpointer ptr, GType gtype, bool owns,
+                            GIBaseInfo* info) {
+  GIBaseInfo* heldInfo = info != nullptr ? gi_base_info_ref(info) : nullptr;
+  BoxedHandle* bh = new BoxedHandle{ptr, gtype, owns, heldInfo};
   Napi::External<BoxedHandle> ext =
       Napi::External<BoxedHandle>::New(env, bh, [](Napi::Env, BoxedHandle* h) {
         if (h->owns && h->ptr != nullptr && h->gtype != G_TYPE_INVALID) {
@@ -34,6 +36,7 @@ Napi::Value MakeBoxedHandle(Napi::Env env, gpointer ptr, GType gtype, bool owns)
             g_boxed_free(h->gtype, h->ptr);
           }
         }
+        if (h->info != nullptr) gi_base_info_unref(h->info);
         delete h;
       });
   ext.TypeTag(&kBoxedHandleTag);
@@ -61,14 +64,32 @@ Napi::Value WrapVariant(Napi::Env env, GVariant* var, GITransfer transfer) {
 static Napi::Value WrapBoxed(Napi::Env env, gpointer ptr, GIBaseInfo* structInfo,
                              GITransfer transfer) {
   if (ptr == nullptr) return env.Null();
+  GIBaseInfo* info = nullptr;
   GType gt = G_TYPE_INVALID;
   if (structInfo != nullptr && (GI_IS_STRUCT_INFO(structInfo) || GI_IS_UNION_INFO(structInfo))) {
+    info = structInfo;  // stored (re-ref'd) so field/method resolution has the static info
     gt = gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(structInfo));
   }
   if (gt == G_TYPE_VARIANT) return WrapVariant(env, static_cast<GVariant*>(ptr), transfer);
   bool boxed = gt != G_TYPE_INVALID && gt != G_TYPE_NONE && G_TYPE_IS_BOXED(gt);
-  bool owns = boxed && transfer == GI_TRANSFER_EVERYTHING;
-  return MakeBoxedHandle(env, ptr, boxed ? gt : G_TYPE_INVALID, owns);
+  // COPY a transfer-none BOXED return so the JS handle owns an independent copy —
+  // matching gjs (gi/boxed.cpp: a transfer-none boxed is g_boxed_copy'd). Without
+  // this the handle shares the callee's (often static) instance, so a field WRITE
+  // (union.long_ = …) would corrupt that shared instance across calls. A
+  // transfer-everything boxed is already owned; a non-boxed struct has no copy
+  // function, so it keeps sharing (reads only — its fields aren't mutated here).
+  gpointer handlePtr = ptr;
+  bool owns = false;
+  if (boxed) {
+    handlePtr = transfer == GI_TRANSFER_EVERYTHING ? ptr : g_boxed_copy(gt, ptr);
+    owns = true;
+  }
+  // Keep a valid registered GType on the handle even for a NON-boxed struct (e.g.
+  // GIMarshalling PointerStruct): it drives method + field resolution via
+  // find_by_gtype. `owns` stays gated on boxed-ness, so the finalizer only ever
+  // g_boxed_free's a real boxed type — never a plain registered struct.
+  GType handleGType = (gt != G_TYPE_INVALID && gt != G_TYPE_NONE) ? gt : G_TYPE_INVALID;
+  return MakeBoxedHandle(env, handlePtr, handleGType, owns, info);
 }
 
 // Read a boxed handle (ptr + boxed GType) if `v` is one (tag-checked; no deref of
@@ -91,6 +112,21 @@ bool TryGetBoxedPtr(Napi::Value v, gpointer* out) {
   BoxedHandle* h = ext.Data();
   *out = h != nullptr ? h->ptr : nullptr;
   return true;
+}
+
+// boxedTypeName(value) -> the boxed handle's GType name (e.g. "GBytes"), or null
+// when the handle carries no registered GType. Lets the L1 layer attach a
+// type-specific convenience (GLib.Bytes.toArray) without a per-type wrapper.
+Napi::Value BoxedTypeName(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsExternal() ||
+      !info[0].As<Napi::External<BoxedHandle>>().CheckTypeTag(&kBoxedHandleTag)) {
+    return env.Null();
+  }
+  BoxedHandle* bh = info[0].As<Napi::External<BoxedHandle>>().Data();
+  if (bh == nullptr || bh->gtype == G_TYPE_INVALID) return env.Null();
+  const char* name = g_type_name(bh->gtype);
+  return name != nullptr ? Napi::Value(Napi::String::New(env, name)) : env.Null();
 }
 
 // ---- GType value handle ----
@@ -298,7 +334,17 @@ Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* arg,
     case GI_TYPE_TAG_INTERFACE: {
       GIBaseInfo* iface = gi_type_info_get_interface(type);
       Napi::Value result;
-      if (iface != nullptr && (GI_IS_OBJECT_INFO(iface) || GI_IS_INTERFACE_INFO(iface))) {
+      // A GParamSpec return (e.g. GObject.ParamSpec factory / *_returnv) is a
+      // GObject FUNDAMENTAL, not a GObject — introspected as an object info but
+      // ref-counted via g_param_spec_ref, so it must NOT go through WrapGObject
+      // (g_object_ref would be wrong). Route it to the paramspec handle.
+      GType ifaceGType =
+          iface != nullptr && (GI_IS_OBJECT_INFO(iface) || GI_IS_STRUCT_INFO(iface))
+              ? gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(iface))
+              : G_TYPE_INVALID;
+      if (ifaceGType != G_TYPE_INVALID && g_type_is_a(ifaceGType, G_TYPE_PARAM)) {
+        result = MakeParamSpecHandle(env, static_cast<GParamSpec*>(arg->v_pointer), transfer);
+      } else if (iface != nullptr && (GI_IS_OBJECT_INFO(iface) || GI_IS_INTERFACE_INFO(iface))) {
         result = WrapGObject(env, static_cast<GObject*>(arg->v_pointer), transfer);
       } else if (iface != nullptr && (GI_IS_ENUM_INFO(iface) || GI_IS_FLAGS_INFO(iface))) {
         result = Napi::Number::New(env, arg->v_int);
@@ -1141,6 +1187,264 @@ bool JsToInContainer(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransfer 
     *outPtr = nullptr;
   }
   return ok;
+}
+
+// ---- struct / boxed / union FIELD access (phase 2.6) -----------------------
+//
+// Read/write a named field of a boxed/struct/union handle, mirroring GJS's
+// gi/boxed.cpp field_getter_impl / field_setter_impl. Simple-typed fields
+// (ints/floats/bool/enum) go through gi_field_info_get/set_field; pointer-backed
+// fields (strings, arrays, pointer-to-boxed) are read via the raw offset because
+// gi_field_info_get_field refuses non-simple fields on some libgirepository
+// versions; a nested BY-VALUE struct/union field returns a borrowing sub-handle.
+// Resolution rule (VERIFIED against gjs 1.88, find_unique_js_field_name): a name
+// that is BOTH a method and a field resolves to the METHOD (gjs renames the field
+// to `_name`); so boxedMemberKind checks methods first.
+
+// Resolve the struct/union GIBaseInfo backing a boxed handle. Prefers the stored
+// static info (required for an unregistered struct whose GType is G_TYPE_NONE),
+// else looks it up by the registered GType. Returns a NEW ref (unref by caller) or
+// nullptr when neither source resolves a struct/union.
+static GIBaseInfo* DupBoxedTypeInfo(BoxedHandle* bh) {
+  if (bh->info != nullptr && (GI_IS_STRUCT_INFO(bh->info) || GI_IS_UNION_INFO(bh->info))) {
+    return gi_base_info_ref(bh->info);
+  }
+  if (bh->gtype != G_TYPE_INVALID && bh->gtype != G_TYPE_NONE) {
+    GIRepository* repo = DupDefaultRepository();
+    GIBaseInfo* bi = gi_repository_find_by_gtype(repo, bh->gtype);
+    g_object_unref(repo);
+    if (bi != nullptr && (GI_IS_STRUCT_INFO(bi) || GI_IS_UNION_INFO(bi))) return bi;
+    if (bi != nullptr) gi_base_info_unref(bi);
+  }
+  return nullptr;
+}
+
+// Find a field by name on a struct or union info. GIUnionInfo has no find_field,
+// so iterate. Returns a NEW ref (unref by caller) or nullptr.
+static GIFieldInfo* FindBoxedField(GIBaseInfo* info, const char* name) {
+  if (GI_IS_STRUCT_INFO(info)) {
+    return gi_struct_info_find_field(reinterpret_cast<GIStructInfo*>(info), name);
+  }
+  if (GI_IS_UNION_INFO(info)) {
+    GIUnionInfo* u = reinterpret_cast<GIUnionInfo*>(info);
+    unsigned n = gi_union_info_get_n_fields(u);
+    for (unsigned i = 0; i < n; i++) {
+      GIFieldInfo* f = gi_union_info_get_field(u, i);
+      if (f != nullptr &&
+          g_strcmp0(gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(f)), name) == 0) {
+        return f;
+      }
+      if (f != nullptr) gi_base_info_unref(f);
+    }
+  }
+  return nullptr;
+}
+
+// Whether `name` is a method on the struct/union (methods win over fields).
+static bool BoxedHasMethod(GIBaseInfo* info, const char* name) {
+  GIFunctionInfo* m = nullptr;
+  if (GI_IS_STRUCT_INFO(info)) {
+    m = gi_struct_info_find_method(reinterpret_cast<GIStructInfo*>(info), name);
+  } else if (GI_IS_UNION_INFO(info)) {
+    m = gi_union_info_find_method(reinterpret_cast<GIUnionInfo*>(info), name);
+  }
+  if (m != nullptr) {
+    gi_base_info_unref(m);
+    return true;
+  }
+  return false;
+}
+
+// Read the field's raw GIArgument. Uses gi_field_info_get_field for simple types;
+// falls back to a raw pointer read at the field offset for pointer-typed fields
+// (strings/arrays/pointer-to-interface) that the info API declines. Returns false
+// only for a genuinely unsupported field (a non-pointer composite the caller must
+// have already special-cased). BORROWS: the container owns the pointed-to memory.
+static bool ReadFieldArg(GIFieldInfo* field, gpointer base, GITypeInfo* ftype,
+                         GIArgument* arg) {
+  memset(arg, 0, sizeof(*arg));
+  if (gi_field_info_get_field(field, base, arg)) return true;
+  GITypeTag tag = gi_type_info_get_tag(ftype);
+  bool pointerish = gi_type_info_is_pointer(ftype) || tag == GI_TYPE_TAG_UTF8 ||
+                    tag == GI_TYPE_TAG_FILENAME || tag == GI_TYPE_TAG_ARRAY;
+  if (pointerish) {
+    size_t off = gi_field_info_get_offset(field);
+    arg->v_pointer = *reinterpret_cast<gpointer*>(static_cast<char*>(base) + off);
+    return true;
+  }
+  return false;
+}
+
+// Marshal a field GIArgument to JS. ARRAY tags dispatch to GIArrayToJs (length
+// derived from zero-terminated / fixed-size — the common GStrv field case);
+// everything else through GIArgumentToJs. TRANSFER NOTHING throughout — a field
+// read is a borrow (the container keeps ownership), so the JS value is a copy and
+// no container/element memory is freed.
+static Napi::Value FieldArgToJs(Napi::Env env, GITypeInfo* ftype, GIArgument* arg) {
+  if (gi_type_info_get_tag(ftype) == GI_TYPE_TAG_ARRAY) {
+    return GIArrayToJs(env, ftype, arg, GI_TRANSFER_NOTHING, /*length=*/-1);
+  }
+  return GIArgumentToJs(env, ftype, arg, GI_TRANSFER_NOTHING);
+}
+
+// Validate arg 0 as a boxed handle and return its record (throwing on mismatch).
+static BoxedHandle* UnwrapBoxedArg(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (!info[0].IsExternal() ||
+      !info[0].As<Napi::External<BoxedHandle>>().CheckTypeTag(&kBoxedHandleTag)) {
+    Napi::TypeError::New(env, "expected a node-gi boxed handle").ThrowAsJavaScriptException();
+    return nullptr;
+  }
+  BoxedHandle* bh = info[0].As<Napi::External<BoxedHandle>>().Data();
+  if (bh == nullptr || bh->ptr == nullptr) {
+    Napi::TypeError::New(env, "invalid boxed handle").ThrowAsJavaScriptException();
+    return nullptr;
+  }
+  return bh;
+}
+
+// boxedMemberKind(handle, name) → 0 (neither) | 1 (method) | 2 (field). Methods
+// take priority (gjs find_unique_js_field_name renames a colliding field to
+// `_name`), so L1 wrapBoxed checks this to route method-dispatch vs field access.
+Napi::Value BoxedMemberKind(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[1].IsString()) {
+    Napi::TypeError::New(env, "boxedMemberKind(handle, name: string)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  BoxedHandle* bh = UnwrapBoxedArg(info);
+  if (bh == nullptr) return env.Null();
+  std::string name = info[1].As<Napi::String>().Utf8Value();
+  GIBaseInfo* ti = DupBoxedTypeInfo(bh);
+  int kind = 0;
+  if (ti != nullptr) {
+    if (BoxedHasMethod(ti, name.c_str())) {
+      kind = 1;
+    } else {
+      GIFieldInfo* f = FindBoxedField(ti, name.c_str());
+      if (f != nullptr) {
+        kind = 2;
+        gi_base_info_unref(f);
+      }
+    }
+    gi_base_info_unref(ti);
+  }
+  return Napi::Number::New(env, kind);
+}
+
+// getBoxedField(handle, name) → the field value (throws if not a field, or the
+// field is unreadable / unsupported — matching gjs's error-message shape).
+Napi::Value GetBoxedField(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[1].IsString()) {
+    Napi::TypeError::New(env, "getBoxedField(handle, name: string)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  BoxedHandle* bh = UnwrapBoxedArg(info);
+  if (bh == nullptr) return env.Null();
+  std::string name = info[1].As<Napi::String>().Utf8Value();
+  GIBaseInfo* ti = DupBoxedTypeInfo(bh);
+  if (ti == nullptr) {
+    Napi::Error::New(env, "boxed handle has no introspection info for field access")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string typeName = gi_base_info_get_name(ti) != nullptr ? gi_base_info_get_name(ti) : "?";
+  GIFieldInfo* field = FindBoxedField(ti, name.c_str());
+  if (field == nullptr) {
+    gi_base_info_unref(ti);
+    Napi::Error::New(env, std::string("no field '") + name + "' on " + typeName)
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  Napi::Value result = env.Undefined();
+  if (!(gi_field_info_get_flags(field) & GI_FIELD_IS_READABLE)) {
+    Napi::Error::New(env, std::string("Reading field ") + typeName + "." + name + " is not supported")
+        .ThrowAsJavaScriptException();
+  } else {
+    GITypeInfo* ftype = gi_field_info_get_type_info(field);
+    // A nested BY-VALUE struct/union field: return a borrowing sub-handle into the
+    // parent's memory at the field offset (mirrors gjs get_nested_interface_object).
+    if (!gi_type_info_is_pointer(ftype) && gi_type_info_get_tag(ftype) == GI_TYPE_TAG_INTERFACE) {
+      GIBaseInfo* iface = gi_type_info_get_interface(ftype);
+      if (iface != nullptr && (GI_IS_STRUCT_INFO(iface) || GI_IS_UNION_INFO(iface))) {
+        size_t off = gi_field_info_get_offset(field);
+        GType nt = gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(iface));
+        GType nested = (nt != G_TYPE_INVALID && nt != G_TYPE_NONE) ? nt : G_TYPE_INVALID;
+        result = MakeBoxedHandle(env, static_cast<char*>(bh->ptr) + off, nested,
+                                 /*owns=*/false, iface);
+        gi_base_info_unref(iface);
+        gi_base_info_unref(ftype);
+        gi_base_info_unref(field);
+        gi_base_info_unref(ti);
+        return result;
+      }
+      if (iface != nullptr) gi_base_info_unref(iface);
+    }
+    GIArgument arg;
+    if (ReadFieldArg(field, bh->ptr, ftype, &arg)) {
+      result = FieldArgToJs(env, ftype, &arg);
+    } else {
+      Napi::Error::New(env, std::string("Reading field ") + typeName + "." + name + " is not supported")
+          .ThrowAsJavaScriptException();
+    }
+    gi_base_info_unref(ftype);
+  }
+  gi_base_info_unref(field);
+  gi_base_info_unref(ti);
+  return result;
+}
+
+// setBoxedField(handle, name, value) — writes a simple-typed field (throws if not
+// a field, the field is unwritable, or the type is unsupported — gjs message shape).
+Napi::Value SetBoxedField(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 3 || !info[1].IsString()) {
+    Napi::TypeError::New(env, "setBoxedField(handle, name: string, value)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  BoxedHandle* bh = UnwrapBoxedArg(info);
+  if (bh == nullptr) return env.Null();
+  std::string name = info[1].As<Napi::String>().Utf8Value();
+  Napi::Value value = info[2];
+  GIBaseInfo* ti = DupBoxedTypeInfo(bh);
+  if (ti == nullptr) {
+    Napi::Error::New(env, "boxed handle has no introspection info for field access")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string typeName = gi_base_info_get_name(ti) != nullptr ? gi_base_info_get_name(ti) : "?";
+  GIFieldInfo* field = FindBoxedField(ti, name.c_str());
+  if (field == nullptr) {
+    gi_base_info_unref(ti);
+    Napi::Error::New(env, std::string("no field '") + name + "' on " + typeName)
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  if (!(gi_field_info_get_flags(field) & GI_FIELD_IS_WRITABLE)) {
+    gi_base_info_unref(field);
+    gi_base_info_unref(ti);
+    Napi::Error::New(env, std::string("Writing field ") + typeName + "." + name + " is not supported")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GITypeInfo* ftype = gi_field_info_get_type_info(field);
+  GIArgument arg;
+  memset(&arg, 0, sizeof(arg));
+  std::string heldString;
+  if (JsToGIArgument(env, value, ftype, &arg, &heldString, GI_TRANSFER_NOTHING, nullptr)) {
+    if (!gi_field_info_set_field(field, bh->ptr, &arg)) {
+      Napi::Error::New(env, std::string("Writing field ") + typeName + "." + name + " is not supported")
+          .ThrowAsJavaScriptException();
+    }
+  }
+  gi_base_info_unref(ftype);
+  gi_base_info_unref(field);
+  gi_base_info_unref(ti);
+  return env.Undefined();
 }
 
 }  // namespace nodegi

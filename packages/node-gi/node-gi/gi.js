@@ -167,6 +167,9 @@ function wrapReturn(value) {
   // A GLib.Variant is ALSO a boxed handle (by tag), so it must be checked first
   // to give it the Variant ergonomics rather than a plain method-routing proxy.
   if (native.isVariantHandle(value)) return wrapVariant(value);
+  // A GParamSpec is a distinct GObject fundamental (tagged separately from boxed),
+  // surfaced with the GObject.ParamSpec ergonomics (name/value_type/get_name()/…).
+  if (native.isParamSpecHandle(value)) return wrapParamSpec(value);
   if (native.isBoxedHandle(value)) return wrapBoxed(value);
   // A multi-value OUT tuple (return value + OUT params) — or a container OUT — is a
   // plain JS Array whose ELEMENTS may themselves be GObject/boxed/variant handles
@@ -222,22 +225,100 @@ function resolveTemplateCallback(handle, handlerName) {
 }
 native.setTemplateCallbackResolver(resolveTemplateCallback);
 
-// Wrap a boxed/struct handle so its methods are callable GJS-style
-// (`mainLoop.run()`, `mainLoop.quit()`, snake_case or camelCase). Boxed types
-// have no GObject properties/signals, so only method routing is provided.
+// Wrap a boxed/struct/union handle so its methods are callable GJS-style
+// (`mainLoop.run()`, snake_case or camelCase) AND its FIELDS are readable/writable
+// as plain properties (`simpleStruct.long_`, `union.long_ = 5`). Resolution rule
+// (VERIFIED against gjs 1.88 find_unique_js_field_name): a name that is BOTH a
+// method and a field resolves to the METHOD — gjs renames the colliding field to
+// `_name`. So the native boxedMemberKind checks methods first: 1 = method (a
+// callable dispatcher), 2 = field (read via getBoxedField / write via
+// setBoxedField), 0 = neither (fall back to a method dispatcher, so an unknown
+// name still throws a clear "no method" at call time — the pre-fields behaviour).
 function wrapBoxed(handle) {
   const target = { [HANDLE]: handle };
+  const methodDispatch = (prop) => (...args) =>
+    wrapReturn(native.callBoxedMethod(handle, camelToSnake(prop), unwrapArgs(args)));
   return new Proxy(target, {
     get(t, prop) {
       if (prop === HANDLE) return handle;
       if (typeof prop !== 'string' || RESERVED.has(prop)) return t[prop];
-      return (...args) =>
-        wrapReturn(native.callBoxedMethod(handle, camelToSnake(prop), unwrapArgs(args)));
+      // A field set through the set trap below is stored as an expando on the
+      // target (gjs allows writing a boxed field that GI declares unwritable to a
+      // JS expando); surface it back before consulting introspection.
+      if (Object.hasOwn(t, prop)) return t[prop];
+      // GBytes convenience: `.toArray()` → the raw bytes as a Uint8Array (Node
+      // Buffer). GBytes has no introspected `to_array`; gjs adds it to
+      // GLib.Bytes.prototype (imports._byteArrayNative.fromGBytes), so mirror it
+      // via the introspected get_data(). Gated on the boxed type so it never
+      // shadows a same-named method on some other struct.
+      if (prop === 'toArray' && native.boxedTypeName(handle) === 'GBytes') {
+        return () => wrapReturn(native.callBoxedMethod(handle, 'get_data', []));
+      }
+      const snake = camelToSnake(prop);
+      if (native.boxedMemberKind(handle, snake) === 2) {
+        return wrapReturn(native.getBoxedField(handle, snake));
+      }
+      return methodDispatch(prop);
+    },
+    set(t, prop, value) {
+      if (prop === HANDLE || typeof prop !== 'string' || RESERVED.has(prop)) {
+        return Reflect.set(t, prop, value);
+      }
+      const snake = camelToSnake(prop);
+      if (native.boxedMemberKind(handle, snake) === 2) {
+        native.setBoxedField(handle, snake, unwrapArg(value));
+        return true;
+      }
+      return Reflect.set(t, prop, value);
     },
     has(t, prop) {
-      return prop === HANDLE || prop in t;
+      if (prop === HANDLE || prop in t) return true;
+      if (typeof prop !== 'string') return false;
+      return native.boxedMemberKind(handle, camelToSnake(prop)) !== 0;
     },
   });
+}
+
+// Wrap a GParamSpec handle (phase 2.7a) with the GJS-shaped GObject.ParamSpec
+// surface: `.name`/`.nick`/`.blurb`/`.flags`/`.value_type`/`.owner_type`/
+// `.default_value` getters + the `get_name()`/`get_nick()`/`get_blurb()`/
+// `get_default_value()` methods. This is what a `notify` handler's second arg and
+// a GParamSpec-typed value now surface as (fixing the old `{name, valueType}`
+// plain-object shape). Carries [HANDLE] so it can round-trip back into the engine
+// and so `instanceof GObject.ParamSpec` recognises it (Symbol.hasInstance below).
+// value_type/owner_type are native GType handles (like gjs's GType objects); the
+// GTypes' `.name` reads their type name via the introspected surface.
+function wrapParamSpec(handle) {
+  const prop = (which) => native.paramSpecProp(handle, which);
+  const pspec = {
+    [HANDLE]: handle,
+    get name() {
+      return prop('name');
+    },
+    get nick() {
+      return prop('nick');
+    },
+    get blurb() {
+      return prop('blurb');
+    },
+    get flags() {
+      return prop('flags');
+    },
+    get value_type() {
+      return prop('valueType');
+    },
+    get owner_type() {
+      return prop('ownerType');
+    },
+    get default_value() {
+      return wrapReturn(prop('defaultValue'));
+    },
+    get_name: () => prop('name'),
+    get_nick: () => prop('nick'),
+    get_blurb: () => prop('blurb'),
+    get_default_value: () => wrapReturn(prop('defaultValue')),
+  };
+  return pspec;
 }
 
 // ---- GLib.Variant ergonomics (the GJS GLib.Variant override, L1) ----
@@ -1109,6 +1190,15 @@ const ParamSpec = Object.freeze({
   float: paramSpecRanged('float'),
   object: paramSpecGTyped('object'),
   boxed: paramSpecGTyped('boxed'),
+  // `wrappedPspec instanceof GObject.ParamSpec` — a wrapped GParamSpec (from a
+  // notify handler / a GParamSpec-typed value) carries [HANDLE], recognised via
+  // the native tag. `instanceof` honours a `[Symbol.hasInstance]` on the RHS even
+  // though ParamSpec is a factory object rather than a constructor.
+  [Symbol.hasInstance](instance) {
+    if (instance === null || typeof instance !== 'object') return false;
+    const handle = instance[HANDLE];
+    return handle !== undefined && native.isParamSpecHandle(handle);
+  },
 });
 
 // Walk up the JS class's prototype chain to the nearest node-gi base and describe
