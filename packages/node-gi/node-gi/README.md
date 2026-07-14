@@ -114,9 +114,10 @@ Two libuv-coupled subsystems are portable across all three:
 | blocking `GLib.MainLoop.run()` / `Gio.Application.runAsync()` | ✅ | ✅ | ✅ |
 | Node timers/promises alive **during** a blocking GLib loop | ✅ | — | — |
 
-Bun reaches full parity with Node on the core surface; Deno passes a curated
-conformance subset — a few marshalling/async edge cases and the Node-only co-pump
-are the known gaps. The authoritative full suite runs on Node.
+Bun reaches full parity with Node on the core surface; Deno passes the same
+conformance subset since 2.9 (the marshalling/async N-API quirks that excluded
+`arrays`/`async-error` on Deno 2.1 are fixed upstream) — the Node-only co-pump
+cases are the remaining, by-design gap. The authoritative full suite runs on Node.
 
 ## Build & test
 

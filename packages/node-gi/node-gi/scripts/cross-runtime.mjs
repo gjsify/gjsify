@@ -15,9 +15,12 @@
 //     a gc global + is Node's authoritative GC-safety gate;
 //   • mainloop / runasync co-pump assertions — they test the Node-only libuv↔GLib
 //     bridge (Bun/Deno use the portable pump; a blocking run() does not co-pump the
-//     runtime loop there, by design);
-//   • a few marshalling/async cases that hit Deno N-API quirks (documented in the
-//     PR / STATUS.md).
+//     runtime loop there, by design).
+//
+// The Deno N-API quirks that once excluded arrays/async-error (byte-array with
+// autofilled length, per-class Gio._promisify) are FIXED as of Deno 2.9.x —
+// re-validated green per-file on Deno 2.9.2 + Bun 1.3.13, so both files joined
+// the list. CI floats on v2.x via denoland/setup-deno.
 //
 // Per-file isolation matters: Bun and Deno share ONE process across test files by
 // default (unlike Node's process-per-file pool), so cross-file GC state interferes
@@ -32,6 +35,8 @@ import { fileURLToPath } from 'node:url';
 
 // Files verified green on BOTH bun and deno (per-file). Keep alphabetical.
 const CONFORMANCE = [
+  'arrays',
+  'async-error',
   'call-function',
   'callbacks',
   'closure-exception',
