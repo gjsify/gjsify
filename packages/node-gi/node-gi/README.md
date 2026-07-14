@@ -141,6 +141,20 @@ to keep validating the prebuild load path with a freshly staged binary.
 `NODE_GI_NATIVE` accepts `build`, `prebuild`, or an explicit path to a
 `node_gi.node`.
 
+Two debug-only env vars instrument the toggle-ref / teardown machinery (both
+parsed once at first use, zero cost when unset — never set them in production):
+
+- `NODE_GI_TOGGLE_DEBUG=1` — stderr tracing of the GC bridge: owner-env claim,
+  drain-TSFN create/release, shutdown-flag flips, teardown enqueue/drop, drain
+  runs/skips (with JS-availability), and the C→JS trampoline skips at env
+  teardown; each line carries the emitting thread.
+- `NODE_GI_TOGGLE_TEARDOWN_DELAY_MS=<n>` — test-only latency seam (clamped to
+  10s): the drain defers queued idle teardowns younger than `n` ms (re-waking
+  itself), which deterministically parks teardowns — with a pending drain wake —
+  across the event loop's exit. That is the regression vehicle for the
+  env-cleanup drain race (`test/gc-cross-thread.test.mjs`, "teardown drain
+  during env cleanup never aborts").
+
 ## Conformance (golden-diff)
 
 The exactness oracle for GJS parity: small self-contained `gi://` programs

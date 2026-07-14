@@ -30,7 +30,8 @@
       ],
       "defines": [
         "NAPI_VERSION=8",
-        "NAPI_DISABLE_CPP_EXCEPTIONS"
+        "NAPI_DISABLE_CPP_EXCEPTIONS",
+        "NODE_API_SWALLOW_UNTHROWABLE_EXCEPTIONS"
       ],
       "xcode_settings": {
         "OTHER_CFLAGS": [

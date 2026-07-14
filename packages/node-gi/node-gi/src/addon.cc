@@ -19,7 +19,16 @@ using namespace nodegi;
 static void OnEnvShutdown(void* arg) {
   // Only the env that OWNS the toggle machinery may tear it down — a worker env
   // exiting must not disable the owner's drain TSFN or set the global flag.
-  if (g_owner_env.load() != static_cast<napi_env>(arg)) return;
+  if (g_owner_env.load() != static_cast<napi_env>(arg)) {
+    if (NodeGiToggleDebugEnabled())
+      NodeGiToggleDebugLog("env cleanup hook: non-owner env %p — no-op", arg);
+    return;
+  }
+  // NOTE (env-teardown ordering): this cleanup hook is NOT the first teardown
+  // event. Environment::RunCleanup() runs CleanupHandles() (uv_run) BEFORE
+  // draining the cleanup-hook queue, so a pending drain wake can still dispatch
+  // DrainTsfnCb after can_call_into_js=false but before this flag flips —
+  // DrainTsfnCb's NodeGiJsAvailable gate covers that window (see toggle.cc).
   napi_threadsafe_function tsfn = nullptr;
   {
     std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
@@ -30,6 +39,10 @@ static void OnEnvShutdown(void* arg) {
       g_drain_tsfn = nullptr;
     }
   }
+  if (NodeGiToggleDebugEnabled())
+    NodeGiToggleDebugLog("env cleanup hook: owner env %p shutdown flag set, tsfn %p %s", arg,
+                         static_cast<void*>(tsfn),
+                         tsfn != nullptr ? "releasing (abort)" : "already gone");
   if (tsfn != nullptr) {
     // abort ⇒ pending + future calls are dropped and the callback won't run again;
     // releasing the initial-thread-count ref destroys the TSFN (its own uv_close).

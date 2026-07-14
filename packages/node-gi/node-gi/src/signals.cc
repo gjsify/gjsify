@@ -41,6 +41,23 @@ static void JsClosureMarshal(GClosure* closure, GValue* return_value, guint n_pa
                              gpointer /*marshal_data*/) {
   JsClosureData* jc = static_cast<JsClosureData*>(closure->data);
   if (jc == nullptr || jc->callback == nullptr) return;
+  // ENV-TEARDOWN GATE: a signal emitted by a dispose cascade at env teardown (or
+  // on a terminating worker) reaches this marshal when the env may no longer
+  // enter JS; the GValue marshalling / napi_call_function would then abort via
+  // node-addon-api's noexcept throw path. Skip the handler — GJS likewise never
+  // dispatches JS during GC/context teardown (see toggle.cc NodeGiJsAvailable).
+  if (!NodeGiJsAvailable(jc->env)) {
+    if (NodeGiToggleDebugEnabled())
+      NodeGiToggleDebugLog("signal closure skipped: JS unavailable on env %p (teardown/terminate)",
+                           static_cast<void*>(jc->env));
+    // The probe is also false when a JS exception is PENDING on a live env. Keep
+    // the pre-existing depth semantics: a loop-dispatched closure (depth 0)
+    // surfaces + clears so the pump stays alive; a synchronous emit leaves it
+    // pending for the JS emit() caller. At real teardown Surface... is a no-op
+    // (nothing pending / napi reads fail gracefully).
+    if (g_syncEmitDepth == 0) SurfacePendingException(jc->env, "signal handler");
+    return;
+  }
   Napi::Env env(jc->env);
   Napi::HandleScope scope(env);
 

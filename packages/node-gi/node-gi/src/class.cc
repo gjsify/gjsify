@@ -192,6 +192,19 @@ static void NodeGiVFuncTrampoline(ffi_cif* /*cif*/, void* result, void** args,
                                   gpointer user_data) {
   NodeGiVFunc* vf = static_cast<NodeGiVFunc*>(user_data);
   napi_env env = vf->env;
+  // ENV-TEARDOWN GATE: a dispose cascade can invoke this vfunc while the env may
+  // no longer enter JS — e.g. a queued idle teardown dispatched by RunCleanup's
+  // CleanupHandles() (after can_call_into_js=false), or a terminating worker's
+  // finalizer unref. Re-entering N-API then aborts the process via node-addon-api's
+  // noexcept throw path. Degrade to a no-op with a zeroed return slot — GJS-faithful
+  // (GJS never runs JS during GC/context teardown).
+  if (!NodeGiJsAvailable(env)) {
+    if (result != nullptr) static_cast<GIArgument*>(result)->v_uint64 = 0;
+    if (NodeGiToggleDebugEnabled())
+      NodeGiToggleDebugLog("vfunc '%s' skipped: JS unavailable on env %p (teardown/terminate)",
+                           vf->name.c_str(), static_cast<void*>(env));
+    return;
+  }
   Napi::Env napiEnv(env);
   Napi::HandleScope scope(napiEnv);
 

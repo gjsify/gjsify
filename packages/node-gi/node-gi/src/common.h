@@ -177,6 +177,29 @@ extern std::recursive_mutex g_queue_mutex;
 extern napi_threadsafe_function g_drain_tsfn;
 extern bool g_drain_async_inited;
 
+// ---- env-teardown safety (toggle.cc) ----------------------------------------
+//
+// True iff `env` may enter JS right now. Probes napi_strict_equals(undef, undef)
+// — NAPI_PREAMBLE-gated upstream (refs/node src/js_native_api_v8.cc), so it fails
+// with napi_pending_exception / napi_cannot_run_js exactly when the env must not
+// run JS: after node::FreeEnvironment / Environment::ExitEnv set
+// can_call_into_js=false (env teardown, worker.terminate()), or while a JS
+// exception is pending. Side-effect-free and pure N-API (portable to Bun/Deno).
+//
+// Every C->JS re-entry that can fire OUTSIDE a JS-initiated frame (the drain
+// TSFN callback, the vfunc/callback ffi trampolines, the signal closure marshal)
+// MUST check this first and degrade to a no-op when false: a node-addon-api call
+// that fails on a dead env escalates to Error::ThrowAsJavaScriptException, whose
+// napi_throw fails the same way -> NAPI_FATAL_IF_FAILED -> process abort
+// ("FATAL ERROR: Error::ThrowAsJavaScriptException napi_throw").
+bool NodeGiJsAvailable(napi_env env);
+
+// Opt-in stderr tracing of the toggle/teardown machinery (env NODE_GI_TOGGLE_DEBUG,
+// parsed once). Call sites guard with NodeGiToggleDebugEnabled() so argument
+// evaluation costs nothing when off.
+bool NodeGiToggleDebugEnabled();
+void NodeGiToggleDebugLog(const char* fmt, ...) G_GNUC_PRINTF(1, 2);
+
 Napi::Value MakeGObjectHandle(Napi::Env env, GObject* obj);
 Napi::Value WrapGObject(Napi::Env env, GObject* obj, GITransfer transfer);
 

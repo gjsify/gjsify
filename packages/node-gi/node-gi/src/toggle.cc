@@ -71,6 +71,59 @@ static bool OnMainThread() {
 // torn-down env (GJS's gjs_object_shutdown_toggle_queue equivalent).
 std::atomic<bool> g_toggle_shutdown{false};
 
+// ---- env-teardown safety helpers --------------------------------------------
+
+// See common.h. The probe is the load-bearing gate for the RunCleanup race: the
+// drain TSFN can legally be dispatched by Environment::RunCleanup()'s FIRST
+// CleanupHandles() (env.cc — it runs uv_run BEFORE cleanup_queue_.Drain(), i.e.
+// BEFORE OnEnvShutdown flips g_toggle_shutdown), at a point where FreeEnvironment
+// has already set can_call_into_js=false. The shutdown flag alone can therefore
+// never close that window — only an env-liveness probe at dispatch time can.
+bool NodeGiJsAvailable(napi_env env) {
+  if (env == nullptr) return false;
+  napi_value undef = nullptr;
+  if (napi_get_undefined(env, &undef) != napi_ok) return false;
+  bool eq = false;
+  return napi_strict_equals(env, undef, undef, &eq) == napi_ok;
+}
+
+bool NodeGiToggleDebugEnabled() {
+  static const bool enabled = [] {
+    const char* v = g_getenv("NODE_GI_TOGGLE_DEBUG");
+    return v != nullptr && *v != '\0' && g_strcmp0(v, "0") != 0;
+  }();
+  return enabled;
+}
+
+void NodeGiToggleDebugLog(const char* fmt, ...) {
+  if (!NodeGiToggleDebugEnabled()) return;
+  va_list args;
+  va_start(args, fmt);
+  gchar* msg = g_strdup_vprintf(fmt, args);
+  va_end(args);
+  g_printerr("(node-gi:toggle) [thread %p] %s\n", static_cast<void*>(g_thread_self()), msg);
+  g_free(msg);
+}
+
+// TEST-ONLY latency seam (env NODE_GI_TOGGLE_TEARDOWN_DELAY_MS, parsed once,
+// clamped to 10s, zero cost when unset): the drain does not process a queued
+// teardown younger than this, re-waking itself instead. That deterministically
+// reproduces the shutdown race the probe above fixes — a teardown queued within
+// the window before loop exit stays queued WITH a pending TSFN wake, so
+// RunCleanup's CleanupHandles() dispatches the drain against the dying env.
+// Regression tool for test/gc-cross-thread.test.mjs; never set in production.
+static int TeardownDelayMs() {
+  static const int ms = [] {
+    const char* v = g_getenv("NODE_GI_TOGGLE_TEARDOWN_DELAY_MS");
+    if (v == nullptr || *v == '\0') return 0;
+    long n = strtol(v, nullptr, 10);
+    if (n < 0) n = 0;
+    if (n > 10000) n = 10000;
+    return static_cast<int>(n);
+  }();
+  return ms;
+}
+
 // Deferred-work queues, drained on the JS thread by a Node-API threadsafe function.
 //
 // Why a threadsafe function, not g_idle_add: a GLib idle only runs while the GLib
@@ -106,7 +159,13 @@ struct ToggleItem {
 // invariant the liveness test enforces.
 std::recursive_mutex g_queue_mutex;
 static std::deque<ToggleItem> g_toggle_queue;
-static std::deque<NodeGiInstance*> g_teardown_queue;
+// Teardowns carry their enqueue time so the TEST-ONLY latency seam
+// (NODE_GI_TOGGLE_TEARDOWN_DELAY_MS, see TeardownDelayMs) can defer young ones.
+struct TeardownItem {
+  NodeGiInstance* inst;
+  gint64 enqueued_us;  // g_get_monotonic_time() at enqueue
+};
+static std::deque<TeardownItem> g_teardown_queue;
 napi_threadsafe_function g_drain_tsfn = nullptr;
 bool g_drain_async_inited = false;
 static napi_env g_async_env = nullptr;  // captured for the drain callback's shutdown checks
@@ -153,6 +212,10 @@ static void EnsureDrainAsync(napi_env env) {
     g_main_thread_id_set = true;
     g_drain_async_inited = true;
   }
+  if (NodeGiToggleDebugEnabled())
+    NodeGiToggleDebugLog("owner env %p claimed toggle machinery; drain TSFN %p created",
+                         static_cast<void*>(static_cast<napi_env>(env)),
+                         static_cast<void*>(tsfn));
 }
 
 // Wake the JS-thread drain. Holds g_queue_mutex and re-checks both the init flag
@@ -165,6 +228,10 @@ static void WakeDrain() {
     // nonblocking + max_queue_size 1 ⇒ coalesces; napi_queue_full is the
     // "a drain is already pending" no-op (it will pick up this item too).
     napi_call_threadsafe_function(g_drain_tsfn, nullptr, napi_tsfn_nonblocking);
+  } else if (NodeGiToggleDebugEnabled()) {
+    NodeGiToggleDebugLog("wake skipped: inited=%d tsfn=%p shutdown=%d",
+                         g_drain_async_inited ? 1 : 0, static_cast<void*>(g_drain_tsfn),
+                         g_toggle_shutdown.load() ? 1 : 0);
   }
 }
 
@@ -248,6 +315,25 @@ static void RunTeardown(NodeGiInstance* inst) {
 static void DrainTsfnCb(napi_env raw_env, napi_value /*js_callback*/, void* /*context*/,
                         void* /*data*/) {
   if (g_async_env == nullptr || g_toggle_shutdown.load()) return;
+  // ENV-TEARDOWN GATE (the RunCleanup race): Node legally dispatches a pending
+  // TSFN wake from Environment::RunCleanup()'s FIRST CleanupHandles() uv_run —
+  // AFTER FreeEnvironment/ExitEnv set can_call_into_js=false, but BEFORE the env
+  // cleanup hooks (OnEnvShutdown) flip g_toggle_shutdown. Processing a teardown
+  // then drops the last toggle ref -> dispose -> a JS vfunc_dispose / signal
+  // closure re-enters N-API on the dead env -> node-addon-api's noexcept throw
+  // path -> napi_fatal_error abort. Skip instead: queued items stay put and are
+  // dropped by the shutdown flag moments later (the documented leak-at-exit).
+  const bool jsAvailable = NodeGiJsAvailable(raw_env);
+  if (!jsAvailable) {
+    if (NodeGiToggleDebugEnabled()) {
+      std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
+      NodeGiToggleDebugLog("drain skipped: JS unavailable on env %p (teardown/terminate); "
+                           "toggles=%zu teardowns=%zu left queued",
+                           static_cast<void*>(raw_env), g_toggle_queue.size(),
+                           g_teardown_queue.size());
+    }
+    return;
+  }
   Napi::Env env(raw_env);
   // The TSFN infra already invokes us on the JS thread inside a callback scope
   // (its async context), so signal emission during dispose runs as a proper
@@ -260,6 +346,7 @@ static void DrainTsfnCb(napi_env raw_env, napi_value /*js_callback*/, void* /*co
     if (g_toggle_shutdown.load()) return;
     ToggleItem toggle{nullptr, false};
     NodeGiInstance* teardown = nullptr;
+    bool deferred = false;
     {
       std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
       if (g_toggle_shutdown.load()) return;
@@ -267,15 +354,36 @@ static void DrainTsfnCb(napi_env raw_env, napi_value /*js_callback*/, void* /*co
         toggle = g_toggle_queue.front();
         g_toggle_queue.pop_front();
       } else if (!g_teardown_queue.empty()) {
-        teardown = g_teardown_queue.front();
-        g_teardown_queue.pop_front();           // removed from the LIVE queue under the lock
+        const TeardownItem& front = g_teardown_queue.front();
+        const int delayMs = TeardownDelayMs();
+        // Latency seam: defer young teardowns ONLY while the env can still run
+        // JS. On a dying env there is no "later" — a deferral would just carry
+        // the teardown past OnEnvShutdown (suppressing, not widening, the race
+        // this seam exists to reproduce); the gate above normally returns first,
+        // so jsAvailable is only ever false here in a gate-disabled experiment.
+        if (delayMs > 0 && jsAvailable &&
+            g_get_monotonic_time() - front.enqueued_us < static_cast<gint64>(delayMs) * 1000) {
+          deferred = true;  // latency seam: too young — re-wake and retry later
+        } else {
+          teardown = front.inst;
+          g_teardown_queue.pop_front();         // removed from the LIVE queue under the lock
+        }
       } else {
         return;                                  // both queues drained
       }
     }  // lock RELEASED before any processing — never held across dispose/JS
+    if (deferred) {
+      if (NodeGiToggleDebugEnabled())
+        NodeGiToggleDebugLog("teardown deferred by latency seam (%d ms)", TeardownDelayMs());
+      WakeDrain();  // outside the lock; respects the shutdown flag
+      return;
+    }
     if (toggle.inst != nullptr) {
       ApplyToggle(toggle.inst, toggle.down);     // napi-only, main-thread state, no reentry
     } else {
+      if (NodeGiToggleDebugEnabled())
+        NodeGiToggleDebugLog("drain: run teardown inst %p (env %p)",
+                             static_cast<void*>(teardown), static_cast<void*>(teardown->env));
       RunTeardown(teardown);                      // dispose → JS, NO lock held
     }
   }
@@ -320,7 +428,15 @@ static bool EnqueueToggleLocked(NodeGiInstance* inst, bool down) {
 // RunTeardown — which clears qdata under the SAME lock — can never be acted on after
 // it has freed an inst.
 static void NodeGiToggleNotify(gpointer /*data*/, GObject* obj, gboolean is_last_ref) {
-  if (g_toggle_shutdown.load()) return;
+  if (g_toggle_shutdown.load()) {
+    // Post-shutdown toggles are dropped (GJS's enqueue-after-shutdown no-op). The
+    // per-toggle debug log stays OUT of the hot churn path — dropped toggles at
+    // teardown are the only interesting event and are rare.
+    if (NodeGiToggleDebugEnabled())
+      NodeGiToggleDebugLog("toggle %s DROPPED after shutdown (obj %p)",
+                           is_last_ref != FALSE ? "DOWN" : "UP", static_cast<void*>(obj));
+    return;
+  }
   bool down = is_last_ref != FALSE;
   bool main_thread = OnMainThread();
   bool enqueued = false;
@@ -357,8 +473,17 @@ static void NodeGiInstanceFinalize(Napi::Env /*env*/, GObject* /*data*/, NodeGiI
     std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
     // After shutdown nothing will drain, so don't grow the queue (the env is going
     // away; the inst leaks with it — same as a dropped pending teardown).
-    if (g_toggle_shutdown.load()) return;
-    g_teardown_queue.push_back(inst);
+    if (g_toggle_shutdown.load()) {
+      if (NodeGiToggleDebugEnabled())
+        NodeGiToggleDebugLog("finalizer: teardown DROPPED after shutdown (inst %p env %p)",
+                             static_cast<void*>(inst), static_cast<void*>(inst->env));
+      return;
+    }
+    g_teardown_queue.push_back({inst, g_get_monotonic_time()});
+    if (NodeGiToggleDebugEnabled())
+      NodeGiToggleDebugLog("finalizer: teardown queued (inst %p env %p depth %zu)",
+                           static_cast<void*>(inst), static_cast<void*>(inst->env),
+                           g_teardown_queue.size());
   }
   WakeDrain();
 }
@@ -377,7 +502,7 @@ static void SettleCollectedInstance(GObject* obj, NodeGiInstance* old) {
     // drain never touches a freed inst (paired with the off-thread enqueue, which
     // re-reads qdata under this SAME lock — and we clear qdata below).
     for (auto it = g_teardown_queue.begin(); it != g_teardown_queue.end();)
-      it = (*it == old) ? g_teardown_queue.erase(it) : it + 1;
+      it = (it->inst == old) ? g_teardown_queue.erase(it) : it + 1;
     for (auto it = g_toggle_queue.begin(); it != g_toggle_queue.end();)
       it = (it->inst == old) ? g_toggle_queue.erase(it) : it + 1;
     // Detach qdata only if it still points at old (resurrection-safe).
