@@ -285,3 +285,112 @@ jobs:
           xvfb-run -a dbus-run-session -- \
             env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
             node --test dual.e2e.mjs
+
+  # Second real consumer of the node-gi reverse bridge (ADR-0005 graduation-gate
+  # item: "a second real consumer using the dual-build"; consumer #1 is
+  # `gjsify storybook --runtime node`). Runs the Tier-1 `@gjsify/sqlite` package's
+  # OWN GJS test suite UNDER node-gi on Node: `gjsify build --app node
+  # --alias node:sqlite=@gjsify/sqlite` rewrites its `gi://Gda?version=6.0` onto
+  # `@gjsify/node-gi` (the L2 gjsGiNodePlugin) and retargets the specs' `node:sqlite`
+  # import onto the libgda-backed polyfill, then runs it on `node`. sqlite's
+  # DatabaseSync/StatementSync API is fully SYNCHRONOUS (libgda open/execute block),
+  # so the WHOLE suite runs with no GLib main-loop pumping: of the 52 tests, 51 pass
+  # — exercising real `Gda.Connection` construction, GObject/GValue-parameter method
+  # marshalling AND result-row reading via `Gda.DataModel.get_value_at()` (node-gi
+  # unboxes its scalar GValue returns to JS primitives since gjsify PR #735). The 1
+  # remaining failure is skipped WITH a documented reason (a BLOB `Uint8Array` does
+  # not yet round-trip to/from a GValue byte array — a distinct marshalling gap) via
+  # the opt-in `run(..., { skip })` list in `src/test.node-gi.mts`; the shared specs
+  # are reused verbatim, never weakened. `@gjsify/node-gi` is a devDependency ONLY
+  # (the sanctioned ADR-0005 seam; `scripts/audit-runtimes.mjs --check` stays green).
+  #
+  # BUILD ENGINE — under Node, not GJS. The workspace `.bin/gjsify` that
+  # `gjsify install` writes is GJS-first (runs the committed cli.gjs.mjs bundle when
+  # gjs is present), whose `gjsify build` needs `@gjsify/rolldown-native` — a
+  # vala/meson prebuild NOT in this minimal fedora container. So every `gjsify build`
+  # here runs under Node via a published `@gjsify/cli` (npm `rolldown` engine), the
+  # same way the build-test job builds the node-gi/example. Isolated in its own job
+  # like cross-runtime/gtk-smoke — the other jobs are untouched.
+  consumer-sqlite:
+    name: sqlite suite as node-gi consumer (Node / Fedora 44)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: fedora:44
+    steps:
+      - name: Install toolchain + GI dev headers + cairo + libgda (Gda-6.0 typelib) + gjs
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
+            glib2-devel gobject-introspection-devel gobject-introspection gjs \
+            cairo-devel cairo-gobject-devel \
+            libgda libgda-sqlite \
+            libsoup3
+          gjs --version
+          echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
+          echo "Gda typelib: $(ls /usr/lib64/girepository-1.0/Gda-6.0.typelib 2>/dev/null || echo MISSING)"
+
+      # Official nodejs.org build, NOT Fedora's dnf node (which crashes rolldown's
+      # prebuilt napi binding — the gjsify bundler engine). Same rationale as the
+      # build-test job. Also builds the @gjsify/node-gi addon via node-gyp.
+      - name: Use official Node.js (Fedora's dnf node crashes the bundler)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build @gjsify/node-gi native addon (node-gyp)
+        working-directory: packages/node-gi/node-gi
+        run: npm install --no-audit --no-fund --foreground-scripts
+
+      # Node-free workspace install via the committed CLI bundle (the supported
+      # `gjsify install --immutable` path). Needed because @gjsify/sqlite is a
+      # workspace package with `workspace:^` deps + `@girs/gda-6.0` — it cannot be
+      # built standalone like the self-contained node-gi/example.
+      - name: Install the gjsify workspace (committed CLI bundle, Node-free)
+        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+
+      # Repoint the workspace `.bin/gjsify` at a Node-runnable published @gjsify/cli
+      # so every `gjsify build` below runs under Node (npm `rolldown`), NOT the
+      # committed GJS bundle (which needs the absent @gjsify/rolldown-native). The
+      # published cli ships a prebuilt Node entry; install the version the workspace
+      # pins (one release train per ADR 0008) into a scratch dir and symlink it in.
+      - name: Use a published @gjsify/cli as the Node bundler (npm rolldown)
+        run: |
+          CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
+          mkdir -p /tmp/gjsify-node-cli
+          ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
+            && npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save )
+          ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
+          echo "Node bundler: $(node_modules/.bin/gjsify --version)"
+
+      # Build only what the --app node bundle inlines: @gjsify/sqlite's lib and
+      # @gjsify/unit's lib (+ their transitive workspace-dep libs, topological).
+      # build:gjsify (the --library step) is enough — the bundle needs lib/esm/*.js,
+      # not the .d.ts emit. Runs under Node via the repointed .bin/gjsify.
+      - name: Build @gjsify/sqlite + @gjsify/unit under Node (+ workspace deps)
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify workspace @gjsify/unit build:gjsify --with-dependencies
+          gjsify workspace @gjsify/sqlite build:gjsify --with-dependencies
+
+      # Guarantee the devDependency file: link resolves to the freshly node-gyp-built
+      # addon regardless of how the install materialised it (belt-and-suspenders).
+      - name: Link the node-gi devDependency
+        run: |
+          mkdir -p packages/node/sqlite/node_modules/@gjsify
+          ln -sfn ../../../../node-gi/node-gi packages/node/sqlite/node_modules/@gjsify/node-gi
+          ls -l packages/node/sqlite/node_modules/@gjsify/node-gi
+
+      # Build the --app node node-gi bundle (under Node via the repointed cli) + run
+      # it on Node — the package's `test:gjs-on-node` script. The system-installed
+      # Gda-6.0 typelib + libgda .so live on the default GI/loader search paths, so
+      # node-gi loads them with no extra GI_TYPELIB_PATH/LD_LIBRARY_PATH. Exits
+      # non-zero on any real failure (the 1 documented BLOB skip is not a failure).
+      - name: Run @gjsify/sqlite suite on node-gi
+        working-directory: packages/node/sqlite
+        run: |
+          export PATH="$PWD/../../../node_modules/.bin:$PATH"
+          gjsify run test:gjs-on-node

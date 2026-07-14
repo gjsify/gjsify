@@ -30,7 +30,8 @@
         "build:test:browser": "gjsify build src/test.browser.mts --app browser --outfile dist/test.browser.mjs",
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
         "test:gjs": "gjsify run test.gjs.mjs",
-        "test:node": "node test.node.mjs"
+        "test:node": "node test.node.mjs",
+        "test:gjs-on-node": "gjsify build src/test.node-gi.mts --app node --alias node:sqlite=@gjsify/sqlite --outfile dist/test.node-gi.mjs && node dist/test.node-gi.mjs"
     },
     "keywords": [
         "gjs",
@@ -40,6 +41,7 @@
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@gjsify/node-gi": "file:../../../packages/node-gi/node-gi",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
