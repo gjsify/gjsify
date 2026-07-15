@@ -56,7 +56,17 @@ interface _CountedError {
     __testFailureCounted?: boolean;
 }
 
-const mainloop: GLib.MainLoop | undefined = runtimeGlobals().imports?.mainloop;
+// Decide the run/exit strategy by the ACTUAL runtime, NOT by `imports.mainloop`
+// presence. GJS drives async tests by blocking on `imports.mainloop.run()` and
+// quitting from a callback; Node/Bun/Deno instead exit via `process.exit()` after
+// the (promise-based) run settles. `@gjsify/node-gi` now legitimately provides
+// `imports.mainloop` on Node too (a GJS-compat feature), so keying on its presence
+// would wrongly send node-gi consumers down the GJS path — a blocking mainloop
+// whose quit (queued as a promise continuation) never drains under the blocking
+// loop, so the process hangs forever. Gate on `process.versions.gjs` (the same
+// signal getRuntime() uses) so only real GJS runs the blocking mainloop.
+const mainloop: GLib.MainLoop | undefined =
+    typeof runtimeGlobals().process?.versions?.gjs === 'string' ? runtimeGlobals().imports?.mainloop : undefined;
 
 let countTestsOverall = 0;
 let countTestsFailed = 0;

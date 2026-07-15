@@ -46,6 +46,7 @@
     "gettext.d.ts",
     "cairo.js",
     "cairo.d.ts",
+    "overrides",
     "src",
     "binding.gyp",
     "prebuilds"
@@ -69,6 +70,7 @@
     "test": "NODE_GI_NATIVE=build node --test",
     "test:node": "NODE_GI_NATIVE=build node --test",
     "test:gc": "NODE_GI_NATIVE=build node --test --expose-gc",
+    "test:dbus": "dbus-run-session -- env NODE_GI_NATIVE=build node --test test/dbus.test.mjs",
     "test:bun": "node scripts/cross-runtime.mjs bun",
     "test:conformance": "node scripts/conformance.mjs",
     "test:gimarshalling": "node scripts/gimarshalling.mjs",
