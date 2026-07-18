@@ -12,10 +12,12 @@ on:
     branches: [main]
     paths:
       - 'packages/node-gi/**'
+      - 'scripts/node-gi-consumer-harness.mjs'
       - '.github/workflows/node-gi.yml'
   pull_request:
     paths:
       - 'packages/node-gi/**'
+      - 'scripts/node-gi-consumer-harness.mjs'
       - '.github/workflows/node-gi.yml'
 
 permissions:
