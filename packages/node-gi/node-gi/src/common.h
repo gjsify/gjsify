@@ -397,6 +397,7 @@ Napi::Value GetTypeName(const Napi::CallbackInfo& info);
 Napi::Value GetGType(const Napi::CallbackInfo& info);
 Napi::Value IsInstanceOf(const Napi::CallbackInfo& info);
 Napi::Value IsGObjectHandle(const Napi::CallbackInfo& info);
+Napi::Value NewGValue(const Napi::CallbackInfo& info);
 
 // class.cc
 Napi::Value RegisterClass(const Napi::CallbackInfo& info);

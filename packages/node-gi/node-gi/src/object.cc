@@ -660,4 +660,24 @@ Napi::Value IsGObjectHandle(const Napi::CallbackInfo& info) {
   return Napi::Boolean::New(env, is);
 }
 
+// newGValue() -> a fresh, zero-initialised GObject.Value boxed handle.
+//
+// GObject.Value has no g_value_new(): a GValue is a plain struct the caller owns,
+// so GJS's `new GObject.Value()` allocates one specially (refs/gjs gi/value.cpp).
+// Allocate a zeroed GValue THROUGH the G_TYPE_VALUE boxed system —
+// g_boxed_copy(G_TYPE_VALUE, &zero) slice-dups an all-zero G_VALUE_INIT struct into
+// a fresh GValue (G_IS_VALUE(&zero) is false, so value_copy just dups the zeroed
+// bytes) — so the handle's finalizer g_boxed_free(G_TYPE_VALUE, ...) frees it via
+// the MATCHING allocator (value_free: g_value_unset + slice-free). The L1 layer
+// (gi.js makeValueClass) wraps it with the GObject.Value ergonomics
+// (.init/.set_*/.get_*/.copy/.unset via the boxed-method path). The Node twin of
+// GJS's `new GObject.Value()` (refs/gjs/modules/core/overrides/GObject.js
+// gValueConstructorFunc over realGValueClass).
+Napi::Value NewGValue(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  GValue zero = G_VALUE_INIT;
+  GValue* v = static_cast<GValue*>(g_boxed_copy(G_TYPE_VALUE, &zero));
+  return MakeBoxedHandle(env, v, G_TYPE_VALUE, true);
+}
+
 }  // namespace nodegi

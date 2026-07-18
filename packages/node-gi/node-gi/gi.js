@@ -442,11 +442,191 @@ function makeVariantClass() {
 
 const variantClass = makeVariantClass();
 
+// ---- GObject.Value ergonomics (the GJS GObject.Value override, L1) ----
+//
+// gjs exposes `new GObject.Value()` (an empty GValue) + the convenience
+// `new GObject.Value(gtype, value)` (init + a set_* chosen by the value's type),
+// over the introspected GValue struct methods (.init/.set_*/.get_*/.copy/.reset/
+// .unset) + the static type_compatible/type_transformable —
+// refs/gjs/modules/core/overrides/GObject.js gValueConstructorFunc over the real
+// GValue class. node-gi has no g_value_new(), so construction goes through
+// native.newGValue (a zeroed G_TYPE_VALUE boxed handle) and the method surface then
+// routes through wrapBoxed's boxed-method dispatch (verified: init/set_int/get_int
+// resolve as GValue methods).
+
+// Fundamental GType name → GValue setter, for the `new GObject.Value(gtype, value)`
+// convenience. Non-primitive types (enum/flags/boxed/object/param/variant) are
+// matched by g_type_is_a below, exactly like gjs's default switch branch.
+const GVALUE_PRIMITIVE_SETTERS = {
+  gboolean: 'set_boolean',
+  gchar: 'set_schar',
+  guchar: 'set_uchar',
+  gint: 'set_int',
+  guint: 'set_uint',
+  glong: 'set_long',
+  gulong: 'set_ulong',
+  gint64: 'set_int64',
+  guint64: 'set_uint64',
+  gfloat: 'set_float',
+  gdouble: 'set_double',
+  gchararray: 'set_string',
+  GType: 'set_gtype',
+  GVariant: 'set_variant',
+  GParam: 'set_param',
+};
+
+// Pick the GValue setter for a (resolved) GType handle, mirroring gjs's constructor
+// switch: an exact fundamental → its setter, else g_type_is_a → flags/enum/boxed/…
+// (introspected GObject.type_name / type_is_a — both verified on node-gi).
+function gvalueSetterFor(gt) {
+  const G = requireGi('GObject', '2.0');
+  const prim = GVALUE_PRIMITIVE_SETTERS[G.type_name(gt)];
+  if (prim !== undefined) return prim;
+  if (G.type_is_a(gt, G.TYPE_FLAGS)) return 'set_flags';
+  if (G.type_is_a(gt, G.TYPE_ENUM)) return 'set_enum';
+  if (G.type_is_a(gt, G.TYPE_VARIANT)) return 'set_variant';
+  if (G.type_is_a(gt, G.TYPE_PARAM)) return 'set_param';
+  if (G.type_is_a(gt, G.TYPE_BOXED)) return 'set_boxed';
+  if (G.type_is_a(gt, G.TYPE_OBJECT)) return 'set_object';
+  throw new TypeError(`Invalid type argument '${G.type_name(gt)}' to the GObject.Value constructor`);
+}
+
+// Build the empty/convenience GValue: a zeroed GValue boxed handle wrapped with the
+// GValue struct methods; the 2-arg form inits it to `gtype` (a class ctor's $gtype
+// or a GType handle) and sets `value` via the matching setter.
+function buildValue(args) {
+  const v = wrapBoxed(native.newGValue());
+  if (args.length >= 2) {
+    const gt = resolveGTypeArg(args[0]);
+    // Resolve the setter BEFORE init so an unsupported type throws a clean JS
+    // TypeError rather than driving g_value_init with a value-table-less type (a
+    // GLib-CRITICAL that would abort under G_DEBUG=fatal-criticals) — same net
+    // result as gjs's constructor, minus the noisy failed init.
+    const setter = gvalueSetterFor(gt);
+    v.init(gt);
+    v[setter](args[1]);
+  }
+  return v;
+}
+
+// `GObject.Value` as a class-like object: `new GObject.Value()` /
+// `new GObject.Value(gtype, value)` construct via buildValue, static methods
+// (type_compatible / type_transformable + camelCase) route through the engine, and
+// `value instanceof GObject.Value` recognises any wrapper over a GValue boxed handle.
+function makeValueClass() {
+  const ctor = function Value(...args) {
+    return buildValue(args);
+  };
+  Object.defineProperty(ctor, 'name', { value: 'Value', configurable: true });
+  ctor.$gtypeName = 'GObject.Value';
+  Object.defineProperty(ctor, Symbol.hasInstance, {
+    value(instance) {
+      if (instance === null || typeof instance !== 'object') return false;
+      const handle = instance[HANDLE];
+      return (
+        handle !== undefined &&
+        native.isBoxedHandle(handle) &&
+        native.boxedTypeName(handle) === 'GValue'
+      );
+    },
+    configurable: true,
+  });
+  return new Proxy(ctor, {
+    get(t, prop) {
+      if (typeof prop !== 'string' || prop in t || RESERVED.has(prop)) return t[prop];
+      const giName = camelToSnake(prop);
+      return (...args) =>
+        wrapReturn(native.callStaticMethod('GObject', 'Value', giName, unwrapArgs(args)));
+    },
+    construct(_t, args) {
+      return buildValue(args);
+    },
+  });
+}
+
+const valueClass = makeValueClass();
+
 // Overlay the GJS Variant ergonomics on the introspected GLib namespace, leaving
 // every other member resolving from introspection. (Additive, like the GObject
 // overlay; the introspected struct-based `GLib.Variant` is replaced by the
 // ergonomic wrapper class so `new GLib.Variant(...)` + `.deepUnpack()` work.)
+// GLib.log_set_writer_func(fn) requires a JS GLogWriterFunc marshalled as a
+// GClosure/callback IN-argument (the introspected engine passes NULL for it → a
+// GLib-CRITICAL no-op), the same L0 gap that blocks bind_property_full. gjs itself
+// routes around it via GjsPrivate.log_set_writer_func; on node-gi it is a clear
+// kept-throw until the engine can marshal a JS function as a callback IN-argument.
+const LOG_SET_WRITER_FUNC_MSG =
+  'GLib.log_set_writer_func(fn) is not supported on @gjsify/node-gi yet: a JS GLogWriterFunc must ' +
+  'be marshalled as a GClosure/callback IN-argument, which the native engine cannot yet do. Use ' +
+  'GLib.log_structured or console for structured logging.';
+
+// The GLib names the L1 overlay adds/replaces on top of introspection.
+const GLIB_OVERLAY_NAMES = new Set([
+  'log_structured',
+  'idle_add_once',
+  'timeout_add_once',
+  'timeout_add_seconds_once',
+  'log_set_writer_func',
+]);
+
+// GLib.log_structured(domain, level, fields): pack `fields` into an `a{sv}` and hand
+// it to the introspected GLib.log_variant — refs/gjs/modules/core/overrides/GLib.js
+// log_structured. Each field value is `ay` (Uint8Array), `s` (string) or a Variant
+// passed through; anything else is a TypeError, matching gjs.
+function makeLogStructured(baseNs) {
+  return (logDomain, logLevel, fields) => {
+    const variantFields = {};
+    for (const key of Object.keys(fields)) {
+      const field = fields[key];
+      if (field instanceof Uint8Array) variantFields[key] = variantClass('ay', field);
+      else if (typeof field === 'string') variantFields[key] = variantClass('s', field);
+      else if (field instanceof variantClass) variantFields[key] = field;
+      else {
+        throw new TypeError(
+          `Unsupported value ${field}, log_structured supports GLib.Variant, Uint8Array, and string values.`,
+        );
+      }
+    }
+    baseNs.log_variant(logDomain, logLevel, variantClass('a{sv}', variantFields));
+  };
+}
+
 function decorateGLibNamespace(baseNs) {
+  // Per-namespace cache of the overlay functions that need the introspected baseNs
+  // (log_structured → log_variant; the *_once helpers → idle_add/timeout_add).
+  const cache = new Map();
+  const overlay = (prop) => {
+    if (cache.has(prop)) return cache.get(prop);
+    let value;
+    if (prop === 'log_structured') value = makeLogStructured(baseNs);
+    // The one-shot idle/timeout conveniences (gjs GLib.js): auto-remove the source
+    // after the callback runs, so the callback needs no `return SOURCE_REMOVE`.
+    else if (prop === 'idle_add_once') {
+      value = (priority, callback) =>
+        baseNs.idle_add(priority, () => {
+          callback();
+          return baseNs.SOURCE_REMOVE;
+        });
+    } else if (prop === 'timeout_add_once') {
+      value = (priority, interval, callback) =>
+        baseNs.timeout_add(priority, interval, () => {
+          callback();
+          return baseNs.SOURCE_REMOVE;
+        });
+    } else if (prop === 'timeout_add_seconds_once') {
+      value = (priority, interval, callback) =>
+        baseNs.timeout_add_seconds(priority, interval, () => {
+          callback();
+          return baseNs.SOURCE_REMOVE;
+        });
+    } else if (prop === 'log_set_writer_func') {
+      value = () => {
+        throw new Error(LOG_SET_WRITER_FUNC_MSG);
+      };
+    }
+    cache.set(prop, value);
+    return value;
+  };
   return new Proxy(baseNs, {
     get(t, prop) {
       if (prop === 'Variant') return variantClass;
@@ -454,10 +634,16 @@ function decorateGLibNamespace(baseNs) {
       // and `new GLib.Error(domain, code, message)` constructs one), shadowing the
       // introspected boxed type so `instanceof GLib.Error` + `.matches()` work.
       if (prop === 'Error') return GLibError;
+      if (typeof prop === 'string' && GLIB_OVERLAY_NAMES.has(prop)) return overlay(prop);
       return t[prop];
     },
     has(t, prop) {
-      return prop === 'Variant' || prop === 'Error' || prop in t;
+      return (
+        prop === 'Variant' ||
+        prop === 'Error' ||
+        (typeof prop === 'string' && GLIB_OVERLAY_NAMES.has(prop)) ||
+        prop in t
+      );
     },
   });
 }
@@ -530,6 +716,54 @@ function isProtoSameOrDescendantOf(proto, maybeAncestor) {
 // External is kept alive by the toggle-up root while C owns the object, which in
 // turn keeps this WeakMap entry — and the proxy + its fields — alive).
 const instanceCache = new WeakMap();
+
+// ---- signal-handler bookkeeping (JS function → connected handler ids) ----
+//
+// node-gi connects signals through PRIVATE GClosures (a JS callback wrapped in a C
+// closure — see signals.cc), so the GObject cannot map a JS function back to its
+// handler ids the way gjs's signal_handler_find can. gjs reaches this via its own
+// per-instance private-closure registry (Gi.signals_{block,unblock,disconnect}_
+// symbol, refs/gjs/modules/core/overrides/GObject.js); we keep the equivalent map
+// here, populated at connect() time, so GObject.signal_handlers_{block,unblock,
+// disconnect}_by_func can resolve a function to its ids. Keyed by the canonical
+// native handle (a WeakMap, so it is collected with the object). Divergence
+// (documented): disconnecting a handler by a route OTHER than the L1 `.disconnect(id)`
+// / a by-func disconnect (e.g. the introspected GObject.signal_handler_disconnect)
+// leaves a stale id here; a following block/unblock/disconnect-by-func would then act
+// on a dead id (native.disconnectSignal already guards is_connected; block/unblock
+// would g_warning). Normal connect→block/unblock/disconnect flows are exact.
+const signalHandlerIds = new WeakMap(); // handle → Map<jsFunc, Set<handlerId>>
+
+function recordSignalHandler(handle, fn, id) {
+  let byFn = signalHandlerIds.get(handle);
+  if (byFn === undefined) {
+    byFn = new Map();
+    signalHandlerIds.set(handle, byFn);
+  }
+  let ids = byFn.get(fn);
+  if (ids === undefined) {
+    ids = new Set();
+    byFn.set(fn, ids);
+  }
+  ids.add(id);
+}
+
+// Drop a handler id from the per-instance registry (on disconnect), pruning an
+// emptied function entry so a later by-func lookup reports zero matches.
+function forgetSignalHandlerId(handle, id) {
+  const byFn = signalHandlerIds.get(handle);
+  if (byFn === undefined) return;
+  for (const [fn, ids] of byFn) {
+    if (ids.delete(id) && ids.size === 0) byFn.delete(fn);
+  }
+}
+
+// The connected handler ids for a given JS function on an instance (a fresh array;
+// empty when the function was never connected on this instance).
+function handlerIdsForFunc(handle, fn) {
+  const ids = signalHandlerIds.get(handle)?.get(fn);
+  return ids === undefined ? [] : [...ids];
+}
 
 // ---- G3 mutate-in-place registry ----
 //
@@ -673,6 +907,47 @@ export function stopMainContextPump() {
   }
 }
 
+// bind_property_full needs the transform-to/transform-from callbacks marshalled as
+// GClosure IN-arguments, which the native engine cannot yet do (the same L0 gap that
+// blocks GLib.log_set_writer_func and a GDBus method-export closure). gjs itself
+// avoids the introspected version via GjsPrivate.g_object_bind_property_full; on
+// node-gi there is no such shim, so this is a clear kept-throw until the engine can
+// marshal a JS function as a GClosure/callback IN-argument.
+const BIND_PROPERTY_FULL_MSG =
+  'GObject.Object.prototype.bind_property_full is not supported on @gjsify/node-gi yet: it needs ' +
+  'the JS transform-to/from closures marshalled as GClosure IN-arguments, which the native engine ' +
+  'cannot yet do. Use bind_property (no transforms), or convert the value in a notify:: handler.';
+
+// gjs's GObject.Object.prototype signal-convenience methods + the bind_property_full
+// kept-throw, resolved by JS-accessor name (snake_case or camelCase). Returns a
+// `(handle, args) => result` applier, or undefined for a name we do not shim.
+// block/unblock route through the introspected single-handler g_signal_handler_*
+// functions (verified to marshal a node-gi GObject IN-arg); stop_emission_by_name
+// through g_signal_stop_emission_by_name.
+function objectPrototypeShim(prop) {
+  switch (prop) {
+    case 'block_signal_handler':
+    case 'blockSignalHandler':
+      return (handle, args) =>
+        wrapReturn(native.callFunction('GObject', 'signal_handler_block', [handle, args[0]]));
+    case 'unblock_signal_handler':
+    case 'unblockSignalHandler':
+      return (handle, args) =>
+        wrapReturn(native.callFunction('GObject', 'signal_handler_unblock', [handle, args[0]]));
+    case 'stop_emission_by_name':
+    case 'stopEmissionByName':
+      return (handle, args) =>
+        wrapReturn(native.callFunction('GObject', 'signal_stop_emission_by_name', [handle, args[0]]));
+    case 'bind_property_full':
+    case 'bindPropertyFull':
+      return () => {
+        throw new Error(BIND_PROPERTY_FULL_MSG);
+      };
+    default:
+      return undefined;
+  }
+}
+
 // Wrap a live GObject handle as a GJS-shaped instance. When `userProto` is given
 // (a registerClass subclass's prototype) the wrapper resolves the user class's
 // own prototype members FIRST — so `inst.myMethod()` runs the JS method with the
@@ -706,14 +981,27 @@ function wrapInstance(handle, userProto) {
       if (typeof prop !== 'string' || RESERVED.has(prop)) return t[prop];
       switch (prop) {
         case 'connect':
-          return (signal, cb) => native.connectSignal(handle, signal, wrapSignalCallback(cb), false);
+          // Record the (user fn → id) mapping so signal_handlers_*_by_func can
+          // resolve the private-closure handler back to its ids (see the registry).
+          return (signal, cb) => {
+            const id = native.connectSignal(handle, signal, wrapSignalCallback(cb), false);
+            recordSignalHandler(handle, cb, id);
+            return id;
+          };
         case 'connect_after':
-          return (signal, cb) => native.connectSignal(handle, signal, wrapSignalCallback(cb), true);
+          return (signal, cb) => {
+            const id = native.connectSignal(handle, signal, wrapSignalCallback(cb), true);
+            recordSignalHandler(handle, cb, id);
+            return id;
+          };
         case 'emit':
           return (signal, ...args) =>
             wrapReturn(native.emitSignal(handle, signal, unwrapArgs(args)));
         case 'disconnect':
-          return (id) => native.disconnectSignal(handle, id);
+          return (id) => {
+            forgetSignalHandlerId(handle, id);
+            return native.disconnectSignal(handle, id);
+          };
         default:
           break;
       }
@@ -735,6 +1023,13 @@ function wrapInstance(handle, userProto) {
       if (prop === 'runAsync' && native.isInstanceOf(handle, 'Gio', 'Application')) {
         return () => applicationRunAsync(handle);
       }
+      // gjs's GObject.Object.prototype signal conveniences (block_signal_handler /
+      // unblock_signal_handler / stop_emission_by_name) + the bind_property_full
+      // kept-throw (refs/gjs GObject.js). These are NOT introspected instance
+      // methods — they are gjs shims over the namespace-level g_signal_* functions —
+      // so route them explicitly before property / GI-method resolution.
+      const shim = objectPrototypeShim(prop);
+      if (shim !== undefined) return (...args) => shim(handle, args);
       const propName = toKebab(prop);
       if (native.hasProperty(handle, propName)) {
         return wrapReturn(native.getProperty(handle, propName));
@@ -907,12 +1202,47 @@ function makeClass(namespace, typeName) {
       // introspected class itself (receiver === proxy) resolves the real lazy GType.
       if (prop === '$gtype' && receiver !== proxy) return undefined;
       if (typeof prop !== 'string' || prop in t || RESERVED.has(prop)) return t[prop];
+      // GObject.Object.new(gtype, props) / .new_with_properties(gtype, names,
+      // values): gjs's GObject.js statics that construct a GObject from a runtime
+      // GType. Not introspected (g_object_new is variadic), so route them to the
+      // by-GType constructor (native.constructType accepts any GType handle).
+      if (namespace === 'GObject' && typeName === 'Object' &&
+          (prop === 'new' || prop === 'new_with_properties' || prop === 'newWithProperties')) {
+        return objectStaticConstructor(prop);
+      }
       const giName = camelToSnake(prop);
       return (...args) =>
         wrapReturn(native.callStaticMethod(namespace, typeName, giName, unwrapArgs(args)));
     },
   });
   return proxy;
+}
+
+// The GObject.Object.new / new_with_properties statics (gjs GObject.js). `new`
+// resolves the GType (a class ctor's $gtype or a GType handle) and constructs it via
+// constructType (which accepts an arbitrary GType, returning the canonical wrapper —
+// the same routing `new Ns.Class({...})` uses); `new_with_properties` zips the two
+// arrays into a prop dict and delegates. Mirrors GJS's `GObject.Object.new`, which
+// looks up the constructor for `gtype` and `new`s it with the prop dict.
+function objectStaticConstructor(prop) {
+  const objectNew = (gtype, props = {}) => {
+    const gt = resolveGTypeArg(gtype);
+    if (gt === undefined || gt === null) {
+      throw new TypeError('GObject.Object.new: a GType (class or Class.$gtype) is required');
+    }
+    return wrapInstance(native.constructType(gt, props ? unwrapProps(props) : {}));
+  };
+  if (prop === 'new') return objectNew;
+  return (gtype, names, values) => {
+    if (!Array.isArray(names) || !Array.isArray(values) || names.length !== values.length) {
+      throw new Error(
+        'GObject.Object.new_with_properties takes two equal-length arrays (names, values)',
+      );
+    }
+    const props = {};
+    for (let i = 0; i < names.length; i++) props[names[i]] = values[i];
+    return objectNew(gtype, props);
+  };
 }
 
 // Surface a boxed/struct type (e.g. GLib.MainLoop) as a class-like object whose
@@ -1471,15 +1801,85 @@ function mergeFlags(introspected, convenience) {
   return Object.freeze({ ...convenience, ...introspected });
 }
 
+// GObject.AccumulatorType — gjs's fake enum for signal accumulators (GObject.js,
+// "keep in sync with gi/object.c"). Not introspected; a pure convenience table.
+const AccumulatorType = Object.freeze({ NONE: 0, FIRST_WINS: 1, TRUE_HANDLED: 2 });
+
+// GObject.signal_handlers_{block,unblock,disconnect}_by_func(instance, fn) — gjs's
+// GObject.js by-function handler ops. node-gi connects via PRIVATE closures, so the
+// function is resolved to its recorded handler ids (signalHandlerIds), then each is
+// blocked/unblocked via the introspected single-handler g_signal_handler_{block,
+// unblock} (verified to marshal a node-gi GObject IN-arg) or disconnected via
+// native.disconnectSignal. Returns the count of handlers matched, exactly as gjs's
+// g_signal_handlers_*_matched-based helpers do.
+function signalHandlersBlockByFunc(instance, fn) {
+  const handle = unwrapArg(instance);
+  const ids = handlerIdsForFunc(handle, fn);
+  for (const id of ids) native.callFunction('GObject', 'signal_handler_block', [handle, id]);
+  return ids.length;
+}
+function signalHandlersUnblockByFunc(instance, fn) {
+  const handle = unwrapArg(instance);
+  const ids = handlerIdsForFunc(handle, fn);
+  for (const id of ids) native.callFunction('GObject', 'signal_handler_unblock', [handle, id]);
+  return ids.length;
+}
+function signalHandlersDisconnectByFunc(instance, fn) {
+  const handle = unwrapArg(instance);
+  const ids = handlerIdsForFunc(handle, fn);
+  for (const id of ids) {
+    native.disconnectSignal(handle, id);
+    forgetSignalHandlerId(handle, id);
+  }
+  return ids.length;
+}
+// Matches gjs's non-introspectable guard (GObject.js) — there is no func→data map.
+function signalHandlersDisconnectByData() {
+  throw new Error(
+    'GObject.signal_handlers_disconnect_by_data() is not introspectable. Use ' +
+      'GObject.signal_handlers_disconnect_by_func() instead.',
+  );
+}
+
+// GObject.signal_connect / signal_connect_after / signal_emit_by_name — gjs's
+// GObject.js shims that call the instance's OWN connect/connect_after/emit (a
+// workaround for classes that shadow those names with their own methods). The
+// instance is the L1 wrapper, whose .connect records the id in the by-func registry.
+function signalConnect(object, name, handler) {
+  return object.connect(name, handler);
+}
+function signalConnectAfter(object, name, handler) {
+  return object.connect_after(name, handler);
+}
+function signalEmitByName(object, ...nameAndArgs) {
+  return object.emit(...nameAndArgs);
+}
+
 // Overlay the GJS `GObject` runtime statics on top of the introspected GObject
-// namespace proxy — ADDITIVELY, never shadowing. `registerClass` + `ParamSpec`
-// are genuinely new. `ParamFlags` / `SignalFlags` are FULL introspected
-// bitfields: returning a hardcoded 5-member table would make every other member
-// read `undefined` (→ coerces to 0 in `FLAGS | GObject.ParamFlags.X`, silently
-// dropping the bit), so they resolve to the introspected enum (convenience names
-// merged underneath as a fallback). `GObject.Object` etc. keep resolving from
-// introspection. Merged enums are cached so identity is stable.
-const OVERLAY_NAMES = new Set(['registerClass', 'ParamSpec', 'ParamFlags', 'SignalFlags']);
+// namespace proxy — ADDITIVELY. `registerClass` + `ParamSpec` + the signal-by-func
+// helpers + `Value` + `AccumulatorType` are genuinely new (or shadow a broken
+// introspected member — `Value`, whose struct has no `new()`). `ParamFlags` /
+// `SignalFlags` are FULL introspected bitfields: returning a hardcoded 5-member
+// table would make every other member read `undefined` (→ coerces to 0 in `FLAGS |
+// GObject.ParamFlags.X`, silently dropping the bit), so they resolve to the
+// introspected enum (convenience names merged underneath as a fallback).
+// `GObject.Object` etc. keep resolving from introspection (with .new added in
+// makeClass). Merged enums are cached so identity is stable.
+const OVERLAY_NAMES = new Set([
+  'registerClass',
+  'ParamSpec',
+  'ParamFlags',
+  'SignalFlags',
+  'Value',
+  'AccumulatorType',
+  'signal_handlers_block_by_func',
+  'signal_handlers_unblock_by_func',
+  'signal_handlers_disconnect_by_func',
+  'signal_handlers_disconnect_by_data',
+  'signal_connect',
+  'signal_connect_after',
+  'signal_emit_by_name',
+]);
 
 // The fundamental GObject.TYPE_* constants. GJS defines these in its GObject
 // override by looking each name up in libgobject AT RUNTIME (not hardcoding the
@@ -1536,6 +1936,15 @@ function decorateGObjectNamespace(baseNs) {
     else if (prop === 'ParamSpec') value = ParamSpec;
     else if (prop === 'ParamFlags') value = mergeFlags(baseNs.ParamFlags, ParamFlags);
     else if (prop === 'SignalFlags') value = mergeFlags(baseNs.SignalFlags, SignalFlags);
+    else if (prop === 'Value') value = valueClass;
+    else if (prop === 'AccumulatorType') value = AccumulatorType;
+    else if (prop === 'signal_handlers_block_by_func') value = signalHandlersBlockByFunc;
+    else if (prop === 'signal_handlers_unblock_by_func') value = signalHandlersUnblockByFunc;
+    else if (prop === 'signal_handlers_disconnect_by_func') value = signalHandlersDisconnectByFunc;
+    else if (prop === 'signal_handlers_disconnect_by_data') value = signalHandlersDisconnectByData;
+    else if (prop === 'signal_connect') value = signalConnect;
+    else if (prop === 'signal_connect_after') value = signalConnectAfter;
+    else if (prop === 'signal_emit_by_name') value = signalEmitByName;
     else if (Object.prototype.hasOwnProperty.call(GTYPE_CONSTANT_NAMES, prop)) {
       // Resolve the real GType from libgobject via the introspected type_from_name
       // (0 / unregistered → null, matching object.cc's GType marshalling).

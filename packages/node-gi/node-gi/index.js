@@ -329,6 +329,16 @@ export const isInstanceOf = native.isInstanceOf;
 export const isGObjectHandle = native.isGObjectHandle;
 
 /**
+ * Allocate a fresh, zero-initialised GValue and return it as a node-gi boxed
+ * handle (GType G_TYPE_VALUE, owned → freed on GC). GObject.Value has no
+ * `g_value_new()`, so the L1 layer (gi.js `makeValueClass`) uses this to build a
+ * `new GObject.Value()` and then drives `.init(gtype)` / `.set_*` / `.get_*` /
+ * `.copy` / `.unset` through the boxed-method path.
+ * @returns {unknown} opaque GObject.Value boxed handle
+ */
+export const newGValue = native.newGValue;
+
+/**
  * Invoke an instance method on a boxed/struct handle (e.g. `mainLoop.run()` /
  * `mainLoop.quit()`). The method is resolved against the boxed GType's
  * introspection info and invoked with the boxed pointer as the instance.

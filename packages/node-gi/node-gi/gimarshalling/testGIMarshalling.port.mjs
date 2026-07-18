@@ -232,9 +232,17 @@ const SKIP_GVALUE_ARRAY =
 const SKIP_GVALUE_IN =
     'phase 2.5 GValue IN — autoboxing a JS value INTO a GValue arg (JS 42 → a GValue ' +
     'holding an int, with GJS type inference) is a separate direction; GValue return/OUT unbox is live';
-const SKIP_GVALUE_BOXED =
-    'GObject.Value construction — `new GObject.Value()` + .init()/.set_*() to BUILD an explicit ' +
-    'boxed GValue (to pass IN or modify) needs struct construction, a later PR; GValue return/OUT unbox is live';
+// GObject.Value construction + int/enum boxed-GValue IN are now LIVE (phase 3.2):
+// `new GObject.Value()` + .init()/.set_*() build an explicit boxed GValue that can
+// be passed IN and modified in place (the two specs below un-skipped). The remaining
+// boxed-GValue skips need a capability node-gi does not have yet:
+const SKIP_GVALUE_CTOR_GTYPE =
+    'node-gi does not stamp `$gtype` on JS built-in constructors / enum objects, so ' +
+    '`value.init(Number)` / `value.init(GIMarshallingTests.Flags)` cannot resolve a GType — a later ' +
+    'PR; GObject.Value construction + int/enum boxed-GValue IN are live';
+const SKIP_GVALUE_FLOAT =
+    'GIMarshallingTests.gvalue_float rejects a boxed GValue as its interface IN-argument (distinct ' +
+    'from the working gvalue_in_with_modification path) — a GValue-IN marshalling quirk, a later PR';
 
 // Integer limits, defined without reference to GLib (because the GLib.MAXINT8
 // etc. constants are also subject to marshalling)
@@ -1035,9 +1043,24 @@ describe('GValue', function () {
 
     itSkip(SKIP_GVALUE_IN, 'type objects can be converted from primitive-like types', function () {});
     itSkip(SKIP_GVALUE_IN, 'can be passed into a function and modified', function () {});
-    itSkip(SKIP_GVALUE_BOXED, 'can be passed into a function as a boxed type and modified', function () {});
-    itSkip(SKIP_GVALUE_BOXED, 'enum can be passed into a function as a boxed type and packed', function () {});
-    itSkip(SKIP_GVALUE_BOXED, 'flags can be passed into a function as a boxed type and packed', function () {});
+    // node-gi phase 3.2: a constructed boxed GObject.Value is passed IN and the C side
+    // modifies it in place (get_int → 24) — verified vs gjs's identical body.
+    it('can be passed into a function as a boxed type and modified', function () {
+        const value = new GObject.Value();
+        value.init(GObject.TYPE_INT);
+        value.set_int(42);
+
+        expect(() => GIMarshallingTests.gvalue_in_with_modification(value)).not.toThrow();
+        expect(value.get_int()).toBe(24);
+    });
+    it('enum can be passed into a function as a boxed type and packed', function () {
+        const value = new GObject.Value();
+        // GIMarshallingTests.Enum is a native enum; pack it via the abstract G_TYPE_ENUM.
+        value.init(GObject.TYPE_ENUM);
+        value.set_enum(GIMarshallingTests.Enum.VALUE3);
+        expect(() => GIMarshallingTests.gvalue_in_enum(value)).not.toThrow();
+    });
+    itSkip(SKIP_GVALUE_CTOR_GTYPE, 'flags can be passed into a function as a boxed type and packed', function () {});
 
     it('marshals as an int64 out parameter', function () {
         expect(warn64(true, GIMarshallingTests.gvalue_int64_out)).toEqual(
@@ -1055,8 +1078,8 @@ describe('GValue', function () {
     itSkip(SKIP_GVALUE_ARRAY, 'array can be passed as an out argument and unpacked when zero-terminated',
         function () {});
     itSkip(SKIP_GVALUE_IN, 'can have its type inferred from primitive values', function () {});
-    itSkip(SKIP_GVALUE_BOXED, 'can deal with a GValue packed in a GValue', function () {});
-    itSkip(SKIP_GVALUE_BOXED, 'separates float from double correctly', function () {});
+    itSkip(SKIP_GVALUE_CTOR_GTYPE, 'can deal with a GValue packed in a GValue', function () {});
+    itSkip(SKIP_GVALUE_FLOAT, 'separates float from double correctly', function () {});
 });
 // The IN-with-type inference breadth + flat-GValue-array round-trips stay a later PR.
 describeSkip('phase 2.5 GValue IN — gvalue_in_with_type type inference + flat-array round-trips',

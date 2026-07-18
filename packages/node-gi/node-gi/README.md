@@ -437,6 +437,58 @@ a JS↔GObject reference cycle on a custom instance leaks (the same cycle-leak
 caveat the signal/vfunc layer carries); and multi-level registered subclass
 chains (registering a subclass of a registered subclass) are not yet supported.
 
+#### `GObject` conveniences (signals, `GObject.Value`, `Object.new`)
+
+`requireGi('GObject')` carries the GJS `GObject.js` convenience surface on top of
+introspection:
+
+```js
+const GObject = requireGi('GObject', '2.0');
+const Gio = requireGi('Gio', '2.0');
+
+// By-function signal ops — node-gi connects through private closures, so the
+// (function → handler id) mapping is recorded at connect() time.
+const action = new Gio.SimpleAction({ name: 'a', enabled: true });
+const onChange = () => { /* … */ };
+action.connect('notify::enabled', onChange);
+GObject.signal_handlers_block_by_func(action, onChange);   // → count blocked
+GObject.signal_handlers_unblock_by_func(action, onChange); // → count unblocked
+GObject.signal_handlers_disconnect_by_func(action, onChange); // → count disconnected
+action.block_signal_handler(id); action.unblock_signal_handler(id); // by id
+action.stop_emission_by_name('notify::enabled');           // from within a handler
+
+// GObject.Value — an explicit GValue you can build, set, read, copy and pass IN.
+const v = new GObject.Value();
+v.init(GObject.TYPE_INT); v.set_int(42); v.get_int();      // → 42
+const s = new GObject.Value(GObject.TYPE_STRING, 'hi');    // 2-arg convenience
+v instanceof GObject.Value;                                // → true
+
+// Construct a GObject from a runtime GType.
+const made = GObject.Object.new(Gio.SimpleAction.$gtype, { name: 'made' });
+```
+
+Also present: `GObject.ParamFlags` / `SignalFlags` (full introspected bitfields),
+the fundamental `GObject.TYPE_*` GTypes, `GObject.AccumulatorType`, and
+`GObject.signal_connect` / `signal_connect_after` / `signal_emit_by_name`.
+
+**Kept-throw** (a clear, actionable error, not a crash): `bind_property_full` needs
+the JS transform-to/from closures marshalled as **GClosure IN-arguments**, which the
+engine cannot yet do — plain `bind_property` (no transforms) works. `ParamSpec.enum`
+/ `flags` / `char` / `uchar` / `long` / `ulong` / `param` are not yet buildable (the
+native param-spec builder covers int/uint/int64/uint64/double/float/string/boolean/
+object/boxed).
+
+#### `GLib` conveniences (`log_structured`, one-shot idle/timeout)
+
+`requireGi('GLib')` carries `GLib.log_structured(domain, level, fields)` (packs
+string / `Uint8Array` / `GLib.Variant` fields into an `a{sv}` and hands it to
+`g_log_variant`) and the one-shot source helpers `idle_add_once` /
+`timeout_add_once` / `timeout_add_seconds_once` (the callback runs once, then the
+source is auto-removed). **Kept-throw:** `GLib.log_set_writer_func(fn)` — a JS
+`GLogWriterFunc` is a **GClosure/callback IN-argument** the engine cannot yet
+marshal (the same gap as `bind_property_full` + DBus object export); use
+`GLib.log_structured` or `console` for structured logging.
+
 #### `Gio.DBus` (client proxy + name owning)
 
 `requireGi('Gio')` carries the GJS DBus surface. The **client** half is complete:
