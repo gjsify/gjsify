@@ -144,6 +144,7 @@ See the [CLI Reference](/gjsify/cli-reference/#known-identifiers) for the full l
 
 ## Next steps
 
+- [Runtimes](/gjsify/runtimes/) — target GJS, Node.js, Deno, Bun or the browser from the same source
 - [Install guide](/gjsify/guides/install/) — Node-free bootstrap, self-update, uninstall
 - [Distribute your GJS app](/gjsify/guides/distributing-gjs-apps/) — ship a one-line installer for your own package
 - [Ship a GJS app as a Flatpak](/gjsify/guides/flatpak-app/) — submit to Flathub

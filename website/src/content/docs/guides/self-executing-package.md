@@ -70,7 +70,7 @@ The explicit `process.exit(0)` is the most-common gotcha. Any module you import 
     }
   },
   "devDependencies": {
-    "@gjsify/cli": "^0.3.9"
+    "@gjsify/cli": "^0.18.0"
   }
 }
 ```

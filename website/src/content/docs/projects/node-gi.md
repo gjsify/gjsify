@@ -67,3 +67,9 @@ npm install @gjsify/node-gi
 ```
 
 Requires a C++ toolchain plus the GLib ≥ 2.80 / `girepository-2.0` development headers to build the native addon, and the target library typelibs installed at runtime (the same requirement as `gi://` under GJS). See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi#readme) for the full API and the Deno `--node-modules-dir=manual` note.
+
+## See also
+
+- [Runtimes](/gjsify/runtimes/) — how the reverse bridge fits gjsify's overall target picture
+- [Versioning](/gjsify/versioning/#package-tiers) — what the Tier-2 contract means
+- [Storybook](/gjsify/guides/storybook/) — `gjsify storybook --runtime node`, the canonical consumer

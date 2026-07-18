@@ -1,15 +1,36 @@
 ---
 title: Overview
-description: GNOME, Node.js and the Web in one SpiderMonkey process — what makes gjsify different.
+description: What gjsify is — a TypeScript framework for native Linux apps that unifies GNOME, Node.js and the Web across runtimes.
 ---
 
 import ThreeWorldsFusion from '../../components/ThreeWorldsFusion.astro';
+
+**gjsify is a TypeScript framework for native Linux apps.** You build
+GTK 4 / Adwaita applications, games and CLI tools against the APIs you already
+know — Node.js modules, Web standards, the DOM — and gjsify maps them onto the
+GNOME platform.
+
+The runtime is a build-time decision, not an architecture decision:
+
+- On **GJS**, GNOME's JavaScript runtime, gjsify implements the Node.js and
+  Web APIs on top of Gio, libsoup, Cairo and friends.
+- On **Node.js, Bun and Deno**, gjsify implements the GJS side — `gi://`
+  imports and the GObject type system — through the
+  [node-gi](/gjsify/projects/node-gi/) reverse bridge.
+- In the **browser**, the same source runs as a web app, with the Adwaita
+  design system [carried over as Web Components](/gjsify/packages/web/).
+
+This also makes gjsify a bridge between the web and the native desktop in both
+directions: web code runs inside native GTK windows, and the native look and
+feel travels to the web. See [Runtimes](/gjsify/runtimes/) for the full
+picture of what runs where.
 
 <ThreeWorldsFusion />
 
 ## Where to go next
 
+- [Getting Started](/gjsify/getting-started/) — scaffold and run your first app
+- [Runtimes](/gjsify/runtimes/) — GJS, Node.js, Deno, Bun and the browser: what runs where
 - [How It Works](/gjsify/how-it-works/) — the build pipeline: auto-aliasing, `--globals auto`, native prebuilds
 - [Coverage](/gjsify/coverage/) — how complete the Node, Web and bridge surfaces already are
 - [Showcases](/gjsify/showcases/) — end-to-end apps that run unchanged on GJS and in the browser
-- [Getting Started](/gjsify/getting-started/) — scaffold and run your first app

@@ -1,5 +1,5 @@
 ---
-title: Building a native Adwaita app
+title: Native Adwaita Apps
 description: Assemble a native GNOME/Adwaita GJS app from the reusable shell in @gjsify/adwaita-app — runAsync lifecycle, a NavigationSplitView nav shell, async view mounting, and dialog/toast/file helpers
 ---
 
@@ -140,7 +140,7 @@ if (hooks.file) store.load(hooks.file);
 
 ## See also
 
-- [Debugging & remote control](./devtools/) — the `org.gjsify.Devtools` control
+- [Devtools & MCP](./devtools/) — the `org.gjsify.Devtools` control
   plane `runAdwaitaApp` wires in on startup.
 - [`gjsify storybook`](../../cli-reference/#gjsify-storybook) — the component
   browser this shell was generalized from.

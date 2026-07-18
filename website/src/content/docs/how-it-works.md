@@ -5,6 +5,8 @@ description: Auto-aliasing, automatic globals detection and the GJS build pipeli
 
 GJSify lets you write code against familiar Node.js and Web APIs while running natively on GJS. This page explains the three pieces that make that possible: **automatic module aliasing** at build time, **automatic globals detection via `--globals auto`**, and **automatic native library loading** at runtime.
 
+The same pipeline works for every build target — `gjsify build --app gjs|node|browser` swaps the alias layer, and for `--app node` it even runs in reverse: `gi://` imports resolve through the [node-gi bridge](/gjsify/projects/node-gi/) so GObject code runs on Node.js, Bun and Deno. See [Runtimes](/gjsify/runtimes/) for the target overview; the rest of this page walks through the GJS direction.
+
 ## Automatic module aliasing
 
 When you run `gjsify build --app gjs`, the Rolldown plugin rewrites every Node.js and Web API import to its `@gjsify/*` equivalent before bundling:
@@ -175,5 +177,6 @@ GJS bundles built with gjsify resolve their bundled dependencies' data files at 
 ## Where to go next
 
 - [Getting Started](/gjsify/getting-started/) — scaffold and run your first app
+- [Runtimes](/gjsify/runtimes/) — what runs on GJS, Node.js, Deno, Bun and the browser
 - [CLI Reference](/gjsify/cli-reference/) — full command list
 - [Packages Overview](/gjsify/packages/overview/) — every API and its GNOME backend

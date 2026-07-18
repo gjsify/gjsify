@@ -22,6 +22,7 @@ GJSify follows a test-driven development approach:
 
 - Tests must pass on **both Node.js and GJS**
 - **Never weaken tests** to accommodate GJS limitations — fix the implementation instead
+- Web API packages have a third test axis: `tests/browser/` runs their `test.browser.mts` bundles under Playwright (Firefox — the same SpiderMonkey engine as GJS) to verify our implementation claims against the real browser platform
 - Use the `node:` prefix for all Node.js imports in tests
 - Use `@gjsify/unit` as the test framework; shared matchers: `toBe`, `toEqual`, `toBeTruthy`, `toBeFalsy`, `toContain`, `toMatch`, `toThrow`
 - Platform-specific test logic belongs in a separate `*.gjs.spec.ts` file or inside an `on('Gjs', …)` block — not sprinkled through the shared spec
