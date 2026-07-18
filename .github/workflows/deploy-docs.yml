@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'website/**'
+      # The site embeds @gjsify/adwaita-web (resolved from workspace source,
+      # compiled during the site build) — its changes alter the rendered docs.
+      - 'packages/web/adwaita-web/**'
       - '.github/workflows/deploy-docs.yml'
   workflow_dispatch:
 
