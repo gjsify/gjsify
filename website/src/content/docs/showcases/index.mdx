@@ -8,7 +8,7 @@ The **showcases** are end-to-end runnable applications that double as proof of t
 - **In a GTK4 window** via `gjsify showcase <name>` — Cairo / WebGL / WebKit / GStreamer backing the standard DOM APIs the showcase code reaches for.
 - **In a regular browser** via `import { mount } from '@gjsify/example-dom-<name>/browser'` — same module, native browser implementations.
 
-If something runs on GJS through gjsify, it also runs in the browser unmodified (and vice versa). That cross-platform contract is the point.
+If something runs on GJS through GJSify, it also runs in the browser unmodified (and vice versa). That cross-platform contract is the point.
 
 ## Browse the catalog
 
@@ -44,7 +44,7 @@ const container = document.getElementById('app')!;
 mount(container);
 ```
 
-The website's `<ShowcaseEmbed>` component handles the loading and lifecycle for the live demos linked above. Source for each showcase lives under [`showcases/`](https://github.com/gjsify/gjsify/tree/main/showcases) in the gjsify repo — see the per-showcase pages for the deep dive on how each one exercises the pillar set.
+The website's `<ShowcaseEmbed>` component handles the loading and lifecycle for the live demos linked above. Source for each showcase lives under [`showcases/`](https://github.com/gjsify/gjsify/tree/main/showcases) in the GJSify repo — see the per-showcase pages for the deep dive on how each one exercises the pillar set.
 
 ## Why two targets matter
 

@@ -3,7 +3,7 @@ title: node-gi
 description: Run unchanged GJS / GObject-Introspection code on Node.js, Bun and Deno — the reverse bridge. One source builds and runs on GJS and every Node-API runtime.
 ---
 
-[`@gjsify/node-gi`](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi) is the **reverse** of the rest of gjsify: instead of bringing Node/Web APIs to GJS, it brings **GObject-Introspection to Node.js, Bun and Deno**. The same unchanged `gi://` source builds and runs natively under GJS *and* on every Node-API runtime — no code changes.
+[`@gjsify/node-gi`](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi) is the **reverse** of the rest of GJSify: instead of bringing Node/Web APIs to GJS, it brings **GObject-Introspection to Node.js, Bun and Deno**. The same unchanged `gi://` source builds and runs natively under GJS *and* on every Node-API runtime — no code changes.
 
 :::note[Product — Tier 2]
 node-gi **graduated to Tier 2** on 2026-07-14 ([ADR 0005](https://github.com/gjsify/gjsify/blob/main/docs/adr/0005-node-gi-scope.md)) once its four gate items landed: the toggle-ref/multi-env teardown crash fixed, vfunc OUT/INOUT chain-up, the GTK/Cairo layer, and a second real consumer (`@gjsify/sqlite`'s test suite runs on node-gi). Tier 2 is **best-effort**: tested and released on the train, but breaking changes may ship with a minor + a changelog note. One invariant is kept from Tier 3: no Tier-1/2 `@gjsify/*` package may take a **hard** dependency on `@gjsify/node-gi` — the sanctioned seams stay a `devDependency` and the conditional `--app node` build injection (the reverse bridge would otherwise double the runtime test matrix).
@@ -70,6 +70,6 @@ Requires a C++ toolchain plus the GLib ≥ 2.80 / `girepository-2.0` development
 
 ## See also
 
-- [Runtimes](/gjsify/runtimes/) — how the reverse bridge fits gjsify's overall target picture
+- [Runtimes](/gjsify/runtimes/) — how the reverse bridge fits GJSify's overall target picture
 - [Versioning](/gjsify/versioning/#package-tiers) — what the Tier-2 contract means
 - [Storybook](/gjsify/guides/storybook/) — `gjsify storybook --runtime node`, the canonical consumer

@@ -3,7 +3,7 @@ title: Native Adwaita Apps
 description: Assemble a native GNOME/Adwaita GJS app from the reusable shell in @gjsify/adwaita-app — runAsync lifecycle, a NavigationSplitView nav shell, async view mounting, and dialog/toast/file helpers
 ---
 
-Every native Adwaita app on gjsify repeats the same shell: an `Adw.Application`
+Every native Adwaita app on GJSify repeats the same shell: an `Adw.Application`
 run with `runAsync`, a startup CSS bootstrap, the [devtools](./devtools/) control
 plane, standard quit/about actions, an `Adw.NavigationSplitView` with a sidebar
 and a content stack, and a way to mount views that may load asynchronously.

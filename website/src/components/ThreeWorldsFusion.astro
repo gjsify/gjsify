@@ -9,11 +9,11 @@
 
 <section class="fusion">
   <div class="fusion-inner">
-    <p class="fusion-eyebrow">What makes gjsify different</p>
+    <p class="fusion-eyebrow">What makes GJSify different</p>
     <h2 class="fusion-title">Three worlds, one runtime</h2>
     <p class="fusion-lead">
       GNOME, Node.js, and the Web have lived in separate runtimes for a
-      decade. gjsify dissolves the boundary — every API lands inside one
+      decade. GJSify dissolves the boundary — every API lands inside one
       SpiderMonkey process and shares the same memory, the same event
       loop, the same GTK main context.
     </p>
@@ -54,19 +54,19 @@
           <li><code>Canvas 2D</code> · WebGL · WebGPU bridge</li>
           <li>WebRTC · WebAudio · Gamepad</li>
           <li><code>FormData</code> · Streams · Crypto</li>
-          <li>DOM events, Mutation/Resize observers</li>
+          <li>DOM events, Mutation / Resize observers</li>
         </ul>
       </div>
 
       <div class="fusion-arrow" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M12 5v14M6 13l6 6 6-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
 
       <div class="fusion-output">
         <div class="fusion-output-head">
-          <span class="fusion-output-tag">gjsify</span>
+          <span class="fusion-output-tag">GJSify</span>
         </div>
         <p class="fusion-output-text">
           One SpiderMonkey process. One TypeScript codebase. Zero glue
@@ -81,7 +81,7 @@
         Ship a browser game engine — without shipping a browser.
       </p>
       <p class="fusion-callout-body">
-        <a href="https://excaliburjs.com/" target="_blank" rel="noopener">Excalibur.js</a> renders directly into a <code>Gtk.GLArea</code> through gjsify's WebGL bridge.
+        <a href="https://excaliburjs.com/" target="_blank" rel="noopener">Excalibur.js</a> renders directly into a <code>Gtk.GLArea</code> through GJSify's WebGL bridge.
         Pointer, keyboard, and gamepad input flows through GTK4 event controllers, dispatched as W3C DOM events.
         Audio runs on GStreamer through the Web Audio API. The whole game lives in one process — the same
         one that draws the Adwaita window around it. No <code>WebKit.WebView</code>, no IPC bridge, no
@@ -93,7 +93,7 @@
           <span class="fusion-vs-value fusion-vs-bad">~150 MB Chromium runtime · separate renderer process · webContents bridge · X11/Wayland double-buffered</span>
         </div>
         <div class="fusion-vs-row">
-          <span class="fusion-vs-label">gjsify app</span>
+          <span class="fusion-vs-label">GJSify app</span>
           <span class="fusion-vs-value fusion-vs-good">Stock GJS · single process · native GTK4 widgets · uses the GNOME runtime the user already has installed</span>
         </div>
       </div>
@@ -107,6 +107,9 @@
     max-width: 1200px;
     margin-inline: auto;
     padding-inline: 1.5rem;
+    /* The pillar grid adapts to the actual content column (which varies with
+       the two sidebars), not the viewport. */
+    container-type: inline-size;
   }
 
   .fusion-inner {
@@ -143,10 +146,13 @@
     line-height: 1.6;
   }
 
-  /* --- Pillar layout --- */
+  /* --- Pillar layout ---
+     Three pillars side by side, then a downward arrow, then the GJSify
+     output card across the full width — each element gets room to breathe
+     instead of squeezing five columns into one row. */
   .fusion-stack {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) auto minmax(0, 1.2fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 1rem;
     width: 100%;
     align-items: stretch;
@@ -206,12 +212,15 @@
   .fusion-pillar-list code {
     font-size: 0.85em;
     padding: 1px 5px;
+    white-space: nowrap; /* chips wrap between items, never inside a name */
   }
 
   .fusion-arrow {
-    align-self: center;
+    grid-column: 1 / -1;
+    justify-self: center;
     color: var(--sl-color-gray-4);
     display: flex;
+    padding-block: 0.25rem;
   }
 
   .fusion-arrow svg {
@@ -220,6 +229,13 @@
   }
 
   .fusion-output {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    text-align: center;
     border-color: var(--sl-color-accent);
     box-shadow: 0 0 0 1px var(--sl-color-accent-low), 0 8px 24px rgba(53, 132, 228, 0.18);
     background: linear-gradient(180deg, var(--sl-color-accent-low) 0%, var(--sl-color-bg-nav) 80%);
@@ -227,7 +243,7 @@
 
   .fusion-output-text {
     margin: 0;
-    font-size: 1rem;
+    font-size: 1.05rem;
     color: var(--sl-color-white);
     line-height: 1.55;
   }
@@ -311,15 +327,17 @@
   .fusion-vs-bad  { color: var(--sl-color-gray-3); }
   .fusion-vs-good { color: var(--sl-color-gray-2); }
 
-  /* --- Responsive --- */
-  @media (max-width: 980px) {
+  /* --- Responsive ---
+     Starlight's content column caps at 45rem (720px), so the pillars sit
+     three-across inside it on desktop; only genuinely narrow layouts stack. */
+  @container (max-width: 640px) {
     .fusion-stack {
       grid-template-columns: 1fr;
     }
 
-    .fusion-arrow {
-      transform: rotate(90deg);
-      justify-self: center;
+    .fusion-output {
+      flex-direction: column;
+      gap: 0.75rem;
     }
   }
 

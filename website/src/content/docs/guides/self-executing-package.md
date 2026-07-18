@@ -267,7 +267,7 @@ Wire as a yargs command:
 .command("self-update", "update to the latest release", {}, selfUpdate)
 ```
 
-This works because gjsify bundles the modern `fetch` + `node:fs` polyfills automatically.
+This works because GJSify bundles the modern `fetch` + `node:fs` polyfills automatically.
 
 ## 7. Optional — also publish on npm
 

@@ -1,26 +1,26 @@
 ---
 title: Overview
-description: What gjsify is — a TypeScript framework for native Linux apps that unifies GNOME, Node.js and the Web across runtimes.
+description: What GJSify is — a TypeScript framework for native Linux apps that unifies GNOME, Node.js and the Web across runtimes.
 ---
 
 import ThreeWorldsFusion from '../../components/ThreeWorldsFusion.astro';
 
-**gjsify is a TypeScript framework for native Linux apps.** You build
+**GJSify is a TypeScript framework for native Linux apps.** You build
 GTK 4 / Adwaita applications, games and CLI tools against the APIs you already
-know — Node.js modules, Web standards, the DOM — and gjsify maps them onto the
+know — Node.js modules, Web standards, the DOM — and GJSify maps them onto the
 GNOME platform.
 
 The runtime is a build-time decision, not an architecture decision:
 
-- On **GJS**, GNOME's JavaScript runtime, gjsify implements the Node.js and
+- On **GJS**, GNOME's JavaScript runtime, GJSify implements the Node.js and
   Web APIs on top of Gio, libsoup, Cairo and friends.
-- On **Node.js, Bun and Deno**, gjsify implements the GJS side — `gi://`
+- On **Node.js, Bun and Deno**, GJSify implements the GJS side — `gi://`
   imports and the GObject type system — through the
   [node-gi](/gjsify/projects/node-gi/) reverse bridge.
 - In the **browser**, the same source runs as a web app, with the Adwaita
   design system [carried over as Web Components](/gjsify/packages/web/).
 
-This also makes gjsify a bridge between the web and the native desktop in both
+This also makes GJSify a bridge between the web and the native desktop in both
 directions: web code runs inside native GTK windows, and the native look and
 feel travels to the web. See [Runtimes](/gjsify/runtimes/) for the full
 picture of what runs where.

@@ -3,14 +3,14 @@ title: ts-for-gir
 description: TypeScript type definition generator for GObject Introspection — strong typing, IDE jump-to-definition, autocompletion across the whole GNOME stack.
 ---
 
-[ts-for-gir](https://github.com/gjsify/ts-for-gir) is the TypeScript type-definition generator that powers IDE autocomplete + type-checking for every gjsify project (and many non-gjsify GJS projects). It reads GObject Introspection (`.gir` XML) files and emits `.d.ts` declarations covering GLib, GIO, GTK, GStreamer, libadwaita, WebKit, and ~700 other GNOME-stack modules.
+[ts-for-gir](https://github.com/gjsify/ts-for-gir) is the TypeScript type-definition generator that powers IDE autocomplete + type-checking for every GJSify project (and many non-gjsify GJS projects). It reads GObject Introspection (`.gir` XML) files and emits `.d.ts` declarations covering GLib, GIO, GTK, GStreamer, libadwaita, WebKit, and ~700 other GNOME-stack modules.
 
 ## What you get
 
 - **Compile-time type safety** for every `import Gtk from 'gi://Gtk?version=4.0'`.
 - **IDE jump-to-definition** into `@girs/*` declarations: hover a `Gtk.Button` to see its constructor, methods, signals.
 - **Pre-generated npm packages** at [gjsify/types](https://github.com/gjsify/types) — `npm i @girs/gtk-4.0` instead of running the generator yourself.
-- **First-class gjsify integration**: the [`types-gjsify`](https://github.com/gjsify/ts-for-gir/tree/main/templates/types-gjsify) starter template wires `ts-for-gir generate` into `gjsify install`, `gjsify build`, and `gjsify run` so a fresh project compiles in seconds.
+- **First-class GJSify integration**: the [`types-gjsify`](https://github.com/gjsify/ts-for-gir/tree/main/templates/types-gjsify) starter template wires `ts-for-gir generate` into `gjsify install`, `gjsify build`, and `gjsify run` so a fresh project compiles in seconds.
 
 ## Install
 
@@ -29,7 +29,7 @@ gjsify dlx @ts-for-gir/cli generate Gtk-4.0
 
 `gjsify dlx` fetches the package into a content-addressed cache (`~/.cache/gjsify/dlx`), runs its GJS bundle, and reuses the cache on subsequent invocations of the same spec. Pass `--cache-max-age 0` to force a refresh.
 
-**Global install via the gjsify CLI:**
+**Global install via the GJSify CLI:**
 
 ```bash
 gjsify install -g @ts-for-gir/cli
@@ -67,7 +67,7 @@ npx @ts-for-gir/cli create my-app
 
 | Template | Best for |
 |---|---|
-| `types-gjsify` | Node-free GJS app — all dev scripts (install, build, run, format) routed through gjsify |
+| `types-gjsify` | Node-free GJS app — all dev scripts (install, build, run, format) routed through GJSify |
 | `types-npm` | Single-package, types from `@girs/*` npm, esbuild + node |
 | `types-locally` | Generate types into `./@types/` (no `@girs/*` dep) |
 | `types-workspace` | npm workspace with `@girs/*` as locally-generated workspace packages |
@@ -122,11 +122,11 @@ The [Patterns](../../patterns/) section of this site documents the idioms that s
 - [**GObject classes**](../../patterns/gobject-classes/) — `GObject.registerClass()` forms, the static-block pattern, init-order rules behind [GNOME/gjs#704](https://gitlab.gnome.org/GNOME/gjs/-/work_items/704), and the `static override $gtype: GObject.GType<Foo>` declaration that narrows the statically-inherited `$gtype` from the base class.
 - [**Bridge widgets**](../../patterns/bridges/) — how `Canvas2DBridge` / `WebGLBridge` / `IFrameBridge` / `VideoBridge` pair a polyfill DOM element with a real GTK widget so browser-shaped code drives the GTK surface directly.
 
-## gjsify dogfoods its own bundler
+## GJSify dogfoods its own bundler
 
-`@ts-for-gir/cli` is built with `gjsify build --app node` — a real-world Node CLI that bundles the TypeScript compiler, TypeDoc, shiki, yargs, ejs, and ~100 transitive npm dependencies into a single executable with `--shebang` (emitting `#!/usr/bin/env node`). This makes ts-for-gir a concrete proof point that gjsify can bundle and distribute production-grade Node.js CLIs:
+`@ts-for-gir/cli` is built with `gjsify build --app node` — a real-world Node CLI that bundles the TypeScript compiler, TypeDoc, shiki, yargs, ejs, and ~100 transitive npm dependencies into a single executable with `--shebang` (emitting `#!/usr/bin/env node`). This makes ts-for-gir a concrete proof point that GJSify can bundle and distribute production-grade Node.js CLIs:
 
-- Bundled deps that read their own data files at runtime (`typedoc` loading its theme assets, ejs loading templates) work correctly after install at any `node_modules` depth, because gjsify resolves those paths from the bundle's actual runtime location rather than a path baked at build time.
+- Bundled deps that read their own data files at runtime (`typedoc` loading its theme assets, ejs loading templates) work correctly after install at any `node_modules` depth, because GJSify resolves those paths from the bundle's actual runtime location rather than a path baked at build time.
 - Yarn PnP-resident zip packages (the ~100 Yarn-cached deps) are resolved transparently by `@gjsify/module`'s PnP-aware `createRequire`.
 - The produced Node bundle is directly executable (`chmod +x`) and published to npm — no separate build wrapper script needed.
 

@@ -1,6 +1,6 @@
 ---
 title: CLI Reference
-description: All gjsify subcommands, flags and typical usage
+description: All GJSify subcommands, flags and typical usage
 ---
 
 The `@gjsify/cli` package ships the `gjsify` binary. Run it via `npx @gjsify/cli <command>` or add it as a dev dependency.
@@ -80,7 +80,7 @@ The `gjsify` field in `package.json` (or `.gjsifyrc.js` / `gjsify.config.mjs`) c
 
 `bundler` is a `RolldownOptions` subset. The orchestrator applies platform-specific defaults on top.
 
-> **`define` placement:** `define` belongs under `bundler.transform.define`, **not** at the top level of `bundler`. If you write `bundler.define` (a common mistake when flat-renaming the old `esbuild` key), gjsify auto-maps it to `bundler.transform.define` and emits a build-time warning. To suppress the warning, move it:
+> **`define` placement:** `define` belongs under `bundler.transform.define`, **not** at the top level of `bundler`. If you write `bundler.define` (a common mistake when flat-renaming the old `esbuild` key), GJSify auto-maps it to `bundler.transform.define` and emits a build-time warning. To suppress the warning, move it:
 >
 > ```jsonc
 > // ❌ silently wrong without the alias — now warned + auto-fixed
@@ -702,7 +702,7 @@ Configure defaults in `package.json#gjsify.storybook` (`applicationId`, `title`,
 
 ## `gjsify debug`
 
-Launch an **MCP↔devtools bridge** for a running, devtools-enabled gjsify app (its `org.gjsify.Devtools` DBus control plane). An MCP client (e.g. Claude Code) uses this as its server command; the bridge speaks JSON-RPC on stdio and translates each tool call to the app's DBus interface. Provided by [`@gjsify/devtools-mcp`](https://www.npmjs.com/package/@gjsify/devtools-mcp).
+Launch an **MCP↔devtools bridge** for a running, devtools-enabled GJSify app (its `org.gjsify.Devtools` DBus control plane). An MCP client (e.g. Claude Code) uses this as its server command; the bridge speaks JSON-RPC on stdio and translates each tool call to the app's DBus interface. Provided by [`@gjsify/devtools-mcp`](https://www.npmjs.com/package/@gjsify/devtools-mcp).
 
 ```bash
 # Point an MCP client at it (.mcp.json):
@@ -1046,7 +1046,7 @@ Only works for CLIs installed under `~/.local/share/gjsify/global/` (the `instal
 
 ## `gjsify generate-installer`
 
-Scaffold an `install.mjs` for your own GJS-runnable npm package — your users get the same `curl ... | gjs -m -` install story as gjsify itself.
+Scaffold an `install.mjs` for your own GJS-runnable npm package — your users get the same `curl ... | gjs -m -` install story as GJSify itself.
 
 ```bash
 cd my-gjs-app
@@ -1061,13 +1061,13 @@ gjsify generate-installer \
   --output bin/install.mjs --force
 ```
 
-The generated `install.mjs` is a verbatim copy of gjsify's own root `install.mjs` with three constants substituted (`DEFAULT_TARGET`, `DEFAULT_BIN_NAME`, `DEFAULT_BOOTSTRAP_URL`). See the [Distributing GJS apps guide](/guides/distributing-gjs-apps/) for the full publication workflow.
+The generated `install.mjs` is a verbatim copy of GJSify's own root `install.mjs` with three constants substituted (`DEFAULT_TARGET`, `DEFAULT_BIN_NAME`, `DEFAULT_BOOTSTRAP_URL`). See the [Distributing GJS apps guide](/guides/distributing-gjs-apps/) for the full publication workflow.
 
 | Option | Default | Description |
 |---|---|---|
 | `[target]` (positional) | `package.json#name` | npm package to install. |
 | `--bin-name <name>` | first key of `gjsify.bin` or `bin` | Bin name produced by the installer. |
-| `--bootstrap-url <url>` | gjsify GH `releases/latest/download/cli.gjs.mjs` | Override the bootstrap bundle source. |
+| `--bootstrap-url <url>` | GJSify GH `releases/latest/download/cli.gjs.mjs` | Override the bootstrap bundle source. |
 | `--output <file>` | `install.mjs` | Where to write the installer. |
 | `--force` | `false` | Overwrite an existing file. |
 
@@ -1178,8 +1178,8 @@ gjsify onboard --yes                 # non-interactive: fail clearly if a login/
 
 Format JS/TS source files via [oxfmt](https://oxc.rs/docs/guide/usage/formatter) (oxc's formatter). Dual-engine:
 
-- **Under GJS** (the `gjs -m cli.gjs.mjs` bundle), gjsify prefers the `@gjsify/oxfmt-native` GI bridge — the full oxfmt CLI runs in-process, **Node-free** (config resolution, ignore handling, file walking, `--write`/`--check`/`--list-different` all included). Override with `GJSIFY_OXFMT=npm` (force the Node launcher) or `GJSIFY_OXFMT=native` (error instead of falling back when the prebuild is unavailable).
-- **On Node** (or when the native prebuild is missing), gjsify resolves oxfmt's npm package Node launcher from `node_modules/oxfmt/bin/oxfmt` and spawns it with the current Node executable. The per-platform native code ships as the `@oxfmt/binding-<target>` napi optionalDependency.
+- **Under GJS** (the `gjs -m cli.gjs.mjs` bundle), GJSify prefers the `@gjsify/oxfmt-native` GI bridge — the full oxfmt CLI runs in-process, **Node-free** (config resolution, ignore handling, file walking, `--write`/`--check`/`--list-different` all included). Override with `GJSIFY_OXFMT=npm` (force the Node launcher) or `GJSIFY_OXFMT=native` (error instead of falling back when the prebuild is unavailable).
+- **On Node** (or when the native prebuild is missing), GJSify resolves oxfmt's npm package Node launcher from `node_modules/oxfmt/bin/oxfmt` and spawns it with the current Node executable. The per-platform native code ships as the `@oxfmt/binding-<target>` napi optionalDependency.
 
 > **CSS/JSON formatting is not supported.** oxfmt formats JS/TS (+TOML) only. The previous Biome toolchain formatted CSS and JSON too; that is intentionally dropped in the oxc migration and not replaced by another formatter.
 
@@ -1202,7 +1202,7 @@ gjsify format src/               # report drift without writing (list-different)
 
 With no `--write`/`--check`, `gjsify format` reports drift via oxfmt's `--list-different` without modifying files.
 
-**Workspace-aware resolution** — when run from inside a sub-workspace, gjsify walks up to the workspace root to find `node_modules/oxfmt/bin/oxfmt`. A single `.oxfmtrc.json` at the workspace root applies everywhere oxfmt discovers it.
+**Workspace-aware resolution** — when run from inside a sub-workspace, GJSify walks up to the workspace root to find `node_modules/oxfmt/bin/oxfmt`. A single `.oxfmtrc.json` at the workspace root applies everywhere oxfmt discovers it.
 
 **Standalone projects** — same shape, single `.oxfmtrc.json` at the project root.
 
@@ -1211,7 +1211,7 @@ With no `--write`/`--check`, `gjsify format` reports drift via oxfmt's `--list-d
 `gjsify format --init` writes two config files tuned for GJS/GNOME projects:
 
 `.oxfmtrc.json` (formatter):
-- 4-space indent (spaces, not tabs), single quotes, semicolons-always, trailing commas `all`, arrow parens `always`, printWidth 120, bracket spacing on (matches the gjsify codebase + GNOME Shell style guide).
+- 4-space indent (spaces, not tabs), single quotes, semicolons-always, trailing commas `all`, arrow parens `always`, printWidth 120, bracket spacing on (matches the GJSify codebase + GNOME Shell style guide).
 - Excludes generated artifacts (`dist`, `lib`, `cli.gjs.mjs`, `test.{gjs,node}.mjs`), Flatpak build dirs, `refs/` submodules, prebuilds, compiled `.metainfo.xml`.
 
 `.oxlintrc.json` (linter):
@@ -1227,7 +1227,7 @@ With no `--write`/`--check`, `gjsify format` reports drift via oxfmt's `--list-d
 
 ## `gjsify lint`
 
-Run [oxlint](https://oxc.rs/docs/guide/usage/linter) diagnostics. Default reports findings (exit non-zero); `--fix` applies safe fixes in place. oxlint is spawned via its Node launcher (`node_modules/oxlint/bin/oxlint`) so its JS-plugin host — including gjsify's internal `gjsify/register-class-order` rule — is available.
+Run [oxlint](https://oxc.rs/docs/guide/usage/linter) diagnostics. Default reports findings (exit non-zero); `--fix` applies safe fixes in place. oxlint is spawned via its Node launcher (`node_modules/oxlint/bin/oxlint`) so its JS-plugin host — including GJSify's internal `gjsify/register-class-order` rule — is available.
 
 ```bash
 gjsify lint              # lint all
@@ -1246,7 +1246,7 @@ Use `gjsify fix` for the combined format + safe-lint-fix pass.
 
 ### Internal lint rule: `gjsify/register-class-order`
 
-gjsify ships an internal oxlint JS plugin (`@gjsify/oxlint-plugin-gjsify`, not published to npm) with one rule, wired into the workspace `.oxlintrc.json` via `jsPlugins`. It flags `static` GObject metadata fields (`GTypeName`, `Properties`, `InternalChildren`, `Signals`, `Template`, `CssName`, …) declared **after** a `static { GObject.registerClass(…) }` block — where `registerClass` runs before the field is assigned, so the metadata is silently ignored — and autofixes by hoisting those fields above the static block. (GNOME/gjs#704, gjsify/ts-for-gir#410.)
+GJSify ships an internal oxlint JS plugin (`@gjsify/oxlint-plugin-gjsify`, not published to npm) with one rule, wired into the workspace `.oxlintrc.json` via `jsPlugins`. It flags `static` GObject metadata fields (`GTypeName`, `Properties`, `InternalChildren`, `Signals`, `Template`, `CssName`, …) declared **after** a `static { GObject.registerClass(…) }` block — where `registerClass` runs before the field is assigned, so the metadata is silently ignored — and autofixes by hoisting those fields above the static block. (GNOME/gjs#704, gjsify/ts-for-gir#410.)
 
 ## `gjsify fix`
 

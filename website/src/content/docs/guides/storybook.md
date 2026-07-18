@@ -1,9 +1,9 @@
 ---
 title: Storybook
-description: Build a live component browser for your GTK/Adwaita widgets with gjsify — write a *.story.ts, run `gjsify storybook`, and get a sidebar of interactive, control-driven previews
+description: Build a live component browser for your GTK/Adwaita widgets with GJSify — write a *.story.ts, run `gjsify storybook`, and get a sidebar of interactive, control-driven previews
 ---
 
-gjsify ships a **storybook**: a live component browser for your widgets, the GTK/Adwaita analogue of [Storybook](https://storybook.js.org/). Write a `*.story.ts` per widget, run `gjsify storybook`, and get a categorized sidebar of interactive previews whose properties are driven by a live controls panel — no per-project storybook *app* to maintain.
+GJSify ships a **storybook**: a live component browser for your widgets, the GTK/Adwaita analogue of [Storybook](https://storybook.js.org/). Write a `*.story.ts` per widget, run `gjsify storybook`, and get a categorized sidebar of interactive previews whose properties are driven by a live controls panel — no per-project storybook *app* to maintain.
 
 It is the idiomatic way to **develop, document, and visually verify** custom widgets. Pair it with [devtools](./devtools/) to drive/screenshot the running storybook headlessly.
 

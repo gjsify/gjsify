@@ -1,6 +1,6 @@
 ---
 title: Development Setup
-description: Clone the gjsify monorepo and build it locally
+description: Clone the GJSify monorepo and build it locally
 ---
 
 This page is for **contributors** working on the GJSify monorepo itself. If you just want to use GJSify in your own project, head to [Getting Started](/gjsify/getting-started/) instead.
