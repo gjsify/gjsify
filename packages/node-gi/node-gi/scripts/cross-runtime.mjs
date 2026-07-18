@@ -41,6 +41,7 @@ const CONFORMANCE = [
   'async-error',
   'bytes',
   'cairo',
+  'cairo-canvas2d',
   'call-function',
   'callbacks',
   'closure-exception',

@@ -691,10 +691,21 @@ const layout = PangoCairo.create_layout(new cairo.Context(surface));
 //   area.set_draw_func((_area, ctx, w, h) => { ctx.setSourceRGB(1, 0, 0); … });
 ```
 
-Ported this slice: `cairo.Context` (drawing + transform ops, state getters,
-`$dispose`), `cairo.Surface` + `cairo.ImageSurface` (`getData`/`getWidth`/
-`getHeight`/`getStride`/`getFormat`/`flush`/`writeToPNG`/`createFromPNG`),
-`cairo.SolidPattern`, and the enums (`Format`, `Operator`, `Content`, …). The
-native binding paints **byte-for-byte identically to GJS** (verified pixel-for-pixel
-against `gjs -m`). Deferred: gradients, path/region objects, and the PDF/SVG/PS
-surfaces.
+Ported this slice: `cairo.Context` (drawing + transform ops incl.
+`identityMatrix` and the `userToDevice[Distance]` / `deviceToUser[Distance]`
+point transforms, state getters, `setDash`/`getDashCount` (+ a net-new
+`getDash`), `inFill`/`inStroke`, `newSubPath`, `copyPath`/`copyPathFlat`/
+`appendPath` (owned `cairo.Path` handles), `getSource` with concrete-subclass
+fan-out, `$dispose`), `cairo.Surface` + `cairo.ImageSurface` (`getData`/
+`getWidth`/`getHeight`/`getStride`/`getFormat`/`flush`/`writeToPNG`/
+`createFromPNG`), the patterns — `cairo.SolidPattern`,
+`cairo.LinearGradient`/`cairo.RadialGradient` (`addColorStopRGB[A]` via the
+shared `cairo.Gradient` base), `cairo.SurfacePattern`
+(`setExtend`/`getExtend`/`setFilter`/`getFilter`) — the opaque `cairo.Path`,
+and the enums (`Format`, `Operator`, `Content`, `Extend`, `Filter`, …). This is
+the full surface `@gjsify/canvas2d-core` draws through (headless Canvas 2D).
+The native binding paints **byte-for-byte identically to GJS** (verified
+pixel-for-pixel against `gjs -m`, incl. gradients / repeating surface patterns /
+dashed strokes / path round-trips — `test/cairo-canvas2d.test.mjs`). Deferred:
+region objects, the PDF/SVG/PS surfaces, and the text/font ops
+(`showText`/`selectFontFace` — canvas2d text rides PangoCairo instead).

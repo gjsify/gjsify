@@ -76,6 +76,7 @@
     "test:gimarshalling": "node scripts/gimarshalling.mjs",
     "test:deno": "node scripts/cross-runtime.mjs deno",
     "test:cairo": "NODE_GI_NATIVE=build node --test test/cairo.test.mjs",
+    "test:cairo-canvas2d": "NODE_GI_NATIVE=build node --test test/cairo-canvas2d.test.mjs",
     "test:gtk": "NODE_GI_NATIVE=build node --test test/gtk-smoke.test.mjs",
     "test:gtk-cairo": "NODE_GI_NATIVE=build node --test test/cairo-drawfunc.test.mjs",
     "test:adw": "NODE_GI_NATIVE=build node --test test/adw-smoke.test.mjs",
