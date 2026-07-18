@@ -471,9 +471,18 @@ Also present: `GObject.ParamFlags` / `SignalFlags` (full introspected bitfields)
 the fundamental `GObject.TYPE_*` GTypes, `GObject.AccumulatorType`, and
 `GObject.signal_connect` / `signal_connect_after` / `signal_emit_by_name`.
 
-**Kept-throw** (a clear, actionable error, not a crash): `bind_property_full` needs
-the JS transform-to/from closures marshalled as **GClosure IN-arguments**, which the
-engine cannot yet do — plain `bind_property` (no transforms) works. `ParamSpec.enum`
+`bind_property_full` / `BindingGroup.bind_full` work with **real JS transform
+functions** (the engine marshals them as C `GBindingTransformFunc` trampolines,
+the same architecture gjs uses via GjsPrivate — see `src/private.cc`): a
+transform-to converts the bound value, returning `[false, …]` leaves the target
+unchanged, a bidirectional transform-from converts back, and `null` transforms
+give a plain copy binding. Verified byte-identical to gjs by the
+`gclosure-in-args` conformance program. The related raw primitives
+`GObject.signal_connect_closure` / `GObject.source_set_closure` accept a plain
+JS function wherever a `GObject.Closure` IN-argument is expected (the engine
+marshals it as a real GClosure).
+
+**Kept-throw** (a clear, actionable error, not a crash): `ParamSpec.enum`
 / `flags` / `char` / `uchar` / `long` / `ulong` / `param` are not yet buildable (the
 native param-spec builder covers int/uint/int64/uint64/double/float/string/boolean/
 object/boxed).
@@ -484,21 +493,36 @@ object/boxed).
 string / `Uint8Array` / `GLib.Variant` fields into an `a{sv}` and hands it to
 `g_log_variant`) and the one-shot source helpers `idle_add_once` /
 `timeout_add_once` / `timeout_add_seconds_once` (the callback runs once, then the
-source is auto-removed). **Kept-throw:** `GLib.log_set_writer_func(fn)` — a JS
-`GLogWriterFunc` is a **GClosure/callback IN-argument** the engine cannot yet
-marshal (the same gap as `bind_property_full` + DBus object export); use
-`GLib.log_structured` or `console` for structured logging.
+source is auto-removed).
 
-#### `Gio.DBus` (client proxy + name owning)
+`GLib.log_set_writer_func(fn)` installs a **JS `GLogWriterFunc`** as the
+process structured-log writer, with gjs semantics (node-gi ships the same
+thread-guarded C wrapper gjs routes through GjsPrivate — `src/private.cc`): the
+writer receives `(logLevel, fields)` where `fields` is a plain object whose
+values are `Uint8Array`s of the field bytes (`null` for empty fields) —
+byte-for-byte the shape gjs's `{...stringFields.recursiveUnpack()}` produces —
+and its returned `GLib.LogWriterOutput` drives the handled/unhandled fallback.
+`GLib.log_set_writer_default()` detaches the JS writer (later logs fall back to
+`g_log_writer_default`). Verified byte-identical to gjs by the `log-writer`
+conformance program. Two contracts, identical under gjs: the underlying
+`g_log_set_writer_func` may only ever be called ONCE per process — a second
+`GLib.log_set_writer_func(fn)` call aborts inside GLib itself (install one
+writer per process; `log_set_writer_default()` detaches the JS side but cannot
+re-arm a new install) — and an off-thread log falls back to the default writer
+in C (JS is never entered from a foreign thread).
 
-`requireGi('Gio')` carries the GJS DBus surface. The **client** half is complete:
-`Gio.DBusProxy.makeProxyWrapper(interfaceXml)` parses the interface XML and returns
-a proxy constructor whose instances expose each method as `NameSync` (sync),
+#### `Gio.DBus` (client proxy, name owning + object export)
+
+`requireGi('Gio')` carries the GJS DBus surface — both halves. The **client**
+half: `Gio.DBusProxy.makeProxyWrapper(interfaceXml)` parses the interface XML and
+returns a proxy constructor whose instances expose each method as `NameSync` (sync),
 `NameRemote` (raw async callback) and `NameAsync` (Promise), each property as a
 getter/setter, and each signal via `connectSignal` / `disconnectSignal` (the same
 pure-JS `_signals` mixin GJS uses). `Gio.DBus.session` / `Gio.DBus.system` are the
 bus getters; `Gio.DBus.own_name` / `unown_name` / `watch_name` / `unwatch_name`
-own and watch bus names.
+own and watch bus names. The **export** half
+(`Gio.DBusExportedObject.wrapJSObject` — exporting a JS object AS a DBus
+service) is described below the example.
 
 ```js
 const Gio = requireGi('Gio', '2.0');
@@ -521,17 +545,50 @@ const id = Gio.DBus.own_name(Gio.BusType.SESSION, 'org.example.App',
 ```
 
 A blocking `GLib.MainLoop.run()` drives the async replies / signals / name
-callbacks (they fire from the loop, as under GJS). Two DBus divergences to know:
-(1) a `NameAsync` **Promise** `.then` does not drain *while* a node-gi loop blocks
+callbacks (they fire from the loop, as under GJS). One DBus divergence to know:
+a `NameAsync` **Promise** `.then` does not drain *while* a node-gi loop blocks
 (node-gtk #442/#121) — the reply still fires and settles the Promise, so it
 resolves once `run()` returns; drive an async method inside the loop through the
-raw `NameRemote` callback. (2) **Object export** (`Gio.DBusExportedObject.wrapJSObject`
-— exporting a JS object AS a DBus service) is **not yet supported**: GJS builds it
-on `GjsPrivate.DBusImplementation` (a GJS-internal C type, absent on a plain Node/GI
-host), the introspectable `register_object_with_closures` needs GClosure
-IN-arguments the engine cannot yet marshal, and `register_object` takes a
-non-introspectable vtable — so `wrapJSObject` throws a clear, actionable error
-rather than crashing.
+raw `NameRemote` callback.
+
+**Object export** (`Gio.DBusExportedObject.wrapJSObject` — exporting a JS
+object AS a DBus service) works with GJS semantics. GJS builds it on
+`GjsPrivate.DBusImplementation` (a GJS-internal C type, absent on a plain
+Node/GI host); node-gi instead drives the **introspectable**
+`g_dbus_connection_register_object_with_closures2` (GLib ≥ 2.84) — the
+method-call / get-property / set-property vtable slots are plain JS functions
+the engine marshals as real **GClosure IN-arguments**:
+
+```js
+const service = {
+  Level: 7,                                  // property (read via the interface XML signature)
+  Echo(s) { return `echo:${s}`; },           // method (an Async variant + Promise return also work)
+  Boom() { throw new Error('kaboom'); },     // a throw becomes a DBus error (org.gnome.gjs.JSError.*)
+};
+const impl = Gio.DBusExportedObject.wrapJSObject(interfaceXml, service);
+impl.export(Gio.DBus.session, '/org/example/App');
+impl.emit_signal('Pinged', new GLib.Variant('(s)', ['ping!']));
+impl.emit_property_changed('Level', new GLib.Variant('i', 8)); // updates proxy caches
+impl.unexport();                              // releases the registration + its closures
+```
+
+The impl surface matches GJS (`export` / `unexport` / `unexport_from_connection`
+/ `emit_signal` / `emit_property_changed` / `flush` / `get_object_path`, plus
+node-gi's usual camelCase aliases). The full round-trip — exported method,
+property get/set through `org.freedesktop.DBus.Properties`, a throwing method
+returning a DBus error, `emit_signal`, `emit_property_changed` updating a
+proxy's cached property, and unexport — runs byte-identical to gjs
+(`dbus/export-scenario.mjs`, cross-checked against `gjs -m` under
+`dbus-run-session` by `npm run test:dbus`). Lifetime: the registration ref+sinks
+its closures, so the service object lives exactly as long as the registration
+(surviving GC with no JS references) and becomes collectable after
+`unexport()` — guarded by the `--expose-gc` leg of the dbus suite. A method
+handler receives the GJS-appended trailing `Gio.UnixFDList` argument (`null`
+when the call carries no fds — verified against gjs; an actual fd-carrying
+call arrives as a wrapped `UnixFDList` but deeper fd extraction is untested).
+As under GJS, a **sync** self-call from the exporting process deadlocks the
+shared main loop that must also service the incoming request — use the async
+`NameRemote` forms.
 
 ### GJS ambient globals (`@gjsify/node-gi/globals`)
 
