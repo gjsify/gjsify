@@ -154,6 +154,25 @@ adw-tab-view {
     }
   }
 
+  // Adw.TabBar `expand-tabs` — tabs stretch to fill the bar evenly.
+  &[expand-tabs] {
+    .adw-tab-box {
+      flex: 1 1 auto;
+    }
+
+    .adw-tab {
+      flex: 1 1 0;
+      max-width: none;
+      justify-content: center;
+    }
+  }
+
+  // Web-specific escape hatch: static tab sets (e.g. documentation command
+  // tabs) render no close affordance.
+  &[no-close] .adw-tab-close {
+    display: none;
+  }
+
   // Single-tab bars dim the close affordance (libadwaita keeps a lone tab
   // non-interactive-looking).
   .adw-tab-bar.single-tab .adw-tab {
