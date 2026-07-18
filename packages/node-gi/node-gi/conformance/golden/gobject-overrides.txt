@@ -1,0 +1,19 @@
+after1: 2
+blocked: 2
+after2: 2
+unblocked: 2
+after3: 4
+disconnected: 2
+after4: 4
+blockmethod: 0
+unblockmethod: 1
+value int: 42
+value string: hi
+value bool: true
+value double: 3.5
+value copy: 42
+value instanceof: true
+type_compatible: true
+object.new name: made
+object.new get_name(): made
+accumulator NONE/FIRST_WINS/TRUE_HANDLED: 0 1 2

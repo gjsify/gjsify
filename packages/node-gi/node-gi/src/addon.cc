@@ -86,6 +86,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("getGType", Napi::Function::New(env, GetGType));
   exports.Set("isInstanceOf", Napi::Function::New(env, IsInstanceOf));
   exports.Set("isGObjectHandle", Napi::Function::New(env, IsGObjectHandle));
+  exports.Set("newGValue", Napi::Function::New(env, NewGValue));
   // Test-only (cross-thread GC stress) — see StressRefUnrefOffThread.
   exports.Set("__stressRefUnrefOffThread", Napi::Function::New(env, StressRefUnrefOffThread));
   exports.Set("__stressRefUnrefRunning", Napi::Function::New(env, StressRefUnrefRunning));

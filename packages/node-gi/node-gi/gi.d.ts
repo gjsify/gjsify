@@ -107,6 +107,27 @@ export interface GObjectNamespace extends GiNamespace {
   };
   /** The FULL introspected `GSignalFlags` bitfield (RUN_FIRST/RUN_LAST/RUN_CLEANUP/NO_RECURSE/DETAILED/ACTION/NO_HOOKS/MUST_COLLECT/DEPRECATED/…). */
   SignalFlags: { RUN_FIRST: number; RUN_LAST: number; RUN_CLEANUP: number; [member: string]: number };
+  /**
+   * `GObject.Value` — `new GObject.Value()` / `new GObject.Value(gtype, value)`
+   * build a GValue; the boxed instance exposes `.init(gtype)`/`.set_*`/`.get_*`/
+   * `.copy`/`.unset`; static `type_compatible`/`type_transformable` route to the
+   * engine. `value instanceof GObject.Value` recognises a wrapped GValue.
+   */
+  Value: { new (): unknown; new (gtype: unknown, value: unknown): unknown; [staticMethod: string]: unknown };
+  /** gjs's fake enum for signal accumulators. */
+  AccumulatorType: { NONE: number; FIRST_WINS: number; TRUE_HANDLED: number };
+  /** Block every handler on `instance` connected with `fn`; returns the count matched. */
+  signal_handlers_block_by_func(instance: unknown, fn: Function): number;
+  /** Unblock every handler on `instance` connected with `fn`; returns the count matched. */
+  signal_handlers_unblock_by_func(instance: unknown, fn: Function): number;
+  /** Disconnect every handler on `instance` connected with `fn`; returns the count matched. */
+  signal_handlers_disconnect_by_func(instance: unknown, fn: Function): number;
+  /** Connect `handler` to `object`'s `name` signal via the instance's own `.connect`. */
+  signal_connect(object: unknown, name: string, handler: Function): number;
+  /** Connect `handler` in the after-phase via the instance's own `.connect_after`. */
+  signal_connect_after(object: unknown, name: string, handler: Function): number;
+  /** Emit `name` on `object` via the instance's own `.emit`. */
+  signal_emit_by_name(object: unknown, ...nameAndArgs: unknown[]): unknown;
 }
 
 /**
@@ -149,6 +170,17 @@ export interface VariantConstructor {
  */
 export interface GLibNamespace extends GiNamespace {
   Variant: VariantConstructor;
+  /**
+   * Pack `fields` (string / Uint8Array / {@link Variant} values) into an `a{sv}` and
+   * hand it to `g_log_variant` — gjs's `GLib.log_structured`.
+   */
+  log_structured(logDomain: string, logLevel: number, fields: Record<string, unknown>): void;
+  /** One-shot `idle_add` — the callback runs once, then the source is removed. */
+  idle_add_once(priority: number, callback: () => void): number;
+  /** One-shot `timeout_add` — the callback runs once, then the source is removed. */
+  timeout_add_once(priority: number, interval: number, callback: () => void): number;
+  /** One-shot `timeout_add_seconds` — the callback runs once, then the source is removed. */
+  timeout_add_seconds_once(priority: number, interval: number, callback: () => void): number;
 }
 
 /**
