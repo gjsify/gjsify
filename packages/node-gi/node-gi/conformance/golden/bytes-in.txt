@@ -1,0 +1,5 @@
+sha256: f3468f9c4a5d7162fa60f3cf44a6de7e3d288642b4fdd91e324dbd6641bd01c5
+sha256 tail: cfe3034aceead4ec74b47ef0990eca8cbe427ffff5cad41a9769c30c081767e2
+sha256 boxed equal: true
+pixbuf: 2 1 4
+pixels: 10,20,30,255,200,100,50,128

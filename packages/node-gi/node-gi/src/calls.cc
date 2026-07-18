@@ -521,6 +521,11 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   // dropped after the invoke, transfer-full refs belong to the callee (dropped
   // only when the callee never ran).
   CreatedClosures createdClosures;
+  // JS typed arrays marshalled as fresh GBytes IN-args this call (see common.h).
+  // Same release contract as the closures: transfer-none refs are dropped after
+  // the invoke (the callee ref'd the GBytes if it kept it), transfer-full refs
+  // belong to the callee (dropped only when the callee never ran).
+  CreatedBytes createdBytes;
   bool ok = true;
   size_t jsCursor = 0;
   for (unsigned int i = 0; i < n_args && ok; i++) {
@@ -554,8 +559,11 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
         // Caller-allocates: the callee fills storage WE provide (a single
         // pointer, not a **). gi_callable_info_invoke passes out_args[k].v_pointer
         // straight through as the arg, so the blob pointer goes there directly.
-        // Supported: a fixed-size C array (size = fixed_size × element_size) and a
-        // boxed struct/union (size = gi_struct/union_info_get_size). Reference:
+        // Supported: a fixed-size C array (size = fixed_size × element_size), a
+        // boxed struct/union (size = gi_struct/union_info_get_size, incl. the
+        // GValue auto-unbox), and a PLAIN non-boxed struct/union (same size
+        // source; the filled blob is handed to JS as a g_free-owning
+        // field-readable handle — PangoLayout.get_pixel_extents). Reference:
         // refs/gjs/gi/arg-cache.cpp build_arg CALLER_ALLOCATES branch.
         GITypeTag tg = gi_type_info_get_tag(ti);
         size_t size = 0;
@@ -583,11 +591,18 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
             GType gt = gi_registered_type_info_get_g_type(
                 reinterpret_cast<GIRegisteredTypeInfo*>(si));
             if (gt != G_TYPE_INVALID && G_TYPE_IS_BOXED(gt)) boxedGType = gt;
+            // A FOREIGN struct's layout is module-owned (cairo) — GI cannot fill
+            // it here; defer cleanly (its introspected size is meaningless).
+            if (GI_IS_STRUCT_INFO(si) &&
+                gi_struct_info_is_foreign(reinterpret_cast<GIStructInfo*>(si)))
+              size = 0;
             gi_base_info_unref(si);
           }
-          // A non-boxed struct OUT can be caller-allocated + filled, but wrapping
-          // it needs field access (a later PR) to be useful — defer those.
-          if (boxedGType == 0) size = 0;
+          // A NON-boxed plain struct (boxedGType stays 0, e.g. PangoRectangle in
+          // PangoLayout.get_pixel_extents) keeps its size: the blob is handed to
+          // JS as a g_free-owning handle with field access on read-back below —
+          // gjs's CallerAllocatesOut (g_malloc0 → fill → wrap → g_free). An
+          // opaque struct introspects size 0 and defers via the throw below.
         }
         if (size == 0) {
           Napi::TypeError::New(
@@ -766,7 +781,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
       } else {
         GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
         ok = JsToGIArgument(env, v, ti, &in_args[inPos[i]], &held[i], tr, &ownedInStrings,
-                            &createdClosures);
+                            &createdClosures, &createdBytes);
       }
     }
 
@@ -781,6 +796,9 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
     // closure (refcount 1 → 0 → finalize drops the JS-function ref).
     for (GClosure* c : createdClosures.transferNone) g_closure_unref(c);
     for (GClosure* c : createdClosures.transferFull) g_closure_unref(c);
+    // Likewise every fresh GBytes built from a JS typed array — never adopted.
+    for (GBytes* b : createdBytes.transferNone) g_bytes_unref(b);
+    for (GBytes* b : createdBytes.transferFull) g_bytes_unref(b);
     // Likewise the transfer-full-instance ref: the callee never consumed it.
     if (instanceRefTaken) g_object_unref(static_cast<GObject*>(instance));
     for (gpointer s : ownedInStrings) g_free(s);  // never reached the callee (#658)
@@ -815,6 +833,11 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   // ref). Transfer-full closures were adopted by the callee — no release (gjs
   // GClosureIn::release skips).
   for (GClosure* c : createdClosures.transferNone) g_closure_unref(c);
+  // Transfer-none GBytes IN-args built from JS typed arrays: drop the fresh ref
+  // taken at marshal time (gjs GBytesInTransferNone::release, success AND error
+  // paths). A callee that kept the bytes (GdkPixbuf.Pixbuf.new_from_bytes) holds
+  // its own ref. Transfer-full GBytes were adopted by the callee — no release.
+  for (GBytes* b : createdBytes.transferNone) g_bytes_unref(b);
   if (!success) {
     for (const InContainer& c : inContainers) FreeInContainer(c);
     // A failed invoke did not adopt the transfer-full IN/INOUT strings we g_strdup'd
@@ -883,7 +906,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
         results.push_back(GValueToJs(env, static_cast<GValue*>(blob)));
         g_value_unset(static_cast<GValue*>(blob));
         g_free(blob);
-      } else {
+      } else if (callerAllocGType[i] != 0) {
         // A boxed struct/union: hand the JS side an independent boxed COPY it owns
         // (finalizer g_boxed_free's it), then free the caller-allocated blob (also
         // via g_boxed_free — matches gjs BoxedCallerAllocatesOut::release).
@@ -891,6 +914,22 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
         gpointer owned = g_boxed_copy(gt, blob);
         results.push_back(MakeBoxedHandle(env, owned, gt, true));
         g_boxed_free(gt, blob);
+      } else {
+        // A PLAIN (non-boxed) struct/union filled in place (e.g. the
+        // PangoRectangles of PangoLayout.get_pixel_extents): no copy function
+        // exists, so hand the g_malloc0'd blob ITSELF to JS — the handle owns the
+        // block (g_free on finalize; gjs equivalently memdups into its Boxed and
+        // g_free's the blob, CallerAllocatesOut::release) and carries the static
+        // struct info so fields read back (rect.x / rect.width via getBoxedField).
+        // A registered-but-non-boxed GType (if any) is kept for method resolution.
+        GIBaseInfo* si = gi_type_info_get_interface(ti);
+        GType gt = si != nullptr ? gi_registered_type_info_get_g_type(
+                                       reinterpret_cast<GIRegisteredTypeInfo*>(si))
+                                 : G_TYPE_INVALID;
+        GType handleGType = (gt != G_TYPE_INVALID && gt != G_TYPE_NONE) ? gt : G_TYPE_INVALID;
+        results.push_back(
+            MakeBoxedHandle(env, blob, handleGType, false, si, /* rawOwned = */ true));
+        if (si != nullptr) gi_base_info_unref(si);
       }
       callerAllocBlob[i] = nullptr;
       gi_base_info_unref(ti);

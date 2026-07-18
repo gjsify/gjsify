@@ -42,7 +42,11 @@ jobs:
           dnf install -y --setopt=install_weak_deps=False \
             git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
             glib2-devel gobject-introspection-devel gobject-introspection gjs cairo-devel \
-            dbus-daemon
+            dbus-daemon \
+            pango gdk-pixbuf2 dejavu-sans-fonts
+          # pango (Pango/PangoCairo typelibs) + gdk-pixbuf2 (GdkPixbuf typelib) back the
+          # caller-alloc-struct-out + bytes-in conformance programs; dejavu supplies a
+          # real font so Pango layout relations (width > 0) hold deterministically.
           gjs --version
           echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
           echo "dbus-run-session: $(command -v dbus-run-session)"

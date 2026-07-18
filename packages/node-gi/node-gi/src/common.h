@@ -90,6 +90,11 @@ struct BoxedHandle {
   // info from the wrap site is stored. A registered type may leave this nullptr
   // and be re-resolved via find_by_gtype(gtype).
   GIBaseInfo* info;
+  // g_free(ptr) on finalize. For a NON-boxed plain C struct whose storage the
+  // engine g_malloc0'd itself (a caller-allocates OUT param, e.g. a filled
+  // PangoRectangle): there is no boxed free-func, the handle simply owns the
+  // malloc'd block. Mutually exclusive with `owns` (boxed ownership).
+  bool rawOwned = false;
 };
 
 extern const napi_type_tag kBoxedHandleTag;
@@ -97,8 +102,10 @@ extern const napi_type_tag kGObjectHandleTag;
 
 // `info` (optional): the struct/union GIBaseInfo backing the handle. When passed,
 // MakeBoxedHandle takes its OWN ref (the caller keeps its own), unref'd on finalize.
+// `rawOwned` (optional): the handle owns a plain g_malloc'd block — g_free(ptr) on
+// finalize (the non-boxed caller-allocates OUT case; see BoxedHandle::rawOwned).
 Napi::Value MakeBoxedHandle(Napi::Env env, gpointer ptr, GType gtype, bool owns,
-                            GIBaseInfo* info = nullptr);
+                            GIBaseInfo* info = nullptr, bool rawOwned = false);
 Napi::Value WrapVariant(Napi::Env env, GVariant* var, GITransfer transfer);
 BoxedHandle* TryGetBoxedHandle(Napi::Value v);
 bool TryGetBoxedPtr(Napi::Value v, gpointer* out);
@@ -247,6 +254,23 @@ struct CreatedClosures {
   std::vector<GClosure*> transferFull;  // callee adopts; unref only when the callee never ran
 };
 
+// ---- JS bytes -> GBytes IN-args ----------------------------------------------
+//
+// A JS Uint8Array (or any TypedArray/DataView/ArrayBuffer) passed for a
+// `GLib.Bytes`-typed IN parameter (e.g. GdkPixbuf.Pixbuf.new_from_bytes,
+// g_compute_checksum_for_bytes) is COPIED into a fresh GBytes — exactly what GJS
+// does (refs/gjs/gi/arg-cache.cpp GBytesIn::in → gjs_byte_array_get_bytes →
+// g_bytes_new). Lifetime follows gjs: a transfer-none arg drops the fresh ref
+// after the invoke (GBytesInTransferNone::release → g_boxed_free; a callee that
+// kept the bytes holds its own ref), a transfer-full arg leaves the ref with the
+// callee (GBytesIn::release skips via the ignore_release mark). GBytes created
+// during an invoke are recorded here so calls.cc can release them on the right
+// path (mirrors CreatedClosures).
+struct CreatedBytes {
+  std::vector<GBytes*> transferNone;  // unref after the invoke (callee borrowed/ref'd)
+  std::vector<GBytes*> transferFull;  // callee adopts; unref only when the callee never ran
+};
+
 // Build the (floating) marshaled GClosure for a JS function (signals.cc — shares
 // the battle-tested JsClosure marshal/finalize machinery with `.connect()`).
 GClosure* NodeGiMakeGenericJsClosure(Napi::Env env, Napi::Value fn);
@@ -258,11 +282,15 @@ GClosure* NodeGiMakeGenericJsClosure(Napi::Env env, Napi::Value fn);
 // `closures` (optional): enables the JS-function→GClosure IN-arg marshalling above;
 // nullptr (the default) keeps the previous behaviour (function → TypeError) on
 // paths that cannot release a created closure.
+// `bytes` (optional): enables the JS-bytes→GBytes IN-arg marshalling above;
+// nullptr (the default) keeps the previous behaviour (typed array → TypeError) on
+// paths that cannot release a created GBytes.
 bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* out,
                     std::string* heldString,
                     GITransfer transfer = GI_TRANSFER_NOTHING,
                     std::vector<gpointer>* ownedStrings = nullptr,
-                    CreatedClosures* closures = nullptr);
+                    CreatedClosures* closures = nullptr,
+                    CreatedBytes* bytes = nullptr);
 
 // ---- IN container building -----------------------------------------
 //

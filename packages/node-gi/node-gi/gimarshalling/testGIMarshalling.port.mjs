@@ -871,12 +871,9 @@ describe('GByteArray', function () {
 });
 
 // GBytes marshalling (phase 2.7b): `GLib.Bytes.new(array | string)` builds a GBytes,
-// `.toArray()` reads it back as a Uint8Array, and a GBytes handle round-trips IN.
-// The IMPLICIT Uint8Array→GBytes conversion at an IN arg stays skipped (a GBytes
-// built from a JS typed array + freed after the call needs IN-arg boxed cleanup).
-const SKIP_BYTES_IMPLICIT_IN =
-    'implicit Uint8Array→GBytes at an IN arg — building a temporary GBytes from a JS typed array and ' +
-    'freeing it after the call needs IN-arg boxed cleanup (a later PR); explicit GLib.Bytes.new + .toArray are live';
+// `.toArray()` reads it back as a Uint8Array, a GBytes handle round-trips IN, and a
+// Uint8Array converts IMPLICITLY at a GBytes IN arg (a fresh g_bytes_new copy released
+// per transfer after the invoke — the gjs GBytesIn::in path; see marshal.cc).
 describe('GBytes', function () {
     const refByteArray = Uint8Array.from([0, 49, 0xFF, 51]);
 
@@ -895,7 +892,7 @@ describe('GBytes', function () {
         expect(bytes.toArray()).toEqual(refByteArray);
     });
 
-    itSkip(SKIP_BYTES_IMPLICIT_IN, 'can be implicitly converted from a Uint8Array', function () {
+    it('can be implicitly converted from a Uint8Array', function () {
         expect(() => GIMarshallingTests.gbytes_none_in(refByteArray)).not.toThrow();
     });
 

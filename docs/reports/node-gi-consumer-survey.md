@@ -49,10 +49,10 @@ Legend: ✅ pass · 🟡 partial (some tests fail) · ❌ fail (exit non-zero / 
 | `ws` | ok | ✅ 19/19 | ✅ 19/19 | ✅ 19/19 |  |
 | `webaudio` | ok | ▶ no-summary | ▶ no-summary | ▶ no-summary | GStreamer + bespoke entry |
 | `webrtc` | ok | ❌ fail | ❌ fail | ❌ fail | Vala typelib not on GI path |
-| `canvas2d-core` | ok | ❌ fail | ❌ fail | ❌ fail | bare `cairo` builtin unaliased |
+| `canvas2d-core` | ok | ✅ 578/578 | ✅ 578/578 | ✅ 578/578 | (was: bare `cairo` → P2; then 529/543 → caller-alloc struct OUT + Uint8Array→GBytes, both RESOLVED) |
 | `dom-elements` | ok | ✅ 441/441 | ✅ 441/441 | ✅ 441/441 |  |
 | `adwaita-app` | ok | ✅ 28/28 | ✅ 28/28 | ✅ 28/28 |  |
-| `canvas2d` | ok | ❌ fail | ❌ fail | ❌ fail | bare `cairo` builtin unaliased |
+| `canvas2d` | ok | ✅ 191/191 | — | — | (was: bare `cairo` → P2 + the P2½ engine gaps; re-measured on node) |
 | `devtools` | ok | ✅ 20/20 | ✅ 20/20 | ✅ 20/20 |  |
 | `devtools-browser` | ok | ✅ 40/40 | ✅ 40/40 | ✅ 40/40 |  |
 | `devtools-mcp` | ❌ **build** | — | — | — | `--app node` module-not-found ×6 |
@@ -69,9 +69,9 @@ Legend: ✅ pass · 🟡 partial (some tests fail) · ❌ fail (exit non-zero / 
 
 *(`worker_threads`/`string_decoder` show `0/…` because `@gjsify/unit` counted more failing assertions than `it()`s — leaked/stray — so `passed` is clamped to 0; both are genuine fails, see below.)*
 
-### Genuine passes — 14 packages run unchanged on node-gi
+### Genuine passes — 16 packages run unchanged on node-gi
 
-**`gi://` reverse-bridge consumers (real GNOME libs on Node/Bun/Deno):** `sqlite` (Gda), `http2` (Soup 3.0 + ALPN), `tls` (Gio/glib-networking), `ws` (Soup), `dom-elements` (GdkPixbuf), `node-globals` (GLib), `tty` (node/bun), and the pure-logic layers of `devtools` / `devtools-browser` / `storybook` / `adwaita-app`.
+**`gi://` reverse-bridge consumers (real GNOME libs on Node/Bun/Deno):** `sqlite` (Gda), `http2` (Soup 3.0 + ALPN), `tls` (Gio/glib-networking), `ws` (Soup), `dom-elements` (GdkPixbuf), `node-globals` (GLib), `tty` (node/bun), `canvas2d-core` (cairo + PangoCairo + GdkPixbuf — headless Canvas 2D incl. text metrics + putImageData, 578/578 ×3 runtimes), `canvas2d` (the GTK-bridge package, 191/191 on node), and the pure-logic layers of `devtools` / `devtools-browser` / `storybook` / `adwaita-app`.
 
 > Note on `devtools`/`storybook`/`adwaita-app`: they build against `gi://Gtk`/`Adw` and pass **headless** because their unit specs exercise pure logic (`LoadToken`, the story registry, nav-model, mock widget-trees), not live widgets. Live-GTK-on-Node is separately proven by the existing `gtk-smoke` job. `event-bridge`'s `0/0` is **not** a real pass — its `test.mts` has no runnable specs on this path (they need live GTK controllers).
 
@@ -99,8 +99,11 @@ Conformance program `async-gio-await` (top-level awaits on a GLib timeout, an id
 ### P2 — Bare GJS built-ins (`cairo`, `system`, `gettext`) not externalised for `--app node` — RESOLVED
 **Was blocking:** `canvas2d-core`, `canvas2d`. **Signature:** `ERR_MODULE_NOT_FOUND: Cannot find package 'cairo'`. node-gi already **ships** `@gjsify/node-gi/cairo`. The real gap was NOT the alias map (`ALIASES_GJS_FOR_NODE` was already filled) but `app/node.ts`'s `NODE_GI_BARE_MODULE_SPECIFIERS` `exactExternal` array, which listed only `system`/`gettext` — under `@gjsify/rolldown-native` (the GJS bundler) the resolveId `{external:true}` flag is dropped at the JSON options boundary, so ONLY the string array keeps a target external; cairo missing there left the bare `cairo` unresolved. **Fixed** by deriving the array from `ALIASES_GJS_FOR_NODE`'s values (`NODE_GI_BARE_MODULE_SPECIFIERS = Object.values(...)`) so it can't drift again — cairo/system/gettext all externalise + resolve on the GJS bundler now. unit `packages/infra/cli/src/node-gi-externals.spec.ts`; e2e `tests/e2e/node-gi-build`. (npm rolldown honoured the flag, so the gap was invisible until a Cairo consumer was built on the GJS bundler.)
 
+### P2½ — caller-allocates OUT structs + Uint8Array→GBytes IN — RESOLVED
+**Was blocking:** `canvas2d-core` at 529/543 after P2 (the 14 residual failures were node-gi ENGINE marshalling gaps, not cairo): 11× `PangoLayout.get_pixel_extents: caller-allocates OUT parameter type is not yet supported` (text metrics / `measureText`) + 3× `Unsupported interface IN argument` (a `Uint8Array` passed to `GdkPixbuf.Pixbuf.new_from_bytes`'s `GLib.Bytes` param in `putImageData`). **Fixed at the engine:** (a) caller-allocates OUT now covers PLAIN non-boxed structs — the engine g_malloc0's the struct, the callee fills it in place, JS gets a field-readable handle that owns the storage (`BoxedHandle.rawOwned` → g_free on GC), gjs's `CallerAllocatesOut`; (b) a JS `Uint8Array`/`Buffer`/`DataView`/`ArrayBuffer` at a `GLib.Bytes` IN-arg is copied into a fresh GBytes and released per transfer after the invoke, gjs's `GBytesIn::in` (the byte slice is read via `napi_get_typedarray_info`'s data pointer — Bun misreports the byte offset relative to its arraybuffer pointer for subarray views). **Result: `canvas2d-core` 578/578 on node, bun AND deno** (the suite even completes 35 more tests than the 543 it could register before — the aborting text suites now run to the end). Conformance programs `caller-alloc-struct-out` + `bytes-in` are byte-identical to gjs on all four runtimes; the gimarshalling `gbytes_none_in(Uint8Array)` skip is live.
+
 ### P3 — GLib/GObject marshalling-helper gaps
-**Blocks:** `child_process` (`ByteArray.fromGBytes` undefined ⇒ can't read subprocess stdout), `os` (a GLib call returns `undefined` ⇒ `.toString()` throws), `module` (`GLib.filename_from_uri` undefined + the GJS CJS-require internals `imports.searchPath`/`globalThis.exports` are unseeded). **Fix:** seed the missing `imports.byteArray.*` + marshal the specific GLib functions in node-gi's globals shim.
+**Blocks:** `child_process` (`ByteArray.fromGBytes` undefined ⇒ can't read subprocess stdout), `os` (a GLib call returns `undefined` ⇒ `.toString()` throws; re-measured unchanged at 11/41 after P2½ — this family is untouched by it), `module` (`GLib.filename_from_uri` undefined + the GJS CJS-require internals `imports.searchPath`/`globalThis.exports` are unseeded). **Fix:** seed the missing `imports.byteArray.*` + marshal the specific GLib functions in node-gi's globals shim.
 
 ### P4 — `normalizeEncoding`/`checkEncoding` unresolved when a polyfill is force-aliased onto Node
 **Blocks:** `crypto` (the encoding path of hash/hmac — 44 of 570), `string_decoder` (all). The polyfill imports a Node-`internal/util`-shaped helper that native `node:buffer` doesn't export on the Node target. Partly an artifact of `--alias node:<self>=@gjsify/<self>` forcing the polyfill onto Node; worth confirming whether it also bites the real `--app gjs` target (it should not — this is Node-target-specific).
@@ -130,6 +133,7 @@ Enumerated, prioritized by the survey above:
 
 1. ~~**P1 fix (node-gi auto main-context co-pump under Node)** — unblocks `fs`/`net`/`dns`/`dgram`/`stream`. Highest leverage.~~ ✓ DONE (uv-driven auto-pump; see the P1 section above for the A/B numbers).
 2. **P2 (bare `cairo`/`system`/`gettext` externalisation) — DONE**: `app/node.ts` derives the `exactExternal` set from `ALIASES_GJS_FOR_NODE`'s values, so canvas2d-core/canvas2d resolve `@gjsify/node-gi/cairo` on the GJS bundler now.
+2½. **P2½ (caller-allocates OUT structs + Uint8Array→GBytes IN) — DONE**: `canvas2d-core` 529/543 → **578/578 on node/bun/deno** (see the P2½ section above).
 3. **P3 marshalling-helper seeding** — unblocks `child_process`/`os`/`module`.
 4. **P5 (harness prepends each package's `prebuilds/` to `GI_TYPELIB_PATH`) — DONE**: `http`/`webrtc` and other Vala-bridge consumers now load their typelib on node-gi (residual failures are downstream marshalling gaps, not typelib-not-found).
 5. **Full rollout:** wire committed `src/test.node-gi.mts` + `test:gjs-on-node` legs for the packages that already pass (beyond sqlite/http2/zlib: `tls`, `ws`, `dom-elements`, `node-globals`, `devtools`, `devtools-browser`, `storybook`, `adwaita-app`), and add them to the CI proof set as each is fixed/verified.
