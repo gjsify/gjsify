@@ -408,3 +408,88 @@ jobs:
         run: |
           export PATH="$PWD/../../../node_modules/.bin:$PATH"
           gjsify run test:gjs-on-node
+
+  # aarch64 proof: build the Node-API addon + run the core suite, the golden-diff
+  # conformance (gjs/node/bun/deno byte-identical) and the tier-B typelib oracle on
+  # a NATIVE arm64 runner (ubuntu-24.04-arm — no qemu). node-gi has hand-written
+  # C++ marshalling (ffi arg/return slots, pointer-width + endianness assumptions,
+  # the toggle-ref GC dance) that only x86_64 has exercised so far; this catches any
+  # arch-specific regression and produces the arm64 prebuild the published tarball
+  # ships for Deno (which runs no postinstall build). Kept lean vs the x86_64
+  # build-test job (no GC-stress/quad/DBus legs) so the extra arm minutes stay small.
+  arm64:
+    name: aarch64 build + conformance (Fedora 44)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    container:
+      image: fedora:44
+    steps:
+      - name: Install toolchain + GObject-Introspection dev headers
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
+            glib2-devel gobject-introspection-devel gobject-introspection gjs cairo-devel \
+            meson ninja-build
+          gjs --version
+          echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
+          echo "arch: $(uname -m)"
+
+      - name: Use official Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build native addon (node-gyp)
+        working-directory: packages/node-gi/node-gi
+        run: npm install --no-audit --no-fund --foreground-scripts
+
+      - name: Smoke test (node --test)
+        working-directory: packages/node-gi/node-gi
+        run: npm test
+
+      - name: Conformance (golden-diff, gjs/node/bun/deno)
+        working-directory: packages/node-gi/node-gi
+        run: npm run test:conformance
+
+      - name: Cache GI test typelibs (pinned rev, aarch64)
+        uses: actions/cache@v4
+        with:
+          path: packages/node-gi/node-gi/.gi-tests
+          key: gi-test-typelibs-67432ee4ebf74349cb3c848f73945b21a767e276-fedora44-arm64-v1
+
+      - name: Typelib oracle (GIMarshallingTests port)
+        working-directory: packages/node-gi/node-gi
+        run: npm run test:gimarshalling
+
+      # Stage the arm64 prebuild + upload it as an artifact so a release can ship
+      # prebuilds/linux-arm64/ in the tarball (the Deno install path — no postinstall
+      # build). NODE_GI_NATIVE=prebuild then re-verifies the staged binary loads.
+      - name: Stage arm64 prebuild
+        working-directory: packages/node-gi/node-gi
+        run: node scripts/stage-prebuild.mjs
+
+      - name: Verify the staged prebuild loads (bun + deno)
+        working-directory: packages/node-gi/node-gi
+        run: npm run test:bun && npm run test:deno
+        env:
+          NODE_GI_NATIVE: prebuild
+
+      - name: Upload arm64 prebuild artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-gi-prebuild-linux-arm64
+          path: packages/node-gi/node-gi/prebuilds/linux-arm64/node_gi.node
+          if-no-files-found: error
