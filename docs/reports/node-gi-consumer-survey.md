@@ -81,8 +81,20 @@ Legend: ✅ pass · 🟡 partial (some tests fail) · ❌ fail (exit non-zero / 
 
 These directly prioritize the remaining Axis-5 work — each root cause is fixed once and unblocks all its consumers.
 
-### P1 — Async Gio callbacks + timers don't drain in a bare `node bundle.mjs` run
-**Blocks:** `fs`, `net`, `dns`, `dgram`, `stream` (and contributes to `worker_threads`; masks the true score of `crypto`/`os`). **Signature:** every failure is `Timeout: "…" exceeded 5000ms`. A Gio async op's completion callback (or a `setTimeout`/`queueMicrotask` continuation) never fires because **nothing pumps the default GLib main context** in a plain Node script that never calls `Gtk.Application.run()`/`GLib.MainLoop.run()`. This is the documented node-gi mainloop caveat (node-gtk #442/#121) surfacing on real consumers. **Highest-value fix:** have node-gi auto-co-pump the default GLib main context under Node (the `startMainContextPump` bun/deno already use for the non-blocking case), so async-Gio consumers work with no explicit loop. Unblocks the entire async-I/O surface at once.
+### P1 — Async Gio callbacks + timers don't drain in a bare `node bundle.mjs` run — **RESOLVED (2026-07-18)**
+**Blocked:** `fs`, `net`, `dns`, `dgram`, `stream` (and contributed to `worker_threads`; masked the true score of `crypto`/`os`). **Signature:** every failure was `Timeout: "…" exceeded 5000ms` — **nothing pumped the default GLib main context** in a plain Node script that never calls `Gtk.Application.run()`/`GLib.MainLoop.run()`.
+
+**Fixed by the uv-driven auto-pump** (node-gi `src/loop.cc`, armed by `startMainLoop`): pending GLib sources now dispatch from Node's own libuv loop (a uv_prepare/uv_check drain + mirrored uv_timer/uv_poll wake-ups on the context's queried fds, a `beforeExit` kick for the empty-loop bootstrap, and Node-conventional keep-alive — an in-flight scope=async callback / an armed GLib timeout hold the process). Harness A/B on this branch (`--runtimes node`):
+
+| pkg | before | after |
+|---|---|---|
+| `dns` | 🟡 79/85 (timeouts) | ✅ **118/118** |
+| `dgram` | 🟡 123/129 (timeouts) | ✅ **146/146** |
+| `stream` | ❌ fail (all timeouts) | 🟡 **520/521** (1 error-ordering mismatch, `promises.finished` on an insta-destroyed readable) |
+| `fs` | ❌ fail (all timeouts) | ❌ fail — but **no more timeouts**: the residual is a URL-path stringification gap (`ENOENT … /[object …`), a P3-family marshalling issue |
+| `net` | ❌ fail (all timeouts) | ❌ fail — but **no more mainloop hangs**: the residual is the known **P3** `ByteArray.fromGBytes` gap (now surfaced in the socket read path) |
+
+Conformance program `async-gio-await` (top-level awaits on a GLib timeout, an idle and a Gio async read — no loop anywhere) runs **byte-identical to `gjs -m`** on node; ledgered for bun/deno (no libuv there — they keep `startMainContextPump`).
 
 ### P2 — Bare GJS built-ins (`cairo`, `system`, `gettext`) not aliased for `--app node`
 **Blocks:** `canvas2d-core`, `canvas2d`. **Signature:** `ERR_MODULE_NOT_FOUND: Cannot find package 'cairo'`. node-gi already **ships** `@gjsify/node-gi/cairo`; the gap is the empty `ALIASES_GJS_FOR_NODE` map (`packages/infra/resolve-npm/lib/index.mjs`) — an already-documented "STILL PENDING" TODO that this survey now gives two concrete blocked consumers. Cheapest high-value fix.
@@ -116,7 +128,7 @@ The new `consumer-suites` job in [`node-gi.yml`](../../.github/workflows/node-gi
 
 Enumerated, prioritized by the survey above:
 
-1. **P1 fix (node-gi auto main-context co-pump under Node)** — unblocks `fs`/`net`/`dns`/`dgram`/`stream`. Highest leverage.
+1. ~~**P1 fix (node-gi auto main-context co-pump under Node)** — unblocks `fs`/`net`/`dns`/`dgram`/`stream`. Highest leverage.~~ ✓ DONE (uv-driven auto-pump; see the P1 section above for the A/B numbers).
 2. **P2 fix (`ALIASES_GJS_FOR_NODE` for `cairo`/`system`/`gettext`)** — unblocks `canvas2d-core`/`canvas2d`; cheapest.
 3. **P3 marshalling-helper seeding** — unblocks `child_process`/`os`/`module`.
 4. **Harness: prepend each package's `prebuilds/` to `GI_TYPELIB_PATH`** (P5) so `http`/`webrtc` and other Vala-bridge consumers resolve.
