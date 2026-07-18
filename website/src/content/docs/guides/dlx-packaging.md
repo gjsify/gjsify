@@ -37,7 +37,7 @@ my-pkg/
     "main": "dist/gjs.js"
   },
   "devDependencies": {
-    "@gjsify/cli": "^0.3.9"
+    "@gjsify/cli": "^0.18.0"
   }
 }
 ```

@@ -1,5 +1,5 @@
 ---
-title: Storybook — catalog & preview widgets
+title: Storybook
 description: Build a live component browser for your GTK/Adwaita widgets with gjsify — write a *.story.ts, run `gjsify storybook`, and get a sidebar of interactive, control-driven previews
 ---
 
@@ -89,7 +89,7 @@ Add `@gjsify/storybook` as a dev dependency, point `package.json#gjsify.storyboo
 ```jsonc
 {
   "scripts": { "storybook": "gjsify storybook" },
-  "devDependencies": { "@gjsify/storybook": "^0.16.5" },
+  "devDependencies": { "@gjsify/storybook": "^0.18.0" },
   "gjsify": {
     "storybook": {
       "applicationId": "org.example.Storybook",
@@ -108,6 +108,8 @@ gjsify storybook --build-only --out dist/storybook.gjs.mjs   # build without lau
 gjsify storybook --runtime node        # build + run the SAME storybook on Node via the @gjsify/node-gi bridge
 ```
 
+`--runtime node` (or `"runtime": "node"` in the config block) builds the identical storybook with `--app node` and runs it on Node.js through the [node-gi reverse bridge](/gjsify/projects/node-gi/) — useful where GJS isn't available (CI, containers, editor tooling). It requires `@gjsify/node-gi` as a project `devDependency`.
+
 ## The rule of thumb
 
 Treat a story as part of the widget: **every new custom widget ships a `*.story.ts` alongside it.** It is the widget's living documentation and its visual regression surface (screenshot it via [devtools](./devtools/) in CI). A widget without a story is undocumented.
@@ -116,5 +118,5 @@ Treat a story as part of the widget: **every new custom widget ships a `*.story.
 
 - [`gjsify storybook`](../../cli-reference/#gjsify-storybook) — CLI reference.
 - [Adwaita Storybook showcase](../../showcases/adwaita-storybook/) — the full Libadwaita widget set as stories.
-- [Building a native Adwaita app](./native-adwaita-app/) — where the `LoadingStack` example lives.
-- [Debugging & remote control](./devtools/) — drive/screenshot the running storybook headlessly.
+- [Native Adwaita Apps](./native-adwaita-app/) — where the `LoadingStack` example lives.
+- [Devtools & MCP](./devtools/) — drive/screenshot the running storybook headlessly.

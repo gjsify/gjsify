@@ -1,5 +1,5 @@
 ---
-title: Debugging & remote control (DBus + MCP)
+title: Devtools & MCP
 description: Inspect, screenshot and drive a running gjsify app — by hand with gdbus or from an AI agent over MCP — for GTK and web apps alike
 ---
 

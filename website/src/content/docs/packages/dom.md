@@ -3,7 +3,7 @@ title: DOM & Graphics
 description: DOM elements and graphics APIs for GJS, bridging the gap between web and GTK
 ---
 
-DOM elements and graphics APIs for GJS, bridging the gap between web and GTK.
+DOM elements and graphics APIs for GJS, bridging the gap between web and GTK. The first two rows are the DOM pillar proper (`packages/dom/` — spec implementations, headless where possible); the rest are the framework bridge packages that pair them with real GTK widgets.
 
 | Package | GNOME Libs | Implements |
 |---|---|---|
@@ -45,6 +45,8 @@ widget.onReady((canvas, ctx) => {
 
 window.set_child(widget);
 ```
+
+For the bridge lifecycle (`onReady`, `installGlobals`) and more worked examples — including IFrame and Video — see [Bridge Widgets](/gjsify/patterns/bridges/).
 
 ## Example: WebGL
 

@@ -6,10 +6,13 @@ export default defineConfig({
     site: 'https://gjsify.github.io',
     base: '/gjsify',
     trailingSlash: 'always',
-    // The Framework/Bridges page was merged into Patterns/Bridges (single source).
-    // Keep the old URL alive.
+    // The Framework/Bridges page was merged into Patterns/Bridges (single source),
+    // and the Patterns landing page was dissolved into the Guides group.
+    // Keep the old URLs alive. Destinations must carry the `/gjsify` base —
+    // Astro does not prefix redirect targets with `base`.
     redirects: {
-        '/framework/bridges': '/patterns/bridges',
+        '/framework/bridges': '/gjsify/patterns/bridges/',
+        '/patterns': '/gjsify/patterns/gobject-classes/',
     },
     vite: {
         resolve: {
@@ -48,7 +51,7 @@ export default defineConfig({
     integrations: [
         starlight({
             title: 'GJSify',
-            description: 'The full JavaScript ecosystem, native on GNOME',
+            description: 'The TypeScript framework for native Linux apps — on GJS, Node.js, Deno and Bun',
             components: {
                 Hero: './src/components/Hero.astro',
             },
@@ -59,58 +62,66 @@ export default defineConfig({
             },
             favicon: '/favicon.svg',
             social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/gjsify/gjsify' }],
+            // Sidebar labels stay short — a page's full story belongs in its
+            // title/description, not in the nav. Secondary groups are collapsed.
             sidebar: [
                 {
-                    label: 'Documentation',
+                    label: 'Start',
                     items: [
                         { slug: 'overview' },
                         { slug: 'getting-started' },
-                        { slug: 'cli-reference' },
+                        { slug: 'runtimes' },
                         { slug: 'how-it-works' },
-                        { slug: 'versioning' },
-                        { slug: 'coverage' },
+                        { slug: 'guides/install' },
                     ],
                 },
                 {
                     label: 'Guides',
                     items: [
-                        { slug: 'guides/install' },
-                        { slug: 'guides/distributing-gjs-apps' },
-                        { slug: 'guides/dlx-packaging' },
-                        { slug: 'guides/self-executing-package' },
-                        { slug: 'guides/flatpak-app' },
-                        { slug: 'guides/flatpak-cli-tool' },
-                        { slug: 'guides/devtools' },
                         { slug: 'guides/native-adwaita-app' },
+                        { slug: 'patterns/gobject-classes' },
+                        { slug: 'patterns/bridges', label: 'Bridge Widgets' },
                         { slug: 'guides/storybook' },
+                        { slug: 'guides/devtools' },
+                    ],
+                },
+                {
+                    label: 'Distribute',
+                    items: [
+                        { slug: 'guides/distributing-gjs-apps', label: 'One-Line Installer' },
+                        { slug: 'guides/dlx-packaging', label: 'Run via dlx' },
+                        { slug: 'guides/self-executing-package', label: 'Self-Executing Bundle' },
+                        { slug: 'guides/flatpak-app', label: 'Flatpak: GUI App' },
+                        { slug: 'guides/flatpak-cli-tool', label: 'Flatpak: CLI Tool' },
                     ],
                 },
                 {
                     label: 'Packages',
                     items: [
                         { slug: 'packages/overview' },
-                        { slug: 'packages/node' },
-                        { slug: 'packages/web' },
-                        { slug: 'packages/dom' },
+                        { slug: 'packages/node', label: 'Node.js' },
+                        { slug: 'packages/web', label: 'Web APIs' },
+                        { slug: 'packages/dom', label: 'DOM & Graphics' },
                     ],
                 },
                 {
-                    label: 'Patterns',
+                    label: 'Reference',
                     items: [
-                        { slug: 'patterns', label: 'Overview' },
-                        { slug: 'patterns/gobject-classes' },
-                        { slug: 'patterns/bridges' },
+                        { slug: 'cli-reference' },
+                        { slug: 'coverage' },
+                        { slug: 'versioning' },
                     ],
                 },
                 {
-                    label: 'Projects',
+                    label: 'Ecosystem',
                     items: [
                         { slug: 'projects/ts-for-gir' },
-                        { slug: 'projects/node-gi', badge: { text: 'Experimental', variant: 'caution' } },
+                        { slug: 'projects/node-gi' },
                     ],
                 },
                 {
                     label: 'Showcases',
+                    collapsed: true,
                     items: [
                         { slug: 'showcases', label: 'Overview' },
                         { slug: 'showcases/adwaita-storybook' },
@@ -126,6 +137,7 @@ export default defineConfig({
                 },
                 {
                     label: 'Contributing',
+                    collapsed: true,
                     items: [
                         { slug: 'contributing/development-setup' },
                         { slug: 'contributing/architecture' },

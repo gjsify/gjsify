@@ -586,7 +586,7 @@ Reports an install command for your detected package manager when something is m
 <summary>JSON output</summary>
 
 ```bash
-npx @gjsify/cli check --json
+npx @gjsify/cli system-check --json
 ```
 
 ```json
@@ -1083,6 +1083,15 @@ gjsify uninstall -g <pkg1> <pkg2>        # remove multiple packages
 
 Scoped to `--global` only. Project-local removal (mirror of `npm uninstall <pkg>` without -g) requires rewriting `package.json` + refreshing the lockfile, which is a separate workstream.
 
+| Option | Default | Description |
+|---|---|---|
+| `<packages..>` (positional) | — | One or more package names. |
+| `--global` / `-g` | `false` | Required; removes from `defaultGlobalLayout()` paths. |
+| `--dry-run` | `false` | Print "would remove" lines, touch no files. |
+| `--verbose` | `false` | Surface inspection failures (rare). |
+
+Exits non-zero when nothing was removed (no matching install found).
+
 ## `gjsify pack`
 
 Produce an npm-compatible `.tgz` tarball for a workspace. Drop-in for `npm pack`. Always rewrites `workspace:^/~/*` deps to resolved version ranges so the published tarball is portable. Honors the `files` allowlist + `.npmignore`/`.gitignore` with the same precedence as npm.
@@ -1164,15 +1173,6 @@ gjsify onboard --yes                 # non-interactive: fail clearly if a login/
 | `--dry-run` | `false` | Report the plan without publishing or configuring anything. |
 | `--json` | `false` | Emit a machine-readable summary object as the final stdout line. |
 | `--yes` | `false` | Non-interactive: never prompt. Fail clearly if a login or an OTP is required and not supplied via flags. |
-
-| Option | Default | Description |
-|---|---|---|
-| `<packages..>` (positional) | — | One or more package names. |
-| `--global` / `-g` | `false` | Required; removes from `defaultGlobalLayout()` paths. |
-| `--dry-run` | `false` | Print "would remove" lines, touch no files. |
-| `--verbose` | `false` | Surface inspection failures (rare). |
-
-Exits non-zero when nothing was removed (no matching install found).
 
 ## `gjsify format`
 

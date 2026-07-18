@@ -48,7 +48,7 @@ import WebStandardsCoverage from '../../../components/WebStandardsCoverage.astro
 
 ## Usage
 
-Web APIs are available as bare specifiers in GJS builds. The Rolldown plugin handles the aliasing automatically:
+Web APIs are available as bare specifiers in gjsify builds — on GJS they resolve to these GNOME-backed implementations, in the browser the native platform takes over, and 12 of these packages are additionally validated against real Firefox via Playwright (see [Runtimes](/gjsify/runtimes/)). The build handles the aliasing automatically:
 
 ```typescript
 // This works in GJS — Soup.Session under the hood

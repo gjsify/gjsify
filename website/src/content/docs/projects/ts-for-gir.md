@@ -27,7 +27,7 @@ gjsify dlx @ts-for-gir/cli list
 gjsify dlx @ts-for-gir/cli generate Gtk-4.0
 ```
 
-`gjsify dlx` fetches the package into a content-addressed cache (`~/.cache/gjsify/dlx`), runs its GJS bundle, and reuses the cache on subsequent invocations of the same spec. Pair with `--reinstall` to force a refresh.
+`gjsify dlx` fetches the package into a content-addressed cache (`~/.cache/gjsify/dlx`), runs its GJS bundle, and reuses the cache on subsequent invocations of the same spec. Pass `--cache-max-age 0` to force a refresh.
 
 **Global install via the gjsify CLI:**
 

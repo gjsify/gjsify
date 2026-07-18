@@ -1,5 +1,5 @@
 ---
-title: GObject classes
+title: GObject Classes
 description: registerClass() forms — static-block vs functional, init-order rules, $gtype declarations, and the rough edges to avoid.
 ---
 

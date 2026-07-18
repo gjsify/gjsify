@@ -5,14 +5,16 @@ description: Summary of all GJSify packages
 
 import BridgesGrid from '../../../components/BridgesGrid.astro';
 
-GJSify is organised into four pillars, each implementing standard APIs on top of native GNOME libraries.
+GJSify is organised into pillars, each implementing standard APIs on top of native GNOME libraries — plus a framework layer that glues them to GTK.
 
 | Category | Packages | Description |
 |---|---|---|
 | [Node.js Modules](./node) | 41 + 1 meta | `fs`, `net`, `http`, `crypto`, `stream`, `events`, `sqlite`, `ws`, and more |
 | [Web APIs](./web) | 19 + 1 native bridge + 1 meta | `fetch`, `XMLHttpRequest`, `WebSocket`, `WebRTC`, `WebAudio`, `Streams`, `DOMParser`, `MessageChannel`, `WebAssembly`, and more |
 | [DOM & Bridges](./dom) | 2 DOM + 6 bridges | Canvas2D, WebGL, DOM elements; GTK-backed Canvas/WebGL/Video/IFrame bridges |
+| Framework | app shell + tooling | [`@gjsify/adwaita-app`](/gjsify/guides/native-adwaita-app/) native app shell, [storybook](/gjsify/guides/storybook/), [devtools](/gjsify/guides/devtools/) |
 | Adwaita for browser | 3 | `@gjsify/adwaita-web`, `@gjsify/adwaita-fonts`, `@gjsify/adwaita-icons` |
+| Reverse bridge | 1 | [`@gjsify/node-gi`](/gjsify/projects/node-gi/) — GObject-Introspection on Node.js, Bun and Deno |
 
 93% of Node modules and 58% of web standards covered — see the [Node.js Modules](./node) and [Web APIs](./web) subpages for the full interactive breakdown.
 
@@ -23,7 +25,9 @@ GJSify is organised into four pillars, each implementing standard APIs on top of
 All packages are published to npm under the `@gjsify` scope:
 
 ```bash
-yarn add @gjsify/fs @gjsify/http @gjsify/fetch
+npm install @gjsify/fs @gjsify/http @gjsify/fetch
+# or, in a Node-free gjsify project:
+gjsify install @gjsify/fs @gjsify/http @gjsify/fetch
 ```
 
-In most cases, you don't install packages directly — the GJSify Rolldown plugin automatically aliases Node.js and Web API imports to their `@gjsify/*` counterparts during the GJS build.
+In most cases, you don't install packages directly — `gjsify build` automatically aliases Node.js and Web API imports to the right implementation for the chosen [target](/gjsify/runtimes/): `@gjsify/*` polyfills on GJS, the native platform on Node.js and in the browser.

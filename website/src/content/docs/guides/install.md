@@ -1,5 +1,5 @@
 ---
-title: Install gjsify
+title: Install & Update
 description: Bootstrap @gjsify/cli on any GNOME machine — no Node, no npm.
 ---
 
@@ -41,10 +41,10 @@ gjsify self-update --tag next   # opt into a different dist-tag
 ### Pin a specific version
 
 ```bash
-gjs -m /tmp/g.mjs --tag 0.4.10
+gjs -m /tmp/g.mjs --tag 0.18.0
 ```
 
-`--tag` accepts npm dist-tags (`latest`, `next`) or pinned versions (`0.4.10`).
+`--tag` accepts npm dist-tags (`latest`, `next`) or pinned versions (`0.18.0`).
 
 ### Custom install location
 
