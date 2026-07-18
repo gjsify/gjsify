@@ -105,20 +105,26 @@ describe('--app node gi:// → node-gi bundle E2E', { timeout: 10 * 60 * 1000 },
         );
     });
 
-    it('rewrites bare cairo to the externalised @gjsify/node-gi/cairo', () => {
-        // cairo is a GJS built-in module (the FOREIGN-struct binding). On --app node
-        // the bare `cairo` specifier routes to @gjsify/node-gi/cairo (kept EXTERNAL,
-        // like the gi:// runtime + `system`/`gettext`), so an npm `cairo` package
-        // never shadows the GI-compatible binding.
+    it('rewrites bare cairo/system/gettext to externalised @gjsify/node-gi/*', () => {
+        // cairo/system/gettext are GJS built-in modules (cairo = the FOREIGN-struct
+        // binding). On --app node each bare specifier routes to
+        // @gjsify/node-gi/<mod> (kept EXTERNAL, like the gi:// runtime), so an npm
+        // package literally named `cairo`/`system`/`gettext` never shadows the
+        // GI-compatible binding. Externalisation rides `NODE_GI_BARE_MODULE_SPECIFIERS`
+        // in app/node.ts's `exactExternal` array (derived from ALIASES_GJS_FOR_NODE)
+        // — the string array survives the @gjsify/rolldown-native JSON options
+        // boundary that drops the resolveId `external` flag.
         writeFileSync(
             join(projectDir, 'src', 'draw.ts'),
             [
                 "import cairo from 'cairo';",
+                "import system from 'system';",
+                "import gettext from 'gettext';",
                 'const surface = new cairo.ImageSurface(cairo.Format.ARGB32, 2, 2);',
                 'const cr = new cairo.Context(surface);',
                 'cr.setSourceRGB(1, 0, 0);',
                 'cr.paint();',
-                'console.log(surface.getWidth(), surface.getHeight());',
+                'console.log(surface.getWidth(), surface.getHeight(), typeof system.exit, typeof gettext.gettext);',
                 '',
             ].join('\n'),
         );
@@ -130,12 +136,21 @@ describe('--app node gi:// → node-gi bundle E2E', { timeout: 10 * 60 * 1000 },
         });
 
         const content = readFileSync(join(projectDir, 'dist', 'draw.mjs'), 'utf-8');
-        // The bare `cairo` import must resolve to the externalised node-gi binding,
-        // not be bundled (no ImageSurface impl inlined) and not left as bare `cairo`.
-        assert.ok(
-            content.includes('@gjsify/node-gi/cairo'),
-            'dist/draw.mjs must import @gjsify/node-gi/cairo (the externalised cairo binding)',
-        );
+        // Each bare built-in must resolve to the externalised node-gi binding —
+        // not be bundled (no impl inlined) and not left as a bare specifier.
+        for (const mod of ['cairo', 'system', 'gettext']) {
+            assert.ok(
+                content.includes(`@gjsify/node-gi/${mod}`),
+                `dist/draw.mjs must import @gjsify/node-gi/${mod} (the externalised binding)`,
+            );
+        }
+        // The bare forms must NOT survive as import specifiers (they were rewritten).
+        for (const bare of ['cairo', 'system', 'gettext']) {
+            assert.ok(
+                !new RegExp(`from\\s*["']${bare}["']`).test(content),
+                `dist/draw.mjs must not import bare "${bare}" (it must be rewritten to @gjsify/node-gi/${bare})\nContext: ${snippet(content, bare)}`,
+            );
+        }
         // `node --check` parses without resolving the external import.
         execFileSync('node', ['--check', join(projectDir, 'dist', 'draw.mjs')], {
             cwd: projectDir,

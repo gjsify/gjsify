@@ -28,6 +28,7 @@ import htmlEntrySuite from './utils/html-entry.spec.js';
 // a dependency. The predicate itself is re-exported from the plugin's
 // public API.
 import autoGlobalsSuite from './auto-globals.spec.js';
+import nodeGiExternalsSuite from './node-gi-externals.spec.js';
 import externalsPluginSuite from './externals-plugin.spec.js';
 import affectedClassifierSuite from './affected-classifier.spec.js';
 import runStdioSafeSuite from './run-stdio-safe.spec.js';
@@ -62,6 +63,7 @@ run({
     buildCacheSuite,
     htmlEntrySuite,
     autoGlobalsSuite,
+    nodeGiExternalsSuite,
     externalsPluginSuite,
     affectedClassifierSuite,
     runStdioSafeSuite,

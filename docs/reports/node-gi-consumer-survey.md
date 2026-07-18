@@ -96,8 +96,8 @@ These directly prioritize the remaining Axis-5 work — each root cause is fixed
 
 Conformance program `async-gio-await` (top-level awaits on a GLib timeout, an idle and a Gio async read — no loop anywhere) runs **byte-identical to `gjs -m`** on node; ledgered for bun/deno (no libuv there — they keep `startMainContextPump`).
 
-### P2 — Bare GJS built-ins (`cairo`, `system`, `gettext`) not aliased for `--app node`
-**Blocks:** `canvas2d-core`, `canvas2d`. **Signature:** `ERR_MODULE_NOT_FOUND: Cannot find package 'cairo'`. node-gi already **ships** `@gjsify/node-gi/cairo`; the gap is the empty `ALIASES_GJS_FOR_NODE` map (`packages/infra/resolve-npm/lib/index.mjs`) — an already-documented "STILL PENDING" TODO that this survey now gives two concrete blocked consumers. Cheapest high-value fix.
+### P2 — Bare GJS built-ins (`cairo`, `system`, `gettext`) not externalised for `--app node` — RESOLVED
+**Was blocking:** `canvas2d-core`, `canvas2d`. **Signature:** `ERR_MODULE_NOT_FOUND: Cannot find package 'cairo'`. node-gi already **ships** `@gjsify/node-gi/cairo`. The real gap was NOT the alias map (`ALIASES_GJS_FOR_NODE` was already filled) but `app/node.ts`'s `NODE_GI_BARE_MODULE_SPECIFIERS` `exactExternal` array, which listed only `system`/`gettext` — under `@gjsify/rolldown-native` (the GJS bundler) the resolveId `{external:true}` flag is dropped at the JSON options boundary, so ONLY the string array keeps a target external; cairo missing there left the bare `cairo` unresolved. **Fixed** by deriving the array from `ALIASES_GJS_FOR_NODE`'s values (`NODE_GI_BARE_MODULE_SPECIFIERS = Object.values(...)`) so it can't drift again — cairo/system/gettext all externalise + resolve on the GJS bundler now. unit `packages/infra/cli/src/node-gi-externals.spec.ts`; e2e `tests/e2e/node-gi-build`. (npm rolldown honoured the flag, so the gap was invisible until a Cairo consumer was built on the GJS bundler.)
 
 ### P3 — GLib/GObject marshalling-helper gaps
 **Blocks:** `child_process` (`ByteArray.fromGBytes` undefined ⇒ can't read subprocess stdout), `os` (a GLib call returns `undefined` ⇒ `.toString()` throws), `module` (`GLib.filename_from_uri` undefined + the GJS CJS-require internals `imports.searchPath`/`globalThis.exports` are unseeded). **Fix:** seed the missing `imports.byteArray.*` + marshal the specific GLib functions in node-gi's globals shim.
@@ -129,7 +129,7 @@ The new `consumer-suites` job in [`node-gi.yml`](../../.github/workflows/node-gi
 Enumerated, prioritized by the survey above:
 
 1. ~~**P1 fix (node-gi auto main-context co-pump under Node)** — unblocks `fs`/`net`/`dns`/`dgram`/`stream`. Highest leverage.~~ ✓ DONE (uv-driven auto-pump; see the P1 section above for the A/B numbers).
-2. **P2 fix (`ALIASES_GJS_FOR_NODE` for `cairo`/`system`/`gettext`)** — unblocks `canvas2d-core`/`canvas2d`; cheapest.
+2. **P2 (bare `cairo`/`system`/`gettext` externalisation) — DONE**: `app/node.ts` derives the `exactExternal` set from `ALIASES_GJS_FOR_NODE`'s values, so canvas2d-core/canvas2d resolve `@gjsify/node-gi/cairo` on the GJS bundler now.
 3. **P3 marshalling-helper seeding** — unblocks `child_process`/`os`/`module`.
 4. **Harness: prepend each package's `prebuilds/` to `GI_TYPELIB_PATH`** (P5) so `http`/`webrtc` and other Vala-bridge consumers resolve.
 5. **Full rollout:** wire committed `src/test.node-gi.mts` + `test:gjs-on-node` legs for the packages that already pass (beyond sqlite/http2/zlib: `tls`, `ws`, `dom-elements`, `node-globals`, `devtools`, `devtools-browser`, `storybook`, `adwaita-app`), and add them to the CI proof set as each is fixed/verified.

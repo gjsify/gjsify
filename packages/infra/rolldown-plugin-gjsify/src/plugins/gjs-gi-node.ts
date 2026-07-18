@@ -101,14 +101,21 @@ export function gjsGiNodePlugin(): Plugin {
 
 /**
  * For `--app node`: rewrite the bare GJS built-in module specifiers (`system`,
- * `gettext`) to their `@gjsify/node-gi` reverse-bridge shims, kept EXTERNAL.
+ * `gettext`, `cairo`) to their `@gjsify/node-gi` reverse-bridge shims, kept
+ * EXTERNAL.
  *
- * GJS exposes `system`/`gettext` as built-in ESM modules
+ * GJS exposes `system`/`gettext`/`cairo` as built-in ESM modules
  * (`import System from 'system'`); Node has no equivalent. This resolves the
- * bare specifier to `@gjsify/node-gi/system` / `@gjsify/node-gi/gettext` and
- * marks it external so it is NOT bundled — resolved at runtime against the
- * consumer's node_modules, exactly like `@gjsify/node-gi/gi` (the `gi://`
- * rewrite) and `@gjsify/node-gi/globals`.
+ * bare specifier to `@gjsify/node-gi/system` / `@gjsify/node-gi/gettext` /
+ * `@gjsify/node-gi/cairo` and marks it external so it is NOT bundled — resolved
+ * at runtime against the consumer's node_modules, exactly like
+ * `@gjsify/node-gi/gi` (the `gi://` rewrite) and `@gjsify/node-gi/globals`.
+ *
+ * NOTE: the `{ external: true }` flag returned here is honoured by npm `rolldown`
+ * but DROPPED by `@gjsify/rolldown-native` at its JSON options boundary, so
+ * `app/node.ts` ALSO lists these targets in its `exactExternal` string array
+ * (`NODE_GI_BARE_MODULE_SPECIFIERS`, derived from `ALIASES_GJS_FOR_NODE`) — the
+ * array is what actually keeps them external under the GJS bundler engine.
  *
  * Returning `{ external: true }` from `resolveId` is the form honoured by BOTH
  * bundler engines (npm rolldown on Node AND `@gjsify/rolldown-native` on GJS,
