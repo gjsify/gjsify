@@ -1,15 +1,15 @@
 ---
 title: Devtools & MCP
-description: Inspect, screenshot and drive a running gjsify app — by hand with gdbus or from an AI agent over MCP — for GTK and web apps alike
+description: Inspect, screenshot and drive a running GJSify app — by hand with gdbus or from an AI agent over MCP — for GTK and web apps alike
 ---
 
-gjsify ships a **devtools control plane**: opt your app in with one call and it exposes a stable `org.gjsify.Devtools` interface you can drive three ways —
+GJSify ships a **devtools control plane**: opt your app in with one call and it exposes a stable `org.gjsify.Devtools` interface you can drive three ways —
 
 - **By hand** with `gdbus` / d-feet / GNOME Builder — no AI, no dev server.
 - **From an AI agent** (Claude Code, the MCP Inspector, …) over **MCP**, via `gjsify debug`.
 - **Headless in CI** — the same calls make a no-AI end-to-end UI test harness.
 
-It works for **GTK apps** (DBus is the idiomatic GNOME transport) and, through the bundled Adwaita web browser, for **web apps you build with gjsify** too. The contract — *commands + state + introspection* — is the same across both.
+It works for **GTK apps** (DBus is the idiomatic GNOME transport) and, through the bundled Adwaita web browser, for **web apps you build with GJSify** too. The contract — *commands + state + introspection* — is the same across both.
 
 ## The packages
 
@@ -18,7 +18,7 @@ It works for **GTK apps** (DBus is the idiomatic GNOME transport) and, through t
 | [`@gjsify/devtools-protocol`](https://www.npmjs.com/package/@gjsify/devtools-protocol) | The transport-agnostic contract (pure TS): methods, pause classification, envelope, interface name. |
 | [`@gjsify/devtools`](https://www.npmjs.com/package/@gjsify/devtools) | The in-app **DBus** adapter for GTK/GJS. `installDevtools(app, …)`. |
 | [`@gjsify/devtools-mcp`](https://www.npmjs.com/package/@gjsify/devtools-mcp) | The **MCP bridge** an agent talks to. Powers `gjsify debug`. |
-| [`@gjsify/devtools-browser`](https://www.npmjs.com/package/@gjsify/devtools-browser) | The minimalist Adwaita **web browser** for debugging gjsify web apps. Powers `gjsify browse`. |
+| [`@gjsify/devtools-browser`](https://www.npmjs.com/package/@gjsify/devtools-browser) | The minimalist Adwaita **web browser** for debugging GJSify web apps. Powers `gjsify browse`. |
 
 Two CLI commands tie it together: [`gjsify debug`](../../cli-reference/#gjsify-debug) (the MCP bridge) and [`gjsify browse`](../../cli-reference/#gjsify-browse) (the web browser). The GTK [`gjsify storybook`](../../cli-reference/#gjsify-storybook) is debuggable through the same plane.
 
@@ -105,7 +105,7 @@ The bridge auto-detects a **tool profile** from your `package.json` dependencies
 
 ## 4. Debug web apps — `gjsify browse`
 
-Because the apps you debug are **themselves built with gjsify**, you can render them in the bundled Adwaita web browser and drive *its* devtools plane. Launch with `--devtools`:
+Because the apps you debug are **themselves built with GJSify**, you can render them in the bundled Adwaita web browser and drive *its* devtools plane. Launch with `--devtools`:
 
 ```bash
 gjsify browse https://localhost:8080 --devtools
@@ -136,7 +136,7 @@ The browser profile adds web-debugging tools on top of the generics:
 | `get_accessibility` | An approximate accessibility tree (role + name + aria-*). |
 | `open_inspector` / `close_inspector` | Toggle the WebKit Web Inspector panel. |
 
-This is purpose-built for the gjsify web-app workflow: a developer (or an agent) opens the app, screenshots the real rendered output, evaluates assertions in-page, and inspects layout/network/a11y — without a separate browser-automation stack.
+This is purpose-built for the GJSify web-app workflow: a developer (or an agent) opens the app, screenshots the real rendered output, evaluates assertions in-page, and inspects layout/network/a11y — without a separate browser-automation stack.
 
 ## 5. Storybook
 

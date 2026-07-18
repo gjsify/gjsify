@@ -3,6 +3,8 @@ title: How It Works
 description: Auto-aliasing, automatic globals detection and the GJS build pipeline
 ---
 
+import CommandTabs from '../../components/CommandTabs.astro';
+
 GJSify lets you write code against familiar Node.js and Web APIs while running natively on GJS. This page explains the three pieces that make that possible: **automatic module aliasing** at build time, **automatic globals detection via `--globals auto`**, and **automatic native library loading** at runtime.
 
 The same pipeline works for every build target — `gjsify build --app gjs|node|browser` swaps the alias layer, and for `--app node` it even runs in reverse: `gi://` imports resolve through the [node-gi bridge](/gjsify/projects/node-gi/) so GObject code runs on Node.js, Bun and Deno. See [Runtimes](/gjsify/runtimes/) for the target overview; the rest of this page walks through the GJS direction.
@@ -44,10 +46,32 @@ Every `@gjsify/*` package that provides a Node or Web global exposes one or more
 
 The CLI's default `--globals auto` discovers which registers your project needs by analysing the bundled output:
 
-```bash
-gjsify build src/index.ts --outfile dist/index.js
-# (--globals auto is the default — no flag needed)
-```
+<CommandTabs>
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify build src/index.ts --outfile dist/index.js
+    # (--globals auto is the default — no flag needed)
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npx @gjsify/cli build src/index.ts --outfile dist/index.js
+    # (--globals auto is the default — no flag needed)
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bunx @gjsify/cli build src/index.ts --outfile dist/index.js
+    # (--globals auto is the default — no flag needed)
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno run -A npm:@gjsify/cli build src/index.ts --outfile dist/index.js
+    # (--globals auto is the default — no flag needed)
+    ```
+  </Fragment>
+</CommandTabs>
 
 ### How auto detection works
 
@@ -122,7 +146,7 @@ Scaffolded projects rely on the default `auto` mode and don't pass `--globals` a
 }
 ```
 
-`yarn install && yarn build` is enough — no global lists to maintain, no `ReferenceError`s to chase down.
+`gjsify install && gjsify run build` is enough — no global lists to maintain, no `ReferenceError`s to chase down.
 
 ### Troubleshooting: `ReferenceError: X is not defined`
 
@@ -140,16 +164,57 @@ Some GJSify packages need native code. For example, `@gjsify/webgl` ships a Vala
 
 `gjsify run` scans your `node_modules` for these packages, prepends the right directories to `LD_LIBRARY_PATH` and `GI_TYPELIB_PATH`, and then spawns `gjs -m <bundle>`:
 
-```bash
-npx @gjsify/cli run dist/index.js
-```
+<CommandTabs>
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify run dist/index.js
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npx @gjsify/cli run dist/index.js
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bunx @gjsify/cli run dist/index.js
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno run -A npm:@gjsify/cli run dist/index.js
+    ```
+  </Fragment>
+</CommandTabs>
 
 If you want to run `gjs` directly (for example from a systemd unit or a packaged Flatpak), you can ask the CLI to print the environment for you:
 
-```bash
-eval $(npx @gjsify/cli info --export)
-gjs -m dist/index.js
-```
+<CommandTabs>
+  <Fragment slot="gjsify">
+    ```bash
+    eval $(gjsify info --export)
+    gjs -m dist/index.js
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    eval $(npx @gjsify/cli info --export)
+    gjs -m dist/index.js
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    eval $(bunx @gjsify/cli info --export)
+    gjs -m dist/index.js
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    eval $(deno run -A npm:@gjsify/cli info --export)
+    gjs -m dist/index.js
+    ```
+  </Fragment>
+</CommandTabs>
 
 Use `gjsify info` without `--export` for a human-readable report of every detected native package and the exact env vars needed.
 
@@ -159,7 +224,7 @@ Node.js servers (`http.Server.listen()`, `net.Server.listen()`, `dgram.Socket.bi
 
 ## Vite-plugin track (browser / web-content targets)
 
-gjsify's build plugins are Rollup-shaped, which means they run under both Rolldown (via the `gjsify build` CLI) and Vite (for HMR-enabled dev servers). For web-content targets — browser extensions, GJS-WebKit hybrid apps, or games running in a WebView — you can use Vite during development for fast module reloads, then switch to `gjsify build --app browser` for the production bundle.
+GJSify's build plugins are Rollup-shaped, which means they run under both Rolldown (via the `gjsify build` CLI) and Vite (for HMR-enabled dev servers). For web-content targets — browser extensions, GJS-WebKit hybrid apps, or games running in a WebView — you can use Vite during development for fast module reloads, then switch to `gjsify build --app browser` for the production bundle.
 
 Two plugins that always work under Vite are already published:
 
@@ -172,7 +237,7 @@ The same plugins are composed by `gjsify build` under the hood — there is no d
 
 ## Location-independent published bundles
 
-GJS bundles built with gjsify resolve their bundled dependencies' data files at runtime from the bundle's actual on-disk location. A dep that loads its own `package.json`, i18n files, or templates via `import.meta.url` continues to work after the bundle is installed globally — even if the bundle ends up at a different `node_modules` depth than where it was built. This is handled transparently by `@gjsify/module`'s PnP-aware `createRequire`; no special configuration is required.
+GJS bundles built with GJSify resolve their bundled dependencies' data files at runtime from the bundle's actual on-disk location. A dep that loads its own `package.json`, i18n files, or templates via `import.meta.url` continues to work after the bundle is installed globally — even if the bundle ends up at a different `node_modules` depth than where it was built. This is handled transparently by `@gjsify/module`'s PnP-aware `createRequire`; no special configuration is required.
 
 ## Where to go next
 

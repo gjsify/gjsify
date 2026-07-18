@@ -1,0 +1,105 @@
+---
+// CommandTabs — one command block, one tab per way of invoking the toolchain
+// (GJSify's own Node-free CLI, npm, Bun, Deno). Built on our own
+// <adw-inline-view-switcher> from @gjsify/adwaita-web, so the tabs look and
+// behave like a native Adwaita toggle group. The tab contents are ordinary
+// fenced code blocks passed via named slots, so Expressive Code keeps its
+// syntax highlighting and copy button.
+//
+// The selected runtime is remembered (localStorage) and synchronized across
+// every CommandTabs instance on the site: pick "Deno" once and all command
+// blocks follow.
+//
+// Usage (MDX):
+//   <CommandTabs>
+//     <Fragment slot="gjsify">```bash …```</Fragment>
+//     <Fragment slot="npm">```bash …```</Fragment>
+//     <Fragment slot="bun">```bash …```</Fragment>
+//     <Fragment slot="deno">```bash …```</Fragment>
+//   </CommandTabs>
+const RUNTIMES = [
+    { slot: 'gjsify', label: 'GJSify' },
+    { slot: 'npm', label: 'npm' },
+    { slot: 'bun', label: 'Bun' },
+    { slot: 'deno', label: 'Deno' },
+];
+// Astro slots can't be referenced with a dynamic `name` in the template —
+// render the provided ones to HTML up front instead.
+const present = [];
+for (const r of RUNTIMES) {
+    if (Astro.slots.has(r.slot)) {
+        present.push({ ...r, html: await Astro.slots.render(r.slot) });
+    }
+}
+const runtimesAttr = present.map((r) => r.slot).join(',');
+---
+
+<adw-inline-view-switcher class="command-tabs" display-mode="labels" round data-command-tabs data-runtimes={runtimesAttr}>
+    {present.map((r) => <adw-view-stack-page title={r.label} set:html={r.html} />)}
+</adw-inline-view-switcher>
+
+<script>
+    import '@gjsify/adwaita-web';
+
+    const KEY = 'gjsify-preferred-runtime';
+
+    const applyPreference = (runtime: string | null, skip?: Element) => {
+        if (!runtime) return;
+        for (const el of document.querySelectorAll<HTMLElement>('[data-command-tabs]')) {
+            if (el === skip) continue;
+            const runtimes = (el.dataset.runtimes ?? '').split(',');
+            const index = runtimes.indexOf(runtime);
+            if (index >= 0) el.setAttribute('active', String(index));
+        }
+    };
+
+    // Follow user selection: persist + mirror to every other instance.
+    document.addEventListener('notify::active', (event) => {
+        const target = event.target as HTMLElement;
+        if (!target?.matches?.('[data-command-tabs]')) return;
+        const runtimes = (target.dataset.runtimes ?? '').split(',');
+        const runtime = runtimes[(event as CustomEvent).detail?.active ?? 0];
+        if (!runtime) return;
+        try {
+            localStorage.setItem(KEY, runtime);
+        } catch {
+            // Private mode — selection just won't persist.
+        }
+        applyPreference(runtime, target);
+    });
+
+    // Initial: restore the remembered runtime once the element is defined.
+    customElements.whenDefined('adw-inline-view-switcher').then(() => {
+        try {
+            applyPreference(localStorage.getItem(KEY));
+        } catch {
+            // ignore
+        }
+    });
+</script>
+
+<style is:global>
+    /* Before the custom element hydrates, show only the first page so the
+       server-rendered HTML doesn't stack every tab's code block. */
+    adw-inline-view-switcher.command-tabs:not(:defined) > adw-view-stack-page {
+        display: none;
+    }
+    adw-inline-view-switcher.command-tabs:not(:defined) > adw-view-stack-page:first-of-type {
+        display: block;
+    }
+
+    .command-tabs {
+        display: block;
+        margin-top: 1rem;
+    }
+
+    .command-tabs .adw-inline-view-switcher-group {
+        margin-bottom: 0.75rem;
+    }
+
+    /* The page panel holds a regular Expressive Code block — let it keep its
+       own margins collapsed against the switcher bar. */
+    .command-tabs .adw-inline-view-switcher-page > :first-child {
+        margin-top: 0;
+    }
+</style>

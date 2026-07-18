@@ -1,6 +1,6 @@
 ---
 title: Distribute your GJS app
-description: Ship a one-line installer for your gjsify-based npm package.
+description: Ship a one-line installer for your GJSify-based npm package.
 ---
 
 The same Node-free bootstrap that installs `@gjsify/cli` also installs
@@ -8,7 +8,7 @@ The same Node-free bootstrap that installs `@gjsify/cli` also installs
 
 ## Generate an installer for your package
 
-From the root of your gjsify app:
+From the root of your GJSify app:
 
 ```bash
 gjsify generate-installer
@@ -16,7 +16,7 @@ gjsify generate-installer
 
 This writes `install.mjs` to the current directory, with three constants
 substituted for your package: the npm name (from `package.json#name`),
-the bin name (the first key of `gjsify.bin` or `bin`), and the gjsify
+the bin name (the first key of `gjsify.bin` or `bin`), and the GJSify
 bootstrap URL (defaults to
 `https://github.com/gjsify/gjsify/releases/latest/download/cli.gjs.mjs`).
 
@@ -36,7 +36,7 @@ curl -fsSL https://github.com/<you>/<repo>/raw/main/install.mjs \
 
 ## What it does for your users
 
-1. Downloads the pinned `cli.gjs.mjs` bootstrap bundle from the gjsify
+1. Downloads the pinned `cli.gjs.mjs` bootstrap bundle from the GJSify
    GitHub release, verifies SHA-256.
 2. Spawns `gjs -m <bundle> install -g <your-package>` — `@gjsify/cli`'s
    install backend resolves your package's transitive dependencies
@@ -61,7 +61,7 @@ gjsify generate-installer \
 |---|---|
 | `[target]` (positional) | `package.json#name` |
 | `--bin-name <name>` | first key of `gjsify.bin` or `bin` |
-| `--bootstrap-url <url>` | gjsify GitHub `releases/latest/download/cli.gjs.mjs` |
+| `--bootstrap-url <url>` | GJSify GitHub `releases/latest/download/cli.gjs.mjs` |
 | `--output <file>` | `install.mjs` (in cwd) |
 | `--force` | overwrite existing |
 

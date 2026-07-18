@@ -3,29 +3,49 @@ title: Getting Started
 description: Scaffold, build and run your first GJSify project
 ---
 
+import CommandTabs from '../../components/CommandTabs.astro';
+
 ## Quick Start
 
-**Node-free (recommended)** — install `@gjsify/cli` with one curl line:
+Pick your toolchain — GJSify's own **Node-free** CLI (recommended), or the
+same CLI through npm, Bun or Deno:
 
-```bash
-curl -fsSL https://github.com/gjsify/gjsify/releases/latest/download/install.mjs \
-  -o /tmp/g.mjs && gjs -m /tmp/g.mjs && rm /tmp/g.mjs
+<CommandTabs>
+  <Fragment slot="gjsify">
+    ```bash
+    curl -fsSL https://github.com/gjsify/gjsify/releases/latest/download/install.mjs \
+      -o /tmp/g.mjs && gjs -m /tmp/g.mjs && rm /tmp/g.mjs
 
-gjsify create my-app
-cd my-app
-gjsify install
-gjsify run dev
-```
+    gjsify create my-app
+    cd my-app
+    gjsify install
+    gjsify run dev
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npx @gjsify/cli create my-app
+    cd my-app && npm install
+    npm run dev
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bunx @gjsify/cli create my-app
+    cd my-app && bun install
+    bun run dev
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno run -A npm:@gjsify/cli create my-app
+    cd my-app && deno install
+    deno task dev
+    ```
+  </Fragment>
+</CommandTabs>
 
-Or if you already have Node.js installed:
-
-```bash
-npx @gjsify/cli create my-app
-cd my-app && npm install
-npm run dev
-```
-
-Either way: a GTK 4 window running your TypeScript, natively on Linux. See the [Install guide](/gjsify/guides/install/) for `~/.local/bin` PATH setup, [`gjsify self-update`](/gjsify/cli-reference/#gjsify-self-update), and [`gjsify uninstall`](/gjsify/cli-reference/#gjsify-uninstall).
+Whichever you pick: a GTK 4 window running your TypeScript, natively on Linux. See the [Install guide](/gjsify/guides/install/) for `~/.local/bin` PATH setup, [`gjsify self-update`](/gjsify/cli-reference/#gjsify-self-update), and [`gjsify uninstall`](/gjsify/cli-reference/#gjsify-uninstall).
 
 > **Tip:** Run `gjsify --help` (or `npx @gjsify/cli --help`) to see all available subcommands.
 
@@ -36,7 +56,7 @@ You need a few system packages:
 - **GJS** 1.86+ — the GNOME JavaScript runtime (SpiderMonkey 140)
 - **GTK 4** — the UI toolkit
 - **libsoup3** — HTTP, WebSocket and `fetch` at runtime
-- **Node.js** 24+ — *optional*, only needed if you prefer `npm install` / `npx` over the Node-free bootstrap above
+- **Node.js 24+, Bun or Deno** — *optional*, only needed if you prefer a package-manager workflow over the Node-free bootstrap above
 
 <details>
 <summary>Install commands</summary>
@@ -57,9 +77,28 @@ sudo apt install gjs libgtk-4-1 libsoup-3.0-0
 
 Not sure if everything is in place?
 
-```bash
-npx @gjsify/cli check
-```
+<CommandTabs>
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify system-check
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npx @gjsify/cli system-check
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bunx @gjsify/cli system-check
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno run -A npm:@gjsify/cli system-check
+    ```
+  </Fragment>
+</CommandTabs>
 
 ## What gets scaffolded
 
@@ -86,11 +125,38 @@ The build script uses `--globals auto` by default — no manual list to maintain
 
 ## Build and run
 
-```bash
-npm run build   # gjsify build src/index.ts --outfile dist/index.js
-npm start       # gjsify run dist/index.js
-npm run dev     # build + run in one step
-```
+The scaffolded scripts run with whichever toolchain you picked:
+
+<CommandTabs>
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify run build   # gjsify build src/index.ts --outfile dist/index.js
+    gjsify run start   # gjsify run dist/index.js
+    gjsify run dev     # build + run in one step
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npm run build   # gjsify build src/index.ts --outfile dist/index.js
+    npm start       # gjsify run dist/index.js
+    npm run dev     # build + run in one step
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bun run build   # gjsify build src/index.ts --outfile dist/index.js
+    bun run start   # gjsify run dist/index.js
+    bun run dev     # build + run in one step
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno task build   # gjsify build src/index.ts --outfile dist/index.js
+    deno task start   # gjsify run dist/index.js
+    deno task dev     # build + run in one step
+    ```
+  </Fragment>
+</CommandTabs>
 
 `gjsify run` automatically sets `LD_LIBRARY_PATH` and `GI_TYPELIB_PATH` for any native prebuilds (e.g. `@gjsify/webgl`).
 

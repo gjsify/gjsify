@@ -1,14 +1,14 @@
 ---
 title: Runtimes
-description: One TypeScript codebase on GJS, Node.js, Deno and Bun — how gjsify makes the runtime a build-time decision.
+description: One TypeScript codebase on GJS, Node.js, Deno and Bun — how GJSify makes the runtime a build-time decision.
 ---
 
-gjsify started as "Node.js & Web APIs on GJS". Today the bridge runs in **both
-directions**, and the runtime has become a build-time decision:
+GJSify's bridge runs in **both directions**, so the runtime is a build-time
+decision, not an architecture decision:
 
-- **On GJS**, gjsify implements the Node.js and Web APIs on top of the GNOME
+- **On GJS**, GJSify implements the Node.js and Web APIs on top of the GNOME
   platform — `node:fs` is backed by Gio, `fetch` by libsoup, Canvas by Cairo.
-- **On Node.js, Bun and Deno**, gjsify implements the GJS side: `gi://` imports,
+- **On Node.js, Bun and Deno**, GJSify implements the GJS side: `gi://` imports,
   GObject classes, signals and the GLib main loop, through the
   [`@gjsify/node-gi`](/gjsify/projects/node-gi/) native bridge.
 
@@ -20,7 +20,7 @@ for `gjs`, `node` and `browser`.
 
 ### Node.js & Web APIs on GJS — `--app gjs`
 
-The classic direction and still the primary target. The build rewrites
+The primary target. The build rewrites
 `node:*` imports and Web globals to their `@gjsify/*` implementations, each
 backed by a GNOME library. Your app runs as a single native process — GTK 4
 widgets, Adwaita styling, and the npm ecosystem in one SpiderMonkey runtime.

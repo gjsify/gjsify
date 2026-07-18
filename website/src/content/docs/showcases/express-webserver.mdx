@@ -3,7 +3,7 @@ title: "Express Web Server"
 description: Unmodified Express 5 running on GJS through @gjsify/http — proves the http.Server / IncomingMessage / ServerResponse surface holds for the most-deployed Node web framework.
 ---
 
-A small Express 5 blog app — JSON API (`/api/posts`, `/api/posts/:slug`, `/api/runtime`), server-rendered article pages, and a static HTML/CSS/JS frontend — running on GJS through [`@gjsify/http`](https://github.com/gjsify/gjsify/tree/main/packages/node/http). Express imports unmodified from npm; gjsify's Node compat layer serves every `http.Server` / `IncomingMessage` / `ServerResponse` API call Express reaches for.
+A small Express 5 blog app — JSON API (`/api/posts`, `/api/posts/:slug`, `/api/runtime`), server-rendered article pages, and a static HTML/CSS/JS frontend — running on GJS through [`@gjsify/http`](https://github.com/gjsify/gjsify/tree/main/packages/node/http). Express imports unmodified from npm; GJSify's Node compat layer serves every `http.Server` / `IncomingMessage` / `ServerResponse` API call Express reaches for.
 
 ## What it exercises
 
@@ -53,7 +53,7 @@ The package ships both `start` (GJS) and `start:node` scripts; same `src/index.t
 
 ## Why Express specifically
 
-Express is the most-deployed Node web framework on the planet. If gjsify's `http` package can carry Express 5 unmodified — including middleware composition, error handling, route matching — then arbitrary npm web apps targeting Node tend to "just work" on GJS too. This showcase is the canary.
+Express is the most-deployed Node web framework on the planet. If GJSify's `http` package can carry Express 5 unmodified — including middleware composition, error handling, route matching — then arbitrary npm web apps targeting Node tend to "just work" on GJS too. This showcase is the canary.
 
 Integration coverage for the broader npm web ecosystem (Socket.IO, axios, WebTorrent, …) lives under [`tests/integration/`](https://github.com/gjsify/gjsify/tree/main/tests/integration) — they all dovetail with the same `@gjsify/http` + `@gjsify/stream` surface.
 

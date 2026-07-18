@@ -4,6 +4,7 @@ description: Summary of all GJSify packages
 ---
 
 import BridgesGrid from '../../../components/BridgesGrid.astro';
+import CommandTabs from '../../../components/CommandTabs.astro';
 
 GJSify is organised into pillars, each implementing standard APIs on top of native GNOME libraries — plus a framework layer that glues them to GTK.
 
@@ -24,10 +25,27 @@ GJSify is organised into pillars, each implementing standard APIs on top of nati
 
 All packages are published to npm under the `@gjsify` scope:
 
-```bash
-npm install @gjsify/fs @gjsify/http @gjsify/fetch
-# or, in a Node-free gjsify project:
-gjsify install @gjsify/fs @gjsify/http @gjsify/fetch
-```
+<CommandTabs>
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify install @gjsify/fs @gjsify/http @gjsify/fetch
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npm install @gjsify/fs @gjsify/http @gjsify/fetch
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bun add @gjsify/fs @gjsify/http @gjsify/fetch
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno add npm:@gjsify/fs npm:@gjsify/http npm:@gjsify/fetch
+    ```
+  </Fragment>
+</CommandTabs>
 
 In most cases, you don't install packages directly — `gjsify build` automatically aliases Node.js and Web API imports to the right implementation for the chosen [target](/gjsify/runtimes/): `@gjsify/*` polyfills on GJS, the native platform on Node.js and in the browser.
