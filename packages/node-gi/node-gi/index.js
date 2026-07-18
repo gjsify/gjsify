@@ -515,4 +515,32 @@ export const disconnectSignal = native.disconnectSignal;
  */
 export const setTemplateCallbackResolver = native.setTemplateCallbackResolver;
 
+/**
+ * Install (or clear, with `null`) the structured-log writer function — the
+ * engine's twin of GjsPrivate.log_set_writer_func backing GLib.log_set_writer_func.
+ * The writer receives (logLevel: number, fields: Record<string, Uint8Array|null>)
+ * and returns a GLib.LogWriterOutput. NOTE: GLib allows at most ONE
+ * g_log_set_writer_func install per process (a second install aborts in GLib).
+ */
+export const logSetWriterFunc = native.logSetWriterFunc;
+
+/**
+ * Route structured logs back to the default writer (the engine's twin of
+ * GjsPrivate.log_set_writer_default backing GLib.log_set_writer_default).
+ */
+export const logSetWriterDefault = native.logSetWriterDefault;
+
+/**
+ * g_object_bind_property_full with JS transform functions — the engine's twin of
+ * GjsPrivate.g_object_bind_property_full backing
+ * GObject.Object.prototype.bind_property_full.
+ */
+export const bindPropertyFull = native.bindPropertyFull;
+
+/**
+ * g_binding_group_bind_full with JS transform functions — the engine's twin of
+ * GjsPrivate.g_binding_group_bind_full backing GObject.BindingGroup.bind_full.
+ */
+export const bindingGroupBindFull = native.bindingGroupBindFull;
+
 export default native;

@@ -21,12 +21,11 @@
 //     GBusAcquiredCallback/GBusNameAppearedCallback that g_bus_own_name/watch_name
 //     take, so those namespace functions are re-implemented in JS here.
 //
-// DEFERRED — object export (Gio.DBusExportedObject.wrapJSObject): GJS builds it on
-// GjsPrivate.DBusImplementation (a C type absent on a plain Node/GI host); the
-// introspectable alternative g_dbus_connection_register_object_with_closures needs
-// GClosure IN-arguments the node-gi engine cannot yet marshal, and the plain
-// register_object takes a non-introspectable vtable. wrapJSObject therefore throws
-// a clear, actionable error (never crashes).
+// Object export (Gio.DBusExportedObject.wrapJSObject): GJS builds it on
+// GjsPrivate.DBusImplementation (a C type absent on a plain Node/GI host); node-gi
+// drives the INTROSPECTABLE g_dbus_connection_register_object_with_closures2
+// instead — three GClosures (method call / get property / set property) the engine
+// now marshals from JS functions. See wrapJSObject at the bottom of this module.
 import { addSignalMethods, _connect, _disconnect, _emit } from './_signals.js';
 
 // The `_signals` mixin's error paths (a throwing handler / a method-name clash)
@@ -506,18 +505,209 @@ export function createGioDBus(ctx) {
     },
   });
 
-  // ---- Gio.DBusExportedObject (export side — DEFERRED, clear error) ----
-  function wrapJSObject() {
-    throw new Error(
-      '@gjsify/node-gi: Gio.DBusExportedObject.wrapJSObject (exporting a JS object as a DBus ' +
-        'service) is not yet supported. GJS builds it on GjsPrivate.DBusImplementation (a ' +
-        'GJS-internal C type, absent on a plain Node/GI host); the introspectable alternative ' +
-        'g_dbus_connection_register_object_with_closures needs GClosure IN-arguments the node-gi ' +
-        'engine cannot yet marshal, and g_dbus_connection_register_object takes a non-introspectable ' +
-        'vtable. The DBus CLIENT half (Gio.DBusProxy.makeProxyWrapper) and name owning/watching ' +
-        '(Gio.DBus.own_name / watch_name) ARE supported.',
+  // ---- Gio.DBusExportedObject (export side) ---------------------------------
+  //
+  // Ported from refs/gjs Gio.js (_wrapJSObject + _handleMethodCall /
+  // _handlePropertyGet / _handlePropertySet). GJS builds this on the C type
+  // GjsPrivate.DBusImplementation (a GObject with handle-method-call /
+  // handle-property-get / handle-property-set signals); node-gi has no such type,
+  // so it instead drives the INTROSPECTABLE
+  // g_dbus_connection_register_object_with_closures2 — three GClosures whose
+  // marshal the engine now supports. The closure param shapes match glib's
+  // register_with_closures_on_* trampolines (gio/gdbusconnection.c):
+  //   method_call: (conn, sender, path, iface, method, params:Variant, invocation)
+  //   get_property: (conn, sender, path, iface, prop) -> Variant|null
+  //   set_property: (conn, sender, path, iface, prop, value:Variant) -> boolean
+  // Ownership: register_object_data_new refs+sinks its own copy of each closure
+  // and frees them on unregister_object, so the JS handler (and everything it
+  // captures) lives exactly as long as the registration. The closures2 variant
+  // does NOT transfer the invocation ref to the closure — the engine's
+  // transfer-full-instance handling refs the invocation before a return_* call,
+  // matching gjs's introspection-annotation-driven behaviour.
+
+  function _makeOutSignature(args) {
+    let ret = '(';
+    for (let i = 0; i < args.length; i++) ret += args[i].signature;
+    return `${ret})`;
+  }
+
+  function _handleDBusReply(invocation, ret) {
+    if (ret === undefined) ret = new GLib.Variant('()', []);
+    try {
+      if (!(ret instanceof GLib.Variant)) {
+        const outArgs = invocation.get_method_info().out_args;
+        const outSignature = _makeOutSignature(outArgs);
+        if (outArgs.length === 1) ret = [ret];
+        ret = new GLib.Variant(outSignature, ret);
+      }
+      invocation.return_value(ret);
+    } catch (e) {
+      logError(e, `Exception in method call: ${invocation.get_method_name()}`);
+      invocation.return_dbus_error(
+        'org.gnome.gjs.JSError.ValueError',
+        'Service implementation returned an incorrect value type',
+      );
+    }
+  }
+
+  function _handleDBusError(invocation, e) {
+    if (e instanceof GLib.Error) {
+      invocation.return_gerror(e);
+      return;
+    }
+    let name = e && e.name ? e.name : 'Error';
+    if (!name.includes('.')) name = `org.gnome.gjs.JSError.${name}`;
+    logError(e, `Exception in method call: ${invocation.get_method_name()}`);
+    invocation.return_dbus_error(name, e && e.message ? e.message : String(e));
+  }
+
+  function _handleMethodCall(jsObj, methodName, parameters, invocation) {
+    const method = jsObj[methodName];
+    if (typeof method === 'function') {
+      let retval;
+      try {
+        const args = parameters.deepUnpack();
+        retval = method.apply(jsObj, args);
+      } catch (e) {
+        _handleDBusError(invocation, e);
+        return;
+      }
+      // A Promise-returning (async) method resolves to the reply.
+      if (retval && typeof retval.then === 'function') {
+        retval.then(
+          (r) => _handleDBusReply(invocation, r),
+          (e) => _handleDBusError(invocation, e),
+        );
+        return;
+      }
+      _handleDBusReply(invocation, retval);
+      return;
+    }
+
+    const asyncMethod = jsObj[`${methodName}Async`];
+    if (typeof asyncMethod === 'function') {
+      let ret;
+      try {
+        ret = asyncMethod.call(jsObj, parameters.deepUnpack(), invocation);
+      } catch (e) {
+        _handleDBusError(invocation, e);
+        return;
+      }
+      if (ret && typeof ret.catch === 'function') ret.catch((e) => _handleDBusError(invocation, e));
+      return;
+    }
+
+    logError(new Error(), `Missing handler for DBus method ${methodName}`);
+    invocation.return_dbus_error(
+      'org.freedesktop.DBus.Error.UnknownMethod',
+      `Method ${methodName} is not implemented`,
     );
   }
+
+  function _handlePropertyGet(jsObj, info, propertyName) {
+    const propInfo = info.lookup_property(propertyName);
+    const jsval = jsObj[propertyName];
+    if (jsval === undefined || jsval === null) return null;
+    if (jsval instanceof GLib.Variant) return jsval;
+    return new GLib.Variant(propInfo.signature, jsval);
+  }
+
+  function _handlePropertySet(jsObj, propertyName, newValue) {
+    jsObj[propertyName] = newValue.deepUnpack();
+    return true;
+  }
+
+  function wrapJSObject(interfaceInfo, jsObj) {
+    let info;
+    if (isGioInstance(interfaceInfo, 'DBusInterfaceInfo')) info = interfaceInfo;
+    else info = _newInterfaceInfo(interfaceInfo);
+    // cache_build is required so lookup_property/method work off the info.
+    info.cache_build();
+    const ifaceName = info.name;
+
+    // Every connection this object is exported on: { connection, registrationId }.
+    const registrations = [];
+
+    const impl = {
+      get_info: () => info,
+      get_object_path: () => impl._objectPath,
+      get_connection: () => impl._connection,
+      _objectPath: null,
+      _connection: null,
+
+      export(connection, path) {
+        // register_object_with_closures2 (since 2.84): closures for method call /
+        // get property / set property. Passing JS functions marshals each to a
+        // real GClosure (the engine's GClosure IN-arg support). Returns the
+        // registration id (throws on error).
+        const id = connection.register_object_with_closures2(
+          path,
+          info,
+          (_conn, _sender, _path, _iface, method, params, invocation) =>
+            _handleMethodCall(jsObj, method, params, invocation),
+          (_conn, _sender, _path, _iface, prop) => _handlePropertyGet(jsObj, info, prop),
+          (_conn, _sender, _path, _iface, prop, value) => _handlePropertySet(jsObj, prop, value),
+        );
+        registrations.push({ connection, id });
+        impl._connection = connection;
+        impl._objectPath = path;
+        return id;
+      },
+
+      unexport() {
+        for (const { connection, id } of registrations.splice(0)) {
+          connection.unregister_object(id);
+        }
+        impl._connection = null;
+      },
+
+      unexport_from_connection(connection) {
+        const handle = unwrap(connection);
+        for (let i = registrations.length - 1; i >= 0; i--) {
+          if (unwrap(registrations[i].connection) === handle) {
+            registrations[i].connection.unregister_object(registrations[i].id);
+            registrations.splice(i, 1);
+          }
+        }
+        if (registrations.length === 0) impl._connection = null;
+      },
+
+      emit_signal(name, parameters = null) {
+        for (const { connection } of registrations) {
+          connection.emit_signal(null, impl._objectPath, ifaceName, name, parameters);
+        }
+      },
+
+      emit_property_changed(name, value) {
+        const changed = {};
+        changed[name] = value;
+        const params = new GLib.Variant('(sa{sv}as)', [ifaceName, changed, []]);
+        for (const { connection } of registrations) {
+          connection.emit_signal(
+            null,
+            impl._objectPath,
+            'org.freedesktop.DBus.Properties',
+            'PropertiesChanged',
+            params,
+          );
+        }
+      },
+
+      flush() {
+        for (const { connection } of registrations) connection.flush(null);
+      },
+    };
+    // camelCase aliases (GJS's DBusImplementation exposes snake_case; keep both
+    // so either spelling works, matching the rest of the node-gi surface).
+    impl.getInfo = impl.get_info;
+    impl.getObjectPath = impl.get_object_path;
+    impl.getConnection = impl.get_connection;
+    impl.unexportFromConnection = impl.unexport_from_connection;
+    impl.emitSignal = impl.emit_signal;
+    impl.emitPropertyChanged = impl.emit_property_changed;
+    return impl;
+  }
+
   const DBusExportedObject = { wrapJSObject };
 
   return { DBus, DBusProxy, DBusExportedObject };

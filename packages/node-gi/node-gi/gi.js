@@ -50,10 +50,34 @@ function toKebab(name) {
   return name.replace(/([A-Z])/g, '-$1').replace(/_/g, '-').toLowerCase();
 }
 
+// Per-user-function shim cache so repeated passes of the same callback marshal to
+// the SAME native-facing function (stable identity, one ffi/GClosure wrapper per
+// user fn per call site pattern).
+const callbackShims = new WeakMap();
+
+// A JS function crossing INTO the engine (a GI callback arg, or a JS fn
+// marshalled as a GClosure IN-arg) is wrapped so that when C invokes it:
+//   • each native arg is marshalled through wrapReturn — a GObject handle becomes
+//    the cached chainable instance, a GVariant a GLib.Variant wrapper, a GParamSpec
+//    a ParamSpec wrapper — matching what GJS hands a callback;
+//   • the JS return is unwrapped back to its native handle (a GLib.Variant
+//     wrapper returned from e.g. a DBus get-property closure must reach the
+//     engine as the raw variant handle).
+// Primitives and plain objects pass through both directions untouched.
+function wrapCallbackFn(fn) {
+  let shim = callbackShims.get(fn);
+  if (shim === undefined) {
+    shim = (...args) => unwrapArg(fn(...args.map(wrapReturn)));
+    callbackShims.set(fn, shim);
+  }
+  return shim;
+}
+
 function unwrapArg(value) {
   if (value !== null && typeof value === 'object' && value[HANDLE] !== undefined) {
     return value[HANDLE];
   }
+  if (typeof value === 'function') return wrapCallbackFn(value);
   return value;
 }
 
@@ -550,23 +574,22 @@ const valueClass = makeValueClass();
 // every other member resolving from introspection. (Additive, like the GObject
 // overlay; the introspected struct-based `GLib.Variant` is replaced by the
 // ergonomic wrapper class so `new GLib.Variant(...)` + `.deepUnpack()` work.)
-// GLib.log_set_writer_func(fn) requires a JS GLogWriterFunc marshalled as a
-// GClosure/callback IN-argument (the introspected engine passes NULL for it → a
-// GLib-CRITICAL no-op), the same L0 gap that blocks bind_property_full. gjs itself
-// routes around it via GjsPrivate.log_set_writer_func; on node-gi it is a clear
-// kept-throw until the engine can marshal a JS function as a callback IN-argument.
-const LOG_SET_WRITER_FUNC_MSG =
-  'GLib.log_set_writer_func(fn) is not supported on @gjsify/node-gi yet: a JS GLogWriterFunc must ' +
-  'be marshalled as a GClosure/callback IN-argument, which the native engine cannot yet do. Use ' +
-  'GLib.log_structured or console for structured logging.';
-
 // The GLib names the L1 overlay adds/replaces on top of introspection.
+// log_set_writer_func / log_set_writer_default mirror gjs's GLib.js overrides:
+// gjs routes them through GjsPrivate (a C wrapper) because a GLogWriterFunc can
+// fire on any thread and its GLogField array is not generically introspectable —
+// node-gi's engine ships the same wrapper natively (logSetWriterFunc /
+// logSetWriterDefault, src/private.cc). The JS writer receives
+// (logLevel, fields) where fields is a plain object whose values are Uint8Arrays
+// of the field bytes (or null for empty fields) — byte-for-byte the shape gjs's
+// `{...stringFields.recursiveUnpack()}` produces (verified vs gjs 1.88).
 const GLIB_OVERLAY_NAMES = new Set([
   'log_structured',
   'idle_add_once',
   'timeout_add_once',
   'timeout_add_seconds_once',
   'log_set_writer_func',
+  'log_set_writer_default',
 ]);
 
 // GLib.log_structured(domain, level, fields): pack `fields` into an `a{sv}` and hand
@@ -620,9 +643,17 @@ function decorateGLibNamespace(baseNs) {
           return baseNs.SOURCE_REMOVE;
         });
     } else if (prop === 'log_set_writer_func') {
-      value = () => {
-        throw new Error(LOG_SET_WRITER_FUNC_MSG);
+      // The gjs GLib.js shape: a non-function clears the JS writer (logs fall
+      // back to the default writer); a function becomes the structured-log
+      // writer. NOTE (GLib contract, identical under gjs): the underlying
+      // g_log_set_writer_func may only ever be installed ONCE per process — a
+      // second install aborts inside GLib itself.
+      value = (writerFunc) => {
+        if (typeof writerFunc !== 'function') native.logSetWriterFunc(null);
+        else native.logSetWriterFunc(writerFunc);
       };
+    } else if (prop === 'log_set_writer_default') {
+      value = () => native.logSetWriterDefault();
     }
     cache.set(prop, value);
     return value;
@@ -907,23 +938,31 @@ export function stopMainContextPump() {
   }
 }
 
-// bind_property_full needs the transform-to/transform-from callbacks marshalled as
-// GClosure IN-arguments, which the native engine cannot yet do (the same L0 gap that
-// blocks GLib.log_set_writer_func and a GDBus method-export closure). gjs itself
-// avoids the introspected version via GjsPrivate.g_object_bind_property_full; on
-// node-gi there is no such shim, so this is a clear kept-throw until the engine can
-// marshal a JS function as a GClosure/callback IN-argument.
-const BIND_PROPERTY_FULL_MSG =
-  'GObject.Object.prototype.bind_property_full is not supported on @gjsify/node-gi yet: it needs ' +
-  'the JS transform-to/from closures marshalled as GClosure IN-arguments, which the native engine ' +
-  'cannot yet do. Use bind_property (no transforms), or convert the value in a notify:: handler.';
+// bind_property_full / BindingGroup.bind_full: the transform functions are driven
+// by the native GjsPrivate-mirror (src/private.cc) — the same architecture gjs
+// uses (GjsPrivate.g_object_bind_property_full / g_binding_group_bind_full),
+// because the transform's `to_value` is a write-back GValue no marshaled GClosure
+// can reach. The JS contract matches gjs byte-for-byte (verified vs gjs 1.88):
+//   (binding, sourceValue) => [ok: boolean, targetValue]
+// — sourceValue arrives unpacked, [false, …] leaves the target unchanged, a
+// non-Array return is reported and treated as no-transform. This wrapper wraps
+// the incoming binding/source into chainable L1 values and unwraps the returned
+// target value back to a native handle (object/variant-valued properties).
+function wrapBindingTransform(fn) {
+  if (typeof fn !== 'function') return null;
+  return (binding, value) => {
+    const result = fn(wrapReturn(binding), wrapReturn(value));
+    if (!Array.isArray(result)) return result; // native reports + treats as FALSE
+    return [result[0], unwrap(result[1])];
+  };
+}
 
-// gjs's GObject.Object.prototype signal-convenience methods + the bind_property_full
-// kept-throw, resolved by JS-accessor name (snake_case or camelCase). Returns a
-// `(handle, args) => result` applier, or undefined for a name we do not shim.
-// block/unblock route through the introspected single-handler g_signal_handler_*
-// functions (verified to marshal a node-gi GObject IN-arg); stop_emission_by_name
-// through g_signal_stop_emission_by_name.
+// gjs's GObject.Object.prototype signal-convenience methods + bind_property_full
+// (and BindingGroup.bind_full), resolved by JS-accessor name (snake_case or
+// camelCase). Returns a `(handle, args) => result` applier, or undefined for a
+// name we do not shim. block/unblock route through the introspected
+// single-handler g_signal_handler_* functions (verified to marshal a node-gi
+// GObject IN-arg); stop_emission_by_name through g_signal_stop_emission_by_name.
 function objectPrototypeShim(prop) {
   switch (prop) {
     case 'block_signal_handler':
@@ -940,8 +979,40 @@ function objectPrototypeShim(prop) {
         wrapReturn(native.callFunction('GObject', 'signal_stop_emission_by_name', [handle, args[0]]));
     case 'bind_property_full':
     case 'bindPropertyFull':
-      return () => {
-        throw new Error(BIND_PROPERTY_FULL_MSG);
+      return (handle, args) =>
+        wrapReturn(
+          native.bindPropertyFull(
+            handle,
+            args[0],
+            unwrap(args[1]),
+            args[2],
+            args[3],
+            wrapBindingTransform(args[4]),
+            wrapBindingTransform(args[5]),
+          ),
+        );
+    case 'bind_full':
+    case 'bindFull':
+      // GObject.BindingGroup.bind_full (gjs: GjsPrivate.g_binding_group_bind_full).
+      // Gated per instance: on any OTHER class a genuine `bind_full` method keeps
+      // resolving through the normal GI route. NOTE: without this shim the
+      // introspected name would resolve to bind_with_closures (its GIR shadow),
+      // whose write-back GValue contract a marshaled GClosure cannot satisfy.
+      return (handle, args) => {
+        if (!native.isInstanceOf(handle, 'GObject', 'BindingGroup')) {
+          return wrapReturn(native.callMethod(handle, 'bind_full', unwrapArgs(args)));
+        }
+        return wrapReturn(
+          native.bindingGroupBindFull(
+            handle,
+            args[0],
+            unwrap(args[1]),
+            args[2],
+            args[3],
+            wrapBindingTransform(args[4]),
+            wrapBindingTransform(args[5]),
+          ),
+        );
       };
     default:
       return undefined;
@@ -1024,8 +1095,8 @@ function wrapInstance(handle, userProto) {
         return () => applicationRunAsync(handle);
       }
       // gjs's GObject.Object.prototype signal conveniences (block_signal_handler /
-      // unblock_signal_handler / stop_emission_by_name) + the bind_property_full
-      // kept-throw (refs/gjs GObject.js). These are NOT introspected instance
+      // unblock_signal_handler / stop_emission_by_name) + bind_property_full and
+      // BindingGroup.bind_full (refs/gjs GObject.js). These are NOT introspected instance
       // methods — they are gjs shims over the namespace-level g_signal_* functions —
       // so route them explicitly before property / GI-method resolution.
       const shim = objectPrototypeShim(prop);
@@ -2051,7 +2122,12 @@ export function requireGi(namespace, version) {
  * @returns {unknown}
  */
 export function unwrap(value) {
-  return unwrapArg(value);
+  // NOT unwrapArg: the public unwrap only extracts handles — it must never
+  // replace a function with the engine-facing callback shim.
+  if (value !== null && typeof value === 'object' && value[HANDLE] !== undefined) {
+    return value[HANDLE];
+  }
+  return value;
 }
 
 export default requireGi;

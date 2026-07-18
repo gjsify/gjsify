@@ -111,6 +111,12 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("disconnectSignal", Napi::Function::New(env, DisconnectSignal));
   exports.Set("setTemplateCallbackResolver",
               Napi::Function::New(env, SetTemplateCallbackResolver));
+  // GjsPrivate-mirroring helpers (private.cc): the structured-log writer func +
+  // the bind_property_full / BindingGroup.bind_full transform trampolines.
+  exports.Set("logSetWriterFunc", Napi::Function::New(env, LogSetWriterFunc));
+  exports.Set("logSetWriterDefault", Napi::Function::New(env, LogSetWriterDefault));
+  exports.Set("bindPropertyFull", Napi::Function::New(env, BindPropertyFull));
+  exports.Set("bindingGroupBindFull", Napi::Function::New(env, BindingGroupBindFull));
   // The native cairo binding + foreign-struct registration (the `__cairo` export).
   InitCairo(env, exports);
   return exports;

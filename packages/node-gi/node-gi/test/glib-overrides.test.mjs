@@ -4,9 +4,9 @@
 // Covers the GLib conveniences gjs adds over introspection
 // (refs/gjs/modules/core/overrides/GLib.js): GLib.log_structured (pack fields into
 // an a{sv} + hand to g_log_variant), the one-shot idle/timeout helpers
-// (idle_add_once / timeout_add_once / timeout_add_seconds_once), and the
-// GLib.log_set_writer_func kept-throw (the JS-callback-as-GLogWriterFunc GClosure
-// IN-arg gap). log_structured's stderr output is checked byte-for-byte against the
+// (idle_add_once / timeout_add_once / timeout_add_seconds_once), and
+// GLib.log_set_writer_func (a JS callback marshalled as a GLogWriterFunc via the
+// native GjsPrivate-mirror). log_structured's stderr output is checked byte-for-byte against the
 // GOLD STANDARD by running the SAME log call under both node-gi and `gjs -m` and
 // asserting the writer emits the identical MESSAGE + domain.
 //
@@ -119,10 +119,25 @@ test('timeout_add_once fires exactly once (auto-removed)', () => {
   assert.equal(n, 1, 'did not re-fire (source removed)');
 });
 
-// ---- log_set_writer_func kept-throw ---------------------------------------
+// ---- log_set_writer_func (works: JS fn → GLogWriterFunc) ------------------
 
-test('log_set_writer_func is a clear kept-throw (GLogWriterFunc IN-arg gap)', () => {
-  assert.throws(() => GLib.log_set_writer_func(() => GLib.LogWriterOutput.HANDLED), /GLogWriterFunc/);
+test('log_set_writer_func installs a JS writer that receives a real log', () => {
+  // GLib allows only ONE g_log_set_writer_func per process (a second is a fatal
+  // g_error, same as gjs) — this file's single install; log_set_writer_default()
+  // re-arms the default fallback afterwards. Full coverage: gclosure-in-args.test.mjs.
+  const seen = [];
+  GLib.log_set_writer_func((_level, fields) => {
+    seen.push(fields);
+    return GLib.LogWriterOutput.HANDLED;
+  });
+  GLib.log_structured('node-gi-glib-overrides', GLib.LogLevelFlags.LEVEL_MESSAGE, {
+    MESSAGE: 'writer-func-works',
+  });
+  const rec = seen.find(
+    (f) => f.MESSAGE && Buffer.from(f.MESSAGE).toString('utf8') === 'writer-func-works',
+  );
+  assert.ok(rec, 'the installed writer received the emitted MESSAGE');
+  GLib.log_set_writer_default();
 });
 
 test('the LogLevelFlags / LogWriterOutput surface is present', () => {

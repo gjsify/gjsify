@@ -108,11 +108,103 @@ test('makeProxyWrapper.newAsync builds an inited proxy', { skip: busSkip }, asyn
   assert.match(id, HEX32);
 });
 
-test('Gio.DBusExportedObject.wrapJSObject throws a clear "not supported" error (export deferred)', () => {
-  // No bus needed — this asserts the deferred export side fails loudly, not silently.
-  const gio = requireGi('Gio', '2.0');
-  assert.throws(
-    () => gio.DBusExportedObject.wrapJSObject('<node/>', {}),
-    /not yet supported/,
+// Object export (wrapJSObject) — a JS object exported over DBus via the GClosure
+// vtable (register_object_with_closures2). Full round-trip: a proxy calls an
+// exported method, gets/sets an exported property, and receives an emitted signal.
+// Async proxy + async calls throughout (a sync self-call would deadlock the single
+// main loop that must also service the incoming request). Needs a session bus.
+test('Gio.DBusExportedObject.wrapJSObject export round-trip', { skip: busSkip }, async () => {
+  const IFACE = 'org.gjsify.NodeGiExportTest';
+  const OBJ = '/org/gjsify/NodeGiExportTest';
+  const XML = `<node><interface name="${IFACE}">
+<method name="Echo"><arg type="s" direction="in"/><arg type="s" direction="out"/></method>
+<method name="Boom"><arg type="s" direction="out"/></method>
+<property name="Level" type="i" access="readwrite"/>
+<signal name="Pinged"><arg type="s"/></signal>
+</interface></node>`;
+
+  const conn = Gio.bus_get_sync(Gio.BusType.SESSION, null);
+  const service = {
+    Level: 7,
+    Echo(s) {
+      return `echo:${s}`;
+    },
+    Boom() {
+      throw new Error('kaboom');
+    },
+  };
+  const impl = Gio.DBusExportedObject.wrapJSObject(XML, service);
+  impl.export(conn, OBJ);
+  assert.equal(impl.get_object_path(), OBJ);
+
+  const loop = GLib.MainLoop.new(null, false);
+  const result = {};
+  const ownId = Gio.DBus.own_name(
+    Gio.BusType.SESSION,
+    IFACE,
+    Gio.BusNameOwnerFlags.NONE,
+    () => {},
+    () => {
+      const PW = Gio.DBusProxy.makeProxyWrapper(XML);
+      PW(conn, IFACE, OBJ, (proxy, err) => {
+        if (err) {
+          result.error = String(err);
+          loop.quit();
+          return;
+        }
+        let signal = null;
+        proxy.connectSignal('Pinged', (_p, _s, args) => {
+          signal = args[0];
+        });
+        proxy.EchoRemote('hi', ([echoed]) => {
+          result.echo = echoed;
+          // property get + set via org.freedesktop.DBus.Properties (async, no deadlock)
+          conn.call(
+            IFACE, OBJ, 'org.freedesktop.DBus.Properties', 'Get',
+            new GLib.Variant('(ss)', [IFACE, 'Level']),
+            new GLib.VariantType('(v)'), Gio.DBusCallFlags.NONE, -1, null,
+            (_s1, res1) => {
+              result.levelBefore = conn.call_finish(res1).deepUnpack()[0].deepUnpack();
+              conn.call(
+                IFACE, OBJ, 'org.freedesktop.DBus.Properties', 'Set',
+                new GLib.Variant('(ssv)', [IFACE, 'Level', new GLib.Variant('i', 99)]),
+                null, Gio.DBusCallFlags.NONE, -1, null,
+                (_s2, res2) => {
+                  conn.call_finish(res2);
+                  result.levelAfter = service.Level;
+                  // error-return path: Boom throws → DBus error → proxy err
+                  proxy.BoomRemote(([_v], boomErr) => {
+                    result.boomErr = Boolean(boomErr);
+                    impl.emit_signal('Pinged', new GLib.Variant('(s)', ['ping!']));
+                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
+                      result.signal = signal;
+                      loop.quit();
+                      return false;
+                    });
+                  });
+                },
+              );
+            },
+          );
+        });
+      });
+    },
+    () => {},
   );
+  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 8000, () => {
+    result.timedOut = true;
+    loop.quit();
+    return false;
+  });
+  loop.run();
+  Gio.DBus.unown_name(ownId);
+  impl.unexport();
+
+  assert.equal(result.timedOut, undefined, 'round-trip must complete before the safety timeout');
+  assert.equal(result.error, undefined);
+  assert.equal(result.echo, 'echo:hi', 'exported method reply');
+  assert.equal(result.levelBefore, 7, 'get-property closure');
+  assert.equal(result.levelAfter, 99, 'set-property closure wrote through');
+  assert.equal(result.boomErr, true, 'a throwing method returns a DBus error');
+  assert.equal(result.signal, 'ping!', 'emit_signal reaches the proxy');
 });

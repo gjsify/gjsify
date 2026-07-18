@@ -213,7 +213,7 @@ test('GObject.Object.new_with_properties zips names + values', () => {
   );
 });
 
-// ---- bind_property (works) + bind_property_full (kept-throw) ---------------
+// ---- bind_property + bind_property_full (both work) ------------------------
 
 test('bind_property (no transform) is introspected and syncs', () => {
   const src = new Gio.SimpleAction({ name: 's', enabled: true });
@@ -224,13 +224,28 @@ test('bind_property (no transform) is introspected and syncs', () => {
   assert.equal(dst.enabled, false, 'a later source change propagates');
 });
 
-test('bind_property_full is a clear kept-throw (GClosure IN-arg gap)', () => {
+test('bind_property_full runs the JS transform (GClosure IN-arg)', () => {
+  // The transform closures are driven natively (GjsPrivate-mirror); the JS
+  // transform-to must actually convert the source value into the target. Full
+  // coverage lives in test/gclosure-in-args.test.mjs — this is the override-layer
+  // smoke test that the prototype method is wired to the native path (no throw).
   const src = new Gio.SimpleAction({ name: 's2', enabled: true });
   const dst = new Gio.SimpleAction({ name: 'd2', enabled: false });
-  assert.throws(
-    () => src.bind_property_full('enabled', dst, 'enabled', GObject.BindingFlags.DEFAULT, () => {}, null),
-    /GClosure IN-arguments/,
+  let sawSource;
+  src.bind_property_full(
+    'enabled',
+    dst,
+    'enabled',
+    GObject.BindingFlags.DEFAULT,
+    (_binding, source) => {
+      sawSource = source;
+      return [true, !source];
+    },
+    null,
   );
+  src.enabled = false;
+  assert.equal(sawSource, false, 'the transform received the source value');
+  assert.equal(dst.enabled, true, 'the inverted transform result reached the target');
 });
 
 // ---- ParamFlags / SignalFlags / AccumulatorType / TYPE_* ------------------

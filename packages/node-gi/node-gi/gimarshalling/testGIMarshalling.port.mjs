@@ -1084,8 +1084,17 @@ describe('GValue', function () {
 // The IN-with-type inference breadth + flat-GValue-array round-trips stay a later PR.
 describeSkip('phase 2.5 GValue IN — gvalue_in_with_type type inference + flat-array round-trips',
     'GValue (deferred IN breadth)');
-describeSkip('phase 2.7 callbacks — GClosure in/return + callbacks with out-params + owned boxed',
-    'Callback');
+// GClosure IN-parameter: a JS function marshalled as a real GClosure (the
+// GClosure-arg primitive). The rest of the Callback suite (callback OUT-params,
+// gclosure_return) stays skipped — those need callback OUT-param marshalling /
+// invokable GObject.Closure returns, separate features.
+describe('Callback', function () {
+    describe('GClosure', function () {
+        testInParameter('gclosure', () => 42);
+    });
+});
+describeSkip('phase 2.7 callbacks — callback out-params + gclosure_return + owned boxed',
+    'Callback (deferred: callback OUT-params)');
 describeSkip('phase 2.4 structs — raw gpointer return round-trip',
     'Raw pointers');
 
