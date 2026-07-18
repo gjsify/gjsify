@@ -1,0 +1,11 @@
+records: 1
+level is MESSAGE: true
+keys: GLIB_DOMAIN,MESSAGE,MY_FIELD,PRIORITY
+all bytes: true
+MESSAGE: hello writer
+MY_FIELD: custom-value
+PRIORITY: 5
+second level is INFO: true
+RAW: raw-bytes
+WRAPPED: variant-string
+after default: 2

@@ -1,18 +1,23 @@
 // SPDX-License-Identifier: MIT
-// @gjsify/node-gi — Gio.DBus client round-trip on a private session bus.
+// @gjsify/node-gi — Gio.DBus client + object-export round-trips on a private
+// session bus.
 //
-// Runs the SHARED scenario (../dbus/scenario.mjs) on node-gi and asserts it equals
-// the golden result AND the output of the SAME scenario under `gjs -m`
+// Runs the SHARED scenarios (../dbus/scenario.mjs client half,
+// ../dbus/export-scenario.mjs export half) on node-gi and asserts each equals
+// its golden result AND the output of the SAME scenario under `gjs -m`
 // (../dbus/gjs-harness.js) — the byte-for-byte gjs cross-check. Requires a session
 // bus; wrap the invocation in `dbus-run-session` for isolation:
-//   dbus-run-session -- node --test test/dbus.test.mjs   (npm run test:dbus)
+//   dbus-run-session -- node --test --expose-gc test/dbus.test.mjs   (npm run test:dbus)
 // When no session bus is reachable (the default `npm test` in a headless CI
 // container), every case self-skips — it never fails for lack of a bus.
 //
 // Coverage: makeProxyWrapper (sync + async-raw + Promise methods, the proxy
 // surface, a live NameOwnerChanged signal), Gio.DBus.session, name owning
-// (own_name → onNameAcquired), and the DEFERRED export side (wrapJSObject throws a
-// clear error, never crashes).
+// (own_name → onNameAcquired), object export (Gio.DBusExportedObject.wrapJSObject
+// over the GClosure vtable — method call / property get+set / error / signal /
+// PropertiesChanged / unexport), and the export registration's GC lifetime
+// (closures rooted while exported, released after unregister — the --expose-gc
+// leg).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -21,6 +26,7 @@ import { dirname, join } from 'node:path';
 
 import { requireGi } from '../gi.js';
 import { runScenario, EXPECTED } from '../dbus/scenario.mjs';
+import { runExportScenario, EXPORT_EXPECTED } from '../dbus/export-scenario.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HARNESS = join(HERE, '..', 'dbus', 'gjs-harness.js');
@@ -85,6 +91,13 @@ test('the same round-trip under `gjs -m` is byte-identical (gold standard)', { s
   assert.ok(line, `no RESULT= line in gjs output:\n${r.stdout}\n${r.stderr}`);
   const gjsResult = JSON.parse(line.slice('RESULT='.length));
   assert.deepEqual(gjsResult, EXPECTED, 'gjs golden result diverged from EXPECTED');
+  // The export half rides the same harness run: gjs's native wrapJSObject
+  // (GjsPrivate.DBusImplementation) must produce the SAME normalized result as
+  // node-gi's GClosure-vtable port (asserted against EXPORT_EXPECTED below).
+  const exportLine = (r.stdout || '').split('\n').find((l) => l.startsWith('EXPORT_RESULT='));
+  assert.ok(exportLine, `no EXPORT_RESULT= line in gjs output:\n${r.stdout}\n${r.stderr}`);
+  const gjsExportResult = JSON.parse(exportLine.slice('EXPORT_RESULT='.length));
+  assert.deepEqual(gjsExportResult, EXPORT_EXPECTED, 'gjs export result diverged from EXPORT_EXPECTED');
 });
 
 test('proxy method Promise variant (FooAsync) resolves', { skip: busSkip }, async () => {
@@ -109,102 +122,114 @@ test('makeProxyWrapper.newAsync builds an inited proxy', { skip: busSkip }, asyn
 });
 
 // Object export (wrapJSObject) — a JS object exported over DBus via the GClosure
-// vtable (register_object_with_closures2). Full round-trip: a proxy calls an
-// exported method, gets/sets an exported property, and receives an emitted signal.
-// Async proxy + async calls throughout (a sync self-call would deadlock the single
-// main loop that must also service the incoming request). Needs a session bus.
-test('Gio.DBusExportedObject.wrapJSObject export round-trip', { skip: busSkip }, async () => {
-  const IFACE = 'org.gjsify.NodeGiExportTest';
-  const OBJ = '/org/gjsify/NodeGiExportTest';
+// vtable (register_object_with_closures2). The SHARED scenario covers the full
+// round-trip: impl surface, exported method, property get+set, throwing method →
+// DBus error, emit_signal, emit_property_changed → proxy cache, and unexport →
+// further calls error. The gjs harness runs the SAME source (gold standard test
+// above). Async proxy + async calls throughout (a sync self-call would deadlock
+// the single main loop that must also service the incoming request).
+test('Gio.DBusExportedObject.wrapJSObject export round-trip (shared scenario)', { skip: busSkip }, () => {
+  const result = runExportScenario({ Gio, GLib });
+  assert.deepEqual(result, EXPORT_EXPECTED);
+});
+
+// node-gi-specific export surface not part of the shared scenario: the camelCase
+// aliases the L1 layer adds (GJS's C skeleton has snake_case only).
+test('wrapJSObject camelCase aliases mirror the snake_case surface', { skip: busSkip }, () => {
+  const impl = Gio.DBusExportedObject.wrapJSObject(
+    '<node><interface name="org.gjsify.NodeGiAliasTest"><method name="Noop"/></interface></node>',
+    { Noop() {} },
+  );
+  assert.equal(impl.getInfo, impl.get_info);
+  assert.equal(impl.getObjectPath, impl.get_object_path);
+  assert.equal(impl.getConnection, impl.get_connection);
+  assert.equal(impl.unexportFromConnection, impl.unexport_from_connection);
+  assert.equal(impl.emitSignal, impl.emit_signal);
+  assert.equal(impl.emitPropertyChanged, impl.emit_property_changed);
+});
+
+// GC/lifetime (the --expose-gc leg; self-skips otherwise): the method/property
+// GClosures — and the service object they capture — must be rooted by NOTHING
+// but the native registration (JsClosureData's strong napi_ref, ref+sunk by
+// register_object_data), surviving a full GC with every JS reference dropped;
+// and unregistering must release them (closure invalidate → JsClosureFinalize →
+// napi_delete_reference) so the service becomes collectable — not a process-
+// lifetime leak. This is the adversarial rooting test for a long-lived DBus
+// registration outliving the call that created it.
+const gcSkip =
+  busSkip || (typeof globalThis.gc !== 'function' ? 'needs --expose-gc (npm run test:dbus)' : false);
+test('export registration roots its closures across GC; unregister releases them', { skip: gcSkip }, async () => {
+  const IFACE = 'org.gjsify.NodeGiExportGcTest';
+  const OBJ = '/org/gjsify/NodeGiExportGcTest';
   const XML = `<node><interface name="${IFACE}">
 <method name="Echo"><arg type="s" direction="in"/><arg type="s" direction="out"/></method>
-<method name="Boom"><arg type="s" direction="out"/></method>
-<property name="Level" type="i" access="readwrite"/>
-<signal name="Pinged"><arg type="s"/></signal>
 </interface></node>`;
 
   const conn = Gio.bus_get_sync(Gio.BusType.SESSION, null);
-  const service = {
-    Level: 7,
-    Echo(s) {
-      return `echo:${s}`;
-    },
-    Boom() {
-      throw new Error('kaboom');
-    },
-  };
-  const impl = Gio.DBusExportedObject.wrapJSObject(XML, service);
-  impl.export(conn, OBJ);
-  assert.equal(impl.get_object_path(), OBJ);
+  let collected = false;
+  const registry = new FinalizationRegistry(() => {
+    collected = true;
+  });
 
+  // Register, then drop EVERY JS reference — impl's own methods close over the
+  // service, so impl must go too. Creation happens inside a helper so no live
+  // frame slot can pin the service; only the registration id survives.
+  const setupExport = () => {
+    const service = {
+      Echo(s) {
+        return `gc:${s}`;
+      },
+    };
+    registry.register(service, 'service');
+    const impl = Gio.DBusExportedObject.wrapJSObject(XML, service);
+    return impl.export(conn, OBJ);
+  };
+  const registrationId = setupExport();
+
+  globalThis.gc();
+  globalThis.gc();
+  await new Promise((resolve) => setImmediate(resolve));
+  globalThis.gc();
+  assert.equal(collected, false, 'the exported service must NOT be collected while registered');
+
+  // The handler still works after the GC barrage — a use-after-free here would
+  // crash or mis-reply.
+  const dest = conn.get_unique_name();
   const loop = GLib.MainLoop.new(null, false);
   const result = {};
-  const ownId = Gio.DBus.own_name(
-    Gio.BusType.SESSION,
-    IFACE,
-    Gio.BusNameOwnerFlags.NONE,
-    () => {},
-    () => {
-      const PW = Gio.DBusProxy.makeProxyWrapper(XML);
-      PW(conn, IFACE, OBJ, (proxy, err) => {
-        if (err) {
-          result.error = String(err);
-          loop.quit();
-          return;
-        }
-        let signal = null;
-        proxy.connectSignal('Pinged', (_p, _s, args) => {
-          signal = args[0];
-        });
-        proxy.EchoRemote('hi', ([echoed]) => {
-          result.echo = echoed;
-          // property get + set via org.freedesktop.DBus.Properties (async, no deadlock)
-          conn.call(
-            IFACE, OBJ, 'org.freedesktop.DBus.Properties', 'Get',
-            new GLib.Variant('(ss)', [IFACE, 'Level']),
-            new GLib.VariantType('(v)'), Gio.DBusCallFlags.NONE, -1, null,
-            (_s1, res1) => {
-              result.levelBefore = conn.call_finish(res1).deepUnpack()[0].deepUnpack();
-              conn.call(
-                IFACE, OBJ, 'org.freedesktop.DBus.Properties', 'Set',
-                new GLib.Variant('(ssv)', [IFACE, 'Level', new GLib.Variant('i', 99)]),
-                null, Gio.DBusCallFlags.NONE, -1, null,
-                (_s2, res2) => {
-                  conn.call_finish(res2);
-                  result.levelAfter = service.Level;
-                  // error-return path: Boom throws → DBus error → proxy err
-                  proxy.BoomRemote(([_v], boomErr) => {
-                    result.boomErr = Boolean(boomErr);
-                    impl.emit_signal('Pinged', new GLib.Variant('(s)', ['ping!']));
-                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
-                      result.signal = signal;
-                      loop.quit();
-                      return false;
-                    });
-                  });
-                },
-              );
-            },
-          );
-        });
-      });
-    },
-    () => {},
-  );
+  const PW = Gio.DBusProxy.makeProxyWrapper(XML);
+  new PW(conn, dest, OBJ, (proxy, err) => {
+    if (err) {
+      result.error = String(err);
+      loop.quit();
+      return;
+    }
+    proxy.EchoRemote('alive', (r, callErr) => {
+      result.callErr = Boolean(callErr);
+      result.echo = callErr ? null : r[0];
+      loop.quit();
+    });
+  });
   GLib.timeout_add(GLib.PRIORITY_DEFAULT, 8000, () => {
     result.timedOut = true;
     loop.quit();
     return false;
   });
   loop.run();
-  Gio.DBus.unown_name(ownId);
-  impl.unexport();
-
-  assert.equal(result.timedOut, undefined, 'round-trip must complete before the safety timeout');
+  assert.equal(result.timedOut, undefined, 'call must complete before the safety timeout');
   assert.equal(result.error, undefined);
-  assert.equal(result.echo, 'echo:hi', 'exported method reply');
-  assert.equal(result.levelBefore, 7, 'get-property closure');
-  assert.equal(result.levelAfter, 99, 'set-property closure wrote through');
-  assert.equal(result.boomErr, true, 'a throwing method returns a DBus error');
-  assert.equal(result.signal, 'ping!', 'emit_signal reaches the proxy');
+  assert.equal(result.callErr, false);
+  assert.equal(result.echo, 'gc:alive', 'the closure-rooted handler still replies after GC');
+
+  // Unregister: the registration drops its closure refs → finalize → the JS
+  // service becomes collectable. GDBus may defer the release to the main
+  // context, so pump the loop between GC passes; a service that NEVER becomes
+  // collectable is a leak and fails here.
+  assert.equal(conn.unregister_object(registrationId), true);
+  for (let i = 0; i < 100 && !collected; i++) {
+    globalThis.gc();
+    pumpFor(10);
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.equal(collected, true, 'the service must be collectable after unregister_object');
 });

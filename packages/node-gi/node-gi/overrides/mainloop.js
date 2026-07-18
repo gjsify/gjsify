@@ -5,9 +5,10 @@
 // Giovanni Campagna. MIT OR LGPL-2.0-or-later.
 // Modifications: the legacy `imports.mainloop` — a thin convenience layer over
 // GLib.MainLoop — ported to @gjsify/node-gi. GJS builds the idle/timeout sources
-// via GObject.source_set_closure (a GClosure the node-gi engine cannot yet
-// marshal); this port routes through GLib.idle_add / GLib.timeout_add directly
-// (which the engine DOES marshal), keeping the same `imports.mainloop.*` surface.
+// via GObject.source_set_closure; this port routes through GLib.idle_add /
+// GLib.timeout_add directly instead (equivalent behavior, one less indirection —
+// the engine marshals JS functions both as GI callbacks and as GClosures, see
+// test/gclosure-in-args.test.mjs), keeping the same `imports.mainloop.*` surface.
 
 const DEFAULT_IDLE_PRIORITY = 200; // GLib.PRIORITY_DEFAULT_IDLE
 
