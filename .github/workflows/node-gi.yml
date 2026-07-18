@@ -435,7 +435,8 @@ jobs:
           dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
             git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
             glib2-devel gobject-introspection-devel gobject-introspection gjs cairo-devel \
-            meson ninja-build
+            meson ninja-build \
+            pango gdk-pixbuf2 dejavu-sans-fonts
           gjs --version
           echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
           echo "arch: $(uname -m)"
