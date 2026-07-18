@@ -22,9 +22,17 @@ import { fileURLToPath } from 'node:url';
 const here = fileURLToPath(new URL('.', import.meta.url));
 const gjsify = join(here, 'node_modules', '.bin', 'gjsify');
 
-// Every runtime we know how to build for + run on. `on(entry)` returns the argv
-// that runs the built entry under that runtime. gjs runs the native `--app gjs`
-// bundle; node/bun/deno run the `--app node` bundle (or its runtime twin).
+// This example is a STANDALONE published consumer — it installs the *published*
+// `@gjsify/cli` and must NOT import CLI internals (a subpath like
+// `@gjsify/cli/lib/utils/runtimes.js` only exists in an unreleased CLI, so the
+// import would ERR_MODULE_NOT_FOUND under the published-consumer CI job). So the
+// runtime map stays a small, self-contained copy here. The CLI ships the same
+// data as first-party shared tooling (`@gjsify/cli/lib/utils/runtimes.js`), which
+// powers `gjsify run/showcase --runtime`; keep the two in sync when either moves.
+//
+// `on(entry)` returns the argv that runs the built entry under that runtime. gjs
+// runs the native `--app gjs` bundle; node/bun/deno run the `--app node` bundle
+// (or its runtime twin).
 const RUNTIMES = {
     gjs: { probe: 'gjs', on: (entry) => ['gjs', ['-m', entry]] },
     node: { probe: 'node', on: (entry) => ['node', [entry]] },

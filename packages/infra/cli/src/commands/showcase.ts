@@ -1,9 +1,22 @@
 import type { Command } from '../types/index.js';
-import { discoverShowcases, findShowcase } from '../utils/discover-showcases.js';
+import { discoverShowcases, findShowcase, type ShowcaseInfo } from '../utils/discover-showcases.js';
 import { runMinimalChecks, detectPackageManager, buildInstallCommand } from '../utils/check-system-deps.js';
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { ensurePkgDir } from './dlx.js';
+import { parseSpec } from '../utils/parse-spec.js';
+import { resolveNodeEntry } from '../utils/resolve-gjs-entry.js';
+import { runRuntimeBundle } from '../utils/run-node.js';
+import {
+    EXAMPLE_RUNTIMES,
+    isExampleRuntime,
+    readDeclaredRuntimes,
+    checkRuntimeSupported,
+    type ExampleRuntime,
+} from '../utils/runtimes.js';
 
 function readCliVersion(): string | undefined {
     try {
@@ -19,6 +32,7 @@ interface ShowcaseOptions {
     name?: string;
     json: boolean;
     list: boolean;
+    runtime?: string;
 }
 
 export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
@@ -39,6 +53,19 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
                 description: 'List available showcases',
                 type: 'boolean',
                 default: false,
+            })
+            .option('runtime', {
+                // Runtime selector, mirroring `gjsify storybook --runtime`. gjs
+                // (default) runs the showcase's GJS bundle via `gjsify dlx`
+                // (back-compat); node/bun/deno run its `--app node` bundle on
+                // that runtime. Validated against the showcase's declared
+                // `gjsify.example.runtimes` — a GTK-only showcase requested under
+                // node fails with a clear message, not a bundle crash.
+                type: 'string',
+                choices: EXAMPLE_RUNTIMES,
+                default: 'gjs',
+                description:
+                    'Runtime to run the showcase on: gjs (default) | node | bun | deno. node/bun/deno run its `--app node` bundle.',
             }),
     handler: async (args) => {
         // List mode: no name given, or --list flag
@@ -109,9 +136,24 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
             process.exit(1);
         }
 
-        // Delegate to `gjsify dlx <package>@<cli-version>` — same npm-cache,
-        // same atomic symlink-swap, same `gjsify.main` resolution. Re-spawning
-        // the CLI keeps the dlx logic in one place.
+        const runtime = (args.runtime ?? 'gjs') as string;
+        if (!isExampleRuntime(runtime)) {
+            console.error(`Unknown --runtime "${runtime}" (expected: ${EXAMPLE_RUNTIMES.join(', ')}).`);
+            process.exit(1);
+        }
+
+        const cliVersion = readCliVersion();
+
+        // Non-gjs runtime: resolve the showcase's `--app node` bundle and run it
+        // on node/bun/deno. Handled in-process (not via the GJS-only `dlx`).
+        if (runtime !== 'gjs') {
+            await runShowcaseOnRuntime(showcase, runtime, cliVersion);
+            return;
+        }
+
+        // Default (gjs): delegate to `gjsify dlx <package>@<cli-version>` — same
+        // npm-cache, same atomic symlink-swap, same `gjsify.main` resolution.
+        // Re-spawning the CLI keeps the dlx logic in one place.
         //
         // Pinning to the CLI's own version is load-bearing: showcases ship in
         // lockstep with the CLI, so users running `npx @gjsify/cli@X showcase
@@ -121,7 +163,6 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
         // and the user gets a stale showcase that may be missing deps the
         // newer CLI assumes (the `@gjsify/http-soup-bridge` regression
         // reported against `@gjsify/cli@0.3.17`).
-        const cliVersion = readCliVersion();
         const dlxSpec = cliVersion ? `${showcase.packageName}@${cliVersion}` : showcase.packageName;
         console.log(`Running showcase: ${showcase.name} (via gjsify dlx ${dlxSpec})\n`);
         const cliBin = fileURLToPath(new URL('../index.js', import.meta.url));
@@ -143,3 +184,74 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
         });
     },
 };
+
+/**
+ * Resolve a showcase package's on-disk directory. Prefers a LOCAL install (a
+ * workspace member symlinked in node_modules — no network, and it runs the
+ * in-tree build), falling back to `gjsify dlx`'s install-into-cache for a
+ * published showcase. Returns the directory containing the package.json.
+ */
+async function resolveShowcaseDir(showcase: ShowcaseInfo, cliVersion: string | undefined): Promise<string> {
+    // Local-first: a workspace showcase resolves via its own package name.
+    try {
+        const req = createRequire(import.meta.url);
+        const localPkgJson = req.resolve(`${showcase.packageName}/package.json`);
+        if (existsSync(localPkgJson)) return dirname(localPkgJson);
+    } catch {
+        // Not resolvable locally — fall through to dlx install.
+    }
+
+    const spec = cliVersion ? `${showcase.packageName}@${cliVersion}` : showcase.packageName;
+    const { pkgDir } = await ensurePkgDir(parseSpec(spec), {
+        verbose: false,
+        cacheMaxAge: 60 * 24 * 7,
+        frozen: false,
+    });
+    return pkgDir;
+}
+
+/**
+ * Run a showcase on a non-gjs runtime (node/bun/deno). Resolves the package,
+ * validates it against the showcase's `gjsify.example.runtimes` declaration
+ * (clean error if the runtime is unsupported — e.g. a GTK/Adw showcase under
+ * node), resolves its `--app node` bundle and launches it via the shared runner.
+ */
+async function runShowcaseOnRuntime(
+    showcase: ShowcaseInfo,
+    runtime: Exclude<ExampleRuntime, 'gjs'>,
+    cliVersion: string | undefined,
+): Promise<void> {
+    let pkgDir: string;
+    try {
+        pkgDir = await resolveShowcaseDir(showcase, cliVersion);
+    } catch (err) {
+        console.error(`Could not resolve showcase "${showcase.name}": ${(err as Error).message}`);
+        return process.exit(1);
+    }
+
+    // Declaration check — clear, actionable error for an unsupported runtime.
+    let pkg: { name?: string; gjsify?: { example?: { runtimes?: unknown } } } = {};
+    try {
+        pkg = JSON.parse(readFileSync(`${pkgDir}/package.json`, 'utf-8'));
+    } catch {
+        // Fall through — no declaration means permissive.
+    }
+    const declared = readDeclaredRuntimes(pkg);
+    const support = checkRuntimeSupported(runtime, declared, showcase.name);
+    if (!support.ok) {
+        console.error(support.message);
+        return process.exit(1);
+    }
+
+    let entry: string;
+    try {
+        entry = resolveNodeEntry(pkgDir);
+    } catch (err) {
+        console.error(`Cannot run showcase "${showcase.name}" on ${runtime}: ${(err as Error).message}`);
+        return process.exit(1);
+    }
+
+    console.log(`Running showcase: ${showcase.name} on ${runtime} (${entry})\n`);
+    // Terminal call — exit on success.
+    await runRuntimeBundle(runtime, entry, [], { exitOnSuccess: true });
+}

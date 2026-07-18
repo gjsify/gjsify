@@ -408,6 +408,7 @@ npx @gjsify/cli run dist/index.js
 | `<target>` | A GJS bundle file to run, **or** a script name from the current `package.json` |
 | `[args..]` | Extra arguments passed through to the script / `gjs` |
 | `-w, --workspace <name>` | Run `<target>` as a script in the named workspace (by package name or path), like `npm run <script> -w <name>` |
+| `--runtime <gjs\|node\|bun\|deno>` | Runtime to launch a bundle **file** on. Forces file mode. Default `gjs`. |
 
 If `<target>` resolves to a file on disk (or has a path-like prefix), it is launched via `gjs`. Otherwise it is looked up in the current `package.json`'s `scripts` (yarn-run-style).
 
@@ -415,6 +416,30 @@ If `<target>` resolves to a file on disk (or has a path-like prefix), it is laun
 gjsify run start              # run the `start` script from ./package.json
 gjsify run build -w cli       # run the `build` script in the `cli` workspace
 ```
+
+### `--runtime` — run a bundle on gjs / node / bun / deno
+
+`--runtime` selects which runtime launches a **built bundle file**, generalizing the
+`gjsify storybook --runtime` mechanism. `gjs` (default) runs a `--app gjs` bundle via
+`gjs -m`; `node`/`bun`/`deno` run a `--app node` bundle — the **same** bundle for all
+three, since Node-API is their common ABI (bun/deno reuse the node build). Native typelib
+env is wired exactly as for `gjs`, and `@gjsify/node-gi` is required only when the bundle
+actually uses `gi://`.
+
+```bash
+gjsify build src/app.ts --app gjs  --outfile dist/app.gjs.mjs
+gjsify build src/app.ts --app node --outfile dist/app.node.mjs
+
+gjsify run --runtime gjs  dist/app.gjs.mjs    # gjs -m
+gjsify run --runtime node dist/app.node.mjs   # node
+gjsify run --runtime bun  dist/app.node.mjs   # bun — same node bundle
+gjsify run --runtime deno dist/app.node.mjs   # deno run -A --node-modules-dir=manual
+```
+
+Passing `--runtime` forces file mode (it beats the script-name lookup). If the current
+`package.json` declares [`gjsify.example.runtimes`](#per-example-runtime-declaration), the
+requested runtime is validated against it — a runtime the example doesn't support fails with
+a clear, actionable message instead of a bundle crash.
 
 <details>
 <summary>Running without gjsify run</summary>
@@ -616,6 +641,42 @@ npx @gjsify/cli showcase three-geometry-teapot
 | `[name]` | — | Showcase name to run. Omit to list available showcases |
 | `--list` | `false` | Force list mode |
 | `--json` | `false` | Output as JSON (list mode only) |
+| `--runtime <gjs\|node\|bun\|deno>` | `gjs` | Runtime to run the showcase on. |
+
+### `--runtime` — run a showcase off GJS
+
+`gjs` (default) runs the showcase's GJS bundle via `gjsify dlx` (unchanged). `node`/`bun`/`deno`
+resolve the showcase's `--app node` bundle and run it on that runtime — the Node-API showcases
+(`showcases/node/*`). The runtime is validated against the showcase's
+[`gjsify.example.runtimes`](#per-example-runtime-declaration) declaration: a GTK/Adw showcase
+requested under `node` fails with a clear message rather than crashing.
+
+```bash
+gjsify showcase express-webserver                  # GJS (default)
+gjsify showcase express-webserver --runtime node   # the --app node bundle, on Node.js
+gjsify showcase express-webserver --runtime bun    # same node bundle, on Bun
+gjsify showcase express-webserver --runtime deno   # same node bundle, on Deno
+```
+
+### Per-example runtime declaration
+
+An example/showcase MAY declare which runtimes it supports, so `--runtime` validates the request
+instead of failing deep in a bundle it can't run:
+
+```jsonc
+// package.json
+"gjsify": {
+  "example": {
+    "runtimes": ["gjs", "node", "bun", "deno"], // supported runtimes (optional; omitted = permissive)
+    "node": "dist/app.node.mjs"                 // explicit --app node bundle path (optional; else derived)
+  }
+}
+```
+
+`runtimes` is optional and back-compat — a package without it runs on any requested runtime. A
+GTK/Adw showcase declares `["gjs"]` so `--runtime node` errors cleanly (node-gi has no GTK layer
+yet). When `node` is omitted, the node bundle is derived from the GJS entry by convention
+(`dist/<name>.gjs.js` → `dist/<name>.node.mjs`).
 
 ## `gjsify storybook`
 

@@ -44,6 +44,10 @@
   },
   "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/node/express-webserver#readme",
   "gjsify": {
-    "tier": 2
+    "tier": 2,
+    "example": {
+      "runtimes": ["gjs", "node", "bun", "deno"],
+      "node": "dist/index.node.mjs"
+    }
   }
 }

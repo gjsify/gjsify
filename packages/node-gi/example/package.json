@@ -13,6 +13,10 @@
       "node": "none",
       "browser": "none",
       "nativescript": "none"
+    },
+    "example": {
+      "runtimes": ["gjs", "node", "bun", "deno"],
+      "node": "dist/app.node.mjs"
     }
   },
   "scripts": {

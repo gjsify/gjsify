@@ -130,14 +130,20 @@ export const dlxCommand: Command<unknown, DlxOptions> = {
     },
 };
 
-interface EnsureOpts {
+export interface EnsureOpts {
     verbose: boolean;
     registry?: string;
     cacheMaxAge: number;
     frozen: boolean;
 }
 
-async function ensurePkgDir(
+/**
+ * Resolve (installing + caching when remote) the on-disk directory of a package
+ * spec — the shared "get me this package's files" step behind `gjsify dlx` and
+ * `gjsify showcase`. Local paths resolve directly; remote specs install into the
+ * per-key dlx cache (atomic symlink-swap) and reuse a fresh cache entry.
+ */
+export async function ensurePkgDir(
     parsed: ParsedSpec,
     opts: EnsureOpts,
 ): Promise<{ pkgDir: string; cachedPkgName: string | null }> {

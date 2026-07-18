@@ -1,0 +1,96 @@
+// Unit coverage for the shared runtime-selector tooling — the RUNTIMES map,
+// runtime→build-target mapping, and the per-example runtime declaration
+// validation used by `gjsify run/showcase --runtime` and the node-gi example.
+
+import { describe, expect, it } from '@gjsify/unit';
+import {
+    EXAMPLE_RUNTIMES,
+    RUNTIMES,
+    isExampleRuntime,
+    buildAppForRuntime,
+    readDeclaredRuntimes,
+    checkRuntimeSupported,
+} from './runtimes.js';
+
+export default async () => {
+    await describe('runtimes: RUNTIMES map', async () => {
+        await it('covers exactly gjs/node/bun/deno', () => {
+            expect(EXAMPLE_RUNTIMES).toStrictEqual(['gjs', 'node', 'bun', 'deno']);
+            expect(Object.keys(RUNTIMES).sort()).toStrictEqual(['bun', 'deno', 'gjs', 'node']);
+        });
+
+        await it('maps gjs to --app gjs and node/bun/deno to --app node', () => {
+            expect(buildAppForRuntime('gjs')).toBe('gjs');
+            expect(buildAppForRuntime('node')).toBe('node');
+            expect(buildAppForRuntime('bun')).toBe('node');
+            expect(buildAppForRuntime('deno')).toBe('node');
+        });
+
+        await it('launches gjs with `-m` and node with the bare entry', () => {
+            expect(RUNTIMES.gjs.launch('/x/app.gjs.mjs')).toStrictEqual(['gjs', ['-m', '/x/app.gjs.mjs']]);
+            expect(RUNTIMES.node.launch('/x/app.node.mjs')).toStrictEqual(['node', ['/x/app.node.mjs']]);
+        });
+
+        await it('bun reuses the node bundle; deno pins --node-modules-dir=manual', () => {
+            expect(RUNTIMES.bun.launch('/x/app.node.mjs')).toStrictEqual(['bun', ['/x/app.node.mjs']]);
+            expect(RUNTIMES.deno.launch('/x/app.node.mjs')).toStrictEqual([
+                'deno',
+                ['run', '-A', '--node-modules-dir=manual', '/x/app.node.mjs'],
+            ]);
+        });
+
+        await it('forwards extra args', () => {
+            expect(RUNTIMES.node.launch('/x/app.node.mjs', ['--port', '8080'])).toStrictEqual([
+                'node',
+                ['/x/app.node.mjs', '--port', '8080'],
+            ]);
+        });
+    });
+
+    await describe('runtimes: isExampleRuntime', async () => {
+        await it('accepts the four runtimes and rejects others', () => {
+            expect(isExampleRuntime('gjs')).toBe(true);
+            expect(isExampleRuntime('deno')).toBe(true);
+            expect(isExampleRuntime('python')).toBe(false);
+            expect(isExampleRuntime('')).toBe(false);
+        });
+    });
+
+    await describe('runtimes: readDeclaredRuntimes', async () => {
+        await it('returns null when no declaration is present (permissive)', () => {
+            expect(readDeclaredRuntimes(undefined)).toBeNull();
+            expect(readDeclaredRuntimes({})).toBeNull();
+            expect(readDeclaredRuntimes({ gjsify: {} })).toBeNull();
+            expect(readDeclaredRuntimes({ gjsify: { example: {} } })).toBeNull();
+        });
+
+        await it('reads and filters the declared list', () => {
+            expect(readDeclaredRuntimes({ gjsify: { example: { runtimes: ['gjs', 'node'] } } })).toStrictEqual([
+                'gjs',
+                'node',
+            ]);
+            // Unknown entries are dropped (forward-compat with newer runtime names).
+            expect(readDeclaredRuntimes({ gjsify: { example: { runtimes: ['gjs', 'wasm', 42] } } })).toStrictEqual([
+                'gjs',
+            ]);
+        });
+    });
+
+    await describe('runtimes: checkRuntimeSupported', async () => {
+        await it('is permissive with a null declaration', () => {
+            expect(checkRuntimeSupported('node', null, 'x').ok).toBe(true);
+        });
+
+        await it('accepts a declared runtime', () => {
+            expect(checkRuntimeSupported('node', ['gjs', 'node'], 'x').ok).toBe(true);
+        });
+
+        await it('gives a clear, actionable error for an unsupported runtime', () => {
+            const res = checkRuntimeSupported('node', ['gjs'], 'adwaita-storybook');
+            expect(res.ok).toBe(false);
+            expect(res.message).toContain('adwaita-storybook');
+            expect(res.message).toContain('does not support --runtime node');
+            expect(res.message).toContain('Declared runtimes: gjs');
+        });
+    });
+};
