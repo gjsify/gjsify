@@ -39,7 +39,7 @@ jobs:
     steps:
       - name: Install toolchain + GObject-Introspection dev headers
         run: |
-          dnf install -y --setopt=install_weak_deps=False \
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
             git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
             glib2-devel gobject-introspection-devel gobject-introspection gjs cairo-devel \
             dbus-daemon \
@@ -130,7 +130,7 @@ jobs:
       # typelib build a stamped no-op. The rev in the key MUST match PINNED_REV
       # in scripts/build-gi-test-typelibs.mjs.
       - name: Install meson + ninja (typelib oracle build deps)
-        run: dnf install -y --setopt=install_weak_deps=False meson ninja-build
+        run: dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 meson ninja-build
 
       - name: Cache GI test typelibs (pinned rev)
         uses: actions/cache@v4
@@ -171,7 +171,7 @@ jobs:
     steps:
       - name: Install toolchain + GObject-Introspection dev headers
         run: |
-          dnf install -y --setopt=install_weak_deps=False \
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
             git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
             glib2-devel gobject-introspection-devel gobject-introspection cairo-devel
           echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
@@ -246,7 +246,7 @@ jobs:
     steps:
       - name: Install toolchain + GTK4/Adwaita + Xvfb + dbus
         run: |
-          dnf install -y --setopt=install_weak_deps=False \
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
             git gcc-c++ make python3 pkgconf-pkg-config tar xz gjs \
             glib2-devel gobject-introspection-devel gobject-introspection \
             gtk4-devel libadwaita-devel \
@@ -340,7 +340,7 @@ jobs:
     steps:
       - name: Install toolchain + GI dev headers + cairo + libgda (Gda-6.0 typelib) + gjs
         run: |
-          dnf install -y --setopt=install_weak_deps=False \
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
             git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
             glib2-devel gobject-introspection-devel gobject-introspection gjs \
             cairo-devel cairo-gobject-devel \
@@ -432,7 +432,7 @@ jobs:
     steps:
       - name: Install toolchain + GObject-Introspection dev headers
         run: |
-          dnf install -y --setopt=install_weak_deps=False \
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
             git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
             glib2-devel gobject-introspection-devel gobject-introspection gjs cairo-devel \
             meson ninja-build
@@ -519,7 +519,7 @@ jobs:
     steps:
       - name: Install toolchain + GI dev headers + cairo + libgda + libsoup + gjs
         run: |
-          dnf install -y --setopt=install_weak_deps=False \
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
             git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
             glib2-devel gobject-introspection-devel gobject-introspection gjs \
             cairo-devel cairo-gobject-devel \
