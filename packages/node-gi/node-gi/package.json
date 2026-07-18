@@ -80,7 +80,8 @@
     "test:gtk-cairo": "NODE_GI_NATIVE=build node --test test/cairo-drawfunc.test.mjs",
     "test:adw": "NODE_GI_NATIVE=build node --test test/adw-smoke.test.mjs",
     "test:gtk-template": "NODE_GI_NATIVE=build node --test test/gtk-template.test.mjs",
-    "test:gtk-template-callbacks": "NODE_GI_NATIVE=build node --test test/gtk-template-callbacks.test.mjs"
+    "test:gtk-template-callbacks": "NODE_GI_NATIVE=build node --test test/gtk-template-callbacks.test.mjs",
+    "test:gtk-template-signals": "NODE_GI_NATIVE=build node --test test/gtk-template-signals.test.mjs"
   },
   "dependencies": {
     "node-addon-api": "^8.0.0"
