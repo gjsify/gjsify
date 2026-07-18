@@ -59,6 +59,9 @@ static void JsClosureMarshalImpl(GClosure* closure, GValue* return_value, guint 
   }
   Napi::Env env(jc->env);
   Napi::HandleScope scope(env);
+  // JS dispatched from a pump-driven context iteration must not inherit the
+  // pump's in-iteration flag (see NodeGiPumpJsDispatchScope in common.h).
+  NodeGiPumpJsDispatchScope pumpWindow;
 
   napi_value cbv = nullptr;
   if (napi_get_reference_value(jc->env, jc->callback, &cbv) != napi_ok || cbv == nullptr) return;

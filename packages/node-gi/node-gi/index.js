@@ -459,9 +459,14 @@ export const isVariantHandle = native.isVariantHandle;
  * Attach the libuv-backed GSource to the default GLib main context so a blocking
  * GLib main loop (`GLib.MainLoop.run()`, `Gio.Application.run()`) keeps Node's
  * timers, promises and I/O alive — the Node twin of GJS running the GLib loop as
- * the process loop. Idempotent and harmless until a GLib loop actually runs (it
- * adds no libuv handle, so it neither keeps Node alive nor pumps libuv on its
- * own). The L1 layer calls it once when a namespace is first required.
+ * the process loop. Also arms the uv-driven GLib AUTO-PUMP for the non-blocking
+ * case: pending GLib sources (Gio async completions, GLib timeouts/idles, DBus)
+ * dispatch from Node's own libuv loop, so a plain `node bundle.mjs` that awaits a
+ * Gio async op needs NO explicit mainloop (matching GJS, where the GLib loop is
+ * the process loop). An in-flight scope=async callback (GAsyncReadyCallback) and
+ * an armed GLib timeout keep the process alive like Node's own pending I/O and
+ * timers; a purely-sync program still exits immediately. Idempotent. The L1 layer
+ * calls it once when a namespace is first required.
  * @returns {void}
  */
 export const startMainLoop = native.startMainLoop;
@@ -476,6 +481,18 @@ export const startMainLoop = native.startMainLoop;
  * @returns {boolean}
  */
 export const iterateMainContext = native.iterateMainContext;
+
+/**
+ * Drain ready GLib sources + re-arm the auto-pump's libuv wake-ups NOW (no-op
+ * unless {@link startMainLoop} armed the pump, i.e. Node's main env). The L1
+ * layer wires this to `process.on('beforeExit')`: with only unref'd handles
+ * active, `uv_run` exits without ever running the pump's prepare/check phase, so
+ * an otherwise-empty loop would never arm GLib's timer wake-up — beforeExit
+ * fires exactly then, and the kick revives the loop while GLib still has
+ * scheduled work. Rarely needed directly.
+ * @returns {void}
+ */
+export const pumpKick = native.pumpKick;
 
 /**
  * Connect a JS callback to a GObject signal. Returns a handler id for

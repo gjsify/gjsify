@@ -17,6 +17,10 @@ using namespace nodegi;
 // thread can call the TSFN, and the release only runs after that point — no call
 // can race the release.
 static void OnEnvShutdown(void* arg) {
+  // Close the uv-driven GLib auto-pump's handles first (a no-op unless `arg` is
+  // the env that armed the pump via startMainLoop) so the libuv loop can wind
+  // down without the pump's prepare/check/timer/poll handles left open.
+  NodeGiPumpShutdown(static_cast<napi_env>(arg));
   // Only the env that OWNS the toggle machinery may tear it down — a worker env
   // exiting must not disable the owner's drain TSFN or set the global flag.
   if (g_owner_env.load() != static_cast<napi_env>(arg)) {
@@ -106,6 +110,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("isVariantHandle", Napi::Function::New(env, IsVariantHandle));
   exports.Set("startMainLoop", Napi::Function::New(env, StartMainLoop));
   exports.Set("iterateMainContext", Napi::Function::New(env, IterateMainContext));
+  exports.Set("pumpKick", Napi::Function::New(env, PumpKick));
   exports.Set("connectSignal", Napi::Function::New(env, ConnectSignal));
   exports.Set("emitSignal", Napi::Function::New(env, EmitSignal));
   exports.Set("disconnectSignal", Napi::Function::New(env, DisconnectSignal));

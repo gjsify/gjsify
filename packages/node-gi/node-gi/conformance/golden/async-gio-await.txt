@@ -1,0 +1,5 @@
+start
+await timeout: timeout-fired
+await idle: idle-fired
+await gio: ok true bytes 0
+done

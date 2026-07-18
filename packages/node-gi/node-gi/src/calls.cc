@@ -28,10 +28,23 @@ struct NodeGiCallback {
   ffi_closure* closure;  // from gi_callable_info_create_closure
   gpointer native;       // executable trampoline address
   GIScopeType scope;
+  // scope=async only: counted in the auto-pump's in-flight keep-alive (the
+  // pending completion keeps the Node process alive, like in-flight Node I/O).
+  // Released exactly once — at the trampoline's single invocation, or at free
+  // if the callback never fired (an error path).
+  bool pumpCounted = false;
 };
+
+static void NodeGiCallbackPumpRelease(NodeGiCallback* cb) {
+  if (cb != nullptr && cb->pumpCounted) {
+    cb->pumpCounted = false;
+    NodeGiPumpAsyncEnd();
+  }
+}
 
 static void NodeGiCallbackFree(NodeGiCallback* cb) {
   if (cb == nullptr) return;
+  NodeGiCallbackPumpRelease(cb);  // never fired (error/teardown path)
   if (cb->jsFn != nullptr) napi_delete_reference(cb->env, cb->jsFn);
   if (cb->closure != nullptr) gi_callable_info_destroy_closure(cb->info, cb->closure);
   if (cb->info != nullptr) gi_base_info_unref(cb->info);
@@ -148,6 +161,9 @@ static void NodeGiCallbackTrampoline(ffi_cif* /*cif*/, void* result, void** args
                                      gpointer user_data) {
   NodeGiCallback* cb = static_cast<NodeGiCallback*>(user_data);
   napi_env env = cb->env;
+  // scope=async fires exactly once — the in-flight completion has arrived, so
+  // drop its auto-pump keep-alive ref (whether or not JS can still be entered).
+  NodeGiCallbackPumpRelease(cb);
   // ENV-TEARDOWN GATE: an idle/timeout/async callback (or a destroy-notify-driven
   // one) can fire while the env may no longer enter JS (env cleanup, worker
   // terminate). Re-entering N-API then aborts via node-addon-api's noexcept throw
@@ -173,6 +189,11 @@ static void NodeGiCallbackTrampoline(ffi_cif* /*cif*/, void* result, void** args
   }
   Napi::Env napiEnv(env);
   Napi::HandleScope scope(napiEnv);
+  // JS dispatched from a pump-driven context iteration (and every microtask
+  // continuation napi_make_callback runs at its boundary) must not inherit the
+  // pump's in-iteration flag — a blocking loop.run() it starts needs the
+  // UvLoopSource co-pump live. No-op when the flag is already clear.
+  NodeGiPumpJsDispatchScope pumpWindow;
   // An idle/timeout/async (NOTIFIED/ASYNC scope) callback is dispatched FROM the
   // GLib loop. Pin the synchronous-emit depth to 0 so a signal this callback emits
   // (e.g. a notify:: from g_object_set) is treated as loop-dispatched even when a
@@ -261,6 +282,10 @@ static NodeGiCallback* CreateCallback(Napi::Env env, Napi::Function fn, GICallab
   cb->env = env;
   cb->info = reinterpret_cast<GICallableInfo*>(gi_base_info_ref(callbackInfo));
   cb->scope = scope;
+  // An async-scope callback is a one-shot in-flight operation (GAsyncReadyCallback
+  // et al): count it in the auto-pump keep-alive so the Node process stays alive
+  // until the completion dispatches (no-op off-Node / on non-owner envs).
+  if (scope == GI_SCOPE_TYPE_ASYNC) cb->pumpCounted = NodeGiPumpAsyncBegin(env);
   napi_create_reference(env, fn, 1, &cb->jsFn);
   cb->closure = gi_callable_info_create_closure(callbackInfo, &cb->cif, NodeGiCallbackTrampoline, cb);
   cb->native = gi_callable_info_get_closure_native_address(callbackInfo, cb->closure);
@@ -770,6 +795,15 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   GError* error = nullptr;
   gboolean success = gi_function_info_invoke(func, in_args.data(), in_args.size(),
                                              out_args.data(), out_args.size(), &retval, &error);
+  // A FAILED invoke never started its async op, so a scope=async callback it was
+  // handed will not fire — drop its auto-pump keep-alive ref here or the process
+  // could never exit. (The callback allocation itself is left alone: freeing it
+  // would be unsafe if a callee retained it despite the error — the pre-existing
+  // small leak on this rare path is unchanged.) Runs BEFORE the callScope free
+  // below so no freed pointer is revisited; releasing a CALL-scope cb is a no-op.
+  if (!success) {
+    for (NodeGiCallback* cb : created) NodeGiCallbackPumpRelease(cb);
+  }
   // Call-scope closures are only valid for the duration of the invoke; free them
   // now (notified/async closures are owned by the callee / self-freeing).
   for (NodeGiCallback* cb : callScope) NodeGiCallbackFree(cb);

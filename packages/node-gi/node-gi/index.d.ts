@@ -387,9 +387,28 @@ export function isVariantHandle(value: unknown): boolean;
  * Attach the libuv-backed GSource to the default GLib main context so a blocking
  * GLib main loop (`GLib.MainLoop.run()`, `Gio.Application.run()`) keeps Node's
  * timers, promises and I/O alive — the Node twin of GJS running the GLib loop as
- * the process loop. Idempotent and harmless until a GLib loop actually runs.
+ * the process loop. Also arms the uv-driven GLib auto-pump for the non-blocking
+ * case: pending GLib sources (Gio async completions, GLib timeouts/idles, DBus)
+ * dispatch from Node's own event loop, so async gi:// code needs no explicit
+ * mainloop. Idempotent.
  */
 export function startMainLoop(): void;
+
+/**
+ * Iterate the default GLib main context once, dispatching any ready sources.
+ * Pure GLib (no libuv) — the portable main-loop primitive on Bun/Deno, driven
+ * from a JS timer via the L1 `startMainContextPump`. Returns whether a source
+ * was dispatched.
+ */
+export function iterateMainContext(mayBlock?: boolean): boolean;
+
+/**
+ * Drain ready GLib sources + re-arm the auto-pump's libuv wake-ups now (no-op
+ * unless {@link startMainLoop} armed the pump on this env). The L1 layer wires
+ * this to `process.on('beforeExit')` to bootstrap an otherwise-empty libuv loop;
+ * rarely needed directly.
+ */
+export function pumpKick(): void;
 
 /**
  * Connect a JS callback to a GObject signal; returns a handler id. The callback
@@ -500,6 +519,8 @@ declare const native: {
   variantGetTypeString: typeof variantGetTypeString;
   isVariantHandle: typeof isVariantHandle;
   startMainLoop: typeof startMainLoop;
+  iterateMainContext: typeof iterateMainContext;
+  pumpKick: typeof pumpKick;
   connectSignal: typeof connectSignal;
   emitSignal: typeof emitSignal;
   disconnectSignal: typeof disconnectSignal;

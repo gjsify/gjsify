@@ -513,6 +513,40 @@ Napi::Value BindingGroupBindFull(const Napi::CallbackInfo& info);
 // loop.cc
 Napi::Value StartMainLoop(const Napi::CallbackInfo& info);
 Napi::Value IterateMainContext(const Napi::CallbackInfo& info);
+Napi::Value PumpKick(const Napi::CallbackInfo& info);
+
+// ---- uv-driven GLib auto-pump (loop.cc) -------------------------------------
+//
+// In-flight scope=async keep-alive: while a GI scope=async callback (e.g. a
+// GAsyncReadyCallback) is pending, the pump holds a libuv ref so a plain Node
+// script survives until the completion dispatches (the top-level-await case).
+// Begin returns whether the callback was counted (only on the pump-owning env,
+// i.e. Node's main env after startMainLoop); the caller must call End exactly
+// once for each counted callback. Main-thread only.
+bool NodeGiPumpAsyncBegin(napi_env env);
+void NodeGiPumpAsyncEnd();
+// Close the pump's uv handles at env teardown (no-op for non-owner envs).
+void NodeGiPumpShutdown(napi_env env);
+
+// RAII window for every C→JS dispatch (the GI callback trampoline, the signal
+// closure marshal, a vfunc invocation). The pump holds g_in_uv_pump while it
+// iterates the context so the uv-in-GLib UvLoopSource stays parked (no reentrant
+// uv_run out of the pump's own uv callbacks) — but JS dispatched FROM that
+// iteration, including every microtask continuation napi_make_callback runs at
+// its boundary, must not inherit the flag: user code there may legitimately
+// start a blocking GLib.MainLoop.run(), which needs the UvLoopSource co-pump
+// live (Node timers keep firing during the run). Clears the flag on entry,
+// restores it on scope exit — mirroring SyncEmitDepthReset.
+class NodeGiPumpJsDispatchScope {
+ public:
+  NodeGiPumpJsDispatchScope();
+  ~NodeGiPumpJsDispatchScope();
+  NodeGiPumpJsDispatchScope(const NodeGiPumpJsDispatchScope&) = delete;
+  NodeGiPumpJsDispatchScope& operator=(const NodeGiPumpJsDispatchScope&) = delete;
+
+ private:
+  gboolean saved_;
+};
 
 }  // namespace nodegi
 
