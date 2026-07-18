@@ -46,7 +46,7 @@ Every `@gjsify/*` package that provides a Node or Web global exposes one or more
 
 The CLI's default `--globals auto` discovers which registers your project needs by analysing the bundled output:
 
-<CommandTabs>
+<CommandTabs title="Build the bundle">
   <Fragment slot="gjsify">
     ```bash
     gjsify build src/index.ts --outfile dist/index.js
@@ -164,7 +164,7 @@ Some GJSify packages need native code. For example, `@gjsify/webgl` ships a Vala
 
 `gjsify run` scans your `node_modules` for these packages, prepends the right directories to `LD_LIBRARY_PATH` and `GI_TYPELIB_PATH`, and then spawns `gjs -m <bundle>`:
 
-<CommandTabs>
+<CommandTabs title="Run the bundle">
   <Fragment slot="gjsify">
     ```bash
     gjsify run dist/index.js
@@ -189,7 +189,7 @@ Some GJSify packages need native code. For example, `@gjsify/webgl` ships a Vala
 
 If you want to run `gjs` directly (for example from a systemd unit or a packaged Flatpak), you can ask the CLI to print the environment for you:
 
-<CommandTabs>
+<CommandTabs title="Export the environment">
   <Fragment slot="gjsify">
     ```bash
     eval $(gjsify info --export)
