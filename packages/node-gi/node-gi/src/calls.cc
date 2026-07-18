@@ -404,7 +404,28 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   // is handed to the C callee). Sized once to n_args so the addresses never move.
   std::vector<GIArgument> slots(n_args);
   std::vector<std::string> held(n_args);
-  if (isMethod) in_args[0].v_pointer = instance;
+  bool instanceRefTaken = false;  // the transfer-full-instance ref below, undone on early bail
+  if (isMethod) {
+    in_args[0].v_pointer = instance;
+    // A transfer-full INSTANCE parameter (rare but load-bearing:
+    // g_dbus_method_invocation_return_value/_return_error/… — "this method will
+    // take ownership of @invocation") CONSUMES one ref of the instance. Our JS
+    // wrapper keeps its own ref for the handle's lifetime (its finalizer unrefs),
+    // so hand the callee a ref of its own — exactly what gjs's arg-cache does for
+    // the instance argument — otherwise the wrapper's later unref double-frees.
+    // Only a GObject instance can be safely ref'd here; the transfer-full-instance
+    // methods in the base typelibs are all GObject methods (a boxed instance
+    // method reaching this path keeps the previous behaviour).
+    if (gi_callable_info_get_instance_ownership_transfer(callable) == GI_TRANSFER_EVERYTHING) {
+      // gi_base_info_get_container returns a borrowed ref — no unref.
+      GIBaseInfo* container = gi_base_info_get_container(reinterpret_cast<GIBaseInfo*>(func));
+      if (container != nullptr && GI_IS_OBJECT_INFO(container) &&
+          G_IS_OBJECT(static_cast<GObject*>(instance))) {
+        g_object_ref(static_cast<GObject*>(instance));
+        instanceRefTaken = true;
+      }
+    }
+  }
 
   // Pre-scan: the user_data + destroy-notify slots associated with a callback
   // arg are filled from the callback, not consumed from the JS argument list.
@@ -470,6 +491,11 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   std::vector<gpointer> ownedInStrings;
   std::vector<NodeGiCallback*> created;    // all callbacks made this call
   std::vector<NodeGiCallback*> callScope;  // scope=call → freed after the invoke
+  // JS functions marshalled as GClosure IN-args this call (see common.h). Each
+  // carries one ref taken at marshal time (gjs's ref+sink): transfer-none refs are
+  // dropped after the invoke, transfer-full refs belong to the callee (dropped
+  // only when the callee never ran).
+  CreatedClosures createdClosures;
   bool ok = true;
   size_t jsCursor = 0;
   for (unsigned int i = 0; i < n_args && ok; i++) {
@@ -714,7 +740,8 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
         }
       } else {
         GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
-        ok = JsToGIArgument(env, v, ti, &in_args[inPos[i]], &held[i], tr, &ownedInStrings);
+        ok = JsToGIArgument(env, v, ti, &in_args[inPos[i]], &held[i], tr, &ownedInStrings,
+                            &createdClosures);
       }
     }
 
@@ -725,6 +752,12 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   if (!ok) {
     for (NodeGiCallback* cb : created) NodeGiCallbackFree(cb);
     for (const InContainer& c : inContainers) FreeInContainer(c);
+    // The callee never ran, so NO closure ref was adopted — release every created
+    // closure (refcount 1 → 0 → finalize drops the JS-function ref).
+    for (GClosure* c : createdClosures.transferNone) g_closure_unref(c);
+    for (GClosure* c : createdClosures.transferFull) g_closure_unref(c);
+    // Likewise the transfer-full-instance ref: the callee never consumed it.
+    if (instanceRefTaken) g_object_unref(static_cast<GObject*>(instance));
     for (gpointer s : ownedInStrings) g_free(s);  // never reached the callee (#658)
     // Caller-allocated blobs never reached the callee (or it was never called) —
     // they are zeroed g_malloc0 storage, so a plain g_free is correct here.
@@ -740,6 +773,14 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   // Call-scope closures are only valid for the duration of the invoke; free them
   // now (notified/async closures are owned by the callee / self-freeing).
   for (NodeGiCallback* cb : callScope) NodeGiCallbackFree(cb);
+  // Transfer-none GClosure IN-args: drop the ref taken at marshal time (gjs
+  // BoxedInTransferNone::release, which runs on success AND error paths). A
+  // callee that stored the closure (signal connect, source_set_closure, a DBus
+  // registration) holds its own ref+sink, so the closure lives on; a callee that
+  // only invoked it synchronously lets this unref finalize it (dropping the JS
+  // ref). Transfer-full closures were adopted by the callee — no release (gjs
+  // GClosureIn::release skips).
+  for (GClosure* c : createdClosures.transferNone) g_closure_unref(c);
   if (!success) {
     for (const InContainer& c : inContainers) FreeInContainer(c);
     // A failed invoke did not adopt the transfer-full IN/INOUT strings we g_strdup'd

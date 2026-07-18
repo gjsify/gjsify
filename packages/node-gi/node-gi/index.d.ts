@@ -420,6 +420,49 @@ export function setTemplateCallbackResolver(
   ) => ((...args: unknown[]) => unknown) | undefined,
 ): void;
 
+/**
+ * Install (or clear, with `null`) the structured-log writer function backing
+ * GLib.log_set_writer_func. The writer receives (logLevel, fields) where each
+ * field value is a Uint8Array of the field bytes (or null for an empty field),
+ * and returns a GLib.LogWriterOutput. NOTE: GLib permits at most ONE install per
+ * process (a second aborts in GLib).
+ */
+export function logSetWriterFunc(
+  writer: ((logLevel: number, fields: Record<string, Uint8Array | null>) => number) | null,
+): void;
+
+/** Route structured logs back to the default writer (GLib.log_set_writer_default). */
+export function logSetWriterDefault(): void;
+
+/**
+ * g_object_bind_property_full with JS transform functions (backs
+ * GObject.Object.prototype.bind_property_full). Each transform is
+ * `(binding, sourceValue) => [ok: boolean, targetValue]`. Returns the GBinding handle.
+ */
+export function bindPropertyFull(
+  source: GObjectHandle,
+  sourceProperty: string,
+  target: GObjectHandle,
+  targetProperty: string,
+  flags: number,
+  transformTo: ((...args: unknown[]) => unknown) | null,
+  transformFrom: ((...args: unknown[]) => unknown) | null,
+): GObjectHandle;
+
+/**
+ * g_binding_group_bind_full with JS transform functions (backs
+ * GObject.BindingGroup.bind_full). Same transform contract as {@link bindPropertyFull}.
+ */
+export function bindingGroupBindFull(
+  group: GObjectHandle,
+  sourceProperty: string,
+  target: GObjectHandle,
+  targetProperty: string,
+  flags: number,
+  transformTo: ((...args: unknown[]) => unknown) | null,
+  transformFrom: ((...args: unknown[]) => unknown) | null,
+): void;
+
 declare const native: {
   requireNamespace: typeof requireNamespace;
   listInfoNames: typeof listInfoNames;
@@ -461,5 +504,9 @@ declare const native: {
   emitSignal: typeof emitSignal;
   disconnectSignal: typeof disconnectSignal;
   setTemplateCallbackResolver: typeof setTemplateCallbackResolver;
+  logSetWriterFunc: typeof logSetWriterFunc;
+  logSetWriterDefault: typeof logSetWriterDefault;
+  bindPropertyFull: typeof bindPropertyFull;
+  bindingGroupBindFull: typeof bindingGroupBindFull;
 };
 export default native;

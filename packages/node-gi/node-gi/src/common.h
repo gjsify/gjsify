@@ -229,14 +229,40 @@ inline void WarnIfUnsafeUint64(uint64_t v) {
               std::to_string(v).c_str());
 }
 
+// ---- JS function -> GClosure IN-args ----------------------------------------
+//
+// A JS function passed for a `GObject.Closure`-typed IN parameter (e.g.
+// g_signal_connect_closure, g_source_set_closure, GIMarshallingTests.gclosure_in,
+// g_dbus_connection_register_object_with_closures2) is marshalled as a REAL
+// GClosure whose marshal converts the invocation's GValue params to JS, calls the
+// function, and writes the JS return into the return GValue — mirroring GJS's
+// Gjs::Closure::create_marshaled "boxed" closures (refs/gjs/gi/arg-cache.cpp
+// GClosureInTransferNone::in + gi/closure.cpp). Lifetime follows gjs exactly:
+// the closure is ref'd + sunk at marshal time; a transfer-none arg drops that ref
+// after the invoke (the callee keeps its own if it stored the closure), a
+// transfer-full arg leaves it with the callee. Closures created during an invoke
+// are recorded here so calls.cc can release them on the right path.
+struct CreatedClosures {
+  std::vector<GClosure*> transferNone;  // unref after the invoke (gjs BoxedInTransferNone::release)
+  std::vector<GClosure*> transferFull;  // callee adopts; unref only when the callee never ran
+};
+
+// Build the (floating) marshaled GClosure for a JS function (signals.cc — shares
+// the battle-tested JsClosure marshal/finalize machinery with `.connect()`).
+GClosure* NodeGiMakeGenericJsClosure(Napi::Env env, Napi::Value fn);
+
 // `ownedStrings` (optional): when a transfer-full string IN/INOUT arg is g_strdup'd
 // here, the freshly-allocated pointer is appended so the caller can g_free it if the
 // invoke never adopts it (an arg-marshal error before the call, or a failed invoke).
 // nullptr (the default) → no tracking, for the vfunc-return / signal-arg callers.
+// `closures` (optional): enables the JS-function→GClosure IN-arg marshalling above;
+// nullptr (the default) keeps the previous behaviour (function → TypeError) on
+// paths that cannot release a created closure.
 bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* out,
                     std::string* heldString,
                     GITransfer transfer = GI_TRANSFER_NOTHING,
-                    std::vector<gpointer>* ownedStrings = nullptr);
+                    std::vector<gpointer>* ownedStrings = nullptr,
+                    CreatedClosures* closures = nullptr);
 
 // ---- IN container building -----------------------------------------
 //
@@ -471,6 +497,18 @@ Napi::Value ConnectSignal(const Napi::CallbackInfo& info);
 Napi::Value EmitSignal(const Napi::CallbackInfo& info);
 Napi::Value DisconnectSignal(const Napi::CallbackInfo& info);
 Napi::Value SetTemplateCallbackResolver(const Napi::CallbackInfo& info);
+
+// private.cc — GjsPrivate-mirroring helpers (refs/gjs/libgjs-private/gjs-util.c).
+// The structured-log writer func + the bind_property_full/bind_full transform
+// trampolines, which need a C wrapper for the same reasons GJS uses GjsPrivate:
+// the GLogWriterFunc can fire on ANY thread (JS only runs on the registration
+// thread; other threads fall back to the default writer) and the GLogField array
+// is not generically introspectable; the binding transform's `to_value` is a
+// write-back OUT GValue no marshaled GClosure can reach.
+Napi::Value LogSetWriterFunc(const Napi::CallbackInfo& info);
+Napi::Value LogSetWriterDefault(const Napi::CallbackInfo& info);
+Napi::Value BindPropertyFull(const Napi::CallbackInfo& info);
+Napi::Value BindingGroupBindFull(const Napi::CallbackInfo& info);
 
 // loop.cc
 Napi::Value StartMainLoop(const Napi::CallbackInfo& info);

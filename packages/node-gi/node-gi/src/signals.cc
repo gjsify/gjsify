@@ -36,9 +36,8 @@ static void JsClosureFinalize(gpointer data, GClosure* /*closure*/) {
   g_free(jc);
 }
 
-static void JsClosureMarshal(GClosure* closure, GValue* return_value, guint n_param_values,
-                             const GValue* param_values, gpointer /*invocation_hint*/,
-                             gpointer /*marshal_data*/) {
+static void JsClosureMarshalImpl(GClosure* closure, GValue* return_value, guint n_param_values,
+                                 const GValue* param_values, bool unboxNestedValues) {
   JsClosureData* jc = static_cast<JsClosureData*>(closure->data);
   if (jc == nullptr || jc->callback == nullptr) return;
   // ENV-TEARDOWN GATE: a signal emitted by a dispose cascade at env teardown (or
@@ -73,7 +72,20 @@ static void JsClosureMarshal(GClosure* closure, GValue* return_value, guint n_pa
   std::vector<napi_value> args;
   args.reserve(n_param_values);
   for (guint i = 0; i < n_param_values; i++) {
-    Napi::Value v = GValueToJs(env, &param_values[i]);
+    // Generic (IN-arg) closures mirror gjs's closure marshal (refs/gjs/gi/
+    // value.cpp gjs_value_from_g_value): a G_TYPE_VALUE-boxed param is UNBOXED to
+    // the contained value (recursively), so e.g. GIMarshallingTests-style
+    // `g_closure_invoke` consumers hand the JS function plain values, exactly as
+    // GJS does. Signal closures keep the existing param conversion untouched.
+    const GValue* pv = &param_values[i];
+    if (unboxNestedValues) {
+      while (G_VALUE_HOLDS(pv, G_TYPE_VALUE)) {
+        const GValue* inner = static_cast<const GValue*>(g_value_get_boxed(pv));
+        if (inner == nullptr) break;
+        pv = inner;
+      }
+    }
+    Napi::Value v = GValueToJs(env, pv);
     if (env.IsExceptionPending()) {
       // An arg-marshal failure: propagate to a synchronous emit() caller, or
       // surface + clear when dispatched from the loop (see g_syncEmitDepth).
@@ -106,7 +118,47 @@ static void JsClosureMarshal(GClosure* closure, GValue* return_value, guint n_pa
 
   if (return_value != nullptr && (G_VALUE_TYPE(return_value) != G_TYPE_INVALID)) {
     JsToGValue(env, Napi::Value(jc->env, result), return_value);
+    // The return marshal must never leave a pending JS exception across the
+    // C boundary of a loop-dispatched invocation (same contract as the arg/call
+    // paths above): surface + clear it so the GLib/libuv pump stays alive.
+    if (env.IsExceptionPending() && g_syncEmitDepth == 0) {
+      SurfacePendingException(jc->env, "signal handler");
+    }
   }
+}
+
+// Signal-closure marshal (`.connect()`, template callbacks): params as-is.
+static void JsClosureMarshal(GClosure* closure, GValue* return_value, guint n_param_values,
+                             const GValue* param_values, gpointer /*invocation_hint*/,
+                             gpointer /*marshal_data*/) {
+  JsClosureMarshalImpl(closure, return_value, n_param_values, param_values, false);
+}
+
+// Generic-closure marshal (a JS fn marshalled as a GClosure IN-arg, invoked by
+// arbitrary C via g_closure_invoke): identical to the signal marshal except that
+// G_TYPE_VALUE-boxed params are unboxed to their contained value, mirroring gjs's
+// gjs_value_from_g_value (see JsClosureMarshalImpl).
+static void JsGenericClosureMarshal(GClosure* closure, GValue* return_value, guint n_param_values,
+                                    const GValue* param_values, gpointer /*invocation_hint*/,
+                                    gpointer /*marshal_data*/) {
+  JsClosureMarshalImpl(closure, return_value, n_param_values, param_values, true);
+}
+
+// JS function → a floating marshaled GClosure (the engine's twin of GJS's
+// Gjs::Closure::create_marshaled for "boxed" closure args — refs/gjs/gi/
+// arg-cache.cpp GClosureInTransferNone::in). The closure holds a strong ref to
+// the function; JsClosureFinalize drops it when the closure is invalidated /
+// finalized (the callee released its last ref, or the invoke-site released the
+// only ref because the callee never kept one). Ref/sink + release policy lives at
+// the marshalling site (marshal.cc / calls.cc CreatedClosures).
+GClosure* NodeGiMakeGenericJsClosure(Napi::Env env, Napi::Value fn) {
+  JsClosureData* jc = g_new0(JsClosureData, 1);
+  jc->env = env;
+  napi_create_reference(env, fn, 1, &jc->callback);
+  GClosure* closure = g_closure_new_simple(sizeof(GClosure), jc);
+  g_closure_set_marshal(closure, JsGenericClosureMarshal);
+  g_closure_add_finalize_notifier(closure, jc, JsClosureFinalize);
+  return closure;
 }
 
 // connectSignal(handle, signalName, callback, after?) -> handlerId

@@ -231,7 +231,8 @@ bool UnwrapGTypeArg(Napi::Env env, Napi::Value v, GType* out) {
 bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* out,
                     std::string* heldString,
                     GITransfer transfer,
-                    std::vector<gpointer>* ownedStrings) {
+                    std::vector<gpointer>* ownedStrings,
+                    CreatedClosures* closures) {
   if (v.IsEmpty()) {
     // Residue of a swallowed napi failure (a fallible Get()/coercion upstream
     // failed on a terminating env, or a throwing getter left the exception
@@ -308,6 +309,25 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
               gi_base_info_unref(iface);
               return false;  // to() already threw
             }
+            handled = true;
+          } else if (v.IsFunction() && closures != nullptr &&
+                     gi_registered_type_info_get_g_type(
+                         reinterpret_cast<GIRegisteredTypeInfo*>(iface)) == G_TYPE_CLOSURE) {
+            // A JS function for a `GObject.Closure` IN-arg → a real marshaled
+            // GClosure, exactly as gjs (refs/gjs/gi/arg-cache.cpp
+            // GClosureInTransferNone::in: create_marshaled + g_closure_ref +
+            // g_closure_sink). The ref taken here is released by calls.cc after
+            // the invoke for transfer-none (gjs BoxedInTransferNone::release —
+            // the callee keeps its own ref if it stored the closure), and left
+            // with the callee for transfer-full (gjs GClosureIn::release skips).
+            // An existing GObject.Closure boxed handle still routes through the
+            // boxed-handle branch below.
+            GClosure* closure = NodeGiMakeGenericJsClosure(env, v);
+            g_closure_ref(closure);
+            g_closure_sink(closure);
+            out->v_pointer = closure;
+            if (transfer == GI_TRANSFER_NOTHING) closures->transferNone.push_back(closure);
+            else closures->transferFull.push_back(closure);
             handled = true;
           } else if (v.IsNull() || v.IsUndefined()) {
             // Boxed/struct IN args arrive as boxed handles; null/undefined maps to

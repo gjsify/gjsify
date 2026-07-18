@@ -45,6 +45,7 @@ const CONFORMANCE = [
   'closure-exception',
   'construct-camelcase',
   'enums-constants',
+  'gclosure-in-args',
   'gettext',
   'gi',
   'globals',

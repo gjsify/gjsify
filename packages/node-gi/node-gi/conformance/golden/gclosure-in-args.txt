@@ -1,0 +1,7 @@
+id is number: true
+handler saw: [[true,"enabled"]]
+after disconnect: [[true,"enabled"]]
+transform-to result: "true"
+false-return keeps target: "unchanged"
+bidirectional to: "n:5"
+bidirectional from: 42
