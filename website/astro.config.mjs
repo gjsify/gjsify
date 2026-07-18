@@ -52,6 +52,18 @@ export default defineConfig({
         starlight({
             title: 'GJSify',
             description: 'The TypeScript framework for native Linux apps — on GJS, Node.js, Deno and Bun',
+            head: [
+                {
+                    // The @gjsify/adwaita-web skin keys its dark palette on
+                    // prefers-color-scheme with manual .theme-dark/.theme-light
+                    // overrides; Starlight's toggle sets data-theme. Mirror the
+                    // toggle onto the skin classes so every adw-* component
+                    // follows the site theme even when it differs from the OS.
+                    tag: 'script',
+                    content:
+                        "(function(){var r=document.documentElement;var s=function(){var t=r.dataset.theme;r.classList.toggle('theme-dark',t==='dark');r.classList.toggle('theme-light',t==='light');};s();new MutationObserver(s).observe(r,{attributes:true,attributeFilter:['data-theme']});})();",
+                },
+            ],
             components: {
                 Hero: './src/components/Hero.astro',
             },
