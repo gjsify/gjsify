@@ -32,7 +32,7 @@ npx @gjsify/cli build src/index.ts --outfile dist/index.js
 | Option | Values | Default | Description |
 |---|---|---|---|
 | `[entryPoints..]` | paths | `src/index.ts` | Positional entry points |
-| `--app` | `gjs` \| `node` \| `browser` | `gjs` | Target runtime |
+| `--app` | `gjs` \| `node` \| `browser` \| `nativescript` | `gjs` | Target runtime. The `node` bundle also runs on Bun and Deno unchanged (Node-API is their shared addon ABI) — there is no separate `deno`/`bun` target |
 | `--outfile`, `-o` | path | from `package.json` | Output file |
 | `--outdir`, `-d` | path | from `package.json` | Output directory (library mode) |
 | `--minify` | bool | `false` | Minify the output |
