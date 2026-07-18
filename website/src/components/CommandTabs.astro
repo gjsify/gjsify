@@ -1,10 +1,12 @@
 ---
-// CommandTabs — one command block, one tab per way of invoking the toolchain
-// (GJSify's own Node-free CLI, npm, Bun, Deno). Built on our own
-// <adw-inline-view-switcher> from @gjsify/adwaita-web, so the tabs look and
-// behave like a native Adwaita toggle group. The tab contents are ordinary
-// fenced code blocks passed via named slots, so Expressive Code keeps its
-// syntax highlighting and copy button.
+// CommandTabs — one command window, one tab per way of invoking the toolchain
+// (GJSify's own Node-free CLI, npm, Bun, Deno). Built on <adw-tab-view> from
+// @gjsify/adwaita-web (the Adw.TabView/TabBar counterpart), so the tabs sit in
+// the window chrome exactly the way the Adwaita design system draws them —
+// with `expand-tabs` + `no-close` for a static tab set. Each page holds an
+// ordinary fenced code block: Expressive Code keeps its syntax highlighting,
+// and the per-block Adwaita window frame is flattened so the tab view is the
+// one window (the copy button floats over the code, EC-style).
 //
 // The selected runtime is remembered (localStorage) and synchronized across
 // every CommandTabs instance on the site: pick "Deno" once and all command
@@ -34,9 +36,9 @@ for (const r of RUNTIMES) {
 const runtimesAttr = present.map((r) => r.slot).join(',');
 ---
 
-<adw-inline-view-switcher class="command-tabs" display-mode="labels" round data-command-tabs data-runtimes={runtimesAttr}>
-    {present.map((r) => <adw-view-stack-page title={r.label} set:html={r.html} />)}
-</adw-inline-view-switcher>
+<adw-tab-view class="command-tabs" no-close expand-tabs data-command-tabs data-runtimes={runtimesAttr}>
+    {present.map((r) => <adw-tab-page title={r.label} set:html={r.html} />)}
+</adw-tab-view>
 
 <script>
     import '@gjsify/adwaita-web';
@@ -49,16 +51,16 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
             if (el === skip) continue;
             const runtimes = (el.dataset.runtimes ?? '').split(',');
             const index = runtimes.indexOf(runtime);
-            if (index >= 0) el.setAttribute('active', String(index));
+            if (index >= 0) el.setAttribute('selected', String(index));
         }
     };
 
     // Follow user selection: persist + mirror to every other instance.
-    document.addEventListener('notify::active', (event) => {
+    document.addEventListener('notify::selected-page', (event) => {
         const target = event.target as HTMLElement;
         if (!target?.matches?.('[data-command-tabs]')) return;
         const runtimes = (target.dataset.runtimes ?? '').split(',');
-        const runtime = runtimes[(event as CustomEvent).detail?.active ?? 0];
+        const runtime = runtimes[(event as CustomEvent).detail?.selected ?? 0];
         if (!runtime) return;
         try {
             localStorage.setItem(KEY, runtime);
@@ -69,7 +71,7 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
     });
 
     // Initial: restore the remembered runtime once the element is defined.
-    customElements.whenDefined('adw-inline-view-switcher').then(() => {
+    customElements.whenDefined('adw-tab-view').then(() => {
         try {
             applyPreference(localStorage.getItem(KEY));
         } catch {
@@ -81,25 +83,90 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
 <style is:global>
     /* Before the custom element hydrates, show only the first page so the
        server-rendered HTML doesn't stack every tab's code block. */
-    adw-inline-view-switcher.command-tabs:not(:defined) > adw-view-stack-page {
+    adw-tab-view.command-tabs:not(:defined) > adw-tab-page {
         display: none;
     }
-    adw-inline-view-switcher.command-tabs:not(:defined) > adw-view-stack-page:first-of-type {
+    adw-tab-view.command-tabs:not(:defined) > adw-tab-page:first-of-type {
         display: block;
     }
 
+    /* The tab view is the window — same chrome as the EC adw-code-window it
+       replaces (radius + shadow mirror .quick-start-window / custom.css). */
     .command-tabs {
-        display: block;
         margin-top: 1rem;
+        border-radius: 12px;
+        box-shadow:
+            0 0 14px 5px rgb(0 0 0 / 15%),
+            0 0 5px 2px rgb(0 0 0 / 10%),
+            0 0 0 1px rgb(0 0 0 / 5%);
+        outline: 1px solid rgb(255 255 255 / 7%);
+        outline-offset: -1px;
     }
 
-    .command-tabs .adw-inline-view-switcher-group {
-        margin-bottom: 0.75rem;
+    :root:not([data-theme='dark']) .command-tabs {
+        outline-color: rgb(0 0 6 / 8%);
     }
 
-    /* The page panel holds a regular Expressive Code block — let it keep its
-       own margins collapsed against the switcher bar. */
-    .command-tabs .adw-inline-view-switcher-page > :first-child {
-        margin-top: 0;
+    /* The adwaita-web skin keys on prefers-color-scheme; the site theme keys
+       on Starlight's data-theme. Re-map the tab-view's skin variables to the
+       site's theme-aware --adw-* tokens so the bar follows the theme toggle.
+       --view-bg-color is the surface the active tab is raised onto — the code
+       background (#fff light / #222226 dark, see custom.css --code-background). */
+    .command-tabs {
+        --headerbar-bg-color: var(--adw-headerbar-bg);
+        --headerbar-fg-color: var(--adw-window-fg);
+        --headerbar-shade-color: var(--adw-headerbar-shade);
+        --view-bg-color: var(--adw-view-bg);
+        --view-fg-color: var(--adw-window-fg);
+        --window-bg-color: var(--adw-view-bg);
+        --button-hover-color: rgba(128, 128, 128, 0.12);
+        --button-active-color: rgba(128, 128, 128, 0.22);
+        --button-radius: var(--adw-button-radius);
+    }
+
+    :root[data-theme='dark'] .command-tabs {
+        --view-bg-color: var(--adw-window-bg);
+        --window-bg-color: var(--adw-window-bg);
+    }
+
+    /* Flatten the per-block Adwaita EC window inside the pages — the tab view
+       provides the one window frame. */
+    .command-tabs .expressive-code {
+        margin: 0;
+    }
+
+    .command-tabs .expressive-code .frame.adw-code-window {
+        position: relative;
+        border-radius: 0;
+        box-shadow: none;
+        outline: none;
+    }
+
+    .command-tabs .expressive-code .frame.adw-code-window pre {
+        border: none;
+        border-radius: 0;
+        margin: 0;
+    }
+
+    /* Collapse the block's own headerbar: no second chrome row under the tab
+       bar — the copy button floats over the code's top-right corner instead.
+       !important mirrors custom.css's own !important on these rules. */
+    .command-tabs .expressive-code .frame .adw-code-headerbar {
+        display: contents !important;
+    }
+
+    .command-tabs .expressive-code .frame .adw-code-headerbar-start,
+    .command-tabs .expressive-code .frame .adw-code-headerbar-title {
+        display: none !important;
+    }
+
+    .command-tabs .expressive-code .frame .adw-code-headerbar-end {
+        position: absolute !important;
+        inset: 6px 6px auto auto !important;
+        z-index: 5;
+        /* Long code lines run under the floating button — back it with the
+           code surface so the icon stays legible. */
+        background: var(--code-background);
+        border-radius: 9px;
     }
 </style>
