@@ -562,11 +562,16 @@ export function createGioDBus(ctx) {
   }
 
   function _handleMethodCall(jsObj, methodName, parameters, invocation) {
+    // GJS appends the message's Gio.UnixFDList as a trailing argument (null when
+    // the call carries no fds) — mirror it so fd-aware services see the same
+    // shape (refs/gjs Gio.js _handleMethodCall).
+    const fdList = invocation.get_message().get_unix_fd_list();
     const method = jsObj[methodName];
     if (typeof method === 'function') {
       let retval;
       try {
         const args = parameters.deepUnpack();
+        args.push(fdList);
         retval = method.apply(jsObj, args);
       } catch (e) {
         _handleDBusError(invocation, e);
@@ -588,7 +593,7 @@ export function createGioDBus(ctx) {
     if (typeof asyncMethod === 'function') {
       let ret;
       try {
-        ret = asyncMethod.call(jsObj, parameters.deepUnpack(), invocation);
+        ret = asyncMethod.call(jsObj, parameters.deepUnpack(), invocation, fdList);
       } catch (e) {
         _handleDBusError(invocation, e);
         return;
