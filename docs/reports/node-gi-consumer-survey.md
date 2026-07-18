@@ -105,8 +105,8 @@ Conformance program `async-gio-await` (top-level awaits on a GLib timeout, an id
 ### P4 — `normalizeEncoding`/`checkEncoding` unresolved when a polyfill is force-aliased onto Node
 **Blocks:** `crypto` (the encoding path of hash/hmac — 44 of 570), `string_decoder` (all). The polyfill imports a Node-`internal/util`-shaped helper that native `node:buffer` doesn't export on the Node target. Partly an artifact of `--alias node:<self>=@gjsify/<self>` forcing the polyfill onto Node; worth confirming whether it also bites the real `--app gjs` target (it should not — this is Node-target-specific).
 
-### P5 — Package-own Vala-bridge typelib not on the GI search path
-**Blocks:** `http` (`GjsifyHttpSoupBridge`), `webrtc` (`GjsifyWebrtc`). **Not an engine gap** — the harness/runner must prepend the package's `prebuilds/` to `GI_TYPELIB_PATH` (what `gjsify run`'s `detectNativePackages` does). `http2`/`tls`/`ws` pass because system Soup/Gio suffices. → Harness follow-up.
+### P5 — Package-own Vala-bridge typelib not on the GI search path — RESOLVED
+**Was blocking:** `http` (`GjsifyHttpSoupBridge`), `webrtc` (`GjsifyWebrtc`). **Not an engine gap** — `scripts/node-gi-consumer-harness.mjs` now prepends each consumed package's `prebuilds/linux-<arch>/` to `GI_TYPELIB_PATH`/`LD_LIBRARY_PATH` at the run step, reusing the CLI's `detectNativePackages`+`buildNativeEnv` (so the transitive case works — `@gjsify/http`'s typelib lives in `@gjsify/http-soup-bridge`, `@gjsify/webrtc`'s in `@gjsify/webrtc-native`). The `gjsify run/showcase --runtime node` launcher path was already covered by `runRuntimeBundle`→`computeNativeEnvForBundle`. **Proof:** `webrtc`'s failure moved from missing-typelib to a downstream marshalling error (`TypeError: expected an array for the array argument`, a P3-family gap) — the `GjsifyWebrtc` typelib now loads; `http` likewise loads its bridge. `http2`/`tls`/`ws` never needed this (system Soup/Gio).
 
 ### P6 — GStreamer / display-bound
 `webaudio` (GStreamer AudioContext; bespoke `test.mts` with no `run()` summary), `webrtc` (also needs its Vala bridge, P5). Need GStreamer typelibs; low priority.
@@ -131,7 +131,7 @@ Enumerated, prioritized by the survey above:
 1. ~~**P1 fix (node-gi auto main-context co-pump under Node)** — unblocks `fs`/`net`/`dns`/`dgram`/`stream`. Highest leverage.~~ ✓ DONE (uv-driven auto-pump; see the P1 section above for the A/B numbers).
 2. **P2 (bare `cairo`/`system`/`gettext` externalisation) — DONE**: `app/node.ts` derives the `exactExternal` set from `ALIASES_GJS_FOR_NODE`'s values, so canvas2d-core/canvas2d resolve `@gjsify/node-gi/cairo` on the GJS bundler now.
 3. **P3 marshalling-helper seeding** — unblocks `child_process`/`os`/`module`.
-4. **Harness: prepend each package's `prebuilds/` to `GI_TYPELIB_PATH`** (P5) so `http`/`webrtc` and other Vala-bridge consumers resolve.
+4. **P5 (harness prepends each package's `prebuilds/` to `GI_TYPELIB_PATH`) — DONE**: `http`/`webrtc` and other Vala-bridge consumers now load their typelib on node-gi (residual failures are downstream marshalling gaps, not typelib-not-found).
 5. **Full rollout:** wire committed `src/test.node-gi.mts` + `test:gjs-on-node` legs for the packages that already pass (beyond sqlite/http2/zlib: `tls`, `ws`, `dom-elements`, `node-globals`, `devtools`, `devtools-browser`, `storybook`, `adwaita-app`), and add them to the CI proof set as each is fixed/verified.
 6. **Full CI matrix:** run the whole survey (not just the proof set) as a non-gating `continue-on-error` job that publishes this table, so regressions/improvements surface per PR.
 7. **P4/P7/P8** individually as their consumers are prioritized.

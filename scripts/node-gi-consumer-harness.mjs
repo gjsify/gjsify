@@ -46,6 +46,32 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
 
+// ── native typelib env (survey P5 fix) ───────────────────────────────────────
+// A Vala-bridge consumer built `--app node` has a static `gi://GjsifyWebrtc` /
+// `gi://GjsifyHttpSoupBridge` / `gi://Gwebgl` import; that typelib lives in a
+// package's own (or a SIBLING bridge package's) `prebuilds/linux-<arch>/`, which
+// is NOT on `GI_TYPELIB_PATH` by default → the gi:// load fails. `gjsify run`
+// (via detectNativePackages) and `gjsify run/showcase --runtime node` (via
+// runRuntimeBundle → computeNativeEnvForBundle) already prepend those dirs; this
+// standalone harness did not (the survey's P5 gap). Reuse the SAME CLI walker so
+// the transitive case works (@gjsify/http's typelib lives in
+// @gjsify/http-soup-bridge, @gjsify/webrtc's in @gjsify/webrtc-native). Scan from
+// ROOT — the workspace node_modules holds every @gjsify/* prebuild package.
+// Degrades to the plain env if the CLI lib isn't built (the harness needs the CLI
+// to build bundles anyway, so this only bites in a half-built tree).
+let NATIVE_ENV = process.env;
+try {
+    const { detectNativePackages, buildNativeEnv } = await import(
+        new URL('../packages/infra/cli/lib/utils/detect-native-packages.js', import.meta.url)
+    );
+    NATIVE_ENV = { ...process.env, ...buildNativeEnv(detectNativePackages(ROOT)) };
+} catch (err) {
+    console.warn(
+        `[node-gi-consumer-harness] native typelib env unavailable (${err.message}); ` +
+            'Vala-bridge consumers (webrtc/http/webgl) may report missing-typelib',
+    );
+}
+
 // ── runtimes — mirror packages/node-gi/example/harness.mjs ───────────────────
 // gjs runs the native `--app gjs` bundle (not used here — we build `--app node`);
 // node/bun/deno all run the SAME `--app node` node-gi bundle.
@@ -321,7 +347,9 @@ function runPackage(name, { runtimes, timeout, keep, gjsify }) {
                 continue;
             }
             const [cmd, baseArgs] = RUNTIMES[rt].on(outAbs);
-            const r = exec(cmd, baseArgs, { cwd: dir, timeout });
+            // NATIVE_ENV prepends each consumed package's prebuilds/ to
+            // GI_TYPELIB_PATH/LD_LIBRARY_PATH so a Vala-bridge gi:// import loads.
+            const r = exec(cmd, baseArgs, { cwd: dir, timeout, env: NATIVE_ENV });
             const text = r.stdout + '\n' + r.stderr;
             const summary = parseSummary(r.stdout);
             if (r.killed) {
