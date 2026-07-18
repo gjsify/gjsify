@@ -25,6 +25,15 @@ Napi::Value MakeParamSpecHandle(Napi::Env env, GParamSpec* pspec, GITransfer tra
   if (transfer != GI_TRANSFER_EVERYTHING) g_param_spec_ref(pspec);
   Napi::External<GParamSpec> ext = Napi::External<GParamSpec>::New(
       env, pspec, [](Napi::Env, GParamSpec* p) { g_param_spec_unref(p); });
+  if (ext.IsEmpty()) {
+    // napi_create_external failed with the throw swallowed (terminating env /
+    // pending exception). TypeTag on the empty External would abort via
+    // Error::New(nullptr)'s fatal sites — release the ref we took and bail with
+    // the empty value (see the common.h terminate-safe helpers). The finalizer
+    // was never registered, so this g_param_spec_unref balances the ref above.
+    g_param_spec_unref(pspec);
+    return ext;
+  }
   ext.TypeTag(&kParamSpecHandleTag);
   return ext;
 }
@@ -212,6 +221,22 @@ Napi::Value GValueToJs(Napi::Env env, const GValue* v) {
 
 // Marshal a JS value into an already-g_value_init'd GValue.
 bool JsToGValue(Napi::Env env, Napi::Value js, GValue* v) {
+  if (js.IsEmpty()) {
+    // Residue of a swallowed napi failure upstream (a fallible props.Get() /
+    // coercion failed on a terminating env, or a throwing getter left the
+    // exception pending). Coercing it would abort via Error::New(nullptr)'s
+    // fatal sites — fail the marshal cleanly (see the common.h terminate-safe
+    // helpers). This is the terminate-mid-`newObject` path: ConstructGObject's
+    // props loop calls this per property value. Gate the diagnostic throw on
+    // NodeGiJsAvailable — false on a dying env (a Napi::Error built there aborts
+    // via the SAME funnel) AND on a live env with a pending exception (propagate
+    // that one) — so we only throw when the env can safely build the error.
+    if (NodeGiJsAvailable(env)) {
+      Napi::Error::New(env, "property value unavailable (env is terminating)")
+          .ThrowAsJavaScriptException();
+    }
+    return false;
+  }
   GType ft = G_TYPE_FUNDAMENTAL(G_VALUE_TYPE(v));
   // G_TYPE_GTYPE is a runtime-resolved type (not constexpr) → handle before the
   // switch. A GType handle (or null → 0) into a GType-valued GValue.
@@ -281,7 +306,9 @@ bool JsToGValue(Napi::Env env, Napi::Value js, GValue* v) {
     guint len = arr.Length();
     gchar** strv = g_new0(gchar*, len + 1);  // +1 for the NULL terminator
     for (guint i = 0; i < len; i++) {
-      strv[i] = g_strdup(arr.Get(i).ToString().Utf8Value().c_str());
+      // NodeGiToUtf8: terminate-safe (a swallowed Get/coercion failure must not
+      // cascade into Error::New(nullptr) — see common.h).
+      strv[i] = g_strdup(NodeGiToUtf8(arr.Get(i)).c_str());
     }
     g_value_take_boxed(v, strv);
     return true;
@@ -318,11 +345,14 @@ bool JsToGValue(Napi::Env env, Napi::Value js, GValue* v) {
     return true;
   }
   switch (ft) {
-    case G_TYPE_BOOLEAN: g_value_set_boolean(v, js.ToBoolean().Value()); return true;
-    case G_TYPE_CHAR: g_value_set_schar(v, static_cast<gint8>(js.ToNumber().Int32Value())); return true;
-    case G_TYPE_UCHAR: g_value_set_uchar(v, static_cast<guchar>(js.ToNumber().Uint32Value())); return true;
-    case G_TYPE_INT: g_value_set_int(v, js.ToNumber().Int32Value()); return true;
-    case G_TYPE_UINT: g_value_set_uint(v, js.ToNumber().Uint32Value()); return true;
+    // Scalar coercions via the terminate-safe helpers (common.h): a swallowed
+    // napi failure mid worker.terminate() must degrade to a zero, not cascade
+    // into Error::New(nullptr)'s fatal sites (the terminate-mid-`newObject` path).
+    case G_TYPE_BOOLEAN: g_value_set_boolean(v, NodeGiToBool(js)); return true;
+    case G_TYPE_CHAR: g_value_set_schar(v, static_cast<gint8>(NodeGiToInt32(js))); return true;
+    case G_TYPE_UCHAR: g_value_set_uchar(v, static_cast<guchar>(NodeGiToUint32(js))); return true;
+    case G_TYPE_INT: g_value_set_int(v, NodeGiToInt32(js)); return true;
+    case G_TYPE_UINT: g_value_set_uint(v, NodeGiToUint32(js)); return true;
     // 64-bit (glong/gulong are 64-bit on LP64): accept a BigInt losslessly, else a
     // truncated Number — never let a BigInt reach ToNumber(). Shared with the GI
     // scalar marshaller via JsValueTo{Int,Uint}64 (common.h).
@@ -330,15 +360,15 @@ bool JsToGValue(Napi::Env env, Napi::Value js, GValue* v) {
     case G_TYPE_ULONG: g_value_set_ulong(v, static_cast<gulong>(JsValueToUint64(js))); return true;
     case G_TYPE_INT64: g_value_set_int64(v, JsValueToInt64(js)); return true;
     case G_TYPE_UINT64: g_value_set_uint64(v, JsValueToUint64(js)); return true;
-    case G_TYPE_FLOAT: g_value_set_float(v, static_cast<float>(js.ToNumber().DoubleValue())); return true;
-    case G_TYPE_DOUBLE: g_value_set_double(v, js.ToNumber().DoubleValue()); return true;
-    case G_TYPE_ENUM: g_value_set_enum(v, js.ToNumber().Int32Value()); return true;
-    case G_TYPE_FLAGS: g_value_set_flags(v, js.ToNumber().Uint32Value()); return true;
+    case G_TYPE_FLOAT: g_value_set_float(v, static_cast<float>(NodeGiToDouble(js))); return true;
+    case G_TYPE_DOUBLE: g_value_set_double(v, NodeGiToDouble(js)); return true;
+    case G_TYPE_ENUM: g_value_set_enum(v, NodeGiToInt32(js)); return true;
+    case G_TYPE_FLAGS: g_value_set_flags(v, NodeGiToUint32(js)); return true;
     case G_TYPE_STRING:
       if (js.IsNull() || js.IsUndefined()) {
         g_value_set_string(v, nullptr);
       } else {
-        std::string s = js.ToString().Utf8Value();
+        std::string s = NodeGiToUtf8(js);
         g_value_set_string(v, s.c_str());  // g_value_set_string copies
       }
       return true;
@@ -442,6 +472,21 @@ GObject* UnwrapGObject(Napi::Env env, Napi::Value handle) {
 Napi::Value ConstructGObject(Napi::Env env, GType gtype, Napi::Object props,
                              const std::string& displayName) {
   Napi::Array names = props.GetPropertyNames();
+  if (names.IsEmpty()) {
+    // napi_get_property_names failed with the throw swallowed — worker.terminate()
+    // landed while inside this native construct (the dominant terminate-mid-
+    // `newObject` funnel: the hot loop is here when the env dies). names.Length()
+    // on the empty Array would abort via Error::New(nullptr)'s fatal sites. Bail
+    // with the empty value; gate the diagnostic throw on NodeGiJsAvailable —
+    // constructing a Napi::Error on the dying env would abort via the SAME funnel
+    // (false there AND on a live env with a pending exception, which we let
+    // propagate). Nothing was allocated yet.
+    if (NodeGiJsAvailable(env)) {
+      Napi::Error::New(env, "construction unavailable (env is terminating)")
+          .ThrowAsJavaScriptException();
+    }
+    return env.Null();
+  }
   guint n = names.Length();
   std::vector<GValue> values(n);  // zero-initialised == G_VALUE_INIT
   std::vector<std::string> nameStorage(n);
@@ -451,7 +496,16 @@ Napi::Value ConstructGObject(Napi::Env env, GType gtype, Napi::Object props,
   guint initialised = 0;
   bool ok = true;
   for (guint i = 0; i < n; i++) {
-    nameStorage[i] = names.Get(i).ToString().Utf8Value();
+    // A per-property name read can come back EMPTY when worker.terminate() lands
+    // mid-loop (a swallowed napi failure). Bail WITHOUT throwing — the pre-existing
+    // "has no property ''" TypeError below would run Error::New on the now-dying
+    // env and abort via the funnel. On a live env names.Get(i) is never empty.
+    Napi::Value nameVal = names.Get(i);
+    if (nameVal.IsEmpty()) {
+      ok = false;
+      break;
+    }
+    nameStorage[i] = NodeGiToUtf8(nameVal);
     GParamSpec* pspec =
         g_object_class_find_property(reinterpret_cast<GObjectClass*>(klass), nameStorage[i].c_str());
     if (pspec == nullptr) {
@@ -518,8 +572,15 @@ Napi::Value NewObject(const Napi::CallbackInfo& info) {
   if (base != nullptr) gi_base_info_unref(base);
   g_object_unref(repo);
   if (!isObject || gtype == G_TYPE_INVALID || gtype == G_TYPE_NONE) {
-    Napi::TypeError::New(env, ns + "." + tn + " is not a constructible GObject type")
-        .ThrowAsJavaScriptException();
+    // On a terminating env the ns/tn string reads above degrade to "" (a swallowed
+    // napi failure), so find_by_name misses and we land here — but building a
+    // Napi::TypeError on the dying env would abort via Error::New's fatal funnel.
+    // Gate on NodeGiJsAvailable (false on a dying env AND on a live env with a
+    // pending exception); a genuine bad-name on a live env still throws.
+    if (NodeGiJsAvailable(env)) {
+      Napi::TypeError::New(env, ns + "." + tn + " is not a constructible GObject type")
+          .ThrowAsJavaScriptException();
+    }
     return env.Null();
   }
 
