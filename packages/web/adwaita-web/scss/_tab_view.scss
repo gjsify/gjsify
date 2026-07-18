@@ -17,18 +17,22 @@ adw-tab-view {
   color: var(--window-fg-color);
 
   // --- Tab bar (the AdwTabBar strip) ---
+  // Faithful port of libadwaita's `tabbar` (refs/libadwaita _tab-view.scss +
+  // _colors.scss): a headerbar-colored box with an inset bottom shade; tabs
+  // FILL their slot as rounded rects and use the currentColor alpha fills —
+  // selected 10% (hover 13%, active 19%), plain hover 7%, active 16%.
   .adw-tab-bar {
     display: flex;
-    align-items: flex-end;
+    align-items: stretch;
     flex-shrink: 0;
     box-sizing: border-box;
-    padding: 0 var(--spacing-xs);
+    padding: 0 1px 1px;
     background-color: var(--headerbar-bg-color);
     color: var(--headerbar-fg-color);
     // libadwaita's inset bottom shade under the bar.
     box-shadow: inset 0 -1px var(--headerbar-shade-color);
     overflow-x: auto;
-    scrollbar-width: thin;
+    scrollbar-width: none;
 
     &[hidden] {
       display: none;
@@ -38,63 +42,82 @@ adw-tab-view {
   .adw-tab-box {
     display: flex;
     align-items: stretch;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-xs) 0;
-    min-height: 34px;
+    flex: 1 1 auto;
+    padding: 4px 0;
   }
 
-  // --- A single tab chip ---
+  // --- A single tab ---
   .adw-tab {
+    position: relative;
     box-sizing: border-box;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: var(--spacing-xs);
     max-width: 200px;
-    min-height: 26px;
+    min-height: 30px;
     margin: 0;
-    padding: 4px var(--spacing-s);
+    padding: 0 var(--spacing-m);
     border: none;
     border-radius: var(--button-radius);
     background-color: transparent;
-    color: var(--headerbar-fg-color);
+    color: inherit;
     font-family: var(--font-family);
     font-size: var(--font-size-base);
-    font-weight: 700;
     line-height: 1;
     cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
-    transition:
-      background-color 150ms ease-in-out,
-      color 150ms ease-in-out,
-      box-shadow 150ms ease-in-out;
+    transition: background-color 150ms ease-in-out;
 
     &:hover {
-      background-color: var(--button-hover-color);
+      background-color: color-mix(in srgb, currentColor 7%, transparent);
     }
 
     &:active {
-      background-color: var(--button-active-color, var(--button-hover-color));
+      background-color: color-mix(in srgb, currentColor 16%, transparent);
     }
 
     &:focus-visible {
       outline: 2px solid var(--accent-color);
-      outline-offset: -1px;
+      outline-offset: -2px;
     }
 
-    // The selected tab — a raised chip on the view background, the way
-    // libadwaita lifts the active tab off the bar.
+    // The selected tab — libadwaita's currentColor alpha fill covering the
+    // whole tab slot (NOT a raised chip on the view background).
     &.active {
-      background-color: var(--view-bg-color);
-      color: var(--view-fg-color);
-      box-shadow:
-        0 1px 3px 1px rgba(0, 0, 6, 0.07),
-        0 2px 6px 2px rgba(0, 0, 6, 0.03);
+      background-color: color-mix(in srgb, currentColor 10%, transparent);
 
       &:hover {
-        background-color: var(--view-bg-color);
+        background-color: color-mix(in srgb, currentColor 13%, transparent);
+      }
+
+      &:active {
+        background-color: color-mix(in srgb, currentColor 19%, transparent);
       }
     }
+  }
+
+  // Thin separators between tabs, hidden next to the selected or hovered tab
+  // (libadwaita tabbox > separator + its .hidden state).
+  .adw-tab + .adw-tab::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 3px;
+    bottom: 3px;
+    width: 1px;
+    background-color: currentColor;
+    opacity: 0.2;
+    transition: opacity 150ms ease-in-out;
+    pointer-events: none;
+  }
+
+  .adw-tab.active + .adw-tab::before,
+  .adw-tab + .adw-tab.active::before,
+  .adw-tab:hover + .adw-tab::before,
+  .adw-tab + .adw-tab:hover::before {
+    opacity: 0;
   }
 
   .adw-tab-title {
@@ -154,39 +177,10 @@ adw-tab-view {
     }
   }
 
-  // Adw.TabBar `expand-tabs` — tabs stretch to fill the bar evenly, sitting
-  // flush with thin separators between them; the separators adjacent to the
-  // selected tab are hidden, the way libadwaita draws the tab box.
-  &[expand-tabs] {
-    .adw-tab-box {
-      flex: 1 1 auto;
-      gap: 0;
-    }
-
-    .adw-tab {
-      position: relative;
-      flex: 1 1 0;
-      max-width: none;
-      justify-content: center;
-    }
-
-    .adw-tab + .adw-tab::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 1px;
-      height: 55%;
-      background-color: currentColor;
-      opacity: 0.2;
-      pointer-events: none;
-    }
-
-    .adw-tab.active + .adw-tab::before,
-    .adw-tab + .adw-tab.active::before {
-      opacity: 0;
-    }
+  // Adw.TabBar `expand-tabs` — tabs stretch to fill the bar evenly.
+  &[expand-tabs] .adw-tab {
+    flex: 1 1 0;
+    max-width: none;
   }
 
   // Web-specific escape hatch: static tab sets (e.g. documentation command
@@ -195,15 +189,13 @@ adw-tab-view {
     display: none;
   }
 
-  // Single-tab bars dim the close affordance (libadwaita keeps a lone tab
+  // Single-tab bars draw no tab background (libadwaita keeps a lone tab
   // non-interactive-looking).
   .adw-tab-bar.single-tab .adw-tab {
     &,
     &:hover,
     &:active {
       background: none;
-      box-shadow: none;
-      color: var(--headerbar-fg-color);
     }
   }
 
