@@ -50,7 +50,11 @@ on both GJS and Node via `gjsify build --app {gjs,node}`.
 > auto-attached by `requireGi`) nests Node's libuv loop inside the GLib loop, so a
 > blocking `GLib.MainLoop.run()` keeps Node's timers/I/O alive — including the
 > **boxed/struct slice** that needs (`GLib.MainLoop.new(...)` → a boxed handle →
-> `.run()`/`.quit()`). **JS functions marshal as GI callbacks** via an ffi
+> `.run()`/`.quit()`). The same call arms the **uv-driven auto-pump** for the
+> NON-blocking case: pending GLib sources (Gio async completions, GLib
+> timeouts/idles, DBus) dispatch from Node's own event loop, so a plain
+> `node bundle.mjs` that `await`s a Gio async op needs no explicit mainloop —
+> matching GJS, where the GLib loop is the process loop. **JS functions marshal as GI callbacks** via an ffi
 > closure (`GLib.timeout_add`/`idle_add` fire from the loop, the boolean return
 > drives source continuation; the hidden user_data/destroy slots are auto-filled).
 > register GObject subclasses (subtype + construct-by-type, inheriting the
@@ -98,11 +102,14 @@ Two libuv-coupled subsystems are portable across all three:
 - **GC bridge** — the toggle-ref teardown drain uses a `napi_threadsafe_function`
   (core Node-API), not node-gtk's raw `uv_async_t` (Deno exports no libuv symbols;
   Bun panics on `uv_async_init`).
-- **Main loop** — Node keeps the uv-nesting bridge that co-pumps Node's own event
-  loop during a blocking GLib loop; Bun/Deno co-pump the other way, iterating the
-  default GLib context from a runtime timer (`startMainContextPump` from
-  `@gjsify/node-gi/gi`), so GIO async callbacks / GLib timeouts / DBus fire while
-  the runtime's own loop stays live.
+- **Main loop** — Node runs BOTH directions: the uv-nesting bridge co-pumps
+  Node's own event loop during a blocking GLib loop, and the **uv-driven
+  auto-pump** dispatches pending GLib sources from Node's loop when NO blocking
+  GLib loop runs (async Gio + `await` just works, no explicit loop). Bun/Deno
+  co-pump the non-blocking case by hand, iterating the default GLib context from
+  a runtime timer (`startMainContextPump` from `@gjsify/node-gi/gi`), so GIO
+  async callbacks / GLib timeouts / DBus fire while the runtime's own loop stays
+  live.
 
 | Capability | Node | Bun | Deno |
 |---|:--:|:--:|:--:|
@@ -110,7 +117,7 @@ Two libuv-coupled subsystems are portable across all three:
 | GObject create / properties / signals | ✅ | ✅ | ✅ |
 | `registerClass` / subclass / vfunc chain-up | ✅ | ✅ | ✅ |
 | toggle-ref GC + cross-thread teardown | ✅ | ✅ | ✅ |
-| GLib async via `startMainContextPump` (timeouts, GIO async, DBus) | via loop | ✅ | ✅ |
+| GLib async with NO mainloop (timeouts, GIO async, DBus) | ✅ auto | via `startMainContextPump` | via `startMainContextPump` |
 | blocking `GLib.MainLoop.run()` / `Gio.Application.runAsync()` | ✅ | ✅ | ✅ |
 | Node timers/promises alive **during** a blocking GLib loop | ✅ | — | — |
 
@@ -346,6 +353,33 @@ The mainloop bridge (`startMainLoop`) is auto-attached the first time `requireGi
 loads a namespace, so `GLib.MainLoop.run()` / `Gio.Application.run()` block as
 they do under GJS while Node's timers, I/O and signal handlers keep running.
 
+A blocking loop is **optional**: the same call arms the uv-driven auto-pump, so
+pending GLib sources dispatch from Node's own event loop too — async Gio work
+awaited at top level behaves exactly as under `gjs -m`:
+
+```js
+import { requireGi } from '@gjsify/node-gi/gi';
+
+const Gio = requireGi('Gio', '2.0');
+const file = Gio.File.new_for_path('/etc/hostname');
+// No GLib.MainLoop.run() anywhere: the GTask completion dispatches from Node's
+// loop, the in-flight op keeps the process alive, then Node exits normally.
+const [ok, contents] = await new Promise((resolve, reject) => {
+  file.load_contents_async(null, (_source, res) => {
+    try { resolve(file.load_contents_finish(res)); } catch (e) { reject(e); }
+  });
+});
+```
+
+Process-lifetime semantics follow Node conventions: an in-flight async op
+(a pending `GAsyncReadyCallback`) and an armed GLib timeout keep the process
+alive — like Node's own pending I/O and timers — so a REPEATING GLib timeout
+keeps the process running like `setInterval` (under `gjs -m` the process would
+instead exit once the module settles; remove the source to release the process).
+A *passive* fd source with no pending op (e.g. only a listening
+`Gio.SocketService`) does not keep the process alive on its own, and a
+purely-sync program still exits immediately.
+
 #### `GLib.Variant` (build + unpack, GJS semantics)
 
 `new GLib.Variant(signature, value)` recursively builds a GVariant from a type
@@ -544,12 +578,14 @@ const id = Gio.DBus.own_name(Gio.BusType.SESSION, 'org.example.App',
   Gio.BusNameOwnerFlags.NONE, null, (conn, name) => { /* acquired */ }, null);
 ```
 
-A blocking `GLib.MainLoop.run()` drives the async replies / signals / name
-callbacks (they fire from the loop, as under GJS). One DBus divergence to know:
-a `NameAsync` **Promise** `.then` does not drain *while* a node-gi loop blocks
-(node-gtk #442/#121) — the reply still fires and settles the Promise, so it
-resolves once `run()` returns; drive an async method inside the loop through the
-raw `NameRemote` callback.
+Async replies / signals / name callbacks dispatch from the default main context —
+either a blocking `GLib.MainLoop.run()` or, with no loop anywhere, the uv-driven
+auto-pump (an `await proxy.GetIdAsync()` at top level settles like any other
+async Gio op). One DBus divergence remains for the BLOCKING case: a `NameAsync`
+**Promise** `.then` does not drain *while* a node-gi loop blocks (node-gtk
+#442/#121) — the reply still fires and settles the Promise, so it resolves once
+`run()` returns; drive an async method inside a blocking loop through the raw
+`NameRemote` callback.
 
 **Object export** (`Gio.DBusExportedObject.wrapJSObject` — exporting a JS
 object AS a DBus service) works with GJS semantics. GJS builds it on

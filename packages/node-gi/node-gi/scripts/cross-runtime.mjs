@@ -13,9 +13,10 @@
 //     interface-props) — need Xvfb, a separate CI leg;
 //   • the --expose-gc toggle-ref stress leg (gc-identity, gc-cross-thread) — needs
 //     a gc global + is Node's authoritative GC-safety gate;
-//   • mainloop / runasync co-pump assertions — they test the Node-only libuv↔GLib
-//     bridge (Bun/Deno use the portable pump; a blocking run() does not co-pump the
-//     runtime loop there, by design).
+//   • mainloop / runasync co-pump assertions AND the `pump` suite (the uv-driven
+//     GLib auto-pump) — they test the Node-only libuv↔GLib integration (Bun/Deno
+//     use the portable startMainContextPump; a blocking run() does not co-pump
+//     the runtime loop there, by design).
 //
 // The Deno N-API quirks that once excluded arrays/async-error (byte-array with
 // autofilled length, per-class Gio._promisify) are FIXED as of Deno 2.9.x —

@@ -2087,14 +2087,27 @@ let loopAttached = false;
  */
 export function requireGi(namespace, version) {
   native.requireNamespace(namespace, version);
-  // Attach the libuv-in-GLib bridge once, so any later blocking GLib loop
-  // (GLib.MainLoop.run / Gio.Application.run) keeps Node's event loop alive. This
-  // is Node-only: the bridge nests libuv's backend fd inside GLib, and Bun/Deno
-  // have no usable libuv (Deno exports no libuv symbols; Bun panics on
-  // uv_backend_fd). There, GLib async is co-pumped from the runtime loop via the
-  // portable GLib-iteration pump instead (see pumpMainContext / runAsync).
+  // Attach the libuv↔GLib integration once. On Node this arms BOTH directions:
+  // the uv-in-GLib bridge (a blocking GLib.MainLoop.run / Gio.Application.run
+  // keeps Node's event loop alive) AND the uv-driven auto-pump (pending GLib
+  // sources — Gio async completions, GLib timeouts/idles, DBus — dispatch from
+  // Node's own loop, so async gi:// code works with NO explicit mainloop). This
+  // is Node-only: Bun/Deno have no usable libuv (Deno exports no libuv symbols;
+  // Bun panics on uv_backend_fd). There, GLib async is co-pumped from the runtime
+  // loop via the portable GLib-iteration pump instead (see startMainContextPump /
+  // runAsync).
   if (!loopAttached) {
-    if (native.isNodeRuntime) native.startMainLoop();
+    if (native.isNodeRuntime) {
+      native.startMainLoop();
+      // Bootstrap kick for the auto-pump: with ONLY unref'd handles active,
+      // uv_run exits without running the pump's prepare/check phase at all, so
+      // an otherwise-empty loop would never arm GLib's timer/fd wake-ups (a
+      // pending top-level await on a GLib timeout would exit-13 unsettled).
+      // 'beforeExit' fires exactly when the loop runs empty: drain what is
+      // ready and re-arm — if GLib still has scheduled work, the armed (ref'd)
+      // uv timer revives the loop; otherwise the process exits normally.
+      process.on('beforeExit', () => native.pumpKick());
+    }
     loopAttached = true;
   }
   const key = version ? `${namespace}@${version}` : namespace;

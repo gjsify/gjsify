@@ -217,6 +217,9 @@ static void NodeGiVFuncTrampoline(ffi_cif* /*cif*/, void* result, void** args,
   }
   Napi::Env napiEnv(env);
   Napi::HandleScope scope(napiEnv);
+  // JS dispatched from a pump-driven context iteration must not inherit the
+  // pump's in-iteration flag (see NodeGiPumpJsDispatchScope in common.h).
+  NodeGiPumpJsDispatchScope pumpWindow;
 
   GICallableInfo* ci = reinterpret_cast<GICallableInfo*>(vf->info);
   // args[0] is the instance; declared args follow at args[1..].
