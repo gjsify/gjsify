@@ -9,6 +9,10 @@
 //   selected (zero-based index of the visible page, default 0)
 //   autohide (boolean — hide the tab bar when only one page remains, mirroring
 //     the Adw.TabBar `autohide` property)
+//   expand-tabs (boolean — tabs stretch to fill the bar evenly, mirroring the
+//     Adw.TabBar `expand-tabs` property)
+//   no-close (boolean — render no close affordance; web-specific escape hatch
+//     for static tab sets such as documentation command tabs)
 // Events:
 //   `notify::selected-page` (CustomEvent, bubbles, `detail = { selected }`) when
 //     the visible page changes — mirrors the Adw.TabView `selected-page` property.
@@ -37,7 +41,7 @@ export class AdwTabView extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['selected', 'autohide'];
+        return ['selected', 'autohide', 'expand-tabs', 'no-close'];
     }
 
     /** Zero-based index of the visible page. */
@@ -57,6 +61,26 @@ export class AdwTabView extends HTMLElement {
     set autohide(value: boolean) {
         if (value) this.setAttribute('autohide', '');
         else this.removeAttribute('autohide');
+    }
+
+    /** Whether tabs stretch to fill the bar evenly (Adw.TabBar `expand-tabs`). */
+    get expandTabs(): boolean {
+        return this.hasAttribute('expand-tabs');
+    }
+
+    set expandTabs(value: boolean) {
+        if (value) this.setAttribute('expand-tabs', '');
+        else this.removeAttribute('expand-tabs');
+    }
+
+    /** Whether the close affordance is omitted (static tab sets). */
+    get noClose(): boolean {
+        return this.hasAttribute('no-close');
+    }
+
+    set noClose(value: boolean) {
+        if (value) this.setAttribute('no-close', '');
+        else this.removeAttribute('no-close');
     }
 
     connectedCallback() {

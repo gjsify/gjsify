@@ -10,5 +10,6 @@ import '@gjsify/adwaita-web';
 import { AdwDataGridTest } from './adw-data-grid.spec.js';
 import { AdwDialogTest } from './adw-dialog.spec.js';
 import { AdwDropDownTest } from './adw-drop-down.spec.js';
+import { AdwTabViewTest } from './adw-tab-view.spec.js';
 
-run({ AdwDataGridTest, AdwDialogTest, AdwDropDownTest });
+run({ AdwDataGridTest, AdwDialogTest, AdwDropDownTest, AdwTabViewTest });
