@@ -154,16 +154,38 @@ adw-tab-view {
     }
   }
 
-  // Adw.TabBar `expand-tabs` — tabs stretch to fill the bar evenly.
+  // Adw.TabBar `expand-tabs` — tabs stretch to fill the bar evenly, sitting
+  // flush with thin separators between them; the separators adjacent to the
+  // selected tab are hidden, the way libadwaita draws the tab box.
   &[expand-tabs] {
     .adw-tab-box {
       flex: 1 1 auto;
+      gap: 0;
     }
 
     .adw-tab {
+      position: relative;
       flex: 1 1 0;
       max-width: none;
       justify-content: center;
+    }
+
+    .adw-tab + .adw-tab::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 1px;
+      height: 55%;
+      background-color: currentColor;
+      opacity: 0.2;
+      pointer-events: none;
+    }
+
+    .adw-tab.active + .adw-tab::before,
+    .adw-tab + .adw-tab.active::before {
+      opacity: 0;
     }
   }
 
