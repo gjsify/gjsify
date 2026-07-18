@@ -158,6 +158,65 @@ test('GObject.source_set_closure: a JS fn drives a timeout source', () => {
   assert.equal(ticks, 2);
 });
 
+// ---- 4. GC/lifetime: the closure's strong napi_ref is the ONLY root ---------
+//
+// A JS fn handed to signal_connect_closure is rooted by nothing but the
+// marshaled GClosure's JsClosureData napi_ref (ref+sunk by the connection):
+// with every JS reference dropped it must survive a full GC while connected
+// (an under-rooted weak ref would collect it → the emit would be a
+// use-after-free), and disconnecting must release it (closure invalidate →
+// JsClosureFinalize → napi_delete_reference) so the fn becomes collectable —
+// not a process-lifetime leak. Node --expose-gc leg only (bun/deno run this
+// file in the cross-runtime subset without an exposed deterministic gc).
+const isNodeGc =
+  typeof process !== 'undefined' &&
+  Boolean(process.versions?.node) &&
+  !process.versions?.bun &&
+  typeof globalThis.Deno === 'undefined' &&
+  typeof globalThis.gc === 'function';
+test(
+  'GC: a connected closure survives gc; disconnect releases the fn',
+  { skip: !isNodeGc && 'needs node --test --expose-gc (npm run test:gc)' },
+  async () => {
+    // Bun's node:test shim ignores the `skip` option and runs the body anyway —
+    // bail imperatively on any runtime without Node's exposed deterministic gc.
+    if (!isNodeGc) return;
+    const action = new Gio.SimpleAction({ name: 'gc-root', enabled: true });
+    let collected = false;
+    const registry = new FinalizationRegistry(() => {
+      collected = true;
+    });
+    const state = { seen: 0 };
+    // Connect inside a helper so no live frame slot can pin the handler; only
+    // the handler id escapes.
+    const connectHandler = () => {
+      const fn = () => {
+        state.seen++;
+      };
+      registry.register(fn, 'handler');
+      return GObject.signal_connect_closure(action, 'notify::enabled', fn, false);
+    };
+    const id = connectHandler();
+
+    globalThis.gc();
+    globalThis.gc();
+    await new Promise((resolve) => setImmediate(resolve));
+    globalThis.gc();
+    assert.equal(collected, false, 'the handler must NOT be collected while connected');
+    action.set_enabled(false);
+    assert.equal(state.seen, 1, 'the closure-rooted handler still fires after GC');
+
+    GObject.signal_handler_disconnect(action, id);
+    for (let i = 0; i < 100 && !collected; i++) {
+      globalThis.gc();
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    assert.equal(collected, true, 'the handler must be collectable after disconnect');
+    action.set_enabled(true);
+    assert.equal(state.seen, 1, 'no dispatch after disconnect');
+  },
+);
+
 test('a throwing GClosure handler is surfaced, not propagated (loop-dispatched)', () => {
   const action = new Gio.SimpleAction({ name: 'y', enabled: true });
   GObject.signal_connect_closure(
