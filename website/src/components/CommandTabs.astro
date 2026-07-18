@@ -1,12 +1,15 @@
 ---
 // CommandTabs — one command window, one tab per way of invoking the toolchain
-// (GJSify's own Node-free CLI, npm, Bun, Deno). Built on <adw-tab-view> from
-// @gjsify/adwaita-web (the Adw.TabView/TabBar counterpart), so the tabs sit in
-// the window chrome exactly the way the Adwaita design system draws them —
-// with `expand-tabs` + `no-close` for a static tab set. Each page holds an
-// ordinary fenced code block: Expressive Code keeps its syntax highlighting,
-// and the per-block Adwaita window frame is flattened so the tab view is the
-// one window (the copy button floats over the code, EC-style).
+// (GJSify's own Node-free CLI, npm, Bun, Deno). Laid out exactly like an
+// Adwaita window with an Adw.TabBar: headerbar with the centered window title
+// and the copy button top-right, the tab bar right below it (expanded tabs
+// with separators via <adw-tab-view expand-tabs no-close> from
+// @gjsify/adwaita-web), the active tab's code beneath. The copy button copies
+// the currently active tab (it forwards to that block's hidden Expressive
+// Code copy button, so EC's clipboard handling + the Adwaita toast keep
+// working). Each page holds an ordinary fenced code block — EC keeps its
+// syntax highlighting; its per-block window frame is fully flattened because
+// this component provides the one window.
 //
 // The selected runtime is remembered (localStorage) and synchronized across
 // every CommandTabs instance on the site: pick "Deno" once and all command
@@ -19,6 +22,13 @@
 //     <Fragment slot="bun">```bash …```</Fragment>
 //     <Fragment slot="deno">```bash …```</Fragment>
 //   </CommandTabs>
+interface Props {
+    /** Window title shown centered in the headerbar. */
+    title?: string;
+}
+
+const { title = 'Terminal' } = Astro.props;
+
 const RUNTIMES = [
     { slot: 'gjsify', label: 'GJSify' },
     { slot: 'npm', label: 'npm' },
@@ -36,9 +46,20 @@ for (const r of RUNTIMES) {
 const runtimesAttr = present.map((r) => r.slot).join(',');
 ---
 
-<adw-tab-view class="command-tabs" no-close expand-tabs data-command-tabs data-runtimes={runtimesAttr}>
-    {present.map((r) => <adw-tab-page title={r.label} set:html={r.html} />)}
-</adw-tab-view>
+<div class="command-tabs" data-command-tabs data-runtimes={runtimesAttr}>
+    <div class="command-tabs-headerbar">
+        <span class="command-tabs-headerbar-start"></span>
+        <span class="command-tabs-headerbar-title">{title}</span>
+        <span class="command-tabs-headerbar-end">
+            <button class="command-tabs-copy" aria-label="Copy active tab" type="button">
+                <span class="command-tabs-copy-icon" aria-hidden="true"></span>
+            </button>
+        </span>
+    </div>
+    <adw-tab-view no-close expand-tabs>
+        {present.map((r) => <adw-tab-page title={r.label} set:html={r.html} />)}
+    </adw-tab-view>
+</div>
 
 <script>
     import '@gjsify/adwaita-web';
@@ -48,18 +69,20 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
     const applyPreference = (runtime: string | null, skip?: Element) => {
         if (!runtime) return;
         for (const el of document.querySelectorAll<HTMLElement>('[data-command-tabs]')) {
-            if (el === skip) continue;
+            const view = el.querySelector('adw-tab-view');
+            if (!view || view === skip) continue;
             const runtimes = (el.dataset.runtimes ?? '').split(',');
             const index = runtimes.indexOf(runtime);
-            if (index >= 0) el.setAttribute('selected', String(index));
+            if (index >= 0) view.setAttribute('selected', String(index));
         }
     };
 
     // Follow user selection: persist + mirror to every other instance.
     document.addEventListener('notify::selected-page', (event) => {
-        const target = event.target as HTMLElement;
-        if (!target?.matches?.('[data-command-tabs]')) return;
-        const runtimes = (target.dataset.runtimes ?? '').split(',');
+        const view = event.target as HTMLElement;
+        const host = view?.closest?.('[data-command-tabs]') as HTMLElement | null;
+        if (!host) return;
+        const runtimes = (host.dataset.runtimes ?? '').split(',');
         const runtime = runtimes[(event as CustomEvent).detail?.selected ?? 0];
         if (!runtime) return;
         try {
@@ -67,7 +90,22 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
         } catch {
             // Private mode — selection just won't persist.
         }
-        applyPreference(runtime, target);
+        applyPreference(runtime, view);
+    });
+
+    // Headerbar copy button → forward to the ACTIVE page's hidden Expressive
+    // Code copy button (EC handles the clipboard; the Adwaita toast listens
+    // on that button's click).
+    document.addEventListener('click', (event) => {
+        const btn = (event.target as HTMLElement).closest?.('.command-tabs-copy') as HTMLElement | null;
+        if (!btn) return;
+        const host = btn.closest('[data-command-tabs]');
+        const active = host?.querySelector('.adw-tab-page:not([hidden])');
+        const ecButton = active?.querySelector<HTMLButtonElement>('.copy button, .adw-code-headerbar-end button');
+        if (!ecButton) return;
+        ecButton.click();
+        btn.classList.add('copied');
+        setTimeout(() => btn.classList.remove('copied'), 1500);
     });
 
     // Initial: restore the remembered runtime once the element is defined.
@@ -83,18 +121,18 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
 <style is:global>
     /* Before the custom element hydrates, show only the first page so the
        server-rendered HTML doesn't stack every tab's code block. */
-    adw-tab-view.command-tabs:not(:defined) > adw-tab-page {
+    .command-tabs adw-tab-view:not(:defined) > adw-tab-page {
         display: none;
     }
-    adw-tab-view.command-tabs:not(:defined) > adw-tab-page:first-of-type {
+    .command-tabs adw-tab-view:not(:defined) > adw-tab-page:first-of-type {
         display: block;
     }
 
-    /* The tab view is the window — same chrome as the EC adw-code-window it
-       replaces (radius + shadow mirror .quick-start-window / custom.css). */
+    /* ── The window (chrome mirrors .quick-start-window / custom.css) ── */
     .command-tabs {
         margin-top: 1rem;
         border-radius: 12px;
+        overflow: hidden;
         box-shadow:
             0 0 14px 5px rgb(0 0 0 / 15%),
             0 0 5px 2px rgb(0 0 0 / 10%),
@@ -129,8 +167,86 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
         --window-bg-color: var(--adw-window-bg);
     }
 
-    /* Flatten the per-block Adwaita EC window inside the pages — the tab view
-       provides the one window frame. */
+    /* ── Headerbar: centered title + copy button (adw-header-bar, same
+          metrics as custom.css .adw-code-headerbar) ── */
+    .command-tabs-headerbar {
+        display: flex;
+        align-items: center;
+        min-height: 47px;
+        padding: 0 6px;
+        background: var(--headerbar-bg-color);
+        color: var(--headerbar-fg-color);
+    }
+
+    .command-tabs-headerbar-start {
+        width: 38px;
+        flex-shrink: 0;
+    }
+
+    .command-tabs-headerbar-title {
+        flex: 1;
+        text-align: center;
+        font-weight: bold;
+        font-size: 0.875rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .command-tabs-headerbar-end {
+        display: flex;
+        align-items: center;
+        padding: 0 3px;
+        flex-shrink: 0;
+    }
+
+    /* Copy button — Adwaita CSD flat button (same as QuickStartCta). */
+    .command-tabs-copy {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border: none;
+        border-radius: 9px;
+        background: transparent;
+        cursor: pointer;
+        color: inherit;
+        padding: 0;
+    }
+
+    .command-tabs-copy:hover {
+        background: rgba(128, 128, 128, 0.12);
+    }
+
+    .command-tabs-copy:active {
+        background: rgba(128, 128, 128, 0.22);
+    }
+
+    .command-tabs-copy.copied {
+        color: #2ec27e;
+    }
+
+    .command-tabs-copy-icon {
+        display: block;
+        width: 16px;
+        height: 16px;
+        background-color: currentColor;
+        -webkit-mask-image: url("data:image/svg+xml,%3Csvg%20height%3D'16px'%20viewBox%3D'0%200%2016%2016'%20width%3D'16px'%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%3E%20%3Cpath%20d%3D'm%207%200%20c%20-0.554688%200%20-1%200.445312%20-1%201%20h%20-2%20c%20-1.644531%200%20-3%201.355469%20-3%203%20v%209%20c%200%201.644531%201.355469%203%203%203%20h%208%20c%201.644531%200%203%20-1.355469%203%20-3%20v%20-9%20c%200%20-1.644531%20-1.355469%20-3%20-3%20-3%20h%20-2%20c%200%20-0.554688%20-0.445312%20-1%20-1%20-1%20z%20m%20-3%203%20h%201%20v%201%20c%200%200.554688%200.445312%201%201%201%20h%204%20c%200.554688%200%201%20-0.445312%201%20-1%20v%20-1%20h%201%20c%200.570312%200%201%200.429688%201%201%20v%209%20c%200%200.570312%20-0.429688%201%20-1%201%20h%20-8%20c%20-0.570312%200%20-1%20-0.429688%20-1%20-1%20v%20-9%20c%200%20-0.570312%200.429688%20-1%201%20-1%20z%20m%200%200'%20fill%3D'currentColor'%2F%3E%20%3C%2Fsvg%3E");
+        mask-image: url("data:image/svg+xml,%3Csvg%20height%3D'16px'%20viewBox%3D'0%200%2016%2016'%20width%3D'16px'%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%3E%20%3Cpath%20d%3D'm%207%200%20c%20-0.554688%200%20-1%200.445312%20-1%201%20h%20-2%20c%20-1.644531%200%20-3%201.355469%20-3%203%20v%209%20c%200%201.644531%201.355469%203%203%203%20h%208%20c%201.644531%200%203%20-1.355469%203%20-3%20v%20-9%20c%200%20-1.644531%20-1.355469%20-3%20-3%20-3%20h%20-2%20c%200%20-0.554688%20-0.445312%20-1%20-1%20-1%20z%20m%20-3%203%20h%201%20v%201%20c%200%200.554688%200.445312%201%201%201%20h%204%20c%200.554688%200%201%20-0.445312%201%20-1%20v%20-1%20h%201%20c%200.570312%200%201%200.429688%201%201%20v%209%20c%200%200.570312%20-0.429688%201%20-1%201%20h%20-8%20c%20-0.570312%200%20-1%20-0.429688%20-1%20-1%20v%20-9%20c%200%20-0.570312%200.429688%20-1%201%20-1%20z%20m%200%200'%20fill%3D'currentColor'%2F%3E%20%3C%2Fsvg%3E");
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+    }
+
+    .command-tabs-copy.copied .command-tabs-copy-icon {
+        -webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'16'%20height%3D'16'%20viewBox%3D'0%200%2016%2016'%3E%3Cpath%20d%3D'M13.78%204.22a.75.75%200%200%201%200%201.06l-7.25%207.25a.75.75%200%200%201-1.06%200L2.22%209.28a.75.75%200%200%201%201.06-1.06L6%2010.94l6.72-6.72a.75.75%200%200%201%201.06%200z'%20fill%3D'currentColor'%2F%3E%3C%2Fsvg%3E");
+        mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'16'%20height%3D'16'%20viewBox%3D'0%200%2016%2016'%3E%3Cpath%20d%3D'M13.78%204.22a.75.75%200%200%201%200%201.06l-7.25%207.25a.75.75%200%200%201-1.06%200L2.22%209.28a.75.75%200%200%201%201.06-1.06L6%2010.94l6.72-6.72a.75.75%200%200%201%201.06%200z'%20fill%3D'currentColor'%2F%3E%3C%2Fsvg%3E");
+    }
+
+    /* ── Flatten the per-block Adwaita EC window inside the pages — this
+          component provides the one window frame ── */
     .command-tabs .expressive-code {
         margin: 0;
     }
@@ -148,25 +264,11 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
         margin: 0;
     }
 
-    /* Collapse the block's own headerbar: no second chrome row under the tab
-       bar — the copy button floats over the code's top-right corner instead.
-       !important mirrors custom.css's own !important on these rules. */
+    /* The block's own headerbar disappears entirely — the window headerbar
+       above the tab bar owns title + copy. The hidden EC copy button stays in
+       the DOM: the headerbar button forwards clicks to it (EC clipboard +
+       Adwaita toast). !important mirrors custom.css's own !important. */
     .command-tabs .expressive-code .frame .adw-code-headerbar {
-        display: contents !important;
-    }
-
-    .command-tabs .expressive-code .frame .adw-code-headerbar-start,
-    .command-tabs .expressive-code .frame .adw-code-headerbar-title {
         display: none !important;
-    }
-
-    .command-tabs .expressive-code .frame .adw-code-headerbar-end {
-        position: absolute !important;
-        inset: 6px 6px auto auto !important;
-        z-index: 5;
-        /* Long code lines run under the floating button — back it with the
-           code surface so the icon stays legible. */
-        background: var(--code-background);
-        border-radius: 9px;
     }
 </style>
