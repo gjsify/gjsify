@@ -47,6 +47,36 @@ export class Context {
   setSourceRGBA(red: number, green: number, blue: number, alpha: number): void;
   setSource(pattern: Pattern): void;
   setSourceSurface(surface: Surface, x: number, y: number): void;
+  /** The context's current source pattern (own reference; concrete subclass). */
+  getSource(): Pattern;
+  identityMatrix(): void;
+  newSubPath(): void;
+  /** User → device coordinates as `[x, y]` (GJS return shape). */
+  userToDevice(x: number, y: number): [number, number];
+  /** User → device distance (ignores translation) as `[dx, dy]`. */
+  userToDeviceDistance(dx: number, dy: number): [number, number];
+  /** Device → user coordinates as `[x, y]`. */
+  deviceToUser(x: number, y: number): [number, number];
+  /** Device → user distance (ignores translation) as `[dx, dy]`. */
+  deviceToUserDistance(dx: number, dy: number): [number, number];
+  /** Copy the current path into an owned {@link Path} handle. */
+  copyPath(): Path;
+  /** Like {@link copyPath} but with curves flattened to line segments. */
+  copyPathFlat(): Path;
+  appendPath(path: Path): void;
+  /**
+   * Set the stroke dash pattern. GJS semantics: holes/undefined entries are
+   * skipped, a non-positive value throws, an empty array disables dashing.
+   */
+  setDash(dashes: number[], offset: number): void;
+  getDashCount(): number;
+  /**
+   * The current dash pattern as `[dashes, offset]`.
+   * Note: GJS ships only `getDashCount`; this is a node-gi convenience.
+   */
+  getDash(): [number[], number];
+  inFill(x: number, y: number): boolean;
+  inStroke(x: number, y: number): boolean;
   setLineWidth(width: number): void;
   getLineWidth(): number;
   setLineCap(lineCap: number): void;
@@ -96,6 +126,37 @@ export class SolidPattern extends Pattern {
   static createRGBA(red: number, green: number, blue: number, alpha: number): SolidPattern;
 }
 
+/** gradient base class — shared color-stop API. */
+export class Gradient extends Pattern {
+  addColorStopRGB(offset: number, red: number, green: number, blue: number): void;
+  addColorStopRGBA(offset: number, red: number, green: number, blue: number, alpha: number): void;
+}
+
+/** linear gradient (`cairo_pattern_create_linear`). */
+export class LinearGradient extends Gradient {
+  constructor(x0: number, y0: number, x1: number, y1: number);
+}
+
+/** radial gradient (`cairo_pattern_create_radial`). */
+export class RadialGradient extends Gradient {
+  constructor(cx0: number, cy0: number, radius0: number, cx1: number, cy1: number, radius1: number);
+}
+
+/** surface-backed pattern (`cairo_pattern_create_for_surface`). */
+export class SurfacePattern extends Pattern {
+  constructor(surface: Surface);
+  setExtend(extend: number): void;
+  getExtend(): number;
+  setFilter(filter: number): void;
+  getFilter(): number;
+}
+
+/**
+ * Opaque copied path (`cairo_path_t`, from `Context.copyPath[Flat]()`).
+ * Method-less in GJS too — round-trips through `appendPath` / GI calls.
+ */
+export class Path {}
+
 /** The GJS `cairo` module object (`import cairo from 'cairo'`). */
 declare const cairo: {
   Antialias: CairoEnum;
@@ -116,6 +177,11 @@ declare const cairo: {
   ImageSurface: typeof ImageSurface;
   Pattern: typeof Pattern;
   SolidPattern: typeof SolidPattern;
+  Gradient: typeof Gradient;
+  LinearGradient: typeof LinearGradient;
+  RadialGradient: typeof RadialGradient;
+  SurfacePattern: typeof SurfacePattern;
+  Path: typeof Path;
 };
 
 export default cairo;

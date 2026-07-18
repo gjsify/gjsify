@@ -10,11 +10,17 @@
 // that binding + registration.
 //
 // Reference: refs/gjs/modules/cairo-*.cpp (Context/Surface/ImageSurface/Pattern/
-// SolidPattern) + refs/gjs/gi/foreign.cpp (the foreign seam). Copyright (c) 2010
+// SolidPattern/Gradient/LinearGradient/RadialGradient/SurfacePattern/Path) +
+// refs/gjs/gi/foreign.cpp (the foreign seam). Copyright (c) 2010
 // litl, LLC / GJS contributors, MIT OR LGPL-2.0-or-later. Retargeted to N-API +
 // the node-gi ownership model (adopt-or-ref, no separate release call — matching
-// WrapBoxed). Slice: Context (drawing ops), Surface + ImageSurface (headless
-// pixels), SolidPattern. Deferred: gradients, path, region, PDF/SVG/PS surfaces.
+// WrapBoxed; cairo_path_t is NOT ref-counted, so a borrowed path is COPIED via
+// the gjs CairoPath::copy_ptr dummy-context trick instead of ref'd). Slice:
+// Context (drawing ops, path copy/append, dash, matrix point transforms,
+// in-fill/in-stroke, getSource), Surface + ImageSurface (headless pixels),
+// SolidPattern, LinearGradient/RadialGradient (color stops), SurfacePattern
+// (extend/filter), Path handles. Deferred: region, PDF/SVG/PS surfaces,
+// text/font ops (showText/selectFontFace — canvas2d text rides PangoCairo).
 //
 // The JS wrapper classes live in the L1 module (cairo.js); each instance holds
 // this binding's pointer as a type-tagged External under `_ptr`. The foreign
@@ -27,11 +33,13 @@
 #include <cairo.h>
 #include <string.h>  // memcpy
 
+#include <vector>
+
 namespace nodegi {
 
 // The pointer kind carried by a cairo handle, so the finalizer/dispose picks the
 // matching cairo_*_destroy and the marshaller can typecheck a foreign IN arg.
-enum class CairoKind : uint8_t { Context, Surface, Pattern };
+enum class CairoKind : uint8_t { Context, Surface, Pattern, Path };
 
 // A cairo object handle: the ref-counted cairo pointer + its kind. `owns` is true
 // for every handle this binding creates (constructors own their fresh ref;
@@ -57,6 +65,7 @@ static void DestroyCairo(CairoHandle* h) {
     case CairoKind::Context: cairo_destroy(static_cast<cairo_t*>(h->ptr)); break;
     case CairoKind::Surface: cairo_surface_destroy(static_cast<cairo_surface_t*>(h->ptr)); break;
     case CairoKind::Pattern: cairo_pattern_destroy(static_cast<cairo_pattern_t*>(h->ptr)); break;
+    case CairoKind::Path: cairo_path_destroy(static_cast<cairo_path_t*>(h->ptr)); break;
   }
 }
 
@@ -137,6 +146,27 @@ static cairo_pattern_t* PatternFromExt(Napi::Env env, Napi::Value v) {
     return nullptr;
   }
   return static_cast<cairo_pattern_t*>(h->ptr);
+}
+static cairo_path_t* PathFromExt(Napi::Env env, Napi::Value v) {
+  CairoHandle* h = HandleFromExternal(v);
+  if (h == nullptr || h->kind != CairoKind::Path || h->disposed || h->ptr == nullptr) {
+    Napi::TypeError::New(env, "expected a live cairo.Path").ThrowAsJavaScriptException();
+    return nullptr;
+  }
+  return static_cast<cairo_path_t*>(h->ptr);
+}
+
+// Copy a cairo_path_t (not ref-counted): replay it onto a dummy 0x0 image-surface
+// context and copy it back out. Mirrors gjs CairoPath::copy_ptr (adapted from
+// PyGObject cairo code).
+static cairo_path_t* CopyCairoPath(cairo_path_t* path) {
+  cairo_surface_t* surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
+  cairo_t* cr = cairo_create(surface);
+  cairo_append_path(cr, path);
+  cairo_path_t* copy = cairo_copy_path(cr);
+  cairo_destroy(cr);
+  cairo_surface_destroy(surface);
+  return copy;
 }
 
 static double Num(const Napi::CallbackInfo& info, size_t i) {
@@ -296,13 +326,37 @@ static Napi::Value PatternFrom(Napi::Env env, gpointer ptr, GITransfer transfer)
   return CallWrapper(env, "pattern", MakeCairoHandle(env, ptr, CairoKind::Pattern));
 }
 
+// cairo_path_t is not ref-counted: a borrowed path (transfer-nothing FROM, or a
+// transfer-everything IN where the callee takes ownership) is COPIED instead of
+// ref'd — same semantics as gjs's path_to/from_gi_argument + CairoPath::copy_ptr.
+static bool PathTo(Napi::Env env, Napi::Value v, GITransfer transfer, GIArgument* arg) {
+  if (v.IsNull() || v.IsUndefined()) { arg->v_pointer = nullptr; return true; }
+  void* p = PtrFromWrapper(v, CairoKind::Path);
+  if (p == nullptr) {
+    Napi::TypeError::New(env, "expected a cairo.Path").ThrowAsJavaScriptException();
+    return false;
+  }
+  if (transfer == GI_TRANSFER_EVERYTHING) p = CopyCairoPath(static_cast<cairo_path_t*>(p));
+  arg->v_pointer = p;
+  return true;
+}
+static Napi::Value PathFrom(Napi::Env env, gpointer ptr, GITransfer transfer) {
+  if (ptr == nullptr) return env.Null();
+  cairo_path_t* owned = (transfer == GI_TRANSFER_EVERYTHING)
+                            ? static_cast<cairo_path_t*>(ptr)
+                            : CopyCairoPath(static_cast<cairo_path_t*>(ptr));
+  return CallWrapper(env, "path", MakeCairoHandle(env, owned, CairoKind::Path));
+}
+
 static const ForeignStructOps kContextOps{ContextTo, ContextFrom};
 static const ForeignStructOps kSurfaceOps{SurfaceTo, SurfaceFrom};
 static const ForeignStructOps kPatternOps{PatternTo, PatternFrom};
+static const ForeignStructOps kPathOps{PathTo, PathFrom};
 
 // setup(wrappers): the L1 module hands its JS wrapper factories ({context, surface,
-// pattern}) — each takes the `_ptr` External and returns the class instance. Stored
-// per-env (a napi_ref is env-specific) so the foreign from_func can build wrappers.
+// pattern, path}) — each takes the `_ptr` External and returns the class instance.
+// Stored per-env (a napi_ref is env-specific) so the foreign from_func can build
+// wrappers.
 static Napi::Value CairoSetup(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   NodeGiEnvData* d = EnvData(env);
@@ -324,6 +378,7 @@ void InitCairo(Napi::Env env, Napi::Object exports) {
   RegisterForeignStruct("cairo", "Context", &kContextOps);
   RegisterForeignStruct("cairo", "Surface", &kSurfaceOps);
   RegisterForeignStruct("cairo", "Pattern", &kPatternOps);
+  RegisterForeignStruct("cairo", "Path", &kPathOps);
 
   Napi::Object c = Napi::Object::New(env);
   c.Set("setup", Napi::Function::New(env, CairoSetup));
@@ -378,6 +433,86 @@ void InitCairo(Napi::Env env, Napi::Object exports) {
             return env.Undefined();
           }
           return MakeCairoHandle(env, p, CairoKind::Pattern);
+        }));
+  c.Set("linearGradientCreate", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_pattern_t* p =
+              cairo_pattern_create_linear(Num(info, 0), Num(info, 1), Num(info, 2), Num(info, 3));
+          if (!CheckStatus(env, cairo_pattern_status(p), "pattern")) {
+            cairo_pattern_destroy(p);
+            return env.Undefined();
+          }
+          return MakeCairoHandle(env, p, CairoKind::Pattern);
+        }));
+  c.Set("radialGradientCreate", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_pattern_t* p = cairo_pattern_create_radial(Num(info, 0), Num(info, 1), Num(info, 2),
+                                                           Num(info, 3), Num(info, 4), Num(info, 5));
+          if (!CheckStatus(env, cairo_pattern_status(p), "pattern")) {
+            cairo_pattern_destroy(p);
+            return env.Undefined();
+          }
+          return MakeCairoHandle(env, p, CairoKind::Pattern);
+        }));
+  c.Set("surfacePatternCreate", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_surface_t* s = SurfaceFromExt(env, info[0]);
+          if (s == nullptr) return env.Undefined();
+          cairo_pattern_t* p = cairo_pattern_create_for_surface(s);
+          if (!CheckStatus(env, cairo_pattern_status(p), "pattern")) {
+            cairo_pattern_destroy(p);
+            return env.Undefined();
+          }
+          return MakeCairoHandle(env, p, CairoKind::Pattern);
+        }));
+
+  // ---- pattern methods (the pattern handle External is info[0]) ----
+  // Gradient color stops (Gradient in gjs terms — Linear/RadialGradient).
+  c.Set("patternAddColorStopRGB", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_pattern_t* p = PatternFromExt(env, info[0]);
+          if (p == nullptr) return env.Undefined();
+          cairo_pattern_add_color_stop_rgb(p, Num(info, 1), Num(info, 2), Num(info, 3), Num(info, 4));
+          CheckStatus(env, cairo_pattern_status(p), "pattern");
+          return env.Undefined();
+        }));
+  c.Set("patternAddColorStopRGBA", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_pattern_t* p = PatternFromExt(env, info[0]);
+          if (p == nullptr) return env.Undefined();
+          cairo_pattern_add_color_stop_rgba(p, Num(info, 1), Num(info, 2), Num(info, 3), Num(info, 4),
+                                            Num(info, 5));
+          CheckStatus(env, cairo_pattern_status(p), "pattern");
+          return env.Undefined();
+        }));
+  // Extend/filter (SurfacePattern methods in gjs — cairo accepts them on any pattern).
+  c.Set("patternSetExtend", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_pattern_t* p = PatternFromExt(env, info[0]);
+          if (p == nullptr) return env.Undefined();
+          cairo_pattern_set_extend(p, static_cast<cairo_extend_t>(Int(info, 1)));
+          CheckStatus(env, cairo_pattern_status(p), "pattern");
+          return env.Undefined();
+        }));
+  c.Set("patternGetExtend", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_pattern_t* p = PatternFromExt(env, info[0]);
+          if (p == nullptr) return env.Undefined();
+          return Napi::Number::New(env, cairo_pattern_get_extend(p));
+        }));
+  c.Set("patternSetFilter", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_pattern_t* p = PatternFromExt(env, info[0]);
+          if (p == nullptr) return env.Undefined();
+          cairo_pattern_set_filter(p, static_cast<cairo_filter_t>(Int(info, 1)));
+          CheckStatus(env, cairo_pattern_status(p), "pattern");
+          return env.Undefined();
+        }));
+  c.Set("patternGetFilter", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_pattern_t* p = PatternFromExt(env, info[0]);
+          if (p == nullptr) return env.Undefined();
+          return Napi::Number::New(env, cairo_pattern_get_filter(p));
         }));
   // patternGetType/patternStatus back the L1 pattern from_func subclass fan-out
   // (SolidPattern vs base Pattern), mirroring CairoPattern::from_c_ptr.
@@ -625,7 +760,152 @@ void InitCairo(Napi::Env env, Napi::Object exports) {
           return env.Undefined();
         }));
 
-  // ---- $dispose (Context / Surface / Pattern) ----
+  c.Set("identityMatrix", Napi::Function::New(env, CTX_0(cairo_identity_matrix)));
+  c.Set("newSubPath", Napi::Function::New(env, CTX_0(cairo_new_sub_path)));
+
+  // Point/distance transforms: (x, y) IN-OUT doubles, returned as a 2-array —
+  // the GJS FUNC2FFAFF return shape ([x, y]).
+#define CTX_2FFAFF(NAME, CFN)                                                                 \
+  c.Set(NAME, Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {  \
+          Napi::Env env = info.Env();                                                        \
+          cairo_t* cr = CtxArg(env, info);                                                   \
+          if (cr == nullptr) return env.Undefined();                                         \
+          double x = Num(info, 1), y = Num(info, 2);                                         \
+          CFN(cr, &x, &y);                                                                   \
+          if (!CheckStatus(env, cairo_status(cr), "context")) return env.Undefined();        \
+          Napi::Array a = Napi::Array::New(env, 2);                                          \
+          a.Set(0u, Napi::Number::New(env, x));                                              \
+          a.Set(1u, Napi::Number::New(env, y));                                              \
+          return a;                                                                          \
+        }));
+  CTX_2FFAFF("userToDevice", cairo_user_to_device)
+  CTX_2FFAFF("userToDeviceDistance", cairo_user_to_device_distance)
+  CTX_2FFAFF("deviceToUser", cairo_device_to_user)
+  CTX_2FFAFF("deviceToUserDistance", cairo_device_to_user_distance)
+
+  c.Set("inFill", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          cairo_bool_t ret = cairo_in_fill(cr, Num(info, 1), Num(info, 2));
+          if (!CheckStatus(env, cairo_status(cr), "context")) return env.Undefined();
+          return Napi::Boolean::New(env, ret);
+        }));
+  c.Set("inStroke", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          cairo_bool_t ret = cairo_in_stroke(cr, Num(info, 1), Num(info, 2));
+          if (!CheckStatus(env, cairo_status(cr), "context")) return env.Undefined();
+          return Napi::Boolean::New(env, ret);
+        }));
+
+  // Path copy/append — a copied path is an OWNED cairo_path_t handle (destroyed
+  // on GC / $dispose via cairo_path_destroy).
+  c.Set("copyPath", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          cairo_path_t* path = cairo_copy_path(cr);
+          if (path->status != CAIRO_STATUS_SUCCESS) {
+            cairo_status_t st = path->status;
+            cairo_path_destroy(path);
+            CheckStatus(env, st, "context");
+            return env.Undefined();
+          }
+          return MakeCairoHandle(env, path, CairoKind::Path);
+        }));
+  c.Set("copyPathFlat", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          cairo_path_t* path = cairo_copy_path_flat(cr);
+          if (path->status != CAIRO_STATUS_SUCCESS) {
+            cairo_status_t st = path->status;
+            cairo_path_destroy(path);
+            CheckStatus(env, st, "context");
+            return env.Undefined();
+          }
+          return MakeCairoHandle(env, path, CairoKind::Path);
+        }));
+  c.Set("appendPath", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          cairo_path_t* path = PathFromExt(env, info[1]);
+          if (path == nullptr) return env.Undefined();
+          cairo_append_path(cr, path);
+          CheckStatus(env, cairo_status(cr), "context");
+          return env.Undefined();
+        }));
+
+  // setDash mirrors gjs's setDash_func: holes/undefined entries are skipped, a
+  // non-positive dash throws, an empty array disables dashing.
+  c.Set("setDash", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          if (!info[1].IsArray()) {
+            Napi::TypeError::New(env, "dashes must be an array").ThrowAsJavaScriptException();
+            return env.Undefined();
+          }
+          Napi::Array dashes = info[1].As<Napi::Array>();
+          double offset = Num(info, 2);
+          uint32_t len = dashes.Length();
+          std::vector<double> dashes_c;
+          dashes_c.reserve(len);
+          for (uint32_t i = 0; i < len; ++i) {
+            Napi::Value elem = dashes.Get(i);
+            if (elem.IsUndefined()) continue;
+            double b = elem.ToNumber().DoubleValue();
+            if (b <= 0) {
+              Napi::Error::New(env, "Dash value must be positive").ThrowAsJavaScriptException();
+              return env.Undefined();
+            }
+            dashes_c.push_back(b);
+          }
+          cairo_set_dash(cr, dashes_c.data(), static_cast<int>(dashes_c.size()), offset);
+          CheckStatus(env, cairo_status(cr), "context");
+          return env.Undefined();
+        }));
+  c.Set("getDashCount", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          return Napi::Number::New(env, cairo_get_dash_count(cr));
+        }));
+  // getDash: net-new (GJS ships only getDashCount). Returns [dashes[], offset].
+  c.Set("getDash", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          int count = cairo_get_dash_count(cr);
+          std::vector<double> dashes_c(static_cast<size_t>(count > 0 ? count : 0));
+          double offset = 0;
+          cairo_get_dash(cr, dashes_c.data(), &offset);
+          Napi::Array dashes = Napi::Array::New(env, dashes_c.size());
+          for (size_t i = 0; i < dashes_c.size(); ++i) {
+            dashes.Set(static_cast<uint32_t>(i), Napi::Number::New(env, dashes_c[i]));
+          }
+          Napi::Array out = Napi::Array::New(env, 2);
+          out.Set(0u, dashes);
+          out.Set(1u, Napi::Number::New(env, offset));
+          return out;
+        }));
+
+  // getSource: the pattern belongs to the context — take our own ref so the JS
+  // wrapper owns one (mirrors gjs_cairo_pattern_from_pattern's kept reference).
+  c.Set("getSource", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          cairo_pattern_t* p = cairo_get_source(cr);
+          if (!CheckStatus(env, cairo_status(cr), "context")) return env.Undefined();
+          cairo_pattern_reference(p);
+          return MakeCairoHandle(env, p, CairoKind::Pattern);
+        }));
+
+  // ---- $dispose (Context / Surface / Pattern / Path) ----
   // Eagerly destroy the underlying cairo object + mark the handle so the finalizer
   // won't double-free and any further method call throws (a live-handle check).
   c.Set("dispose", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {

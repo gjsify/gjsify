@@ -16,4 +16,28 @@ inside save lineWidth: 7 lineCap: 2
 after restore lineWidth: 2 lineCap: 0
 pattern type: 0
 setSource ok
+linear type: 2
+radial type: 3
+surface-pattern type: 1
+extend default: 0 filter default: 1
+extend set: 1 filter set: 3
+source type linear: 2
+source type surface: 1 filter: 3
+dash count initial: 0
+dash count: 4
+dash count skip-undefined: 2
+dash error: Dash value must be positive
+dash count off: 0
+userToDevice: [12,23]
+userToDeviceDistance: [2,3]
+deviceToUser: [1,1]
+deviceToUserDistance: [1,1]
+identity userToDevice: [5,6]
+inFill: true false
+inStroke: true false
+current point after newSubPath: false
+extents before: [1,2,11,9]
+extents cleared: [0,0,0,0]
+extents round-trip: [1,2,11,9]
+extents flattened: [1,2,11,9]
 done

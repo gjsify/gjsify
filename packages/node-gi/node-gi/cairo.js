@@ -216,6 +216,62 @@ export class Context {
   rotate(angle) {
     c.rotate(this[H], angle);
   }
+  identityMatrix() {
+    c.identityMatrix(this[H]);
+  }
+  newSubPath() {
+    c.newSubPath(this[H]);
+  }
+  /** User → device coordinates as `[x, y]` (GJS return shape). */
+  userToDevice(x, y) {
+    return c.userToDevice(this[H], x, y);
+  }
+  /** User → device distance (ignores translation) as `[dx, dy]`. */
+  userToDeviceDistance(dx, dy) {
+    return c.userToDeviceDistance(this[H], dx, dy);
+  }
+  /** Device → user coordinates as `[x, y]`. */
+  deviceToUser(x, y) {
+    return c.deviceToUser(this[H], x, y);
+  }
+  /** Device → user distance (ignores translation) as `[dx, dy]`. */
+  deviceToUserDistance(dx, dy) {
+    return c.deviceToUserDistance(this[H], dx, dy);
+  }
+  /** Copy the current path into an owned {@link Path} handle. */
+  copyPath() {
+    return wrapRaw(Path, c.copyPath(this[H]));
+  }
+  /** Like {@link copyPath} but with curves flattened to line segments. */
+  copyPathFlat() {
+    return wrapRaw(Path, c.copyPathFlat(this[H]));
+  }
+  appendPath(path) {
+    c.appendPath(this[H], handleOf(path, 'cairo.Path'));
+  }
+  /**
+   * Set the stroke dash pattern. GJS semantics: holes/undefined entries are
+   * skipped, a non-positive value throws, an empty array disables dashing.
+   */
+  setDash(dashes, offset) {
+    c.setDash(this[H], dashes, offset);
+  }
+  getDashCount() {
+    return c.getDashCount(this[H]);
+  }
+  /**
+   * The current dash pattern as `[dashes, offset]`.
+   * Note: GJS ships only `getDashCount`; this is a node-gi convenience.
+   */
+  getDash() {
+    return c.getDash(this[H]);
+  }
+  inFill(x, y) {
+    return c.inFill(this[H], x, y);
+  }
+  inStroke(x, y) {
+    return c.inStroke(this[H], x, y);
+  }
 
   setSourceRGB(red, green, blue) {
     c.setSourceRGB(this[H], red, green, blue);
@@ -228,6 +284,10 @@ export class Context {
   }
   setSourceSurface(surface, x, y) {
     c.setSourceSurface(this[H], handleOf(surface, 'cairo.Surface'), x, y);
+  }
+  /** The context's current source pattern (a ref of its own — safe to keep). */
+  getSource() {
+    return wrapPatternHandle(c.getSource(this[H]));
   }
 
   setLineWidth(width) {
@@ -395,16 +455,88 @@ export class SolidPattern extends Pattern {
   }
 }
 
+/** Gradient base class — the shared color-stop API (GJS `CairoGradient`). */
+export class Gradient extends Pattern {
+  addColorStopRGB(offset, red, green, blue) {
+    c.patternAddColorStopRGB(this[H], offset, red, green, blue);
+  }
+  addColorStopRGBA(offset, red, green, blue, alpha) {
+    c.patternAddColorStopRGBA(this[H], offset, red, green, blue, alpha);
+  }
+}
+
+/** A linear gradient (`cairo_pattern_create_linear`). */
+export class LinearGradient extends Gradient {
+  constructor(x0, y0, x1, y1) {
+    super();
+    setHandle(this, c.linearGradientCreate(x0, y0, x1, y1));
+  }
+}
+
+/** A radial gradient (`cairo_pattern_create_radial`). */
+export class RadialGradient extends Gradient {
+  constructor(cx0, cy0, radius0, cx1, cy1, radius1) {
+    super();
+    setHandle(this, c.radialGradientCreate(cx0, cy0, radius0, cx1, cy1, radius1));
+  }
+}
+
+/** A surface-backed pattern (`cairo_pattern_create_for_surface`). */
+export class SurfacePattern extends Pattern {
+  constructor(surface) {
+    super();
+    setHandle(this, c.surfacePatternCreate(handleOf(surface, 'cairo.Surface')));
+  }
+
+  setExtend(extend) {
+    c.patternSetExtend(this[H], extend);
+  }
+  getExtend() {
+    return c.patternGetExtend(this[H]);
+  }
+  setFilter(filter) {
+    c.patternSetFilter(this[H], filter);
+  }
+  getFilter() {
+    return c.patternGetFilter(this[H]);
+  }
+}
+
+/**
+ * An opaque copied path (`cairo_path_t`, from `Context.copyPath[Flat]()`).
+ * Method-less in GJS too — it only round-trips through `appendPath` / GI calls.
+ * The underlying path is destroyed on GC (`cairo_path_destroy`).
+ */
+export class Path {}
+
+// Fan a pattern handle out to the concrete subclass by cairo runtime type —
+// mirrors gjs_cairo_pattern_from_pattern (MESH/RASTER_SOURCE fall back to the
+// base Pattern; gjs throws for those, but they are unreachable from this module).
+function wrapPatternHandle(handle) {
+  const t = c.patternGetType(handle);
+  const Klass =
+    t === PatternType.SOLID
+      ? SolidPattern
+      : t === PatternType.SURFACE
+        ? SurfacePattern
+        : t === PatternType.LINEAR
+          ? LinearGradient
+          : t === PatternType.RADIAL
+            ? RadialGradient
+            : Pattern;
+  return wrapRaw(Klass, handle);
+}
+
 // Register the wrapper factories so the engine's foreign-struct from_func can turn
 // a returned/callback cairo pointer into the right JS instance. Surface + Pattern
 // fan out to the concrete subclass by cairo runtime type (mirrors
-// CairoSurface::from_c_ptr / CairoPattern::from_c_ptr).
+// CairoSurface::from_c_ptr / gjs_cairo_pattern_from_pattern).
 c.setup({
   context: (handle) => wrapRaw(Context, handle),
   surface: (handle) =>
     wrapRaw(c.surfaceGetType(handle) === SurfaceType.IMAGE ? ImageSurface : Surface, handle),
-  pattern: (handle) =>
-    wrapRaw(c.patternGetType(handle) === PatternType.SOLID ? SolidPattern : Pattern, handle),
+  pattern: (handle) => wrapPatternHandle(handle),
+  path: (handle) => wrapRaw(Path, handle),
 });
 
 // The default export mirrors GJS's ESM `cairo` object (enums + constructors), the
@@ -428,6 +560,11 @@ const cairo = {
   ImageSurface,
   Pattern,
   SolidPattern,
+  Gradient,
+  LinearGradient,
+  RadialGradient,
+  SurfacePattern,
+  Path,
 };
 
 export default cairo;

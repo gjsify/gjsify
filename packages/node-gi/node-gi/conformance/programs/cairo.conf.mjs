@@ -81,6 +81,89 @@ cr2.setSource(pattern);
 cr2.paint();
 print('setSource ok');
 
+// ---- the canvas2d slice: gradients, surface patterns, dash, paths, matrix ----
+// (only methods GJS's native cairo exposes — gjs, the reference, runs unchanged)
+
+// Gradients: color stops + pattern types.
+const lin = new cairo.LinearGradient(0, 0, 0, H);
+lin.addColorStopRGB(0, 1, 1, 1);
+lin.addColorStopRGBA(1, 0.2, 0.25, 0.5, 1);
+print('linear type:', lin.getType());
+const rad = new cairo.RadialGradient(10, 10, 2, 10, 10, 9);
+rad.addColorStopRGBA(0, 1, 0.9, 0.2, 1);
+rad.addColorStopRGBA(1, 0.8, 0.2, 0.1, 0);
+print('radial type:', rad.getType());
+
+// SurfacePattern: extend + filter get/set (defaults come from cairo itself).
+const tile = new cairo.ImageSurface(cairo.Format.ARGB32, 8, 8);
+const sp = new cairo.SurfacePattern(tile);
+print('surface-pattern type:', sp.getType());
+print('extend default:', sp.getExtend(), 'filter default:', sp.getFilter());
+sp.setExtend(cairo.Extend.REPEAT);
+sp.setFilter(cairo.Filter.NEAREST);
+print('extend set:', sp.getExtend(), 'filter set:', sp.getFilter());
+
+// getSource fans out to the concrete pattern subclass (SurfacePattern exposes
+// getFilter) — the canvas2d imageSmoothing path.
+const cr3 = new cairo.Context(surface);
+cr3.setSource(lin);
+print('source type linear:', cr3.getSource().getType());
+cr3.setSource(sp);
+print('source type surface:', cr3.getSource().getType(), 'filter:', cr3.getSource().getFilter());
+
+// Dash: count + GJS validation semantics (skip undefined, throw on <= 0).
+print('dash count initial:', cr3.getDashCount());
+cr3.setDash([6, 3, 2, 3], 1);
+print('dash count:', cr3.getDashCount());
+cr3.setDash([1, undefined, 2], 0);
+print('dash count skip-undefined:', cr3.getDashCount());
+try {
+  cr3.setDash([1, -1], 0);
+} catch (e) {
+  print('dash error:', e.message);
+}
+cr3.setDash([], 0);
+print('dash count off:', cr3.getDashCount());
+
+// Matrix point/distance transforms + identityMatrix.
+cr3.translate(10, 20);
+cr3.scale(2, 3);
+print('userToDevice:', JSON.stringify(cr3.userToDevice(1, 1)));
+print('userToDeviceDistance:', JSON.stringify(cr3.userToDeviceDistance(1, 1)));
+print('deviceToUser:', JSON.stringify(cr3.deviceToUser(12, 23)));
+print('deviceToUserDistance:', JSON.stringify(cr3.deviceToUserDistance(2, 3)));
+cr3.identityMatrix();
+print('identity userToDevice:', JSON.stringify(cr3.userToDevice(5, 6)));
+
+// inFill / inStroke + newSubPath current-point semantics.
+cr3.newPath();
+cr3.rectangle(2, 2, 10, 8);
+print('inFill:', cr3.inFill(5, 5), cr3.inFill(30, 25));
+cr3.setLineWidth(4);
+print('inStroke:', cr3.inStroke(2, 5), cr3.inStroke(7, 6));
+cr3.newPath();
+cr3.moveTo(3, 3);
+cr3.newSubPath();
+print('current point after newSubPath:', cr3.hasCurrentPoint());
+
+// Path copy/append round-trip (copyPath + copyPathFlat) via extents.
+cr3.newPath();
+cr3.moveTo(1, 2);
+cr3.lineTo(11, 2);
+cr3.curveTo(11, 5, 11, 7, 11, 9);
+cr3.closePath();
+print('extents before:', JSON.stringify(cr3.pathExtents()));
+const copied = cr3.copyPath();
+const flattened = cr3.copyPathFlat();
+cr3.newPath();
+print('extents cleared:', JSON.stringify(cr3.pathExtents()));
+cr3.appendPath(copied);
+print('extents round-trip:', JSON.stringify(cr3.pathExtents()));
+cr3.newPath();
+cr3.appendPath(flattened);
+print('extents flattened:', JSON.stringify(cr3.pathExtents()));
+
 cr.$dispose();
 cr2.$dispose();
+cr3.$dispose();
 print('done');
