@@ -84,6 +84,16 @@ export const AdwTabViewTest = async () => {
             view.parentElement?.remove();
         });
 
+        await it('expand-tabs draws separators, hidden next to the active tab', async () => {
+            const view = makeTabView('expand-tabs');
+            const tabs = view.querySelectorAll('.adw-tab');
+            // Tab 0 is active: the separator before tab 1 is hidden, the one
+            // before tab 2 (between two inactive tabs) is visible.
+            expect(getComputedStyle(tabs[1], '::before').opacity).toBe('0');
+            expect(getComputedStyle(tabs[2], '::before').opacity).toBe('0.2');
+            view.parentElement?.remove();
+        });
+
         await it('properties reflect to attributes', async () => {
             const view = makeTabView();
             view.noClose = true;
