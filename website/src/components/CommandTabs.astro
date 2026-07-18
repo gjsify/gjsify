@@ -46,7 +46,10 @@ for (const r of RUNTIMES) {
 const runtimesAttr = present.map((r) => r.slot).join(',');
 ---
 
-<div class="command-tabs" data-command-tabs data-runtimes={runtimesAttr}>
+{/* `not-content` opts the window chrome out of Starlight's content-flow
+    spacing — its `* + *` rule otherwise puts a 1rem margin-top on the
+    <adw-tab-view> (a visible gap between headerbar and tab bar). */}
+<div class="command-tabs not-content" data-command-tabs data-runtimes={runtimesAttr}>
     <div class="command-tabs-headerbar">
         <span class="command-tabs-headerbar-start"></span>
         <span class="command-tabs-headerbar-title">{title}</span>
@@ -143,6 +146,11 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
 
     :root:not([data-theme='dark']) .command-tabs {
         outline-color: rgb(0 0 6 / 8%);
+    }
+
+    /* Belt and braces to `not-content`: the chrome rows must sit flush. */
+    .command-tabs > adw-tab-view {
+        margin: 0;
     }
 
     /* The adwaita-web skin keys on prefers-color-scheme; the site theme keys
