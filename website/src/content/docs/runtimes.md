@@ -70,10 +70,11 @@ GIMarshallingTests currently pass 343 cases on all four runtimes.
 - **Use Node.js, Bun or Deno where GJS isn't available** — dev tooling, CI,
   benchmarks, or editor integrations. `gjsify storybook --runtime node` is the
   canonical example: the same GTK storybook, running on Node.js.
-- **`@gjsify/node-gi` is a Tier-2 package** — best effort, released on the
-  train. Framework packages never hard-depend on it, so the reverse bridge can
-  never destabilize a GJS build. See
-  [Versioning](/gjsify/versioning/) for the tier model.
+- **node-gi is newer than the GJS side.** It is tested and released with
+  every GJSify release, but a breaking change may still ship in a minor
+  version. No GJSify package depends on it at runtime, so the reverse bridge
+  can never destabilize a GJS build — see
+  [Versioning](/gjsify/versioning/) for the stability model.
 
 ## Mobile: NativeScript (experimental)
 
@@ -81,8 +82,8 @@ A fifth direction is taking shape: the Adwaita widget set, storybook renderer
 and devtools agent exist as **native NativeScript components** for Android and
 iOS (`@gjsify/adwaita-nativescript` — real views, not a WebView), and
 `gjsify build --app nativescript` produces bundles for the NativeScript
-toolchain. The runtime slot itself is still experimental; the widget packages
-ship as Tier 2.
+toolchain. The runtime target itself is still experimental; the widget packages are
+tested and released with the regular GJSify releases.
 
 ## Related
 
