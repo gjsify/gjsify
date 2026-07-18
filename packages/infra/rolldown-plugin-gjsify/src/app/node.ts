@@ -29,13 +29,30 @@ import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
 const NODE_GI_GLOBALS_SPECIFIER = '@gjsify/node-gi/globals';
 
 /**
- * The node-gi standalone GJS built-in modules. The bare `system` / `gettext`
- * specifiers a GJS source imports are aliased to these (via `ALIASES_GJS_FOR_NODE`,
- * applied node-target-only) and, like `@gjsify/node-gi/gi`, kept EXTERNAL — they
- * load the native node-gi backend and must resolve at runtime against the
- * consumer's node_modules, never be bundled.
+ * The node-gi standalone GJS built-in modules. The bare `system` / `gettext` /
+ * `cairo` specifiers a GJS source imports are aliased to these (via
+ * `ALIASES_GJS_FOR_NODE`, applied node-target-only by `gjsBuiltinModulesNodePlugin`)
+ * and, like `@gjsify/node-gi/gi`, kept EXTERNAL — they load the native node-gi
+ * backend and must resolve at runtime against the consumer's node_modules, never
+ * be bundled.
+ *
+ * DERIVED from `ALIASES_GJS_FOR_NODE`'s VALUES so this set can never drift from
+ * the alias map again — a new bare built-in added there is externalised
+ * automatically. That completeness is LOAD-BEARING under `@gjsify/rolldown-native`
+ * (the GJS bundler engine): its JSON options boundary silently DROPS the resolveId
+ * `{ external: true }` flag that `gjsBuiltinModulesNodePlugin` returns (only the
+ * plain `external` string array survives serialization — the same reason
+ * `app/gjs.ts` routes its externals through a resolveId hook AND filters the array).
+ * So the rewritten `@gjsify/node-gi/<mod>` target stays external ONLY if it is in
+ * this array. `@gjsify/node-gi/cairo` was previously MISSING here (only `system` +
+ * `gettext` were listed), so under the GJS bundler `cairo` was left as a bare,
+ * unresolvable specifier — breaking every Cairo/PangoCairo consumer
+ * (`@gjsify/canvas2d-core`) built via the reverse bridge. Under npm `rolldown`
+ * (Node) the resolveId `external` flag IS honoured, so the gap was invisible until
+ * a Cairo consumer was built on the GJS bundler. e2e: `tests/e2e/node-gi-build`;
+ * unit: `packages/infra/cli/src/node-gi-externals.spec.ts`.
  */
-const NODE_GI_BARE_MODULE_SPECIFIERS = ['@gjsify/node-gi/system', '@gjsify/node-gi/gettext'];
+const NODE_GI_BARE_MODULE_SPECIFIERS = Object.values(ALIASES_GJS_FOR_NODE);
 
 export interface NodeBuildConfig {
     options: RolldownOptions;
@@ -188,10 +205,13 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         // runtime, so a real GJS/GI source builds + runs on Node. It returns
         // null for `@girs/*`.
         gjsGiNodePlugin(),
-        // Bare GJS built-in modules (`system`/`gettext`): claimed BEFORE the
-        // aliasPlugin so they resolve to the EXTERNAL `@gjsify/node-gi/<mod>`
+        // Bare GJS built-in modules (`system`/`gettext`/`cairo`): claimed BEFORE
+        // the aliasPlugin so they resolve to the EXTERNAL `@gjsify/node-gi/<mod>`
         // shims without a disk resolution (works without node-gi installed,
-        // like gi://). Node-target-only — never active on gjs/browser/ns.
+        // like gi://). Node-target-only — never active on gjs/browser/ns. The
+        // externalisation itself rides `NODE_GI_BARE_MODULE_SPECIFIERS` in the
+        // `exactExternal` array (the resolveId `external` flag is dropped under
+        // @gjsify/rolldown-native — see that const's doc-comment).
         gjsBuiltinModulesNodePlugin(ALIASES_GJS_FOR_NODE),
         // gjsImportsEmptyPlugin then decides the fate of `@girs/*` before
         // `aliasPlugin` and the default resolver. Same composition order as
