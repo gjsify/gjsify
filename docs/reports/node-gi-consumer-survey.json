@@ -762,26 +762,22 @@
       },
       "runtimes": {
         "node": {
-          "status": "fail",
-          "reason": "build-error",
-          "samples": [
-            "throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);",
-            "Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'cairo' imported from /home/jumplink/Projekte/werkstatt/gjsify/gjsify/.claude/worktrees/agent-a0d50f4649469efdf/packages/dom/canvas2d-core/dist/test.n"
-          ]
+          "status": "pass",
+          "total": 578,
+          "failed": 0,
+          "passed": 578
         },
         "bun": {
-          "status": "fail",
-          "reason": "build-error",
-          "samples": [
-            "error: Cannot find package 'cairo' from '/home/jumplink/Projekte/werkstatt/gjsify/gjsify/.claude/worktrees/agent-a0d50f4649469efdf/packages/dom/canvas2d-core/dist/test.node-gi.harness.canvas2d-core.mj"
-          ]
+          "status": "pass",
+          "total": 578,
+          "failed": 0,
+          "passed": 578
         },
         "deno": {
-          "status": "fail",
-          "reason": "other",
-          "samples": [
-            "error: Import \"cairo\" not a dependency"
-          ]
+          "status": "pass",
+          "total": 578,
+          "failed": 0,
+          "passed": 578
         }
       },
       "entry": "generated from test.mts"
@@ -850,26 +846,10 @@
       },
       "runtimes": {
         "node": {
-          "status": "fail",
-          "reason": "build-error",
-          "samples": [
-            "throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);",
-            "Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'cairo' imported from /home/jumplink/Projekte/werkstatt/gjsify/gjsify/.claude/worktrees/agent-a0d50f4649469efdf/packages/framework/canvas2d/dist/test."
-          ]
-        },
-        "bun": {
-          "status": "fail",
-          "reason": "build-error",
-          "samples": [
-            "error: Cannot find package 'cairo' from '/home/jumplink/Projekte/werkstatt/gjsify/gjsify/.claude/worktrees/agent-a0d50f4649469efdf/packages/framework/canvas2d/dist/test.node-gi.harness.canvas2d.mjs'"
-          ]
-        },
-        "deno": {
-          "status": "fail",
-          "reason": "other",
-          "samples": [
-            "error: Import \"cairo\" not a dependency"
-          ]
+          "status": "pass",
+          "total": 191,
+          "failed": 0,
+          "passed": 191
         }
       },
       "entry": "generated from test.mts"
@@ -1280,21 +1260,23 @@
   ],
   "groups": {
     "PASS": [
-      "@gjsify/sqlite",
-      "@gjsify/http2",
-      "@gjsify/tls",
-      "@gjsify/ws",
-      "@gjsify/dom-elements",
       "@gjsify/adwaita-app",
+      "@gjsify/assert",
+      "@gjsify/buffer",
+      "@gjsify/canvas2d",
+      "@gjsify/canvas2d-core",
       "@gjsify/devtools",
       "@gjsify/devtools-browser",
+      "@gjsify/dom-elements",
       "@gjsify/event-bridge",
-      "@gjsify/storybook",
-      "@gjsify/path",
-      "@gjsify/buffer",
-      "@gjsify/querystring",
       "@gjsify/events",
-      "@gjsify/assert"
+      "@gjsify/http2",
+      "@gjsify/path",
+      "@gjsify/querystring",
+      "@gjsify/sqlite",
+      "@gjsify/storybook",
+      "@gjsify/tls",
+      "@gjsify/ws"
     ],
     "runtime-typeerror-or-unimpl": [
       "@gjsify/crypto",
@@ -1332,8 +1314,6 @@
       "@gjsify/webaudio"
     ],
     "build-error": [
-      "@gjsify/canvas2d-core",
-      "@gjsify/canvas2d",
       "@gjsify/devtools-mcp"
     ]
   }

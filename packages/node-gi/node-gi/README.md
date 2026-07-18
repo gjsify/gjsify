@@ -28,8 +28,15 @@ on both GJS and Node via `gjsify build --app {gjs,node}`.
 > **instance methods** (own + implemented-interface methods, up the parent chain)
 > with value marshalling (numbers, booleans, strings, GObjects, enums/flags),
 > including **OUT and INOUT parameters** surfaced per the GJS return-tuple
-> convention (`[returnValue?, ...outArgs]` — one value bare, several as an Array;
-> compound OUT types like arrays/structs are a later milestone);
+> convention (`[returnValue?, ...outArgs]` — one value bare, several as an Array),
+> containers, struct OUT params and **caller-allocates OUT structs** — boxed
+> (incl. the GValue auto-unbox) AND plain non-boxed C structs (the engine
+> g_malloc0's the struct, the callee fills it in place, JS gets a field-readable
+> handle that owns the storage — e.g. the `PangoRectangle`s of
+> `PangoLayout.get_pixel_extents()`, the canvas2d `measureText` path). A JS
+> `Uint8Array` (or `Buffer`/`DataView`/`ArrayBuffer`) passed where a **`GLib.Bytes`
+> IN-arg** is expected is copied into a fresh GBytes and released per transfer
+> after the call, exactly as GJS (`GdkPixbuf.Pixbuf.new_from_bytes(pixels, …)`);
 > construct GObjects and read/write properties (GValue round-trip); connect /
 > emit / disconnect signals (incl. detailed names like `notify::prop`); and
 > **register GObject subclasses** (subtype + construct-by-type, inheriting the

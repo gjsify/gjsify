@@ -1,0 +1,7 @@
+ink x/width/height: 0 0 0
+logical x/width: 0 0
+field types: number number number
+units ink x/width/height: 0 0 0
+units logical x/width: 0 0
+hello widths positive: true true
+hello ink inside logical: true

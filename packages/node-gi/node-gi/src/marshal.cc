@@ -64,15 +64,20 @@ static void FreeBoxedHandleRecord(BoxedHandle* h) {
     } else if (G_TYPE_IS_BOXED(h->gtype)) {
       g_boxed_free(h->gtype, h->ptr);
     }
+  } else if (h->rawOwned && h->ptr != nullptr) {
+    // A plain (non-boxed) C struct whose storage the engine g_malloc0'd itself —
+    // the caller-allocates OUT case. No boxed free-func exists; the handle owns
+    // the block (matches gjs CallerAllocatesOut::release, a plain g_free).
+    g_free(h->ptr);
   }
   if (h->info != nullptr) gi_base_info_unref(h->info);
   delete h;
 }
 
 Napi::Value MakeBoxedHandle(Napi::Env env, gpointer ptr, GType gtype, bool owns,
-                            GIBaseInfo* info) {
+                            GIBaseInfo* info, bool rawOwned) {
   GIBaseInfo* heldInfo = info != nullptr ? gi_base_info_ref(info) : nullptr;
-  BoxedHandle* bh = new BoxedHandle{ptr, gtype, owns, heldInfo};
+  BoxedHandle* bh = new BoxedHandle{ptr, gtype, owns, heldInfo, rawOwned};
   Napi::External<BoxedHandle> ext = Napi::External<BoxedHandle>::New(
       env, bh, [](Napi::Env, BoxedHandle* h) { FreeBoxedHandleRecord(h); });
   if (ext.IsEmpty()) {
@@ -224,6 +229,68 @@ bool UnwrapGTypeArg(Napi::Env env, Napi::Value v, GType* out) {
   return false;
 }
 
+// Byte width of one element of a napi typed array.
+static size_t TypedArrayElementSize(napi_typedarray_type t) {
+  switch (t) {
+    case napi_int8_array:
+    case napi_uint8_array:
+    case napi_uint8_clamped_array: return 1;
+    case napi_int16_array:
+    case napi_uint16_array: return 2;
+    case napi_int32_array:
+    case napi_uint32_array:
+    case napi_float32_array: return 4;
+    case napi_float64_array:
+    case napi_bigint64_array:
+    case napi_biguint64_array: return 8;
+    default: return 1;
+  }
+}
+
+// Extract the byte slice of a JS binary value — a TypedArray (incl. a Node
+// Buffer and Uint8ClampedArray), a DataView, or a bare ArrayBuffer. Returns
+// false when `v` is none of those. The slice borrows the JS backing store; it
+// is only valid until control returns to JS (copy before storing).
+//
+// CROSS-RUNTIME: read the `data` out-param of napi_get_typedarray_info /
+// napi_get_dataview_info — it already points at the VIEW's first byte on every
+// runtime. Do NOT recompute `arraybuffer.Data() + byte_offset`: Bun reports a
+// byte_offset inconsistent with its arraybuffer data pointer for subarray
+// views, which silently marshals the wrong slice (caught by the bytes-in
+// conformance program's `subarray` case on bun).
+static bool JsBinaryData(Napi::Env env, Napi::Value v, const uint8_t** data, size_t* len) {
+  napi_value val = v;
+  bool is = false;
+  if (napi_is_typedarray(env, val, &is) == napi_ok && is) {
+    napi_typedarray_type type = napi_uint8_array;
+    size_t length = 0;
+    void* d = nullptr;
+    if (napi_get_typedarray_info(env, val, &type, &length, &d, nullptr, nullptr) != napi_ok)
+      return false;
+    *data = static_cast<const uint8_t*>(d);
+    *len = length * TypedArrayElementSize(type);
+    return true;
+  }
+  if (napi_is_dataview(env, val, &is) == napi_ok && is) {
+    size_t byteLength = 0;
+    void* d = nullptr;
+    if (napi_get_dataview_info(env, val, &byteLength, &d, nullptr, nullptr) != napi_ok)
+      return false;
+    *data = static_cast<const uint8_t*>(d);
+    *len = byteLength;
+    return true;
+  }
+  if (napi_is_arraybuffer(env, val, &is) == napi_ok && is) {
+    void* d = nullptr;
+    size_t byteLength = 0;
+    if (napi_get_arraybuffer_info(env, val, &d, &byteLength) != napi_ok) return false;
+    *data = static_cast<const uint8_t*>(d);
+    *len = byteLength;
+    return true;
+  }
+  return false;
+}
+
 // `ownedStrings` (optional): when a transfer-full string IN/INOUT arg is g_strdup'd
 // here, the freshly-allocated pointer is appended so the caller can g_free it if the
 // invoke never adopts it (an arg-marshal error before the call, or a failed invoke).
@@ -232,7 +299,8 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
                     std::string* heldString,
                     GITransfer transfer,
                     std::vector<gpointer>* ownedStrings,
-                    CreatedClosures* closures) {
+                    CreatedClosures* closures,
+                    CreatedBytes* bytes) {
   if (v.IsEmpty()) {
     // Residue of a swallowed napi failure (a fallible Get()/coercion upstream
     // failed on a terminating env, or a throwing getter left the exception
@@ -328,6 +396,26 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
             out->v_pointer = closure;
             if (transfer == GI_TRANSFER_NOTHING) closures->transferNone.push_back(closure);
             else closures->transferFull.push_back(closure);
+            handled = true;
+          } else if (bytes != nullptr &&
+                     (v.IsTypedArray() || v.IsDataView() || v.IsArrayBuffer()) &&
+                     g_type_is_a(gi_registered_type_info_get_g_type(
+                                     reinterpret_cast<GIRegisteredTypeInfo*>(iface)),
+                                 G_TYPE_BYTES)) {
+            // JS bytes for a `GLib.Bytes` IN-arg → a fresh GBytes COPY, exactly
+            // as gjs (refs/gjs/gi/arg-cache.cpp GBytesIn::in Uint8Array path →
+            // gjs_byte_array_get_bytes → g_bytes_new). Recorded in `bytes` so
+            // calls.cc releases the fresh ref per transfer after the invoke
+            // (transfer-none: always unref — the callee ref'd it if it kept it;
+            // transfer-full: the callee adopts it). An existing GLib.Bytes boxed
+            // handle still routes through the boxed-handle branch below.
+            const uint8_t* data = nullptr;
+            size_t len = 0;
+            JsBinaryData(env, v, &data, &len);
+            GBytes* b = g_bytes_new(data, len);
+            out->v_pointer = b;
+            if (transfer == GI_TRANSFER_NOTHING) bytes->transferNone.push_back(b);
+            else bytes->transferFull.push_back(b);
             handled = true;
           } else if (v.IsNull() || v.IsUndefined()) {
             // Boxed/struct IN args arrive as boxed handles; null/undefined maps to
