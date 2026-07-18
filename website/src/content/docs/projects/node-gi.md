@@ -5,8 +5,8 @@ description: Run unchanged GJS / GObject-Introspection code on Node.js, Bun and 
 
 [`@gjsify/node-gi`](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi) is the **reverse** of the rest of gjsify: instead of bringing Node/Web APIs to GJS, it brings **GObject-Introspection to Node.js, Bun and Deno**. The same unchanged `gi://` source builds and runs natively under GJS *and* on every Node-API runtime — no code changes.
 
-:::caution[Experimental — Tier 3]
-node-gi is **experimental** ([ADR 0005](https://github.com/gjsify/gjsify/blob/main/docs/adr/0005-node-gi-scope.md)). Its scope today is **CI, benchmarks and dev tooling — not production apps**. The API surface and behaviour may change between releases, and Tier 1/2 packages may not depend on it. Use it to run GJS code on Node/Bun/Deno for testing and tooling, not to ship a Node application.
+:::note[Product — Tier 2]
+node-gi **graduated to Tier 2** on 2026-07-14 ([ADR 0005](https://github.com/gjsify/gjsify/blob/main/docs/adr/0005-node-gi-scope.md)) once its four gate items landed: the toggle-ref/multi-env teardown crash fixed, vfunc OUT/INOUT chain-up, the GTK/Cairo layer, and a second real consumer (`@gjsify/sqlite`'s test suite runs on node-gi). Tier 2 is **best-effort**: tested and released on the train, but breaking changes may ship with a minor + a changelog note. One invariant is kept from Tier 3: no Tier-1/2 `@gjsify/*` package may take a **hard** dependency on `@gjsify/node-gi` — the sanctioned seams stay a `devDependency` and the conditional `--app node` build injection (the reverse bridge would otherwise double the runtime test matrix).
 :::
 
 ## One source, every runtime
@@ -45,7 +45,7 @@ The engine is one Node-API binary that loads on all four supported runtimes. `in
 | blocking `GLib.MainLoop.run()` / `runAsync()` | ✅ | ✅ | ✅ | ✅ |
 | GTK / Adwaita GUI apps | ✅ | ✅ | — | — |
 
-GJS is the reference implementation (native `gi://`). On Node the libuv↔GLib bridge keeps Node's own event loop alive during a blocking GLib loop; on Bun and Deno a portable GLib-iteration pump (`startMainContextPump`) co-pumps GLib from the runtime timer instead. Bun reaches full parity with Node on the core surface; Deno passes a curated conformance subset (a few marshalling / async edge cases are still being worked out).
+GJS is the reference implementation (native `gi://`). On Node the libuv↔GLib bridge keeps Node's own event loop alive during a blocking GLib loop; on Bun and Deno a portable GLib-iteration pump (`startMainContextPump`) co-pumps GLib from the runtime timer instead. Bun and Deno both reach the conformance subset (the Deno-2.1-era N-API quirks were fixed upstream in Deno 2.9); the one Node-only row is keeping Node's timers alive *during* a blocking GLib loop. The GObject-Introspection conformance oracle (a port of GJS's own `GIMarshallingTests`) runs **byte-identical on gjs / node / bun / deno**.
 
 ## How it works
 
