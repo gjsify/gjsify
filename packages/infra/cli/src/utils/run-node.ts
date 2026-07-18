@@ -21,10 +21,11 @@
 // `gjs`, which cannot run a `--app node` bundle).
 
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { isNode } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { computeNativeEnvForBundle } from './run-gjs.js';
+import { RUNTIMES, type ExampleRuntime } from './runtimes.js';
 
 /**
  * Walk up from `startDir` looking for `<node_modules>/@gjsify/node-gi`. Returns
@@ -88,6 +89,78 @@ export async function runNodeBundle(
     await new Promise<void>((resolvePromise, reject) => {
         child.on('close', (code) => {
             if (code !== 0) reject(new Error(`node exited with code ${code}`));
+            else resolvePromise();
+        });
+        child.on('error', reject);
+    }).catch((err) => {
+        console.error((err as Error).message);
+        process.exit(1);
+    });
+
+    if (options.exitOnSuccess) process.exit(0);
+}
+
+/**
+ * Whether a `--app node` bundle actually consumes `@gjsify/node-gi` (the gi://
+ * reverse bridge is kept EXTERNAL, so a bundle that uses gi:// imports the shim
+ * by name). A plain Node app (express, a pure `node:*` program) does NOT, and
+ * must run on node/bun/deno WITHOUT node-gi installed — so the node-gi check is
+ * conditional on this, not unconditional like the storybook path.
+ */
+export function bundleRequiresNodeGi(bundlePath: string): boolean {
+    try {
+        return readFileSync(bundlePath, 'utf-8').includes('@gjsify/node-gi');
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Run a built bundle on a non-gjs runtime (node / bun / deno). All three consume
+ * the SAME `--app node` bundle (Node-API is their common ABI), so this is the
+ * shared launcher `gjsify run --runtime` and `gjsify showcase --runtime` use for
+ * node/bun/deno. The native typelib env is wired exactly like {@link runGjsBundle}
+ * (so a bundle pulling an `@gjsify/*` Vala bridge resolves its prebuild), and
+ * `@gjsify/node-gi` is required ONLY when the bundle actually uses gi://.
+ *
+ * `gjs` is intentionally NOT handled here — the caller dispatches it to
+ * {@link runGjsBundle}.
+ */
+export async function runRuntimeBundle(
+    runtime: Exclude<ExampleRuntime, 'gjs'>,
+    bundlePath: string,
+    extraArgs: string[] = [],
+    options: RunNodeBundleOptions = {},
+): Promise<void> {
+    const cwd = process.cwd();
+    const resolvedBundle = resolve(bundlePath);
+
+    if (bundleRequiresNodeGi(resolvedBundle) && !resolveNodeGi(cwd)) {
+        throw new Error(
+            `Cannot run this bundle on ${runtime}: it uses gi:// via \`@gjsify/node-gi\`, which is not installed.\n` +
+                'Add @gjsify/node-gi as a dependency to run gi:// code off GJS, e.g.:\n' +
+                '  "dependencies": { "@gjsify/node-gi": "^0.13.0" }',
+        );
+    }
+
+    const { env: nativeEnv, envPrefix } = computeNativeEnvForBundle(resolvedBundle, cwd);
+    const env = { ...process.env, ...nativeEnv };
+
+    // Reuse the shared RUNTIMES launch spec for the argv (deno's
+    // `--node-modules-dir=manual`, etc.), substituting the resolved node binary
+    // for the `node` runtime (under a GJS-hosted CLI `process.execPath` is gjs).
+    const [, launchArgs] = RUNTIMES[runtime].launch(resolvedBundle, extraArgs);
+    const cmd = runtime === 'node' ? nodeBinary() : RUNTIMES[runtime].probe;
+
+    // Echo on stderr so a child speaking a protocol on stdout stays clean.
+    const shown = [cmd, ...launchArgs.map((a) => (a.includes(' ') ? `"${a}"` : a))].join(' ');
+    console.error(`$ ${envPrefix ? `${envPrefix} ` : ''}${shown}`);
+
+    const child = spawn(cmd, launchArgs, { env, stdio: 'inherit' });
+
+    await new Promise<void>((resolvePromise, reject) => {
+        child.on('close', (code) => {
+            if (code !== 0) reject(new Error(`${runtime} exited with code ${code}`));
             else resolvePromise();
         });
         child.on('error', reject);

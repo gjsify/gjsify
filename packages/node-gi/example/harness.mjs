@@ -19,35 +19,19 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// The RUNTIMES map, `availableRuntimes()` and the runtime→build-target mapping
+// now live in SHARED tooling in the CLI (`@gjsify/cli/lib/utils/runtimes.js`),
+// consumed by both `gjsify run/showcase --runtime` and this example — no more
+// per-example copy. Deep-import mirrors the `@gjsify/cli/lib/utils/run-gjs.js`
+// precedent. Requires a `@gjsify/cli` that ships the runtimes lib (gjsify main;
+// the same recent CLI the real `gi://`→`requireGi` rewrite already needs — see
+// README's "CLI note"). Re-export `availableRuntimes` for `quad.e2e.mjs`.
+import { RUNTIMES, availableRuntimes, buildAppForRuntime } from '@gjsify/cli/lib/utils/runtimes.js';
+
+export { availableRuntimes };
+
 const here = fileURLToPath(new URL('.', import.meta.url));
 const gjsify = join(here, 'node_modules', '.bin', 'gjsify');
-
-// Every runtime we know how to build for + run on. `on(entry)` returns the argv
-// that runs the built entry under that runtime. gjs runs the native `--app gjs`
-// bundle; node/bun/deno run the `--app node` bundle (or its runtime twin).
-const RUNTIMES = {
-    gjs: { probe: 'gjs', on: (entry) => ['gjs', ['-m', entry]] },
-    node: { probe: 'node', on: (entry) => ['node', [entry]] },
-    bun: { probe: 'bun', on: (entry) => ['bun', [entry]] },
-    // manual: use the existing node_modules as-is — `auto` would re-resolve the
-    // example's heavy build-time dep tree (@gjsify/cli + all platform binaries)
-    // and hang; the app only needs the runtime dep @gjsify/node-gi, already linked.
-    deno: { probe: 'deno', on: (entry) => ['deno', ['run', '-A', '--node-modules-dir=manual', entry]] },
-};
-
-function isOnPath(cmd) {
-    try {
-        execFileSync(cmd, ['--version'], { stdio: 'ignore', timeout: 15000 });
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-/** Which of gjs/node/bun/deno are runnable here (node is always assumed — we ARE node). */
-export function availableRuntimes() {
-    return Object.keys(RUNTIMES).filter((rt) => (rt === 'node' ? true : isOnPath(RUNTIMES[rt].probe)));
-}
 
 // Run a command capturing stdout+stderr; on failure re-throw with both streams so
 // a CI log shows the child's real error (execFileSync hides stderr otherwise).
@@ -111,13 +95,14 @@ export function runScenario(t, { name, srcFile, base, golden }) {
 
     // gjs — always the real bundler + native gi:// (the reference).
     assert.ok(runtimes.includes('gjs'), `gjs must be on PATH to run scenario "${name}"`);
-    const gjsBundle = build('gjs', srcFile, `dist/${base}.gjs.mjs`);
-    outputs.gjs = exec(...RUNTIMES.gjs.on(gjsBundle), 60 * 1000).trim();
+    const gjsBundle = build(buildAppForRuntime('gjs'), srcFile, `dist/${base}.gjs.mjs`);
+    outputs.gjs = exec(...RUNTIMES.gjs.launch(gjsBundle), 60 * 1000).trim();
     if (golden !== undefined) assert.equal(outputs.gjs, golden, `${name}: gjs diverged from golden`);
 
     // node/bun/deno — the real `--app node` bundle when the CLI is rewrite-capable,
-    // else the runtime twin. ONE artifact, run under each runtime.
-    const nodeBundle = build('node', srcFile, `dist/${base}.node.mjs`);
+    // else the runtime twin. ONE artifact (buildApp === 'node' for all three),
+    // run under each runtime.
+    const nodeBundle = build(buildAppForRuntime('node'), srcFile, `dist/${base}.node.mjs`);
     const capable = readFileSync(nodeBundle, 'utf-8').includes('requireGi');
     let nodeEntry = nodeBundle;
     if (!capable) {
@@ -132,7 +117,7 @@ export function runScenario(t, { name, srcFile, base, golden }) {
             t.diagnostic(`${name}: ${rt} not on PATH — skipped`);
             continue;
         }
-        outputs[rt] = exec(...RUNTIMES[rt].on(nodeEntry), 60 * 1000).trim();
+        outputs[rt] = exec(...RUNTIMES[rt].launch(nodeEntry), 60 * 1000).trim();
         assert.equal(outputs[rt], outputs.gjs, `${name}: ${rt} output is not byte-identical to gjs`);
     }
 

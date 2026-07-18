@@ -27,6 +27,15 @@ and each scenario's fixed golden. The harness ([`harness.mjs`](harness.mjs)) ski
 a runtime not on `PATH`, so it proves gjs+node where only those exist and all four
 where bun+deno are installed.
 
+**Shared runtime tooling.** The four-runtime map (`RUNTIMES`), `availableRuntimes()`
+and the runtime→build-target mapping (`buildAppForRuntime`) are no longer a copy in
+this example — they live in the CLI's shared runtime-selector lib
+(`@gjsify/cli/lib/utils/runtimes.js`), the same one that powers
+`gjsify run --runtime <gjs|node|bun|deno>` and `gjsify showcase --runtime`. The
+harness deep-imports it, so the example and the CLI stay in lockstep. This needs a
+`@gjsify/cli` that ships the lib (gjsify `main` — the same recent CLI the real
+`gi://`→`requireGi` rewrite already requires; see the CLI note below).
+
 ## Scenarios
 
 Each source is a self-contained, deterministic `gi://` program (see

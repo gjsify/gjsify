@@ -39,6 +39,7 @@ import gjsEntryWrapperSuite from './gjs-entry-wrapper.spec.js';
 import configSuite from './config.spec.js';
 import libraryOutputSuite from './utils/library-output.spec.js';
 import suggestSuite from './utils/suggest.spec.js';
+import runtimesSuite from './utils/runtimes.spec.js';
 
 run({
     bundlerPickSuite,
@@ -72,4 +73,5 @@ run({
     configSuite,
     libraryOutputSuite,
     suggestSuite,
+    runtimesSuite,
 });

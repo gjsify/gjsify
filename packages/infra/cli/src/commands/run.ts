@@ -19,15 +19,24 @@ import { basename, delimiter, join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import type { Command } from '../types/index.js';
 import { runGjsBundle } from '../utils/run-gjs.js';
+import { runRuntimeBundle } from '../utils/run-node.js';
 import { readPackageJson } from '../utils/pkg-json-edit.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import {
+    EXAMPLE_RUNTIMES,
+    isExampleRuntime,
+    readDeclaredRuntimes,
+    checkRuntimeSupported,
+    type ExampleRuntime,
+} from '../utils/runtimes.js';
 
 interface RunOptions {
     target: string;
     args: string[];
     workspace?: string;
+    runtime?: string;
 }
 
 export const runCommand: Command<unknown, RunOptions> = {
@@ -58,6 +67,19 @@ export const runCommand: Command<unknown, RunOptions> = {
                 type: 'string',
                 description:
                     'Run <target> as a script in the named workspace (by name or path), like `npm run <script> -w <name>`.',
+            })
+            .option('runtime', {
+                // Runtime selector for a BUNDLE FILE. `gjs` (default) launches
+                // the `--app gjs` bundle via `gjs -m`; node/bun/deno launch the
+                // `--app node` bundle on that runtime (Node-API is their common
+                // ABI, so bun/deno reuse the same node bundle). Declaring it here
+                // means yargs captures the flag instead of forwarding it to the
+                // target (this command routes unknown flags to the child).
+                // Passing --runtime FORCES file mode.
+                type: 'string',
+                choices: EXAMPLE_RUNTIMES,
+                description:
+                    'Runtime to launch a bundle FILE on: gjs (default, `--app gjs` bundle) | node | bun | deno (the `--app node` bundle). Forces file mode.',
             })
             // Pass-through runner: the TARGET owns its whole flag namespace, so
             // disable gjsify's own `--version` / `--help` for THIS command. Without
@@ -101,6 +123,27 @@ export const runCommand: Command<unknown, RunOptions> = {
         );
         const extraArgs = [...positionalArgs, ...doubleDashArgs];
 
+        // `--runtime <gjs|node|bun|deno>` (explicit) → run a BUNDLE FILE on the
+        // chosen runtime. This FORCES file mode: the runtime selector only makes
+        // sense for a prebuilt bundle, and it must beat the script-name lookup.
+        // gjs → `runGjsBundle` (gjs -m); node/bun/deno → `runRuntimeBundle` (the
+        // `--app node` bundle; bun/deno reuse it). Default gjs keeps back-compat.
+        const runtimeArg = args.runtime;
+        if (typeof runtimeArg === 'string' && runtimeArg.length > 0) {
+            if (typeof args.workspace === 'string' && args.workspace.length > 0) {
+                console.error('gjsify run: --runtime cannot be combined with --workspace (file mode vs script mode).');
+                return process.exit(1);
+            }
+            if (!isExampleRuntime(runtimeArg)) {
+                console.error(
+                    `gjsify run: unknown --runtime "${runtimeArg}" (expected: ${EXAMPLE_RUNTIMES.join(', ')}).`,
+                );
+                return process.exit(1);
+            }
+            await runTargetOnRuntime(runtimeArg, target, extraArgs);
+            return;
+        }
+
         // `-w <name>` (npm/yarn parity): run <target> as a script in the named
         // workspace's directory rather than the current one. Never file mode.
         if (typeof args.workspace === 'string' && args.workspace.length > 0) {
@@ -128,6 +171,43 @@ export const runCommand: Command<unknown, RunOptions> = {
         await runScript(target, extraArgs);
     },
 };
+
+/**
+ * Run a bundle-file `target` on `runtime`. Validates that the target looks like
+ * a file (the runtime selector is for prebuilt bundles, not script names) and,
+ * best-effort, that the cwd package's `gjsify.example.runtimes` declaration
+ * permits the runtime — turning "this showcase can't run on node yet" into a
+ * clean, actionable error instead of a deep bundle crash. gjs → `runGjsBundle`;
+ * node/bun/deno → `runRuntimeBundle` (the shared `--app node` launcher).
+ */
+async function runTargetOnRuntime(runtime: ExampleRuntime, target: string, extraArgs: string[]): Promise<void> {
+    if (!looksLikeFile(target)) {
+        console.error(
+            `gjsify run: --runtime ${runtime} needs a bundle FILE, but "${target}" is not a path.\n` +
+                `  Build first (e.g. \`gjsify build src/app.ts --app ${runtime === 'gjs' ? 'gjs' : 'node'} --outfile dist/app.${runtime === 'gjs' ? 'gjs' : 'node'}.mjs\`), then run the output file.`,
+        );
+        return process.exit(1);
+    }
+
+    // Best-effort declaration check against the cwd package (the example dir).
+    const pkg = readPackageJson(join(process.cwd(), 'package.json')) as
+        | { name?: string; gjsify?: { example?: { runtimes?: unknown } } }
+        | undefined;
+    const declared = readDeclaredRuntimes(pkg);
+    const support = checkRuntimeSupported(runtime, declared, pkg?.name ?? target);
+    if (!support.ok) {
+        console.error(`gjsify run: ${support.message}`);
+        return process.exit(1);
+    }
+
+    const file = resolve(target);
+    // Terminal call — exit on success (the GJS/GLib loop would otherwise park).
+    if (runtime === 'gjs') {
+        await runGjsBundle(file, extraArgs, { exitOnSuccess: true });
+    } else {
+        await runRuntimeBundle(runtime, file, extraArgs, { exitOnSuccess: true });
+    }
+}
 
 function looksLikeFile(target: string): boolean {
     if (target.startsWith('./') || target.startsWith('../') || target.startsWith('/')) return true;
