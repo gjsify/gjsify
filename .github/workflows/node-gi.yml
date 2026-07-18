@@ -279,6 +279,7 @@ jobs:
             env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
             node --test test/gtk-smoke.test.mjs test/adw-smoke.test.mjs \
               test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs \
+              test/gtk-template-signals.test.mjs \
               test/strv-construct.test.mjs test/interface-props.test.mjs
 
       # GTK capstone: ONE unchanged Adwaita gi:// source builds + runs
