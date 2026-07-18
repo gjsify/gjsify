@@ -10,7 +10,7 @@ import CommandTabs from '../../components/CommandTabs.astro';
 Pick your toolchain — GJSify's own **Node-free** CLI (recommended), or the
 same CLI through npm, Bun or Deno:
 
-<CommandTabs>
+<CommandTabs title="Create my-app">
   <Fragment slot="gjsify">
     ```bash
     curl -fsSL https://github.com/gjsify/gjsify/releases/latest/download/install.mjs \
@@ -77,7 +77,7 @@ sudo apt install gjs libgtk-4-1 libsoup-3.0-0
 
 Not sure if everything is in place?
 
-<CommandTabs>
+<CommandTabs title="System check">
   <Fragment slot="gjsify">
     ```bash
     gjsify system-check
@@ -127,7 +127,7 @@ The build script uses `--globals auto` by default — no manual list to maintain
 
 The scaffolded scripts run with whichever toolchain you picked:
 
-<CommandTabs>
+<CommandTabs title="Build & run">
   <Fragment slot="gjsify">
     ```bash
     gjsify run build   # gjsify build src/index.ts --outfile dist/index.js
