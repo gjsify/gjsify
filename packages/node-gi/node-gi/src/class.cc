@@ -92,7 +92,7 @@ static GParamSpec* BuildParamSpec(Napi::Env env, Napi::Object spec, std::string*
   }
   if (type == "boolean" || type == "bool") {
     gboolean d = def.IsBoolean() ? def.As<Napi::Boolean>().Value()
-                                 : (def.IsNumber() ? def.ToBoolean().Value() : FALSE);
+                                 : (def.IsNumber() ? NodeGiToBool(def) : FALSE);
     return g_param_spec_boolean(nm, nm, nm, d, flags);
   }
   if (type == "int") {
@@ -969,7 +969,9 @@ static Napi::Value RegisterClassImpl(Napi::Env env, const std::string& name, GTy
         if (so.Has("paramTypes") && so.Get("paramTypes").IsArray()) {
           Napi::Array pts = so.Get("paramTypes").As<Napi::Array>();
           for (uint32_t j = 0; j < pts.Length(); j++) {
-            GType t = TypeNameToGType(pts.Get(j).ToString().Utf8Value());
+            // NodeGiToUtf8: terminate-safe (a swallowed Get/coercion failure must
+            // not cascade into Error::New(nullptr) — see common.h).
+            GType t = TypeNameToGType(NodeGiToUtf8(pts.Get(j)));
             if (t != G_TYPE_INVALID && t != G_TYPE_NONE) sd.paramTypes.push_back(t);
           }
         }
@@ -981,8 +983,10 @@ static Napi::Value RegisterClassImpl(Napi::Env env, const std::string& name, GTy
     if (opts.Has("vfuncs") && opts.Get("vfuncs").IsObject()) {
       Napi::Object vf = opts.Get("vfuncs").As<Napi::Object>();
       Napi::Array keys = vf.GetPropertyNames();
-      for (uint32_t i = 0; i < keys.Length(); i++) {
-        std::string vname = keys.Get(i).ToString().Utf8Value();
+      // Empty keys = swallowed napi failure (terminating env): keys.Length()
+      // would abort via Error::New(nullptr) — skip the block cleanly.
+      for (uint32_t i = 0; !keys.IsEmpty() && i < keys.Length(); i++) {
+        std::string vname = NodeGiToUtf8(keys.Get(i));
         Napi::Value fnv = vf.Get(vname);
         if (!fnv.IsFunction()) continue;
         NodeGiVFunc* rec = new NodeGiVFunc();

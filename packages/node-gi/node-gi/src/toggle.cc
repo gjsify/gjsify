@@ -543,6 +543,16 @@ Napi::Value MakeGObjectHandle(Napi::Env env, GObject* obj) {
     // documented limitation, but no cross-env UAF.
     Napi::External<GObject> plain = Napi::External<GObject>::New(
         env, obj, [](Napi::Env, GObject* p) { g_object_unref(p); });
+    if (plain.IsEmpty()) {
+      // napi_create_external failed and the throw was swallowed (the env can no
+      // longer run JS — worker.terminate() mid-call — or an exception is
+      // pending). Chaining TypeTag onto the empty External would funnel into
+      // Error::New(nullptr)'s NAPI_FATAL_IF_FAILED sites and abort. The
+      // finalizer was never registered, so balance the construction ref here
+      // and bail with the empty value (the JS caller never observes it).
+      g_object_unref(obj);
+      return plain;
+    }
     plain.TypeTag(&kGObjectHandleTag);
     return plain;
   }
@@ -573,6 +583,18 @@ Napi::Value MakeGObjectHandle(Napi::Env env, GObject* obj) {
 
   Napi::External<GObject> ext =
       Napi::External<GObject>::New(env, obj, NodeGiInstanceFinalize, inst);
+  if (ext.IsEmpty()) {
+    // Same swallowed-failure degradation as the plain path above (the terminate-
+    // mid-call class: the hot loop is inside g_object_new when the env dies, and
+    // THIS is the next fallible napi call). Nothing was installed yet — no
+    // finalizer, no qdata, no weak ref, no toggle ref — so free the record,
+    // balance the construction ref, and return the empty value cleanly instead
+    // of cascading into TypeTag → Error::New(nullptr) → abort. If the unref
+    // disposes the object, the C→JS trampolines are entry-gated and no-op.
+    delete inst;
+    g_object_unref(obj);
+    return ext;
+  }
   ext.TypeTag(&kGObjectHandleTag);
   napi_create_reference(env, ext, 1, &inst->handle_ref);  // start STRONG (node-gtk invariant)
 

@@ -961,8 +961,16 @@ Napi::Value CallMethod(const Napi::CallbackInfo& info) {
   g_object_unref(repo);
 
   if (func == nullptr) {
-    Napi::Error::New(env, std::string("no method '") + method + "' on " + G_OBJECT_TYPE_NAME(obj))
-        .ThrowAsJavaScriptException();
+    // On a terminating env the method-name read (info[1].Utf8Value) degrades to
+    // "" (a swallowed napi failure), so resolution misses and we land here — but
+    // building the Napi::Error on the dying env would abort via Error::New's
+    // fatal funnel. Gate on NodeGiJsAvailable (false on a dying env AND on a live
+    // env with a pending exception); a genuine unknown method on a live env still
+    // throws.
+    if (NodeGiJsAvailable(env)) {
+      Napi::Error::New(env, std::string("no method '") + method + "' on " + G_OBJECT_TYPE_NAME(obj))
+          .ThrowAsJavaScriptException();
+    }
     return env.Null();
   }
   if (!gi_callable_info_is_method(reinterpret_cast<GICallableInfo*>(func))) {

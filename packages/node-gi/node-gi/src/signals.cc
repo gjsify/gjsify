@@ -120,7 +120,9 @@ Napi::Value ConnectSignal(const Napi::CallbackInfo& info) {
   GObject* obj = UnwrapGObject(env, info[0]);
   if (obj == nullptr) return env.Null();
   std::string name = info[1].As<Napi::String>().Utf8Value();
-  bool after = info.Length() >= 4 && info[3].ToBoolean().Value();
+  // NodeGiToBool: terminate-safe (a swallowed coercion failure must not cascade
+  // into Error::New(nullptr) — see common.h).
+  bool after = info.Length() >= 4 && NodeGiToBool(info[3]);
 
   // Parse a possibly-detailed signal name ("notify::prop") into its signal id +
   // detail quark, so GJS-style detailed connects work (common for notify::).
@@ -181,7 +183,10 @@ Napi::Value EmitSignal(const Napi::CallbackInfo& info) {
     g_value_init(&params[i + 1], pt);
     initialised = i + 2;
     Napi::Value v = i < args.Length() ? args.Get(i) : env.Undefined();
-    if (!JsToGValue(env, v, &params[i + 1])) {
+    // An EMPTY v is the residue of a swallowed args.Get() failure (terminating
+    // env / throwing getter): JsToGValue's coercions on it would abort via
+    // Error::New(nullptr)'s fatal sites — bail before marshalling.
+    if (v.IsEmpty() || !JsToGValue(env, v, &params[i + 1])) {
       ok = false;
       break;
     }

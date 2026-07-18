@@ -50,26 +50,39 @@ const ForeignStructOps* ForeignOpsForInfo(GIBaseInfo* iface) {
 extern const napi_type_tag kBoxedHandleTag = {0x6d2f8c4b1a9e7350ULL,
                                               0xb7e1d3a5c9f08264ULL};
 
+// Release a BoxedHandle record + what it owns. Shared by the External finalizer
+// and the swallowed-failure bail below (which must free exactly what the never-
+// registered finalizer would have).
+static void FreeBoxedHandleRecord(BoxedHandle* h) {
+  if (h->owns && h->ptr != nullptr && h->gtype != G_TYPE_INVALID) {
+    // GVariant is a fundamental (NOT a boxed) GType, so it cannot go
+    // through g_boxed_free — it is reference-counted via g_variant_unref.
+    // (GLib.Variant flows through this handle so it reuses the boxed
+    // method-resolution + IN-arg-unwrap path; only the free differs.)
+    if (h->gtype == G_TYPE_VARIANT) {
+      g_variant_unref(static_cast<GVariant*>(h->ptr));
+    } else if (G_TYPE_IS_BOXED(h->gtype)) {
+      g_boxed_free(h->gtype, h->ptr);
+    }
+  }
+  if (h->info != nullptr) gi_base_info_unref(h->info);
+  delete h;
+}
+
 Napi::Value MakeBoxedHandle(Napi::Env env, gpointer ptr, GType gtype, bool owns,
                             GIBaseInfo* info) {
   GIBaseInfo* heldInfo = info != nullptr ? gi_base_info_ref(info) : nullptr;
   BoxedHandle* bh = new BoxedHandle{ptr, gtype, owns, heldInfo};
-  Napi::External<BoxedHandle> ext =
-      Napi::External<BoxedHandle>::New(env, bh, [](Napi::Env, BoxedHandle* h) {
-        if (h->owns && h->ptr != nullptr && h->gtype != G_TYPE_INVALID) {
-          // GVariant is a fundamental (NOT a boxed) GType, so it cannot go
-          // through g_boxed_free — it is reference-counted via g_variant_unref.
-          // (GLib.Variant flows through this handle so it reuses the boxed
-          // method-resolution + IN-arg-unwrap path; only the free differs.)
-          if (h->gtype == G_TYPE_VARIANT) {
-            g_variant_unref(static_cast<GVariant*>(h->ptr));
-          } else if (G_TYPE_IS_BOXED(h->gtype)) {
-            g_boxed_free(h->gtype, h->ptr);
-          }
-        }
-        if (h->info != nullptr) gi_base_info_unref(h->info);
-        delete h;
-      });
+  Napi::External<BoxedHandle> ext = Napi::External<BoxedHandle>::New(
+      env, bh, [](Napi::Env, BoxedHandle* h) { FreeBoxedHandleRecord(h); });
+  if (ext.IsEmpty()) {
+    // napi_create_external failed with the throw swallowed (terminating env /
+    // pending exception). The finalizer was never registered — free the record
+    // here and bail instead of chaining TypeTag on the empty External, which
+    // would abort via Error::New(nullptr)'s fatal sites (see common.h helpers).
+    FreeBoxedHandleRecord(bh);
+    return ext;
+  }
   ext.TypeTag(&kBoxedHandleTag);
   return ext;
 }
@@ -178,6 +191,9 @@ static const napi_type_tag kGTypeHandleTag = {0x3a7f1c9e5b2d4860ULL,
 
 Napi::Value MakeGTypeHandle(Napi::Env env, GType gtype) {
   Napi::External<void> ext = Napi::External<void>::New(env, reinterpret_cast<void*>(gtype));
+  // Swallowed napi failure (terminating env): TypeTag on the empty External
+  // would abort via Error::New(nullptr) — bail with the empty value instead.
+  if (ext.IsEmpty()) return ext;
   ext.TypeTag(&kGTypeHandleTag);
   return ext;
 }
@@ -216,21 +232,37 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
                     std::string* heldString,
                     GITransfer transfer,
                     std::vector<gpointer>* ownedStrings) {
+  if (v.IsEmpty()) {
+    // Residue of a swallowed napi failure (a fallible Get()/coercion upstream
+    // failed on a terminating env, or a throwing getter left the exception
+    // pending). Nothing can be marshalled from it, and coercing it would abort
+    // via Error::New(nullptr)'s fatal sites — fail the marshal cleanly. Gate the
+    // diagnostic THROW on NodeGiJsAvailable: it is false both on a dying env
+    // (worker.terminate mid-call — constructing a Napi::Error there runs fallible
+    // napi calls that abort via the SAME funnel) AND on a live env with an
+    // exception already pending (propagate that one). Only throw when the env can
+    // safely build the error.
+    if (NodeGiJsAvailable(env)) {
+      Napi::Error::New(env, "argument value unavailable (env is terminating)")
+          .ThrowAsJavaScriptException();
+    }
+    return false;
+  }
   GITypeTag tag = gi_type_info_get_tag(type);
   switch (tag) {
-    case GI_TYPE_TAG_BOOLEAN: out->v_boolean = v.ToBoolean().Value(); return true;
-    case GI_TYPE_TAG_INT8: out->v_int8 = static_cast<int8_t>(v.ToNumber().Int32Value()); return true;
-    case GI_TYPE_TAG_UINT8: out->v_uint8 = static_cast<uint8_t>(v.ToNumber().Uint32Value()); return true;
-    case GI_TYPE_TAG_INT16: out->v_int16 = static_cast<int16_t>(v.ToNumber().Int32Value()); return true;
-    case GI_TYPE_TAG_UINT16: out->v_uint16 = static_cast<uint16_t>(v.ToNumber().Uint32Value()); return true;
-    case GI_TYPE_TAG_INT32: out->v_int32 = v.ToNumber().Int32Value(); return true;
-    case GI_TYPE_TAG_UINT32: out->v_uint32 = v.ToNumber().Uint32Value(); return true;
+    case GI_TYPE_TAG_BOOLEAN: out->v_boolean = NodeGiToBool(v); return true;
+    case GI_TYPE_TAG_INT8: out->v_int8 = static_cast<int8_t>(NodeGiToInt32(v)); return true;
+    case GI_TYPE_TAG_UINT8: out->v_uint8 = static_cast<uint8_t>(NodeGiToUint32(v)); return true;
+    case GI_TYPE_TAG_INT16: out->v_int16 = static_cast<int16_t>(NodeGiToInt32(v)); return true;
+    case GI_TYPE_TAG_UINT16: out->v_uint16 = static_cast<uint16_t>(NodeGiToUint32(v)); return true;
+    case GI_TYPE_TAG_INT32: out->v_int32 = NodeGiToInt32(v); return true;
+    case GI_TYPE_TAG_UINT32: out->v_uint32 = NodeGiToUint32(v); return true;
     // 64-bit: accept a BigInt losslessly (else a Number, truncated) — never let a
     // BigInt reach ToNumber() (fatal abort). See JsValueTo{Int,Uint}64 in common.h.
     case GI_TYPE_TAG_INT64: out->v_int64 = JsValueToInt64(v); return true;
     case GI_TYPE_TAG_UINT64: out->v_uint64 = JsValueToUint64(v); return true;
-    case GI_TYPE_TAG_FLOAT: out->v_float = static_cast<float>(v.ToNumber().DoubleValue()); return true;
-    case GI_TYPE_TAG_DOUBLE: out->v_double = v.ToNumber().DoubleValue(); return true;
+    case GI_TYPE_TAG_FLOAT: out->v_float = static_cast<float>(NodeGiToDouble(v)); return true;
+    case GI_TYPE_TAG_DOUBLE: out->v_double = NodeGiToDouble(v); return true;
     case GI_TYPE_TAG_UTF8:
     case GI_TYPE_TAG_FILENAME:
       if (v.IsNull() || v.IsUndefined()) {
@@ -242,10 +274,10 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
         // std::string buffer (NOT g_malloc'd) → an invalid free. Hand over a
         // g_strdup'd copy the callee can legally free; we keep no reference. Track
         // it so a NON-adopting caller (error before / failed invoke) can free it.
-        out->v_string = g_strdup(v.ToString().Utf8Value().c_str());
+        out->v_string = g_strdup(NodeGiToUtf8(v).c_str());
         if (ownedStrings != nullptr) ownedStrings->push_back(out->v_string);
       } else {
-        *heldString = v.ToString().Utf8Value();
+        *heldString = NodeGiToUtf8(v);
         out->v_string = const_cast<char*>(heldString->c_str());
       }
       return true;
@@ -265,7 +297,7 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
             handled = true;
           }
         } else if (GI_IS_ENUM_INFO(iface) || GI_IS_FLAGS_INFO(iface)) {
-          out->v_int = v.ToNumber().Int32Value();
+          out->v_int = NodeGiToInt32(v);
           handled = true;
         } else if (GI_IS_STRUCT_INFO(iface) || GI_IS_UNION_INFO(iface)) {
           // A foreign struct (cairo Context/Surface/Pattern) marshals through its
@@ -873,22 +905,25 @@ Napi::Value ReadOutOrReturn(Napi::Env env, GICallableInfo* callable, GITypeInfo*
 static bool ElementToGIArgument(Napi::Env env, GITypeInfo* elem, Napi::Value v, GIArgument* a) {
   memset(a, 0, sizeof(*a));
   switch (gi_type_info_get_tag(elem)) {
-    case GI_TYPE_TAG_BOOLEAN: a->v_boolean = v.ToBoolean().Value(); return true;
-    case GI_TYPE_TAG_INT8: a->v_int8 = static_cast<gint8>(v.ToNumber().Int32Value()); return true;
-    case GI_TYPE_TAG_UINT8: a->v_uint8 = static_cast<guint8>(v.ToNumber().Uint32Value()); return true;
-    case GI_TYPE_TAG_INT16: a->v_int16 = static_cast<gint16>(v.ToNumber().Int32Value()); return true;
-    case GI_TYPE_TAG_UINT16: a->v_uint16 = static_cast<guint16>(v.ToNumber().Uint32Value()); return true;
-    case GI_TYPE_TAG_INT32: a->v_int32 = v.ToNumber().Int32Value(); return true;
-    case GI_TYPE_TAG_UINT32: a->v_uint32 = v.ToNumber().Uint32Value(); return true;
+    // Scalar coercions via the terminate-safe helpers (common.h): a swallowed
+    // napi failure mid worker.terminate() must degrade to a zero, not cascade
+    // into Error::New(nullptr)'s fatal sites.
+    case GI_TYPE_TAG_BOOLEAN: a->v_boolean = NodeGiToBool(v); return true;
+    case GI_TYPE_TAG_INT8: a->v_int8 = static_cast<gint8>(NodeGiToInt32(v)); return true;
+    case GI_TYPE_TAG_UINT8: a->v_uint8 = static_cast<guint8>(NodeGiToUint32(v)); return true;
+    case GI_TYPE_TAG_INT16: a->v_int16 = static_cast<gint16>(NodeGiToInt32(v)); return true;
+    case GI_TYPE_TAG_UINT16: a->v_uint16 = static_cast<guint16>(NodeGiToUint32(v)); return true;
+    case GI_TYPE_TAG_INT32: a->v_int32 = NodeGiToInt32(v); return true;
+    case GI_TYPE_TAG_UINT32: a->v_uint32 = NodeGiToUint32(v); return true;
     case GI_TYPE_TAG_INT64: a->v_int64 = JsValueToInt64(v); return true;
     case GI_TYPE_TAG_UINT64: a->v_uint64 = JsValueToUint64(v); return true;
-    case GI_TYPE_TAG_FLOAT: a->v_float = static_cast<gfloat>(v.ToNumber().DoubleValue()); return true;
-    case GI_TYPE_TAG_DOUBLE: a->v_double = v.ToNumber().DoubleValue(); return true;
+    case GI_TYPE_TAG_FLOAT: a->v_float = static_cast<gfloat>(NodeGiToDouble(v)); return true;
+    case GI_TYPE_TAG_DOUBLE: a->v_double = NodeGiToDouble(v); return true;
     case GI_TYPE_TAG_UTF8:
     case GI_TYPE_TAG_FILENAME:
-      a->v_string = (v.IsNull() || v.IsUndefined())
+      a->v_string = (v.IsEmpty() || v.IsNull() || v.IsUndefined())
                         ? nullptr
-                        : g_strdup(v.ToString().Utf8Value().c_str());
+                        : g_strdup(NodeGiToUtf8(v).c_str());
       return true;
     case GI_TYPE_TAG_INTERFACE: {
       if (v.IsNull() || v.IsUndefined()) {
@@ -956,7 +991,7 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer*
     } else if (v.IsArray()) {
       Napi::Array arr = v.As<Napi::Array>();
       for (uint32_t i = 0; i < arr.Length(); i++) {
-        guint8 byte = static_cast<guint8>(arr.Get(i).ToNumber().Uint32Value());
+        guint8 byte = static_cast<guint8>(NodeGiToUint32(arr.Get(i)));
         g_byte_array_append(ba, &byte, 1);
       }
       *outCount = static_cast<long>(arr.Length());
@@ -1125,10 +1160,19 @@ static bool JsToGHashIn(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer
                                          keyFree, valFree);
   Napi::Object obj = v.As<Napi::Object>();
   Napi::Array keys = obj.GetPropertyNames();
+  if (keys.IsEmpty()) {
+    // napi_get_property_names failed with the throw swallowed (terminating env /
+    // a throwing proxy trap left the exception pending). keys.Length() on the
+    // empty Array would abort via Error::New(nullptr) — fail the marshal.
+    g_hash_table_unref(ht);
+    gi_base_info_unref(kt);
+    gi_base_info_unref(vt);
+    return false;
+  }
   bool ok = true;
   for (uint32_t i = 0; i < keys.Length() && ok; i++) {
     Napi::Value key = keys.Get(i);
-    std::string ks = key.ToString().Utf8Value();  // JS property keys are strings
+    std::string ks = NodeGiToUtf8(key);  // JS property keys are strings
 
     // Key pointer: g_strdup for strings, else the integer key parsed from the
     // (string) property name and GINT_TO_POINTER-encoded per its tag.

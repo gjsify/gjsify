@@ -149,19 +149,65 @@ void InitCairo(Napi::Env env, Napi::Object exports);
 // error under NAPI_DISABLE_CPP_EXCEPTIONS, and the follow-up `Napi::Error::New`
 // would fatally abort the process (exit 134) instead of marshalling — a crash the
 // repo invariant forbids.
+
+// ---- terminate-safe coercion helpers ----------------------------------------
+//
+// Under NODE_API_SWALLOW_UNTHROWABLE_EXCEPTIONS a fallible node-addon-api call on
+// an env that can no longer run JS (worker.terminate() landing while a JS→GI call
+// is inside this addon, or env teardown) returns a DEFAULT-CONSTRUCTED value
+// (`_env == nullptr`) instead of aborting — the throw is swallowed, the value is
+// empty. Chaining the NEXT fallible wrapper call onto that empty value funnels
+// into node-addon-api's Error::New(napi_get_last_error_info) NAPI_FATAL_IF_FAILED
+// sites — which are OUTSIDE the swallow valve — and aborts the process
+// ("FATAL ERROR: Error::New napi_get_last_error_info"). Every coercion chain
+// (`v.ToNumber().Int32Value()`, `v.ToString().Utf8Value()`, …) on a path
+// reachable mid-terminate must go through these helpers: they check the input AND
+// the coercion result and degrade to a zero value instead. On a LIVE env a
+// successful napi call never yields an empty value, so behaviour is unchanged;
+// the guards trip only on the swallowed-failure residue.
+inline bool NodeGiToBool(Napi::Value v) {
+  if (v.IsEmpty()) return false;
+  Napi::Boolean b = v.ToBoolean();
+  return b.IsEmpty() ? false : b.Value();
+}
+inline int32_t NodeGiToInt32(Napi::Value v) {
+  if (v.IsEmpty()) return 0;
+  Napi::Number n = v.ToNumber();
+  return n.IsEmpty() ? 0 : n.Int32Value();
+}
+inline uint32_t NodeGiToUint32(Napi::Value v) {
+  if (v.IsEmpty()) return 0;
+  Napi::Number n = v.ToNumber();
+  return n.IsEmpty() ? 0 : n.Uint32Value();
+}
+inline double NodeGiToDouble(Napi::Value v) {
+  if (v.IsEmpty()) return 0;
+  Napi::Number n = v.ToNumber();
+  return n.IsEmpty() ? 0 : n.DoubleValue();
+}
+inline std::string NodeGiToUtf8(Napi::Value v) {
+  if (v.IsEmpty()) return std::string();
+  Napi::String s = v.ToString();
+  return s.IsEmpty() ? std::string() : s.Utf8Value();
+}
+
 inline int64_t JsValueToInt64(Napi::Value v) {
+  if (v.IsEmpty()) return 0;  // swallowed-failure residue (see helpers above)
   if (v.IsBigInt()) {
     bool lossless = false;
     return v.As<Napi::BigInt>().Int64Value(&lossless);
   }
-  return v.ToNumber().Int64Value();
+  Napi::Number n = v.ToNumber();
+  return n.IsEmpty() ? 0 : n.Int64Value();
 }
 inline uint64_t JsValueToUint64(Napi::Value v) {
+  if (v.IsEmpty()) return 0;  // swallowed-failure residue (see helpers above)
   if (v.IsBigInt()) {
     bool lossless = false;
     return v.As<Napi::BigInt>().Uint64Value(&lossless);
   }
-  return static_cast<uint64_t>(v.ToNumber().Int64Value());
+  Napi::Number n = v.ToNumber();
+  return n.IsEmpty() ? 0 : static_cast<uint64_t>(n.Int64Value());
 }
 
 // OUT (WarnIfUnsafe{Int,Uint}64): GJS ALWAYS returns a JS Number for a 64-bit int
