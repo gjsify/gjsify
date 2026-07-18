@@ -12,10 +12,12 @@ on:
     branches: [main]
     paths:
       - 'packages/node-gi/**'
+      - 'scripts/node-gi-consumer-harness.mjs'
       - '.github/workflows/node-gi.yml'
   pull_request:
     paths:
       - 'packages/node-gi/**'
+      - 'scripts/node-gi-consumer-harness.mjs'
       - '.github/workflows/node-gi.yml'
 
 permissions:
@@ -493,3 +495,92 @@ jobs:
           name: node-gi-prebuild-linux-arm64
           path: packages/node-gi/node-gi/prebuilds/linux-arm64/node_gi.node
           if-no-files-found: error
+
+  # Cross-runtime consumer harness (scripts/node-gi-consumer-harness.mjs): the
+  # GENERALIZATION of the consumer-sqlite job above into a reusable tool that
+  # builds a gjsify package's OWN GJS test suite `--app node` (gi:// →
+  # @gjsify/node-gi) and runs it on node + bun + deno. This job runs the PROOF
+  # SET (packages that pass today: sqlite=Gda, http2=Soup, zlib=Gio — three
+  # GNOME lib families) under `--require-pass`, so a regression in the reverse
+  # bridge fails CI. The full 22-package rollout + a non-gating full-survey job
+  # are documented follow-ups; the gap report + methodology live in
+  # docs/reports/node-gi-consumer-survey.md. Setup mirrors consumer-sqlite; the
+  # extra bun+deno legs come free from the harness's PATH-skip.
+  consumer-suites:
+    name: node-gi consumer harness (proof set / Node+Bun+Deno)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: fedora:44
+    steps:
+      - name: Install toolchain + GI dev headers + cairo + libgda + libsoup + gjs
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
+            glib2-devel gobject-introspection-devel gobject-introspection gjs \
+            cairo-devel cairo-gobject-devel \
+            libgda libgda-sqlite \
+            libsoup3
+          gjs --version
+          echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
+
+      # Official nodejs.org build, NOT Fedora's dnf node (which crashes rolldown's
+      # prebuilt napi binding). Same rationale as the build-test job.
+      - name: Use official Node.js (Fedora's dnf node crashes the bundler)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Bun + Deno widen the harness from node-only to all three (PATH-skip
+      # otherwise drops them). Node-API is their common ABI — same --app node bundle.
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build @gjsify/node-gi native addon (node-gyp) + stage prebuild
+        working-directory: packages/node-gi/node-gi
+        run: |
+          npm install --no-audit --no-fund --foreground-scripts
+          node scripts/stage-prebuild.mjs   # Deno loads the addon only via the prebuild path
+
+      - name: Install the gjsify workspace (committed CLI bundle, Node-free)
+        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+
+      # Repoint the workspace .bin/gjsify at a Node-runnable published @gjsify/cli
+      # (npm rolldown) + link @gjsify/node-gi at the workspace root so every
+      # package's dist/ resolves the reverse-bridge addon at runtime.
+      - name: Use a published @gjsify/cli as the Node bundler + link node-gi
+        run: |
+          CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
+          mkdir -p /tmp/gjsify-node-cli
+          ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
+            && npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save )
+          ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
+          mkdir -p node_modules/@gjsify
+          ln -sfn ../../packages/node-gi/node-gi node_modules/@gjsify/node-gi
+          echo "Node bundler: $(node_modules/.bin/gjsify --version)"
+
+      - name: Build proof-set libs under Node (+ workspace deps)
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify workspace @gjsify/unit build:gjsify --with-dependencies
+          for p in @gjsify/sqlite @gjsify/http2 @gjsify/zlib; do
+            gjsify workspace "$p" build:gjsify --with-dependencies
+          done
+
+      - name: Run the node-gi consumer harness (proof set, --require-pass)
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          node scripts/node-gi-consumer-harness.mjs \
+            @gjsify/sqlite @gjsify/http2 @gjsify/zlib \
+            --runtimes node,bun,deno --require-pass \
+            --out /tmp/node-gi-consumer-survey.json
