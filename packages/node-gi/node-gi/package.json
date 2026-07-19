@@ -31,6 +31,10 @@
     "./cairo": {
       "types": "./cairo.d.ts",
       "default": "./cairo.js"
+    },
+    "./gtk-runtime": {
+      "types": "./gtk-runtime.d.ts",
+      "default": "./gtk-runtime.js"
     }
   },
   "files": [
@@ -38,6 +42,8 @@
     "index.d.ts",
     "gi.js",
     "gi.d.ts",
+    "gtk-runtime.js",
+    "gtk-runtime.d.ts",
     "globals.js",
     "globals.d.ts",
     "system.js",

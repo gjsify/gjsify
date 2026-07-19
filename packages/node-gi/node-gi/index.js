@@ -14,6 +14,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
+import { activateBundledGtkRuntime } from './gtk-runtime.js';
 
 const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url)); // package root
@@ -69,6 +70,21 @@ function loadNative() {
 }
 
 const native = loadNative();
+
+// ---- batteries-included GTK runtime (macOS) ---------------------------------
+//
+// Before any namespace is required, activate a relocated GTK/GI runtime bundle
+// if one ships for this platform (@gjsify/gtk-runtime-<platform>-<arch>, or a
+// staged prebuilds/<platform>-<arch>/gtk/). This prepends the bundle's typelib
+// dir to the GIRepository search path (env-free) so gi:// namespaces load with
+// no Homebrew/system GTK. No-op on platforms without a bundle, and harmless when
+// none is present (the addon then uses the host's GTK as before). Darwin-only
+// today — see gtk-runtime.js + @gjsify/gtk-runtime-darwin-arm64.
+try {
+  activateBundledGtkRuntime(native);
+} catch {
+  // Never fatal: a missing/partial bundle just leaves the host GTK in charge.
+}
 
 // ---- cross-runtime microtask checkpoint (Bun/Deno) --------------------------
 //
