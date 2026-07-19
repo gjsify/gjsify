@@ -588,8 +588,12 @@ export function createGioDBus(ctx) {
   function _handleMethodCall(jsObj, methodName, parameters, invocation) {
     // GJS appends the message's Gio.UnixFDList as a trailing argument (null when
     // the call carries no fds) — mirror it so fd-aware services see the same
-    // shape (refs/gjs Gio.js _handleMethodCall).
-    const fdList = invocation.get_message().get_unix_fd_list();
+    // shape (refs/gjs Gio.js _handleMethodCall). Gio.DBusMessage.get_unix_fd_list
+    // is GioUnix (fd-passing) — absent from the Gio typelib on Windows — so guard by
+    // method presence and pass null there (no fds to carry). POSIX byte-identical:
+    // where the method exists it is taken exactly as before.
+    const msg = invocation.get_message();
+    const fdList = typeof msg.get_unix_fd_list === 'function' ? msg.get_unix_fd_list() : null;
     const method = jsObj[methodName];
     if (typeof method === 'function') {
       let retval;
