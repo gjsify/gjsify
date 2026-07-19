@@ -515,6 +515,21 @@ Napi::Value StartMainLoop(const Napi::CallbackInfo& info) {
   // wake mechanism — node-gtk guards it; this milestone targets Linux/Fedora.)
   s->fd_tag = g_source_add_unix_fd(source, uv_backend_fd(loop),
                                    static_cast<GIOCondition>(G_IO_IN | G_IO_OUT | G_IO_ERR));
+  // PRIORITY — below GDK_PRIORITY_REDRAW (G_PRIORITY_HIGH_IDLE + 20), above
+  // G_PRIORITY_DEFAULT_IDLE. At the g_source_new default (G_PRIORITY_DEFAULT, 0)
+  // a busy Node loop STARVES GTK painting: GLib dispatches only the
+  // highest-priority READY band per iteration, so a libuv timer that is due on
+  // every prepare — a 1 ms metronome like Excalibur's requestIdleCallback
+  // polyfill (`setTimeout(cb, 1)` re-armed from its own callback, run
+  // perpetually by its GarbageCollector) — keeps this source ready at priority
+  // 0 forever and GDK's frame-clock paint/update sources (GDK_PRIORITY_REDRAW,
+  // G_PRIORITY_HIGH_IDLE + 20) never run again: ticks, GLArea renders and rAF
+  // all freeze while plain GLib timeouts (priority 0) keep firing — the
+  // Excalibur-on-node-gi stall. Under GJS there is no extra source competing
+  // with GTK at default priority; the co-pump must not introduce one. Redraw
+  // wins over Node work (browser-like: rendering outranks timers); Node I/O
+  // still runs in every frame gap.
+  g_source_set_priority(source, G_PRIORITY_HIGH_IDLE + 30);
   g_source_attach(source, nullptr);  // default GLib main context
   g_source_unref(source);            // the context holds the surviving ref
 

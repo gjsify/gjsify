@@ -119,10 +119,21 @@ test('Adw.Application runs Adwaita chrome + CSS on Node', { skip }, () => {
 
       win.present();
 
-      // Quit from a timeout running INSIDE the Adw loop → run() returns cleanly.
+      // Quit from a timeout running INSIDE the Adw loop → run() returns
+      // cleanly. Quit once the libuv timer has been OBSERVED (the co-pump
+      // proof), with a bounded cap so a genuinely-starved loop still exits and
+      // fails the assert instead of hanging. A fixed 50 ms quit used to race:
+      // the uv co-pump source sits BELOW GDK_PRIORITY_REDRAW (loop.cc — GTK
+      // rendering outranks Node timers, browser-like), so the 10 ms timer is
+      // legitimately delayed past the window's first paint cycles.
+      let waitedMs = 0;
       GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-        app.quit();
-        return GLib.SOURCE_REMOVE;
+        waitedMs += 50;
+        if (global.__adwUvTimerFired || waitedMs >= 2000) {
+          app.quit();
+          return GLib.SOURCE_REMOVE;
+        }
+        return GLib.SOURCE_CONTINUE;
       });
     } catch (err) {
       activateError = err;
