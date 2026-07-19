@@ -1019,6 +1019,28 @@ function objectPrototypeShim(prop) {
   }
 }
 
+// Per-GType method feature-detection cache backing the wrapper's GJS-parity
+// `get` trap: `native.hasMethod` walks the full introspection chain and method
+// GETs happen on every `obj.method(...)` call, so presence is memoized per
+// concrete GType name (stable for the process lifetime — typelibs don't gain
+// methods at runtime).
+const methodPresenceCache = new Map(); // typeName -> Map<methodName, boolean>
+
+function instanceHasMethod(handle, name) {
+  const typeName = native.getTypeName(handle);
+  let perType = methodPresenceCache.get(typeName);
+  if (perType === undefined) {
+    perType = new Map();
+    methodPresenceCache.set(typeName, perType);
+  }
+  let present = perType.get(name);
+  if (present === undefined) {
+    present = native.hasMethod(handle, name);
+    perType.set(name, present);
+  }
+  return present;
+}
+
 // Wrap a live GObject handle as a GJS-shaped instance. When `userProto` is given
 // (a registerClass subclass's prototype) the wrapper resolves the user class's
 // own prototype members FIRST — so `inst.myMethod()` runs the JS method with the
@@ -1126,11 +1148,23 @@ function wrapInstance(handle, userProto) {
       // they resolve it here from the registry, per-class). Bound to this instance.
       const promisified = resolvePromisified(handle, camelToSnake(prop));
       if (promisified !== undefined) return (...args) => promisified.apply(proxy, args);
-      // Pass the LITERAL accessor name — the engine resolves it verbatim first
-      // (GJS fidelity: GIR names are exposed as-is, incl. Vala camelCase like
-      // Gwebgl's `getString`) and only falls back to the snake_case alias.
-      // Converting here would destroy a literal camelCase GI name.
-      return (...args) => wrapReturn(native.callMethod(handle, prop, unwrapArgs(args)));
+      // GJS parity: an UNKNOWN member is `undefined`, never a throw-on-call
+      // thunk — real consumers feature-detect optional native methods
+      // (`typeof gl.clearBufferfv === 'function'` gates `@gjsify/webgl`'s
+      // clearBuffer emulation; Excalibur's RenderTarget.blitToScreen was the
+      // exposing call on node-gi: the old unconditional thunk made the
+      // detection lie, then threw mid-frame). Presence is resolved via the
+      // SAME native walk callMethod uses (literal-first, snake alias second)
+      // and memoized per concrete GType — method GETs happen on every call.
+      // The LITERAL accessor name is passed through — the engine resolves it
+      // verbatim first (GJS fidelity: GIR names are exposed as-is, incl. Vala
+      // camelCase like Gwebgl's `getString`) and only falls back to the
+      // snake_case alias. Converting here would destroy a literal camelCase
+      // GI name.
+      if (instanceHasMethod(handle, prop)) {
+        return (...args) => wrapReturn(native.callMethod(handle, prop, unwrapArgs(args)));
+      }
+      return undefined;
     },
     set(t, prop, value) {
       if (typeof prop === 'string') {
