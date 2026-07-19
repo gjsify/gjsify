@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-node-express-webserver",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "description": "Express.js blog showcase with JSON API and static frontend — a real Node.js web app running on GJS",
   "main": "dist/index.gjs.js",
   "type": "module",
@@ -46,7 +46,12 @@
   "gjsify": {
     "tier": 2,
     "example": {
-      "runtimes": ["gjs", "node", "bun", "deno"],
+      "runtimes": [
+        "gjs",
+        "node",
+        "bun",
+        "deno"
+      ],
       "node": "dist/index.node.mjs"
     }
   }

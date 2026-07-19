@@ -1,5 +1,91 @@
 # Changelog
 
+## [0.19.0](https://github.com/gjsify/gjsify/compare/v0.18.0...v0.19.0) (2026-07-19)
+
+### Features
+
+* **adwaita-web:** Adw.TabBar layout for command tabs ([#752](https://github.com/gjsify/gjsify/issues/752)) ([7228945](https://github.com/gjsify/gjsify/commit/722894589d380b7d89b42ad7b4f4389de82c2dca))
+* **adwaita-web:** TabBar-integrated command tabs ([#751](https://github.com/gjsify/gjsify/issues/751)) ([cdb7c3c](https://github.com/gjsify/gjsify/commit/cdb7c3cc464771c94322dc4acfdbfe4270c76867))
+* **cli:** add --runtime selector for run/showcase ([#746](https://github.com/gjsify/gjsify/issues/746)) ([b7a2561](https://github.com/gjsify/gjsify/commit/b7a2561432122621e04aa5bf961f2dfa3fc7a13a))
+* **cli:** make the CLI host-runtime-aware ([88aa7dd](https://github.com/gjsify/gjsify/commit/88aa7dd0ef3465adac5c754c117d0164f0ebe6ab))
+* **cli:** override runtime-native fetch on --app node reverse bridge ([02d6ef7](https://github.com/gjsify/gjsify/commit/02d6ef7f4406d6bf0004caefef09713074e7ed59))
+* **examples:** render excalibur-jelly-jumper on node via node-gi ([944b350](https://github.com/gjsify/gjsify/commit/944b3502b7299d938e86b5c225ecaaeb70b2f6f9))
+* **fireworks:** run on node-gi (Node/Bun/Deno) ([11f1be6](https://github.com/gjsify/gjsify/commit/11f1be6b835b9b4534a65216b6ef7978cbe2a99e))
+* **node-gi:** add Gio.DBus proxy + signals mixin ([#738](https://github.com/gjsify/gjsify/issues/738)) ([5e10ae2](https://github.com/gjsify/gjsify/commit/5e10ae22b44bddda5778c191b227c60f0456d068)), closes [442/#121](https://github.com/442/gjsify/issues/121)
+* **node-gi:** auto-pump GLib context under Node ([#749](https://github.com/gjsify/gjsify/issues/749)) ([9fe0bac](https://github.com/gjsify/gjsify/commit/9fe0bac54a4df460bf54821c175850bce3f49eca))
+* **node-gi:** bind cairo canvas2d surface ([#761](https://github.com/gjsify/gjsify/issues/761)) ([3ec889c](https://github.com/gjsify/gjsify/commit/3ec889c0871b33be87ba56e361d32ed175ca6eaf))
+* **node-gi:** cairo binding + foreign-struct seam ([#733](https://github.com/gjsify/gjsify/issues/733)) ([406cab9](https://github.com/gjsify/gjsify/commit/406cab99a386c5651598179c52e532eb96b3f6ea))
+* **node-gi:** caller-allocates struct OUT + Uint8Array→GBytes IN marshalling ([#762](https://github.com/gjsify/gjsify/issues/762)) ([47996cd](https://github.com/gjsify/gjsify/commit/47996cdb5bf7c0febf110d78c4bd31d442813969))
+* **node-gi:** container/compound-out marshalling ([#729](https://github.com/gjsify/gjsify/issues/729)) ([a09c2f3](https://github.com/gjsify/gjsify/commit/a09c2f33f7679a88f787e5e3ef7bd20e32127a1c))
+* **node-gi:** Excalibur.js renders on Node via node-gi (capstone) ([#766](https://github.com/gjsify/gjsify/issues/766)) ([25395db](https://github.com/gjsify/gjsify/commit/25395dbf2ee52754328d49fafbafc8f491982613))
+* **node-gi:** gobject/glib override parity ([#739](https://github.com/gjsify/gjsify/issues/739)) ([88ab096](https://github.com/gjsify/gjsify/commit/88ab096be0a1634284a88dc85c6df7ad2bfc9eb1))
+* **node-gi:** inout containers + byte-array fixes ([#737](https://github.com/gjsify/gjsify/issues/737)) ([93d4f8d](https://github.com/gjsify/gjsify/commit/93d4f8d814764592a4c8267498591b5f888c0959)), closes [gobject-introspection#192](https://github.com/gjsify/gobject-introspection/issues/192) [gjs#44](https://github.com/gjsify/gjs/issues/44) [gjs#271](https://github.com/gjsify/gjs/issues/271) [gjs#106](https://github.com/gjsify/gjs/issues/106)
+* **node-gi:** marshal JS functions as GClosures ([#742](https://github.com/gjsify/gjsify/issues/742)) ([f10bfbc](https://github.com/gjsify/gjsify/commit/f10bfbcda32202656d8c5c1bdb0c4f7f59b8a78c))
+* **node-gi:** prove Gtk.GLArea GL context + WebGL draw on node-gi ([#764](https://github.com/gjsify/gjsify/issues/764)) ([53db392](https://github.com/gjsify/gjsify/commit/53db392c25162710557373c79474fe22c46720ba))
+* **node-gi:** struct fields, paramspec, bytes ([#731](https://github.com/gjsify/gjsify/issues/731)) ([58e5d48](https://github.com/gjsify/gjsify/commit/58e5d48a0bac4cfbbc4fb72e6f706eb65ce71024))
+* **node-gi:** unbox GValue returns like gjs ([#735](https://github.com/gjsify/gjsify/issues/735)) ([c842b4d](https://github.com/gjsify/gjsify/commit/c842b4d31008d21bc2032e5fba6f184d6d0efd2b))
+* **node-gi:** vfunc chain-up OUT/INOUT args ([#732](https://github.com/gjsify/gjsify/issues/732)) ([afa0b93](https://github.com/gjsify/gjsify/commit/afa0b9352c0ee5d396a59fa42dc3720e1b8606a0))
+* **node-gi:** zero-arg boxed struct construction ([eb2021c](https://github.com/gjsify/gjsify/commit/eb2021cad2ec9e8cceb493291dca2ba9827c7ce3))
+* **website:** label the GJS runtime tab "GJS", not "GJSify" ([d7fea9a](https://github.com/gjsify/gjsify/commit/d7fea9aa87ce942ea15106afa437d17146d48c3a))
+* **website:** label the Node runtime tab "Node", not "npm" ([ce5011e](https://github.com/gjsify/gjsify/commit/ce5011ec5e2a79f37df3eea034994759a5b0061a))
+* **website:** tab the "Get started" CTA terminal by runtime ([a34cf9d](https://github.com/gjsify/gjsify/commit/a34cf9d348e70566b6f6a4a4f23edac67710a602))
+* **website:** tab the showcase slideshow terminal by runtime ([84b7e9d](https://github.com/gjsify/gjsify/commit/84b7e9d1f051a88d6d57baf54a13814d9998ef9f))
+
+### Bug Fixes
+
+* **adwaita-web:** faithful Adw.TabBar tab styling ([#754](https://github.com/gjsify/gjsify/issues/754)) ([aa5941c](https://github.com/gjsify/gjsify/commit/aa5941c09f8ed946c4fa5f6f6538296a4d642856))
+* **cli:** repair create/showcase on the gjs bundle ([dc49e1d](https://github.com/gjsify/gjsify/commit/dc49e1dee928086804368ca97fbe6490a28ef71a))
+* derive node-gi bare externals from alias map ([#756](https://github.com/gjsify/gjsify/issues/756)) ([4b15b67](https://github.com/gjsify/gjsify/commit/4b15b673cd258bfbff97ef8618e3daec1119ce43))
+* **fetch:** make XHR events + object URLs work on the node reverse bridge ([e1f6b31](https://github.com/gjsify/gjsify/commit/e1f6b31a0a4dd43c1b5a0f1f73537b29110f1be3))
+* **fs:** advance the fd position on readSync(position: null) ([13c912b](https://github.com/gjsify/gjsify/commit/13c912b9799c0a88df6cad4f6d558c5a3434d850))
+* **node-gi:** drain microtasks at the loop-dispatched boundary on bun/deno ([05725b7](https://github.com/gjsify/gjsify/commit/05725b7a7163b411013cf52174bfe9938d592972)), closes [442/#121](https://github.com/442/gjsify/issues/121)
+* **node-gi:** env-teardown-safe toggle-ref drain ([#730](https://github.com/gjsify/gjsify/issues/730)) ([76e5b11](https://github.com/gjsify/gjsify/commit/76e5b11ac45aa7c835ca94748292c8fccd9505c9))
+* **node-gi:** gjs-exact BigInt 64-bit marshalling ([#727](https://github.com/gjsify/gjsify/issues/727)) ([62e0030](https://github.com/gjsify/gjsify/commit/62e0030d1a339516214501a8ed18cc1175d87bc9))
+* **node-gi:** match gjs for uri/vtype/gtype/arrays ([#728](https://github.com/gjsify/gjsify/issues/728)) ([cafe59c](https://github.com/gjsify/gjsify/commit/cafe59cea11e897bdb6097ccb77910a9bf2a6c28))
+* **node-gi:** pin local tests to the fresh build ([#723](https://github.com/gjsify/gjsify/issues/723)) ([cfefd21](https://github.com/gjsify/gjsify/commit/cfefd2119124792a27d3ab64f2289c3820ae3630))
+* **node-gi:** survive worker.terminate mid-GI-call ([#741](https://github.com/gjsify/gjsify/issues/741)) ([8403469](https://github.com/gjsify/gjsify/commit/84034694fe0026d1b95c5a5983a5e18f2ed3caa1)), closes [#730](https://github.com/gjsify/gjsify/issues/730)
+* report runtime GType in DumpTree on node-gi ([8144827](https://github.com/gjsify/gjsify/commit/814482788db733445ece3576004beecd04fe2f81))
+* set typelib env in node-gi consumer harness ([#758](https://github.com/gjsify/gjsify/issues/758)) ([3ae336b](https://github.com/gjsify/gjsify/commit/3ae336b977a62b18f12547aa32462738cef865c4))
+* **webaudio:** degrade AudioBufferSourceNode.start to silent on backend failure ([991eb7f](https://github.com/gjsify/gjsify/commit/991eb7f0353a360b6e1b7cd4cd746f5073423a88))
+* **website:** no flow margin between headerbar and tab bar ([#757](https://github.com/gjsify/gjsify/issues/757)) ([20193fc](https://github.com/gjsify/gjsify/commit/20193fc97b79125f79470ee0fd0ef96798a63616))
+
+### Documentation
+
+* **node-gi:** graduate Axis-5 reverse bridge to Tier 2 ([#736](https://github.com/gjsify/gjsify/issues/736)) ([fd500ad](https://github.com/gjsify/gjsify/commit/fd500adb3b96ac856c9a49b00eec17bcff515e81)), closes [#730](https://github.com/gjsify/gjsify/issues/730) [#732](https://github.com/gjsify/gjsify/issues/732) [#733](https://github.com/gjsify/gjsify/issues/733) [#734](https://github.com/gjsify/gjsify/issues/734)
+* **website:** command tabs, GJSify spelling, layout fixes ([#750](https://github.com/gjsify/gjsify/issues/750)) ([893fcd8](https://github.com/gjsify/gjsify/commit/893fcd892a6511d35622ffc5f40552ec2116df4b))
+* **website:** descriptive command-window titles ([#753](https://github.com/gjsify/gjsify/issues/753)) ([c4209f1](https://github.com/gjsify/gjsify/commit/c4209f1657f4a63ef3b56b527f17668a5639ac8c))
+* **website:** document runtime selection + devtools on node/bun/deno ([7a66314](https://github.com/gjsify/gjsify/commit/7a66314d55e65aa78d5e6d0c16d120416667c8bd))
+* **website:** multi-runtime docs overhaul ([#748](https://github.com/gjsify/gjsify/issues/748)) ([5b62d04](https://github.com/gjsify/gjsify/commit/5b62d04d1029e52ba0dbc1cf988927d5ecf047e2))
+* **website:** node-gi is Tier 2 (graduated) ([#740](https://github.com/gjsify/gjsify/issues/740)) ([8dd1b7a](https://github.com/gjsify/gjsify/commit/8dd1b7a6e307532082bc70c27558c28879dc822d))
+* **website:** plain-language node-gi stability note ([#759](https://github.com/gjsify/gjsify/issues/759)) ([c80ea99](https://github.com/gjsify/gjsify/commit/c80ea99e5fa9673e297e6ba911c0bde3bab410d4))
+* **website:** theme sync + default frame titles ([#760](https://github.com/gjsify/gjsify/issues/760)) ([e785078](https://github.com/gjsify/gjsify/commit/e7850782fd4724da57e66bd80b770b6d59ad6643))
+
+### Code Refactoring
+
+* **node-gi:** split addon.cc into translation units ([#721](https://github.com/gjsify/gjsify/issues/721)) ([bf44497](https://github.com/gjsify/gjsify/commit/bf44497a83e9d56c78bed14930a5fe0c116e4032))
+
+### Continuous Integration
+
+* deploy docs on adwaita-web changes ([#755](https://github.com/gjsify/gjsify/issues/755)) ([f452b89](https://github.com/gjsify/gjsify/commit/f452b897abecae88e7f74e56ef7beff8d172cea4))
+* **node-gi:** build + verify the addon on aarch64 ([#744](https://github.com/gjsify/gjsify/issues/744)) ([6ba9d06](https://github.com/gjsify/gjsify/commit/6ba9d06f2e4094fa13a1a849cc8da73c85722d75))
+
+### Maintenance
+
+* **cli:** drop the un-runnable test:gjs leg ([da7e77c](https://github.com/gjsify/gjsify/commit/da7e77c819e637ed2af404d00db968489ece19b2))
+* **refs:** update all submodules to latest upstream ([a0ab1b7](https://github.com/gjsify/gjsify/commit/a0ab1b73f60159b0e3215fb4c88924a61358c4a7))
+
+### Tests
+
+* **e2e:** cover homepage create/showcase runtimes ([a6a5398](https://github.com/gjsify/gjsify/commit/a6a53983ae1f95a10d5183a6cfb9cc0da2bfb95c))
+* **node-gi:** conformance golden-diff harness ([#724](https://github.com/gjsify/gjsify/issues/724)) ([cd07e28](https://github.com/gjsify/gjsify/commit/cd07e28cfc2b159d335c6fa59049d91bcb2ae721))
+* **node-gi:** cross-runtime consumer harness ([#747](https://github.com/gjsify/gjsify/issues/747)) ([bd9d56a](https://github.com/gjsify/gjsify/commit/bd9d56abb57a8cb5c40ba82190c0570f9c52df6b))
+* **node-gi:** grow Bun/Deno subset to 28 files ([#722](https://github.com/gjsify/gjsify/issues/722)) ([45c7aff](https://github.com/gjsify/gjsify/commit/45c7aff625d610185a6860c1304e16e8868f5e30))
+* **node-gi:** prove Canvas2DBridge realizes + draws + blits on node-gi ([#763](https://github.com/gjsify/gjsify/issues/763)) ([9901d84](https://github.com/gjsify/gjsify/commit/9901d8477c2396bc40181c6f3a34bc7bb45e6056)), closes [756/#761](https://github.com/756/gjsify/issues/761)
+* **node-gi:** prove event-bridge on node-gi ([#765](https://github.com/gjsify/gjsify/issues/765)) ([0c03e9a](https://github.com/gjsify/gjsify/commit/0c03e9a701dac34457bbc061e64084b08d811999))
+* **node-gi:** run sqlite suite on node-gi ([#734](https://github.com/gjsify/gjsify/issues/734)) ([41bf38e](https://github.com/gjsify/gjsify/commit/41bf38ebc2a1e54389c2decd8f96e22b20492a1d)), closes [#1](https://github.com/gjsify/gjsify/issues/1) [#735](https://github.com/gjsify/gjsify/issues/735)
+* **node-gi:** scaffold GIMarshallingTests port ([#726](https://github.com/gjsify/gjsify/issues/726)) ([21ca315](https://github.com/gjsify/gjsify/commit/21ca315b5e4d29051b762a8dce828a5babd2808a))
+* **node-gi:** template signals + cssname parity ([#743](https://github.com/gjsify/gjsify/issues/743)) ([51aacc2](https://github.com/gjsify/gjsify/commit/51aacc2b38b321a2d42704812a82f46e4eaf624b))
+
 ## [0.18.0](https://github.com/gjsify/gjsify/compare/v0.17.0...v0.18.0) (2026-07-12)
 
 ### Features

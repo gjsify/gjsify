@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-dom-canvas2d-fireworks",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "description": "Colorful fireworks Canvas 2D example with Adwaita controls, adapted from https://codepen.io/juliangarnier/pen/gmOwJX",
   "main": "dist/gjs.js",
   "type": "module",
@@ -53,7 +53,12 @@
   "gjsify": {
     "tier": 2,
     "example": {
-      "runtimes": ["gjs", "node", "bun", "deno"],
+      "runtimes": [
+        "gjs",
+        "node",
+        "bun",
+        "deno"
+      ],
       "node": "dist/gjs.node.mjs"
     }
   }
