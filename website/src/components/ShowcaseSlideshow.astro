@@ -8,16 +8,39 @@ import { goPreviousSymbolic, goNextSymbolic } from '@gjsify/adwaita-icons/action
 import DemoArrow from '../assets/demo-arrow.svg?raw';
 import DemoArrowTerminal from '../assets/demo-arrow-terminal.svg?raw';
 
-// The four ways to run a showcase, one per runtime tab. gjsify's default
-// runtime follows the host it is invoked under (gjs / node / bun / deno), so
-// each command genuinely runs THIS showcase on that runtime.
-function runtimeCommands(name: string) {
-  return [
-    { runtime: 'gjsify' as const, code: `gjsify showcase ${name}` },
-    { runtime: 'npm' as const, code: `npx @gjsify/cli showcase ${name}` },
-    { runtime: 'bun' as const, code: `bunx @gjsify/cli showcase ${name}` },
-    { runtime: 'deno' as const, code: `deno run -A npm:@gjsify/cli showcase ${name}` },
-  ];
+// The runtimes a showcase can be launched on. Each slide declares the set its
+// showcase is VERIFIED to run on (`package.json#gjsify.example.runtimes`), so
+// the command tabs are HONEST — a slide only shows a runtime tab when that
+// showcase genuinely runs on it. `bunx @gjsify/cli showcase <name>` errors for
+// a showcase that doesn't declare `bun`, so we must not advertise a tab for it.
+type Runtime = 'gjs' | 'node' | 'bun' | 'deno';
+
+// Runtime → the CommandTabs tab id it renders as.
+const RUNTIME_TAB: Record<Runtime, 'gjsify' | 'npm' | 'bun' | 'deno'> = {
+  gjs: 'gjsify',
+  node: 'npm',
+  bun: 'bun',
+  deno: 'deno',
+};
+
+// Runtime → how the gjsify toolchain is invoked on that host. gjsify's default
+// runtime follows the host it is invoked under, so each command genuinely runs
+// the showcase on that runtime.
+const RUNTIME_INVOCATION: Record<Runtime, string> = {
+  gjs: 'gjsify',
+  node: 'npx @gjsify/cli',
+  bun: 'bunx @gjsify/cli',
+  deno: 'deno run -A npm:@gjsify/cli',
+};
+
+// Build the command-tab list for a slide from its VERIFIED runtimes and the CLI
+// sub-command that launches it (`showcase <name>`, or `storybook` for the
+// storybook slide). Preserves the runtime order so tabs read gjs · node · bun · deno.
+function runtimeCommands(runtimes: readonly Runtime[], launch: string) {
+  return runtimes.map((rt) => ({
+    runtime: RUNTIME_TAB[rt],
+    code: `${RUNTIME_INVOCATION[rt]} ${launch}`,
+  }));
 }
 
 // Per-slide annotation arrows with handwritten-style labels. Positions are
@@ -39,6 +62,19 @@ interface Slide {
   title: string;
   github: string;
   code: string;
+  /**
+   * Runtimes this showcase is VERIFIED to run on — drives which command tabs
+   * render (see `package.json#gjsify.example.runtimes`). Every showcase keeps
+   * `gjs` (the reference); node/bun/deno are declared only when the showcase
+   * genuinely runs there via the @gjsify/node-gi reverse bridge.
+   */
+  runtimes: readonly Runtime[];
+  /**
+   * CLI sub-command used to launch this showcase. Defaults to
+   * `showcase <name>`. The storybook slide overrides it to `storybook` — it is
+   * launched via `gjsify storybook`, not `gjsify showcase <name>`.
+   */
+  launch?: string;
   annotations?: Annotation[];
   /**
    * Layout variant:
@@ -60,6 +96,7 @@ const slides: Slide[] = [
     name: 'express-webserver',
     title: 'express-webserver.ts',
     github: 'showcases/node/express-webserver',
+    runtimes: ['gjs', 'node', 'bun', 'deno'],
     variant: 'terminal',
     annotations: [
       { text: 'A real Express.js\nblog, running on GJS', top: '-90px', right: '8%' },
@@ -107,6 +144,8 @@ app.listen(3000, () => {
     name: 'adwaita-storybook',
     title: 'switch-row.meta.ts',
     github: 'showcases/gtk/adwaita-storybook',
+    runtimes: ['gjs', 'node', 'bun', 'deno'],
+    launch: 'storybook',
     annotations: [
       { text: 'Create stories for your GTK widgets\njust as you would in web development', top: '-90px', right: '8%' },
     ],
@@ -129,6 +168,7 @@ export const switchRowMeta: StoryMeta = {
     name: 'three-postprocessing-pixel',
     title: 'pixel-demo.ts',
     github: 'showcases/dom/three-postprocessing-pixel',
+    runtimes: ['gjs', 'node', 'bun', 'deno'],
     annotations: [
       { text: 'This WebGL demo runs\nnatively on Linux!', top: '-90px', right: '8%' },
     ],
@@ -155,6 +195,7 @@ app.connect('activate', () => {
     name: 'three-geometry-teapot',
     title: 'teapot-demo.ts',
     github: 'showcases/dom/three-geometry-teapot',
+    runtimes: ['gjs', 'node', 'bun', 'deno'],
     annotations: [
       { text: 'Real Three.js,\npowered by GJS', top: '-90px', right: '8%' },
     ],
@@ -182,6 +223,7 @@ app.connect('activate', () => {
     name: 'excalibur-jelly-jumper',
     title: 'jelly-jumper.ts',
     github: 'showcases/dom/excalibur-jelly-jumper',
+    runtimes: ['gjs', 'node', 'bun', 'deno'],
     annotations: [
       { text: 'The web game engine\nExcalibur.js, natively\nin GJS — no WebView', top: '-90px', right: '8%' },
     ],
@@ -207,6 +249,7 @@ app.connect('activate', () => {
     name: 'canvas2d-fireworks',
     title: 'fireworks.ts',
     github: 'showcases/dom/canvas2d-fireworks',
+    runtimes: ['gjs', 'node', 'bun', 'deno'],
     annotations: [
       { text: 'Canvas 2D, drawn\nwith Cairo', top: '-90px', right: '8%' },
     ],
@@ -301,7 +344,7 @@ app.connect('activate', () => {
               <span class="slide-try-it-arrow" set:html={DemoArrowTerminal} />
             </div>
             <div class="slide-try-it focusable" tabindex="0">
-              <CommandTabs title="Terminal" commands={runtimeCommands(slide.name)} />
+              <CommandTabs title="Terminal" commands={runtimeCommands(slide.runtimes, slide.launch ?? `showcase ${slide.name}`)} />
             </div>
           </div>
         </div>
