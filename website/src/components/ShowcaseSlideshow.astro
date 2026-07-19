@@ -3,9 +3,22 @@
 // Each slide lazy-mounts its demo on first view to avoid loading all 3 at once.
 import '@fontsource/coming-soon';
 import { Code } from '@astrojs/starlight/components';
+import CommandTabs from './CommandTabs.astro';
 import { goPreviousSymbolic, goNextSymbolic } from '@gjsify/adwaita-icons/actions';
 import DemoArrow from '../assets/demo-arrow.svg?raw';
 import DemoArrowTerminal from '../assets/demo-arrow-terminal.svg?raw';
+
+// The four ways to run a showcase, one per runtime tab. gjsify's default
+// runtime follows the host it is invoked under (gjs / node / bun / deno), so
+// each command genuinely runs THIS showcase on that runtime.
+function runtimeCommands(name: string) {
+  return [
+    { runtime: 'gjsify' as const, code: `gjsify showcase ${name}` },
+    { runtime: 'npm' as const, code: `npx @gjsify/cli showcase ${name}` },
+    { runtime: 'bun' as const, code: `bunx @gjsify/cli showcase ${name}` },
+    { runtime: 'deno' as const, code: `deno run -A npm:@gjsify/cli showcase ${name}` },
+  ];
+}
 
 // Per-slide annotation arrows with handwritten-style labels. Positions are
 // CSS values (top/right/bottom/left) applied to the absolute container.
@@ -39,12 +52,6 @@ interface Slide {
   terminalOutput?: string;
   /** For terminal variant: title shown in the terminal headerbar. */
   terminalTitle?: string;
-  /**
-   * Override the "try it" terminal command. Defaults to
-   * `npx @gjsify/cli showcase <name>`. Showcases that launch differently
-   * (e.g. the storybook, run via `gjsify storybook`) set this explicitly.
-   */
-  tryIt?: string;
 }
 
 const slides: Slide[] = [
@@ -290,16 +297,11 @@ app.connect('activate', () => {
 
           <div class="slide-try-it-wrapper">
             <div class="slide-try-it-annotation" aria-hidden="true">
-              <span class="slide-try-it-label">See for yourself<br />on your machine!</span>
+              <span class="slide-try-it-label">See for yourself —<br />on any runtime!</span>
               <span class="slide-try-it-arrow" set:html={DemoArrowTerminal} />
             </div>
             <div class="slide-try-it focusable" tabindex="0">
-              <Code
-                code={slide.tryIt ?? `npx @gjsify/cli showcase ${slide.name}`}
-                lang="sh"
-                title="Terminal"
-                frame="terminal"
-              />
+              <CommandTabs title="Terminal" commands={runtimeCommands(slide.name)} />
             </div>
           </div>
         </div>
@@ -799,6 +801,13 @@ app.connect('activate', () => {
 
   .slide-try-it.on-top {
     z-index: 5;
+  }
+
+  /* The tabbed terminal is a full Adwaita window (headerbar + tab bar + code)
+     provided by <CommandTabs>. It carries its own `margin-top: 1rem`; drop it
+     so the window sits flush in this slot like the other stacked windows. */
+  .slide-try-it :global(.command-tabs) {
+    margin-top: 0;
   }
 
   /* Handwritten "See for yourself" label + arrow to the left of the

@@ -15,19 +15,31 @@
 // every CommandTabs instance on the site: pick "Deno" once and all command
 // blocks follow.
 //
-// Usage (MDX):
-//   <CommandTabs>
-//     <Fragment slot="gjsify">```bash …```</Fragment>
-//     <Fragment slot="npm">```bash …```</Fragment>
-//     <Fragment slot="bun">```bash …```</Fragment>
-//     <Fragment slot="deno">```bash …```</Fragment>
-//   </CommandTabs>
+// Two ways to feed the tabs (mutually exclusive):
+//
+//   1. Named MDX slots (one fenced code block each):
+//      <CommandTabs>
+//        <Fragment slot="gjsify">```bash …```</Fragment>
+//        <Fragment slot="npm">```bash …```</Fragment>
+//        <Fragment slot="bun">```bash …```</Fragment>
+//        <Fragment slot="deno">```bash …```</Fragment>
+//      </CommandTabs>
+//
+//   2. A `commands` prop (from an .astro caller that can't author MDX slots,
+//      e.g. the showcase slideshow). Each entry's `code` is rendered with
+//      Starlight's <Code> using the DEFAULT frame — CommandTabs' CSS flattens
+//      the `.adw-code-window` frame, so `frame="terminal"` must NOT be set here
+//      or the block would show a second, un-flattened frame.
+import { Code } from '@astrojs/starlight/components';
+
 interface Props {
     /** Window title shown centered in the headerbar. */
     title?: string;
+    /** Programmatic tabs (alternative to MDX slots) — one command per runtime. */
+    commands?: { runtime: 'gjsify' | 'npm' | 'bun' | 'deno'; code: string }[];
 }
 
-const { title = 'Terminal' } = Astro.props;
+const { title = 'Terminal', commands } = Astro.props;
 
 const RUNTIMES = [
     { slot: 'gjsify', label: 'GJSify' },
@@ -35,12 +47,21 @@ const RUNTIMES = [
     { slot: 'bun', label: 'Bun' },
     { slot: 'deno', label: 'Deno' },
 ];
-// Astro slots can't be referenced with a dynamic `name` in the template —
-// render the provided ones to HTML up front instead.
-const present = [];
-for (const r of RUNTIMES) {
-    if (Astro.slots.has(r.slot)) {
-        present.push({ ...r, html: await Astro.slots.render(r.slot) });
+const LABELS: Record<string, string> = Object.fromEntries(RUNTIMES.map((r) => [r.slot, r.label]));
+
+// A present tab either carries pre-rendered slot `html` OR raw `code` to feed
+// through <Code>. Astro slots can't be referenced with a dynamic `name` in the
+// template, so render the provided ones to HTML up front.
+const present: { slot: string; label: string; html?: string; code?: string }[] = [];
+if (commands) {
+    for (const c of commands) {
+        present.push({ slot: c.runtime, label: LABELS[c.runtime] ?? c.runtime, code: c.code });
+    }
+} else {
+    for (const r of RUNTIMES) {
+        if (Astro.slots.has(r.slot)) {
+            present.push({ ...r, html: await Astro.slots.render(r.slot) });
+        }
     }
 }
 const runtimesAttr = present.map((r) => r.slot).join(',');
@@ -60,7 +81,15 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
         </span>
     </div>
     <adw-tab-view no-close expand-tabs>
-        {present.map((r) => <adw-tab-page title={r.label} set:html={r.html} />)}
+        {present.map((r) =>
+            r.code !== undefined ? (
+                <adw-tab-page title={r.label}>
+                    <Code code={r.code} lang="bash" />
+                </adw-tab-page>
+            ) : (
+                <adw-tab-page title={r.label} set:html={r.html} />
+            ),
+        )}
     </adw-tab-view>
 </div>
 
