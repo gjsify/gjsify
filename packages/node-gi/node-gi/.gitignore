@@ -8,3 +8,4 @@ deno.lock
 probe-*.mjs
 conformance/dist/
 .gi-tests/
+.tmp-c2d-*/

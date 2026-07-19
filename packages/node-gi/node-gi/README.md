@@ -716,3 +716,23 @@ pixel-for-pixel against `gjs -m`, incl. gradients / repeating surface patterns /
 dashed strokes / path round-trips — `test/cairo-canvas2d.test.mjs`). Deferred:
 region objects, the PDF/SVG/PS surfaces, and the text/font ops
 (`showText`/`selectFontFace` — canvas2d text rides PangoCairo instead).
+
+Building on that seam, the **LIVE `@gjsify/canvas2d` `Canvas2DBridge`** — a
+`Gtk.DrawingArea` that wraps an `HTMLCanvasElement` 2D context and blits its Cairo
+surface onto the widget each frame — realizes, draws and blits UNCHANGED on
+node-gi under a display: an app draws via the standard `canvas.getContext('2d')`
+DOM API in `bridge.onReady`, the GTK draw_func fires, the bridge blits
+(`cr.setSourceSurface` + `cr.paint`) and the rAF (`add_tick_callback`) path ticks.
+The same source builds `--app gjs` and `--app node` and prints byte-identical
+output, pixels read back off the canvas included — `test/canvas2d-bridge.test.mjs`
++ `fixtures/canvas2d-bridge-app.ts`. It is a **local/dev verification** (see the
+run recipe in the test header), NOT wired into CI: the LIVE bridge pulls the whole
+`@gjsify/canvas2d` gi:// graph, so it needs the full gjsify workspace built with a
+current-source `@gjsify/cli` (the bare-`cairo`→`@gjsify/node-gi/cairo` and
+register-inline fixes the published CLI predates) plus a display and the addon — a
+heavyweight from-scratch rebuild not worth gating a minimal CI container on. The
+test self-skips in the default `npm test` (no display). One node-only note: a
+mapped `Gtk.DrawingArea`'s live `GdkFrameClock` stays an active GLib source after
+`app.quit()`, so — matching the documented lifetime divergence — a node-gi GTK
+program that must terminate exits explicitly (`process.exit(0)`), whereas `gjs -m`
+exits on module completion.
