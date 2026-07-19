@@ -5,7 +5,7 @@
 //
 // Reference: GStreamer 1.0 via gi://Gst, GstApp via gi://GstApp
 
-import { ensureGstInit, Gst } from './gst-init.js';
+import { ensureGstInit, Gst, isGstStreamingUnsafe } from './gst-init.js';
 import { AudioBuffer } from './audio-buffer.js';
 
 // Force GstApp typelib load so get_by_name() resolves AppSrc/AppSink types
@@ -25,6 +25,14 @@ const PIPELINE_DESC =
  * It must be called from the main thread (GJS requirement).
  */
 export function decodeAudioDataSync(arrayBuffer: ArrayBuffer): AudioBuffer {
+    // Fail cleanly (never crash) on runtimes where the streaming-thread
+    // `decodebin` pipeline segfaults via the node-gi reverse bridge (bun/deno).
+    // See isGstStreamingUnsafe() — the rejection is what a WebAudio consumer
+    // already handles, and decode does not work on the node target regardless.
+    if (isGstStreamingUnsafe()) {
+        throw new DOMException('Unable to decode audio data', 'EncodingError');
+    }
+
     ensureGstInit();
 
     // Reject non-ArrayBuffer / empty input before touching GStreamer —
