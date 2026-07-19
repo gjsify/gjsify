@@ -68,9 +68,43 @@ class DevLoader extends ex.Loader {
     dispose() {}
 }
 
+/**
+ * Make an `ex.Sound` non-fatal on runtimes where audio is unavailable.
+ *
+ * On the `--app node` reverse bridge the GStreamer audio path over
+ * `@gjsify/node-gi` is not yet functional — a documented node-gi follow-up —
+ * in TWO places:
+ *   1. DECODE: `@gjsify/webaudio`'s `decodeAudioData` rejects, so `Sound.load()`
+ *      rejects. Excalibur's `Loader` aborts the whole load on the first
+ *      rejection, racing scene init ahead of the still-loading `TiledResource`
+ *      (the level then has no `Player` and camera setup throws).
+ *   2. PLAYBACK: even a "loaded" sound, when played, hits
+ *      `AudioBufferSourceNode.start` → `new GstPlayer`, which node-gi rejects
+ *      with an uncaught `Unsupported interface IN argument` (exit 1).
+ *
+ * So on decode failure we both (a) resolve the load (silent) — keeping the loader
+ * waiting for the VISUAL resources so the game renders — and (b) neutralize
+ * `play()` so the later `AudioManager` calls never reach the broken playback
+ * pipeline. Audio simply stays silent.
+ *
+ * Platform-agnostic: on GJS and in the browser, where audio works, the `catch`
+ * never fires — this is a no-op there.
+ */
+function tolerateAudioFailure(sound: ex.Sound): ex.Sound {
+    const load = sound.load.bind(sound);
+    sound.load = (() =>
+        load().catch((err: unknown) => {
+            console.warn('[jelly-jumper] audio unavailable on this runtime; continuing silent:', err);
+            sound.play = () => Promise.resolve(true);
+            return sound.data;
+        })) as ex.Sound['load'];
+    return sound;
+}
+
 export const loader: ex.Loader = new DevLoader();
 for (const group of Object.values(Resources)) {
     for (const resource of Object.values(group)) {
-        loader.addResource(resource as ex.Loadable<unknown>);
+        const loadable = resource as ex.Loadable<unknown>;
+        loader.addResource(loadable instanceof ex.Sound ? tolerateAudioFailure(loadable) : loadable);
     }
 }
