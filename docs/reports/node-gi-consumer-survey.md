@@ -114,6 +114,15 @@ Conformance program `async-gio-await` (top-level awaits on a GLib timeout, an id
 ### P6 — GStreamer / display-bound
 `webaudio` (GStreamer AudioContext; bespoke `test.mts` with no `run()` summary), `webrtc` (also needs its Vala bridge, P5). Need GStreamer typelibs; low priority.
 
+> The **GL/display gate itself is PROVEN on node-gi**: a `Gtk.GLArea` realizes with a live, CURRENT
+> OpenGL ES 3.2 context under headless software GL (Xvfb/X11 + mesa llvmpipe, `GSK_RENDERER=cairo`
+> + `LIBGL_ALWAYS_SOFTWARE=1`), the `gwebgl` Vala bridge draws + reads pixels back through it, and
+> the FULL `@gjsify/webgl` `WebGLBridge` (TS `WebGLRenderingContext`) clears + reads back through
+> the same stack — all byte-identical to `gjs -m`. See
+> `packages/node-gi/node-gi/test/webgl-glarea.test.mjs` + the node-gi README
+> `### WebGL / Gtk.GLArea`. The remaining WebGL-on-node work is breadth
+> (shader/buffer/texture — a three.js consumer), not the GL context.
+
 ### P7 — Constructor / registerClass
 `worker_threads`: `MessagePort … Constructor cannot be called`. A node-gi native-constructor gap for the `MessagePort`/`MessageChannel` classes (compounded by P1 for the async message delivery).
 

@@ -10,3 +10,4 @@ conformance/dist/
 .gi-tests/
 .tmp-c2d-*/
 .tmp-eb-*/
+.tmp-webgl-*/
