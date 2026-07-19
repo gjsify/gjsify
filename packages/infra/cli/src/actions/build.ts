@@ -263,7 +263,13 @@ export class BuildAction {
         const registerPaths = resolveGlobalsList(globals);
         if (registerPaths.size === 0) return undefined;
 
-        const injectPath = await writeRegisterInjectFile(registerPaths, process.cwd());
+        // On `--app node` (the reverse bridge) the injected register bodies must
+        // OVERRIDE the runtime-native web globals gjsify owns (the `fetch`
+        // family — undici rejects the root-relative `/res/...` asset paths a GJS
+        // app uses). See writeRegisterInjectFile / REVERSE_BRIDGE_NATIVE_OVERRIDE_IDENTS.
+        const injectPath = await writeRegisterInjectFile(registerPaths, process.cwd(), {
+            reverseBridgeOverride: app === 'node',
+        });
         if (verbose && injectPath) {
             console.debug(
                 `[gjsify] globals: injected ${registerPaths.size} register module(s) from --globals ${globals}`,

@@ -217,6 +217,35 @@ export const GJS_GLOBALS_MAP = {
 };
 
 /**
+ * Reverse-bridge native-override identifiers.
+ *
+ * On a `--app node` reverse-bridge build (a genuine GJS app run on Node via
+ * `@gjsify/node-gi`, EXPLICIT `--globals` requested), the register bodies for
+ * these identifiers MUST win over the runtime-native globals the host ships —
+ * unlike the default existence-guard (`if (typeof globalThis.X === 'undefined')`),
+ * which is correct for a cross-platform package loaded on plain Node but wrong
+ * here, where the app expects GJS Web-API semantics.
+ *
+ * Only `fetch` and its constructors qualify today: Node/Bun/Deno ship a native
+ * global `fetch` (undici) that rejects the root-relative `/res/...` asset paths a
+ * browser/GJS app uses, while `@gjsify/fetch` rewrites them to `file://` against
+ * the program directory and drives Soup. Every OTHER Web/DOM global gjsify
+ * injects (`XMLHttpRequest`, `document`, `Image`, `AudioContext`, the event
+ * classes, …) is ABSENT on the host, so its guard already installs gjsify's
+ * version — no override needed. `WebAssembly`/`URL`/`crypto`/streams are host
+ * globals whose gjsify register deliberately DEFERS to the working native, so
+ * they must NOT be listed here.
+ *
+ * Consumed by the `--app node` register-inject machinery
+ * (`writeRegisterInjectFile`): the natives are cleared just before the injected
+ * register bodies run, but ONLY for identifiers whose register is actually
+ * injected (so no host global is deleted without a gjsify replacement).
+ */
+export const REVERSE_BRIDGE_NATIVE_OVERRIDE_IDENTS = [
+    'fetch', 'Headers', 'Request', 'Response',
+];
+
+/**
  * Register subpaths whose module imports a GObject-Introspection typelib
  * (`gi://…`) at load time, keyed by register-path PREFIX → the GI namespaces
  * they pull. `--globals auto` injecting one of these makes the resulting

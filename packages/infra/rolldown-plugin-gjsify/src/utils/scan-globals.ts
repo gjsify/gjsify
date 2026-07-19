@@ -16,11 +16,12 @@ import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
-import { GJS_GLOBALS_MAP, GJS_GLOBALS_GROUPS } from '@gjsify/resolve-npm/globals-map';
+import { GJS_GLOBALS_MAP, GJS_GLOBALS_GROUPS, REVERSE_BRIDGE_NATIVE_OVERRIDE_IDENTS } from '@gjsify/resolve-npm/globals-map';
 import { ALIASES_WEB_FOR_GJS } from '@gjsify/resolve-npm';
 
 const GLOBALS_MAP: Record<string, string> = GJS_GLOBALS_MAP;
 const GLOBALS_GROUPS: Record<string, string[]> = GJS_GLOBALS_GROUPS;
+const NATIVE_OVERRIDE_IDENTS: string[] = REVERSE_BRIDGE_NATIVE_OVERRIDE_IDENTS;
 
 /**
  * Resolve a `--globals` CLI argument into the set of `/register` subpaths
@@ -172,6 +173,35 @@ export function filterResolvableRegisterPaths(
     return out;
 }
 
+/** Options for {@link writeRegisterInjectFile}. */
+export interface WriteRegisterInjectOptions {
+    /**
+     * Reverse-bridge (`--app node`) force-override: before the injected register
+     * bodies run, clear the runtime-native web globals gjsify must OWN on the
+     * reverse bridge (the `REVERSE_BRIDGE_NATIVE_OVERRIDE_IDENTS` set — today the
+     * `fetch` family). A native is cleared ONLY when its register is actually in
+     * `registerPaths`, so no host global is deleted without a gjsify replacement.
+     * No-op (and byte-unchanged output) for the GJS target or when none of the
+     * override identifiers are injected.
+     */
+    reverseBridgeOverride?: boolean;
+}
+
+/**
+ * Identifiers whose native global must be cleared before the injected registers
+ * run, given the set of register paths being injected. Only identifiers whose
+ * register is actually present are returned — clearing a native without a
+ * gjsify replacement in the same build would leave a hole.
+ */
+function nativeOverrideIdentsFor(registerPaths: Set<string>): string[] {
+    const out: string[] = [];
+    for (const id of NATIVE_OVERRIDE_IDENTS) {
+        const registerPath = GLOBALS_MAP[id];
+        if (registerPath && registerPaths.has(registerPath)) out.push(id);
+    }
+    return out;
+}
+
 /**
  * Write a stub ESM file with `import` statements for the given register
  * paths and return its absolute path, suitable for passing to esbuild's
@@ -182,19 +212,44 @@ export function filterResolvableRegisterPaths(
  *
  * The file name is hashed by content so repeated builds with the same
  * set reuse the same file (no churn, idempotent on disk).
+ *
+ * On the reverse bridge (`options.reverseBridgeOverride`, `--app node`) the stub
+ * is prefixed with a side-effect import of a generated clear-natives module —
+ * imported FIRST so, by ESM depth-first source-order evaluation, the native
+ * `fetch`/`Headers`/`Request`/`Response` are deleted BEFORE the register bodies
+ * run and reinstall gjsify's versions over them. Kept in a separate module
+ * (not a leading statement) because ESM hoists the register `import`s above any
+ * statement in the same module.
  */
 export async function writeRegisterInjectFile(
     registerPaths: Set<string>,
     cwd: string = process.cwd(),
+    options: WriteRegisterInjectOptions = {},
 ): Promise<string | null> {
     if (registerPaths.size === 0) return null;
 
-    const sorted = [...registerPaths].sort();
-    const content = sorted.map((p) => `import '${p}';`).join('\n') + '\n';
-    const hash = createHash('sha1').update(content).digest('hex').slice(0, 10);
-
     const cacheDir = join(cwd, 'node_modules', '.cache', 'gjsify');
     await mkdir(cacheDir, { recursive: true });
+
+    const sorted = [...registerPaths].sort();
+    const lines: string[] = [];
+
+    const overrideIdents = options.reverseBridgeOverride ? nativeOverrideIdentsFor(registerPaths) : [];
+    if (overrideIdents.length > 0) {
+        const list = JSON.stringify(overrideIdents.sort());
+        const clearContent =
+            '// gjsify --app node reverse-bridge: clear runtime-native web globals so the\n' +
+            '// injected @gjsify/* register bodies install their GJS-semantics versions.\n' +
+            `for (const __k of ${list}) { try { delete globalThis[__k]; } catch {} }\n`;
+        const clearHash = createHash('sha1').update(clearContent).digest('hex').slice(0, 10);
+        const clearName = `auto-globals-override-${clearHash}.mjs`;
+        await writeFile(join(cacheDir, clearName), clearContent, 'utf-8');
+        lines.push(`import './${clearName}';`);
+    }
+
+    for (const p of sorted) lines.push(`import '${p}';`);
+    const content = lines.join('\n') + '\n';
+    const hash = createHash('sha1').update(content).digest('hex').slice(0, 10);
 
     const path = join(cacheDir, `auto-globals-${hash}.mjs`);
     await writeFile(path, content, 'utf-8');
