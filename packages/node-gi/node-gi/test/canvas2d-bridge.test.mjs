@@ -17,16 +17,28 @@
 // `--app node` bundle runs + exits 0 and prints the fixed committed GOLDEN — the
 // pixels are read off the canvas via Cairo (display-independent), so the golden is
 // stable, the same committed-golden conformance pattern node-gi uses elsewhere. A
-// LOCAL/dev gate additionally re-proves the golden IS gjs's own byte-output by
-// building + running `--app gjs` (skipped in CI via NODE_GI_C2D_SKIP_GJS — see the
-// haveGjs note); this is the `cairo-canvas2d.test.mjs` / `example-gtk` gold-standard
-// parity, kept local because building --app gjs needs the register-inline bundler.
+// gjs gold-standard gate additionally re-proves the golden IS gjs's own byte-output
+// by building + running `--app gjs` (default on; set NODE_GI_C2D_SKIP_GJS=1 for a
+// node-only run — see the haveGjs note); this is the `cairo-canvas2d.test.mjs` /
+// `example-gtk` gold-standard parity.
 //
-// SELF-SKIPS when there is no display (the fast headless `npm test` leg), when the
-// `gjsify` CLI is absent, or when `@gjsify/canvas2d` is not resolvable (a bare
-// node-gi tree with no built workspace). The dedicated `canvas2d-bridge` CI job
-// sets all three up (workspace built under Node + xvfb + dbus + the GTK/Cairo
-// stack) and runs it for real. GTK needs the software-render env under Xvfb.
+// This is a LOCAL/dev verification, NOT wired into CI. Running the LIVE bridge needs
+// the full gjsify workspace built with a CURRENT-source `@gjsify/cli` (bare `cairo`
+// → @gjsify/node-gi/cairo per #756/#761 + register-inline for --app gjs, both of
+// which the published CLI predates) + a display + the node-gi addon — a heavyweight
+// from-scratch rebuild too fragile to gate a minimal CI container on. The node-gi
+// Canvas2DBridge behaviour is already proven by the byte-parity below (run locally),
+// captured in the committed GOLDEN. It SELF-SKIPS in the default `npm test` (no
+// display), when `gjsify` is absent, or when `@gjsify/canvas2d` is not resolvable,
+// so it is harmless in every CI leg that discovers it.
+//
+// RUN LOCALLY (from a built workspace, under a display):
+//   gjsify workspace @gjsify/canvas2d build:gjsify --with-dependencies
+//   NODE_GI_NATIVE=build node --test packages/node-gi/node-gi/test/canvas2d-bridge.test.mjs
+// Under Xvfb: prefix with `xvfb-run -a dbus-run-session -- env GSK_RENDERER=cairo
+// GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none`. Point GJSIFY_BIN at a
+// current-source CLI (`…/packages/infra/cli/lib/index.js`) if `gjsify` on PATH is
+// older than #756. GTK needs the software-render env.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -86,15 +98,13 @@ const skip = !haveDisplay
             : false;
 
 // The gjs gold-standard leg re-proves the committed GOLDEN below IS exactly gjs's
-// own byte-output — but it is a LOCAL/dev gate. In CI (the `canvas2d-bridge` job)
-// it is switched OFF via NODE_GI_C2D_SKIP_GJS=1: the node-gi assertion vs the
-// committed golden is the authoritative check (the pixels are read off the canvas
-// via Cairo → display-independent, so the golden is stable and needs no in-CI
-// `gjs -m` rebuild). Building --app gjs correctly requires the register-subpath-
-// inline bundler (AGENTS.md: `@gjsify/<pkg>/register` MUST NOT be externalized for
-// --app gjs — GJS's ESM loader can't resolve it); the published @gjsify/cli the CI
-// workspace setup repoints to predates that carve-out, so keeping the gjs leg local
-// sidesteps a CLI-config seam that has nothing to do with node-gi behaviour.
+// own byte-output. It is ON by default (a local run); set NODE_GI_C2D_SKIP_GJS=1 for
+// a node-gi-only run (the node-gi assertion vs the committed golden stays the
+// authoritative check — the pixels are read off the canvas via Cairo →
+// display-independent, so the golden is stable without a `gjs -m` rebuild). Building
+// --app gjs correctly requires the register-subpath-inline bundler (AGENTS.md:
+// `@gjsify/<pkg>/register` MUST NOT be externalized for --app gjs — GJS's ESM loader
+// can't resolve it), so run it with a current-source `gjsify` (see the header).
 const haveGjs = !process.env.NODE_GI_C2D_SKIP_GJS
     && spawnSync('gjs', ['--version'], { stdio: 'ignore' }).status === 0;
 
