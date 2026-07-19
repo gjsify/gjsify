@@ -23,7 +23,7 @@
 // location, so the bundle works regardless of where gvsbuild's tree is extracted
 // (its .pc files bake an absolute build-machine prefix otherwise).
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const PKGS = ['girepository-2.0', 'cairo'];
@@ -45,25 +45,84 @@ function stripQuotes(s) {
     return s.replace(/^"(.*)"$/, '$1');
 }
 
+// Shallow BFS for a header under `root` (bounded depth so we never walk the whole
+// ~300 MB GTK tree). Returns the CONTAINING directory, or null.
+function findHeaderDir(root, filename, maxDepth = 4) {
+    const queue = [[root, 0]];
+    while (queue.length) {
+        const [dir, depth] = queue.shift();
+        let entries;
+        try {
+            entries = readdirSync(dir, { withFileTypes: true });
+        } catch {
+            continue;
+        }
+        for (const e of entries) {
+            if (e.isFile() && e.name === filename) return dir;
+        }
+        if (depth < maxDepth) {
+            for (const e of entries) {
+                if (e.isDirectory()) queue.push([join(dir, e.name), depth + 1]);
+            }
+        }
+    }
+    return null;
+}
+
 if (mode === '--includes') {
-    const dirs = tokens(pkgConfigOut(['--cflags-only-I']))
+    // `--static` pulls the Requires.private include dirs too — girepository-2.0.pc
+    // has `Requires.private: … libffi`, and girffi.h does `#include <ffi.h>`; the
+    // non-static --cflags omits libffi's include dir, so the addon fails to compile
+    // (C1083: Cannot open include file 'ffi.h').
+    const dirs = tokens(pkgConfigOut(['--static', '--cflags-only-I']))
         .filter((t) => t.startsWith('-I'))
         .map((t) => stripQuotes(t.slice(2)));
-    process.stdout.write([...new Set(dirs)].join('\n'));
-} else if (mode === '--libs') {
-    const out = pkgConfigOut(['--static', '--libs']);
-    const libDirs = [];
-    const libNames = [];
-    for (const t of tokens(out)) {
-        if (t.startsWith('-L')) libDirs.push(stripQuotes(t.slice(2)));
-        else if (t.startsWith('-l')) libNames.push(t.slice(2));
-        else if (t.toLowerCase().endsWith('.lib')) libNames.push(t.replace(/\.lib$/i, ''));
+    // Belt-and-suspenders: gvsbuild installs libffi's ffi.h into the bare include
+    // root (which MSVC does not auto-search). Add GTK_PREFIX/include, and if ffi.h
+    // still isn't covered, locate it under the tree and add its dir.
+    const prefix = process.env.GTK_PREFIX;
+    if (prefix) {
+        dirs.push(join(prefix, 'include'));
+        if (!dirs.some((d) => existsSync(join(d, 'ffi.h')))) {
+            const ffiDir =
+                findHeaderDir(join(prefix, 'include'), 'ffi.h') ??
+                findHeaderDir(join(prefix, 'lib'), 'ffi.h');
+            if (ffiDir) dirs.push(ffiDir);
+        }
     }
-    const searchDirs = [...new Set(libDirs)];
+    process.stdout.write([...new Set(dirs.filter((d) => existsSync(d)))].join('\n'));
+} else if (mode === '--libs') {
+    // A SHARED addon links each GTK/GLib DLL through its DIRECT import lib and lets
+    // that DLL resolve its own private deps at load — so link only the import libs
+    // whose symbols the addon's own object files reference, NOT pkg-config's
+    // `--static` transitive closure (which over-pulls cairo's/glib's private static
+    // deps — libpng/freetype/harfbuzz/pcre2/`-lz`→zlib.lib — whose `-l`→`.lib` names
+    // don't all map on gvsbuild, breaking the link). This DIRECT set is known + stable:
+    //   girepository-2.0  the gi_* engine
+    //   glib/gobject/gio/gmodule-2.0  g_*/GObject/GValue/GSignal/GClosure/Gio
+    //   ffi  ffi_call / ffi_closure_alloc (girffi + the vfunc/callback trampolines)
+    //   cairo  the native cairo foreign-struct binding (src/cairo.cc)
+    // Pango/GdkPixbuf/Graphene are NOT linked — the conformance programs load their
+    // typelibs at RUNTIME (girepository dlopens the DLL by soname), not at link time.
+    const DIRECT_LIBS = [
+        'girepository-2.0',
+        'gio-2.0',
+        'gobject-2.0',
+        'gmodule-2.0',
+        'glib-2.0',
+        'ffi',
+        'cairo',
+    ];
+    // Locate the import-lib dir: GTK_PREFIX/lib, else pkg-config's -L.
+    const searchDirs = [];
+    if (process.env.GTK_PREFIX) searchDirs.push(join(process.env.GTK_PREFIX, 'lib'));
+    for (const t of tokens(pkgConfigOut(['--libs-only-L']))) {
+        if (t.startsWith('-L')) searchDirs.push(stripQuotes(t.slice(2)));
+    }
     const resolved = [];
-    for (const name of libNames) {
+    for (const name of [...new Set(DIRECT_LIBS)]) {
         let found = null;
-        for (const dir of searchDirs) {
+        for (const dir of [...new Set(searchDirs)]) {
             for (const cand of [`${name}.lib`, `lib${name}.lib`]) {
                 const p = join(dir, cand);
                 if (existsSync(p)) {
@@ -73,9 +132,12 @@ if (mode === '--includes') {
             }
             if (found) break;
         }
-        // Fall back to the bare `<name>.lib`: a system import lib (ws2_32.lib, …)
-        // lives on the linker's default search path, not in the gvsbuild tree.
-        resolved.push(found ?? `${name}.lib`);
+        if (found) resolved.push(found);
+        else if (name !== 'gmodule-2.0') {
+            // gmodule is optional (girepository may pull it internally); everything
+            // else is required — surface a missing import lib loudly.
+            throw new Error(`win-gi-gyp-flags: import lib for '${name}' not found under ${searchDirs.join(', ')}`);
+        }
     }
     process.stdout.write([...new Set(resolved)].join('\n'));
 } else {
