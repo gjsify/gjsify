@@ -115,3 +115,14 @@ test('INOUT byte-array container is handled, not deferred: GLib.base64_decode_in
     () => callFunction('GLib', 'base64_decode_inplace', [Uint8Array.from([97, 71, 107, 61])]),
   );
 });
+
+test('null marshals as a NULL array argument (GJS parity)', () => {
+  // gjs 1.88: GLib.environ_getenv(null, 'PATH') === null — a null JS value
+  // where a (nullable) array argument is expected marshals as a NULL array
+  // (refs/gjs/gi/arg.cpp gjs_array_to_explicit_array). The exposing call was
+  // `Gst.init(null)`, the nullable inout argv every GStreamer consumer passes
+  // null for (`@gjsify/webaudio`'s ensureGstInit on the jelly-jumper-on-node
+  // path) — node-gi used to throw "expected an array for the array argument".
+  requireNamespace('GLib', '2.0');
+  assert.equal(callFunction('GLib', 'environ_getenv', [null, 'PATH']), null);
+});

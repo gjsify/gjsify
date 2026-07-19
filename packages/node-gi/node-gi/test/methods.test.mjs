@@ -55,3 +55,31 @@ test('error: no such method', () => {
 test('error: non-handle argument', () => {
   assert.throws(() => callMethod({}, 'is_cancelled'), /expected a node-gi GObject handle/);
 });
+
+test('hasMethod: feature detection matches callMethod resolution', async () => {
+  const { hasMethod } = await import('../index.js');
+  const action = newObject('Gio', 'SimpleAction', { name: 'probe', enabled: true });
+  assert.equal(hasMethod(action, 'get_name'), true); // interface method (GAction)
+  assert.equal(hasMethod(action, 'set_enabled'), true); // own method
+  assert.equal(hasMethod(action, 'getName'), true); // camelCase → snake alias
+  assert.equal(hasMethod(action, 'ref'), true); // parent chain (GObject)
+  assert.equal(hasMethod(action, 'no_such_method'), false);
+  assert.equal(hasMethod(action, 'clearBufferfv'), false);
+});
+
+test('L1 wrapper: unknown member is undefined (GJS parity feature detection)', async () => {
+  // Real consumers feature-detect optional native methods
+  // (`typeof gl.clearBufferfv === 'function'` gates @gjsify/webgl's clearBuffer
+  // emulation — Excalibur's RenderTarget.blitToScreen exposed this on node-gi).
+  // A merely-unknown name must be `undefined` like under gjs, NOT a
+  // throw-on-call thunk that makes the typeof check lie.
+  const { requireGi } = await import('../gi.js');
+  const Gio = requireGi('Gio', '2.0');
+  const action = new Gio.SimpleAction({ name: 'probe', enabled: true });
+  assert.equal(typeof action.get_name, 'function');
+  assert.equal(typeof action.getName, 'function'); // camelCase alias still callable
+  assert.equal(action.get_name(), 'probe');
+  assert.equal(action.clearBufferfv, undefined);
+  assert.equal(action.no_such_method, undefined);
+  assert.equal(typeof action.no_such_method, 'undefined');
+});

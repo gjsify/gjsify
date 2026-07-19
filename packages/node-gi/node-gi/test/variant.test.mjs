@@ -82,6 +82,22 @@ test('L1: "ay" → bytes (Uint8Array)', () => {
   assert.deepEqual(Array.from(bytes), [1, 2, 250, 255]);
 });
 
+test('L1: "ay" packs null/undefined as the EMPTY byte array (GJS parity)', () => {
+  // GJS routes 'ay' through `new GLib.Bytes(value)` — GLib.Bytes(null) is
+  // g_bytes_new(NULL, 0), so `new GLib.Variant('ay', null)` prints `@ay []`.
+  // Regression: `@gjsify/webgl` passes Uint8ArrayToVariant(null) for WebGL
+  // calls that allocate without data (Excalibur's texImage2D(..., null)
+  // blank-texture allocation at renderer init).
+  for (const empty of [null, undefined]) {
+    const v = new GLib.Variant('ay', empty);
+    assert.equal(v.get_type_string(), 'ay');
+    assert.equal(v.n_children(), 0);
+    const bytes = v.deepUnpack();
+    assert.ok(bytes instanceof Uint8Array);
+    assert.equal(bytes.length, 0);
+  }
+});
+
 test('L1: "(si)" tuple → array', () => {
   const v = new GLib.Variant('(si)', ['answer', 42]);
   assert.deepEqual(v.deepUnpack(), ['answer', 42]);

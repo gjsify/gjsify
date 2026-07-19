@@ -93,6 +93,14 @@ export function callFunction(namespace: string, functionName: string, args?: unk
 export function callMethod(handle: GObjectHandle, methodName: string, args?: unknown[]): unknown;
 
 /**
+ * `true` iff {@link callMethod} would resolve an invocable instance method for
+ * `methodName` (literal introspected name or snake_case alias, walking the same
+ * own/interface/parent chain). Feature detection — never throws for a merely
+ * unknown name; a non-introspectable instance reports `false`.
+ */
+export function hasMethod(handle: GObjectHandle, methodName: string): boolean;
+
+/**
  * Invoke a type-level constructor/static function (e.g. `Gio.File.new_for_path`,
  * `Gtk.Label.new`) — a function found on a type but taking no instance. The Node
  * twin of `Ns.Class.method(...)`. OUT/INOUT params follow {@link callFunction}'s
@@ -493,6 +501,7 @@ declare const native: {
   prependSearchPath: typeof prependSearchPath;
   callFunction: typeof callFunction;
   callMethod: typeof callMethod;
+  hasMethod: typeof hasMethod;
   callStaticMethod: typeof callStaticMethod;
   newObject: typeof newObject;
   registerClass: typeof registerClass;

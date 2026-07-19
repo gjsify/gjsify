@@ -167,6 +167,18 @@ export const callFunction = native.callFunction;
 export const callMethod = native.callMethod;
 
 /**
+ * `true` iff {@link callMethod} would resolve an invocable instance method for
+ * `methodName` (literal introspected name or snake_case alias, walking the same
+ * own/interface/parent chain). Feature detection — never throws for a merely
+ * unknown name; a non-introspectable instance reports `false`. Backs the L1
+ * wrapper's GJS-parity property access (`obj.nonexistentMethod === undefined`).
+ * @param {unknown} handle a handle from {@link newObject}
+ * @param {string} methodName GI method name, e.g. "get_name"
+ * @returns {boolean}
+ */
+export const hasMethod = native.hasMethod;
+
+/**
  * Invoke a type-level constructor/static function (e.g. `Gio.File.new_for_path`,
  * `Gtk.Label.new`) — a function found on a type but taking no instance. The Node
  * twin of `Ns.Class.method(...)`.

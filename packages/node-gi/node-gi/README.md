@@ -839,3 +839,84 @@ gaps this spike fixed on the way (headless regression coverage in
 boxed) and literal-first method-name resolution (Vala GIRs carry camelCase
 names — Gwebgl's `getString` — which the unconditional camelCase→snake_case
 alias destroyed; the engine now resolves the literal name first, alias second).
+
+### Excalibur.js renders through WebGL on node-gi (the GTK-bridge capstone)
+
+**Definitive: a REAL WebGL game engine — Excalibur 0.32, the engine behind the
+`excalibur-jelly-jumper` showcase and the PixelRPG map-editor — boots, runs its
+clock, and renders frames through `@gjsify/webgl`'s `WebGLBridge` UNCHANGED
+under node-gi** (`test/excalibur-webgl.test.mjs` + the ONE dual-runtime source
+`fixtures/excalibur-webgl-app.ts`). `new ex.Engine({ canvasElement })` builds
+against the bridge's `HTMLCanvasElement` (WebGL2 context), `engine.start()`
+resolves, the engine's real render pipeline runs (shader compile/link,
+`bufferData`, VAOs, `vertexAttribPointer`, `drawArrays`/`drawElements`,
+`clearBufferfv` at `RenderTarget.blitToScreen`) for 5 frames, and the committed
+golden asserts the pixels read back off the GL framebuffer — the screen-centered
+blue Actor and the red engine clear color — **byte-identical between `gjs -m`
+and `node`**. The DOM surface (document/HTMLCanvasElement/ResizeObserver/
+matchMedia/XHR) comes from the SAME `@gjsify/*` registers the gjs build injects,
+via the `--app node` explicit-`--globals` reverse-bridge injection.
+
+Excalibur's real GL + engine usage exposed four core gaps, all fixed at the
+engine (each with regression coverage):
+
+- **`GVariant 'ay'` rejects `null`** (`src/variant.cc`) — GJS packs
+  `new GLib.Variant('ay', null)` as the EMPTY byte array (`GLib.Bytes(null)`);
+  node-gi threw. Exposing call: Excalibur's `texImage2D(..., null)`
+  blank-texture allocation at renderer init (`Uint8ArrayToVariant(null)`).
+- **Unknown members must be `undefined`, not a throw-on-call thunk**
+  (`src/calls.cc` `hasMethod` + the L1 wrapper `get`) — real consumers
+  feature-detect optional native methods (`typeof gl.clearBufferfv ===
+  'function'` gates `@gjsify/webgl`'s clearBuffer emulation, hit at
+  `blitToScreen`); the old always-a-function proxy made that detection lie,
+  then threw mid-frame. `hasMethod(handle, name)` resolves through the SAME
+  literal-first/snake-alias walk `callMethod` uses.
+- **Signal dispatch now runs the microtask checkpoint at its boundary**
+  (`src/signals.cc`, `napi_make_callback`) — GJS drains the promise-job queue
+  when the outermost JS frame exits; promise chains resolved inside a
+  loop-dispatched signal handler (Excalibur's whole `engine.start()` boot,
+  queued from the GLArea `render`/`onReady` dispatch) previously lingered
+  until the libuv↔GLib bridge's prepare-phase drain.
+- **The uv co-pump source must not outrank GTK painting** (`src/loop.cc`) —
+  at the default `G_PRIORITY_DEFAULT` a busy Node loop STARVED
+  `GDK_PRIORITY_REDRAW`: Excalibur's `requestIdleCallback` polyfill (a
+  self-re-arming 1 ms `setTimeout`, run perpetually by its GarbageCollector)
+  kept the UvLoopSource ready on every GLib iteration, so ticks/renders/rAF
+  froze while plain GLib timeouts kept firing. The source now sits below
+  redraw (`G_PRIORITY_HIGH_IDLE + 30`): rendering outranks Node timers,
+  browser-like, and Node I/O still runs in every frame gap.
+
+Run it (a LOCAL/dev verification like the other display suites — self-skips
+without a display / CLI / prebuild / built workspace):
+
+```sh
+export GJSIFY_BIN="$(git rev-parse --show-toplevel)/packages/infra/cli/lib/index.js"
+xvfb-run -a dbus-run-session -- \
+  env -u FORCE_COLOR GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 \
+      GTK_A11Y=none NODE_GI_NATIVE=build GJSIFY_BIN="$GJSIFY_BIN" \
+  node --test test/excalibur-webgl.test.mjs
+# Drop NODE_GI_EXCALIBUR_SKIP_GJS to additionally re-prove the golden IS gjs's
+# own byte-output (builds + runs --app gjs).
+```
+
+The FULL `excalibur-jelly-jumper` showcase builds `--app node`
+(`gjsify run build:node`; `gjsify.example.runtimes` includes `node`) and gets
+remarkably far on node-gi: the GTK window presents, the devtools control plane
+exports over DBus, `Gst.init` runs and every `ex.Sound` constructs its
+Gst-backed `AudioContext` (this exposed + fixed the nullable-array `null`
+marshalling — `Gst.init(null)`), and Excalibur boots into resource loading.
+The remaining blocker is POLYFILL ROUTING, not marshalling: on Node the
+GLOBAL `fetch` is the native undici one (the register convention never
+overrides an existing native), and `@excaliburjs/plugin-tiled`'s fileLoader
+feeds it the root-relative `/res/…` paths that only OUR GJS fetch/XHR resolve
+against the program dir — undici rejects them (`Failed to parse URL`), the
+Tiled map never loads, and scene init fails. Making the reverse bridge route
+`fetch` (and friends) to the `@gjsify/*` polyfills over the runtime natives is
+the follow-up that unlocks the full game. (`jsdom` — plugin-tiled's node-side
+DOMParser fallback — is aliased to `@gjsify/empty` in `build:node`, mirroring
+the plugin's own `"browser": { "jsdom": false }`.)
+
+Scoped out of the capstone fixture itself (deliberately): the Gst audio
+DECODE/playback path (`decodeAudioData`, `autoaudiosink`) — construction is
+proven by the showcase run above, the streaming pipeline is its own follow-up
+surface.

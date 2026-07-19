@@ -19,11 +19,13 @@
         "start:browser": "http-server dist",
         "build": "gjsify run build:gjs && gjsify run build:browser && gjsify run build:assets",
         "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js --globals auto,dom",
+        "build:node": "gjsify build src/gjs/gjs.ts --app node --outfile dist/gjs.node.mjs --globals auto,dom,XMLHttpRequest,DOMParser,Audio,AudioContext,webkitAudioContext,GamepadEvent --alias jsdom=@gjsify/empty",
         "build:browser": "gjsify build src/browser/browser-main.ts --app browser --outfile dist/browser.js",
         "build:assets": "cp -rf src/assets dist/res && cp -f src/browser/index.html dist/index.html"
     },
     "devDependencies": {
         "@excaliburjs/plugin-tiled": "0.32.0",
+        "@gjsify/node-gi": "file:../../../packages/node-gi/node-gi",
         "@girs/adw-1": "^4.1.0",
         "@girs/gio-2.0": "^4.1.0",
         "@girs/gjs": "^4.1.0",
@@ -56,6 +58,13 @@
     },
     "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/excalibur-jelly-jumper#readme",
     "gjsify": {
-        "tier": 2
+        "tier": 2,
+        "example": {
+            "runtimes": [
+                "gjs",
+                "node"
+            ],
+            "node": "dist/gjs.node.mjs"
+        }
     }
 }

@@ -29,6 +29,7 @@ import htmlEntrySuite from './utils/html-entry.spec.js';
 // public API.
 import autoGlobalsSuite from './auto-globals.spec.js';
 import nodeGiExternalsSuite from './node-gi-externals.spec.js';
+import nodeReverseRegistersSuite from './node-reverse-registers.spec.js';
 import externalsPluginSuite from './externals-plugin.spec.js';
 import affectedClassifierSuite from './affected-classifier.spec.js';
 import runStdioSafeSuite from './run-stdio-safe.spec.js';
@@ -64,6 +65,7 @@ run({
     htmlEntrySuite,
     autoGlobalsSuite,
     nodeGiExternalsSuite,
+    nodeReverseRegistersSuite,
     externalsPluginSuite,
     affectedClassifierSuite,
     runStdioSafeSuite,

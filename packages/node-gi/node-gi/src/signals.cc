@@ -99,7 +99,36 @@ static void JsClosureMarshalImpl(GClosure* closure, GValue* return_value, guint 
   }
 
   napi_value result = nullptr;
-  napi_status st = napi_call_function(jc->env, env.Undefined(), cbv, args.size(), args.data(), &result);
+  napi_status st;
+  if (g_syncEmitDepth > 0) {
+    // Synchronous JS emit() — JS frames sit below, so the microtask checkpoint
+    // is skipped at this depth ANYWAY (make_callback nesting semantics), and
+    // plain napi_call_function is therefore checkpoint-equivalent here. It is
+    // also load-bearing for cross-runtime parity: Bun's napi_make_callback
+    // SWALLOWS a synchronous handler throw (returns napi_ok with nothing
+    // pending), which silently broke the "a handler exception propagates out
+    // of emit()" contract on Bun (conformance-subset signal tests, PR #766 CI)
+    // while Node kept propagating. call_function leaves the pending exception
+    // on the env on all three runtimes, so the JS emit() caller rethrows it.
+    st = napi_call_function(jc->env, env.Undefined(), cbv, args.size(), args.data(), &result);
+  } else {
+    // Loop-dispatched (no JS emit() caller below): napi_make_callback runs the
+    // nextTick + microtask checkpoint at the callback boundary — the same
+    // contract the GI-callback (calls.cc) and vfunc (class.cc) trampolines
+    // already follow, and GJS semantics exactly (SpiderMonkey drains the
+    // promise-job queue when the last JS frame exits). Without it, promise
+    // continuations resolved by a loop-dispatched signal handler linger until
+    // the libuv↔GLib bridge's prepare-phase drain — and running GTK-touching
+    // JS from a GSource PREPARE phase mid-iteration breaks the GDK frame clock
+    // (the Excalibur-on-node-gi stall: `engine.start()`'s load chain, queued
+    // inside the GLArea 'render' dispatch, ran from prepare and froze all
+    // further ticks/renders). Receiver: `global`, matching the other
+    // trampolines (make_callback requires an object receiver; handler `this`
+    // is not part of the signal contract).
+    napi_value global = nullptr;
+    napi_get_global(jc->env, &global);
+    st = napi_make_callback(jc->env, nullptr, global, cbv, args.size(), args.data(), &result);
+  }
   if (st != napi_ok) {
     // The handler threw. A synchronous emitSignal() (g_syncEmitDepth > 0) must
     // propagate it to the JS emit() caller (node-gi contract). At depth 0 there

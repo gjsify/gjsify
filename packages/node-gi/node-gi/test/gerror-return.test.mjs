@@ -57,6 +57,9 @@ test('instance methods resolve the literal name first, snake alias second', () =
   // camelCase ALIAS — misses the literal lookup, resolved via the engine's
   // snake_case fallback (the path that must keep working after literal-first).
   assert.equal(action.getName(), 'greet');
-  // A genuinely unknown name still throws the clear method-miss error.
-  assert.throws(() => action.noSuchMethodAtAll(), /no method/);
+  // A genuinely unknown name is `undefined` (GJS parity — feature detection
+  // like `typeof gl.clearBufferfv === 'function'` must not lie), so calling
+  // it throws the same TypeError gjs produces, not a node-gi method-miss.
+  assert.equal(action.noSuchMethodAtAll, undefined);
+  assert.throws(() => action.noSuchMethodAtAll(), /is not a function/);
 });

@@ -25,4 +25,8 @@ app.connect('activate', () => {
     win.present();
 });
 
-app.run([]);
+// runAsync (NOT the sync run()): defers the blocking loop to a macrotask so the
+// game's promise-driven boot (engine.start(), asset loading) drains WHILE the
+// loop runs — required on the node-gi reverse bridge (`gjsify run --runtime
+// node`) and the GJS-recommended lifecycle anyway (Gio.Application.runAsync).
+await app.runAsync([]);

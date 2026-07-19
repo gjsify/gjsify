@@ -1019,6 +1019,72 @@ static std::string CamelToSnake(const std::string& name) {
   return out;
 }
 
+// The instance's concrete GType may lack introspection info (e.g. a private
+// GLocalFile); walk up to the nearest ancestor GType that has an object info.
+// Returns a new ref or nullptr. Shared by CallMethod (invoke) and HasMethod
+// (feature detection) so both resolve identically.
+static GIObjectInfo* FindNearestObjectInfo(GIRepository* repo, GType gtype) {
+  for (GType t = gtype; t != 0; t = g_type_parent(t)) {
+    GIBaseInfo* bi = gi_repository_find_by_gtype(repo, t);
+    if (bi != nullptr) {
+      if (GI_IS_OBJECT_INFO(bi)) return reinterpret_cast<GIObjectInfo*>(bi);
+      gi_base_info_unref(bi);
+    }
+  }
+  return nullptr;
+}
+
+// Resolve one candidate name: own + implemented-interface methods at each
+// level, then the parent chain; then the live GType's interface list (the
+// concrete GType may implement introspectable interfaces its nearest
+// introspectable ANCESTOR's info does not list — e.g. a private GLocalFile
+// (no info; ancestor = GObject) implementing GFile, so g_file_get_path
+// resolves). Returns a new ref or nullptr.
+static GIFunctionInfo* ResolveMethodByName(GIRepository* repo, GType gtype, GIObjectInfo* objInfo,
+                                           const char* name) {
+  GIObjectInfo* walk =
+      reinterpret_cast<GIObjectInfo*>(gi_base_info_ref(reinterpret_cast<GIBaseInfo*>(objInfo)));
+  GIFunctionInfo* found = nullptr;
+  while (walk != nullptr) {
+    GIBaseInfo* declarer = nullptr;
+    found = gi_object_info_find_method_using_interfaces(walk, name, &declarer);
+    if (declarer != nullptr) gi_base_info_unref(declarer);
+    if (found != nullptr) break;
+    GIObjectInfo* parent = gi_object_info_get_parent(walk);
+    gi_base_info_unref(walk);
+    walk = parent;
+  }
+  if (walk != nullptr) gi_base_info_unref(walk);
+  if (found == nullptr) {
+    unsigned int n_ifaces = 0;
+    GType* ifaces = g_type_interfaces(gtype, &n_ifaces);
+    for (unsigned int i = 0; i < n_ifaces && found == nullptr; i++) {
+      GIBaseInfo* ii = gi_repository_find_by_gtype(repo, ifaces[i]);
+      if (ii != nullptr) {
+        if (GI_IS_INTERFACE_INFO(ii)) {
+          found = gi_interface_info_find_method(reinterpret_cast<GIInterfaceInfo*>(ii), name);
+        }
+        gi_base_info_unref(ii);
+      }
+    }
+    g_free(ifaces);
+  }
+  return found;
+}
+
+// Resolve `method` — LITERAL introspected name first (GJS fidelity: GIR names
+// are exposed verbatim, incl. Vala camelCase like Gwebgl's `getString`),
+// snake_case alias second. Returns a new ref or nullptr.
+static GIFunctionInfo* ResolveInstanceMethod(GIRepository* repo, GType gtype, GIObjectInfo* objInfo,
+                                             const std::string& method) {
+  GIFunctionInfo* func = ResolveMethodByName(repo, gtype, objInfo, method.c_str());
+  if (func == nullptr) {
+    const std::string snake = CamelToSnake(method);
+    if (snake != method) func = ResolveMethodByName(repo, gtype, objInfo, snake.c_str());
+  }
+  return func;
+}
+
 // callMethod(handle, methodName, args?: unknown[]) -> unknown
 // Resolve an instance method by walking the instance's GIObjectInfo (own +
 // implemented-interface methods at each level, then up the parent chain), then
@@ -1041,19 +1107,7 @@ Napi::Value CallMethod(const Napi::CallbackInfo& info) {
   GType gtype = G_OBJECT_TYPE(obj);
   GIRepository* repo = DupDefaultRepository();
 
-  // The instance's concrete GType may lack introspection info (e.g. a private
-  // GLocalFile); walk up to the nearest ancestor GType that has an object info.
-  GIObjectInfo* objInfo = nullptr;
-  for (GType t = gtype; t != 0; t = g_type_parent(t)) {
-    GIBaseInfo* bi = gi_repository_find_by_gtype(repo, t);
-    if (bi != nullptr) {
-      if (GI_IS_OBJECT_INFO(bi)) {
-        objInfo = reinterpret_cast<GIObjectInfo*>(bi);
-        break;
-      }
-      gi_base_info_unref(bi);
-    }
-  }
+  GIObjectInfo* objInfo = FindNearestObjectInfo(repo, gtype);
   if (objInfo == nullptr) {
     g_object_unref(repo);
     Napi::Error::New(env, std::string("no introspection info for ") + G_OBJECT_TYPE_NAME(obj))
@@ -1061,49 +1115,7 @@ Napi::Value CallMethod(const Napi::CallbackInfo& info) {
     return env.Null();
   }
 
-  // Resolve one candidate name: own + implemented-interface methods at each
-  // level, then the parent chain; then the live GType's interface list (the
-  // concrete GType may implement introspectable interfaces its nearest
-  // introspectable ANCESTOR's info does not list — e.g. a private GLocalFile
-  // (no info; ancestor = GObject) implementing GFile, so g_file_get_path
-  // resolves).
-  auto resolveMethod = [&](const char* name) -> GIFunctionInfo* {
-    GIObjectInfo* walk = reinterpret_cast<GIObjectInfo*>(
-        gi_base_info_ref(reinterpret_cast<GIBaseInfo*>(objInfo)));
-    GIFunctionInfo* found = nullptr;
-    while (walk != nullptr) {
-      GIBaseInfo* declarer = nullptr;
-      found = gi_object_info_find_method_using_interfaces(walk, name, &declarer);
-      if (declarer != nullptr) gi_base_info_unref(declarer);
-      if (found != nullptr) break;
-      GIObjectInfo* parent = gi_object_info_get_parent(walk);
-      gi_base_info_unref(walk);
-      walk = parent;
-    }
-    if (walk != nullptr) gi_base_info_unref(walk);
-    if (found == nullptr) {
-      unsigned int n_ifaces = 0;
-      GType* ifaces = g_type_interfaces(gtype, &n_ifaces);
-      for (unsigned int i = 0; i < n_ifaces && found == nullptr; i++) {
-        GIBaseInfo* ii = gi_repository_find_by_gtype(repo, ifaces[i]);
-        if (ii != nullptr) {
-          if (GI_IS_INTERFACE_INFO(ii)) {
-            found = gi_interface_info_find_method(reinterpret_cast<GIInterfaceInfo*>(ii), name);
-          }
-          gi_base_info_unref(ii);
-        }
-      }
-      g_free(ifaces);
-    }
-    return found;
-  };
-
-  // Literal introspected name first (GJS fidelity), snake_case alias second.
-  GIFunctionInfo* func = resolveMethod(method.c_str());
-  if (func == nullptr) {
-    const std::string snake = CamelToSnake(method);
-    if (snake != method) func = resolveMethod(snake.c_str());
-  }
+  GIFunctionInfo* func = ResolveInstanceMethod(repo, gtype, objInfo, method);
   gi_base_info_unref(objInfo);
   g_object_unref(repo);
 
@@ -1130,6 +1142,42 @@ Napi::Value CallMethod(const Napi::CallbackInfo& info) {
       InvokeFunctionInfo(env, func, obj, args, std::string(G_OBJECT_TYPE_NAME(obj)) + "." + method);
   gi_base_info_unref(func);
   return result;
+}
+
+// hasMethod(handle, methodName) -> boolean
+// TRUE iff callMethod(handle, methodName, …) would resolve an invocable
+// instance method (literal introspected name or snake_case alias, walking the
+// same own/interface/parent chain). Backs the L1 wrapper's GJS-parity property
+// access: `obj.nonexistentMethod` must be `undefined` — real consumers
+// feature-detect optional native methods (`typeof gl.clearBufferfv ===
+// 'function'` in `@gjsify/webgl`'s clearBuffer emulation, the exposing call
+// under Excalibur's RenderTarget.blitToScreen) and the old unconditional
+// throw-on-call thunk made that detection lie. Never throws for a merely
+// unknown name; a non-introspectable instance simply reports false.
+Napi::Value HasMethod(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[1].IsString()) {
+    Napi::TypeError::New(env, "hasMethod(handle, methodName: string)").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GObject* obj = UnwrapGObject(env, info[0]);
+  if (obj == nullptr) return env.Null();
+  std::string method = info[1].As<Napi::String>().Utf8Value();
+
+  GType gtype = G_OBJECT_TYPE(obj);
+  GIRepository* repo = DupDefaultRepository();
+  GIObjectInfo* objInfo = FindNearestObjectInfo(repo, gtype);
+  if (objInfo == nullptr) {
+    g_object_unref(repo);
+    return Napi::Boolean::New(env, false);
+  }
+  GIFunctionInfo* func = ResolveInstanceMethod(repo, gtype, objInfo, method);
+  gi_base_info_unref(objInfo);
+  g_object_unref(repo);
+  if (func == nullptr) return Napi::Boolean::New(env, false);
+  const bool invocable = gi_callable_info_is_method(reinterpret_cast<GICallableInfo*>(func));
+  gi_base_info_unref(func);
+  return Napi::Boolean::New(env, invocable);
 }
 
 // callStaticMethod(namespace, typeName, methodName, args?) -> unknown

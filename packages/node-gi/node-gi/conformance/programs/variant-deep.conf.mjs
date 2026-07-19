@@ -45,3 +45,6 @@ print('as deep:', stableStringify(new GLib.Variant('as', ['a', 'b', 'c']).deepUn
 print('ai deep:', stableStringify(new GLib.Variant('ai', [1, 2, 3]).deepUnpack()));
 const bytes = new GLib.Variant('ay', [1, 2, 250, 255]).deepUnpack();
 print('ay is Uint8Array:', bytes instanceof Uint8Array, JSON.stringify(Array.from(bytes)));
+// null packs as the EMPTY byte array (GLib.Bytes(null) → g_bytes_new(NULL, 0)) —
+// the WebGL allocate-without-data path (texImage2D(..., null)) relies on it.
+print('ay null:', new GLib.Variant('ay', null).print(true));
