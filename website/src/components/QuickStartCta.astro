@@ -1,26 +1,22 @@
 ---
 // Quick Start call-to-action — shown below the showcase slideshow on the
-// homepage. Displays the scaffolding command in an Adwaita terminal window
-// so developers familiar with the pattern can get started immediately.
+// homepage. Displays the scaffolding command in an Adwaita terminal window,
+// tabbed by runtime (same component as the slideshow) so developers scaffold a
+// new app with whichever runtime they already have — gjsify / npx / bunx / deno.
+import CommandTabs from './CommandTabs.astro';
+
+const createCommands = [
+  { runtime: 'gjsify', code: 'gjsify create my-app' },
+  { runtime: 'npm', code: 'npx @gjsify/cli create my-app' },
+  { runtime: 'bun', code: 'bunx @gjsify/cli create my-app' },
+  { runtime: 'deno', code: 'deno run -A npm:@gjsify/cli create my-app' },
+];
 ---
 
 <section class="quick-start-cta">
   <h2 class="quick-start-title">Get started in seconds</h2>
 
-  <div class="quick-start-window">
-    <div class="quick-start-headerbar">
-      <span class="quick-start-headerbar-start"></span>
-      <span class="quick-start-headerbar-title">Terminal</span>
-      <span class="quick-start-headerbar-end">
-        <button class="quick-start-copy" aria-label="Copy command" data-command="npx @gjsify/cli create my-app">
-          <span class="quick-start-copy-icon" aria-hidden="true"></span>
-        </button>
-      </span>
-    </div>
-    <div class="quick-start-body">
-      <code><span class="quick-start-prompt">$</span> npx @gjsify/cli create my-app</code>
-    </div>
-  </div>
+  <CommandTabs title="Terminal" commands={createCommands} />
 
   <p class="quick-start-hint">
     or run <code>npx @gjsify/cli --help</code> to explore all commands
@@ -30,21 +26,6 @@
     <a class="quick-start-btn quick-start-btn-minimal" href="/gjsify/cli-reference/">CLI Reference</a>
   </div>
 </section>
-
-<script>
-  const btn = document.querySelector('.quick-start-copy') as HTMLButtonElement | null;
-  btn?.addEventListener('click', async () => {
-    const cmd = btn.dataset.command;
-    if (!cmd) return;
-    try {
-      await navigator.clipboard.writeText(cmd);
-      btn.classList.add('copied');
-      setTimeout(() => btn.classList.remove('copied'), 1500);
-    } catch {
-      // Clipboard API may not be available — ignore silently.
-    }
-  });
-</script>
 
 <style is:global>
   .quick-start-cta {
@@ -59,6 +40,13 @@
     font-weight: 800;
     color: var(--sl-color-white);
     margin: 0 0 1.5rem;
+  }
+
+  /* CommandTabs brings its own window chrome + a default top margin; drop it so
+     the tabbed terminal sits directly under the title. */
+  .quick-start-cta .command-tabs {
+    margin-top: 0;
+    text-align: left;
   }
 
   /* ── Adwaita window frame ── */
