@@ -34,10 +34,24 @@ export function buildWidgetPath(toplevel: number, children: readonly number[]): 
     return [`toplevel:${toplevel}`, ...children.map((i) => `child:${i}`)].join('/');
 }
 
-/** The registered GType name of a widget instance (best-effort). */
+/**
+ * The concrete runtime GType name of a widget instance (best-effort).
+ *
+ * Portable across runtimes:
+ * - **GJS** downcasts a returned GObject to its concrete wrapper class, so the
+ *   runtime type is `widget.constructor.$gtype.name`.
+ * - **node-gi** (`--app node`) returns a GENERIC wrapper for a returned handle
+ *   (it does not downcast), so `constructor.$gtype.name` would be the static
+ *   declared type. Its L1 wrapper instead exposes the true runtime GType name on
+ *   `$typeName` — prefer it when present. (GJS has no `$typeName` on instances.)
+ */
 export function widgetType(widget: Gtk.Widget): string {
-    const ctor = (widget as unknown as { constructor?: { $gtype?: { name?: string } } }).constructor;
-    return ctor?.$gtype?.name ?? 'GtkWidget';
+    const w = widget as unknown as {
+        $typeName?: unknown;
+        constructor?: { $gtype?: { name?: string } };
+    };
+    if (typeof w.$typeName === 'string' && w.$typeName.length > 0) return w.$typeName;
+    return w.constructor?.$gtype?.name ?? 'GtkWidget';
 }
 
 function nthChild(widget: Gtk.Widget, index: number): Gtk.Widget | null {

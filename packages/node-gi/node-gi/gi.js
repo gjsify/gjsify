@@ -1073,6 +1073,18 @@ function wrapInstance(handle, userProto) {
       if (prop === HANDLE) return handle;
       if (typeof prop !== 'string' || RESERVED.has(prop)) return t[prop];
       switch (prop) {
+        case '$typeName':
+          // The instance's concrete RUNTIME GType name —
+          // g_type_name(G_OBJECT_TYPE(obj)) via native.getTypeName. node-gi hands
+          // back a GENERIC wrapper for a returned handle (it does not downcast to
+          // the runtime GType), so `constructor.$gtype` is the STATIC declared
+          // type; this getter reads the TRUE runtime type. It is the portable seam
+          // @gjsify/devtools' widget-tree DumpTree uses (GJS instead reads the
+          // concrete type off its already-downcast `constructor.$gtype.name`).
+          // Distinct from the CLASS-level `$gtypeName`, which is the DECLARED
+          // namespaced string (e.g. 'Gtk.Widget'); this is the raw runtime GType
+          // name (e.g. 'GtkWidget', 'AdwBin', 'FireworksWindow').
+          return native.getTypeName(handle);
         case 'connect':
           // Record the (user fn → id) mapping so signal_handlers_*_by_func can
           // resolve the private-closure handler back to its ids (see the registry).
