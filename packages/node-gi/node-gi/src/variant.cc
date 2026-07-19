@@ -110,7 +110,18 @@ static std::string VariantReadSingleType(Napi::Env env, const std::string& sig, 
 
 // Read a JS value into a byte vector for an `ay` array (Uint8Array/Buffer/
 // number[]; a string is UTF-8 encoded with a trailing NUL, matching GJS).
+// null/undefined pack as the EMPTY byte array: GJS routes 'ay' through
+// `new GLib.Bytes(value)` (modules/core/overrides/GLib.js _packVariant), and
+// GLib.Bytes(null) is g_bytes_new(NULL, 0) — `new GLib.Variant('ay', null)`
+// prints `@ay []` under gjs. Real consumers rely on it: `@gjsify/webgl` passes
+// Uint8ArrayToVariant(null) for WebGL calls that allocate without data
+// (texImage2D(..., null) — Excalibur's blank-texture allocation at renderer
+// init was the exposing call on node-gi).
 static bool VariantExtractBytes(Napi::Env env, Napi::Value v, std::vector<guint8>* out) {
+  if (v.IsNull() || v.IsUndefined()) {
+    out->clear();
+    return true;
+  }
   if (v.IsBuffer()) {
     Napi::Buffer<uint8_t> b = v.As<Napi::Buffer<uint8_t>>();
     out->assign(b.Data(), b.Data() + b.Length());
