@@ -51,9 +51,22 @@ Homebrew GTK stack (the closure *source*, not shipped):
 3. the sibling monorepo dir `../gtk-runtime-<platform>-<arch>/gtk`,
 4. `require.resolve('@gjsify/gtk-runtime-<platform>-<arch>')` (the published dep).
 
-On a match (darwin only) it prepends `gtk/girepository-1.0` to the GIRepository
-search path via `prependSearchPath` (env-free) and prepends `gtk/lib` to
-`process.env.DYLD_FALLBACK_LIBRARY_PATH`.
+On a match (darwin only) node-gi makes the bundle genuinely **env-free**:
+
+- **typelibs** — it prepends `gtk/girepository-1.0` to the GIRepository search
+  path via `prependSearchPath` (a runtime API, no env needed).
+- **dylibs** — it **re-execs the process once** (`maybeReexecForGtkRuntime`, from
+  `index.js`, before the addon loads) with `DYLD_FALLBACK_LIBRARY_PATH=gtk/lib`.
+  dyld only reads that variable at **launch**, so a JS-time `process.env` mutation
+  cannot help the running process — but a one-shot re-exec (guarded by a
+  `GJSIFY_GTK_REEXEC` sentinel so it fires at most once) lands the fallback for the
+  fresh dyld. GObject-Introspection then resolves every type's `get_type()` and the
+  Pango/Gdk/Graphene backers by leaf soname from the bundle. This is exactly what
+  the Homebrew-based CI leg relies on, so it is a known-good path.
+
+The re-exec is a no-op off darwin, without a bundle, or once the fallback already
+covers the bundle — so it costs one extra `exec` only on the first macOS load of a
+batteries-included install, and nothing elsewhere.
 
 ## Scope & what a full windowing bundle still needs
 
@@ -63,11 +76,12 @@ GTK windowing/display stack additionally needs: the Quartz GDK backend, the
 (`glib-compile-schemas`), the Adwaita icon theme + `icon-theme.cache`, and
 Fontconfig cache/config — none of which are collected here.
 
-**Env-free caveat (macOS):** dyld captures `DYLD_FALLBACK_LIBRARY_PATH` at
-launch, so it cannot be set from JS at runtime. Namespaces whose backing dylib is
-already in-process via the addon's own link closure (GLib/GObject/Gio/cairo)
-resolve **env-free** through the relocated addon's `@rpath`. Namespaces whose
-dylib is *not* addon-linked (Pango/Graphene/Gdk) rely on
-`DYLD_FALLBACK_LIBRARY_PATH` being set at launch (a launcher/re-exec, or a native
-`dlopen`-preload of those libraries at addon load, is the remaining step for a
-fully env-free consumer install).
+**Env-free mechanism (macOS):** because dyld captures
+`DYLD_FALLBACK_LIBRARY_PATH` only at launch, node-gi re-execs once with it set (see
+above) rather than relying on the caller to export it. This covers **all** the
+display-free namespaces uniformly — both the addon-linked core
+(GLib/GObject/Gio/cairo) and the non-addon-linked backers (Pango/Graphene/Gdk),
+including the `get_type()` leaf lookups that `registerClass` subclassing needs. A
+native `dlopen`-preload at addon load would avoid even the single re-exec, but it
+would require changing the node-gi addon; the re-exec keeps the consumed addon
+prebuild untouched.

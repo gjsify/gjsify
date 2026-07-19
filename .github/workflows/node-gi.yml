@@ -865,36 +865,35 @@ jobs:
           echo "--- addon deps (should be @rpath, no /opt/homebrew) ---"
           otool -L prebuilds/darwin-arm64/node_gi.node | head -20
 
-      # Leg 1 — genuinely env-free core: no DYLD, no GI_TYPELIB_PATH. Proves the
-      # relocation (@loader_path/@rpath) + node-gi's own prependSearchPath wiring
-      # carry the core with nothing but the bundle on disk.
+      # Fast probe FIRST — one clean process, NO library-lookup env. Reproduces the
+      # exact paths that need a leaf-soname g_module_open against the bundle
+      # (registerClass subclassing + Pango/Graphene/Gdk get_type). node-gi's
+      # DYLD_FALLBACK re-exec (gtk-runtime.js) is what makes this resolve env-free;
+      # a failure here is an unambiguous signal, isolated from the test runner.
+      - name: Batteries-included probe — env-free, no brew GTK (Node)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node scripts/check-batteries.mjs
+
+      # Leg 1 — CORE (35 files), env-free: no DYLD/GI_TYPELIB set by the job.
+      # cross-runtime.mjs re-execs ITSELF once with the bundle's DYLD fallback set
+      # (dyld reads it at launch), so its per-file children inherit it — no brew
+      # GTK, nothing but the bundle on disk. `--only` drops the two files whose
+      # backers are NOT addon-linked (cairo→PangoCairo, struct-construct→Gdk/Graphene).
       - name: Conformance CORE — env-free, no brew GTK (Node)
         working-directory: packages/node-gi/node-gi
         env:
           NODE_GI_NATIVE: prebuild
         run: |
-          node --test \
-            test/arrays.test.mjs test/boxed-out.test.mjs test/async-error.test.mjs \
-            test/bytes.test.mjs test/call-function.test.mjs test/callbacks.test.mjs \
-            test/closure-exception.test.mjs test/construct-camelcase.test.mjs \
-            test/dbus-async.test.mjs test/enums-constants.test.mjs \
-            test/gclosure-in-args.test.mjs test/gettext.test.mjs test/gi.test.mjs \
-            test/globals.test.mjs test/gobject.test.mjs test/gtype.test.mjs \
-            test/int64.test.mjs test/methods.test.mjs test/multilevel-subclass.test.mjs \
-            test/out-params.test.mjs test/paramspec.test.mjs test/paramspec-object.test.mjs \
-            test/proxy-fallback.test.mjs test/register-class.test.mjs \
-            test/register-class-decorator.test.mjs test/register-class-props.test.mjs \
-            test/registerclass-inplace.test.mjs test/signals.test.mjs test/smoke.test.mjs \
-            test/static-camel.test.mjs test/system.test.mjs test/variant.test.mjs \
-            test/vfunc.test.mjs test/vfunc-chainup.test.mjs test/cairo-canvas2d.test.mjs
+          node scripts/cross-runtime.mjs node --only \
+            arrays,boxed-out,async-error,bytes,cairo-canvas2d,call-function,callbacks,closure-exception,construct-camelcase,dbus-async,enums-constants,gclosure-in-args,gettext,gi,globals,gobject,gtype,int64,methods,multilevel-subclass,out-params,paramspec,paramspec-object,proxy-fallback,register-class,register-class-decorator,register-class-props,registerclass-inplace,signals,smoke,static-camel,system,variant,vfunc,vfunc-chainup
 
-      # Leg 2 — full display-free subset. Adds DYLD_FALLBACK for the leaf-name
-      # lookups the addon's link closure cannot satisfy (Pango, Gdk, Graphene).
-      # cross-runtime.mjs spawns one process per file; env is inherited.
-      - name: Conformance FULL subset — bundle + DYLD fallback, no brew GTK (Node)
+      # Leg 2 — FULL display-free subset (37 files), also env-free (NO DYLD set by
+      # the job). The same one-shot re-exec covers the NON-addon-linked backers
+      # (Pango→cairo.test, Gdk/Graphene→struct-construct) from the bundle.
+      - name: Conformance FULL subset — env-free, no brew GTK (Node)
         working-directory: packages/node-gi/node-gi
         env:
           NODE_GI_NATIVE: prebuild
-        run: |
-          export DYLD_FALLBACK_LIBRARY_PATH="$PWD/prebuilds/darwin-arm64/gtk/lib:/usr/lib"
-          node scripts/cross-runtime.mjs node
+        run: node scripts/cross-runtime.mjs node

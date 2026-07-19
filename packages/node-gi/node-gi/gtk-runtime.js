@@ -5,6 +5,7 @@
 // ships such a bundle (@gjsify/gtk-runtime-darwin-arm64); this is a no-op on every
 // other platform, and harmless when no bundle is present (the addon then uses the
 // host's GTK exactly as before).
+import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -12,6 +13,9 @@ import { existsSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url)); // package root
+
+// Sentinel: set on the re-exec so a bundle-activated child never re-execs again.
+const REEXEC_SENTINEL = 'GJSIFY_GTK_REEXEC';
 
 /**
  * Resolve the GTK runtime bundle directory for this platform, or `null`. A valid
@@ -45,6 +49,51 @@ export function resolveGtkRuntimeBundle() {
         if (existsSync(libDir) && existsSync(typelibDir)) return { dir, libDir, typelibDir };
     }
     return null;
+}
+
+/**
+ * Make the bundled GTK runtime genuinely env-free by RE-EXECING this process once
+ * with `DYLD_FALLBACK_LIBRARY_PATH` (+ `GI_TYPELIB_PATH`) pointed at the bundle.
+ *
+ * Why a re-exec and not just `process.env` mutation: on macOS, dyld captures
+ * `DYLD_FALLBACK_LIBRARY_PATH` at PROCESS LAUNCH, so setting it from JS never
+ * affects the running dyld. It is load-bearing beyond the addon's own link
+ * closure: GObject-Introspection resolves a type's `get_type()` (e.g. for
+ * `registerClass` subclassing) — and the Pango/Gdk/Graphene backers — via
+ * `g_module_open(<leaf soname>)`, and dyld will NOT satisfy a bare-leaf dlopen
+ * from an `@loader_path`-loaded image. Re-launching with the fallback set (exactly
+ * what the Homebrew-based CI leg does) resolves every such leaf lookup from the
+ * bundle. Guarded by a sentinel env var so it fires AT MOST ONCE; a no-op unless
+ * darwin + a bundle is present + the fallback does not already cover it.
+ *
+ * MUST be called at module top-level BEFORE the native addon (and thus its GTK
+ * dependency closure) is dlopen'd — the re-exec then loads everything correctly.
+ * On re-exec this calls `process.exit()` and never returns to the caller.
+ * @returns {void}
+ */
+export function maybeReexecForGtkRuntime() {
+    if (process.platform !== 'darwin') return;
+    if (process.env[REEXEC_SENTINEL]) return; // already re-exec'd — the child path
+    const bundle = resolveGtkRuntimeBundle();
+    if (!bundle) return;
+
+    const curDyld = process.env.DYLD_FALLBACK_LIBRARY_PATH ?? '';
+    if (curDyld.split(':').filter(Boolean).includes(bundle.libDir)) return; // already covered
+
+    const curTypelib = process.env.GI_TYPELIB_PATH ?? '';
+    const env = {
+        ...process.env,
+        [REEXEC_SENTINEL]: '1',
+        DYLD_FALLBACK_LIBRARY_PATH: curDyld ? `${bundle.libDir}:${curDyld}` : `${bundle.libDir}:/usr/lib`,
+        GI_TYPELIB_PATH: curTypelib ? `${bundle.typelibDir}:${curTypelib}` : bundle.typelibDir,
+    };
+    // Reproduce this exact invocation (node flags + argv) with the augmented env.
+    const res = spawnSync(process.execPath, [...process.execArgv, ...process.argv.slice(1)], {
+        stdio: 'inherit',
+        env,
+    });
+    if (res.error) throw res.error; // spawn failed outright — surface it, don't silently continue mis-linked
+    process.exit(res.status === null ? 1 : res.status);
 }
 
 let activated = null; // memoize: the activation result (idempotent)

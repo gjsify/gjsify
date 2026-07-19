@@ -38,6 +38,14 @@
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { maybeReexecForGtkRuntime } from '../gtk-runtime.js';
+
+// Batteries-included GTK (macOS): re-exec THIS runner once with the bundle's
+// DYLD_FALLBACK_LIBRARY_PATH set, BEFORE it spawns any child, so every per-file
+// child inherits the fallback at launch (dyld only reads it then) and no child
+// needs to re-exec inside the test-runner pool. No-op off darwin / without a
+// bundle / once already covered. Never returns on re-exec.
+maybeReexecForGtkRuntime();
 
 // Files verified green on BOTH bun and deno (per-file). Keep alphabetical.
 const CONFORMANCE = [
@@ -82,8 +90,23 @@ const CONFORMANCE = [
 
 const runtime = process.argv[2];
 if (runtime !== 'node' && runtime !== 'bun' && runtime !== 'deno') {
-  console.error('usage: node scripts/cross-runtime.mjs <node|bun|deno>');
+  console.error('usage: node scripts/cross-runtime.mjs <node|bun|deno> [--only a,b,c]');
   process.exit(2);
+}
+
+// Optional `--only a,b,c` restricts the run to a subset (e.g. the env-free CORE
+// leg that excludes the non-addon-linked Pango/Gdk/Graphene backers). Unknown
+// names are a hard error so a typo can't silently shrink the gate.
+const onlyIdx = process.argv.indexOf('--only');
+let files = CONFORMANCE;
+if (onlyIdx >= 0) {
+  const wanted = (process.argv[onlyIdx + 1] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const unknown = wanted.filter((w) => !CONFORMANCE.includes(w));
+  if (unknown.length) {
+    console.error(`--only: unknown conformance file(s): ${unknown.join(', ')}`);
+    process.exit(2);
+  }
+  files = CONFORMANCE.filter((f) => wanted.includes(f));
 }
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -116,10 +139,10 @@ const SOFT_FAIL =
 // keep validating the prebuild load path (Deno's install path) explicitly.
 const nativePref = process.env.NODE_GI_NATIVE ?? 'build';
 
-console.log(`node-gi: running ${CONFORMANCE.length} conformance files on ${runtime} (one process per file)\n`);
+console.log(`node-gi: running ${files.length} conformance files on ${runtime} (one process per file)\n`);
 let failed = 0;
 let softFailed = 0;
-for (const base of CONFORMANCE) {
+for (const base of files) {
   const file = join('test', `${base}.test.mjs`);
   const res = spawnSync(runtimeBin, argsFor(file), {
     cwd: pkgRoot,
@@ -139,9 +162,9 @@ for (const base of CONFORMANCE) {
   }
 }
 
-const green = CONFORMANCE.length - failed - softFailed;
+const green = files.length - failed - softFailed;
 console.log(
-  `\n${runtime}: ${green}/${CONFORMANCE.length} conformance files green` +
+  `\n${runtime}: ${green}/${files.length} conformance files green` +
     (softFailed ? `, ${softFailed} known non-gating` : '') +
     (failed ? `, ${failed} FAILED` : ''),
 );
