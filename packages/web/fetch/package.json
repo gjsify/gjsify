@@ -61,6 +61,7 @@
         "@girs/gjs": "^4.1.0",
         "@girs/glib-2.0": "^4.1.0",
         "@girs/soup-3.0": "^4.1.0",
+        "@gjsify/dom-events": "workspace:^",
         "@gjsify/formdata": "workspace:^",
         "@gjsify/http": "workspace:^",
         "@gjsify/url": "workspace:^",

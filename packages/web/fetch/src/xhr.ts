@@ -9,6 +9,15 @@
 
 import GLib from 'gi://GLib?version=2.0';
 import fetch from './index.js';
+// Use gjsify's OWN event classes, not whatever is on `globalThis`. This XHR runs
+// on GJS and on the `--app node` reverse bridge; on the latter `globalThis`
+// carries the runtime-native `Event`/`EventTarget` (Node) while `ProgressEvent`
+// is gjsify's, so `nativeEventTarget.dispatchEvent(gjsifyProgressEvent)` threw
+// `ERR_INVALID_ARG_TYPE`. Extending gjsify's `EventTarget` and dispatching
+// gjsify's `Event`/`ProgressEvent` keeps the hierarchy internally consistent on
+// every target (on GJS these ARE the globals the register installs, so no
+// behaviour change). Same pattern @gjsify/dom-elements uses for its DOM classes.
+import { Event, EventTarget, ProgressEvent } from '@gjsify/dom-events';
 
 let _blobCounter = 0;
 
