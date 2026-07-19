@@ -798,13 +798,16 @@ jobs:
         run: |
           Write-Host "pkg-config: $((Get-Command pkg-config).Source)"
           pkg-config --version
-          if (pkg-config --define-prefix --exists girepository-2.0) {
+          # `--exists` signals via exit code, not stdout — check $LASTEXITCODE (a
+          # bare `if (pkg-config ...)` tests stdout and false-reports MISSING).
+          pkg-config --define-prefix --exists girepository-2.0
+          if ($LASTEXITCODE -eq 0) {
             Write-Host "girepository-2.0: $(pkg-config --define-prefix --modversion girepository-2.0)"
           } else {
             Write-Host "girepository-2.0: MISSING — the addon build will fail"
           }
           Write-Host "cflags : $(pkg-config --define-prefix --cflags girepository-2.0 cairo)"
-          Write-Host "libs   : $(pkg-config --define-prefix --static --libs girepository-2.0 cairo)"
+          Write-Host "cflags(static) : $(pkg-config --define-prefix --static --cflags-only-I girepository-2.0 cairo 2>&1)"
           Write-Host "--- typelibs present ---"
           Get-ChildItem "$env:GTK_PREFIX\lib\girepository-1.0" -ErrorAction SilentlyContinue |
             Where-Object { $_.Name -match 'GLib|GObject|Gio|Pango|GdkPixbuf|Graphene|cairo' } |

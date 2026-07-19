@@ -31,9 +31,18 @@ const mode = process.argv[2];
 const pkgConfig = process.env.PKG_CONFIG || 'pkg-config';
 
 function pkgConfigOut(extraArgs) {
-    return execFileSync(pkgConfig, ['--define-prefix', ...extraArgs, ...PKGS], {
-        encoding: 'utf8',
-    }).trim();
+    // Exit-tolerant: gvsbuild's pkgconf can exit non-zero (e.g. `--static` walks a
+    // Requires.private graph and trips over a missing .pc) yet still print the
+    // resolvable flags. execFileSync THROWS on a non-zero exit — so capture the
+    // stdout it attached to the error instead of letting the whole helper crash
+    // (that empty-stdout crash left include_dirs blank → C1083 on ffi.h).
+    try {
+        return execFileSync(pkgConfig, ['--define-prefix', ...extraArgs, ...PKGS], {
+            encoding: 'utf8',
+        }).trim();
+    } catch (error) {
+        return typeof error?.stdout === 'string' ? error.stdout.trim() : '';
+    }
 }
 
 function tokens(s) {
@@ -70,19 +79,26 @@ function findHeaderDir(root, filename, maxDepth = 4) {
 }
 
 if (mode === '--includes') {
-    // `--static` pulls the Requires.private include dirs too — girepository-2.0.pc
-    // has `Requires.private: … libffi`, and girffi.h does `#include <ffi.h>`; the
-    // non-static --cflags omits libffi's include dir, so the addon fails to compile
-    // (C1083: Cannot open include file 'ffi.h').
-    const dirs = tokens(pkgConfigOut(['--static', '--cflags-only-I']))
+    // NON-static --cflags-only-I: on gvsbuild `--static` exits non-zero (a private
+    // .pc misses) and once threw the whole helper, blanking include_dirs. The plain
+    // form resolves glib-2.0/lib-glib-2.0-include/cairo cleanly. It does NOT emit
+    // libffi's include dir (libffi is Requires.private), but the addon needs <ffi.h>
+    // via girffi.h — the GTK_PREFIX fallback below supplies it.
+    const dirs = tokens(pkgConfigOut(['--cflags-only-I']))
         .filter((t) => t.startsWith('-I'))
         .map((t) => stripQuotes(t.slice(2)));
-    // Belt-and-suspenders: gvsbuild installs libffi's ffi.h into the bare include
-    // root (which MSVC does not auto-search). Add GTK_PREFIX/include, and if ffi.h
-    // still isn't covered, locate it under the tree and add its dir.
     const prefix = process.env.GTK_PREFIX;
     if (prefix) {
-        dirs.push(join(prefix, 'include'));
+        // Guaranteed base from the known gvsbuild layout (in case pkg-config yields
+        // nothing) PLUS the bare include root, where gvsbuild installs libffi's
+        // ffi.h + ffitarget.h (MSVC does not auto-search a prefix include root).
+        dirs.push(
+            join(prefix, 'include'),
+            join(prefix, 'include', 'glib-2.0'),
+            join(prefix, 'lib', 'glib-2.0', 'include'),
+            join(prefix, 'include', 'cairo'),
+        );
+        // Last resort: locate ffi.h anywhere under the tree and add its dir.
         if (!dirs.some((d) => existsSync(join(d, 'ffi.h')))) {
             const ffiDir =
                 findHeaderDir(join(prefix, 'include'), 'ffi.h') ??
