@@ -1087,6 +1087,16 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer*
   *outPtr = nullptr;
   *outCount = 0;
 
+  // null/undefined → a NULL array (count 0), as GJS marshals a null array arg
+  // (refs/gjs/gi/arg.cpp gjs_array_to_explicit_array: null in → NULL out).
+  // Exposing call: `Gst.init(null)` — a NULLABLE (inout) argv array every GJS
+  // GStreamer consumer passes null for (`@gjsify/webaudio`'s ensureGstInit on
+  // the jelly-jumper-on-node path).
+  if (v.IsNull() || v.IsUndefined()) {
+    gi_base_info_unref(elem);
+    return true;
+  }
+
   // Raw bytes from a TypedArray / Buffer (Uint8Array round-trips, etc.).
   // `hasRawBytes` (NOT `rawBytes != nullptr`) marks a TypedArray/Buffer SOURCE: an
   // EMPTY Uint8Array/Buffer has a NULL backing-store pointer (V8 hands out nullptr
