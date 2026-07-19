@@ -580,6 +580,26 @@ Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* arg,
       GType gt = static_cast<GType>(arg->v_size);
       return gt != 0 ? MakeGTypeHandle(env, gt) : env.Null();
     }
+    case GI_TYPE_TAG_ERROR: {
+      // A GError-typed value (a `GLib.Error` return like Gtk.GLArea.get_error(),
+      // or a GLib.Error.new_literal construct): GJS surfaces it as a GLib.Error
+      // boxed (G_TYPE_ERROR) with `.domain`/`.code`/`.message` field access +
+      // `.matches()`/`.copy()` methods. Wrap through the GLib.Error struct info
+      // so the boxed handle resolves fields and methods; a NULL GError (the
+      // no-error case) stays null. WrapBoxed handles transfer: a transfer-none
+      // borrow is g_boxed_copy'd into an owned copy, transfer-full is adopted.
+      GError* gerr = static_cast<GError*>(arg->v_pointer);
+      if (gerr == nullptr) return env.Null();
+      GIRepository* repo = DupDefaultRepository();
+      // GLib is loaded by any namespace require; require defensively anyway so a
+      // bare engine call still resolves the struct info (idempotent, cheap).
+      gi_repository_require(repo, "GLib", "2.0", static_cast<GIRepositoryLoadFlags>(0), nullptr);
+      GIBaseInfo* errInfo = gi_repository_find_by_name(repo, "GLib", "Error");
+      Napi::Value result = WrapBoxed(env, gerr, errInfo, transfer);
+      if (errInfo != nullptr) gi_base_info_unref(errInfo);
+      g_object_unref(repo);
+      return result;
+    }
     default:
       Napi::TypeError::New(env, "Unsupported return type tag " +
                                     std::to_string(static_cast<int>(tag)) + " (milestone 1)")

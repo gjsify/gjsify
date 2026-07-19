@@ -786,3 +786,56 @@ xvfb-run -a dbus-run-session -- \
 `GJSIFY_BIN` must point at the WORKSPACE-built `@gjsify/cli` (`packages/infra/cli/lib/index.js`),
 not the published `@gjsify/cli` — the fixture is built with current source, which
 carries this session's bundler fixes the published `0.18.0` predates.
+### WebGL / `Gtk.GLArea` (the gwebgl seam)
+
+**Definitive: a `Gtk.GLArea` realizes and hands JS a LIVE, CURRENT GL context
+under node-gi on a headless software-GL display.** Verified end-to-end by
+`test/webgl-glarea.test.mjs` + the ONE dual-runtime source
+`fixtures/webgl-glarea-app.ts`: a presented `Gtk.ApplicationWindow` holding a
+`Gtk.GLArea` configured exactly like `@gjsify/webgl`'s `WebGLBridge`
+(`set_use_es(true)`, `set_required_version(3, 2)`, depth + stencil) realizes
+with `get_error() === null`, an **OpenGL ES 3.2** context
+(`Gdk.GLContext.get_current()` non-null in both `realize` and `render`), and
+the `gwebgl` Vala bridge (`new Gwebgl.WebGLRenderingContextBase()` — the native
+class `@gjsify/webgl` wraps) works through it: `getString(GL_VERSION/…)`, a
+`getParameterx` **GVariant** round-trip, and a real WebGL draw —
+`clearColor(1,0,0,1)` + `clear` + `readPixels` reading back the exact
+`255,0,0,255` pixel. The committed golden is byte-identical between `gjs -m`
+and `node` (the gjs gold-standard leg re-proves it wherever `gjs` is present;
+`NODE_GI_WEBGL_SKIP_GJS=1` skips that leg).
+
+The GL/display env the golden is pinned to (software GL, no GPU needed):
+
+```bash
+# X11 (Xvfb or a real display) + mesa llvmpipe + GTK compositing off GL:
+xvfb-run -a dbus-run-session -- \
+  env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
+    NODE_GI_NATIVE=build node --test test/webgl-glarea.test.mjs
+# GL under llvmpipe: "OpenGL ES 3.2 Mesa …" / "llvmpipe (LLVM …)".
+```
+
+**The FULL `@gjsify/webgl` `WebGLBridge` runs too** (same test file, second
+fixture `fixtures/webgl-bridge-app.ts`): the complete TS WebGL stack UNCHANGED —
+`WebGLBridge` (a `registerClass` `Gtk.GLArea` subclass), `onReady` handing out
+`HTMLCanvasElement` + `WebGLRenderingContext` (constants GHashTable, the
+`_init()` `getParameterx` GVariant reads, eager WebGL1+2 context construction),
+and browser-standard `clearColor(0,0,1,1)` + `clear` + `readPixels` reading the
+blue clear back (`bridge-pixel(0,0): 0,0,255,255`), byte-identical gjs ↔ node.
+Shader/buffer/texture breadth (a three.js triangle/teapot) is the remaining
+follow-up — the seam + context stack are proven.
+
+The tests self-skip without a display, without a `gjsify` CLI, or without the
+committed `Gwebgl-0.1` prebuild (`packages/framework/webgl/prebuilds/linux-*`,
+which the test itself puts on `GI_TYPELIB_PATH`/`LD_LIBRARY_PATH`); the bridge
+test additionally skips when `@gjsify/webgl` is not built. The fixture build
+needs a WORKSPACE-built `@gjsify/cli` (point `GJSIFY_BIN` at
+`packages/infra/cli/lib/index.js` after
+`gjsify workspace @gjsify/cli build --with-dependencies`), like
+`canvas2d-bridge`; the gjs gold-standard leg additionally needs the workspace
+register libs built (`--app gjs` force-inlines `<pkg>/register`). Two engine
+gaps this spike fixed on the way (headless regression coverage in
+`test/gerror-return.test.mjs`): GError-typed RETURNS
+(`Gtk.GLArea.get_error()` — `GI_TYPE_TAG_ERROR` → a field-readable GLib.Error
+boxed) and literal-first method-name resolution (Vala GIRs carry camelCase
+names — Gwebgl's `getString` — which the unconditional camelCase→snake_case
+alias destroyed; the engine now resolves the literal name first, alias second).

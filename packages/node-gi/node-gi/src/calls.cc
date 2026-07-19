@@ -1000,10 +1000,31 @@ Napi::Value CallFunction(const Napi::CallbackInfo& info) {
   return result;
 }
 
+// The JS-side camelCase → snake_case alias (gi.js camelToSnake), mirrored here so
+// method resolution can try the LITERAL introspected name first and only fall
+// back to the alias. GJS exposes GI method names VERBATIM — a Vala-generated GIR
+// carries camelCase names (Gwebgl's `getString`), which an unconditional
+// camelCase→snake conversion destroys (the webgl-glarea spike wall).
+static std::string CamelToSnake(const std::string& name) {
+  std::string out;
+  out.reserve(name.size() + 4);
+  for (char c : name) {
+    if (c >= 'A' && c <= 'Z') {
+      out += '_';
+      out += static_cast<char>(c - 'A' + 'a');
+    } else {
+      out += c;
+    }
+  }
+  return out;
+}
+
 // callMethod(handle, methodName, args?: unknown[]) -> unknown
 // Resolve an instance method by walking the instance's GIObjectInfo (own +
 // implemented-interface methods at each level, then up the parent chain), then
 // invoke it with the instance prepended. The Node twin of `obj.method(...)`.
+// The LITERAL name is resolved first (GJS fidelity — GIR names are exposed
+// verbatim, incl. Vala camelCase); the snake_case alias is the fallback.
 Napi::Value CallMethod(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 2 || !info[1].IsString()) {
@@ -1040,38 +1061,50 @@ Napi::Value CallMethod(const Napi::CallbackInfo& info) {
     return env.Null();
   }
 
-  // Search own + implemented-interface methods at each level, then the parent.
-  GIFunctionInfo* func = nullptr;
-  while (objInfo != nullptr) {
-    GIBaseInfo* declarer = nullptr;
-    func = gi_object_info_find_method_using_interfaces(objInfo, method.c_str(), &declarer);
-    if (declarer != nullptr) gi_base_info_unref(declarer);
-    if (func != nullptr) break;
-    GIObjectInfo* parent = gi_object_info_get_parent(objInfo);
-    gi_base_info_unref(objInfo);
-    objInfo = parent;
-  }
-  if (objInfo != nullptr) gi_base_info_unref(objInfo);
-
-  // The concrete GType may implement introspectable interfaces that its nearest
+  // Resolve one candidate name: own + implemented-interface methods at each
+  // level, then the parent chain; then the live GType's interface list (the
+  // concrete GType may implement introspectable interfaces its nearest
   // introspectable ANCESTOR's info does not list — e.g. a private GLocalFile
-  // (no info; ancestor = GObject) implementing GFile. Scan the live GType's
-  // interface list directly so interface methods (g_file_get_path) resolve.
-  if (func == nullptr) {
-    unsigned int n_ifaces = 0;
-    GType* ifaces = g_type_interfaces(gtype, &n_ifaces);
-    for (unsigned int i = 0; i < n_ifaces && func == nullptr; i++) {
-      GIBaseInfo* ii = gi_repository_find_by_gtype(repo, ifaces[i]);
-      if (ii != nullptr) {
-        if (GI_IS_INTERFACE_INFO(ii)) {
-          func = gi_interface_info_find_method(reinterpret_cast<GIInterfaceInfo*>(ii),
-                                               method.c_str());
-        }
-        gi_base_info_unref(ii);
-      }
+  // (no info; ancestor = GObject) implementing GFile, so g_file_get_path
+  // resolves).
+  auto resolveMethod = [&](const char* name) -> GIFunctionInfo* {
+    GIObjectInfo* walk = reinterpret_cast<GIObjectInfo*>(
+        gi_base_info_ref(reinterpret_cast<GIBaseInfo*>(objInfo)));
+    GIFunctionInfo* found = nullptr;
+    while (walk != nullptr) {
+      GIBaseInfo* declarer = nullptr;
+      found = gi_object_info_find_method_using_interfaces(walk, name, &declarer);
+      if (declarer != nullptr) gi_base_info_unref(declarer);
+      if (found != nullptr) break;
+      GIObjectInfo* parent = gi_object_info_get_parent(walk);
+      gi_base_info_unref(walk);
+      walk = parent;
     }
-    g_free(ifaces);
+    if (walk != nullptr) gi_base_info_unref(walk);
+    if (found == nullptr) {
+      unsigned int n_ifaces = 0;
+      GType* ifaces = g_type_interfaces(gtype, &n_ifaces);
+      for (unsigned int i = 0; i < n_ifaces && found == nullptr; i++) {
+        GIBaseInfo* ii = gi_repository_find_by_gtype(repo, ifaces[i]);
+        if (ii != nullptr) {
+          if (GI_IS_INTERFACE_INFO(ii)) {
+            found = gi_interface_info_find_method(reinterpret_cast<GIInterfaceInfo*>(ii), name);
+          }
+          gi_base_info_unref(ii);
+        }
+      }
+      g_free(ifaces);
+    }
+    return found;
+  };
+
+  // Literal introspected name first (GJS fidelity), snake_case alias second.
+  GIFunctionInfo* func = resolveMethod(method.c_str());
+  if (func == nullptr) {
+    const std::string snake = CamelToSnake(method);
+    if (snake != method) func = resolveMethod(snake.c_str());
   }
+  gi_base_info_unref(objInfo);
   g_object_unref(repo);
 
   if (func == nullptr) {

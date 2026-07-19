@@ -1126,7 +1126,11 @@ function wrapInstance(handle, userProto) {
       // they resolve it here from the registry, per-class). Bound to this instance.
       const promisified = resolvePromisified(handle, camelToSnake(prop));
       if (promisified !== undefined) return (...args) => promisified.apply(proxy, args);
-      return (...args) => wrapReturn(native.callMethod(handle, camelToSnake(prop), unwrapArgs(args)));
+      // Pass the LITERAL accessor name — the engine resolves it verbatim first
+      // (GJS fidelity: GIR names are exposed as-is, incl. Vala camelCase like
+      // Gwebgl's `getString`) and only falls back to the snake_case alias.
+      // Converting here would destroy a literal camelCase GI name.
+      return (...args) => wrapReturn(native.callMethod(handle, prop, unwrapArgs(args)));
     },
     set(t, prop, value) {
       if (typeof prop === 'string') {
