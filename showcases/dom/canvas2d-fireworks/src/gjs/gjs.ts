@@ -25,4 +25,8 @@ app.connect('activate', () => {
     win.present();
 });
 
-app.run([]);
+// runAsync (NOT the sync run()): defers the blocking main loop to a macrotask so
+// the synchronous view load doesn't hang on its spinner, and it is the required
+// lifecycle on the `--app node` reverse bridge (a sync run() deadlocks there) as
+// well as the GJS-recommended one (Gio.Application.runAsync). Runs on both targets.
+await app.runAsync([]);

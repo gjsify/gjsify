@@ -18,6 +18,7 @@
     "start:browser": "http-server dist",
     "build": "gjsify run build:gjs && gjsify run build:browser && gjsify run build:assets",
     "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js",
+    "build:node": "gjsify build src/gjs/gjs.ts --app node --outfile dist/gjs.node.mjs --globals auto,dom",
     "build:browser": "gjsify build src/browser/browser-main.ts --app browser --outfile dist/browser.js",
     "build:assets": "cp -f src/browser/index.html dist/index.html && cp -f src/browser/canvas2d.css dist/canvas2d.css"
   },
@@ -32,6 +33,7 @@
     "@gjsify/canvas2d": "workspace:^",
     "@gjsify/cli": "workspace:^",
     "@gjsify/devtools": "workspace:^",
+    "@gjsify/node-gi": "file:../../../packages/node-gi/node-gi",
     "@gjsify/vite-plugin-blueprint": "workspace:^",
     "@types/node": "^25.9.2",
     "http-server": "^14.1.1",
@@ -49,6 +51,10 @@
   },
   "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/canvas2d-fireworks#readme",
   "gjsify": {
-    "tier": 2
+    "tier": 2,
+    "example": {
+      "runtimes": ["gjs", "node", "bun", "deno"],
+      "node": "dist/gjs.node.mjs"
+    }
   }
 }
