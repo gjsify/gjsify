@@ -14,7 +14,10 @@ import { callStaticMethod, requireNamespace } from '../index.js';
 test('static/constructor method: Gio.File.new_for_path', () => {
   const Gio = requireGi('Gio', '2.0');
   const f = Gio.File.new_for_path('/usr/bin/gjs');
-  assert.equal(f.get_path(), '/usr/bin/gjs');
+  // GIO normalizes to the platform separator, so get_path() is `\usr\bin\gjs` on
+  // Windows; normalize separators before comparing (node-gi returns exactly what GIO
+  // returns — the test's point is that the static new_for_path resolves + returns a path).
+  assert.equal(f.get_path().replaceAll('\\', '/'), '/usr/bin/gjs');
   assert.equal(f.get_basename(), 'gjs');
 });
 

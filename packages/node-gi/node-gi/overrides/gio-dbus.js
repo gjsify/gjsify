@@ -132,25 +132,49 @@ export function createGioDBus(ctx) {
     const inTypeString = `(${inSignature.join('')})`;
     const inVariant = new GLib.Variant(inTypeString, argArray);
 
+    // GJS always routes through call_with_unix_fd_list[_sync/_finish] (a superset
+    // that also carries GUnixFDList fd-passing). Those live in GioUnix and are ABSENT
+    // from the Gio typelib on Windows, so fall back to the cross-platform
+    // call[_sync/_finish] there — fd-passing is a Unix concept, so there is nothing to
+    // carry. Detection is by method presence (node-gi's L1 wrapper returns `undefined`
+    // for an absent method), keeping POSIX byte-identical: where the method exists the
+    // fd-list path is taken exactly as before.
     if (sync) {
-      const result = wrappedProxy.call_with_unix_fd_list_sync(methodName, inVariant, flags, -1, fdList, cancellable);
-      const outVariant = Array.isArray(result) ? result[0] : result;
-      const outFdList = Array.isArray(result) ? result[1] : null;
-      if (fdList) return [outVariant.deepUnpack(), outFdList];
+      if (typeof wrappedProxy.call_with_unix_fd_list_sync === 'function') {
+        const result = wrappedProxy.call_with_unix_fd_list_sync(methodName, inVariant, flags, -1, fdList, cancellable);
+        const outVariant = Array.isArray(result) ? result[0] : result;
+        const outFdList = Array.isArray(result) ? result[1] : null;
+        if (fdList) return [outVariant.deepUnpack(), outFdList];
+        return outVariant.deepUnpack();
+      }
+      if (fdList) throw new Error(`${methodName}: Gio.UnixFDList fd-passing is not supported on this platform`);
+      const outVariant = wrappedProxy.call_sync(methodName, inVariant, flags, -1, cancellable);
       return outVariant.deepUnpack();
     }
 
+    if (typeof wrappedProxy.call_with_unix_fd_list === 'function') {
+      const asyncCallback = (_rawSource, res) => {
+        try {
+          const result = wrappedProxy.call_with_unix_fd_list_finish(res);
+          const outVariant = Array.isArray(result) ? result[0] : result;
+          const outFdList = Array.isArray(result) ? result[1] : null;
+          replyFunc(outVariant.deepUnpack(), null, outFdList);
+        } catch (e) {
+          replyFunc([], e, null);
+        }
+      };
+      return wrappedProxy.call_with_unix_fd_list(methodName, inVariant, flags, -1, fdList, cancellable, asyncCallback);
+    }
+    if (fdList) throw new Error(`${methodName}: Gio.UnixFDList fd-passing is not supported on this platform`);
     const asyncCallback = (_rawSource, res) => {
       try {
-        const result = wrappedProxy.call_with_unix_fd_list_finish(res);
-        const outVariant = Array.isArray(result) ? result[0] : result;
-        const outFdList = Array.isArray(result) ? result[1] : null;
-        replyFunc(outVariant.deepUnpack(), null, outFdList);
+        const outVariant = wrappedProxy.call_finish(res);
+        replyFunc(outVariant.deepUnpack(), null, null);
       } catch (e) {
         replyFunc([], e, null);
       }
     };
-    return wrappedProxy.call_with_unix_fd_list(methodName, inVariant, flags, -1, fdList, cancellable, asyncCallback);
+    return wrappedProxy.call(methodName, inVariant, flags, -1, cancellable, asyncCallback);
   }
 
   function _makeProxyMethod(wrappedProxy, method, sync) {
