@@ -36,8 +36,16 @@ interface Manifest {
 }
 
 function manifestPath(): string {
-    // `showcases.json` lives at the package root: ../../showcases.json from lib/utils/.
-    return join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'showcases.json');
+    const here = dirname(fileURLToPath(import.meta.url));
+    // `showcases.json` lives at the CLI package root. Its position relative to
+    // this module depends on how the CLI is loaded:
+    //   - `lib/utils/discover-showcases.js` (Node/Bun/Deno) → `../../showcases.json`.
+    //   - the committed `dist/cli.gjs.mjs` GJS bundle (`gjsify showcase` under
+    //     gjs) → `import.meta.url` is `dist/cli.gjs.mjs`, so the manifest is one
+    //     level up (`../showcases.json`), not two — without this the gjs CLI
+    //     finds no manifest and `showcase` wrongly reports "No showcases found".
+    const candidates = [join(here, '..', '..', 'showcases.json'), join(here, '..', 'showcases.json')];
+    return candidates.find((c) => existsSync(c)) ?? candidates[0];
 }
 
 /**

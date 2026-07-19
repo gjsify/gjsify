@@ -112,7 +112,12 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
         if (!showcase) {
             console.error(`Unknown showcase: "${args.name}"`);
             console.error('Run "gjsify showcase" to list available showcases.');
-            process.exit(1);
+            // `return process.exit()`: a bare `process.exit()` does NOT halt
+            // synchronously under GJS (no atexit, GLib loop still armed), so
+            // execution would fall through to `showcase.packageName` below on an
+            // undefined `showcase` → throw racing the scheduled exit → the
+            // `m_should_exit` core dump. Returning halts the handler here.
+            return process.exit(1);
         }
 
         // System dependency check before delegating — only system libs (gjs,
@@ -134,13 +139,15 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
             if (cmd) {
                 console.error(`\nInstall with:\n  ${cmd}`);
             }
-            process.exit(1);
+            // `return` — bare `process.exit` falls through under GJS (see above).
+            return process.exit(1);
         }
 
         const runtime = (args.runtime ?? hostRuntime()) as string;
         if (!isExampleRuntime(runtime)) {
             console.error(`Unknown --runtime "${runtime}" (expected: ${EXAMPLE_RUNTIMES.join(', ')}).`);
-            process.exit(1);
+            // `return` — bare `process.exit` falls through under GJS (see above).
+            return process.exit(1);
         }
 
         const cliVersion = readCliVersion();
