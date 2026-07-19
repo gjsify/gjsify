@@ -30,6 +30,18 @@ gjsify showcase canvas2d-fireworks
 
 A GTK4 window opens with a `Gtk.DrawingArea` filling its surface. Click anywhere to fire a firework; the explosion animates at the GTK frame clock's vsync via the [`requestAnimationFrame`](../../patterns/bridges/#resizeobserver-wires-through-bridges) shim.
 
+## Run it on Node.js, Bun or Deno
+
+This showcase declares all four runtimes (`package.json#gjsify.example.runtimes: ["gjs", "node", "bun", "deno"]`), so the exact same GTK4 window also runs through the [`@gjsify/node-gi`](/gjsify/projects/node-gi/) reverse bridge:
+
+```bash
+gjsify showcase canvas2d-fireworks --runtime node
+gjsify showcase canvas2d-fireworks --runtime bun
+gjsify showcase canvas2d-fireworks --runtime deno
+```
+
+It is also the reference showcase for [devtools](/gjsify/guides/devtools/) over that bridge — `GJSIFY_DEVTOOLS=1` gets you the same `DumpTree` / `GetStatus` / `Screenshot` DBus calls on Node, Bun and Deno as on GJS, verified end-to-end on all four runtimes.
+
 ## Run it in the browser
 
 ```ts

@@ -160,6 +160,8 @@ The scaffolded scripts run with whichever toolchain you picked:
 
 `gjsify run` automatically sets `LD_LIBRARY_PATH` and `GI_TYPELIB_PATH` for any native prebuilds (e.g. `@gjsify/webgl`).
 
+Notice none of the `build` scripts above pass `--app` explicitly — `gjsify build` defaults its target to whichever runtime is running the CLI (`gjs` for the Node-free bootstrap, `node` for the npm/Bun/Deno paths), so the same `package.json` script works unmodified across all four toolchains.
+
 ## Using Node.js and Web APIs
 
 Write standard Node.js and Web API code — the Rolldown plugin handles everything:

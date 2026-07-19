@@ -12,6 +12,21 @@ import QuickStartCta from '../../components/QuickStartCta.astro';
     (rendered by the custom Hero override) already tell the story, followed by a
     single "get started" call-to-action. The deeper material — what makes GJSify
     different, the coverage dashboards, the bridge widgets — lives in the
-    documentation subpages (Overview, Coverage, Patterns/Bridges). */}
+    documentation subpages (Overview, Coverage, Patterns/Bridges). One short
+    addition below the CTA: a pointer that showcases run on a runtime of your
+    choosing, not just GJS — worth a line on the start page. */}
 
 <QuickStartCta />
+
+## Run on any runtime
+
+Every showcase runs on GJS by default — and, through the
+[`@gjsify/node-gi`](/gjsify/projects/node-gi/) reverse bridge, on Node.js, Bun
+or Deno too. Pick the runtime with `--runtime`:
+
+```bash
+npx @gjsify/cli showcase canvas2d-fireworks --runtime bun
+```
+
+Same GTK 4 window, same source, a different JS engine underneath. See
+[Runtimes](/gjsify/runtimes/) for how the bridge works in both directions.

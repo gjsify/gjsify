@@ -142,6 +142,30 @@ This is purpose-built for the GJSify web-app workflow: a developer (or an agent)
 
 [`gjsify storybook`](../../cli-reference/#gjsify-storybook) is debuggable the same way. Run it with `GJSIFY_DEVTOOLS=1` and bridge with `--profile storybook`; the agent gets `list_stories`, `get_current_story`, `open_story`, and `set_story_arg` — drive a component in isolation, flip its args, and `screenshot` (the generic tool) each variant.
 
+## 6. Devtools on Node.js, Bun and Deno (reverse bridge)
+
+The same control plane works when your GTK/Adwaita app runs via
+[`@gjsify/node-gi`](/gjsify/projects/node-gi/) instead of GJS — no separate
+adapter, no separate MCP profile. `installDevtools(app, …)` and the
+`org.gjsify.Devtools` DBus interface behave identically:
+
+```bash
+GJSIFY_DEVTOOLS=1 gjsify run --runtime node dist/app.node.mjs
+GJSIFY_DEVTOOLS=1 gjsify run --runtime bun  dist/app.node.mjs
+GJSIFY_DEVTOOLS=1 gjsify run --runtime deno dist/app.node.mjs
+```
+
+`DumpTree`, `GetStatus`, `ListToplevels` and the async `Screenshot` all work,
+producing real PNGs — screenshot a node-gi app exactly the way you'd
+screenshot a GJS one. `DumpTree` reports the concrete runtime GType on
+node-gi too (e.g. `AdwBin`), matching GJS.
+
+Two node-gi fixes made this possible: zero-arg boxed-struct construction
+(`new Graphene.Rect()`, needed by the GSK screenshot chain) and a microtask
+drain at the loop-dispatched callback boundary on Bun/Deno, so an async DBus
+method reply resolves while the blocking GLib main loop is running — matching
+Node and GJS.
+
 ## The pause policy (read-only vs mutating)
 
 Every method is classified so a host can **pause external control** without going dark:

@@ -5,7 +5,7 @@ description: All GJSify subcommands, flags and typical usage
 
 The `@gjsify/cli` package ships the `gjsify` binary. Run it via `npx @gjsify/cli <command>` or add it as a dev dependency.
 
-> **Tip:** `npx @gjsify/cli --help` lists all commands and flags. The output ends with a `Running on …` line showing the active runtime — `Running on Node.js v24.x.y` when invoked via the Node bin, or `Running on GJS 1.x.y (SpiderMonkey)` when running the GJS bundle.
+> **Tip:** `npx @gjsify/cli --help` lists all commands and flags. The output ends with a `Running on …` line showing the active runtime — `Running on Node.js v24.x.y` when invoked via the Node bin, `Running on GJS 1.x.y (SpiderMonkey)` when running the GJS bundle, or `Running on Bun x.y.z` / `Running on Deno x.y.z` when invoked via `bunx` / `deno run`. The CLI itself runs on all four, and this detected host runtime is also what drives the default `--app` build target and the default `--runtime` for `run` / `showcase` / `storybook` below.
 
 ## `gjsify create`
 
@@ -32,7 +32,7 @@ npx @gjsify/cli build src/index.ts --outfile dist/index.js
 | Option | Values | Default | Description |
 |---|---|---|---|
 | `[entryPoints..]` | paths | `src/index.ts` | Positional entry points |
-| `--app` | `gjs` \| `node` \| `browser` \| `nativescript` | `gjs` | Target runtime. The `node` bundle also runs on Bun and Deno unchanged (Node-API is their shared addon ABI) — there is no separate `deno`/`bun` target |
+| `--app` | `gjs` \| `node` \| `browser` \| `nativescript` | host runtime target (`gjs` on gjs, else `node`) | Target runtime. Defaults to the target of the **host runtime running the CLI**: `gjs` under a GJS host, `node` under Node/Bun/Deno — the `node` bundle runs on Bun and Deno unchanged too (Node-API is their shared addon ABI), so there is no separate `deno`/`bun` target. Override with `--app` or `package.json#gjsify.app` |
 | `--outfile`, `-o` | path | from `package.json` | Output file |
 | `--outdir`, `-d` | path | from `package.json` | Output directory (library mode) |
 | `--minify` | bool | `false` | Minify the output |
@@ -408,7 +408,7 @@ npx @gjsify/cli run dist/index.js
 | `<target>` | A GJS bundle file to run, **or** a script name from the current `package.json` |
 | `[args..]` | Extra arguments passed through to the script / `gjs` |
 | `-w, --workspace <name>` | Run `<target>` as a script in the named workspace (by package name or path), like `npm run <script> -w <name>` |
-| `--runtime <gjs\|node\|bun\|deno>` | Runtime to launch a bundle **file** on. Forces file mode. Default `gjs`. |
+| `--runtime <gjs\|node\|bun\|deno>` | Runtime to launch a bundle **file** on. Forces file mode. Defaults to the host runtime (`gjs` on gjs, else `node`/`bun`/`deno`) — see below. |
 
 If `<target>` resolves to a file on disk (or has a path-like prefix), it is launched via `gjs`. Otherwise it is looked up in the current `package.json`'s `scripts` (yarn-run-style).
 
@@ -420,11 +420,15 @@ gjsify run build -w cli       # run the `build` script in the `cli` workspace
 ### `--runtime` — run a bundle on gjs / node / bun / deno
 
 `--runtime` selects which runtime launches a **built bundle file**, generalizing the
-`gjsify storybook --runtime` mechanism. `gjs` (default) runs a `--app gjs` bundle via
-`gjs -m`; `node`/`bun`/`deno` run a `--app node` bundle — the **same** bundle for all
-three, since Node-API is their common ABI (bun/deno reuse the node build). Native typelib
-env is wired exactly as for `gjs`, and `@gjsify/node-gi` is required only when the bundle
-actually uses `gi://`.
+`gjsify storybook --runtime` mechanism. Its default follows the **host runtime the CLI
+itself is running on** — `gjs` when invoked via the GJS bundle, `node`/`bun`/`deno` when
+invoked via `npx`/`bunx`/`deno run` — except a `--app gjs` bundle (`gi://` imports, a `gjs`
+shebang) always runs on `gjs` regardless of host, since it has no node-gi shim. `gjs` runs
+a `--app gjs` bundle via `gjs -m`; `node`/`bun`/`deno` run a `--app node` bundle — the
+**same** bundle for all three, since Node-API is their common ABI (bun/deno reuse the node
+build). Native typelib env is wired exactly as for `gjs`, and `@gjsify/node-gi` is required
+only when the bundle actually uses `gi://`. Pass `--runtime` explicitly to override the
+host default.
 
 ```bash
 gjsify build src/app.ts --app gjs  --outfile dist/app.gjs.mjs
@@ -641,15 +645,18 @@ npx @gjsify/cli showcase three-geometry-teapot
 | `[name]` | — | Showcase name to run. Omit to list available showcases |
 | `--list` | `false` | Force list mode |
 | `--json` | `false` | Output as JSON (list mode only) |
-| `--runtime <gjs\|node\|bun\|deno>` | `gjs` | Runtime to run the showcase on. |
+| `--runtime <gjs\|node\|bun\|deno>` | host runtime (`gjs` on gjs, else `node`/`bun`/`deno`) | Runtime to run the showcase on. |
 
 ### `--runtime` — run a showcase off GJS
 
-`gjs` (default) runs the showcase's GJS bundle via `gjsify dlx` (unchanged). `node`/`bun`/`deno`
-resolve the showcase's `--app node` bundle and run it on that runtime — the Node-API showcases
+The default follows the **host runtime the CLI itself is running on** — `gjs` when invoked
+via the GJS bundle, `node`/`bun`/`deno` when invoked via `npx`/`bunx`/`deno run`. `gjs` runs
+the showcase's GJS bundle via `gjsify dlx` (unchanged). `node`/`bun`/`deno` resolve the
+showcase's `--app node` bundle and run it on that runtime — the Node-API showcases
 (`showcases/node/*`). The runtime is validated against the showcase's
 [`gjsify.example.runtimes`](#per-example-runtime-declaration) declaration: a GTK/Adw showcase
-requested under `node` fails with a clear message rather than crashing.
+requested under `node` fails with a clear message rather than crashing. Pass `--runtime`
+explicitly to override the host default.
 
 ```bash
 gjsify showcase express-webserver                  # GJS (default)
@@ -694,11 +701,12 @@ gjsify storybook --watch               # rebuild + relaunch on story change
 | `--app-id <id>` | `gjsify.storybook.applicationId` or derived from the package name | GApplication id. |
 | `--title <text>` | — | Window title. |
 | `--globals <value>` | `auto` | Value for `gjsify build --globals` (use `auto,dom` for canvas/DOM stories). |
+| `--runtime <gjs\|node\|bun\|deno>` | host runtime (`gjs` on gjs, else `node`/`bun`/`deno`) | Runtime to build for and launch on. `node`/`bun`/`deno` build the SAME `--app node` bundle (`gi://` → `@gjsify/node-gi`) and require `@gjsify/node-gi` installed in the project. |
 | `--out <path>` | `node_modules/.cache/gjsify-storybook` | Output bundle path. |
 | `--watch` | `false` | Rebuild and relaunch when a story file changes. |
 | `--build-only` | `false` | Build the bundle but do not launch it. |
 
-Configure defaults in `package.json#gjsify.storybook` (`applicationId`, `title`, `stories`, `globals`). With `GJSIFY_DEVTOOLS=1`, the storybook host also exposes the devtools control plane, so an agent can drive it via `gjsify debug --profile storybook`. See the [Debugging & remote control guide](./guides/devtools/).
+Configure defaults in `package.json#gjsify.storybook` (`applicationId`, `title`, `stories`, `globals`, `runtime`). Precedence for the runtime: `--runtime` flag > `gjsify.storybook.runtime` config > host default. `--runtime` mirrors `gjsify run --runtime` / `gjsify showcase --runtime` — pass it to build + launch the SAME storybook on a specific runtime, e.g. `gjsify storybook --runtime bun`. With `GJSIFY_DEVTOOLS=1`, the storybook host also exposes the devtools control plane on any of the four runtimes, so an agent can drive it via `gjsify debug --profile storybook`. See the [Debugging & remote control guide](./guides/devtools/).
 
 ## `gjsify debug`
 

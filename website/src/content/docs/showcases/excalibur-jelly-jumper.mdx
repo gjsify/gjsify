@@ -32,6 +32,16 @@ gjsify showcase excalibur-jelly-jumper
 
 Opens a GTK4 window with the GLArea-backed canvas filling it. Arrow keys move, space jumps, R restarts. The Excalibur engine ticks at the GTK frame clock's vsync.
 
+## Run it on Node.js
+
+This showcase also declares `node` in `package.json#gjsify.example.runtimes` (`["gjs", "node"]`), so the full Excalibur.js game — WebGL rendering, tilemap loading, input, WebAudio — renders through the [`@gjsify/node-gi`](/gjsify/projects/node-gi/) reverse bridge, no Excalibur fork needed there either:
+
+```bash
+gjsify showcase excalibur-jelly-jumper --runtime node
+```
+
+Bun and Deno are not declared for this showcase yet — [`canvas2d-fireworks`](../canvas2d-fireworks/) is the one verified on all four runtimes.
+
 ## Run it in the browser
 
 ```ts

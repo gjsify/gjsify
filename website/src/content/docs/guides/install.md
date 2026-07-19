@@ -66,6 +66,16 @@ npm install -g @gjsify/cli
 Still fully supported. Choose this if you already manage developer
 tooling via npm and don't mind keeping Node on the path.
 
+### Which runtime does the installed `gjsify` default to?
+
+`gjsify` follows whichever runtime is running it. The Node-free bootstrap
+above installs a GJS bundle, so its `--app` build target and `--runtime`
+default to `gjs`; `npm install -g @gjsify/cli` runs on Node, so those default
+to `node`; invoking the CLI via `bunx @gjsify/cli` or `deno run
+npm:@gjsify/cli` defaults to `bun`/`deno` respectively (all three consume the
+same `--app node` bundle). Override explicitly with `--app`/`--runtime` — see
+[Runtimes](/gjsify/runtimes/).
+
 ## Prerequisites
 
 The bootstrap script requires:

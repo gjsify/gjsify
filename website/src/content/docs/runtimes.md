@@ -40,12 +40,30 @@ binary serves all three runtimes**.
 The injection is conditional: a `--app node` bundle that never touches GJS
 APIs stays node-gi-free and runs on stock Node.js.
 
+The [devtools](/gjsify/guides/devtools/) control plane works over this reverse
+bridge too: a GTK/Adwaita app running via `@gjsify/node-gi` on Node, Bun or
+Deno can be inspected, driven and **screenshotted** through the same
+`org.gjsify.Devtools` DBus interface as on GJS — `DumpTree`, `GetStatus`,
+`ListToplevels` and the async `Screenshot` all work, producing real PNGs.
+
 ### The browser — `--app browser`
 
 The same source can target the browser. `@gjsify/adwaita-web` carries the
 Adwaita design system over as Web Components, and the bridge widgets have
 DOM-native counterparts — the [showcases](/gjsify/showcases/) embedded on this
 site are exactly these builds.
+
+### The CLI follows the host runtime too
+
+`gjsify` itself runs on GJS, Node.js, Bun and Deno, and its defaults follow
+whichever one is hosting it: `gjsify build` defaults `--app` to `gjs` under a
+global GJS install and to `node` when run via `npx`/`bunx`/`deno run` (bun and
+deno consume the same `--app node` bundle). `gjsify run`, `gjsify showcase`
+and `gjsify storybook` apply the same host-derived default to their
+`--runtime` flag — so `gjsify showcase canvas2d-fireworks --runtime bun`
+picks the runtime explicitly, while omitting `--runtime` follows whatever
+runtime invoked the CLI. Override any of it with `--app`/`--runtime` or
+`package.json#gjsify.app`. Full flags: [CLI Reference](/gjsify/cli-reference/).
 
 ## Support matrix
 
@@ -54,9 +72,9 @@ Support claims name what is actually validated, not runtime-class labels:
 | Runtime | Role | Validated by |
 |---|---|---|
 | **GJS** 1.86+ | Primary target, full framework | 10,650+ test cases run on GJS *and* Node.js in CI (Fedora 43/44); 35 integration suites of curated upstream tests |
-| **Node.js** 24+ | Reverse bridge + toolchain host | 261/261 node-gi engine tests; `@gjsify/sqlite`'s suite runs via `--app node` against real libgda; `gjsify storybook --runtime node` end-to-end |
-| **Bun** 1.3+ | Reverse bridge (same binary) | Full node-gi core parity — 215/215 |
-| **Deno** 2.9+ | Reverse bridge (prebuild) | Conformance subset green — no postinstall build needed |
+| **Node.js** 24+ | Reverse bridge + toolchain host + CLI host | 261/261 node-gi engine tests; `@gjsify/sqlite`'s suite runs via `--app node` against real libgda; `gjsify storybook --runtime node` end-to-end; devtools (`DumpTree`/`Screenshot`/…) verified over the reverse bridge; `canvas2d-fireworks` showcase runs + screenshots via `--runtime node`; `excalibur-jelly-jumper` renders its full Excalibur.js game via node-gi |
+| **Bun** 1.3+ | Reverse bridge (same binary) + CLI host | Full node-gi core parity — 215/215; devtools + `canvas2d-fireworks` showcase verified via `--runtime bun` |
+| **Deno** 2.9+ | Reverse bridge (prebuild) + CLI host | Conformance subset green — no postinstall build needed; devtools + `canvas2d-fireworks` showcase verified via `--runtime deno` |
 | **Browser** | Build target + design system | 12 packages tested under Playwright (Firefox/SpiderMonkey); live showcases on this site |
 
 A golden-diff conformance harness runs the same programs on `gjs`, `node`,

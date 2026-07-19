@@ -33,6 +33,19 @@ gjsify showcase canvas2d-fireworks       # run on GJS (opens a GTK4 window)
 
 The CLI resolves the showcase's npm package (every showcase is published as `@gjsify/example-<category>-<name>`) and launches its GJS bundle via `gjs -m`. Native dependencies (Vala typelibs) are auto-discovered from `node_modules`'s prebuild directories.
 
+### Pick the runtime — `--runtime`
+
+Add `--runtime` to run a showcase on Node.js, Bun or Deno instead of GJS, through the [`@gjsify/node-gi`](/gjsify/projects/node-gi/) reverse bridge — same GTK4 window, same source, a different JS engine underneath:
+
+```bash
+gjsify showcase canvas2d-fireworks --runtime gjs    # gjs -m
+gjsify showcase canvas2d-fireworks --runtime node
+gjsify showcase canvas2d-fireworks --runtime bun
+gjsify showcase canvas2d-fireworks --runtime deno
+```
+
+`--runtime` defaults to whichever runtime the CLI itself is running on (`gjs` for a global GJS install, `node`/`bun`/`deno` when invoked via `npx`/`bunx`/`deno run`). A showcase can restrict which runtimes it supports via `package.json#gjsify.example.runtimes`; requesting an unsupported one fails with a clear error instead of a bundle crash. Details: [Runtimes](/gjsify/runtimes/) · [CLI Reference](/gjsify/cli-reference/#--runtime--run-a-showcase-off-gjs).
+
 ## Running the browser version
 
 Every showcase ships a `./browser` export pointing at a TS module you can mount into any DOM container:

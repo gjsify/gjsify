@@ -106,9 +106,11 @@ gjsify storybook                       # discover *.story.ts, build --app gjs, l
 gjsify storybook --watch               # rebuild + reload on change
 gjsify storybook --build-only --out dist/storybook.gjs.mjs   # build without launching (CI-friendly)
 gjsify storybook --runtime node        # build + run the SAME storybook on Node via the @gjsify/node-gi bridge
+gjsify storybook --runtime bun         # …or on Bun
+gjsify storybook --runtime deno        # …or on Deno
 ```
 
-`--runtime node` (or `"runtime": "node"` in the config block) builds the identical storybook with `--app node` and runs it on Node.js through the [node-gi reverse bridge](/gjsify/projects/node-gi/) — useful where GJS isn't available (CI, containers, editor tooling). It requires `@gjsify/node-gi` as a project `devDependency`.
+`--runtime node`/`bun`/`deno` (or the matching `"runtime"` value in the config block) all build the identical storybook with `--app node` and run it on that runtime through the [node-gi reverse bridge](/gjsify/projects/node-gi/) — useful where GJS isn't available (CI, containers, editor tooling). Omitting `--runtime` defaults to whichever runtime the CLI itself is running on. Requires `@gjsify/node-gi` as a project `devDependency`.
 
 ## The rule of thumb
 
