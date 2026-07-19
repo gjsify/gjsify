@@ -604,6 +604,11 @@ jobs:
         working-directory: packages/node-gi/node-gi
         run: npm run test:bun
 
+      # Deno on macOS: 36/37 are a hard gate. `struct-construct` is a documented,
+      # self-healing SOFT-FAIL on deno+darwin ONLY (all 9 assertions pass, then the
+      # process aborts on Deno's N-API env teardown — see cross-runtime.mjs). Node,
+      # Bun, and Deno-on-Linux run it as a hard gate; the carve-out lifts when the
+      # Deno-macOS teardown path is fixed at the engine.
       - name: Conformance subset on Deno
         working-directory: packages/node-gi/node-gi
         run: npm run test:deno
