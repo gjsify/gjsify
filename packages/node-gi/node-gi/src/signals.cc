@@ -99,7 +99,23 @@ static void JsClosureMarshalImpl(GClosure* closure, GValue* return_value, guint 
   }
 
   napi_value result = nullptr;
-  napi_status st = napi_call_function(jc->env, env.Undefined(), cbv, args.size(), args.data(), &result);
+  // napi_make_callback (NOT napi_call_function): it runs the nextTick +
+  // microtask checkpoint at the callback boundary when this dispatch is the
+  // OUTERMOST JS entry — the same contract the GI-callback (calls.cc) and
+  // vfunc (class.cc) trampolines already follow, and GJS semantics exactly
+  // (SpiderMonkey drains the promise-job queue when the last JS frame exits).
+  // Without it, promise continuations resolved by a loop-dispatched signal
+  // handler linger until the libuv↔GLib bridge's prepare-phase drain — and
+  // running GTK-touching JS from a GSource PREPARE phase mid-iteration breaks
+  // the GDK frame clock (the Excalibur-on-node-gi stall: `engine.start()`'s
+  // load chain, queued inside the GLArea 'render' dispatch, ran from prepare
+  // and froze all further ticks/renders). A synchronous JS `emit()` (JS frames
+  // below) is unaffected — make_callback skips the checkpoint when nested.
+  // Receiver: `global`, matching the other trampolines (make_callback requires
+  // an object receiver; handler `this` is not part of the signal contract).
+  napi_value global = nullptr;
+  napi_get_global(jc->env, &global);
+  napi_status st = napi_make_callback(jc->env, nullptr, global, cbv, args.size(), args.data(), &result);
   if (st != napi_ok) {
     // The handler threw. A synchronous emitSignal() (g_syncEmitDepth > 0) must
     // propagate it to the JS emit() caller (node-gi contract). At depth 0 there
