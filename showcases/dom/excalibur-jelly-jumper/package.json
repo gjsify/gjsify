@@ -58,11 +58,14 @@
     },
     "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/excalibur-jelly-jumper#readme",
     "gjsify": {
+        "main": "dist/gjs.js",
         "tier": 2,
         "example": {
             "runtimes": [
                 "gjs",
-                "node"
+                "node",
+                "bun",
+                "deno"
             ],
             "node": "dist/gjs.node.mjs"
         }

@@ -17,9 +17,11 @@
     "clear": "rm -rf dist tsconfig.tsbuildinfo",
     "check": "gjsify tsc --noEmit --skipLibCheck --strictNullChecks false --noImplicitAny false",
     "start": "gjsify run dist/gjs.js",
+    "start:node": "gjsify run dist/gjs.node.mjs --runtime node",
     "start:browser": "http-server dist",
-    "build": "gjsify run build:gjs && gjsify run build:browser && gjsify run build:assets",
+    "build": "gjsify run build:gjs && gjsify run build:node && gjsify run build:browser && gjsify run build:assets",
     "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js",
+    "build:node": "gjsify build src/gjs/gjs.ts --app node --outfile dist/gjs.node.mjs --globals auto,dom,fetch,XMLHttpRequest,ProgressEvent,MouseEvent,PointerEvent,KeyboardEvent,WheelEvent",
     "build:browser": "gjsify build src/browser/browser-main.ts --app browser --outfile dist/browser.js",
     "build:assets": "cp -f src/browser/index.html dist/index.html && cp -f src/browser/webgl.css dist/webgl.css && cp -rf src/assets dist/assets"
   },
@@ -36,6 +38,7 @@
     "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/cli": "workspace:^",
     "@gjsify/devtools": "workspace:^",
+    "@gjsify/node-gi": "file:../../../packages/node-gi/node-gi",
     "@gjsify/vite-plugin-blueprint": "workspace:^",
     "@types/node": "^25.9.2",
     "@types/three": "^0.185.0",
@@ -55,6 +58,16 @@
   },
   "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/three-geometry-teapot#readme",
   "gjsify": {
-    "tier": 2
+    "main": "dist/gjs.js",
+    "tier": 2,
+    "example": {
+      "runtimes": [
+        "gjs",
+        "node",
+        "bun",
+        "deno"
+      ],
+      "node": "dist/gjs.node.mjs"
+    }
   }
 }
