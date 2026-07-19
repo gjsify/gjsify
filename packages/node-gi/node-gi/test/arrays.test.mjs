@@ -24,7 +24,9 @@ test('GStrv return → string[]: GLib.get_environ()', () => {
   assert.ok(Array.isArray(environ));
   assert.ok(environ.length > 0);
   assert.ok(environ.every((e) => typeof e === 'string'));
-  assert.ok(environ.some((e) => e.startsWith('PATH=')));
+  // Windows names the search path `Path=`, POSIX `PATH=` — match case-insensitively
+  // (node-gi returns the real OS environ verbatim; only the var name's case differs).
+  assert.ok(environ.some((e) => /^path=/i.test(e)));
 });
 
 test('GStrv IN (transfer none) + string return: GLib.environ_getenv()', () => {

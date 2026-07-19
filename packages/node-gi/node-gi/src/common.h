@@ -19,7 +19,9 @@
 #ifndef NODE_GI_SRC_COMMON_H_
 #define NODE_GI_SRC_COMMON_H_
 
+#ifndef _WIN32
 #include <dlfcn.h>  // dlopen/dlsym the GtkWidgetClass template API (no GTK link)
+#endif
 #include <napi.h>
 #include <uv.h>
 
@@ -35,6 +37,15 @@
 #include <string>
 #include <thread>
 #include <vector>
+
+#ifdef _WIN32
+// libuv's uv.h transitively includes <windows.h>, whose <winuser.h> defines the
+// object-like macro `RegisterClass` (→ RegisterClassW, the Win32 window-class API).
+// It clobbers our identically-named N-API export `RegisterClass`. We never call the
+// Win32 windowing API, so undefine it (it is the only Win32 UI macro that collides
+// with a node-gi identifier — `RegisterClassFromGType` is a distinct token).
+#undef RegisterClass
+#endif
 
 namespace nodegi {
 

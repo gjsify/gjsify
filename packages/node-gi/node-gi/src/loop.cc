@@ -7,6 +7,17 @@
 
 #include <unordered_map>
 
+#ifndef _WIN32
+// g_source_add_unix_fd / g_source_modify_unix_fd embed libuv's backend fd into a
+// GLib GSource — POSIX-only (declared in glib-unix.h; absent on Windows, where
+// GLib splits platform APIs into -Unix/-Win32 namespaces and libuv uses IOCP, not
+// an fd-polling backend). ONLY the UvLoopSource path (the BLOCKING-GLib-main-loop
+// co-pump) is guarded out on Windows; the uv-driven pump below (prepare/check/timer
+// → g_main_context_iteration) has no unix_fd dependency and stays active, so async
+// Gio/timers/DBus still work on Windows (degraded to timed polling — see SyncPumpPolls).
+#include <glib-unix.h>
+#endif
+
 namespace nodegi {
 
 // ---- libuv <-> GLib main loop bridge (milestone: mainloop) ----
@@ -24,8 +35,11 @@ namespace nodegi {
 struct UvLoopSource {
   GSource source;
   uv_loop_t* loop;
-  gpointer fd_tag;
-  gboolean fd_polled;
+  gpointer fd_tag;      // POSIX: the uv_backend_fd poll tag (unused on Windows)
+  gboolean fd_polled;   // POSIX: whether the backend fd is currently polled
+#ifdef _WIN32
+  gint64 win_next_wake_us;  // Windows: monotonic time of the next periodic co-pump wake
+#endif
 };
 
 static napi_env g_loop_env = nullptr;       // captured at startMainLoop (main thread)
@@ -54,6 +68,12 @@ static gboolean g_in_uv_pump = FALSE;
 // run() do not drain until run() returns. nextTick still drains; timers/I/O the
 // loop dispatches are unaffected. The robust fix lives in L1 (defer the run() to
 // a macrotask when a microtask checkpoint is in progress).
+//
+// Cross-platform: process._tickCallback drains BOTH the nextTick queue AND the
+// microtask checkpoint explicitly (node's task_queues.js calls runMicrotasks() at
+// its end), so this settles an async DBus reply / GLib-timeout-resolved await
+// continuation regardless of callback-scope depth. On Windows it is the timer-driven
+// UvLoopSource (below) that calls this during a blocking GLib loop.
 static void DrainMicrotasks() {
   if (g_loop_env == nullptr || g_tick_callback_ref == nullptr || g_process_ref == nullptr) return;
   napi_env env = g_loop_env;
@@ -149,6 +169,7 @@ void NodeGiMaybeDrainMicrotasks(napi_env env) {
   napi_close_handle_scope(env, scope);
 }
 
+#ifndef _WIN32
 static gboolean uv_source_prepare(GSource* base, gint* timeout) {
   UvLoopSource* s = reinterpret_cast<UvLoopSource*>(base);
 
@@ -205,6 +226,60 @@ static gboolean uv_source_dispatch(GSource* base, GSourceFunc /*callback*/, gpoi
 static GSourceFuncs uv_source_funcs = {
     uv_source_prepare, nullptr, uv_source_dispatch, nullptr, nullptr, nullptr,
 };
+#else  // _WIN32 — the UvLoopSource, timer-driven instead of uv-backend-fd-driven.
+//
+// Windows/IOCP has no uv backend fd to embed in a GLib GSource, so the co-pump of
+// Node's loop during a BLOCKING GLib main loop is driven by a periodic GLib
+// timeout instead: every NODE_GI_WIN_UV_POLL_MS the source dispatches, runs
+// uv_run(UV_RUN_NOWAIT) (Node timers/I/O) and DrainMicrotasks() (nextTick +
+// microtask checkpoint via process._tickCallback). The DRAIN is the load-bearing
+// part: an async DBus reply (or any GLib-timeout-resolved `await`) posts its reply
+// through a Promise `.then` continuation, and only a microtask drain during the
+// blocking run() settles it — on POSIX the fd-driven source does exactly this. The
+// GLib->uv mirror of the uv->GLib timed pump (SyncPumpPolls fallback). Parked while
+// the uv-driven pump owns the context (g_in_uv_pump). A Win32 HANDLE/IOCP wakeup
+// (readiness-driven, not timed) is a follow-up; the timed drain is correct, just
+// wakes on a cadence instead of on the fd.
+static const gint NODE_GI_WIN_UV_POLL_MS = 5;
+
+static gboolean uv_source_prepare(GSource* base, gint* timeout) {
+  UvLoopSource* s = reinterpret_cast<UvLoopSource*>(base);
+  if (g_in_uv_pump) {
+    *timeout = -1;
+    return FALSE;
+  }
+  uv_update_time(s->loop);
+  DrainMicrotasks();  // drain before we (maybe) sleep — settles a pending async reply
+  const gint64 now = g_source_get_time(base);
+  if (now >= s->win_next_wake_us) {
+    *timeout = 0;
+    return TRUE;  // due now — dispatch runs uv_run + drain
+  }
+  // Cap the sleep so a GLib callback that queues a microtask is drained promptly.
+  gint64 remaining_ms = (s->win_next_wake_us - now + 999) / 1000;
+  *timeout = remaining_ms > NODE_GI_WIN_UV_POLL_MS ? NODE_GI_WIN_UV_POLL_MS : static_cast<gint>(remaining_ms);
+  return FALSE;
+}
+
+static gboolean uv_source_check(GSource* base) {
+  UvLoopSource* s = reinterpret_cast<UvLoopSource*>(base);
+  if (g_in_uv_pump) return FALSE;
+  return g_source_get_time(base) >= s->win_next_wake_us;
+}
+
+static gboolean uv_source_dispatch(GSource* base, GSourceFunc /*callback*/, gpointer /*user_data*/) {
+  if (g_in_uv_pump) return G_SOURCE_CONTINUE;  // never nest uv_run under a pump iteration
+  UvLoopSource* s = reinterpret_cast<UvLoopSource*>(base);
+  uv_run(s->loop, UV_RUN_NOWAIT);
+  DrainMicrotasks();
+  s->win_next_wake_us = g_source_get_time(base) + NODE_GI_WIN_UV_POLL_MS * 1000;
+  return G_SOURCE_CONTINUE;
+}
+
+static GSourceFuncs uv_source_funcs = {
+    uv_source_prepare, uv_source_check, uv_source_dispatch, nullptr, nullptr, nullptr,
+};
+#endif  // _WIN32 (UvLoopSource: POSIX fd-driven / Windows timer-driven co-pump)
 
 // iterateMainContext(mayBlock?) -> boolean
 //
@@ -299,6 +374,16 @@ static void PumpPollCloseCb(uv_handle_t* h) {
 // failure (fd not pollable / already watched elsewhere in this loop) fall back
 // to a short timer so readiness is still discovered, just later.
 static gboolean SyncPumpPolls(int nfds) {
+#ifdef _WIN32
+  // uv_poll requires a SOCKET on Windows, but GLib's queried poll fds are HANDLEs
+  // (g_poll uses MsgWaitForMultipleObjects), not pollable via libuv. Report "not
+  // fully watched" so PumpArmWakeups falls back to timed main-context polling — the
+  // pump still drains ready GLib sources each loop turn (async Gio/timers/DBus
+  // work), just discovering readiness on a short cadence instead of on the fd. A
+  // HANDLE/IOCP fd-watch integration via the Win32 GLib surface is a follow-up.
+  (void)nfds;
+  return FALSE;
+#else
   gboolean all_ok = TRUE;
   for (auto& it : *g_pump_polls) it.second->seen = FALSE;
 
@@ -360,6 +445,7 @@ static gboolean SyncPumpPolls(int nfds) {
     it = g_pump_polls->erase(it);
   }
   return all_ok;
+#endif  // _WIN32
 }
 
 // Drain every currently-ready GLib source (bounded). Each iteration is a full,
@@ -412,13 +498,20 @@ static void PumpArmWakeups() {
   g_in_uv_pump = FALSE;
 
   if (!SyncPumpPolls(nfds)) {
-    // Degraded wake path: poll at a short cadence instead of on readiness.
+    // Degraded wake path: poll at a short cadence instead of on readiness. This is
+    // the ALWAYS case on Windows (GLib's poll fds are HANDLEs, not uv_poll-able) and
+    // an occasional one on Linux (an fd that isn't uv_poll-able). Force the cadence
+    // ONLY while async work is in-flight — its completion arrives on an fd we can't
+    // watch, so we must poll to catch it. When nothing is pending, keep the query's
+    // own timeout (-1 when GLib is idle) so the loop goes to sleep / the process
+    // exits instead of a ref'd timer spinning forever — otherwise a purely-sync
+    // program (and every finished conformance test) would never exit on Windows.
     if (!g_pump_poll_warned) {
       g_pump_poll_warned = TRUE;
       g_printerr("(node-gi) warning: could not watch a GLib poll fd from libuv; "
                  "falling back to timed main-context polling\n");
     }
-    if (timeout < 0 || timeout > 32) timeout = 32;
+    if (g_pump_async_pending > 0 && (timeout < 0 || timeout > 32)) timeout = 32;
   }
 
   if (timeout >= 0) {
@@ -585,12 +678,18 @@ Napi::Value StartMainLoop(const Napi::CallbackInfo& info) {
     }
   }
 
+  // UvLoopSource co-pumps Node's timers/I/O + drains its microtasks during a
+  // BLOCKING GLib main loop (GLib.MainLoop.run / Gio.Application.run). POSIX embeds
+  // uv's backend fd into the GSource (readiness-driven); Windows/IOCP has no backend
+  // fd, so the Windows variant is timer-driven (see uv_source_funcs above) — same
+  // dispatch (uv_run + DrainMicrotasks), woken on a 5 ms cadence instead of the fd.
+  // PumpInit below is the separate NON-blocking case (bare `node bundle.mjs` async).
+#ifndef _WIN32
   GSource* source = g_source_new(&uv_source_funcs, sizeof(UvLoopSource));
   UvLoopSource* s = reinterpret_cast<UvLoopSource*>(source);
   s->loop = loop;
   s->fd_polled = TRUE;
-  // uv_backend_fd is the epoll/kqueue fd on POSIX. (Windows uses a different
-  // wake mechanism — node-gtk guards it; this milestone targets Linux/Fedora.)
+  // uv_backend_fd is the epoll/kqueue fd on POSIX.
   s->fd_tag = g_source_add_unix_fd(source, uv_backend_fd(loop),
                                    static_cast<GIOCondition>(G_IO_IN | G_IO_OUT | G_IO_ERR));
   // PRIORITY — below GDK_PRIORITY_REDRAW (G_PRIORITY_HIGH_IDLE + 20), above
@@ -610,7 +709,23 @@ Napi::Value StartMainLoop(const Napi::CallbackInfo& info) {
   g_source_set_priority(source, G_PRIORITY_HIGH_IDLE + 30);
   g_source_attach(source, nullptr);  // default GLib main context
   g_source_unref(source);            // the context holds the surviving ref
+#else  // _WIN32 — timer-driven UvLoopSource (no uv backend fd on IOCP).
+  GSource* source = g_source_new(&uv_source_funcs, sizeof(UvLoopSource));
+  UvLoopSource* s = reinterpret_cast<UvLoopSource*>(source);
+  s->loop = loop;
+  s->fd_tag = nullptr;
+  s->fd_polled = FALSE;
+  s->win_next_wake_us = 0;  // due immediately on the first iteration
+  // Same priority rationale as POSIX (below GDK redraw, above default idle) so a
+  // future GTK-on-Windows paint is not starved by the co-pump metronome.
+  g_source_set_priority(source, G_PRIORITY_HIGH_IDLE + 30);
+  g_source_attach(source, nullptr);  // default GLib main context
+  g_source_unref(source);            // the context holds the surviving ref
+#endif  // _WIN32 (UvLoopSource blocking-loop co-pump)
 
+  // Cross-platform: the uv-driven GLib pump (prepare/check/timer → g_main_context_
+  // iteration) drains async Gio/timers/DBus without uv's backend fd — active on
+  // Windows too (degraded to timed polling; see SyncPumpPolls).
   PumpInit(loop);
 
   g_loop_started = TRUE;
