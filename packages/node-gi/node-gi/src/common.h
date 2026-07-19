@@ -65,6 +65,12 @@ struct NodeGiEnvData {
   // into the JS Context/Surface(/ImageSurface)/Pattern class instance. Per-env for
   // the same reason as errorBuilder (a napi_ref is env-specific). See cairo.cc.
   napi_ref cairoWrappers = nullptr;
+  // The runtime-native microtask drain (Bun: `bun:jsc` drainMicrotasks; Deno:
+  // core.runMicrotasks), registered by index.js on non-Node runtimes only — see
+  // setMicrotaskDrain / NodeGiMaybeDrainMicrotasks in loop.cc. Never set on Node
+  // (napi_make_callback already runs the checkpoint there). Per-env for the same
+  // reason as errorBuilder (a napi_ref is env-specific).
+  napi_ref microtaskDrain = nullptr;
 };
 
 void NodeGiEnvDataFinalize(napi_env env, void* data, void* hint);
@@ -353,6 +359,20 @@ Napi::Value WrapGObject(Napi::Env env, GObject* obj, GITransfer transfer);
 
 extern int g_syncEmitDepth;
 
+// Nesting depth of loop-dispatched C->JS callbacks (the napi_make_callback sites
+// in signals.cc / calls.cc / class.cc). Used to run the cross-runtime microtask
+// checkpoint (NodeGiMaybeDrainMicrotasks) only at the OUTERMOST callback
+// boundary — a nested dispatch (a handler re-entering the loop via a nested
+// run()) defers draining to the outer boundary, exactly as Node's nested
+// InternalCallbackScopes and GJS's "drain when the last JS frame exits" do.
+extern int g_loopDispatchDepth;
+
+// Cross-runtime microtask checkpoint (Bun/Deno — see loop.cc). Invokes the
+// runtime-native drain registered via setMicrotaskDrain after an outermost
+// loop-dispatched callback returns; a no-op on Node (never registered), with a
+// pending JS exception, or when re-entered.
+void NodeGiMaybeDrainMicrotasks(napi_env env);
+
 bool SurfacePendingException(napi_env env, const char* context);
 void ThrowGError(Napi::Env env, GError* error, const std::string& context);
 
@@ -546,6 +566,7 @@ Napi::Value BindingGroupBindFull(const Napi::CallbackInfo& info);
 Napi::Value StartMainLoop(const Napi::CallbackInfo& info);
 Napi::Value IterateMainContext(const Napi::CallbackInfo& info);
 Napi::Value PumpKick(const Napi::CallbackInfo& info);
+Napi::Value SetMicrotaskDrain(const Napi::CallbackInfo& info);
 
 // ---- uv-driven GLib auto-pump (loop.cc) -------------------------------------
 //

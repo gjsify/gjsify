@@ -126,12 +126,25 @@ Two libuv-coupled subsystems are portable across all three:
 | toggle-ref GC + cross-thread teardown | ✅ | ✅ | ✅ |
 | GLib async with NO mainloop (timeouts, GIO async, DBus) | ✅ auto | via `startMainContextPump` | via `startMainContextPump` |
 | blocking `GLib.MainLoop.run()` / `Gio.Application.runAsync()` | ✅ | ✅ | ✅ |
-| Node timers/promises alive **during** a blocking GLib loop | ✅ | — | — |
+| Promise continuations drain **during** a blocking GLib loop (async DBus replies, `await` chains) | ✅ | ✅ | ✅ |
+| Node timers/I/O alive **during** a blocking GLib loop (uv co-pump) | ✅ | — | — |
 
 Bun reaches full parity with Node on the core surface; Deno passes the same
 conformance subset since 2.9 (the marshalling/async N-API quirks that excluded
 `arrays`/`async-error` on Deno 2.1 are fixed upstream) — the Node-only co-pump
 cases are the remaining, by-design gap. The authoritative full suite runs on Node.
+
+Promise draining during a blocking loop is cross-runtime because the engine runs
+a **microtask checkpoint at every outermost loop-dispatched GLib→JS callback
+boundary**: Node's `napi_make_callback` performs it natively; Bun's and Deno's
+do not, so on those runtimes the engine invokes the runtime's own drain
+primitive (`bun:jsc` `drainMicrotasks` / Deno `core.runMicrotasks`), registered
+at addon load (`src/loop.cc` `NodeGiMaybeDrainMicrotasks`). Without it, an
+**async** (Promise-returning) DBus method handler exported via
+`Gio.DBusExportedObject.wrapJSObject` never sent its reply on Bun/Deno while a
+blocking `run()` owned the thread — the client timed out — while sync handlers
+worked (regression: `test/dbus-async.test.mjs`). Runtime *timers/I/O* during a
+blocking loop remain Node-only (the uv co-pump).
 
 ## Build & test
 
@@ -588,11 +601,17 @@ const id = Gio.DBus.own_name(Gio.BusType.SESSION, 'org.example.App',
 Async replies / signals / name callbacks dispatch from the default main context —
 either a blocking `GLib.MainLoop.run()` or, with no loop anywhere, the uv-driven
 auto-pump (an `await proxy.GetIdAsync()` at top level settles like any other
-async Gio op). One DBus divergence remains for the BLOCKING case: a `NameAsync`
-**Promise** `.then` does not drain *while* a node-gi loop blocks (node-gtk
-#442/#121) — the reply still fires and settles the Promise, so it resolves once
-`run()` returns; drive an async method inside a blocking loop through the raw
-`NameRemote` callback.
+async Gio op). A `NameAsync` **Promise** `.then` drains *while* a node-gi loop
+blocks on all three runtimes (the reply's GI callback settles the Promise and
+the microtask checkpoint at that loop-dispatched boundary runs the
+continuation). One Node-only divergence remains: when the blocking `run()` is
+itself entered inside a live async scope (module top-level evaluation, an
+`await`, `node:test`), V8 refuses the nested checkpoint (node-gtk #442/#121) —
+the reply still fires and settles the Promise, so it resolves once `run()`
+returns; defer the blocking run to a macrotask (what `runAsync` does) or drive
+the method through the raw `NameRemote` callback. Bun/Deno do not share that
+nesting restriction: their registered drain primitives run even under a
+top-level blocking `run()`.
 
 **Object export** (`Gio.DBusExportedObject.wrapJSObject` — exporting a JS
 object AS a DBus service) works with GJS semantics. GJS builds it on

@@ -71,6 +71,84 @@ static void DrainMicrotasks() {
   napi_close_handle_scope(env, scope);
 }
 
+// ---- cross-runtime microtask checkpoint (Bun/Deno) --------------------------
+//
+// Node's napi_make_callback performs the nextTick + microtask checkpoint when
+// its callback scope closes, so promise continuations queued by a
+// loop-dispatched GLib→JS callback drain at the callback boundary even while a
+// blocking GLib loop owns the thread. Bun's and Deno's N-API implementations do
+// NOT (Deno's napi_make_callback is a plain Function::Call — refs/deno
+// ext/napi/node_api.rs; Deno's own FFI trampoline drains explicitly for exactly
+// this reason, refs/deno ext/ffi/callback.rs), and with the runtime's event
+// loop paused for the lifetime of a blocking run() the queue never drains — an
+// async (Promise-returning) DBus method handler never sent its reply
+// (client-side "Timeout was reached"), while GJS drains the promise-job queue
+// whenever the last JS frame exits.
+//
+// Portable fix: N-API exposes no engine microtask checkpoint, but both runtimes
+// expose their OWN drain primitive to JS (Bun: `bun:jsc` drainMicrotasks —
+// JSC's VM drain, callable mid-stack by design; Deno: core.runMicrotasks →
+// Isolate::PerformMicrotaskCheckpoint via a reentrant op). index.js registers
+// it here on non-Node runtimes only; the loop-dispatched trampolines
+// (signals.cc / calls.cc / class.cc) invoke NodeGiMaybeDrainMicrotasks at their
+// OUTERMOST boundary (g_loopDispatchDepth == 0). Node never registers — its
+// checkpoint already runs natively — so this is a guaranteed no-op there.
+//
+// NOT drained from a GSource prepare phase: running JS mid-iteration from
+// prepare broke the GDK frame clock (the Excalibur stall — see signals.cc);
+// the drain runs strictly AFTER the dispatched handler returned.
+
+// TRUE while the registered drain runs: a drained microtask that re-enters the
+// loop (a nested blocking run dispatching further callbacks) must not recurse
+// into another drain — the engines' own checkpoints refuse re-entry anyway
+// (V8 no-ops while IsRunningMicrotasks; matches Node, where a checkpoint
+// cannot re-enter itself).
+static bool g_in_microtask_drain = false;
+
+// setMicrotaskDrain(drain) — register the runtime-native microtask drain for
+// this env. Called by index.js on Bun/Deno only (never on Node).
+Napi::Value SetMicrotaskDrain(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsFunction()) {
+    Napi::TypeError::New(env, "setMicrotaskDrain(drain: function)").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  NodeGiEnvData* d = EnvData(env);
+  if (d == nullptr) return env.Undefined();
+  if (d->microtaskDrain != nullptr) {
+    napi_delete_reference(env, d->microtaskDrain);
+    d->microtaskDrain = nullptr;
+  }
+  napi_create_reference(env, info[0], 1, &d->microtaskDrain);
+  return env.Undefined();
+}
+
+void NodeGiMaybeDrainMicrotasks(napi_env env) {
+  NodeGiEnvData* d = EnvData(env);
+  if (d == nullptr || d->microtaskDrain == nullptr) return;  // Node: never registered
+  if (g_in_microtask_drain) return;
+  // A failed callback skips the queues (Node parity: an InternalCallbackScope
+  // marked failed skips its task-queue processing) — and NodeGiJsAvailable also
+  // covers env teardown, where JS must not be entered at all.
+  if (!NodeGiJsAvailable(env)) return;
+  napi_handle_scope scope = nullptr;
+  if (napi_open_handle_scope(env, &scope) != napi_ok) return;
+  napi_value fn = nullptr;
+  if (napi_get_reference_value(env, d->microtaskDrain, &fn) == napi_ok && fn != nullptr) {
+    napi_value undef = nullptr;
+    napi_get_undefined(env, &undef);
+    napi_value result = nullptr;
+    g_in_microtask_drain = true;
+    napi_status st = napi_call_function(env, undef, fn, 0, nullptr, &result);
+    g_in_microtask_drain = false;
+    // The drain primitive itself must never wedge the loop on a pending
+    // exception (microtask exceptions are reported inside the engines' own
+    // checkpoints, so this only fires on a broken registration).
+    if (st != napi_ok) SurfacePendingException(env, "microtask drain");
+  }
+  napi_close_handle_scope(env, scope);
+}
+
 static gboolean uv_source_prepare(GSource* base, gint* timeout) {
   UvLoopSource* s = reinterpret_cast<UvLoopSource*>(base);
 

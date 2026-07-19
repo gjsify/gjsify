@@ -127,7 +127,9 @@ static void JsClosureMarshalImpl(GClosure* closure, GValue* return_value, guint 
     // is not part of the signal contract).
     napi_value global = nullptr;
     napi_get_global(jc->env, &global);
+    g_loopDispatchDepth++;
     st = napi_make_callback(jc->env, nullptr, global, cbv, args.size(), args.data(), &result);
+    g_loopDispatchDepth--;
   }
   if (st != napi_ok) {
     // The handler threw. A synchronous emitSignal() (g_syncEmitDepth > 0) must
@@ -157,6 +159,17 @@ static void JsClosureMarshalImpl(GClosure* closure, GValue* return_value, guint 
       SurfacePendingException(jc->env, "signal handler");
     }
   }
+
+  // Cross-runtime microtask checkpoint (Bun/Deno — no-op on Node, see loop.cc):
+  // an outermost loop-dispatched closure (a DBus method-call/property vtable
+  // closure, a GTK signal, a notify::) is where promise continuations it queued
+  // must drain — the async-DBus-reply `retval.then(...)` chain in gio-dbus.js
+  // never ran on Bun/Deno while a blocking run() owned the thread (their
+  // napi_make_callback performs no checkpoint), timing out the client. Only the
+  // depth-0 path drains: a synchronous emit() (depth > 0) keeps its
+  // call_function + pending-exception contract untouched, and JS frames below
+  // it drain when that stack unwinds.
+  if (g_syncEmitDepth == 0 && g_loopDispatchDepth == 0) NodeGiMaybeDrainMicrotasks(jc->env);
 }
 
 // Signal-closure marshal (`.connect()`, template callbacks): params as-is.

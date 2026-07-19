@@ -70,6 +70,47 @@ function loadNative() {
 
 const native = loadNative();
 
+// ---- cross-runtime microtask checkpoint (Bun/Deno) --------------------------
+//
+// Node's napi_make_callback runs the nextTick + microtask checkpoint when its
+// callback scope closes, so promise continuations queued by a loop-dispatched
+// GLib→JS callback (a DBus method-call closure, a GLib timeout, a GTK signal)
+// drain at the callback boundary even while a blocking
+// GLib.MainLoop.run()/Gio.Application.run() owns the thread. Bun's and Deno's
+// N-API implementations perform NO checkpoint there (Deno's napi_make_callback
+// is a plain Function::Call; Deno's own FFI trampoline drains explicitly for
+// exactly this reason), and with the runtime's event loop paused for the
+// blocking run's lifetime the queue never drained: an async (Promise-returning)
+// DBus method handler never sent its reply — the client timed out — while sync
+// handlers worked. Register the runtime's own drain primitive with the engine;
+// the loop-dispatched trampolines (src/signals.cc / calls.cc / class.cc) invoke
+// it after each OUTERMOST callback returns (NodeGiMaybeDrainMicrotasks),
+// matching Node's checkpoint and GJS (SpiderMonkey drains the promise-job queue
+// when the last JS frame exits). Node never registers — its checkpoint already
+// runs natively, so the Node path is byte-identical to before.
+if (!isNodeRuntime) {
+  try {
+    let drain = null;
+    if (RUNTIME === 'bun') {
+      // JSC: drains the VM's microtask queue; callable mid-stack by design
+      // (Bun's own processTicksAndRejections calls it from JS).
+      ({ drainMicrotasks: drain } = require('bun:jsc'));
+    } else if (typeof globalThis.Deno?.internal === 'symbol') {
+      // V8: core.runMicrotasks → op_run_microtasks →
+      // Isolate::PerformMicrotaskCheckpoint (a reentrant op, explicitly
+      // safe with JS frames on the stack).
+      const core = globalThis.Deno[globalThis.Deno.internal]?.core;
+      if (typeof core?.runMicrotasks === 'function') drain = () => core.runMicrotasks();
+    }
+    if (typeof drain === 'function') native.setMicrotaskDrain(drain);
+  } catch {
+    // Unregistered ⇒ pre-fix behaviour on this runtime build: promise
+    // continuations drain only when the runtime's own loop runs
+    // (startMainContextPump); async DBus replies inside a BLOCKING run stay
+    // unavailable. Never fatal — the sync surface is unaffected.
+  }
+}
+
 /**
  * Require a GObject-Introspection namespace and report its resolved version
  * and top-level info count. The Node twin of GJS's gi:// / imports.gi load step.
@@ -517,6 +558,17 @@ export const iterateMainContext = native.iterateMainContext;
  * @returns {void}
  */
 export const pumpKick = native.pumpKick;
+
+/**
+ * Register the runtime-native microtask drain the engine runs after each
+ * OUTERMOST loop-dispatched GLib→JS callback returns (the cross-runtime
+ * microtask checkpoint — see the registration block above). Registered
+ * automatically at addon load on Bun/Deno; never call it on Node (its
+ * napi_make_callback already checkpoints natively). Exposed for completeness.
+ * @param {() => void} drain
+ * @returns {void}
+ */
+export const setMicrotaskDrain = native.setMicrotaskDrain;
 
 /**
  * Connect a JS callback to a GObject signal. Returns a handler id for

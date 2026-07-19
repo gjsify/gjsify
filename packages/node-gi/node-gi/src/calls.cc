@@ -86,6 +86,12 @@ static int ArgDestroyIndex(GIArgInfo* ai) {
 // wedging libuv on a never-cleared pending exception.
 int g_syncEmitDepth = 0;
 
+// Nesting depth of loop-dispatched C->JS callbacks (see common.h). Incremented
+// around every loop-dispatched napi_make_callback (signal closures, GI
+// callbacks, vfuncs) so the cross-runtime microtask checkpoint
+// (NodeGiMaybeDrainMicrotasks) fires only at the OUTERMOST callback boundary.
+int g_loopDispatchDepth = 0;
+
 // Surface (log) + clear a pending JS exception left by a C-invoked callback so it
 // cannot wedge the GLib/libuv main loop. A signal handler / idle / timeout that
 // throws is reported to stderr (message + stack) and swallowed — mirroring how
@@ -234,8 +240,11 @@ static void NodeGiCallbackTrampoline(ffi_cif* /*cif*/, void* result, void** args
       napi_value global = nullptr;
       napi_get_global(env, &global);
       napi_value ret = nullptr;
-      // napi_make_callback drains nextTick/microtasks around the call.
+      // napi_make_callback drains nextTick/microtasks around the call (Node; on
+      // Bun/Deno the checkpoint is run by NodeGiMaybeDrainMicrotasks below).
+      g_loopDispatchDepth++;
       napi_status st = napi_make_callback(env, nullptr, global, fn, jsArgs.size(), jsArgs.data(), &ret);
+      g_loopDispatchDepth--;
       if (st == napi_ok && result != nullptr) {
         GITypeTag rtag = gi_type_info_get_tag(retType);
         if (rtag == GI_TYPE_TAG_UTF8 || rtag == GI_TYPE_TAG_FILENAME) {
@@ -263,6 +272,16 @@ static void NodeGiCallbackTrampoline(ffi_cif* /*cif*/, void* result, void** args
   // rather than stalling the loop).
   if (napiEnv.IsExceptionPending() && cb->scope != GI_SCOPE_TYPE_CALL) {
     SurfacePendingException(env, "GI callback (idle/timeout/async)");
+  }
+
+  // Cross-runtime microtask checkpoint (Bun/Deno — no-op on Node, see loop.cc):
+  // a loop-dispatched (NOTIFIED/ASYNC) callback with no dispatch nesting is the
+  // outermost C→JS boundary, so promise continuations it queued (a GLib-timeout
+  // handler resolving an awaited Promise — the async-DBus-reply chain) drain
+  // NOW, matching Node's napi_make_callback checkpoint and GJS. A CALL-scope
+  // callback runs under a live JS caller whose stack unwind drains normally.
+  if (cb->scope != GI_SCOPE_TYPE_CALL && g_loopDispatchDepth == 0) {
+    NodeGiMaybeDrainMicrotasks(env);
   }
 
   // scope=async (e.g. a GAsyncReadyCallback) fires EXACTLY once and carries no

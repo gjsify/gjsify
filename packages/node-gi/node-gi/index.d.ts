@@ -427,6 +427,16 @@ export function iterateMainContext(mayBlock?: boolean): boolean;
 export function pumpKick(): void;
 
 /**
+ * Register the runtime-native microtask drain (Bun: `bun:jsc` drainMicrotasks;
+ * Deno: core.runMicrotasks) the engine invokes after each OUTERMOST
+ * loop-dispatched GLib→JS callback returns, so Promise continuations (async
+ * DBus replies, `await` chains) drain during a blocking GLib loop. Registered
+ * automatically at addon load on Bun/Deno; never registered on Node (its
+ * napi_make_callback performs the checkpoint natively).
+ */
+export function setMicrotaskDrain(drain: () => void): void;
+
+/**
  * Connect a JS callback to a GObject signal; returns a handler id. The callback
  * receives the signal arguments (the emitter instance is not passed in this
  * milestone).
@@ -539,6 +549,7 @@ declare const native: {
   startMainLoop: typeof startMainLoop;
   iterateMainContext: typeof iterateMainContext;
   pumpKick: typeof pumpKick;
+  setMicrotaskDrain: typeof setMicrotaskDrain;
   connectSignal: typeof connectSignal;
   emitSignal: typeof emitSignal;
   disconnectSignal: typeof disconnectSignal;

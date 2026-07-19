@@ -254,10 +254,13 @@ static void NodeGiVFuncTrampoline(ffi_cif* /*cif*/, void* result, void** args,
     napi_value fn = nullptr;
     if (napi_get_reference_value(env, vf->fn, &fn) == napi_ok && fn != nullptr) {
       napi_value ret = nullptr;
-      // napi_make_callback drains nextTick/microtasks around the call; the
+      // napi_make_callback drains nextTick/microtasks around the call (Node; on
+      // Bun/Deno the checkpoint is run by NodeGiMaybeDrainMicrotasks below); the
       // wrapped instance is the receiver (`this`).
+      g_loopDispatchDepth++;
       napi_status st =
           napi_make_callback(env, nullptr, recv, fn, jsArgs.size(), jsArgs.data(), &ret);
+      g_loopDispatchDepth--;
       if (st == napi_ok && result != nullptr) {
         GITypeTag rtag = gi_type_info_get_tag(retType);
         if (rtag == GI_TYPE_TAG_UTF8 || rtag == GI_TYPE_TAG_FILENAME) {
@@ -277,6 +280,15 @@ static void NodeGiVFuncTrampoline(ffi_cif* /*cif*/, void* result, void** args,
   gi_base_info_unref(retType);
   // A pending JS exception surfaces at the next N-API boundary (e.g. when the
   // constructType / method call that triggered this vfunc returns).
+  //
+  // Cross-runtime microtask checkpoint (Bun/Deno — no-op on Node, see loop.cc):
+  // an outermost vfunc boundary drains queued promise continuations, matching
+  // Node's napi_make_callback checkpoint (which fires here for BOTH a
+  // loop-dispatched vfunc — a GTK measure/snapshot during a blocking run — and
+  // one under a synchronous JS caller). Skipped while an exception is pending
+  // (NodeGiMaybeDrainMicrotasks gates on NodeGiJsAvailable), so the
+  // leave-pending contract above is unaffected.
+  if (g_loopDispatchDepth == 0) NodeGiMaybeDrainMicrotasks(env);
 }
 
 static GQuark NodeGiClassDataQuark() {

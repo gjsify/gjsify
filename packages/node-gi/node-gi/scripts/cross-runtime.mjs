@@ -46,6 +46,7 @@ const CONFORMANCE = [
   'callbacks',
   'closure-exception',
   'construct-camelcase',
+  'dbus-async', // self-skips without a session bus; run the subset under dbus-run-session to cover it
   'enums-constants',
   'gclosure-in-args',
   'gettext',
