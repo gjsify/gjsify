@@ -54,6 +54,13 @@ function stripQuotes(s) {
     return s.replace(/^"(.*)"$/, '$1');
 }
 
+// gyp/MSBuild + cl.exe accept forward slashes and treat them uniformly; emit them
+// so an include dir / .lib path never carries a backslash that a downstream
+// generator might mis-handle (the pkg-config dirs already use forward slashes).
+function toGyp(p) {
+    return p.replace(/\\/g, '/');
+}
+
 // Shallow BFS for a header under `root` (bounded depth so we never walk the whole
 // ~300 MB GTK tree). Returns the CONTAINING directory, or null.
 function findHeaderDir(root, filename, maxDepth = 4) {
@@ -106,7 +113,7 @@ if (mode === '--includes') {
             if (ffiDir) dirs.push(ffiDir);
         }
     }
-    process.stdout.write([...new Set(dirs.filter((d) => existsSync(d)))].join('\n'));
+    process.stdout.write([...new Set(dirs.filter((d) => existsSync(d)).map(toGyp))].join('\n'));
 } else if (mode === '--libs') {
     // A SHARED addon links each GTK/GLib DLL through its DIRECT import lib and lets
     // that DLL resolve its own private deps at load — so link only the import libs
@@ -155,7 +162,7 @@ if (mode === '--includes') {
             throw new Error(`win-gi-gyp-flags: import lib for '${name}' not found under ${searchDirs.join(', ')}`);
         }
     }
-    process.stdout.write([...new Set(resolved)].join('\n'));
+    process.stdout.write([...new Set(resolved.map(toGyp))].join('\n'));
 } else {
     console.error('usage: node scripts/win-gi-gyp-flags.mjs <--includes|--libs>');
     process.exit(2);

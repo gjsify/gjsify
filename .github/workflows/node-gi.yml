@@ -793,6 +793,22 @@ jobs:
           "GI_TYPELIB_PATH=$env:GTK_PREFIX\lib\girepository-1.0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "GSETTINGS_SCHEMA_DIR=$env:GTK_PREFIX\share\glib-2.0\schemas" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      # gvsbuild's libffi meson build ships ffi.lib + the DLL but NOT ffi.h/
+      # ffitarget.h (its meson.build has `install: true` on the library() but no
+      # install_headers()), yet GLib's girffi.h — which gvsbuild DOES install —
+      # does `#include <ffi.h>`, so the addon won't compile (C1083). Supply the two
+      # headers from vcpkg's libffi (preinstalled vcpkg; MSVC-native x64 headers).
+      # libffi's public ABI (ffi_type/ffi_cif/ffi_closure) is frozen across 3.x, so
+      # the vcpkg header + gvsbuild's 3.5.2 ffi.lib are compatible.
+      - name: Supply libffi headers (gvsbuild omits ffi.h)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install libffi:x64-windows
+          $inc = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\include"
+          Copy-Item "$inc\ffi.h","$inc\ffitarget.h" -Destination "$env:GTK_PREFIX\include" -Force
+          Write-Host "ffi.h -> $env:GTK_PREFIX\include (from vcpkg libffi)"
+
       - name: Verify pkg-config + girepository-2.0 (diagnostics)
         shell: pwsh
         run: |
