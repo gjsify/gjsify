@@ -55,8 +55,11 @@ On a match (darwin only) node-gi makes the bundle genuinely **env-free**:
 
 - **typelibs** — it prepends `gtk/girepository-1.0` to the GIRepository search
   path via `prependSearchPath` (a runtime API, no env needed).
-- **dylibs** — it **re-execs the process once** (`maybeReexecForGtkRuntime`, from
-  `index.js`, before the addon loads) with `DYLD_FALLBACK_LIBRARY_PATH=gtk/lib`.
+- **dylibs** — on **Node** it **re-execs the process once**
+  (`maybeReexecForGtkRuntime`, from `index.js`, before the addon loads) with
+  `DYLD_FALLBACK_LIBRARY_PATH=gtk/lib`. (Bun/Deno skip the re-exec — their
+  `argv`/`execArgv` differ; they still get the env-free typelibs above, and their
+  DYLD path for the non-addon-linked backers is a follow-up.)
   dyld only reads that variable at **launch**, so a JS-time `process.env` mutation
   cannot help the running process — but a one-shot re-exec (guarded by a
   `GJSIFY_GTK_REEXEC` sentinel so it fires at most once) lands the fallback for the

@@ -5,12 +5,16 @@
 // ships such a bundle (@gjsify/gtk-runtime-darwin-arm64); this is a no-op on every
 // other platform, and harmless when no bundle is present (the addon then uses the
 // host's GTK exactly as before).
-import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
 
+// NB: node:child_process is intentionally NOT imported at module top level. It is
+// pulled in lazily (via `require` below) ONLY on the darwin re-exec path — importing
+// it eagerly put it in every runtime's module graph, and under Deno that tripped a
+// teardown regression on an unrelated conformance file (all its tests passed but the
+// process exited non-zero). This keeps non-darwin loads free of that side effect.
 const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url)); // package root
 
@@ -72,14 +76,23 @@ export function resolveGtkRuntimeBundle() {
  * @returns {void}
  */
 export function maybeReexecForGtkRuntime() {
-    if (process.platform !== 'darwin') return;
+    if (process.platform !== 'darwin') return; // strict no-op on every non-darwin runtime
+    // Node only: the argv/execArgv reconstruction below is Node-shaped, and Node is
+    // the runtime the conformance proves. Bun/Deno set globals of their own — skip the
+    // re-exec there (they still get env-free TYPELIBS via activateBundledGtkRuntime;
+    // their DYLD path for non-addon-linked backers is a documented follow-up), so the
+    // darwin path can never spawn a malformed re-exec under a non-Node runtime.
+    if (typeof globalThis.Bun !== 'undefined' || typeof globalThis.Deno !== 'undefined') return;
     if (process.env[REEXEC_SENTINEL]) return; // already re-exec'd — the child path
     const bundle = resolveGtkRuntimeBundle();
-    if (!bundle) return;
+    if (!bundle) return; // strict no-op when no bundle is present
 
     const curDyld = process.env.DYLD_FALLBACK_LIBRARY_PATH ?? '';
     if (curDyld.split(':').filter(Boolean).includes(bundle.libDir)) return; // already covered
 
+    // Lazily load node:child_process ONLY here (darwin + bundle present + not yet
+    // covered) — see the top-of-file note; keeps it out of non-darwin module graphs.
+    const { spawnSync } = require('node:child_process');
     const curTypelib = process.env.GI_TYPELIB_PATH ?? '';
     const env = {
         ...process.env,
