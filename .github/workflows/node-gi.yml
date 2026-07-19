@@ -501,6 +501,134 @@ jobs:
           path: packages/node-gi/node-gi/prebuilds/linux-arm64/node_gi.node
           if-no-files-found: error
 
+  # macOS proof (Phase 1 — the reverse bridge BUILDS + RUNS on macOS). The whole
+  # team is Linux-only, so a macos-latest runner (Apple silicon, arm64 → the addon
+  # is darwin-arm64) is the only way to validate. Installs GTK4 + GObject-
+  # Introspection from Homebrew, builds the N-API addon FROM SOURCE (node-gyp +
+  # pkg-config, binding.gyp's xcode_settings carry the clang cflags), and runs the
+  # DISPLAY-FREE conformance subset on Node (+ Bun/Deno) — the exact subset
+  # scripts/cross-runtime.mjs curates (GLib/GObject/Gio marshalling, signals,
+  # variant, boxed structs, mainloop-pump, DBus). The GTK-window / GLArea /
+  # cairo-drawfunc / adw-smoke DISPLAY tests are NOT run here — GTK-on-macOS is the
+  # quartz backend and needs its own display wiring; that is Phase 2 (which also
+  # ships a prebuilt GTK stack so consumers need no Homebrew). The darwin-arm64
+  # addon prebuild IS staged + uploaded here (the Deno install path — Deno runs no
+  # postinstall build), mirroring the arm64 job; a future prebuilt-GTK upload slots
+  # in beside it.
+  macos:
+    name: macOS build + conformance (Node+Bun+Deno / macos-latest arm64)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+    steps:
+      - name: Install GTK4 + GObject-Introspection (Homebrew)
+        run: |
+          # gtk4/libadwaita pull graphene/pango/gdk-pixbuf/cairo/glib transitively,
+          # but name them so a slimmer future job (core subset only) still resolves.
+          # glib provides libgirepository-2.0 + girepository-2.0.pc (the merged API);
+          # gobject-introspection provides the GLib/GObject/Gio typelibs (Homebrew
+          # builds them there to break the glib<->g-i circular dep) + g-ir tools.
+          brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config adwaita-icon-theme
+          BREW_PREFIX="$(brew --prefix)"
+          # brew symlinks each keg's lib/ — incl. girepository-1.0/*.typelib and
+          # pkgconfig/*.pc — into $BREW_PREFIX/lib, so one dir covers every formula.
+          # (The typelib DIRECTORY is historically named girepository-1.0 even for
+          # the girepository-2.0 API.) DYLD_FALLBACK_LIBRARY_PATH lets the addon's
+          # g_module_open() find the Homebrew dylibs a typelib names by leaf soname
+          # (Gdk/Graphene/PangoCairo are dlopen'd, not linked into the addon).
+          {
+            echo "BREW_PREFIX=$BREW_PREFIX"
+            echo "PKG_CONFIG_PATH=$BREW_PREFIX/lib/pkgconfig:$BREW_PREFIX/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+            echo "GI_TYPELIB_PATH=$BREW_PREFIX/lib/girepository-1.0${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+            echo "DYLD_FALLBACK_LIBRARY_PATH=$BREW_PREFIX/lib:/usr/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify pkg-config + typelibs (diagnostics)
+        run: |
+          echo "pkg-config: $(command -v pkg-config) ($(pkg-config --version))"
+          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
+          if pkg-config --exists girepository-2.0; then
+            echo "girepository-2.0: $(pkg-config --modversion girepository-2.0)"
+          else
+            echo "girepository-2.0: MISSING — build will fail; check the glib formula's introspection build"
+          fi
+          pkg-config --exists cairo && echo "cairo: $(pkg-config --modversion cairo)" || echo "cairo: MISSING"
+          echo "GI_TYPELIB_PATH=$GI_TYPELIB_PATH"
+          echo "--- typelibs present ---"
+          ls "${GI_TYPELIB_PATH%%:*}" 2>/dev/null | grep -E 'GLib|GObject|Gio|Gdk|Graphene|Pango|Gtk' || echo "(none matched)"
+
+      # Node 24 builds the addon (node-gyp) and runs the authoritative Node leg.
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # Bun + Deno widen the proof to all three Node-API runtimes (the SAME addon,
+      # their common ABI). setup-bun / setup-deno both support macOS arm64.
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify runtimes
+        run: |
+          node --version
+          bun --version
+          deno --version
+
+      # From source: node-gyp reads binding.gyp's `pkg-config --cflags/--libs
+      # girepository-2.0 cairo` (xcode_settings.OTHER_CFLAGS on macOS) → darwin-arm64
+      # build/Release/node_gi.node. The install script IS node-gyp rebuild.
+      - name: Build native addon (node-gyp)
+        working-directory: packages/node-gi/node-gi
+        run: npm install --no-audit --no-fund --foreground-scripts
+
+      # The display-free conformance subset on Node — the primary proof. Loads the
+      # just-built build/Release addon (cross-runtime.mjs defaults NODE_GI_NATIVE to
+      # `build`). Same curated list as the Bun/Deno legs (single source of truth).
+      - name: Conformance subset on Node (display-free)
+        working-directory: packages/node-gi/node-gi
+        run: node scripts/cross-runtime.mjs node
+
+      - name: Conformance subset on Bun
+        working-directory: packages/node-gi/node-gi
+        run: npm run test:bun
+
+      - name: Conformance subset on Deno
+        working-directory: packages/node-gi/node-gi
+        run: npm run test:deno
+
+      # Stage the darwin-arm64 addon prebuild + smoke it via the PREBUILD load path
+      # (Deno's only install path — it runs no postinstall build), then upload it so
+      # a release can ship prebuilds/darwin-arm64/. Mirrors the arm64 job. NB this is
+      # the node-gi ADDON prebuild, NOT the Phase-2 prebuilt-GTK stack.
+      - name: Stage darwin-arm64 prebuild
+        working-directory: packages/node-gi/node-gi
+        run: node scripts/stage-prebuild.mjs
+
+      - name: Verify the staged prebuild loads (Node)
+        working-directory: packages/node-gi/node-gi
+        run: node --test test/smoke.test.mjs
+        env:
+          NODE_GI_NATIVE: prebuild
+
+      - name: Upload darwin-arm64 prebuild artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-gi-prebuild-darwin-arm64
+          path: packages/node-gi/node-gi/prebuilds/darwin-arm64/node_gi.node
+          if-no-files-found: error
+
   # Cross-runtime consumer harness (scripts/node-gi-consumer-harness.mjs): the
   # GENERALIZATION of the consumer-sqlite job above into a reusable tool that
   # builds a gjsify package's OWN GJS test suite `--app node` (gi:// →
