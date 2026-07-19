@@ -112,11 +112,9 @@
         "build:affected-bundle": "node lib/index.js build src/affected-entry.ts --app gjs --outfile dist/affected.gjs.mjs",
         "chmod": "chmod +x ./lib/index.js",
         "build:test:node": "node lib/index.js build src/test.mts --app node --outfile dist/test.node.mjs",
-        "build:test:gjs": "node lib/index.js build src/test.mts --app gjs --outfile dist/test.gjs.mjs",
         "test:node": "node dist/test.node.mjs",
         "test:bun": "bun dist/test.node.mjs",
         "test:deno": "deno run -A --no-lock --node-modules-dir=none dist/test.node.mjs",
-        "test:gjs": "gjs -m dist/test.gjs.mjs",
         "test:cross-runtime": "gjsify run build:test:node && gjsify run test:node && gjsify run test:bun && gjsify run test:deno",
         "test": "gjsify run build:test:node && gjsify run test:node"
     },
