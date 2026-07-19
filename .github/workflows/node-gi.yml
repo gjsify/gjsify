@@ -722,3 +722,178 @@ jobs:
             @gjsify/sqlite @gjsify/http2 @gjsify/zlib \
             --runtimes node,bun,deno --require-pass \
             --out /tmp/node-gi-consumer-survey.json
+
+  # macOS Phase 2 — BUILD the batteries-included GTK runtime bundle. Brew-installs
+  # the GTK stack as the closure SOURCE (build-time only; NOT shipped), CONSUMES
+  # the darwin-arm64 node-gi addon prebuild the `macos` job produced (PR #767),
+  # walks its dylib graph + relocates the whole display-free closure to
+  # @loader_path (+ ad-hoc re-sign — mandatory on arm64), and relocates a COPY of
+  # the addon to @rpath so it loads the bundled libgirepository with no Homebrew.
+  # Uploads the bundle + the relocated addon for the no-brew conformance job below.
+  macos-gtk-runtime:
+    name: macOS GTK runtime bundle (build + relocate / macos-latest arm64)
+    runs-on: macos-latest
+    needs: macos
+    timeout-minutes: 30
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+    steps:
+      # Build-time closure SOURCE only — these libraries are collected + relocated
+      # into a self-contained bundle, they are NOT what the conformance job runs on.
+      - name: Install GTK4 + GObject-Introspection (Homebrew, build-time closure source)
+        run: brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Consume the darwin-arm64 addon prebuild the `macos` job staged + uploaded.
+      - name: Download node-gi addon prebuild (from the macos job)
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-darwin-arm64
+          path: addon
+
+      # Collect + relocate: --out = the platform package's shippable bundle;
+      # --addon + --stage = a relocated addon + a SIBLING bundle copy under
+      # node-gi's prebuilds/darwin-arm64/ (the layout the addon's @rpath expects,
+      # and the layout the conformance job consumes).
+      - name: Build + relocate the GTK runtime bundle
+        run: |
+          node packages/node-gi/gtk-runtime-darwin-arm64/scripts/build-gtk-runtime.mjs \
+            --out packages/node-gi/gtk-runtime-darwin-arm64/gtk \
+            --addon "$PWD/addon/node_gi.node" \
+            --stage packages/node-gi/node-gi/prebuilds/darwin-arm64
+
+      - name: Report bundle size + relocation sanity
+        run: |
+          cat packages/node-gi/gtk-runtime-darwin-arm64/gtk/manifest.json
+          echo "--- bundle size ---"
+          du -sh packages/node-gi/gtk-runtime-darwin-arm64/gtk
+          echo "--- assert NO /opt/homebrew refs remain in the bundle ---"
+          if otool -L packages/node-gi/gtk-runtime-darwin-arm64/gtk/lib/*.dylib | grep -F /opt/homebrew; then
+            echo "RELOCATION FAILED: bundled dylibs still reference /opt/homebrew"; exit 1
+          fi
+          echo "clean — no Homebrew references"
+          echo "--- relocated addon load commands ---"
+          otool -l packages/node-gi/node-gi/prebuilds/darwin-arm64/node_gi.node | grep -A2 LC_RPATH || true
+
+      - name: Upload GTK runtime bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtk-runtime-darwin-arm64
+          path: packages/node-gi/gtk-runtime-darwin-arm64/gtk
+          if-no-files-found: error
+
+      - name: Upload relocated node-gi addon
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-gi-addon-relocated-darwin-arm64
+          path: packages/node-gi/node-gi/prebuilds/darwin-arm64/node_gi.node
+          if-no-files-found: error
+
+  # macOS Phase 2 — PROVE batteries-included. This job does NOT `brew install` the
+  # GTK runtime at all: it downloads the relocated bundle + addon and runs the
+  # display-free conformance against them, so a green run proves node-gi works with
+  # ZERO Homebrew/system GTK. Two legs:
+  #   • env-free CORE — no DYLD/GI_TYPELIB env at all. The relocated addon loads the
+  #     bundled libgirepository via @rpath; node-gi prepends the bundle's typelib
+  #     dir itself (prependSearchPath); GLib/GObject/Gio/cairo are in-process via
+  #     the addon's link closure. Runs every conformance file whose closure is
+  #     exactly those namespaces.
+  #   • FULL subset — adds DYLD_FALLBACK_LIBRARY_PATH=<bundle>/lib so the leaf-name
+  #     g_module_open lookups for the NON-addon-linked backers (Pango→cairo.test,
+  #     Gdk/Graphene→struct-construct) resolve from the bundle. Runs the whole
+  #     scripts/cross-runtime.mjs node subset.
+  macos-gtk-batteries-included:
+    name: macOS batteries-included conformance (no brew GTK / macos-latest arm64)
+    runs-on: macos-latest
+    needs: macos-gtk-runtime
+    timeout-minutes: 30
+    steps:
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # This job never `brew install`s GTK. Hard-fail if the toolkit itself
+      # (gtk4/libadwaita — the Gdk backer) is somehow preinstalled, which would
+      # muddy the proof. Lower-level deps (pango/cairo/gdk-pixbuf) may be present
+      # transitively via unrelated preinstalled formulae (imagemagick/graphviz),
+      # but they DON'T interfere: node-gi PREPENDS the bundle's typelib dir, and
+      # the explicit DYLD_FALLBACK_LIBRARY_PATH=<bundle>/lib:/usr/lib below removes
+      # /usr/local from the search + /opt/homebrew/lib is never a leaf-dlopen dir,
+      # so the bundle is authoritative regardless. Report them for transparency.
+      - name: Assert the GTK toolkit is NOT installed (clean batteries-included host)
+        run: |
+          echo "--- GTK-related Homebrew formulae present on the runner (informational) ---"
+          brew list --formula 2>/dev/null | grep -iE 'gtk|pango|cairo|graphene|gdk|glib|gobject|harfbuzz' || echo "(none)"
+          if brew list --formula 2>/dev/null | grep -qE '^(gtk4|libadwaita)$'; then
+            echo "gtk4/libadwaita is installed — not a clean batteries-included test"; exit 1
+          fi
+          echo "clean host — the GTK toolkit was never brew-installed in this job"
+
+      # Stage the bundle + relocated addon in the SIBLING layout node-gi expects
+      # (prebuilds/darwin-arm64/{node_gi.node, gtk/}). The addon's @rpath is
+      # @loader_path/gtk/lib, and node-gi's loader finds gtk/ at that prebuilds path.
+      - name: Download GTK runtime bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: gtk-runtime-darwin-arm64
+          path: packages/node-gi/node-gi/prebuilds/darwin-arm64/gtk
+
+      - name: Download relocated node-gi addon
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-addon-relocated-darwin-arm64
+          path: packages/node-gi/node-gi/prebuilds/darwin-arm64
+
+      - name: Verify staged layout
+        working-directory: packages/node-gi/node-gi
+        run: |
+          ls -la prebuilds/darwin-arm64
+          echo "--- dylibs ---"; ls prebuilds/darwin-arm64/gtk/lib | head
+          echo "--- typelibs ---"; ls prebuilds/darwin-arm64/gtk/girepository-1.0 | head
+          echo "--- addon deps (should be @rpath, no /opt/homebrew) ---"
+          otool -L prebuilds/darwin-arm64/node_gi.node | head -20
+
+      # Fast probe FIRST — one clean process, NO library-lookup env. Reproduces the
+      # exact paths that need a leaf-soname g_module_open against the bundle
+      # (registerClass subclassing + Pango/Graphene/Gdk get_type). node-gi's
+      # DYLD_FALLBACK re-exec (gtk-runtime.js) is what makes this resolve env-free;
+      # a failure here is an unambiguous signal, isolated from the test runner.
+      - name: Batteries-included probe — env-free, no brew GTK (Node)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node scripts/check-batteries.mjs
+
+      # Leg 1 — CORE (35 files), env-free: no DYLD/GI_TYPELIB set by the job.
+      # cross-runtime.mjs re-execs ITSELF once with the bundle's DYLD fallback set
+      # (dyld reads it at launch), so its per-file children inherit it — no brew
+      # GTK, nothing but the bundle on disk. `--only` drops the two files whose
+      # backers are NOT addon-linked (cairo→PangoCairo, struct-construct→Gdk/Graphene).
+      - name: Conformance CORE — env-free, no brew GTK (Node)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: |
+          node scripts/cross-runtime.mjs node --only \
+            arrays,boxed-out,async-error,bytes,cairo-canvas2d,call-function,callbacks,closure-exception,construct-camelcase,dbus-async,enums-constants,gclosure-in-args,gettext,gi,globals,gobject,gtype,int64,methods,multilevel-subclass,out-params,paramspec,paramspec-object,proxy-fallback,register-class,register-class-decorator,register-class-props,registerclass-inplace,signals,smoke,static-camel,system,variant,vfunc,vfunc-chainup
+
+      # Leg 2 — FULL display-free subset (37 files), also env-free (NO DYLD set by
+      # the job). The same one-shot re-exec covers the NON-addon-linked backers
+      # (Pango→cairo.test, Gdk/Graphene→struct-construct) from the bundle.
+      - name: Conformance FULL subset — env-free, no brew GTK (Node)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node scripts/cross-runtime.mjs node

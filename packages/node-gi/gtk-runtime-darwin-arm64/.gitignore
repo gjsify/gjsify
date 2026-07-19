@@ -1,0 +1,3 @@
+# The heavy relocated bundle is produced on a macOS runner, never committed.
+gtk/
+staged/
