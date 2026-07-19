@@ -2,7 +2,8 @@ import { APP_NAME } from './constants.js';
 import { cosmiconfig, type Loader, type Options as LoadOptions } from 'cosmiconfig';
 import { basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { isGjs, hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { buildAppForRuntime } from './utils/runtimes.js';
 
 /**
  * Does the failed `import()` of a config look like a MODULE-RESOLUTION failure
@@ -254,6 +255,15 @@ export class Config {
         configData.verbose = cliArgs.verbose || false;
         configData.exclude = cliArgs.exclude || [];
         if (cliArgs.consoleShim !== undefined) configData.consoleShim = cliArgs.consoleShim;
+        // Default `--app` FOLLOWS the host runtime the CLI executes in: gjs when
+        // run under gjs, node when run under node/bun/deno (both consume the
+        // `--app node` bundle). Applied post-merge (not as a yargs `default:`)
+        // so a `gjsify.app` declared in package.json#gjsify / `.gjsifyrc.*`
+        // survives — a yargs default is indistinguishable from a user value and
+        // would clobber the config one. Precedence: CLI flag > config file >
+        // host default (same pattern as `globals` / `bundler.input`).
+        if (cliArgs.app !== undefined) configData.app = cliArgs.app;
+        configData.app ??= buildAppForRuntime(hostRuntime());
         if (cliArgs.globals !== undefined) configData.globals = cliArgs.globals;
         // Fallback applied post-merge (not as a yargs `default:`) so a
         // `globals` declared in package.json#gjsify / `.gjsifyrc.*` survives —

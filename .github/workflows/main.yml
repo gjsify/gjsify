@@ -312,6 +312,76 @@ jobs:
         if: ${{ matrix.shard == 1 && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/webgl')) }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a --server-args="-screen 0 1280x720x24" gjsify workspace @gjsify/webgl test:conformance'
 
+  # ── CLI cross-runtime tests (Node + Bun + Deno) ─────────────────────
+  # The @gjsify/cli itself is host-runtime-aware: it runs under gjs, node, bun
+  # AND deno, and its DEFAULT `--app` target + `--runtime` follow the host. Its
+  # own `@gjsify/unit` test suite (built engine-agnostic to dist/test.node.mjs)
+  # must therefore pass on all Node-API runtimes. The main `test` job already
+  # runs it on node (`gjsify foreach test`); this job additionally runs the SAME
+  # bundle on Bun and Deno (reusing node-gi.yml's setup-bun/setup-deno pattern).
+  # Bun/Deno self-fake `process.versions.node`, so the fixed `isNode()` detector
+  # (Bun/Deno probed first) is what keeps host-derived defaults correct there.
+  # (`test:gjs` is intentionally NOT run here: the gjs bundle builds, but the
+  # build-cache suite's file-hashing loop hangs under @gjsify/fs's readSync.)
+  cli-cross-runtime:
+    needs: [changes, setup, build]
+    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/cli')) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ${{ fromJSON(needs.setup.outputs.fedora-matrix) }}
+    name: CLI cross-runtime (node+bun+deno) Fedora ${{ matrix.fedora.v }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: --ulimit nofile=1048576:1048576
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/gjsify-setup
+        with:
+          fedora-version: ${{ matrix.fedora.v }}
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Verify runtimes
+        run: |
+          gjs --version
+          node --version
+          bun --version
+          deno --version
+      # Build the CLI (refresh lib/ over the restored build cache) + the
+      # engine-agnostic @gjsify/unit test bundle (dist/test.node.mjs) as
+      # testuser, matching the other jobs' ownership model.
+      - name: Build CLI + test bundle
+        run: |
+          su testuser -c "PATH=\"\$PWD/node_modules/.bin:\$PATH\" sh -c '
+            gjsify workspace @gjsify/cli build
+            gjsify workspace @gjsify/cli build:test:node
+          '"
+      # Run the SAME bundle on all three Node-API runtimes. Executed as the
+      # container user (root) directly from the CLI dir: the bundle is
+      # self-contained + world-readable, and bun/deno land on PATH via the setup
+      # actions (which the `su testuser` environment would drop). A non-zero exit
+      # from @gjsify/unit fails the step.
+      - name: Test on Node
+        run: cd packages/infra/cli && node dist/test.node.mjs
+      - name: Test on Bun
+        run: cd packages/infra/cli && bun dist/test.node.mjs
+      - name: Test on Deno
+        run: cd packages/infra/cli && deno run -A --no-lock --node-modules-dir=none dist/test.node.mjs
+
   # ── E2E tests ───────────────────────────────────────────────────────
   # Exercises the CLI end-to-end (install, build, dlx, publish, …) in its own
   # parallel job. Downloads the example dist the build job produced (its

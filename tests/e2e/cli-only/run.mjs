@@ -164,7 +164,10 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
     it('gjsify showcase <name> does not pre-flight-check npm deps', () => {
         let combined = '';
         try {
-            combined = execFileSync('npx', ['gjsify', 'showcase', 'three-postprocessing-pixel'], {
+            // `--runtime gjs` explicitly: the default now follows the host
+            // runtime (node under npx), and this test exercises the gjs/dlx
+            // delegation path specifically.
+            combined = execFileSync('npx', ['gjsify', 'showcase', '--runtime', 'gjs', 'three-postprocessing-pixel'], {
                 cwd: projectDir,
                 encoding: 'utf-8',
                 stdio: ['ignore', 'pipe', 'pipe'],
@@ -197,7 +200,10 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
 
         let combined = '';
         try {
-            combined = execFileSync('npx', ['gjsify', 'showcase', 'express-webserver'], {
+            // `--runtime gjs`: the dlx version-pinning this test asserts is the
+            // gjs delegation path; the default runtime now follows the host
+            // (node under npx), which would take the direct `--app node` path.
+            combined = execFileSync('npx', ['gjsify', 'showcase', '--runtime', 'gjs', 'express-webserver'], {
                 cwd: projectDir,
                 encoding: 'utf-8',
                 stdio: ['ignore', 'pipe', 'pipe'],

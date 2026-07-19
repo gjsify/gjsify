@@ -1,4 +1,5 @@
 import type { RolldownOptions, OutputOptions, RolldownPluginOption } from 'rolldown';
+import type { App } from '@gjsify/rolldown-plugin-gjsify';
 import type { ConfigDataLibrary, ConfigDataTypescript } from './index.js';
 
 /**
@@ -66,6 +67,14 @@ export interface LegacyEsbuildOptions {
 export interface ConfigData {
     /** Switch on the verbose mode */
     verbose?: boolean;
+    /**
+     * The build target for an application build (`gjs` | `node` | `browser` |
+     * `nativescript`). Resolved in `Config.forBuild` as CLI flag (`--app`) >
+     * `package.json#gjsify.app` > host-runtime default (`gjs` when the CLI runs
+     * under gjs, `node` when it runs under node/bun/deno). Consumed by the build
+     * handler and passed to `BuildAction.start`.
+     */
+    app?: App;
     /**
      * Bundler-level options forwarded to Rolldown. Replaces the legacy
      * `esbuild` field. The orchestrator applies platform-specific defaults

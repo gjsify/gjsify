@@ -40,6 +40,7 @@ import { detectNativePackages } from '../utils/detect-native-packages.js';
 import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
 import { atomicWriteStrict } from '../utils/install-cache-fs.js';
 import { acquireInstallLock } from '../utils/install-lock.js';
+import { nodeBinary } from '../utils/run-node.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import {
     binDirOnPath,
@@ -1353,7 +1354,13 @@ function maybeInstallGitHooks(): void {
     // avoids spawning a process when we know the answer.
     if (!existsSync(join(cwd, '.git'))) return;
     try {
-        const result = spawnSync(process.execPath, [scriptPath, '--quiet'], {
+        // `nodeBinary()`, NOT `process.execPath`: under the committed GJS bundle
+        // `process.execPath` is `gjs`, so `spawnSync(process.execPath, [script])`
+        // ran `gjs cli.gjs.mjs install-git-hooks.mjs` (wrong argv). The hook
+        // installer is a plain Node ESM script; run it with a real node binary
+        // (PATH `node` under GJS, the current node otherwise). Best-effort —
+        // wrapped in try/catch, so a missing node just warns and continues.
+        const result = spawnSync(nodeBinary(), [scriptPath, '--quiet'], {
             cwd,
             stdio: 'inherit',
             env: process.env,

@@ -14,11 +14,34 @@
 // the plugin (which transitively loads blueprint-compiler, deepkit, etc.).
 
 /**
+ * `true` when running under Bun.
+ *
+ * Bun exposes a `globalThis.Bun` object no other runtime provides. Probed
+ * FIRST in {@link hostRuntime} because Bun also fakes `process.versions.node`
+ * for npm compatibility — a bare `process.versions.node` read is a false Node
+ * positive there.
+ */
+export function isBun(): boolean {
+    return typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined';
+}
+
+/**
+ * `true` when running under Deno.
+ *
+ * Deno exposes a `globalThis.Deno` object no other runtime provides. Like Bun,
+ * Deno also fakes `process.versions.node`, so it must be probed before the Node
+ * fallback.
+ */
+export function isDeno(): boolean {
+    return typeof (globalThis as { Deno?: unknown }).Deno !== 'undefined';
+}
+
+/**
  * `true` when running under GJS (GNOME JavaScript / SpiderMonkey).
  *
  * Detected via the GObject-Introspection bridge `globalThis.imports.gi`, which
- * only exists under GJS — Node and browsers never expose it. This is the
- * canonical gjsify host probe; prefer it over re-inlining the `imports.gi`
+ * only exists under GJS — Node, Bun, Deno and browsers never expose it. This is
+ * the canonical gjsify host probe; prefer it over re-inlining the `imports.gi`
  * check.
  */
 export function isGjs(): boolean {
@@ -26,15 +49,36 @@ export function isGjs(): boolean {
 }
 
 /**
- * `true` when running under Node.js.
+ * The JS runtime hosting the gjsify tooling: `gjs`, `node`, `bun` or `deno`.
  *
- * GJS is checked FIRST and short-circuits to `false`: `@gjsify/process` sets
- * `process.versions.node` (for npm-package compatibility), so a bare
- * `process.versions.node` probe is a false Node positive under GJS. Guarding
- * with `isGjs()` keeps the two host predicates mutually exclusive.
+ * The single source of truth for host-derived defaults (the default `--app`
+ * build target and the default `--runtime` in `run`/`showcase`/`storybook`).
+ *
+ * Probe order mirrors `packages/node-gi/node-gi/index.js`: **Bun and Deno
+ * first** because both fake `process.versions.node` for npm compatibility (so a
+ * `process.versions.node` read is a false Node positive there), then GJS (its
+ * `@gjsify/process` shim likewise fakes `process.versions.node`), then real
+ * Node. Falls back to `node` when nothing matches (e.g. an exotic host) — the
+ * gjsify tooling only runs on these four.
+ */
+export function hostRuntime(): 'gjs' | 'node' | 'bun' | 'deno' {
+    if (isBun()) return 'bun';
+    if (isDeno()) return 'deno';
+    if (isGjs()) return 'gjs';
+    return 'node';
+}
+
+/**
+ * `true` when running under Node.js — and NOT Bun or Deno.
+ *
+ * Bun and Deno both set `process.versions.node` for npm compatibility, so a
+ * bare `process.versions.node` probe is a false Node positive on either — the
+ * historical bug this guard fixes. GJS (via `@gjsify/process`) does the same.
+ * Guarding on all three keeps the four host predicates mutually exclusive: a
+ * host is exactly one of gjs / node / bun / deno.
  */
 export function isNode(): boolean {
-    if (isGjs()) return false;
+    if (isBun() || isDeno() || isGjs()) return false;
     const proc = (globalThis as { process?: { versions?: { node?: unknown } } }).process;
     return typeof proc?.versions?.node === 'string';
 }

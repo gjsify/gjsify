@@ -43,11 +43,17 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
             })
             .option('app', {
                 description:
-                    'Use this if you want to build an application, the platform node is usually only used for tests',
+                    'Build target for an application. Defaults to the target of the HOST runtime running the CLI: gjs when run under gjs, node when run under node/bun/deno (both consume the --app node bundle). Set `gjsify.app` in package.json#gjsify to override the host default.',
                 type: 'string',
                 choices: ['gjs', 'node', 'browser', 'nativescript'],
                 normalize: true,
-                default: 'gjs',
+                // No yargs `default: 'gjs'` — a yargs default is
+                // indistinguishable from a user-set value and would clobber
+                // `package.json#gjsify.app` in config.ts (same footgun as
+                // `globals`/`entryPoints`). The host-derived fallback is applied
+                // post-merge in `Config.forBuild`: CLI flag > config file > host
+                // default (`buildAppForRuntime(hostRuntime())`).
+                defaultDescription: 'host runtime target (gjs on gjs, else node)',
             })
             .option('format', {
                 description: 'Override the default output format',
@@ -182,7 +188,11 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
         const action = new BuildAction(configData);
         await action.start({
             library: args.library,
-            app: args.app,
+            // `configData.app` carries the CLI-flag > config-file > host-default
+            // resolution done in `Config.forBuild` (the yargs `--app` default was
+            // dropped so the config-file value survives). `BuildAction.start`
+            // falls back to 'gjs' only if this is somehow undefined.
+            app: configData.app,
             watch: args.watch,
         });
     },

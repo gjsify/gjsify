@@ -59,13 +59,13 @@ import {
     browseCommand as browse,
 } from './commands/index.js';
 import { APP_NAME } from './constants.js';
-import { isNode, gjsSystemVersion } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { isBun, isDeno, isNode, gjsSystemVersion } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { ensureGjsifyShimOnPath } from './utils/gjsify-shim.js';
 
-// Detect which runtime is executing the CLI (GJS or Node.js).
-// GJS MUST be checked first because @gjsify/process sets
-// `process.versions.node = '20.0.0'` for compatibility — a plain
-// `process.versions.node` check would be a false Node positive under GJS.
+// Detect which runtime is executing the CLI (GJS, Node.js, Bun or Deno) for the
+// help epilogue. Bun and Deno MUST be checked before Node because both — like
+// GJS's @gjsify/process shim — fake `process.versions.node` for npm
+// compatibility, so a plain Node probe is a false positive on either.
 function runtimeLabel(): string {
     try {
         const sysVersion = gjsSystemVersion();
@@ -75,6 +75,14 @@ function runtimeLabel(): string {
         }
     } catch {
         /* not GJS */
+    }
+    if (isBun()) {
+        const version = (globalThis as { Bun?: { version?: string } }).Bun?.version ?? process.versions.bun;
+        return `Bun ${version ?? ''}`.trim();
+    }
+    if (isDeno()) {
+        const version = (globalThis as { Deno?: { version?: { deno?: string } } }).Deno?.version?.deno;
+        return `Deno ${version ?? ''}`.trim();
     }
     if (isNode()) {
         return `Node.js ${process.version}`;

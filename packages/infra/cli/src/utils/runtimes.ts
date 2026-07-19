@@ -7,13 +7,15 @@
 // RUNTIMES map, the runtime→build-target mapping and `availableRuntimes()` live
 // in ONE place instead of a per-example copy.
 //
-// The module is intentionally PURE (only `node:child_process`, no `gi://` /
-// native imports) so an external example can deep-import it from the installed
-// CLI (`@gjsify/cli/lib/utils/runtimes.js`) without pulling the whole bundler
-// in. Mirrors the existing `@gjsify/cli/lib/utils/run-gjs.js` deep-import
-// precedent used by the dlx e2e suites.
+// The module is intentionally PURE (only `node:child_process` and the pure,
+// side-effect-free `@gjsify/rolldown-plugin-gjsify/runtime` host detector, no
+// `gi://` / native imports) so an external example can deep-import it from the
+// installed CLI (`@gjsify/cli/lib/utils/runtimes.js`) without pulling the whole
+// bundler in. Mirrors the existing `@gjsify/cli/lib/utils/run-gjs.js`
+// deep-import precedent used by the dlx e2e suites.
 
 import { execFileSync } from 'node:child_process';
+import { hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 /** The runtimes a built gjsify example/showcase can run on. `gjs` is the reference. */
 export type ExampleRuntime = 'gjs' | 'node' | 'bun' | 'deno';
@@ -72,9 +74,14 @@ export function isRuntimeOnPath(probe: string): boolean {
     }
 }
 
-/** Whether a specific runtime is runnable here (node is always assumed — we ARE node/a runtime). */
+/**
+ * Whether a specific runtime is runnable here. The HOST runtime (the one the
+ * CLI itself executes in — gjs / node / bun / deno) is always available: we are
+ * running on it, so no PATH probe is needed. Every other runtime is probed via
+ * `<binary> --version`.
+ */
 export function isRuntimeAvailable(runtime: ExampleRuntime): boolean {
-    return runtime === 'node' ? true : isRuntimeOnPath(RUNTIMES[runtime].probe);
+    return runtime === hostRuntime() ? true : isRuntimeOnPath(RUNTIMES[runtime].probe);
 }
 
 /** Which of gjs/node/bun/deno are runnable on this host. */

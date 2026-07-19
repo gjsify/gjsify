@@ -14,7 +14,7 @@
 // as a bundle file. Everything else is a script name. Users who want
 // to disambiguate can pass `./<file>` explicitly.
 
-import { statSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { basename, delimiter, join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import type { Command } from '../types/index.js';
@@ -23,7 +23,7 @@ import { runRuntimeBundle } from '../utils/run-node.js';
 import { readPackageJson } from '../utils/pkg-json-edit.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import { discoverWorkspaces } from '@gjsify/workspace';
-import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { isGjs, hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import {
     EXAMPLE_RUNTIMES,
     isExampleRuntime,
@@ -162,9 +162,23 @@ export const runCommand: Command<unknown, RunOptions> = {
 
         if (!hasScript && looksLikeFile(target)) {
             const file = resolve(target);
-            // Terminal call — exit on success, or the GJS main loop parks
+            // The default runtime for a bare `gjsify run <file>` FOLLOWS the host
+            // runtime the CLI executes in: gjs (global install) → gjs; node/bun/
+            // deno (npx/bunx/deno) → that runtime. EXCEPTION: a `--app gjs` bundle
+            // can only run on gjs (its gi:// imports are externalized, there is no
+            // node-gi shim), so it is always launched on gjs regardless of the
+            // host — this keeps `gjsify run dist/index.gjs.js` working when the
+            // CLI itself runs under node (e.g. `gjsify foreach test` for the
+            // node-cli examples). Pass `--runtime` explicitly to override.
+            const host = hostRuntime();
+            const runtime = host === 'gjs' || isLikelyGjsBundle(file) ? 'gjs' : host;
+            // Terminal calls — exit on success, or the GJS main loop parks
             // this process forever (see RunGjsBundleOptions.exitOnSuccess).
-            await runGjsBundle(file, extraArgs, { exitOnSuccess: true });
+            if (runtime === 'gjs') {
+                await runGjsBundle(file, extraArgs, { exitOnSuccess: true });
+            } else {
+                await runRuntimeBundle(runtime, file, extraArgs, { exitOnSuccess: true });
+            }
             return;
         }
 
@@ -206,6 +220,34 @@ async function runTargetOnRuntime(runtime: ExampleRuntime, target: string, extra
         await runGjsBundle(file, extraArgs, { exitOnSuccess: true });
     } else {
         await runRuntimeBundle(runtime, file, extraArgs, { exitOnSuccess: true });
+    }
+}
+
+/**
+ * Whether `file` is a `--app gjs` bundle (which can ONLY run on gjs — its
+ * `gi://` imports stay as external string literals and boots through a `gjs -m`
+ * shebang / `imports.system` stub). Used to keep such a bundle on gjs even when
+ * the host is node/bun/deno, so the host-following default in the bare-file run
+ * path never sends a gjs bundle to a runtime it cannot load.
+ *
+ * A `--app node` bundle (even a node-gi reverse-bridge one) rewrites `gi://` to
+ * `@gjsify/node-gi` and never keeps a `gi://` import literal, so it is NOT
+ * matched here and follows the host runtime.
+ */
+function isLikelyGjsBundle(file: string): boolean {
+    // Fast path on the conventional `.gjs.js` / `.gjs.mjs` naming.
+    if (/\.gjs\.[mc]?js$/.test(file)) return true;
+    try {
+        // gi:// imports + the process/system stub are hoisted to the top of the
+        // bundle, so a bounded prefix is enough — bundles can be several MB.
+        const head = readFileSync(file, 'utf-8').slice(0, 65536);
+        return (
+            head.startsWith('#!/usr/bin/env -S gjs') ||
+            /(?:from|import)\s*["']gi:\/\//.test(head) ||
+            /\bimports\.(?:gi|system)\b/.test(head)
+        );
+    } catch {
+        return false;
     }
 }
 

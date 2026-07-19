@@ -21,9 +21,14 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import type { Command } from '../types/index.js';
+import { hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
-/** Runtime the storybook bundle is built for and launched on. */
-type StorybookRuntime = 'gjs' | 'node';
+/**
+ * Runtime the storybook bundle is built for and launched on. `gjs` builds an
+ * `--app gjs` bundle; `node`/`bun`/`deno` build the SAME `--app node` bundle
+ * (gi:// → `@gjsify/node-gi` reverse bridge; Node-API is their common ABI).
+ */
+type StorybookRuntime = 'gjs' | 'node' | 'bun' | 'deno';
 
 interface StorybookCliOptions {
     stories?: string;
@@ -125,11 +130,15 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
             })
             .option('runtime', {
                 description:
-                    'Runtime to build for and launch on: gjs (default) or node (via @gjsify/node-gi). ' +
-                    'node requires @gjsify/node-gi installed in the project.',
+                    'Runtime to build for and launch on: gjs | node | bun | deno (default: the host runtime). ' +
+                    'node/bun/deno build the same `--app node` bundle (gi:// → @gjsify/node-gi) and require ' +
+                    '@gjsify/node-gi installed in the project.',
                 type: 'string',
-                choices: ['gjs', 'node'],
-                default: 'gjs',
+                choices: ['gjs', 'node', 'bun', 'deno'],
+                // No yargs `default: 'gjs'` — a yargs default clobbers the
+                // config-file value (`gjsify.storybook.runtime`). The host
+                // default is applied in the handler: flag > config > host.
+                defaultDescription: 'host runtime (gjs on gjs, else node/bun/deno)',
             })
             .option('watch', {
                 description: 'Rebuild and relaunch when a story file changes',
@@ -146,12 +155,15 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
         const applicationId = args.appId ?? config.applicationId ?? deriveAppId(pkg.name);
         const title = args.title ?? config.title;
         const globals = args.globals ?? config.globals ?? 'auto';
-        const runtime: StorybookRuntime = (args.runtime ?? config.runtime ?? 'gjs') as StorybookRuntime;
+        // Default FOLLOWS the host runtime the CLI executes in. Precedence: CLI
+        // flag > `gjsify.storybook.runtime` config > host default (`hostRuntime()`).
+        const runtime: StorybookRuntime = (args.runtime ?? config.runtime ?? hostRuntime()) as StorybookRuntime;
         // The runtime drives BOTH the build target (`gjsify build --app <app>`)
-        // and the launcher: `gjs` builds an `--app gjs` bundle run by `gjs -m`,
-        // `node` builds an `--app node` bundle (gi:// → @gjsify/node-gi) run by
-        // `node`. Same generated entry + `--globals auto` for both.
-        const app = runtime === 'node' ? 'node' : 'gjs';
+        // and the launcher: `gjs` builds an `--app gjs` bundle run by `gjs -m`;
+        // `node`/`bun`/`deno` build the SAME `--app node` bundle (gi:// →
+        // @gjsify/node-gi) run on that runtime. Same generated entry +
+        // `--globals auto` for all.
+        const app = runtime === 'gjs' ? 'gjs' : 'node';
 
         const cacheDir = join(cwd, 'node_modules', '.cache', 'gjsify-storybook');
         mkdirSync(cacheDir, { recursive: true });
@@ -180,12 +192,18 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
             runCli(['build', entryPath, '--app', app, '--globals', globals, '--outfile', outPath]);
 
         const launch = async (): Promise<void> => {
-            if (runtime === 'node') {
+            if (runtime === 'gjs') {
+                const { runGjsBundle } = await import('../utils/run-gjs.js');
+                await runGjsBundle(outPath, [], { exitOnSuccess: true });
+            } else if (runtime === 'node') {
                 const { runNodeBundle } = await import('../utils/run-node.js');
                 await runNodeBundle(outPath, [], { exitOnSuccess: true });
             } else {
-                const { runGjsBundle } = await import('../utils/run-gjs.js');
-                await runGjsBundle(outPath, [], { exitOnSuccess: true });
+                // bun / deno — run the SAME `--app node` bundle via the shared
+                // runner (Node-API is their common ABI). node-gi is required
+                // because the storybook uses gi:// (checked in runRuntimeBundle).
+                const { runRuntimeBundle } = await import('../utils/run-node.js');
+                await runRuntimeBundle(runtime, outPath, [], { exitOnSuccess: true });
             }
         };
 
@@ -202,19 +220,31 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
         // enough and stays killable for relaunch.
         const { watch } = await import('node:fs');
         const spawnChild = async (): Promise<ChildProcess> => {
-            if (runtime === 'node') {
-                const { computeNativeEnvForBundle } = await import('../utils/run-gjs.js');
-                const { resolveNodeGi, nodeBinary } = await import('../utils/run-node.js');
-                if (!resolveNodeGi(cwd)) {
-                    throw new Error(
-                        'Cannot run the storybook on Node: `@gjsify/node-gi` is not installed. ' +
-                            'Add @gjsify/node-gi as a dependency to run the storybook on Node.',
-                    );
-                }
-                const { env: nativeEnv } = computeNativeEnvForBundle(outPath, cwd);
-                return spawn(nodeBinary(), [outPath], { stdio: 'inherit', env: { ...process.env, ...nativeEnv } });
+            if (runtime === 'gjs') {
+                return spawn('gjs', ['-m', outPath], { stdio: 'inherit' });
             }
-            return spawn('gjs', ['-m', outPath], { stdio: 'inherit' });
+            // node / bun / deno — run the `--app node` bundle with the native
+            // typelib env wired like `gjsify run`. All three need @gjsify/node-gi
+            // (the storybook uses gi://), kept external by the bundler.
+            const { computeNativeEnvForBundle } = await import('../utils/run-gjs.js');
+            const { resolveNodeGi, nodeBinary } = await import('../utils/run-node.js');
+            const { RUNTIMES } = await import('../utils/runtimes.js');
+            if (!resolveNodeGi(cwd)) {
+                throw new Error(
+                    `Cannot run the storybook on ${runtime}: \`@gjsify/node-gi\` is not installed. ` +
+                        `Add @gjsify/node-gi as a dependency to run the storybook on ${runtime}.`,
+                );
+            }
+            const { env: nativeEnv } = computeNativeEnvForBundle(outPath, cwd);
+            const env = { ...process.env, ...nativeEnv };
+            // `node` uses the resolved node binary (under a GJS-hosted CLI
+            // `process.execPath` is gjs); bun/deno launch via the shared spec
+            // (deno's `--node-modules-dir=manual`, etc.).
+            if (runtime === 'node') {
+                return spawn(nodeBinary(), [outPath], { stdio: 'inherit', env });
+            }
+            const [cmd, launchArgs] = RUNTIMES[runtime].launch(outPath);
+            return spawn(cmd, launchArgs, { stdio: 'inherit', env });
         };
         let child: ChildProcess | null = null;
         let rebuilding = false;

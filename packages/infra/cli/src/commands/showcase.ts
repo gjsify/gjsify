@@ -1,15 +1,14 @@
 import type { Command } from '../types/index.js';
 import { discoverShowcases, findShowcase, type ShowcaseInfo } from '../utils/discover-showcases.js';
 import { runMinimalChecks, detectPackageManager, buildInstallCommand } from '../utils/check-system-deps.js';
-import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { existsSync, readFileSync } from 'node:fs';
 import { ensurePkgDir } from './dlx.js';
 import { parseSpec } from '../utils/parse-spec.js';
 import { resolveNodeEntry } from '../utils/resolve-gjs-entry.js';
 import { runRuntimeBundle } from '../utils/run-node.js';
+import { hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import {
     EXAMPLE_RUNTIMES,
     isExampleRuntime,
@@ -55,17 +54,19 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
                 default: false,
             })
             .option('runtime', {
-                // Runtime selector, mirroring `gjsify storybook --runtime`. gjs
-                // (default) runs the showcase's GJS bundle via `gjsify dlx`
-                // (back-compat); node/bun/deno run its `--app node` bundle on
-                // that runtime. Validated against the showcase's declared
-                // `gjsify.example.runtimes` — a GTK-only showcase requested under
-                // node fails with a clear message, not a bundle crash.
+                // Runtime selector, mirroring `gjsify storybook --runtime`. The
+                // default FOLLOWS the host runtime the CLI executes in (gjs under
+                // gjs, node under node/bun/deno). gjs runs the showcase's GJS
+                // bundle via `gjsify dlx`; node/bun/deno run its `--app node`
+                // bundle on that runtime. Validated against the showcase's
+                // declared `gjsify.example.runtimes` — a GTK-only showcase
+                // requested under node fails with a clear message, not a crash.
                 type: 'string',
                 choices: EXAMPLE_RUNTIMES,
-                default: 'gjs',
+                default: hostRuntime(),
+                defaultDescription: 'host runtime (gjs on gjs, else node/bun/deno)',
                 description:
-                    'Runtime to run the showcase on: gjs (default) | node | bun | deno. node/bun/deno run its `--app node` bundle.',
+                    'Runtime to run the showcase on: gjs | node | bun | deno (default: the host runtime). node/bun/deno run its `--app node` bundle.',
             }),
     handler: async (args) => {
         // List mode: no name given, or --list flag
@@ -136,7 +137,7 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
             process.exit(1);
         }
 
-        const runtime = (args.runtime ?? 'gjs') as string;
+        const runtime = (args.runtime ?? hostRuntime()) as string;
         if (!isExampleRuntime(runtime)) {
             console.error(`Unknown --runtime "${runtime}" (expected: ${EXAMPLE_RUNTIMES.join(', ')}).`);
             process.exit(1);
@@ -151,9 +152,9 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
             return;
         }
 
-        // Default (gjs): delegate to `gjsify dlx <package>@<cli-version>` — same
+        // gjs runtime: delegate to `gjsify dlx <package>@<cli-version>` — same
         // npm-cache, same atomic symlink-swap, same `gjsify.main` resolution.
-        // Re-spawning the CLI keeps the dlx logic in one place.
+        // Dispatched in-process to keep the dlx logic in one place.
         //
         // Pinning to the CLI's own version is load-bearing: showcases ship in
         // lockstep with the CLI, so users running `npx @gjsify/cli@X showcase
@@ -165,23 +166,19 @@ export const showcaseCommand: Command<unknown, ShowcaseOptions> = {
         // reported against `@gjsify/cli@0.3.17`).
         const dlxSpec = cliVersion ? `${showcase.packageName}@${cliVersion}` : showcase.packageName;
         console.log(`Running showcase: ${showcase.name} (via gjsify dlx ${dlxSpec})\n`);
-        const cliBin = fileURLToPath(new URL('../index.js', import.meta.url));
-        const child = spawn(process.execPath, [cliBin, 'dlx', dlxSpec], {
-            stdio: 'inherit',
-        });
-        await new Promise<void>((resolvePromise, reject) => {
-            child.on('close', (code) => {
-                if (code !== 0) {
-                    reject(new Error(`gjsify dlx exited with code ${code}`));
-                } else {
-                    resolvePromise();
-                }
-            });
-            child.on('error', reject);
-        }).catch((err) => {
-            console.error(err.message);
+        // Dispatch `dlx` IN-PROCESS (not `spawn(process.execPath, [cliBin, …])`):
+        // under the committed GJS bundle `process.execPath` is `gjs` and
+        // `../index.js` is the Node entry, so the spawn ran `gjs cli.gjs.mjs
+        // index.js dlx …` (yargs saw `index.js` as the command) — the
+        // CLAUDE.md-flagged trap. In-process runCli works identically under Node
+        // and GJS and stays node-free (same fix `gjsify storybook` uses).
+        try {
+            const { runCli } = await import('../cli-app.js');
+            await runCli(['dlx', dlxSpec]);
+        } catch (err) {
+            console.error((err as Error).message);
             process.exit(1);
-        });
+        }
     },
 };
 
