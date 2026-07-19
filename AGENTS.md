@@ -236,6 +236,7 @@ It composes the same browser-target pieces as `app/browser.ts`: `gjsImportsEmpty
 |**auto,\<extras\>**: auto + safety net for value-flow indirection detector can't follow (e.g. Excalibur stores `globalThis` in `BrowserComponent.nativeComponent`, then calls `nativeComponent.matchMedia()`). Forms: `auto,dom` / `auto,FontFace,matchMedia` / `auto,dom,fetch`. Extras seeded into pass 1.
 |**explicit list** `fetch,Buffer,...` or group aliases `node`/`web`/`dom`: no auto-detect.
 |**none**: disables injection.
+|**`--app node` (reverse bridge)**: `auto` detects ONLY the GJS ambient globals (`print`/`imports` → `@gjsify/node-gi/globals`) — web/dom registers are NEVER auto-injected (plain-Node loadability guarantee for cross-platform packages). EXPLICIT identifiers (`--globals auto,dom,XMLHttpRequest,…` or an explicit list) inject the SAME register modules the gjs target would AND lift the `@gjsify/empty` register routing + `@girs/*` emptying for that build (`app/node.ts` `enableGjsRegistersForNode`, gated on the inject stub) — this is how a genuine GJS app (Excalibur → `WebGLBridge`) gets `document`/`HTMLCanvasElement`/`matchMedia`/XHR over node-gi. A plain-`auto` node build is byte-unchanged. Blueprint (`.blp` → XML string) is composed on the node target too (`--app node` runs REAL GTK).
 
 Key files: `packages/infra/rolldown-plugin-gjsify/src/utils/detect-free-globals.ts` (acorn AST) | `.../auto-globals.ts` (orchestrator) | `.../scan-globals.ts` (explicit) | `packages/infra/resolve-npm/lib/globals-map.mjs`.
 

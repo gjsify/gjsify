@@ -8,8 +8,9 @@
 import { aliasPlugin } from '../plugins/alias.js';
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 
+import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
-import { EXTERNALS_NODE, ALIASES_GJS_FOR_NODE } from '@gjsify/resolve-npm';
+import { EXTERNALS_NODE, ALIASES_GJS_FOR_NODE, ALIASES_WEB_FOR_GJS } from '@gjsify/resolve-npm';
 
 import type { PluginOptions } from '../types/plugin-options.js';
 import { getAliasesForNode } from '../utils/alias.js';
@@ -53,6 +54,42 @@ const NODE_GI_GLOBALS_SPECIFIER = '@gjsify/node-gi/globals';
  * unit: `packages/infra/cli/src/node-gi-externals.spec.ts`.
  */
 const NODE_GI_BARE_MODULE_SPECIFIERS = Object.values(ALIASES_GJS_FOR_NODE);
+
+/** Matches a register subpath in an alias key: `<pkg>/register` or `<pkg>/register/<feature>`. */
+const REGISTER_SUBPATH_RE = /\/register(\/|$)/;
+
+/**
+ * Reverse-bridge register routing: a node build with an EXPLICIT `--globals`
+ * register-inject stub (`pluginOptions.autoGlobalsInject`, set by the CLI for
+ * `--app node` when the user names globals — e.g. `--globals auto,dom`) is a
+ * genuine GJS source that needs the REAL `@gjsify/*` register bodies (document,
+ * HTMLCanvasElement, matchMedia, …) running over `@gjsify/node-gi`, not the
+ * default `@gjsify/empty` stubs that keep cross-platform node bundles loadable
+ * on plain Node.
+ *
+ * Two adjustments over the standard node alias map:
+ *  1. every `<pkg>/register…` → `@gjsify/empty` entry is DROPPED so the
+ *     register import resolves to its real body;
+ *  2. the gjs target's bare→scoped register routes (`fetch/register/fetch` →
+ *     `@gjsify/fetch/register/fetch`, `xmlhttprequest/register` →
+ *     `@gjsify/fetch/register/xhr`, …) are merged in so the inject stub's bare
+ *     specifiers resolve on node exactly as they do on gjs.
+ *
+ * Applied to the BASE map only — `pluginOptions.aliases` / user aliases still
+ * override. Without the inject stub the map is untouched (the plain-Node
+ * loadability guarantee for cross-platform packages is not regressed).
+ */
+export function enableGjsRegistersForNode(baseAliases: Record<string, string>): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const [key, value] of Object.entries(baseAliases)) {
+        if (value === '@gjsify/empty' && REGISTER_SUBPATH_RE.test(key)) continue;
+        out[key] = value;
+    }
+    for (const [key, value] of Object.entries(ALIASES_WEB_FOR_GJS)) {
+        if (REGISTER_SUBPATH_RE.test(key)) out[key] = value;
+    }
+    return out;
+}
 
 export interface NodeBuildConfig {
     options: RolldownOptions;
@@ -126,11 +163,17 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     // GJS `--globals auto` machinery uses.
     const sideEffectImports: string[] = [];
     if (input.pluginOptions.nodeGiGlobalsInject) sideEffectImports.push(NODE_GI_GLOBALS_SPECIFIER);
+    // The explicit `--globals` register-inject stub (reverse bridge, see
+    // enableGjsRegistersForNode). Ordered AFTER the ambient-globals shim so
+    // registers may rely on `print`/`imports` being installed.
+    const registerInject = input.pluginOptions.autoGlobalsInject;
+    if (registerInject) sideEffectImports.push(registerInject);
     const virtualEntries = wrapInputWithSideEffects(entryPoints, sideEffectImports);
     const finalInput = virtualEntries.input;
 
+    const baseAliases = getAliasesForNode({ external });
     const aliasMap = {
-        ...getAliasesForNode({ external }),
+        ...(registerInject ? enableGjsRegistersForNode(baseAliases) : baseAliases),
         ...input.pluginOptions.aliases,
         ...input.userAliases,
     };
@@ -230,8 +273,19 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         //     from the @girs package's own `gi://` specifier). `gi://*` is
         //     already claimed by gjsGiNodePlugin, so this plugin's `gi://`
         //     branch is dead on the node target either way.
-        gjsImportsEmptyPlugin({ emptyGirs: !input.pluginOptions.nodeGiGlobalsInject }),
+        // `emptyGirs` also lifts for the explicit-register reverse-bridge case:
+        // the injected register bodies (dom-elements, canvas2d, …) are genuine
+        // GJS code whose `@girs/*` value imports must route through to
+        // `requireGi`, exactly like the ambient-globals case.
+        gjsImportsEmptyPlugin({
+            emptyGirs: !(input.pluginOptions.nodeGiGlobalsInject || registerInject),
+        }),
         aliasPlugin({ entries: flattenAliases(aliasMap) }),
+        // Blueprint (.blp → XML string): the reverse bridge runs REAL GTK on
+        // Node, so a GJS app entry (composite-template windows) must build for
+        // `--app node` too. Only claims `.blp` files — inert for plain-Node
+        // bundles. Same plugin the gjs/browser targets compose.
+        blueprintPlugin() as RolldownPluginOption,
         deepkitPlugin({ reflection: input.pluginOptions.reflection }),
         cssAsStringPlugin(),
         nodeModulesPathRewritePlugin({ bundleDir }),

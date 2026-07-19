@@ -235,18 +235,29 @@ export class BuildAction {
 
     /**
      * Resolve the `--globals` CLI list into a pre-computed inject stub path
-     * that the orchestrator appends to its input list. Only runs for
-     * `--app gjs` — Node and browser builds rely on native globals.
+     * that the orchestrator appends to its input list. Runs for `--app gjs`
+     * AND `--app node`: on gjs the registers install our polyfills over the
+     * bare GJS runtime; on node an EXPLICIT list is the reverse bridge's
+     * DOM-surface request (a genuine GJS source built via `@gjsify/node-gi`
+     * needs the same `@gjsify/*` registers — document, HTMLCanvasElement, … —
+     * it gets under `--app gjs`, backed by gi:// through node-gi). Browser
+     * builds rely on native globals.
      *
-     * Used only for the explicit-only path (no `auto` token in the value).
-     * The auto path is handled in `buildApp` via the iterative multi-pass build.
+     * Node is EXPLICIT-ONLY by design: plain `--globals auto` never injects
+     * web/dom registers into a node bundle (cross-platform packages' node
+     * builds must stay loadable on plain Node without node-gi), so the
+     * `@gjsify/empty` routing is only lifted when the USER names the globals.
+     *
+     * Used for the explicit-only path (no `auto` token) and, on node, for the
+     * `auto,<extras>` extras. The gjs auto path is handled in `buildApp` via
+     * the iterative multi-pass build.
      */
     private async resolveGlobalsInject(
         app: App,
         globals: string,
         verbose: boolean | undefined,
     ): Promise<string | undefined> {
-        if (app !== 'gjs') return undefined;
+        if (app !== 'gjs' && app !== 'node') return undefined;
         if (!globals) return undefined;
 
         const registerPaths = resolveGlobalsList(globals);
@@ -622,6 +633,18 @@ export class BuildAction {
             );
 
             if (needsGiGlobals) pluginOpts.nodeGiGlobalsInject = true;
+
+            // Explicit extras on a node build (`--globals auto,dom,…`) are the
+            // reverse bridge's DOM-surface request: inject the SAME register
+            // modules the gjs target would for those identifiers, so a genuine
+            // GJS source (an Excalibur/WebGLBridge app) gets document /
+            // HTMLCanvasElement / matchMedia / … on Node via node-gi. The
+            // orchestrator lifts the `@gjsify/empty` register routing only when
+            // this inject stub is present (see app/node.ts) — plain `auto`
+            // node builds are byte-unchanged.
+            if (extras) {
+                pluginOpts.autoGlobalsInject = await this.resolveGlobalsInject(app, extras, verbose);
+            }
         } else if (extras) {
             pluginOpts.autoGlobalsInject = await this.resolveGlobalsInject(app, extras, verbose);
         }
