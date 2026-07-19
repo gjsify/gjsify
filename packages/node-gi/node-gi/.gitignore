@@ -9,3 +9,4 @@ probe-*.mjs
 conformance/dist/
 .gi-tests/
 .tmp-c2d-*/
+.tmp-eb-*/

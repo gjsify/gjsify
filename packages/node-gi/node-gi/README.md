@@ -736,3 +736,53 @@ mapped `Gtk.DrawingArea`'s live `GdkFrameClock` stays an active GLib source afte
 `app.quit()`, so — matching the documented lifetime divergence — a node-gi GTK
 program that must terminate exits explicitly (`process.exit(0)`), whereas `gjs -m`
 exits on module completion.
+
+### The live `@gjsify/event-bridge` dispatches DOM events on node-gi
+
+The GTK→DOM event bridge (`@gjsify/event-bridge`'s `attachEventControllers`) —
+which attaches GTK4 `EventControllerMotion`/`GestureClick`/`EventControllerScroll`/
+`EventControllerKey`/`EventControllerFocus` to a widget and dispatches W3C DOM
+events (Mouse/Pointer/Keyboard/Wheel/FocusEvent) — runs UNCHANGED on node-gi. The
+shared fixture presents a `Gtk.DrawingArea`, attaches the controllers, and drives a
+SYNTHESIZED event through each live `Gtk.EventController*` via `emit(signal, …)`
+(the same path the GJS `event-bridge.spec.ts` drives), then asserts the dispatched
+DOM event's type / coords / `getModifierState` / key / code. The `Gdk.ModifierType`
+flags and `Gdk.keyval_name`/`Gdk.keyval_to_unicode` marshalling produce
+byte-identical DOM events under node-gi and `gjs -m` — the same source builds
+`--app gjs` and `--app node` and prints the committed golden
+(`test/event-bridge.test.mjs` + `fixtures/event-bridge-app.ts`). Every golden line
+is deterministic + display-independent (coords clamp to a fixed 400x300 allocation;
+key/code/modifiers derive from the Gdk marshalling), so byte-parity is stable.
+
+**Deferred node-gi gap (does not affect the behavior):** node-gi does not wire
+`instanceof` for GObject wrapper classes yet — `new Gtk.EventControllerMotion()
+instanceof Gtk.EventControllerMotion` is `false` (even for a freshly-constructed
+wrapper), because the per-GType wrappers are not set up as real JS classes with a
+prototype chain / `Symbol.hasInstance`. So the fixture cannot use the GJS spec's
+`ctrl instanceof Gtk.EventControllerMotion` controller filter; it retrieves
+controllers by ADD ORDER off `widget.observe_controllers()` instead (wrapper
+IDENTITY *is* preserved and `emit()` resolves the signal by the live GType, so the
+bridged behavior is unaffected). Wiring `instanceof` is a core object-model change
+(per-GType JS classes or a `Symbol.hasInstance` hook) — tracked as a native-engine
+follow-up. A second minor gap the fixture routes around: boxed structs have no
+`new` constructor (`new Gdk.Rectangle()` throws `no static method 'new'`), so the
+fixture relies on the presented window's real allocation rather than a manual
+`size_allocate(rect)`.
+
+**Run it (needs a display + a built workspace + the `gjsify` CLI; self-skips
+otherwise):**
+
+```sh
+# node-gi (--app node) — the authoritative check vs the committed golden:
+export GJSIFY_BIN="$(git rev-parse --show-toplevel)/packages/infra/cli/lib/index.js"
+xvfb-run -a dbus-run-session -- \
+  env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
+      NODE_GI_NATIVE=build NODE_GI_EB_SKIP_GJS=1 GJSIFY_BIN="$GJSIFY_BIN" \
+  node --test test/event-bridge.test.mjs
+# Drop NODE_GI_EB_SKIP_GJS to additionally re-prove the golden IS gjs's own output
+# (builds + runs --app gjs; needs the workspace CLI, not the published one).
+```
+
+`GJSIFY_BIN` must point at the WORKSPACE-built `@gjsify/cli` (`packages/infra/cli/lib/index.js`),
+not the published `@gjsify/cli` — the fixture is built with current source, which
+carries this session's bundler fixes the published `0.18.0` predates.
