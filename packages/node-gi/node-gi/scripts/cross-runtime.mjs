@@ -122,16 +122,35 @@ const argsFor = (file) =>
       : ['test', '-A', '--node-modules-dir=auto', file];
 const runtimeBin = runtime === 'node' ? process.execPath : runtime;
 
-// Files allowed to fail on a SPECIFIC runtime/platform without failing the run —
-// narrow, documented, and self-healing: a pass still prints ✓, so a fixed case is
-// visible and the carve-out can be removed; every OTHER file stays a hard gate.
-// `struct-construct` aborts on Deno's N-API env teardown on macOS AFTER all 9
-// assertions pass (non-zero exit, no test summary — the graphene/Gdk boxed
-// g_boxed_free churn trips Deno's teardown on darwin ONLY; Node + Bun are clean on
-// macOS, and Deno on Linux is clean). Not a reverse-bridge capability gap; revisit
-// when the Deno-macOS teardown path is fixed at the engine.
-const SOFT_FAIL =
-  runtime === 'deno' && process.platform === 'darwin' ? new Set(['struct-construct']) : new Set();
+// Deno's N-API env teardown on macOS can abort a test FILE with a non-zero exit
+// AFTER every assertion in it has already passed — no test summary is printed, the
+// process just exits non-zero once the last subtest reported `ok` (the #47 teardown
+// class; the graphene/Gdk boxed g_boxed_free churn is one trigger, but it is
+// NONDETERMINISTIC and lands on a DIFFERENT file run-to-run — struct-construct one
+// run, out-params the next). That is not a reverse-bridge capability gap, so on
+// deno+darwin ONLY we gate on the per-subtest RESULTS parsed from Deno's own output
+// instead of the process exit code: if every test the run announced actually ran and
+// none reported FAILED, a non-zero exit is the known teardown artifact (non-gating).
+// A real assertion failure (a FAILED line) OR a truncated run (fewer results than the
+// "running N tests" header promised — i.e. a genuine mid-test crash) still HARD-gates.
+// node / bun / linux keep exit-code gating unchanged. See #47.
+const denoDarwinTeardownCarveout = runtime === 'deno' && process.platform === 'darwin';
+
+// Parse Deno's test output into { expected, ran, failed } by counting its per-subtest
+// result lines ("<name> ... ok|FAILED|ignored (<dur>)") and the "running N tests from"
+// headers. ANSI colour codes are stripped first. `teardownArtifact` is true iff every
+// announced test ran and none failed (so a non-zero exit is the post-pass teardown
+// abort), false on any FAILED line or a short run (crash before all tests reported).
+function classifyDenoOutput(out) {
+  const clean = out.replace(/\x1b\[[0-9;]*m/g, '');
+  let expected = 0;
+  for (const m of clean.matchAll(/running (\d+) tests from /g)) expected += Number(m[1]);
+  const passed = (clean.match(/ \.\.\. ok \(/g) || []).length;
+  const ignored = (clean.match(/ \.\.\. ignored/g) || []).length;
+  const failed = (clean.match(/ \.\.\. FAILED/g) || []).length;
+  const ran = passed + ignored + failed;
+  return { expected, ran, passed, ignored, failed, teardownArtifact: expected > 0 && ran === expected && failed === 0 };
+}
 
 // Which native binary the children load (see index.js nativeCandidates). Default
 // to the JUST-BUILT addon so a stale staged prebuild can't shadow local
@@ -149,12 +168,16 @@ for (const base of files) {
     encoding: 'utf8',
     env: { ...process.env, NODE_GI_NATIVE: nativePref },
   });
+  const teardown = denoDarwinTeardownCarveout && res.status !== 0
+    ? classifyDenoOutput((res.stdout || '') + '\n' + (res.stderr || ''))
+    : null;
   if (res.status === 0) {
     console.log(`  ✓ ${base}`);
-  } else if (SOFT_FAIL.has(base)) {
+  } else if (teardown?.teardownArtifact) {
     softFailed++;
-    console.log(`  ⚠ ${base} (known non-gating failure on ${runtime}/${process.platform})`);
-    console.error((res.stdout || '') + '\n' + (res.stderr || ''));
+    console.log(
+      `  ⚠ ${base} (known non-gating: deno/darwin teardown-exit after ${teardown.ran}/${teardown.expected} tests passed, 0 failed — see #47)`,
+    );
   } else {
     failed++;
     console.log(`  ✗ ${base}`);
