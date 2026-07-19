@@ -157,8 +157,19 @@ function exec(cmd, args, timeoutMs, env) {
     }
 }
 
+// Invoke the resolved gjsify CLI. A workspace CLI entry (…/infra/cli/lib/index.js)
+// is a plain .js — run it via `node` so it works regardless of the +x bit; a shell
+// shim (the workspace `.bin/gjsify`) is exec'd directly. CI points GJSIFY_BIN at the
+// WORKSPACE-built CLI (current source: it carries the bare-`cairo`→@gjsify/node-gi
+// externalization + register-inline that the published @gjsify/cli predates).
+function gjsifyExec(args, timeoutMs) {
+    return /\.[mc]?js$/.test(gjsify)
+        ? exec(process.execPath, [gjsify, ...args], timeoutMs)
+        : exec(gjsify, args, timeoutMs);
+}
+
 function build(app, outfile) {
-    exec(gjsify, ['build', fixture, '--app', app, '--outfile', outfile], 180 * 1000);
+    gjsifyExec(['build', fixture, '--app', app, '--outfile', outfile], 180 * 1000);
     assert.ok(existsSync(outfile), `${outfile} was not produced`);
     return outfile;
 }
