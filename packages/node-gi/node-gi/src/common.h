@@ -19,7 +19,9 @@
 #ifndef NODE_GI_SRC_COMMON_H_
 #define NODE_GI_SRC_COMMON_H_
 
+#ifndef _WIN32
 #include <dlfcn.h>  // dlopen/dlsym the GtkWidgetClass template API (no GTK link)
+#endif
 #include <napi.h>
 #include <uv.h>
 

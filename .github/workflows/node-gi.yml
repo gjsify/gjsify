@@ -722,3 +722,129 @@ jobs:
             @gjsify/sqlite @gjsify/http2 @gjsify/zlib \
             --runtimes node,bun,deno --require-pass \
             --out /tmp/node-gi-consumer-survey.json
+
+  # Windows proof (Phase 1 — the reverse bridge BUILDS + RUNS on windows-latest).
+  # The whole team is Linux-only, so a windows-latest runner is the only way to
+  # validate. Sibling of the macOS proof (its `macos` job above is the template).
+  #
+  # TOOLCHAIN — MSVC + gvsbuild (NOT MSYS2/mingw). node-gyp defaults to MSVC, and
+  # stock Node/Bun/Deno on Windows are MSVC-ABI, so the addon AND the GTK/GLib it
+  # links must be MSVC-ABI too — a mingw GTK + MSVC addon is an ABI hazard and a
+  # mingw-built .node does not load into stock MSVC-ABI Node (the ABI wall). gvsbuild
+  # publishes a prebuilt MSVC-ABI GTK4 bundle (GLib 2.88, girepository-2.0, built
+  # with --enable-gi) that loads into stock Node. We build the N-API addon FROM
+  # SOURCE (node-gyp/MSVC + pkg-config via scripts/win-gi-gyp-flags.mjs) and run the
+  # DISPLAY-FREE conformance subset on Node — the exact set scripts/cross-runtime.mjs
+  # curates. The GTK-window / GLArea / cairo-drawfunc / adw-smoke DISPLAY tests are
+  # NOT run here (GTK-on-Windows is the win32 backend and needs its own display
+  # wiring — Phase 2, which also ships a prebuilt GTK stack so consumers need no
+  # gvsbuild). The win32-x64 addon prebuild IS staged + uploaded here, mirroring the
+  # arm64 + macos jobs; a future prebuilt-GTK upload slots in beside it.
+  windows:
+    name: Windows build + conformance (Node / windows-latest x64)
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      GVSBUILD_VERSION: '2026.6.0'
+      # Extract to gvsbuild's canonical build prefix so its .pc files' baked
+      # absolute `prefix=` is correct with no relocation needed.
+      GTK_PREFIX: 'C:\gtk-build\gtk\x64\release'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Node 24 builds the addon (node-gyp) and runs the authoritative Node leg —
+      # same version the macOS proof pins.
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Cache gvsbuild GTK4 bundle
+        id: cache-gtk
+        uses: actions/cache@v4
+        with:
+          path: C:\gtk-build\gtk\x64\release
+          key: gvsbuild-gtk4-${{ env.GVSBUILD_VERSION }}-x64-v1
+
+      - name: Download + extract gvsbuild GTK4 (MSVC-ABI, girepository-2.0)
+        if: steps.cache-gtk.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = "https://github.com/wingtk/gvsbuild/releases/download/$env:GVSBUILD_VERSION/GTK4_Gvsbuild_${env:GVSBUILD_VERSION}_x64.zip"
+          Write-Host "Downloading $url"
+          curl.exe -L --fail --retry 3 -o gtk4.zip $url
+          New-Item -ItemType Directory -Force -Path $env:GTK_PREFIX | Out-Null
+          # tar.exe (bsdtar) extracts zip; the zip holds the CONTENTS of release\
+          # (bin/ lib/ include/ share/ …) at its root.
+          tar.exe -xf gtk4.zip -C $env:GTK_PREFIX
+          Remove-Item gtk4.zip
+
+      - name: Put GTK on PATH + set GI/PKG env
+        shell: pwsh
+        run: |
+          # GTK bin/ carries the DLLs the addon links (glib/gobject/gio/girepository/
+          # cairo/ffi/intl) AND pkgconf.exe + pkg-config.exe (gvsbuild bundles them).
+          "$env:GTK_PREFIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          "PKG_CONFIG_PATH=$env:GTK_PREFIX\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          # The typelib DIRECTORY is historically named girepository-1.0 even for
+          # the girepository-2.0 API.
+          "GI_TYPELIB_PATH=$env:GTK_PREFIX\lib\girepository-1.0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "GSETTINGS_SCHEMA_DIR=$env:GTK_PREFIX\share\glib-2.0\schemas" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Verify pkg-config + girepository-2.0 (diagnostics)
+        shell: pwsh
+        run: |
+          Write-Host "pkg-config: $((Get-Command pkg-config).Source)"
+          pkg-config --version
+          if (pkg-config --define-prefix --exists girepository-2.0) {
+            Write-Host "girepository-2.0: $(pkg-config --define-prefix --modversion girepository-2.0)"
+          } else {
+            Write-Host "girepository-2.0: MISSING — the addon build will fail"
+          }
+          Write-Host "cflags : $(pkg-config --define-prefix --cflags girepository-2.0 cairo)"
+          Write-Host "libs   : $(pkg-config --define-prefix --static --libs girepository-2.0 cairo)"
+          Write-Host "--- typelibs present ---"
+          Get-ChildItem "$env:GTK_PREFIX\lib\girepository-1.0" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match 'GLib|GObject|Gio|Pango|GdkPixbuf|Graphene|cairo' } |
+            Select-Object -ExpandProperty Name
+          Write-Host "--- helper: include_dirs ---"
+          node packages/node-gi/node-gi/scripts/win-gi-gyp-flags.mjs --includes
+          Write-Host "`n--- helper: libraries ---"
+          node packages/node-gi/node-gi/scripts/win-gi-gyp-flags.mjs --libs
+
+      # From source: node-gyp reads binding.gyp's OS=="win" branch (the helper feeds
+      # cl.exe include dirs + link.exe .lib paths) → win32-x64 build/Release/
+      # node_gi.node. The package's `install` script IS node-gyp rebuild.
+      - name: Build native addon (node-gyp / MSVC)
+        working-directory: packages/node-gi/node-gi
+        run: npm install --no-audit --no-fund --foreground-scripts
+
+      # The display-free conformance subset on Node — the primary proof. Loads the
+      # just-built build/Release addon (cross-runtime.mjs defaults NODE_GI_NATIVE to
+      # `build`). Same curated list the macOS/Bun/Deno legs use (single source).
+      - name: Conformance subset on Node (display-free)
+        working-directory: packages/node-gi/node-gi
+        run: node scripts/cross-runtime.mjs node
+
+      # Stage the win32-x64 addon prebuild + smoke it via the PREBUILD load path,
+      # then upload it so a release can ship prebuilds/win32-x64/ (the loader already
+      # expects that path). Mirrors the arm64 + macos jobs. NB this is the node-gi
+      # ADDON prebuild, NOT a Phase-2 prebuilt-GTK stack.
+      - name: Stage win32-x64 prebuild
+        working-directory: packages/node-gi/node-gi
+        run: node scripts/stage-prebuild.mjs
+
+      - name: Verify the staged prebuild loads (Node)
+        working-directory: packages/node-gi/node-gi
+        run: node --test test/smoke.test.mjs
+        env:
+          NODE_GI_NATIVE: prebuild
+
+      - name: Upload win32-x64 prebuild artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-gi-prebuild-win32-x64
+          path: packages/node-gi/node-gi/prebuilds/win32-x64/node_gi.node
+          if-no-files-found: error

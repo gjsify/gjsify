@@ -15,6 +15,13 @@ const GtkTemplateApi* GetGtkTemplateApi() {
   static bool initialised = false;
   if (initialised) return &api;
   initialised = true;
+#ifdef _WIN32
+  // The Gtk.Widget composite-template API is resolved lazily via dlsym on POSIX
+  // only. GTK on Windows is Phase 2; the Phase-1 Windows CI proves the display-
+  // free core, which never exercises templates. api.ok stays false → template
+  // callers warn + no-op / throw a clear "template API unavailable" error.
+  return &api;
+#else
   void* lib = dlopen("libgtk-4.so.1", RTLD_LAZY | RTLD_NOLOAD);
   if (lib == nullptr) lib = dlopen("libgtk-4.so.1", RTLD_LAZY);
   if (lib == nullptr) return &api;  // api.ok stays false → callers warn + no-op
@@ -40,6 +47,7 @@ const GtkTemplateApi* GetGtkTemplateApi() {
            api.bind_template_child_full != nullptr && api.set_css_name != nullptr &&
            api.init_template != nullptr && api.get_template_child != nullptr;
   return &api;
+#endif  // _WIN32
 }
 
 // The live JS env stamped on a template-callback scope (refreshed each construct).
