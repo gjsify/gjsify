@@ -114,6 +114,14 @@ export function callStaticMethod(
 ): unknown;
 
 /**
+ * Construct a boxed/plain struct instance — the `new <Struct>()` path (GJS
+ * gi/boxed.cpp parity). A struct WITH a 'new' constructor routes to it with
+ * `args` (e.g. `GLib.MainLoop`); a struct WITHOUT one and ZERO args is
+ * zero-allocated (`Graphene.Rect`, `Gdk.RGBA`); args without a 'new' throw.
+ */
+export function constructStruct(namespace: string, typeName: string, args?: unknown[]): unknown;
+
+/**
  * Opaque handle to a live GObject instance, owned by node-gi and released when
  * the handle is garbage-collected. Pass it back to {@link getProperty} /
  * {@link setProperty} / {@link getTypeName}.
@@ -503,6 +511,7 @@ declare const native: {
   callMethod: typeof callMethod;
   hasMethod: typeof hasMethod;
   callStaticMethod: typeof callStaticMethod;
+  constructStruct: typeof constructStruct;
   newObject: typeof newObject;
   registerClass: typeof registerClass;
   constructType: typeof constructType;

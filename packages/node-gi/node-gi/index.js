@@ -191,6 +191,18 @@ export const hasMethod = native.hasMethod;
 export const callStaticMethod = native.callStaticMethod;
 
 /**
+ * Construct a boxed/plain struct instance — the `new <Struct>()` path (GJS
+ * gi/boxed.cpp parity). A struct WITH a 'new' constructor routes to it with
+ * `args` (e.g. `GLib.MainLoop`); a struct WITHOUT one and ZERO args is
+ * zero-allocated (`Graphene.Rect`, `Gdk.RGBA`); args without a 'new' throw.
+ * @param {string} namespace e.g. "Graphene"
+ * @param {string} typeName e.g. "Rect"
+ * @param {unknown[]} [args]
+ * @returns {unknown} boxed handle
+ */
+export const constructStruct = native.constructStruct;
+
+/**
  * Construct a GObject of `namespace.typeName` with optional construct/settable
  * properties, returning an opaque handle owned by node-gi (released on GC).
  * @param {string} namespace e.g. "Gio"

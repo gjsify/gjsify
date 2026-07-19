@@ -474,6 +474,9 @@ Napi::Value CallFunction(const Napi::CallbackInfo& info);
 Napi::Value CallMethod(const Napi::CallbackInfo& info);
 Napi::Value HasMethod(const Napi::CallbackInfo& info);
 Napi::Value CallStaticMethod(const Napi::CallbackInfo& info);
+// The `new <Struct>()` [[Construct]] path: route to the struct's 'new'
+// constructor when it has one, else zero-allocate (GJS gi/boxed.cpp parity).
+Napi::Value ConstructStruct(const Napi::CallbackInfo& info);
 Napi::Value CallBoxedMethod(const Napi::CallbackInfo& info);
 Napi::Value IsBoxedHandle(const Napi::CallbackInfo& info);
 // Struct/boxed/union FIELD access (marshal.cc). boxedMemberKind(handle, name) →

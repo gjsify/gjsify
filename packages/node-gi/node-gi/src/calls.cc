@@ -1234,6 +1234,114 @@ Napi::Value CallStaticMethod(const Napi::CallbackInfo& info) {
   return result;
 }
 
+// constructStruct(namespace, typeName, args?) -> boxed handle
+// The `new <Struct>()` [[Construct]] path for boxed/plain structs — GJS
+// gi/boxed.cpp parity. Resolution order:
+//   1. the struct/union HAS a 'new' constructor → invoke it with the args (the
+//      pre-existing `new GLib.MainLoop(null, false)` behavior, unchanged);
+//   2. no 'new', ZERO args, a struct with a known size → a ZERO-INITIALIZED
+//      instance (GJS zero-allocates in boxed_new — `new Graphene.Rect()`,
+//      `new Gdk.RGBA()`). For a registered BOXED GType the zero blob is
+//      g_boxed_copy'd so the handle's g_boxed_free matches the type's real
+//      allocator (graphene g_slice/malloc-allocates internally — handing a raw
+//      g_malloc0 blob to g_boxed_free would corrupt that allocator); the same
+//      pattern as NewGValue's g_boxed_copy(G_TYPE_VALUE, &zero) in object.cc,
+//      generalized. A struct with NO registered boxed GType keeps the g_malloc0
+//      blob itself, owned via the rawOwned/g_free finalizer arm (the
+//      caller-allocates OUT pattern above).
+//   3. no 'new' + args → a clear error (GJS supports no positional field args
+//      for boxed construction either);
+//   4. a union without 'new' keeps throwing — GJS's union.cpp requires a
+//      zero-args constructor and never zero-allocates a union.
+Napi::Value ConstructStruct(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[0].IsString() || !info[1].IsString()) {
+    Napi::TypeError::New(env,
+                         "constructStruct(namespace: string, typeName: string, args?: unknown[])")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string ns = info[0].As<Napi::String>().Utf8Value();
+  std::string tn = info[1].As<Napi::String>().Utf8Value();
+  Napi::Array args = (info.Length() >= 3 && info[2].IsArray()) ? info[2].As<Napi::Array>()
+                                                              : Napi::Array::New(env, 0);
+
+  GIRepository* repo = DupDefaultRepository();
+  GIBaseInfo* typeInfo = gi_repository_find_by_name(repo, ns.c_str(), tn.c_str());
+  if (typeInfo == nullptr) {
+    g_object_unref(repo);
+    Napi::Error::New(env, "no such type: " + ns + "." + tn).ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  const bool isStruct = GI_IS_STRUCT_INFO(typeInfo);
+  const bool isUnion = GI_IS_UNION_INFO(typeInfo);
+  if (!isStruct && !isUnion) {
+    gi_base_info_unref(typeInfo);
+    g_object_unref(repo);
+    Napi::TypeError::New(env, ns + "." + tn + " is not a struct/union type")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GIFunctionInfo* func =
+      isStruct ? gi_struct_info_find_method(reinterpret_cast<GIStructInfo*>(typeInfo), "new")
+               : gi_union_info_find_method(reinterpret_cast<GIUnionInfo*>(typeInfo), "new");
+  if (func != nullptr) {
+    // Has a 'new' constructor → the exact pre-existing static-call path.
+    gi_base_info_unref(typeInfo);
+    Napi::Value result = InvokeFunctionInfo(env, func, nullptr, args, ns + "." + tn + ".new");
+    gi_base_info_unref(func);
+    g_object_unref(repo);
+    return result;
+  }
+  if (isUnion) {
+    gi_base_info_unref(typeInfo);
+    g_object_unref(repo);
+    Napi::Error::New(env, "unable to construct union " + ns + "." + tn +
+                              ": it has no 'new' constructor")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  if (args.Length() > 0) {
+    gi_base_info_unref(typeInfo);
+    g_object_unref(repo);
+    Napi::Error::New(env, ns + "." + tn +
+                              ": constructor takes no arguments (boxed struct has no 'new')")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  const size_t size = gi_struct_info_get_size(reinterpret_cast<GIStructInfo*>(typeInfo));
+  if (size == 0) {
+    // Opaque struct (size unknown to GI) — nothing to zero-allocate; matches
+    // GJS, which cannot allocate a boxed of unknown size either.
+    gi_base_info_unref(typeInfo);
+    g_object_unref(repo);
+    Napi::Error::New(env, "unable to construct " + ns + "." + tn +
+                              ": no 'new' constructor and unknown size (opaque struct)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  const GType gt =
+      gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(typeInfo));
+  Napi::Value result;
+  if (gt != G_TYPE_INVALID && gt != G_TYPE_NONE && G_TYPE_IS_BOXED(gt)) {
+    gpointer zero = g_malloc0(size);
+    gpointer owned = g_boxed_copy(gt, zero);
+    g_free(zero);
+    result = MakeBoxedHandle(env, owned, gt, /* owns */ true, typeInfo);
+  } else {
+    // Plain (or registered-but-non-boxed) C struct: the handle owns the zeroed
+    // block directly (g_free on finalize); a registered GType is kept for
+    // method/field resolution, `owns` stays false so g_boxed_free never runs.
+    const GType handleGType = (gt != G_TYPE_INVALID && gt != G_TYPE_NONE) ? gt : G_TYPE_INVALID;
+    gpointer blob = g_malloc0(size);
+    result = MakeBoxedHandle(env, blob, handleGType, /* owns */ false, typeInfo,
+                             /* rawOwned */ true);
+  }
+  gi_base_info_unref(typeInfo);
+  g_object_unref(repo);
+  return result;
+}
+
 // callBoxedMethod(handle, methodName, args?) -> unknown
 // Invoke an instance method on a boxed/struct handle (e.g. mainLoop.run() /
 // mainLoop.quit()). Resolves the method against the boxed GType's GIStructInfo

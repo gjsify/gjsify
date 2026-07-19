@@ -67,6 +67,7 @@ const CONFORMANCE = [
   'signals',
   'smoke',
   'static-camel',
+  'struct-construct',
   'system',
   'variant',
   'vfunc',

@@ -764,10 +764,14 @@ controllers by ADD ORDER off `widget.observe_controllers()` instead (wrapper
 IDENTITY *is* preserved and `emit()` resolves the signal by the live GType, so the
 bridged behavior is unaffected). Wiring `instanceof` is a core object-model change
 (per-GType JS classes or a `Symbol.hasInstance` hook) — tracked as a native-engine
-follow-up. A second minor gap the fixture routes around: boxed structs have no
-`new` constructor (`new Gdk.Rectangle()` throws `no static method 'new'`), so the
-fixture relies on the presented window's real allocation rather than a manual
-`size_allocate(rect)`.
+follow-up. (A second gap the fixture originally routed around — `new
+Gdk.Rectangle()` threw `no static method 'new'` — is FIXED: `new <BoxedStruct>()`
+now zero-allocates with GJS `gi/boxed.cpp` semantics when the struct has no `new`
+constructor (`Graphene.Rect`/`Point`, `Gdk.Rectangle`, `Gdk.RGBA` — the
+`@gjsify/devtools` screenshot chain), routes to `new` when it exists, and throws
+a clear error for args without one; `test/struct-construct.test.mjs` guards it,
+gjs-parity included. The fixture still reads the presented window's real
+allocation — simpler and display-truthful.)
 
 **Run it (needs a display + a built workspace + the `gjsify` CLI; self-skips
 otherwise):**

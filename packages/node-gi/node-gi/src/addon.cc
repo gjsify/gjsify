@@ -78,6 +78,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("callMethod", Napi::Function::New(env, CallMethod));
   exports.Set("hasMethod", Napi::Function::New(env, HasMethod));
   exports.Set("callStaticMethod", Napi::Function::New(env, CallStaticMethod));
+  exports.Set("constructStruct", Napi::Function::New(env, ConstructStruct));
   exports.Set("newObject", Napi::Function::New(env, NewObject));
   exports.Set("registerClass", Napi::Function::New(env, RegisterClass));
   exports.Set("registerClassFromGType", Napi::Function::New(env, RegisterClassFromGType));

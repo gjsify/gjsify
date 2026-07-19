@@ -1356,8 +1356,11 @@ function objectStaticConstructor(prop) {
 
 // Surface a boxed/struct type (e.g. GLib.MainLoop) as a class-like object whose
 // static/constructor methods route through the engine: `GLib.MainLoop.new(...)`
-// and the camelCase alias, plus `new GLib.MainLoop(...)` mapped to the `new`
-// constructor. Returned boxed instances are wrapped by {@link wrapBoxed}.
+// and the camelCase alias. `new GLib.MainLoop(...)` routes through the native
+// constructStruct — the `new` constructor when the struct has one, else (GJS
+// gi/boxed.cpp parity) a ZERO-INITIALIZED instance for zero args
+// (`new Graphene.Rect()`, `new Gdk.RGBA()` — the devtools screenshot chain).
+// Returned boxed instances are wrapped by {@link wrapBoxed}.
 function makeStruct(namespace, typeName) {
   const base = function () {};
   Object.defineProperty(base, 'name', { value: typeName, configurable: true });
@@ -1374,7 +1377,7 @@ function makeStruct(namespace, typeName) {
         wrapReturn(native.callStaticMethod(namespace, typeName, giName, unwrapArgs(args)));
     },
     construct(_t, args) {
-      return wrapReturn(native.callStaticMethod(namespace, typeName, 'new', unwrapArgs(args)));
+      return wrapReturn(native.constructStruct(namespace, typeName, unwrapArgs(args)));
     },
   });
   return proxy;
