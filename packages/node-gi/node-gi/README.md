@@ -91,7 +91,11 @@ vendored as-is — gjsify ships its own dual (GJS + Node) example/test infra.
   (Fedora: `glib2-devel gobject-introspection-devel gcc-c++`;
    Debian/Ubuntu: `libglib2.0-dev libgirepository-2.0-dev g++`)
 - At runtime, the target libraries' typelibs must be installed (same as `gi://`
-  under GJS).
+  under GJS) — **except on macOS arm64**, where the optional
+  [`@gjsify/gtk-runtime-darwin-arm64`](../gtk-runtime-darwin-arm64) bundle ships a
+  relocated GTK/GI runtime so the display-free surface works with no Homebrew GTK
+  (Phase 2). node-gi auto-detects the bundle at load and prepends its typelib dir
+  to the GIRepository search path (`gtk-runtime.js`).
 - **Node.js ≥ 20, Bun ≥ 1.3, or Deno ≥ 2** — the addon is Node-API, so one binary
   runs on all three (see [Runtimes](#runtimes-node--bun--deno)).
 

@@ -71,9 +71,20 @@ class DevLoader extends ex.Loader {
 /**
  * Make an `ex.Sound` non-fatal on runtimes where audio is unavailable.
  *
- * On the `--app node` reverse bridge the GStreamer audio path over
- * `@gjsify/node-gi` is not yet functional — a documented node-gi follow-up —
- * in TWO places:
+ * Audio for this showcase is a GJS-native-only capability. On the `--app node`
+ * reverse bridge the GStreamer audio path over `@gjsify/node-gi` is not
+ * functional — a documented node-gi follow-up. On **bun/deno** the synchronous
+ * `decodebin` decode pipeline used to nondeterministically SEGFAULT the process
+ * (a GStreamer streaming thread racing the JS engine's GC during teardown);
+ * that is now fixed AT THE CORE — `@gjsify/webaudio`'s `decodeAudioDataSync`
+ * fails cleanly on those runtimes via `isGstStreamingUnsafe()` instead of
+ * crashing (see `packages/web/webaudio/src/gst-init.ts`). So on the node target
+ * decode always REJECTS (bun/deno by the guard, node because decodebin yields
+ * no samples), and the guard below keeps that rejection non-fatal. The game
+ * runs silent on the reverse-bridge runtimes (node/bun/deno) but renders +
+ * plays identically; native GJS keeps full audio.
+ *
+ * The two node-target failure modes the guard below tolerates:
  *   1. DECODE: `@gjsify/webaudio`'s `decodeAudioData` rejects, so `Sound.load()`
  *      rejects. Excalibur's `Loader` aborts the whole load on the first
  *      rejection, racing scene init ahead of the still-loading `TiledResource`

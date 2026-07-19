@@ -38,6 +38,14 @@
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { maybeReexecForGtkRuntime } from '../gtk-runtime.js';
+
+// Batteries-included GTK (macOS): re-exec THIS runner once with the bundle's
+// DYLD_FALLBACK_LIBRARY_PATH set, BEFORE it spawns any child, so every per-file
+// child inherits the fallback at launch (dyld only reads it then) and no child
+// needs to re-exec inside the test-runner pool. No-op off darwin / without a
+// bundle / once already covered. Never returns on re-exec.
+maybeReexecForGtkRuntime();
 
 // Files verified green on BOTH bun and deno (per-file). Keep alphabetical.
 const CONFORMANCE = [
@@ -82,8 +90,23 @@ const CONFORMANCE = [
 
 const runtime = process.argv[2];
 if (runtime !== 'node' && runtime !== 'bun' && runtime !== 'deno') {
-  console.error('usage: node scripts/cross-runtime.mjs <node|bun|deno>');
+  console.error('usage: node scripts/cross-runtime.mjs <node|bun|deno> [--only a,b,c]');
   process.exit(2);
+}
+
+// Optional `--only a,b,c` restricts the run to a subset (e.g. the env-free CORE
+// leg that excludes the non-addon-linked Pango/Gdk/Graphene backers). Unknown
+// names are a hard error so a typo can't silently shrink the gate.
+const onlyIdx = process.argv.indexOf('--only');
+let files = CONFORMANCE;
+if (onlyIdx >= 0) {
+  const wanted = (process.argv[onlyIdx + 1] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const unknown = wanted.filter((w) => !CONFORMANCE.includes(w));
+  if (unknown.length) {
+    console.error(`--only: unknown conformance file(s): ${unknown.join(', ')}`);
+    process.exit(2);
+  }
+  files = CONFORMANCE.filter((f) => wanted.includes(f));
 }
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -99,16 +122,35 @@ const argsFor = (file) =>
       : ['test', '-A', '--node-modules-dir=auto', file];
 const runtimeBin = runtime === 'node' ? process.execPath : runtime;
 
-// Files allowed to fail on a SPECIFIC runtime/platform without failing the run —
-// narrow, documented, and self-healing: a pass still prints ✓, so a fixed case is
-// visible and the carve-out can be removed; every OTHER file stays a hard gate.
-// `struct-construct` aborts on Deno's N-API env teardown on macOS AFTER all 9
-// assertions pass (non-zero exit, no test summary — the graphene/Gdk boxed
-// g_boxed_free churn trips Deno's teardown on darwin ONLY; Node + Bun are clean on
-// macOS, and Deno on Linux is clean). Not a reverse-bridge capability gap; revisit
-// when the Deno-macOS teardown path is fixed at the engine.
-const SOFT_FAIL =
-  runtime === 'deno' && process.platform === 'darwin' ? new Set(['struct-construct']) : new Set();
+// Deno's N-API env teardown on macOS can abort a test FILE with a non-zero exit
+// AFTER every assertion in it has already passed — no test summary is printed, the
+// process just exits non-zero once the last subtest reported `ok` (the #47 teardown
+// class; the graphene/Gdk boxed g_boxed_free churn is one trigger, but it is
+// NONDETERMINISTIC and lands on a DIFFERENT file run-to-run — struct-construct one
+// run, out-params the next). That is not a reverse-bridge capability gap, so on
+// deno+darwin ONLY we gate on the per-subtest RESULTS parsed from Deno's own output
+// instead of the process exit code: if every test the run announced actually ran and
+// none reported FAILED, a non-zero exit is the known teardown artifact (non-gating).
+// A real assertion failure (a FAILED line) OR a truncated run (fewer results than the
+// "running N tests" header promised — i.e. a genuine mid-test crash) still HARD-gates.
+// node / bun / linux keep exit-code gating unchanged. See #47.
+const denoDarwinTeardownCarveout = runtime === 'deno' && process.platform === 'darwin';
+
+// Parse Deno's test output into { expected, ran, failed } by counting its per-subtest
+// result lines ("<name> ... ok|FAILED|ignored (<dur>)") and the "running N tests from"
+// headers. ANSI colour codes are stripped first. `teardownArtifact` is true iff every
+// announced test ran and none failed (so a non-zero exit is the post-pass teardown
+// abort), false on any FAILED line or a short run (crash before all tests reported).
+function classifyDenoOutput(out) {
+  const clean = out.replace(/\x1b\[[0-9;]*m/g, '');
+  let expected = 0;
+  for (const m of clean.matchAll(/running (\d+) tests from /g)) expected += Number(m[1]);
+  const passed = (clean.match(/ \.\.\. ok \(/g) || []).length;
+  const ignored = (clean.match(/ \.\.\. ignored/g) || []).length;
+  const failed = (clean.match(/ \.\.\. FAILED/g) || []).length;
+  const ran = passed + ignored + failed;
+  return { expected, ran, passed, ignored, failed, teardownArtifact: expected > 0 && ran === expected && failed === 0 };
+}
 
 // Which native binary the children load (see index.js nativeCandidates). Default
 // to the JUST-BUILT addon so a stale staged prebuild can't shadow local
@@ -116,22 +158,26 @@ const SOFT_FAIL =
 // keep validating the prebuild load path (Deno's install path) explicitly.
 const nativePref = process.env.NODE_GI_NATIVE ?? 'build';
 
-console.log(`node-gi: running ${CONFORMANCE.length} conformance files on ${runtime} (one process per file)\n`);
+console.log(`node-gi: running ${files.length} conformance files on ${runtime} (one process per file)\n`);
 let failed = 0;
 let softFailed = 0;
-for (const base of CONFORMANCE) {
+for (const base of files) {
   const file = join('test', `${base}.test.mjs`);
   const res = spawnSync(runtimeBin, argsFor(file), {
     cwd: pkgRoot,
     encoding: 'utf8',
     env: { ...process.env, NODE_GI_NATIVE: nativePref },
   });
+  const teardown = denoDarwinTeardownCarveout && res.status !== 0
+    ? classifyDenoOutput((res.stdout || '') + '\n' + (res.stderr || ''))
+    : null;
   if (res.status === 0) {
     console.log(`  ✓ ${base}`);
-  } else if (SOFT_FAIL.has(base)) {
+  } else if (teardown?.teardownArtifact) {
     softFailed++;
-    console.log(`  ⚠ ${base} (known non-gating failure on ${runtime}/${process.platform})`);
-    console.error((res.stdout || '') + '\n' + (res.stderr || ''));
+    console.log(
+      `  ⚠ ${base} (known non-gating: deno/darwin teardown-exit after ${teardown.ran}/${teardown.expected} tests passed, 0 failed — see #47)`,
+    );
   } else {
     failed++;
     console.log(`  ✗ ${base}`);
@@ -139,9 +185,9 @@ for (const base of CONFORMANCE) {
   }
 }
 
-const green = CONFORMANCE.length - failed - softFailed;
+const green = files.length - failed - softFailed;
 console.log(
-  `\n${runtime}: ${green}/${CONFORMANCE.length} conformance files green` +
+  `\n${runtime}: ${green}/${files.length} conformance files green` +
     (softFailed ? `, ${softFailed} known non-gating` : '') +
     (failed ? `, ${failed} FAILED` : ''),
 );

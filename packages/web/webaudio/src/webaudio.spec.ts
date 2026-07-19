@@ -4,6 +4,8 @@
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API
 
 import { describe, it, expect } from '@gjsify/unit';
+import { isGstStreamingUnsafe } from './gst-init.js';
+import { decodeAudioDataSync } from './gst-decoder.js';
 import { AudioContext } from './audio-context.js';
 import { AudioBuffer } from './audio-buffer.js';
 import { AudioParam } from './audio-param.js';
@@ -188,6 +190,50 @@ export default async () => {
                 rejected = true;
             }
             expect(rejected).toBe(true);
+        });
+    });
+
+    await describe('isGstStreamingUnsafe (node-gi bun/deno decode guard)', async () => {
+        await it('returns false on GJS/Node so the real decode path runs', async () => {
+            // Neither bun nor deno globals are present under GJS or Node, so the
+            // streaming-thread pipeline is driven natively — decode is NOT guarded.
+            expect(isGstStreamingUnsafe()).toBe(false);
+        });
+
+        await it('reports unsafe when a bun/deno global is present', async () => {
+            const g = globalThis as { Bun?: unknown; Deno?: unknown };
+            const hadBun = 'Bun' in g;
+            const hadDeno = 'Deno' in g;
+            try {
+                (g as { Bun?: unknown }).Bun = {};
+                expect(isGstStreamingUnsafe()).toBe(true);
+                delete (g as { Bun?: unknown }).Bun;
+                (g as { Deno?: unknown }).Deno = {};
+                expect(isGstStreamingUnsafe()).toBe(true);
+            } finally {
+                if (!hadBun) delete (g as { Bun?: unknown }).Bun;
+                if (!hadDeno) delete (g as { Deno?: unknown }).Deno;
+            }
+        });
+
+        await it('decodeAudioDataSync fails cleanly (no crash) on bun/deno', async () => {
+            // The guard turns the crash-prone GStreamer decode into a clean
+            // EncodingError — verified by simulating the bun global. A valid WAV
+            // that would normally decode must still reject here.
+            const g = globalThis as { Bun?: unknown };
+            const hadBun = 'Bun' in g;
+            try {
+                g.Bun = {};
+                let rejected = false;
+                try {
+                    decodeAudioDataSync(createTestWav(0.05, 44100));
+                } catch (err) {
+                    rejected = err instanceof DOMException && err.name === 'EncodingError';
+                }
+                expect(rejected).toBe(true);
+            } finally {
+                if (!hadBun) delete g.Bun;
+            }
         });
     });
 

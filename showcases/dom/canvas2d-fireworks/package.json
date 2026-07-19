@@ -51,6 +51,7 @@
   },
   "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/canvas2d-fireworks#readme",
   "gjsify": {
+    "main": "dist/gjs.js",
     "tier": 2,
     "example": {
       "runtimes": [

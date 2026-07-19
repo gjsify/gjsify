@@ -14,6 +14,15 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
+import { activateBundledGtkRuntime, maybeReexecForGtkRuntime } from './gtk-runtime.js';
+
+// macOS batteries-included GTK: if a relocated bundle ships for this platform,
+// re-exec ONCE with DYLD_FALLBACK_LIBRARY_PATH pointed at it BEFORE the addon (and
+// its GTK dependency closure) is dlopen'd — dyld only reads that var at launch, and
+// GObject-Introspection needs it to g_module_open type backers (get_type / Pango /
+// Gdk / Graphene) by leaf soname. No-op off darwin, without a bundle, or once the
+// fallback already covers the bundle (the re-exec'd child). Never returns on re-exec.
+maybeReexecForGtkRuntime();
 
 const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url)); // package root
@@ -69,6 +78,21 @@ function loadNative() {
 }
 
 const native = loadNative();
+
+// ---- batteries-included GTK runtime (macOS) ---------------------------------
+//
+// Before any namespace is required, activate a relocated GTK/GI runtime bundle
+// if one ships for this platform (@gjsify/gtk-runtime-<platform>-<arch>, or a
+// staged prebuilds/<platform>-<arch>/gtk/). This prepends the bundle's typelib
+// dir to the GIRepository search path (env-free) so gi:// namespaces load with
+// no Homebrew/system GTK. No-op on platforms without a bundle, and harmless when
+// none is present (the addon then uses the host's GTK as before). Darwin-only
+// today — see gtk-runtime.js + @gjsify/gtk-runtime-darwin-arm64.
+try {
+  activateBundledGtkRuntime(native);
+} catch {
+  // Never fatal: a missing/partial bundle just leaves the host GTK in charge.
+}
 
 // ---- cross-runtime microtask checkpoint (Bun/Deno) --------------------------
 //
