@@ -41,22 +41,41 @@ export class AudioBufferSourceNode extends AudioNode {
         const gainNode = this._findGainNode();
         const volume = gainNode ? gainNode.gain.value : 1;
 
-        this._player = new GstPlayer({
-            audioBuffer: this.buffer,
-            volume,
-            loop: this.loop,
-            offset,
-            duration,
-            playbackRate: this.playbackRate.value,
-            onEnded: () => {
-                // Unregister from GainNode
-                if (gainNode) {
-                    gainNode._activePlayers.delete(this._player!);
-                }
-                this._player = null;
-                this.onended?.();
-            },
-        });
+        try {
+            this._player = new GstPlayer({
+                audioBuffer: this.buffer,
+                volume,
+                loop: this.loop,
+                offset,
+                duration,
+                playbackRate: this.playbackRate.value,
+                onEnded: () => {
+                    // Unregister from GainNode
+                    if (gainNode) {
+                        gainNode._activePlayers.delete(this._player!);
+                    }
+                    this._player = null;
+                    this.onended?.();
+                },
+            });
+        } catch (err) {
+            // The GStreamer playback pipeline could not be built on this runtime.
+            // On the `--app node` reverse bridge over `@gjsify/node-gi` the Gst
+            // element construction can hit a marshalling gap ("Unsupported
+            // interface IN argument") — a documented node-gi follow-up. A single
+            // failed audio node must NEVER crash the whole app (Excalibur's
+            // audio-context unlock plays a 1-sample buffer at boot, so an
+            // uncaught throw here kills the game before it renders). Degrade to
+            // silent: no player, fire `onended` on the microtask queue so any
+            // awaiter still settles.
+            console.warn(
+                '[webaudio] AudioBufferSourceNode.start: GStreamer playback unavailable, continuing silent:',
+                err,
+            );
+            this._player = null;
+            queueMicrotask(() => this.onended?.());
+            return;
+        }
 
         // Register with GainNode for live volume updates
         if (gainNode && this._player) {
