@@ -49,6 +49,8 @@ export class FileHandle implements IFileHandle {
     private _readStream: Gio.FileInputStream | null = null;
     private readonly _gFile: Gio.File;
     private readonly _ioMode: IOMode;
+    /** Current byte offset for `position: null` sync reads — Node advances the fd position. */
+    private _readPos = 0;
     // Serialize async I/O on the shared FileIOStream. Concurrent write_bytes_async
     // calls hit Gio.IOErrorEnum.PENDING ("Datenstrom hat noch einen ausstehenden
     // Vorgang"); overlapping seek()s on the shared cursor also corrupt positions.
@@ -785,14 +787,23 @@ export class FileHandle implements IFileHandle {
     ): number {
         const stream = this._gFile.read(null);
         try {
-            if (position !== null && position >= 0) {
-                (stream as unknown as Gio.Seekable).seek(position, GLib.SeekType.SET, null);
+            // Node semantics: an explicit `position` reads from there and leaves the
+            // fd's current position unchanged; `position === null` reads from the
+            // CURRENT position and ADVANCES it. Each call opens a fresh stream (at 0),
+            // so seek to the effective start — and for the null case advance `_readPos`,
+            // otherwise a `readSync(fd, buf, 0, len, null)` loop re-reads offset 0
+            // forever (the build-cache `hashFileStream` hang).
+            const usePos = position !== null && position >= 0;
+            const start = usePos ? position : this._readPos;
+            if (start > 0) {
+                (stream as unknown as Gio.Seekable).seek(start, GLib.SeekType.SET, null);
             }
             const bytes = stream.read_bytes(length, null);
-            const arr = bytes.get_data()!;
+            const arr = bytes.get_data() ?? new Uint8Array(0);
             // `NodeJS.ArrayBufferView` carries `buffer` + `byteOffset` directly;
             // the previous `as any` was eating the structural lookup.
             new Uint8Array(buffer.buffer as ArrayBuffer, buffer.byteOffset + offset).set(arr.subarray(0, arr.length));
+            if (!usePos) this._readPos += arr.length;
             return arr.length;
         } finally {
             stream.close(null);

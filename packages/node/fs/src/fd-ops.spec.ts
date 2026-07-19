@@ -164,6 +164,28 @@ export default async () => {
             }
         });
 
+        await it('readSync with position:null advances the fd position and terminates', async () => {
+            // Regression: `_readSync` used to open a fresh stream at offset 0 on every
+            // call, so a `readSync(fd, buf, 0, len, null)` loop re-read the first chunk
+            // forever (the build-cache hashFileStream hang). It must advance + hit EOF.
+            const f = tmpFile('rsync-seq', 'abcdefghij');
+            const fd = openSync(f, 'r');
+            try {
+                const buf = Buffer.alloc(3);
+                let out = '';
+                let n: number;
+                let guard = 0;
+                while ((n = readSync(fd, buf, 0, buf.length, null)) > 0) {
+                    out += buf.slice(0, n).toString();
+                    if (++guard > 100) throw new Error('readSync(position:null) did not terminate');
+                }
+                expect(out).toBe('abcdefghij');
+            } finally {
+                closeSync(fd);
+                unlinkSync(f);
+            }
+        });
+
         await it('writeSync writes bytes to file', async () => {
             const f = tmpFile('wsync', '-----');
             const fd = openSync(f, 'r+');
