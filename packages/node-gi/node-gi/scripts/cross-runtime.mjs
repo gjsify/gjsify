@@ -155,6 +155,29 @@ const runtimeBin = runtime === 'node' ? process.execPath : runtime;
 // crash) still HARD-gates. node / bun keep exit-code gating unchanged. See #47.
 const denoTeardownCarveout = runtime === 'deno';
 
+// BUN was investigated for the SAME teardown class (#58) and is deliberately NOT
+// carved out — it stays on plain exit-code gating (above). The Deno root cause does
+// not transfer to Bun's N-API teardown, confirmed both by mechanism and empirically:
+//   • Mechanism: for a non-EXPERIMENTAL module (node-addon-api) Bun DEFERS the boxed-
+//     handle External finalizer — NapiExternal's destructor enqueues a NapiFinalizerTask
+//     onto the JS/main-thread event loop instead of running it inline
+//     (napi.h mustDeferFinalizers()/napi_internal_enqueue_finalizer). At env teardown
+//     the finalizers run single-threaded on the JS thread, under DeferGCForAWhile, with
+//     napi_internal_remove_finalizer dedup — so FreeBoxedHandleRecord always receives
+//     node-gi's OWN valid BoxedHandle* (its gtype is intact), never a stale finalize_data
+//     handed over by a concurrent runtime-worker weak callback. That concurrency — V8
+//     firing the second-pass weak callback on the isolate-owning tokio thread over
+//     Reference state Deno is freeing — IS the Deno crash, and Bun has no equivalent
+//     (its own crash marker even reads `panic(main thread)`).
+//   • Empirically: ~7000 Bun runs (arrays + the GObject/boxed-heavy files incl. `methods`,
+//     full 37-file suite ×40, a probe holding 30k live boxed handles to process exit,
+//     random --smol GC pressure) produced 0 crashes / 0 cores. The SAME box + harness
+//     reproduces the Deno crash readily (8 SIGSEGV/SIGABRT cores; gdb: SIGSEGV inside
+//     libgobject-2.0.so.0 on a runtime-worker thread, main thread idle in epoll_wait).
+// So a `pass>0 && fail===0 && <crash marker>` Bun carve-out would only MASK a real
+// node-gi/Bun teardown bug if one ever appears. Do NOT add one on inference: if Bun ever
+// hard-crashes here, re-confirm with a gdb backtrace (the Deno determination's bar) first.
+
 // Parse Deno's test output into { expected, ran, failed } by counting its per-subtest
 // result lines ("<name> ... ok|FAILED|ignored (<dur>)") and the "running N tests from"
 // headers. ANSI colour codes are stripped first. `teardownArtifact` is true iff every
