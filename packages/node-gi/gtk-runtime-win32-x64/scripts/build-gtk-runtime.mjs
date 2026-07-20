@@ -99,12 +99,16 @@ const SEED_PATTERNS = [
     /^harfbuzz.*\.dll$/i,
 ];
 
-// Extra seeds for the WINDOWING superset: the GL backing a GSK GL renderer picks
-// (ANGLE libEGL/libGLESv2 + epoxy — the cairo renderer needs none, but a real
-// window may negotiate GL) and librsvg (the SVG gdk-pixbuf loader that renders the
-// Adwaita symbolic icons). Most are pulled transitively by the loaders below; naming
-// them keeps the closure complete even if a loader is missing.
+// Extra seeds for the WINDOWING superset: libadwaita (the Adw-1 typelib's backing
+// DLL — a real Adw.Application/ApplicationWindow needs it; the display-free
+// conformance never touches Adwaita, so it is NOT in the base seeds), the GL backing
+// a GSK GL renderer picks (ANGLE libEGL/libGLESv2 + epoxy — the cairo renderer needs
+// none, but a real window may negotiate GL), and librsvg (the SVG gdk-pixbuf loader
+// that renders the Adwaita symbolic icons). Most GL/rsvg deps are pulled transitively
+// by the loaders below; naming them keeps the closure complete even if a loader is
+// missing. (Gdk/Gsk/Gtk are all in gtk-4-*.dll, already a base seed.)
 const WINDOWING_SEED_PATTERNS = [
+    /^(lib)?adwaita-1.*\.dll$/i, // gvsbuild leaf: adwaita-1-0.dll (backs the Adw-1 typelib)
     /^libEGL.*\.dll$/i,
     /^libGLESv2.*\.dll$/i,
     /^epoxy.*\.dll$/i,
