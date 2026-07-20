@@ -253,11 +253,12 @@ jobs:
           dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
             git gcc-c++ make python3 pkgconf-pkg-config tar xz gjs \
             glib2-devel gobject-introspection-devel gobject-introspection \
-            gtk4-devel libadwaita-devel adwaita-icon-theme \
+            gtk4-devel libadwaita-devel adwaita-icon-theme gtksourceview5-devel \
             xorg-x11-server-Xvfb dbus-daemon dbus-x11 mesa-dri-drivers
           gjs --version
           echo "gtk4: $(pkg-config --modversion gtk4)"
           echo "libadwaita: $(pkg-config --modversion libadwaita-1)"
+          echo "gtksourceview5: $(pkg-config --modversion gtksourceview-5)"
 
       # Same rationale as the build-test job: the official nodejs.org build, not
       # Fedora's dnf node (which crashes the bundler's prebuilt napi binding).
@@ -282,9 +283,13 @@ jobs:
       # construct-property cases + the GListModel interface-typed property cases +
       # the Adwaita widget-breadth proof (widgets.test.mjs: PreferencesPage/Group +
       # SwitchRow/EntryRow/ComboRow/SpinRow/ExpanderRow + a Gtk.ListBox + a toast,
-      # DumpTree-typed and driven through the node-gi notify:: signal chain),
-      # which need the Gtk-4.0 typelib the fast headless leg lacks) in one
-      # node --test invocation so each reports even if one fails.
+      # DumpTree-typed and driven through the node-gi notify:: signal chain) + the
+      # GtkSource-5 proof (gtksource-smoke.test.mjs: a GtkSource.Buffer/Language
+      # Manager model + a GtkSource.GutterRendererText SUBCLASS with a
+      # vfunc_query_data override — Learn6502's editor-gutter shape — constructs,
+      # inserts into a GtkSource.View gutter and rasterises; the Learn6502-port
+      # groundwork), which need the Gtk-4.0 typelib the fast headless leg lacks) in
+      # one node --test invocation so each reports even if one fails.
       - name: GTK/Adw smoke test (xvfb + dbus)
         working-directory: packages/node-gi/node-gi
         run: |
@@ -292,7 +297,7 @@ jobs:
             env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
             node --test test/gtk-smoke.test.mjs test/adw-smoke.test.mjs \
               test/windowing.test.mjs test/windowing-interactive.test.mjs \
-              test/widgets.test.mjs \
+              test/widgets.test.mjs test/gtksource-smoke.test.mjs \
               test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs \
               test/gtk-template-signals.test.mjs \
               test/strv-construct.test.mjs test/interface-props.test.mjs
