@@ -38,7 +38,8 @@ struct UvLoopSource {
   gpointer fd_tag;      // POSIX: the uv_backend_fd poll tag (unused on Windows)
   gboolean fd_polled;   // POSIX: whether the backend fd is currently polled
 #ifdef _WIN32
-  gint64 win_next_wake_us;  // Windows: monotonic time of the next periodic co-pump wake
+  gint64 win_next_wake_us;  // Windows: monotonic time of the next mandatory uv co-pump
+                            // (G_MAXINT64 = parked: uv is idle, sleep until a GLib source wakes us)
 #endif
 };
 
@@ -226,21 +227,38 @@ static gboolean uv_source_dispatch(GSource* base, GSourceFunc /*callback*/, gpoi
 static GSourceFuncs uv_source_funcs = {
     uv_source_prepare, nullptr, uv_source_dispatch, nullptr, nullptr, nullptr,
 };
-#else  // _WIN32 — the UvLoopSource, timer-driven instead of uv-backend-fd-driven.
+#else  // _WIN32 — the UvLoopSource, readiness-bounded timer instead of uv-backend-fd-driven.
 //
 // Windows/IOCP has no uv backend fd to embed in a GLib GSource, so the co-pump of
-// Node's loop during a BLOCKING GLib main loop is driven by a periodic GLib
-// timeout instead: every NODE_GI_WIN_UV_POLL_MS the source dispatches, runs
-// uv_run(UV_RUN_NOWAIT) (Node timers/I/O) and DrainMicrotasks() (nextTick +
-// microtask checkpoint via process._tickCallback). The DRAIN is the load-bearing
-// part: an async DBus reply (or any GLib-timeout-resolved `await`) posts its reply
-// through a Promise `.then` continuation, and only a microtask drain during the
-// blocking run() settles it — on POSIX the fd-driven source does exactly this. The
-// GLib->uv mirror of the uv->GLib timed pump (SyncPumpPolls fallback). Parked while
-// the uv-driven pump owns the context (g_in_uv_pump). A Win32 HANDLE/IOCP wakeup
-// (readiness-driven, not timed) is a follow-up; the timed drain is correct, just
-// wakes on a cadence instead of on the fd.
-static const gint NODE_GI_WIN_UV_POLL_MS = 5;
+// Node's loop during a BLOCKING GLib main loop can't wake on backend-fd readiness the
+// way POSIX does. Instead the source schedules its next dispatch off uv's OWN state,
+// using only PUBLIC libuv API (uv_loop_alive + uv_backend_timeout — the same two calls
+// the POSIX prepare uses):
+//   • uv idle (no active handles/reqs) → PARK: win_next_wake_us = G_MAXINT64, sleep -1
+//     until a GLib source wakes us. The Windows twin of the POSIX backend-fd mask, so a
+//     blocking GLib loop with an otherwise-quiet Node loop no longer spins every 5 ms.
+//   • uv alive → dispatch after min(uv_backend_timeout, cap): a Node timer due in < cap
+//     ms wakes at its actual deadline (not rounded up to a fixed 5 ms), while the CAP
+//     bounds the wait so IOCP I/O completions — which arrive on a HANDLE we can NOT embed
+//     in GLib's poll (uv_backend_fd() == -1, and loop->iocp is a private libuv struct
+//     field we must not depend on) — are still serviced by an unconditional uv_run within
+//     cap ms. Full zero-latency IOCP readiness would need that private HANDLE, so the cap
+//     stays as the I/O-completion poll (see the honesty note in StartMainLoop).
+// Each dispatch runs uv_run(UV_RUN_NOWAIT) (Node timers/I/O) + DrainMicrotasks() (nextTick
+// + microtask checkpoint via process._tickCallback); the DRAIN settles an async DBus reply
+// (or any GLib-timeout-resolved `await`) posted through a Promise `.then`, exactly as the
+// POSIX fd-driven source does. Parked while the uv-driven pump owns the context (g_in_uv_pump).
+static const gint NODE_GI_WIN_UV_POLL_CAP_MS = 5;
+
+// Next mandatory-poll deadline from uv's own next-due time, capped so unwatchable IOCP I/O
+// completions are still serviced within the cap. G_MAXINT64 when uv is idle (park the
+// metronome — sleep until a GLib source wakes us). Public libuv API only.
+static gint64 WinNextUvWake(UvLoopSource* s, gint64 now) {
+  if (!uv_loop_alive(s->loop)) return G_MAXINT64;
+  int t = uv_backend_timeout(s->loop);  // ms to uv's next due work: 0 = now, > 0 = timer, < 0 = I/O-wait
+  gint interval = (t >= 0 && t < NODE_GI_WIN_UV_POLL_CAP_MS) ? t : NODE_GI_WIN_UV_POLL_CAP_MS;
+  return now + static_cast<gint64>(interval) * 1000;
+}
 
 static gboolean uv_source_prepare(GSource* base, gint* timeout) {
   UvLoopSource* s = reinterpret_cast<UvLoopSource*>(base);
@@ -251,20 +269,30 @@ static gboolean uv_source_prepare(GSource* base, gint* timeout) {
   uv_update_time(s->loop);
   DrainMicrotasks();  // drain before we (maybe) sleep — settles a pending async reply
   const gint64 now = g_source_get_time(base);
+  // Un-park if uv became live again since the last dispatch (a GLib-dispatched callback
+  // may have armed a Node timer / started Node I/O). While parked, sleep until a GLib
+  // source wakes us instead of spinning on a fixed cadence.
+  if (s->win_next_wake_us == G_MAXINT64) {
+    s->win_next_wake_us = WinNextUvWake(s, now);
+    if (s->win_next_wake_us == G_MAXINT64) {
+      *timeout = -1;
+      return FALSE;
+    }
+  }
   if (now >= s->win_next_wake_us) {
     *timeout = 0;
     return TRUE;  // due now — dispatch runs uv_run + drain
   }
-  // Cap the sleep so a GLib callback that queues a microtask is drained promptly.
   gint64 remaining_ms = (s->win_next_wake_us - now + 999) / 1000;
-  *timeout = remaining_ms > NODE_GI_WIN_UV_POLL_MS ? NODE_GI_WIN_UV_POLL_MS : static_cast<gint>(remaining_ms);
+  *timeout = remaining_ms > NODE_GI_WIN_UV_POLL_CAP_MS ? NODE_GI_WIN_UV_POLL_CAP_MS
+                                                       : static_cast<gint>(remaining_ms);
   return FALSE;
 }
 
 static gboolean uv_source_check(GSource* base) {
   UvLoopSource* s = reinterpret_cast<UvLoopSource*>(base);
   if (g_in_uv_pump) return FALSE;
-  return g_source_get_time(base) >= s->win_next_wake_us;
+  return g_source_get_time(base) >= s->win_next_wake_us;  // never ready while parked (G_MAXINT64)
 }
 
 static gboolean uv_source_dispatch(GSource* base, GSourceFunc /*callback*/, gpointer /*user_data*/) {
@@ -272,14 +300,16 @@ static gboolean uv_source_dispatch(GSource* base, GSourceFunc /*callback*/, gpoi
   UvLoopSource* s = reinterpret_cast<UvLoopSource*>(base);
   uv_run(s->loop, UV_RUN_NOWAIT);
   DrainMicrotasks();
-  s->win_next_wake_us = g_source_get_time(base) + NODE_GI_WIN_UV_POLL_MS * 1000;
+  // Re-schedule off uv's post-run state (idle → park; else min(next-due, cap)).
+  uv_update_time(s->loop);
+  s->win_next_wake_us = WinNextUvWake(s, g_source_get_time(base));
   return G_SOURCE_CONTINUE;
 }
 
 static GSourceFuncs uv_source_funcs = {
     uv_source_prepare, uv_source_check, uv_source_dispatch, nullptr, nullptr, nullptr,
 };
-#endif  // _WIN32 (UvLoopSource: POSIX fd-driven / Windows timer-driven co-pump)
+#endif  // _WIN32 (UvLoopSource: POSIX fd-driven / Windows readiness-bounded co-pump)
 
 // iterateMainContext(mayBlock?) -> boolean
 //
@@ -681,8 +711,9 @@ Napi::Value StartMainLoop(const Napi::CallbackInfo& info) {
   // UvLoopSource co-pumps Node's timers/I/O + drains its microtasks during a
   // BLOCKING GLib main loop (GLib.MainLoop.run / Gio.Application.run). POSIX embeds
   // uv's backend fd into the GSource (readiness-driven); Windows/IOCP has no backend
-  // fd, so the Windows variant is timer-driven (see uv_source_funcs above) — same
-  // dispatch (uv_run + DrainMicrotasks), woken on a 5 ms cadence instead of the fd.
+  // fd, so the Windows variant schedules off uv_loop_alive + uv_backend_timeout (see
+  // uv_source_funcs above) — same dispatch (uv_run + DrainMicrotasks), woken at uv's
+  // next-due time bounded by a 5 ms IOCP-completion poll cap instead of on the fd.
   // PumpInit below is the separate NON-blocking case (bare `node bundle.mjs` async).
 #ifndef _WIN32
   GSource* source = g_source_new(&uv_source_funcs, sizeof(UvLoopSource));
@@ -709,15 +740,15 @@ Napi::Value StartMainLoop(const Napi::CallbackInfo& info) {
   g_source_set_priority(source, G_PRIORITY_HIGH_IDLE + 30);
   g_source_attach(source, nullptr);  // default GLib main context
   g_source_unref(source);            // the context holds the surviving ref
-#else  // _WIN32 — timer-driven UvLoopSource (no uv backend fd on IOCP).
+#else  // _WIN32 — readiness-bounded UvLoopSource (no uv backend fd on IOCP).
   GSource* source = g_source_new(&uv_source_funcs, sizeof(UvLoopSource));
   UvLoopSource* s = reinterpret_cast<UvLoopSource*>(source);
   s->loop = loop;
   s->fd_tag = nullptr;
   s->fd_polled = FALSE;
-  s->win_next_wake_us = 0;  // due immediately on the first iteration
+  s->win_next_wake_us = 0;  // due immediately on the first iteration (dispatch re-schedules)
   // Same priority rationale as POSIX (below GDK redraw, above default idle) so a
-  // future GTK-on-Windows paint is not starved by the co-pump metronome.
+  // future GTK-on-Windows paint is not starved by the co-pump.
   g_source_set_priority(source, G_PRIORITY_HIGH_IDLE + 30);
   g_source_attach(source, nullptr);  // default GLib main context
   g_source_unref(source);            // the context holds the surviving ref
