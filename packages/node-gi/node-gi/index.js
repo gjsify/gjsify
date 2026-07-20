@@ -14,7 +14,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { activateBundledGtkRuntime, maybeReexecForGtkRuntime } from './gtk-runtime.js';
+import { activateBundledGtkRuntime, maybePrependGtkRuntimeDllPath, maybeReexecForGtkRuntime } from './gtk-runtime.js';
 
 // macOS batteries-included GTK: if a relocated bundle ships for this platform,
 // re-exec ONCE with DYLD_FALLBACK_LIBRARY_PATH pointed at it BEFORE the addon (and
@@ -23,6 +23,14 @@ import { activateBundledGtkRuntime, maybeReexecForGtkRuntime } from './gtk-runti
 // Gdk / Graphene) by leaf soname. No-op off darwin, without a bundle, or once the
 // fallback already covers the bundle (the re-exec'd child). Never returns on re-exec.
 maybeReexecForGtkRuntime();
+
+// Windows batteries-included GTK: if a bundle ships for this platform, prepend its
+// gtk/bin DLL dir to process.env.PATH BEFORE the addon is require()'d below. Windows
+// re-reads the DLL search path at each LoadLibrary (unlike dyld's launch-time
+// capture), so this in-process PATH mutation is enough for the addon's static DLL
+// imports AND the runtime g_module_open of typelib backers — no re-exec needed.
+// No-op off win32 / without a bundle.
+maybePrependGtkRuntimeDllPath();
 
 const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url)); // package root

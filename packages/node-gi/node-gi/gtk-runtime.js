@@ -23,7 +23,8 @@ const REEXEC_SENTINEL = 'GJSIFY_GTK_REEXEC';
 
 /**
  * Resolve the GTK runtime bundle directory for this platform, or `null`. A valid
- * bundle dir contains `lib/` (relocated dylibs) + `girepository-1.0/` (typelibs).
+ * bundle dir contains the native-code dir (`lib/` relocated dylibs on darwin,
+ * `bin/` DLLs on win32) + `girepository-1.0/` (typelibs).
  * Search order (first hit wins):
  *   1. GJSIFY_GTK_RUNTIME env (an explicit bundle dir),
  *   2. node-gi's own prebuilds/<platform>-<arch>/gtk/ (CI/dev staging path),
@@ -46,9 +47,13 @@ export function resolveGtkRuntimeBundle() {
         // Not installed — fine.
     }
 
+    // The loadable native code lives in `lib` (dylibs) on macOS and `bin` (DLLs) on
+    // Windows. `libDir` is the dir node-gi adds to the OS library search path
+    // (DYLD_FALLBACK on darwin, PATH on win32) — its NAME differs, its ROLE does not.
+    const nativeSubdir = process.platform === 'win32' ? 'bin' : 'lib';
     for (const dir of candidates) {
         if (!dir) continue;
-        const libDir = join(dir, 'lib');
+        const libDir = join(dir, nativeSubdir);
         const typelibDir = join(dir, 'girepository-1.0');
         if (existsSync(libDir) && existsSync(typelibDir)) return { dir, libDir, typelibDir };
     }
@@ -109,6 +114,31 @@ export function maybeReexecForGtkRuntime() {
     process.exit(res.status === null ? 1 : res.status);
 }
 
+/**
+ * Prepend the bundled GTK runtime's DLL dir (`gtk/bin`) to `process.env.PATH` so a
+ * later `LoadLibrary` resolves against the bundle with NO gvsbuild/system GTK — both
+ * the native addon's OWN static imports (glib/gobject/gio/girepository/cairo/ffi/…)
+ * AND every runtime `g_module_open(<soname>)` a typelib does for its backers
+ * (Pango/Gdk/Graphene). This is the Windows analog of the darwin re-exec, but
+ * SIMPLER: Windows re-reads the DLL search path at EACH `LoadLibrary` (unlike dyld,
+ * which captures `DYLD_FALLBACK_LIBRARY_PATH` only at process launch), so an
+ * in-process `process.env.PATH` mutation is sufficient — no re-exec, and no native
+ * `AddDllDirectory` (which would be chicken-and-egg: the addon must already be loaded
+ * to expose it). MUST be called at module top-level BEFORE the addon is `require()`'d
+ * (index.js does exactly that, before loadNative()). Strict no-op off win32 / without
+ * a bundle / when the dir is already on PATH. Idempotent.
+ * @returns {void}
+ */
+export function maybePrependGtkRuntimeDllPath() {
+    if (process.platform !== 'win32') return; // strict no-op on every non-win32 runtime
+    const bundle = resolveGtkRuntimeBundle();
+    if (!bundle) return; // strict no-op when no bundle is present
+    const binDir = bundle.libDir; // on win32 the native-code dir is gtk/bin (the DLLs)
+    const cur = process.env.PATH ?? '';
+    if (cur.split(';').filter(Boolean).includes(binDir)) return; // already on PATH
+    process.env.PATH = cur ? `${binDir};${cur}` : binDir;
+}
+
 let activated = null; // memoize: the activation result (idempotent)
 
 /**
@@ -116,21 +146,25 @@ let activated = null; // memoize: the activation result (idempotent)
  *   • typelibs — prepend the bundle's girepository-1.0 dir to the GIRepository
  *     search path (env-free, via the native prependSearchPath); this alone lets
  *     node-gi FIND the bundled typelibs without GI_TYPELIB_PATH.
- *   • dylibs — prepend the bundle's lib dir to process.env.DYLD_FALLBACK_LIBRARY_PATH.
- *     NB dyld captures that variable at LAUNCH, so setting it here only helps
- *     child processes / a re-exec; a bundle whose dylibs a namespace loads by
- *     leaf name still needs the value present in the launching environment (see
- *     the package README's env-free caveat). Namespaces whose dylib is already
- *     in-process via the addon's link closure (GLib/GObject/Gio/cairo) resolve
- *     regardless.
- * Currently scoped to darwin (the only platform shipping a relocated bundle).
+ *   • native code — darwin: prepend the bundle's lib dir to
+ *     process.env.DYLD_FALLBACK_LIBRARY_PATH. NB dyld captures that variable at
+ *     LAUNCH, so setting it here only helps child processes / a re-exec; a bundle
+ *     whose dylibs a namespace loads by leaf name still needs the value present in
+ *     the launching environment (see the package README's env-free caveat).
+ *     Namespaces whose dylib is already in-process via the addon's link closure
+ *     (GLib/GObject/Gio/cairo) resolve regardless. win32: prepend the bundle's bin
+ *     dir to process.env.PATH — already done by maybePrependGtkRuntimeDllPath before
+ *     the addon loaded; re-asserted here for child processes + the runtime
+ *     g_module_open of typelib backers. Windows re-reads PATH per LoadLibrary, so no
+ *     launch-time capture applies (see the package README).
+ * Scoped to darwin + win32 (the platforms shipping a batteries-included bundle).
  * @param {{ prependSearchPath: (p: string) => void }} native the loaded addon
  * @returns {{ dir: string, libDir: string, typelibDir: string } | null}
  */
 export function activateBundledGtkRuntime(native) {
     if (activated !== null) return activated || null;
     activated = false;
-    if (process.platform !== 'darwin') return null;
+    if (process.platform !== 'darwin' && process.platform !== 'win32') return null;
 
     const bundle = resolveGtkRuntimeBundle();
     if (!bundle) return null;
@@ -141,9 +175,16 @@ export function activateBundledGtkRuntime(native) {
         // A stubbed/old addon without prependSearchPath — non-fatal.
     }
 
-    const existing = process.env.DYLD_FALLBACK_LIBRARY_PATH;
-    if (!existing || !existing.split(':').includes(bundle.libDir)) {
-        process.env.DYLD_FALLBACK_LIBRARY_PATH = existing ? `${bundle.libDir}:${existing}` : `${bundle.libDir}:/usr/lib`;
+    if (process.platform === 'win32') {
+        const existing = process.env.PATH ?? '';
+        if (!existing.split(';').filter(Boolean).includes(bundle.libDir)) {
+            process.env.PATH = existing ? `${bundle.libDir};${existing}` : bundle.libDir;
+        }
+    } else {
+        const existing = process.env.DYLD_FALLBACK_LIBRARY_PATH;
+        if (!existing || !existing.split(':').includes(bundle.libDir)) {
+            process.env.DYLD_FALLBACK_LIBRARY_PATH = existing ? `${bundle.libDir}:${existing}` : `${bundle.libDir}:/usr/lib`;
+        }
     }
 
     activated = bundle;

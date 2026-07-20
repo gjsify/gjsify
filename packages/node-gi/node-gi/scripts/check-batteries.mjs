@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Fast single-process probe for the batteries-included (no-Homebrew) GTK runtime
-// on macOS. Reproduces the two paths that need a leaf-soname g_module_open to
-// resolve against the bundled dylibs — which only works once node-gi has made the
-// runtime env-free (the DYLD_FALLBACK re-exec in gtk-runtime.js):
+// Fast single-process probe for the batteries-included GTK runtime (no Homebrew on
+// macOS / no gvsbuild on Windows). Reproduces the two paths that need a leaf-soname
+// g_module_open to resolve against the bundled native code — which only works once
+// node-gi has made the runtime env-free (the DYLD_FALLBACK re-exec on macOS, the
+// gtk/bin PATH-prepend on Windows — both in gtk-runtime.js):
 //   1. registerClass subclassing — gi_registered_type_info_get_g_type() must call
 //      the parent type's get_type() (e.g. g_simple_action_get_type in libgio), the
 //      exact path that failed with "… is not a subclassable GObject type".
@@ -33,4 +34,4 @@ for (const [ns, type] of [
     if (g == null) throw new Error(`${ns}.${type}: getGType returned null — leaf g_module_open failed env-free`);
 }
 
-console.log('batteries-included probe OK: registerClass(Gio.SimpleAction) + Pango/Graphene/Gdk get_type resolved with no Homebrew GTK');
+console.log('batteries-included probe OK: registerClass(Gio.SimpleAction) + Pango/Graphene/Gdk get_type resolved with no system/Homebrew/gvsbuild GTK');
