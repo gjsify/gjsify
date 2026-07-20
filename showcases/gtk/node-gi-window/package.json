@@ -1,0 +1,52 @@
+{
+  "name": "@gjsify/example-gtk-node-gi-window",
+  "version": "0.19.0",
+  "description": "A minimal Libadwaita window whose single gi:// source builds and runs on both GJS and Node.js (via @gjsify/node-gi), self-verifiable over DBus with @gjsify/devtools.",
+  "type": "module",
+  "private": true,
+  "main": "dist/app.gjs.mjs",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "clear": "rm -rf dist tsconfig.tsbuildinfo",
+    "check": "gjsify tsc --noEmit",
+    "build": "gjsify run build:gjs && gjsify run build:node",
+    "build:gjs": "gjsify build src/app.ts --app gjs --outfile dist/app.gjs.mjs",
+    "build:node": "gjsify build src/app.ts --app node --outfile dist/app.node.mjs",
+    "start:gjs": "gjs -m dist/app.gjs.mjs",
+    "start:node": "node dist/app.node.mjs",
+    "shoot": "gjs -m tools/shoot.js eu.jumplink.NodeGiWindow dist/window.png"
+  },
+  "gjsify": {
+    "main": "dist/app.gjs.mjs",
+    "tier": 3
+  },
+  "devDependencies": {
+    "@girs/adw-1": "^4.1.0",
+    "@girs/gdk-4.0": "^4.1.0",
+    "@girs/gio-2.0": "^4.1.0",
+    "@girs/gjs": "^4.1.0",
+    "@girs/glib-2.0": "^4.1.0",
+    "@girs/gobject-2.0": "^4.1.0",
+    "@girs/graphene-1.0": "^4.1.0",
+    "@girs/gtk-4.0": "^4.1.0",
+    "@gjsify/cli": "workspace:^",
+    "@gjsify/devtools": "workspace:^",
+    "@gjsify/node-gi": "file:../../../packages/node-gi/node-gi",
+    "@types/node": "^25.9.2",
+    "typescript": "^6.0.3"
+  },
+  "author": "Pascal Garber <pascal@artandcode.studio>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gjsify/gjsify.git",
+    "directory": "showcases/gtk/node-gi-window"
+  },
+  "bugs": {
+    "url": "https://github.com/gjsify/gjsify/issues"
+  },
+  "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/gtk/node-gi-window#readme"
+}
