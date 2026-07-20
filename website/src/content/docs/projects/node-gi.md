@@ -47,6 +47,16 @@ The engine is one Node-API binary that loads on all four supported runtimes. `in
 
 GJS is the reference implementation (native `gi://`). On Node the libuv↔GLib bridge keeps Node's own event loop alive during a blocking GLib loop; on Bun and Deno a portable GLib-iteration pump (`startMainContextPump`) co-pumps GLib from the runtime timer instead. Bun and Deno both reach the conformance subset (the Deno-2.1-era N-API quirks were fixed upstream in Deno 2.9); the one Node-only row is keeping Node's timers alive *during* a blocking GLib loop. The GObject-Introspection conformance oracle (a port of GJS's own `GIMarshallingTests`) runs **byte-identical on gjs / node / bun / deno**.
 
+## Platforms
+
+The same Node-API binary is validated on **Linux, macOS and Windows** — the OS axis is distinct from the runtime axis above, and the `prebuilds/<platform>-<arch>/` layout carries a binary per platform *and* arch. What CI actually proves per platform (stated by name, not by a runtime-class label):
+
+- **Linux** — the full path: GJS-native `gi://` plus node-gi on Node, Bun and Deno, GTK/Adwaita GUIs and the whole conformance suite, against the system GTK.
+- **macOS** (`macos-latest`, arm64) — node-gi builds and passes the display-free conformance suite on **Node, Bun and Deno**. An on-screen GTK GUI is **not yet wired** here; the batteries-included [`@gjsify/gtk-runtime-darwin-arm64`](https://www.npmjs.com/package/@gjsify/gtk-runtime-darwin-arm64) package ships the prebuilt GTK 4 / Adwaita closure so no system GTK is required.
+- **Windows** (`windows-latest`, x64) — node-gi builds (**MSVC + gvsbuild**) and passes the display-free conformance suite on **Node**. Beyond headless conformance, the GTK GUI renders (render-to-texture, no visible desktop) **and** the full Libadwaita Storybook renders — both proven in CI. The batteries-included [`@gjsify/gtk-runtime-win32-x64`](https://www.npmjs.com/package/@gjsify/gtk-runtime-win32-x64) package (also selected via `--windowing`) ships the prebuilt GTK 4 / Adwaita closure, so **no gvsbuild is needed at consume time**.
+
+GTK/GNOME GUI apps stay Linux-first (also proven on Windows); the cross-OS reach is the node-gi Node/Bun/Deno path.
+
 ## How it works
 
 Two libuv-coupled subsystems are made portable so one binary spans all four runtimes:
@@ -66,7 +76,7 @@ The [example](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/exampl
 npm install @gjsify/node-gi
 ```
 
-Requires a C++ toolchain plus the GLib ≥ 2.80 / `girepository-2.0` development headers to build the native addon, and the target library typelibs installed at runtime (the same requirement as `gi://` under GJS). See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi#readme) for the full API and the Deno `--node-modules-dir=manual` note.
+Requires a C++ toolchain (or the shipped prebuild) plus the GLib ≥ 2.80 / `girepository-2.0` development headers to build the native addon, and the target library typelibs installed at runtime (the same requirement as `gi://` under GJS) — or, on **macOS and Windows**, the batteries-included `@gjsify/gtk-runtime-{darwin-arm64,win32-x64}` package, which bundles the GTK 4 / Adwaita closure so no system GTK is needed. See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi#readme) for the full API and the Deno `--node-modules-dir=manual` note.
 
 ## See also
 

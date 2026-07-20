@@ -81,6 +81,25 @@ A golden-diff conformance harness runs the same programs on `gjs`, `node`,
 `bun` and `deno` and requires **byte-identical output**; the ported GNOME
 GIMarshallingTests currently pass 343 cases on all four runtimes.
 
+### Platforms — Linux, macOS and Windows
+
+The runtime table above is orthogonal to the operating system. GTK/GNOME apps
+stay **Linux-first**; the cross-OS reach is specifically the node-gi
+(Node/Bun/Deno) path, validated per platform by what CI actually proves — again,
+named, not labelled with a runtime class:
+
+| Platform | node-gi (Node / Bun / Deno) | GTK / Adwaita GUI | Prebuilt-GTK bundle |
+|---|---|---|---|
+| **Linux** | Full — builds + display-free conformance on Node, Bun and Deno | Proven (GJS native *and* node-gi) | Uses the system GTK |
+| **macOS** (`macos-latest`, arm64) | Builds + display-free conformance on Node, Bun and Deno | Not yet wired — headless conformance only | `@gjsify/gtk-runtime-darwin-arm64` ships the GTK 4 / Adwaita closure |
+| **Windows** (`windows-latest`, x64) | Builds (MSVC + gvsbuild) + display-free conformance on Node | GTK GUI **and** the full Libadwaita Storybook both render in CI (render-to-texture, no visible desktop) | `@gjsify/gtk-runtime-win32-x64` ships the GTK 4 / Adwaita closure (also selected by `--windowing`; no gvsbuild at consume time) |
+
+Node-API is the common ABI, so a single `--app node` prebuilt binary serves
+Node, Bun and Deno on a given platform. Everywhere, the runtime requirement is a
+C++ toolchain (or the shipped prebuild) plus GLib ≥ 2.80 / `girepository-2.0`
+and the target library typelibs — or, on macOS and Windows, the batteries-included
+prebuilt-GTK bundle above.
+
 ## What this means in practice
 
 - **Ship desktop apps on GJS.** It remains the primary target — the runtime

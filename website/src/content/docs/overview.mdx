@@ -16,7 +16,8 @@ The runtime is a build-time decision, not an architecture decision:
   Web APIs on top of Gio, libsoup, Cairo and friends.
 - On **Node.js, Bun and Deno**, GJSify implements the GJS side — `gi://`
   imports and the GObject type system — through the
-  [node-gi](/gjsify/projects/node-gi/) reverse bridge.
+  [node-gi](/gjsify/projects/node-gi/) reverse bridge, which runs the same
+  unchanged GObject-Introspection code on **Linux, macOS and Windows**.
 - In the **browser**, the same source runs as a web app, with the Adwaita
   design system [carried over as Web Components](/gjsify/packages/web/).
 
