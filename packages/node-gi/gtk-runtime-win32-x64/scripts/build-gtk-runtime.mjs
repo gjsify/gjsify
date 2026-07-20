@@ -241,7 +241,13 @@ if (dumpbin) {
         } else {
             bundled.set('\0loader:' + lower, null); // walked, not bin-copied (copied below)
         }
-        for (const dep of dumpbinDeps(dumpbin, src)) {
+        // dumpbin needs the ABSOLUTE path: a bin/ entry's `src` is a bare filename
+        // (leaf), so resolve it under <prefix>/bin; a loader entry's `src` is already
+        // a full path. Passing the bare leaf made dumpbin find nothing → the closure
+        // never grew past the seeds → the transitive DLLs (ffi/intl/pcre2/zlib/…)
+        // were dropped and the addon failed to dlopen.
+        const walkPath = isPath ? src : join(gtkBin, src);
+        for (const dep of dumpbinDeps(dumpbin, walkPath)) {
             const dl = dep.toLowerCase();
             if (!bundled.has(dl) && binFiles.has(dl)) queue.push(dep);
         }
