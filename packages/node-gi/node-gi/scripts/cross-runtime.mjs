@@ -124,18 +124,35 @@ const runtimeBin = runtime === 'node' ? process.execPath : runtime;
 
 // Deno's N-API env teardown can abort a test FILE with a non-zero exit AFTER every
 // assertion in it has already passed — no test summary is printed, the process just
-// exits non-zero once the last subtest reported `ok` (the #47 teardown class; the
-// graphene/Gdk boxed g_boxed_free churn is one trigger). It is NONDETERMINISTIC in
-// two ways: it lands on a DIFFERENT file run-to-run (struct-construct one run,
-// out-params the next, gobject the next) AND on a DIFFERENT platform run-to-run
-// (macos-arm64 one run, linux-aarch64 the next) — it is an N-API-env-teardown quirk,
-// not a darwin-specific one. That is not a reverse-bridge capability gap, so on DENO
-// (all platforms) we gate on the per-subtest RESULTS parsed from Deno's own output
-// instead of the process exit code: if every test the run announced actually ran and
-// none reported FAILED, a non-zero exit is the known teardown artifact (non-gating).
-// A real assertion failure (a FAILED line) OR a truncated run (fewer results than the
-// "running N tests" header promised — i.e. a genuine mid-test crash) still HARD-gates.
-// node / bun keep exit-code gating unchanged. See #47.
+// exits non-zero once the last subtest reported `ok`. It is NONDETERMINISTIC in two
+// ways: it lands on a DIFFERENT file run-to-run (struct-construct one run, out-params
+// the next, gobject the next) AND on a DIFFERENT platform run-to-run (macos-arm64 one
+// run, linux-aarch64 the next).
+//
+// ROOT CAUSE (#47, diagnosed against deno 2.9.3, glibc/gobject, exit 139 = SIGSEGV):
+// a segfault inside libgobject g_type_fundamental, called from the boxed-handle
+// External finalizer (marshal.cc FreeBoxedHandleRecord -> g_boxed_free) with a
+// GARBAGE GType. `napi_create_external` registers its finalizer BOTH in Deno's
+// ref_tracker (run on the main thread by MainWorker::run_napi_ref_finalizers) AND as
+// a V8 weak Reference (js_native_api.rs `weak_callback`). At isolate DISPOSAL V8
+// fires the second-pass weak callback on the isolate-owning tokio thread, over
+// Reference state Deno's teardown is concurrently freeing, so it hands our finalizer
+// a stale `finalize_data` — g_boxed_free then reads a garbage gtype and segfaults.
+// This is NOT node-gi-fixable: (1) the corrupt pointer IS the finalizer's own `data`
+// argument — dereferencing it is the crash, and there is no way to validate a boxed
+// record without dereferencing it; (2) Deno fires NO env-cleanup hook before these
+// weak callbacks (they run BEFORE NapiState::Drop, lib.rs), so a global teardown flag
+// is never set in time; (3) the env still reports JS-available at the callback, so a
+// #730-style NodeGiJsAvailable(env) gate does not trip either. All three seams were
+// tried empirically and none catch it — like the worker.terminate() SIGSEGV, it is a
+// Deno-runtime limitation, and this results-based carve-out is the correct treatment.
+//
+// So on DENO (all platforms) we gate on the per-subtest RESULTS parsed from Deno's
+// own output instead of the process exit code: if every test the run announced
+// actually ran and none reported FAILED, a non-zero exit is the known teardown
+// artifact (non-gating). A real assertion failure (a FAILED line) OR a truncated run
+// (fewer results than the "running N tests" header promised — i.e. a genuine mid-test
+// crash) still HARD-gates. node / bun keep exit-code gating unchanged. See #47.
 const denoTeardownCarveout = runtime === 'deno';
 
 // Parse Deno's test output into { expected, ran, failed } by counting its per-subtest
