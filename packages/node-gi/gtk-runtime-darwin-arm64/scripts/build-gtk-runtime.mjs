@@ -74,6 +74,18 @@ const SEED_PATTERNS = [
     /^libgtk-4\..*\.dylib$/, // provides the Gdk typelib's backing library
 ];
 
+// WINDOWING superset (opt-in via --windowing): also bundle libadwaita, whose dylib
+// backs the Adw-1 typelib. The display-free conformance closure never touches
+// Adwaita, so it is NOT a base seed — but the batteries-included bundle ships the
+// Adw-1 TYPELIB, so without libadwaita's dylib a real `new Adw.Application()` fails
+// with "Failed to load shared library 'libadwaita-1.0.dylib'" (→ Adw.Application is
+// not a constructible GObject type). This is exactly what the macOS GTK-GUI proof
+// (macos-gtk-windowing) needs; the recursive otool walk pulls libadwaita's
+// transitive deps + relocates them like any other seed. Mirrors the win32
+// --windowing superset (WINDOWING_SEED_PATTERNS there).
+const WINDOWING = process.argv.includes('--windowing');
+const WINDOWING_SEED_PATTERNS = [/^libadwaita-1\..*\.dylib$/];
+
 function isSystemPath(p) {
     return p.startsWith('/usr/lib/') || p.startsWith('/System/');
 }
@@ -112,8 +124,9 @@ function resolveInBrew(leaf) {
 }
 
 // --- 1. discover the closure ----------------------------------------------
-console.log(`build-gtk-runtime: brew prefix ${brewPrefix}`);
-const seeds = readdirSync(brewLib).filter((f) => SEED_PATTERNS.some((re) => re.test(f)));
+console.log(`build-gtk-runtime: brew prefix ${brewPrefix}${WINDOWING ? ' (windowing superset — + libadwaita)' : ' (display-free)'}`);
+const seedPatterns = WINDOWING ? [...SEED_PATTERNS, ...WINDOWING_SEED_PATTERNS] : SEED_PATTERNS;
+const seeds = readdirSync(brewLib).filter((f) => seedPatterns.some((re) => re.test(f)));
 if (seeds.length === 0) {
     console.error('build-gtk-runtime: no seed libraries found — is the GTK stack installed?');
     process.exit(1);

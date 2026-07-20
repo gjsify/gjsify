@@ -947,6 +947,142 @@ jobs:
           NODE_GI_NATIVE: prebuild
         run: node scripts/cross-runtime.mjs node
 
+  # Build the WINDOWING superset darwin bundle — the display-free macos-gtk-runtime
+  # bundle omits libadwaita (conformance never touches Adwaita), so a real
+  # `new Adw.Application()` fails on it with "Failed to load shared library
+  # 'libadwaita-1.0.dylib'". This variant passes `--windowing` so build-gtk-runtime.mjs
+  # seeds libadwaita into the relocated closure. Mirrors windows-gtk-windowing-runtime;
+  # feeds the macos-gtk-windowing GUI proof below.
+  macos-gtk-windowing-runtime:
+    name: macOS windowing GTK runtime bundle (build + relocate / macos-latest arm64)
+    runs-on: macos-latest
+    needs: macos
+    timeout-minutes: 30
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+    steps:
+      - name: Install GTK4 + Adwaita + GObject-Introspection (build-time closure source)
+        run: brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download node-gi addon prebuild (from the macos job)
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-darwin-arm64
+          path: addon
+
+      # --windowing adds libadwaita (+ its otool deps) to the relocated closure.
+      - name: Build + relocate the WINDOWING GTK runtime bundle
+        run: |
+          node packages/node-gi/gtk-runtime-darwin-arm64/scripts/build-gtk-runtime.mjs \
+            --windowing \
+            --out packages/node-gi/gtk-runtime-darwin-arm64/gtk \
+            --addon "$PWD/addon/node_gi.node" \
+            --stage packages/node-gi/node-gi/prebuilds/darwin-arm64
+
+      - name: Report bundle + assert libadwaita is present
+        run: |
+          cat packages/node-gi/gtk-runtime-darwin-arm64/gtk/manifest.json
+          echo "--- bundle size ---"; du -sh packages/node-gi/gtk-runtime-darwin-arm64/gtk
+          echo "--- assert libadwaita relocated into the bundle ---"
+          ls packages/node-gi/gtk-runtime-darwin-arm64/gtk/lib | grep -i adwaita || { echo "libadwaita MISSING from the windowing bundle"; exit 1; }
+          echo "--- assert NO /opt/homebrew refs remain ---"
+          if otool -L packages/node-gi/gtk-runtime-darwin-arm64/gtk/lib/*.dylib | grep -F /opt/homebrew; then
+            echo "RELOCATION FAILED: bundled dylibs still reference /opt/homebrew"; exit 1
+          fi
+          echo "clean — no Homebrew references"
+
+      - name: Upload windowing GTK runtime bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtk-runtime-darwin-arm64-windowing
+          path: packages/node-gi/gtk-runtime-darwin-arm64/gtk
+
+      - name: Upload relocated node-gi addon (windowing)
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-gi-addon-relocated-darwin-arm64-windowing
+          path: packages/node-gi/node-gi/prebuilds/darwin-arm64/node_gi.node
+
+  # macOS GUI proof — the darwin counterpart of windows-gtk-windowing. macOS had
+  # build + display-free conformance + the batteries-included bundle, but no
+  # ON-SCREEN render proof; this closes that gap so the cross-platform story is
+  # symmetric. Runs the SAME render-to-texture GUI tests the Windows windowing job
+  # runs (windowing + windowing-interactive + widgets), on the batteries-included
+  # darwin-arm64 bundle as the ONLY GTK. The tests treat darwin like win32 (implicit
+  # display — no DISPLAY needed; the GdkMacos backend supplies it), so a real
+  # Adw.ApplicationWindow realizes + renders via the GSK renderer and a
+  # WidgetPaintable snapshot rasterises to a PNG — headless, no visible desktop,
+  # exactly as on Windows. GSK_RENDERER=cairo forces software rendering (no GPU
+  # guarantee on the runner). node-gi's DYLD_FALLBACK re-exec (gtk-runtime.js) makes
+  # the bundle authoritative env-free; NODE_GI_NATIVE=prebuild loads the relocated
+  # addon. Same clean-host discipline as macos-gtk-batteries-included: no brew GTK.
+  macos-gtk-windowing:
+    name: macOS windowing proof (no brew GTK / macos-latest arm64)
+    runs-on: macos-latest
+    needs: macos-gtk-windowing-runtime
+    timeout-minutes: 30
+    steps:
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Never brew-installs GTK — the batteries-included bundle must be the ONLY GTK.
+      - name: Assert the GTK toolkit is NOT installed (clean batteries-included host)
+        run: |
+          echo "--- GTK-related Homebrew formulae present (informational) ---"
+          brew list --formula 2>/dev/null | grep -iE 'gtk|pango|cairo|graphene|gdk|glib|gobject|harfbuzz' || echo "(none)"
+          if brew list --formula 2>/dev/null | grep -qE '^(gtk4|libadwaita)$'; then
+            echo "gtk4/libadwaita is installed — not a clean batteries-included test"; exit 1
+          fi
+          echo "clean host — the GTK toolkit was never brew-installed in this job"
+
+      # Stage the WINDOWING bundle + relocated addon in the sibling layout node-gi's
+      # loader expects (prebuilds/darwin-arm64/{node_gi.node, gtk/}); the addon's
+      # @rpath is @loader_path/gtk/lib. From macos-gtk-windowing-runtime (libadwaita
+      # included), NOT the display-free macos-gtk-runtime bundle.
+      - name: Download WINDOWING GTK runtime bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: gtk-runtime-darwin-arm64-windowing
+          path: packages/node-gi/node-gi/prebuilds/darwin-arm64/gtk
+
+      - name: Download relocated node-gi addon (windowing)
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-addon-relocated-darwin-arm64-windowing
+          path: packages/node-gi/node-gi/prebuilds/darwin-arm64
+
+      - name: Verify staged layout
+        working-directory: packages/node-gi/node-gi
+        run: |
+          ls -la prebuilds/darwin-arm64
+          echo "--- dylibs ---"; ls prebuilds/darwin-arm64/gtk/lib | head
+          echo "--- typelibs ---"; ls prebuilds/darwin-arm64/gtk/girepository-1.0 | head
+
+      # The windowing proof: a real Adw.ApplicationWindow realizes + renders a
+      # surface via the GSK renderer, reacts to a Gio action + Gtk.Button::clicked
+      # (interactive, headless), and widgets.test.mjs rasterises an Adwaita
+      # widget-breadth surface to a GSK PNG — all on the batteries-included bundle.
+      - name: Windowing proof — Adw window realizes, renders, reacts + widget breadth (no brew GTK)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+          GSK_RENDERER: cairo
+        run: node --test test/windowing.test.mjs test/windowing-interactive.test.mjs test/widgets.test.mjs
+
   # Windows proof (Phase 1 — the reverse bridge BUILDS + RUNS on windows-latest).
   # The whole team is Linux-only, so a windows-latest runner is the only way to
   # validate. Sibling of the macOS proof (its `macos` job above is the template).
