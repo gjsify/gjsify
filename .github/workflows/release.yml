@@ -189,3 +189,129 @@ jobs:
         run: |
           echo "Packages successfully published to npm for release ${RELEASE_TAG}"
           echo "Published packages: @gjsify/*"
+
+  # macOS publish leg for the batteries-included GTK runtime bundle.
+  #
+  # WHY A SEPARATE JOB: @gjsify/gtk-runtime-darwin-arm64 ships a HEAVY, relocated
+  # macOS-arm64 GTK/GI dylib + typelib closure in its `gtk/` dir. That bundle is
+  # gitignored and can ONLY be produced on a darwin/arm64 runner (Homebrew closure
+  # -> install_name_tool/@loader_path relocation -> ad-hoc codesign, see the
+  # package's scripts/build-gtk-runtime.mjs). The ubuntu `publish` job above cannot
+  # build it, and it never tries to: `packages/node-gi/*` is NOT a root workspace
+  # (see root package.json#workspaces), so `gjsify foreach` — the enumerator behind
+  # `gjsify run npm:publish` — never touches this package. Without this job the
+  # published tarball is only ever an empty ~18 KB shell (its first 0.19.0 publish
+  # was exactly that: isPresent=false, so macOS consumers silently fell back to
+  # Homebrew GTK). Here we BUILD the bundle on macOS and OIDC-publish JUST this one
+  # package WITH the populated `gtk/`, so `require('@gjsify/gtk-runtime-darwin-arm64')`
+  # reports isPresent=true and the "no brew needed" promise is actually delivered.
+  #
+  # RACE SAFETY: `packages/node-gi/*` not being a workspace means the ubuntu job can
+  # never enumerate — let alone shell-publish — this package (nothing can overwrite
+  # the real bundle with an empty one). If `packages/node-gi/*` is EVER added to the
+  # root `workspaces` list, add `--exclude '@gjsify/gtk-runtime-darwin-arm64'` to the
+  # `npm:publish` script's `gjsify foreach` so the ubuntu job keeps skipping it.
+  #
+  # `needs: publish` so @gjsify/cli@<release-version> is already on npm (this job
+  # installs it to drive the OIDC publish) and the two publish legs are serialized.
+  #
+  # PATTERN: the future @gjsify/gtk-runtime-win32-x64 sibling mirrors this job
+  # (windows-latest runner, gvsbuild closure source, its own relocation step).
+  publish-gtk-runtime-darwin-arm64:
+    name: Publish @gjsify/gtk-runtime-darwin-arm64 (macOS bundle)
+    needs: publish
+    # Same gate as the ubuntu npm-publish step: a real release, or a dispatch that
+    # opts INTO publishing; never in verify_only (audit) mode. On an asset-only
+    # re-upload dispatch (skip_publish=true) this whole job is skipped.
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      # id-token: write = npm Trusted Publishing (OIDC). The package's Trusted
+      # Publisher is configured for THIS workflow file (release.yml), so an OIDC
+      # exchange from any job in it succeeds. contents: read is for checkout.
+      contents: read
+      id-token: write
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+    steps:
+      # `release` event auto-checks-out the tag; a `workflow_dispatch` must target
+      # the operator-specified tag so the built bundle matches what shipped. Mirrors
+      # the ubuntu publish job's checkout ref.
+      - name: Checkout repository (the released tag)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+
+      # Build-time closure SOURCE only — these libraries are collected + relocated
+      # INTO the self-contained bundle, they are NOT a runtime dep of the tarball.
+      # Verbatim from .github/workflows/node-gi.yml -> macos-gtk-runtime.
+      - name: Install GTK4 + GObject-Introspection (Homebrew, build-time closure source)
+        run: brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config
+
+      # Node 24 runs build-gtk-runtime.mjs (node:child_process/fs) and the publish.
+      # No `registry-url` here — setting it makes actions/setup-node inject a
+      # placeholder NODE_AUTH_TOKEN, which `gjsify publish` reads as "token auth
+      # requested" and skips OIDC (see the ubuntu publish job's note). Omitting it
+      # keeps the OIDC Trusted-Publishing path.
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      # Populate the gitignored gtk/ bundle so `files: ["gtk"]` ships it (the packer
+      # expands a plain-dir entry recursively). Only --out is needed: the PACKAGE
+      # requires just gtk/{lib,girepository-1.0,manifest.json} (index.js isPresent =
+      # lib/ && girepository-1.0/). The --addon/--stage relocation is node-gi's OWN
+      # prebuilds concern (node-gi.yml), NOT part of this tarball — so no node-gyp
+      # addon build here.
+      - name: Build the GTK runtime bundle (populate gtk/)
+        run: |
+          node packages/node-gi/gtk-runtime-darwin-arm64/scripts/build-gtk-runtime.mjs \
+            --out packages/node-gi/gtk-runtime-darwin-arm64/gtk
+
+      # Gate the publish on a genuinely populated, portable bundle: assert no
+      # /opt/homebrew refs survived relocation, and that the two dirs index.js's
+      # isPresent check requires actually exist. Mirrors node-gi.yml's sanity check.
+      - name: Verify bundle (relocation clean + layout present)
+        run: |
+          B=packages/node-gi/gtk-runtime-darwin-arm64/gtk
+          cat "$B/manifest.json"
+          echo "--- bundle size ---"; du -sh "$B"
+          echo "--- assert NO /opt/homebrew refs remain in the bundle ---"
+          if otool -L "$B"/lib/*.dylib | grep -F /opt/homebrew; then
+            echo "RELOCATION FAILED: bundled dylibs still reference /opt/homebrew"; exit 1
+          fi
+          if [ ! -d "$B/lib" ] || [ ! -d "$B/girepository-1.0" ]; then
+            echo "BUNDLE INCOMPLETE: gtk/lib + gtk/girepository-1.0 are required (index.js isPresent)"; exit 1
+          fi
+          echo "clean — bundle populated + portable"
+
+      # A Node-runnable @gjsify/cli at the release-train version drives the OIDC
+      # publish. The committed cli.gjs.mjs bundle would need gjs + @gjsify/rolldown-
+      # native (absent here); this package has NO workspace deps, so a standalone
+      # pack needs no `gjsify install`. `needs: publish` guarantees this version is
+      # already on npm. Same pattern as node-gi.yml's consumer jobs.
+      - name: Prepare a Node-runnable @gjsify/cli
+        id: cli
+        run: |
+          CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
+          mkdir -p /tmp/gjsify-node-cli
+          ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
+            && npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save )
+          echo "bin=/tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js" >> "$GITHUB_OUTPUT"
+          node /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js --version
+
+      # OIDC Trusted Publishing from release.yml — publishes ONLY this package, WITH
+      # the populated gtk/ bundle. `gjsify publish` auto-detects the GitHub OIDC env
+      # (id-token: write above, no NODE_AUTH_TOKEN) and exchanges the JWT for a
+      # short-lived per-package token. --tolerate-republish makes a manual rerun over
+      # an already-published version a no-op instead of a hard 409/403.
+      - name: Publish @gjsify/gtk-runtime-darwin-arm64 (OIDC, with bundle)
+        env:
+          GJSIFY_PUBLISH_DEBUG: '1'
+        run: |
+          node "${{ steps.cli.outputs.bin }}" publish \
+            packages/node-gi/gtk-runtime-darwin-arm64 \
+            --tolerate-republish --tag latest --access public
