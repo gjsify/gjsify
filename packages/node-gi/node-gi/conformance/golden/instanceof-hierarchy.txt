@@ -1,0 +1,19 @@
+action instanceof SimpleAction: true
+action instanceof GObject.Object: true
+action instanceof Gio.Action (iface): true
+group instanceof SimpleActionGroup: true
+group instanceof GObject.Object: true
+group instanceof Gio.ActionGroup (iface): true
+group instanceof Gio.ActionMap (iface): true
+action instanceof Cancellable: false
+action instanceof SimpleActionGroup: false
+cancellable instanceof Gio.Action: false
+plain {} instanceof SimpleAction: false
+null instanceof SimpleAction: false
+boxed Variant instanceof SimpleAction: false
+sub instanceof MyAction (leaf): true
+sub instanceof SimpleAction (base): true
+sub instanceof GObject.Object: true
+sub instanceof Gio.Action (iface): true
+sub instanceof OtherAction (sibling): false
+plain SimpleAction instanceof MyAction: false

@@ -27,12 +27,12 @@
 // running `--app gjs` (default on; set NODE_GI_EB_SKIP_GJS=1 for a node-only run —
 // see the haveGjs note); the same gold-standard parity the `canvas2d-bridge` e2e uses.
 //
-// NODE-GI GAP the fixture routes around (documented, deferred — see README): node-gi
-// does not wire `instanceof` for GObject wrapper classes, so the fixture cannot use
-// the spec's `ctrl instanceof Gtk.EventControllerMotion` controller filter. It
-// retrieves controllers by ADD ORDER off `observe_controllers()` instead (identity
-// is preserved + `emit()` resolves by the live GType). The BEHAVIOR under test —
-// the bridge dispatching correct DOM events — is unaffected.
+// The fixture retrieves controllers by ADD ORDER off `observe_controllers()` (identity
+// is preserved + `emit()` resolves by the live GType) rather than by the spec's
+// `ctrl instanceof Gtk.EventControllerMotion` filter. `instanceof` across the GObject
+// hierarchy IS wired now (see test/instanceof.test.mjs + conformance/programs/
+// instanceof-hierarchy.conf.mjs), so this is a stylistic choice, not a routed-around
+// gap. The BEHAVIOR under test — the bridge dispatching correct DOM events — is the same.
 //
 // This is a LOCAL/dev verification, NOT wired into CI. Running the LIVE bridge needs
 // the full gjsify workspace built with a CURRENT-source `@gjsify/cli` (the

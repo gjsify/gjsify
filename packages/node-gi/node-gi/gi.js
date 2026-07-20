@@ -1326,6 +1326,42 @@ function makeClass(namespace, typeName) {
     enumerable: false,
     configurable: true,
   });
+  // `inst instanceof Ns.Class` — GJS parity for the WHOLE GObject hierarchy, not
+  // just the leaf class. An instance is a Proxy over a bare `{[HANDLE]}` (no live JS
+  // prototype chain linking Adw.ApplicationWindow → Gtk.ApplicationWindow → …), so
+  // the default instanceof (a prototype-chain walk) reported `false` for every base
+  // class. Resolve it by the GObject type system instead: `native.isInstanceOf`
+  // (g_type_is_a) recognises subclasses AND implemented interfaces, exactly like GJS.
+  // Guarded by `isGObjectHandle` first — a bare/boxed/variant handle (or any non-node-gi
+  // value) is NOT a GObject, so it must be `false`, never reach `isInstanceOf` (which
+  // throws on a non-GObject handle). The makeClass Proxy `get` trap forwards this
+  // symbol to the target (`typeof prop !== 'string'` → `t[prop]`), so `instanceof`
+  // finds it on the proxy. Overlay-built classes (GLib.Variant / GObject.Value /
+  // GObject.ParamSpec) bypass makeClass and keep their own dedicated hasInstance.
+  Object.defineProperty(ctor, Symbol.hasInstance, {
+    configurable: true,
+    value(instance) {
+      if (instance === null || typeof instance !== 'object') return false;
+      const handle = instance[HANDLE];
+      if (handle === undefined || !native.isGObjectHandle(handle)) return false;
+      // The introspected class ITSELF → resolve by name: g_type_is_a recognises every
+      // subclass AND implemented interface, matching GJS exactly.
+      if (this === proxy) return native.isInstanceOf(handle, namespace, typeName);
+      // A registerClass'd subclass INHERITS this method (it `extends` the proxy) but
+      // must match ITS OWN registered GType, not the shared introspected base — else a
+      // sibling subclass or a bare-base instance would wrongly test true. Resolve the
+      // instance's runtime GType against the subclass's own `$gtype` through the GObject
+      // type system (a live JS prototype chain the subclass instance lacks — the L1
+      // wrapper carries the user prototype as a symbol, not as [[Prototype]]).
+      const subGType = this.$gtype;
+      if (subGType !== undefined && subGType !== null) {
+        const G = requireGi('GObject', '2.0');
+        return G.type_is_a(G.type_from_name(native.getTypeName(handle)), subGType);
+      }
+      // A raw (unregistered) subclass / unrelated ctor: ordinary prototype-chain.
+      return Function.prototype[Symbol.hasInstance].call(this, instance);
+    },
+  });
   // Expose constructor/static methods lazily: Ns.Class.new(...) /
   // Ns.Class.new_for_path(...) (and the camelCase aliases). `new Ns.Class({...})`
   // still goes through the target's [[Construct]] (the default Proxy behaviour).
