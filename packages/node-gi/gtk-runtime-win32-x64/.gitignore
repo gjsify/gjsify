@@ -1,0 +1,3 @@
+# The heavy GTK DLL + typelib bundle is produced on a Windows runner, never committed.
+gtk/
+staged/

@@ -315,3 +315,128 @@ jobs:
           node "${{ steps.cli.outputs.bin }}" publish \
             packages/node-gi/gtk-runtime-darwin-arm64 \
             --tolerate-republish --tag latest --access public
+
+  # Windows publish leg for the batteries-included GTK runtime bundle — the sibling
+  # of publish-gtk-runtime-darwin-arm64 above (see that job's rationale in full).
+  #
+  # WHY A SEPARATE JOB: @gjsify/gtk-runtime-win32-x64 ships a HEAVY GTK/GI DLL +
+  # typelib closure in its `gtk/` dir. That bundle is gitignored and can ONLY be
+  # produced on a windows/x64 runner (gvsbuild closure -> collect the DLL closure
+  # into gtk/bin, see the package's scripts/build-gtk-runtime.mjs). The ubuntu
+  # `publish` job cannot build it, and it never tries to: `packages/node-gi/*` is
+  # NOT a root workspace, so `gjsify foreach` (behind `gjsify run npm:publish`)
+  # never touches this package — the same race-safety the darwin job relies on.
+  # Here we BUILD the bundle on Windows and OIDC-publish JUST this one package WITH
+  # the populated `gtk/`, so `require('@gjsify/gtk-runtime-win32-x64')` reports
+  # isPresent=true and the "no gvsbuild needed" promise is actually delivered.
+  #
+  # UNLIKE macOS: there is NO relocation/codesign step (Windows resolves DLLs by
+  # search path at LoadLibrary time), and NO addon build (the tarball ships only
+  # gtk/{bin,girepository-1.0,manifest.json}; the addon prebuild is node-gi's own
+  # concern in node-gi.yml).
+  #
+  # MAINTAINER ACTION — MANUAL FIRST PUBLISH REQUIRED (like the darwin package):
+  # npm Trusted Publishing (OIDC) cannot CREATE a package, only publish new versions
+  # of an existing one. So @gjsify/gtk-runtime-win32-x64 needs a one-time manual
+  # `gjsify publish --access public` + `gjsify trust @gjsify/gtk-runtime-win32-x64`
+  # (or `gjsify onboard`) from a maintainer machine BEFORE this job's first CI
+  # release — otherwise the OIDC exchange 404s. See AGENTS.md "New @gjsify/* package:
+  # first-publish + Trusted Publisher bootstrap".
+  #
+  # `needs: publish` so @gjsify/cli@<release-version> is already on npm and the two
+  # publish legs are serialized.
+  publish-gtk-runtime-win32-x64:
+    name: Publish @gjsify/gtk-runtime-win32-x64 (Windows bundle)
+    needs: publish
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      # id-token: write = npm Trusted Publishing (OIDC), configured for this
+      # workflow file (release.yml). contents: read is for checkout.
+      contents: read
+      id-token: write
+    env:
+      GVSBUILD_VERSION: '2026.6.0'
+      GTK_PREFIX: 'C:\gtk-build\gtk\x64\release'
+    steps:
+      - name: Checkout repository (the released tag)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+
+      # Node 24 runs build-gtk-runtime.mjs + the publish. No `registry-url` (it would
+      # inject a placeholder NODE_AUTH_TOKEN and defeat OIDC — see the ubuntu job).
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      # Build-time closure SOURCE only — the DLLs are collected INTO the bundle, they
+      # are NOT a runtime dep of the tarball.
+      - name: Download + extract gvsbuild GTK4 (build-time closure source)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = "https://github.com/wingtk/gvsbuild/releases/download/$env:GVSBUILD_VERSION/GTK4_Gvsbuild_${env:GVSBUILD_VERSION}_x64.zip"
+          Write-Host "Downloading $url"
+          curl.exe -L --fail --retry 3 -o gtk4.zip $url
+          New-Item -ItemType Directory -Force -Path $env:GTK_PREFIX | Out-Null
+          tar.exe -xf gtk4.zip -C $env:GTK_PREFIX
+          Remove-Item gtk4.zip
+
+      # Populate the gitignored gtk/ bundle so `files: ["gtk"]` ships it. Only --out +
+      # --prefix are needed (no addon relocation on Windows).
+      - name: Build the GTK runtime bundle (populate gtk/)
+        shell: pwsh
+        run: |
+          node packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs `
+            --out packages/node-gi/gtk-runtime-win32-x64/gtk `
+            --prefix $env:GTK_PREFIX
+
+      # Gate the publish on a populated bundle: assert the two dirs index.js's
+      # isPresent check requires actually exist.
+      - name: Verify bundle (layout present)
+        shell: pwsh
+        run: |
+          $B = "packages/node-gi/gtk-runtime-win32-x64/gtk"
+          Get-Content "$B/manifest.json"
+          Write-Host "--- bundle size ---"
+          "{0:N1} MiB" -f ((Get-ChildItem $B -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
+          if (-not (Test-Path "$B/bin") -or -not (Test-Path "$B/girepository-1.0")) {
+            Write-Host "BUNDLE INCOMPLETE: gtk/bin + gtk/girepository-1.0 are required (index.js isPresent)"
+            exit 1
+          }
+          Write-Host "bundle populated"
+
+      # A Node-runnable @gjsify/cli at the release-train version drives the OIDC
+      # publish. This package has NO workspace deps, so a standalone pack needs no
+      # `gjsify install`. `needs: publish` guarantees this version is already on npm.
+      - name: Prepare a Node-runnable @gjsify/cli
+        id: cli
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cliVersion = node -p "require('./packages/infra/cli/package.json').version"
+          $dir = Join-Path $env:RUNNER_TEMP 'gjsify-node-cli'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          Push-Location $dir
+          npm init -y | Out-Null
+          npm install "@gjsify/cli@$cliVersion" --no-audit --no-fund --no-save
+          Pop-Location
+          $bin = Join-Path $dir 'node_modules\@gjsify\cli\lib\index.js'
+          "bin=$bin" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          node $bin --version
+
+      # OIDC Trusted Publishing from release.yml — publishes ONLY this package, WITH
+      # the populated gtk/ bundle. --tolerate-republish makes a manual rerun over an
+      # already-published version a no-op instead of a hard 409/403.
+      - name: Publish @gjsify/gtk-runtime-win32-x64 (OIDC, with bundle)
+        shell: pwsh
+        env:
+          GJSIFY_PUBLISH_DEBUG: '1'
+          CLI_BIN: ${{ steps.cli.outputs.bin }}
+        run: |
+          node "$env:CLI_BIN" publish `
+            packages/node-gi/gtk-runtime-win32-x64 `
+            --tolerate-republish --tag latest --access public
