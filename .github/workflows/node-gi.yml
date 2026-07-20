@@ -1042,3 +1042,162 @@ jobs:
           name: node-gi-prebuild-win32-x64
           path: packages/node-gi/node-gi/prebuilds/win32-x64/node_gi.node
           if-no-files-found: error
+
+  # Windows Phase 2 — BUILD the batteries-included GTK runtime bundle. Reuses the
+  # `windows` job's gvsbuild download/cache steps as the closure SOURCE (build-time
+  # only; NOT shipped), then COLLECTS the display-free DLL closure into gtk/bin +
+  # the typelibs into gtk/girepository-1.0. CRUCIAL DIFFERENCE from macOS: NO
+  # relocation — Windows resolves DLLs by SEARCH PATH at LoadLibrary time, so
+  # "relocation" is just copying the DLLs into one dir (no install_name_tool /
+  # @rpath / codesign, and no addon relocation). Uploads the bundle for the
+  # no-gvsbuild conformance job below. Independent of the `windows` job (it does not
+  # consume the addon), so it runs in parallel.
+  windows-gtk-runtime:
+    name: Windows GTK runtime bundle (build / windows-latest x64)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      GVSBUILD_VERSION: '2026.6.0'
+      GTK_PREFIX: 'C:\gtk-build\gtk\x64\release'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Node 24 runs build-gtk-runtime.mjs (node:child_process/fs). Same version the
+      # `windows` proof pins.
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Cache gvsbuild GTK4 bundle
+        id: cache-gtk
+        uses: actions/cache@v4
+        with:
+          path: C:\gtk-build\gtk\x64\release
+          key: gvsbuild-gtk4-${{ env.GVSBUILD_VERSION }}-x64-v1
+
+      # Build-time closure SOURCE only — the DLLs are collected INTO the bundle, they
+      # are NOT what the no-gvsbuild conformance job runs on. Verbatim from the
+      # `windows` job's download/extract step.
+      - name: Download + extract gvsbuild GTK4 (build-time closure source)
+        if: steps.cache-gtk.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = "https://github.com/wingtk/gvsbuild/releases/download/$env:GVSBUILD_VERSION/GTK4_Gvsbuild_${env:GVSBUILD_VERSION}_x64.zip"
+          Write-Host "Downloading $url"
+          curl.exe -L --fail --retry 3 -o gtk4.zip $url
+          New-Item -ItemType Directory -Force -Path $env:GTK_PREFIX | Out-Null
+          tar.exe -xf gtk4.zip -C $env:GTK_PREFIX
+          Remove-Item gtk4.zip
+
+      # Collect the DLL closure + typelibs into the package's gtk/ dir. The script
+      # walks the closure with dumpbin (located via vswhere) and falls back to
+      # copying the full bin/*.dll set if dumpbin is unavailable — either way the
+      # bundle is complete. Only --out + --prefix are needed (no addon relocation).
+      - name: Build the GTK runtime bundle (collect DLL closure + typelibs)
+        shell: pwsh
+        run: |
+          node packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs `
+            --out packages/node-gi/gtk-runtime-win32-x64/gtk `
+            --prefix $env:GTK_PREFIX
+
+      - name: Report bundle size + layout sanity
+        shell: pwsh
+        run: |
+          $B = "packages/node-gi/gtk-runtime-win32-x64/gtk"
+          Get-Content "$B/manifest.json"
+          Write-Host "--- bundle size ---"
+          "{0:N1} MiB" -f ((Get-ChildItem $B -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
+          if (-not (Test-Path "$B/bin") -or -not (Test-Path "$B/girepository-1.0")) {
+            Write-Host "BUNDLE INCOMPLETE: gtk/bin + gtk/girepository-1.0 are required (index.js isPresent)"
+            exit 1
+          }
+          Write-Host "--- a few bundled DLLs ---"
+          Get-ChildItem "$B/bin" -Filter *.dll | Select-Object -First 10 -ExpandProperty Name
+
+      - name: Upload GTK runtime bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtk-runtime-win32-x64
+          path: packages/node-gi/gtk-runtime-win32-x64/gtk
+          if-no-files-found: error
+
+  # Windows Phase 2 — PROVE batteries-included. This job NEVER installs gvsbuild: it
+  # downloads the relocated-by-copy bundle + the win32 addon prebuild and runs the
+  # display-free conformance against them, so a green run proves node-gi works with
+  # ZERO gvsbuild/system GTK. UNLIKE the macOS batteries job (which needs a CORE
+  # leg + a re-exec for the non-addon-linked backers), ONE PATH-prepend covers the
+  # whole subset: node-gi prepends the bundle's gtk/bin to PATH before the addon
+  # loads, and Windows re-reads that path at each LoadLibrary — so the addon's own
+  # DLL imports AND the runtime g_module_open of Pango/Gdk/Graphene both resolve
+  # from the bundle in a single, env-free run.
+  windows-batteries-included:
+    name: Windows batteries-included conformance (no gvsbuild / windows-latest x64)
+    runs-on: windows-latest
+    needs: [windows, windows-gtk-runtime]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # This job never installs gvsbuild. Hard-fail if a gvsbuild GTK tree is present
+      # (it would muddy the proof — the bundle must be the ONLY GTK).
+      - name: Assert gvsbuild GTK is NOT present (clean batteries-included host)
+        shell: pwsh
+        run: |
+          if (Test-Path 'C:\gtk-build\gtk\x64\release\bin\glib-2.0-0.dll') {
+            Write-Host "gvsbuild GTK is present — not a clean batteries-included test"
+            exit 1
+          }
+          Write-Host "clean host — gvsbuild GTK was never installed in this job"
+
+      # Stage the bundle + addon prebuild in the SIBLING layout node-gi's loader
+      # expects (prebuilds/win32-x64/{node_gi.node, gtk/}). The loader prepends
+      # gtk/bin to PATH before loading the addon, so its DLL imports resolve here.
+      - name: Download GTK runtime bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: gtk-runtime-win32-x64
+          path: packages/node-gi/node-gi/prebuilds/win32-x64/gtk
+
+      - name: Download node-gi addon prebuild (from the windows job)
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-win32-x64
+          path: packages/node-gi/node-gi/prebuilds/win32-x64
+
+      - name: Verify staged layout
+        shell: pwsh
+        run: |
+          Get-ChildItem packages/node-gi/node-gi/prebuilds/win32-x64
+          Write-Host "--- DLLs ---"
+          Get-ChildItem packages/node-gi/node-gi/prebuilds/win32-x64/gtk/bin -Filter *.dll | Select-Object -First 10 -ExpandProperty Name
+          Write-Host "--- typelibs ---"
+          Get-ChildItem packages/node-gi/node-gi/prebuilds/win32-x64/gtk/girepository-1.0 -Filter *.typelib | Select-Object -First 10 -ExpandProperty Name
+
+      # Fast probe FIRST — one clean process, NO GTK on PATH set by the job. node-gi's
+      # loader prepends the bundle's gtk/bin to PATH before loading the addon, and
+      # prependSearchPath for the typelibs; this reproduces registerClass subclassing
+      # + Pango/Graphene/Gdk get_type resolving env-free from the bundle.
+      - name: Batteries-included probe — no gvsbuild GTK (Node)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node scripts/check-batteries.mjs
+
+      # The full display-free conformance subset — the primary proof, with the bundle
+      # as the ONLY GTK. NODE_GI_NATIVE=prebuild loads the staged addon; the loader's
+      # PATH-prepend makes its DLL imports + the typelib backers resolve from gtk/bin.
+      # No CORE/FULL split (see the job comment): one PATH covers everything.
+      - name: Conformance subset — no gvsbuild GTK (Node)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node scripts/cross-runtime.mjs node
