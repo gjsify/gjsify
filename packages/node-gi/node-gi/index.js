@@ -14,7 +14,12 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { activateBundledGtkRuntime, maybePrependGtkRuntimeDllPath, maybeReexecForGtkRuntime } from './gtk-runtime.js';
+import {
+    activateBundledGtkRuntime,
+    maybePrependGtkRuntimeDllPath,
+    maybeReexecForGtkRuntime,
+    maybeWireGtkWindowingEnv,
+} from './gtk-runtime.js';
 
 // macOS batteries-included GTK: if a relocated bundle ships for this platform,
 // re-exec ONCE with DYLD_FALLBACK_LIBRARY_PATH pointed at it BEFORE the addon (and
@@ -31,6 +36,14 @@ maybeReexecForGtkRuntime();
 // imports AND the runtime g_module_open of typelib backers — no re-exec needed.
 // No-op off win32 / without a bundle.
 maybePrependGtkRuntimeDllPath();
+
+// Windows FULL-WINDOWING GTK: when the bundle carries the runtime data a real GTK
+// WINDOW needs (compiled GSettings schemas, gdk-pixbuf loaders, icon themes,
+// fontconfig — the `--windowing` superset), wire the env vars that locate it
+// (GSETTINGS_SCHEMA_DIR / GDK_PIXBUF_MODULE_FILE / XDG_DATA_DIRS / FONTCONFIG_*).
+// Strict no-op off win32, without a bundle, or for the display-free bundle (no
+// windowing data) — so a display-free bundle load is byte-unchanged.
+maybeWireGtkWindowingEnv();
 
 const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url)); // package root
@@ -501,6 +514,16 @@ export const boxedTypeName = native.boxedTypeName;
  * @returns {boolean}
  */
 export const isParamSpecHandle = native.isParamSpecHandle;
+
+/**
+ * True when `value` is a node-gi non-GObject GObject-fundamental handle (e.g. a
+ * GskRenderNode from Gtk.Snapshot.to_node, a GdkEvent) — introspected as object
+ * info but ref-counted via its own ref/unref funcs (NOT g_object_ref). The L1
+ * wrapper surfaces it as an opaque, round-trippable pass-through handle.
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+export const isFundamentalHandle = native.isFundamentalHandle;
 
 /**
  * Read a GParamSpec accessor by name: name | nick | blurb | flags | valueType |

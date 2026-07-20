@@ -523,6 +523,13 @@ Napi::Value MakeParamSpecHandle(Napi::Env env, GParamSpec* pspec, GITransfer tra
 Napi::Value IsParamSpecHandle(const Napi::CallbackInfo& info);
 Napi::Value ParamSpecProp(const Napi::CallbackInfo& info);
 
+// Non-GObject GObject-fundamental wrapping (object.cc): a tagged External carrying
+// the raw pointer + the introspected unref func, for fundamentals like
+// GskRenderNode / GdkEvent that are introspected as object info but are NOT
+// GObjects (their own ref/unref, G_IS_OBJECT false — see the object.cc comment).
+Napi::Value MakeFundamentalHandle(Napi::Env env, gpointer ptr, GIObjectInfo* info, GITransfer transfer);
+Napi::Value IsFundamentalHandle(const Napi::CallbackInfo& info);
+
 // object.cc
 Napi::Value NewObject(const Napi::CallbackInfo& info);
 Napi::Value GetProperty(const Napi::CallbackInfo& info);
