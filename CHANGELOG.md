@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.20.0](https://github.com/gjsify/gjsify/compare/v0.19.0...v0.20.0) (2026-07-20)
+
+### Features
+
+* **node-gi:** batteries-included GTK runtime for Windows ([#771](https://github.com/gjsify/gjsify/issues/771)) ([460e532](https://github.com/gjsify/gjsify/commit/460e5328f3820045348356a352d31f7e581458b7)), closes [#47](https://github.com/gjsify/gjsify/issues/47)
+* **node-gi:** batteries-included macOS arm64 GTK runtime ([#768](https://github.com/gjsify/gjsify/issues/768)) ([48569ff](https://github.com/gjsify/gjsify/commit/48569ffcbc5f31d5e7db8f27c293fd10b1f52fb2))
+* **node-gi:** build + run the reverse bridge on Windows ([#769](https://github.com/gjsify/gjsify/issues/769)) ([9b477ae](https://github.com/gjsify/gjsify/commit/9b477ae0ed2c28ad159d41691f5d6d3dbc2361fb)), closes [#ifndef](https://github.com/gjsify/gjsify/issues/ifndef) [#undef](https://github.com/gjsify/gjsify/issues/undef) [#ifndef](https://github.com/gjsify/gjsify/issues/ifndef)
+* **node-gi:** interactive Adwaita window + instanceof ([#776](https://github.com/gjsify/gjsify/issues/776)) ([948df10](https://github.com/gjsify/gjsify/commit/948df10062b65a0d87c4c80344c332da1cedfd9b)), closes [#57](https://github.com/gjsify/gjsify/issues/57)
+* **node-gi:** prove Adwaita widget breadth on node-gi ([#777](https://github.com/gjsify/gjsify/issues/777)) ([98a7f79](https://github.com/gjsify/gjsify/commit/98a7f79fcbc5279feb5465d40d3a20951ed4e110)), closes [#57](https://github.com/gjsify/gjsify/issues/57)
+* **node-gi:** render a GTK/Adwaita window on node-gi ([#774](https://github.com/gjsify/gjsify/issues/774)) ([3a5f751](https://github.com/gjsify/gjsify/commit/3a5f751d35cca75c2e0a3c6d49c00868303f2b62)), closes [#57](https://github.com/gjsify/gjsify/issues/57)
+* **node-gi:** render the Adwaita Storybook on Windows ([#778](https://github.com/gjsify/gjsify/issues/778)) ([d67787a](https://github.com/gjsify/gjsify/commit/d67787aa5da9be004f377234ebd156f552721c9c)), closes [#57](https://github.com/gjsify/gjsify/issues/57)
+* **showcases:** run every slideshow demo on all four runtimes ([1093a05](https://github.com/gjsify/gjsify/commit/1093a05f70ce4b2b365b3b87de2823833fb2e74c)), closes [package.json#main](https://github.com/gjsify/package.json/issues/main)
+* **website:** render homepage tabs per verified runtime ([07ddf6a](https://github.com/gjsify/gjsify/commit/07ddf6a9efe6671ef8f32fbedb83a397b6682386))
+
+### Bug Fixes
+
+* **webaudio:** fail decode safely on bun/deno ([67332f5](https://github.com/gjsify/gjsify/commit/67332f5c5037d562c06491465a7d46fe5dde20db))
+
+### Performance Improvements
+
+* **node-gi:** bound the Windows co-pump to uv's timeout ([#772](https://github.com/gjsify/gjsify/issues/772)) ([7765ea3](https://github.com/gjsify/gjsify/commit/7765ea3712c4a08007334b81074c12c148b98882)), closes [#ifndef](https://github.com/gjsify/gjsify/issues/ifndef)
+
+### Documentation
+
+* **node-gi:** record bun teardown as not the deno class ([#775](https://github.com/gjsify/gjsify/issues/775)) ([02de49b](https://github.com/gjsify/gjsify/commit/02de49b10e652127b6ddf7ad09b47bf2a9be88dc)), closes [#58](https://github.com/gjsify/gjsify/issues/58) [#47](https://github.com/gjsify/gjsify/issues/47) [#58](https://github.com/gjsify/gjsify/issues/58)
+* **node-gi:** record deno teardown as not-fixable ([#773](https://github.com/gjsify/gjsify/issues/773)) ([e4cbc42](https://github.com/gjsify/gjsify/commit/e4cbc42a5cc3f9f899073fd5931d2231977a8207))
+
+### Continuous Integration
+
+* **node-gi:** prove reverse bridge builds + runs on macOS ([#767](https://github.com/gjsify/gjsify/issues/767)) ([5cac668](https://github.com/gjsify/gjsify/commit/5cac668aa2bd652e3ceae1776f287622195eb153))
+* **node-gi:** publish darwin gtk-runtime bundle ([#770](https://github.com/gjsify/gjsify/issues/770)) ([abef830](https://github.com/gjsify/gjsify/commit/abef8303b4916f8087bb7b67e0bf4f3fd6820e7b))
+
 ## [0.19.0](https://github.com/gjsify/gjsify/compare/v0.18.0...v0.19.0) (2026-07-19)
 
 ### Features
