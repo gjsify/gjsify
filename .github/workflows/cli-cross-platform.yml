@@ -1,0 +1,113 @@
+# DIAGNOSTIC: does the gjsify CLI toolchain run off-Linux?
+#
+# The main suite (main.yml) is 100% Fedora/Linux; the "cli-cross-runtime" job there
+# means JS-engine (node/bun/deno), not OS — all still on ubuntu. So `gjsify
+# install/build/run` has never been exercised on macOS or Windows. The node-gi
+# reverse bridge IS proven cross-OS (node-gi.yml), but that is the RUNTIME (running
+# GJS apps), not the toolchain.
+#
+# This runs the PUBLISHED @gjsify/cli under Node on macos-latest + windows-latest
+# through the real user path — install → build --app node → run — to get EVIDENCE
+# of what works vs. breaks. The published CLI is used deliberately: the repo's own
+# install bootstraps via the committed cli.gjs.mjs under `gjs`, which does not exist
+# off-Linux, so "can a user on a Mac/Windows use gjsify" == the npm-installed CLI.
+#
+# Each substantive step is continue-on-error so ONE run maps ALL the gaps at once
+# (version? build? run? the install backend?); the final summary fails the job if
+# the core path (version/build/run) broke, while surfacing every step's outcome.
+name: CLI cross-platform (Node / macOS + Windows)
+
+on:
+  workflow_dispatch:
+    inputs:
+      cli_version:
+        description: 'Published @gjsify/cli version/tag to test (default: latest)'
+        required: false
+        default: 'latest'
+  pull_request:
+    paths:
+      - '.github/workflows/cli-cross-platform.yml'
+  schedule:
+    # Weekly drift check (Mondays 05:00 UTC) so a released regression surfaces.
+    - cron: '0 5 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  cli-diag:
+    name: gjsify CLI under Node (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash # git-bash on windows-latest — one shell for both OSes
+    steps:
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # A fresh project that depends on the PUBLISHED @gjsify/cli — exactly what a
+      # user on this OS would have. npm wires the bin (a .cmd shim on Windows).
+      - name: Scaffold a minimal gjsify project (npm install @gjsify/cli)
+        env:
+          CLI_VERSION: ${{ github.event.inputs.cli_version || 'latest' }}
+        run: |
+          set -eux
+          mkdir gjsify-diag && cd gjsify-diag
+          npm init -y >/dev/null
+          npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund
+          # a minimal --app node entry that touches a node: builtin (stays external
+          # on the node target) so we exercise real bundling, not an empty file.
+          printf "import { platform, arch } from 'node:os';\nconsole.log('GJSIFY_DIAG_OK', platform(), arch());\n" > hello.ts
+          echo "installed @gjsify/cli: $(node -p "require('./node_modules/@gjsify/cli/package.json').version")"
+
+      - name: 'CLI loads: gjsify --version'
+        id: version
+        continue-on-error: true
+        working-directory: gjsify-diag
+        run: npx gjsify --version
+
+      - name: 'Build: gjsify build --app node'
+        id: build
+        continue-on-error: true
+        working-directory: gjsify-diag
+        run: npx gjsify build hello.ts --app node --outfile hello.node.mjs
+
+      - name: 'Run: node the built bundle'
+        id: run
+        continue-on-error: true
+        working-directory: gjsify-diag
+        run: |
+          node hello.node.mjs | tee run.out
+          grep -q "GJSIFY_DIAG_OK" run.out
+
+      - name: 'Install backend: gjsify install a dep'
+        id: install
+        continue-on-error: true
+        working-directory: gjsify-diag
+        run: npx gjsify install @gjsify/path
+
+      - name: Diagnostic summary
+        run: |
+          echo "## gjsify CLI on ${{ matrix.os }} (Node)" >> "$GITHUB_STEP_SUMMARY"
+          echo "| step | outcome |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| gjsify --version | ${{ steps.version.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| gjsify build --app node | ${{ steps.build.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| run the bundle | ${{ steps.run.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| gjsify install (backend) | ${{ steps.install.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "--- outcomes: version=${{ steps.version.outcome }} build=${{ steps.build.outcome }} run=${{ steps.run.outcome }} install=${{ steps.install.outcome }}"
+          # Core toolchain = version + build + run. install is reported but not yet
+          # gating (the backend's off-Linux gaps are a known follow-up).
+          if [ "${{ steps.version.outcome }}" = "success" ] && [ "${{ steps.build.outcome }}" = "success" ] && [ "${{ steps.run.outcome }}" = "success" ]; then
+            echo "CORE CLI PATH GREEN on ${{ matrix.os }}"
+          else
+            echo "CORE CLI PATH BROKEN on ${{ matrix.os }} — see the step outcomes above"
+            exit 1
+          fi
