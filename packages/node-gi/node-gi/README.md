@@ -484,7 +484,8 @@ classes (`class extends Gio.SimpleAction { … }`).
 
 Caveats (this is the no-toggle-ref object model): the user class's JS constructor
 body is not run — GObject-idiomatic init belongs in `vfunc_constructed`;
-instances are Proxies over a native handle (not real `instanceof` instances);
+instances are Proxies over a native handle (but `instanceof` still works — it is
+resolved through the GObject type system, see the `instanceof` note below);
 **plain (non-GObject-property) JS instance fields do NOT cross the
 vfunc↔instance boundary** — inside a vfunc, `this` is a distinct wrapper over the
 same GObject (the native engine mints a fresh handle per call, so there is no
@@ -777,17 +778,20 @@ byte-identical DOM events under node-gi and `gjs -m` — the same source builds
 is deterministic + display-independent (coords clamp to a fixed 400x300 allocation;
 key/code/modifiers derive from the Gdk marshalling), so byte-parity is stable.
 
-**Deferred node-gi gap (does not affect the behavior):** node-gi does not wire
-`instanceof` for GObject wrapper classes yet — `new Gtk.EventControllerMotion()
-instanceof Gtk.EventControllerMotion` is `false` (even for a freshly-constructed
-wrapper), because the per-GType wrappers are not set up as real JS classes with a
-prototype chain / `Symbol.hasInstance`. So the fixture cannot use the GJS spec's
-`ctrl instanceof Gtk.EventControllerMotion` controller filter; it retrieves
-controllers by ADD ORDER off `widget.observe_controllers()` instead (wrapper
-IDENTITY *is* preserved and `emit()` resolves the signal by the live GType, so the
-bridged behavior is unaffected). Wiring `instanceof` is a core object-model change
-(per-GType JS classes or a `Symbol.hasInstance` hook) — tracked as a native-engine
-follow-up. (A second gap the fixture originally routed around — `new
+**`instanceof` across the GObject hierarchy (GJS parity):** `instanceof` for GObject
+wrapper classes is wired through the GObject type system — each per-GType wrapper
+carries a `Symbol.hasInstance` that resolves via `g_type_is_a` (native
+`isInstanceOf`), so `new Gtk.EventControllerMotion() instanceof
+Gtk.EventControllerMotion` is `true`, and so is a base class (`… instanceof
+Gtk.EventController`), an implemented interface (`simpleAction instanceof Gio.Action`)
+and a `registerClass` subclass against its leaf / base / interface — while a sibling
+type, an unrelated class, a boxed/`Variant` handle, `null` or a plain object stay
+`false`. `test/instanceof.test.mjs` + the cross-runtime golden
+`conformance/programs/instanceof-hierarchy.conf.mjs` (gjs/node/bun/deno byte-identical)
+guard it. The event-bridge fixture retrieves controllers by ADD ORDER off
+`widget.observe_controllers()` as a stylistic choice (identity is preserved and
+`emit()` resolves the signal by the live GType) — no longer forced by a gap.
+(A second gap the fixture originally routed around — `new
 Gdk.Rectangle()` threw `no static method 'new'` — is FIXED: `new <BoxedStruct>()`
 now zero-allocates with GJS `gi/boxed.cpp` semantics when the struct has no `new`
 constructor (`Graphene.Rect`/`Point`, `Gdk.Rectangle`, `Gdk.RGBA` — the

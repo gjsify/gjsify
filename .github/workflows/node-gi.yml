@@ -284,7 +284,7 @@ jobs:
           xvfb-run -a dbus-run-session -- \
             env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
             node --test test/gtk-smoke.test.mjs test/adw-smoke.test.mjs \
-              test/windowing.test.mjs \
+              test/windowing.test.mjs test/windowing-interactive.test.mjs \
               test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs \
               test/gtk-template-signals.test.mjs \
               test/strv-construct.test.mjs test/interface-props.test.mjs
@@ -1356,15 +1356,17 @@ jobs:
           Test-Path packages/node-gi/node-gi/prebuilds/win32-x64/gtk/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
 
       # The windowing proof: a real Adw.ApplicationWindow realizes + renders a surface
-      # via the GSK renderer, with the bundle as the ONLY GTK. NODE_GI_NATIVE=prebuild
-      # loads the staged addon; the loader's PATH-prepend + windowing-env wiring makes
-      # the DLLs + schemas/loaders/icons resolve from the bundle. On win32 the test's
-      # display gate is IMPLICIT (no DISPLAY/WAYLAND_DISPLAY needed — the GdkWin32
-      # backend supplies it), so it runs here. GSK_RENDERER=cairo forces software
-      # rendering (no GPU on the runner).
-      - name: Windowing proof — Adw window realizes + renders (no gvsbuild GTK)
+      # via the GSK renderer, AND responds to input (a Gio action + a Gtk.Button::clicked
+      # drive the counter — the interactive proof runs headless, no visible desktop
+      # needed, same as the render-to-texture screenshot), with the bundle as the ONLY
+      # GTK. NODE_GI_NATIVE=prebuild loads the staged addon; the loader's PATH-prepend +
+      # windowing-env wiring makes the DLLs + schemas/loaders/icons resolve from the
+      # bundle. On win32 the test's display gate is IMPLICIT (no DISPLAY/WAYLAND_DISPLAY
+      # needed — the GdkWin32 backend supplies it), so it runs here. GSK_RENDERER=cairo
+      # forces software rendering (no GPU on the runner).
+      - name: Windowing proof — Adw window realizes, renders + reacts (no gvsbuild GTK)
         working-directory: packages/node-gi/node-gi
         env:
           NODE_GI_NATIVE: prebuild
           GSK_RENDERER: cairo
-        run: node --test test/windowing.test.mjs
+        run: node --test test/windowing.test.mjs test/windowing-interactive.test.mjs
