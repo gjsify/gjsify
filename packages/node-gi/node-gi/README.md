@@ -957,9 +957,12 @@ renderer on node-gi — the same in-process capture path `@gjsify/devtools`'
 `Gsk.Renderer.render_texture` → `Gdk.Texture.save_to_png_bytes`. A non-empty PNG
 is the unambiguous proof that a `GdkSurface` was allocated + a GSK render tree
 rasterised — not reachable by any headless program. Guarded by
-`test/windowing.test.mjs` (self-skips without a display on Linux; the win32/darwin
-GDK backend supplies its own display, so it runs there), wired into the Linux
-`gtk-smoke` + the Windows batteries-included windowing CI jobs. The
+`test/windowing.test.mjs` + `test/windowing-interactive.test.mjs` (an
+`Adw.ApplicationWindow` that RESPONDS to a `Gio.SimpleAction` + a
+`Gtk.Button::clicked` through the node-gi signal chain) + `test/widgets.test.mjs`
+(the Adwaita widget breadth below) — all self-skip without a display on Linux (the
+win32/darwin GDK backend supplies its own display, so they run there), wired into
+the Linux `gtk-smoke` + the Windows windowing CI jobs. The
 `showcases/gtk/node-gi-window` showcase runs the SAME single source on both GJS
 and Node and screenshots the live window over the `org.gjsify.Devtools` DBus
 surface.
@@ -991,6 +994,38 @@ Fontconfig config/cache. node-gi's loader (`gtk-runtime.js`
 marker and wires the env (`GSETTINGS_SCHEMA_DIR` / `GDK_PIXBUF_MODULE_FILE` /
 `XDG_DATA_DIRS` / `FONTCONFIG_*`); a display-free bundle carries no marker, so the
 wiring is a strict no-op and that load is byte-unchanged.
+
+### Adwaita widget breadth realizes + reacts + renders
+
+Beyond one window's chrome: a representative slice of the REAL Libadwaita widget
+set constructs, RENDERS and REACTS on node-gi. `test/widgets.test.mjs` builds an
+`Adw.PreferencesPage` / `Adw.PreferencesGroup` of `Adw.ActionRow`, `Adw.SwitchRow`,
+`Adw.EntryRow`, `Adw.ComboRow` (a `Gtk.StringList` model), `Adw.SpinRow` (a
+`Gtk.Adjustment`) and `Adw.ExpanderRow`, plus a `Gtk.ListBox` and a dismissible
+`Adw.Toast` via an `Adw.ToastOverlay`. Two tiers, robust on a runner whose surface
+may or may not realize:
+
+- **DumpTree** — the widget tree contains every expected type (`AdwSwitchRow`,
+  `AdwComboRow`, `AdwEntryRow`, `AdwSpinRow`, `AdwExpanderRow`, `AdwPreferencesPage`,
+  `GtkListBox`, …), read via the runtime GType (`$typeName`) the `@gjsify/devtools`
+  DumpTree uses — so each class constructs + parents correctly through node-gi.
+- **Interaction** — toggling the switch, changing the combo selection, moving the
+  spin value, expanding the expander and setting the entry text all drive
+  OBSERVABLE property changes AND fire their paired `notify::<prop>` handlers, and a
+  toast add → `dismiss()` fires `::dismissed`. This surfaces the `Gtk.StringList` /
+  `Gtk.Adjustment` model marshalling (GListModel + object construct props),
+  `notify::` property signals and the boxed-model paths — all display-independent, so
+  the interaction + DumpTree tier holds headless on Windows CI.
+- **Render** — when the surface realizes, the whole preferences surface rasterises
+  through the GSK renderer (a non-empty PNG), the strong proof the broad widget set
+  renders, not just constructs.
+
+The same widgets back the `showcases/gtk/node-gi-window` "Settings" view (an
+`Adw.ViewStack` page reachable from the bottom `Adw.ViewSwitcherBar`, beside the
+counter). No engine change and no windowing-bundle change were needed: the rows are
+core GTK4/Adwaita widgets backed by the already-bundled `gtk-4-*.dll` / `libadwaita-1`
+and the full Adwaita icon theme + compiled schemas the `--windowing` bundle already
+ships.
 
 Scoped out of the capstone fixture itself (deliberately): the Gst audio
 DECODE/playback path (`decodeAudioData`, `autoaudiosink`) — construction is
