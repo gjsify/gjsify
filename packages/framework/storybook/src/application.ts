@@ -8,6 +8,7 @@ import GObject from '@girs/gobject-2.0';
 import Gtk from '@girs/gtk-4.0';
 import { installDevtools } from '@gjsify/devtools';
 import { storybookDevtoolsExtension } from './devtools-extension.js';
+import { installStorybookProbe, probeEnabled, type StorybookProbeOptions } from './probe.js';
 import type { StoryModule } from './story-widget.js';
 import { STORYBOOK_CSS } from './styles.js';
 import { StorybookWindow } from './window.js';
@@ -24,6 +25,8 @@ export interface StorybookOptions {
     css?: string;
     /** Force-enable the devtools control plane (otherwise gated on `GJSIFY_DEVTOOLS`). */
     devtools?: boolean;
+    /** Self-verification probe options (only used when `GJSIFY_STORYBOOK_PROBE` is set). */
+    probe?: StorybookProbeOptions;
 }
 
 /**
@@ -79,6 +82,12 @@ export class StorybookApplication extends Adw.Application {
                 enabled: this._options.devtools || undefined,
                 extend: [storybookDevtoolsExtension(this._window)],
             });
+            // Opt-in self-verification: when GJSIFY_STORYBOOK_PROBE is set, drive
+            // the storybook headlessly (categories + chrome + a story render +
+            // GSK screenshot) and quit with a PASS/FAIL exit — a no-op otherwise.
+            if (probeEnabled()) {
+                installStorybookProbe(this, this._window, this._options.probe);
+            }
         }
         this._window.present();
     }

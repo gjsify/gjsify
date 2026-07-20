@@ -241,6 +241,10 @@ jobs:
     name: GTK/Adw smoke (Node + Xvfb / Fedora 44)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # The storybook proof (last step) runs the prebuilt --app node storybook
+    # bundle the storybook-node-gi-bundle job produced — the Linux parity of the
+    # windows-gtk-storybook capstone (same bundle, both platforms).
+    needs: storybook-node-gi-bundle
     container:
       image: fedora:44
     steps:
@@ -249,7 +253,7 @@ jobs:
           dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
             git gcc-c++ make python3 pkgconf-pkg-config tar xz gjs \
             glib2-devel gobject-introspection-devel gobject-introspection \
-            gtk4-devel libadwaita-devel \
+            gtk4-devel libadwaita-devel adwaita-icon-theme \
             xorg-x11-server-Xvfb dbus-daemon dbus-x11 mesa-dri-drivers
           gjs --version
           echo "gtk4: $(pkg-config --modversion gtk4)"
@@ -310,6 +314,41 @@ jobs:
           xvfb-run -a dbus-run-session -- \
             env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
             node --test dual.e2e.mjs
+
+      # Storybook capstone (Linux parity of windows-gtk-storybook): the SAME
+      # prebuilt `--app node` Adwaita-Storybook bundle the storybook-node-gi-bundle
+      # job produced, run on Node via the reverse bridge. `GJSIFY_STORYBOOK_PROBE`
+      # drives it headlessly (no DBus): asserts the sidebar lists the component
+      # categories, the storybook chrome is in the widget tree, a representative
+      # story (Boxed Lists/Switch Row) opens + renders an AdwSwitchRow subtree, and
+      # the window rasterises to a non-empty GSK PNG — then quits 0/1. The bundle is
+      # placed IN the node-gi package dir so its external `@gjsify/node-gi/gi` import
+      # self-resolves (Node package self-reference); NODE_GI_NATIVE=build loads the
+      # node-gyp addon this job built. System GTK + Xvfb here; the Windows leg proves
+      # the same bundle on the batteries-included --windowing bundle with no gvsbuild.
+      - name: Download the Adwaita Storybook --app node bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: storybook-node-gi-bundle
+          path: packages/node-gi/node-gi
+
+      - name: Storybook proof — full Adwaita gallery renders on node-gi (system GTK, xvfb)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: build
+          GJSIFY_STORYBOOK_PROBE: '1'
+          GJSIFY_STORYBOOK_PROBE_STORY: 'Boxed Lists/Switch Row'
+          GJSIFY_STORYBOOK_PROBE_STORY_WIDGET: 'AdwSwitchRow'
+          GJSIFY_STORYBOOK_PROBE_OUT: storybook-probe.json
+        run: |
+          set +e
+          xvfb-run -a dbus-run-session -- \
+            env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
+            node storybook.node.mjs
+          code=$?
+          set -e
+          echo "--- probe result ---"; cat storybook-probe.json 2>/dev/null || true
+          exit $code
 
   # Second real consumer of the node-gi reverse bridge (ADR-0005 graduation-gate
   # item: "a second real consumer using the dual-build"; consumer #1 is
@@ -1378,3 +1417,183 @@ jobs:
           NODE_GI_NATIVE: prebuild
           GSK_RENDERER: cairo
         run: node --test test/windowing.test.mjs test/windowing-interactive.test.mjs test/widgets.test.mjs
+
+  # Adwaita Storybook capstone — BUILD the `--app node` bundle. The full
+  # @gjsify/storybook Libadwaita component gallery (showcases/gtk/adwaita-storybook,
+  # 35 *.story.ts) built for the node-gi reverse bridge via
+  # `gjsify storybook --runtime node` (consumer #1 of the reverse bridge). node-gi is
+  # kept EXTERNAL, so this build needs NO C++ toolchain / GTK / display — just the
+  # workspace + a Node bundler. Uploads the single-file bundle for BOTH the Linux
+  # parity leg (gtk-smoke) and the Windows capstone (windows-gtk-storybook).
+  #
+  # BUILD ENGINE — under Node, not GJS (same rationale as consumer-sqlite): the
+  # workspace `.bin/gjsify` is GJS-first and its `gjsify build` needs
+  # `@gjsify/rolldown-native` (a vala/meson prebuild absent in this container), so
+  # every build here runs under Node via a published `@gjsify/cli` (npm rolldown).
+  storybook-node-gi-bundle:
+    name: Adwaita Storybook --app node bundle (build / Node / Fedora 44)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: fedora:44
+    steps:
+      # libsoup3 supplies the Soup-3.0 typelib the committed `cli.gjs.mjs` GJS
+      # bundle EAGERLY imports at load (the network commands' fetch chain) — any
+      # `gjsify` CLI invocation via the GJS bundle crashes without it, so the
+      # `gjsify install` step below needs it (same as the other CLI-running jobs).
+      - name: Install toolchain + gjs + libsoup (Node-free workspace install)
+        run: |
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
+            git gcc-c++ make python3 pkgconf-pkg-config tar xz unzip \
+            glib2-devel gobject-introspection-devel gobject-introspection gjs \
+            cairo-devel cairo-gobject-devel \
+            libsoup3
+          gjs --version
+
+      # Official nodejs.org build, NOT Fedora's dnf node (which crashes rolldown's
+      # prebuilt napi binding — the gjsify bundler engine).
+      - name: Use official Node.js (Fedora's dnf node crashes the bundler)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Node-free workspace install via the committed CLI bundle (the supported
+      # `gjsify install --immutable` path). The showcase depends on workspace
+      # `@gjsify/storybook` (+ deps) which must be present + built.
+      - name: Install the gjsify workspace (committed CLI bundle, Node-free)
+        run: gjs -m packages/infra/cli/dist/cli.gjs.mjs install --immutable
+
+      # Repoint the workspace `.bin/gjsify` at a Node-runnable published @gjsify/cli
+      # (npm rolldown), NOT the committed GJS bundle (which needs the absent
+      # @gjsify/rolldown-native). Install the version the workspace pins.
+      - name: Use a published @gjsify/cli as the Node bundler (npm rolldown)
+        run: |
+          CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
+          mkdir -p /tmp/gjsify-node-cli
+          ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
+            && npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save )
+          ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
+          echo "Node bundler: $(node_modules/.bin/gjsify --version)"
+
+      # Build @gjsify/storybook's lib (+ its transitive workspace deps incl.
+      # @gjsify/devtools, which the storybook probe uses) so the showcase bundle
+      # resolves them. build:gjsify (the --library step) emits lib/esm/*.js, which is
+      # all the --app node bundle inlines — no .d.ts emit needed here.
+      - name: Build @gjsify/storybook lib under Node (+ workspace deps)
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify workspace @gjsify/storybook build:gjsify --with-dependencies
+
+      # `gjsify storybook --runtime node --build-only` discovers the showcase's
+      # *.story.ts, generates the entry, and builds it --app node (gi:// → requireGi,
+      # @gjsify/node-gi external). Assert it is a real node-gi bundle.
+      - name: Build the Adwaita Storybook --app node bundle
+        working-directory: showcases/gtk/adwaita-storybook
+        run: |
+          export PATH="$PWD/../../../node_modules/.bin:$PATH"
+          gjsify storybook --runtime node --build-only --out dist/storybook.node.mjs
+          node --check dist/storybook.node.mjs
+          grep -q requireGi dist/storybook.node.mjs
+          grep -q "@gjsify/node-gi" dist/storybook.node.mjs
+          if grep -q "gi://" dist/storybook.node.mjs; then echo "raw gi:// left in bundle"; exit 1; fi
+          echo "storybook --app node bundle OK ($(wc -c < dist/storybook.node.mjs) bytes)"
+
+      - name: Upload the storybook --app node bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: storybook-node-gi-bundle
+          path: showcases/gtk/adwaita-storybook/dist/storybook.node.mjs
+          if-no-files-found: error
+
+  # Windows Adwaita Storybook capstone — PROVE the FULL @gjsify Libadwaita component
+  # gallery realizes + renders on windows-latest via node-gi, with the batteries-
+  # included FULL-windowing GTK bundle as the ONLY GTK (NEVER installs gvsbuild).
+  # Mirrors windows-gtk-windowing: download the --windowing bundle + the win32 addon
+  # prebuild into the sibling prebuilds/ layout, PLUS the prebuilt --app node storybook
+  # bundle (storybook-node-gi-bundle). The bundle is placed IN the node-gi package dir
+  # so its external `@gjsify/node-gi/gi` import self-resolves (Node package self-
+  # reference). GJSIFY_STORYBOOK_PROBE drives it headlessly IN-PROCESS (no DBus session
+  # bus — robust on windows-latest): the StorybookApplication window realizes, the
+  # sidebar lists the component categories, a representative story (Boxed Lists/Switch
+  # Row) opens + renders an AdwSwitchRow subtree (DumpTree), and the window rasterises
+  # to a non-empty PNG via the GSK renderer (Screenshot) — then quits 0/1. On win32 the
+  # display gate is implicit (GdkWin32 supplies the surface); GSK_RENDERER=cairo forces
+  # software rendering. node-gi's loader wires the windowing bundle (PATH for the DLLs +
+  # GSETTINGS_SCHEMA_DIR / GDK_PIXBUF_MODULE_FILE / XDG_DATA_DIRS for schemas/loaders/
+  # icons) off the gschemas.compiled marker.
+  windows-gtk-storybook:
+    name: Windows Adwaita Storybook proof (no gvsbuild / windows-latest x64)
+    runs-on: windows-latest
+    needs: [windows, windows-gtk-windowing-runtime, storybook-node-gi-bundle]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # Never installs gvsbuild. Hard-fail if a gvsbuild GTK tree is present (it would
+      # muddy the proof — the windowing bundle must be the ONLY GTK).
+      - name: Assert gvsbuild GTK is NOT present (clean host)
+        shell: pwsh
+        run: |
+          if (Test-Path 'C:\gtk-build\gtk\x64\release\bin\glib-2.0-0.dll') {
+            Write-Host "gvsbuild GTK is present — not a clean storybook test"
+            exit 1
+          }
+          Write-Host "clean host — gvsbuild GTK was never installed in this job"
+
+      # Stage the windowing bundle + addon prebuild in the sibling layout node-gi's
+      # loader expects (prebuilds/win32-x64/{node_gi.node, gtk/}), plus the storybook
+      # bundle IN the package dir (self-reference resolves @gjsify/node-gi/gi).
+      - name: Download FULL-windowing GTK runtime bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: gtk-runtime-win32-x64-windowing
+          path: packages/node-gi/node-gi/prebuilds/win32-x64/gtk
+
+      - name: Download node-gi addon prebuild (from the windows job)
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-win32-x64
+          path: packages/node-gi/node-gi/prebuilds/win32-x64
+
+      - name: Download the Adwaita Storybook --app node bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: storybook-node-gi-bundle
+          path: packages/node-gi/node-gi
+
+      - name: Verify staged layout
+        shell: pwsh
+        run: |
+          Get-ChildItem packages/node-gi/node-gi/prebuilds/win32-x64
+          "storybook bundle: $(Test-Path packages/node-gi/node-gi/storybook.node.mjs)"
+          "schemas: $(Test-Path packages/node-gi/node-gi/prebuilds/win32-x64/gtk/share/glib-2.0/schemas/gschemas.compiled)"
+          "loaders: $(Test-Path packages/node-gi/node-gi/prebuilds/win32-x64/gtk/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache)"
+
+      # The capstone: the full Adwaita gallery renders on node-gi from the windowing
+      # bundle. NODE_GI_NATIVE=prebuild loads the staged addon; the loader's PATH-prepend
+      # + windowing-env wiring resolves the DLLs + schemas/loaders/icons from the bundle.
+      - name: Storybook proof — full Adwaita gallery renders on node-gi (no gvsbuild GTK)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+          GSK_RENDERER: cairo
+          GJSIFY_STORYBOOK_PROBE: '1'
+          GJSIFY_STORYBOOK_PROBE_STORY: 'Boxed Lists/Switch Row'
+          GJSIFY_STORYBOOK_PROBE_STORY_WIDGET: 'AdwSwitchRow'
+          GJSIFY_STORYBOOK_PROBE_OUT: storybook-probe.json
+        shell: pwsh
+        run: |
+          node storybook.node.mjs
+          $code = $LASTEXITCODE
+          Write-Host "--- probe result ---"
+          if (Test-Path storybook-probe.json) { Get-Content storybook-probe.json }
+          exit $code

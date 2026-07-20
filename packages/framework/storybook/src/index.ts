@@ -31,5 +31,7 @@ export { StorybookWindow } from './window.js';
 export { storybookDevtoolsExtension } from './devtools-extension.js';
 export { StorybookApplication, type StorybookOptions } from './application.js';
 export { runStorybook } from './run.js';
+export { installStorybookProbe, probeEnabled } from './probe.js';
+export type { StorybookProbeOptions, StorybookProbeResult } from './probe.js';
 export { collectStoryModules } from './discover.js';
 export type { StoryRow } from './types.js';
