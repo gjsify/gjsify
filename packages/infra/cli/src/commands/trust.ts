@@ -17,10 +17,10 @@
 // Reference: refs/npm-cli/lib/trust-cmd.js + lib/commands/trust/github.js.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { type Dirent, existsSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { DEFAULT_REGISTRY, buildHeaders, registryFor, whoami, type NpmrcConfig } from '@gjsify/npm-registry';
-import { discoverWorkspaces, filterWorkspaces } from '@gjsify/workspace';
+import { discoverWorkspaces, filterWorkspaces, type Workspace } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { hasAnyCredential, loadNpmrc } from '../utils/load-npmrc.js';
 import { OtpProvider, withOtpRetry } from '../utils/npm-otp.js';
@@ -33,6 +33,56 @@ import {
     validateRepository,
     type TrustEntry,
 } from '../utils/trust-registry.js';
+
+/**
+ * Publishable packages under `packages/node-gi/*` that are NOT root workspaces
+ * (the workspaces glob excludes `packages/node-gi/*`) yet publish via release.yml —
+ * `@gjsify/node-gi` + the `@gjsify/gtk-runtime-*` bundles. `discoverWorkspaces`
+ * misses them, so `gjsify trust` would never configure their Trusted Publisher.
+ * Enumerate them here as Workspace-shaped entries so the sweep covers them too.
+ * Best-effort: a missing dir / unreadable manifest is simply skipped.
+ */
+function discoverNodeGiPublishables(cwd: string): Workspace[] {
+    // Walk up from cwd to the repo root — the dir that holds `packages/node-gi` —
+    // so the command works from the root or any subdirectory.
+    let root = cwd;
+    for (let i = 0; i < 8; i++) {
+        if (existsSync(join(root, 'packages', 'node-gi'))) break;
+        const parent = dirname(root);
+        if (parent === root) return [];
+        root = parent;
+    }
+    const base = join(root, 'packages', 'node-gi');
+    if (!existsSync(base)) return [];
+    const out: Workspace[] = [];
+    let entries: Dirent[];
+    try {
+        entries = readdirSync(base, { withFileTypes: true });
+    } catch {
+        return [];
+    }
+    for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const location = join(base, entry.name);
+        const pkgPath = join(location, 'package.json');
+        if (!existsSync(pkgPath)) continue;
+        try {
+            const manifest = JSON.parse(readFileSync(pkgPath, 'utf8'));
+            if (!manifest || typeof manifest.name !== 'string' || manifest.name.length === 0) continue;
+            out.push({
+                location,
+                relativeLocation: join('packages', 'node-gi', entry.name),
+                name: manifest.name,
+                version: typeof manifest.version === 'string' ? manifest.version : '0.0.0',
+                manifest,
+                private: manifest.private === true,
+            });
+        } catch {
+            /* unreadable / malformed — skip */
+        }
+    }
+    return out;
+}
 
 interface TrustOptions {
     packages?: string[];
@@ -172,13 +222,20 @@ export const trustCommand: Command<unknown, TrustOptions> = {
 
         // Publishable workspaces: non-private by default, optionally name-filtered.
         const all = discoverWorkspaces(cwd, { includeRoot: true });
-        const selected = filterWorkspaces(all, {
+        // PLUS the publishable packages/node-gi/* packages (node-gi + gtk-runtime-*),
+        // which publish via release.yml but are NOT root workspaces, so
+        // discoverWorkspaces misses them and their Trusted Publisher would never get
+        // configured. Dedup by name so a real workspace always wins.
+        const workspaceNames = new Set(all.map((ws) => ws.name));
+        const extra = discoverNodeGiPublishables(cwd).filter((ws) => !workspaceNames.has(ws.name));
+        const merged = [...all, ...extra];
+        const selected = filterWorkspaces(merged, {
             noPrivate: args.private !== true,
             include: args.packages && args.packages.length > 0 ? args.packages : undefined,
         }).filter((ws) => ws.name);
 
         if (selected.length === 0) {
-            console.error('gjsify trust: no publishable workspace packages matched.');
+            console.error('gjsify trust: no publishable packages matched.');
             process.exit(1);
         }
 
