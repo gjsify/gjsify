@@ -947,6 +947,71 @@ jobs:
           NODE_GI_NATIVE: prebuild
         run: node scripts/cross-runtime.mjs node
 
+  # Build the WINDOWING superset darwin bundle — the display-free macos-gtk-runtime
+  # bundle omits libadwaita (conformance never touches Adwaita), so a real
+  # `new Adw.Application()` fails on it with "Failed to load shared library
+  # 'libadwaita-1.0.dylib'". This variant passes `--windowing` so build-gtk-runtime.mjs
+  # seeds libadwaita into the relocated closure. Mirrors windows-gtk-windowing-runtime;
+  # feeds the macos-gtk-windowing GUI proof below.
+  macos-gtk-windowing-runtime:
+    name: macOS windowing GTK runtime bundle (build + relocate / macos-latest arm64)
+    runs-on: macos-latest
+    needs: macos
+    timeout-minutes: 30
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+    steps:
+      - name: Install GTK4 + Adwaita + GObject-Introspection (build-time closure source)
+        run: brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download node-gi addon prebuild (from the macos job)
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-darwin-arm64
+          path: addon
+
+      # --windowing adds libadwaita (+ its otool deps) to the relocated closure.
+      - name: Build + relocate the WINDOWING GTK runtime bundle
+        run: |
+          node packages/node-gi/gtk-runtime-darwin-arm64/scripts/build-gtk-runtime.mjs \
+            --windowing \
+            --out packages/node-gi/gtk-runtime-darwin-arm64/gtk \
+            --addon "$PWD/addon/node_gi.node" \
+            --stage packages/node-gi/node-gi/prebuilds/darwin-arm64
+
+      - name: Report bundle + assert libadwaita is present
+        run: |
+          cat packages/node-gi/gtk-runtime-darwin-arm64/gtk/manifest.json
+          echo "--- bundle size ---"; du -sh packages/node-gi/gtk-runtime-darwin-arm64/gtk
+          echo "--- assert libadwaita relocated into the bundle ---"
+          ls packages/node-gi/gtk-runtime-darwin-arm64/gtk/lib | grep -i adwaita || { echo "libadwaita MISSING from the windowing bundle"; exit 1; }
+          echo "--- assert NO /opt/homebrew refs remain ---"
+          if otool -L packages/node-gi/gtk-runtime-darwin-arm64/gtk/lib/*.dylib | grep -F /opt/homebrew; then
+            echo "RELOCATION FAILED: bundled dylibs still reference /opt/homebrew"; exit 1
+          fi
+          echo "clean — no Homebrew references"
+
+      - name: Upload windowing GTK runtime bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtk-runtime-darwin-arm64-windowing
+          path: packages/node-gi/gtk-runtime-darwin-arm64/gtk
+
+      - name: Upload relocated node-gi addon (windowing)
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-gi-addon-relocated-darwin-arm64-windowing
+          path: packages/node-gi/node-gi/prebuilds/darwin-arm64/node_gi.node
+
   # macOS GUI proof — the darwin counterpart of windows-gtk-windowing. macOS had
   # build + display-free conformance + the batteries-included bundle, but no
   # ON-SCREEN render proof; this closes that gap so the cross-platform story is
@@ -963,7 +1028,7 @@ jobs:
   macos-gtk-windowing:
     name: macOS windowing proof (no brew GTK / macos-latest arm64)
     runs-on: macos-latest
-    needs: macos-gtk-runtime
+    needs: macos-gtk-windowing-runtime
     timeout-minutes: 30
     steps:
       - name: Use Node.js 24
@@ -984,19 +1049,20 @@ jobs:
           fi
           echo "clean host — the GTK toolkit was never brew-installed in this job"
 
-      # Stage the bundle + relocated addon in the sibling layout node-gi's loader
-      # expects (prebuilds/darwin-arm64/{node_gi.node, gtk/}); the addon's @rpath is
-      # @loader_path/gtk/lib. Same artifacts as macos-gtk-batteries-included.
-      - name: Download GTK runtime bundle
+      # Stage the WINDOWING bundle + relocated addon in the sibling layout node-gi's
+      # loader expects (prebuilds/darwin-arm64/{node_gi.node, gtk/}); the addon's
+      # @rpath is @loader_path/gtk/lib. From macos-gtk-windowing-runtime (libadwaita
+      # included), NOT the display-free macos-gtk-runtime bundle.
+      - name: Download WINDOWING GTK runtime bundle
         uses: actions/download-artifact@v4
         with:
-          name: gtk-runtime-darwin-arm64
+          name: gtk-runtime-darwin-arm64-windowing
           path: packages/node-gi/node-gi/prebuilds/darwin-arm64/gtk
 
-      - name: Download relocated node-gi addon
+      - name: Download relocated node-gi addon (windowing)
         uses: actions/download-artifact@v4
         with:
-          name: node-gi-addon-relocated-darwin-arm64
+          name: node-gi-addon-relocated-darwin-arm64-windowing
           path: packages/node-gi/node-gi/prebuilds/darwin-arm64
 
       - name: Verify staged layout
