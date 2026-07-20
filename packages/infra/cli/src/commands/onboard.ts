@@ -11,20 +11,22 @@
 //      for credentials; only when it is dead/missing do we run the `gjsify
 //      login` flow (unless `--yes` on a non-TTY, which fails clearly).
 //   2. Enumerate publishable workspaces (non-private, excluding `@girs/*`).
-//   3. Determine each package's state CONCURRENTLY (bounded) by reading npm's
-//      Trusted-Publisher config: unpublished (404) / published-but-untrusted /
-//      published-and-trusted. Reads never prompt for 2FA.
+//   3. Determine each package's state (bounded concurrency) by reading npm's
+//      Trusted-Publisher config through the SAME requester path `gjsify trust`
+//      uses: unpublished (404) / published-but-untrusted / published-and-trusted.
+//      A 2FA-gated read is answered with the shared OTP (the first read is
+//      serial so the prompt happens once); a transient 401 is retried once.
 //   4. Act on the gaps, minimally: build+publish+trust an unpublished package;
 //      trust a published-but-untrusted one; skip an already-done one.
-//   5. Share ONE OTP across every publish + trust operation — the cached code
-//      is tried before prompting, so a whole sweep of N packages typically
+//   5. Share ONE OTP across every read + publish + trust operation — the cached
+//      code is tried before prompting, so a whole sweep of N packages typically
 //      needs the user to type an OTP only once (see utils/npm-otp.ts).
 //
 // Re-running when everything is already published + trusted does nothing and
 // exits 0. `--dry-run` reports the plan and changes nothing.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { DEFAULT_REGISTRY, buildHeaders, registryFor, whoami, type NpmrcConfig } from '@gjsify/npm-registry';
+import { DEFAULT_REGISTRY, whoami, type NpmrcConfig } from '@gjsify/npm-registry';
 import { discoverWorkspaces, filterWorkspaces, type Workspace } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { hasAnyCredential, loadNpmrc } from '../utils/load-npmrc.js';
@@ -35,14 +37,12 @@ import { runLogin, LoginError } from './login.js';
 import { detectPackageManager } from './workspace.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import {
-    classifyTrustList,
     githubTrustBody,
     normalizeWorkflowFile,
     parseRepoFromGitRemote,
-    trustUrl,
     validateRepository,
-    type TrustState,
 } from '../utils/trust-registry.js';
+import { DEFAULT_PROBE_CONCURRENCY, probeAllTrustStates, type PkgPlan } from '../utils/onboard-probe.js';
 
 interface OnboardOptions {
     repository?: string;
@@ -54,18 +54,6 @@ interface OnboardOptions {
     'dry-run'?: boolean;
     json?: boolean;
     yes?: boolean;
-}
-
-/** What a package needs, computed from its published + trust state. */
-type PkgAction = 'skip' | 'trust' | 'publish-and-trust' | 'blocked';
-
-interface PkgPlan {
-    ws: Workspace;
-    registry: string;
-    url: string;
-    state: TrustState;
-    httpStatus: number;
-    action: PkgAction;
 }
 
 /** Per-package outcome after the act phase (for the JSON summary). */
@@ -105,9 +93,10 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
                 type: 'string',
             })
             .option('concurrency', {
-                description: 'How many packages to probe (read state) in parallel.',
+                description:
+                    'How many packages to probe (read state) in parallel (kept small so a single token does not burst npm; the first read is always serial to prompt for the shared OTP once).',
                 type: 'number',
-                default: 8,
+                default: DEFAULT_PROBE_CONCURRENCY,
             })
             .option('dry-run', {
                 description: 'Report the plan (what would be published / trusted) without changing anything.',
@@ -195,16 +184,29 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
         if (dryRun) log('(dry-run — nothing will be published or configured)');
         log();
 
-        // 3. Determine per-package state CONCURRENTLY. Reads use a plain
-        // authenticated GET (no OTP prompting — a 401 becomes `auth-required`).
-        const plans = await mapWithConcurrency(selected, Math.max(1, args.concurrency), (ws) =>
-            probeTrustState(ws, {
-                registryOverride: args.registry,
-                npmrc,
-                repository,
-                workflow,
-            }),
-        );
+        // Shared OTP provider + trust requester, built ONCE up front so the
+        // state-READ probes AND the act-phase writes share ONE OTP (typed once
+        // for the whole sweep, cache-first — the file cache in utils/npm-otp.ts
+        // extends that reuse across sibling `gjsify` invocations). The provider
+        // is scoped to the default registry so the file cache keys correctly.
+        const otpProvider = new OtpProvider(args.otp, nonInteractive ? async () => '' : undefined, {
+            registry: defaultRegistry,
+        });
+        const trustRequest = createTrustRequester({ npmrc, otpProvider });
+
+        // 3. Determine per-package state. Reads run through the SAME
+        // `TrustRequester` path `gjsify trust` uses (identical endpoint + auth +
+        // OTP handling) — so a 2FA-gated trust-state read is answered with the
+        // shared code instead of the plain-fetch 401→`unreadable` cascade
+        // (task #60). The first read is serial (prompts for the shared OTP once,
+        // before the burst); the rest run at a SMALL concurrency cap so a single
+        // token never faces a 127-wide parallel read.
+        const plans = await probeAllTrustStates(trustRequest, selected, Math.max(1, args.concurrency), {
+            registryOverride: args.registry,
+            npmrc,
+            repository,
+            workflow,
+        });
 
         // Summary table (published✓ / trusted✓ vs work to do).
         const toPublish = plans.filter((p) => p.action === 'publish-and-trust');
@@ -238,9 +240,8 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
         }
 
         // 4. Act on the gaps, minimally. Publishes + trust POSTs run SERIALLY so
-        // the shared OTP is prompted at most once (and reused everywhere).
-        const otpProvider = new OtpProvider(args.otp, nonInteractive ? async () => '' : undefined);
-        const trustRequest = createTrustRequester({ npmrc, otpProvider });
+        // the shared OTP is prompted at most once (and reused everywhere) —
+        // reusing the `otpProvider` + `trustRequest` built for the probe phase.
         const trustBody = githubTrustBody({ repository, workflow, environment });
 
         let failed = 0;
@@ -421,52 +422,6 @@ async function ensureAuthenticated(ctx: {
     }
 }
 
-/**
- * Read a package's current published + trust state via a plain authenticated
- * GET on its trust config (no OTP prompting). 404 → unpublished; a matching
- * github entry → trusted; otherwise → published-but-untrusted.
- */
-async function probeTrustState(
-    ws: Workspace,
-    ctx: { registryOverride?: string; npmrc: NpmrcConfig; repository: string; workflow: string },
-): Promise<PkgPlan> {
-    const registry = ctx.registryOverride ?? registryFor(ws.name, ctx.npmrc) ?? DEFAULT_REGISTRY;
-    const url = trustUrl(registry, ws.name);
-    let state: TrustState = 'error';
-    let httpStatus = 0;
-    try {
-        const headers = buildHeaders(url, { npmrc: ctx.npmrc });
-        headers['accept'] = 'application/json';
-        const res = await fetch(url, { method: 'GET', headers });
-        httpStatus = res.status;
-        const text = await res.text().catch(() => '');
-        let json: unknown = undefined;
-        try {
-            json = text ? JSON.parse(text) : undefined;
-        } catch {
-            /* non-JSON body */
-        }
-        state = classifyTrustList(res.status, json, { repository: ctx.repository, workflow: ctx.workflow });
-    } catch {
-        state = 'error';
-    }
-    let action: PkgAction;
-    switch (state) {
-        case 'trusted':
-            action = 'skip';
-            break;
-        case 'untrusted':
-            action = 'trust';
-            break;
-        case 'unpublished':
-            action = 'publish-and-trust';
-            break;
-        default:
-            action = 'blocked'; // auth-required / error — can't determine
-    }
-    return { ws, registry, url, state, httpStatus, action };
-}
-
 /** Run the package's `build` script (if it declares one) before publishing. */
 async function buildIfPresent(ws: Workspace, log: (msg?: string) => void): Promise<void> {
     const scripts = (ws.manifest.scripts as Record<string, string> | undefined) ?? {};
@@ -503,19 +458,4 @@ function describePublishFailure(pub: Awaited<ReturnType<typeof publishWorkspace>
         default:
             return 'unknown';
     }
-}
-
-/** Map with bounded concurrency, preserving input order in the result. */
-async function mapWithConcurrency<T, R>(items: readonly T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-    const results: R[] = Array.from({ length: items.length });
-    let next = 0;
-    const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-        while (true) {
-            const i = next++;
-            if (i >= items.length) return;
-            results[i] = await fn(items[i]);
-        }
-    });
-    await Promise.all(workers);
-    return results;
 }

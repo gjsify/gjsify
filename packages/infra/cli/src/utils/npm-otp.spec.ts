@@ -3,6 +3,9 @@
 // `onboard` share so one OTP can serve a whole sweep.
 
 import { describe, expect, it } from '@gjsify/unit';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { OtpProvider, withOtpRetry, isOtpChallenge } from './npm-otp.js';
 
 /** An OTP challenge (401 + www-authenticate: OTP). */
@@ -144,6 +147,77 @@ export default async () => {
             const p = new OtpProvider(undefined, prompt.fn);
             const res = await withOtpRetry(reg.doFetch, p);
             expect(await isOtpChallenge(res)).toBeTruthy();
+        });
+
+        await it('invalidates a rejected seeded code, then recovers with a fresh prompt', async () => {
+            const reg = fakeRegistry('999999');
+            const prompt = scriptedPrompt(['999999']);
+            const p = new OtpProvider('wrong', prompt.fn); // stale seed, sent first
+            const res = await withOtpRetry(reg.doFetch, p, { seedFirstAttempt: true });
+            expect(res.status).toBe(200);
+            // seeded 'wrong' rejected → invalidate → prompt 'good'.
+            expect(reg.codes).toStrictEqual(['wrong', '999999']);
+            expect(p.current()).toBe('999999'); // the good code stays cached
+        });
+    });
+
+    await describe('OtpProvider — invalidate()', async () => {
+        await it('drops the in-process cached code', async () => {
+            const p = new OtpProvider('123456');
+            expect(p.current()).toBe('123456');
+            p.invalidate();
+            expect(p.current()).toBe(undefined);
+        });
+    });
+
+    await describe('OtpProvider — cross-invocation file cache (registry-scoped)', async () => {
+        await it('seeds a later provider from the earlier one, and invalidate() clears it', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-otp-provider-'));
+            const prevXdg = process.env.XDG_RUNTIME_DIR;
+            const prevOptOut = process.env.GJSIFY_NO_OTP_CACHE;
+            const registry = 'https://registry.npmjs.org/';
+            try {
+                process.env.XDG_RUNTIME_DIR = dir; // redirect the real cache dir
+                delete process.env.GJSIFY_NO_OTP_CACHE;
+
+                // First command types (seeds) an --otp scoped to the registry.
+                const first = new OtpProvider('246810', undefined, { registry });
+                expect(first.current()).toBe('246810');
+
+                // A SEPARATE command (fresh provider, no seed) reads it back.
+                const second = new OtpProvider(undefined, undefined, { registry });
+                expect(second.current()).toBe('246810');
+
+                // Invalidating clears the file → the next command misses.
+                second.invalidate();
+                const third = new OtpProvider(undefined, undefined, { registry });
+                expect(third.current()).toBe(undefined);
+            } finally {
+                if (prevXdg === undefined) delete process.env.XDG_RUNTIME_DIR;
+                else process.env.XDG_RUNTIME_DIR = prevXdg;
+                if (prevOptOut === undefined) delete process.env.GJSIFY_NO_OTP_CACHE;
+                else process.env.GJSIFY_NO_OTP_CACHE = prevOptOut;
+                rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
+        await it('a different registry does not reuse the cached code', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-otp-provider-'));
+            const prevXdg = process.env.XDG_RUNTIME_DIR;
+            const prevOptOut = process.env.GJSIFY_NO_OTP_CACHE;
+            try {
+                process.env.XDG_RUNTIME_DIR = dir;
+                delete process.env.GJSIFY_NO_OTP_CACHE;
+                new OtpProvider('135790', undefined, { registry: 'https://registry.npmjs.org/' });
+                const other = new OtpProvider(undefined, undefined, { registry: 'https://npm.pkg.github.com/' });
+                expect(other.current()).toBe(undefined);
+            } finally {
+                if (prevXdg === undefined) delete process.env.XDG_RUNTIME_DIR;
+                else process.env.XDG_RUNTIME_DIR = prevXdg;
+                if (prevOptOut === undefined) delete process.env.GJSIFY_NO_OTP_CACHE;
+                else process.env.GJSIFY_NO_OTP_CACHE = prevOptOut;
+                rmSync(dir, { recursive: true, force: true });
+            }
         });
     });
 };

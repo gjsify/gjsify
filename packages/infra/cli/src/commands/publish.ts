@@ -214,7 +214,23 @@ export const publishCommand: Command<unknown, PublishOptions> = {
         // silent hang reading a non-existent terminal. `--otp` seeds the code so
         // it rides the first PUT (matching npm's `--otp` behaviour).
         const interactiveOtp = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-        const otpProvider = new OtpProvider(otp, interactiveOtp ? promptLine : async () => '');
+        // Scope the shared OTP file cache to this package's registry so a typed
+        // code carries over to a sibling `gjsify trust`/`publish` in the window.
+        const otpNpmrc = await loadNpmrc(wsDir);
+        let otpPkgName: string | undefined;
+        try {
+            otpPkgName = (JSON.parse(readFileSync(join(wsDir, 'package.json'), 'utf-8')) as { name?: string }).name;
+        } catch {
+            /* no readable manifest — fall back to the default registry below */
+        }
+        const otpRegistry =
+            process.env.npm_config_registry ??
+            (otpPkgName ? registryFor(otpPkgName, otpNpmrc) : undefined) ??
+            otpNpmrc.registry ??
+            DEFAULT_REGISTRY;
+        const otpProvider = new OtpProvider(otp, interactiveOtp ? promptLine : async () => '', {
+            registry: otpRegistry,
+        });
         const outcome = await publishWorkspace({
             wsDir,
             tag,
