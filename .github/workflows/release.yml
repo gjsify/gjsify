@@ -440,3 +440,69 @@ jobs:
           node "$env:CLI_BIN" publish `
             packages/node-gi/gtk-runtime-win32-x64 `
             --tolerate-republish --tag latest --access public
+
+  # @gjsify/node-gi is the Node GI reverse bridge. Like the gtk-runtime packages it
+  # lives under packages/node-gi/** and is NOT a root workspace, so the ubuntu
+  # `publish` job's `gjsify foreach ... publish` never covers it — it was left at
+  # 0.13.0 on npm while the release train moved on, and 0.13.0 lacks the
+  # ./system, ./gettext, ./cairo subpath exports that every 0.20.0 `--app node`
+  # bundle imports (→ ERR_PACKAGE_PATH_NOT_EXPORTED on any external consumer). This
+  # dedicated OIDC job publishes it in lockstep with each release, mirroring
+  # publish-gtk-runtime-*. Trusted Publishing for @gjsify/node-gi must be configured
+  # once for this repo + release.yml (a maintainer runs `gjsify trust`, exactly like
+  # the gtk-runtime bootstrap) — OIDC cannot self-bootstrap its own trust.
+  #
+  # No bundle-build step: node-gi ships `src` + `binding.gyp` + `install: node-gyp
+  # rebuild`, so node/bun consumers compile the addon at install time and the tarball
+  # needs no prebuilt binary for them. A shipped Linux prebuild for Deno (which runs
+  # no postinstall) is a follow-up — build it in a Fedora container via
+  # `npm run build:prebuild` and include prebuilds/ before this publish step.
+  publish-node-gi:
+    name: Publish @gjsify/node-gi (Node GI reverse bridge)
+    needs: publish
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # id-token: write = npm Trusted Publishing (OIDC), configured for this workflow
+      # file (release.yml). contents: read is for checkout.
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout repository (the released tag)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+
+      # No `registry-url` (it would inject a placeholder NODE_AUTH_TOKEN and defeat
+      # OIDC — see the ubuntu `publish` job's rationale).
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      # A Node-runnable @gjsify/cli at the release-train version drives the OIDC
+      # publish. node-gi has no WORKSPACE deps, so a standalone pack needs no
+      # `gjsify install`. `needs: publish` guarantees this CLI version is on npm.
+      - name: Prepare a Node-runnable @gjsify/cli
+        id: cli
+        run: |
+          set -euo pipefail
+          cliVersion=$(node -p "require('./packages/infra/cli/package.json').version")
+          dir="$RUNNER_TEMP/gjsify-node-cli"
+          mkdir -p "$dir"
+          ( cd "$dir" && npm init -y >/dev/null && npm install "@gjsify/cli@$cliVersion" --no-audit --no-fund --no-save )
+          echo "bin=$dir/node_modules/@gjsify/cli/lib/index.js" >> "$GITHUB_OUTPUT"
+          node "$dir/node_modules/@gjsify/cli/lib/index.js" --version
+
+      # OIDC Trusted Publishing from release.yml — publishes ONLY node-gi, at whatever
+      # version its package.json carries at the released tag (the release-it bumper
+      # aligns it to the train version). --tolerate-republish makes a manual rerun
+      # over an already-published version a no-op instead of a hard 409/403.
+      - name: Publish @gjsify/node-gi (OIDC)
+        env:
+          GJSIFY_PUBLISH_DEBUG: '1'
+          CLI_BIN: ${{ steps.cli.outputs.bin }}
+        run: |
+          node "$CLI_BIN" publish packages/node-gi/node-gi \
+            --tolerate-republish --tag latest --access public
