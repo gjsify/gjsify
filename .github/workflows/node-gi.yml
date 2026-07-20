@@ -275,7 +275,10 @@ jobs:
       # that a software-only Xvfb cannot provide; GTK_A11Y=none avoids the a11y bus.
       # Runs ALL the GTK smoke tests (Gtk.Application PR1 + Adw.Application PR2 +
       # Gtk.Template PR4 + Template signal callbacks & menu breadth + the GStrv
-      # construct-property cases + the GListModel interface-typed property cases,
+      # construct-property cases + the GListModel interface-typed property cases +
+      # the Adwaita widget-breadth proof (widgets.test.mjs: PreferencesPage/Group +
+      # SwitchRow/EntryRow/ComboRow/SpinRow/ExpanderRow + a Gtk.ListBox + a toast,
+      # DumpTree-typed and driven through the node-gi notify:: signal chain),
       # which need the Gtk-4.0 typelib the fast headless leg lacks) in one
       # node --test invocation so each reports even if one fails.
       - name: GTK/Adw smoke test (xvfb + dbus)
@@ -285,6 +288,7 @@ jobs:
             env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
             node --test test/gtk-smoke.test.mjs test/adw-smoke.test.mjs \
               test/windowing.test.mjs test/windowing-interactive.test.mjs \
+              test/widgets.test.mjs \
               test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs \
               test/gtk-template-signals.test.mjs \
               test/strv-construct.test.mjs test/interface-props.test.mjs
@@ -1358,15 +1362,19 @@ jobs:
       # The windowing proof: a real Adw.ApplicationWindow realizes + renders a surface
       # via the GSK renderer, AND responds to input (a Gio action + a Gtk.Button::clicked
       # drive the counter — the interactive proof runs headless, no visible desktop
-      # needed, same as the render-to-texture screenshot), with the bundle as the ONLY
+      # needed, same as the render-to-texture screenshot); widgets.test.mjs adds the
+      # Adwaita widget-breadth proof on the SAME bundle (a PreferencesPage of
+      # SwitchRow/EntryRow/ComboRow/SpinRow/ExpanderRow rows + a Gtk.ListBox + a toast,
+      # constructed, DumpTree-typed, driven via notify:: and GSK-rendered), with the
+      # bundle as the ONLY
       # GTK. NODE_GI_NATIVE=prebuild loads the staged addon; the loader's PATH-prepend +
       # windowing-env wiring makes the DLLs + schemas/loaders/icons resolve from the
       # bundle. On win32 the test's display gate is IMPLICIT (no DISPLAY/WAYLAND_DISPLAY
       # needed — the GdkWin32 backend supplies it), so it runs here. GSK_RENDERER=cairo
       # forces software rendering (no GPU on the runner).
-      - name: Windowing proof — Adw window realizes, renders + reacts (no gvsbuild GTK)
+      - name: Windowing proof — Adw window realizes, renders, reacts + widget breadth (no gvsbuild GTK)
         working-directory: packages/node-gi/node-gi
         env:
           NODE_GI_NATIVE: prebuild
           GSK_RENDERER: cairo
-        run: node --test test/windowing.test.mjs test/windowing-interactive.test.mjs
+        run: node --test test/windowing.test.mjs test/windowing-interactive.test.mjs test/widgets.test.mjs
