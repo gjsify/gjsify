@@ -24,6 +24,7 @@ import { DEFAULT_REGISTRY, registryFor, whoami } from '@gjsify/npm-registry';
 import { loadNpmrc } from '../utils/load-npmrc.js';
 import { writeAuthToken } from '../utils/auth-npmrc.js';
 import { promptCredentials, promptLine } from '../utils/prompt.js';
+import { clearCachedOtp, readCachedOtp, writeCachedOtp } from '../utils/npm-otp-cache.js';
 
 interface LoginOptions {
     registry?: string;
@@ -165,19 +166,26 @@ export async function runLogin(opts: RunLoginOptions): Promise<LoginResult> {
         return fetch(`${couchUrl}${path}`, { method: 'PUT', headers: authHeaders(otp), body: JSON.stringify(body) });
     }
 
-    let otp = opts.otp;
+    // Seed the OTP from --otp, else the short-lived cross-invocation cache (a
+    // sibling `gjsify` command's still-valid code in the ~30 s window).
+    const otpFromFlag = typeof opts.otp === 'string' && opts.otp.length > 0;
+    let otp = opts.otp ?? readCachedOtp(registryClean);
     let res = await putUser('', otp);
 
     // 2FA: 401 + www-authenticate "otp" (or a one-time-pass body) → prompt + retry.
-    if (res.status === 401 && !otp) {
+    // Re-prompt when the code was missing OR a stale CACHED code (not an
+    // explicitly-passed --otp, which the caller owns) was rejected.
+    if (res.status === 401 && !otpFromFlag) {
         const wwwAuth = (res.headers.get('www-authenticate') ?? '').toLowerCase();
         const text = await res
             .clone()
             .text()
             .catch(() => '');
         if (wwwAuth.includes('otp') || /one-time pass/i.test(text)) {
+            clearCachedOtp(registryClean); // the seeded/cached code was stale or absent
             otp = await promptLine(`This operation requires a one-time password.\nEnter OTP: `);
             if (!otp) throw new LoginError('gjsify login: no OTP entered.');
+            writeCachedOtp(registryClean, otp);
             res = await putUser('', otp);
         }
     }
@@ -215,6 +223,11 @@ export async function runLogin(opts: RunLoginOptions): Promise<LoginResult> {
     }
 
     const npmrcPath = writeAuthToken(registryClean, data.token);
+
+    // Login succeeded with an OTP → keep it in the short-lived cache (refresh
+    // its TTL) so the immediately-following `onboard`/`publish`/`trust` reuses
+    // the one typed code instead of prompting again.
+    if (otp) writeCachedOtp(registryClean, otp);
 
     // Confirm the freshly-written token authenticates.
     const verifyNpmrc = await loadNpmrc(opts.cwd ?? process.cwd());

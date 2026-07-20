@@ -12,6 +12,7 @@ import type { Command } from '../types/index.js';
 import { DEFAULT_REGISTRY, registryFor, resolveAuthForUrl } from '@gjsify/npm-registry';
 import { loadNpmrc } from '../utils/load-npmrc.js';
 import { removeAuthToken } from '../utils/auth-npmrc.js';
+import { clearCachedOtp } from '../utils/npm-otp-cache.js';
 
 interface LogoutOptions {
     registry?: string;
@@ -61,6 +62,10 @@ export const logoutCommand: Command<unknown, LogoutOptions> = {
                 /* offline / registry down — fall through to local removal */
             }
         }
+
+        // Drop any short-lived cached OTP for this registry — the token it would
+        // have accompanied is now revoked.
+        clearCachedOtp(registryClean);
 
         const { path, removed } = removeAuthToken(registryClean);
 
