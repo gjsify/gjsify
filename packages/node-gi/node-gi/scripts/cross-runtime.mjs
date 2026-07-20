@@ -122,19 +122,21 @@ const argsFor = (file) =>
       : ['test', '-A', '--node-modules-dir=auto', file];
 const runtimeBin = runtime === 'node' ? process.execPath : runtime;
 
-// Deno's N-API env teardown on macOS can abort a test FILE with a non-zero exit
-// AFTER every assertion in it has already passed — no test summary is printed, the
-// process just exits non-zero once the last subtest reported `ok` (the #47 teardown
-// class; the graphene/Gdk boxed g_boxed_free churn is one trigger, but it is
-// NONDETERMINISTIC and lands on a DIFFERENT file run-to-run — struct-construct one
-// run, out-params the next). That is not a reverse-bridge capability gap, so on
-// deno+darwin ONLY we gate on the per-subtest RESULTS parsed from Deno's own output
+// Deno's N-API env teardown can abort a test FILE with a non-zero exit AFTER every
+// assertion in it has already passed — no test summary is printed, the process just
+// exits non-zero once the last subtest reported `ok` (the #47 teardown class; the
+// graphene/Gdk boxed g_boxed_free churn is one trigger). It is NONDETERMINISTIC in
+// two ways: it lands on a DIFFERENT file run-to-run (struct-construct one run,
+// out-params the next, gobject the next) AND on a DIFFERENT platform run-to-run
+// (macos-arm64 one run, linux-aarch64 the next) — it is an N-API-env-teardown quirk,
+// not a darwin-specific one. That is not a reverse-bridge capability gap, so on DENO
+// (all platforms) we gate on the per-subtest RESULTS parsed from Deno's own output
 // instead of the process exit code: if every test the run announced actually ran and
 // none reported FAILED, a non-zero exit is the known teardown artifact (non-gating).
 // A real assertion failure (a FAILED line) OR a truncated run (fewer results than the
 // "running N tests" header promised — i.e. a genuine mid-test crash) still HARD-gates.
-// node / bun / linux keep exit-code gating unchanged. See #47.
-const denoDarwinTeardownCarveout = runtime === 'deno' && process.platform === 'darwin';
+// node / bun keep exit-code gating unchanged. See #47.
+const denoTeardownCarveout = runtime === 'deno';
 
 // Parse Deno's test output into { expected, ran, failed } by counting its per-subtest
 // result lines ("<name> ... ok|FAILED|ignored (<dur>)") and the "running N tests from"
@@ -168,7 +170,7 @@ for (const base of files) {
     encoding: 'utf8',
     env: { ...process.env, NODE_GI_NATIVE: nativePref },
   });
-  const teardown = denoDarwinTeardownCarveout && res.status !== 0
+  const teardown = denoTeardownCarveout && res.status !== 0
     ? classifyDenoOutput((res.stdout || '') + '\n' + (res.stderr || ''))
     : null;
   if (res.status === 0) {
@@ -176,7 +178,7 @@ for (const base of files) {
   } else if (teardown?.teardownArtifact) {
     softFailed++;
     console.log(
-      `  ⚠ ${base} (known non-gating: deno/darwin teardown-exit after ${teardown.ran}/${teardown.expected} tests passed, 0 failed — see #47)`,
+      `  ⚠ ${base} (known non-gating: deno teardown-exit after ${teardown.ran}/${teardown.expected} tests passed, 0 failed — see #47)`,
     );
   } else {
     failed++;
