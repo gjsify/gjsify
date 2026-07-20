@@ -91,7 +91,7 @@ named, not labelled with a runtime class:
 | Platform | node-gi (Node / Bun / Deno) | GTK / Adwaita GUI | Prebuilt-GTK bundle |
 |---|---|---|---|
 | **Linux** | Full — builds + display-free conformance on Node, Bun and Deno | Proven (GJS native *and* node-gi) | Uses the system GTK |
-| **macOS** (`macos-latest`, arm64) | Builds + display-free conformance on Node, Bun and Deno | Not yet wired — headless conformance only | `@gjsify/gtk-runtime-darwin-arm64` ships the GTK 4 / Adwaita closure |
+| **macOS** (`macos-latest`, arm64) | Builds + display-free conformance on Node, Bun and Deno | Proven in CI — an Adw window realizes + renders + reacts (render-to-texture, no visible desktop) | `@gjsify/gtk-runtime-darwin-arm64` ships the GTK 4 / Adwaita closure (the GUI uses its `--windowing` variant, with libadwaita) |
 | **Windows** (`windows-latest`, x64) | Builds (MSVC + gvsbuild) + display-free conformance on Node | GTK GUI **and** the full Libadwaita Storybook both render in CI (render-to-texture, no visible desktop) | `@gjsify/gtk-runtime-win32-x64` ships the GTK 4 / Adwaita closure (also selected by `--windowing`; no gvsbuild at consume time) |
 
 Node-API is the common ABI, so a single `--app node` prebuilt binary serves
