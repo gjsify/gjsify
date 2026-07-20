@@ -284,6 +284,7 @@ jobs:
           xvfb-run -a dbus-run-session -- \
             env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
             node --test test/gtk-smoke.test.mjs test/adw-smoke.test.mjs \
+              test/windowing.test.mjs \
               test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs \
               test/gtk-template-signals.test.mjs \
               test/strv-construct.test.mjs test/interface-props.test.mjs
@@ -1201,3 +1202,169 @@ jobs:
         env:
           NODE_GI_NATIVE: prebuild
         run: node scripts/cross-runtime.mjs node
+
+  # Windows Phase 2 (windowing) — BUILD the FULL-windowing GTK runtime bundle. The
+  # display-free bundle above ships only the loadable-DLL closure; this builds the
+  # SUPERSET a real GTK WINDOW needs on Windows via `build-gtk-runtime.mjs
+  # --windowing`: the gdk-pixbuf loaders + a bundle-relative `loaders.cache`, compiled
+  # GSettings schemas (`gschemas.compiled`), the Adwaita/hicolor icon themes +
+  # `icon-theme.cache`, Fontconfig config/cache, and the SVG/PNG image-loader backing
+  # DLLs walked into bin/. Reuses the same gvsbuild download/cache as the `windows`
+  # job (build-time closure SOURCE only, NOT shipped). Runs in parallel (does not
+  # consume the addon). Uploads the bundle for the windowing proof job below.
+  windows-gtk-windowing-runtime:
+    name: Windows FULL-windowing GTK runtime bundle (build / windows-latest x64)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      GVSBUILD_VERSION: '2026.6.0'
+      GTK_PREFIX: 'C:\gtk-build\gtk\x64\release'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Node 24 runs build-gtk-runtime.mjs (node:child_process/fs). Same version the
+      # `windows` proof pins.
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Cache gvsbuild GTK4 bundle
+        id: cache-gtk
+        uses: actions/cache@v4
+        with:
+          path: C:\gtk-build\gtk\x64\release
+          key: gvsbuild-gtk4-${{ env.GVSBUILD_VERSION }}-x64-v1
+
+      # Build-time closure SOURCE only. Verbatim from the `windows` job.
+      - name: Download + extract gvsbuild GTK4 (build-time closure source)
+        if: steps.cache-gtk.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = "https://github.com/wingtk/gvsbuild/releases/download/$env:GVSBUILD_VERSION/GTK4_Gvsbuild_${env:GVSBUILD_VERSION}_x64.zip"
+          Write-Host "Downloading $url"
+          curl.exe -L --fail --retry 3 -o gtk4.zip $url
+          New-Item -ItemType Directory -Force -Path $env:GTK_PREFIX | Out-Null
+          tar.exe -xf gtk4.zip -C $env:GTK_PREFIX
+          Remove-Item gtk4.zip
+
+      # The bundle's data step runs gvsbuild's own tools (gdk-pixbuf-query-loaders /
+      # glib-compile-schemas / gtk4-update-icon-cache / fc-cache) from <prefix>/bin,
+      # which link glib/gio DLLs — so <prefix>/bin must be on PATH. (The DLL closure
+      # walk uses dumpbin, located via vswhere on the VS2022 image.)
+      - name: Put GTK on PATH (for the bundle-data tools)
+        shell: pwsh
+        run: '"$env:GTK_PREFIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8'
+
+      - name: Build the FULL-windowing GTK runtime bundle (--windowing)
+        shell: pwsh
+        run: |
+          node packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs `
+            --windowing `
+            --out packages/node-gi/gtk-runtime-win32-x64/gtk `
+            --prefix $env:GTK_PREFIX
+
+      - name: Report bundle size + assert the windowing data is present
+        shell: pwsh
+        run: |
+          $B = "packages/node-gi/gtk-runtime-win32-x64/gtk"
+          Get-Content "$B/manifest.json"
+          Write-Host "--- bundle size ---"
+          "{0:N1} MiB" -f ((Get-ChildItem $B -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
+          # The windowing marker node-gi keys on + the loader cache must be present.
+          $missing = @()
+          foreach ($p in @(
+            "$B/bin",
+            "$B/girepository-1.0",
+            "$B/share/glib-2.0/schemas/gschemas.compiled",
+            "$B/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+          )) { if (-not (Test-Path $p)) { $missing += $p } }
+          if ($missing.Count -gt 0) {
+            Write-Host "WINDOWING BUNDLE INCOMPLETE — missing:`n  $($missing -join "`n  ")"
+            exit 1
+          }
+          Write-Host "--- icon themes ---"
+          Get-ChildItem "$B/share/icons" -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
+
+      - name: Upload FULL-windowing GTK runtime bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtk-runtime-win32-x64-windowing
+          path: packages/node-gi/gtk-runtime-win32-x64/gtk
+          if-no-files-found: error
+
+  # Windows Phase 2 (windowing) — PROVE a real GTK WINDOW realizes + renders with the
+  # FULL-windowing bundle as the ONLY GTK (NEVER installs gvsbuild). Mirrors the
+  # windows-batteries-included setup (download the bundle + the win32 addon prebuild
+  # into the sibling prebuilds/ layout), then runs the windowing test:
+  # `test/windowing.test.mjs` creates an Adw.ApplicationWindow (HeaderBar / WindowTitle
+  # / StatusPage), presents it, and captures a PNG through the GSK renderer
+  # (Gtk.WidgetPaintable → Gsk.Renderer.render_texture → Gdk.Texture) — a non-empty
+  # PNG proves a GdkWin32 surface was allocated + a render tree rasterised through
+  # node-gi, beyond the display-free conformance. windows-latest has a desktop session;
+  # GSK_RENDERER=cairo keeps it off any GPU/GL path. node-gi's loader wires the bundle
+  # (PATH for DLLs + GSETTINGS_SCHEMA_DIR / GDK_PIXBUF_MODULE_FILE / XDG_DATA_DIRS for
+  # the windowing data) from the gschemas.compiled marker.
+  windows-gtk-windowing:
+    name: Windows windowing proof (no gvsbuild / windows-latest x64)
+    runs-on: windows-latest
+    needs: [windows, windows-gtk-windowing-runtime]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # Never installs gvsbuild. Hard-fail if a gvsbuild GTK tree is present (it would
+      # muddy the proof — the windowing bundle must be the ONLY GTK).
+      - name: Assert gvsbuild GTK is NOT present (clean host)
+        shell: pwsh
+        run: |
+          if (Test-Path 'C:\gtk-build\gtk\x64\release\bin\glib-2.0-0.dll') {
+            Write-Host "gvsbuild GTK is present — not a clean windowing test"
+            exit 1
+          }
+          Write-Host "clean host — gvsbuild GTK was never installed in this job"
+
+      # Stage the windowing bundle + addon prebuild in the sibling layout node-gi's
+      # loader expects (prebuilds/win32-x64/{node_gi.node, gtk/}). The loader prepends
+      # gtk/bin to PATH + wires the windowing env from the gschemas.compiled marker.
+      - name: Download FULL-windowing GTK runtime bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: gtk-runtime-win32-x64-windowing
+          path: packages/node-gi/node-gi/prebuilds/win32-x64/gtk
+
+      - name: Download node-gi addon prebuild (from the windows job)
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-win32-x64
+          path: packages/node-gi/node-gi/prebuilds/win32-x64
+
+      - name: Verify staged layout
+        shell: pwsh
+        run: |
+          Get-ChildItem packages/node-gi/node-gi/prebuilds/win32-x64
+          Write-Host "--- windowing data ---"
+          Test-Path packages/node-gi/node-gi/prebuilds/win32-x64/gtk/share/glib-2.0/schemas/gschemas.compiled
+          Test-Path packages/node-gi/node-gi/prebuilds/win32-x64/gtk/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
+
+      # The windowing proof: a real Adw.ApplicationWindow realizes + renders a surface
+      # via the GSK renderer, with the bundle as the ONLY GTK. NODE_GI_NATIVE=prebuild
+      # loads the staged addon; the loader's PATH-prepend + windowing-env wiring makes
+      # the DLLs + schemas/loaders/icons resolve from the bundle. On win32 the test's
+      # display gate is IMPLICIT (no DISPLAY/WAYLAND_DISPLAY needed — the GdkWin32
+      # backend supplies it), so it runs here. GSK_RENDERER=cairo forces software
+      # rendering (no GPU on the runner).
+      - name: Windowing proof — Adw window realizes + renders (no gvsbuild GTK)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+          GSK_RENDERER: cairo
+        run: node --test test/windowing.test.mjs

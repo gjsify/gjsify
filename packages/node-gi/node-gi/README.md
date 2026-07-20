@@ -943,6 +943,51 @@ the follow-up that unlocks the full game. (`jsdom` — plugin-tiled's node-side
 DOMParser fallback — is aliased to `@gjsify/empty` in `build:node`, mirroring
 the plugin's own `"browser": { "jsdom": false }`.)
 
+### A real Adwaita WINDOW realizes + renders (the GTK-GUI capstone)
+
+Beyond the display-free conformance: an UNCHANGED `Adw.Application` +
+`Adw.ApplicationWindow` (HeaderBar / WindowTitle / StatusPage) not only
+constructs + presents but **realizes and RENDERS a surface** through the GSK
+renderer on node-gi — the same in-process capture path `@gjsify/devtools`'
+`Screenshot` uses: `Gtk.WidgetPaintable` → `Gtk.Snapshot.to_node()` →
+`Gsk.Renderer.render_texture` → `Gdk.Texture.save_to_png_bytes`. A non-empty PNG
+is the unambiguous proof that a `GdkSurface` was allocated + a GSK render tree
+rasterised — not reachable by any headless program. Guarded by
+`test/windowing.test.mjs` (self-skips without a display on Linux; the win32/darwin
+GDK backend supplies its own display, so it runs there), wired into the Linux
+`gtk-smoke` + the Windows batteries-included windowing CI jobs. The
+`showcases/gtk/node-gi-window` showcase runs the SAME single source on both GJS
+and Node and screenshots the live window over the `org.gjsify.Devtools` DBus
+surface.
+
+This exposed one core gap, fixed at the engine:
+
+- **Non-GObject GObject-fundamentals wrap through their introspected ref/unref,
+  not `WrapGObject`** (`src/object.cc` `MakeFundamentalHandle` + the
+  `src/marshal.cc` return branch). `Gtk.Snapshot.to_node()` returns a
+  `GskRenderNode` — introspected as OBJECT_INFO but a GObject FUNDAMENTAL
+  (`gi_object_info_get_fundamental`), ref-counted via `gsk_render_node_ref/unref`,
+  NOT `g_object_ref`, with `G_IS_OBJECT` FALSE. Routing it through `WrapGObject`
+  ran the toggle-ref/qdata dance on a non-GObject → a cascade of
+  `g_object_*: assertion 'G_IS_OBJECT (object)' failed` criticals AND a leaked ref.
+  It now gets a type-tagged External carrying the raw pointer + the introspected
+  unref func as the finalizer hint (`isFundamentalHandle` / L1 `wrapFundamental`,
+  an opaque round-trippable pass-through) — GParamSpec + GValue keep their
+  dedicated branches, this catches the rest.
+
+### Windows: the FULL-windowing GTK runtime bundle
+
+The batteries-included [`@gjsify/gtk-runtime-win32-x64`](../gtk-runtime-win32-x64)
+bundle has two closures: the DEFAULT display-free set (loadable DLLs + typelibs)
+and the `--windowing` SUPERSET that adds the runtime DATA a real GTK window needs
+on Windows — the gdk-pixbuf loaders + `loaders.cache`, compiled GSettings schemas
+(`gschemas.compiled`), the Adwaita/hicolor icon themes + `icon-theme.cache`, and
+Fontconfig config/cache. node-gi's loader (`gtk-runtime.js`
+`maybeWireGtkWindowingEnv`) detects the windowing data via the `gschemas.compiled`
+marker and wires the env (`GSETTINGS_SCHEMA_DIR` / `GDK_PIXBUF_MODULE_FILE` /
+`XDG_DATA_DIRS` / `FONTCONFIG_*`); a display-free bundle carries no marker, so the
+wiring is a strict no-op and that load is byte-unchanged.
+
 Scoped out of the capstone fixture itself (deliberately): the Gst audio
 DECODE/playback path (`decodeAudioData`, `autoaudiosink`) — construction is
 proven by the showcase run above, the streaming pipeline is its own follow-up

@@ -197,6 +197,9 @@ function wrapReturn(value) {
   // A GParamSpec is a distinct GObject fundamental (tagged separately from boxed),
   // surfaced with the GObject.ParamSpec ergonomics (name/value_type/get_name()/…).
   if (native.isParamSpecHandle(value)) return wrapParamSpec(value);
+  // A non-GObject GObject-fundamental (e.g. a GskRenderNode from Gtk.Snapshot.to_node):
+  // an opaque, round-trippable pass-through handle (see wrapFundamental).
+  if (native.isFundamentalHandle(value)) return wrapFundamental(value);
   if (native.isBoxedHandle(value)) return wrapBoxed(value);
   // A multi-value OUT tuple (return value + OUT params) — or a container OUT — is a
   // plain JS Array whose ELEMENTS may themselves be GObject/boxed/variant handles
@@ -251,6 +254,19 @@ function resolveTemplateCallback(handle, handlerName) {
   };
 }
 native.setTemplateCallbackResolver(resolveTemplateCallback);
+
+// Wrap a non-GObject GObject-fundamental (e.g. a GskRenderNode from
+// Gtk.Snapshot.to_node, a GdkEvent) as an OPAQUE, round-trippable handle. The
+// native tagged External already carries the raw pointer (its Data) + drops the
+// held ref on GC via the type's introspected unref func, so all L1 has to do is
+// expose it under HANDLE — then unwrapArg feeds it straight back into a
+// fundamental-typed IN arg (e.g. Gsk.Renderer.render_texture(node, …)), where the
+// OBJECT External branch reads the pointer. Method dispatch on fundamentals is a
+// documented follow-up; today they are pass-through intermediates (build → hand to
+// a consumer → drop), which is what the GSK screenshot/render path needs.
+function wrapFundamental(handle) {
+  return { [HANDLE]: handle, [Symbol.toStringTag]: 'GIFundamental' };
+}
 
 // Wrap a boxed/struct/union handle so its methods are callable GJS-style
 // (`mainLoop.run()`, snake_case or camelCase) AND its FIELDS are readable/writable

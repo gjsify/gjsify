@@ -85,10 +85,49 @@ no re-exec and no native `AddDllDirectory` call (which would be chicken-and-egg 
 the addon must already be loaded to call it). PATH-prepend before the `require` is
 both sufficient and the simplest mechanism.
 
-## Scope & what a full windowing bundle still needs
+## Two closures: display-free (default) + full windowing (`--windowing`)
 
-This bundle targets the **display-free conformance closure only**. The full GTK
-windowing/display stack additionally needs: the Win32 GDK backend wiring, the
-`gdk-pixbuf` `loaders.cache` + loader modules, compiled GSettings schemas
-(`glib-compile-schemas`), the Adwaita icon theme + `icon-theme.cache`, and
-Fontconfig cache/config — none of which are collected here.
+`build-gtk-runtime.mjs` builds one of two supersets into the same `gtk/` dir:
+
+- **Default (display-free)** — the DLL closure + typelibs the display-free
+  conformance needs. `manifest.windowing === false`. Unchanged.
+- **`--windowing` (superset)** — everything above **plus** the runtime DATA a real
+  GTK window needs on Windows, so a `Adw.ApplicationWindow` realizes + renders with
+  no gvsbuild/system GTK:
+
+  ```
+  gtk/
+    bin/                                  DLLs (+ the SVG/PNG image-loader backers)
+    girepository-1.0/                     typelibs
+    lib/gdk-pixbuf-2.0/2.10.0/loaders/    image decoder DLLs
+    lib/gdk-pixbuf-2.0/2.10.0/loaders.cache   (rewritten bundle-relative)
+    share/glib-2.0/schemas/gschemas.compiled  (glib-compile-schemas)
+    share/icons/{Adwaita,hicolor}/        icon themes + icon-theme.cache
+    etc/fonts/fonts.conf                  Fontconfig config (+ cache), when present
+    manifest.json                         windowing:true + windowingData counts
+  ```
+
+  Built on the Windows runner:
+  ```
+  node scripts/build-gtk-runtime.mjs --windowing --prefix C:\gtk-build\gtk\x64\release --out gtk
+  ```
+  The GdkWin32 backend is compiled **into** `libgtk-4-*.dll` (GTK4 builds every
+  backend in), so there is no separate backend DLL — the caches (`loaders.cache`,
+  `gschemas.compiled`, `icon-theme.cache`) + the ANGLE/librsvg backers are the
+  additions. gvsbuild ships the tools this step runs (`gdk-pixbuf-query-loaders`,
+  `glib-compile-schemas`, `gtk4-update-icon-cache`, `fc-cache`) in `<prefix>/bin`.
+  Each data step is defensive — a missing tree/tool WARNs and continues (the DLL +
+  typelib bundle is always produced).
+
+### How node-gi wires the windowing data
+
+`@gjsify/node-gi`'s loader (`gtk-runtime.js` `maybeWireGtkWindowingEnv`, run at
+module load beside the PATH-prepend) detects the windowing data via the
+`gschemas.compiled` marker and sets — only when currently unset — the env vars that
+locate it: `GSETTINGS_SCHEMA_DIR`, `GDK_PIXBUF_MODULEDIR` + `GDK_PIXBUF_MODULE_FILE`,
+`XDG_DATA_DIRS` (prepends `<bundle>/share`) and, when bundled, `FONTCONFIG_PATH` +
+`FONTCONFIG_FILE`. Windows re-reads these at first use (schema / loader / icon-theme
+init runs after the addon loads), so the in-process mutation is sufficient — no
+re-exec, the DLL-search analog. A **display-free** bundle carries no windowing data,
+so the marker is absent and the wiring is a strict no-op: the display-free load is
+byte-unchanged.

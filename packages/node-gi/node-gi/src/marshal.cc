@@ -553,6 +553,16 @@ Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* arg,
         }
       } else if (ifaceGType != G_TYPE_INVALID && g_type_is_a(ifaceGType, G_TYPE_PARAM)) {
         result = MakeParamSpecHandle(env, static_cast<GParamSpec*>(arg->v_pointer), transfer);
+      } else if (iface != nullptr && GI_IS_OBJECT_INFO(iface) &&
+                 gi_object_info_get_fundamental(reinterpret_cast<GIObjectInfo*>(iface))) {
+        // A non-GObject GObject-fundamental (GskRenderNode from Gtk.Snapshot.to_node,
+        // GdkEvent, …): introspected as object info but ref-counted via its OWN
+        // ref/unref funcs — G_IS_OBJECT is FALSE. WrapGObject would run the
+        // toggle-ref/qdata dance on a non-GObject → a G_IS_OBJECT critical cascade +
+        // a leaked ref. Wrap with the introspected ref/unref instead. (GParamSpec +
+        // GValue are handled by their dedicated branches above, so this is the rest.)
+        result = MakeFundamentalHandle(env, arg->v_pointer,
+                                       reinterpret_cast<GIObjectInfo*>(iface), transfer);
       } else if (iface != nullptr && (GI_IS_OBJECT_INFO(iface) || GI_IS_INTERFACE_INFO(iface))) {
         result = WrapGObject(env, static_cast<GObject*>(arg->v_pointer), transfer);
       } else if (iface != nullptr && (GI_IS_ENUM_INFO(iface) || GI_IS_FLAGS_INFO(iface))) {

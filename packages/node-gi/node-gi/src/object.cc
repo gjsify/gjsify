@@ -54,6 +54,76 @@ Napi::Value IsParamSpecHandle(const Napi::CallbackInfo& info) {
   return Napi::Boolean::New(env, is);
 }
 
+// ---- non-GObject GObject-fundamental wrapping (GskRenderNode, GdkEvent, …) --
+//
+// Some types introspected as OBJECT_INFO are GObject FUNDAMENTALS that do NOT
+// derive from GObject — e.g. GskRenderNode (Gtk.Snapshot.to_node()), GdkEvent.
+// They carry their OWN ref/unref funcs (gsk_render_node_ref/unref) in the
+// introspection, NOT g_object_ref/unref, and G_IS_OBJECT(them) is FALSE — so
+// routing them through WrapGObject runs the toggle-ref/qdata dance on a
+// non-GObject → a cascade of `g_object_*: assertion 'G_IS_OBJECT (object)'
+// failed` criticals AND a leaked ref (the closing g_object_unref no-ops). They
+// get their own type-tagged External carrying the raw pointer as its Data (so an
+// IN arg round-trips via the OBJECT External branch) + the introspected unref
+// func boxed as the finalizer hint, the held ref dropped on GC via that func.
+// Opaque at L1 (a pass-through intermediate); mirrors gjs's gi/fundamental.cpp
+// pointer lifecycle. GParamSpec + GValue keep their dedicated branches BEFORE
+// this one, so this catches the remaining fundamentals.
+static const napi_type_tag kFundamentalHandleTag = {0x3b7f2e1c9a4d6058ULL,
+                                                    0x8e5a0c7b1f2d6493ULL};
+
+Napi::Value MakeFundamentalHandle(Napi::Env env, gpointer ptr, GIObjectInfo* info,
+                                  GITransfer transfer) {
+  if (ptr == nullptr) return env.Null();
+  GIObjectInfoRefFunction refFn = gi_object_info_get_ref_function_pointer(info);
+  GIObjectInfoUnrefFunction unrefFn = gi_object_info_get_unref_function_pointer(info);
+  // We own a ref to drop on GC when the type gives us a way to take one: a
+  // transfer-everything return hands us an owned ref (adopt it), a borrow gets our
+  // own via refFn. A fundamental exposing neither ref nor a transfer-full handoff
+  // (unusual) is held without an owned ref → no finalizer unref (never over-unref).
+  bool owns = (transfer == GI_TRANSFER_EVERYTHING) || (refFn != nullptr);
+  if (transfer != GI_TRANSFER_EVERYTHING && refFn != nullptr) refFn(ptr);
+  // Box the unref func so the finalizer (which only receives data + hint) drops
+  // exactly the one ref we own with the RIGHT function. nullptr = don't unref.
+  GIObjectInfoUnrefFunction* unrefBox =
+      new GIObjectInfoUnrefFunction(owns ? unrefFn : nullptr);
+  Napi::External<void> ext = Napi::External<void>::New(
+      env, ptr,
+      [](Napi::Env, void* p, GIObjectInfoUnrefFunction* box) {
+        if (box != nullptr) {
+          if (*box != nullptr && p != nullptr) (*box)(p);
+          delete box;
+        }
+      },
+      unrefBox);
+  if (ext.IsEmpty()) {
+    // napi_create_external failed with the throw swallowed (terminating env /
+    // pending exception). The finalizer was never registered — drop the ref we own
+    // + free the box here (mirrors MakeParamSpecHandle / MakeBoxedHandle).
+    if (owns && unrefFn != nullptr) unrefFn(ptr);
+    delete unrefBox;
+    return ext;
+  }
+  ext.TypeTag(&kFundamentalHandleTag);
+  return ext;
+}
+
+// Read a fundamental pointer from a kFundamentalHandleTag External (no dereference
+// on a non-fundamental). Returns nullptr when `v` is not a node-gi fundamental.
+static gpointer TryGetFundamental(Napi::Value v) {
+  if (!v.IsExternal()) return nullptr;
+  Napi::External<void> ext = v.As<Napi::External<void>>();
+  if (!ext.CheckTypeTag(&kFundamentalHandleTag)) return nullptr;
+  return ext.Data();
+}
+
+// isFundamentalHandle(value) → boolean (tag-checked; no dereference).
+Napi::Value IsFundamentalHandle(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  bool is = info.Length() >= 1 && TryGetFundamental(info[0]) != nullptr;
+  return Napi::Boolean::New(env, is);
+}
+
 // paramSpecProp(handle, which) → the requested accessor value. `which` ∈
 // name | nick | blurb | flags | valueType | ownerType | defaultValue. A single
 // dispatcher keeps the native surface small; the L1 wrapper maps it to the

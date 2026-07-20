@@ -105,6 +105,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("setBoxedField", Napi::Function::New(env, SetBoxedField));
   exports.Set("boxedTypeName", Napi::Function::New(env, BoxedTypeName));
   exports.Set("isParamSpecHandle", Napi::Function::New(env, IsParamSpecHandle));
+  exports.Set("isFundamentalHandle", Napi::Function::New(env, IsFundamentalHandle));
   exports.Set("paramSpecProp", Napi::Function::New(env, ParamSpecProp));
   exports.Set("variantNew", Napi::Function::New(env, VariantNew));
   exports.Set("variantUnpack", Napi::Function::New(env, VariantUnpack));

@@ -139,6 +139,59 @@ export function maybePrependGtkRuntimeDllPath() {
     process.env.PATH = cur ? `${binDir};${cur}` : binDir;
 }
 
+/**
+ * Wire the env a bundled FULL-WINDOWING GTK runtime needs so a REAL GTK WINDOW
+ * finds its runtime DATA on Windows: compiled GSettings schemas
+ * (`GSETTINGS_SCHEMA_DIR`), the gdk-pixbuf image loaders (`GDK_PIXBUF_MODULEDIR` +
+ * `GDK_PIXBUF_MODULE_FILE`), the icon themes (`XDG_DATA_DIRS` → `<bundle>/share`),
+ * and — when bundled — Fontconfig (`FONTCONFIG_PATH`/`FONTCONFIG_FILE`). These live
+ * beside the DLLs the display-free path already wires (maybePrependGtkRuntimeDllPath).
+ *
+ * STRICT no-op off win32, without a bundle, or when the bundle carries NO windowing
+ * data — keyed on the `share/glib-2.0/schemas/gschemas.compiled` marker the
+ * --windowing build produces, so the DEFAULT display-free bundle is byte-unchanged.
+ * Windows re-reads these vars at first use (schema/loader/icon-theme init runs AFTER
+ * the addon loads), so an in-process mutation here suffices — no re-exec, the DLL-
+ * search analog. Each var is set only when currently unset (a host override wins).
+ * Idempotent; MUST run at module top-level with maybePrependGtkRuntimeDllPath, before
+ * the app initializes GTK. GLib uses `;` as the win32 search-path separator.
+ * @returns {void}
+ */
+export function maybeWireGtkWindowingEnv() {
+    if (process.platform !== 'win32') return; // strict no-op on every non-win32 runtime
+    const bundle = resolveGtkRuntimeBundle();
+    if (!bundle) return; // strict no-op when no bundle is present
+
+    const schemaDir = join(bundle.dir, 'share', 'glib-2.0', 'schemas');
+    // gschemas.compiled = the windowing-data marker; absent → display-free bundle.
+    if (!existsSync(join(schemaDir, 'gschemas.compiled'))) return;
+
+    const setIfUnset = (name, value) => {
+        if (!process.env[name]) process.env[name] = value;
+    };
+    setIfUnset('GSETTINGS_SCHEMA_DIR', schemaDir);
+
+    const loaderCache = join(bundle.dir, 'lib', 'gdk-pixbuf-2.0', '2.10.0', 'loaders.cache');
+    if (existsSync(loaderCache)) {
+        setIfUnset('GDK_PIXBUF_MODULEDIR', join(bundle.dir, 'lib', 'gdk-pixbuf-2.0', '2.10.0', 'loaders'));
+        setIfUnset('GDK_PIXBUF_MODULE_FILE', loaderCache);
+    }
+
+    const shareDir = join(bundle.dir, 'share');
+    if (existsSync(join(shareDir, 'icons'))) {
+        const cur = process.env.XDG_DATA_DIRS ?? '';
+        if (!cur.split(';').filter(Boolean).includes(shareDir)) {
+            process.env.XDG_DATA_DIRS = cur ? `${shareDir};${cur}` : shareDir;
+        }
+    }
+
+    const fontsConf = join(bundle.dir, 'etc', 'fonts', 'fonts.conf');
+    if (existsSync(fontsConf)) {
+        setIfUnset('FONTCONFIG_PATH', join(bundle.dir, 'etc', 'fonts'));
+        setIfUnset('FONTCONFIG_FILE', fontsConf);
+    }
+}
+
 let activated = null; // memoize: the activation result (idempotent)
 
 /**

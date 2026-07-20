@@ -11,5 +11,7 @@ export function resolveGtkRuntimeBundle(): GtkRuntimeBundle | null;
 export function maybeReexecForGtkRuntime(): void;
 /** Windows: prepend the bundle's gtk/bin DLL dir to process.env.PATH (no-op off win32). */
 export function maybePrependGtkRuntimeDllPath(): void;
+/** Windows: wire the env for a full-windowing bundle's runtime data — GSettings schemas, gdk-pixbuf loaders, icon themes, fontconfig (no-op off win32 / for a display-free bundle). */
+export function maybeWireGtkWindowingEnv(): void;
 /** Activate the bundled GTK runtime for the native engine, if one is present. */
 export function activateBundledGtkRuntime(native: { prependSearchPath: (p: string) => void }): GtkRuntimeBundle | null;
