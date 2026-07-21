@@ -287,7 +287,15 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         // bundles. Same plugin the gjs/browser targets compose.
         blueprintPlugin() as RolldownPluginOption,
         deepkitPlugin({ reflection: input.pluginOptions.reflection }),
-        cssAsStringPlugin(),
+        // CSS-as-string. For a node-gi build (the reverse bridge runs REAL GTK on
+        // Node — `nodeGiGlobalsInject`, the same signal that keeps `@girs/*` bodies
+        // above), lower the CSS to GTK 4's subset with `firefox: 60 << 16` — exactly
+        // as `--app gjs` does — so modern authoring (nesting, `&`, …) is FLATTENED
+        // before it reaches `Gtk.CssProvider.load_from_string`. Without this GTK 4's
+        // CSS parser rejects nested rules at runtime ("Expected ';'/an identifier"
+        // theme-parser warnings, styles silently dropped — the Learn6502 app-gnome
+        // symptom). A plain-Node bundle (no node-gi) keeps the CSS pristine.
+        cssAsStringPlugin(input.pluginOptions.nodeGiGlobalsInject ? { targets: { firefox: 60 << 16 } } : {}),
         nodeModulesPathRewritePlugin({ bundleDir }),
     ];
 
