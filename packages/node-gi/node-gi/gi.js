@@ -255,6 +255,31 @@ function resolveTemplateCallback(handle, handlerName) {
 }
 native.setTemplateCallbackResolver(resolveTemplateCallback);
 
+// Run a registered class's JS constructor for a GObject the ENGINE instantiated
+// from C — a GtkBuilder composite-template InternalChild is the common case. node-gi's
+// JS-`new` path runs the ctor via the makeClass super-substitution; a C-created
+// instance has no such driver, so NodeGiConstructor (the overridden `constructor`
+// vfunc) calls this with the instance's canonical handle + its GType name. We set
+// `adoptHandle` and Reflect.construct the class: its `super()` reaches the makeClass
+// base ctor, which adopts the handle (no second GObject) and returns the canonical
+// wrapper, so the ctor body runs against it (`this._x = …` become expandos on the
+// one wrapper GtkBuilder-fetched children later resolve to). GJS-faithful
+// (gjs_object_constructor's native-construction branch runs the JS constructor).
+function runCtorForCObject(handle, gtypeName) {
+  const cls = classesByGType.get(gtypeName);
+  if (cls === undefined) return; // not a node-gi-registered class (shouldn't happen)
+  const prev = adoptHandle;
+  adoptHandle = handle;
+  try {
+    // No props: GtkBuilder already applied the construct properties to the C object;
+    // the ctor's `params` arg is conventionally optional for a template child.
+    Reflect.construct(cls, []);
+  } finally {
+    adoptHandle = prev;
+  }
+}
+native.setConstructCallback(runCtorForCObject);
+
 // Wrap a non-GObject GObject-fundamental (e.g. a GskRenderNode from
 // Gtk.Snapshot.to_node, a GdkEvent) as an OPAQUE, round-trippable handle. The
 // native tagged External already carries the raw pointer (its Data) + drops the
@@ -835,6 +860,18 @@ function handlerIdsForFunc(handle, fn) {
 // routing keys on the leaf so construction is correct at any depth.
 const registeredClasses = new Map();
 
+// GTypeName → registered JS class, the reverse of registeredClasses. The engine's
+// NodeGiConstructor hands runCtorForCObject (below) the C-created instance's GType
+// NAME (g_type_name), which this resolves back to the class to Reflect.construct.
+const classesByGType = new Map();
+
+// When set (by runCtorForCObject), the makeClass base ctor ADOPTS this pre-existing
+// canonical handle instead of constructing a second GObject — so a C/GtkBuilder-
+// created instance's user ctor body runs on the wrapper the engine already built.
+// A module-scoped latch is safe: it is set immediately before a synchronous
+// Reflect.construct and consumed by the base ctor before any nested construction.
+let adoptHandle;
+
 // Surface a templated type's bound children on a freshly-constructed instance
 // (GJS convention: public `this.<name>`, internal `this._<name>`, '-' → '_'). The
 // engine already ran init_template during constructType, so getTemplateChild
@@ -1295,7 +1332,17 @@ function makeClass(namespace, typeName) {
     if (nt !== undefined && nt !== proxy) {
       const reg = registeredClasses.get(nt);
       if (reg !== undefined) {
-        const handle = native.constructType(reg.typeHandle, props ? unwrapProps(props) : {});
+        let handle;
+        if (adoptHandle !== undefined) {
+          // C-created adoption (runCtorForCObject): the engine already built the
+          // GObject; use its canonical handle instead of constructing another.
+          // Consume the latch atomically so a nested `new` in the ctor body takes
+          // the normal constructType path.
+          handle = adoptHandle;
+          adoptHandle = undefined;
+        } else {
+          handle = native.constructType(reg.typeHandle, props ? unwrapProps(props) : {});
+        }
         const instance = wrapInstance(handle, nt.prototype);
         assignTemplateChildren(instance, handle, reg);
         return instance;
@@ -1963,6 +2010,9 @@ function registerClass(metaOrClass, maybeClass) {
     children: children.length > 0 ? children : undefined,
     internalChildren: internalChildren.length > 0 ? internalChildren : undefined,
   });
+  // Reverse index for runCtorForCObject: the engine identifies a C-created instance
+  // by its GType name (= gtypeName, what native.registerClass registered).
+  classesByGType.set(gtypeName, klass);
   return klass;
 }
 

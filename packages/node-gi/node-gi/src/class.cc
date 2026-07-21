@@ -383,10 +383,120 @@ static void NodeGiSetProperty(GObject* obj, guint prop_id, const GValue* value, 
   if (cd != nullptr && cd->parentSet != nullptr) cd->parentSet(obj, prop_id, value, pspec);
 }
 
+// ---- run the JS constructor for C/GtkBuilder-instantiated instances ----
+//
+// node-gi runs a registered class's JS constructor ONLY on a JS-side `new Sub()`
+// (the makeClass new.target path in gi.js routes it to constructType, and ES
+// super-substitution runs the ctor body). A GObject built from C — a GtkBuilder
+// composite-template InternalChild is the common case — never reaches that path,
+// so its ctor body (e.g. `this._x = …`) never runs. GJS solves this by overriding
+// the GObjectClass `constructor` vfunc so BOTH paths funnel through it
+// (refs/gjs/gi/gobject.cpp gjs_object_constructor). We mirror that: NodeGiConstructor
+// chains to the first non-node-gi C constructor to create the instance, then — only
+// for the C-driven path — runs the JS ctor on the canonical wrapper via the L1
+// construct callback. The JS-`new` path is unchanged (the latch NodeGiJsConstructing
+// is raised by ConstructGObject, so we return the instance and let makeClass run it).
+
+// Thread-local so a worker_threads env has its own latch (GtkBuilder construction
+// runs on the same thread as the ConstructGObject that raised it).
+static thread_local bool g_nodegiJsConstructing = false;
+bool NodeGiJsConstructing() { return g_nodegiJsConstructing; }
+void NodeGiSetJsConstructing(bool v) { g_nodegiJsConstructing = v; }
+
+static void RunJsConstructorForCObject(napi_env env, GObject* obj) {
+  // Teardown/terminate: never enter JS during GC/context teardown (GJS-faithful;
+  // same gate as the vfunc trampoline). The C object is still fully constructed.
+  if (!NodeGiJsAvailable(env)) return;
+  Napi::Env napiEnv(env);
+  Napi::HandleScope scope(napiEnv);
+  // JS dispatched from a pump-driven iteration must not inherit the in-iteration
+  // flag (mirrors the vfunc trampoline).
+  NodeGiPumpJsDispatchScope pumpWindow;
+
+  // Build this instance's OWN composite template first (a no-op unless it carries
+  // one), so the JS ctor's assignTemplateChildren sees bound children — the JS-`new`
+  // path does this in ConstructGObject before makeClass reads them.
+  MaybeInitTemplate(napiEnv, obj);
+
+  NodeGiEnvData* d = EnvData(env);
+  napi_value cb = nullptr;
+  if (d == nullptr || d->constructCallback == nullptr ||
+      napi_get_reference_value(env, d->constructCallback, &cb) != napi_ok || cb == nullptr) {
+    return;  // L1 hasn't registered the callback (nothing to run)
+  }
+  napi_value handleVal = WrapGObject(napiEnv, obj, GI_TRANSFER_NOTHING);
+  napi_value nameVal = nullptr;
+  napi_create_string_utf8(env, g_type_name(G_OBJECT_TYPE(obj)), NAPI_AUTO_LENGTH, &nameVal);
+  napi_value args[2] = {handleVal, nameVal};
+  napi_value undef = nullptr;
+  napi_get_undefined(env, &undef);
+  napi_value ret = nullptr;
+  // A plain call (not napi_make_callback): the ctor is synchronous and we must not
+  // drain the microtask queue mid-g_object_new. Matches GJS's template-callback
+  // resolver + gjs_object_constructor's JS::Construct (no checkpoint).
+  napi_status st = napi_call_function(env, undef, cb, 2, args, &ret);
+  if (st != napi_ok) {
+    // The ctor threw. Never leave a pending JS exception across the return into C
+    // (GObject/GtkBuilder can't handle it) — clear it and fold the message into a
+    // g_warning (GJS logs the uncaught exception here too).
+    napi_value ex = nullptr;
+    if (napi_get_and_clear_last_exception(env, &ex) == napi_ok && ex != nullptr) {
+      napi_value msg = nullptr;
+      std::string detail;
+      if (napi_get_named_property(env, ex, "message", &msg) == napi_ok) {
+        size_t len = 0;
+        if (napi_get_value_string_utf8(env, msg, nullptr, 0, &len) == napi_ok) {
+          detail.resize(len);
+          napi_get_value_string_utf8(env, msg, detail.data(), len + 1, &len);
+        }
+      }
+      g_warning("node-gi: JS constructor for %s threw: %s", g_type_name(G_OBJECT_TYPE(obj)),
+                detail.empty() ? "(no message)" : detail.c_str());
+    }
+  }
+}
+
+// The overridden GObjectClass `constructor` vfunc (installed on every registered
+// type in NodeGiClassInit). GJS parity: gi/gobject.cpp gjs_object_constructor.
+static GObject* NodeGiConstructor(GType type, guint n_construct_properties,
+                                  GObjectConstructParam* construct_properties) {
+  // Chain to the first non-node-gi (C) constructor UP the hierarchy, skipping our
+  // own — that actually allocates + constructs the instance (running the real C
+  // construction chain). GJS does the identical skip-walk (gobject.cpp:155).
+  GType parent = g_type_parent(type);
+  while (parent != 0) {
+    gpointer pk = g_type_class_peek(parent);
+    if (pk == nullptr || G_OBJECT_CLASS(pk)->constructor != NodeGiConstructor) break;
+    parent = g_type_parent(parent);
+  }
+  gpointer pk = parent != 0 ? g_type_class_peek(parent) : nullptr;
+  GObject* obj = (pk != nullptr && G_OBJECT_CLASS(pk)->constructor != nullptr)
+                     ? G_OBJECT_CLASS(pk)->constructor(type, n_construct_properties,
+                                                       construct_properties)
+                     : nullptr;
+  if (obj == nullptr) return nullptr;
+
+  // JS-`new` path: the makeClass super-substitution runs the user ctor after
+  // g_object_new returns — do NOT run it here (would double-run).
+  if (NodeGiJsConstructing()) return obj;
+
+  // C/GtkBuilder-driven: the user ctor has no other driver. Run it on the leaf
+  // registered class's env (correct across worker envs).
+  NodeGiClassData* cd = FindClassData(G_OBJECT_TYPE(obj));
+  if (cd != nullptr && cd->env != nullptr) RunJsConstructorForCObject(cd->env, obj);
+  return obj;
+}
+
 static void NodeGiClassInit(gpointer g_class, gpointer class_data) {
   NodeGiClassData* cd = static_cast<NodeGiClassData*>(class_data);
   GObjectClass* oc = G_OBJECT_CLASS(g_class);
   g_type_set_qdata(G_TYPE_FROM_CLASS(g_class), NodeGiClassDataQuark(), cd);
+
+  // Route construction through NodeGiConstructor so a C/GtkBuilder-instantiated
+  // instance (a composite-template InternalChild) gets its JS constructor run —
+  // GJS parity (gi/gobject.cpp). The JS-`new` path is unaffected: NodeGiConstructor
+  // returns early while the NodeGiJsConstructing() latch is raised.
+  oc->constructor = NodeGiConstructor;
 
   if (!cd->properties.empty()) {
     cd->parentGet = oc->get_property;  // capture before override (chain target)
@@ -941,6 +1051,9 @@ static Napi::Value RegisterClassImpl(Napi::Env env, const std::string& name, GTy
 
   // Parse the optional { properties, signals } and build the class metadata.
   NodeGiClassData* cd = new NodeGiClassData();
+  // Stamp the registering env so NodeGiConstructor (no user_data slot) can call
+  // into JS from this class's cd for a C/GtkBuilder-instantiated instance.
+  cd->env = env;
   cd->parentGet = nullptr;
   cd->parentSet = nullptr;
   if (optsValue.IsObject()) {
@@ -1165,6 +1278,26 @@ Napi::Value ConstructType(const Napi::CallbackInfo& info) {
   Napi::Object props = (info.Length() >= 2 && info[1].IsObject()) ? info[1].As<Napi::Object>()
                                                                  : Napi::Object::New(env);
   return ConstructGObject(env, gtype, props, std::string(g_type_name(gtype)));
+}
+
+// setConstructCallback(cb) -> void. L1 registers the callback NodeGiConstructor
+// invokes to run a registered class's JS constructor for a C/GtkBuilder-created
+// instance: (instanceHandle, gtypeName) → Reflect.construct(class) in adopt mode
+// (see gi.js runCtorForCObject). Mirrors setTemplateCallbackResolver.
+Napi::Value SetConstructCallback(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsFunction()) {
+    Napi::TypeError::New(env, "setConstructCallback(cb: function)").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  NodeGiEnvData* d = EnvData(env);
+  if (d == nullptr) return env.Undefined();
+  if (d->constructCallback != nullptr) {
+    napi_delete_reference(env, d->constructCallback);
+    d->constructCallback = nullptr;
+  }
+  napi_create_reference(env, info[0], 1, &d->constructCallback);
+  return env.Undefined();
 }
 
 }  // namespace nodegi

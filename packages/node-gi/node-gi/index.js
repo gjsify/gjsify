@@ -664,6 +664,16 @@ export const disconnectSignal = native.disconnectSignal;
 export const setTemplateCallbackResolver = native.setTemplateCallbackResolver;
 
 /**
+ * Register the L1 callback the engine's overridden `constructor` vfunc invokes to
+ * run a registered class's JS constructor for a GObject it instantiated from C (a
+ * GtkBuilder composite-template InternalChild). Given (instanceHandle, gtypeName)
+ * it Reflect.constructs the class in adopt mode (see gi.js runCtorForCObject).
+ * @param {(handle: unknown, gtypeName: string) => void} cb
+ * @returns {void}
+ */
+export const setConstructCallback = native.setConstructCallback;
+
+/**
  * Install (or clear, with `null`) the structured-log writer function — the
  * engine's twin of GjsPrivate.log_set_writer_func backing GLib.log_set_writer_func.
  * The writer receives (logLevel: number, fields: Record<string, Uint8Array|null>)

@@ -595,7 +595,15 @@ Napi::Value ConstructGObject(Napi::Env env, GType gtype, Napi::Object props,
 
   GObject* obj = nullptr;
   if (ok) {
+    // Raise the JS-`new` latch across construction: this is the node-gi JS-driven
+    // path, where the makeClass super-substitution runs the user ctor AFTER this
+    // returns. NodeGiConstructor reads the latch and does NOT re-run the ctor (a
+    // C/GtkBuilder-driven g_object_new leaves it clear, so NodeGiConstructor runs
+    // the ctor there). Save/restore keeps a reentrant construct correct.
+    bool prevConstructing = NodeGiJsConstructing();
+    NodeGiSetJsConstructing(true);
     obj = g_object_new_with_properties(gtype, n, cnames.data(), values.data());
+    NodeGiSetJsConstructing(prevConstructing);
   }
   for (guint j = 0; j < initialised; j++) g_value_unset(&values[j]);
   g_type_class_unref(klass);
