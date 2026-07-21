@@ -890,6 +890,34 @@ function assignTemplateChildren(instance, handle, reg) {
   }
 }
 
+// Push construct-time GObject-property values through the class's own JS SETTERS.
+//
+// A class can declare a GObject property (`Properties: { displayWidth: ParamSpec }`,
+// often CONSTRUCT with a default) AND a matching JS accessor
+// (`get/set displayWidth` over a `_displayWidth` backing field). On GJS the property
+// set vfunc delegates to the JS setter (`JS_SetProperty`), so the CONSTRUCT default
+// reaches `_displayWidth` at construction. node-gi builds the wrapper AFTER
+// g_object_new, so at construct time there is no USER_PROTO to route through — the
+// value lands only in the engine's per-instance store, and the class's getter
+// (reading `_displayWidth`) sees `undefined` (the Learn6502 Display "DrawingArea is
+// required" wall). Once USER_PROTO is attached (here, right after construction), read
+// each such property's construct value back out (from the store, or the ParamSpec
+// default) and run it through the JS setter — the node-gi analogue of GJS applying a
+// CONSTRUCT property via the JS setter, and BEFORE the user ctor body runs (same
+// order as GJS). Only properties whose name resolves to a prototype SETTER are
+// touched, so a plain GObject property (no JS accessor) keeps the store as its single
+// backing store — unchanged.
+function flushConstructProperties(instance, handle, reg) {
+  if (reg.constructPropertyNames === undefined) return;
+  const up = instance[USER_PROTO];
+  if (up === undefined) return;
+  for (const name of reg.constructPropertyNames) {
+    const desc = findProtoDescriptor(up, name);
+    if (desc === undefined || typeof desc.set !== 'function') continue;
+    desc.set.call(instance, wrapReturn(native.getProperty(handle, name)));
+  }
+}
+
 // ---- Gio.Application.runAsync (L1, GJS-shaped) ----
 //
 // The Node twin of GJS's `Gio.Application.prototype.runAsync`
@@ -1345,6 +1373,9 @@ function makeClass(namespace, typeName) {
         }
         const instance = wrapInstance(handle, nt.prototype);
         assignTemplateChildren(instance, handle, reg);
+        // Route construct-time property values through the class's JS setters now
+        // that USER_PROTO is attached — before the user ctor body runs (GJS order).
+        flushConstructProperties(instance, handle, reg);
         return instance;
       }
       // `nt` is a subclass of this introspected GObject class but was NEVER passed to
@@ -2005,10 +2036,24 @@ function registerClass(metaOrClass, maybeClass) {
   // Record the registration so the introspected base ctor (makeClass) routes
   // `new X(args)` (where new.target === klass) to constructType(typeHandle, …) +
   // the canonical wrapper. Template children move here from the old Subclass.
+  // The names of CONSTRUCT / CONSTRUCT_ONLY properties — the ONLY ones GObject
+  // applies at construction. The flush (flushConstructProperties) must be limited to
+  // these: a plain READWRITE property is NOT set during construction, so running its
+  // JS setter early (GObject never would) fires the setter's side effects against
+  // still-uninitialised instance state (the SourceView `selectable` → `_signalHandlers`
+  // forEach crash). Matches GJS, which only runs setters for props GObject applies at
+  // construct. Flags are the ABI-stable G_PARAM_CONSTRUCT (1<<2) | CONSTRUCT_ONLY (1<<3).
+  const PARAM_CONSTRUCT_MASK = 0x4 | 0x8;
+  const constructPropertyNames = properties
+    .filter((p) => typeof p.flags === 'number' && (p.flags & PARAM_CONSTRUCT_MASK) !== 0)
+    .map((p) => p.name)
+    .filter((n) => typeof n === 'string');
   registeredClasses.set(klass, {
     typeHandle,
     children: children.length > 0 ? children : undefined,
     internalChildren: internalChildren.length > 0 ? internalChildren : undefined,
+    // CONSTRUCT-property names, for the construct-property flush (below).
+    constructPropertyNames: constructPropertyNames.length > 0 ? constructPropertyNames : undefined,
   });
   // Reverse index for runCtorForCObject: the engine identifies a C-created instance
   // by its GType name (= gtypeName, what native.registerClass registered).
