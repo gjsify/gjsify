@@ -962,8 +962,8 @@ jobs:
       HOMEBREW_NO_AUTO_UPDATE: '1'
       HOMEBREW_NO_INSTALL_CLEANUP: '1'
     steps:
-      - name: Install GTK4 + Adwaita + GObject-Introspection (build-time closure source)
-        run: brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config
+      - name: Install GTK4 + Adwaita + GtkSource + GObject-Introspection (build-time closure source)
+        run: brew install gtk4 libadwaita gtksourceview5 gobject-introspection cairo pango gdk-pixbuf graphene pkg-config
 
       - name: Use Node.js 24
         uses: actions/setup-node@v4
@@ -979,7 +979,8 @@ jobs:
           name: node-gi-prebuild-darwin-arm64
           path: addon
 
-      # --windowing adds libadwaita (+ its otool deps) to the relocated closure.
+      # --windowing adds libadwaita + libgtksourceview (+ their otool deps) to the
+      # relocated closure.
       - name: Build + relocate the WINDOWING GTK runtime bundle
         run: |
           node packages/node-gi/gtk-runtime-darwin-arm64/scripts/build-gtk-runtime.mjs \
@@ -988,12 +989,15 @@ jobs:
             --addon "$PWD/addon/node_gi.node" \
             --stage packages/node-gi/node-gi/prebuilds/darwin-arm64
 
-      - name: Report bundle + assert libadwaita is present
+      - name: Report bundle + assert libadwaita + GtkSource are present
         run: |
           cat packages/node-gi/gtk-runtime-darwin-arm64/gtk/manifest.json
           echo "--- bundle size ---"; du -sh packages/node-gi/gtk-runtime-darwin-arm64/gtk
           echo "--- assert libadwaita relocated into the bundle ---"
           ls packages/node-gi/gtk-runtime-darwin-arm64/gtk/lib | grep -i adwaita || { echo "libadwaita MISSING from the windowing bundle"; exit 1; }
+          echo "--- assert libgtksourceview dylib + GtkSource-5 typelib are bundled ---"
+          ls packages/node-gi/gtk-runtime-darwin-arm64/gtk/lib | grep -i gtksourceview || { echo "libgtksourceview MISSING from the windowing bundle"; exit 1; }
+          ls packages/node-gi/gtk-runtime-darwin-arm64/gtk/girepository-1.0 | grep -i 'GtkSource-5.typelib' || { echo "GtkSource-5.typelib MISSING from the windowing bundle"; exit 1; }
           echo "--- assert NO /opt/homebrew refs remain ---"
           if otool -L packages/node-gi/gtk-runtime-darwin-arm64/gtk/lib/*.dylib | grep -F /opt/homebrew; then
             echo "RELOCATION FAILED: bundled dylibs still reference /opt/homebrew"; exit 1
@@ -1471,6 +1475,18 @@ jobs:
           }
           Write-Host "--- icon themes ---"
           Get-ChildItem "$B/share/icons" -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
+          # GtkSource-5 (the Learn6502 editor's GtkSource.View backer). The gvsbuild
+          # GTK4 release ZIP ships gtksourceview5, so ASSERT the full closure landed:
+          # the DLL is seeded (WINDOWING_SEED_PATTERNS), the typelib copied, and the
+          # language-specs/styles bundled (build step 4e). A future gvsbuild that drops
+          # gtksourceview5 fails here loudly rather than silently shipping a bundle the
+          # editor can't load.
+          Write-Host "--- assert GtkSource-5 in the bundle ---"
+          $srcDll = Get-ChildItem "$B/bin" -Filter '*gtksourceview-5*.dll' -ErrorAction SilentlyContinue
+          if (-not $srcDll) { Write-Host "libgtksourceview-5 DLL MISSING from the windowing bundle"; exit 1 }
+          if (-not (Test-Path "$B/girepository-1.0/GtkSource-5.typelib")) { Write-Host "GtkSource-5.typelib MISSING from the windowing bundle"; exit 1 }
+          if (-not (Test-Path "$B/share/gtksourceview-5/language-specs")) { Write-Host "GtkSource-5 language-specs MISSING from the windowing bundle"; exit 1 }
+          Write-Host ("GtkSource-5 OK: {0} + GtkSource-5.typelib + language-specs" -f $srcDll.Name)
 
       - name: Upload FULL-windowing GTK runtime bundle
         uses: actions/upload-artifact@v4
