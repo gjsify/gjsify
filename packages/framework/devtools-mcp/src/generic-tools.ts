@@ -275,6 +275,37 @@ export function registerGenericTools(ctx: McpToolContext, which: GenericToolName
         );
     }
 
+    if (want('activate_widget')) {
+        server.registerTool(
+            'activate_widget',
+            {
+                description:
+                    'Activate the widget at a widget path (from dump_tree) — the click-drive counterpart of ' +
+                    'get_property: a Button emits clicked, an ActionRow emits activated, an entry emits activate. ' +
+                    'Returns whether the widget was activatable.',
+                inputSchema: z.object({ path: z.string(), ...instanceArg }),
+            },
+            async ({ path, instance }) => {
+                try {
+                    const reply = await client.control(
+                        instance,
+                        'ActivateWidget',
+                        GLib.Variant.new_tuple([strv(path)]),
+                        '(b)',
+                    );
+                    const [activated] = reply.recursiveUnpack() as [boolean];
+                    return ok(
+                        activated
+                            ? `Activated widget at "${path}".`
+                            : `Widget at "${path}" is not activatable (no default activation).`,
+                    );
+                } catch (error) {
+                    return dbusError(error, instance);
+                }
+            },
+        );
+    }
+
     if (want('dump_gsettings')) {
         server.registerTool(
             'dump_gsettings',

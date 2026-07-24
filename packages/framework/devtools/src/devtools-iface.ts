@@ -47,6 +47,10 @@ const GENERIC_METHODS_XML = `    <method name="GetStatus">
     <method name="GetFocused">
       <arg type="s" direction="out" name="focused_json"/>
     </method>
+    <method name="ActivateWidget">
+      <arg type="s" direction="in" name="path"/>
+      <arg type="b" direction="out" name="activated"/>
+    </method>
     <method name="DumpGSettings">
       <arg type="s" direction="in" name="schema_id"/>
       <arg type="s" direction="out" name="settings_json"/>

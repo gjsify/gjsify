@@ -31,6 +31,7 @@ export const GENERIC_METHODS = {
     GetProperty: 'read-only',
     SetProperty: 'mutating',
     GetFocused: 'read-only',
+    ActivateWidget: 'mutating',
     EmitSignal: 'mutating',
     DumpGSettings: 'read-only',
     DumpCss: 'read-only',
