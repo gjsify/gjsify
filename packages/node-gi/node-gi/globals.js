@@ -23,6 +23,7 @@ import cairo from './cairo.js';
 // GLib.MainLoop convenience layer) — the GJS script modules many older sources use.
 import * as signalsModule from './overrides/_signals.js';
 import { createMainloop } from './overrides/mainloop.js';
+import { createPackage } from './overrides/package.js';
 
 // GJS stringifies each argument with String() and joins with a space (no
 // util.inspect object formatting) — match that for fidelity.
@@ -109,6 +110,10 @@ function makeImports() {
     gettext,
     cairo,
     signals: { addSignalMethods, _connect, _connectAfter, _disconnect, _emit, _signalHandlerIsConnected, _disconnectAll },
+    // GJS's `imports.searchPath` — `imports.package.init` unshifts the app's
+    // moduledir onto it. Inert on node-gi (ESM + gi://), but present + safe so
+    // source that reads/mutates it doesn't throw.
+    searchPath: [],
     versions: Object.create(null),
   };
   let mainloop;
@@ -116,6 +121,17 @@ function makeImports() {
     get() {
       if (mainloop === undefined) mainloop = createMainloop(requireGi('GLib', '2.0'));
       return mainloop;
+    },
+    enumerable: true,
+    configurable: true,
+  });
+  // `imports.package` — the GJS application bootstrap (pkg.init/initGettext/
+  // initFormat). Lazy like `mainloop`: a bundle that never calls it pulls no GLib.
+  let pkg;
+  Object.defineProperty(imports, 'package', {
+    get() {
+      if (pkg === undefined) pkg = createPackage({ requireGi, gettext, imports });
+      return pkg;
     },
     enumerable: true,
     configurable: true,
