@@ -34,6 +34,47 @@
 #include <cstring>
 #include <map>
 
+namespace gjsify_napi {
+
+// Process-wide env registry — walked by the weak sweep callback and the
+// idle finalizer drain (declared in common.h).
+std::vector<napi_env>& env_registry() {
+    static std::vector<napi_env> envs;
+    return envs;
+}
+
+namespace {
+// The single armed idle drain source (§5c finalization_scheduled guard).
+guint finalizer_drain_source_id = 0;
+
+gboolean drain_all_envs_idle(gpointer /* user_data */) {
+    finalizer_drain_source_id = 0;  // allow re-arming from the drain itself
+    for (napi_env env : env_registry()) {
+        drain_finalizer_queue(env);
+    }
+    return G_SOURCE_REMOVE;
+}
+}  // namespace
+
+// Called from enqueue_finalizer — including from inside the GC sweep
+// callback, where g_idle_add is safe (it only locks the GLib main context;
+// no JSAPI runs). The drain executes on the main loop, NEVER inside GC
+// (§5c invariant: user finalizers never run during GC).
+void schedule_finalizer_drain() {
+    if (finalizer_drain_source_id == 0) {
+        finalizer_drain_source_id = g_idle_add(drain_all_envs_idle, nullptr);
+    }
+}
+
+static void cancel_finalizer_drain() {
+    if (finalizer_drain_source_id != 0) {
+        g_source_remove(finalizer_drain_source_id);
+        finalizer_drain_source_id = 0;
+    }
+}
+
+}  // namespace gjsify_napi
+
 namespace {
 
 bool loader_installed = false;
@@ -50,8 +91,7 @@ std::map<std::string, napi_env>& env_cache() {
 }
 
 std::vector<napi_env>& all_envs() {
-    static std::vector<napi_env> envs;
-    return envs;
+    return gjsify_napi::env_registry();
 }
 
 // Throw a real JS exception from the loader (load failures are normal JS
@@ -75,12 +115,22 @@ void on_gjs_context_dispose(gpointer data, GObject* /* where_the_object_was */) 
             "env-teardown seam\n",
             static_cast<void*>(rt), pending ? 1 : 0);
     size_t count = all_envs().size();
+    // Teardown may run finalizers that trigger GC — the weak sweep callback
+    // must stay registered until every env released its weak refs.
     for (napi_env env : all_envs()) {
         env->teardown();
-        delete env;
+    }
+    for (napi_env env : all_envs()) {
+        delete env;  // frees bundles + remaining shells (no JS runs anymore)
     }
     all_envs().clear();
     env_cache().clear();
+    // A still-armed idle drain must not fire into freed envs (and after
+    // dispose the registry is empty anyway — belt and braces).
+    gjsify_napi::cancel_finalizer_drain();
+    // Remove the weak sweep callback BEFORE GJS's final full GC +
+    // JS_DestroyContext (refs/gjs/gjs/context.cpp:437,471).
+    JS_RemoveWeakPointerZonesCallback(cx, gjsify_napi::weak_sweep_callback);
     loader_installed = false;
     fprintf(stderr,
             "[gjsify-napi] P0.0 TEARDOWN PROBE: %zu env(s) torn down before "
@@ -398,6 +448,14 @@ extern "C" gboolean gjsify_napi_install(void) {
     // property after capturing the function.
     if (!JS_DefineProperty(cx, global, "__gjsifyNapiLoadAddon", fn_obj, 0)) {
         g_warning("gjsify-napi: failed to define __gjsifyNapiLoadAddon");
+        return FALSE;
+    }
+    // §5b weak machinery: ONE process-wide sweep callback (GJS registers its
+    // own compartment variant the same way, gi/object.cpp:2503). Removed in
+    // on_gjs_context_dispose before the final GC.
+    if (!JS_AddWeakPointerZonesCallback(cx, gjsify_napi::weak_sweep_callback,
+                                        nullptr)) {
+        g_warning("gjsify-napi: failed to register the weak sweep callback");
         return FALSE;
     }
     // §3d teardown seam: weak notification fires pre-final-GC,

@@ -36,8 +36,10 @@ cc_sources = files(
     'src/cc/function.cc',
     'src/cc/module.cc',
     'src/cc/object.cc',
+    'src/cc/ref.cc',
     'src/cc/stubs.cc',
     'src/cc/value.cc',
+    'src/cc/wrap.cc',
 )
 
 # §3b export hygiene: only napi_*/node_api_* (the ABI) + gjsify_napi_* (the

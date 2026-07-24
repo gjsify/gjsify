@@ -50,9 +50,20 @@ void HandleArena::clearAll() {
 
 // ---- env tracer ----
 
+// Walk a RefTracker list, invoking the virtual Trace (Reference traces its
+// strong slot; weak slots are deliberately NOT traced — the sweep callback
+// owns them).
+static void trace_ref_list(JSTracer* trc, const RefTracker* head) {
+    for (RefTracker* t = head->next(); t != nullptr; t = t->next()) {
+        t->Trace(trc);
+    }
+}
+
 void trace_env(JSTracer* trc, void* data) {
     auto* env = static_cast<napi_env>(data);
     env->arena.trace(trc);
+    trace_ref_list(trc, &env->reflist);
+    trace_ref_list(trc, &env->finalizing_reflist);
 }
 
 napi_value arena_push(napi_env env, const JS::Value& value) {
@@ -71,7 +82,13 @@ napi_env__::napi_env__(JSContext* cx_in, GjsContext* gjs, int32_t api_version,
       dl_handle(handle),
       filename(std::move(file)),
       exports(cx_in),
-      global(cx_in, JS::CurrentGlobalOrNull(cx_in)) {
+      global(cx_in, JS::CurrentGlobalOrNull(cx_in)),
+      // MUST be ctor-initialized with the context: a default-constructed
+      // PersistentRooted is NOT registered with the runtime — assigning to
+      // it later stores the pointer UNROOTED and the map dies at the next
+      // GC (found by the P0.3 gate: SetWeakMapEntry crashed in the dead
+      // map's zone-tracked allocator).
+      wrap_map(cx_in) {
     JS_AddExtraGCRootsTracer(cx, gjsify_napi::trace_env, this);
 }
 
@@ -89,23 +106,52 @@ napi_env__::~napi_env__() {
 }
 
 void napi_env__::teardown() {
-    if (torn_down) {
+    // §5e order — the node-gi SIGSEGV lesson. Steps 1-4 run with JS fully
+    // callable (finalizers may call napi and create values, so the arena,
+    // tracer and can_call_into_js MUST stay live until step 5).
+    if (tearing_down || torn_down) {
         return;
     }
-    torn_down = true;
-    // §5e order (P0.1 slice — cleanup hooks / finalizer drain / ref lists /
-    // instance data join in P0.3):
-    // 1. block further calls into JS through this env
+    tearing_down = true;
+
+    // 1. env cleanup hooks, LIFO (napi_add_env_cleanup_hook — the
+    //    better-sqlite3 Addon::Cleanup slot).
+    while (!cleanup_hooks.empty()) {
+        CleanupHook hook = cleanup_hooks.back();
+        cleanup_hooks.pop_back();
+        hook.fn(hook.arg);
+    }
+
+    // 2. drain finalizers already queued by earlier GC deaths.
+    gjsify_napi::drain_finalizer_queue(this);
+
+    // 3. finalize the ref lists: finalizing refs FIRST (their finalizers
+    //    may still delete plain refs — js_native_api_v8.h:121-130), then
+    //    plain refs. Instance data is linked in finalizing_reflist like
+    //    Node's TrackedFinalizer, so it finalizes here too. Deaths queued
+    //    by GC during these callbacks are drained afterwards.
+    gjsify_napi::RefTracker::FinalizeAll(&finalizing_reflist);
+    gjsify_napi::RefTracker::FinalizeAll(&reflist);
+    gjsify_napi::drain_finalizer_queue(this);
+
+    // 4. (instance data handled in step 3 — see TrackedFinalizer::Finalize.)
+
+    // 5. block further calls into JS through this env.
     can_call_into_js = false;
-    // 2. unregister the extra-roots tracer (GJS removes its own the same
-    //    way before JS_DestroyContext, refs/gjs/gjs/context.cpp:457)
+    torn_down = true;
+
+    // 6. drop every root this env owns — all before JS_DestroyContext;
+    //    a live PersistentRooted/JS::Heap past that point is the UAF class.
+    //    (GJS removes its own tracer the same way before destroying the
+    //    context, refs/gjs/gjs/context.cpp:457.)
     JS_RemoveExtraGCRootsTracer(cx, gjsify_napi::trace_env, this);
-    // 3. drop every root this env owns — all before JS_DestroyContext;
-    //    a live PersistentRooted/JS::Heap past that point is the UAF class
     exports.reset();
     global.reset();
+    wrap_map.reset();
     arena.clearAll();
     scopes.clear();
+    weak_refs.clear();
+    pending_finalizers.clear();
 }
 
 // ---- handle scopes (js_native_api_v8.cc:2927-2953 semantics) ----

@@ -617,8 +617,12 @@ napi_status NAPI_CDECL napi_typeof(napi_env env, napi_value value,
     } else if (v.isNull()) {
         *result = napi_null;
     } else if (v.isObject()) {
-        // napi_external joins in P0.3 with the external JSClass.
-        *result = JS::IsCallable(&v.toObject()) ? napi_function : napi_object;
+        JSObject* obj = &v.toObject();
+        if (JS::GetClass(obj) == &gjsify_napi::external_class) {
+            *result = napi_external;
+        } else {
+            *result = JS::IsCallable(obj) ? napi_function : napi_object;
+        }
     } else {
         // Mirror the V8 impl's defensive default (js_native_api_v8.cc).
         return gjsify_napi::set_last_error(env, napi_invalid_arg);

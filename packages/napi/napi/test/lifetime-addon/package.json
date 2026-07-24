@@ -1,0 +1,7 @@
+{
+    "name": "gjsify-napi-lifetime-gate",
+    "version": "0.0.0",
+    "private": true,
+    "description": "P0.3 gate addon for @gjsify/napi — refs/weak/finalizer/wrap/external/tags/instance-data/cleanup-hooks crash-class surface, built with node-gyp (npm exec -- node-gyp rebuild).",
+    "license": "MIT"
+}

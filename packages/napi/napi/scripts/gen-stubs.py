@@ -94,9 +94,17 @@ def main() -> None:
         stubs.append(emit_stub(name, m.group(2)))
 
     missing = impl - declared
-    # void-returning ABI entries (napi_module_register, napi_fatal_error) are
-    # implemented but not napi_status declarations — expected here.
-    missing = {n for n in missing if n not in {"napi_module_register", "napi_fatal_error"}}
+    # Expected: void-returning ABI entries (napi_module_register,
+    # napi_fatal_error) are not napi_status declarations, and
+    # node_api_post_finalizer is NAPI_EXPERIMENTAL-gated in the headers but a
+    # stable exported symbol in Node — we implement + export it regardless.
+    missing = {
+        n
+        for n in missing
+        if n
+        not in {"napi_module_register", "napi_fatal_error",
+                "node_api_post_finalizer"}
+    }
     if missing:
         raise SystemExit(f"implemented but not declared by the headers: {sorted(missing)}")
 

@@ -10,7 +10,7 @@
 // undefined symbols always bind at dlopen (RTLD_NOW) — reaching past the
 // implemented surface fails loud with napi_generic_failure + last_error
 // (plan section 2 posture), never with an unresolved-symbol load failure and
-// never with a crash. 67 stubs.
+// never with a crash. 53 stubs.
 
 #include "common.h"
 
@@ -46,50 +46,6 @@ napi_status NAPI_CDECL node_api_create_external_string_utf16(napi_env env, char1
 napi_status NAPI_CDECL node_api_symbol_for(napi_env env, const char* utf8description, size_t length, napi_value* result) {
     (void)utf8description;
     (void)length;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_create_external(napi_env env, void* data, node_api_basic_finalize finalize_cb, void* finalize_hint, napi_value* result) {
-    (void)data;
-    (void)finalize_cb;
-    (void)finalize_hint;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_get_value_external(napi_env env, napi_value value, void** result) {
-    (void)value;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_create_reference(napi_env env, napi_value value, uint32_t initial_refcount, napi_ref* result) {
-    (void)value;
-    (void)initial_refcount;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_delete_reference(node_api_basic_env env, napi_ref ref) {
-    (void)ref;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_reference_ref(napi_env env, napi_ref ref, uint32_t* result) {
-    (void)ref;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_reference_unref(napi_env env, napi_ref ref, uint32_t* result) {
-    (void)ref;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_get_reference_value(napi_env env, napi_ref ref, napi_value* result) {
-    (void)ref;
     (void)result;
     GJSIFY_NAPI_STUB(env);
 }
@@ -219,15 +175,6 @@ napi_status NAPI_CDECL napi_get_date_value(napi_env env, napi_value value, doubl
     GJSIFY_NAPI_STUB(env);
 }
 
-napi_status NAPI_CDECL napi_add_finalizer(napi_env env, napi_value js_object, void* finalize_data, node_api_basic_finalize finalize_cb, void* finalize_hint, napi_ref* result) {
-    (void)js_object;
-    (void)finalize_data;
-    (void)finalize_cb;
-    (void)finalize_hint;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
 napi_status NAPI_CDECL napi_create_bigint_uint64(napi_env env, uint64_t value, napi_value* result) {
     (void)value;
     (void)result;
@@ -257,18 +204,6 @@ napi_status NAPI_CDECL napi_get_value_bigint_words(napi_env env, napi_value valu
     GJSIFY_NAPI_STUB(env);
 }
 
-napi_status NAPI_CDECL napi_set_instance_data(node_api_basic_env env, void* data, napi_finalize finalize_cb, void* finalize_hint) {
-    (void)data;
-    (void)finalize_cb;
-    (void)finalize_hint;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_get_instance_data(node_api_basic_env env, void** data) {
-    (void)data;
-    GJSIFY_NAPI_STUB(env);
-}
-
 napi_status NAPI_CDECL napi_detach_arraybuffer(napi_env env, napi_value arraybuffer) {
     (void)arraybuffer;
     GJSIFY_NAPI_STUB(env);
@@ -276,19 +211,6 @@ napi_status NAPI_CDECL napi_detach_arraybuffer(napi_env env, napi_value arraybuf
 
 napi_status NAPI_CDECL napi_is_detached_arraybuffer(napi_env env, napi_value value, bool* result) {
     (void)value;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_type_tag_object(napi_env env, napi_value value, const napi_type_tag* type_tag) {
-    (void)value;
-    (void)type_tag;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_check_object_type_tag(napi_env env, napi_value value, const napi_type_tag* type_tag, bool* result) {
-    (void)value;
-    (void)type_tag;
     (void)result;
     GJSIFY_NAPI_STUB(env);
 }
@@ -392,18 +314,6 @@ napi_status NAPI_CDECL napi_get_node_version(node_api_basic_env env, const napi_
 
 napi_status NAPI_CDECL napi_get_uv_event_loop(node_api_basic_env env, struct uv_loop_s** loop) {
     (void)loop;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_add_env_cleanup_hook(node_api_basic_env env, napi_cleanup_hook fun, void* arg) {
-    (void)fun;
-    (void)arg;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_remove_env_cleanup_hook(node_api_basic_env env, napi_cleanup_hook fun, void* arg) {
-    (void)fun;
-    (void)arg;
     GJSIFY_NAPI_STUB(env);
 }
 

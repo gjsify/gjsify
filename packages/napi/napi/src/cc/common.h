@@ -147,15 +147,165 @@ struct CallbackBundle {
     bool construct_as_class = false;
 };
 
-// ---- §5d fast tier: napi_define_class instances ----
+// ---- §5b references + finalizer pipeline ----
+
+enum class ReferenceOwnership : uint8_t {
+    kRuntime,   // the runtime deletes the reference after its finalizer ran
+    kUserland,  // userland must delete it via napi_delete_reference
+};
+
+// Intrusive doubly-linked base for everything finalized at env teardown —
+// mirror of js_native_api_v8.h:101-130 RefTracker. Env holds two sentinel
+// heads: `finalizing_reflist` (user finalizer present) and `reflist`
+// (plain), finalized in that order at teardown (the v8.h:121-130 comment
+// explains why finalizing refs go first: their finalizers may still use
+// plain refs).
+class RefTracker {
+  public:
+    RefTracker() = default;
+    virtual ~RefTracker() { Unlink(); }
+    // Finalization: unlinks + (subclass) runs the user callback. May be
+    // called at most once; implementations must Unlink() first.
+    virtual void Finalize() {}
+    void Link(RefTracker* list_head);
+    void Unlink();
+    static void FinalizeAll(RefTracker* list_head);
+    // Trace hook for the env's extra-roots tracer (Reference overrides).
+    virtual void Trace(JSTracer* trc) {}
+    RefTracker* next() const { return next_; }
+
+  protected:
+    RefTracker* next_ = nullptr;
+    RefTracker* prev_ = nullptr;
+};
+
+// A queued napi_finalize callback that is not attached to a JS value:
+// node_api_post_finalizer + napi_set_instance_data (§5d instance data).
+// Finalize() runs the callback (JS callable, fresh handle scope) and
+// deletes itself.
+class TrackedFinalizer : public RefTracker {
+  public:
+    TrackedFinalizer(napi_env env, napi_finalize cb, void* data, void* hint);
+    ~TrackedFinalizer() override;
+    void Finalize() override;
+    void* data() const { return data_; }
+
+  private:
+    napi_env env_;
+    napi_finalize cb_;
+    void* data_;
+    void* hint_;
+};
+
+// napi_ref (§5b): strong/weak/refcounted, v10 primitive semantics. State
+// machine mirrors js_native_api_v8.cc:690-757 (Ref/Unref/SetWeak):
+// refcount 0→1 = leave the weak set + become traced-strong; 1→0 = SetWeak;
+// SetWeak on a non-weakable value releases immediately (primitives at
+// refcount 0 read back as empty — the v10 semantic better-sqlite3 relies
+// on). SpiderMonkey mechanics:
+//  - strong state: value lives in a JS::Heap<JS::Value> traced (marks AND
+//    relocates) from the env's extra-roots tracer;
+//  - weak state: the object lives in a JS::Heap<JSObject*> that is NOT
+//    traced; the weak sweep callback updates it via
+//    JS_UpdateWeakPointerAfterGC — moved ⇒ pointer updated, dead ⇒ nulled
+//    (GCAPI.h contract; GJS jsapi-util-root.h update_after_gc pattern);
+//  - both flips stack-root the object across the transition (GJS
+//    switch_to_rooted/switch_to_unrooted pattern: never leave the thing in
+//    neither slot); JS::Heap assignments run the pre/post write barriers,
+//    JS::Heap::get() runs the read barrier (gray-unmarking on
+//    resurrection) — js/RootingAPI.h Heap<T> barrier contract.
+class Reference : public RefTracker {
+  public:
+    static Reference* New(napi_env env, JS::HandleValue value,
+                          uint32_t initial_refcount,
+                          ReferenceOwnership ownership,
+                          napi_finalize cb = nullptr, void* data = nullptr,
+                          void* hint = nullptr);
+    ~Reference() override;
+
+    uint32_t Ref();
+    uint32_t Unref();
+    uint32_t RefCount() const { return refcount_; }
+    ReferenceOwnership Ownership() const { return ownership_; }
+    void* Data() const { return data_; }
+    bool HasFinalizer() const { return cb_ != nullptr; }
+    // false when released/dead (napi_get_reference_value → NULL).
+    bool GetValue(JS::MutableHandleValue out);
+    // Weak sweep: update weak_obj_; on death → released + dequeued from the
+    // weak set by the caller; returns true when the referent died.
+    bool UpdateAfterGC(JSTracer* trc);
+    void Finalize() override;
+    void Trace(JSTracer* trc) override;
+    void RemoveFromWeakSet();
+
+    napi_env env() const { return env_; }
+
+  private:
+    Reference(napi_env env, JS::HandleValue value, uint32_t initial_refcount,
+              ReferenceOwnership ownership, napi_finalize cb, void* data,
+              void* hint);
+    void SetWeakOrRelease();  // 1→0 transition (or weakable init at 0)
+
+    enum class State : uint8_t { kStrong, kWeak, kReleased };
+    napi_env env_;
+    State state_;
+    uint32_t refcount_;
+    ReferenceOwnership ownership_;
+    bool can_be_weak_;  // value.isObject(); symbols = primitives (§5b ledger)
+    napi_finalize cb_;
+    void* data_;
+    void* hint_;
+    JS::Heap<JS::Value> strong_;     // valid iff state == kStrong
+    JS::Heap<JSObject*> weak_obj_;   // valid iff state == kWeak
+};
+
+// Finalizer pipeline (§5c): GC callbacks only QUEUE; ONE idle drain
+// (finalization_scheduled guard) runs finalizers with JS callable, each
+// under a fresh handle scope, exceptions logged-and-cleared between
+// finalizers. A tight synchronous script never iterates the main context,
+// so it observes finalizers only at env teardown (documented; matches
+// Node's SetImmediate needing a loop turn). ref.cc.
+void enqueue_finalizer(napi_env env, RefTracker* tracker);
+void dequeue_finalizer(napi_env env, RefTracker* tracker);
+void drain_finalizer_queue(napi_env env);
+// The per-process weak sweep callback (JSWeakPointerZonesCallback);
+// registered once at install, walks every env's weak set. ref.cc.
+void weak_sweep_callback(JSTracer* trc, void* data);
+// Process-wide env registry (module.cc owns the storage).
+std::vector<napi_env>& env_registry();
+// Ask module.cc to arm the one idle drain source (no-op if armed).
+void schedule_finalizer_drain();
+
+// ---- §5d instance state: fast tier + WeakMap tier ----
 //
-// Instances get our own JSClass with ONE reserved slot. P0.2: slot 0 holds
-// the napi_wrap'd native pointer as a JS::PrivateValue (raw, caller-owned —
-// the finalizer-less wrap flavor) or undefined. P0.3 upgrades the slot to an
-// InstanceState* {wrap Reference*, type tag} with a foreground finalize
-// hook. Pattern: GJS cwrapper.h reserved-slot storage.
-constexpr size_t kInstanceSlotWrap = 0;
-extern const JSClass instance_class;
+// Instances of napi_define_class classes and napi_create_external externals
+// carry ONE reserved slot: undefined or JS::PrivateValue(InstanceState*).
+// The InstanceState is freed by a FOREGROUND finalize hook that frees
+// memory only (legal even for nursery deaths — finalizable classes are
+// nursery-allocatable in 140; JSFinalizeOp runs with JS::GCContext*,
+// js/Class.h:301, and must not call GC-capable JSAPI). Foreign objects get
+// the same InstanceState via a lazily-created env WeakMap (js/WeakMap.h)
+// whose value is a hostdata_class carrier object. Pattern: GJS
+// cwrapper.h reserved-slot storage + JSCLASS_FOREGROUND_FINALIZE like
+// GJS's GObject wrapper (gi/object.cpp:3404-3407).
+constexpr size_t kInstanceSlotState = 0;
+
+struct InstanceState {
+    Reference* wrap = nullptr;  // §5d uniform wrap lifecycle
+    bool has_tag = false;
+    napi_type_tag tag = {0, 0};
+    bool is_external = false;
+    void* external_data = nullptr;
+};
+
+extern const JSClass instance_class;   // napi_define_class instances
+extern const JSClass external_class;   // napi_create_external
+extern const JSClass hostdata_class;   // WeakMap-tier value carrier
+
+// Look up (or create) the InstanceState for any object; *out == nullptr
+// when absent and !create. wrap.cc.
+napi_status get_instance_state(napi_env env, JS::HandleObject obj,
+                               bool create, InstanceState** out);
 
 // Shared property-descriptor applier (object.cc) — the body of
 // napi_define_properties, reused by napi_define_class for both the
@@ -235,7 +385,9 @@ struct napi_env__ {
     // false during/after teardown — NAPI_PREAMBLE gate.
     bool can_call_into_js = true;
     bool torn_down = false;
-    // Bundle ownership (§8): freed at teardown.
+    bool tearing_down = false;
+    bool draining_finalizers = false;
+    // Bundle ownership (§8): freed at destruction.
     std::vector<gjsify_napi::CallbackBundle*> bundles;
     // The addon's exports object, rooted for the exports cache. Reset in
     // teardown() — a live PersistentRooted past JS_DestroyContext is UAF.
@@ -243,18 +395,45 @@ struct napi_env__ {
     // The realm global captured at env creation (napi_get_global — Node's
     // context()->Global() analog). Reset in teardown().
     JS::PersistentRooted<JSObject*> global;
+    // Foreign-object InstanceState WeakMap (§5d fallback tier), lazily
+    // created. Reset in teardown().
+    JS::PersistentRooted<JSObject*> wrap_map;
+
+    // §5b ref lists (sentinel heads; two-list teardown order per
+    // js_native_api_v8.h:121-130).
+    gjsify_napi::RefTracker reflist;
+    gjsify_napi::RefTracker finalizing_reflist;
+    // Weak set: references currently in the kWeak state, walked by the
+    // sweep callback.
+    std::vector<gjsify_napi::Reference*> weak_refs;
+    // §5c pending finalizers (FIFO), drained on idle or at teardown.
+    std::vector<gjsify_napi::RefTracker*> pending_finalizers;
+    // §5d instance data (TrackedFinalizer; overwrite deletes un-finalized).
+    gjsify_napi::TrackedFinalizer* instance_data = nullptr;
+    // Env cleanup hooks, run LIFO as teardown step 1.
+    struct CleanupHook {
+        void(NAPI_CDECL* fn)(void* arg);
+        void* arg;
+    };
+    std::vector<CleanupHook> cleanup_hooks;
 
     napi_env__(JSContext* cx, GjsContext* gjs, int32_t api_version,
                void* handle, std::string file);
     ~napi_env__();
 
-    // §5e teardown order (P0.1 slice): flip can_call_into_js/torn_down,
-    // remove the extra-roots tracer, reset roots, release arena/scopes — all
-    // BEFORE JS_DestroyContext runs. Callback bundles are NOT freed here:
-    // live function objects still reference them, and the trampoline guards
-    // on torn_down — so tearing an env down early (while JS continues) is
-    // memory-safe. The bundles are freed by the destructor (the "zombie env"
-    // shell persists until context dispose).
+    // §5e teardown order (the node-gi SIGSEGV lesson — full sequence):
+    // 1. run env cleanup hooks LIFO (JS fully available);
+    // 2. drain pending finalizers (finalizers may call napi and create
+    //    values — arena, tracer and can_call_into_js MUST still be live);
+    // 3. RefTracker::FinalizeAll(finalizing_reflist) then (reflist);
+    // 4. instance-data finalizer;
+    // 5. flip can_call_into_js/torn_down (subsequent napi entry → status);
+    // 6. drop every root: remove the extra-roots tracer, reset
+    //    PersistentRooteds, clear arena/scopes/weak set — all BEFORE
+    //    JS_DestroyContext runs (a live root past that point is the UAF
+    //    class). Callback bundles are NOT freed here: live function
+    //    objects still reference them and the trampoline guards on
+    //    torn_down; the destructor frees them at context dispose.
     void teardown();
 };
 

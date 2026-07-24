@@ -52,11 +52,13 @@
         "init:meson:wipe": "gjsify run init:meson --wipe",
         "build:meson": "gjsify run init:meson && meson compile -C build",
         "build:prebuilds": "gjsify run build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x86_64/",
-        "build:test-addons": "cd test/hello-addon && npm exec -- node-gyp rebuild && cd ../values-addon && npm exec -- node-gyp rebuild && cd ../class-addon && npm exec -- node-gyp rebuild",
+        "build:test-addons": "cd test/hello-addon && npm exec -- node-gyp rebuild && cd ../values-addon && npm exec -- node-gyp rebuild && cd ../class-addon && npm exec -- node-gyp rebuild && cd ../lifetime-addon && npm exec -- node-gyp rebuild && cd ../refs8-addon && npm exec -- node-gyp rebuild",
         "build:stubs": "python3 scripts/gen-stubs.py",
         "test:gate": "GI_TYPELIB_PATH=build LD_LIBRARY_PATH=build gjs test/load-gate.js test/hello-addon/build/Release/hello.node",
         "test:gate:p01": "GI_TYPELIB_PATH=build LD_LIBRARY_PATH=build gjs test/p01-gate.js",
-        "test:gate:p02": "GI_TYPELIB_PATH=build LD_LIBRARY_PATH=build gjs test/p02-gate.js"
+        "test:gate:p02": "GI_TYPELIB_PATH=build LD_LIBRARY_PATH=build gjs test/p02-gate.js",
+        "test:gate:p03": "sh test/run-p03-gate.sh",
+        "test:mem": "sh test/p03-mem.sh"
     },
     "dependencies": {
         "@girs/glib-2.0": "^4.1.0",

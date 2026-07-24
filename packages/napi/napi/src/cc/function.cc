@@ -18,14 +18,6 @@
 
 namespace gjsify_napi {
 
-// §5d fast tier: one reserved slot for the wrap pointer (P0.3: InstanceState
-// with a foreground finalize hook; P0.2 stores only a caller-owned raw
-// pointer, so no finalizer is needed yet).
-const JSClass instance_class = {
-    "GjsifyNapiInstance",
-    JSCLASS_HAS_RESERVED_SLOTS(1),
-};
-
 JSObject* new_bundle_function(napi_env env, const char* utf8name,
                               size_t length, napi_callback cb, void* data,
                               unsigned flags, bool construct_as_class) {
@@ -341,78 +333,4 @@ napi_status NAPI_CDECL napi_define_class(
 
     *result = gjsify_napi::arena_push(env, JS::ObjectValue(*ctor_obj));
     return napi_ok;
-}
-
-// ---- §5d fast-tier wrap slice (P0.2) ----
-//
-// Only the finalizer-less flavor on napi_define_class instances: slot 0
-// stores the caller-owned native pointer. The full uniform Reference-based
-// lifecycle (finalize_cb, napi_ref result, foreign objects via the WeakMap
-// tier) is P0.3 — those flavors fail LOUD here instead of silently dropping
-// a finalizer.
-
-napi_status NAPI_CDECL napi_wrap(napi_env env, napi_value js_object,
-                                 void* native_object,
-                                 node_api_basic_finalize finalize_cb,
-                                 void* finalize_hint, napi_ref* result) {
-    GJSIFY_NAPI_PREAMBLE(env);
-    GJSIFY_NAPI_CHECK_ARG(env, js_object);
-    JS::Value v = gjsify_napi::napi_value_to_js(js_object);
-    GJSIFY_NAPI_RETURN_STATUS_IF_FALSE(env, v.isObject(),
-                                       napi_object_expected);
-    JSObject* obj = &v.toObject();
-    // P0.3 flavors — fail loud, never silently drop a finalizer/ref.
-    if (finalize_cb != nullptr || finalize_hint != nullptr ||
-        result != nullptr) {
-        return gjsify_napi::set_last_error(env, napi_generic_failure);
-    }
-    // Fast tier only in P0.2: foreign (non-class) objects join with the
-    // WeakMap tier in P0.3.
-    if (JS::GetClass(obj) != &gjsify_napi::instance_class) {
-        return gjsify_napi::set_last_error(env, napi_generic_failure);
-    }
-    GJSIFY_NAPI_CHECK_ARG(env, native_object);
-    // Double-wrap = napi_invalid_arg (cc:540-544).
-    if (!JS::GetReservedSlot(obj, gjsify_napi::kInstanceSlotWrap)
-             .isUndefined()) {
-        return gjsify_napi::set_last_error(env, napi_invalid_arg);
-    }
-    JS::SetReservedSlot(obj, gjsify_napi::kInstanceSlotWrap,
-                        JS::PrivateValue(native_object));
-    return napi_ok;
-}
-
-static napi_status unwrap_impl(napi_env env, napi_value js_object,
-                               void** result, bool remove) {
-    GJSIFY_NAPI_CHECK_ENV(env);
-    GJSIFY_NAPI_CHECK_ARG(env, js_object);
-    GJSIFY_NAPI_CHECK_ARG(env, result);
-    JS::Value v = gjsify_napi::napi_value_to_js(js_object);
-    GJSIFY_NAPI_RETURN_STATUS_IF_FALSE(env, v.isObject(),
-                                       napi_object_expected);
-    JSObject* obj = &v.toObject();
-    if (JS::GetClass(obj) != &gjsify_napi::instance_class) {
-        return gjsify_napi::set_last_error(env, napi_invalid_arg);
-    }
-    const JS::Value slot =
-        JS::GetReservedSlot(obj, gjsify_napi::kInstanceSlotWrap);
-    if (slot.isUndefined()) {
-        return gjsify_napi::set_last_error(env, napi_invalid_arg);
-    }
-    *result = slot.toPrivate();
-    if (remove) {
-        JS::SetReservedSlot(obj, gjsify_napi::kInstanceSlotWrap,
-                            JS::UndefinedValue());
-    }
-    return gjsify_napi::clear_last_error(env);
-}
-
-napi_status NAPI_CDECL napi_unwrap(napi_env env, napi_value obj,
-                                   void** result) {
-    return unwrap_impl(env, obj, result, /* remove = */ false);
-}
-
-napi_status NAPI_CDECL napi_remove_wrap(napi_env env, napi_value obj,
-                                        void** result) {
-    return unwrap_impl(env, obj, result, /* remove = */ true);
 }
