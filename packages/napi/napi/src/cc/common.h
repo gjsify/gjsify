@@ -38,11 +38,20 @@
 #include <jsapi.h>
 #include <jsfriendapi.h>
 
+#include <js/Array.h>
 #include <js/BigInt.h>
 #include <js/CallAndConstruct.h>
 #include <js/CallArgs.h>
 #include <js/CharacterEncoding.h>
+#include <js/Class.h>
+#include <js/CompilationAndEvaluation.h>
 #include <js/Conversions.h>
+#include <js/Equality.h>
+#include <js/GCVector.h>
+#include <js/Id.h>
+#include <js/Object.h>
+#include <js/PropertyDescriptor.h>
+#include <js/SourceText.h>
 #include <js/Context.h>
 #include <js/ErrorReport.h>
 #include <js/Exception.h>
@@ -125,14 +134,51 @@ struct HandleScopeRec {
 // ---- callbacks (§8) ----
 
 // Heap bundle behind every napi-created function; owned by the env, freed at
-// teardown (Phase-0 simplification of V8-Node's weak-ref-on-function early
-// free, js_native_api_v8.cc:398-402). Stored in reserved slot 0 of the
+// env destruction (Phase-0 simplification of V8-Node's weak-ref-on-function
+// early free, js_native_api_v8.cc:398-402). Stored in reserved slot 0 of the
 // js::NewFunctionWithReserved native as a JS::PrivateValue.
 struct CallbackBundle {
     napi_env env;
     napi_callback cb;
     void* data;
+    // napi_define_class constructor: constructing creates the instance with
+    // the fast-tier instance JSClass (reserved slots) instead of a plain
+    // object (§5d).
+    bool construct_as_class = false;
 };
+
+// ---- §5d fast tier: napi_define_class instances ----
+//
+// Instances get our own JSClass with ONE reserved slot. P0.2: slot 0 holds
+// the napi_wrap'd native pointer as a JS::PrivateValue (raw, caller-owned —
+// the finalizer-less wrap flavor) or undefined. P0.3 upgrades the slot to an
+// InstanceState* {wrap Reference*, type tag} with a foreground finalize
+// hook. Pattern: GJS cwrapper.h reserved-slot storage.
+constexpr size_t kInstanceSlotWrap = 0;
+extern const JSClass instance_class;
+
+// Shared property-descriptor applier (object.cc) — the body of
+// napi_define_properties, reused by napi_define_class for both the
+// prototype (non-static) and constructor (napi_static) targets.
+napi_status apply_property_descriptor(napi_env env, JS::HandleObject target,
+                                      const napi_property_descriptor& p);
+
+// Property id from a descriptor's utf8name XOR name (napi_name_expected
+// otherwise); name must be a string or symbol. (object.cc)
+napi_status property_key_to_id(napi_env env, const char* utf8name,
+                               napi_value name, JS::MutableHandleId id);
+
+// Lossy UTF-8 → JSString (invalid sequences → U+FFFD, matching V8's
+// NewFromUtf8; SpiderMonkey's JS_NewStringCopyUTF8N throws on malformed
+// input, so this falls back to LossyUTF8CharsToNewTwoByteCharsZ). Returns
+// nullptr on OOM with the exception cleared. (value.cc)
+JSString* new_string_utf8_lossy(JSContext* cx, const char* str, size_t len);
+
+// Bundle-function factory shared by napi_create_function,
+// napi_define_class and the accessor/method descriptors. (function.cc)
+JSObject* new_bundle_function(napi_env env, const char* utf8name,
+                              size_t length, napi_callback cb, void* data,
+                              unsigned flags, bool construct_as_class);
 
 // Stack-allocated per trampoline invocation; napi_callback_info points here.
 struct CallbackInfo {

@@ -300,8 +300,11 @@ static napi_value ScopeMismatchDetected(napi_env env,
 // ---- loud-stub surface + last_error ----
 
 static napi_value StubCheck(napi_env env, napi_callback_info info) {
-  napi_value arr;
-  napi_status s = napi_create_array(env, &arr);  // P0.1 stub
+  // The async group stays a loud stub for ALL of Phase 0 (plan section 2),
+  // so this probe is stable across P0.x implementation waves.
+  napi_async_work work = NULL;
+  napi_status s =
+      napi_create_async_work(env, NULL, NULL, NULL, NULL, NULL, &work);
   const napi_extended_error_info* err = NULL;
   if (napi_get_last_error_info(env, &err) != napi_ok || err == NULL)
     return NULL;

@@ -60,30 +60,71 @@ napi_status NAPI_CDECL napi_create_object(napi_env env, napi_value* result) {
     return gjsify_napi::clear_last_error(env);
 }
 
+namespace gjsify_napi {
+
+// Node's NewFromUtf8 is LOSSY (invalid sequences → U+FFFD) and never throws;
+// SpiderMonkey's JS_NewStringCopyUTF8N throws on malformed input. Fast path
+// the valid case, fall back to the lossy inflater on parse failure.
+JSString* new_string_utf8_lossy(JSContext* cx, const char* str, size_t len) {
+    JSString* js_str = JS_NewStringCopyUTF8N(cx, JS::UTF8Chars(str, len));
+    if (js_str != nullptr) {
+        return js_str;
+    }
+    if (!JS_IsExceptionPending(cx)) {
+        return nullptr;  // OOM without exception — give up
+    }
+    JS_ClearPendingException(cx);  // malformed UTF-8 → lossy fallback
+    size_t out_len = 0;
+    JS::UniqueTwoByteChars two_byte(
+        JS::LossyUTF8CharsToNewTwoByteCharsZ(cx, JS::UTF8Chars(str, len),
+                                             &out_len, js::MallocArena)
+            .get());
+    if (!two_byte) {
+        return nullptr;
+    }
+    return JS_NewUCStringCopyN(cx, two_byte.get(), out_len);
+}
+
+}  // namespace gjsify_napi
+
 napi_status NAPI_CDECL napi_create_string_utf8(napi_env env, const char* str,
                                                size_t length,
                                                napi_value* result) {
     GJSIFY_NAPI_CHECK_ENV(env);
     GJSIFY_NAPI_CHECK_ARG(env, result);
-    GJSIFY_NAPI_RETURN_STATUS_IF_FALSE(env, str != nullptr, napi_invalid_arg);
+    GJSIFY_NAPI_RETURN_STATUS_IF_FALSE(env, str != nullptr || length == 0,
+                                       napi_invalid_arg);
     GJSIFY_NAPI_RETURN_STATUS_IF_FALSE(
         env, length == NAPI_AUTO_LENGTH || length <= INT32_MAX,
         napi_invalid_arg);
     const size_t len = (length == NAPI_AUTO_LENGTH) ? strlen(str) : length;
-    JSString* js_str =
-        JS_NewStringCopyUTF8N(env->cx, JS::UTF8Chars(str, len));
+    JSString* js_str = gjsify_napi::new_string_utf8_lossy(env->cx, str, len);
     if (js_str == nullptr) {
-        // Invalid UTF-8 or OOM sets a pending exception; the create_* class
-        // has no preamble, so surface as generic failure and clear the
-        // engine state (Node's V8 path replaces invalid sequences lossily
-        // and never throws here — parity item for P0.2's string slice).
-        if (JS_IsExceptionPending(env->cx)) {
-            JS_ClearPendingException(env->cx);
-        }
         return gjsify_napi::set_last_error(env, napi_generic_failure);
     }
     *result = gjsify_napi::arena_push(env, JS::StringValue(js_str));
     return gjsify_napi::clear_last_error(env);
+}
+
+// node_api_create_property_key_*: semantically an (optimized) string used as
+// a property key — implemented as plain interned-content strings; SM
+// atomizes ids at JS_StringToId/JS_ValueToId time anyway.
+
+napi_status NAPI_CDECL node_api_create_property_key_utf8(napi_env env,
+                                                         const char* str,
+                                                         size_t length,
+                                                         napi_value* result) {
+    return napi_create_string_utf8(env, str, length, result);
+}
+
+napi_status NAPI_CDECL node_api_create_property_key_latin1(
+    napi_env env, const char* str, size_t length, napi_value* result) {
+    return napi_create_string_latin1(env, str, length, result);
+}
+
+napi_status NAPI_CDECL node_api_create_property_key_utf16(
+    napi_env env, const char16_t* str, size_t length, napi_value* result) {
+    return napi_create_string_utf16(env, str, length, result);
 }
 
 napi_status NAPI_CDECL napi_get_value_string_utf8(napi_env env,

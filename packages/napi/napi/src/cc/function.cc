@@ -1,18 +1,51 @@
 // SPDX-License-Identifier: MIT
-// @gjsify/napi — callback trampoline, napi_create_function, napi_get_cb_info.
+// @gjsify/napi — callback trampoline, functions, classes, calls, wrap slice.
 //
 // Reference: refs/node/src/js_native_api_v8.cc (Node.js contributors, MIT) —
 // FunctionCallbackWrapper (cc:424-523), napi_create_function (cc:944-968),
-// napi_get_cb_info (cc:2133-2162). Natives-with-data via
+// napi_define_class (cc:970-1064), napi_get_cb_info (cc:2133-2162),
+// napi_get_new_target (cc:2164-2176 + GetNewTarget cc:502-509),
+// napi_call_function (cc:2178-2208), napi_new_instance (cc:3004-3030),
+// napi_wrap/unwrap/remove_wrap (cc:339-374, 525-586). Natives-with-data via
 // js::NewFunctionWithReserved follow GJS's own pattern
 // (refs/gjs/gjs/jsapi-dynamic-class.cpp:152-159; GNOME contributors,
-// MIT/LGPLv2+).
+// MIT/LGPLv2+). `JS_New` is gone in mozjs-140 — construction goes through
+// JS::Construct (js/CallAndConstruct.h:125).
 
 #include "common.h"
 
 #include <algorithm>
 
 namespace gjsify_napi {
+
+// §5d fast tier: one reserved slot for the wrap pointer (P0.3: InstanceState
+// with a foreground finalize hook; P0.2 stores only a caller-owned raw
+// pointer, so no finalizer is needed yet).
+const JSClass instance_class = {
+    "GjsifyNapiInstance",
+    JSCLASS_HAS_RESERVED_SLOTS(1),
+};
+
+JSObject* new_bundle_function(napi_env env, const char* utf8name,
+                              size_t length, napi_callback cb, void* data,
+                              unsigned flags, bool construct_as_class) {
+    std::string name;
+    if (utf8name != nullptr) {
+        name = (length == NAPI_AUTO_LENGTH) ? std::string(utf8name)
+                                            : std::string(utf8name, length);
+    }
+    auto* bundle = new CallbackBundle{env, cb, data, construct_as_class};
+    JSFunction* fn = js::NewFunctionWithReserved(
+        env->cx, function_trampoline, 0, flags, name.c_str());
+    if (fn == nullptr) {
+        delete bundle;
+        return nullptr;
+    }
+    JSObject* fn_obj = JS_GetFunctionObject(fn);
+    js::SetFunctionNativeReserved(fn_obj, 0, JS::PrivateValue(bundle));
+    env->bundles.push_back(bundle);
+    return fn_obj;
+}
 
 // The shared JSNative every napi-created function dispatches through
 // (V8-Node's FunctionCallbackWrapper analog). Opens a handle scope around the
@@ -48,19 +81,65 @@ bool function_trampoline(JSContext* cx, unsigned argc, JS::Value* vp) {
     CallbackInfo info;
     info.argv = argv.data();
     info.argc = args.length();
-    info.this_arg = arena_push(env, args.thisv());
-    info.new_target = nullptr;  // constructor-call support lands in P0.2
     info.data = bundle->data;
+
+    // `this` construction. SM natives get no auto-created instance, so the
+    // constructor path builds one from new.target.prototype (V8 semantics);
+    // class instances use the fast-tier JSClass (§5d).
+    JS::RootedObject constructed_this(cx);
+    if (args.isConstructing()) {
+        JS::RootedObject new_target(cx, &args.newTarget().toObject());
+        JS::RootedValue proto_v(cx);
+        if (!JS_GetProperty(cx, new_target, "prototype", &proto_v)) {
+            napi_close_handle_scope(env, scope);
+            return false;
+        }
+        JS::RootedObject proto(
+            cx, proto_v.isObject() ? &proto_v.toObject() : nullptr);
+        constructed_this = JS_NewObjectWithGivenProto(
+            cx, bundle->construct_as_class ? &instance_class : nullptr, proto);
+        if (!constructed_this) {
+            napi_close_handle_scope(env, scope);
+            return false;
+        }
+        info.this_arg = arena_push(env, JS::ObjectValue(*constructed_this));
+        info.new_target = arena_push(env, args.newTarget());
+    } else {
+        // v8::FunctionCallbackInfo::This() parity: undefined/null receiver
+        // (sloppy call) → the global proxy; primitive receivers are boxed.
+        JS::RootedValue thisv(cx, args.thisv());
+        if (thisv.isNullOrUndefined()) {
+            thisv = JS::ObjectValue(*env->global);
+        } else if (!thisv.isObject()) {
+            JSObject* boxed = JS::ToObject(cx, thisv);
+            if (boxed == nullptr) {
+                napi_close_handle_scope(env, scope);
+                return false;
+            }
+            thisv = JS::ObjectValue(*boxed);
+        }
+        info.this_arg = arena_push(env, thisv);
+        info.new_target = nullptr;
+    }
 
     napi_value result =
         bundle->cb(env, reinterpret_cast<napi_callback_info>(&info));
 
     const bool pending = JS_IsExceptionPending(cx);
     if (!pending) {
-        // Read the result BEFORE closing the scope (closing releases the
-        // arena slot); args.rval() is rooted by the JS stack.
-        args.rval().set(result != nullptr ? napi_value_to_js(result)
-                                          : JS::UndefinedValue());
+        // Read results BEFORE closing the scope (closing releases the arena
+        // slots); args.rval() is rooted by the JS stack.
+        if (args.isConstructing()) {
+            // Construction result: the callback's returned object if it is
+            // one, else the created `this` (V8 semantics).
+            const JS::Value ret =
+                result != nullptr ? napi_value_to_js(result) : JS::Value();
+            args.rval().setObject(ret.isObject() ? ret.toObject()
+                                                 : *constructed_this);
+        } else {
+            args.rval().set(result != nullptr ? napi_value_to_js(result)
+                                              : JS::UndefinedValue());
+        }
     }
     // Balance check: our scope must still be the top one. An imbalanced
     // callback is a fatal error in Node (CallIntoModule handle_exception);
@@ -82,24 +161,14 @@ napi_status NAPI_CDECL napi_create_function(napi_env env, const char* utf8name,
     GJSIFY_NAPI_PREAMBLE(env);
     GJSIFY_NAPI_CHECK_ARG(env, result);
     GJSIFY_NAPI_CHECK_ARG(env, cb);
-
-    std::string name;
-    if (utf8name != nullptr) {
-        name = (length == NAPI_AUTO_LENGTH) ? std::string(utf8name)
-                                            : std::string(utf8name, length);
-    }
-
-    auto* bundle = new gjsify_napi::CallbackBundle{env, cb, callback_data};
-    JSFunction* fn = js::NewFunctionWithReserved(
-        env->cx, gjsify_napi::function_trampoline, 0, 0, name.c_str());
-    if (fn == nullptr) {
-        delete bundle;
+    // JSFUN_CONSTRUCTOR (jsapi.h:540): napi functions are constructible
+    // (V8 FunctionTemplate default) — without it `new fn()` throws in SM.
+    JSObject* fn_obj = gjsify_napi::new_bundle_function(
+        env, utf8name, length, cb, callback_data, JSFUN_CONSTRUCTOR,
+        /* construct_as_class = */ false);
+    if (fn_obj == nullptr) {
         return gjsify_napi::set_last_error(env, napi_generic_failure);
     }
-    JSObject* fn_obj = JS_GetFunctionObject(fn);
-    js::SetFunctionNativeReserved(fn_obj, 0, JS::PrivateValue(bundle));
-    env->bundles.push_back(bundle);
-
     *result = gjsify_napi::arena_push(env, JS::ObjectValue(*fn_obj));
     return napi_ok;  // preamble already cleared last_error
 }
@@ -132,4 +201,218 @@ napi_status NAPI_CDECL napi_get_cb_info(napi_env env, napi_callback_info cbinfo,
         *data = info->data;
     }
     return gjsify_napi::clear_last_error(env);
+}
+
+napi_status NAPI_CDECL napi_get_new_target(napi_env env,
+                                           napi_callback_info cbinfo,
+                                           napi_value* result) {
+    GJSIFY_NAPI_CHECK_ENV(env);
+    GJSIFY_NAPI_CHECK_ARG(env, cbinfo);
+    GJSIFY_NAPI_CHECK_ARG(env, result);
+    auto* info = reinterpret_cast<gjsify_napi::CallbackInfo*>(cbinfo);
+    // nullptr when not constructing (GetNewTarget, cc:502-509).
+    *result = info->new_target;
+    return gjsify_napi::clear_last_error(env);
+}
+
+napi_status NAPI_CDECL napi_call_function(napi_env env, napi_value recv,
+                                          napi_value func, size_t argc,
+                                          const napi_value* argv,
+                                          napi_value* result) {
+    GJSIFY_NAPI_PREAMBLE(env);
+    GJSIFY_NAPI_CHECK_ARG(env, recv);
+    GJSIFY_NAPI_CHECK_ARG(env, func);
+    if (argc > 0) {
+        GJSIFY_NAPI_CHECK_ARG(env, argv);
+    }
+    JS::Value fn_v = gjsify_napi::napi_value_to_js(func);
+    GJSIFY_NAPI_RETURN_STATUS_IF_FALSE(
+        env, fn_v.isObject() && JS::IsCallable(&fn_v.toObject()),
+        napi_function_expected);
+
+    // Rooted contiguous copy of the arguments: the arena slots themselves
+    // are traced, but HandleValueArray needs contiguous rooted storage.
+    JS::RootedVector<JS::Value> call_args(env->cx);
+    for (size_t i = 0; i < argc; i++) {
+        GJSIFY_NAPI_CHECK_ARG(env, argv[i]);
+        if (!call_args.append(gjsify_napi::napi_value_to_js(argv[i]))) {
+            return gjsify_napi::set_last_error(env, napi_generic_failure);
+        }
+    }
+    JS::RootedValue this_v(env->cx, gjsify_napi::napi_value_to_js(recv));
+    JS::RootedValue fn_rooted(env->cx, fn_v);
+    JS::RootedValue rval(env->cx);
+    if (!JS::Call(env->cx, this_v, fn_rooted, JS::HandleValueArray(call_args),
+                  &rval)) {
+        // §6 must-not-abort contract: a JS throw (ANY value, including
+        // null/undefined) stays pending and is never normalized; a false
+        // return WITHOUT a pending exception (OOM/over-recursion — SM's
+        // analog of V8 termination) is napi_generic_failure, never a crash.
+        return gjsify_napi::set_last_error(
+            env, JS_IsExceptionPending(env->cx) ? napi_pending_exception
+                                                : napi_generic_failure);
+    }
+    if (result != nullptr) {
+        *result = gjsify_napi::arena_push(env, rval);
+    }
+    return napi_ok;
+}
+
+napi_status NAPI_CDECL napi_new_instance(napi_env env, napi_value constructor,
+                                         size_t argc, const napi_value* argv,
+                                         napi_value* result) {
+    GJSIFY_NAPI_PREAMBLE(env);
+    GJSIFY_NAPI_CHECK_ARG(env, constructor);
+    if (argc > 0) {
+        GJSIFY_NAPI_CHECK_ARG(env, argv);
+    }
+    GJSIFY_NAPI_CHECK_ARG(env, result);
+    JS::Value ctor_v = gjsify_napi::napi_value_to_js(constructor);
+    GJSIFY_NAPI_RETURN_STATUS_IF_FALSE(
+        env, ctor_v.isObject() && JS::IsCallable(&ctor_v.toObject()),
+        napi_function_expected);
+
+    JS::RootedVector<JS::Value> call_args(env->cx);
+    for (size_t i = 0; i < argc; i++) {
+        GJSIFY_NAPI_CHECK_ARG(env, argv[i]);
+        if (!call_args.append(gjsify_napi::napi_value_to_js(argv[i]))) {
+            return gjsify_napi::set_last_error(env, napi_generic_failure);
+        }
+    }
+    JS::RootedValue ctor_rooted(env->cx, ctor_v);
+    JS::RootedObject instance(env->cx);
+    // JS_New is gone in mozjs-140; JS::Construct implements [[Construct]].
+    if (!JS::Construct(env->cx, ctor_rooted, JS::HandleValueArray(call_args),
+                       &instance)) {
+        return gjsify_napi::set_last_error(
+            env, JS_IsExceptionPending(env->cx) ? napi_pending_exception
+                                                : napi_generic_failure);
+    }
+    *result = gjsify_napi::arena_push(env, JS::ObjectValue(*instance));
+    return napi_ok;
+}
+
+napi_status NAPI_CDECL napi_define_class(
+    napi_env env, const char* utf8name, size_t length,
+    napi_callback constructor, void* callback_data, size_t property_count,
+    const napi_property_descriptor* properties, napi_value* result) {
+    GJSIFY_NAPI_PREAMBLE(env);
+    GJSIFY_NAPI_CHECK_ARG(env, result);
+    GJSIFY_NAPI_CHECK_ARG(env, constructor);
+    GJSIFY_NAPI_CHECK_ARG(env, utf8name);
+    if (property_count > 0) {
+        GJSIFY_NAPI_CHECK_ARG(env, properties);
+    }
+
+    JS::RootedObject ctor_obj(
+        env->cx,
+        gjsify_napi::new_bundle_function(env, utf8name, length, constructor,
+                                         callback_data, JSFUN_CONSTRUCTOR,
+                                         /* construct_as_class = */ true));
+    if (!ctor_obj) {
+        return gjsify_napi::set_last_error(env, napi_generic_failure);
+    }
+    JS::RootedObject proto(env->cx, JS_NewPlainObject(env->cx));
+    if (!proto) {
+        return gjsify_napi::set_last_error(env, napi_generic_failure);
+    }
+    // Wire ctor.prototype ↔ proto.constructor like a normal JS function:
+    // prototype = writable, non-enumerable, non-configurable; constructor =
+    // writable, non-enumerable, configurable.
+    if (!JS_DefineProperty(env->cx, ctor_obj, "prototype", proto,
+                           JSPROP_PERMANENT) ||
+        !JS_DefineProperty(env->cx, proto, "constructor", ctor_obj, 0)) {
+        return gjsify_napi::set_last_error(env, napi_generic_failure);
+    }
+
+    // Non-static descriptors go on the prototype, napi_static ones on the
+    // constructor (cc:1048-1061), through the napi_define_properties path.
+    for (size_t i = 0; i < property_count; i++) {
+        const napi_property_descriptor& p = properties[i];
+        JS::RootedObject target(env->cx, (p.attributes & napi_static)
+                                             ? ctor_obj.get()
+                                             : proto.get());
+        napi_status status =
+            gjsify_napi::apply_property_descriptor(env, target, p);
+        if (status != napi_ok) {
+            return status;  // last_error already set
+        }
+    }
+
+    *result = gjsify_napi::arena_push(env, JS::ObjectValue(*ctor_obj));
+    return napi_ok;
+}
+
+// ---- §5d fast-tier wrap slice (P0.2) ----
+//
+// Only the finalizer-less flavor on napi_define_class instances: slot 0
+// stores the caller-owned native pointer. The full uniform Reference-based
+// lifecycle (finalize_cb, napi_ref result, foreign objects via the WeakMap
+// tier) is P0.3 — those flavors fail LOUD here instead of silently dropping
+// a finalizer.
+
+napi_status NAPI_CDECL napi_wrap(napi_env env, napi_value js_object,
+                                 void* native_object,
+                                 node_api_basic_finalize finalize_cb,
+                                 void* finalize_hint, napi_ref* result) {
+    GJSIFY_NAPI_PREAMBLE(env);
+    GJSIFY_NAPI_CHECK_ARG(env, js_object);
+    JS::Value v = gjsify_napi::napi_value_to_js(js_object);
+    GJSIFY_NAPI_RETURN_STATUS_IF_FALSE(env, v.isObject(),
+                                       napi_object_expected);
+    JSObject* obj = &v.toObject();
+    // P0.3 flavors — fail loud, never silently drop a finalizer/ref.
+    if (finalize_cb != nullptr || finalize_hint != nullptr ||
+        result != nullptr) {
+        return gjsify_napi::set_last_error(env, napi_generic_failure);
+    }
+    // Fast tier only in P0.2: foreign (non-class) objects join with the
+    // WeakMap tier in P0.3.
+    if (JS::GetClass(obj) != &gjsify_napi::instance_class) {
+        return gjsify_napi::set_last_error(env, napi_generic_failure);
+    }
+    GJSIFY_NAPI_CHECK_ARG(env, native_object);
+    // Double-wrap = napi_invalid_arg (cc:540-544).
+    if (!JS::GetReservedSlot(obj, gjsify_napi::kInstanceSlotWrap)
+             .isUndefined()) {
+        return gjsify_napi::set_last_error(env, napi_invalid_arg);
+    }
+    JS::SetReservedSlot(obj, gjsify_napi::kInstanceSlotWrap,
+                        JS::PrivateValue(native_object));
+    return napi_ok;
+}
+
+static napi_status unwrap_impl(napi_env env, napi_value js_object,
+                               void** result, bool remove) {
+    GJSIFY_NAPI_CHECK_ENV(env);
+    GJSIFY_NAPI_CHECK_ARG(env, js_object);
+    GJSIFY_NAPI_CHECK_ARG(env, result);
+    JS::Value v = gjsify_napi::napi_value_to_js(js_object);
+    GJSIFY_NAPI_RETURN_STATUS_IF_FALSE(env, v.isObject(),
+                                       napi_object_expected);
+    JSObject* obj = &v.toObject();
+    if (JS::GetClass(obj) != &gjsify_napi::instance_class) {
+        return gjsify_napi::set_last_error(env, napi_invalid_arg);
+    }
+    const JS::Value slot =
+        JS::GetReservedSlot(obj, gjsify_napi::kInstanceSlotWrap);
+    if (slot.isUndefined()) {
+        return gjsify_napi::set_last_error(env, napi_invalid_arg);
+    }
+    *result = slot.toPrivate();
+    if (remove) {
+        JS::SetReservedSlot(obj, gjsify_napi::kInstanceSlotWrap,
+                            JS::UndefinedValue());
+    }
+    return gjsify_napi::clear_last_error(env);
+}
+
+napi_status NAPI_CDECL napi_unwrap(napi_env env, napi_value obj,
+                                   void** result) {
+    return unwrap_impl(env, obj, result, /* remove = */ false);
+}
+
+napi_status NAPI_CDECL napi_remove_wrap(napi_env env, napi_value obj,
+                                        void** result) {
+    return unwrap_impl(env, obj, result, /* remove = */ true);
 }

@@ -10,7 +10,7 @@
 // undefined symbols always bind at dlopen (RTLD_NOW) — reaching past the
 // implemented surface fails loud with napi_generic_failure + last_error
 // (plan section 2 posture), never with an unresolved-symbol load failure and
-// never with a crash. 110 stubs.
+// never with a crash. 67 stubs.
 
 #include "common.h"
 
@@ -22,17 +22,6 @@
         return gjsify_napi::set_last_error(                                   \
             const_cast<napi_env>(env), napi_generic_failure);                 \
     } while (0)
-
-napi_status NAPI_CDECL napi_create_array(napi_env env, napi_value* result) {
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_create_array_with_length(napi_env env, size_t length, napi_value* result) {
-    (void)length;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
 
 napi_status NAPI_CDECL node_api_create_external_string_latin1(napi_env env, char* str, size_t length, node_api_basic_finalize finalize_callback, void* finalize_hint, napi_value* result, bool* copied) {
     (void)str;
@@ -54,228 +43,9 @@ napi_status NAPI_CDECL node_api_create_external_string_utf16(napi_env env, char1
     GJSIFY_NAPI_STUB(env);
 }
 
-napi_status NAPI_CDECL node_api_create_property_key_latin1(napi_env env, const char* str, size_t length, napi_value* result) {
-    (void)str;
-    (void)length;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL node_api_create_property_key_utf8(napi_env env, const char* str, size_t length, napi_value* result) {
-    (void)str;
-    (void)length;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL node_api_create_property_key_utf16(napi_env env, const char16_t* str, size_t length, napi_value* result) {
-    (void)str;
-    (void)length;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
 napi_status NAPI_CDECL node_api_symbol_for(napi_env env, const char* utf8description, size_t length, napi_value* result) {
     (void)utf8description;
     (void)length;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_create_error(napi_env env, napi_value code, napi_value msg, napi_value* result) {
-    (void)code;
-    (void)msg;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_create_type_error(napi_env env, napi_value code, napi_value msg, napi_value* result) {
-    (void)code;
-    (void)msg;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_create_range_error(napi_env env, napi_value code, napi_value msg, napi_value* result) {
-    (void)code;
-    (void)msg;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL node_api_create_syntax_error(napi_env env, napi_value code, napi_value msg, napi_value* result) {
-    (void)code;
-    (void)msg;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_get_prototype(napi_env env, napi_value object, napi_value* result) {
-    (void)object;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_get_property_names(napi_env env, napi_value object, napi_value* result) {
-    (void)object;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_set_property(napi_env env, napi_value object, napi_value key, napi_value value) {
-    (void)object;
-    (void)key;
-    (void)value;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_has_property(napi_env env, napi_value object, napi_value key, bool* result) {
-    (void)object;
-    (void)key;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_get_property(napi_env env, napi_value object, napi_value key, napi_value* result) {
-    (void)object;
-    (void)key;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_delete_property(napi_env env, napi_value object, napi_value key, bool* result) {
-    (void)object;
-    (void)key;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_has_own_property(napi_env env, napi_value object, napi_value key, bool* result) {
-    (void)object;
-    (void)key;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_has_named_property(napi_env env, napi_value object, const char* utf8name, bool* result) {
-    (void)object;
-    (void)utf8name;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_set_element(napi_env env, napi_value object, uint32_t index, napi_value value) {
-    (void)object;
-    (void)index;
-    (void)value;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_has_element(napi_env env, napi_value object, uint32_t index, bool* result) {
-    (void)object;
-    (void)index;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_get_element(napi_env env, napi_value object, uint32_t index, napi_value* result) {
-    (void)object;
-    (void)index;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_delete_element(napi_env env, napi_value object, uint32_t index, bool* result) {
-    (void)object;
-    (void)index;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_define_properties(napi_env env, napi_value object, size_t property_count, const napi_property_descriptor* properties) {
-    (void)object;
-    (void)property_count;
-    (void)properties;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_is_array(napi_env env, napi_value value, bool* result) {
-    (void)value;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_get_array_length(napi_env env, napi_value value, uint32_t* result) {
-    (void)value;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_strict_equals(napi_env env, napi_value lhs, napi_value rhs, bool* result) {
-    (void)lhs;
-    (void)rhs;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_call_function(napi_env env, napi_value recv, napi_value func, size_t argc, const napi_value* argv, napi_value* result) {
-    (void)recv;
-    (void)func;
-    (void)argc;
-    (void)argv;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_new_instance(napi_env env, napi_value constructor, size_t argc, const napi_value* argv, napi_value* result) {
-    (void)constructor;
-    (void)argc;
-    (void)argv;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_instanceof(napi_env env, napi_value object, napi_value constructor, bool* result) {
-    (void)object;
-    (void)constructor;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_get_new_target(napi_env env, napi_callback_info cbinfo, napi_value* result) {
-    (void)cbinfo;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_define_class(napi_env env, const char* utf8name, size_t length, napi_callback constructor, void* data, size_t property_count, const napi_property_descriptor* properties, napi_value* result) {
-    (void)utf8name;
-    (void)length;
-    (void)constructor;
-    (void)data;
-    (void)property_count;
-    (void)properties;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_wrap(napi_env env, napi_value js_object, void* native_object, node_api_basic_finalize finalize_cb, void* finalize_hint, napi_ref* result) {
-    (void)js_object;
-    (void)native_object;
-    (void)finalize_cb;
-    (void)finalize_hint;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_unwrap(napi_env env, napi_value js_object, void** result) {
-    (void)js_object;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_remove_wrap(napi_env env, napi_value js_object, void** result) {
-    (void)js_object;
     (void)result;
     GJSIFY_NAPI_STUB(env);
 }
@@ -320,36 +90,6 @@ napi_status NAPI_CDECL napi_reference_unref(napi_env env, napi_ref ref, uint32_t
 
 napi_status NAPI_CDECL napi_get_reference_value(napi_env env, napi_ref ref, napi_value* result) {
     (void)ref;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_throw_error(napi_env env, const char* code, const char* msg) {
-    (void)code;
-    (void)msg;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_throw_type_error(napi_env env, const char* code, const char* msg) {
-    (void)code;
-    (void)msg;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_throw_range_error(napi_env env, const char* code, const char* msg) {
-    (void)code;
-    (void)msg;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL node_api_throw_syntax_error(napi_env env, const char* code, const char* msg) {
-    (void)code;
-    (void)msg;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_is_error(napi_env env, napi_value value, bool* result) {
-    (void)value;
     (void)result;
     GJSIFY_NAPI_STUB(env);
 }
@@ -455,12 +195,6 @@ napi_status NAPI_CDECL napi_is_promise(napi_env env, napi_value value, bool* is_
     GJSIFY_NAPI_STUB(env);
 }
 
-napi_status NAPI_CDECL napi_run_script(napi_env env, napi_value script, napi_value* result) {
-    (void)script;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
 napi_status NAPI_CDECL napi_adjust_external_memory(node_api_basic_env env, int64_t change_in_bytes, int64_t* adjusted_value) {
     (void)change_in_bytes;
     (void)adjusted_value;
@@ -523,15 +257,6 @@ napi_status NAPI_CDECL napi_get_value_bigint_words(napi_env env, napi_value valu
     GJSIFY_NAPI_STUB(env);
 }
 
-napi_status NAPI_CDECL napi_get_all_property_names(napi_env env, napi_value object, napi_key_collection_mode key_mode, napi_key_filter key_filter, napi_key_conversion key_conversion, napi_value* result) {
-    (void)object;
-    (void)key_mode;
-    (void)key_filter;
-    (void)key_conversion;
-    (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
 napi_status NAPI_CDECL napi_set_instance_data(node_api_basic_env env, void* data, napi_finalize finalize_cb, void* finalize_hint) {
     (void)data;
     (void)finalize_cb;
@@ -565,16 +290,6 @@ napi_status NAPI_CDECL napi_check_object_type_tag(napi_env env, napi_value value
     (void)value;
     (void)type_tag;
     (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_object_freeze(napi_env env, napi_value object) {
-    (void)object;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_object_seal(napi_env env, napi_value object) {
-    (void)object;
     GJSIFY_NAPI_STUB(env);
 }
 
@@ -677,11 +392,6 @@ napi_status NAPI_CDECL napi_get_node_version(node_api_basic_env env, const napi_
 
 napi_status NAPI_CDECL napi_get_uv_event_loop(node_api_basic_env env, struct uv_loop_s** loop) {
     (void)loop;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_fatal_exception(napi_env env, napi_value err) {
-    (void)err;
     GJSIFY_NAPI_STUB(env);
 }
 
