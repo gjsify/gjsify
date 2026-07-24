@@ -12,5 +12,6 @@ import { AdwDataGridTest } from './adw-data-grid.spec.js';
 import { AdwDialogTest } from './adw-dialog.spec.js';
 import { AdwDropDownTest } from './adw-drop-down.spec.js';
 import { AdwTabViewTest } from './adw-tab-view.spec.js';
+import { AdwStyleIsolationTest } from './style-isolation.spec.js';
 
-run({ AdwButtonRowTest, AdwDataGridTest, AdwDialogTest, AdwDropDownTest, AdwTabViewTest });
+run({ AdwButtonRowTest, AdwDataGridTest, AdwDialogTest, AdwDropDownTest, AdwTabViewTest, AdwStyleIsolationTest });
