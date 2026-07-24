@@ -1,0 +1,79 @@
+{
+    "name": "@gjsify/napi",
+    "version": "0.21.0",
+    "description": "Node-API (N-API) host for GJS — implements the napi C ABI over SpiderMonkey (mozjs-140) so GJS can load unmodified compiled .node addons. The forward mirror of @gjsify/node-gi (GI in Node); this is N-API in GJS. Vala/C++ shim as .so+.gir+.typelib prebuild, loaded via imports.gi.",
+    "type": "module",
+    "main": "lib/esm/index.js",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "files": [
+        "lib",
+        "prebuilds",
+        "meson.build",
+        "src/vala",
+        "src/cc",
+        "src/napi-headers"
+    ],
+    "gjsify": {
+        "prebuilds": "prebuilds",
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "tier": 3
+    },
+    "keywords": [
+        "gjs",
+        "napi",
+        "node-api",
+        "n-api",
+        "native-addon",
+        "node",
+        "spidermonkey",
+        "mozjs",
+        "vala",
+        "native"
+    ],
+    "scripts": {
+        "clear": "rm -rf lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs || exit 0",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
+        "build:types": "gjsify tsc",
+        "init:meson": "meson setup build .",
+        "init:meson:wipe": "gjsify run init:meson --wipe",
+        "build:meson": "gjsify run init:meson && meson compile -C build",
+        "build:prebuilds": "gjsify run build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x86_64/",
+        "build:test-addon": "cd test/hello-addon && npm exec -- node-gyp rebuild",
+        "test:gate": "GI_TYPELIB_PATH=build LD_LIBRARY_PATH=build gjs test/load-gate.js test/hello-addon/build/Release/hello.node"
+    },
+    "dependencies": {
+        "@girs/glib-2.0": "^4.1.0",
+        "@girs/gobject-2.0": "^4.1.0"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@ts-for-gir/cli": "^4.1.0",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/napi/napi"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/napi/napi#readme"
+}

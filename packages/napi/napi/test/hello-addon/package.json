@@ -1,0 +1,7 @@
+{
+    "name": "gjsify-napi-hello-gate",
+    "version": "0.0.0",
+    "private": true,
+    "description": "P0.0 load-gate addon for @gjsify/napi — raw C N-API, built with node-gyp (npm exec -- node-gyp rebuild).",
+    "license": "MIT"
+}
