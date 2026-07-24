@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.21.0](https://github.com/gjsify/gjsify/compare/v0.20.0...v0.21.0) (2026-07-24)
+
+### Features
+
+* **node-gi:** boot composite-template GNOME apps (Learn6502) ([#786](https://github.com/gjsify/gjsify/issues/786)) ([2c98008](https://github.com/gjsify/gjsify/commit/2c980080dc8a504fb3d22ba032e934adbc5ee5e8))
+* **node-gi:** implement imports.package (app bootstrap) ([#785](https://github.com/gjsify/gjsify/issues/785)) ([2a2a2dc](https://github.com/gjsify/gjsify/commit/2a2a2dc07899abc4adbb60ae65ff961b580dffc3))
+* **node-gi:** seed GtkSource-5 into the --windowing GTK bundles ([#788](https://github.com/gjsify/gjsify/issues/788)) ([212ce56](https://github.com/gjsify/gjsify/commit/212ce56fcef3922f09f43f918cb63bba63187e36))
+* publish @gjsify/node-gi via the GitHub release ([#781](https://github.com/gjsify/gjsify/issues/781)) ([b8433ae](https://github.com/gjsify/gjsify/commit/b8433aeafe985621ff2808aa04736862bf24a5cd)), closes [770/#771](https://github.com/770/gjsify/issues/771)
+
+### Bug Fixes
+
+* **adwaita-web:** guard button-row init re-entry ([7b616a8](https://github.com/gjsify/gjsify/commit/7b616a88d536a8a1a014321163d3524bb0b2ecb6))
+* **cli:** onboard 401 read path + OTP file cache ([#779](https://github.com/gjsify/gjsify/issues/779)) ([35f83cc](https://github.com/gjsify/gjsify/commit/35f83cc072559366ec1986270b885619faa887e4)), closes [#60](https://github.com/gjsify/gjsify/issues/60) [#61](https://github.com/gjsify/gjsify/issues/61)
+* **rolldown-plugin-gjsify:** lower CSS to GTK4 for node-gi ([#787](https://github.com/gjsify/gjsify/issues/787)) ([f0f4641](https://github.com/gjsify/gjsify/commit/f0f4641e46756bbed81deeeec4f557c3ca3f35af))
+
+### Documentation
+
+* cross-platform website positioning (node-gi) ([#782](https://github.com/gjsify/gjsify/issues/782)) ([da6d38a](https://github.com/gjsify/gjsify/commit/da6d38a806e73962ef0aaca47db4b5ad6a293551)), closes [#783](https://github.com/gjsify/gjsify/issues/783)
+* **website:** add Adwaita widget gallery ([bc0a6f3](https://github.com/gjsify/gjsify/commit/bc0a6f31527664a89ba345bf55ff189c020deb51))
+
+### Continuous Integration
+
+* diagnose the gjsify CLI on macOS + Windows ([#784](https://github.com/gjsify/gjsify/issues/784)) ([7a44c36](https://github.com/gjsify/gjsify/commit/7a44c36e57ee7502dd502771f551f0a791e9f3c3))
+* **node-gi:** prove the GTK GUI on macOS ([#783](https://github.com/gjsify/gjsify/issues/783)) ([af922aa](https://github.com/gjsify/gjsify/commit/af922aa0c010328c258ecfb70e3acbf2e46b217d))
+
+### Tests
+
+* **node-gi:** prove GtkSource-5 subclass on node-gi ([#780](https://github.com/gjsify/gjsify/issues/780)) ([a400e61](https://github.com/gjsify/gjsify/commit/a400e6101a74ce6d38eb4fdb393f9fc1a1f6fe55))
+
 ## [0.20.0](https://github.com/gjsify/gjsify/compare/v0.19.0...v0.20.0) (2026-07-20)
 
 ### Features
