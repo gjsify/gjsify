@@ -35,6 +35,7 @@ cc_sources = files(
     'src/cc/error.cc',
     'src/cc/function.cc',
     'src/cc/module.cc',
+    'src/cc/stubs.cc',
     'src/cc/value.cc',
 )
 

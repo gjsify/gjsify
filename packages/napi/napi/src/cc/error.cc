@@ -117,50 +117,5 @@ napi_status NAPI_CDECL napi_get_and_clear_last_exception(napi_env env,
     return gjsify_napi::clear_last_error(env);
 }
 
-// ---- P0.0 stubs ----
-//
-// Not yet implemented, but defined so (a) the pre-promotion collision probe
-// (module.cc) has a canonical symbol to compare against and (b) an addon
-// reaching past the P0.0 surface fails loud with a status, not a crash.
-// Every stub returns napi_generic_failure + sets last_error (§2 posture).
-
-#define GJSIFY_NAPI_STUB_BODY(env)                                   \
-    do {                                                             \
-        GJSIFY_NAPI_CHECK_ENV(env);                                  \
-        return gjsify_napi::set_last_error((env), napi_generic_failure); \
-    } while (0)
-
-napi_status NAPI_CDECL napi_create_reference(napi_env env, napi_value value,
-                                             uint32_t initial_refcount,
-                                             napi_ref* result) {
-    (void)value;
-    (void)initial_refcount;
-    (void)result;
-    GJSIFY_NAPI_STUB_BODY(env);
-}
-
-napi_status NAPI_CDECL napi_delete_reference(napi_env env, napi_ref ref) {
-    (void)ref;
-    GJSIFY_NAPI_STUB_BODY(env);
-}
-
-napi_status NAPI_CDECL napi_reference_ref(napi_env env, napi_ref ref,
-                                          uint32_t* result) {
-    (void)ref;
-    (void)result;
-    GJSIFY_NAPI_STUB_BODY(env);
-}
-
-napi_status NAPI_CDECL napi_reference_unref(napi_env env, napi_ref ref,
-                                            uint32_t* result) {
-    (void)ref;
-    (void)result;
-    GJSIFY_NAPI_STUB_BODY(env);
-}
-
-napi_status NAPI_CDECL napi_get_reference_value(napi_env env, napi_ref ref,
-                                                napi_value* result) {
-    (void)ref;
-    (void)result;
-    GJSIFY_NAPI_STUB_BODY(env);
-}
+// The not-yet-implemented remainder of the ABI lives in stubs.cc (loud
+// napi_generic_failure + last_error for every declared symbol).

@@ -52,8 +52,10 @@
         "init:meson:wipe": "gjsify run init:meson --wipe",
         "build:meson": "gjsify run init:meson && meson compile -C build",
         "build:prebuilds": "gjsify run build:meson && mkdir -p prebuilds/linux-x86_64 && cp build/libgjsifynapi.so build/GjsifyNapi-1.0.gir build/GjsifyNapi-1.0.typelib prebuilds/linux-x86_64/",
-        "build:test-addon": "cd test/hello-addon && npm exec -- node-gyp rebuild",
-        "test:gate": "GI_TYPELIB_PATH=build LD_LIBRARY_PATH=build gjs test/load-gate.js test/hello-addon/build/Release/hello.node"
+        "build:test-addons": "cd test/hello-addon && npm exec -- node-gyp rebuild && cd ../values-addon && npm exec -- node-gyp rebuild",
+        "build:stubs": "python3 scripts/gen-stubs.py",
+        "test:gate": "GI_TYPELIB_PATH=build LD_LIBRARY_PATH=build gjs test/load-gate.js test/hello-addon/build/Release/hello.node",
+        "test:gate:p01": "GI_TYPELIB_PATH=build LD_LIBRARY_PATH=build gjs test/p01-gate.js"
     },
     "dependencies": {
         "@girs/glib-2.0": "^4.1.0",

@@ -26,6 +26,14 @@ bool function_trampoline(JSContext* cx, unsigned argc, JS::Value* vp) {
         js::GetFunctionNativeReserved(&args.callee(), 0);
     auto* bundle = static_cast<CallbackBundle*>(bundle_val.toPrivate());
     napi_env env = bundle->env;
+    // Early-teardown guard: bundles outlive teardown() (freed only in the
+    // env destructor at context dispose), so this dereference is safe and a
+    // call into a torn-down addon env fails as a JS error, not a UAF.
+    if (env->torn_down) {
+        JS_ReportErrorUTF8(
+            cx, "gjsify-napi: addon environment has been torn down");
+        return false;
+    }
 
     napi_handle_scope scope = nullptr;
     if (napi_open_handle_scope(env, &scope) != napi_ok) {

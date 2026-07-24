@@ -177,25 +177,29 @@ bool load_addon_native(JSContext* cx, unsigned argc, JS::Value* vp) {
                     "': " + (err != nullptr ? err : "unknown dlopen error"));
     }
 
-    // §3c path 1: static-constructor registration during dlopen.
-    napi_addon_register_func init_fn = nullptr;
-    if (pending_modules.size() > pending_before) {
-        if (pending_modules.size() > pending_before + 1) {
-            g_warning("gjsify-napi: addon '%s' registered %zu modules; using "
-                      "the first (multi-module drain lands in P0.1)",
-                      resolved, pending_modules.size() - pending_before);
+    // §3c path 1: static-constructor registration during dlopen. Validate +
+    // move every newly registered module into a FIFO work queue; the queue
+    // is re-drained after each init call (re-entrancy loop — a register fn
+    // may register more, mirroring Bun's pending-module drain).
+    std::vector<napi_module*> static_mods;
+    auto drain_pending = [&]() -> const char* {
+        while (pending_modules.size() > pending_before) {
+            napi_module* mod = pending_modules[pending_before];
+            pending_modules.erase(pending_modules.begin() +
+                                  static_cast<long>(pending_before));
+            if (mod->nm_version != NAPI_MODULE_VERSION) {
+                return "legacy";
+            }
+            static_mods.push_back(mod);
         }
-        napi_module* mod = pending_modules[pending_before];
-        pending_modules.resize(pending_before);
-        if (mod->nm_version != NAPI_MODULE_VERSION) {
-            dlclose(handle);
-            return throw_load_error(
-                cx, std::string("gjsify-napi: '") + resolved +
-                        "' is a legacy (NAN/V8) addon (nm_version=" +
-                        std::to_string(mod->nm_version) +
-                        "); only pure Node-API addons are supported");
-        }
-        init_fn = mod->nm_register_func;
+        return nullptr;
+    };
+    if (drain_pending() != nullptr) {
+        dlclose(handle);
+        return throw_load_error(
+            cx, std::string("gjsify-napi: '") + resolved +
+                    "' is a legacy (NAN/V8) addon (nm_version != 1); only "
+                    "pure Node-API addons are supported");
     }
 
     // §3c path 2: per-addon API version; clamp exactly like
@@ -228,16 +232,18 @@ bool load_addon_native(JSContext* cx, unsigned argc, JS::Value* vp) {
     }
 
     // §3c path 3: modern symbol-based registration.
-    if (init_fn == nullptr) {
-        init_fn = reinterpret_cast<napi_addon_register_func>(
+    napi_addon_register_func modern_init = nullptr;
+    if (static_mods.empty()) {
+        modern_init = reinterpret_cast<napi_addon_register_func>(
             dlsym(handle, "napi_register_module_v1"));
-    }
-    if (init_fn == nullptr) {
-        dlclose(handle);
-        return throw_load_error(
-            cx, std::string("gjsify-napi: '") + resolved +
+        if (modern_init == nullptr) {
+            dlclose(handle);
+            return throw_load_error(
+                cx,
+                std::string("gjsify-napi: '") + resolved +
                     "' is not a Node-API module (no napi_register_module_v1 "
                     "export and no self-registration during dlopen)");
+        }
     }
 
     // One napi_env per addon (node_api.cc:768-770).
@@ -251,24 +257,47 @@ bool load_addon_native(JSContext* cx, unsigned argc, JS::Value* vp) {
         return false;
     }
 
-    // Call init under call-into-module discipline: fresh handle scope; a
+    // Call init(s) under call-into-module discipline: fresh handle scope; a
     // pending exception afterwards propagates as the JS throw it is (§6).
+    // Each init receives the current exports; a non-null return replaces it
+    // (node_api.cc:777-784). Static modules run in registration order,
+    // re-draining after each call (an init may register more).
     napi_handle_scope scope = nullptr;
     napi_open_handle_scope(env, &scope);
     napi_value exports_v =
         gjsify_napi::arena_push(env, JS::ObjectValue(*exports_obj));
-    napi_value init_ret = init_fn(env, exports_v);
-
-    bool pending = JS_IsExceptionPending(cx);
-    JS::RootedValue result_val(cx, JS::ObjectValue(*exports_obj));
-    if (!pending && init_ret != nullptr) {
-        // A non-null return different from exports replaces the exports
-        // (node_api.cc:777-784).
-        result_val = gjsify_napi::napi_value_to_js(init_ret);
+    bool pending = false;
+    bool legacy_reentry = false;
+    if (modern_init != nullptr) {
+        napi_value init_ret = modern_init(env, exports_v);
+        pending = JS_IsExceptionPending(cx);
+        if (!pending && init_ret != nullptr) {
+            exports_v = init_ret;
+        }
+    } else {
+        for (size_t i = 0; i < static_mods.size() && !pending; i++) {
+            napi_value init_ret =
+                static_mods[i]->nm_register_func(env, exports_v);
+            pending = JS_IsExceptionPending(cx);
+            if (!pending && init_ret != nullptr) {
+                exports_v = init_ret;
+            }
+            if (drain_pending() != nullptr) {
+                legacy_reentry = true;
+                break;
+            }
+        }
     }
+    JS::RootedValue result_val(cx, gjsify_napi::napi_value_to_js(exports_v));
     napi_close_handle_scope(env, scope);
     if (pending) {
         return false;
+    }
+    if (legacy_reentry) {
+        return throw_load_error(
+            cx, std::string("gjsify-napi: '") + resolved +
+                    "' registered a legacy (nm_version != 1) module during "
+                    "init; only pure Node-API addons are supported");
     }
     if (!result_val.isObject()) {
         return throw_load_error(
@@ -288,6 +317,17 @@ bool load_addon_native(JSContext* cx, unsigned argc, JS::Value* vp) {
 // during dlopen (node_api.h:36-45).
 void NAPI_CDECL napi_module_register(napi_module* mod) {
     pending_modules.push_back(mod);
+}
+
+// The file:// URL captured at load (node_api.cc:744-766). Pointer valid for
+// the env's lifetime.
+napi_status NAPI_CDECL node_api_get_module_file_name(
+    node_api_basic_env basic_env, const char** result) {
+    napi_env env = const_cast<napi_env>(basic_env);
+    GJSIFY_NAPI_CHECK_ENV(env);
+    GJSIFY_NAPI_CHECK_ARG(env, result);
+    *result = env->filename.c_str();
+    return gjsify_napi::clear_last_error(env);
 }
 
 napi_status NAPI_CDECL napi_get_version(node_api_basic_env basic_env,

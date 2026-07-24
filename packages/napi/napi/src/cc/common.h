@@ -38,9 +38,11 @@
 #include <jsapi.h>
 #include <jsfriendapi.h>
 
+#include <js/BigInt.h>
 #include <js/CallAndConstruct.h>
 #include <js/CallArgs.h>
 #include <js/CharacterEncoding.h>
+#include <js/Conversions.h>
 #include <js/Context.h>
 #include <js/ErrorReport.h>
 #include <js/Exception.h>
@@ -49,6 +51,7 @@
 #include <js/PropertyAndElement.h>
 #include <js/RootingAPI.h>
 #include <js/String.h>
+#include <js/Symbol.h>
 #include <js/TracingAPI.h>
 #include <js/Value.h>
 
@@ -104,10 +107,19 @@ class HandleArena {
 
 // A handle scope is a saved arena top; scopes close LIFO
 // (napi_handle_scope_mismatch otherwise), matching
-// js_native_api_v8.cc:2927-2953. The napi_handle_scope pointer encodes the
-// 1-based scope-stack depth (no heap allocation, trivially validated).
+// js_native_api_v8.cc:2927-2953. The napi_handle_scope /
+// napi_escapable_handle_scope pointer encodes the 1-based scope-stack depth
+// (no heap allocation, trivially validated). Escapable scopes (cc:2955-3002)
+// reserve ONE slot in the PARENT region at open (Bun's trick,
+// refs/bun/src/jsc/bindings/napi_handle_scope.cpp:24-27,66-75);
+// napi_escape_handle copies the escapee into that slot once.
 struct HandleScopeRec {
     size_t mark;
+    bool escapable = false;
+    bool escape_called = false;
+    // The parent-region slot (address stable — chunks never move); only
+    // set for escapable scopes. Lives BELOW mark, so close leaves it alive.
+    JS::Heap<JS::Value>* escape_slot = nullptr;
 };
 
 // ---- callbacks (§8) ----
@@ -182,14 +194,21 @@ struct napi_env__ {
     // The addon's exports object, rooted for the exports cache. Reset in
     // teardown() — a live PersistentRooted past JS_DestroyContext is UAF.
     JS::PersistentRooted<JSObject*> exports;
+    // The realm global captured at env creation (napi_get_global — Node's
+    // context()->Global() analog). Reset in teardown().
+    JS::PersistentRooted<JSObject*> global;
 
     napi_env__(JSContext* cx, GjsContext* gjs, int32_t api_version,
                void* handle, std::string file);
     ~napi_env__();
 
-    // §5e teardown order (P0.0 slice): flip can_call_into_js, remove the
-    // extra-roots tracer, reset roots, release arena/scopes/bundles — all
-    // BEFORE JS_DestroyContext runs.
+    // §5e teardown order (P0.1 slice): flip can_call_into_js/torn_down,
+    // remove the extra-roots tracer, reset roots, release arena/scopes — all
+    // BEFORE JS_DestroyContext runs. Callback bundles are NOT freed here:
+    // live function objects still reference them, and the trampoline guards
+    // on torn_down — so tearing an env down early (while JS continues) is
+    // memory-safe. The bundles are freed by the destructor (the "zombie env"
+    // shell persists until context dispose).
     void teardown();
 };
 
