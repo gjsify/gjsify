@@ -195,6 +195,84 @@ if (existsSync(brewTypelibs)) {
 }
 console.log(`build-gtk-runtime: copied ${typelibCount} typelibs`);
 
+// --- 3b. WINDOWING data (schemas / icons / gtksource) ---------------------
+// The runtime DATA a REAL app needs beyond the dylibs+typelibs: compiled GSettings
+// schemas (Gio.Settings — a HARD startup blocker without them), the Adwaita/hicolor
+// icon themes, and GtkSource's language-specs/styles. These are plain files (no dylib
+// relocation), located at runtime via GSETTINGS_SCHEMA_DIR / XDG_DATA_DIRS (node-gi's
+// gtk-runtime.js maybeWireGtkWindowingEnv keys on the gschemas.compiled marker). Gated
+// on --windowing; the display-free bundle is byte-unchanged. NB the gdk-pixbuf image
+// LOADERS (needed to render SVG symbolic icons) are NOT bundled yet — they are dylibs
+// that need @loader_path relocation from a NESTED dir (unlike win32's plain DLL copy);
+// tracked follow-up, so symbolic icons may be blank until then.
+const windowing = { schemas: false, iconThemes: [], gtksource: false };
+if (WINDOWING) {
+    const brewShare = join(brewPrefix, 'share');
+    const findTool = (leaf) => {
+        const inBrew = join(brewPrefix, 'bin', leaf);
+        return existsSync(inBrew) ? inBrew : leaf; // fall back to PATH
+    };
+
+    // 3b-a. Compiled GSettings schemas + (re)compile gschemas.compiled — also the
+    // windowing-data marker node-gi's loader detects.
+    const schemasSrc = join(brewShare, 'glib-2.0', 'schemas');
+    if (existsSync(schemasSrc)) {
+        const schemasOut = join(OUT, 'share', 'glib-2.0', 'schemas');
+        mkdirSync(schemasOut, { recursive: true });
+        for (const f of readdirSync(schemasSrc)) {
+            if (f.endsWith('.xml') || f.endsWith('.gschema.override') || f === 'gschemas.compiled') {
+                copyFileSync(join(schemasSrc, f), join(schemasOut, f));
+            }
+        }
+        try {
+            execFileSync(findTool('glib-compile-schemas'), [schemasOut]);
+        } catch (err) {
+            console.warn(`build-gtk-runtime: WARNING — glib-compile-schemas failed: ${err?.message ?? err}`);
+        }
+        windowing.schemas = existsSync(join(schemasOut, 'gschemas.compiled'));
+        console.log(`build-gtk-runtime: GSettings schemas ${windowing.schemas ? 'compiled' : 'copied (no gschemas.compiled!)'}`);
+    } else {
+        console.warn(`build-gtk-runtime: WARNING — ${schemasSrc} missing; GSettings schemas NOT bundled (Gio.Settings will fail)`);
+    }
+
+    // 3b-b. Icon themes (Adwaita symbolic + hicolor) + caches, loaded from
+    // XDG_DATA_DIRS/icons/<theme>/.
+    const updateIconCache = findTool('gtk4-update-icon-cache');
+    for (const theme of ['Adwaita', 'hicolor']) {
+        const themeSrc = join(brewShare, 'icons', theme);
+        if (!existsSync(themeSrc)) continue;
+        cpSync(themeSrc, join(OUT, 'share', 'icons', theme), { recursive: true });
+        try {
+            execFileSync(updateIconCache, ['-q', '-t', '-f', join(OUT, 'share', 'icons', theme)]);
+        } catch {
+            // an existing icon-theme.cache from the copy is a usable fallback
+        }
+        windowing.iconThemes.push(theme);
+    }
+    console.log(
+        windowing.iconThemes.length
+            ? `build-gtk-runtime: icon themes ${windowing.iconThemes.join(', ')}`
+            : 'build-gtk-runtime: WARNING — no Adwaita/hicolor icon theme under share/icons',
+    );
+
+    // 3b-c. GtkSource-5 language-specs + styles (the editor's syntax highlighting).
+    const gtksourceSrc = join(brewShare, 'gtksourceview-5');
+    if (existsSync(gtksourceSrc)) {
+        let copied = 0;
+        for (const sub of ['language-specs', 'styles']) {
+            const subSrc = join(gtksourceSrc, sub);
+            if (existsSync(subSrc)) {
+                cpSync(subSrc, join(OUT, 'share', 'gtksourceview-5', sub), { recursive: true });
+                copied += readdirSync(subSrc).length;
+            }
+        }
+        windowing.gtksource = copied > 0;
+        console.log(`build-gtk-runtime: GtkSource-5 data ${windowing.gtksource ? `bundled (${copied} files)` : 'empty'}`);
+    } else {
+        console.warn(`build-gtk-runtime: WARNING — ${gtksourceSrc} missing; GtkSource-5 data NOT bundled`);
+    }
+}
+
 // --- 4. optional: relocate a copy of the node-gi addon --------------------
 // The addon (built against Homebrew) carries absolute /opt/homebrew refs. Rewrite
 // them to @rpath/<leaf> + add an rpath to the SIBLING bundle so it loads the
@@ -237,15 +315,20 @@ function dirSize(dir) {
 }
 const libBytes = dirSize(libOut);
 const typelibBytes = dirSize(typelibOut);
+const shareOut = join(OUT, 'share');
+const dataBytes = WINDOWING && existsSync(shareOut) ? dirSize(shareOut) : 0;
 const manifest = {
     platform: 'darwin-arm64',
+    windowing: WINDOWING,
     generatedFrom: brewPrefix,
     dylibs: bundledLeaves.size,
     typelibs: typelibCount,
     libBytes,
     typelibBytes,
-    totalBytes: libBytes + typelibBytes,
+    dataBytes,
+    totalBytes: libBytes + typelibBytes + dataBytes,
     dylibList: [...bundledLeaves].sort(),
+    ...(WINDOWING ? { windowingData: windowing } : {}),
 };
 writeFileSync(join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2));
 

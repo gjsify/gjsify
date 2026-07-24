@@ -158,7 +158,12 @@ export function maybePrependGtkRuntimeDllPath() {
  * @returns {void}
  */
 export function maybeWireGtkWindowingEnv() {
-    if (process.platform !== 'win32') return; // strict no-op on every non-win32 runtime
+    // win32 AND darwin ship a batteries-included --windowing bundle whose runtime
+    // DATA (gschemas / icons / loaders / gtksource / fonts) is located by these env
+    // vars — GLib/GTK read them at init, not at launch (unlike dyld's DYLD_FALLBACK),
+    // so setting them in-process works on both. The only platform difference is the
+    // XDG_DATA_DIRS separator (';' on win32, ':' on unix/darwin).
+    if (process.platform !== 'win32' && process.platform !== 'darwin') return;
     const bundle = resolveGtkRuntimeBundle();
     if (!bundle) return; // strict no-op when no bundle is present
 
@@ -166,6 +171,7 @@ export function maybeWireGtkWindowingEnv() {
     // gschemas.compiled = the windowing-data marker; absent → display-free bundle.
     if (!existsSync(join(schemaDir, 'gschemas.compiled'))) return;
 
+    const pathSep = process.platform === 'win32' ? ';' : ':';
     const setIfUnset = (name, value) => {
         if (!process.env[name]) process.env[name] = value;
     };
@@ -177,11 +183,13 @@ export function maybeWireGtkWindowingEnv() {
         setIfUnset('GDK_PIXBUF_MODULE_FILE', loaderCache);
     }
 
+    // XDG_DATA_DIRS → <bundle>/share so the icon themes (share/icons) AND GtkSource's
+    // language-specs/styles (share/gtksourceview-5) resolve.
     const shareDir = join(bundle.dir, 'share');
-    if (existsSync(join(shareDir, 'icons'))) {
+    if (existsSync(shareDir)) {
         const cur = process.env.XDG_DATA_DIRS ?? '';
-        if (!cur.split(';').filter(Boolean).includes(shareDir)) {
-            process.env.XDG_DATA_DIRS = cur ? `${shareDir};${cur}` : shareDir;
+        if (!cur.split(pathSep).filter(Boolean).includes(shareDir)) {
+            process.env.XDG_DATA_DIRS = cur ? `${shareDir}${pathSep}${cur}` : shareDir;
         }
     }
 
