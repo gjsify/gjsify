@@ -214,6 +214,7 @@ async function installPackagesNativeLocked(
     log('install: downloading %d tarball(s)', nodes.length);
     await downloadAndExtractAll(nodes, opts.prefix, npmrc, log, opts.signal, progress);
     await linkBins(nodes, opts.prefix, log);
+    warnMissingNativeBuilds(nodes, opts.prefix, log);
     log('install: done');
 
     // Surface the top-level requested packages so callers can update
@@ -225,6 +226,77 @@ async function installPackagesNativeLocked(
 function errMsg(err: unknown): string {
     if (err instanceof Error) return err.message;
     return String(err);
+}
+
+/**
+ * Warn about a native package that installed WITHOUT a usable binary.
+ *
+ * gjsify install is node-free (it runs under GJS) and does NOT run a package's
+ * `install`/`postinstall` lifecycle script — running e.g. `node-gyp rebuild` would
+ * need Node + a C++ toolchain, breaking that property (see the header's "out of
+ * scope"). Such a package works only if it SHIPS a prebuild for the platform (the
+ * sanctioned path — `prebuilds/<platform>-<arch>/…`) or is later built by hand. When
+ * neither is present the package silently loads no binary (the `@gjsify/node-gi
+ * 0.21.0` case: installed, but `node_gi.node` absent → the consumer hit a runtime
+ * failure with no hint). Surface it at install time with an actionable line. Pure
+ * detection — no script is run, so node-free-ness is preserved.
+ */
+export function warnMissingNativeBuilds(nodes: ResolvedNode[], prefix: string, log: Logger): void {
+    const plat = process.platform;
+    const arch = process.arch;
+    const buildScriptKeys = ['preinstall', 'install', 'postinstall'] as const;
+    for (const n of nodes) {
+        const pkgDir = path.join(prefix, n.installPath);
+        let scripts: Record<string, unknown> | undefined;
+        try {
+            const manifest = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf8'));
+            scripts = manifest?.scripts;
+        } catch {
+            continue; // no/unreadable manifest — nothing to assess
+        }
+        if (!scripts || typeof scripts !== 'object') continue;
+        const scriptKey = buildScriptKeys.find((k) => typeof scripts![k] === 'string');
+        if (scriptKey === undefined) continue; // no native build lifecycle script
+
+        // Does it ship a prebuild for THIS platform (any prebuilds/<plat>-…/ with a
+        // file), or carry a locally-built build/Release binary?
+        let hasBinary = false;
+        try {
+            const prebuildsDir = path.join(pkgDir, 'prebuilds');
+            for (const entry of fs.readdirSync(prebuildsDir)) {
+                if (entry.startsWith(`${plat}-`) && fs.readdirSync(path.join(prebuildsDir, entry)).length > 0) {
+                    hasBinary = true;
+                    break;
+                }
+            }
+        } catch {
+            /* no prebuilds dir */
+        }
+        if (!hasBinary) {
+            try {
+                const releaseDir = path.join(pkgDir, 'build', 'Release');
+                hasBinary = fs
+                    .readdirSync(releaseDir)
+                    .some((f) => f.endsWith('.node') || f.endsWith('.so'));
+            } catch {
+                /* no build/Release */
+            }
+        }
+        if (!hasBinary) {
+            log(
+                'install: WARNING — %s declares a native `%s` build script but ships no %s-%s prebuild, ' +
+                    'and gjsify install does not run build scripts (node-free). It will not load until built: ' +
+                    'run `node-gyp rebuild` in %s, or use a version that ships a %s-%s prebuild.',
+                n.name,
+                scriptKey,
+                plat,
+                arch,
+                n.installPath,
+                plat,
+                arch,
+            );
+        }
+    }
 }
 
 function topLevelResolutions(specs: string[], nodes: ResolvedNode[]): InstalledTopLevel[] {
