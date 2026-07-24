@@ -44,9 +44,27 @@ interface Props {
     padding?: 'comfortable' | 'flush';
     /** When set, the preview panel scrolls horizontally instead of clipping wide widgets. */
     scroll?: boolean;
+    /**
+     * Canonical upstream reference for this widget. Omit to derive it from an
+     * `Adw.*` / `Gtk.*` `title` (libadwaita / GTK 4 class docs); pass a URL for a
+     * title that isn't a single class, or `false` to suppress the link.
+     */
+    docHref?: string | false;
 }
 
-const { title = 'Code', padding = 'comfortable', scroll = false } = Astro.props;
+const { title = 'Code', padding = 'comfortable', scroll = false, docHref } = Astro.props;
+
+// Derive the upstream class-reference URL from a `Namespace.ClassName` title, so
+// each widget links to its canonical docs (the sources this gallery documents).
+const REF_BASES: Record<string, string> = {
+    Adw: 'https://gnome.pages.gitlab.gnome.org/libadwaita/doc/main/class.',
+    Gtk: 'https://docs.gtk.org/gtk4/class.',
+};
+const deriveRef = (t: string): string | null => {
+    const m = /^(Adw|Gtk)\.([A-Za-z][A-Za-z0-9]*)$/.exec(t);
+    return m ? `${REF_BASES[m[1]]}${m[2]}.html` : null;
+};
+const refHref = docHref === false ? null : (docHref ?? deriveRef(title));
 
 // GJS is the primary implementation and always present; Web + NativeScript are
 // additional. Render only the slots that were actually provided.
@@ -97,7 +115,22 @@ const hasPreview = Astro.slots.has('preview');
 
     <div class="command-tabs not-content" data-impl-tabs data-impls={implsAttr}>
         <div class="command-tabs-headerbar">
-            <span class="command-tabs-headerbar-start"></span>
+            <span class="command-tabs-headerbar-start">
+                {
+                    refHref && (
+                        <a
+                            class="command-tabs-ref"
+                            href={refHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`Reference for ${title}`}
+                            aria-label={`Open the reference for ${title} in a new tab`}
+                        >
+                            <span class="command-tabs-ref-icon" aria-hidden="true" />
+                        </a>
+                    )
+                }
+            </span>
             <span class="command-tabs-headerbar-title">{title}</span>
             <span class="command-tabs-headerbar-end">
                 <button class="command-tabs-copy" aria-label="Copy active tab" type="button">
@@ -259,5 +292,47 @@ const hasPreview = Astro.slots.has('preview');
     .adw-widget-preview-stage > :where(adw-preferences-group, adw-clamp, adw-banner) {
         width: 100%;
         max-width: 420px;
+    }
+
+    /* ── Reference link — a flat CSD button in the (otherwise empty) left slot
+          of the tab-window headerbar, so the title stays centered. Opens the
+          widget's canonical upstream docs. ── */
+    .command-tabs .command-tabs-headerbar-start {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        padding-left: 3px;
+    }
+
+    .command-tabs-ref {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        color: inherit;
+        opacity: 0.65;
+        transition:
+            background 0.1s ease,
+            opacity 0.1s ease;
+    }
+
+    .command-tabs-ref:hover {
+        background: rgba(128, 128, 128, 0.12);
+        opacity: 1;
+    }
+
+    .command-tabs-ref:active {
+        background: rgba(128, 128, 128, 0.22);
+    }
+
+    .command-tabs-ref-icon {
+        display: block;
+        width: 16px;
+        height: 16px;
+        background-color: currentColor;
+        -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='16'%20viewBox='0%200%2016%2016'%20fill='none'%20stroke='%23000'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M6.5%203.5H3.2A1.2%201.2%200%200%200%202%204.7v8.1A1.2%201.2%200%200%200%203.2%2014h8.1a1.2%201.2%200%200%200%201.2-1.2V9.5'/%3E%3Cpath%20d='M9.5%202H14v4.5'/%3E%3Cpath%20d='M7%209%2014%202'/%3E%3C/svg%3E") no-repeat center / contain;
+        mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='16'%20viewBox='0%200%2016%2016'%20fill='none'%20stroke='%23000'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M6.5%203.5H3.2A1.2%201.2%200%200%200%202%204.7v8.1A1.2%201.2%200%200%200%203.2%2014h8.1a1.2%201.2%200%200%200%201.2-1.2V9.5'/%3E%3Cpath%20d='M9.5%202H14v4.5'/%3E%3Cpath%20d='M7%209%2014%202'/%3E%3C/svg%3E") no-repeat center / contain;
     }
 </style>
