@@ -7,12 +7,14 @@ import { toggleGroupMeta } from '../../buttons/toggle-group.meta.js';
 
 const STYLE_CLASSES = ['flat', 'round'] as const;
 
-// The three toggles, mirroring the native demo. (`view-dual` stands in for the
-// native `view-columns-symbolic` — the closest icon in @gjsify/adwaita-icons.)
+// The three toggles, mirroring the native demo. `view-columns` matches the
+// native `view-columns-symbolic`; @gjsify/adwaita-web supplies that glyph (it is
+// not in the vendored icon theme, so build-scss adds it). The previous
+// `view-dual` name had no `.adw-icon--*` rule and rendered blank.
 const TOGGLES: ReadonlyArray<{ label: string; icon: string }> = [
     { label: 'List', icon: 'view-list' },
     { label: 'Grid', icon: 'view-grid' },
-    { label: 'Columns', icon: 'view-dual' },
+    { label: 'Columns', icon: 'view-columns' },
 ];
 
 export class ToggleGroupWebStory extends StoryElement {
