@@ -452,14 +452,54 @@ jobs:
   # once for this repo + release.yml (a maintainer runs `gjsify trust`, exactly like
   # the gtk-runtime bootstrap) — OIDC cannot self-bootstrap its own trust.
   #
-  # No bundle-build step: node-gi ships `src` + `binding.gyp` + `install: node-gyp
-  # rebuild`, so node/bun consumers compile the addon at install time and the tarball
-  # needs no prebuilt binary for them. A shipped Linux prebuild for Deno (which runs
-  # no postinstall) is a follow-up — build it in a Fedora container via
-  # `npm run build:prebuild` and include prebuilds/ before this publish step.
+  # Build the linux-x64 node-gi prebuild so the published tarball SHIPS it. node-gi's
+  # `files` includes `prebuilds`, `index.js` prefers a prebuild, and Deno (which runs
+  # NO install script) can only load a prebuild — but nothing staged one, so 0.20/0.21
+  # shipped none: node/bun consumers had to `node-gyp rebuild` at install time and a
+  # `gjsify install` consumer (which does not run the `install` script) or Deno got no
+  # binary at all. Built in the SAME Fedora container node-gi.yml uses (proven GLib/GI
+  # ABI) via `npm install` (runs node-gi's `install` = node-gyp rebuild) + stage-prebuild,
+  # then handed to publish-node-gi as an artifact staged into prebuilds/ before publish.
+  node-gi-prebuild-linux:
+    name: Build @gjsify/node-gi linux-x64 prebuild
+    needs: publish
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: fedora:44
+    steps:
+      - name: Install toolchain + GObject-Introspection dev headers
+        run: |
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 \
+            git gcc-c++ make python3 pkgconf-pkg-config tar xz \
+            glib2-devel gobject-introspection-devel cairo-devel
+      - name: Use official Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Checkout repository (the released tag)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+      # `npm install --foreground-scripts` runs node-gi's `install` (node-gyp rebuild)
+      # → build/Release/node_gi.node; stage-prebuild copies it to prebuilds/linux-x64.
+      - name: Build + stage the linux-x64 prebuild
+        working-directory: packages/node-gi/node-gi
+        run: |
+          npm install --no-audit --no-fund --foreground-scripts
+          node scripts/stage-prebuild.mjs
+          ls -la prebuilds/*/node_gi.node
+      - name: Upload the prebuild artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-gi-prebuild-linux-x64
+          path: packages/node-gi/node-gi/prebuilds/
+          if-no-files-found: error
+
   publish-node-gi:
     name: Publish @gjsify/node-gi (Node GI reverse bridge)
-    needs: publish
+    needs: [publish, node-gi-prebuild-linux]
     if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -473,6 +513,17 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+
+      # Stage the linux-x64 prebuild (from node-gi-prebuild-linux) into the package's
+      # prebuilds/ dir BEFORE publish, so the tarball ships it (prebuilds is in node-gi's
+      # `files`). Downloads into prebuilds/linux-x64/node_gi.node.
+      - name: Download + stage the linux-x64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-linux-x64
+          path: packages/node-gi/node-gi/prebuilds/
+      - name: Confirm the prebuild is staged
+        run: ls -la packages/node-gi/node-gi/prebuilds/*/node_gi.node
 
       # No `registry-url` (it would inject a placeholder NODE_AUTH_TOKEN and defeat
       # OIDC — see the ubuntu `publish` job's rationale).
