@@ -255,6 +255,31 @@ function resolveTemplateCallback(handle, handlerName) {
 }
 native.setTemplateCallbackResolver(resolveTemplateCallback);
 
+// Run a registered class's JS constructor for a GObject the ENGINE instantiated
+// from C — a GtkBuilder composite-template InternalChild is the common case. node-gi's
+// JS-`new` path runs the ctor via the makeClass super-substitution; a C-created
+// instance has no such driver, so NodeGiConstructor (the overridden `constructor`
+// vfunc) calls this with the instance's canonical handle + its GType name. We set
+// `adoptHandle` and Reflect.construct the class: its `super()` reaches the makeClass
+// base ctor, which adopts the handle (no second GObject) and returns the canonical
+// wrapper, so the ctor body runs against it (`this._x = …` become expandos on the
+// one wrapper GtkBuilder-fetched children later resolve to). GJS-faithful
+// (gjs_object_constructor's native-construction branch runs the JS constructor).
+function runCtorForCObject(handle, gtypeName) {
+  const cls = classesByGType.get(gtypeName);
+  if (cls === undefined) return; // not a node-gi-registered class (shouldn't happen)
+  const prev = adoptHandle;
+  adoptHandle = handle;
+  try {
+    // No props: GtkBuilder already applied the construct properties to the C object;
+    // the ctor's `params` arg is conventionally optional for a template child.
+    Reflect.construct(cls, []);
+  } finally {
+    adoptHandle = prev;
+  }
+}
+native.setConstructCallback(runCtorForCObject);
+
 // Wrap a non-GObject GObject-fundamental (e.g. a GskRenderNode from
 // Gtk.Snapshot.to_node, a GdkEvent) as an OPAQUE, round-trippable handle. The
 // native tagged External already carries the raw pointer (its Data) + drops the
@@ -835,6 +860,18 @@ function handlerIdsForFunc(handle, fn) {
 // routing keys on the leaf so construction is correct at any depth.
 const registeredClasses = new Map();
 
+// GTypeName → registered JS class, the reverse of registeredClasses. The engine's
+// NodeGiConstructor hands runCtorForCObject (below) the C-created instance's GType
+// NAME (g_type_name), which this resolves back to the class to Reflect.construct.
+const classesByGType = new Map();
+
+// When set (by runCtorForCObject), the makeClass base ctor ADOPTS this pre-existing
+// canonical handle instead of constructing a second GObject — so a C/GtkBuilder-
+// created instance's user ctor body runs on the wrapper the engine already built.
+// A module-scoped latch is safe: it is set immediately before a synchronous
+// Reflect.construct and consumed by the base ctor before any nested construction.
+let adoptHandle;
+
 // Surface a templated type's bound children on a freshly-constructed instance
 // (GJS convention: public `this.<name>`, internal `this._<name>`, '-' → '_'). The
 // engine already ran init_template during constructType, so getTemplateChild
@@ -850,6 +887,34 @@ function assignTemplateChildren(instance, handle, reg) {
     for (const childName of reg.internalChildren) {
       instance[`_${childName.replace(/-/g, '_')}`] = wrapReturn(native.getTemplateChild(handle, childName));
     }
+  }
+}
+
+// Push construct-time GObject-property values through the class's own JS SETTERS.
+//
+// A class can declare a GObject property (`Properties: { displayWidth: ParamSpec }`,
+// often CONSTRUCT with a default) AND a matching JS accessor
+// (`get/set displayWidth` over a `_displayWidth` backing field). On GJS the property
+// set vfunc delegates to the JS setter (`JS_SetProperty`), so the CONSTRUCT default
+// reaches `_displayWidth` at construction. node-gi builds the wrapper AFTER
+// g_object_new, so at construct time there is no USER_PROTO to route through — the
+// value lands only in the engine's per-instance store, and the class's getter
+// (reading `_displayWidth`) sees `undefined` (the Learn6502 Display "DrawingArea is
+// required" wall). Once USER_PROTO is attached (here, right after construction), read
+// each such property's construct value back out (from the store, or the ParamSpec
+// default) and run it through the JS setter — the node-gi analogue of GJS applying a
+// CONSTRUCT property via the JS setter, and BEFORE the user ctor body runs (same
+// order as GJS). Only properties whose name resolves to a prototype SETTER are
+// touched, so a plain GObject property (no JS accessor) keeps the store as its single
+// backing store — unchanged.
+function flushConstructProperties(instance, handle, reg) {
+  if (reg.constructPropertyNames === undefined) return;
+  const up = instance[USER_PROTO];
+  if (up === undefined) return;
+  for (const name of reg.constructPropertyNames) {
+    const desc = findProtoDescriptor(up, name);
+    if (desc === undefined || typeof desc.set !== 'function') continue;
+    desc.set.call(instance, wrapReturn(native.getProperty(handle, name)));
   }
 }
 
@@ -1295,9 +1360,22 @@ function makeClass(namespace, typeName) {
     if (nt !== undefined && nt !== proxy) {
       const reg = registeredClasses.get(nt);
       if (reg !== undefined) {
-        const handle = native.constructType(reg.typeHandle, props ? unwrapProps(props) : {});
+        let handle;
+        if (adoptHandle !== undefined) {
+          // C-created adoption (runCtorForCObject): the engine already built the
+          // GObject; use its canonical handle instead of constructing another.
+          // Consume the latch atomically so a nested `new` in the ctor body takes
+          // the normal constructType path.
+          handle = adoptHandle;
+          adoptHandle = undefined;
+        } else {
+          handle = native.constructType(reg.typeHandle, props ? unwrapProps(props) : {});
+        }
         const instance = wrapInstance(handle, nt.prototype);
         assignTemplateChildren(instance, handle, reg);
+        // Route construct-time property values through the class's JS setters now
+        // that USER_PROTO is attached — before the user ctor body runs (GJS order).
+        flushConstructProperties(instance, handle, reg);
         return instance;
       }
       // `nt` is a subclass of this introspected GObject class but was NEVER passed to
@@ -1958,11 +2036,28 @@ function registerClass(metaOrClass, maybeClass) {
   // Record the registration so the introspected base ctor (makeClass) routes
   // `new X(args)` (where new.target === klass) to constructType(typeHandle, …) +
   // the canonical wrapper. Template children move here from the old Subclass.
+  // The names of CONSTRUCT / CONSTRUCT_ONLY properties — the ONLY ones GObject
+  // applies at construction. The flush (flushConstructProperties) must be limited to
+  // these: a plain READWRITE property is NOT set during construction, so running its
+  // JS setter early (GObject never would) fires the setter's side effects against
+  // still-uninitialised instance state (the SourceView `selectable` → `_signalHandlers`
+  // forEach crash). Matches GJS, which only runs setters for props GObject applies at
+  // construct. Flags are the ABI-stable G_PARAM_CONSTRUCT (1<<2) | CONSTRUCT_ONLY (1<<3).
+  const PARAM_CONSTRUCT_MASK = 0x4 | 0x8;
+  const constructPropertyNames = properties
+    .filter((p) => typeof p.flags === 'number' && (p.flags & PARAM_CONSTRUCT_MASK) !== 0)
+    .map((p) => p.name)
+    .filter((n) => typeof n === 'string');
   registeredClasses.set(klass, {
     typeHandle,
     children: children.length > 0 ? children : undefined,
     internalChildren: internalChildren.length > 0 ? internalChildren : undefined,
+    // CONSTRUCT-property names, for the construct-property flush (below).
+    constructPropertyNames: constructPropertyNames.length > 0 ? constructPropertyNames : undefined,
   });
+  // Reverse index for runCtorForCObject: the engine identifies a C-created instance
+  // by its GType name (= gtypeName, what native.registerClass registered).
+  classesByGType.set(gtypeName, klass);
   return klass;
 }
 

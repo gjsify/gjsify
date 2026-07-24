@@ -82,6 +82,13 @@ struct NodeGiEnvData {
   // (napi_make_callback already runs the checkpoint there). Per-env for the same
   // reason as errorBuilder (a napi_ref is env-specific).
   napi_ref microtaskDrain = nullptr;
+  // L1 callback that runs a registered class's JS constructor body on a
+  // pre-existing canonical wrapper — invoked by NodeGiConstructor for a GObject
+  // instantiated from C (a GtkBuilder composite-template InternalChild), whose JS
+  // ctor the node-gi JS-`new` path never reaches. (handle, gtypeName) →
+  // Reflect.construct(class) in adopt mode (see gi.js runCtorForCObject). Per-env
+  // for the same reason as errorBuilder (a napi_ref is env-specific).
+  napi_ref constructCallback = nullptr;
 };
 
 void NodeGiEnvDataFinalize(napi_env env, void* data, void* hint);
@@ -457,6 +464,11 @@ struct NodeGiClassData {
   // for the class lifetime (process-permanent, like cd itself); its JS env qdata is
   // refreshed per construction so create_closure resolves handlers in the live env.
   GObject* templateScope = nullptr;
+  // The napi_env this class was registered on. NodeGiConstructor (the overridden
+  // GObjectClass `constructor` vfunc) has no user_data slot, so it reads the env to
+  // call into JS from cd — correct even across worker envs (each registers its own
+  // class, so the leaf's cd carries the right env).
+  napi_env env = nullptr;
 
   // The cold `delete cd` failure paths (a bad GParamSpec, or g_type_register_static
   // returning 0) must not leak the owned inline-template GBytes. A destructor frees
@@ -487,6 +499,14 @@ void MaybeInitTemplate(Napi::Env env, GObject* obj);
 // reuses), but NodeGiClassInit installs the scope and MaybeInitTemplate refreshes
 // its env, both above that point.
 void NodeGiInstallTemplateScopeOnClass(NodeGiClassData* cd, gpointer g_class);
+
+// A thread-local latch the node-gi JS-`new` path (ConstructGObject) raises around
+// g_object_new_with_properties. NodeGiConstructor (the overridden GObjectClass
+// `constructor` vfunc) reads it to tell a JS-driven construction — where the
+// makeClass super-substitution runs the user ctor — apart from a C/GtkBuilder-driven
+// one, where NodeGiConstructor must run the user ctor itself (see class.cc / gi.js).
+bool NodeGiJsConstructing();
+void NodeGiSetJsConstructing(bool v);
 
 // ---- N-API entry points (registered in addon.cc's Init) ----
 
@@ -546,6 +566,7 @@ Napi::Value RegisterClass(const Napi::CallbackInfo& info);
 Napi::Value RegisterClassFromGType(const Napi::CallbackInfo& info);
 Napi::Value ConstructType(const Napi::CallbackInfo& info);
 Napi::Value CallParentVfunc(const Napi::CallbackInfo& info);
+Napi::Value SetConstructCallback(const Napi::CallbackInfo& info);
 
 // template.cc
 Napi::Value GetTemplateChild(const Napi::CallbackInfo& info);

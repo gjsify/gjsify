@@ -120,6 +120,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("disconnectSignal", Napi::Function::New(env, DisconnectSignal));
   exports.Set("setTemplateCallbackResolver",
               Napi::Function::New(env, SetTemplateCallbackResolver));
+  exports.Set("setConstructCallback", Napi::Function::New(env, SetConstructCallback));
   // GjsPrivate-mirroring helpers (private.cc): the structured-log writer func +
   // the bind_property_full / BindingGroup.bind_full transform trampolines.
   exports.Set("logSetWriterFunc", Napi::Function::New(env, LogSetWriterFunc));
