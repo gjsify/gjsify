@@ -962,8 +962,8 @@ jobs:
       HOMEBREW_NO_AUTO_UPDATE: '1'
       HOMEBREW_NO_INSTALL_CLEANUP: '1'
     steps:
-      - name: Install GTK4 + Adwaita + GtkSource + GObject-Introspection (build-time closure source)
-        run: brew install gtk4 libadwaita gtksourceview5 gobject-introspection cairo pango gdk-pixbuf graphene pkg-config
+      - name: Install GTK4 + Adwaita + GtkSource + icons + GObject-Introspection (build-time closure source)
+        run: brew install gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config
 
       - name: Use Node.js 24
         uses: actions/setup-node@v4
@@ -998,6 +998,11 @@ jobs:
           echo "--- assert libgtksourceview dylib + GtkSource-5 typelib are bundled ---"
           ls packages/node-gi/gtk-runtime-darwin-arm64/gtk/lib | grep -i gtksourceview || { echo "libgtksourceview MISSING from the windowing bundle"; exit 1; }
           ls packages/node-gi/gtk-runtime-darwin-arm64/gtk/girepository-1.0 | grep -i 'GtkSource-5.typelib' || { echo "GtkSource-5.typelib MISSING from the windowing bundle"; exit 1; }
+          echo "--- assert WINDOWING DATA: compiled GSettings schemas (Gio.Settings) + GtkSource language-specs ---"
+          B=packages/node-gi/gtk-runtime-darwin-arm64/gtk
+          test -f "$B/share/glib-2.0/schemas/gschemas.compiled" || { echo "gschemas.compiled MISSING — Gio.Settings would fail on macOS"; exit 1; }
+          test -d "$B/share/gtksourceview-5/language-specs" || { echo "GtkSource-5 language-specs MISSING from the windowing bundle"; exit 1; }
+          echo "--- icon themes present (Adwaita/hicolor) ---"; ls "$B/share/icons" 2>/dev/null || echo "(no icon themes — symbolic icons may be blank)"
           echo "--- assert NO /opt/homebrew refs remain ---"
           if otool -L packages/node-gi/gtk-runtime-darwin-arm64/gtk/lib/*.dylib | grep -F /opt/homebrew; then
             echo "RELOCATION FAILED: bundled dylibs still reference /opt/homebrew"; exit 1
