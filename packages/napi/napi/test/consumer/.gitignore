@@ -1,0 +1,6 @@
+# Vendored better-sqlite3 (multi-MB sources + compiled .node) — never committed.
+# Fetched at gate time via `npm i --prefix . better-sqlite3` + node-gyp rebuild.
+node_modules/
+package.json
+package-lock.json
+.gjsifyrc.mjs
