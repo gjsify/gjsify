@@ -204,6 +204,37 @@ describe('--app node gi:// → node-gi bundle E2E', { timeout: 10 * 60 * 1000 },
             timeout: 30 * 1000,
         });
     });
+
+    it('lowers modern CSS (nesting) to GTK 4 subset for a node-gi build', () => {
+        // A node-gi build (the reverse bridge runs REAL GTK on Node) must FLATTEN
+        // authored CSS nesting so Gtk.CssProvider.load_from_string accepts it — GTK 4's
+        // CSS parser rejects nested rules. The lowering (lightningcss firefox60) is
+        // gated on nodeGiGlobalsInject, so the entry references a GJS ambient global
+        // (`print`) to mark it a node-gi build.
+        writeFileSync(
+            join(projectDir, 'src', 'style.css'),
+            '.card {\n  color: black;\n  &:hover { color: red; }\n  &.active { color: blue; }\n}\n',
+        );
+        writeFileSync(
+            join(projectDir, 'src', 'styled.ts'),
+            ["import css from './style.css';", 'print(css);', ''].join('\n'),
+        );
+
+        execFileSync('npx', ['gjsify', 'build', 'src/styled.ts', '--app', 'node', '--outfile', 'dist/styled.mjs'], {
+            cwd: projectDir,
+            stdio: 'pipe',
+            timeout: 90 * 1000,
+        });
+
+        const content = readFileSync(join(projectDir, 'dist', 'styled.mjs'), 'utf-8');
+        // Nesting flattened: nested selectors hoisted, the `&` combinator gone.
+        assert.ok(content.includes('.card:hover'), 'nested &:hover was not flattened to .card:hover');
+        assert.ok(content.includes('.card.active'), 'nested &.active was not flattened to .card.active');
+        assert.ok(
+            !content.includes('&:hover') && !content.includes('&.active'),
+            `raw CSS nesting (&) must not survive for a node-gi build\nContext: ${snippet(content, '&')}`,
+        );
+    });
 });
 
 /**
