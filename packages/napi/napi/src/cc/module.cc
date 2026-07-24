@@ -389,6 +389,21 @@ napi_status NAPI_CDECL napi_get_version(node_api_basic_env basic_env,
     return gjsify_napi::clear_last_error(env);
 }
 
+// node_api.cc's napi_get_node_version returns a pointer to a static
+// napi_node_version filled from the NODE_*_VERSION macros. We report the Node
+// release line the shim targets (node 24, the tested runtime; see AGENTS.md
+// "node v24"). The struct is static/process-lifetime — the contract is that
+// the returned pointer stays valid (node_api.cc:731-742).
+napi_status NAPI_CDECL napi_get_node_version(node_api_basic_env basic_env,
+                                             const napi_node_version** result) {
+    napi_env env = const_cast<napi_env>(basic_env);
+    GJSIFY_NAPI_CHECK_ENV(env);
+    GJSIFY_NAPI_CHECK_ARG(env, result);
+    static const napi_node_version version = {24, 0, 0, "node"};
+    *result = &version;
+    return gjsify_napi::clear_last_error(env);
+}
+
 NAPI_NO_RETURN void NAPI_CDECL napi_fatal_error(const char* location,
                                                 size_t location_len,
                                                 const char* message,

@@ -10,7 +10,7 @@
 // undefined symbols always bind at dlopen (RTLD_NOW) — reaching past the
 // implemented surface fails loud with napi_generic_failure + last_error
 // (plan section 2 posture), never with an unresolved-symbol load failure and
-// never with a crash. 28 stubs.
+// never with a crash. 27 stubs.
 
 #include "common.h"
 
@@ -133,11 +133,6 @@ napi_status NAPI_CDECL napi_queue_async_work(node_api_basic_env env, napi_async_
 
 napi_status NAPI_CDECL napi_cancel_async_work(node_api_basic_env env, napi_async_work work) {
     (void)work;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_get_node_version(node_api_basic_env env, const napi_node_version** version) {
-    (void)version;
     GJSIFY_NAPI_STUB(env);
 }
 
